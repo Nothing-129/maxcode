@@ -36,13 +36,13 @@ pub use message::{
 };
 pub use quick_message::QuickMessageInfo;
 pub use remote_workspace_connection::RemoteWorkspaceConnectionInfo;
-#[cfg(feature = "tauri-runtime")]
-pub use system::{SystemAutostartSettings, SystemRenderingSettings};
 pub use system::{
     AvailableTerminalShells, GitCredentials, GitDetectResult, GitHubAccount,
     GitHubAccountsSettings, GitHubTokenValidation, GitSettings, SystemLanguageSettings,
     SystemProxySettings, SystemTerminalSettings, TerminalShellOption,
 };
+#[cfg(feature = "tauri-runtime")]
+pub use system::{SystemAutostartSettings, SystemRenderingSettings};
 pub use token_usage::{
     TokenUsageBreakdownItem, TokenUsageBucket, TokenUsageConversationItem, TokenUsageFacets,
     TokenUsageFilter, TokenUsageFolderFacet, TokenUsageHeatCell, TokenUsagePoint, TokenUsageReport,
@@ -53,5 +53,5 @@ pub use work_task::{
     FollowUpIntent, WorkTaskChangedFile, WorkTaskConfig, WorkTaskDraft, WorkTaskEventInfo,
     WorkTaskFolderSettings, WorkTaskInfo, WorkTaskMergeOp, WorkTaskMergeState, WorkTaskPreflight,
     WorkTaskQueuedMerge, WorkTaskSource, WorkTaskStatus, WorkTaskTemplateDraft,
-    WorkTaskTemplateInfo, STAGE_PROMPT_ALL,
+    WorkTaskTemplateInfo, DELIVERABLE_REPORT, STAGE_PROMPT_ALL,
 };

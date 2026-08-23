@@ -26,6 +26,7 @@ it("caches the display-safe fields but not agent configuration or secrets", () =
       skills_capable: true,
       registry_id: "codex-acp",
       registry_version: null,
+      supports_custom_version: true,
       name: "Codex",
       description: "",
       available: true,
@@ -61,6 +62,7 @@ it("caches the display-safe fields but not agent configuration or secrets", () =
     {
       agent_type: "codex",
       host_tools_agent_mode: false,
+      supports_custom_version: true,
       env: {},
       config_json: null,
       codex_auth_json: null,
@@ -69,7 +71,7 @@ it("caches the display-safe fields but not agent configuration or secrets", () =
   ])
 })
 
-it("defaults missing host_tools_agent_mode on older cache entries", () => {
+it("defaults missing capability flags on older cache entries", () => {
   storage.set(
     STORAGE_KEY,
     JSON.stringify([
@@ -94,6 +96,10 @@ it("defaults missing host_tools_agent_mode on older cache entries", () => {
   )
 
   expect(loadEnabledAcpAgentsCache()).toMatchObject([
-    { agent_type: "codex", host_tools_agent_mode: false },
+    {
+      agent_type: "codex",
+      host_tools_agent_mode: false,
+      supports_custom_version: false,
+    },
   ])
 })

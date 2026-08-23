@@ -519,9 +519,7 @@ pub async fn create_from_forge(
     // FIRST statement: the write. See the doc comment — this is load-bearing.
     let row = insert_todo_row(&txn, &draft, config_str, max_order, now, Some(&source)).await?;
     if !force {
-        if let Some(existing) =
-            other_active_with_same_source(&txn, row.id, &source.key).await?
-        {
+        if let Some(existing) = other_active_with_same_source(&txn, row.id, &source.key).await? {
             txn.rollback().await?;
             return Ok(ForgeCreateOutcome::Duplicate(to_info(existing)));
         }
@@ -696,7 +694,26 @@ pub async fn update(
             "a forge-sourced task cannot move to another folder; trigger it again from the issue instead".into(),
         ));
     }
-    let config_str = serde_json::to_string(&draft.config)
+    // `deliverable` is trigger-owned (a forge scenario stamps it; no editor
+    // shows or edits it), and the dialog rebuilds the config from its own
+    // fields — so an ABSENT key on an edit means "the client never knew",
+    // not "clear it". Dropping it would silently restore the write licence
+    // on a report task's next launch. Preserved at the JSON level: passing
+    // the value through `WorkTaskConfig` here would strip every field this
+    // build does not know about. An explicit `"deliverable": null` still
+    // clears (that is a statement, not ignorance).
+    let mut config = draft.config;
+    if config.get("deliverable").is_none() {
+        if let (Some(obj), Ok(stored)) = (
+            config.as_object_mut(),
+            serde_json::from_str::<serde_json::Value>(&row.config),
+        ) {
+            if let Some(deliverable) = stored.get("deliverable") {
+                obj.insert("deliverable".to_string(), deliverable.clone());
+            }
+        }
+    }
+    let config_str = serde_json::to_string(&config)
         .map_err(|e| DbError::Validation(format!("config not serializable: {e}")))?;
     let mut active = row.into_active_model();
     active.folder_id = Set(draft.folder_id);
@@ -871,8 +888,7 @@ async fn claim_inner(
     // active task already handles the same work item ("trigger a replacement,
     // then requeue the old card" would end with two live tasks on one issue).
     // The user can waive it explicitly per claim.
-    if matches!(from, WorkTaskStatus::Failed | WorkTaskStatus::Canceled)
-        && !allow_duplicate_source
+    if matches!(from, WorkTaskStatus::Failed | WorkTaskStatus::Canceled) && !allow_duplicate_source
     {
         if let Some(key) = claimed.source_key.as_deref() {
             if let Some(other) = other_active_with_same_source(&txn, id, key).await? {
@@ -1480,6 +1496,27 @@ pub async fn fail(
     .await?;
     txn.commit().await?;
     Ok(true)
+}
+
+/// Cancel the active generation when its agent reports a cancelled turn.
+///
+/// Unlike [`cancel`], this is an engine-owned transition: a delayed event must
+/// not overwrite a generation that has already settled for review (or a newer
+/// generation of the same task).
+pub async fn cancel_running_generation(
+    conn: &DatabaseConnection,
+    id: i32,
+    run_seq: i32,
+) -> Result<bool, DbError> {
+    cancel_inner(
+        conn,
+        id,
+        &[WorkTaskStatus::Running, WorkTaskStatus::AwaitingInput],
+        Some(run_seq),
+        "engine",
+        None,
+    )
+    .await
 }
 
 /// running/awaiting_input → review for the given generation. Captures the
@@ -2290,9 +2327,40 @@ pub async fn cancel(
     id: i32,
     reason: Option<&str>,
 ) -> Result<bool, DbError> {
+    cancel_inner(
+        conn,
+        id,
+        &[
+            WorkTaskStatus::Todo,
+            WorkTaskStatus::Queued,
+            WorkTaskStatus::Preparing,
+            WorkTaskStatus::Running,
+            WorkTaskStatus::AwaitingInput,
+            WorkTaskStatus::Review,
+            WorkTaskStatus::Failed,
+        ],
+        None,
+        "user",
+        reason,
+    )
+    .await
+}
+
+/// The single conditional UPDATE behind both cancels: `expected` (and, for an
+/// engine-owned transition, `run_seq`) is the CAS; `actor` / `reason` is the
+/// audit trail. One write, so the columns a cancel has to clear can never drift
+/// between the user's stop button and the engine's own.
+async fn cancel_inner(
+    conn: &DatabaseConnection,
+    id: i32,
+    expected: &[WorkTaskStatus],
+    run_seq: Option<i32>,
+    actor: &str,
+    reason: Option<&str>,
+) -> Result<bool, DbError> {
     let now = Utc::now();
     let txn = conn.begin().await?;
-    let res = work_task::Entity::update_many()
+    let mut update = work_task::Entity::update_many()
         .col_expr(
             work_task::Column::Status,
             Expr::value(status_str(WorkTaskStatus::Canceled)),
@@ -2303,7 +2371,9 @@ pub async fn cancel(
         .col_expr(work_task::Column::PendingMerge, Expr::value(None::<String>))
         // Same reasoning for a planned start: stopping a task drops its plan,
         // so a requeue days later cannot resurrect a time nobody remembers
-        // setting and launch an agent unattended.
+        // setting and launch an agent unattended. (A running row carries no
+        // plan — every claim consumes it — so this only bites the user path,
+        // but the clear belongs to "canceled", not to one caller.)
         .col_expr(
             work_task::Column::ScheduledAt,
             Expr::value(None::<chrono::DateTime<Utc>>),
@@ -2311,18 +2381,12 @@ pub async fn cancel(
         .col_expr(work_task::Column::FinishedAt, Expr::value(Some(now)))
         .col_expr(work_task::Column::UpdatedAt, Expr::value(now))
         .filter(work_task::Column::Id.eq(id))
-        .filter(work_task::Column::Status.is_in([
-            WorkTaskStatus::Todo,
-            WorkTaskStatus::Queued,
-            WorkTaskStatus::Preparing,
-            WorkTaskStatus::Running,
-            WorkTaskStatus::AwaitingInput,
-            WorkTaskStatus::Review,
-            WorkTaskStatus::Failed,
-        ]))
-        .filter(work_task::Column::DeletedAt.is_null())
-        .exec(&txn)
-        .await?;
+        .filter(work_task::Column::Status.is_in(expected.iter().copied()))
+        .filter(work_task::Column::DeletedAt.is_null());
+    if let Some(run_seq) = run_seq {
+        update = update.filter(work_task::Column::RunSeq.eq(run_seq));
+    }
+    let res = update.exec(&txn).await?;
     if res.rows_affected != 1 {
         txn.rollback().await?;
         return Ok(false);
@@ -2331,7 +2395,7 @@ pub async fn cancel(
         .map(str::trim)
         .filter(|r| !r.is_empty())
         .map(|r| serde_json::json!({ "reason": r }));
-    status_changed_event(&txn, id, "user", None, WorkTaskStatus::Canceled, extra).await?;
+    status_changed_event(&txn, id, actor, None, WorkTaskStatus::Canceled, extra).await?;
     txn.commit().await?;
     Ok(true)
 }
@@ -2665,8 +2729,8 @@ pub async fn template_delete(conn: &DatabaseConnection, id: i32) -> Result<(), D
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::WorkTaskMergeOp;
     use crate::db::test_helpers::{fresh_in_memory_db, seed_folder};
+    use crate::models::WorkTaskMergeOp;
 
     fn draft(folder_id: i32, title: &str) -> WorkTaskDraft {
         WorkTaskDraft {
@@ -2970,7 +3034,9 @@ mod tests {
             .await
             .unwrap());
         assert!(cancel(&db.conn, t.id, None).await.unwrap());
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
         assert_eq!(
             get_model(&db.conn, t.id).await.unwrap().verdict.as_deref(),
             Some("blocked"),
@@ -2986,9 +3052,19 @@ mod tests {
                 .unwrap()
         );
         assert!(cancel(&db.conn, t.id, None).await.unwrap());
-        assert!(get_model(&db.conn, t.id).await.unwrap().scheduled_at.is_none());
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
-        assert!(get_model(&db.conn, t.id).await.unwrap().scheduled_at.is_none());
+        assert!(get_model(&db.conn, t.id)
+            .await
+            .unwrap()
+            .scheduled_at
+            .is_none());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
+        assert!(get_model(&db.conn, t.id)
+            .await
+            .unwrap()
+            .scheduled_at
+            .is_none());
 
         // A due plan claims the task and clears the stale verdict with it.
         assert!(
@@ -3004,7 +3080,9 @@ mod tests {
 
         // The auto-process arm holds the same invariant.
         assert!(cancel(&db.conn, t.id, None).await.unwrap());
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
         let seq = claim_for_run(&db.conn, t.id, WorkTaskStatus::Todo, "user")
             .await
             .unwrap()
@@ -3014,7 +3092,9 @@ mod tests {
             .await
             .unwrap());
         assert!(cancel(&db.conn, t.id, None).await.unwrap());
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
         assert_eq!(
             auto_claim_next(&db.conn, folder_id, 0).await.unwrap(),
             Some(t.id)
@@ -3160,7 +3240,9 @@ mod tests {
         );
 
         // Requeue resurrects it; the next claim bumps the generation.
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
         let seq2 = claim_for_run(&db.conn, t.id, WorkTaskStatus::Todo, "user")
             .await
             .unwrap()
@@ -3260,7 +3342,9 @@ mod tests {
         // A second landing (event vs recovery race) is a no-op.
         assert!(!merge_landed(&db.conn, t.id, "zzz").await.unwrap());
         // And nothing can pull a done task back to review.
-        assert!(!merge_back_to_review(&db.conn, t.id, None, None, None).await.unwrap());
+        assert!(!merge_back_to_review(&db.conn, t.id, None, None, None)
+            .await
+            .unwrap());
 
         let got = get(&db.conn, t.id).await.unwrap();
         assert_eq!(got.status, WorkTaskStatus::Done);
@@ -3295,7 +3379,11 @@ mod tests {
             .unwrap();
         assert!(merge_landed(&db.conn, landed.0, "def456").await.unwrap());
         assert_eq!(
-            get(&db.conn, landed.0).await.unwrap().completion_kind.as_deref(),
+            get(&db.conn, landed.0)
+                .await
+                .unwrap()
+                .completion_kind
+                .as_deref(),
             Some(COMPLETION_MERGED)
         );
 
@@ -3304,7 +3392,11 @@ mod tests {
             .await
             .unwrap());
         assert_eq!(
-            get(&db.conn, accepted.0).await.unwrap().completion_kind.as_deref(),
+            get(&db.conn, accepted.0)
+                .await
+                .unwrap()
+                .completion_kind
+                .as_deref(),
             Some(COMPLETION_ACCEPTED_WITHOUT_MERGE)
         );
     }
@@ -3331,7 +3423,10 @@ mod tests {
         assert_eq!(deliver_seq, seq + 1, "a delivery is its own generation");
         let row = get_model(&db.conn, id).await.unwrap();
         assert_eq!(row.status, WorkTaskStatus::Merging);
-        assert!(row.connection_id.is_none(), "recovery must not see a live session");
+        assert!(
+            row.connection_id.is_none(),
+            "recovery must not see a live session"
+        );
         assert_eq!(
             row.verdict.as_deref(),
             Some("success"),
@@ -3340,39 +3435,49 @@ mod tests {
         // Cancel is refused while merging — a delivery inherits that.
         assert!(!cancel(&db.conn, id, None).await.unwrap());
         // Double begin loses: the row is no longer in review.
-        assert!(begin_delivery(&db.conn, id, &state, seq).await.unwrap().is_none());
+        assert!(begin_delivery(&db.conn, id, &state, seq)
+            .await
+            .unwrap()
+            .is_none());
 
         let meta = r#"{"provider":"github","result_pr":"https://x/pull/9"}"#;
         // A settle bound to the WRONG generation must miss, or a recovery pass
         // racing a live delivery could settle a run that already moved on.
-        assert!(!complete_delivered(&db.conn, id, seq, "https://x/pull/9", meta)
-            .await
-            .unwrap());
-        assert!(complete_delivered(&db.conn, id, deliver_seq, "https://x/pull/9", meta)
-            .await
-            .unwrap());
+        assert!(
+            !complete_delivered(&db.conn, id, seq, "https://x/pull/9", meta)
+                .await
+                .unwrap()
+        );
+        assert!(
+            complete_delivered(&db.conn, id, deliver_seq, "https://x/pull/9", meta)
+                .await
+                .unwrap()
+        );
 
         let done = get_model(&db.conn, id).await.unwrap();
         assert_eq!(done.status, WorkTaskStatus::Done);
-        assert_eq!(done.completion_kind.as_deref(), Some(COMPLETION_DELIVERED_PR));
+        assert_eq!(
+            done.completion_kind.as_deref(),
+            Some(COMPLETION_DELIVERED_PR)
+        );
         assert_eq!(done.source_meta.as_deref(), Some(meta));
         assert!(done.merge_state.is_none(), "the intent is spent");
         assert!(done.finished_at.is_some());
         // A second settle (event vs recovery race) is a no-op, and nothing
         // pulls a delivered task back to review.
-        assert!(!complete_delivered(&db.conn, id, deliver_seq, "https://x/pull/9", meta)
+        assert!(
+            !complete_delivered(&db.conn, id, deliver_seq, "https://x/pull/9", meta)
+                .await
+                .unwrap()
+        );
+        assert!(!merge_back_to_review(&db.conn, id, None, None, None)
             .await
             .unwrap());
-        assert!(!merge_back_to_review(&db.conn, id, None, None, None).await.unwrap());
     }
 
     /// Run a fresh task all the way to `review` — the state every acceptance
     /// path starts from.
-    async fn reviewed(
-        db: &crate::db::AppDatabase,
-        folder_id: i32,
-        title: &str,
-    ) -> (i32, i32) {
+    async fn reviewed(db: &crate::db::AppDatabase, folder_id: i32, title: &str) -> (i32, i32) {
         let t = create(&db.conn, draft(folder_id, title)).await.unwrap();
         let seq = claim_for_run(&db.conn, t.id, WorkTaskStatus::Todo, "user")
             .await
@@ -3385,7 +3490,9 @@ mod tests {
         assert!(set_verdict(&db.conn, t.id, seq, "success", Some("done"))
             .await
             .unwrap());
-        assert!(settle_review(&db.conn, t.id, seq, None, None).await.unwrap());
+        assert!(settle_review(&db.conn, t.id, seq, None, None)
+            .await
+            .unwrap());
         (t.id, seq)
     }
 
@@ -3414,7 +3521,11 @@ mod tests {
             .await
             .unwrap()
             .is_some());
-        assert!(merge_back_to_review(&db.conn, t.id, None, Some("conflict".into()),
+        assert!(merge_back_to_review(
+            &db.conn,
+            t.id,
+            None,
+            Some("conflict".into()),
             Some(vec!["a.rs".into()])
         )
         .await
@@ -3479,7 +3590,9 @@ mod tests {
         assert!(get(&db.conn, t.id).await.unwrap().last_error.is_none());
 
         // Back in clean review for the unattended path proper.
-        assert!(merge_back_to_review(&db.conn, t.id, None, None, None).await.unwrap());
+        assert!(merge_back_to_review(&db.conn, t.id, None, None, None)
+            .await
+            .unwrap());
         assert!(begin_merge(&db.conn, t.id, &state, seq + 1, true, None)
             .await
             .unwrap()
@@ -3995,9 +4108,11 @@ mod tests {
             .await
             .unwrap()
             .is_some());
-        assert!(merge_back_to_review(&db.conn, t.id, None, Some("nope".into()), None)
-            .await
-            .unwrap());
+        assert!(
+            merge_back_to_review(&db.conn, t.id, None, Some("nope".into()), None)
+                .await
+                .unwrap()
+        );
         assert_eq!(
             get(&db.conn, t.id).await.unwrap().last_error.as_deref(),
             Some("nope")
@@ -4357,7 +4472,9 @@ mod tests {
         // …and so does requeueing an archived canceled task.
         assert!(cancel(&db.conn, t.id, None).await.unwrap());
         assert!(set_archived(&db.conn, t.id, true).await.unwrap());
-        assert!(requeue_canceled(&db.conn, t.id, None, &[], false).await.unwrap());
+        assert!(requeue_canceled(&db.conn, t.id, None, &[], false)
+            .await
+            .unwrap());
         let row = get(&db.conn, t.id).await.unwrap();
         assert_eq!(row.status, WorkTaskStatus::Todo);
         assert!(row.archived_at.is_none());
@@ -4424,21 +4541,27 @@ mod tests {
         let folder_id = seed_folder(&db, "/tmp/wt-forge").await;
         let key = "github:github.com:acme/app:issue:123";
 
-        let plain = create(&db.conn, draft(folder_id, "manual card")).await.unwrap();
+        let plain = create(&db.conn, draft(folder_id, "manual card"))
+            .await
+            .unwrap();
         assert_eq!(plain.source_kind, None);
         assert_eq!(plain.source_key, None);
 
-        let first = match create_from_forge(&db.conn, draft(folder_id, "#123 · fix"), source(key), false)
-            .await
-            .unwrap()
-        {
-            ForgeCreateOutcome::Created(t) => t,
-            other => panic!("expected Created, got {other:?}"),
-        };
+        let first =
+            match create_from_forge(&db.conn, draft(folder_id, "#123 · fix"), source(key), false)
+                .await
+                .unwrap()
+            {
+                ForgeCreateOutcome::Created(t) => t,
+                other => panic!("expected Created, got {other:?}"),
+            };
         assert_eq!(first.source_kind.as_deref(), Some("forge_issue"));
         assert_eq!(first.source_key.as_deref(), Some(key));
         assert_eq!(
-            first.source_meta.as_ref().and_then(|m| m["number"].as_i64()),
+            first
+                .source_meta
+                .as_ref()
+                .and_then(|m| m["number"].as_i64()),
             Some(123)
         );
         // The provenance audit event landed in the create transaction.
@@ -4446,21 +4569,27 @@ mod tests {
         assert!(events.iter().any(|e| e.kind == "forge_linked"));
 
         // Second trigger answers with the live task instead of a twin…
-        match create_from_forge(&db.conn, draft(folder_id, "#123 · again"), source(key), false)
-            .await
-            .unwrap()
+        match create_from_forge(
+            &db.conn,
+            draft(folder_id, "#123 · again"),
+            source(key),
+            false,
+        )
+        .await
+        .unwrap()
         {
             ForgeCreateOutcome::Duplicate(existing) => assert_eq!(existing.id, first.id),
             other => panic!("expected Duplicate, got {other:?}"),
         }
         // …unless the user explicitly forces a second one.
-        let forced = match create_from_forge(&db.conn, draft(folder_id, "#123 · fork"), source(key), true)
-            .await
-            .unwrap()
-        {
-            ForgeCreateOutcome::Created(t) => t,
-            other => panic!("expected forced Created, got {other:?}"),
-        };
+        let forced =
+            match create_from_forge(&db.conn, draft(folder_id, "#123 · fork"), source(key), true)
+                .await
+                .unwrap()
+            {
+                ForgeCreateOutcome::Created(t) => t,
+                other => panic!("expected forced Created, got {other:?}"),
+            };
         assert_ne!(forced.id, first.id);
 
         // The resurrection guard sees the OTHER live task for the same key.
@@ -4470,10 +4599,14 @@ mod tests {
             .expect("first task is still active");
         assert_eq!(other.id, first.id);
         // …and nothing for a key with a single live task.
-        assert!(other_active_with_same_source(&db.conn, first.id, "github:github.com:acme/app:issue:999")
-            .await
-            .unwrap()
-            .is_none());
+        assert!(other_active_with_same_source(
+            &db.conn,
+            first.id,
+            "github:github.com:acme/app:issue:999"
+        )
+        .await
+        .unwrap()
+        .is_none());
     }
 
     /// A finished task is history, not a blocker: dedup only counts the
@@ -4537,12 +4670,53 @@ mod tests {
 
         // A pristine PLAIN todo may still move (existing behaviour)…
         let plain = create(&db.conn, draft(folder_id, "movable")).await.unwrap();
-        assert!(update(&db.conn, plain.id, draft(other_folder, "movable")).await.is_ok());
+        assert!(update(&db.conn, plain.id, draft(other_folder, "movable"))
+            .await
+            .is_ok());
         // …but a forge todo may not.
         let err = update(&db.conn, t.id, draft(other_folder, "#55 · moved"))
             .await
             .expect_err("forge task folder move must be rejected");
         assert!(err.to_string().contains("forge-sourced"), "got: {err}");
+    }
+
+    /// `deliverable` is trigger-owned and no editor shows it, so an edit whose
+    /// config OMITS the key must keep the stored value — dropping it would
+    /// silently hand a report task the write licence back. An explicit null is
+    /// a statement, not ignorance, and still clears it.
+    #[tokio::test]
+    async fn update_preserves_the_stored_deliverable_unless_explicitly_cleared() {
+        let db = fresh_in_memory_db().await;
+        let folder_id = seed_folder(&db, "/tmp/wt-deliv").await;
+
+        let mut with_report = draft(folder_id, "investigate #9");
+        with_report.config["deliverable"] = serde_json::json!("report");
+        let t = create(&db.conn, with_report).await.unwrap();
+
+        // The dialog rebuilds the config from its own fields and never knew
+        // the key: the stored marker survives the round trip, alongside the
+        // fields the client DID send.
+        let edited = update(&db.conn, t.id, draft(folder_id, "investigate #9 · renamed"))
+            .await
+            .unwrap();
+        assert_eq!(edited.config["deliverable"], serde_json::json!("report"));
+        assert_eq!(
+            edited.config["display_text"],
+            serde_json::json!("do the thing")
+        );
+
+        // An explicit null clears — the escape hatch stays open.
+        let mut clearing = draft(folder_id, "investigate #9 · cleared");
+        clearing.config["deliverable"] = serde_json::Value::Null;
+        let cleared = update(&db.conn, t.id, clearing).await.unwrap();
+        assert_eq!(cleared.config["deliverable"], serde_json::Value::Null);
+
+        // And a task that never had one gains nothing.
+        let plain = create(&db.conn, draft(folder_id, "plain")).await.unwrap();
+        let edited = update(&db.conn, plain.id, draft(folder_id, "plain · renamed"))
+            .await
+            .unwrap();
+        assert!(edited.config.get("deliverable").is_none());
     }
 
     /// The write-first transaction shape under real concurrency: a file-backed
@@ -4630,7 +4804,10 @@ mod tests {
         )
         .await
         .expect_err("retry must hit the resurrection guard");
-        assert!(err.to_string().contains("duplicate_active_source"), "got: {err}");
+        assert!(
+            err.to_string().contains("duplicate_active_source"),
+            "got: {err}"
+        );
         assert_eq!(
             get(&db.conn, old.id).await.unwrap().status,
             WorkTaskStatus::Failed,
@@ -4653,13 +4830,18 @@ mod tests {
         let err = requeue_canceled(&db.conn, old.id, None, &[], false)
             .await
             .expect_err("requeue must hit the resurrection guard");
-        assert!(err.to_string().contains("duplicate_active_source"), "got: {err}");
+        assert!(
+            err.to_string().contains("duplicate_active_source"),
+            "got: {err}"
+        );
         assert_eq!(
             get(&db.conn, old.id).await.unwrap().status,
             WorkTaskStatus::Canceled,
             "the refused requeue must roll back"
         );
-        assert!(requeue_canceled(&db.conn, old.id, None, &[], true).await.unwrap());
+        assert!(requeue_canceled(&db.conn, old.id, None, &[], true)
+            .await
+            .unwrap());
         assert_eq!(
             get(&db.conn, old.id).await.unwrap().status,
             WorkTaskStatus::Todo

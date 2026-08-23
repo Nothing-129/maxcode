@@ -9,6 +9,7 @@ pub mod deliver;
 pub mod envelope;
 pub mod github;
 pub mod gitlab;
+pub mod settings;
 
 use std::sync::RwLock;
 
@@ -154,7 +155,10 @@ pub enum ForgeError {
     /// pinned-id miss, a missing keyring token or a rejected token stay
     /// [`ForgeError::Auth`]: adding another account fixes none of them.
     #[error("no {} account for host {host}", provider.display_name())]
-    NoAccount { provider: ForgeProvider, host: String },
+    NoAccount {
+        provider: ForgeProvider,
+        host: String,
+    },
     /// Primary or secondary rate limit; honor `retry_after` when present.
     #[error("forge rate limited")]
     RateLimited { retry_after: Option<u64> },
@@ -173,17 +177,16 @@ impl From<ForgeError> for crate::app_error::AppCommandError {
     fn from(err: ForgeError) -> Self {
         use crate::app_error::AppCommandError as E;
         match &err {
-            ForgeError::Auth(msg) => E::configuration_invalid(
-                "the account for this repository's host is not usable",
-            )
-            .with_detail(msg.clone()),
+            ForgeError::Auth(msg) => {
+                E::configuration_invalid("the account for this repository's host is not usable")
+                    .with_detail(msg.clone())
+            }
             ForgeError::NoAccount { provider, host } => {
                 let params = std::collections::BTreeMap::from([
                     ("host".to_string(), host.clone()),
                     ("provider".to_string(), provider.display_name().to_string()),
                 ]);
-                E::configuration_missing(err.to_string())
-                    .with_i18n(NO_ACCOUNT_I18N_KEY, params)
+                E::configuration_missing(err.to_string()).with_i18n(NO_ACCOUNT_I18N_KEY, params)
             }
             ForgeError::RateLimited { retry_after } => E::network("forge rate limit reached")
                 .with_detail(match retry_after {
@@ -230,12 +233,16 @@ pub fn source_key(
     }
     let host = server_host.trim().to_ascii_lowercase();
     if host.is_empty() || host.contains('/') || host.contains(':') {
-        return Err(ForgeError::Invalid(format!("bad server host: {server_host}")));
+        return Err(ForgeError::Invalid(format!(
+            "bad server host: {server_host}"
+        )));
     }
     let repo = normalize_repo(owner_repo)
         .ok_or_else(|| ForgeError::Invalid(format!("bad repository path: {owner_repo}")))?;
     if number <= 0 {
-        return Err(ForgeError::Invalid(format!("bad work item number: {number}")));
+        return Err(ForgeError::Invalid(format!(
+            "bad work item number: {number}"
+        )));
     }
     Ok(format!("{provider}:{host}:{repo}:{kind}:{number}"))
 }
@@ -290,7 +297,11 @@ pub fn parse_remote_url(url: &str) -> Option<(String, String)> {
     // scp-like SSH: git@host:owner/repo(.git) — no scheme, single colon.
     if !trimmed.contains("://") {
         if let Some((user_host, path)) = trimmed.split_once(':') {
-            let host = user_host.split('@').next_back()?.trim().to_ascii_lowercase();
+            let host = user_host
+                .split('@')
+                .next_back()?
+                .trim()
+                .to_ascii_lowercase();
             if host.is_empty() || host.contains('/') {
                 return None;
             }
@@ -343,6 +354,17 @@ pub struct ForgeSourceMeta {
     pub head_repo: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub result_pr: Option<String>,
+    /// Whether this task comments its outcome back on the item when it
+    /// finishes — the answer the user gave in the trigger dialog, frozen here.
+    /// It lives on the task rather than in folder settings because it is a
+    /// decision about THIS work item, taken while looking at it: a switch
+    /// somewhere else would publish to a thread other people are reading on
+    /// behalf of a task whose author never saw the question.
+    ///
+    /// Absent on rows minted before the choice moved here; those stay silent,
+    /// which is the posture the old folder setting shipped with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub writeback: Option<bool>,
 }
 
 /// List rows carry the body for the trigger snapshot; cap it so a megabyte
@@ -767,7 +789,10 @@ pub fn web_origin(auth: &ResolvedAuth) -> String {
     if base == "https://api.github.com" {
         return "https://github.com".to_string();
     }
-    match base.strip_suffix("/api/v3").or_else(|| base.strip_suffix("/api/v4")) {
+    match base
+        .strip_suffix("/api/v3")
+        .or_else(|| base.strip_suffix("/api/v4"))
+    {
         Some(origin) => origin.to_string(),
         None => format!("https://{}", auth.server_host),
     }
@@ -879,7 +904,10 @@ mod tests {
         // of them, so the UI must not offer it.
         let dead_token: crate::app_error::AppCommandError =
             ForgeError::Auth("no stored token for account acc-1".into()).into();
-        assert!(serde_json::to_value(&dead_token).unwrap().get("i18n_key").is_none());
+        assert!(serde_json::to_value(&dead_token)
+            .unwrap()
+            .get("i18n_key")
+            .is_none());
     }
 
     #[test]
@@ -922,18 +950,36 @@ mod tests {
     #[test]
     fn remote_url_parsing_covers_all_three_shapes() {
         let cases = [
-            ("https://github.com/Acme/App.git", ("github.com", "acme/app")),
-            ("https://ghe.corp.com/team/tool", ("ghe.corp.com", "team/tool")),
+            (
+                "https://github.com/Acme/App.git",
+                ("github.com", "acme/app"),
+            ),
+            (
+                "https://ghe.corp.com/team/tool",
+                ("ghe.corp.com", "team/tool"),
+            ),
             ("git@github.com:Acme/App.git", ("github.com", "acme/app")),
-            ("ssh://git@ghe.corp.com:2222/team/tool.git", ("ghe.corp.com", "team/tool")),
-            ("ssh://git@gitlab.corp.com/group/sub/proj.git", ("gitlab.corp.com", "group/sub/proj")),
+            (
+                "ssh://git@ghe.corp.com:2222/team/tool.git",
+                ("ghe.corp.com", "team/tool"),
+            ),
+            (
+                "ssh://git@gitlab.corp.com/group/sub/proj.git",
+                ("gitlab.corp.com", "group/sub/proj"),
+            ),
             ("http://user@ghe.corp.com/a/b", ("ghe.corp.com", "a/b")),
         ];
         for (input, (host, repo)) in cases {
             let (h, r) = parse_remote_url(input).unwrap_or_else(|| panic!("parse {input}"));
             assert_eq!((h.as_str(), r.as_str()), (host, repo), "{input}");
         }
-        for bad in ["", "not-a-url", "https://", "/local/path/repo", "file:///x/y"] {
+        for bad in [
+            "",
+            "not-a-url",
+            "https://",
+            "/local/path/repo",
+            "file:///x/y",
+        ] {
             assert!(parse_remote_url(bad).is_none(), "{bad} must not parse");
         }
     }
@@ -943,8 +989,14 @@ mod tests {
     /// wrong API with the wrong credentials.
     #[test]
     fn provider_parsing_refuses_what_it_does_not_know() {
-        assert_eq!(ForgeProvider::parse("GitHub").unwrap(), ForgeProvider::GitHub);
-        assert_eq!(ForgeProvider::parse(" gitlab ").unwrap(), ForgeProvider::GitLab);
+        assert_eq!(
+            ForgeProvider::parse("GitHub").unwrap(),
+            ForgeProvider::GitHub
+        );
+        assert_eq!(
+            ForgeProvider::parse(" gitlab ").unwrap(),
+            ForgeProvider::GitLab
+        );
         assert!(ForgeProvider::parse("bitbucket").is_err());
         assert!(ForgeProvider::parse("").is_err());
         // The wire form round-trips through the stored source_meta JSON.
@@ -970,11 +1022,21 @@ mod tests {
             "https://github.com/acme/app/issues/7"
         );
         assert_eq!(
-            gl.item_url("https://gitlab.com", "group/sub/proj", ForgeItemKind::Change, 7),
+            gl.item_url(
+                "https://gitlab.com",
+                "group/sub/proj",
+                ForgeItemKind::Change,
+                7
+            ),
             "https://gitlab.com/group/sub/proj/-/merge_requests/7"
         );
         assert_eq!(
-            gl.item_url("https://gitlab.com", "group/sub/proj", ForgeItemKind::Issue, 7),
+            gl.item_url(
+                "https://gitlab.com",
+                "group/sub/proj",
+                ForgeItemKind::Issue,
+                7
+            ),
             "https://gitlab.com/group/sub/proj/-/issues/7"
         );
         assert_eq!(gh.change_head_ref(7), "refs/pull/7/head");
@@ -983,7 +1045,12 @@ mod tests {
         assert_eq!(gl.change_head_ref(7), "refs/merge-requests/7/head");
         // A self-hosted instance keeps its scheme and port in the link.
         assert_eq!(
-            gl.item_url("http://gitlab.corp.com:8929/", "a/b", ForgeItemKind::Issue, 7),
+            gl.item_url(
+                "http://gitlab.corp.com:8929/",
+                "a/b",
+                ForgeItemKind::Issue,
+                7
+            ),
             "http://gitlab.corp.com:8929/a/b/-/issues/7"
         );
         assert_eq!(gh.change_noun(), "pull request");
@@ -1070,12 +1137,22 @@ mod tests {
             },
         );
         assert_eq!(built.owner_repo, "acme/app");
-        assert_eq!(built.labels, vec!["bug", "docs"], "trimmed and de-duplicated");
+        assert_eq!(
+            built.labels,
+            vec!["bug", "docs"],
+            "trimmed and de-duplicated"
+        );
         assert_eq!(built.search.as_deref(), Some("login timeout"));
         // Whitespace-only is no filter at all, not a search for nothing.
-        assert!(ListIssuesRequest::new("a/b".into(), ListFilters { search: Some("  ".into()), ..filters() })
-            .search
-            .is_none());
+        assert!(ListIssuesRequest::new(
+            "a/b".into(),
+            ListFilters {
+                search: Some("  ".into()),
+                ..filters()
+            }
+        )
+        .search
+        .is_none());
     }
 
     /// Both caps are real API limits, not taste: GitHub rejects a `q` over 256
@@ -1089,7 +1166,9 @@ mod tests {
         assert_eq!(normalize_search(Some("\t\n ")), None);
         assert_eq!(normalize_search(None), None);
 
-        let many: Vec<String> = (0..MAX_LABEL_FILTERS + 5).map(|i| format!("l{i}")).collect();
+        let many: Vec<String> = (0..MAX_LABEL_FILTERS + 5)
+            .map(|i| format!("l{i}"))
+            .collect();
         assert_eq!(normalize_labels(many).len(), MAX_LABEL_FILTERS);
         // Case-sensitive de-dup: GitHub treats `Bug` and `bug` as two labels.
         assert_eq!(
@@ -1106,14 +1185,22 @@ mod tests {
     #[test]
     fn label_colours_are_normalized_and_non_hex_is_refused() {
         for (raw, want) in [
-            ("d73a4a", "#d73a4a"),   // GitHub
-            ("#d9534f", "#d9534f"),  // GitLab
+            ("d73a4a", "#d73a4a"),     // GitHub
+            ("#d9534f", "#d9534f"),    // GitLab
             ("  #D73A4A ", "#d73a4a"), // padded and upper-cased
-            ("#0f0", "#00ff00"),     // the three-digit shorthand
+            ("#0f0", "#00ff00"),       // the three-digit shorthand
         ] {
             assert_eq!(normalize_hex_color(raw).as_deref(), Some(want), "{raw}");
         }
-        for raw in ["", "#", "rebeccapurple", "#12345", "#1234567", "#12345g", "var(--x)"] {
+        for raw in [
+            "",
+            "#",
+            "rebeccapurple",
+            "#12345",
+            "#1234567",
+            "#12345g",
+            "var(--x)",
+        ] {
             assert_eq!(normalize_hex_color(raw), None, "{raw}");
         }
 
@@ -1122,7 +1209,10 @@ mod tests {
         // nothing to show and nothing to filter by.
         assert_eq!(
             ForgeLabel::parse("bug".into(), Some("red")),
-            Some(ForgeLabel { name: "bug".into(), color: None })
+            Some(ForgeLabel {
+                name: "bug".into(),
+                color: None
+            })
         );
         assert_eq!(ForgeLabel::parse(String::new(), Some("#fff")), None);
     }
@@ -1189,7 +1279,11 @@ mod tests {
             (ForgeSort::RecentlyUpdated, "updated", "desc"),
             (ForgeSort::LeastRecentlyUpdated, "updated", "asc"),
         ] {
-            assert_eq!((sort.field(), sort.direction()), (field, direction), "{sort:?}");
+            assert_eq!(
+                (sort.field(), sort.direction()),
+                (field, direction),
+                "{sort:?}"
+            );
             assert_eq!(sort.ascending(), direction == "asc");
         }
         // The wire spelling the frontend sends.

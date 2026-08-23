@@ -69,8 +69,7 @@ mod tauri_app {
         custom_skills as custom_skills_commands, delegation as delegation_commands,
         experts as experts_commands, feedback as feedback_commands, file_io, folder_commands,
         folder_links, folders, forge as forge_commands, logging as logging_commands,
-        mcp as mcp_commands,
-        model_provider as model_provider_commands, notification,
+        mcp as mcp_commands, model_provider as model_provider_commands, notification,
         office_tools as office_tools_commands, pet as pet_commands, project_boot,
         question as question_commands, quick_messages as quick_messages_commands,
         remote_proxy as remote_proxy_commands, remote_workspace as remote_workspace_commands,
@@ -500,6 +499,19 @@ mod tauri_app {
                             tracing::info!("[folders] labeled {n} worktree folder(s) by branch");
                         }
                     });
+                }
+
+                // Hand the chat-channel manager to the connection manager
+                // BEFORE the chat background tasks below start accepting
+                // messages: a `/new` that lands first would write its live ACP
+                // title against an `install_chat_channel` that hasn't happened
+                // yet, and skip the topic rename for good (the later
+                // reconciliation passes only sync titles their own conditional
+                // UPDATE wrote, and this one already converged).
+                {
+                    let cm = app.state::<ConnectionManager>();
+                    let ccm = app.state::<ChatChannelManager>();
+                    cm.install_chat_channel(ccm.clone_ref());
                 }
 
                 // Start chat channel background tasks
@@ -1265,6 +1277,7 @@ mod tauri_app {
                 acp_commands::acp_update_pi_config,
                 acp_commands::acp_load_pi_config,
                 acp_commands::acp_validate_pi_command,
+                acp_commands::acp_sync_antigravity_settings,
                 acp_commands::acp_pi_project_trust_state,
                 acp_commands::acp_pi_set_project_trust,
                 acp_commands::acp_pi_acknowledge_project_trust,
@@ -1394,6 +1407,8 @@ mod tauri_app {
                 forge_commands::forge_list_labels,
                 forge_commands::work_task_create_from_forge,
                 forge_commands::work_task_lookup_by_source,
+                forge_commands::forge_settings_get,
+                forge_commands::forge_settings_set,
                 terminal_commands::terminal_spawn,
                 terminal_commands::terminal_write,
                 terminal_commands::terminal_resize,

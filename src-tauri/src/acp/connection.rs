@@ -100,14 +100,15 @@ fn merge_agent_env(
 /// Gated on the explicit `CURSOR_AUTH_MODE` knob (written by the Cursor panel),
 /// so legacy rows and operator-provided container env are left untouched. In
 /// custom mode the credentials are present and non-empty, so nothing is cleared.
-fn apply_cursor_env_policy(merged: &mut Vec<(String, String)>, runtime_env: &BTreeMap<String, String>) {
+fn apply_cursor_env_policy(
+    merged: &mut Vec<(String, String)>,
+    runtime_env: &BTreeMap<String, String>,
+) {
     if runtime_env.get("CURSOR_AUTH_MODE").map(String::as_str) != Some("subscription") {
         return;
     }
     for key in ["CURSOR_API_KEY", "CURSOR_API_BASE_URL"] {
-        let already_set = merged
-            .iter()
-            .any(|(k, v)| k == key && !v.trim().is_empty());
+        let already_set = merged.iter().any(|(k, v)| k == key && !v.trim().is_empty());
         if !already_set {
             merged.retain(|(k, _)| k != key);
             merged.push((key.to_string(), String::new()));
@@ -124,18 +125,550 @@ fn apply_cursor_env_policy(merged: &mut Vec<(String, String)>, runtime_env: &BTr
 /// sacp-tokio) to `env_remove` the inherited var. In api_key mode the key is
 /// present and non-empty, so nothing is cleared; legacy/no-mode rows are left
 /// untouched.
-fn apply_grok_env_policy(merged: &mut Vec<(String, String)>, runtime_env: &BTreeMap<String, String>) {
+fn apply_grok_env_policy(
+    merged: &mut Vec<(String, String)>,
+    runtime_env: &BTreeMap<String, String>,
+) {
     if runtime_env.get("GROK_AUTH_MODE").map(String::as_str) != Some("subscription") {
         return;
     }
     let key = "XAI_API_KEY";
-    let already_set = merged
-        .iter()
-        .any(|(k, v)| k == key && !v.trim().is_empty());
+    let already_set = merged.iter().any(|(k, v)| k == key && !v.trim().is_empty());
     if !already_set {
         merged.retain(|(k, _)| k != key);
         merged.push((key.to_string(), String::new()));
     }
+}
+
+/// codeg-side knob recording which Antigravity auth method the settings panel
+/// chose. It is NOT read by the agent — the server takes its auth intent from
+/// `auth.type` in `antigravity-acp/settings.json` — so the launch path uses it
+/// twice: to decide which credential env vars may reach the process
+/// ([`apply_antigravity_env_policy`]) and to write that file
+/// ([`sync_antigravity_settings_file`]).
+const ANTIGRAVITY_AUTH_METHOD_ENV: &str = "AGY_AUTH_METHOD";
+
+/// The four `auth.type` values Antigravity's ACP server accepts, canonical
+/// spellings only. `vertex-ai` is the pre-rebrand alias for `agent-platform`;
+/// the server still accepts it, but codeg never writes it.
+const ANTIGRAVITY_AUTH_METHODS: &[&str] = &[
+    "oauth-personal",
+    "oauth-business",
+    "gemini-api-key",
+    "agent-platform",
+];
+
+/// Credential env vars the Antigravity server reads, grouped by the auth method
+/// that actually uses them. Anything outside the selected method's group is
+/// cleared at launch so a value inherited from the developer's shell cannot
+/// silently take over.
+const ANTIGRAVITY_CREDENTIAL_ENV_VARS: &[&str] = &[
+    "GEMINI_API_KEY",
+    "GOOGLE_API_KEY",
+    "GOOGLE_CLOUD_PROJECT",
+    "GOOGLE_CLOUD_LOCATION",
+];
+
+/// Which of [`ANTIGRAVITY_CREDENTIAL_ENV_VARS`] the given method consumes.
+fn antigravity_env_vars_for_method(method: &str) -> &'static [&'static str] {
+    match method {
+        // `auth.type = gemini-api-key` reads the key from GEMINI_API_KEY and
+        // nothing else (the server's own auth_required message says so).
+        "gemini-api-key" => &["GEMINI_API_KEY"],
+        // Agent Platform (formerly Vertex AI) takes GOOGLE_API_KEY, or a
+        // project + location from the GOOGLE_CLOUD_* pair (with the
+        // settings.json `gcp` block as a per-value fallback behind them).
+        "agent-platform" => &[
+            "GOOGLE_API_KEY",
+            "GOOGLE_CLOUD_PROJECT",
+            "GOOGLE_CLOUD_LOCATION",
+        ],
+        // Both OAuth paths authenticate through the browser; Gemini Enterprise
+        // additionally reads gcp.project/location from settings.json ONLY,
+        // never from the environment.
+        _ => &[],
+    }
+}
+
+/// Antigravity's launch credential policy, in the spirit of
+/// [`apply_cursor_env_policy`] but strictly stronger.
+///
+/// Once the panel has recorded a method, the panel OWNS all four credential
+/// vars: a value survives into the child only if the chosen method reads it AND
+/// the panel actually stored one. Everything else is cleared — an empty value
+/// tells the spawn layer (vendored sacp-tokio) to `env_remove` the inherited
+/// one.
+///
+/// UNCONDITIONALLY, unlike Cursor's version, which skips a key the caller's own
+/// `runtime_env` already set to a non-empty value. That guard makes sense when
+/// the credential and the mode are independent; here they are not. A
+/// `GEMINI_API_KEY` sitting in `merged` on an `oauth-personal` session can only
+/// come from a stale panel row (the user switched away from API-key auth) or a
+/// shell/container export — and in both cases honoring it authenticates as
+/// something other than what the user picked, silently. Keeping it would also
+/// disagree with the `auth.type` this same launch writes to settings.json.
+///
+/// The non-empty half is what makes "reads it" insufficient on its own, and it
+/// is not hypothetical — it is the Agent Platform panel's central choice. That
+/// method takes EITHER a `GOOGLE_API_KEY` or a project + location, and the
+/// server suppresses the pair whenever the key is set (its `_vertex_config`
+/// logs "project and location suppressed by the key"); the panel encodes that
+/// by hiding the project/location fields while a key is typed and DELETING
+/// `GOOGLE_API_KEY` from the stored row when it is not. Leaving the key merely
+/// "allowed" therefore let an inherited one — a dev shell, a CI container —
+/// override the project the user explicitly filled in, sending the session to
+/// another account and another billing target with nothing on screen to say so.
+/// The same reasoning covers an inherited `GOOGLE_CLOUD_PROJECT`, which would
+/// otherwise outrank the `gcp` block in the settings file codeg just wrote.
+///
+/// The cost is that a credential supplied ONLY by the surrounding environment
+/// stops working once a method is recorded — but the panel already warns about
+/// exactly that state (`missingGeminiApiKey`, `missingAgentPlatformConfig`), so
+/// this makes the launch agree with what the user was told rather than quietly
+/// contradict it.
+///
+/// Legacy rows with no recorded method — and any unrecognized value — are left
+/// completely untouched, so an operator-provisioned container env that never
+/// went through the panel keeps working.
+fn apply_antigravity_env_policy(
+    merged: &mut Vec<(String, String)>,
+    runtime_env: &BTreeMap<String, String>,
+) {
+    let Some(method) = runtime_env
+        .get(ANTIGRAVITY_AUTH_METHOD_ENV)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|method| ANTIGRAVITY_AUTH_METHODS.contains(method))
+    else {
+        return;
+    };
+    let keep = antigravity_env_vars_for_method(method);
+    for key in ANTIGRAVITY_CREDENTIAL_ENV_VARS {
+        let kept =
+            keep.contains(key) && merged.iter().any(|(k, v)| k == key && !v.trim().is_empty());
+        if kept {
+            continue;
+        }
+        merged.retain(|(k, _)| k != key);
+        merged.push(((*key).to_string(), String::new()));
+    }
+}
+
+/// Project the panel's Antigravity auth choice into
+/// `<GEMINI_HOME>/antigravity-acp/settings.json`, the ONLY place the server
+/// looks for it.
+///
+/// This is load-bearing, not a convenience: `session/new` fails outright with
+/// `-32000 Authentication required` when that file declares no `auth.type`
+/// (environment-based selection was removed upstream), and codeg does not
+/// implement the ACP `authenticate` request that would otherwise set it. With
+/// the file in place the server runs its own browser OAuth loopback flow inside
+/// `session/new`, so writing it is what makes the agent usable at all.
+///
+/// Deliberately a READ-MODIFY-WRITE merge of only three keys. The file is the
+/// user's (the server parses it as Hjson and documents it as user-provided), so
+/// unknown keys and any hand-written `gcp` block survive a codeg write.
+///
+/// FAILS CLOSED, exactly like the server's own `settings_writer`: "a file that
+/// cannot be parsed is left alone, since rewriting it would delete content we
+/// could not read." A missing file means "create"; a read error, a parse error
+/// or a non-object root all mean "give up". The one place codeg is stricter is
+/// the dialect — the server parses Hjson (comments, trailing commas) and codeg
+/// only strict JSON, so a hand-commented file lands in the give-up branch
+/// rather than being flattened. The warning names the file so the user can set
+/// `auth.type` there themselves; the panel shows that same path.
+///
+/// Every failure is a warning, never a spawn failure: an `auth.type` already in
+/// the file (written by hand, by an earlier launch, or by the server's own auth
+/// picker) may well still be valid.
+///
+/// It RETURNS what happened rather than only logging it, because a silent skip
+/// here is indistinguishable from success at the only moment the user is
+/// looking. The settings panel saves the env row and says "saved" — but the row
+/// is not what authenticates the agent, this file is, and when the file cannot
+/// be rewritten the two disagree from that moment on. Switching methods is the
+/// sharp edge: the launch scrubs the credential vars for the NEW method
+/// ([`apply_antigravity_env_policy`]) while the server keeps reading the OLD
+/// `auth.type`, so the next session fails with no credential for the method it
+/// thinks it is using. The panel calls this on save and reports the answer.
+fn sync_antigravity_settings_file(runtime_env: &BTreeMap<String, String>) -> AntigravitySyncReport {
+    let recorded = runtime_env
+        .get(ANTIGRAVITY_AUTH_METHOD_ENV)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|method| ANTIGRAVITY_AUTH_METHODS.contains(method));
+
+    let acp_dir = match antigravity_acp_dir_for_env(runtime_env) {
+        Ok(dir) => dir,
+        Err(reason) => {
+            tracing::warn!("[ACP][Antigravity] not editing settings.json: {reason}.");
+            return AntigravitySyncReport::skipped(Path::new("<unknown>"), reason);
+        }
+    };
+    let path = acp_dir.join("settings.json");
+
+    let existing = match read_antigravity_settings(&path) {
+        Ok(existing) => existing,
+        Err(reason) => {
+            tracing::warn!(
+                "[ACP][Antigravity] not editing {}: {reason}. \
+                 Set `auth.type` in it yourself, or move it aside.",
+                path.display()
+            );
+            return AntigravitySyncReport::skipped(&path, reason);
+        }
+    };
+
+    // Fall back to the method the settings panel DISPLAYS as selected, but only
+    // when the file names none: the agent cannot start a single session without
+    // an `auth.type`, and erroring out on a user who never opened the panel
+    // would be a dead end. `oauth-personal` is the free-tier default and merely
+    // makes the server open a browser — itself a consent step — so it is safe
+    // to imply. An `auth.type` already in the file is NEVER overridden by it.
+    let existing_auth_type = existing
+        .as_ref()
+        .and_then(|root| root.get("auth"))
+        .and_then(|auth| auth.get("type"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty());
+    let method = match (recorded, existing_auth_type) {
+        (Some(method), _) => method,
+        (None, Some(_)) => return AntigravitySyncReport::current(&path),
+        (None, None) => "oauth-personal",
+    };
+
+    // Gemini Enterprise reads project/location from this file ONLY (never the
+    // environment), so the panel's values ride along for that path — including
+    // their ABSENCE, for the methods the panel owns them for.
+    let gcp_project = antigravity_gcp_field(runtime_env, recorded, "GOOGLE_CLOUD_PROJECT");
+    let gcp_location = antigravity_gcp_field(runtime_env, recorded, "GOOGLE_CLOUD_LOCATION");
+
+    let updated = match merge_antigravity_settings(existing, method, gcp_project, gcp_location) {
+        Ok(Some(updated)) => updated,
+        // Already says exactly this; skip the write so a running server's file
+        // is not needlessly rewritten.
+        Ok(None) => return AntigravitySyncReport::current(&path),
+        Err(reason) => {
+            tracing::warn!(
+                "[ACP][Antigravity] not editing {}: {reason}. \
+                 Set `auth.type` in it yourself, or move it aside.",
+                path.display()
+            );
+            return AntigravitySyncReport::skipped(&path, reason);
+        }
+    };
+
+    match write_antigravity_settings(&acp_dir, &path, &updated) {
+        Ok(()) => {
+            tracing::info!(
+                "[ACP][Antigravity] auth.type={method} recorded in {}",
+                path.display()
+            );
+            AntigravitySyncReport::written(&path)
+        }
+        Err(err) => {
+            tracing::warn!("[ACP][Antigravity] cannot write {}: {err}", path.display());
+            AntigravitySyncReport::skipped(&path, format!("codeg could not write it ({err})"))
+        }
+    }
+}
+
+/// `<GEMINI_HOME>/antigravity-acp` for a launch carrying `runtime_env`.
+///
+/// Resolved through the agent's OWN rules ([`crate::parsers::antigravity`]), not
+/// a local `PathBuf::from`, because `GEMINI_HOME` is one of the variables whose
+/// upstream runs `os.path.expanduser`. Building the path by hand made
+/// `GEMINI_HOME=~/somewhere` mean two different directories: the server read
+/// `$HOME/somewhere`, while codeg created a folder literally named `~` under
+/// whatever directory it happened to be launched from — and wrote the
+/// `auth.type` there, so `session/new` still failed with `Authentication
+/// required` no matter how many times the panel was saved.
+///
+/// `runtime_env` alone is enough even though the launch also merges registry,
+/// proxy and PATH entries on top: none of them sets `GEMINI_HOME`
+/// (Antigravity's registry entry declares `env: &[]`), and `merge_agent_env`
+/// gives `runtime_env` the highest precedence regardless. Taking one map rather
+/// than the merged pair is what lets the settings panel call this before any
+/// launch has been composed.
+///
+/// `Err` when the directory cannot be named at all — which happens exactly when
+/// the answer depends on the child's home and that home is unknowable (the
+/// launch removes `HOME`, or sets it to a relative path). Writing anyway would
+/// mean guessing, and a guess here creates a stray tree AND leaves the real
+/// `auth.type` unwritten, so the sync reports the skip instead.
+fn antigravity_acp_dir_for_env(runtime_env: &BTreeMap<String, String>) -> Result<PathBuf, String> {
+    // NOT trimmed: the spawn layer's "is this var removed" test is an exact
+    // empty-string check (`vendor/sacp-tokio/src/acp_agent.rs`), so a
+    // whitespace-only value reaches the child verbatim and trimming here would
+    // name a directory it never opens.
+    let configured = runtime_env.get("GEMINI_HOME").filter(|v| !v.is_empty());
+
+    // The CHILD's home, not codeg's. `merge_agent_env` copies `HOME` into the
+    // child like any other variable, so a launch that relocates it moves both
+    // the `~/.gemini` default and any `~` in `GEMINI_HOME` with it — and the
+    // server, running `os.path.expanduser` in that environment, resolves them
+    // there. Only a value that is already absolute is independent of it.
+    let needs_home = configured
+        .is_none_or(|value| value == "~" || value.starts_with("~/") || value.starts_with("~\\"));
+    let home = crate::acp::file_system_runtime::child_home_dir(runtime_env);
+    if needs_home && home.is_none() {
+        return Err(
+            "codeg cannot tell which home directory the agent will use (this launch removes \
+             HOME, or points it somewhere relative), so it cannot tell where the file is"
+                .to_string(),
+        );
+    }
+
+    Ok(crate::parsers::antigravity::resolve_gemini_home_from_value(
+        configured.map(std::ffi::OsString::from),
+        home,
+    )
+    .join(ANTIGRAVITY_ACP_SUBDIR))
+}
+
+/// `<GEMINI_HOME>/antigravity-acp`, the ACP server's private subtree.
+const ANTIGRAVITY_ACP_SUBDIR: &str = "antigravity-acp";
+
+/// What the panel is saying about one `gcp` field.
+///
+/// The distinction the two-state `Option` could not carry: "the panel does not
+/// manage this field" and "the panel manages it and the user cleared it" both
+/// arrived as `None`, and the merge treated both as leave-alone. So clearing
+/// the project and location in the panel and saving left the values already on
+/// disk in force forever — for `oauth-business` they are the ONLY place the
+/// project comes from, so the session kept authenticating against a project the
+/// UI no longer showed anywhere.
+///
+/// Ownership follows the recorded METHOD, not the value: `oauth-business` and
+/// `agent-platform` are the two the panel renders the project/location inputs
+/// for, so for those an empty value is a deletion. For every other method — and
+/// for a legacy row with no recorded method at all — the panel never showed the
+/// fields, so whatever is in the file was hand-written and is left untouched.
+enum GcpField<'a> {
+    /// Not the panel's to touch.
+    Keep,
+    Set(&'a str),
+    /// The panel owns it and it is empty: remove the key.
+    Clear,
+}
+
+fn antigravity_gcp_field<'a>(
+    runtime_env: &'a BTreeMap<String, String>,
+    recorded_method: Option<&str>,
+    key: &str,
+) -> GcpField<'a> {
+    let value = runtime_env
+        .get(key)
+        .map(String::as_str)
+        .map(str::trim)
+        .filter(|v| !v.is_empty());
+    match value {
+        Some(value) => GcpField::Set(value),
+        None if matches!(recorded_method, Some("oauth-business" | "agent-platform")) => {
+            GcpField::Clear
+        }
+        None => GcpField::Keep,
+    }
+}
+
+/// The outcome of one [`sync_antigravity_settings_file`] pass, for the panel.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AntigravitySyncReport {
+    /// The file this was about, shown alongside the reason so the user can go
+    /// and set `auth.type` by hand.
+    pub path: String,
+    pub status: AntigravitySyncStatus,
+    /// Present only for `skipped`, in the words the log uses.
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AntigravitySyncStatus {
+    /// The file now declares the chosen method.
+    Written,
+    /// It already did; nothing to write.
+    AlreadyCurrent,
+    /// Left untouched. The agent's auth is NOT what the panel shows.
+    Skipped,
+}
+
+impl AntigravitySyncReport {
+    fn written(path: &Path) -> Self {
+        Self {
+            path: path.display().to_string(),
+            status: AntigravitySyncStatus::Written,
+            reason: None,
+        }
+    }
+
+    fn current(path: &Path) -> Self {
+        Self {
+            path: path.display().to_string(),
+            status: AntigravitySyncStatus::AlreadyCurrent,
+            reason: None,
+        }
+    }
+
+    fn skipped(path: &Path, reason: impl Into<String>) -> Self {
+        Self {
+            path: path.display().to_string(),
+            status: AntigravitySyncStatus::Skipped,
+            reason: Some(reason.into()),
+        }
+    }
+}
+
+/// Run the settings-file sync for an agent's STORED environment.
+///
+/// The panel's half of the launch-time call: same function, same rules, run at
+/// save time so the answer can be shown while the user is still looking at the
+/// form they just submitted.
+pub fn sync_antigravity_settings_for_env(
+    runtime_env: &BTreeMap<String, String>,
+) -> AntigravitySyncReport {
+    sync_antigravity_settings_file(runtime_env)
+}
+
+/// Read `settings.json` for editing.
+///
+/// `Ok(None)` means "no file, safe to create". `Err` means "do not touch it" —
+/// unreadable, not JSON codeg can parse, or not a JSON object.
+fn read_antigravity_settings(path: &Path) -> Result<Option<serde_json::Value>, String> {
+    let raw = match std::fs::read_to_string(path) {
+        Ok(raw) => raw,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(err) => return Err(format!("could not read it ({err})")),
+    };
+    let parsed: serde_json::Value = serde_json::from_str(&raw).map_err(|err| {
+        format!("it is not strict JSON codeg can rewrite without losing content ({err})")
+    })?;
+    if !parsed.is_object() {
+        return Err("it does not hold a JSON object".to_string());
+    }
+    Ok(Some(parsed))
+}
+
+/// Serialize over `path` through a temp file in the same directory, mirroring
+/// the server's own writer: symlinks are resolved first (dotfile managers like
+/// Stow and chezmoi symlink settings.json, and replacing the link with a
+/// regular file would break their setup — it also keeps the temp file on the
+/// same filesystem, without which the rename is not atomic).
+fn write_antigravity_settings(
+    acp_dir: &Path,
+    path: &Path,
+    value: &serde_json::Value,
+) -> Result<(), String> {
+    let body = serde_json::to_string_pretty(value).map_err(|err| err.to_string())?;
+    let target = std::fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
+    let parent = target.parent().unwrap_or(acp_dir);
+    std::fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+
+    let temp = parent.join(format!(".settings.json.codeg-{}.tmp", std::process::id()));
+    std::fs::write(&temp, format!("{body}\n")).map_err(|err| err.to_string())?;
+    if let Err(err) = std::fs::rename(&temp, &target) {
+        let _ = std::fs::remove_file(&temp);
+        return Err(err.to_string());
+    }
+    Ok(())
+}
+
+/// Merge the panel's choice into a parsed `settings.json`.
+///
+/// `Ok(None)` means the file already says exactly this, so the caller can skip
+/// the write. `Err` means a block codeg would have to edit is not the shape it
+/// expects — the same fail-closed rule the read side applies to the whole
+/// document, and the same one the server's own `settings_writer` applies here
+/// ("not editing %r because `auth` is not an object"). Replacing a non-object
+/// `auth` with an object would delete whatever the user meant by it.
+///
+/// `existing` is `None` only for a file that does not exist — the caller
+/// refuses to touch one it could not read or parse — so creating a fresh object
+/// here never destroys anything.
+fn merge_antigravity_settings(
+    existing: Option<serde_json::Value>,
+    method: &str,
+    gcp_project: GcpField<'_>,
+    gcp_location: GcpField<'_>,
+) -> Result<Option<serde_json::Value>, String> {
+    let mut root = match existing {
+        Some(serde_json::Value::Object(map)) => serde_json::Value::Object(map),
+        _ => serde_json::json!({}),
+    };
+    let before = root.clone();
+
+    {
+        let obj = root
+            .as_object_mut()
+            .ok_or_else(|| "it does not hold a JSON object".to_string())?;
+
+        // Absent is fine (create it); present-but-not-an-object is not.
+        match obj.get("auth") {
+            None | Some(serde_json::Value::Null) => {
+                obj.insert("auth".into(), serde_json::json!({}));
+            }
+            Some(serde_json::Value::Object(_)) => {}
+            Some(_) => return Err("`auth` is not an object".to_string()),
+        }
+        obj.get_mut("auth")
+            .and_then(serde_json::Value::as_object_mut)
+            .ok_or_else(|| "`auth` is not an object".to_string())?
+            .insert("type".into(), serde_json::Value::String(method.to_string()));
+
+        // Only touch the `gcp` block when the panel has something to say about
+        // it. `Keep` on both means it is not the panel's — a field the user
+        // typed straight into the file, or a method that does not render the
+        // inputs at all — so a strange `gcp` is left alone rather than blocking
+        // an `auth.type` update that does not depend on it.
+        //
+        // `Clear` is the case the old two-state signature could not express,
+        // and it has to be honored on a block that may not exist yet only in
+        // the sense of "there is then nothing to remove": a clear NEVER creates
+        // the block.
+        let writes =
+            matches!(gcp_project, GcpField::Set(_)) || matches!(gcp_location, GcpField::Set(_));
+        let clears =
+            matches!(gcp_project, GcpField::Clear) || matches!(gcp_location, GcpField::Clear);
+        // A clear on a block that is not an object has nothing to remove, so it
+        // must not be the thing that REFUSES the write: the same reasoning that
+        // keeps a strange `gcp` from blocking an `auth.type` update when there
+        // is nothing to say about it at all. Only a `Set` — which really would
+        // have to replace that value — earns the refusal.
+        let clearable = clears && obj.get("gcp").is_some_and(serde_json::Value::is_object);
+        if writes || clearable {
+            match obj.get("gcp") {
+                None | Some(serde_json::Value::Null) => {
+                    obj.insert("gcp".into(), serde_json::json!({}));
+                }
+                Some(serde_json::Value::Object(_)) => {}
+                Some(_) => return Err("`gcp` is not an object".to_string()),
+            }
+            let gcp = obj
+                .get_mut("gcp")
+                .and_then(serde_json::Value::as_object_mut)
+                .ok_or_else(|| "`gcp` is not an object".to_string())?;
+            for (name, field) in [("project", &gcp_project), ("location", &gcp_location)] {
+                match field {
+                    GcpField::Set(value) => {
+                        gcp.insert(name.into(), serde_json::Value::String((*value).to_string()));
+                    }
+                    GcpField::Clear => {
+                        gcp.remove(name);
+                    }
+                    GcpField::Keep => {}
+                }
+            }
+            // An empty block left behind by a clear says nothing; drop it so
+            // the file reads the way a fresh one would.
+            if gcp.is_empty() {
+                obj.remove("gcp");
+            }
+        }
+    }
+
+    Ok((root != before).then_some(root))
 }
 
 /// Codex-only launch policy: force codex-acp's MCP name-conflict de-duplication
@@ -1011,10 +1544,7 @@ async fn build_agent(
             let binary_path = match cached {
                 Some((path, cached_version)) => {
                     if cached_version == registry_version {
-                        tracing::info!(
-                            "[ACP][{}] Using cached binary {cached_version}",
-                            meta.name
-                        );
+                        tracing::info!("[ACP][{}] Using cached binary {cached_version}", meta.name);
                     } else {
                         tracing::info!(
                             "[ACP][{}] Using cached binary {cached_version} (registry recommends {registry_version})",
@@ -1084,6 +1614,18 @@ async fn build_agent(
                 apply_cursor_env_policy(&mut merged_env, runtime_env);
             } else if agent_type == AgentType::Grok {
                 apply_grok_env_policy(&mut merged_env, runtime_env);
+            } else if agent_type == AgentType::Antigravity {
+                apply_antigravity_env_policy(&mut merged_env, runtime_env);
+                // Kept separate from the env policy above: the other
+                // `apply_*_env_policy`s are pure, and this one WRITES the
+                // server's settings.json. It has to happen before the spawn —
+                // the file is read during `session/new`, and without it that
+                // call fails with `Authentication required`.
+                //
+                // The report is for the settings panel, which runs the same
+                // sync at save time; here it is already in the log and must
+                // never block a launch, so it is deliberately dropped.
+                let _ = sync_antigravity_settings_file(runtime_env);
             }
             let env_key_list: Vec<&str> = merged_env.iter().map(|(k, _)| k.as_str()).collect();
             if !merged_env.is_empty() {
@@ -1126,11 +1668,8 @@ async fn build_agent(
                 .unwrap_or(false);
             let agent_name = meta.name.to_string();
             let tail = Arc::clone(stderr_tail);
-            Ok(
-                AcpAgent::new(sacp::schema::McpServer::Stdio(server)).with_debug(
-                    agent_debug_callback(agent_name, tail, stdio_debug_enabled),
-                ),
-            )
+            Ok(AcpAgent::new(sacp::schema::McpServer::Stdio(server))
+                .with_debug(agent_debug_callback(agent_name, tail, stdio_debug_enabled)))
         }
         AgentDistribution::Uvx {
             package,
@@ -1167,7 +1706,8 @@ async fn build_agent(
                 // than provisioned through uvx.
                 tracing::warn!(
                     "[ACP][{}] uvx unavailable; falling back to system command {:?}",
-                    meta.name, sys_path
+                    meta.name,
+                    sys_path
                 );
                 // `system_cmd` is a complete launch recipe for the PATH binary;
                 // the uvx entry-script `args` don't necessarily apply to it.
@@ -1364,8 +1904,7 @@ pub async fn spawn_agent_connection(
     // Derived from the same `runtime_env` we hand the agent (minus per-launch
     // volatile keys) plus the agent's native config file content, so a later
     // settings save can be compared against it to detect a stale running session.
-    let config_fingerprint =
-        crate::commands::acp::fingerprint_config(agent_type, &runtime_env);
+    let config_fingerprint = crate::commands::acp::fingerprint_config(agent_type, &runtime_env);
 
     // Insert the entry BEFORE spawning the background task so that a
     // fast-failing `run_connection` can never remove it before it was
@@ -1411,92 +1950,92 @@ pub async fn spawn_agent_connection(
         .spawn(move || {
             let _cleanup = cleanup_guard;
             connection_rt.block_on(async move {
-        let delegation_for_cleanup = delegation_injection.clone();
-        let result = run_connection(
-            agent,
-            conn_id.clone(),
-            agent_type,
-            working_dir,
-            session_id,
-            cmd_rx,
-            emitter_clone.clone(),
-            Arc::clone(&state_clone),
-            terminal_base_env,
-            terminal_shell_config,
-            preferred_mode_id,
-            preferred_config_values,
-            delegation_injection,
-            fs_policy,
-            host_tools,
-            stderr_tail,
-        )
-        .await;
-
-        // Revoke the per-launch token + cascade cancel any still-pending
-        // delegations AND questions owned by this parent connection. All are
-        // best-effort: a missing token entry is a no-op, and both
-        // `cancel_by_parent` calls are safe on an empty pending map.
-        if let Some(inj) = delegation_for_cleanup {
-            let token = {
-                let snap = state_clone.read().await;
-                snap.delegation_token.clone()
-            };
-            if let Some(tok) = token {
-                inj.tokens.revoke(&tok).await;
-            }
-            inj.broker.cancel_by_parent(&conn_id).await;
-            // Reclaim a parked `ask_user_question` instead of waiting for the
-            // companion's ask socket to close (which a reparented/hard-killed
-            // agent may never do); the dropped sender declines the tool cleanly.
-            inj.questions.cancel_questions_by_parent(&conn_id).await;
-            // Likewise reclaim a parked Grok `exit_plan_mode` approval; the
-            // dropped sender replies disconnect so grok keeps plan mode active.
-            inj.plan_approvals
-                .cancel_plan_approvals_by_parent(&conn_id)
+                let delegation_for_cleanup = delegation_injection.clone();
+                let result = run_connection(
+                    agent,
+                    conn_id.clone(),
+                    agent_type,
+                    working_dir,
+                    session_id,
+                    cmd_rx,
+                    emitter_clone.clone(),
+                    Arc::clone(&state_clone),
+                    terminal_base_env,
+                    terminal_shell_config,
+                    preferred_mode_id,
+                    preferred_config_values,
+                    delegation_injection,
+                    fs_policy,
+                    host_tools,
+                    stderr_tail,
+                )
                 .await;
-        }
 
-        if let Err(e) = result {
-            let code = e.code().map(String::from);
-            emit_with_state(
-                &state_clone,
-                &emitter_clone,
-                AcpEvent::Error {
-                    message: e.to_string(),
-                    agent_type: agent_type.to_string(),
-                    code,
-                    details: None,
-                    // The only genuinely terminal emit site: `run_connection`
-                    // is unwinding and the next event is `Disconnected`.
-                    // The lifecycle worker uses this flag to decide whether
-                    // to flip the conversation row to Cancelled and to
-                    // buffer the detail for the broker's cancel reason.
-                    terminal: true,
-                },
-            )
-            .await;
-            // Drive the state machine through `Error` before `Disconnected`
-            // so the frontend's error-handling effect (cancelled-on-error)
-            // engages — without this hop the connection would jump straight
-            // to Disconnected and look like a clean shutdown.
-            emit_with_state(
-                &state_clone,
-                &emitter_clone,
-                AcpEvent::StatusChanged {
-                    status: ConnectionStatus::Error,
-                },
-            )
-            .await;
-        }
+                // Revoke the per-launch token + cascade cancel any still-pending
+                // delegations AND questions owned by this parent connection. All are
+                // best-effort: a missing token entry is a no-op, and both
+                // `cancel_by_parent` calls are safe on an empty pending map.
+                if let Some(inj) = delegation_for_cleanup {
+                    let token = {
+                        let snap = state_clone.read().await;
+                        snap.delegation_token.clone()
+                    };
+                    if let Some(tok) = token {
+                        inj.tokens.revoke(&tok).await;
+                    }
+                    inj.broker.cancel_by_parent(&conn_id).await;
+                    // Reclaim a parked `ask_user_question` instead of waiting for the
+                    // companion's ask socket to close (which a reparented/hard-killed
+                    // agent may never do); the dropped sender declines the tool cleanly.
+                    inj.questions.cancel_questions_by_parent(&conn_id).await;
+                    // Likewise reclaim a parked Grok `exit_plan_mode` approval; the
+                    // dropped sender replies disconnect so grok keeps plan mode active.
+                    inj.plan_approvals
+                        .cancel_plan_approvals_by_parent(&conn_id)
+                        .await;
+                }
 
-        emit_with_state(
-            &state_clone,
-            &emitter_clone,
-            AcpEvent::StatusChanged {
-                status: ConnectionStatus::Disconnected,
-            },
-        )
-        .await;
+                if let Err(e) = result {
+                    let code = e.code().map(String::from);
+                    emit_with_state(
+                        &state_clone,
+                        &emitter_clone,
+                        AcpEvent::Error {
+                            message: e.to_string(),
+                            agent_type: agent_type.to_string(),
+                            code,
+                            details: None,
+                            // The only genuinely terminal emit site: `run_connection`
+                            // is unwinding and the next event is `Disconnected`.
+                            // The lifecycle worker uses this flag to decide whether
+                            // to flip the conversation row to Cancelled and to
+                            // buffer the detail for the broker's cancel reason.
+                            terminal: true,
+                        },
+                    )
+                    .await;
+                    // Drive the state machine through `Error` before `Disconnected`
+                    // so the frontend's error-handling effect (cancelled-on-error)
+                    // engages — without this hop the connection would jump straight
+                    // to Disconnected and look like a clean shutdown.
+                    emit_with_state(
+                        &state_clone,
+                        &emitter_clone,
+                        AcpEvent::StatusChanged {
+                            status: ConnectionStatus::Error,
+                        },
+                    )
+                    .await;
+                }
+
+                emit_with_state(
+                    &state_clone,
+                    &emitter_clone,
+                    AcpEvent::StatusChanged {
+                        status: ConnectionStatus::Disconnected,
+                    },
+                )
+                .await;
                 // Connection loop ended; `block_on` returns and `_cleanup`
                 // (bound at the top of the thread body) drops next, removing
                 // the manager map entry — same as on a panic unwind.
@@ -2563,9 +3102,8 @@ async fn send_steer_request(
     text: &str,
 ) -> Result<SteerOutcome, AcpError> {
     let params = build_steer_params(session_id.0.as_ref(), text);
-    let untyped_req = UntypedMessage::new("_session/steering", params).map_err(|e| {
-        AcpError::protocol(format!("Failed to build steering request: {e}"))
-    })?;
+    let untyped_req = UntypedMessage::new("_session/steering", params)
+        .map_err(|e| AcpError::protocol(format!("Failed to build steering request: {e}")))?;
     let raw = cx
         .send_request_to(Agent, untyped_req)
         .block_task()
@@ -3081,11 +3619,11 @@ fn build_client_capabilities(
 ) -> ClientCapabilities {
     let mut client_capabilities = ClientCapabilities::new();
     if host_tools.hosts_channels() {
-        client_capabilities = client_capabilities.terminal(true).fs(
-            FileSystemCapabilities::new()
+        client_capabilities = client_capabilities
+            .terminal(true)
+            .fs(FileSystemCapabilities::new()
                 .read_text_file(true)
-                .write_text_file(true),
-        );
+                .write_text_file(true));
     }
     // Form elicitation is advertised only to agents that are KNOWN to send
     // spec-conformant `elicitation/create` forms `classify_elicitation` can
@@ -3111,7 +3649,10 @@ fn build_client_capabilities(
     // convention is to advertise nothing an agent hasn't implemented.
     let mut meta = serde_json::Map::new();
     if agent_type == AgentType::ClaudeCode {
-        meta.insert("subagent-transcript".to_string(), serde_json::Value::Bool(true));
+        meta.insert(
+            "subagent-transcript".to_string(),
+            serde_json::Value::Bool(true),
+        );
     }
     // The capabilities array is deliberately "sessionFailure" ONLY.
     // claude-agent-acp 0.69.0 and codex-acp 1.4.0 added a second AIR
@@ -3213,9 +3754,8 @@ async fn send_resume_session(
     cx: &ConnectionTo<Agent>,
     req: ResumeSessionRequest,
 ) -> Result<(ResumeSessionResponse, Option<serde_json::Value>), sacp::Error> {
-    let untyped_req = UntypedMessage::new("session/resume", req).map_err(|e| {
-        sacp::util::internal_error(format!("Failed to build resume request: {e}"))
-    })?;
+    let untyped_req = UntypedMessage::new("session/resume", req)
+        .map_err(|e| sacp::util::internal_error(format!("Failed to build resume request: {e}")))?;
 
     let mut raw_response = cx.send_request_to(Agent, untyped_req).block_task().await?;
     // Capture the raw top-level `models` (per-model reasoning-effort data) BEFORE
@@ -3223,9 +3763,8 @@ async fn send_resume_session(
     // field survives serde as an ignored unknown for other agents).
     let models = raw_response.get("models").cloned();
     strip_unknown_config_options(&mut raw_response, "session/resume");
-    let resp = serde_json::from_value(raw_response).map_err(|e| {
-        sacp::util::internal_error(format!("Failed to parse resume response: {e}"))
-    })?;
+    let resp = serde_json::from_value(raw_response)
+        .map_err(|e| sacp::util::internal_error(format!("Failed to parse resume response: {e}")))?;
     Ok((resp, models))
 }
 
@@ -3319,6 +3858,13 @@ fn load_mcp_servers_for_agent(agent_type: AgentType) -> Vec<McpServer> {
     // `~/.qoder/settings.json` (gemini-schema settings file) at startup, which
     // codeg's MCP settings UI manages directly — forwarding the same servers
     // over the wire would double-mount them.
+    //
+    // Antigravity joins it too, for the same reason with one nuance: its ACP
+    // server reads `<GEMINI_HOME>/config/mcp_config.json` (which codeg's MCP
+    // settings UI manages) and MERGES it with the wire list BY NAME, wire
+    // winning — so forwarding would not actually double-mount. It is skipped
+    // anyway because defining one server through two channels is noise, and
+    // because the `codeg-mcp` companion is injected separately regardless.
     if matches!(
         agent_type,
         AgentType::Hermes
@@ -3326,6 +3872,7 @@ fn load_mcp_servers_for_agent(agent_type: AgentType) -> Vec<McpServer> {
             | AgentType::Grok
             | AgentType::Cursor
             | AgentType::Qoder
+            | AgentType::Antigravity
     ) {
         return Vec::new();
     }
@@ -5210,8 +5757,7 @@ async fn handle_grok_exit_plan_mode(
             .map(|o| o.keys().map(String::as_str).collect::<Vec<_>>())
     );
     let Some(access) = access else {
-        let _ =
-            responder.respond(crate::acp::plan_approval::grok_exit_plan_disconnect_response());
+        let _ = responder.respond(crate::acp::plan_approval::grok_exit_plan_disconnect_response());
         return;
     };
     let (plan_markdown, tool_call_id) =
@@ -5233,8 +5779,7 @@ async fn handle_grok_exit_plan_mode(
         .await
     else {
         // Connection gone, or an approval is already pending on this connection.
-        let _ =
-            responder.respond(crate::acp::plan_approval::grok_exit_plan_disconnect_response());
+        let _ = responder.respond(crate::acp::plan_approval::grok_exit_plan_disconnect_response());
         return;
     };
     // The user answers out-of-band (the HTTP `answer_plan_approval` endpoint
@@ -5405,11 +5950,11 @@ async fn handle_elicitation_request(
                 let reaper_conn = connection_id.to_string();
                 let reaper_qid = registered.question_id.clone();
                 tokio::spawn(async move {
-                    tokio::time::sleep(std::time::Duration::from_millis(
-                        ms.saturating_add(2_000),
-                    ))
-                    .await;
-                    reaper_access.cancel_question(&reaper_conn, &reaper_qid).await;
+                    tokio::time::sleep(std::time::Duration::from_millis(ms.saturating_add(2_000)))
+                        .await;
+                    reaper_access
+                        .cancel_question(&reaper_conn, &reaper_qid)
+                        .await;
                 });
             }
             // The user answers out-of-band (the `answer_question` endpoint
@@ -5666,8 +6211,7 @@ async fn set_session_config_option(
         .and_then(|opts| opts.iter().find(|o| o.id == config_id))
         .is_some_and(|o| matches!(o.kind, SessionConfigKindInfo::Boolean(_)));
     let value = encode_config_option_value(is_boolean, &value_id);
-    let updated =
-        set_session_config_option_inner(cx, session_id, config_id.clone(), value).await?;
+    let updated = set_session_config_option_inner(cx, session_id, config_id.clone(), value).await?;
     // Compare BEFORE emitting: the agent's answer is the only place a request and
     // its outcome are correlated. Once the option list is broadcast it is
     // indistinguishable from an unsolicited update.
@@ -5850,7 +6394,9 @@ async fn apply_preferred_session_options(
             .unwrap_or(false);
         if needs_apply {
             if let Err(e) = set_session_mode(session, state, emitter, pref_mode.to_string()).await {
-                tracing::error!("[ACP] failed to apply preferred mode '{pref_mode}' on connect: {e}");
+                tracing::error!(
+                    "[ACP] failed to apply preferred mode '{pref_mode}' on connect: {e}"
+                );
             }
         }
     }
@@ -6407,7 +6953,8 @@ async fn poll_tracked_terminal_tool_calls(
                 Err(err) => {
                     tracing::error!(
                         "[ACP] Failed to poll terminal output for tool call {}: {:?}",
-                        tool_call_id, err
+                        tool_call_id,
+                        err
                     );
                     continue;
                 }
@@ -6673,7 +7220,8 @@ async fn handle_fork_or_exit(
 
     tracing::info!(
         "[ACP] Fork transition: attaching to forked session {} (original: {})",
-        new_sid, fork_info.original_session_id
+        new_sid,
+        fork_info.original_session_id
     );
 
     // Reply protocol-level result to manager.fork_session, which will combine
@@ -6813,8 +7361,7 @@ fn classify_session_load_failure(
     //                          "The Claude Agent process exited unexpectedly…"
     //  - "session has ended" → SESSION_ENDED_MESSAGE
     //  - "Session not found" → a plain Error rethrown as an Internal error
-    const UNRECOVERABLE: &[&str] =
-        &["process exited", "session has ended", "Session not found"];
+    const UNRECOVERABLE: &[&str] = &["process exited", "session has ended", "Session not found"];
     if UNRECOVERABLE.iter().any(|s| message.contains(s)) {
         return Some("session_unavailable");
     }
@@ -6848,7 +7395,28 @@ fn recovers_load_failure_locally(agent_type: AgentType, classified: Option<&'sta
 /// (`UserMessageChunk`, `Plan`, `*ModeUpdate`, `ConfigOptionUpdate`,
 /// `SessionInfoUpdate`, `AvailableCommandsUpdate`, `UsageUpdate`) do not
 /// count.
-fn is_agent_output_update(update: &SessionUpdate) -> bool {
+///
+/// `agent_type` is here for pi, whose lifecycle announcements ride the
+/// `agent_message_chunk` channel (issue #525). Those chunks are not rendered, so
+/// counting them as output would let a status-only turn end BOTH blank and
+/// "successful" — the exact silent-blank-turn failure this predicate exists to
+/// catch. Asking [`pi_message_chunk_route`] — the same classifier the renderer
+/// uses — is what keeps the two from disagreeing; a dropped or retry chunk falls
+/// through to `saw_metadata_update`, so such a turn reports
+/// `turn_failed_empty_metadata` ("pi sent only status updates this turn and no
+/// reply"). In practice this is a backstop rather than a common path: pi's retry
+/// and compaction both continue into prose or tools.
+fn is_agent_output_update(agent_type: AgentType, update: &SessionUpdate) -> bool {
+    if let SessionUpdate::AgentMessageChunk(ContentChunk {
+        content: ContentBlock::Text(text),
+        meta,
+        ..
+    }) = update
+    {
+        if pi_message_chunk_route(agent_type, &text.text, meta.as_ref()) != PiChunkRoute::Prose {
+            return false;
+        }
+    }
     matches!(
         update,
         SessionUpdate::AgentMessageChunk(_)
@@ -6886,7 +7454,7 @@ async fn handle_turn_notification(
 ) {
     let should_poll_now =
         track_terminal_tool_calls(agent_type, &notif.update, tracked_terminal_tool_calls);
-    probe.note_update(&notif.update);
+    probe.note_update(agent_type, &notif.update);
     // Custom agents have no store of their own to parse later.
     record_transcript_update(agent_type, &session_id.0, &notif.update);
     emit_conversation_update(
@@ -7009,8 +7577,8 @@ impl TurnOutputProbe {
         }
     }
 
-    fn note_update(&mut self, update: &SessionUpdate) {
-        if is_agent_output_update(update) {
+    fn note_update(&mut self, agent_type: AgentType, update: &SessionUpdate) {
+        if is_agent_output_update(agent_type, update) {
             self.saw_agent_output = true;
         } else {
             self.saw_metadata_update = true;
@@ -7065,9 +7633,9 @@ impl EmptyTurnCause {
                 "{agent_type} produced output that MaxCode could not parse — \
                  the agent version may not match the protocol."
             ),
-            EmptyTurnCause::MetadataOnly => format!(
-                "{agent_type} sent only status updates this turn and no reply."
-            ),
+            EmptyTurnCause::MetadataOnly => {
+                format!("{agent_type} sent only status updates this turn and no reply.")
+            }
         }
     }
 }
@@ -8259,7 +8827,8 @@ async fn run_conversation_loop<'a>(
                 let sid = session.session_id().clone();
                 tracing::info!(
                     "[ACP] Sending session/fork for session_id={} cwd={}",
-                    sid.0, cwd
+                    sid.0,
+                    cwd
                 );
                 let result = crate::acp::fork::fork_session(&cx, &sid, cwd).await;
                 match result {
@@ -8450,10 +9019,7 @@ fn build_new_file_diff(path: &str, new_text: &str) -> String {
     // it keeps the trailing empty segment from a final newline, so the `+N`
     // count and the trailing `+` addition line match exactly.
     let lines: Vec<&str> = new_text.split('\n').collect();
-    let mut out = format!(
-        "--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{} @@",
-        lines.len()
-    );
+    let mut out = format!("--- /dev/null\n+++ b/{path}\n@@ -0,0 +1,{} @@", lines.len());
     for line in lines {
         out.push('\n');
         out.push('+');
@@ -8467,7 +9033,9 @@ fn build_new_file_diff(path: &str, new_text: &str) -> String {
 /// on `AcpEvent::ToolCall(Update)` stays absent for non-image tool calls
 /// (preserves replace-on-update semantics: an absent field means "keep
 /// prior", a `Some(vec)` replaces).
-pub(crate) fn extract_tool_call_images(content: &[ToolCallContent]) -> Option<Vec<ToolCallImageInfo>> {
+pub(crate) fn extract_tool_call_images(
+    content: &[ToolCallContent],
+) -> Option<Vec<ToolCallImageInfo>> {
     let mut imgs: Vec<ToolCallImageInfo> = Vec::new();
     for item in content {
         if let ToolCallContent::Content(c) = item {
@@ -8620,6 +9188,276 @@ fn grok_live_tool_output(
     grok_mcp_output_text(raw)
 }
 
+/// Resolve the live `raw_output` string for a pi tool call.
+///
+/// pi-acp hands ACP the pi tool result VERBATIM as `rawOutput` — the MCP-shaped
+/// envelope `{"content":[{"type":"text","text":…}]}` — while putting that very
+/// same text, already flattened, on the `content[]` channel
+/// (`toolResultToText`; both `tool_execution_update` and `tool_execution_end`
+/// emit the pair). Stringifying the envelope shadows the clean text, because the
+/// live renderer's `raw_output_chunks` win over `content`
+/// (`conversation-runtime-store.ts`), and nothing downstream unwraps that shape
+/// (`commandOutputFromJsonString` bails on a `content` array) — so a finished
+/// `bash` painted its terminal body with the JSON source string.
+///
+/// Same parity rule as Grok (see `grok_live_tool_output`): whenever `content`
+/// carries anything, it IS pi-acp's own flattening of this very result — emit
+/// `None` and let it render (that also covers the `details.diff` / `stdout` /
+/// `output` shapes `toolResultToText` flattens, which the envelope alone does
+/// not reach). Only with no `content` is the envelope unwrapped, through the
+/// SAME flattener the history parser uses so both surfaces show one string.
+///
+/// pi's empty opening announcement is excluded up front — emitting anything for
+/// it would strand a placeholder chunk over the whole call (see
+/// `pi_result_is_empty_announcement`). Every OTHER result that carries something
+/// but whose block array holds no text still stringifies exactly as before:
+/// `toolResultToText` reaches `details.diff`, `stdout`/`stderr` and `output` that
+/// the block array alone does not, so dropping those would lose a real result.
+///
+/// (pi ≥0.0.33 routes `bash` through `_meta.terminal_*` and sends no `rawOutput`
+/// for it at all — see `pi_bash_terminal_chunk`. This is the path every OTHER pi
+/// tool takes, and the one `bash` itself takes on earlier pi-acp builds.)
+fn pi_live_tool_output(
+    content: &Option<String>,
+    raw_output: &Option<serde_json::Value>,
+) -> Option<String> {
+    let raw = raw_output.as_ref()?;
+    if pi_result_is_empty_announcement(raw) {
+        return None;
+    }
+    if content.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+        return None;
+    }
+    raw.get("content")
+        .and_then(crate::parsers::pi::tool_result_content_text)
+        .or_else(|| json_value_to_text(raw_output))
+        .map(|text| structurize_live_output(&text))
+}
+
+/// Is this `rawOutput` pi's "I have started, and have nothing yet" announcement —
+/// literally `{"content": []}`?
+///
+/// pi's bash tool fires `onUpdate({content: [], details: undefined})` before the
+/// process writes a byte (`bash.js`), so this is the opening frame of EVERY pi
+/// command. Both channels then carry noise: `rawOutput` is the empty envelope,
+/// and pi-acp — with no text, diff, stdout or stderr to flatten — falls back to
+/// `JSON.stringify(result, null, 2)` for `content[]` (`toolResultToText`), which
+/// puts a literal `{\n  "content": []\n}` in the terminal card until the first
+/// line of real output arrives. Worse, stringifying the envelope into
+/// `raw_output` seeds it as the call's chunk, and since every later frame prefers
+/// `content` and emits `None` — which the reducer treats as "keep the previous
+/// chunks" (`acp-connections-context.tsx`) — that placeholder would outrank the
+/// real output for the rest of the call.
+///
+/// So both channels are suppressed for this frame, and ONLY for this frame: the
+/// predicate is deliberately the narrowest thing that identifies it — an empty
+/// `content` array and no other non-null member. Any richer result (a diff,
+/// `stdout`/`stderr`, an exit code, a truncation record) is something
+/// `toolResultToText` may have flattened into real text, so it is left alone even
+/// when its block array is empty. Keyed off the STRUCTURED payload, never off the
+/// rendered string, so a command whose own output looks like an empty envelope is
+/// untouched.
+fn pi_result_is_empty_announcement(raw_output: &serde_json::Value) -> bool {
+    let Some(obj) = raw_output.as_object() else {
+        return false;
+    };
+    obj.get("content")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|blocks| blocks.is_empty())
+        && obj
+            .iter()
+            .all(|(key, value)| key == "content" || value.is_null())
+}
+
+/// pi-gated wrapper for the `content` channel: see `pi_result_is_empty_announcement`.
+fn pi_result_content_is_stringify_noise(
+    agent_type: AgentType,
+    raw_output: &Option<serde_json::Value>,
+) -> bool {
+    matches!(agent_type, AgentType::Pi)
+        && raw_output
+            .as_ref()
+            .is_some_and(pi_result_is_empty_announcement)
+}
+
+/// What a pi `agent_message_chunk` actually IS (issue #525).
+///
+/// pi-acp puts the assistant's prose AND its own lifecycle announcements on the
+/// same `agent_message_chunk` channel, so a caffeinate extension's notify lands
+/// spliced into the reply: `你好。有什么需要我帮你处理?Released pi-caffeinate
+/// (agent finished).` See [`pi_message_chunk_route`] for the full inventory.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PiChunkRoute {
+    /// The agent's own words — pi's `message_update` / `text_delta`. Renders as
+    /// today's `ContentDelta`. This is what EVERY other agent's chunk resolves
+    /// to, since the classifier is pi-gated.
+    Prose,
+    /// A pi-acp lifecycle announcement with nothing downstream needs it.
+    Drop,
+    /// pi is auto-retrying the model call. Routed to the shared retry banner
+    /// (`AcpEvent::TurnRetrying`) instead of the prose stream. The numbers are
+    /// pi's own, recovered from the sentence it formats them into; all three are
+    /// `None` for pi-acp's shapeless `"Retrying..."` fallback.
+    Retrying {
+        attempt: Option<u32>,
+        max: Option<u32>,
+        delay_ms: Option<u64>,
+    },
+}
+
+/// Tell a pi `agent_message_chunk` that is the ASSISTANT SPEAKING from one that
+/// is pi-acp ANNOUNCING SOMETHING (issue #525).
+///
+/// Real prose reaches this channel from exactly one place: pi-acp's
+/// `message_update` arm, for `assistantMessageEvent.type === "text_delta"`.
+/// Everything below is pi-acp synthesizing a sentence out of a pi RPC lifecycle
+/// event and emitting it on that SAME channel, where the live store appends it
+/// into whatever message is open — which is the whole bug:
+///
+/// | pi-acp `dist/index.js` | text | marker |
+/// |---|---|---|
+/// | L1265 `extension_ui_request` / `notify`   | the extension's own message | `_meta.piAcp.notify` |
+/// | L1169 `auto_retry_start`                  | `Retrying (attempt N/M, waiting Ss)...` | — |
+/// | L1176 `auto_retry_end`                    | `Retry finished, resuming.` | — |
+/// | L1183 `auto_compaction_start`             | `Context nearing limit, running automatic compaction...` | — |
+/// | L1193 `auto_compaction_end`               | `Automatic compaction finished; …` | — |
+/// | L834  `prompt()` queue                    | `Queued message (position N).` | — |
+/// | L1222 `agent_settled` queue               | `Starting queued message. (N remaining)` | — |
+/// | L860  `cancel()` queue                    | `Cleared queued prompts.` | — |
+///
+/// The notify marker is read FIRST and wins outright, because that text is
+/// arbitrary extension content — a pi extension can notify anything, including
+/// something that reads exactly like prose, so the structured marker is the only
+/// trustworthy handle on it. The other seven carry no marker at all, and pi-acp
+/// offers no alternative channel for them, so they are matched as LITERALS.
+/// Three things keep that honest: the whole classifier is gated on
+/// `AgentType::Pi`; every rule matches the WHOLE trimmed chunk, never a
+/// substring; and the adapter version is pinned in `registry.rs`, so a bump is
+/// the natural place to re-check these strings. A false positive would need the
+/// model to emit one of these exact sentences as an entire standalone delta, and
+/// would cost one dropped delta — not a corrupted message.
+///
+/// Two families deliberately stay `Prose`, and must:
+///
+/// - **Slash-command replies** (pi-acp L2080+: `/compact`, `/session`, `/name`,
+///   `/export`, `/follow-up`, `/steering`, `/changelog`) and the startup prelude
+///   (`sendStartupInfoIfPending`). The user ASKED for those; they ride the same
+///   channel and match no rule here, which is exactly the point of matching
+///   whole literals rather than sniffing for "status-looking" text.
+/// - **`Pi <method> UI request is not supported in ACP yet; cancelling it.`**
+///   (L1257). pi asked the user for input and pi-acp auto-cancelled it — a rare,
+///   actionable failure with no better home today. Dropping it would hide the
+///   reason a turn went sideways, which is worse than the noise this fixes.
+///
+/// Used by BOTH the renderer (`emit_conversation_update`) and the empty-turn
+/// probe (`is_agent_output_update`), so the two can never disagree about whether
+/// a chunk was output — a status-only turn must not render blank AND report
+/// success.
+fn pi_message_chunk_route(
+    agent_type: AgentType,
+    text: &str,
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> PiChunkRoute {
+    if agent_type != AgentType::Pi {
+        return PiChunkRoute::Prose;
+    }
+    // A pi extension's `ui.notify()`. pi's own semantics for it are a transient
+    // toast (`rpc-mode.js`: "Fire and forget - no response needed"), never
+    // conversation — so it is dropped at every level (`info` / `warning` /
+    // `error`). Keyed off the marker alone: the message is the extension's, and
+    // matching it as text would be matching arbitrary user content.
+    if meta.is_some_and(|meta| {
+        meta.get("piAcp")
+            .and_then(|pi| pi.get("notify"))
+            .is_some_and(serde_json::Value::is_object)
+    }) {
+        return PiChunkRoute::Drop;
+    }
+    let text = text.trim();
+    match text {
+        // `auto_retry_end`. No event of its own: the banner clears at the next
+        // tool call / plan update / turn boundary, exactly as codex's does.
+        "Retry finished, resuming." => PiChunkRoute::Drop,
+        // `formatAutoRetryMessage`'s fallback, when pi's event carried no usable
+        // attempt / maxAttempts / delayMs.
+        "Retrying..." => PiChunkRoute::Retrying {
+            attempt: None,
+            max: None,
+            delay_ms: None,
+        },
+        // Compaction. Dropped rather than rendered as the shared
+        // `_meta.contextCompaction` card: a tool call synthesized at the END of a
+        // turn would land after the reply, and `SessionState`'s "final assistant
+        // text" is the text FOLLOWING the last tool call — so the card would
+        // silently blank the delegation result / work-task summary. Restoring the
+        // card is a follow-up, gated on teaching that extraction to skip
+        // compaction refs (which codex and grok need too).
+        "Context nearing limit, running automatic compaction..."
+        | "Automatic compaction finished; context was summarized to continue the session." => {
+            PiChunkRoute::Drop
+        }
+        // pi-acp's own prompt queue. codeg's turn gate normally makes this
+        // unreachable (`manager.rs` rejects a concurrent prompt), so all three
+        // are handled defensively and together — one of them showing up alone
+        // would be the odd one out.
+        "Cleared queued prompts." => PiChunkRoute::Drop,
+        _ => {
+            if let Some((attempt, max, delay_ms)) = pi_parse_retry_announcement(text) {
+                PiChunkRoute::Retrying {
+                    attempt: Some(attempt),
+                    max: Some(max),
+                    delay_ms: Some(delay_ms),
+                }
+            } else if pi_is_queue_announcement(text) {
+                PiChunkRoute::Drop
+            } else {
+                PiChunkRoute::Prose
+            }
+        }
+    }
+}
+
+/// Recover `(attempt, max, delay_ms)` from `Retrying (attempt 1/3, waiting 2s)...`
+/// — pi-acp's `formatAutoRetryMessage`, which is the only place codeg can reach
+/// these numbers: pi sends them structured to pi-acp, which formats them into a
+/// sentence and forwards nothing else.
+///
+/// Worth recovering rather than shipping the sentence as the banner's message,
+/// because the banner already has localized slots for exactly this data
+/// (`claudeApiRetry.retryingWithMax` / `nextRetryIn`) — so a zh-CN user reads
+/// `正在重试 1/3，2.0 秒后重试` instead of an English sentence with a Chinese
+/// suffix bolted on.
+///
+/// Parsed by hand rather than by regex: the shape is fixed, and every field is
+/// re-validated (`{n}/{n}`, `{n}s`, nothing left over), so a sentence that merely
+/// starts the same way falls through to `Prose` instead of half-matching.
+fn pi_parse_retry_announcement(text: &str) -> Option<(u32, u32, u64)> {
+    let body = text
+        .strip_prefix("Retrying (attempt ")?
+        .strip_suffix("s)...")?;
+    let (attempts, delay_seconds) = body.split_once(", waiting ")?;
+    let (attempt, max) = attempts.split_once('/')?;
+    Some((
+        attempt.parse().ok()?,
+        max.parse().ok()?,
+        delay_seconds.parse::<u64>().ok()?.checked_mul(1000)?,
+    ))
+}
+
+/// `Queued message (position N).` / `Starting queued message. (N remaining)` —
+/// the two pi-acp queue announcements that carry an interpolated count (the
+/// third, `Cleared queued prompts.`, is a plain literal handled by the caller).
+fn pi_is_queue_announcement(text: &str) -> bool {
+    let counted = text
+        .strip_prefix("Queued message (position ")
+        .and_then(|rest| rest.strip_suffix(")."))
+        .or_else(|| {
+            text.strip_prefix("Starting queued message. (")
+                .and_then(|rest| rest.strip_suffix(" remaining)"))
+        });
+    counted.is_some_and(|count| !count.is_empty() && count.bytes().all(|b| b.is_ascii_digit()))
+}
+
 /// Grok wraps every MCP tool invocation in a generic `use_tool` envelope whose
 /// `raw_input` is `{"tool_name": "<server>__<tool>", "tool_input": {..real args..}}`.
 /// Peel it so the call is correlated (delegation `lifecycle.rs`), classified, and
@@ -8710,7 +9548,10 @@ fn cursor_companion_title_from_content(content: Option<&str>) -> Option<&'static
     let is_report_item = |t: &serde_json::Value| {
         t.get("task_id").and_then(|x| x.as_str()).is_some()
             && t.get("status").and_then(|x| x.as_str()).is_some_and(|s| {
-                matches!(s, "running" | "completed" | "failed" | "canceled" | "unknown")
+                matches!(
+                    s,
+                    "running" | "completed" | "failed" | "canceled" | "unknown"
+                )
             })
     };
     if !tasks.is_empty() && tasks.iter().all(is_report_item) {
@@ -8762,7 +9603,10 @@ fn is_subagent_invocation(agent_type: AgentType, raw_input: &Option<String>) -> 
 /// historical unwrap in `parsers/codebuddy.rs`. `raw_input` is left untouched
 /// (the cards peel `params` themselves, and that keeps `inferFromInput` from
 /// misclassifying `cancel_delegation`'s `{task_id}` as a generic task).
-fn codebuddy_deferred_tool_name(agent_type: AgentType, raw_input: &Option<String>) -> Option<String> {
+fn codebuddy_deferred_tool_name(
+    agent_type: AgentType,
+    raw_input: &Option<String>,
+) -> Option<String> {
     if agent_type != AgentType::CodeBuddy {
         return None;
     }
@@ -8830,7 +9674,11 @@ fn codebuddy_meta_marks_subagent(
     if meta.get("codebuddy.ai/toolName").and_then(|v| v.as_str()) == Some("Agent") {
         return true;
     }
-    if meta.get("codebuddy.ai/isSubagent").and_then(|v| v.as_bool()) == Some(true) {
+    if meta
+        .get("codebuddy.ai/isSubagent")
+        .and_then(|v| v.as_bool())
+        == Some(true)
+    {
         return true;
     }
     meta.get("codebuddy.ai/subagentType")
@@ -9473,7 +10321,11 @@ fn codebuddy_chunk_marks_subagent(
     let Some(meta) = meta else {
         return false;
     };
-    if meta.get("codebuddy.ai/isSubagent").and_then(|v| v.as_bool()) == Some(true) {
+    if meta
+        .get("codebuddy.ai/isSubagent")
+        .and_then(|v| v.as_bool())
+        == Some(true)
+    {
         return true;
     }
     meta.get("codebuddy.ai/parentToolCallId")
@@ -9923,8 +10775,7 @@ fn map_claude_sdk_ext_notification(notification: &UntypedMessage) -> Option<AcpE
 /// Both share the standard `session/update` envelope (`params.update.
 /// sessionUpdate` + fields, verified live against grok 0.2.111) but carry
 /// variants the typed ACP pipeline can't deserialize, so codeg drops them.
-const GROK_EXT_UPDATE_METHODS: [&str; 2] =
-    ["_x.ai/session_notification", "_x.ai/session/update"];
+const GROK_EXT_UPDATE_METHODS: [&str; 2] = ["_x.ai/session_notification", "_x.ai/session/update"];
 
 /// A stable id for a synthetic event derived from a grok ext notification —
 /// grok stamps `params._meta.eventId`; fall back to a fresh uuid.
@@ -10288,7 +11139,12 @@ fn map_grok_subagent_notification_inner(
                 .get("output")
                 .and_then(|v| v.as_str())
                 .filter(|s| !s.is_empty())
-                .map(|s| crate::parsers::truncate_str(s, crate::parsers::claude::BACKGROUND_RESULT_MAX_CHARS));
+                .map(|s| {
+                    crate::parsers::truncate_str(
+                        s,
+                        crate::parsers::claude::BACKGROUND_RESULT_MAX_CHARS,
+                    )
+                });
             Some(vec![AcpEvent::BackgroundActivity {
                 session_id: session_id.to_string(),
                 turns: Vec::new(),
@@ -10513,20 +11369,52 @@ async fn emit_conversation_update(
                 !cb_state.open_subagents.is_empty(),
                 meta.as_ref(),
             ) {
-                // Claude subagent chunks (claude-agent-acp ≥0.63 with the
-                // `subagent-transcript` capability) are NOT suppressed: they
-                // emit with their parent id so the frontend can route them
-                // into the live Agent capsule.
-                let parent_tool_use_id = claude_chunk_parent_tool_use_id(agent_type, meta.as_ref());
-                emit_with_state(
-                    state,
-                    emitter,
-                    AcpEvent::ContentDelta {
-                        text: text.text,
-                        parent_tool_use_id,
-                    },
-                )
-                .await;
+                // pi-acp announces its own lifecycle (extension notifies, auto
+                // retry, compaction, prompt queue) on this same prose channel,
+                // where it splices into the reply — issue #525. Classify before
+                // emitting; `Prose` is every other agent's only outcome.
+                match pi_message_chunk_route(agent_type, &text.text, meta.as_ref()) {
+                    PiChunkRoute::Drop => {}
+                    PiChunkRoute::Retrying {
+                        attempt,
+                        max,
+                        delay_ms,
+                    } => {
+                        // The shared retry banner, not the transcript. `message`
+                        // is empty on purpose: pi forwards no error text, and the
+                        // banner renders its own localized line from the numbers
+                        // (see `AcpEvent::TurnRetrying`).
+                        emit_with_state(
+                            state,
+                            emitter,
+                            AcpEvent::TurnRetrying {
+                                message: String::new(),
+                                error_status: None,
+                                attempt,
+                                max_retries: max,
+                                retry_delay_ms: delay_ms,
+                            },
+                        )
+                        .await;
+                    }
+                    PiChunkRoute::Prose => {
+                        // Claude subagent chunks (claude-agent-acp ≥0.63 with the
+                        // `subagent-transcript` capability) are NOT suppressed: they
+                        // emit with their parent id so the frontend can route them
+                        // into the live Agent capsule.
+                        let parent_tool_use_id =
+                            claude_chunk_parent_tool_use_id(agent_type, meta.as_ref());
+                        emit_with_state(
+                            state,
+                            emitter,
+                            AcpEvent::ContentDelta {
+                                text: text.text,
+                                parent_tool_use_id,
+                            },
+                        )
+                        .await;
+                    }
+                }
             }
         }
         SessionUpdate::AgentMessageChunk(_) => {
@@ -10564,12 +11452,12 @@ async fn emit_conversation_update(
             // is orchestration bookkeeping, so it is replaced wholesale); the
             // other lifecycle markers stay dropped. See
             // `classify_codex_subagent_activity`.
-            let codex_subagent = match classify_codex_subagent_activity(agent_type, tc.meta.as_ref())
-            {
-                CodexSubagentActivity::None => None,
-                CodexSubagentActivity::Started(input) => Some(input),
-                CodexSubagentActivity::Other => return,
-            };
+            let codex_subagent =
+                match classify_codex_subagent_activity(agent_type, tc.meta.as_ref()) {
+                    CodexSubagentActivity::None => None,
+                    CodexSubagentActivity::Started(input) => Some(input),
+                    CodexSubagentActivity::Other => return,
+                };
             let tool_call_id = tc.tool_call_id.to_string();
             // Grok emits a redundant `tool_call` for its native ask_user_question
             // alongside the blocking `_x.ai/ask_user_question` ext request codeg
@@ -10633,9 +11521,11 @@ async fn emit_conversation_update(
             } else {
                 None
             };
-            let content =
-                serialize_tool_call_content(content_blocks, synthesized_edit.is_none())
-                    .map(|c| unwrap_codebuddy_deferred_output(agent_type, &c).unwrap_or(c));
+            let content = serialize_tool_call_content(content_blocks, synthesized_edit.is_none())
+                .map(|c| unwrap_codebuddy_deferred_output(agent_type, &c).unwrap_or(c))
+                // pi announces a command with an empty result, which pi-acp
+                // renders as JSON source (see fn doc).
+                .filter(|_| !pi_result_content_is_stringify_noise(agent_type, &tc.raw_output));
             let images = extract_tool_call_images(content_blocks);
             let codex_subagent_launch = codex_subagent.is_some();
             let raw_input = codex_subagent
@@ -10650,6 +11540,11 @@ async fn emit_conversation_update(
                 // Grok's structured rawOutput would shadow `content` and render
                 // empty; take the parity path (see grok_live_tool_output).
                 grok_live_tool_output(&content, &tc.raw_output)
+            } else if matches!(agent_type, AgentType::Pi) {
+                // pi's rawOutput is the MCP envelope around the SAME text
+                // `content` already carries; shipping it shadows the clean text
+                // with JSON source (see pi_live_tool_output).
+                pi_live_tool_output(&content, &tc.raw_output)
             } else {
                 json_value_to_text(&tc.raw_output)
                     .map(|text| unwrap_codebuddy_deferred_output(agent_type, &text).unwrap_or(text))
@@ -10674,7 +11569,8 @@ async fn emit_conversation_update(
             // to a generic tool card.
             let meta_marks_subagent = codebuddy_meta_marks_subagent(agent_type, tc.meta.as_ref())
                 || codex_subagent_launch;
-            let meta_marks_background = codebuddy_meta_marks_background(agent_type, tc.meta.as_ref());
+            let meta_marks_background =
+                codebuddy_meta_marks_background(agent_type, tc.meta.as_ref());
             let grok_spawn = grok_meta_marks_spawn_subagent(agent_type, tc.meta.as_ref());
             let meta = tc.meta.map(serde_json::Value::Object);
             let status = format!("{:?}", tc.status).to_lowercase();
@@ -10808,9 +11704,7 @@ async fn emit_conversation_update(
                 Some((_, inner)) => {
                     json_value_to_text(&Some(inner.clone())).filter(|t| !t.trim().is_empty())
                 }
-                None => {
-                    json_value_to_text(&tcu.fields.raw_input).filter(|t| !t.trim().is_empty())
-                }
+                None => json_value_to_text(&tcu.fields.raw_input).filter(|t| !t.trim().is_empty()),
             };
             let synthesized_edit = if own_raw_input.is_none() {
                 content_blocks.and_then(synthesize_edit_input_from_diffs)
@@ -10828,7 +11722,12 @@ async fn emit_conversation_update(
             };
             let content = content_blocks
                 .and_then(|c| serialize_tool_call_content(c, synthesized_edit.is_none()))
-                .map(|c| unwrap_codebuddy_deferred_output(agent_type, &c).unwrap_or(c));
+                .map(|c| unwrap_codebuddy_deferred_output(agent_type, &c).unwrap_or(c))
+                // Symmetric with the ToolCall arm — and the arm that matters:
+                // pi's empty opening frame is a `tool_call_update`.
+                .filter(|_| {
+                    !pi_result_content_is_stringify_noise(agent_type, &tcu.fields.raw_output)
+                });
             let images = content_blocks.and_then(extract_tool_call_images);
             let codex_subagent_launch = codex_subagent.is_some();
             let raw_input = codex_subagent
@@ -10846,6 +11745,10 @@ async fn emit_conversation_update(
                 // Grok's structured rawOutput would shadow `content` and render
                 // empty; take the parity path (see grok_live_tool_output).
                 grok_live_tool_output(&content, &tcu.fields.raw_output)
+            } else if matches!(agent_type, AgentType::Pi) {
+                // Symmetric with the ToolCall arm — and the arm that matters:
+                // pi delivers the result on the update (see pi_live_tool_output).
+                pi_live_tool_output(&content, &tcu.fields.raw_output)
             } else {
                 json_value_to_text(&tcu.fields.raw_output)
                     .map(|text| unwrap_codebuddy_deferred_output(agent_type, &text).unwrap_or(text))
@@ -10865,8 +11768,10 @@ async fn emit_conversation_update(
             // deliberately BYPASSES `raw_output_cache`: the cache diffs cumulative
             // snapshots, while pi already sends deltas, which is exactly why
             // `emit_terminal_output_update` bypasses it too. pi never sends
-            // `rawOutput` for these calls, so the branch above resolved to
-            // `(None, None)` and nothing is being overwritten.
+            // `rawOutput` for a `_meta`-hosted call, so the branch above resolved
+            // to `(None, None)` and nothing is being overwritten. (Older pi-acp
+            // has no `_meta` channel at all: there `bash` streams like any other
+            // tool and `pi_live_tool_output` above is what carries its output.)
             let (raw_output, raw_output_append) = match pi_bash_terminal_chunk(
                 agent_type,
                 tcu.meta.as_ref(),
@@ -10884,7 +11789,8 @@ async fn emit_conversation_update(
                 .and_then(|l| serde_json::to_value(l).ok());
             let meta_marks_subagent = codebuddy_meta_marks_subagent(agent_type, tcu.meta.as_ref())
                 || codex_subagent_launch;
-            let meta_marks_background = codebuddy_meta_marks_background(agent_type, tcu.meta.as_ref());
+            let meta_marks_background =
+                codebuddy_meta_marks_background(agent_type, tcu.meta.as_ref());
             let grok_spawn = grok_meta_marks_spawn_subagent(agent_type, tcu.meta.as_ref());
             let meta = tcu.meta.clone().map(serde_json::Value::Object);
             let status = tcu.fields.status.map(|s| format!("{:?}", s).to_lowercase());
@@ -10901,7 +11807,13 @@ async fn emit_conversation_update(
             }
             // Symmetric with the ToolCall arm: an update may carry the terminal
             // status (and, on grok, usually re-carries the `x.ai/tool` meta).
-            track_grok_spawn_call(cb_state, grok_spawn, status.as_deref(), &tool_call_id, &raw_input);
+            track_grok_spawn_call(
+                cb_state,
+                grok_spawn,
+                status.as_deref(),
+                &tool_call_id,
+                &raw_input,
+            );
             // Ordering variant: `subagent_spawned` can pair BEFORE the launch
             // call's terminal frame arrives. The pairing site skipped its
             // outstanding emission then (call not yet settled), so surface the
@@ -11091,13 +12003,45 @@ async fn emit_conversation_update(
             // `normalize_goal_status` unchanged; its extra fields
             // (createdAt/updatedAt/iterations/lastReason/controlMethod)
             // survive inside the marker's raw goal object for the card.
-            // (`info.title` is Codex's native thread name; it is adopted via the
-            // parser auto-title path on the next conversation fetch, not here, to
-            // keep this DB-agnostic emit path unchanged — see parsers/codex.rs.)
+            // `info.title` is the agent's live session name (Codex thread name,
+            // Claude ACP 0.69+ generated titles, anyone else who publishes the
+            // field). Apply it immediately via a dedicated lifecycle event
+            // rather than waiting for the next conversation fetch. Goal-only
+            // updates leave title undefined and emit nothing. Identical repeats
+            // are skipped (CodeBuddy resends its fallback after every turn).
+            // A title that arrives before the row is bound is dropped, not
+            // remembered, so a later resend is still accepted. If it never
+            // comes back, the next detail load recovers it only for agents
+            // whose own transcript carries the name (Codex's session index,
+            // Claude's `ai-title`) — a custom ACP agent's is gone, because
+            // `parsers/acp_native.rs` records no `session_info_update` and can
+            // only ever title a session by its first prompt.
+            if let Some(title) = crate::acp::session_title::native_title_from_session_info(
+                info.title.value().map(|s| s.as_str()),
+            ) {
+                // Test and set under ONE write lock. Nothing can interleave
+                // here today — a session's notifications are handled serially,
+                // and the only other writer of `last_native_title` is the
+                // `ConversationLinked` arm, which is emitted ONLY while the row
+                // is still unbound and therefore can never race a title this
+                // admits. That safety currently rests on two guards in
+                // different files agreeing; keeping the halves in one critical
+                // section makes it hold by construction instead.
+                let admit = {
+                    let mut s = state.write().await;
+                    let admit = s.conversation_id.is_some()
+                        && s.last_native_title.as_deref() != Some(title.as_str());
+                    if admit {
+                        s.last_native_title = Some(title.clone());
+                    }
+                    admit
+                };
+                if admit {
+                    emit_with_state(state, emitter, AcpEvent::NativeSessionTitle { title }).await;
+                }
+            }
             let neutral_goal_channel = state.read().await.neutral_goal_channel;
-            if let Some(goal) =
-                session_info_goal_value(neutral_goal_channel, info.meta.as_ref())
-            {
+            if let Some(goal) = session_info_goal_value(neutral_goal_channel, info.meta.as_ref()) {
                 if let Some(marker) =
                     crate::acp::codex_goal::next_goal_marker(&mut cb_state.codex_open_goal, goal)
                 {
@@ -11141,8 +12085,7 @@ async fn emit_conversation_update(
             if let Some(raw) = air_session_failure(info.meta.as_ref()) {
                 match parse_session_failure_record(raw) {
                     Some(record) => {
-                        emit_with_state(state, emitter, AcpEvent::SessionFailure { record })
-                            .await;
+                        emit_with_state(state, emitter, AcpEvent::SessionFailure { record }).await;
                     }
                     None => tracing::debug!(
                         "[ACP] dropped AIR sessionFailure without usable id/revision: {raw:?}"
@@ -11163,6 +12106,10 @@ async fn emit_conversation_update(
                     AcpEvent::TurnRetrying {
                         message,
                         error_status,
+                        // codex reports no retry counters — only pi does.
+                        attempt: None,
+                        max_retries: None,
+                        retry_delay_ms: None,
                     },
                 )
                 .await;
@@ -11308,7 +12255,10 @@ mod tests {
         assert_eq!(after_b.next.map(|c| c.request_id).as_deref(), Some("c"));
         let after_c = q.resolve("c", "allow".into());
         assert!(after_c.answered);
-        assert!(after_c.next.is_none(), "queue drained, nothing left to show");
+        assert!(
+            after_c.next.is_none(),
+            "queue drained, nothing left to show"
+        );
         assert_eq!(q.showing, None);
         assert_eq!(q.waiting_len(), 0);
 
@@ -11458,7 +12408,9 @@ mod tests {
         assert!(!GrokAskUserQuestionRequest::matches_method(
             "x.ai/ask_user_question"
         ));
-        assert!(!GrokAskUserQuestionRequest::matches_method("session/prompt"));
+        assert!(!GrokAskUserQuestionRequest::matches_method(
+            "session/prompt"
+        ));
 
         // The exact params grok sends (captured from a real 0.2.101 run): the
         // transparent newtype must deserialize them and the raw object must parse
@@ -11628,7 +12580,10 @@ mod tests {
                 "presentation": "state"
             }
         }));
-        assert!(is_config_option_state_command(AgentType::Codex, Some(&plan)));
+        assert!(is_config_option_state_command(
+            AgentType::Codex,
+            Some(&plan)
+        ));
         // Gated on Codex — the same meta never suppresses another agent's command.
         assert!(!is_config_option_state_command(
             AgentType::ClaudeCode,
@@ -11639,7 +12594,10 @@ mod tests {
         let goal = meta_map(serde_json::json!({
             "commandAction": { "kind": "prefixPrompt", "presentation": "state" }
         }));
-        assert!(!is_config_option_state_command(AgentType::Codex, Some(&goal)));
+        assert!(!is_config_option_state_command(
+            AgentType::Codex,
+            Some(&goal)
+        ));
         // Ordinary commands (no `commandAction`) and absent meta are kept.
         assert!(!is_config_option_state_command(AgentType::Codex, None));
         let plain = meta_map(serde_json::json!({ "somethingElse": true }));
@@ -11684,9 +12642,7 @@ mod tests {
         assert!(!init_advertises_steering(Some(&off)));
 
         // Wrong nesting (e.g. another convention's namespace) must not count.
-        let nested = meta_map(
-            serde_json::json!({"symposium": {"steering": {"supported": true}}}),
-        );
+        let nested = meta_map(serde_json::json!({"symposium": {"steering": {"supported": true}}}));
         assert!(!init_advertises_steering(Some(&nested)));
 
         // Non-bool / absent → false.
@@ -11734,9 +12690,15 @@ mod tests {
             "codex": {"goal": {"objective": "legacy", "status": "active"}},
         }));
         let neutral = session_info_goal_value(true, Some(&both)).expect("neutral value");
-        assert_eq!(neutral.get("objective").and_then(|v| v.as_str()), Some("neutral"));
+        assert_eq!(
+            neutral.get("objective").and_then(|v| v.as_str()),
+            Some("neutral")
+        );
         let legacy = session_info_goal_value(false, Some(&both)).expect("legacy value");
-        assert_eq!(legacy.get("objective").and_then(|v| v.as_str()), Some("legacy"));
+        assert_eq!(
+            legacy.get("objective").and_then(|v| v.as_str()),
+            Some("legacy")
+        );
 
         // Neutral-pinned connections ignore a legacy-only update (and vice
         // versa) — the two updates of a double-publish collapse to one marker.
@@ -11744,9 +12706,8 @@ mod tests {
             serde_json::json!({"codex": {"goal": {"objective": "legacy", "status": "active"}}}),
         );
         assert!(session_info_goal_value(true, Some(&legacy_only)).is_none());
-        let neutral_only = meta_map(
-            serde_json::json!({"goal": {"objective": "neutral", "status": "active"}}),
-        );
+        let neutral_only =
+            meta_map(serde_json::json!({"goal": {"objective": "neutral", "status": "active"}}));
         assert!(session_info_goal_value(false, Some(&neutral_only)).is_none());
 
         // `goal: null` IS a value (the clear signal), not an absent key.
@@ -11759,6 +12720,148 @@ mod tests {
         assert!(session_info_goal_value(true, None).is_none());
     }
 
+    // --- live ACP session title (`session_info_update.title`) --------------
+
+    /// Drive one `session_info_update` carrying `title` through
+    /// `emit_conversation_update`.
+    async fn drive_session_info_title(state: &Arc<RwLock<SessionState>>, title: &str) {
+        let update: SessionUpdate = serde_json::from_value(serde_json::json!({
+            "sessionUpdate": "session_info_update",
+            "title": title,
+        }))
+        .expect("valid session_info_update wire shape");
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        emit_conversation_update(
+            state,
+            &EventEmitter::Noop,
+            AgentType::CodeBuddy,
+            update,
+            None,
+            &mut cache,
+            &mut cb,
+        )
+        .await;
+    }
+
+    /// Titles emitted on this connection so far, oldest first.
+    async fn emitted_native_titles(state: &Arc<RwLock<SessionState>>) -> Vec<String> {
+        state
+            .read()
+            .await
+            .recent_events_after(0)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|e| match &e.payload {
+                AcpEvent::NativeSessionTitle { title } => Some(title.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn title_test_state(conversation_id: Option<i32>) -> Arc<RwLock<SessionState>> {
+        let mut st = SessionState::new(
+            "conn-title".to_string(),
+            AgentType::CodeBuddy,
+            None,
+            "win".to_string(),
+            None,
+        );
+        st.conversation_id = conversation_id;
+        Arc::new(RwLock::new(st))
+    }
+
+    /// A changed title emits; the SAME title arriving again does not. CodeBuddy
+    /// (`sendPendingTitleUpdate`) resends its 80-code-unit fallback after every
+    /// completed prompt with no last-sent guard of its own, and that string
+    /// differs from the 100-char title our own parser derives from the same
+    /// first message — so without this skip the sidebar name would flip on
+    /// every turn (live write, then session-file parse, repeat).
+    #[tokio::test]
+    async fn session_info_title_emits_once_and_skips_an_identical_repeat() {
+        let state = title_test_state(Some(7));
+
+        drive_session_info_title(&state, "Fix the login flow").await;
+        drive_session_info_title(&state, "Fix the login flow").await;
+        drive_session_info_title(&state, "  Fix the login flow  ").await; // same after trim
+        drive_session_info_title(&state, "Fix the signup flow").await;
+
+        assert_eq!(
+            emitted_native_titles(&state).await,
+            vec![
+                "Fix the login flow".to_string(),
+                "Fix the signup flow".to_string()
+            ],
+            "only a CHANGED title may reach the lifecycle worker"
+        );
+    }
+
+    /// A title published before the first prompt binds the row has nowhere to
+    /// land, so it is dropped — and deliberately NOT remembered, so the resend
+    /// that follows `ConversationLinked` is still accepted. Guards the
+    /// `conversation_id.is_some()` half of the skip: a stale cache here would
+    /// leave the row "Untitled" for the rest of the connection.
+    #[tokio::test]
+    async fn session_info_title_dropped_while_unbound_is_accepted_after_link() {
+        let state = title_test_state(None);
+
+        drive_session_info_title(&state, "Fix the login flow").await;
+        assert!(
+            emitted_native_titles(&state).await.is_empty(),
+            "no row to write to yet"
+        );
+        assert!(
+            state.read().await.last_native_title.is_none(),
+            "a dropped title must not poison the skip-cache"
+        );
+
+        state
+            .write()
+            .await
+            .apply_event(&AcpEvent::ConversationLinked {
+                conversation_id: 7,
+                folder_id: 1,
+                parent_conversation_id: None,
+                parent_tool_use_id: None,
+            });
+
+        drive_session_info_title(&state, "Fix the login flow").await;
+        assert_eq!(
+            emitted_native_titles(&state).await,
+            vec!["Fix the login flow".to_string()],
+            "the same title must be accepted once the row exists"
+        );
+    }
+
+    /// Goal-only / metadata-only `session_info_update`s (the common case for
+    /// codex `/goal` transitions) carry no title and must not queue the
+    /// lifecycle worker.
+    #[tokio::test]
+    async fn session_info_without_a_title_emits_no_native_title() {
+        let state = title_test_state(Some(7));
+        for wire in [
+            serde_json::json!({"sessionUpdate": "session_info_update"}),
+            serde_json::json!({"sessionUpdate": "session_info_update", "title": null}),
+            serde_json::json!({"sessionUpdate": "session_info_update", "title": "   "}),
+        ] {
+            let update: SessionUpdate =
+                serde_json::from_value(wire).expect("valid session_info_update wire shape");
+            let mut cache = ToolCallOutputCache::default();
+            let mut cb = CodeBuddyLiveState::default();
+            emit_conversation_update(
+                &state,
+                &EventEmitter::Noop,
+                AgentType::Codex,
+                update,
+                None,
+                &mut cache,
+                &mut cb,
+            )
+            .await;
+        }
+        assert!(emitted_native_titles(&state).await.is_empty());
+    }
+
     #[test]
     fn goal_advertised_control_reads_method_and_actions_or_falls_back() {
         // claude 0.66+ / codex 1.2+ advertisements.
@@ -11769,7 +12872,10 @@ mod tests {
         }}));
         assert_eq!(
             goal_advertised_control(Some(&claude)),
-            Some(("_session/goal".to_string(), vec!["set".to_string(), "clear".to_string()]))
+            Some((
+                "_session/goal".to_string(),
+                vec!["set".to_string(), "clear".to_string()]
+            ))
         );
         // Advertised-but-empty actions are honored as "no controls" — the
         // card must not offer affordances the adapter never implemented.
@@ -11944,7 +13050,10 @@ mod tests {
         assert_eq!(record.severity, "error");
         assert_eq!(record.title, "");
         assert_eq!(record.details, None);
-        assert_eq!(record.actions, vec!["retry".to_string(), "sing".to_string()]);
+        assert_eq!(
+            record.actions,
+            vec!["retry".to_string(), "sing".to_string()]
+        );
     }
 
     #[test]
@@ -12000,10 +13109,7 @@ mod tests {
             let caps =
                 serde_json::to_value(build_client_capabilities(agent, HostToolsPolicy::Default))
                     .unwrap();
-            assert!(caps
-                .get("_meta")
-                .and_then(|m| m.get("jetbrains"))
-                .is_none());
+            assert!(caps.get("_meta").and_then(|m| m.get("jetbrains")).is_none());
         }
     }
 
@@ -12084,7 +13190,10 @@ mod tests {
         assert_eq!(params["prompt"][0]["text"], "use the staging db");
         // The opt-in is what keeps the idle race host-owned — its absence
         // would regress to detached `startedNewTurn` turns.
-        assert_eq!(params["_meta"]["steering"]["idleBehavior"], "promptRequired");
+        assert_eq!(
+            params["_meta"]["steering"]["idleBehavior"],
+            "promptRequired"
+        );
     }
 
     #[test]
@@ -12271,7 +13380,7 @@ mod tests {
         ] {
             assert!(
                 !recovers_load_failure_locally(builtin, Some("session_unavailable")),
-            "{builtin:?} has no MaxCode-side transcript to fall back on"
+                "{builtin:?} has no MaxCode-side transcript to fall back on"
             );
         }
     }
@@ -12284,7 +13393,9 @@ mod tests {
         // No configured creds → both injected empty (⇒ spawn strips inherited).
         let mut merged = vec![("PATH".to_string(), "/usr/bin".to_string())];
         apply_cursor_env_policy(&mut merged, &sub);
-        assert!(merged.iter().any(|(k, v)| k == "CURSOR_API_KEY" && v.is_empty()));
+        assert!(merged
+            .iter()
+            .any(|(k, v)| k == "CURSOR_API_KEY" && v.is_empty()));
         assert!(merged
             .iter()
             .any(|(k, v)| k == "CURSOR_API_BASE_URL" && v.is_empty()));
@@ -12292,7 +13403,9 @@ mod tests {
         // A configured key is preserved; only the absent base URL is cleared.
         let mut with_key = vec![("CURSOR_API_KEY".to_string(), "sk-x".to_string())];
         apply_cursor_env_policy(&mut with_key, &sub);
-        assert!(with_key.iter().any(|(k, v)| k == "CURSOR_API_KEY" && v == "sk-x"));
+        assert!(with_key
+            .iter()
+            .any(|(k, v)| k == "CURSOR_API_KEY" && v == "sk-x"));
         assert!(with_key
             .iter()
             .any(|(k, v)| k == "CURSOR_API_BASE_URL" && v.is_empty()));
@@ -12318,7 +13431,9 @@ mod tests {
         // inherited XAI_API_KEY so `grok login` is used).
         let mut merged = vec![("PATH".to_string(), "/usr/bin".to_string())];
         apply_grok_env_policy(&mut merged, &sub);
-        assert!(merged.iter().any(|(k, v)| k == "XAI_API_KEY" && v.is_empty()));
+        assert!(merged
+            .iter()
+            .any(|(k, v)| k == "XAI_API_KEY" && v.is_empty()));
 
         // A configured key is preserved even in subscription mode (explicit wins).
         let mut with_key = vec![("XAI_API_KEY".to_string(), "xai-abc".to_string())];
@@ -12336,6 +13451,533 @@ mod tests {
             apply_grok_env_policy(&mut env, &rt);
             assert!(!env.iter().any(|(k, _)| k == "XAI_API_KEY"));
         }
+    }
+
+    fn antigravity_runtime(method: &str) -> BTreeMap<String, String> {
+        BTreeMap::from([(ANTIGRAVITY_AUTH_METHOD_ENV.to_string(), method.to_string())])
+    }
+
+    #[test]
+    fn antigravity_env_policy_scrubs_credentials_the_chosen_method_does_not_use() {
+        // Browser login: a GEMINI_API_KEY (or the Agent Platform trio)
+        // inherited from the developer's shell must be cleared, or the server
+        // silently authenticates as something the user did not pick.
+        let mut env = vec![
+            ("PATH".to_string(), "/usr/bin".to_string()),
+            ("GEMINI_API_KEY".to_string(), "leaked".to_string()),
+            ("GOOGLE_CLOUD_PROJECT".to_string(), "stale".to_string()),
+        ];
+        apply_antigravity_env_policy(&mut env, &antigravity_runtime("oauth-personal"));
+        for key in ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT"] {
+            let hits: Vec<_> = env.iter().filter(|(k, _)| k == key).collect();
+            assert_eq!(hits.len(), 1, "{key} must appear exactly once");
+            assert!(hits[0].1.is_empty(), "{key} must be cleared for env_remove");
+        }
+        assert!(env.iter().any(|(k, v)| k == "PATH" && v == "/usr/bin"));
+
+        // gemini-api-key keeps its own credential and clears the rest.
+        let mut env = vec![
+            ("GEMINI_API_KEY".to_string(), "real-key".to_string()),
+            ("GOOGLE_API_KEY".to_string(), "leaked".to_string()),
+        ];
+        apply_antigravity_env_policy(&mut env, &antigravity_runtime("gemini-api-key"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GEMINI_API_KEY" && v == "real-key"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GOOGLE_API_KEY" && v.is_empty()));
+
+        // Agent Platform keeps the GOOGLE_* trio, drops GEMINI_API_KEY.
+        let mut env = vec![
+            ("GOOGLE_CLOUD_PROJECT".to_string(), "p".to_string()),
+            ("GOOGLE_CLOUD_LOCATION".to_string(), "global".to_string()),
+            ("GEMINI_API_KEY".to_string(), "leaked".to_string()),
+        ];
+        apply_antigravity_env_policy(&mut env, &antigravity_runtime("agent-platform"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GOOGLE_CLOUD_PROJECT" && v == "p"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GOOGLE_CLOUD_LOCATION" && v == "global"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GEMINI_API_KEY" && v.is_empty()));
+    }
+
+    /// A var the method READS but the panel did not store must still be cleared.
+    ///
+    /// This is the whole Agent Platform choice: the method takes either a
+    /// `GOOGLE_API_KEY` or a project + location, and the server suppresses the
+    /// pair whenever the key is set — so the panel deletes `GOOGLE_API_KEY`
+    /// from the row when the field is left empty. A policy that only asked
+    /// "does this method read the var" left the slot open, and an inherited key
+    /// walked into it and outranked the project the user typed.
+    ///
+    /// Note the shape this needs: the earlier cases all put the var IN `merged`
+    /// first, which is the one arrangement that cannot catch this — the bug was
+    /// about the var being absent.
+    #[test]
+    fn antigravity_env_policy_clears_a_kept_var_the_panel_left_empty() {
+        // Exactly what the panel persists for "Agent Platform, no API key".
+        let mut env = vec![
+            ("GOOGLE_CLOUD_PROJECT".to_string(), "mine".to_string()),
+            ("GOOGLE_CLOUD_LOCATION".to_string(), "global".to_string()),
+        ];
+        apply_antigravity_env_policy(&mut env, &antigravity_runtime("agent-platform"));
+        let google_api_key: Vec<_> = env
+            .iter()
+            .filter(|(k, _)| k == "GOOGLE_API_KEY")
+            .map(|(_, v)| v.as_str())
+            .collect();
+        assert_eq!(
+            google_api_key,
+            vec![""],
+            "an inherited GOOGLE_API_KEY would suppress the project the user filled in"
+        );
+        // The credentials the panel DID store are untouched.
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GOOGLE_CLOUD_PROJECT" && v == "mine"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GOOGLE_CLOUD_LOCATION" && v == "global"));
+
+        // Same rule for the API-key method with an empty key field, and for a
+        // whitespace-only value — the panel trims before storing, so a blank
+        // here is a leftover rather than a credential.
+        let mut env = vec![("GEMINI_API_KEY".to_string(), "   ".to_string())];
+        apply_antigravity_env_policy(&mut env, &antigravity_runtime("gemini-api-key"));
+        assert!(env
+            .iter()
+            .any(|(k, v)| k == "GEMINI_API_KEY" && v.is_empty()));
+    }
+
+    #[test]
+    fn antigravity_env_policy_leaves_unrecorded_and_unknown_methods_alone() {
+        // Legacy rows (no recorded method) and a garbage value must not have
+        // an operator-provided container env scrubbed out from under them.
+        for runtime in [BTreeMap::new(), antigravity_runtime("not-a-method")] {
+            let mut env = vec![("GEMINI_API_KEY".to_string(), "operator".to_string())];
+            apply_antigravity_env_policy(&mut env, &runtime);
+            assert_eq!(env.len(), 1);
+            assert_eq!(env[0].1, "operator");
+        }
+    }
+
+    #[test]
+    fn antigravity_settings_read_fails_closed_on_anything_it_cannot_rewrite() {
+        // The vendor's own writer records the rule this mirrors: "a file that
+        // cannot be parsed is left alone, since rewriting it would delete
+        // content we could not read." Only a MISSING file is safe to create.
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+        assert!(matches!(read_antigravity_settings(&path), Ok(None)));
+
+        // Hjson: the server accepts comments and trailing commas, codeg's
+        // parser does not — so this lands in the give-up branch instead of
+        // being flattened into strict JSON with the comments (and anything
+        // else codeg misread) gone.
+        std::fs::write(
+            &path,
+            "{\n  // my key\n  \"auth\": { \"type\": \"gemini-api-key\" },\n}\n",
+        )
+        .unwrap();
+        assert!(read_antigravity_settings(&path).is_err());
+
+        // A JSON array/scalar root is not editable either.
+        std::fs::write(&path, "[1, 2]").unwrap();
+        assert!(read_antigravity_settings(&path).is_err());
+
+        std::fs::write(&path, r#"{"auth":{"type":"oauth-business"},"keep":1}"#).unwrap();
+        let parsed = read_antigravity_settings(&path).unwrap().unwrap();
+        assert_eq!(parsed["keep"], 1);
+    }
+
+    #[test]
+    fn antigravity_settings_sync_leaves_an_unparseable_file_untouched() {
+        // End to end: a hand-commented settings.json must survive a launch
+        // byte for byte, warning instead of clobbering.
+        let dir = tempfile::tempdir().unwrap();
+        let acp_dir = dir.path().join("antigravity-acp");
+        std::fs::create_dir_all(&acp_dir).unwrap();
+        let path = acp_dir.join("settings.json");
+        let original = "{\n  // hand written\n  \"gcp\": { \"project\": \"mine\" },\n}\n";
+        std::fs::write(&path, original).unwrap();
+
+        let mut runtime = antigravity_runtime("oauth-business");
+        runtime.insert(
+            "GEMINI_HOME".to_string(),
+            dir.path().to_string_lossy().to_string(),
+        );
+        let report = sync_antigravity_settings_file(&runtime);
+
+        // The panel must be able to SAY this: the row now claims
+        // `oauth-business` while the file still says nothing at all.
+        assert_eq!(report.status, AntigravitySyncStatus::Skipped);
+        assert!(report.reason.is_some_and(|r| r.contains("strict JSON")));
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+    }
+
+    #[test]
+    fn antigravity_settings_sync_writes_through_gemini_home_and_defaults_the_method() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("antigravity-acp").join("settings.json");
+        let home = || {
+            BTreeMap::from([(
+                "GEMINI_HOME".to_string(),
+                dir.path().to_string_lossy().to_string(),
+            )])
+        };
+
+        // No recorded method and no file: fall back to the method the panel
+        // DISPLAYS as selected, so a user who never opened it still gets a
+        // session instead of `Authentication required`.
+        sync_antigravity_settings_file(&home());
+        let written: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(written["auth"]["type"], "oauth-personal");
+
+        // An `auth.type` already on disk is NEVER overridden by that fallback.
+        std::fs::write(&path, r#"{"auth":{"type":"gemini-api-key"},"keep":7}"#).unwrap();
+        sync_antigravity_settings_file(&home());
+        let held: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(held["auth"]["type"], "gemini-api-key");
+        assert_eq!(held["keep"], 7);
+
+        // An explicit panel choice does override it, and keeps foreign keys.
+        let mut runtime = antigravity_runtime("oauth-business");
+        runtime.extend(home());
+        runtime.insert("GOOGLE_CLOUD_PROJECT".to_string(), "acme".to_string());
+        runtime.insert("GOOGLE_CLOUD_LOCATION".to_string(), "eu".to_string());
+        sync_antigravity_settings_file(&runtime);
+        let updated: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+        assert_eq!(updated["auth"]["type"], "oauth-business");
+        assert_eq!(updated["gcp"]["project"], "acme");
+        assert_eq!(updated["gcp"]["location"], "eu");
+        assert_eq!(updated["keep"], 7);
+    }
+
+    #[test]
+    fn antigravity_settings_merge_preserves_foreign_keys_and_skips_no_op_writes() {
+        // The file is the USER's: the server parses it as Hjson and documents
+        // it as user-provided, so a codeg write may only touch `auth.type` and
+        // the `gcp` block.
+        let existing = serde_json::json!({
+            "auth": { "type": "gemini-api-key" },
+            "gcp": { "project": "hand-written", "location": "eu" },
+            "someFutureKey": { "nested": [1, 2, 3] }
+        });
+        let merged = merge_antigravity_settings(
+            Some(existing.clone()),
+            "oauth-business",
+            GcpField::Keep,
+            GcpField::Keep,
+        )
+        .expect("editable")
+        .expect("auth.type changed, so this is a real write");
+        assert_eq!(merged["auth"]["type"], "oauth-business");
+        // No panel values supplied ⇒ the hand-written gcp block is untouched.
+        assert_eq!(merged["gcp"]["project"], "hand-written");
+        assert_eq!(merged["gcp"]["location"], "eu");
+        assert_eq!(merged["someFutureKey"]["nested"][2], 3);
+
+        // Panel values overwrite only the fields they carry.
+        let merged = merge_antigravity_settings(
+            Some(existing.clone()),
+            "oauth-business",
+            GcpField::Set("proj"),
+            GcpField::Keep,
+        )
+        .expect("editable")
+        .expect("changed");
+        assert_eq!(merged["gcp"]["project"], "proj");
+        assert_eq!(merged["gcp"]["location"], "eu", "location was not supplied");
+
+        // Already says exactly this ⇒ no write.
+        assert!(merge_antigravity_settings(
+            Some(existing),
+            "gemini-api-key",
+            GcpField::Keep,
+            GcpField::Keep
+        )
+        .expect("editable")
+        .is_none());
+
+        // No file at all: created from scratch. (A non-object ROOT never gets
+        // here — the read side already refused it.)
+        let created = merge_antigravity_settings(
+            None,
+            "oauth-personal",
+            GcpField::Set("p"),
+            GcpField::Set("global"),
+        )
+        .expect("editable")
+        .expect("created");
+        assert_eq!(created["auth"]["type"], "oauth-personal");
+        assert_eq!(created["gcp"]["project"], "p");
+        assert_eq!(created["gcp"]["location"], "global");
+    }
+
+    #[test]
+    fn antigravity_settings_merge_refuses_blocks_that_are_not_objects() {
+        // The vendor's `_auth_block` logs "not editing %r because `auth` is not
+        // an object" and gives up. Replacing that value with an object would
+        // delete whatever the user meant by it, so codeg refuses too.
+        let odd_auth = serde_json::json!({ "auth": "managed-elsewhere", "keep": 1 });
+        assert!(merge_antigravity_settings(
+            Some(odd_auth),
+            "oauth-personal",
+            GcpField::Keep,
+            GcpField::Keep
+        )
+        .is_err());
+
+        // Same for `gcp` — but ONLY when there is actually something to write
+        // into it. With no project or location supplied, a strange `gcp` is
+        // none of codeg's business and must not block the `auth.type` update.
+        let odd_gcp = serde_json::json!({ "gcp": ["not", "an", "object"] });
+        assert!(merge_antigravity_settings(
+            Some(odd_gcp.clone()),
+            "oauth-personal",
+            GcpField::Set("p"),
+            GcpField::Keep,
+        )
+        .is_err());
+        let untouched = merge_antigravity_settings(
+            Some(odd_gcp),
+            "oauth-personal",
+            GcpField::Keep,
+            GcpField::Keep,
+        )
+        .expect("editable")
+        .expect("auth.type still written");
+        assert_eq!(untouched["auth"]["type"], "oauth-personal");
+        assert_eq!(untouched["gcp"], serde_json::json!(["not", "an", "object"]));
+
+        // An explicit JSON null reads as absent, not as a foreign shape.
+        let null_auth = serde_json::json!({ "auth": null, "keep": 2 });
+        let filled = merge_antigravity_settings(
+            Some(null_auth),
+            "gemini-api-key",
+            GcpField::Keep,
+            GcpField::Keep,
+        )
+        .expect("editable")
+        .expect("changed");
+        assert_eq!(filled["auth"]["type"], "gemini-api-key");
+        assert_eq!(filled["keep"], 2);
+    }
+
+    /// Clearing the project and location in the panel has to REACH the file.
+    ///
+    /// The old signature could not say it: "the panel does not manage this
+    /// field" and "the panel manages it and the user emptied it" both arrived
+    /// as `None`, and the merge left the block alone for both. So the values
+    /// written by an earlier save stayed in force forever — and for
+    /// `oauth-business` that file is the ONLY place the project comes from, so
+    /// the agent kept authenticating against a project the UI showed nowhere.
+    #[test]
+    fn antigravity_settings_gcp_fields_can_be_cleared_by_the_panel() {
+        let existing = || {
+            serde_json::json!({
+                "auth": { "type": "oauth-business" },
+                "gcp": { "project": "stale", "location": "eu" },
+                "keep": 1
+            })
+        };
+
+        // The panel owns both fields for this method and both are now empty.
+        let cleared = merge_antigravity_settings(
+            Some(existing()),
+            "oauth-business",
+            GcpField::Clear,
+            GcpField::Clear,
+        )
+        .expect("editable")
+        .expect("the gcp block changed, so this is a real write");
+        assert!(
+            cleared.get("gcp").is_none(),
+            "an emptied block should go rather than linger as {{}}: {cleared}"
+        );
+        assert_eq!(cleared["auth"]["type"], "oauth-business");
+        assert_eq!(cleared["keep"], 1, "foreign keys still survive a clear");
+
+        // One cleared, one set.
+        let partial = merge_antigravity_settings(
+            Some(existing()),
+            "oauth-business",
+            GcpField::Set("new"),
+            GcpField::Clear,
+        )
+        .expect("editable")
+        .expect("changed");
+        assert_eq!(partial["gcp"]["project"], "new");
+        assert!(partial["gcp"].get("location").is_none());
+
+        // A clear with nothing on disk to clear is not a write — otherwise
+        // every launch would rewrite a running server's file for nothing.
+        assert!(merge_antigravity_settings(
+            Some(serde_json::json!({ "auth": { "type": "oauth-business" } })),
+            "oauth-business",
+            GcpField::Clear,
+            GcpField::Clear,
+        )
+        .expect("editable")
+        .is_none());
+
+        // And a clear against a `gcp` that is not an object must not REFUSE the
+        // edit: there is nothing there to remove, so it is the same "none of
+        // codeg's business" case as having nothing to say, and blocking would
+        // take the `auth.type` update down with it — the one part of this file
+        // the agent cannot start without.
+        let odd = serde_json::json!({ "gcp": ["not", "an", "object"] });
+        let still_written = merge_antigravity_settings(
+            Some(odd),
+            "oauth-business",
+            GcpField::Clear,
+            GcpField::Clear,
+        )
+        .expect("a clear must not refuse a block it cannot edit")
+        .expect("auth.type still written");
+        assert_eq!(still_written["auth"]["type"], "oauth-business");
+        assert_eq!(
+            still_written["gcp"],
+            serde_json::json!(["not", "an", "object"])
+        );
+    }
+
+    /// Which fields count as the panel's is decided by the METHOD, so a
+    /// hand-written block under a method that never renders those inputs is
+    /// still none of codeg's business.
+    #[test]
+    fn antigravity_gcp_ownership_follows_the_recorded_method() {
+        let empty = BTreeMap::new();
+        for method in ["oauth-business", "agent-platform"] {
+            assert!(matches!(
+                antigravity_gcp_field(&empty, Some(method), "GOOGLE_CLOUD_PROJECT"),
+                GcpField::Clear
+            ));
+        }
+        // The two methods with no project/location inputs, and a legacy row
+        // with no recorded method at all.
+        for method in [Some("oauth-personal"), Some("gemini-api-key"), None] {
+            assert!(matches!(
+                antigravity_gcp_field(&empty, method, "GOOGLE_CLOUD_PROJECT"),
+                GcpField::Keep
+            ));
+        }
+        // A value present is always a write, whoever recorded it.
+        let filled = BTreeMap::from([("GOOGLE_CLOUD_PROJECT".to_string(), " p ".to_string())]);
+        assert!(matches!(
+            antigravity_gcp_field(&filled, Some("oauth-business"), "GOOGLE_CLOUD_PROJECT"),
+            GcpField::Set("p")
+        ));
+    }
+
+    /// `GEMINI_HOME=~/x` names `$HOME/x` to the server, so it has to name the
+    /// same thing here.
+    ///
+    /// Antigravity runs `os.path.expanduser` on the value
+    /// (`acp_server/paths.py`). codeg built the path with a bare
+    /// `PathBuf::from`, so it created a directory literally named `~` under its
+    /// own working directory and wrote `auth.type` into THAT — leaving
+    /// `session/new` failing with `Authentication required` no matter how many
+    /// times the panel was saved.
+    #[test]
+    fn antigravity_settings_path_expands_a_tilde_home_the_way_the_server_does() {
+        let home = dirs::home_dir().expect("home dir");
+        let runtime = BTreeMap::from([("GEMINI_HOME".to_string(), "~/agy-test".to_string())]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&runtime).expect("nameable"),
+            home.join("agy-test").join("antigravity-acp")
+        );
+
+        // …and against the CHILD's home when the launch relocates it, since the
+        // server runs its `expanduser` in that environment. Resolving against
+        // codeg's home wrote the auth file into a tree the agent never opens.
+        // Platform-native fixture: `child_home_dir` refuses a home that is not
+        // absolute, and a unix-style `/srv/agy` has no drive prefix so Windows
+        // does not consider it absolute. A shared literal would pass on unix
+        // and fail in the Windows server CI cell, which runs these for real.
+        #[cfg(windows)]
+        let (home_key, child_home) = ("USERPROFILE", "C:\\srv\\agy");
+        #[cfg(not(windows))]
+        let (home_key, child_home) = ("HOME", "/srv/agy");
+
+        let relocated = BTreeMap::from([
+            (home_key.to_string(), child_home.to_string()),
+            ("GEMINI_HOME".to_string(), "~/profile".to_string()),
+        ]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&relocated).expect("nameable"),
+            PathBuf::from(child_home)
+                .join("profile")
+                .join("antigravity-acp")
+        );
+        // The `~/.gemini` default follows it too.
+        let default_under_child = BTreeMap::from([(home_key.to_string(), child_home.to_string())]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&default_under_child).expect("nameable"),
+            PathBuf::from(child_home)
+                .join(".gemini")
+                .join("antigravity-acp")
+        );
+        // With the home REMOVED for the child there is no honest answer, and a
+        // guess would both strand a tree and leave auth.type unwritten.
+        let no_home = BTreeMap::from([
+            (home_key.to_string(), String::new()),
+            ("GEMINI_HOME".to_string(), "~/profile".to_string()),
+        ]);
+        assert!(antigravity_acp_dir_for_env(&no_home).is_err());
+        // …unless the value is absolute, which does not depend on a home at all.
+        let no_home_absolute = BTreeMap::from([
+            (home_key.to_string(), String::new()),
+            ("GEMINI_HOME".to_string(), "/srv/gemini".to_string()),
+        ]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&no_home_absolute).expect("nameable"),
+            PathBuf::from("/srv/gemini").join("antigravity-acp")
+        );
+
+        // An absolute value is still taken verbatim, and an EXACTLY empty one
+        // means the spawn layer removed the var, so the child falls back to its
+        // own default rather than to codeg's cwd.
+        let absolute = BTreeMap::from([("GEMINI_HOME".to_string(), "/srv/gemini".to_string())]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&absolute).expect("nameable"),
+            PathBuf::from("/srv/gemini").join("antigravity-acp")
+        );
+        let removed = BTreeMap::from([("GEMINI_HOME".to_string(), String::new())]);
+        assert_eq!(
+            antigravity_acp_dir_for_env(&removed).expect("nameable"),
+            crate::parsers::antigravity::resolve_antigravity_acp_dir()
+        );
+    }
+
+    #[test]
+    fn antigravity_settings_sync_leaves_a_foreign_auth_block_untouched() {
+        // End to end: the refusal must reach the file, not just the merge.
+        let dir = tempfile::tempdir().unwrap();
+        let acp_dir = dir.path().join("antigravity-acp");
+        std::fs::create_dir_all(&acp_dir).unwrap();
+        let path = acp_dir.join("settings.json");
+        let original = r#"{"auth":"managed-elsewhere","keep":1}"#;
+        std::fs::write(&path, original).unwrap();
+
+        let mut runtime = antigravity_runtime("oauth-personal");
+        runtime.insert(
+            "GEMINI_HOME".to_string(),
+            dir.path().to_string_lossy().to_string(),
+        );
+        let report = sync_antigravity_settings_file(&runtime);
+
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
+        assert_eq!(report.status, AntigravitySyncStatus::Skipped);
     }
 
     #[test]
@@ -12564,8 +14206,10 @@ mod tests {
             true,
         );
         // Exactly one PATH-ish key, the original casing preserved, value prepended.
-        let path_keys: Vec<&String> =
-            env.keys().filter(|k| k.eq_ignore_ascii_case("PATH")).collect();
+        let path_keys: Vec<&String> = env
+            .keys()
+            .filter(|k| k.eq_ignore_ascii_case("PATH"))
+            .collect();
         assert_eq!(path_keys.len(), 1, "{env:?}");
         assert_eq!(
             env.get("Path").unwrap(),
@@ -12576,9 +14220,17 @@ mod tests {
     #[test]
     fn prepend_path_windows_seeds_from_fallback_with_semicolon() {
         let mut env = BTreeMap::new();
-        prepend_dir_to_path_env(&mut env, r"C:\OfficeCLI", r"C:\Windows;C:\Windows\System32", true);
+        prepend_dir_to_path_env(
+            &mut env,
+            r"C:\OfficeCLI",
+            r"C:\Windows;C:\Windows\System32",
+            true,
+        );
         // No prior key → default `Path` casing on Windows.
-        assert_eq!(env.get("Path").unwrap(), r"C:\OfficeCLI;C:\Windows;C:\Windows\System32");
+        assert_eq!(
+            env.get("Path").unwrap(),
+            r"C:\OfficeCLI;C:\Windows;C:\Windows\System32"
+        );
     }
 
     #[test]
@@ -12591,9 +14243,15 @@ mod tests {
         env.insert("PATH".to_string(), r"C:\a".to_string());
         env.insert("Path".to_string(), r"C:\b".to_string());
         prepend_dir_to_path_env(&mut env, r"C:\OfficeCLI", "ignored-fallback", true);
-        let path_keys: Vec<&String> =
-            env.keys().filter(|k| k.eq_ignore_ascii_case("PATH")).collect();
-        assert_eq!(path_keys.len(), 1, "exactly one PATH-ish key must remain: {env:?}");
+        let path_keys: Vec<&String> = env
+            .keys()
+            .filter(|k| k.eq_ignore_ascii_case("PATH"))
+            .collect();
+        assert_eq!(
+            path_keys.len(),
+            1,
+            "exactly one PATH-ish key must remain: {env:?}"
+        );
         assert_eq!(env.get("Path").unwrap(), r"C:\OfficeCLI;C:\b");
     }
 
@@ -12658,7 +14316,10 @@ mod tests {
         // `EPERM`, every shell fallback blocked, `FsViolation` audited).
         let withheld = caps_of(AgentType::Grok, HostToolsPolicy::Agent);
         assert_eq!(withheld["terminal"], serde_json::Value::Bool(false));
-        assert_eq!(withheld["fs"]["readTextFile"], serde_json::Value::Bool(false));
+        assert_eq!(
+            withheld["fs"]["readTextFile"],
+            serde_json::Value::Bool(false)
+        );
         assert_eq!(
             withheld["fs"]["writeTextFile"],
             serde_json::Value::Bool(false)
@@ -12853,9 +14514,18 @@ mod tests {
                 assert_eq!(tool_call_id, "019f9475-c67f-7390-9ee5-a09d29986a6c-4");
                 assert_eq!(status, "completed");
                 let meta = meta.expect("compaction card needs meta");
-                assert_eq!(meta.get("contextCompaction").and_then(|v| v.as_bool()), Some(true));
-                assert_eq!(meta.get("tokensBefore").and_then(|v| v.as_u64()), Some(45389));
-                assert_eq!(meta.get("tokensAfter").and_then(|v| v.as_u64()), Some(16486));
+                assert_eq!(
+                    meta.get("contextCompaction").and_then(|v| v.as_bool()),
+                    Some(true)
+                );
+                assert_eq!(
+                    meta.get("tokensBefore").and_then(|v| v.as_u64()),
+                    Some(45389)
+                );
+                assert_eq!(
+                    meta.get("tokensAfter").and_then(|v| v.as_u64()),
+                    Some(16486)
+                );
             }
             other => panic!("expected ToolCall, got {other:?}"),
         }
@@ -13105,8 +14775,13 @@ mod tests {
         )
         .unwrap();
         match map_grok_ext_notification(&raw, AgentType::Grok) {
-            Some(AcpEvent::Error { message, terminal, .. }) => {
-                assert!(message.contains("503"), "error should carry the reason; got: {message}");
+            Some(AcpEvent::Error {
+                message, terminal, ..
+            }) => {
+                assert!(
+                    message.contains("503"),
+                    "error should carry the reason; got: {message}"
+                );
                 assert!(!terminal, "compaction failure must not kill the connection");
             }
             other => panic!("expected non-terminal Error, got {other:?}"),
@@ -13197,8 +14872,7 @@ mod tests {
             "subagent_type": "plan"
         }));
         assert!(
-            map_grok_subagent_notification(&stale_bare, AgentType::Grok, true, &mut cb)
-                .is_empty(),
+            map_grok_subagent_notification(&stale_bare, AgentType::Grok, true, &mut cb).is_empty(),
             "an event missing a captured field must not match"
         );
         assert_eq!(cb.grok_pending_spawn_ids.len(), 1, "B still keeps its slot");
@@ -13309,8 +14983,14 @@ mod tests {
                     .as_ref()
                     .and_then(|m| m.get("grokSubagentProgress"))
                     .expect("progress meta");
-                assert_eq!(progress.get("toolCallCount").and_then(|v| v.as_u64()), Some(7));
-                assert_eq!(progress.get("durationMs").and_then(|v| v.as_u64()), Some(4200));
+                assert_eq!(
+                    progress.get("toolCallCount").and_then(|v| v.as_u64()),
+                    Some(7)
+                );
+                assert_eq!(
+                    progress.get("durationMs").and_then(|v| v.as_u64()),
+                    Some(4200)
+                );
                 assert_eq!(
                     progress.get("contextUsagePct").and_then(|v| v.as_f64()),
                     Some(12.5)
@@ -13340,7 +15020,8 @@ mod tests {
         }));
         // The settle is likewise out-of-turn-safe (a background child usually
         // finishes after its launch turn ended).
-        match map_grok_subagent_notification(&finished, AgentType::Grok, false, &mut cb).as_slice() {
+        match map_grok_subagent_notification(&finished, AgentType::Grok, false, &mut cb).as_slice()
+        {
             [AcpEvent::BackgroundActivity {
                 session_id,
                 outstanding,
@@ -13359,8 +15040,9 @@ mod tests {
             other => panic!("expected BackgroundActivity, got {other:?}"),
         }
         // Lifecycle over: a duplicate finished no longer routes anywhere.
-        assert!(map_grok_subagent_notification(&finished, AgentType::Grok, false, &mut cb)
-            .is_empty());
+        assert!(
+            map_grok_subagent_notification(&finished, AgentType::Grok, false, &mut cb).is_empty()
+        );
     }
 
     /// A BLOCKING spawn (call not yet settled when the child finishes) must NOT
@@ -13478,11 +15160,20 @@ mod tests {
             )
         };
         // Both compaction outcomes are visible turn output.
-        assert!(grok_ext_notification_is_turn_output(&notif("auto_compact_completed"), AgentType::Grok));
-        assert!(grok_ext_notification_is_turn_output(&notif("auto_compact_failed"), AgentType::Grok));
+        assert!(grok_ext_notification_is_turn_output(
+            &notif("auto_compact_completed"),
+            AgentType::Grok
+        ));
+        assert!(grok_ext_notification_is_turn_output(
+            &notif("auto_compact_failed"),
+            AgentType::Grok
+        ));
         // turn_completed is deliberately left to the prompt-response path — it is
         // NOT counted here (otherwise a genuinely empty turn would be masked).
-        assert!(!grok_ext_notification_is_turn_output(&notif("turn_completed"), AgentType::Grok));
+        assert!(!grok_ext_notification_is_turn_output(
+            &notif("turn_completed"),
+            AgentType::Grok
+        ));
         // Never fires for a non-grok agent.
         assert!(!grok_ext_notification_is_turn_output(
             &notif("auto_compact_completed"),
@@ -13568,18 +15259,33 @@ mod tests {
         );
         // Same count again → nothing to say (the field rides nearly every chunk).
         assert_eq!(
-            grok_live_usage_step(&streaming, AgentType::Grok, Some(500_000), Some((4200, 500_000))),
+            grok_live_usage_step(
+                &streaming,
+                AgentType::Grok,
+                Some(500_000),
+                Some((4200, 500_000))
+            ),
             None
         );
         // A different prior value is a real step → emit.
         assert_eq!(
-            grok_live_usage_step(&streaming, AgentType::Grok, Some(500_000), Some((3000, 500_000))),
+            grok_live_usage_step(
+                &streaming,
+                AgentType::Grok,
+                Some(500_000),
+                Some((3000, 500_000))
+            ),
             Some((4200, 500_000))
         );
         // Same count but a NEW window (the user switched model between turns) →
         // re-emit, or the ring would keep dividing by the old model's window.
         assert_eq!(
-            grok_live_usage_step(&streaming, AgentType::Grok, Some(256_000), Some((4200, 500_000))),
+            grok_live_usage_step(
+                &streaming,
+                AgentType::Grok,
+                Some(256_000),
+                Some((4200, 500_000))
+            ),
             Some((4200, 256_000))
         );
         // No resolvable window → still report the count, with the frontend's
@@ -13719,9 +15425,8 @@ mod tests {
         // so the reader can tell "happened once" from "happening constantly".
         let coalesced = dropped_update_log_line("dispatch", &drop_err("missing field"), 4213);
         assert!(
-            coalesced.starts_with(
-                "[ACP] Ignoring unreadable session update (dispatch): missing field"
-            ),
+            coalesced
+                .starts_with("[ACP] Ignoring unreadable session update (dispatch): missing field"),
             "{coalesced}"
         );
         assert!(coalesced.contains("+4212 more"), "{coalesced}");
@@ -13758,13 +15463,17 @@ mod tests {
         use sacp::schema::{ContentChunk, Plan};
 
         let mut probe = TurnOutputProbe::new(0);
-        probe.note_update(&SessionUpdate::Plan(Plan::new(Vec::new())));
+        probe.note_update(
+            AgentType::ClaudeCode,
+            &SessionUpdate::Plan(Plan::new(Vec::new())),
+        );
         assert!(!probe.saw_agent_output, "Plan is not agent output");
         assert!(probe.saw_metadata_update);
 
-        probe.note_update(&SessionUpdate::AgentMessageChunk(ContentChunk::new(
-            "hi".into(),
-        )));
+        probe.note_update(
+            AgentType::ClaudeCode,
+            &SessionUpdate::AgentMessageChunk(ContentChunk::new("hi".into())),
+        );
         assert!(probe.saw_agent_output);
     }
 
@@ -13794,7 +15503,10 @@ mod tests {
     #[test]
     fn note_dropped_counts_each_site_separately_and_keeps_the_first() {
         let mut probe = TurnOutputProbe::new(0);
-        probe.note_dropped(DropSite::Dispatch, &drop_err("missing field `sessionUpdate`"));
+        probe.note_dropped(
+            DropSite::Dispatch,
+            &drop_err("missing field `sessionUpdate`"),
+        );
         probe.note_dropped(DropSite::Decode, &drop_err("missing field `update`"));
         probe.note_dropped(DropSite::Decode, &drop_err("missing field `content`"));
 
@@ -13838,7 +15550,10 @@ mod tests {
 
         // Without agent output, only `end_turn` is rewritten.
         let silent = TurnOutputProbe::new(0);
-        assert_eq!(finish_turn_reason(&silent, "cancelled", &tail).0, "cancelled");
+        assert_eq!(
+            finish_turn_reason(&silent, "cancelled", &tail).0,
+            "cancelled"
+        );
         assert_eq!(finish_turn_reason(&silent, "end_turn", &tail).0, "empty");
     }
 
@@ -13895,8 +15610,14 @@ mod tests {
         probe.note_dropped(DropSite::Dispatch, &drop_err("EOF while parsing a value"));
 
         let details = build_empty_turn_details(&probe, &tail).expect("details");
-        assert!(details.contains("dropped 2 update(s) (1 decode, 1 dispatch)"), "{details}");
-        assert!(details.contains("first (decode): trailing characters"), "{details}");
+        assert!(
+            details.contains("dropped 2 update(s) (1 decode, 1 dispatch)"),
+            "{details}"
+        );
+        assert!(
+            details.contains("first (decode): trailing characters"),
+            "{details}"
+        );
     }
 
     #[test]
@@ -14037,7 +15758,10 @@ mod tests {
             current_model_id_from_opts(&[select("effort", "mode", "high")]),
             None
         );
-        assert_eq!(current_model_id_from_opts(&[select("m", "model", "")]), None);
+        assert_eq!(
+            current_model_id_from_opts(&[select("m", "model", "")]),
+            None
+        );
         assert_eq!(current_model_id_from_opts(&[]), None);
     }
 
@@ -14298,10 +16022,12 @@ mod tests {
 
         // A different data.code, or no data at all, must NOT be swallowed —
         // those fall through to the generic error path.
-        let other = sacp::Error::new(-32603, "boom")
-            .data(serde_json::json!({ "code": "SOMETHING_ELSE" }));
+        let other =
+            sacp::Error::new(-32603, "boom").data(serde_json::json!({ "code": "SOMETHING_ELSE" }));
         assert!(!is_grok_incompatible_agent_switch(&other));
-        assert!(!is_grok_incompatible_agent_switch(&sacp::Error::internal_error()));
+        assert!(!is_grok_incompatible_agent_switch(
+            &sacp::Error::internal_error()
+        ));
     }
 
     #[test]
@@ -14324,8 +16050,8 @@ mod tests {
 
         // Empty specs → the effort selector comes from the flat `x.ai/sessionConfig`
         // "mode" list (the no-`models` fallback path).
-        let opts =
-            synthesize_grok_config_options(Some(&meta), &HashMap::new()).expect("should synthesize");
+        let opts = synthesize_grok_config_options(Some(&meta), &HashMap::new())
+            .expect("should synthesize");
         assert_eq!(opts.len(), 2, "model + effort selectors");
 
         let model = &opts[0];
@@ -14335,15 +16061,24 @@ mod tests {
         // Both models appear (agent-type filtering is deliberately NOT applied —
         // cross-type switches are handled gracefully at set time instead).
         assert_eq!(model_sel.options.len(), 2);
-        assert_eq!(model_sel.current_value, "grok-4.5", "the `selected` model is current");
-        assert!(model_sel.options.iter().any(|o| o.value == "grok-composer-2.5-fast"));
+        assert_eq!(
+            model_sel.current_value, "grok-4.5",
+            "the `selected` model is current"
+        );
+        assert!(model_sel
+            .options
+            .iter()
+            .any(|o| o.value == "grok-composer-2.5-fast"));
 
         let effort = &opts[1];
         assert_eq!(effort.id, GROK_EFFORT_OPTION_ID);
         assert_eq!(effort.category.as_deref(), Some("mode"));
         let effort_sel = expect_select(&effort.kind);
         assert_eq!(effort_sel.options.len(), 2);
-        assert_eq!(effort_sel.current_value, "high", "the `selected` effort is current");
+        assert_eq!(
+            effort_sel.current_value, "high",
+            "the `selected` effort is current"
+        );
         assert!(effort_sel.options.iter().any(|o| o.value == "low"));
     }
 
@@ -14363,8 +16098,8 @@ mod tests {
         .unwrap();
         // Empty specs → the effort selector comes from the flat `x.ai/sessionConfig`
         // "mode" list (the no-`models` fallback path).
-        let opts =
-            synthesize_grok_config_options(Some(&meta), &HashMap::new()).expect("should synthesize");
+        let opts = synthesize_grok_config_options(Some(&meta), &HashMap::new())
+            .expect("should synthesize");
         assert_eq!(opts.len(), 1);
         assert_eq!(opts[0].id, GROK_MODEL_OPTION_ID);
     }
@@ -14440,7 +16175,9 @@ mod tests {
 
     #[test]
     fn config_option_rejection_is_silent_when_the_pick_landed() {
-        assert!(config_option_rejection(&rejection_fixture("high"), "thought_level", "high").is_none());
+        assert!(
+            config_option_rejection(&rejection_fixture("high"), "thought_level", "high").is_none()
+        );
     }
 
     #[test]
@@ -14604,10 +16341,9 @@ mod tests {
         );
         assert!(sel.options.iter().all(|o| o.description.is_some()));
         // Grok's own per-tier text is preserved for the switchable tiers.
-        assert!(sel
-            .options
-            .iter()
-            .any(|o| o.value == "high" && o.name == "High" && o.description.as_deref() == Some("Highest quality")));
+        assert!(sel.options.iter().any(|o| o.value == "high"
+            && o.name == "High"
+            && o.description.as_deref() == Some("Highest quality")));
         // Unsupported model → no selector; unknown model → None.
         assert!(build_grok_effort_option("grok-composer-2.5-fast", &specs).is_none());
         assert!(build_grok_effort_option("nope", &specs).is_none());
@@ -14636,7 +16372,10 @@ mod tests {
             .expect("effort selector");
         let sel = expect_select(&effort.kind);
         assert_eq!(sel.current_value, "xhigh", "grok-4.5's real default");
-        assert!(sel.options.iter().any(|o| o.value == "xhigh" && o.name == "Max"));
+        assert!(sel
+            .options
+            .iter()
+            .any(|o| o.value == "xhigh" && o.name == "Max"));
     }
 
     #[test]
@@ -14762,9 +16501,7 @@ mod tests {
         let errors: Vec<(Option<String>, bool)> = events
             .iter()
             .filter_map(|e| match &e.payload {
-                AcpEvent::Error {
-                    code, terminal, ..
-                } => Some((code.clone(), *terminal)),
+                AcpEvent::Error { code, terminal, .. } => Some((code.clone(), *terminal)),
                 _ => None,
             })
             .collect();
@@ -14990,12 +16727,7 @@ mod tests {
         cache: &mut ToolCallOutputCache,
         cb: &mut CodeBuddyLiveState,
         wire: serde_json::Value,
-    ) -> (
-        Option<String>,
-        Option<String>,
-        Option<String>,
-        Option<bool>,
-    ) {
+    ) -> (Option<String>, Option<String>, Option<String>, Option<bool>) {
         let st = SessionState::new(
             "conn-pi".to_string(),
             agent_type,
@@ -15020,12 +16752,7 @@ mod tests {
                     raw_input,
                     raw_output,
                     ..
-                } => Some((
-                    content.clone(),
-                    raw_input.clone(),
-                    raw_output.clone(),
-                    None,
-                )),
+                } => Some((content.clone(), raw_input.clone(), raw_output.clone(), None)),
                 AcpEvent::ToolCallUpdate {
                     content,
                     raw_input,
@@ -15322,6 +17049,662 @@ mod tests {
         assert!(cb.pi_terminal_calls.is_empty());
     }
 
+    /// A pi `bash` that does NOT ride the `_meta` channel (every pi-acp build
+    /// before the terminal bridge — and every non-bash pi tool on all of them)
+    /// reports its result twice: flattened into `content[]`, and verbatim as the
+    /// MCP envelope in `rawOutput`. Regression: the envelope was stringified into
+    /// `raw_output`, which WINS over `content` in the live store, so the terminal
+    /// card printed `{"content":[{"text":"$ next build…","type":"text"}]}`.
+    #[tokio::test]
+    async fn pi_tool_result_envelope_does_not_shadow_content() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (content, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_fb7",
+                "status": "completed",
+                "content": [{
+                    "type": "content",
+                    "content": {"type": "text", "text": "$ next build\n✓ Compiled\n"},
+                }],
+                "rawOutput": {
+                    "content": [{"type": "text", "text": "$ next build\n✓ Compiled\n"}],
+                },
+            }),
+        )
+        .await;
+
+        assert!(
+            raw_output.is_none(),
+            "the envelope is a second copy of `content` — shipping it renders the \
+             JSON source as the terminal body: {raw_output:?}"
+        );
+        assert_eq!(
+            content.as_deref(),
+            Some("$ next build\n✓ Compiled\n"),
+            "the clean content channel carries the command output"
+        );
+    }
+
+    /// Sequence guard for the whole command, not one frame in isolation.
+    ///
+    /// pi's bash tool fires `onUpdate({content: []})` before the process writes a
+    /// byte, so frame 1 of EVERY command is the empty envelope — and pi-acp, with
+    /// nothing to flatten, puts its own `JSON.stringify(result)` on `content[]`.
+    /// Emitting either one poisons the card: the stringified `{"content":[]}`
+    /// becomes the tool call's raw-output chunk, every later frame prefers
+    /// `content` and emits `None`, the reducer keeps the last chunks, and the
+    /// chunk outranks `content` — so the finished build would render
+    /// `{"content":[]}` instead of its log.
+    #[tokio::test]
+    async fn pi_empty_opening_frame_never_outranks_the_real_output() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (content, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_fb7",
+                "status": "in_progress",
+                // pi-acp's stringify fallback over the empty envelope, verbatim.
+                "content": [{
+                    "type": "content",
+                    "content": {"type": "text", "text": "{\n  \"content\": []\n}"},
+                }],
+                "rawOutput": {"content": []},
+            }),
+        )
+        .await;
+        assert!(
+            raw_output.is_none(),
+            "the empty envelope must not be seeded as a chunk — it would outrank \
+             every later frame's content: {raw_output:?}"
+        );
+        assert!(
+            content.is_none(),
+            "pi-acp's JSON.stringify fallback is not command output: {content:?}"
+        );
+
+        // Frame 2 — the real result, on the SAME tool call id.
+        let (content, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_fb7",
+                "status": "completed",
+                "content": [{
+                    "type": "content",
+                    "content": {"type": "text", "text": "$ next build\n✓ Compiled\n"},
+                }],
+                "rawOutput": {"content": [{"type": "text", "text": "$ next build\n✓ Compiled\n"}]},
+            }),
+        )
+        .await;
+        assert_eq!(
+            content.as_deref(),
+            Some("$ next build\n✓ Compiled\n"),
+            "the command output reaches the card"
+        );
+        assert!(
+            raw_output.is_none(),
+            "and nothing is left in the chunk stream to shadow it: {raw_output:?}"
+        );
+    }
+
+    /// A frame whose envelope is empty because pi has produced nothing yet must
+    /// not fall through to the stringify branch even without a `content` channel.
+    #[tokio::test]
+    async fn pi_empty_envelope_is_recognized_by_shape_not_by_yielding_text() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_fb7",
+                "status": "in_progress",
+                "rawOutput": {"content": []},
+            }),
+        )
+        .await;
+        assert!(raw_output.is_none(), "{raw_output:?}");
+    }
+
+    /// The suppression must catch ONLY pi's literal `{"content":[]}` opening
+    /// announcement. `toolResultToText` also flattens `details.diff`, `stdout` /
+    /// `stderr` (with the exit code appended) and `output` from BOTH the result
+    /// and its `details` — every one of those reaches real text that the block
+    /// array alone does not, so an empty block array is not by itself evidence
+    /// that pi had nothing to say. Anything else it cannot flatten it dumps as
+    /// JSON, which is ugly but still carries the result, so that is kept too.
+    #[tokio::test]
+    async fn only_pis_empty_opening_announcement_counts_as_noise() {
+        // (label, rawOutput, the text pi-acp's `toolResultToText` flattens)
+        let real_results = [
+            (
+                "details.diff",
+                serde_json::json!({"content": [], "details": {"diff": "--- a\n+++ b\n+line\n"}}),
+                "--- a\n+++ b\n+line\n",
+            ),
+            (
+                "details.stdout + exitCode",
+                serde_json::json!({"content": [], "details": {"stdout": "build succeeded", "exitCode": 0}}),
+                "build succeeded\n\nexit code: 0",
+            ),
+            (
+                "top-level stdout",
+                serde_json::json!({"content": [], "stdout": "ok"}),
+                "ok",
+            ),
+            (
+                "details.output",
+                serde_json::json!({"content": [], "details": {"output": "from details"}}),
+                "from details",
+            ),
+            (
+                "top-level output",
+                serde_json::json!({"content": [], "output": "from result"}),
+                "from result",
+            ),
+            (
+                "stderr + exitCode",
+                serde_json::json!({"content": [], "details": {"stderr": "boom", "exitCode": 3}}),
+                "stderr:\nboom\n\nexit code: 3",
+            ),
+            (
+                // Nothing flattenable: pi-acp dumps the JSON. Ugly, but it is the
+                // result — the exit code would be lost if we called it noise.
+                "exit-code-only stringify fallback",
+                serde_json::json!({"content": [], "details": {"exitCode": 3}}),
+                "{\n  \"content\": [],\n  \"details\": {\n    \"exitCode\": 3\n  }\n}",
+            ),
+        ];
+
+        for (label, raw_output, flattened) in real_results {
+            for (surface, wire) in [
+                (
+                    "tool_call",
+                    serde_json::json!({
+                        "sessionUpdate": "tool_call",
+                        "toolCallId": "call_x",
+                        "title": "bash",
+                        "kind": "execute",
+                        "status": "completed",
+                        "content": [{
+                            "type": "content",
+                            "content": {"type": "text", "text": flattened},
+                        }],
+                        "rawOutput": raw_output.clone(),
+                    }),
+                ),
+                (
+                    "tool_call_update",
+                    serde_json::json!({
+                        "sessionUpdate": "tool_call_update",
+                        "toolCallId": "call_x",
+                        "status": "completed",
+                        "content": [{
+                            "type": "content",
+                            "content": {"type": "text", "text": flattened},
+                        }],
+                        "rawOutput": raw_output.clone(),
+                    }),
+                ),
+            ] {
+                let mut cache = ToolCallOutputCache::default();
+                let mut cb = CodeBuddyLiveState::default();
+                let (content, _, _, _) = pi_emit(AgentType::Pi, &mut cache, &mut cb, wire).await;
+                assert_eq!(
+                    content.as_deref(),
+                    Some(flattened),
+                    "{label} is a real result, not pi's empty announcement ({surface})"
+                );
+            }
+        }
+
+        // The one shape that IS the announcement — and only in its exact form.
+        assert!(pi_result_is_empty_announcement(&serde_json::json!({
+            "content": []
+        })));
+        assert!(
+            pi_result_is_empty_announcement(&serde_json::json!({"content": [], "details": null})),
+            "an explicit null `details` is the same announcement"
+        );
+        assert!(
+            !pi_result_is_empty_announcement(&serde_json::json!({"content": [], "details": {}})),
+            "any other non-null member means pi is reporting something"
+        );
+        assert!(
+            !pi_result_is_empty_announcement(&serde_json::json!({
+                "content": [{"type": "text", "text": ""}]
+            })),
+            "a populated block array is not the announcement, empty text or not"
+        );
+        assert!(!pi_result_is_empty_announcement(&serde_json::json!({})));
+        assert!(!pi_result_is_empty_announcement(&serde_json::json!("text")));
+    }
+
+    /// With no `content` the envelope IS the result, so it must be unwrapped to
+    /// the same text the history parser produces — not dropped, and not shipped
+    /// as JSON.
+    #[tokio::test]
+    async fn pi_tool_result_envelope_unwrapped_when_content_absent() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_fb7",
+                "status": "completed",
+                "rawOutput": {"content": [{"type": "text", "text": "v24.14.0\n"}]},
+            }),
+        )
+        .await;
+        assert_eq!(raw_output.as_deref(), Some("v24.14.0\n"));
+
+        // An unrecognized shape keeps the generic stringified behavior rather
+        // than silently dropping output we have never seen on this wire.
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, _, raw_output, _) = pi_emit(
+            AgentType::Pi,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_other",
+                "status": "completed",
+                "rawOutput": {"details": {"exitCode": 0}},
+            }),
+        )
+        .await;
+        assert_eq!(raw_output.as_deref(), Some(r#"{"details":{"exitCode":0}}"#));
+    }
+
+    /// Contrast guard: the unwrap is pi-gated — `{"content":[…]}` is a generic
+    /// MCP shape, and another agent's identical `rawOutput` still stringifies.
+    #[tokio::test]
+    async fn non_pi_agents_keep_the_stringified_mcp_envelope() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, _, raw_output, _) = pi_emit(
+            AgentType::ClaudeCode,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_1",
+                "status": "completed",
+                "rawOutput": {"content": [{"type": "text", "text": "ok"}]},
+            }),
+        )
+        .await;
+        assert_eq!(
+            raw_output.as_deref(),
+            Some(r#"{"content":[{"text":"ok","type":"text"}]}"#),
+            "non-pi agents keep the existing json_value_to_text behavior"
+        );
+    }
+
+    // ---- #525: pi's lifecycle announcements ride the prose channel ----------
+
+    /// Wire-in / events-out for a pi `agent_message_chunk`, the counterpart of
+    /// `pi_emit` for the message channel. Returns EVERY event the update
+    /// produced, so a test can assert on "nothing at all" as easily as on a
+    /// specific event.
+    async fn pi_emit_chunk(agent_type: AgentType, wire: serde_json::Value) -> Vec<AcpEvent> {
+        let st = SessionState::new(
+            "conn-pi".to_string(),
+            agent_type,
+            None,
+            "win".to_string(),
+            None,
+        );
+        let state = Arc::new(RwLock::new(st));
+        let emitter = EventEmitter::Noop;
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let update: SessionUpdate =
+            serde_json::from_value(wire).expect("valid agent_message_chunk wire shape");
+
+        emit_conversation_update(
+            &state, &emitter, agent_type, update, None, &mut cache, &mut cb,
+        )
+        .await;
+
+        let guard = state.read().await;
+        guard
+            .recent_events_after(0)
+            .map(|events| events.iter().map(|e| e.payload.clone()).collect())
+            .unwrap_or_default()
+    }
+
+    fn pi_chunk(text: &str) -> serde_json::Value {
+        serde_json::json!({
+            "sessionUpdate": "agent_message_chunk",
+            "content": {"type": "text", "text": text},
+        })
+    }
+
+    fn pi_notify_chunk(text: &str, level: &str) -> serde_json::Value {
+        serde_json::json!({
+            "sessionUpdate": "agent_message_chunk",
+            "content": {"type": "text", "text": text},
+            "_meta": {"piAcp": {"notify": {"level": level}}},
+        })
+    }
+
+    /// Every announcement pi-acp puts on the prose channel, classified. This is
+    /// the inventory the fix is built from — if pi-acp reworks its wording, this
+    /// is the test that says so.
+    #[test]
+    fn pi_chunk_route_classifies_every_pi_acp_announcement() {
+        let route = |text: &str| pi_message_chunk_route(AgentType::Pi, text, None);
+
+        // auto_retry_start, both shapes.
+        assert_eq!(
+            route("Retrying (attempt 1/3, waiting 2s)..."),
+            PiChunkRoute::Retrying {
+                attempt: Some(1),
+                max: Some(3),
+                delay_ms: Some(2000),
+            }
+        );
+        assert_eq!(
+            route("Retrying..."),
+            PiChunkRoute::Retrying {
+                attempt: None,
+                max: None,
+                delay_ms: None,
+            },
+            "pi-acp's shapeless fallback still opens the banner, just without counters"
+        );
+        // auto_retry_end + both compaction sentences + all three queue messages.
+        for text in [
+            "Retry finished, resuming.",
+            "Context nearing limit, running automatic compaction...",
+            "Automatic compaction finished; context was summarized to continue the session.",
+            "Queued message (position 2).",
+            "Starting queued message. (1 remaining)",
+            "Cleared queued prompts.",
+        ] {
+            assert_eq!(
+                route(text),
+                PiChunkRoute::Drop,
+                "{text:?} must not be prose"
+            );
+        }
+    }
+
+    /// The notify marker is authoritative and level-independent: an extension's
+    /// message is arbitrary text, so nothing but `_meta` can identify it. This is
+    /// the exact frame from the issue screenshot.
+    #[test]
+    fn pi_extension_notify_is_dropped_by_marker_at_every_level() {
+        for level in ["info", "warning", "error"] {
+            let meta = serde_json::json!({"piAcp": {"notify": {"level": level}}});
+            let meta = meta.as_object().cloned().expect("object meta");
+            assert_eq!(
+                pi_message_chunk_route(
+                    AgentType::Pi,
+                    "Released pi-caffeinate (agent finished).",
+                    Some(&meta)
+                ),
+                PiChunkRoute::Drop,
+                "level {level}"
+            );
+            // …even when the extension's text reads exactly like an answer.
+            assert_eq!(
+                pi_message_chunk_route(AgentType::Pi, "是的，插件已加载。", Some(&meta)),
+                PiChunkRoute::Drop,
+                "the marker wins over the text, level {level}"
+            );
+        }
+    }
+
+    /// The far more dangerous direction: text that must survive. pi-acp's
+    /// slash-command replies and prelude ride the SAME channel, and the model
+    /// itself can say anything.
+    #[test]
+    fn pi_chunk_route_leaves_real_prose_and_command_replies_alone() {
+        for text in [
+            // The model's own words, including the reply from the screenshot.
+            "你好。有什么需要我帮你处理?",
+            "是的，OV（OpenViking）插件当前已正式加载并可用。",
+            // Slash-command output (pi-acp `handleCommand`): the user asked.
+            "Usage: /name <name>",
+            "Cleared queued prompts. Session exported: /tmp/x.md",
+            "Session: abc\nMessages: 12",
+            "Compaction completed.",
+            // A rare but real failure notice, deliberately kept (see fn doc).
+            "Pi input UI request is not supported in ACP yet; cancelling it.",
+            // Near-misses: same opening, not the announcement.
+            "Retrying the request by hand is also an option.",
+            "Retrying (attempt one of three)...",
+            "Queued message (position two).",
+            // A whole-chunk match means an embedded sentence is still prose.
+            "I will say: Retry finished, resuming. Then continue.",
+        ] {
+            assert_eq!(
+                pi_message_chunk_route(AgentType::Pi, text, None),
+                PiChunkRoute::Prose,
+                "{text:?} is the agent speaking"
+            );
+        }
+    }
+
+    /// Contrast guard: the classifier is pi-gated, so another agent that happens
+    /// to say one of these sentences — or that uses a `piAcp` meta key of its own
+    /// — keeps today's behavior.
+    #[test]
+    fn pi_chunk_route_is_inert_for_other_agents() {
+        let meta = serde_json::json!({"piAcp": {"notify": {"level": "info"}}});
+        let meta = meta.as_object().cloned().expect("object meta");
+        for agent in [
+            AgentType::ClaudeCode,
+            AgentType::Codex,
+            AgentType::Grok,
+            // Same known limitation the rest of the pi bridge carries: pi-acp
+            // registered under a CUSTOM id is not `AgentType::Pi`, so it keeps
+            // the old behavior rather than an unnamespaced marker applying to
+            // arbitrary agents (see `pi_terminal_meta_marks_bash`).
+            AgentType::Custom("my-pi"),
+        ] {
+            for text in [
+                "Retry finished, resuming.",
+                "Retrying (attempt 1/3, waiting 2s)...",
+                "Cleared queued prompts.",
+            ] {
+                assert_eq!(
+                    pi_message_chunk_route(agent, text, Some(&meta)),
+                    PiChunkRoute::Prose,
+                    "{agent:?} must be unaffected by the pi bridge"
+                );
+            }
+        }
+    }
+
+    /// #525 proper: the caffeinate frame must produce NO event, so it can neither
+    /// paint a bubble of its own nor splice into the reply already on screen.
+    #[tokio::test]
+    async fn pi_notify_chunk_emits_nothing_at_all() {
+        let events = pi_emit_chunk(
+            AgentType::Pi,
+            pi_notify_chunk("Released pi-caffeinate (agent finished).", "info"),
+        )
+        .await;
+        assert!(
+            events.is_empty(),
+            "an extension notify must not reach any channel: {events:?}"
+        );
+    }
+
+    /// Retry leaves the transcript and lands on the shared banner, carrying pi's
+    /// own counters so the banner can render its localized line.
+    #[tokio::test]
+    async fn pi_retry_chunk_becomes_the_retry_banner_with_counters() {
+        let events = pi_emit_chunk(
+            AgentType::Pi,
+            pi_chunk("Retrying (attempt 2/3, waiting 4s)..."),
+        )
+        .await;
+        assert!(
+            !events
+                .iter()
+                .any(|e| matches!(e, AcpEvent::ContentDelta { .. })),
+            "the retry sentence must not reach the transcript: {events:?}"
+        );
+        let retrying = events
+            .iter()
+            .find_map(|e| match e {
+                AcpEvent::TurnRetrying {
+                    message,
+                    attempt,
+                    max_retries,
+                    retry_delay_ms,
+                    ..
+                } => Some((message.clone(), *attempt, *max_retries, *retry_delay_ms)),
+                _ => None,
+            })
+            .expect("a TurnRetrying event is emitted");
+        assert_eq!(retrying, (String::new(), Some(2), Some(3), Some(4000)));
+    }
+
+    /// The other half of the contract: ordinary pi prose is untouched.
+    #[tokio::test]
+    async fn pi_prose_chunk_still_emits_content_delta() {
+        let events = pi_emit_chunk(AgentType::Pi, pi_chunk("你好。有什么需要我帮你处理?")).await;
+        let text = events
+            .iter()
+            .find_map(|e| match e {
+                AcpEvent::ContentDelta { text, .. } => Some(text.clone()),
+                _ => None,
+            })
+            .expect("prose still reaches the transcript");
+        assert_eq!(text, "你好。有什么需要我帮你处理?");
+    }
+
+    /// The invariant that keeps the renderer and the empty-turn diagnosis in
+    /// agreement: a chunk codeg does not render must not count as the agent
+    /// having produced output, or a status-only turn ends blank AND successful.
+    #[test]
+    fn pi_status_chunks_do_not_count_as_agent_output() {
+        let status: SessionUpdate = serde_json::from_value(pi_notify_chunk(
+            "Keeping computer awake (display-awake).",
+            "info",
+        ))
+        .expect("valid wire shape");
+        let retry: SessionUpdate =
+            serde_json::from_value(pi_chunk("Retrying (attempt 1/3, waiting 2s)..."))
+                .expect("valid wire shape");
+        let prose: SessionUpdate =
+            serde_json::from_value(pi_chunk("是的，插件已加载。")).expect("valid wire shape");
+
+        assert!(!is_agent_output_update(AgentType::Pi, &status));
+        assert!(!is_agent_output_update(AgentType::Pi, &retry));
+        assert!(is_agent_output_update(AgentType::Pi, &prose));
+        // Same frames, another agent: unchanged.
+        assert!(is_agent_output_update(AgentType::ClaudeCode, &status));
+        assert!(is_agent_output_update(AgentType::ClaudeCode, &retry));
+    }
+
+    /// The frames below are a VERBATIM capture from a real `pi-acp@0.0.33`,
+    /// driven against a stub `pi --mode rpc` via the supported `PI_ACP_PI_COMMAND`
+    /// override, so this test asserts against the wire rather than against my
+    /// reading of pi-acp's source.
+    ///
+    /// It pins the two properties the whole fix rests on:
+    ///
+    /// 1. `_meta.piAcp.notify.level` really does reach the client, so the notify
+    ///    rule has a structured handle and never has to guess from the text.
+    /// 2. Each announcement arrives as ONE COMPLETE chunk, while real prose
+    ///    arrives in fragments (`是的，` / `OV 插件` / `已加载。`) — which is what
+    ///    makes whole-string matching safe. A prose delta is a fragment of a
+    ///    sentence; it is not a whole sentence with terminal punctuation.
+    #[test]
+    fn pi_captured_wire_frames_route_as_expected() {
+        let captured = serde_json::json!([
+            {"sessionUpdate": "agent_message_chunk",
+             "content": {"type": "text", "text": "Released pi-caffeinate (agent finished)."},
+             "_meta": {"piAcp": {"notify": {"level": "info"}}}},
+            {"sessionUpdate": "agent_message_chunk",
+             "content": {"type": "text", "text": "Retrying (attempt 1/3, waiting 2s)..."}},
+            {"sessionUpdate": "agent_message_chunk",
+             "content": {"type": "text", "text": "Retry finished, resuming."}},
+            {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "是的，"}},
+            {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "OV 插件"}},
+            {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": "已加载。"}},
+        ]);
+
+        let routes: Vec<PiChunkRoute> = captured
+            .as_array()
+            .expect("captured frames")
+            .iter()
+            .map(|frame| {
+                let text = frame["content"]["text"].as_str().expect("text chunk");
+                let meta = frame.get("_meta").and_then(|m| m.as_object()).cloned();
+                pi_message_chunk_route(AgentType::Pi, text, meta.as_ref())
+            })
+            .collect();
+
+        assert_eq!(
+            routes,
+            vec![
+                PiChunkRoute::Drop,
+                PiChunkRoute::Retrying {
+                    attempt: Some(1),
+                    max: Some(3),
+                    delay_ms: Some(2000),
+                },
+                PiChunkRoute::Drop,
+                PiChunkRoute::Prose,
+                PiChunkRoute::Prose,
+                PiChunkRoute::Prose,
+            ],
+            "the reply survives whole; only pi-acp's announcements are taken out"
+        );
+    }
+
+    /// End to end: a turn whose ONLY chunks were pi status is diagnosed as
+    /// metadata-only, so it reports "sent only status updates and no reply"
+    /// instead of completing as a silent blank turn.
+    #[test]
+    fn pi_status_only_turn_diagnoses_as_metadata_only() {
+        let mut probe = TurnOutputProbe::new(0);
+        for wire in [
+            pi_notify_chunk("Keeping computer awake (display-awake).", "info"),
+            pi_chunk("Retrying (attempt 1/3, waiting 2s)..."),
+            pi_chunk("Retry finished, resuming."),
+        ] {
+            probe.note_update(
+                AgentType::Pi,
+                &serde_json::from_value(wire).expect("valid wire shape"),
+            );
+        }
+        assert!(!probe.saw_agent_output);
+        assert_eq!(diagnose_empty_turn(&probe), EmptyTurnCause::MetadataOnly);
+
+        // One line of real prose is all it takes to make the turn non-empty.
+        probe.note_update(
+            AgentType::Pi,
+            &serde_json::from_value(pi_chunk("是的，插件已加载。")).expect("valid wire shape"),
+        );
+        assert!(probe.saw_agent_output);
+    }
+
     #[test]
     fn unwrap_grok_use_tool_peels_mcp_envelope() {
         // Grok's `use_tool` envelope nests the real MCP tool name + args.
@@ -15347,10 +17730,10 @@ mod tests {
         // Missing tool_input.
         assert!(unwrap_grok_use_tool(Some(&serde_json::json!({"tool_name": "x"}))).is_none());
         // Empty tool_name.
-        assert!(
-            unwrap_grok_use_tool(Some(&serde_json::json!({"tool_name": "", "tool_input": {}})))
-                .is_none()
-        );
+        assert!(unwrap_grok_use_tool(Some(
+            &serde_json::json!({"tool_name": "", "tool_input": {}})
+        ))
+        .is_none());
         // Absent / non-object.
         assert!(unwrap_grok_use_tool(None).is_none());
         assert!(unwrap_grok_use_tool(Some(&serde_json::json!("s"))).is_none());
@@ -15414,7 +17797,8 @@ mod tests {
             Some("codeg-mcp__get_delegation_status")
         );
         // Mixed batch with a running item still resolves.
-        let mixed = r#"{"tasks":[{"task_id":"a","status":"running"},{"task_id":"b","status":"unknown"}]}"#;
+        let mixed =
+            r#"{"tasks":[{"task_id":"a","status":"running"},{"task_id":"b","status":"unknown"}]}"#;
         assert_eq!(
             cursor_companion_title_from_content(Some(mixed)),
             Some("codeg-mcp__get_delegation_status")
@@ -15440,9 +17824,7 @@ mod tests {
         assert_eq!(cursor_companion_title_from_content(None), None);
         // Ack prefix must match from the start, not mid-string.
         assert_eq!(
-            cursor_companion_title_from_content(Some(
-                "Note: Delegation successful. task_id=x."
-            )),
+            cursor_companion_title_from_content(Some("Note: Delegation successful. task_id=x.")),
             None
         );
     }
@@ -15983,10 +18365,7 @@ mod tests {
         // returns false. Regression guard against any future "optimisation"
         // that conflates the substring check with the field check.
         let input = Some(r#"{"description":"use subagent_type=foo"}"#.to_string());
-        assert!(!is_subagent_invocation(
-            AgentType::OpenCode,
-            &input
-        ));
+        assert!(!is_subagent_invocation(AgentType::OpenCode, &input));
     }
 
     #[test]
@@ -16033,7 +18412,8 @@ mod tests {
             "not json",
         ] {
             assert!(
-                codebuddy_deferred_tool_name(AgentType::CodeBuddy, &Some(raw.to_string())).is_none(),
+                codebuddy_deferred_tool_name(AgentType::CodeBuddy, &Some(raw.to_string()))
+                    .is_none(),
                 "expected None for raw_input={raw}"
             );
         }
@@ -16093,28 +18473,56 @@ mod tests {
         );
         // Initial event carrying the subagent marker → "agent", recorded.
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &subagent, "tc1", false, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &subagent,
+                "tc1",
+                false,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("agent")
         );
         // The bug: a later status-only update lost the marker (raw_input None).
         // The override must be RE-ASSERTED, not downgraded to the event's title.
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc1", true, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &None,
+                "tc1",
+                true,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("agent"),
             "a status-only update must not downgrade the Agent card mid-stream"
         );
         // Even an update whose raw_input looks like a different tool keeps it.
         let bash = Some(r#"{"command":"ls"}"#.to_string());
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &bash, "tc1", true, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &bash,
+                "tc1",
+                true,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("agent")
         );
         // A never-classified tool call returns None → caller uses its own title.
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc2", true, false, &mut overrides),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &None,
+                "tc2",
+                true,
+                false,
+                &mut overrides
+            ),
             None
         );
         // Deferred MCP tool: inner name recorded, then re-asserted on a bare update.
@@ -16123,18 +18531,39 @@ mod tests {
                 .to_string(),
         );
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &deferred, "tc3", false, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &deferred,
+                "tc3",
+                false,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("mcp__codeg-mcp__delegate_to_agent")
         );
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc3", true, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &None,
+                "tc3",
+                true,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("mcp__codeg-mcp__delegate_to_agent")
         );
         // Non-CodeBuddy agent with no prior classification: never rewritten.
         assert_eq!(
-            resolve_rewritten_title(AgentType::OpenCode, &None, "tc9", true, false, &mut overrides),
+            resolve_rewritten_title(
+                AgentType::OpenCode,
+                &None,
+                "tc9",
+                true,
+                false,
+                &mut overrides
+            ),
             None
         );
     }
@@ -16178,15 +18607,29 @@ mod tests {
         // Frame 1: `raw_input` has NO `subagent_type` yet, but `_meta` already
         // marks it (the early, reliable signal). Title must already be "agent".
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc1", false, true, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &None,
+                "tc1",
+                false,
+                true,
+                &mut overrides
+            )
+            .as_deref(),
             Some("agent")
         );
         // Later sparse frames carry NEITHER signal — the override is re-asserted,
         // so the pill never flickers back to a generic tool mid-stream.
         assert_eq!(
-            resolve_rewritten_title(AgentType::CodeBuddy, &None, "tc1", true, false, &mut overrides)
-                .as_deref(),
+            resolve_rewritten_title(
+                AgentType::CodeBuddy,
+                &None,
+                "tc1",
+                true,
+                false,
+                &mut overrides
+            )
+            .as_deref(),
             Some("agent"),
             "meta-classified Agent pill must stay 'agent' across signal-less frames"
         );
@@ -16216,7 +18659,7 @@ mod tests {
         let mut open: HashSet<String> = HashSet::new();
         let mut closed: HashSet<String> = HashSet::new();
         let fg = false; // foreground (not background)
-        // A non-final foreground agent frame opens the window.
+                        // A non-final foreground agent frame opens the window.
         track_subagent_window(
             AgentType::CodeBuddy,
             true,
@@ -16317,7 +18760,11 @@ mod tests {
         // the parent model is suspended — so every chunk in the window is the
         // sub-agent's, never main-agent output (background sub-agents, which could
         // interleave main output, are excluded from the window upstream).
-        assert!(should_suppress_subagent_chunk(AgentType::CodeBuddy, true, None));
+        assert!(should_suppress_subagent_chunk(
+            AgentType::CodeBuddy,
+            true,
+            None
+        ));
         // Window closed and no chunk meta → emit (e.g. main-agent text before the
         // sub-agent opens or after it closes).
         assert!(!should_suppress_subagent_chunk(
@@ -16337,7 +18784,11 @@ mod tests {
             ));
         }
         // Other agents never suppress, even inside a (spurious) open window.
-        assert!(!should_suppress_subagent_chunk(AgentType::OpenCode, true, None));
+        assert!(!should_suppress_subagent_chunk(
+            AgentType::OpenCode,
+            true,
+            None
+        ));
     }
 
     #[test]
@@ -16779,7 +19230,11 @@ mod tests {
             .iter()
             .map(|o| o["id"].as_str().unwrap())
             .collect();
-        assert_eq!(ids, vec!["model", "auto_approve"], "only `radio` is dropped");
+        assert_eq!(
+            ids,
+            vec!["model", "auto_approve"],
+            "only `radio` is dropped"
+        );
         // Untouched siblings survive, and the response still parses.
         assert_eq!(raw["sessionId"], "sess-1");
         serde_json::from_value::<NewSessionResponse>(raw).expect("parses after stripping");

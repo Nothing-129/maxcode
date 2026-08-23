@@ -1,11 +1,12 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Languages, Loader2, Wifi } from "lucide-react"
+import { Languages, Loader2, Power, Wifi } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useAppI18n } from "@/components/i18n-provider"
 import { BackupSettings } from "@/components/settings/backup-settings"
+import { SettingsSection } from "@/components/shared/settings-section"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -16,12 +17,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
 import {
+  getSystemAutostartSettings,
   getSystemProxySettings,
+  updateSystemAutostartSettings,
   updateSystemLanguageSettings,
   updateSystemProxySettings,
 } from "@/lib/api"
-import { openUrl } from "@/lib/platform"
+import { isLocalDesktop, openUrl } from "@/lib/platform"
 import type { AppLocale } from "@/lib/types"
 import { APP_LOCALES } from "@/lib/i18n"
 import { toErrorMessage } from "@/lib/app-error"
@@ -63,6 +67,17 @@ export function SystemNetworkSettings() {
   const [proxyUrl, setProxyUrl] = useState("")
   const [proxyUrlError, setProxyUrlError] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
+
+  // Launch at login registers *this* machine's executable with the OS, so it
+  // only means something for a local Tauri shell — a remote workspace window
+  // routes every call to a server that has no login items to speak of.
+  const autostartVisible = isLocalDesktop()
+  const [autostartEnabled, setAutostartEnabled] = useState(false)
+  const [savingAutostart, setSavingAutostart] = useState(false)
+  // Non-null when the OS refused to report the registration (no home dir, a
+  // locked-down registry, …). The row stays on screen but inert, which beats
+  // hiding a setting the user came looking for.
+  const [autostartError, setAutostartError] = useState<string | null>(null)
   const [appLanguage, setAppLanguage] = useState<LanguageSelectValue>(
     languageSettings.mode === "system" ? "system" : languageSettings.language
   )
@@ -94,9 +109,28 @@ export function SystemNetworkSettings() {
     setLoadError(null)
 
     try {
-      const proxySettings = await getSystemProxySettings()
+      const [proxySettings, autostart] = await Promise.all([
+        getSystemProxySettings(),
+        // Kept out of the shared rejection path: a machine that cannot report
+        // its login items must not blank out the proxy and language cards.
+        autostartVisible
+          ? getSystemAutostartSettings().then(
+              (settings) => ({ settings, error: null }),
+              (err) => {
+                console.error("[Settings] load autostart settings failed:", err)
+                return { settings: null, error: toErrorMessage(err) }
+              }
+            )
+          : Promise.resolve(null),
+      ])
+
       setEnabled(proxySettings.enabled)
       setProxyUrl(proxySettings.proxy_url ?? "")
+
+      if (autostart) {
+        setAutostartEnabled(autostart.settings?.enabled ?? false)
+        setAutostartError(autostart.error)
+      }
     } catch (err) {
       const message = toErrorMessage(err)
       setLoadError(message)
@@ -104,7 +138,7 @@ export function SystemNetworkSettings() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [autostartVisible])
 
   useEffect(() => {
     loadSettings().catch((err) => {
@@ -129,6 +163,27 @@ export function SystemNetworkSettings() {
         toast.error(t("saveFailed", { message }))
       } finally {
         setSaving(false)
+      }
+    },
+    [t]
+  )
+
+  const saveAutostartSettings = useCallback(
+    async (next: boolean, prev: boolean) => {
+      setSavingAutostart(true)
+      try {
+        // The backend answers with what the OS settled on, not with the
+        // request — Windows can veto a Run entry through Task Manager, so the
+        // switch has to follow the reply rather than the optimistic value.
+        const result = await updateSystemAutostartSettings({ enabled: next })
+        setAutostartEnabled(result.enabled)
+        setAutostartError(null)
+      } catch (err) {
+        setAutostartEnabled(prev)
+        const message = toErrorMessage(err)
+        toast.error(t("autostartSaveFailed", { message }))
+      } finally {
+        setSavingAutostart(false)
       }
     },
     [t]
@@ -182,6 +237,36 @@ export function SystemNetworkSettings() {
             {t("sectionDescription")}
           </p>
         </section>
+
+        {/* Titled by the option itself: the section *is* the one switch, so a
+            card holding a single row would only say the heading back one line
+            lower. */}
+        {autostartVisible && (
+          <SettingsSection
+            icon={Power}
+            title={t("autostartTitle")}
+            description={t("autostartDescription")}
+            htmlFor="launch-at-login"
+            control={
+              <Switch
+                id="launch-at-login"
+                checked={autostartEnabled}
+                disabled={savingAutostart || autostartError !== null}
+                onCheckedChange={(next) => {
+                  const prev = autostartEnabled
+                  setAutostartEnabled(next)
+                  void saveAutostartSettings(next, prev)
+                }}
+              />
+            }
+          >
+            {autostartError !== null && (
+              <p className="text-[11px] text-amber-500">
+                {t("autostartUnavailable", { message: autostartError })}
+              </p>
+            )}
+          </SettingsSection>
+        )}
 
         <section className="rounded-xl border bg-card p-4 space-y-4">
           <div className="flex items-center gap-2">

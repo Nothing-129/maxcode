@@ -22,14 +22,16 @@ type CachedAgent = Pick<
   | "model_provider_id"
   | "icon_url"
 > & {
-  // Older cache entries predate this resolved launch verdict.
+  // Older cache entries predate these backend capability flags.
   host_tools_agent_mode?: boolean
+  supports_custom_version?: boolean
 }
 
 function toAgentInfo(agent: CachedAgent): AcpAgentInfo {
   return {
     ...agent,
     host_tools_agent_mode: agent.host_tools_agent_mode ?? false,
+    supports_custom_version: agent.supports_custom_version ?? false,
     env: {},
     config_json: null,
     config_file_path: null,
@@ -57,7 +59,9 @@ function isCachedAgent(value: unknown): value is CachedAgent {
     typeof agent.available === "boolean" &&
     typeof agent.sort_order === "number" &&
     (agent.host_tools_agent_mode === undefined ||
-      typeof agent.host_tools_agent_mode === "boolean")
+      typeof agent.host_tools_agent_mode === "boolean") &&
+    (agent.supports_custom_version === undefined ||
+      typeof agent.supports_custom_version === "boolean")
   )
 }
 
@@ -95,6 +99,7 @@ export function saveEnabledAcpAgentsCache(agents: AcpAgentInfo[]): void {
       model_provider_id,
       icon_url,
       host_tools_agent_mode,
+      supports_custom_version,
     }) => ({
       agent_type,
       skills_capable,
@@ -112,6 +117,7 @@ export function saveEnabledAcpAgentsCache(agents: AcpAgentInfo[]): void {
       model_provider_id,
       icon_url,
       host_tools_agent_mode,
+      supports_custom_version,
     })
   )
   try {
