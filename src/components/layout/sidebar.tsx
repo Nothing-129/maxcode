@@ -139,7 +139,6 @@ export function Sidebar() {
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
   const { attentionCount } = useTasksView()
-  const unreadCount = useConversationUnreadStore((s) => s.unreadIds.size)
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
@@ -328,20 +327,16 @@ export function Sidebar() {
           >
             <Crosshair aria-hidden="true" className="h-3.5 w-3.5" />
           </Button>
-          {unreadCount > 0 && (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 shrink-0 text-muted-foreground"
-              onClick={() =>
-                useConversationUnreadStore.getState().markAllRead()
-              }
-              title={t("markAllRead", { count: unreadCount })}
-              aria-label={t("markAllRead", { count: unreadCount })}
-            >
-              <CheckCheck aria-hidden="true" className="h-3.5 w-3.5" />
-            </Button>
-          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-6 w-6 shrink-0 text-muted-foreground"
+            onClick={() => useConversationUnreadStore.getState().markAllRead()}
+            title={t("markAllRead")}
+            aria-label={t("markAllRead")}
+          >
+            <CheckCheck aria-hidden="true" className="h-3.5 w-3.5" />
+          </Button>
           {/* Expand/collapse-all keeps a standalone header button on mobile; on
               desktop it's folded into the view-options menu below. */}
           {isMobile && (

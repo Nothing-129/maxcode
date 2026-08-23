@@ -251,7 +251,10 @@ export const TabItem = memo(function TabItem({
       data-tab-id={tab.id}
       drag="x"
       dragControls={dragControls}
-      dragListener={!isCoarsePointer}
+      // Always manual: Motion's listener arms after ~3px, which a Mac trackpad
+      // click routinely exceeds (click becomes a drag, close is swallowed).
+      // Coarse pointers long-press; fine pointers wait for a horizontal swipe.
+      dragListener={false}
       whileDrag={whileDrag}
       {...restGestureHandlers}
       onDragStart={handleDragStart}
@@ -391,6 +394,9 @@ export const TabItem = memo(function TabItem({
                     ? "opacity-0 pointer-events-none group-hover/tab:opacity-100 group-hover/tab:pointer-events-auto"
                     : "opacity-0 group-hover/tab:opacity-100"
               )}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+              }}
               onClick={(event) => {
                 event.stopPropagation()
                 handleClose()

@@ -172,20 +172,19 @@ describe("Sidebar — fixed nav region", () => {
     expect(queryByText("Ctrl+K")).toBeNull()
   })
 
-  it("marks all unread conversations as read from the header", async () => {
+  it("always shows the header action and marks every conversation as read", async () => {
     useConversationUnreadStore.getState().noteActivity(7)
     useConversationUnreadStore.getState().noteActivity(8)
     const user = userEvent.setup()
     renderSidebar()
 
-    await user.click(
-      screen.getByRole("button", { name: "Mark all as read (2)" })
-    )
+    const markAllRead = screen.getByRole("button", {
+      name: "Mark all as read",
+    })
+    await user.click(markAllRead)
 
     expect(useConversationUnreadStore.getState().unreadIds.size).toBe(0)
-    expect(
-      screen.queryByRole("button", { name: "Mark all as read (2)" })
-    ).toBeNull()
+    expect(markAllRead).toBeVisible()
   })
 
   it("falls back to chat mode (never disabled) when no folder is active", () => {

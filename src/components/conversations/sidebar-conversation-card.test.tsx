@@ -3,7 +3,10 @@ import { fireEvent, render } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest"
 
-import { SidebarConversationCard } from "./sidebar-conversation-card"
+import {
+  SidebarConversationCard,
+  resetConversationPointerSelectionGuardForTests,
+} from "./sidebar-conversation-card"
 import { formatRelative } from "./sidebar-conversation-grouping"
 import { useTabStore, type TabItem } from "@/stores/tab-store"
 import {
@@ -36,6 +39,7 @@ vi.mock("@/lib/platform", () => ({
 
 beforeEach(() => {
   __resetUiPreferencesStoreForTests()
+  resetConversationPointerSelectionGuardForTests()
 })
 
 // AgentIcon renders exactly once per card body execution, so counting its
@@ -190,6 +194,58 @@ describe("SidebarConversationCard memo (sidebar perf Phase 1 gate)", () => {
       </NextIntlClientProvider>
     )
     expect(probe.agentIconRenders).toBe(BASE.length)
+  })
+})
+
+describe("SidebarConversationCard trackpad activation", () => {
+  it("selects on fine-pointer press before WebKit can recycle the row", () => {
+    const select = vi.fn()
+    const first = renderWithIntl(
+      <SidebarConversationCard
+        conversation={conv(1)}
+        isSelected={false}
+        timeLabel="5m"
+        onSelect={select}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const button = first.getByText("conv-1").closest("button")
+    if (!button) throw new Error("conversation button not found")
+
+    const pointerDown = new Event("pointerdown", {
+      bubbles: true,
+      cancelable: true,
+    })
+    Object.assign(pointerDown, {
+      button: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+    })
+    button.dispatchEvent(pointerDown)
+
+    expect(select).toHaveBeenCalledOnce()
+    expect(select).toHaveBeenCalledWith(1, "claude_code", 1)
+
+    first.unmount()
+    const second = renderWithIntl(
+      <SidebarConversationCard
+        conversation={conv(1)}
+        isSelected
+        timeLabel="5m"
+        onSelect={select}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const remounted = second.getByText("conv-1").closest("button")
+    if (!remounted) throw new Error("remounted conversation button not found")
+    fireEvent.click(remounted)
+    expect(select).toHaveBeenCalledOnce()
   })
 })
 

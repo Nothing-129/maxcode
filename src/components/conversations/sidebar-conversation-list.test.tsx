@@ -588,6 +588,39 @@ describe("SidebarConversationList — folder expand/collapse", () => {
     expect(stableTabFns.openNewConversationTab).toHaveBeenCalledWith(1, "/p/1")
   })
 
+  it("opens a new conversation on fine-pointer press before the header remounts", () => {
+    const onNavigate = vi.fn()
+    const first = render(tree(onNavigate))
+    const toggle = document.querySelector('[data-folder-id="1"]')
+    const newConversation = toggle?.parentElement?.querySelector(
+      'button[aria-label="New Conversation"]'
+    )
+    if (!newConversation) throw new Error("new-conversation button not found")
+
+    firePointer(newConversation, "pointerdown", {
+      button: 0,
+      pointerId: 1,
+      pointerType: "mouse",
+    })
+
+    expect(onNavigate).toHaveBeenCalledOnce()
+    expect(stableTabFns.openNewConversationTab).toHaveBeenCalledWith(1, "/p/1")
+
+    first.unmount()
+    render(tree(onNavigate))
+    const remountedToggle = document.querySelector('[data-folder-id="1"]')
+    const remountedNewConversation =
+      remountedToggle?.parentElement?.querySelector(
+        'button[aria-label="New Conversation"]'
+      )
+    if (!remountedNewConversation) {
+      throw new Error("remounted new-conversation button not found")
+    }
+    fireEvent.click(remountedNewConversation)
+    expect(onNavigate).toHaveBeenCalledOnce()
+    expect(stableTabFns.openNewConversationTab).toHaveBeenCalledOnce()
+  })
+
   function firePointer(
     target: EventTarget,
     type: string,
@@ -596,12 +629,14 @@ describe("SidebarConversationList — folder expand/collapse", () => {
       clientY?: number
       pointerId?: number
       button?: number
+      pointerType?: string
     } = {}
   ) {
     const event = new Event(type, { bubbles: true, cancelable: true })
     Object.assign(event, {
       pointerId: 1,
       button: 0,
+      pointerType: "mouse",
       clientX: 0,
       clientY: 0,
       ...props,

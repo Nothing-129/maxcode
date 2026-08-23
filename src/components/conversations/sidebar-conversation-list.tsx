@@ -196,6 +196,7 @@ const FOLDER_PAGE_SIZE = 10
 let lastPointerToggleFolderId = Number.NaN
 let lastPointerToggleAt = 0
 const POINTER_TOGGLE_GUARD_MS = 400
+const recentPointerNewConversations = new Map<number, number>()
 
 function rememberPointerToggle(folderId: number) {
   lastPointerToggleFolderId = folderId
@@ -209,11 +210,23 @@ function wasRecentPointerToggle(folderId: number) {
   )
 }
 
+function rememberPointerNewConversation(folderId: number) {
+  recentPointerNewConversations.set(folderId, Date.now())
+}
+
+function consumeRecentPointerNewConversation(folderId: number) {
+  const activatedAt = recentPointerNewConversations.get(folderId)
+  if (activatedAt === undefined) return false
+  recentPointerNewConversations.delete(folderId)
+  return Date.now() - activatedAt < POINTER_TOGGLE_GUARD_MS
+}
+
 /** Test-only: fake timers reuse one `Date.now()`, so a leftover guard would
  *  swallow the next test's `click`. */
 export function resetFolderPointerToggleGuardForTests() {
   lastPointerToggleFolderId = Number.NaN
   lastPointerToggleAt = 0
+  recentPointerNewConversations.clear()
 }
 
 const FolderHeader = memo(function FolderHeader({
@@ -379,6 +392,17 @@ const FolderHeader = memo(function FolderHeader({
     // the leftover click flips the folder back (first tap looks like a no-op).
     if (wasRecentPointerToggle(folderId)) return
     onToggle(folderId)
+  }
+  const handleNewConversationPointerDown = (event: React.PointerEvent) => {
+    if (event.button !== 0 || event.pointerType !== "mouse") return
+    rememberPointerNewConversation(folderId)
+    event.stopPropagation()
+    onNewConversation(folderId)
+  }
+  const handleNewConversationClick = (event: React.MouseEvent) => {
+    event.stopPropagation()
+    if (consumeRecentPointerNewConversation(folderId)) return
+    onNewConversation(folderId)
   }
 
   return (
@@ -584,10 +608,8 @@ const FolderHeader = memo(function FolderHeader({
               </button>
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onNewConversation(folderId)
-                }}
+                onPointerDown={handleNewConversationPointerDown}
+                onClick={handleNewConversationClick}
                 title={t("newConversation")}
                 aria-label={t("newConversation")}
                 tabIndex={suppressed ? -1 : undefined}

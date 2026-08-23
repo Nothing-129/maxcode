@@ -32,8 +32,9 @@
 //
 // Detection is deliberately conservative — a false link is worse than a missed
 // one, because a click routes into local file IO:
-//   - only `text` nodes are scanned; inline code, fenced code, math, html and
-//     the labels of existing links are skipped (their subtree isn't visited);
+//   - text nodes are scanned, and an inline-code node is linked only when its
+//     ENTIRE value is a path; fenced code, math, html and existing links are
+//     skipped (their subtree isn't visited);
 //   - prose pairs like `and/or`, `TCP/IP`, `input/output` are rejected — a
 //     bare-relative token must have ≥2 non-empty segments AND a final segment
 //     with a file extension (`\.[A-Za-z0-9]{1,8}`);
@@ -61,7 +62,6 @@ const SKIP_SUBTREE = new Set([
   "image",
   "imageReference",
   "code",
-  "inlineCode",
   "math",
   "inlineMath",
   "html",
@@ -210,6 +210,19 @@ function autolinkLocalPaths(node: MdastNodeLike): void {
       const parts = splitTextValue(child.value)
       if (parts) {
         rebuilt.push(...(parts as MdastNodeLike[]))
+        continue
+      }
+    } else if (child.type === "inlineCode" && typeof child.value === "string") {
+      // Agents commonly wrap artifact paths in backticks. Unlike prose text,
+      // inline code must match as a whole so commands and code expressions
+      // never gain file actions because one token happens to look path-like.
+      const url = pathUrlFor(child.value)
+      if (url) {
+        rebuilt.push({
+          type: "link",
+          url,
+          children: [{ type: "text", value: child.value }],
+        })
         continue
       }
     } else if (!SKIP_SUBTREE.has(child.type)) {

@@ -1593,7 +1593,7 @@
       "title": "المحادثات",
       "brand": "MaxCode",
       "locateActiveConversation": "تحديد المحادثة النشطة",
-      "markAllRead": "تحديد الكل كمقروء ({count})",
+      "markAllRead": "تحديد الكل كمقروء",
       "expandAllGroups": "توسيع كل المجموعات",
       "collapseAllGroups": "طي كل المجموعات",
       "newConversation": "محادثة جديدة",

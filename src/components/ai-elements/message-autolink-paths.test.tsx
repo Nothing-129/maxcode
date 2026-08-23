@@ -164,10 +164,30 @@ describe("MessageResponse — plain-text local paths autolink to file badges", (
     expect(container.textContent).not.toContain("[blocked]")
   })
 
-  it("leaves prose slash-pairs and inline code alone", async () => {
+  it("autolinks a local artifact path written as inline code", async () => {
+    const artifact =
+      "src-tauri/target/release/bundle/dmg/MaxCode_0.26.14_aarch64.dmg"
+    mocks.isLocalDesktop.mockReturnValue(true)
+    const { container } = render(
+      <MessageResponse>{`产物：\`${artifact}\`（约 81MB）`}</MessageResponse>
+    )
+
+    await waitFor(() => {
+      expect(fileBadges(container)).toHaveLength(1)
+    })
+    expect(container.querySelectorAll("[data-file-actions]")).toHaveLength(1)
+
+    fireEvent.click(fileBadges(container)[0])
+    await waitFor(() => {
+      expect(mocks.openPath).toHaveBeenCalledWith(`/repo/${artifact}`)
+    })
+    expect(mocks.openFilePreview).not.toHaveBeenCalled()
+  })
+
+  it("leaves prose slash-pairs and non-path inline code alone", async () => {
     const { container } = render(
       <MessageResponse>
-        {"and/or 与 TCP/IP 都是普通文本，`src/foo.ts` 是内联代码。"}
+        {"and/or 与 TCP/IP 都是普通文本，`pnpm test` 是内联代码。"}
       </MessageResponse>
     )
 
@@ -176,7 +196,7 @@ describe("MessageResponse — plain-text local paths autolink to file badges", (
       expect(container.querySelector("table, p")).not.toBeNull()
     })
     expect(fileBadges(container)).toHaveLength(0)
-    expect(container.querySelector("code")?.textContent).toBe("src/foo.ts")
+    expect(container.querySelector("code")?.textContent).toBe("pnpm test")
     expect(container.textContent).not.toContain("[blocked]")
   })
 })

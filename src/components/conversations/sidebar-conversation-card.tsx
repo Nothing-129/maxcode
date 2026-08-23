@@ -1,6 +1,12 @@
 "use client"
 
-import { memo, useState, useCallback, type CSSProperties } from "react"
+import {
+  memo,
+  useState,
+  useCallback,
+  type CSSProperties,
+  type PointerEvent as ReactPointerEvent,
+} from "react"
 import {
   AtSign,
   Pencil,
@@ -62,6 +68,29 @@ import {
 } from "@/lib/conversation-status-prefs"
 import { SessionDetailsDialog } from "./session-details-dialog"
 import { AgentIcon } from "@/components/agent-icon"
+
+// WebKit can recycle a virtualized row between a Mac trackpad's pointerdown and
+// its delayed click. Keep the fine-pointer activation outside the row instance
+// so the remounted copy can discard that leftover click instead of selecting
+// the conversation twice.
+const POINTER_SELECT_GUARD_MS = 400
+const recentPointerSelections = new Map<number, number>()
+
+function rememberPointerSelection(conversationId: number) {
+  recentPointerSelections.set(conversationId, Date.now())
+}
+
+function consumeRecentPointerSelection(conversationId: number) {
+  const activatedAt = recentPointerSelections.get(conversationId)
+  if (activatedAt === undefined) return false
+  recentPointerSelections.delete(conversationId)
+  return Date.now() - activatedAt < POINTER_SELECT_GUARD_MS
+}
+
+/** Test-only: clear module state between fake-time/remount scenarios. */
+export function resetConversationPointerSelectionGuardForTests() {
+  recentPointerSelections.clear()
+}
 
 /**
  * Horizontal indent added per delegation-nesting level. Chosen so a child's
@@ -199,7 +228,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const [renameValue, setRenameValue] = useState("")
   const [attachTabId, setAttachTabId] = useState<string | null>(null)
 
-  const handleClick = useCallback(() => {
+  const selectConversation = useCallback(() => {
     onSelect(conversation.id, conversation.agent_type, conversation.folder_id)
   }, [
     onSelect,
@@ -207,6 +236,18 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
     conversation.agent_type,
     conversation.folder_id,
   ])
+  const handlePointerDown = useCallback(
+    (event: ReactPointerEvent<HTMLButtonElement>) => {
+      if (event.button !== 0 || event.pointerType !== "mouse") return
+      rememberPointerSelection(conversation.id)
+      selectConversation()
+    },
+    [conversation.id, selectConversation]
+  )
+  const handleClick = useCallback(() => {
+    if (consumeRecentPointerSelection(conversation.id)) return
+    selectConversation()
+  }, [conversation.id, selectConversation])
 
   const handleDblClick = useCallback(() => {
     onDoubleClick?.(
@@ -319,6 +360,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
             >
               <button
                 data-conversation-id={conversation.id}
+                onPointerDown={handlePointerDown}
                 onClick={handleClick}
                 onDoubleClick={handleDblClick}
                 className={cn(

@@ -10,6 +10,10 @@ const tabItem = readFileSync(
   resolve(process.cwd(), "src/components/tabs/tab-item.tsx"),
   "utf8"
 )
+const fileTabBar = readFileSync(
+  resolve(process.cwd(), "src/components/files/file-workspace-tab-bar.tsx"),
+  "utf8"
+)
 
 /**
  * Wiring the store's guarantees cannot enforce on its own.
@@ -44,6 +48,22 @@ describe("tab leading glyph", () => {
     expect(tabItem).toContain("tab.agentType")
     expect(tabItem).toContain("ConversationStatusDot")
     expect(tabItem).toContain("showStatus && tab.status")
+  })
+})
+
+describe("tab trackpad click vs drag", () => {
+  it("never lets Motion's pointer listener arm a drag on click", () => {
+    // dragListener={!isCoarsePointer} started a reorder after ~3px, which a
+    // Mac trackpad click routinely exceeds — the tab lifts and the close
+    // button's click is swallowed. Both strips must own activation themselves.
+    expect(tabItem).toContain("dragListener={false}")
+    expect(fileTabBar).toContain("dragListener={false}")
+    expect(tabItem).toMatch(
+      /onPointerDown=\{\(event\) => \{\s*event\.stopPropagation\(\)/
+    )
+    expect(fileTabBar).toMatch(
+      /onPointerDown=\{\(event\) => \{\s*event\.stopPropagation\(\)/
+    )
   })
 })
 

@@ -7,6 +7,36 @@ import type {
 } from "react"
 import { useDragControls } from "motion/react"
 
+/** Pixels of horizontal travel before a fine pointer (mouse / Mac trackpad)
+ *  may start a tab reorder. Motion's own drag listener uses ~3px, which a
+ *  trackpad click routinely exceeds, turning the click into a drag and then
+ *  swallowing the close-button click. */
+export const TAB_DRAG_ACTIVATION_PX = 16
+
+const DRAG_EXCLUDED_SELECTOR =
+  "button, input, textarea, select, a, [data-no-tab-drag]"
+
+export function isTabDragExcludedTarget(target: EventTarget | null): boolean {
+  const el =
+    target instanceof Element
+      ? target
+      : target instanceof Node
+        ? target.parentElement
+        : null
+  return el != null && el.closest(DRAG_EXCLUDED_SELECTOR) != null
+}
+
+/** Reorder is axis-locked to x; require a clearly horizontal swipe so the
+ *  mostly-vertical jitter of a Mac trackpad click cannot arm the drag. */
+export function hasHorizontalDragIntent(
+  dx: number,
+  dy: number,
+  thresholdPx = TAB_DRAG_ACTIVATION_PX
+): boolean {
+  const absX = Math.abs(dx)
+  return absX >= thresholdPx && absX >= Math.abs(dy)
+}
+
 interface UseLongPressDragOptions {
   enabled: boolean
   onStart: () => void
@@ -15,6 +45,8 @@ interface UseLongPressDragOptions {
   scrollThresholdPx?: number
   dragSettleMs?: number
   onDragSettle?: () => void
+  /** Fine-pointer (mouse / trackpad / pen) distance gate. 0 disables it. */
+  distanceActivationPx?: number
 }
 
 export function useLongPressDrag({
@@ -25,6 +57,7 @@ export function useLongPressDrag({
   scrollThresholdPx = 10,
   dragSettleMs = 200,
   onDragSettle,
+  distanceActivationPx = TAB_DRAG_ACTIVATION_PX,
 }: UseLongPressDragOptions) {
   const dragControls = useDragControls()
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -33,6 +66,7 @@ export function useLongPressDrag({
   const longPressActiveRef = useRef(false)
   const isDraggingRef = useRef(false)
   const removeNativeTouchMoveGuardRef = useRef<(() => void) | null>(null)
+  const removeDistanceActivationRef = useRef<(() => void) | null>(null)
   // Every pointerdown opens a new interaction; suppressedInteractionRef pins
   // which interaction's synthetic click should be swallowed. Advancing the id
   // on every pointer kind (including mouse on hybrid devices) keeps stale
@@ -58,15 +92,26 @@ export function useLongPressDrag({
     removeNativeTouchMoveGuardRef.current = null
   }, [])
 
+  const stopDistanceActivation = useCallback(() => {
+    removeDistanceActivationRef.current?.()
+    removeDistanceActivationRef.current = null
+  }, [])
+
   const releaseGesture = useCallback(() => {
     clearLongPressTimer()
     touchStartRef.current = null
     stopNativeTouchMoveGuard()
+    stopDistanceActivation()
     if (longPressActiveRef.current) {
       longPressActiveRef.current = false
       onEnd()
     }
-  }, [clearLongPressTimer, onEnd, stopNativeTouchMoveGuard])
+  }, [
+    clearLongPressTimer,
+    onEnd,
+    stopDistanceActivation,
+    stopNativeTouchMoveGuard,
+  ])
 
   const startNativeTouchMoveGuard = useCallback(() => {
     if (removeNativeTouchMoveGuardRef.current) return
@@ -125,30 +170,93 @@ export function useLongPressDrag({
       clearLongPressTimer()
       clearDragSettleTimer()
       stopNativeTouchMoveGuard()
+      stopDistanceActivation()
     },
-    [clearDragSettleTimer, clearLongPressTimer, stopNativeTouchMoveGuard]
+    [
+      clearDragSettleTimer,
+      clearLongPressTimer,
+      stopDistanceActivation,
+      stopNativeTouchMoveGuard,
+    ]
+  )
+
+  const startDistanceActivation = useCallback(
+    (event: ReactPointerEvent<HTMLElement>) => {
+      if (distanceActivationPx <= 0) return
+      stopDistanceActivation()
+      const pointerId = event.pointerId
+      const startX = event.clientX
+      const startY = event.clientY
+
+      const onMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return
+        // WebKit can deliver a final trackpad move after the click has already
+        // released. Distance alone is not drag intent: without the primary
+        // button this stale move must tear down the pending gesture, otherwise
+        // selecting a tab can lift it into a drag as the finger moves away.
+        if ((moveEvent.buttons & 1) === 0) {
+          stopDistanceActivation()
+          return
+        }
+        if (
+          !hasHorizontalDragIntent(
+            moveEvent.clientX - startX,
+            moveEvent.clientY - startY,
+            distanceActivationPx
+          )
+        ) {
+          return
+        }
+        stopDistanceActivation()
+        dragControls.start(moveEvent)
+      }
+      const onUp = (upEvent: PointerEvent) => {
+        if (upEvent.pointerId !== pointerId) return
+        stopDistanceActivation()
+      }
+
+      window.addEventListener("pointermove", onMove)
+      window.addEventListener("pointerup", onUp)
+      window.addEventListener("pointercancel", onUp)
+      removeDistanceActivationRef.current = () => {
+        window.removeEventListener("pointermove", onMove)
+        window.removeEventListener("pointerup", onUp)
+        window.removeEventListener("pointercancel", onUp)
+      }
+    },
+    [distanceActivationPx, dragControls, stopDistanceActivation]
   )
 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
-      if (!enabled) return
       const interactionId = ++interactionIdRef.current
-      if (event.pointerType === "mouse") return
+      if (event.button !== 0) return
+      if (isTabDragExcludedTarget(event.target)) return
 
-      clearLongPressTimer()
-      if (event.pointerType === "touch") {
-        startNativeTouchMoveGuard()
+      // Coarse touch still uses long-press so a scroll doesn't reorder tabs.
+      // Mouse / trackpad / pen (and coarse=false touch, which WKWebView can
+      // report for a Mac trackpad) use the distance gate instead — Motion's
+      // built-in ~3px listener is too eager for a trackpad click.
+      const useLongPress = enabled && event.pointerType !== "mouse"
+      if (useLongPress) {
+        clearLongPressTimer()
+        if (event.pointerType === "touch") {
+          startNativeTouchMoveGuard()
+        }
+        longPressActiveRef.current = false
+        touchStartRef.current = { x: event.clientX, y: event.clientY }
+
+        longPressTimerRef.current = setTimeout(() => {
+          longPressTimerRef.current = null
+          longPressActiveRef.current = true
+          suppressedInteractionRef.current = interactionId
+          onStart()
+          dragControls.start(event.nativeEvent)
+        }, longPressMs)
+        return
       }
-      longPressActiveRef.current = false
-      touchStartRef.current = { x: event.clientX, y: event.clientY }
 
-      longPressTimerRef.current = setTimeout(() => {
-        longPressTimerRef.current = null
-        longPressActiveRef.current = true
-        suppressedInteractionRef.current = interactionId
-        onStart()
-        dragControls.start(event.nativeEvent)
-      }, longPressMs)
+      startDistanceActivation(event)
     },
     [
       clearLongPressTimer,
@@ -156,6 +264,7 @@ export function useLongPressDrag({
       enabled,
       longPressMs,
       onStart,
+      startDistanceActivation,
       startNativeTouchMoveGuard,
     ]
   )

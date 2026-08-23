@@ -245,7 +245,10 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
       data-file-tab-id={tab.id}
       drag="x"
       dragControls={dragControls}
-      dragListener={!isCoarsePointer}
+      // Always manual: Motion's listener arms after ~3px, which a Mac trackpad
+      // click routinely exceeds (click becomes a drag, close is swallowed).
+      // Coarse pointers long-press; fine pointers wait for a horizontal swipe.
+      dragListener={false}
       whileDrag={whileDrag}
       {...gestureHandlers}
       data-tab-item
@@ -358,6 +361,9 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
                     ? "opacity-0 pointer-events-none group-hover/filetab:opacity-100 group-hover/filetab:pointer-events-auto"
                     : "opacity-0 group-hover/filetab:opacity-100"
               )}
+              onPointerDown={(event) => {
+                event.stopPropagation()
+              }}
               onClick={(event) => {
                 event.stopPropagation()
                 onClose(tab.id)

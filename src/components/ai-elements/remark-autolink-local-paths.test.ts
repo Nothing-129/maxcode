@@ -160,15 +160,32 @@ describe("remarkAutolinkLocalPaths — glued CJK prose", () => {
   })
 })
 
-describe("remarkAutolinkLocalPaths — subtree skips", () => {
-  it("does not touch inline code, fenced code, html, or link labels", () => {
+describe("remarkAutolinkLocalPaths — inline code and subtree skips", () => {
+  it("links inline code when its entire value is a local path", () => {
+    const path =
+      "src-tauri/target/release/bundle/dmg/MaxCode_0.26.14_aarch64.dmg"
+    const tree: Node = {
+      type: "root",
+      children: [
+        {
+          type: "paragraph",
+          children: [{ type: "inlineCode", value: path }],
+        },
+      ],
+    }
+
+    run(tree)
+    expect(links(tree)).toEqual([`${file(path)}|${path}`])
+  })
+
+  it("keeps non-path inline code, fenced code, html, and link labels inert", () => {
     const tree: Node = {
       type: "root",
       children: [
         {
           type: "paragraph",
           children: [
-            { type: "inlineCode", value: "src/foo.ts" },
+            { type: "inlineCode", value: "pnpm test" },
             { type: "text", value: " then " },
             { type: "html", value: "<b>src/bar.ts</b>" },
             {
