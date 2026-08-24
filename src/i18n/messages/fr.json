@@ -4707,6 +4707,8 @@
     "strategySquashHint": "Toutes les modifications de la tâche arrivent dans la branche principale comme une seule entrée d'historique — un historique plus net.",
     "strategyMerge": "Conserver tout l'historique",
     "strategyMergeHint": "Chaque commit réalisé pendant la tâche est conservé, plus une entrée de fusion — chaque étape reste traçable.",
+    "mergeInstructions": "Instructions supplémentaires (facultatif)",
+    "mergeInstructionsPlaceholder": "ex. en cas de conflit, privilégier cette branche",
     "mergeDeleteWorktree": "Supprimer le worktree après la fusion",
     "mergeSubmit": "Fusionner",
     "mergeSubmitQueue": "Ajouter à la file",

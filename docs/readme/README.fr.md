@@ -59,6 +59,13 @@ Il regroupe les sessions de toutes les CLI d'agents supportées dans un espace d
     </td>
     <td>Merci à OneHop pour son parrainage de ce projet ! OneHop offre aux utilisateurs de Codeg une seule clé API compatible avec OpenAI pour des centaines de modèles de premier plan, dont GPT, Claude, Gemini, DeepSeek, Kimi et Qwen. Changez de modèle sans gérer plusieurs comptes de fournisseurs ni modifier votre code à répétition, et ne payez que ce que vous utilisez. <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">Inscrivez-vous via Codeg</a> pour recevoir 1 USD de crédit, puis rejoignez la communauté OneHop et participez à l'activité de bienvenue pour obtenir 5 USD supplémentaires, soit jusqu'à 6 USD de crédit d'essai au total.</td>
   </tr>
+  <tr>
+    <td align="center" width="220">
+      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
+      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
+    </td>
+    <td>Merci au service de relais LQ router pour son parrainage de ce projet ! LQ router est une passerelle d'agrégation d'API de niveau entreprise destinée aux développeurs indépendants et aux équipes techniques. Elle donne accès aux principaux modèles, notamment GPT, Claude, Grok et Gemini, reste compatible avec les clients existants et le SDK OpenAI, et s'appuie sur un pool de comptes dynamique pour un routage intelligent : un seul point d'entrée pour tous les appels de modèles. <a href="https://console.lqapi.xyz/sign-up?aff=KPy9">Inscrivez-vous sur le site officiel et recevez 1 USD de crédit d'essai</a>.</td>
+  </tr>
 </table>
 
 > Vous souhaitez devenir sponsor de Codeg ? [Contactez-nous par e-mail.](mailto:itpkcn@gmail.com)

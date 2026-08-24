@@ -59,6 +59,13 @@ Codeg (Code Generation) هو مساحة عمل برمجية متعددة الو�
     </td>
     <td>شكراً لـ OneHop على رعاية هذا المشروع! يمنح OneHop مستخدمي Codeg مفتاح API واحداً متوافقاً مع OpenAI للوصول إلى مئات النماذج الرائدة، بما في ذلك GPT وClaude وGemini وDeepSeek وKimi وQwen. بدّل بين النماذج دون إدارة حسابات مزوّدين متعددة أو تعديل التعليمات البرمجية مراراً وتكراراً، وادفع فقط مقابل ما تستخدمه. <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">سجّل عبر Codeg</a> للحصول على رصيد بقيمة 1 دولار، ثم انضم إلى مجتمع OneHop وشارك في نشاط الترحيب للحصول على 5 دولارات إضافية — بما يصل إلى 6 دولارات من الرصيد التجريبي إجمالاً.</td>
   </tr>
+  <tr>
+    <td align="center" width="220">
+      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
+      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
+    </td>
+    <td>شكراً لخدمة الترحيل LQ router على رعاية هذا المشروع! LQ router هي بوابة مؤسسية لتجميع واجهات API، مصممة للمطورين المستقلين والفرق التقنية. تتيح الوصول إلى النماذج الرائدة مثل GPT وClaude وGrok وGemini، وتتوافق مع العملاء الحاليين وOpenAI SDK، وتستخدم مجموعة حسابات ديناميكية للتوجيه الذكي — نقطة دخول واحدة لجميع استدعاءات النماذج. <a href="https://console.lqapi.xyz/sign-up?aff=KPy9">سجّل عبر الموقع الرسمي واحصل على رصيد تجريبي بقيمة دولار واحد</a>.</td>
+  </tr>
 </table>
 
 > هل ترغب في أن تصبح راعياً لـ Codeg؟ [راسلنا عبر البريد الإلكتروني.](mailto:itpkcn@gmail.com)

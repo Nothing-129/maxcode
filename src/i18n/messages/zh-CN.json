@@ -4707,6 +4707,8 @@
     "strategySquashHint": "任务的所有修改压缩成一条提交记录并入主分支，历史更简洁。",
     "strategyMerge": "保留完整提交历史",
     "strategyMergeHint": "保留任务过程中的每一条提交，另加一条合并记录，每一步都可追溯。",
+    "mergeInstructions": "补充说明（可选）",
+    "mergeInstructionsPlaceholder": "例如：冲突时以本分支为准",
     "mergeDeleteWorktree": "合并后删除 worktree",
     "mergeSubmit": "合并",
     "mergeSubmitQueue": "加入合并队列",

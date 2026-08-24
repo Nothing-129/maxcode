@@ -129,6 +129,10 @@ pub struct MergeParams {
     #[serde(default)]
     pub message: Option<String>,
     pub delete_worktree: bool,
+    /// Extra directions for the merge agent; absent from every client that
+    /// predates the field, which is what `default` covers.
+    #[serde(default)]
+    pub instructions: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -350,9 +354,14 @@ pub async fn work_task_cancel(
 pub async fn work_task_merge(
     Json(params): Json<MergeParams>,
 ) -> Result<Json<bool>, AppCommandError> {
-    let queued = core::work_task_merge_core(params.id, params.message, params.delete_worktree)
-        .await
-        .map_err(AppCommandError::from)?;
+    let queued = core::work_task_merge_core(
+        params.id,
+        params.message,
+        params.delete_worktree,
+        params.instructions,
+    )
+    .await
+    .map_err(AppCommandError::from)?;
     Ok(Json(queued))
 }
 

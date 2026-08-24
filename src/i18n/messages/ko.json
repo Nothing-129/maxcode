@@ -4707,6 +4707,8 @@
     "strategySquashHint": "작업의 모든 변경 사항이 하나의 기록으로 메인 브랜치에 반영되어 히스토리가 깔끔해집니다.",
     "strategyMerge": "전체 히스토리 유지",
     "strategyMergeHint": "작업 중의 모든 커밋을 그대로 유지하고 병합 기록을 하나 추가합니다. 각 단계를 추적할 수 있습니다.",
+    "mergeInstructions": "추가 지시 사항 (선택)",
+    "mergeInstructionsPlaceholder": "예: 충돌 시 이 브랜치를 우선",
     "mergeDeleteWorktree": "병합 후 worktree 삭제",
     "mergeSubmit": "병합",
     "mergeSubmitQueue": "병합 대기열에 추가",

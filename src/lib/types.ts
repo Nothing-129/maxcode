@@ -1660,6 +1660,9 @@ export interface WorkTaskQueuedMerge {
   /** The commit message the user typed; null = the agent writes it. */
   message: string | null
   delete_worktree: boolean
+  /** Extra directions for the merge agent, kept so a merge that waited its turn
+   *  lands under what the user asked for when they queued it. */
+  instructions?: string | null
   /** Place in line (ISO instant) — the order the engine's pump dispatches in. */
   queued_at: string
 }

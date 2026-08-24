@@ -4707,6 +4707,8 @@
     "strategySquashHint": "All the task's changes land in the main branch as a single history entry — a tidier history.",
     "strategyMerge": "Keep full history",
     "strategyMergeHint": "Every commit made during the task is kept, plus one merge entry — each step stays traceable.",
+    "mergeInstructions": "Extra instructions (optional)",
+    "mergeInstructionsPlaceholder": "e.g. prefer this branch's side on any conflict",
     "mergeDeleteWorktree": "Delete worktree after merge",
     "mergeSubmit": "Merge",
     "mergeSubmitQueue": "Add to merge queue",

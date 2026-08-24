@@ -59,6 +59,13 @@ Codeg(Code Generation)는 멀티 에이전트 코딩 워크스페이스입니다
     </td>
     <td>본 프로젝트를 후원해 주신 OneHop에 감사드립니다! OneHop를 사용하면 Codeg 사용자는 OpenAI 호환 API 키 하나로 GPT, Claude, Gemini, DeepSeek, Kimi, Qwen을 비롯한 수백 개의 주요 모델을 이용할 수 있습니다. 여러 공급업체 계정을 관리하거나 코드를 반복해서 수정하지 않고도 모델을 전환할 수 있으며, 사용한 만큼만 지불합니다. <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">Codeg를 통해 가입</a>하면 $1 크레딧을 받고, 여기에 OneHop 커뮤니티에 참여하여 웰컴 이벤트에 참여하면 추가로 $5——최대 총 $6의 테스트 크레딧을 받을 수 있습니다.</td>
   </tr>
+  <tr>
+    <td align="center" width="220">
+      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
+      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
+    </td>
+    <td>본 프로젝트를 후원해 주신 LQ router 중계 서비스에 감사드립니다! LQ router는 개인 개발자와 기술 팀을 위한 엔터프라이즈급 API 통합 게이트웨이입니다. GPT, Claude, Grok, Gemini 등 주요 모델을 연동하고 기존 클라이언트 및 OpenAI SDK와 호환되며, 동적 계정 풀을 이용한 지능형 라우팅으로 하나의 엔드포인트에서 여러 모델을 호출할 수 있습니다. <a href="https://console.lqapi.xyz/sign-up?aff=KPy9">공식 웹사이트에서 그룹에 참여하면 1달러 체험 크레딧을 받을 수 있습니다</a>.</td>
+  </tr>
 </table>
 
 > Codeg의 스폰서가 되고 싶으신가요? [이메일로 문의해 주세요.](mailto:itpkcn@gmail.com)

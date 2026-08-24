@@ -4707,6 +4707,8 @@
     "strategySquashHint": "تصل جميع تغييرات المهمة إلى الفرع الرئيسي كسجل واحد — تاريخ أكثر ترتيبًا.",
     "strategyMerge": "الاحتفاظ بالتاريخ الكامل",
     "strategyMergeHint": "يُحتفظ بكل التزام أُنشئ أثناء المهمة، مع إضافة سجل دمج واحد — تبقى كل خطوة قابلة للتتبع.",
+    "mergeInstructions": "تعليمات إضافية (اختياري)",
+    "mergeInstructionsPlaceholder": "مثال: عند التعارض، رجّح هذا الفرع",
     "mergeDeleteWorktree": "حذف worktree بعد الدمج",
     "mergeSubmit": "دمج",
     "mergeSubmitQueue": "إضافة إلى طابور الدمج",

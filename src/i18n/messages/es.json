@@ -4707,6 +4707,8 @@
     "strategySquashHint": "Todos los cambios de la tarea llegan a la rama principal como una sola entrada del historial: un historial más limpio.",
     "strategyMerge": "Conservar todo el historial",
     "strategyMergeHint": "Se conserva cada commit hecho durante la tarea, más una entrada de fusión: cada paso queda rastreable.",
+    "mergeInstructions": "Instrucciones adicionales (opcional)",
+    "mergeInstructionsPlaceholder": "p. ej. ante un conflicto, prioriza esta rama",
     "mergeDeleteWorktree": "Eliminar el worktree tras fusionar",
     "mergeSubmit": "Fusionar",
     "mergeSubmitQueue": "Añadir a la cola",

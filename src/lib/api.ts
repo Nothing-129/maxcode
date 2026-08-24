@@ -3265,12 +3265,14 @@ export async function workTaskCancel(
 export async function workTaskMerge(
   id: number,
   message: string | null,
-  deleteWorktree: boolean
+  deleteWorktree: boolean,
+  instructions: string | null = null
 ): Promise<boolean> {
   return getTransport().call("work_task_merge", {
     id,
     message,
     deleteWorktree,
+    instructions,
   })
 }
 

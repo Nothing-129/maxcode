@@ -4707,6 +4707,8 @@
     "strategySquashHint": "Todas as mudanças da tarefa entram na branch principal como um único registro — histórico mais limpo.",
     "strategyMerge": "Manter o histórico completo",
     "strategyMergeHint": "Cada commit feito durante a tarefa é mantido, mais um registro de merge — cada etapa fica rastreável.",
+    "mergeInstructions": "Instruções adicionais (opcional)",
+    "mergeInstructionsPlaceholder": "ex.: em caso de conflito, priorize este branch",
     "mergeDeleteWorktree": "Excluir o worktree após o merge",
     "mergeSubmit": "Merge",
     "mergeSubmitQueue": "Adicionar à fila",
