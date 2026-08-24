@@ -2126,6 +2126,7 @@ function SplitStripCornerReserve({ side }: { side: "left" | "right" }) {
 export function ConversationDetailPanel() {
   const t = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
+  const isMobileWeb = useIsMobile() && !isDesktop()
   const {
     completeTurn: runtimeCompleteTurn,
     removeConversation: runtimeRemoveConversation,
@@ -2645,7 +2646,11 @@ export function ConversationDetailPanel() {
           />
         )}
         <ContextMenu>
-          <ContextMenuTrigger asChild>
+          <ContextMenuTrigger
+            asChild
+            disabled={isMobileWeb}
+            style={isMobileWeb ? { WebkitTouchCallout: "default" } : undefined}
+          >
             <div
               ref={groupContainerRef}
               className="relative min-h-0 flex-1 overflow-hidden"

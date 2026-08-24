@@ -41,6 +41,22 @@ const messageListViewSource = readFileSync(
   "utf8"
 )
 
+describe("ConversationDetailPanel mobile context menu", () => {
+  it("leaves long-press available for native text selection in mobile web", () => {
+    const panelSource = source.slice(
+      source.indexOf("export function ConversationDetailPanel()")
+    )
+
+    expect(panelSource).toContain(
+      "const isMobileWeb = useIsMobile() && !isDesktop()"
+    )
+    expect(panelSource).toContain("disabled={isMobileWeb}")
+    expect(panelSource).toMatch(
+      /style=\{\s*isMobileWeb \? \{ WebkitTouchCallout: "default" \} : undefined\s*\}/
+    )
+  })
+})
+
 describe("ConversationDetailPanel new conversation layout", () => {
   it("keeps the new-conversation input in the welcome panel with the original scroll layout", () => {
     expect(source).toContain(
