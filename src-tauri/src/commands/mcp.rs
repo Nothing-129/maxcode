@@ -2978,7 +2978,9 @@ fn scan_local_servers() -> Result<Vec<LocalMcpServer>, AppCommandError> {
         .collect())
 }
 
-fn find_local_server(server_id: &str) -> Result<Option<LocalMcpServer>, AppCommandError> {
+pub(crate) fn find_local_server(
+    server_id: &str,
+) -> Result<Option<LocalMcpServer>, AppCommandError> {
     let servers = scan_local_servers()?;
     Ok(servers.into_iter().find(|item| item.id == server_id))
 }

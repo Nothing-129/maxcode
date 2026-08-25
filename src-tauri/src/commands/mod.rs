@@ -35,6 +35,7 @@ pub mod remote_workspace;
 pub mod science;
 pub mod session_info;
 pub mod system_settings;
+pub mod teambition;
 pub mod terminal;
 pub mod token_usage;
 pub mod turn_window;

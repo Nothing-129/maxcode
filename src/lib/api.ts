@@ -37,6 +37,8 @@ import type {
   WorkTaskEvent,
   WorkTaskFolderSettings,
   WorkTaskTemplate,
+  TeambitionBoard,
+  TeambitionTask,
   ConversationSummary,
   ConversationDetail,
   ConversationTurnsPage,
@@ -3156,6 +3158,20 @@ export async function workTaskUpdate(
   return getTransport().call("work_task_update", {
     id,
     draft: { ...draft, config: stripUploadedTaskConfig(draft.config) },
+  })
+}
+
+export async function teambitionBoard(): Promise<TeambitionBoard> {
+  return getTransport().call("teambition_board", {})
+}
+
+export async function teambitionUpdateTaskStatus(
+  taskId: string,
+  statusId: string
+): Promise<TeambitionTask> {
+  return getTransport().call("teambition_update_task_status", {
+    taskId,
+    statusId,
   })
 }
 

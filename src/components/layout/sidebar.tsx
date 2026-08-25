@@ -9,6 +9,7 @@ import {
   ListChevronsUpDown,
   LayoutTemplate,
   ListTodo,
+  SquareKanban,
   Menu,
   MessagesSquare,
   SquarePen,
@@ -109,6 +110,7 @@ const RECENT_HIDDEN: ReadonlySet<SidebarSectionId> = new Set(["recent"])
 const NAV_ITEM_ICONS: Record<SidebarNavItemId, LucideIcon> = {
   automations: Zap,
   tasks: ListTodo,
+  teambition: SquareKanban,
   forge: LayoutTemplate,
 }
 
@@ -631,6 +633,17 @@ export function Sidebar() {
                 </span>
               ) : null
             }
+          />
+        )}
+        {isNavItemVisible(navItems, "teambition") && (
+          <SidebarNavButton
+            icon={SquareKanban}
+            label={t("teambition")}
+            active={routeId === "teambition"}
+            onClick={() => {
+              if (collapseOnNavigate) toggle()
+              setRoute("teambition")
+            }}
           />
         )}
         {isNavItemVisible(navItems, "forge") && (

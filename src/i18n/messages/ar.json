@@ -1743,6 +1743,7 @@
       "newChatAction": "محادثة جديدة",
       "automations": "الأتمتة",
       "tasks": "المهام قيد الانتظار",
+      "teambition": "Teambition",
       "loadingSubsessions": "جارٍ تحميل المحادثات الفرعية…",
       "forge": "لوحة المستودع"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "احسب جلساتي",
     "loadFailed": "تعذّر تحميل بيانات الاستهلاك",
     "truncatedNotice": "هذا النطاق واسع جدًا — الأرقام تغطي أحدث جزء منه فقط."
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "{count} مهمة تشارك فيها",
+    "refresh": "جلب أحدث البيانات",
+    "retry": "إعادة المحاولة",
+    "preflightFailed": "فشل الفحص المسبق لـ Teambition MCP",
+    "preflightHint": "تحقق من تمكين خادم MCP المحلي المسمى teambition ومن أنه يوفر جميع الأدوات المطلوبة.",
+    "openMcpSettings": "فتح إعدادات MCP",
+    "empty": "لا توجد مهام مشاركة",
+    "emptyHint": "ستظهر هنا المهام ذات الصلة من مشروع 技术部敏捷项目.",
+    "emptyStatus": "لا توجد مهام بهذه الحالة",
+    "differentWorkflow": "تنتمي هذه الحالة إلى سير عمل مختلف.",
+    "statusUpdated": "تم النقل إلى {status}",
+    "inserted": "تم إدراج {id} في محادثة المجلد الجديدة",
+    "changeStatus": "تغيير الحالة",
+    "insertToFolder": "إضافة معرّف المهمة إلى حقل مجلد",
+    "chooseFolder": "اختيار مجلد",
+    "noFolders": "لا توجد مجلدات مشروع مفتوحة"
   },
   "Forge": {
     "title": "لوحة المستودع",

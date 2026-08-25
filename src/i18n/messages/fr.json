@@ -1743,6 +1743,7 @@
       "newChatAction": "Nouvelle discussion",
       "automations": "Automatisations",
       "tasks": "Tâches à faire",
+      "teambition": "Teambition",
       "loadingSubsessions": "Chargement des sous-conversations…",
       "forge": "Panneau du dépôt"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "Compter mes sessions",
     "loadFailed": "Impossible de charger la consommation",
     "truncatedNotice": "Cette période est très large — les chiffres ne couvrent que sa portion la plus récente."
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "{count} tâches auxquelles vous participez",
+    "refresh": "Récupérer les dernières données",
+    "retry": "Réessayer",
+    "preflightFailed": "Échec de la vérification préalable de Teambition MCP",
+    "preflightHint": "Vérifiez que le serveur MCP local nommé teambition est activé et fournit tous les outils requis.",
+    "openMcpSettings": "Ouvrir les réglages MCP",
+    "empty": "Aucune tâche participante",
+    "emptyHint": "Les tâches liées du projet 技术部敏捷项目 apparaîtront ici.",
+    "emptyStatus": "Aucune tâche avec ce statut",
+    "differentWorkflow": "Ce statut appartient à un autre flux de travail.",
+    "statusUpdated": "Déplacée vers {status}",
+    "inserted": "{id} a été inséré dans le nouveau chat du dossier",
+    "changeStatus": "Modifier le statut",
+    "insertToFolder": "Ajouter l’ID à la saisie d’un dossier",
+    "chooseFolder": "Choisir un dossier",
+    "noFolders": "Aucun dossier de projet ouvert"
   },
   "Forge": {
     "title": "Panneau du dépôt",

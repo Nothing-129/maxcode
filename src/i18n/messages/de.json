@@ -1743,6 +1743,7 @@
       "newChatAction": "Neuer Chat",
       "automations": "Automatisierungen",
       "tasks": "To-dos",
+      "teambition": "Teambition",
       "loadingSubsessions": "Unterkonversationen werden geladen…",
       "forge": "Repository-Panel"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "Meine Sitzungen zählen",
     "loadFailed": "Verbrauch konnte nicht geladen werden",
     "truncatedNotice": "Dieser Zeitraum ist sehr groß — die Zahlen decken nur seinen jüngsten Abschnitt ab."
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "{count} Aufgaben mit deiner Beteiligung",
+    "refresh": "Neueste abrufen",
+    "retry": "Erneut versuchen",
+    "preflightFailed": "Teambition-MCP-Vorabprüfung fehlgeschlagen",
+    "preflightHint": "Prüfe, ob der lokale MCP-Server teambition aktiviert ist und alle erforderlichen Tools bereitstellt.",
+    "openMcpSettings": "MCP-Einstellungen öffnen",
+    "empty": "Keine beteiligten Aufgaben",
+    "emptyHint": "Zugehörige Aufgaben aus dem Projekt 技术部敏捷项目 erscheinen hier.",
+    "emptyStatus": "Keine Aufgaben mit diesem Status",
+    "differentWorkflow": "Dieser Status gehört zu einem anderen Workflow.",
+    "statusUpdated": "Nach {status} verschoben",
+    "inserted": "{id} wurde in den neuen Ordner-Chat eingefügt",
+    "changeStatus": "Status ändern",
+    "insertToFolder": "Aufgaben-ID in ein Ordnereingabefeld einfügen",
+    "chooseFolder": "Ordner auswählen",
+    "noFolders": "Keine Projektordner geöffnet"
   },
   "Forge": {
     "title": "Repository-Panel",

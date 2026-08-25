@@ -1743,6 +1743,7 @@
       "newChatAction": "New chat",
       "automations": "Automations",
       "tasks": "To-dos",
+      "teambition": "Teambition",
       "loadingSubsessions": "Loading sub-conversations…",
       "forge": "Repository panel"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "Count my sessions",
     "loadFailed": "Could not load usage",
     "truncatedNotice": "This range is very large — the numbers cover only the most recent slice of it."
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "{count} tasks you participate in",
+    "refresh": "Get latest",
+    "retry": "Try again",
+    "preflightFailed": "Teambition MCP preflight failed",
+    "preflightHint": "Check that the local MCP server named teambition is enabled and provides all required tools.",
+    "openMcpSettings": "Open MCP settings",
+    "empty": "No participating tasks",
+    "emptyHint": "Tasks from the 技术部敏捷项目 project will appear here.",
+    "emptyStatus": "No tasks in this status",
+    "differentWorkflow": "That status belongs to a different workflow.",
+    "statusUpdated": "Moved to {status}",
+    "inserted": "Inserted {id} into the folder's new chat",
+    "changeStatus": "Change status",
+    "insertToFolder": "Add task ID to a folder input",
+    "chooseFolder": "Choose a folder",
+    "noFolders": "No project folders are open"
   },
   "Forge": {
     "title": "Repository panel",

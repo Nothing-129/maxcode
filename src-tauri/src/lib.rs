@@ -74,9 +74,9 @@ mod tauri_app {
         question as question_commands, quick_messages as quick_messages_commands,
         remote_proxy as remote_proxy_commands, remote_workspace as remote_workspace_commands,
         science as science_commands, session_info as session_info_commands, system_settings,
-        terminal as terminal_commands, token_usage as token_usage_commands, ui_preferences,
-        version_control, windows, work_task as work_task_commands,
-        workspace_state as workspace_state_commands,
+        teambition as teambition_commands, terminal as terminal_commands,
+        token_usage as token_usage_commands, ui_preferences, version_control, windows,
+        work_task as work_task_commands, workspace_state as workspace_state_commands,
     };
     use crate::terminal::manager::TerminalManager;
     use crate::{db, git_credential, network, paths, process, web};
@@ -1422,6 +1422,8 @@ mod tauri_app {
                 mcp_commands::mcp_upsert_local_server,
                 mcp_commands::mcp_set_server_apps,
                 mcp_commands::mcp_remove_server,
+                teambition_commands::teambition_board,
+                teambition_commands::teambition_update_task_status,
                 notification::send_notification,
                 file_io::save_binary_file,
                 file_io::save_text_file,

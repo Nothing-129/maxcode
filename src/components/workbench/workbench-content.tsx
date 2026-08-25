@@ -14,6 +14,10 @@ import { ForgePage, ForgePageTitle } from "@/components/forge/forge-page"
 import { TasksChromeActions } from "@/components/tasks/tasks-chrome-actions"
 import { TasksPage, TasksPageTitle } from "@/components/tasks/tasks-page"
 import {
+  TeambitionPage,
+  TeambitionPageTitle,
+} from "@/components/teambition/teambition-page"
+import {
   TokenUsagePage,
   TokenUsagePageTitle,
 } from "@/components/token-usage/token-usage-page"
@@ -28,6 +32,7 @@ import {
 const WORKBENCH_ROUTES: Partial<Record<WorkbenchRouteId, ComponentType>> = {
   automations: AutomationsPage,
   tasks: TasksPage,
+  teambition: TeambitionPage,
   forge: ForgePage,
   tokenUsage: TokenUsagePage,
 }
@@ -38,6 +43,7 @@ const WORKBENCH_ROUTE_STRIPS: Partial<Record<WorkbenchRouteId, ComponentType>> =
   {
     automations: AutomationsPageTitle,
     tasks: TasksPageTitle,
+    teambition: TeambitionPageTitle,
     forge: ForgePageTitle,
     tokenUsage: TokenUsagePageTitle,
   }

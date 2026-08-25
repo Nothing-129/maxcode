@@ -1743,6 +1743,7 @@
       "newChatAction": "新しいチャット",
       "automations": "オートメーション",
       "tasks": "ToDo タスク",
+      "teambition": "Teambition",
       "loadingSubsessions": "サブ会話を読み込み中…",
       "forge": "リポジトリパネル"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "セッションを集計",
     "loadFailed": "使用量を読み込めませんでした",
     "truncatedNotice": "期間が非常に長いため、表示中の数値は直近の一部のみを対象としています。"
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "参加中のタスク {count} 件",
+    "refresh": "最新を取得",
+    "retry": "再試行",
+    "preflightFailed": "Teambition MCP の事前チェックに失敗しました",
+    "preflightHint": "teambition という名前のローカル MCP が有効で、必要なツールをすべて提供していることを確認してください。",
+    "openMcpSettings": "MCP 設定を開く",
+    "empty": "参加中のタスクはありません",
+    "emptyHint": "技術部敏捷項目プロジェクトの関連タスクがここに表示されます。",
+    "emptyStatus": "このステータスにタスクはありません",
+    "differentWorkflow": "対象ステータスは別のワークフローに属しています。",
+    "statusUpdated": "{status} に移動しました",
+    "inserted": "{id} をフォルダーの新規チャットに挿入しました",
+    "changeStatus": "ステータスを変更",
+    "insertToFolder": "タスク ID をフォルダー入力欄に追加",
+    "chooseFolder": "フォルダーを選択",
+    "noFolders": "開いているプロジェクトフォルダーがありません"
   },
   "Forge": {
     "title": "リポジトリパネル",

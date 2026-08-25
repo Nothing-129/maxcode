@@ -1743,6 +1743,7 @@
       "newChatAction": "新增聊天",
       "automations": "自動化",
       "tasks": "待辦任務",
+      "teambition": "Teambition",
       "loadingSubsessions": "正在載入子會話…",
       "forge": "儲存庫面板"
     },
@@ -5111,6 +5112,25 @@
     "emptyAction": "統計我的工作階段",
     "loadFailed": "用量載入失敗",
     "truncatedNotice": "此範圍過大 —— 下面的數字只涵蓋其中最近的一段。"
+  },
+  "Teambition": {
+    "title": "Teambition",
+    "taskCount": "我參與的 {count} 個任務",
+    "refresh": "取得最新資料",
+    "retry": "重試",
+    "preflightFailed": "Teambition MCP 預檢失敗",
+    "preflightHint": "請檢查名為 teambition 的本機 MCP 已啟用，並且提供全部必要工具。",
+    "openMcpSettings": "開啟 MCP 設定",
+    "empty": "暫無參與的任務",
+    "emptyHint": "「技術部敏捷項目」中與你相關的任務會顯示在這裡。",
+    "emptyStatus": "此狀態暫無任務",
+    "differentWorkflow": "目標狀態屬於其他工作流程，無法直接移動。",
+    "statusUpdated": "已移動到「{status}」",
+    "inserted": "已將 {id} 填入該資料夾的新對話",
+    "changeStatus": "修改任務狀態",
+    "insertToFolder": "將任務 ID 加入資料夾輸入框",
+    "chooseFolder": "選擇資料夾",
+    "noFolders": "沒有開啟的專案資料夾"
   },
   "Forge": {
     "title": "儲存庫面板",

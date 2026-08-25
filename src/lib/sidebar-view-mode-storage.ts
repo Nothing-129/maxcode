@@ -58,7 +58,12 @@ export interface SidebarSectionCollapsed {
  * than navigation, and it is the one row with no equivalent elsewhere in the
  * chrome. Adding a future route here gives it a toggle for free.
  */
-export const SIDEBAR_NAV_ITEM_IDS = ["automations", "tasks", "forge"] as const
+export const SIDEBAR_NAV_ITEM_IDS = [
+  "automations",
+  "tasks",
+  "teambition",
+  "forge",
+] as const
 
 export type SidebarNavItemId = (typeof SIDEBAR_NAV_ITEM_IDS)[number]
 
