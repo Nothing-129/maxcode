@@ -8,6 +8,22 @@ on:
 env:
   RUST_BACKTRACE: short
   HUSKY: 0
+  # ------------------------------------------------------------------
+  # 构建平台白名单：只构建这里列出的目标，改完提交后打 tag 生效。
+  # DESKTOP_TARGETS（桌面安装包）可选值：
+  #   x86_64-apple-darwin       macOS x64
+  #   aarch64-apple-darwin      macOS arm64
+  #   x86_64-unknown-linux-gnu  Linux x64
+  #   x86_64-pc-windows-msvc    Windows x64
+  #   aarch64-pc-windows-msvc   Windows arm64
+  # SERVER_TARGETS（服务器包 + Docker 镜像，留空则两者都跳过）可选值：
+  #   x86_64-unknown-linux-gnu / aarch64-unknown-linux-gnu
+  #   x86_64-apple-darwin / aarch64-apple-darwin / x86_64-pc-windows-msvc
+  # 注意：latest.json 只包含白名单内的桌面平台，未列出的平台
+  # 收不到自动更新。
+  # ------------------------------------------------------------------
+  DESKTOP_TARGETS: "x86_64-apple-darwin,aarch64-apple-darwin,x86_64-pc-windows-msvc"
+  SERVER_TARGETS: ""
 
 concurrency:
   group: release-${{ github.ref }}
@@ -191,35 +207,95 @@ jobs:
             core.setOutput("release_url", release.html_url);
             core.setOutput("release_body", releaseBody);
 
+  resolve-matrix:
+    name: Resolve build matrix
+    runs-on: ubuntu-22.04
+    outputs:
+      tauri_matrix: ${{ steps.resolve.outputs.tauri_matrix }}
+      server_matrix: ${{ steps.resolve.outputs.server_matrix }}
+      # 白名单内桌面平台对应的 Tauri 更新器 platform key，供
+      # publish-release 校验 latest.json 完整性。
+      updater_required: ${{ steps.resolve.outputs.updater_required }}
+    steps:
+      - id: resolve
+        name: Expand platform whitelist into build matrices
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # 每个目标一行：显示名 | runner | 服务器产物名 | 更新器平台 key
+          # （更新器 key 与 Rust std::env::consts 的 os-arch 命名一致）。
+          # Linux arm64 桌面版刻意不提供：jammy 多架构交叉依赖安装仍会卡在
+          # libpng16-16:arm64 版本冲突（"held broken packages"）；
+          # Linux arm64 用户由服务器包和 Docker 镜像覆盖。
+          meta_for() {
+            case "$1" in
+              x86_64-apple-darwin) echo "macOS x64|macos-latest|MaxCode-server-darwin-x64|darwin-x86_64" ;;
+              aarch64-apple-darwin) echo "macOS arm64|macos-latest|MaxCode-server-darwin-arm64|darwin-aarch64" ;;
+              x86_64-unknown-linux-gnu) echo "Linux x64|ubuntu-22.04|MaxCode-server-linux-x64|linux-x86_64" ;;
+              aarch64-unknown-linux-gnu) echo "Linux arm64|ubuntu-22.04|MaxCode-server-linux-arm64|linux-arm64" ;;
+              x86_64-pc-windows-msvc) echo "Windows x64|windows-2022|MaxCode-server-windows-x64|windows-x86_64" ;;
+              aarch64-pc-windows-msvc) echo "Windows arm64|windows-latest||windows-aarch64" ;;
+              *)
+                echo "FATAL: 未知的目标 triple: $1（可选值见 workflow 顶部白名单注释）" >&2
+                exit 1
+                ;;
+            esac
+          }
+
+          split_targets() {
+            tr ',' '\n' <<<"${1:-}" \
+              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
+              | awk 'NF && !seen[$0]++'
+          }
+
+          tauri_matrix="[]"
+          updater_required=""
+          while IFS= read -r target; do
+            if [ "$target" = "aarch64-unknown-linux-gnu" ]; then
+              echo "FATAL: Linux arm64 暂不支持桌面构建（见 meta_for 注释）" >&2
+              exit 1
+            fi
+            meta="$(meta_for "$target")"
+            IFS='|' read -r name runner _artifact updater_key <<<"$meta"
+            tauri_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" \
+              '. + [{name: $n, runner: $r, target: $t}]' <<<"$tauri_matrix")"
+            updater_required="$updater_required $updater_key"
+          done < <(split_targets "$DESKTOP_TARGETS")
+
+          server_matrix="[]"
+          while IFS= read -r target; do
+            meta="$(meta_for "$target")"
+            IFS='|' read -r name runner artifact _updater_key <<<"$meta"
+            if [ -z "$artifact" ]; then
+              echo "FATAL: $target 没有对应的服务器产物" >&2
+              exit 1
+            fi
+            server_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" --arg a "$artifact" \
+              '. + [{name: $n, runner: $r, target: $t, artifact: $a}]' <<<"$server_matrix")"
+          done < <(split_targets "$SERVER_TARGETS")
+
+          {
+            echo "tauri_matrix=$tauri_matrix"
+            echo "server_matrix=$server_matrix"
+            echo "updater_required=${updater_required# }"
+          } >> "$GITHUB_OUTPUT"
+          echo "tauri_matrix=$tauri_matrix"
+          echo "server_matrix=$server_matrix"
+          echo "updater_required=${updater_required# }"
+
   build-tauri:
-    needs: create-draft-release
+    needs:
+      - create-draft-release
+      - resolve-matrix
     name: Build ${{ matrix.name }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: "macOS x64"
-            runner: "macos-latest"
-            target: "x86_64-apple-darwin"
-          - name: "macOS arm64"
-            runner: "macos-latest"
-            target: "aarch64-apple-darwin"
-          - name: "Linux x64"
-            runner: "ubuntu-22.04"
-            target: "x86_64-unknown-linux-gnu"
-          # Linux arm64 desktop is deliberately absent: the jammy multiarch
-          # cross-dep install breaks on libpng16-16:arm64 version skew
-          # ("held broken packages"). Linux arm64 users still get the server
-          # bundle and the Docker image. Restore the matrix entry (and the
-          # cross steps removed alongside it) from history once apt cooperates.
-          - name: "Windows x64"
-            runner: "windows-2022"
-            target: "x86_64-pc-windows-msvc"
-          - name: "Windows arm64"
-            runner: "windows-latest"
-            target: "aarch64-pc-windows-msvc"
+      # 矩阵由 resolve-matrix 按 workflow 顶部 DESKTOP_TARGETS 白名单展开；
+      # 空列表时整个任务被跳过，publish-release 的 if 会随之拦下发布。
+      matrix: ${{ fromJSON(needs.resolve-matrix.outputs.tauri_matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:
@@ -411,34 +487,17 @@ jobs:
           codesign --verify --deep --strict --verbose=2 "$app"
 
   build-server:
-    needs: create-draft-release
+    needs:
+      - create-draft-release
+      - resolve-matrix
     name: Server ${{ matrix.name }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - name: "Linux x64"
-            runner: "ubuntu-22.04"
-            target: "x86_64-unknown-linux-gnu"
-            artifact: "MaxCode-server-linux-x64"
-          - name: "Linux arm64"
-            runner: "ubuntu-22.04"
-            target: "aarch64-unknown-linux-gnu"
-            artifact: "MaxCode-server-linux-arm64"
-          - name: "macOS x64"
-            runner: "macos-latest"
-            target: "x86_64-apple-darwin"
-            artifact: "MaxCode-server-darwin-x64"
-          - name: "macOS arm64"
-            runner: "macos-latest"
-            target: "aarch64-apple-darwin"
-            artifact: "MaxCode-server-darwin-arm64"
-          - name: "Windows x64"
-            runner: "windows-2022"
-            target: "x86_64-pc-windows-msvc"
-            artifact: "MaxCode-server-windows-x64"
+      # 矩阵由 resolve-matrix 按 workflow 顶部 SERVER_TARGETS 白名单展开；
+      # 空列表时整个任务被跳过，build-docker 也随之自动跳过。
+      matrix: ${{ fromJSON(needs.resolve-matrix.outputs.server_matrix) }}
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -640,6 +699,7 @@ jobs:
           gh release upload "${{ github.ref_name }}" $files --clobber
 
   build-docker:
+    # SERVER_TARGETS 为空时 build-server 被跳过，本任务也随之自动跳过。
     needs:
       - create-draft-release
       - build-server
@@ -733,6 +793,7 @@ jobs:
   publish-release:
     needs:
       - create-draft-release
+      - resolve-matrix
       - build-tauri
     # Publish even if one matrix cell fails or times out (Linux apt flake
     # on 0.25.4 cancelled the whole job after 6h and left a finished draft
@@ -746,6 +807,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          UPDATER_REQUIRED: ${{ needs.resolve-matrix.outputs.updater_required }}
         run: |
           set -euo pipefail
           # This job has no checkout; GH_REPO keeps `gh` from looking for .git.
@@ -761,10 +823,11 @@ jobs:
           }
           gh release download "${{ github.ref_name }}" --pattern latest.json --dir /tmp
           python3 - <<'PY'
-          import json, sys
+          import json, os, sys
           platforms = json.load(open("/tmp/latest.json")).get("platforms") or {}
           print("platforms:", ", ".join(sorted(platforms)))
-          required = ("darwin-aarch64", "windows-x86_64", "linux-x86_64")
+          # 只要求白名单内实际构建的桌面平台（resolve-matrix 计算）
+          required = os.environ["UPDATER_REQUIRED"].split()
           missing = [p for p in required if p not in platforms]
           if missing:
               print("FATAL: latest.json missing", ", ".join(missing), file=sys.stderr)
