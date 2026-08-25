@@ -3049,6 +3049,8 @@
         "duration": "所要時間",
         "completedAt": "完了時刻",
         "jumpToPreviousUserMessage": "前のユーザーメッセージへ",
+        "processed": "処理済み",
+        "processedFor": "処理済み {duration}",
         "showMore": "もっと見る",
         "showLess": "折りたたむ"
       },

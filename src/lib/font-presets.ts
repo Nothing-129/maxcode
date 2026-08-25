@@ -34,7 +34,7 @@ export const CUSTOM_FONT_ID = "custom"
 
 /** 系统无衬线 / 等宽回退栈，所有 bundled 字体也以它收尾，CJK 由系统字体兜底。 */
 export const SANS_FALLBACK =
-  'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif'
+  '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif'
 export const MONO_FALLBACK =
   'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace'
 
@@ -90,7 +90,7 @@ export const FONT_BY_ID: Record<string, FontDef> = Object.fromEntries(
   FONTS.map((f) => [f.id, f])
 )
 
-/** 界面字体可选项：无衬线 + 等宽全部允许（当前默认 Inter 为无衬线）。 */
+/** 界面字体可选项：无衬线 + 等宽全部允许（当前默认使用系统无衬线字体）。 */
 export const UI_FONTS: readonly FontDef[] = FONTS
 /** 编辑器 / 终端字体可选项：仅等宽。 */
 export const MONO_FONTS: readonly FontDef[] = FONTS.filter(
@@ -98,13 +98,14 @@ export const MONO_FONTS: readonly FontDef[] = FONTS.filter(
 )
 
 /**
- * 默认：界面为 Inter（无衬线），编辑器 / 终端为系统等宽字体（会话消息区跟随界面字体）。
+ * 默认：界面为系统无衬线字体（macOS 上为 SF Pro / 苹方），编辑器 / 终端为系统等宽字体
+ * （会话消息区跟随界面字体）。
  * 编辑器字体只作用于代码编辑器（Monaco），不影响界面与消息区。
  * 注意：界面默认改动须与 globals.css 的 :root --font-sans 兜底栈保持一致
  * （兜底栈须等于 resolveFontStack(DEFAULT_UI_FONT_ID, "", "sans")），
  * 否则首屏到水合之间会闪字（inline 脚本无存储值时回退到该 CSS 兜底）。
  */
-export const DEFAULT_UI_FONT_ID = "inter"
+export const DEFAULT_UI_FONT_ID = "system-ui"
 export const DEFAULT_EDITOR_FONT_ID = "system-mono"
 export const DEFAULT_TERMINAL_FONT_ID = "system-mono"
 

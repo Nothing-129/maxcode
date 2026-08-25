@@ -33,6 +33,8 @@ interface TurnStatsProps {
   /** ISO timestamp of the preceding user prompt — used to infer duration. */
   previousUserAt?: string | null
   isResponseComplete?: boolean
+  /** Hide the duration when it is already presented in the activity summary. */
+  showDuration?: boolean
   copyText?: string
   /** ISO timestamp marking when the assistant reply finished. */
   completedAt?: string | null
@@ -64,6 +66,7 @@ export function TurnStats({
   previousUserIndex,
   previousUserAt,
   isResponseComplete = true,
+  showDuration = true,
   copyText = "",
   completedAt,
 }: TurnStatsProps) {
@@ -115,7 +118,7 @@ export function TurnStats({
   )
   const hasCopy = copyText.trim().length > 0
   const hasUsage = Boolean(usage)
-  const hasDuration = resolvedDurationMs != null
+  const hasDuration = showDuration && resolvedDurationMs != null
   const hasCompletedAt = Boolean(completedLabel)
   // Usage OR duration: some agents (Cursor) never report per-turn token
   // usage, but a turn with a duration chip is still a substantial reply

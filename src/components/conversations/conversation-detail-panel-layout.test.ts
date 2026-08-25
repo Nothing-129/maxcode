@@ -57,6 +57,18 @@ describe("ConversationDetailPanel mobile context menu", () => {
   })
 })
 
+describe("Mobile sidebar conversation surface", () => {
+  it("keeps ordinary conversation rows transparent inside the white drawer", () => {
+    expect(workspaceLayoutSource).toContain(
+      'className="mobile-sidebar-drawer w-[85%] max-w-[360px] p-0"'
+    )
+    expect(globalsCssSource).toContain(".mobile-sidebar-drawer [data-conv-key]")
+    expect(globalsCssSource).toMatch(
+      /\.mobile-sidebar-drawer \[data-conv-key\] \{\s*background-color: transparent;/
+    )
+  })
+})
+
 describe("ConversationDetailPanel new conversation layout", () => {
   it("keeps the new-conversation input in the welcome panel with the original scroll layout", () => {
     expect(source).toContain(

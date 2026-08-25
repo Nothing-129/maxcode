@@ -47,10 +47,10 @@ export const Message = ({ className, from, ...props }: MessageProps) => (
       "group flex flex-col gap-2",
       from === "user"
         ? // Outer user capsule hugs its content (`w-fit`) instead of always
-          // reserving the full `max-w-[88%]` box — the inner bubble
+          // reserving the full `max-w-[82%]` box — the inner bubble
           // (`MessageContent`) is already `w-fit`, so this just drops the
           // phantom full-width wrapper. Assistant keeps `w-full`.
-          "is-user ml-auto justify-end w-fit max-w-[88%]"
+          "is-user ml-auto justify-end w-fit max-w-[82%]"
         : "is-assistant w-full",
       className
     )}
@@ -67,15 +67,15 @@ export const MessageContent = ({
 }: MessageContentProps) => (
   <div
     className={cn(
-      "is-user:dark flex min-w-0 flex-col gap-2 overflow-hidden text-sm",
+      "is-user:dark flex min-w-0 flex-col gap-2 overflow-hidden",
       // `ws-msg-secondary` pairs with the user bubble's `bg-secondary`: with
       // a workspace background image on it turns the bubble translucent + frosted
       // with a hairline ring (fixed `--ws-msg-alpha` + backdrop blur — see
       // globals.css, scoped to `.is-user`) so it stays legible over a busy
       // background. Off / assistant messages: inert (no base rule, no `.is-user`
       // ancestor).
-      "group-[.is-user]:ml-auto group-[.is-user]:w-fit group-[.is-user]:max-w-full group-[.is-user]:rounded-lg group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-foreground ws-msg-secondary",
-      "group-[.is-assistant]:w-full group-[.is-assistant]:text-foreground",
+      "group-[.is-user]:ml-auto group-[.is-user]:w-fit group-[.is-user]:max-w-full group-[.is-user]:rounded-2xl group-[.is-user]:bg-secondary group-[.is-user]:px-4 group-[.is-user]:py-3 group-[.is-user]:text-sm group-[.is-user]:leading-5 group-[.is-user]:text-foreground ws-msg-secondary",
+      "group-[.is-assistant]:w-full group-[.is-assistant]:text-[0.9375rem] group-[.is-assistant]:leading-6 group-[.is-assistant]:text-foreground",
       className
     )}
     {...props}
@@ -496,7 +496,7 @@ function MessageResponseImpl({
   return (
     <Streamdown
       className={cn(
-        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-3 [&_ol]:pl-3",
+        "size-full [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_ul]:list-disc [&_ol]:list-decimal [&_ul]:pl-4 [&_ol]:pl-4 [&_h1]:text-2xl [&_h2]:text-xl [&_h3]:text-lg [&_h1]:leading-tight [&_h2]:leading-snug [&_h3]:leading-snug",
         // Streamdown gives `blockquote` its own `border-l-4
         // border-muted-foreground/30 … italic`, but those class names live in
         // node_modules, which Tailwind v4 does not scan — so the two border

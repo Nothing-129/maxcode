@@ -21,7 +21,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#09090b" },
+    { media: "(prefers-color-scheme: dark)", color: "#1b1b1a" },
   ],
 }
 
@@ -53,7 +53,7 @@ export default async function RootLayout({
         {/* CSS-only dark background: applies before JS executes, preventing white flash in dark mode */}
         <style
           dangerouslySetInnerHTML={{
-            __html: `@media(prefers-color-scheme:dark){html:not(.light){background-color:#09090b;color-scheme:dark}}`,
+            __html: `@media(prefers-color-scheme:dark){html:not(.light){background-color:#1b1b1a;color-scheme:dark}}`,
           }}
         />
         {/* Apply appearance preferences (theme color + zoom + dark class) before first paint to prevent FOUC */}

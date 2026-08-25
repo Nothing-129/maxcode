@@ -3049,6 +3049,8 @@
         "duration": "Dauer",
         "completedAt": "Abgeschlossen um",
         "jumpToPreviousUserMessage": "Zur Benutzernachricht springen",
+        "processed": "Verarbeitet",
+        "processedFor": "Verarbeitet in {duration}",
         "showMore": "Mehr anzeigen",
         "showLess": "Weniger anzeigen"
       },

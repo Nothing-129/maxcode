@@ -7,7 +7,10 @@ import {
   useConversationRuntimeStore,
 } from "@/stores/conversation-runtime-store"
 import { isWindowedDetail } from "@/lib/turn-window"
-import { ContentPartsRenderer } from "./content-parts-renderer"
+import {
+  ContentPartsRenderer,
+  splitCompletedAssistantActivity,
+} from "./content-parts-renderer"
 import { ContextCompactionCard } from "./context-compaction-card"
 import { CollapsibleUserMessage } from "./collapsible-user-message"
 import { CollapsibleSystemMessage } from "./collapsible-system-message"
@@ -24,7 +27,7 @@ import {
   type UserImageDisplay,
   type UserResourceDisplay,
 } from "@/lib/adapters/ai-elements-adapter"
-import { TurnStats } from "./turn-stats"
+import { resolveTurnDurationMs, TurnStats } from "./turn-stats"
 import { LiveTurnStats } from "./live-turn-stats"
 import { ReplyArtifacts } from "./reply-artifacts"
 import { UserResourceLinks } from "./user-resource-links"
@@ -554,6 +557,18 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
     return <CollapsibleSystemMessage parts={group.parts} />
   }
 
+  const hasCollapsedActivity =
+    group.role === "assistant" &&
+    isResponseComplete &&
+    splitCompletedAssistantActivity(group.parts) !== null
+  const activityDurationMs = hasCollapsedActivity
+    ? resolveTurnDurationMs(
+        group.duration_ms,
+        group.completed_at,
+        previousUserAt
+      )
+    : null
+
   return (
     <div className={dimmed ? "opacity-70" : undefined}>
       <Message from={group.role}>
@@ -570,7 +585,12 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           </div>
         ) : (
           <MessageContent>
-            <ContentPartsRenderer parts={group.parts} role={group.role} />
+            <ContentPartsRenderer
+              parts={group.parts}
+              role={group.role}
+              isResponseComplete={isResponseComplete}
+              durationMs={activityDurationMs}
+            />
           </MessageContent>
         )}
         {group.role === "user" && group.resources.length > 0 ? (
@@ -592,6 +612,7 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           previousUserIndex={previousUserIndex}
           previousUserAt={previousUserAt}
           isResponseComplete={isResponseComplete}
+          showDuration={!hasCollapsedActivity}
           copyText={extractTextFromParts(group.parts)}
           completedAt={group.completed_at}
         />

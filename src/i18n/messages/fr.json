@@ -3049,6 +3049,8 @@
         "duration": "Durée",
         "completedAt": "Terminé à",
         "jumpToPreviousUserMessage": "Aller au message utilisateur",
+        "processed": "Traité",
+        "processedFor": "Traité en {duration}",
         "showMore": "Afficher plus",
         "showLess": "Afficher moins"
       },

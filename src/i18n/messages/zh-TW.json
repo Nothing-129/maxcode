@@ -3049,6 +3049,8 @@
         "duration": "耗時",
         "completedAt": "完成時間",
         "jumpToPreviousUserMessage": "跳轉到上一條使用者訊息",
+        "processed": "已處理",
+        "processedFor": "已處理 {duration}",
         "showMore": "展開",
         "showLess": "收合"
       },

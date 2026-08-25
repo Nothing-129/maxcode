@@ -3049,6 +3049,8 @@
         "duration": "المدة",
         "completedAt": "وقت الإنجاز",
         "jumpToPreviousUserMessage": "الانتقال إلى رسالة المستخدم",
+        "processed": "تمت المعالجة",
+        "processedFor": "تمت المعالجة خلال {duration}",
         "showMore": "عرض المزيد",
         "showLess": "طي"
       },

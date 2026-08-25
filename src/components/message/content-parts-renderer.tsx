@@ -13,6 +13,7 @@ import {
   normalizeToolName,
 } from "@/lib/tool-call-normalization"
 import { parseBackgroundLaunch } from "@/lib/background-task"
+import { formatElapsedLabel } from "@/lib/format-elapsed"
 import { normalizePriority, normalizeStatus } from "@/lib/plan-parse"
 import { isDelegateToAgentToolName } from "@/lib/delegation-card"
 import { useTranslations } from "next-intl"
@@ -3016,14 +3017,124 @@ const ToolGroupPart = memo(function ToolGroupPart({
 
 // ── Main renderer ─────────────────────────────────────────────────────
 
+const COMPLETED_ACTIVITY_TYPES = new Set<AdaptedContentPart["type"]>([
+  "tool-call",
+  "tool-result",
+  "reasoning",
+  "tool-group",
+  "delegation-status-group",
+  "background-task-group",
+  "goal-run",
+])
+
+function isCompletedActivityPart(part: AdaptedContentPart): boolean {
+  return COMPLETED_ACTIVITY_TYPES.has(part.type)
+}
+
+function canLiveInsideActivitySummary(part: AdaptedContentPart): boolean {
+  return part.type === "text" || isCompletedActivityPart(part)
+}
+
+export interface CompletedActivitySplit {
+  activity: AdaptedContentPart[]
+  answer: AdaptedContentPart[]
+}
+
+/**
+ * Split a completed assistant turn into its work log and final answer.
+ *
+ * Only a safe leading prefix is folded: plans, generated images and other
+ * result cards stay in the main transcript. The suffix must be plain answer
+ * text, which prevents a late tool/card from being hidden or reordered.
+ */
+export function splitCompletedAssistantActivity(
+  parts: AdaptedContentPart[]
+): CompletedActivitySplit | null {
+  let lastActivityIndex = -1
+  for (let index = 0; index < parts.length; index += 1) {
+    if (isCompletedActivityPart(parts[index])) lastActivityIndex = index
+  }
+
+  if (lastActivityIndex < 0 || lastActivityIndex >= parts.length - 1) {
+    return null
+  }
+
+  const activity = parts.slice(0, lastActivityIndex + 1)
+  const answer = parts.slice(lastActivityIndex + 1)
+  if (!activity.every(canLiveInsideActivitySummary)) return null
+  if (
+    !answer.every((part) => part.type === "text") ||
+    !answer.some((part) => part.type === "text" && part.text.trim().length > 0)
+  ) {
+    return null
+  }
+
+  return { activity, answer }
+}
+
+const CompletedActivitySummary = memo(function CompletedActivitySummary({
+  parts,
+  durationMs,
+  renderPart,
+}: {
+  parts: AdaptedContentPart[]
+  durationMs?: number | null
+  renderPart: (part: AdaptedContentPart, keyId: string) => ReactNode
+}) {
+  const t = useTranslations("Folder.chat.messageList")
+  const tElapsed = useTranslations("Folder.chat.liveTurnStats")
+  const [open, setOpen] = useState(false)
+  const durationLabel =
+    typeof durationMs === "number" && durationMs > 0
+      ? formatElapsedLabel(durationMs, tElapsed)
+      : null
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="w-full not-prose"
+    >
+      <div className="flex items-center gap-2">
+        <CollapsibleTrigger className="group flex shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground transition-colors hover:text-foreground">
+          <span>
+            {durationLabel
+              ? t("processedFor", { duration: durationLabel })
+              : t("processed")}
+          </span>
+          <ChevronRightIcon
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 opacity-60 transition-transform",
+              open && "rotate-90"
+            )}
+          />
+        </CollapsibleTrigger>
+        <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border" />
+      </div>
+      <CollapsibleContent className="w-full outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+        <div className="mt-3 space-y-3 border-l border-border/70 pl-3 text-sm">
+          {parts.map((part, index) =>
+            renderPart(part, `completed-activity-${index}`)
+          )}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  )
+})
+
 interface ContentPartsRendererProps {
   parts: AdaptedContentPart[]
   role?: MessageRole
+  isResponseComplete?: boolean
+  durationMs?: number | null
 }
 
 export const ContentPartsRenderer = memo(function ContentPartsRenderer({
   parts,
   role,
+  isResponseComplete = false,
+  durationMs,
 }: ContentPartsRendererProps) {
   const renderPart = (part: AdaptedContentPart, keyId: string): ReactNode => {
     if (part.type === "text") {
@@ -3096,8 +3207,30 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
     return null
   }
 
+  const completedActivity =
+    role === "assistant" && isResponseComplete
+      ? splitCompletedAssistantActivity(parts)
+      : null
+
+  if (completedActivity) {
+    return (
+      <div className="space-y-4">
+        <CompletedActivitySummary
+          parts={completedActivity.activity}
+          durationMs={durationMs}
+          renderPart={renderPart}
+        />
+        <div className="space-y-4">
+          {completedActivity.answer.map((part, index) =>
+            renderPart(part, `answer-${index}`)
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {parts.map((part, i) => renderPart(part, `${i}`))}
     </div>
   )
