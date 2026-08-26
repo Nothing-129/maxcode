@@ -249,7 +249,9 @@ jobs:
               | awk 'NF && !seen[$0]++'
           }
 
-          tauri_matrix="[]"
+          # strategy.matrix requires an object. Use an include-only matrix so
+          # each resolved target can carry its own runner and metadata.
+          tauri_matrix='{"include":[]}'
           updater_required=""
           while IFS= read -r target; do
             if [ "$target" = "aarch64-unknown-linux-gnu" ]; then
@@ -259,11 +261,11 @@ jobs:
             meta="$(meta_for "$target")"
             IFS='|' read -r name runner _artifact updater_key <<<"$meta"
             tauri_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" \
-              '. + [{name: $n, runner: $r, target: $t}]' <<<"$tauri_matrix")"
+              '.include += [{name: $n, runner: $r, target: $t}]' <<<"$tauri_matrix")"
             updater_required="$updater_required $updater_key"
           done < <(split_targets "$DESKTOP_TARGETS")
 
-          server_matrix="[]"
+          server_matrix='{"include":[]}'
           while IFS= read -r target; do
             meta="$(meta_for "$target")"
             IFS='|' read -r name runner artifact _updater_key <<<"$meta"
@@ -272,7 +274,7 @@ jobs:
               exit 1
             fi
             server_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" --arg a "$artifact" \
-              '. + [{name: $n, runner: $r, target: $t, artifact: $a}]' <<<"$server_matrix")"
+              '.include += [{name: $n, runner: $r, target: $t, artifact: $a}]' <<<"$server_matrix")"
           done < <(split_targets "$SERVER_TARGETS")
 
           {
@@ -288,6 +290,9 @@ jobs:
     needs:
       - create-draft-release
       - resolve-matrix
+    # Job-level conditions are evaluated before matrix expansion, so an empty
+    # whitelist skips cleanly instead of producing an invalid empty matrix.
+    if: ${{ needs.resolve-matrix.outputs.tauri_matrix != '{"include":[]}' }}
     name: Build ${{ matrix.name }}
     permissions:
       contents: write
@@ -490,6 +495,7 @@ jobs:
     needs:
       - create-draft-release
       - resolve-matrix
+    if: ${{ needs.resolve-matrix.outputs.server_matrix != '{"include":[]}' }}
     name: Server ${{ matrix.name }}
     permissions:
       contents: write
