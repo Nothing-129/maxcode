@@ -3243,6 +3243,23 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [flushStreamingQueue]
   )
 
+  // Mobile browsers freeze `setTimeout` while the tab is backgrounded or
+  // the screen is locked. Deltas already queued then sit until the 16ms
+  // timer fires — which may be never if the timer was scheduled just as
+  // JS froze. Flush on wake so a turn that arrived as the page hid is
+  // painted as soon as the user looks again.
+  useEffect(() => {
+    const onVisible = () => {
+      if (document.visibilityState === "visible") flushStreamingQueue()
+    }
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onVisible)
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onVisible)
+    }
+  }, [flushStreamingQueue])
+
   /**
    * Turn PROGRESS settles in-flight AIR retry incidents — codex's own
    * `completeRetryIncidentOnTurnProgress`: a reconnect warning is published

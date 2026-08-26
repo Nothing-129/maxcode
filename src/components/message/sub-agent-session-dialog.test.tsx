@@ -158,6 +158,15 @@ vi.mock("@/hooks/use-conversation-detail", () => ({
   useConversationDetail: () => mockDetailState,
 }))
 
+vi.mock("@/lib/platform", async () => {
+  const actual =
+    await vi.importActual<typeof import("@/lib/platform")>("@/lib/platform")
+  return {
+    ...actual,
+    onTransportReconnect: vi.fn(() => () => {}),
+  }
+})
+
 // MessageListView pulls in the full runtime provider + virtualization
 // stack. Stub it to a sentinel that records the props we care about,
 // so the read-only-mode test can assert that no `onReload`/`onNewSession`/

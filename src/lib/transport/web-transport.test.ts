@@ -23,8 +23,21 @@ class MockWebSocket {
   ) {
     MockWebSocket.instances.push(this)
   }
+  // When true (default), reply to `{action:"ping"}` with `{type:"pong"}` so
+  // existing tests that advance timers on a healthy socket don't trip the
+  // heartbeat miss → reconnect path. Disable in heartbeat-failure tests.
+  autoPong = true
   send(data: string) {
     this.sent.push(data)
+    if (!this.autoPong) return
+    try {
+      const parsed = JSON.parse(data) as { action?: unknown }
+      if (parsed.action === "ping") {
+        this.onmessage?.({ data: JSON.stringify({ type: "pong" }) })
+      }
+    } catch {
+      // ignore non-JSON
+    }
   }
   close() {
     this.readyState = MockWebSocket.CLOSED
@@ -50,10 +63,12 @@ function lastWs(): MockWebSocket {
 }
 
 let fetchMock: ReturnType<typeof vi.fn>
+const transports: WebTransport[] = []
 
 beforeEach(() => {
   vi.useFakeTimers()
   MockWebSocket.instances = []
+  transports.length = 0
   vi.stubGlobal("WebSocket", MockWebSocket)
   localStorage.setItem("codeg_token", "tok")
   fetchMock = vi.fn()
@@ -61,6 +76,8 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  for (const t of transports) t.destroy()
+  transports.length = 0
   vi.unstubAllGlobals()
   vi.useRealTimers()
   localStorage.clear()
@@ -70,12 +87,18 @@ afterEach(() => {
 // `eventStream()` synchronously triggers the WS connect (no await, unlike
 // `subscribe()`), which keeps the timer/promise interleaving simple.
 function connectReady() {
-  const t = new WebTransport("http://localhost")
+  const t = makeTransport()
   t.eventStream()
   const ws = lastWs()
   ws.open()
   ws.ready()
   return { t, ws }
+}
+
+function makeTransport() {
+  const t = new WebTransport("http://localhost")
+  transports.push(t)
+  return t
 }
 
 const ok200 = () => ({ status: 200, ok: true, json: async () => ({}) })
@@ -85,7 +108,7 @@ describe("WebTransport connection state machine", () => {
   it("does not report an expired session when an unauthenticated call returns 401", async () => {
     localStorage.removeItem("codeg_token")
     fetchMock.mockResolvedValue(resp401())
-    const t = new WebTransport("http://localhost")
+    const t = makeTransport()
 
     await expect(t.call("get_ui_preferences")).rejects.toThrow("Unauthorized")
     expect(t.getConnectionSnapshot()).toBe("connected")
@@ -93,14 +116,14 @@ describe("WebTransport connection state machine", () => {
 
   it("reports an expired session when an authenticated call returns 401", async () => {
     fetchMock.mockResolvedValue(resp401())
-    const t = new WebTransport("http://localhost")
+    const t = makeTransport()
 
     await expect(t.call("get_ui_preferences")).rejects.toThrow("Unauthorized")
     expect(t.getConnectionSnapshot()).toBe("unauthorized")
   })
 
   it("starts connected and the first __ready__ does not fire reconnect callbacks", () => {
-    const t = new WebTransport("http://localhost")
+    const t = makeTransport()
     const onReconnect = vi.fn()
     t.onReconnect(onReconnect)
     expect(t.getConnectionSnapshot()).toBe("connected")
@@ -297,12 +320,119 @@ describe("WebTransport connection state machine", () => {
   })
 
   it("enters reconnecting when the very first connect fails (server unreachable at load)", () => {
-    const t = new WebTransport("http://localhost")
+    const t = makeTransport()
     t.eventStream() // opens the socket
     const ws = lastWs()
 
     ws.drop() // closes before it ever opened or readied
     expect(t.getConnectionSnapshot()).toBe("reconnecting")
     expect(localStorage.getItem("codeg_token")).toBe("tok") // token preserved
+  })
+})
+
+describe("WebTransport heartbeat and tab-wake recovery", () => {
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
+  it("pings on the heartbeat interval and stays connected when pong arrives", async () => {
+    const { t, ws } = connectReady()
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    expect(ws.sent.some((s) => s.includes('"ping"'))).toBe(true)
+    expect(t.getConnectionSnapshot()).toBe("connected")
+    expect(MockWebSocket.instances).toHaveLength(1)
+  })
+
+  it("forces reconnect when a ping gets no pong (zombie OPEN socket)", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { t, ws } = connectReady()
+    ws.autoPong = false
+    fetchMock.mockResolvedValue(ok200())
+
+    await vi.advanceTimersByTimeAsync(20_000) // heartbeat fires, ping sent
+    expect(t.getConnectionSnapshot()).toBe("connected")
+    expect(ws.sent.some((s) => s.includes('"ping"'))).toBe(true)
+
+    await vi.advanceTimersByTimeAsync(8_000) // pong deadline
+    expect(t.getConnectionSnapshot()).toBe("reconnecting")
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it("treats an inbound event as liveness so a busy socket is not torn down", async () => {
+    const { t, ws } = connectReady()
+    ws.autoPong = false
+    fetchMock.mockResolvedValue(ok200())
+
+    await vi.advanceTimersByTimeAsync(20_000) // ping sent, deadline armed
+    ws.onmessage?.({
+      data: JSON.stringify({ channel: "acp://event", payload: { seq: 1 } }),
+    })
+
+    await vi.advanceTimersByTimeAsync(8_000)
+    expect(t.getConnectionSnapshot()).toBe("connected")
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("pings immediately when the tab becomes visible while connected", () => {
+    const { ws } = connectReady()
+    ws.sent.length = 0
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+
+    expect(ws.sent.some((s) => s.includes('"ping"'))).toBe(true)
+  })
+
+  it("reconnects immediately on a bfcache restore (pageshow persisted)", async () => {
+    const { t } = connectReady()
+    fetchMock.mockResolvedValue(ok200())
+
+    const event = new Event("pageshow")
+    Object.defineProperty(event, "persisted", { value: true })
+    window.dispatchEvent(event)
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(t.getConnectionSnapshot()).toBe("reconnecting")
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it("nudges an already-reconnecting link on visibility instead of waiting backoff", async () => {
+    const { t, ws } = connectReady()
+    fetchMock.mockResolvedValue(ok200())
+    ws.drop()
+    expect(t.getConnectionSnapshot()).toBe("reconnecting")
+    expect(fetchMock).not.toHaveBeenCalled()
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    })
+    document.dispatchEvent(new Event("visibilitychange"))
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(fetchMock).toHaveBeenCalled()
+  })
+
+  it("fires reconnect callbacks after a heartbeat-forced rebuild", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {})
+    const { t, ws } = connectReady()
+    const onReconnect = vi.fn()
+    t.onReconnect(onReconnect)
+    ws.autoPong = false
+    fetchMock.mockResolvedValue(ok200())
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    await vi.advanceTimersByTimeAsync(8_000)
+    const ws2 = lastWs()
+    expect(ws2).not.toBe(ws)
+    ws2.open()
+    ws2.ready()
+
+    expect(t.getConnectionSnapshot()).toBe("connected")
+    expect(onReconnect).toHaveBeenCalledTimes(1)
   })
 })

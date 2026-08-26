@@ -64,7 +64,7 @@ import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-na
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePlatform } from "@/hooks/use-platform"
 import { useZoomLevel } from "@/hooks/use-appearance"
-import { isDesktop } from "@/lib/platform"
+import { isDesktop, onTransportReconnect } from "@/lib/platform"
 import { leftChromeReserve, rightChromeReserve } from "@/lib/window-chrome"
 import {
   acpFork,
@@ -909,6 +909,23 @@ const ConversationTabView = memo(function ConversationTabView({
     }
     refetchDetail(dbConversationId)
   }, [dbConversationId, reloadSignal, refetchDetail])
+
+  // Web / remote-desktop: a dropped or zombie WebSocket loses live ACP
+  // events. Re-attach recovers in-flight streaming via snapshot/replay, but
+  // a turn that *finished* during the gap lives only in the persisted
+  // transcript — the snapshot's liveMessage is null, so the chat stays
+  // blank until the user leaves and re-enters (which refetches). Pull the
+  // current conversation on reconnect. `preserveLive` keeps any still-
+  // streaming / just-promoted buffers so we don't race the file flush.
+  useEffect(() => {
+    if (dbConversationId == null) return
+    const off = onTransportReconnect(() => {
+      refetchDetail(dbConversationId, { preserveLive: true })
+    })
+    return () => {
+      off?.()
+    }
+  }, [dbConversationId, refetchDetail])
 
   useEffect(() => {
     const pending = pendingReloadState.current

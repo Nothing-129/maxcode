@@ -40,6 +40,21 @@ const WS_BACKOFF_MAX_MS = 32_000
 // unreachable (keep retrying). Bounded so a SYN black-hole (dead server still
 // completing the TCP handshake) can't hang the "Reconnect now" button.
 const HEALTH_PROBE_TIMEOUT_MS = 8_000
+// Application-level WS heartbeat. Browsers do not expose protocol ping/pong
+// to JS, and mobile Safari/Chrome routinely keep a WebSocket in OPEN after
+// the underlying TCP is dead (screen lock, background tab freeze, radio
+// sleep). Without traffic, iOS also silently drops idle sockets after
+// ~30–60s — a long agent "thinking" pause looks exactly like that. The
+// server already answers `{action:"ping"}` with `{type:"pong"}`; we just
+// never sent one. Interval is under the idle-kill window; pong timeout is
+// long enough for a slow mobile hop but short enough that a zombie is
+// torn down before the user stares at a frozen turn for long.
+const WS_HEARTBEAT_INTERVAL_MS = 20_000
+const WS_PONG_TIMEOUT_MS = 8_000
+// On tab-wake (`visibilitychange` / `pageshow` / `online`) we ping with a
+// tighter deadline: if the socket is alive the pong is instant, and if it
+// is a zombie the user is already looking at a stuck transcript.
+const WS_WAKE_PONG_TIMEOUT_MS = 3_000
 
 // Connection health of the web transport, surfaced to React via
 // `subscribeConnection`/`getConnectionSnapshot` so a single global dialog can
@@ -97,6 +112,14 @@ export class WebTransport implements Transport {
   // a late 200 can't reopen the socket behind the session-expired dialog.
   private probeEpoch = 0
   private probeController: AbortController | null = null
+  // Application-level ping/pong. `heartbeatTimer` fires while the link is
+  // application-ready; `pongTimer` is the per-ping deadline. Any inbound
+  // frame (pong, event, `__ready__`) clears the wait — streaming traffic
+  // counts as liveness, so a busy socket is never killed for a missed pong.
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private pongTimer: ReturnType<typeof setTimeout> | null = null
+  private awaitingPong = false
+  private unbindWakeListeners: (() => void) | null = null
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl
@@ -349,6 +372,7 @@ export class WebTransport implements Transport {
     // handlers first, so the old socket's async onclose can't fire after we've
     // moved on and corrupt the state machine / schedule a duplicate backoff.
     this.teardownWs()
+    this.bindWakeListeners()
 
     const wsUrl = this.baseUrl.replace(/^http/, "ws") + "/ws/events"
     this.ws = new WebSocket(wsUrl, buildCodegWebSocketProtocols(token))
@@ -379,6 +403,10 @@ export class WebTransport implements Transport {
     this.ws.onmessage = (msg) => {
       try {
         const parsed = JSON.parse(msg.data) as unknown
+        // Any well-formed inbound frame proves the link is alive — streaming
+        // events, snapshots, `__ready__`, and pong all count. Clear the
+        // outstanding ping deadline so a busy socket is never torn down.
+        this.noteInbound()
         // Attach-protocol frames carry a `type` discriminator; legacy
         // global-broadcast frames carry a `channel` discriminator. Routing
         // by which field is present lets the two coexist on the same WS.
@@ -387,6 +415,9 @@ export class WebTransport implements Transport {
           typeof parsed === "object" &&
           "type" in (parsed as object)
         ) {
+          // `{type:"pong"}` is the heartbeat reply; it is not an attach
+          // frame and must not be forwarded into the EventStream.
+          if ((parsed as { type?: unknown }).type === "pong") return
           this.eventStreamInstance?.handleServerFrame(parsed)
           return
         }
@@ -399,6 +430,7 @@ export class WebTransport implements Transport {
           // keeps growing its backoff instead of restarting from 1s.
           this.wsFailCount = 0
           this.setConnState("connected")
+          this.startHeartbeat()
           if (this.hasReadiedOnce) {
             // Reconnect path: server-side receiver_count was 0 during the
             // disconnect window, so any event fired in that gap was dropped.
@@ -430,6 +462,7 @@ export class WebTransport implements Transport {
     this.ws.onclose = () => {
       this.ws = null
       this.wsOpen = false
+      this.stopHeartbeat()
       // New subscribers (and any concurrent subscribe() calls in flight)
       // must wait for the next connection's `__ready__` before resolving.
       this.resetReady()
@@ -547,6 +580,107 @@ export class WebTransport implements Transport {
       this.ws = null
     }
     this.wsOpen = false
+    this.stopHeartbeat()
+  }
+
+  // ── Heartbeat / zombie-socket recovery ──────────────────────────────────
+
+  private noteInbound() {
+    this.clearPongWait()
+  }
+
+  private clearPongWait() {
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer)
+      this.pongTimer = null
+    }
+    this.awaitingPong = false
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat()
+    this.heartbeatTimer = setInterval(() => {
+      this.sendHeartbeat(WS_PONG_TIMEOUT_MS)
+    }, WS_HEARTBEAT_INTERVAL_MS)
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
+    this.clearPongWait()
+  }
+
+  /**
+   * Send `{action:"ping"}` and arm a pong deadline. No-op when the socket
+   * isn't application-ready / OPEN, or when a ping is already in flight.
+   * A send failure (zombie OPEN socket that throws) is treated as a miss.
+   */
+  private sendHeartbeat(pongTimeoutMs: number) {
+    if (this.destroyed || this.awaitingPong) return
+    if (this.connState !== "connected") return
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+    // Arm the deadline BEFORE send so a synchronous pong (tests, in-process
+    // mocks) still cancels it. sendWsFrame false / throw is a miss.
+    this.awaitingPong = true
+    this.pongTimer = setTimeout(() => {
+      this.handleHeartbeatMiss()
+    }, pongTimeoutMs)
+    if (!this.sendWsFrame({ action: "ping" })) {
+      this.handleHeartbeatMiss()
+    }
+  }
+
+  private handleHeartbeatMiss() {
+    if (this.destroyed) return
+    this.clearPongWait()
+    // The socket still reports OPEN but isn't answering. Tear it down and
+    // run the same recovery as a genuine onclose so attach subscriptions
+    // re-issue with `lastAppliedSeq` and missed events are replayed.
+    console.warn("[WebTransport] WS heartbeat missed; forcing reconnect")
+    this.reconnectNow()
+  }
+
+  /**
+   * Tab / radio wake. A healthy link is pinged with the short deadline; a
+   * link already in "reconnecting" is probed immediately instead of waiting
+   * out the remaining backoff. bfcache restores (`pageshow.persisted`) skip
+   * the ping — the frozen socket object is dead by definition.
+   */
+  private probeLivenessOnWake() {
+    if (this.destroyed || this.connState === "unauthorized") return
+    if (this.connState === "reconnecting") {
+      this.reconnectNow()
+      return
+    }
+    this.sendHeartbeat(WS_WAKE_PONG_TIMEOUT_MS)
+  }
+
+  private bindWakeListeners() {
+    if (this.unbindWakeListeners) return
+    if (typeof window === "undefined" || typeof document === "undefined") {
+      return
+    }
+    const onVisible = () => {
+      if (document.visibilityState === "visible") this.probeLivenessOnWake()
+    }
+    const onPageShow = (event: Event) => {
+      if ((event as PageTransitionEvent).persisted) {
+        this.reconnectNow()
+        return
+      }
+      this.probeLivenessOnWake()
+    }
+    const onOnline = () => this.probeLivenessOnWake()
+    document.addEventListener("visibilitychange", onVisible)
+    window.addEventListener("pageshow", onPageShow)
+    window.addEventListener("online", onOnline)
+    this.unbindWakeListeners = () => {
+      document.removeEventListener("visibilitychange", onVisible)
+      window.removeEventListener("pageshow", onPageShow)
+      window.removeEventListener("online", onOnline)
+    }
   }
 
   destroy() {
@@ -563,6 +697,8 @@ export class WebTransport implements Transport {
     // already discarded. The `destroyed` guard covers any handler already
     // dispatched before this detach.
     this.teardownWs()
+    this.unbindWakeListeners?.()
+    this.unbindWakeListeners = null
     this.handlers.clear()
     this.reconnectCallbacks.clear()
     this.wsReadyCallbacks.clear()

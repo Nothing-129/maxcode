@@ -29,6 +29,7 @@ import {
   type ResolvedMessageGroup,
 } from "@/components/message/message-list-view"
 import { useConversationDetail } from "@/hooks/use-conversation-detail"
+import { onTransportReconnect } from "@/lib/platform"
 import { useConversationRuntimeActions } from "@/stores/conversation-runtime-store"
 import {
   useAcpActions,
@@ -98,8 +99,13 @@ export function useLiveTranscriptBridge(
   conversationId: number,
   connState: ConnectionState | undefined
 ) {
-  const { setLiveMessage, completeTurn, syncTurnMetadata, removeConversation } =
-    useConversationRuntimeActions()
+  const {
+    setLiveMessage,
+    completeTurn,
+    syncTurnMetadata,
+    removeConversation,
+    refetchDetail,
+  } = useConversationRuntimeActions()
 
   const connStatus = connState?.status ?? null
   const liveMessage = connState?.liveMessage ?? null
@@ -197,6 +203,20 @@ export function useLiveTranscriptBridge(
       removeConversation(conversationId)
     }
   }, [conversationId, removeConversation])
+
+  // Same gap as the main conversation panel: a turn that finished while
+  // the WebSocket was dead is only in the persisted transcript. Re-attach
+  // hydrates connection state; this fetch brings the completed reply back
+  // without requiring the user to close and reopen the viewer.
+  useEffect(() => {
+    if (conversationId <= 0) return
+    const off = onTransportReconnect(() => {
+      refetchDetail(conversationId, { preserveLive: true })
+    })
+    return () => {
+      off?.()
+    }
+  }, [conversationId, refetchDetail])
 }
 
 interface LiveTranscriptViewProps {
