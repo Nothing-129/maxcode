@@ -196,6 +196,12 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     current == seed
 }
 
+/// Once a CLI refine has started, only a user-locked title can block its result.
+/// Native agent titles may arrive while the CLI is running and are still automatic.
+fn can_commit_cli_refine(title_locked: bool) -> bool {
+    !title_locked
+}
+
 pub fn resolve_title_locale(settings: &SystemLanguageSettings) -> TitleLocale {
     match settings.mode {
         LanguageMode::Manual => TitleLocale::from_app_locale(settings.language),
@@ -381,10 +387,7 @@ pub async fn kickoff_cli_auto_title(
         let Ok(current) = conversation_service::get_by_id(&conn, conversation_id).await else {
             return;
         };
-        if current.title_locked {
-            return;
-        }
-        if !can_overwrite_auto_title(current.title.as_deref(), &first_message) {
+        if !can_commit_cli_refine(current.title_locked) {
             return;
         }
         if current.title.as_deref() == Some(refined.as_str()) {
@@ -557,14 +560,14 @@ fn title_cli_args(
             "run_terminal_cmd,run_terminal_command,web_search,web_fetch,search_replace,write,Agent,spawn_subagent,bash,bash_tool".into(),
         ]),
         AgentType::Codex => Some(vec![
+            "--ask-for-approval".into(),
+            "never".into(),
             "exec".into(),
             "--ephemeral".into(),
             "--skip-git-repo-check".into(),
             "--ignore-rules".into(),
             "--sandbox".into(),
             "read-only".into(),
-            "--ask-for-approval".into(),
-            "never".into(),
             "--color".into(),
             "never".into(),
             "-c".into(),
@@ -720,6 +723,18 @@ mod tests {
     }
 
     #[test]
+    fn unlocked_native_title_does_not_block_an_in_flight_cli_refine() {
+        let first_message = "录入金额后刷新动态面板";
+        let native_title = "Dynamic Panel Refresh After Money Entry";
+        assert!(!can_overwrite_auto_title(
+            Some(native_title),
+            first_message
+        ));
+        assert!(can_commit_cli_refine(false));
+        assert!(!can_commit_cli_refine(true));
+    }
+
+    #[test]
     fn locale_from_lang_tag() {
         assert_eq!(
             TitleLocale::from_lang_tag("zh-CN.UTF-8"),
@@ -771,7 +786,12 @@ mod tests {
     fn codex_title_args_are_ephemeral_read_only_and_low_effort() {
         let args = title_cli_args(AgentType::Codex, "标题提示", Path::new("/tmp/title"))
             .expect("codex title args");
-        assert_eq!(args.first().map(String::as_str), Some("exec"));
+        assert_eq!(
+            args.get(0).map(String::as_str),
+            Some("--ask-for-approval")
+        );
+        assert_eq!(args.get(1).map(String::as_str), Some("never"));
+        assert_eq!(args.get(2).map(String::as_str), Some("exec"));
         for expected in [
             "--ephemeral",
             "--skip-git-repo-check",

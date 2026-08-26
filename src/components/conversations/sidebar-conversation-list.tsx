@@ -76,6 +76,7 @@ import {
   saveSectionCollapsed,
   loadConversationExpanded,
   saveConversationExpanded,
+  DEFAULT_SIDEBAR_SORT_MODE,
   DEFAULT_SECTION_ORDER,
   SIDEBAR_SECTION_KEYS,
   type SidebarSectionCollapsed,
@@ -861,7 +862,7 @@ export interface SidebarConversationListProps {
 export function SidebarConversationList({
   ref,
   showCompleted = true,
-  sortMode = "created",
+  sortMode = DEFAULT_SIDEBAR_SORT_MODE,
   sectionOrder = DEFAULT_SECTION_ORDER,
   showWorktrees = false,
   showRecent = false,

@@ -1,7 +1,10 @@
 import { AGENT_DISPLAY_ORDER, type AgentType } from "@/lib/types"
 
 export interface ResolveDefaultAgentInput {
-  /** Agent most recently selected by the user, shared across all projects. */
+  /**
+   * Agent most recently selected by the user **in this draft's memory scope**
+   * (per project folder, or the shared chat scope) — not a global value.
+   */
   lastSelected: AgentType | null
   /** Folder's saved `default_agent_type`, or null if none set. */
   folderDefault: AgentType | null
@@ -39,8 +42,8 @@ export interface ResolveDefaultAgentResult {
  * spinning up a renderer.
  *
  * Priority (highest first):
- *   1. `lastSelected` — the user's most recent explicit selection, shared
- *      across all projects.
+ *   1. `lastSelected` — the user's most recent explicit selection in this
+ *      draft's scope (per project folder; chat keeps its own memory).
  *   2. `folderDefault` — used only until the user has selected an agent.
  *   3. `inherit` — "new conversation" launched from inside an existing
  *      conversation should produce another conversation with the same agent.

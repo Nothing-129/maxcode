@@ -2,13 +2,22 @@
 
 import type { AgentType } from "@/lib/types"
 
-const STORAGE_KEY = "codeg:last-selected-agent:v1"
+const STORAGE_PREFIX = "codeg:last-selected-agent:v2"
 
-/** Returns the agent most recently picked by the user for a new conversation. */
-export function getLastSelectedAgent(): AgentType | null {
+/** Scope key for chat-mode drafts. Chat keeps a single memory of its own,
+ *  fully separate from every project's per-folder memory. */
+export const CHAT_AGENT_MEMORY_SCOPE = "chat"
+
+function storageKey(scope: string): string {
+  return `${STORAGE_PREFIX}:${scope}`
+}
+
+/** Returns the agent most recently picked by the user for a new conversation
+ *  in the given scope (a project folder path, or `CHAT_AGENT_MEMORY_SCOPE`). */
+export function getLastSelectedAgent(scope: string): AgentType | null {
   if (typeof window === "undefined") return null
   try {
-    const agentType = localStorage.getItem(STORAGE_KEY)
+    const agentType = localStorage.getItem(storageKey(scope))
     return agentType ? (agentType as AgentType) : null
   } catch {
     return null
@@ -16,10 +25,10 @@ export function getLastSelectedAgent(): AgentType | null {
 }
 
 /** Saves only explicit user choices; automatic availability fallbacks do not count. */
-export function saveLastSelectedAgent(agentType: AgentType) {
+export function saveLastSelectedAgent(scope: string, agentType: AgentType) {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(STORAGE_KEY, agentType)
+    localStorage.setItem(storageKey(scope), agentType)
   } catch {
     /* ignore */
   }

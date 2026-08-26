@@ -804,6 +804,15 @@ fn parse_updates(path: &Path) -> ParsedUpdates {
                 let text = update_text(update);
                 append_thinking(ensure_assistant(&mut assistant, now), text);
             }
+            "plan" => {
+                // Grok persists ACP plan snapshots in updates.jsonl, but the
+                // live frontend carries them as a synthetic `plan` block. The
+                // shared historical adapter expects persisted plans in the
+                // same TodoWrite shape used by acp_native, so retain only the
+                // latest snapshot as one replaceable synthetic tool call.
+                out.content_events += 1;
+                upsert_plan(ensure_assistant(&mut assistant, now), update);
+            }
             "tool_call" => {
                 out.content_events += 1;
                 let id = str_field(update, "toolCallId");
@@ -1760,6 +1769,40 @@ fn append_thinking(turn: &mut MessageTurn, text: String) {
     }
 }
 
+/// Grok plans are cumulative snapshots. Persist the latest one as the same
+/// synthetic `TodoWrite` tool call used by the generic ACP history parser so
+/// live and reload both adapt it into one `plan` card.
+fn upsert_plan(turn: &mut MessageTurn, update: &Value) {
+    let Some(entries) = update.get("entries").and_then(Value::as_array) else {
+        return;
+    };
+    let input = serde_json::json!({ "todos": entries }).to_string();
+    const PLAN_ID: &str = "grok-plan";
+
+    if let Some(ContentBlock::ToolUse { input_preview, .. }) =
+        turn.blocks.iter_mut().find(|block| {
+            matches!(
+                block,
+                ContentBlock::ToolUse {
+                    tool_use_id: Some(id),
+                    ..
+                } if id == PLAN_ID
+            )
+        })
+    {
+        *input_preview = Some(input);
+        return;
+    }
+
+    turn.blocks.push(ContentBlock::ToolUse {
+        tool_use_id: Some(PLAN_ID.to_string()),
+        tool_name: "TodoWrite".to_string(),
+        input_preview: Some(input),
+        status: None,
+        meta: None,
+    });
+}
+
 // ---------------------------------------------------------------------------
 // spawn_subagent — child transcripts, lifecycle pairing, background marker
 // ---------------------------------------------------------------------------
@@ -2126,6 +2169,52 @@ mod tests {
             ContentBlock::ToolResult { output_preview, is_error, .. }
                 if output_preview.as_deref() == Some("Background task term_x started") && !*is_error
         ));
+    }
+
+    #[test]
+    fn plan_updates_reload_as_one_latest_todo_write_card() {
+        let updates = concat!(
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"user_message_chunk","content":{"type":"text","text":"fix it"},"_meta":{"promptIndex":0}}},"timestamp":1783584019}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Inspecting"}}},"timestamp":1783584020}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"plan","entries":[{"content":"Implement fix","priority":"medium","status":"in_progress"}]}},"timestamp":1783584021}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"agent_thought_chunk","content":{"type":"text","text":"Verifying"}}},"timestamp":1783584022}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"plan","entries":[{"content":"Implement fix","priority":"medium","status":"completed"}]}},"timestamp":1783584023}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"agent_message_chunk","content":{"type":"text","text":"Done"}}},"timestamp":1783584024}"#,
+            "\n",
+            r#"{"method":"session/update","params":{"sessionId":"s","update":{"sessionUpdate":"turn_completed","stop_reason":"end_turn"}},"timestamp":1783584025}"#,
+            "\n",
+        );
+        let (_tmp, sessions) = fixture(SUMMARY, updates);
+        let detail = GrokParser::with_base_dir(sessions)
+            .get_conversation("019f45e3-e1ef-7690-a29f-fe2554382b49")
+            .unwrap();
+        let assistant = detail
+            .turns
+            .iter()
+            .find(|turn| matches!(turn.role, TurnRole::Assistant))
+            .expect("assistant turn");
+        let plans: Vec<_> = assistant
+            .blocks
+            .iter()
+            .filter_map(|block| match block {
+                ContentBlock::ToolUse {
+                    tool_name,
+                    input_preview,
+                    ..
+                } if tool_name == "TodoWrite" => input_preview.as_deref(),
+                _ => None,
+            })
+            .collect();
+
+        assert_eq!(plans.len(), 1, "plan snapshots must replace, not stack");
+        let plan: Value = serde_json::from_str(plans[0]).unwrap();
+        assert_eq!(plan["todos"][0]["content"], "Implement fix");
+        assert_eq!(plan["todos"][0]["status"], "completed");
     }
 
     /// A `get_command_or_subagent_output` poll carries its whole result in

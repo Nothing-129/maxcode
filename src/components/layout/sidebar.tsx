@@ -69,6 +69,7 @@ import {
   saveShowWorktrees,
   saveSortMode,
   saveSectionOrder,
+  DEFAULT_SIDEBAR_SORT_MODE,
   DEFAULT_SECTION_ORDER,
   SIDEBAR_NAV_ITEM_IDS,
   type SidebarNavItemId,
@@ -200,7 +201,9 @@ export function Sidebar() {
   // Empty = every nav row shown, which is also the hydrated default — so the
   // pre-hydration render matches for a user who never hid one.
   const [navItems, setNavItems] = useState<SidebarNavItemVisibility>({})
-  const [sortMode, setSortMode] = useState<SidebarSortMode>("created")
+  const [sortMode, setSortMode] = useState<SidebarSortMode>(
+    DEFAULT_SIDEBAR_SORT_MODE
+  )
   const [sectionOrder, setSectionOrder] = useState<SidebarSectionOrder>(
     DEFAULT_SECTION_ORDER
   )

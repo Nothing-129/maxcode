@@ -12,6 +12,8 @@ const CONVERSATION_EXPANDED_KEY = "workspace:sidebar-conversation-expanded"
 
 export type SidebarSortMode = "created" | "updated"
 
+export const DEFAULT_SIDEBAR_SORT_MODE: SidebarSortMode = "updated"
+
 /** The reorderable top-level sidebar sections. "Pinned" is deliberately absent:
  *  it is a transient override bucket and always stays on top. */
 export const SIDEBAR_SECTION_IDS = ["folders", "chats", "recent"] as const
@@ -302,14 +304,14 @@ export function saveNavItemVisibility(state: SidebarNavItemVisibility): void {
 }
 
 export function loadSortMode(): SidebarSortMode {
-  if (typeof window === "undefined") return "created"
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_SORT_MODE
   try {
     const raw = localStorage.getItem(SORT_MODE_KEY)
     if (raw === "updated" || raw === "created") return raw
   } catch {
     /* ignore */
   }
-  return "created"
+  return DEFAULT_SIDEBAR_SORT_MODE
 }
 
 export function saveSortMode(value: SidebarSortMode): void {

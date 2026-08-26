@@ -3021,6 +3021,7 @@ const COMPLETED_ACTIVITY_TYPES = new Set<AdaptedContentPart["type"]>([
   "tool-call",
   "tool-result",
   "reasoning",
+  "plan",
   "tool-group",
   "delegation-status-group",
   "background-task-group",
@@ -3043,9 +3044,11 @@ export interface CompletedActivitySplit {
 /**
  * Split a completed assistant turn into its work log and final answer.
  *
- * Only a safe leading prefix is folded: plans, generated images and other
- * result cards stay in the main transcript. The suffix must be plain answer
- * text, which prevents a late tool/card from being hidden or reordered.
+ * Only a safe leading prefix is folded. Reasoning checklists (`plan`) are part
+ * of that work log and remain available both inside the expanded summary and
+ * through the plan overlay. Generated images, proposed plans and other result
+ * cards stay in the main transcript. The suffix must be plain answer text,
+ * which prevents a late result card from being hidden or reordered.
  */
 export function splitCompletedAssistantActivity(
   parts: AdaptedContentPart[]

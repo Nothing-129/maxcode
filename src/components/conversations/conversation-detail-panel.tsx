@@ -120,7 +120,6 @@ import {
   saveConfigPreference,
   saveModePreference,
 } from "@/lib/selector-prefs-storage"
-import { saveLastSelectedAgent } from "@/lib/last-selected-agent-storage"
 import {
   adoptLegacyNewConversationDraft,
   buildConversationDraftStorageKey,
@@ -1367,9 +1366,10 @@ const ConversationTabView = memo(function ConversationTabView({
       setDraftAgentType(nextAgentType)
       setModeId(getSavedModeId(nextAgentType))
       setAgentConnectError(null)
-      saveLastSelectedAgent(nextAgentType)
       // Real user click — clear the provisional flag so TabProvider's
-      // correction effect leaves this tab alone.
+      // correction effect leaves this tab alone. `confirmDraftAgent` also
+      // persists the choice into this draft's own memory scope (project /
+      // chat) as the new "last selected agent".
       confirmDraftAgent(tabId, nextAgentType)
     },
     [confirmDraftAgent, tabId]

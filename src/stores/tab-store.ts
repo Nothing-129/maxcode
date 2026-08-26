@@ -8,7 +8,11 @@ import {
   saveOpenedTabs,
 } from "@/lib/api"
 import { resolveDefaultAgent } from "@/lib/resolve-default-agent"
-import { getLastSelectedAgent } from "@/lib/last-selected-agent-storage"
+import {
+  CHAT_AGENT_MEMORY_SCOPE,
+  getLastSelectedAgent,
+  saveLastSelectedAgent,
+} from "@/lib/last-selected-agent-storage"
 import { formatConversationTitle } from "@/lib/conversation-title"
 import {
   firstLeafId,
@@ -726,7 +730,12 @@ function mergeRestoredDrafts(restored: TabItemInternal[]): {
     seen.add(draft.id)
     const resolved = draft.agentType
       ? { agentType: draft.agentType, provisional: false }
-      : resolveAgentForFolder(draft.folderId, null)
+      : resolveAgentForFolder(
+          draft.folderId,
+          null,
+          undefined,
+          draft.isChat === true
+        )
     const tab: TabItemInternal = {
       id: draft.id,
       kind: "conversation",
@@ -944,14 +953,32 @@ function recomputeTabs() {
   applyGroupInvariants()
 }
 
+/** Resolve the memory scope for "last selected agent". Each project (folder)
+ *  keeps its own memory keyed by the folder path — stable across remove/re-add
+ *  — while chat mode shares one dedicated memory. Chat-kind folders and the
+ *  folderless sentinel map to the chat scope; an unknown folder id degrades to
+ *  an isolated id-keyed scope instead of polluting another project's memory. */
+function agentMemoryScopeFor(folderId: number, isChat: boolean): string {
+  if (isChat) return CHAT_AGENT_MEMORY_SCOPE
+  const folder = useAppWorkspaceStore
+    .getState()
+    .allFolders.find((f) => f.id === folderId)
+  if (!folder) return `folder:${folderId}`
+  if (folder.kind === "chat") return CHAT_AGENT_MEMORY_SCOPE
+  return folder.path
+}
+
 /** Pick the agent + provisional flag for a new draft tab. Wraps the pure
- *  `resolveDefaultAgent` helper with the global last selection, folder default
- *  from the live app-workspace store, latest sorted types, and fresh flag. */
+ *  `resolveDefaultAgent` helper with the per-scope last selection (project
+ *  folders each remember their own; chat has a separate memory), folder
+ *  default from the live app-workspace store, latest sorted types, and fresh
+ *  flag. */
 function resolveAgentForFolder(
   folderId: number,
   inherit: AgentType | null,
   // `undefined` = look the folder default up; `null` = explicitly none.
-  folderDefaultOverride?: AgentType | null
+  folderDefaultOverride?: AgentType | null,
+  isChat = false
 ): { agentType: AgentType; provisional: boolean } {
   const folderDefault =
     folderDefaultOverride !== undefined
@@ -959,7 +986,7 @@ function resolveAgentForFolder(
       : (useAppWorkspaceStore.getState().folders.find((f) => f.id === folderId)
           ?.default_agent_type ?? null)
   return resolveDefaultAgent({
-    lastSelected: getLastSelectedAgent(),
+    lastSelected: getLastSelectedAgent(agentMemoryScopeFor(folderId, isChat)),
     folderDefault,
     inherit,
     sortedTypes: runtime.sortedAvailableAgents,
@@ -1354,7 +1381,12 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       allFolders.find((f) => f.id === tab.folderId)?.kind === "chat"
     let newTab: TabItemInternal
     if (contextIsChat) {
-      const { agentType, provisional } = resolveAgentForFolder(0, inherit, null)
+      const { agentType, provisional } = resolveAgentForFolder(
+        0,
+        inherit,
+        null,
+        true
+      )
       newTab = {
         id: makeNewConversationTabId(),
         kind: "conversation",
@@ -1675,7 +1707,8 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     const { agentType: targetAgent, provisional } = resolveAgentForFolder(
       0,
       inherit,
-      null
+      null,
+      true
     )
 
     // Per-group draft singleton — all draft handling below is scoped to the
@@ -1772,6 +1805,15 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
   },
 
   confirmDraftAgent: (tabId, agentType) => {
+    // Real user click — persist the choice into this draft's own memory scope
+    // (project folder / chat) so the next new conversation there reuses it.
+    const clicked = get().rawTabs.find((t) => t.id === tabId)
+    if (clicked && clicked.conversationId == null) {
+      saveLastSelectedAgent(
+        agentMemoryScopeFor(clicked.folderId, clicked.isChat === true),
+        agentType
+      )
+    }
     const prev = get().rawTabs
     const next = prev.map((t) => {
       if (t.id !== tabId) return t
@@ -2271,7 +2313,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       void (async () => {
         const { agentType: newAgent } = resolveAgentForFolder(
           tab.folderId,
-          null
+          null,
+          undefined,
+          tab.isChat === true
         )
         const current = get().rawTabs.find((t) => t.id === tab.id)
         if (!current || current.conversationId != null) return

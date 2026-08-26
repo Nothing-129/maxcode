@@ -49,6 +49,29 @@ describe("completed assistant activity summary", () => {
     ).toBeNull()
   })
 
+  it("folds a live plan together with the completed work log", () => {
+    const parts: AdaptedContentPart[] = [
+      { type: "reasoning", content: "Inspecting", isStreaming: false },
+      {
+        type: "plan",
+        entries: [
+          { content: "Implement fix", priority: "medium", status: "completed" },
+        ],
+        isStreaming: false,
+      },
+      {
+        type: "tool-group",
+        items: [],
+        isStreaming: false,
+      },
+      { type: "text", text: "Final answer" },
+    ]
+
+    const split = splitCompletedAssistantActivity(parts)
+    expect(split?.activity).toEqual(parts.slice(0, 3))
+    expect(split?.answer).toEqual(parts.slice(3))
+  })
+
   it("collapses completed work while leaving the final answer visible", () => {
     renderParts(true)
 

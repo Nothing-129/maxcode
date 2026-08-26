@@ -5,6 +5,7 @@ import {
   loadSectionCollapsed,
   loadSectionOrder,
   loadShowRecent,
+  loadSortMode,
   moveSectionInOrder,
   normalizeSectionOrder,
   saveSectionOrder,
@@ -13,6 +14,7 @@ import {
 
 const SECTION_ORDER_KEY = "workspace:sidebar-section-order"
 const SHOW_RECENT_KEY = "workspace:sidebar-show-recent"
+const SORT_MODE_KEY = "workspace:sidebar-sort-mode"
 
 describe("normalizeSectionOrder", () => {
   it("passes a complete order through unchanged", () => {
@@ -129,6 +131,19 @@ describe("loadShowRecent", () => {
     expect(loadShowRecent()).toBe(false)
     saveShowRecent(true)
     expect(loadShowRecent()).toBe(true)
+  })
+})
+
+describe("loadSortMode", () => {
+  beforeEach(() => localStorage.clear())
+
+  it("defaults to updated time", () => {
+    expect(loadSortMode()).toBe("updated")
+  })
+
+  it("respects an explicitly stored created-time preference", () => {
+    localStorage.setItem(SORT_MODE_KEY, "created")
+    expect(loadSortMode()).toBe("created")
   })
 })
 
