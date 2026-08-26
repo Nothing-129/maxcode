@@ -35,6 +35,11 @@ vi.mock("@/contexts/tab-context", () => ({
     openNewConversationTab: h.openNewConversationTab,
   }),
 }))
+// The header collapses the touch sidebar on "new conversation"; these tests
+// exercise rename/delete targeting, so a bare stub context is enough.
+vi.mock("@/contexts/sidebar-context", () => ({
+  useSidebarContext: () => ({ isOpen: true, toggle: vi.fn(), close: vi.fn() }),
+}))
 vi.mock("@/stores/app-workspace-store", () => {
   const state = {
     updateConversationLocal: h.updateConversationLocal,

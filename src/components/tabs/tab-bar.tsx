@@ -21,6 +21,7 @@ import {
   dropIndexFromMidpoints,
 } from "@/lib/tab-drag-drop"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
+import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
 import { TabItem, type TabMoveTarget } from "./tab-item"
 
@@ -65,6 +66,7 @@ export function TabBar({ groupId }: TabBarProps) {
   const allFolders = useAppWorkspaceStore((s) => s.allFolders)
   const branches = useAppWorkspaceStore((s) => s.branches)
   const { activeFolder } = useActiveFolder()
+  const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const { openConversations } = useWorkbenchRoute()
 
   // The group this strip represents (unsplit strip = the single first leaf),
@@ -202,6 +204,9 @@ export function TabBar({ groupId }: TabBarProps) {
   // folder / chat mode) rather than the globally-active folder: each group is
   // its own workspace slice, and the focused group may be a different one.
   const handleNewConversation = useCallback(() => {
+    // On touch, get the sidebar out of the way so the fresh draft is visible —
+    // same predicate the sidebar's own "new chat" rows collapse under.
+    collapseSidebarOnNavigate()
     openConversations()
     const groupOptions = groupId != null ? { targetGroup: groupId } : undefined
     if (groupId != null) {
@@ -233,6 +238,7 @@ export function TabBar({ groupId }: TabBarProps) {
   }, [
     activeFolder,
     allFolders,
+    collapseSidebarOnNavigate,
     displayActiveId,
     groupId,
     groupTabs,

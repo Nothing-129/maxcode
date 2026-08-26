@@ -13,6 +13,7 @@ import { useTranslations } from "next-intl"
 import { openSettingsWindow } from "@/lib/api"
 import { isDesktop } from "@/lib/platform"
 import { useActiveFolder } from "@/contexts/active-folder-context"
+import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsActiveChatMode } from "@/hooks/use-is-active-chat-mode"
 import { usePlatform } from "@/hooks/use-platform"
 import { Button } from "@/components/ui/button"
@@ -54,6 +55,7 @@ export function FolderTitleBar() {
   const { activeFolder } = useActiveFolder()
   const isChatMode = useIsActiveChatMode()
   const { openNewConversationTab, openChatModeTab } = useTabActions()
+  const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const { isConversations, openConversations } = useWorkbenchRoute()
   const { isMac } = usePlatform()
   const showMacInset = isMac && isDesktop()
@@ -66,15 +68,24 @@ export function FolderTitleBar() {
 
   // Mirror the sidebar's "New chat": return to the conversation workspace, then
   // start a new conversation in the active folder — or folderless chat mode when
-  // there's none, so this entry point is never a dead end.
+  // there's none, so this entry point is never a dead end. On touch the sidebar
+  // collapses first so the fresh conversation is visible (the sidebar's own
+  // "new chat" rows do the same).
   const handleNewConversation = useCallback(() => {
+    collapseSidebarOnNavigate()
     openConversations()
     if (!activeFolder) {
       openChatModeTab()
       return
     }
     openNewConversationTab(activeFolder.id, activeFolder.path)
-  }, [activeFolder, openChatModeTab, openNewConversationTab, openConversations])
+  }, [
+    activeFolder,
+    collapseSidebarOnNavigate,
+    openChatModeTab,
+    openNewConversationTab,
+    openConversations,
+  ])
 
   return (
     <div className="flex h-10 shrink-0 items-stretch border-b border-border ws-chrome-border bg-muted/70 select-none">

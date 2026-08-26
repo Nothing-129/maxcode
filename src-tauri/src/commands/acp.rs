@@ -191,8 +191,9 @@ fn apply_custom_version_to_url(url: &str, registry_version: &str, custom_version
 }
 
 /// Check whether an NPX agent command is spawnable.
-/// Uses PATH first, then falls back to the current npm global prefix to handle
-/// GUI environments that don't inherit the user's shell PATH.
+/// Uses PATH first, then codeg's EACCES fallback prefix, then the current npm
+/// global prefix. The explicit fallback-prefix probe keeps this correct even
+/// when startup PATH initialization was skipped or later overwritten.
 pub(crate) async fn is_cmd_available(cmd: &str) -> bool {
     resolve_npx_command(cmd).await.is_some()
 }
@@ -319,6 +320,26 @@ async fn uvx_displayed_version(
     version
 }
 
+/// Version shown for an npx agent. Packages with load-bearing lifecycle
+/// scripts/native optional dependencies must prove their command can actually
+/// start; npm metadata alone also exists for half-installed runtimes (for
+/// example deepseek-acp with sharp present but its platform libvips missing).
+async fn npx_displayed_version(
+    agent_type: AgentType,
+    resolved: Option<&PathBuf>,
+    package: &str,
+    recorded_version: Option<String>,
+) -> Option<String> {
+    let bin = resolved?;
+    if npm_package_requires_scripts(package) {
+        return system_probed_version(agent_type, bin, None).await;
+    }
+    match recorded_version {
+        Some(version) => Some(version),
+        None => system_probed_version(agent_type, bin, Some(package)).await,
+    }
+}
+
 /// Pre-fetch a `Uvx` agent's pinned package into uvx's cache by running
 /// `uvx --from <package> <cmd> --version`, so the first real connect doesn't
 /// pay the download cost. Streams progress to the install event stream.
@@ -383,6 +404,9 @@ pub(crate) async fn resolve_npx_command(cmd: &str) -> Option<PathBuf> {
     if let Some(path) = resolve_command_on_path(cmd) {
         return Some(path);
     }
+    if let Some(path) = resolve_npx_command_from_user_prefix(cmd) {
+        return Some(path);
+    }
     resolve_npx_command_from_current_npm_prefix(cmd).await
 }
 
@@ -399,6 +423,8 @@ impl NpxCommandResolver {
         }
 
         let resolved = if let Some(path) = resolve_command_on_path(cmd) {
+            Some(path)
+        } else if let Some(path) = resolve_npx_command_from_user_prefix(cmd) {
             Some(path)
         } else {
             let prefix = if let Some(prefix) = &self.request_npm_prefix {
@@ -475,6 +501,13 @@ fn npm_prefix_bin_dir(prefix: &Path) -> PathBuf {
     }
 }
 
+/// Resolve an npm command from codeg's managed EACCES fallback prefix without
+/// relying on that prefix having been injected into the process PATH.
+fn resolve_npx_command_from_user_prefix(cmd: &str) -> Option<PathBuf> {
+    let prefix = crate::process::user_npm_prefix()?;
+    resolve_npx_command_from_npm_prefix(cmd, &prefix)
+}
+
 fn resolve_npx_command_from_npm_prefix(cmd: &str, prefix: &Path) -> Option<PathBuf> {
     let bin_dir = npm_prefix_bin_dir(prefix);
 
@@ -522,8 +555,16 @@ fn is_npm_command_candidate(path: &Path) -> bool {
 pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), AcpError> {
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
-        registry::AgentDistribution::Npx { cmd, .. } => {
-            if !is_cmd_available(cmd).await {
+        registry::AgentDistribution::Npx { cmd, package, .. } => {
+            let resolved = resolve_npx_command(cmd).await;
+            let runtime_ready = match resolved.as_ref() {
+                Some(bin) if npm_package_requires_scripts(package) => {
+                    system_probed_version(agent_type, bin, None).await.is_some()
+                }
+                Some(_) => true,
+                None => false,
+            };
+            if !runtime_ready {
                 // INVARIANT: the substring "is not installed" is matched
                 // verbatim by the frontend catch block in
                 // `src/contexts/acp-connections-context.tsx` to surface a
@@ -640,6 +681,9 @@ async fn detect_local_version(agent_type: AgentType) -> Option<String> {
     match meta.distribution {
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_npx_command(cmd).await?;
+            if npm_package_requires_scripts(package) {
+                return system_probed_version(agent_type, &resolved, None).await;
+            }
             // Try `npm list -g <package_name> --json` to get the real installed version.
             let pkg_name = package_name_from_spec(package);
             let mut version = detect_npm_global_version(&pkg_name).await;
@@ -1445,16 +1489,23 @@ fn build_report(
                 },
                 None,
             ));
+            let user_prefix_is_launch_target = a.user_prefix_bin == a.resolve_npx;
             checks.push(diag_check(
                 "~/.codeg/npm-global/bin/<cmd>",
                 a.user_prefix_bin.as_deref().unwrap_or("absent"),
-                if a.user_prefix_bin.is_some() {
+                if user_prefix_is_launch_target {
+                    DiagLevel::Ok
+                } else if a.user_prefix_bin.is_some() {
                     DiagLevel::Warn
                 } else {
                     DiagLevel::Info
                 },
                 a.user_prefix_bin.as_ref().map(|_| {
-                    "EACCES fallback dir — reached by the connect gate only if it's on PATH"
+                    if user_prefix_is_launch_target {
+                        "EACCES fallback dir — resolved directly by the connect gate (PATH not required)"
+                    } else {
+                        "EACCES fallback install exists, but another executable wins launch resolution"
+                    }
                 }),
             ));
             if cfg!(target_os = "macos") {
@@ -2196,9 +2247,11 @@ const NPM_FOREGROUND_SCRIPTS: &str = "--foreground-scripts";
 /// install` "succeed" while silently skipping postinstall — for hermes-agent
 /// the postinstall IS the install (pinned upstream checkout + isolated venv),
 /// so the result is a `hermes` shim with no runtime behind it, recorded as
-/// installed. CLI config outranks .npmrc/env (verified empirically), and the
-/// user's explicit Install action for THIS package is consent to run its
-/// install process. Applied only to packages that need it
+/// installed. deepseek-acp also has native helper lifecycle scripts, and its
+/// sharp dependency needs a complete platform-specific optional-dependency
+/// tree. CLI config outranks .npmrc/env (verified empirically), and the user's
+/// explicit Install action for THIS package is consent to run its install
+/// process. Applied only to packages that need it
 /// (`npm_package_requires_scripts`), so every other agent keeps honoring the
 /// user's global script policy.
 const NPM_RUN_SCRIPTS_OVERRIDE: &str = "--ignore-scripts=false";
@@ -2216,11 +2269,13 @@ const NPM_RUN_SCRIPTS_OVERRIDE: &str = "--ignore-scripts=false";
 const NODE_ENV_PROXY_VAR: &str = "NODE_USE_ENV_PROXY";
 
 /// Whether an npm package's lifecycle scripts are load-bearing for the
-/// install (skipping them yields a broken command). Only the hermes-agent
-/// community bridge today: its postinstall bootstraps the entire Python
-/// runtime the `hermes` bin execs into.
+/// install (skipping them yields a broken command), or whose native optional
+/// dependency tree must be validated before success is recorded.
 fn npm_package_requires_scripts(package: &str) -> bool {
-    package_name_from_spec(package) == "hermes-agent"
+    matches!(
+        package_name_from_spec(package).as_str(),
+        "hermes-agent" | "deepseek-acp"
+    )
 }
 
 /// Name the proxy when a bootstrap package's install died inside the wrapper's
@@ -15914,6 +15969,33 @@ wire_api = "chat"
 
         assert_eq!(resolved.as_deref(), Some(command_path.as_path()));
         let _ = std::fs::remove_dir_all(prefix);
+    }
+
+    #[cfg(not(windows))]
+    #[test]
+    fn resolves_npx_command_from_eacces_fallback_without_path() {
+        let home = unique_test_dir("npm-user-prefix-home");
+        temp_env::with_var("HOME", Some(&home), || {
+            let prefix = crate::process::user_npm_prefix().expect("user npm prefix");
+            let bin_dir = npm_prefix_bin_dir(&prefix);
+            std::fs::create_dir_all(&bin_dir).expect("create fallback bin directory");
+            let command_path = bin_dir.join("codeg-eacces-fallback-test");
+            std::fs::write(&command_path, "#!/bin/sh\n").expect("write command shim");
+
+            use std::os::unix::fs::PermissionsExt;
+            let mut permissions = std::fs::metadata(&command_path)
+                .expect("read command shim metadata")
+                .permissions();
+            permissions.set_mode(0o755);
+            std::fs::set_permissions(&command_path, permissions)
+                .expect("mark command shim executable");
+
+            assert_eq!(
+                resolve_npx_command_from_user_prefix("codeg-eacces-fallback-test").as_deref(),
+                Some(command_path.as_path())
+            );
+        });
+        let _ = std::fs::remove_dir_all(home);
     }
 
     #[tokio::test]

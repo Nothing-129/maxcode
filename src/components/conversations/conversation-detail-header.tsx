@@ -13,6 +13,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import {
   deleteConversation,
@@ -109,6 +110,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const tDetails = useTranslations("Folder.sessionDetails")
   const allowStatusActions = useConversationStatusActions()
   const { closeTab, openNewConversationTab } = useTabActions()
+  const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const updateConversationLocal = useAppWorkspaceStore(
     (s) => s.updateConversationLocal
   )
@@ -166,10 +168,13 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
 
   const handleNewConversation = useCallback(() => {
     if (!folderPath) return
+    // On touch, get the sidebar out of the way so the fresh draft is visible —
+    // same predicate the sidebar's own "new chat" rows collapse under.
+    collapseSidebarOnNavigate()
     // Keep the active agent when the folder has no pinned default (matches the
     // panel's right-click "new conversation").
     openNewConversationTab(folderId, folderPath, { inheritFromActive: true })
-  }, [folderId, folderPath, openNewConversationTab])
+  }, [collapseSidebarOnNavigate, folderId, folderPath, openNewConversationTab])
 
   const handleRenameOpen = useCallback(() => {
     if (conversationId == null) return

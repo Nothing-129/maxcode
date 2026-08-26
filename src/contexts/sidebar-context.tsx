@@ -32,6 +32,10 @@ interface SidebarContextValue {
   minWidth: number
   maxWidth: number
   toggle: () => void
+  // Idempotent close — the right primitive when several layers may react to the
+  // same navigation (a handler collapsing for touch plus the entry point that
+  // started it), where a second `toggle()` would flip the sidebar back open.
+  close: () => void
   setWidth: (w: number) => void
 }
 
@@ -60,6 +64,7 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   const [restored, setRestored] = useState(false)
 
   const toggle = useCallback(() => setIsOpen((prev) => !prev), [])
+  const close = useCallback(() => setIsOpen(false), [])
 
   const setWidth = useCallback((w: number) => {
     setWidthState(clampWidth(w))
@@ -90,9 +95,10 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
       minWidth: MIN_WIDTH,
       maxWidth: MAX_WIDTH,
       toggle,
+      close,
       setWidth,
     }),
-    [isOpen, restored, width, toggle, setWidth]
+    [isOpen, restored, width, toggle, close, setWidth]
   )
 
   return (

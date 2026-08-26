@@ -60,6 +60,7 @@ import { TabDragGhost } from "@/components/tabs/tab-drag-ghost"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useAuxPanelContext } from "@/contexts/aux-panel-context"
 import { useWorkspaceView } from "@/contexts/workspace-context"
+import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePlatform } from "@/hooks/use-platform"
 import { useZoomLevel } from "@/hooks/use-appearance"
@@ -2150,6 +2151,7 @@ export function ConversationDetailPanel() {
     resizeGroupSplit,
     onPreviewTabReplaced,
   } = useTabActions()
+  const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const newConversation = useMemo(() => {
     const activeTab = tabs.find((tab) => tab.id === activeTabId)
     if (!activeTab || activeTab.conversationId != null) return null
@@ -2257,10 +2259,13 @@ export function ConversationDetailPanel() {
 
   const handleNewConversation = useCallback(() => {
     if (!folder) return
+    // On touch, get the sidebar out of the way so the fresh draft is visible —
+    // same predicate the sidebar's own "new chat" rows collapse under.
+    collapseSidebarOnNavigate()
     // Right-click "new conversation" inside a conversation tab: keep the
     // active agent when the target folder has no pinned default.
     openNewConversationTab(folder.id, folder.path, { inheritFromActive: true })
-  }, [folder, openNewConversationTab])
+  }, [collapseSidebarOnNavigate, folder, openNewConversationTab])
 
   const handleCloseActiveTab = useCallback(() => {
     if (!activeTabId) return
