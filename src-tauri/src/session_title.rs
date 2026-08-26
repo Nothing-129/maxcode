@@ -787,7 +787,7 @@ mod tests {
         let args = title_cli_args(AgentType::Codex, "标题提示", Path::new("/tmp/title"))
             .expect("codex title args");
         assert_eq!(
-            args.get(0).map(String::as_str),
+            args.first().map(String::as_str),
             Some("--ask-for-approval")
         );
         assert_eq!(args.get(1).map(String::as_str), Some("never"));
