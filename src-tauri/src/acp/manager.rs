@@ -1254,7 +1254,7 @@ impl ConnectionManager {
         } else {
             None
         };
-        let grok_title_seed = if agent_type == AgentType::Grok {
+        let cli_auto_title_seed = if crate::session_title::supports_cli_auto_title(agent_type) {
             crate::session_title::title_seed_from_blocks(&blocks)
         } else {
             None
@@ -1352,11 +1352,12 @@ impl ConnectionManager {
                         ),
                     }
                 }
-                if let (Some(cid), Some(seed)) = (conversation_id_for_status, grok_title_seed) {
+                if let (Some(cid), Some(seed)) = (conversation_id_for_status, cli_auto_title_seed) {
                     let conn = db.conn.clone();
                     let title_emitter = emitter.clone();
                     tokio::spawn(async move {
-                        crate::session_title::kickoff_grok_auto_title(
+                        crate::session_title::kickoff_cli_auto_title(
+                            agent_type,
                             conn,
                             title_emitter,
                             cid,

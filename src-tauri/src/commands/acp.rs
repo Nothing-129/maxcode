@@ -2278,13 +2278,20 @@ fn npm_package_requires_scripts(package: &str) -> bool {
     )
 }
 
+/// Whether the package's lifecycle script downloads a separate runtime. Kept
+/// narrower than [`npm_package_requires_scripts`] because only this failure
+/// mode warrants the proxy-specific bootstrap hint below.
+fn npm_package_bootstraps_runtime(package: &str) -> bool {
+    package_name_from_spec(package) == "hermes-agent"
+}
+
 /// Name the proxy when a bootstrap package's install died inside the wrapper's
 /// own downloads. `NODE_ENV_PROXY_VAR` covers Node ≥24; what remains is a
 /// proxied machine on an older Node, where nothing codeg can pass makes that
 /// `fetch` go through — worth spelling out, because npm reports it as a bare
 /// `fetch failed` that says nothing about a proxy.
 fn annotate_npm_bootstrap_failure(package: &str, err: AcpError) -> AcpError {
-    if !npm_package_requires_scripts(package) {
+    if !npm_package_bootstraps_runtime(package) {
         return err;
     }
     let AcpError::Protocol(message) = &err else {
@@ -10425,19 +10432,13 @@ pub(crate) async fn acp_get_agent_status_core(
     let (available, installed_version) = match &meta.distribution {
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_npx_command(cmd).await;
-            let mut version = resolved
-                .as_ref()
-                .and_then(|_| setting.as_ref().and_then(|m| m.installed_version.clone()));
-            // An agent the user installed themselves (npm -g, bun, brew, …)
-            // resolves but has no managed install record — probe the system
-            // install so it reads as installed rather than demanding a
-            // second, managed copy. Launch already prefers the PATH
-            // resolution, so this only makes the UI agree with what runs.
-            if version.is_none() {
-                if let Some(bin) = &resolved {
-                    version = system_probed_version(agent_type, bin, Some(package)).await;
-                }
-            }
+            let version = npx_displayed_version(
+                agent_type,
+                resolved.as_ref(),
+                package,
+                setting.as_ref().and_then(|m| m.installed_version.clone()),
+            )
+            .await;
             (true, version)
         }
         registry::AgentDistribution::Binary {
@@ -10533,16 +10534,13 @@ async fn acp_list_agents_with_disabled(
                 // global prefix at most once, then reuses the result across
                 // all NPX agents in the loop.
                 let resolved = npx_resolver.resolve_for_list(cmd).await;
-                let mut version = resolved
-                    .as_ref()
-                    .and_then(|_| setting.and_then(|m| m.installed_version.clone()));
-                // Mirror the status path: an agent's own system install
-                // counts as installed (per-agent cached probe).
-                if version.is_none() {
-                    if let Some(bin) = &resolved {
-                        version = system_probed_version(agent_type, bin, Some(package)).await;
-                    }
-                }
+                let version = npx_displayed_version(
+                    agent_type,
+                    resolved.as_ref(),
+                    package,
+                    setting.and_then(|m| m.installed_version.clone()),
+                )
+                .await;
                 (true, "npx", version)
             }
             registry::AgentDistribution::Binary {
@@ -11996,21 +11994,22 @@ pub(crate) async fn acp_detect_agent_local_version_core(
         return Ok(Some(version));
     }
 
-    // Binary agents detect their version purely from the on-disk cache, so a
-    // `None` here means the binary is genuinely absent (cleared cache, or a
-    // failed custom/upgrade install). Return `None` authoritatively rather than
-    // falling back to the DB, which would resurrect a removed version as a
-    // phantom that can no longer be launched. The returned value does NOT depend
-    // on the mirror write below, so a swallowed write cannot reintroduce the
-    // phantom. (NPX detection runs `npm list`, which can fail transiently, so
-    // for npx we keep the DB value as a best-effort fallback.)
-    if matches!(
-        registry::get_agent_meta(agent_type).distribution,
-        registry::AgentDistribution::Binary { .. }
-    ) {
+    // Binary agents and bootstrap/native npx agents validate the actual runtime,
+    // so `None` is authoritative: falling back to the DB would resurrect a
+    // removed or half-installed runtime as a phantom. Ordinary npx detection
+    // runs `npm list`, which can fail transiently, so those keep the DB value as
+    // a best-effort fallback.
+    let authoritative_none = match registry::get_agent_meta(agent_type).distribution {
+        registry::AgentDistribution::Binary { .. } => true,
+        registry::AgentDistribution::Npx { package, .. } => {
+            npm_package_requires_scripts(package)
+        }
+        registry::AgentDistribution::Uvx { .. } => false,
+    };
+    if authoritative_none {
         let _ = agent_setting_service::set_installed_version(conn, agent_type, None).await;
-        // Mirror the heal in the clearing direction: a binary that vanished from
-        // disk must flip the composer back to "not installed".
+        // Mirror the heal in the clearing direction: a runtime that vanished or
+        // cannot start must flip the composer back to "not installed".
         if previous.is_some() {
             emit_acp_agents_updated(emitter, "local_version_cleared", Some(agent_type));
         }
@@ -12098,9 +12097,9 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                 .await
                 .map_err(|e| annotate_npm_bootstrap_failure(&install_spec, e))?;
 
-            // For a bootstrap-wrapper package (hermes-agent), npm metadata
-            // existing does NOT mean the agent can run: a skipped or broken
-            // postinstall leaves a shim that exits "runtime is not ready".
+            // For a bootstrap/native package, npm metadata existing does NOT
+            // mean the agent can run: a skipped postinstall or missing native
+            // optional dependency can leave a shim that exits immediately.
             // Verify the binary a launch would resolve actually answers
             // `--version` BEFORE recording success — the same resolution
             // order connect uses, so an official-installer CLI on PATH
@@ -12122,10 +12121,10 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                 };
                 if !runtime_ok {
                     return Err(AcpError::protocol(format!(
-                        "{} installed, but its runtime did not bootstrap (`{cmd} --version` \
-                         does not answer). If your npm config sets ignore-scripts, allow \
-                         scripts for this package and reinstall; otherwise retry, or use \
-                         the official installer and MaxCode will pick up the PATH `{cmd}`.",
+                        "{} installed, but its runtime is incomplete (`{cmd} --version` \
+                         does not answer). Ensure optional dependencies and lifecycle \
+                         scripts are allowed, then reinstall; otherwise retry, or use the \
+                         official installer and MaxCode will pick up the PATH `{cmd}`.",
                         meta.name
                     )));
                 }
@@ -15998,6 +15997,33 @@ wire_api = "chat"
         let _ = std::fs::remove_dir_all(home);
     }
 
+    #[cfg(not(windows))]
+    #[tokio::test]
+    async fn deepseek_status_rejects_a_recorded_version_when_runtime_is_broken() {
+        let dir = unique_test_dir("deepseek-broken-runtime");
+        let command_path = dir.join("deepseek-acp");
+        std::fs::write(&command_path, "#!/bin/sh\nexit 1\n").expect("write broken command");
+
+        use std::os::unix::fs::PermissionsExt;
+        let mut permissions = std::fs::metadata(&command_path)
+            .expect("read command metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&command_path, permissions).expect("make command executable");
+
+        let resolved = Some(command_path.clone());
+        let version = npx_displayed_version(
+            AgentType::DeepSeek,
+            resolved.as_ref(),
+            "deepseek-acp@0.7.0",
+            Some("0.7.0".to_string()),
+        )
+        .await;
+
+        assert_eq!(version, None, "a DB version must not mask a broken runtime");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[tokio::test]
     async fn does_not_cache_failed_npm_global_prefix_resolution() {
         let cache = tokio::sync::OnceCell::const_new();
@@ -18162,12 +18188,29 @@ model = "gpt"
         let other = annotate_npm_bootstrap_failure("@zed-industries/claude-code-acp", download());
         assert!(!other.to_string().contains("HTTP(S)_PROXY"));
 
+        // DeepSeek needs lifecycle scripts and runtime validation too, but it
+        // does not download a separate wrapper runtime, so the Hermes-specific
+        // proxy diagnosis must not leak onto its failures.
+        let deepseek = annotate_npm_bootstrap_failure("deepseek-acp@0.7.0", download());
+        assert!(!deepseek.to_string().contains("HTTP(S)_PROXY"));
+
         // A hermes failure that isn't a download stays untouched.
         let permissions = annotate_npm_bootstrap_failure(
             "hermes-agent@0.20.5",
             AcpError::Protocol("failed to install npm package globally: EACCES".to_string()),
         );
         assert!(!permissions.to_string().contains("HTTP(S)_PROXY"));
+    }
+
+    #[test]
+    fn native_npm_agents_require_scripts_and_runtime_validation() {
+        assert!(npm_package_requires_scripts("hermes-agent@0.20.5"));
+        assert!(npm_package_requires_scripts("deepseek-acp@0.7.0"));
+        assert!(!npm_package_requires_scripts(
+            "@zed-industries/claude-code-acp@0.15.0"
+        ));
+        assert!(npm_package_bootstraps_runtime("hermes-agent@0.20.5"));
+        assert!(!npm_package_bootstraps_runtime("deepseek-acp@0.7.0"));
     }
 
     /// The proxy hint is keyed on npm's URL-parse failure, so every other way an

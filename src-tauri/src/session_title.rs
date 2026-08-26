@@ -1,10 +1,11 @@
-//! Grok sidebar titles: first-line heuristic, then a locale-matched CLI refine.
+//! Codex and Grok sidebar titles: first-line heuristic, then a locale-matched
+//! one-shot CLI refine using the same agent as the conversation.
 //!
 //! Grok's own `generated_title` is English-biased and lives in a separate
-//! prompt from `~/.grok/AGENTS.md`, so we do not use it. New chats get the
-//! first user line immediately; a low-effort `grok -p` then replaces that
-//! with a short title in the app UI language. Manual rename (`title_locked`)
-//! always wins.
+//! prompt from `~/.grok/AGENTS.md`, while Codex CLI does not automatically
+//! generate a semantic title. New chats get the first user line immediately;
+//! a low-effort `grok -p` / `codex exec` then replaces it with a short title in
+//! the app UI language. Manual rename (`title_locked`) always wins.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -14,6 +15,7 @@ use std::time::Duration;
 use sea_orm::DatabaseConnection;
 
 use crate::db::service::conversation_service;
+use crate::models::agent::AgentType;
 use crate::models::system::{AppLocale, LanguageMode, SystemLanguageSettings};
 use crate::parsers::fold_reference_links;
 use crate::web::event_bridge::EventEmitter;
@@ -254,6 +256,11 @@ pub fn title_prompt(snippet: &str, locale: TitleLocale) -> String {
     }
 }
 
+fn title_prompt_for_message(message: &str, locale: TitleLocale) -> String {
+    let snippet: String = message.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
+    title_prompt(&snippet, locale)
+}
+
 pub fn clean_llm_title(raw: &str) -> Option<String> {
     let skip_line = |line: &str| -> bool {
         let l = line.trim();
@@ -295,13 +302,23 @@ pub fn clean_llm_title(raw: &str) -> Option<String> {
     Some(truncate_chars(&t, LLM_TITLE_MAX_CHARS))
 }
 
-/// Instant heuristic (if the row is still a placeholder) plus a background CLI refine.
-pub async fn kickoff_grok_auto_title(
+/// Agents whose native title behavior needs the locale-matched one-shot refine.
+pub fn supports_cli_auto_title(agent_type: AgentType) -> bool {
+    matches!(agent_type, AgentType::Codex | AgentType::Grok)
+}
+
+/// Instant heuristic (if the row is still a placeholder) plus a background
+/// one-shot CLI refine using the conversation's own agent.
+pub async fn kickoff_cli_auto_title(
+    agent_type: AgentType,
     conn: DatabaseConnection,
     emitter: EventEmitter,
     conversation_id: i32,
     first_message: String,
 ) {
+    if !supports_cli_auto_title(agent_type) {
+        return;
+    }
     let heuristic = heuristic_title(&first_message);
     if heuristic.is_empty() {
         return;
@@ -333,7 +350,8 @@ pub async fn kickoff_grok_auto_title(
             Err(e) => tracing::debug!(
                 conversation_id,
                 error = %e,
-                "grok heuristic title write failed"
+                agent = %agent_type.as_wire(),
+                "heuristic title write failed"
             ),
         }
     }
@@ -356,7 +374,7 @@ pub async fn kickoff_grok_auto_title(
         }
         let _guard = RefineGuard(conversation_id);
 
-        let Some(refined) = llm_title_via_cli(&first_message, locale).await else {
+        let Some(refined) = llm_title_via_cli(agent_type, &first_message, locale).await else {
             return;
         };
 
@@ -391,7 +409,8 @@ pub async fn kickoff_grok_auto_title(
             Err(e) => tracing::debug!(
                 conversation_id,
                 error = %e,
-                "grok refined title write failed"
+                agent = %agent_type.as_wire(),
+                "refined title write failed"
             ),
         }
     });
@@ -514,44 +533,83 @@ fn resolve_grok_cli() -> Option<PathBuf> {
     cand.is_file().then_some(cand)
 }
 
-async fn llm_title_via_cli(message: &str, locale: TitleLocale) -> Option<String> {
-    let path = resolve_grok_cli()?;
-    let snippet: String = message.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
-    let prompt = title_prompt(&snippet, locale);
+fn title_cli_args(
+    agent_type: AgentType,
+    prompt: &str,
+    scratch: &Path,
+) -> Option<Vec<String>> {
+    let cwd = scratch.to_string_lossy().into_owned();
+    match agent_type {
+        AgentType::Grok => Some(vec![
+            "-p".into(),
+            prompt.into(),
+            "--effort".into(),
+            "low".into(),
+            "--max-turns".into(),
+            "2".into(),
+            "--always-approve".into(),
+            "--no-subagents".into(),
+            "--disable-web-search".into(),
+            "--no-auto-update".into(),
+            "--cwd".into(),
+            cwd,
+            "--disallowed-tools".into(),
+            "run_terminal_cmd,run_terminal_command,web_search,web_fetch,search_replace,write,Agent,spawn_subagent,bash,bash_tool".into(),
+        ]),
+        AgentType::Codex => Some(vec![
+            "exec".into(),
+            "--ephemeral".into(),
+            "--skip-git-repo-check".into(),
+            "--ignore-rules".into(),
+            "--sandbox".into(),
+            "read-only".into(),
+            "--ask-for-approval".into(),
+            "never".into(),
+            "--color".into(),
+            "never".into(),
+            "-c".into(),
+            "model_reasoning_effort=\"low\"".into(),
+            "-C".into(),
+            cwd,
+            prompt.into(),
+        ]),
+        _ => None,
+    }
+}
+
+async fn llm_title_via_cli(
+    agent_type: AgentType,
+    message: &str,
+    locale: TitleLocale,
+) -> Option<String> {
+    let prompt = title_prompt_for_message(message, locale);
     let scratch = crate::paths::codeg_grok_title_scratch_dir();
     if let Err(e) = std::fs::create_dir_all(&scratch) {
-        tracing::debug!(error = %e, "grok title scratch dir create failed");
+        tracing::debug!(error = %e, "title scratch dir create failed");
         return None;
     }
 
-    let mut cmd = tokio::process::Command::new(&path);
+    let (program, prefix_args) = match agent_type {
+        AgentType::Grok => (resolve_grok_cli()?, Vec::new()),
+        AgentType::Codex => {
+            let (node, codex_js) = crate::acp::codex_catalog_source::runtime_cli_command().await?;
+            (node, vec![codex_js.to_string_lossy().into_owned()])
+        }
+        _ => return None,
+    };
+    let args = title_cli_args(agent_type, &prompt, &scratch)?;
+    let mut cmd = tokio::process::Command::new(&program);
     crate::process::configure_tokio_command(&mut cmd);
-    cmd.arg("-p")
-        .arg(&prompt)
-        .arg("--effort")
-        .arg("low")
-        .arg("--max-turns")
-        .arg("2")
-        .arg("--always-approve")
-        .arg("--no-subagents")
-        .arg("--disable-web-search")
-        .arg("--no-auto-update")
-        .arg("--cwd")
-        .arg(&scratch)
-        .arg("--disallowed-tools")
-        .arg(
-            "run_terminal_cmd,run_terminal_command,web_search,web_fetch,search_replace,write,Agent,spawn_subagent,bash,bash_tool",
-        )
-        .kill_on_drop(true);
+    cmd.args(prefix_args).args(args).kill_on_drop(true);
 
     let output = match tokio::time::timeout(LLM_TIMEOUT, cmd.output()).await {
         Ok(Ok(output)) => output,
         Ok(Err(e)) => {
-            tracing::debug!(error = %e, "grok title cli spawn failed");
+            tracing::debug!(agent = %agent_type.as_wire(), error = %e, "title cli spawn failed");
             return None;
         }
         Err(_) => {
-            tracing::debug!("grok title cli timed out");
+            tracing::debug!(agent = %agent_type.as_wire(), "title cli timed out");
             return None;
         }
     };
@@ -564,7 +622,8 @@ async fn llm_title_via_cli(message: &str, locale: TitleLocale) -> Option<String>
         tracing::debug!(
             status = %output.status,
             stderr = %String::from_utf8_lossy(&output.stderr).trim(),
-            "grok title cli failed"
+            agent = %agent_type.as_wire(),
+            "title cli failed"
         );
     }
     None
@@ -634,6 +693,14 @@ mod tests {
     }
 
     #[test]
+    fn title_prompt_uses_only_the_first_400_user_characters() {
+        let message = format!("{}SHOULD_NOT_APPEAR", "中".repeat(LLM_SNIPPET_MAX_CHARS));
+        let prompt = title_prompt_for_message(&message, TitleLocale::Zh);
+        assert!(prompt.contains(&"中".repeat(LLM_SNIPPET_MAX_CHARS)));
+        assert!(!prompt.contains("SHOULD_NOT_APPEAR"));
+    }
+
+    #[test]
     fn can_overwrite_placeholder_and_seed() {
         let msg = "帮我改一下登录页样式并且顺便看看权限";
         assert!(can_overwrite_auto_title(None, msg));
@@ -691,5 +758,39 @@ mod tests {
             language: AppLocale::ZhCn,
         };
         assert_eq!(resolve_title_locale(&settings), TitleLocale::Zh);
+    }
+
+    #[test]
+    fn cli_auto_title_support_is_limited_to_codex_and_grok() {
+        assert!(supports_cli_auto_title(AgentType::Codex));
+        assert!(supports_cli_auto_title(AgentType::Grok));
+        assert!(!supports_cli_auto_title(AgentType::ClaudeCode));
+    }
+
+    #[test]
+    fn codex_title_args_are_ephemeral_read_only_and_low_effort() {
+        let args = title_cli_args(AgentType::Codex, "标题提示", Path::new("/tmp/title"))
+            .expect("codex title args");
+        assert_eq!(args.first().map(String::as_str), Some("exec"));
+        for expected in [
+            "--ephemeral",
+            "--skip-git-repo-check",
+            "--ignore-rules",
+            "read-only",
+            "never",
+            "model_reasoning_effort=\"low\"",
+            "标题提示",
+        ] {
+            assert!(args.iter().any(|arg| arg == expected), "missing {expected}");
+        }
+    }
+
+    #[test]
+    fn grok_title_args_keep_low_effort_headless_mode() {
+        let args = title_cli_args(AgentType::Grok, "标题提示", Path::new("/tmp/title"))
+            .expect("grok title args");
+        assert_eq!(args.first().map(String::as_str), Some("-p"));
+        assert!(args.windows(2).any(|pair| pair == ["--effort", "low"]));
+        assert!(args.iter().any(|arg| arg == "--disable-web-search"));
     }
 }

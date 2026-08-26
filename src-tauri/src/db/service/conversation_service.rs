@@ -221,9 +221,9 @@ pub async fn refresh_auto_title(
     Ok(res.rows_affected > 0)
 }
 
-/// Locale-refined Grok title: write `title` and lock it so the parser
-/// auto-title backfill cannot revert it to the first-line heuristic (or to
-/// Grok's English `generated_title`). Does not bump `updated_at`. A locked
+/// Locale-refined CLI title: write `title` and lock it so parser/native
+/// auto-title backfill cannot revert it to the first-line heuristic (or, for
+/// Grok, its English `generated_title`). Does not bump `updated_at`. A locked
 /// row or a vanished id is a no-op.
 pub async fn commit_refined_title(
     conn: &DatabaseConnection,

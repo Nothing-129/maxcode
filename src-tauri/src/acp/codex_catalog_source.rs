@@ -97,6 +97,25 @@ async fn codex_acp_dirs() -> Vec<PathBuf> {
     dirs
 }
 
+/// Resolve the Codex CLI bundled with the pinned `codex-acp` adapter.
+///
+/// Callers receive the Node executable plus Codex's JS entry point so they can
+/// run a one-shot Codex command without depending on a separate `codex` binary
+/// being present on the GUI process' PATH. Keeping this resolution here also
+/// guarantees auxiliary jobs use the same Codex runtime as the ACP adapter.
+pub(crate) async fn runtime_cli_command() -> Option<(PathBuf, PathBuf)> {
+    let node = which::which("node").ok()?;
+    for acp_dir in codex_acp_dirs().await {
+        if !acp_dir.exists() {
+            continue;
+        }
+        if let Some(codex_js) = resolve_codex_js(&acp_dir, &node).await {
+            return Some((node, codex_js));
+        }
+    }
+    None
+}
+
 /// Resolve the nested `@openai/codex/bin/codex.js` from a codex-acp package dir
 /// using node's own resolver (nearest `node_modules` first) so we get the
 /// version codex-acp uses, not a hoisted/PATH one.

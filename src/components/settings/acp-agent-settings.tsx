@@ -3620,7 +3620,15 @@ function buildAgentDraft(agent: AcpAgentInfo): AgentDraft {
 
 function compareVersion(a: string, b: string): number {
   const toParts = (value: string): number[] => {
-    const normalized = value.trim().replace(/^[^\d]*/, "")
+    // Some stable calendar-version channels publish correction builds with a
+    // numeric suffix (for example OpenClaw `2026.7.1-2`). Treat that suffix as
+    // an extra numeric component so an installed `2026.7.1` is offered the
+    // correction instead of being mistaken for the same version. Named semver
+    // prereleases keep the previous behavior and compare at their core version.
+    const normalized = value
+      .trim()
+      .replace(/^[^\d]*/, "")
+      .replace(/-(\d+)$/, ".$1")
     return normalized.split(".").map((part) => Number.parseInt(part, 10) || 0)
   }
   const left = toParts(a)

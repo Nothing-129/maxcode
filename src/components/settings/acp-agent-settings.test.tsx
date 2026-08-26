@@ -736,6 +736,21 @@ describe("buildVersionCheck", () => {
     expect(check?.fixes.some((fix) => fix.kind === "upgrade_npx")).toBe(true)
   })
 
+  it("offers numeric correction releases after the stable calendar version", () => {
+    const check = buildVersionCheck(
+      makeAgent({
+        agent_type: "openclaw" as AgentType,
+        distribution_type: "npx",
+        registry_version: "2026.7.1-2",
+        installed_version: "2026.7.1",
+      })
+    )
+
+    expect(check?.status).toBe("warn")
+    expect(check?.message).toContain("Upgrade available")
+    expect(check?.fixes.some((fix) => fix.kind === "upgrade_npx")).toBe(true)
+  })
+
   // uv runtime not ready: a uvx agent (Hermes) must surface a blocked
   // version-status with the agent-install action DISABLED — the actual install
   // happens via the separate "Install uv" preflight action, not here.
