@@ -1380,7 +1380,8 @@
         "medium": "Moyen",
         "high": "Élevé",
         "minimal": "Minimal",
-        "xhigh": "Très élevé"
+        "xhigh": "Très élevé",
+        "max": "Maximum"
       },
       "apiKeyLabel": "Clé API",
       "apiKeyHint": "Enregistrée dans ~/.pi/agent/auth.json pour le fournisseur sélectionné.",

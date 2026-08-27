@@ -1380,7 +1380,8 @@
         "medium": "Mittel",
         "high": "Hoch",
         "minimal": "Minimal",
-        "xhigh": "Sehr hoch"
+        "xhigh": "Sehr hoch",
+        "max": "Maximum"
       },
       "apiKeyLabel": "API-Schlüssel",
       "apiKeyHint": "Wird in ~/.pi/agent/auth.json für den ausgewählten Anbieter gespeichert.",

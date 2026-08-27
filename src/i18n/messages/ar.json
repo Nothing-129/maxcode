@@ -1380,7 +1380,8 @@
         "medium": "متوسط",
         "high": "مرتفع",
         "minimal": "الحد الأدنى",
-        "xhigh": "مرتفع جدًا"
+        "xhigh": "مرتفع جدًا",
+        "max": "الحد الأقصى"
       },
       "apiKeyLabel": "مفتاح API",
       "apiKeyHint": "يُحفظ في ~/.pi/agent/auth.json للمزوّد المحدد.",

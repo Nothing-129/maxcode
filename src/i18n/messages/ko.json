@@ -1380,7 +1380,8 @@
         "medium": "중간",
         "high": "높음",
         "minimal": "최소",
-        "xhigh": "매우 높음"
+        "xhigh": "매우 높음",
+        "max": "최대"
       },
       "apiKeyLabel": "API 키",
       "apiKeyHint": "선택한 제공자의 ~/.pi/agent/auth.json에 저장됩니다.",

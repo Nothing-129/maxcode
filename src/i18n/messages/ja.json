@@ -1380,7 +1380,8 @@
         "medium": "中",
         "high": "高",
         "minimal": "最小",
-        "xhigh": "最高"
+        "xhigh": "非常に高い",
+        "max": "最大"
       },
       "apiKeyLabel": "API キー",
       "apiKeyHint": "選択したプロバイダーの ~/.pi/agent/auth.json に保存されます。",
