@@ -110,6 +110,30 @@ jobs:
           pnpm tauri signer sign /tmp/updater-sign-probe
           test -f /tmp/updater-sign-probe.sig
 
+      - name: Require Apple release credentials
+        if: contains(env.DESKTOP_TARGETS, 'apple-darwin')
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in \
+            APPLE_ID \
+            APPLE_PASSWORD \
+            APPLE_CERTIFICATE \
+            APPLE_CERTIFICATE_PASSWORD \
+            KEYCHAIN_PASSWORD
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "FATAL: GitHub secret $name is required for signed and notarized macOS releases"
+              exit 1
+            fi
+          done
+
       - id: release
         name: Create or reuse draft release
         uses: actions/github-script@v7
@@ -380,13 +404,48 @@ jobs:
           cat > src-tauri/ci-release.conf.json <<'EOF'
           {
             "bundle": {
-              "createUpdaterArtifacts": true,
-              "macOS": {
-                "signingIdentity": "-"
-              }
+              "createUpdaterArtifacts": true
             }
           }
           EOF
+
+      - name: Import Apple Developer certificate
+        if: contains(matrix.target, 'apple-darwin')
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
+          keychain_path="$RUNNER_TEMP/maxcode-signing.keychain-db"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security default-keychain -s "$keychain_path"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
+          security set-keychain-settings -t 3600 -u "$keychain_path"
+          security import "$certificate_path" \
+            -k "$keychain_path" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$keychain_path"
+          rm -f "$certificate_path"
+
+          identity="$(security find-identity -v -p codesigning "$keychain_path" \
+            | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' \
+            | head -n 1)"
+          expected='Developer ID Application: Dalv Cloud (Beijing) Technology Co., Ltd (ZGF375V7M7)'
+          if [ "$identity" != "$expected" ]; then
+            echo "FATAL: expected Developer ID identity was not imported"
+            exit 1
+          fi
+          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
 
       - name: Build and upload to draft release (Windows)
         if: contains(matrix.target, 'windows')
@@ -442,7 +501,7 @@ jobs:
           includeUpdaterJson: true
           retryAttempts: 2
 
-      - name: Build and upload ad-hoc signed app to draft release (macOS)
+      - name: Build, sign, notarize and upload app to draft release (macOS)
         if: contains(matrix.target, 'apple-darwin')
         uses: tauri-apps/tauri-action@v0.6.1
         env:
@@ -453,6 +512,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ZGF375V7M7
         with:
           releaseId: ${{ needs.create-draft-release.outputs.release_id }}
           tagName: ${{ github.ref_name }}
