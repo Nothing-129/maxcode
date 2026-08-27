@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import type { WheelEvent as ReactWheelEvent } from "react"
 import { Reorder } from "motion/react"
 import type { PanInfo } from "motion/react"
 import { SquarePen } from "lucide-react"
@@ -267,6 +268,18 @@ export function TabBar({ groupId }: TabBarProps) {
     el?.scrollIntoView({ block: "nearest", inline: "nearest" })
   }, [displayActiveId])
 
+  // A regular mouse wheel has no horizontal axis, so turn its vertical ticks
+  // into horizontal tab-strip movement when the strip overflows. Trackpads keep
+  // their native horizontal delta. Without this, hiding the native scrollbar
+  // would make older tabs reachable only through keyboard tab switching.
+  const handleWheel = useCallback((event: ReactWheelEvent<HTMLDivElement>) => {
+    const el = event.currentTarget
+    if (el.scrollWidth <= el.clientWidth) return
+    if (Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+    el.scrollLeft += event.deltaY
+    event.preventDefault()
+  }, [])
+
   const handleReorder = useCallback(
     (nextTabs: TabItemData[]) => {
       if (isCoarsePointer && !touchSortingTabId) return
@@ -294,96 +307,96 @@ export function TabBar({ groupId }: TabBarProps) {
   const lastTabActive = activeIndex >= 0 && activeIndex === groupTabs.length - 1
 
   return (
-    <Reorder.Group
-      as="div"
-      ref={scrollRef}
-      role="tablist"
-      axis="x"
-      values={groupTabs}
-      onReorder={handleReorder}
-      // Cross-group drop target: group strips advertise their group id for the
-      // drag hit-test and tint while a foreign tab hovers.
-      data-conv-group-strip={groupId ?? undefined}
-      // Fills the title-bar strip and shrinks browser-style to share the row (see
-      // TabItem): flush (`gap-0`) so hairline separators read as dividers, no
-      // scrollbar (`overflow-hidden` still scrolls programmatically), and no
-      // bottom border so the active (white) tab merges into the detail header
-      // below. It hosts the trailing new-conversation button + drag spacer as its
-      // own last children so the tabs, button, and spacer size in ONE flex line:
-      // the tabs keep their equal `basis-48` width until the row fills, then
-      // shrink together, and the button always hugs the last tab. `pl-2` only
-      // (NOT `px-2`): the first tab keeps its left gutter for the first-child
-      // seam-patch, but there's NO right padding so the trailing wrapper's
-      // `ws-strip-line` reaches the group's right edge and the bottom hairline
-      // stays continuous into the right reserve.
+    <div
       className={cn(
-        "pt-1.5 flex h-full min-w-0 flex-1 items-stretch gap-0 overflow-hidden pl-2",
+        "flex h-full min-w-0 flex-1 items-stretch overflow-hidden pl-2 pt-1.5",
         isDropTarget && "bg-primary/8"
       )}
     >
-      {groupTabs.map((tab, index) => {
-        const folderInfo = folderIndex.get(tab.folderId)
-        // Drafts are group-bound: no cross-group drag, no move / split-and-move
-        // menu items. Within-group sorting (the Reorder.Group itself) is
-        // untouched. See `moveTabToGroup` for why.
-        const isDraft = tab.conversationId == null
-        // Neighbours of the active tab inset their workspace-bg baseline so the
-        // active tab's transparent reverse-corner foot (which flares over them)
-        // doesn't leave a stray line under it (globals.css `data-adjacent-active`).
-        const adjacentActive =
-          activeIndex < 0
-            ? undefined
-            : index === activeIndex - 1
-              ? "before"
-              : index === activeIndex + 1
-                ? "after"
-                : undefined
-        return (
-          <TabItem
-            key={tab.id}
-            tab={tab}
-            isActive={tab.id === displayActiveId}
-            isTileMode={isTileMode}
-            embedded
-            adjacentActive={adjacentActive}
-            folderName={folderInfo?.name ?? null}
-            folderBranch={branches.get(tab.folderId) ?? null}
-            isSplit={isSplit}
-            canSplitMove={canSplitMove && !isDraft}
-            canMoveToGroup={!isDraft}
-            moveTargets={moveTargets}
-            onTabDrag={crossDragEnabled && !isDraft ? handleTabDrag : undefined}
-            onTabDragEnd={
-              crossDragEnabled && !isDraft ? handleTabDragEnd : undefined
-            }
-            onSwitch={switchTab}
-            onClose={closeTab}
-            onCloseOthers={closeOtherTabs}
-            onCloseAll={closeAllTabs}
-            onPin={pinTab}
-            onToggleTile={handleToggleTile}
-            onSplit={handleSplit}
-            onMoveToGroup={moveTabToGroup}
-            onToggleSplitOrientation={handleToggleSplitOrientation}
-            onUnsplit={handleUnsplit}
-            onUnsplitAll={unsplitAll}
-            isCoarsePointer={isCoarsePointer}
-            isTouchSorting={touchSortingTabId === tab.id}
-            onTouchSortingStart={setTouchSortingTabId}
-            onTouchSortingEnd={handleTouchSortingEnd}
-          />
-        )
-      })}
-      {/* The new-conversation button + drag spacer are the Reorder.Group's own
-          trailing children, so they share the tabs' flex line — the button hugs
-          the last tab and the spacer fills the leftover row as a window-drag
-          region. They are not Reorder.Items, so dragging a tab only ever permutes
-          the tabs. Wrapped in one `flex-1` `ws-strip-line` box so the
-          workspace-bg bottom hairline runs unbroken under both — the short
-          `self-start h-7` button can't carry the line itself. NO `min-w-0`: its
-          min-content (the shrink-0 button + the spacer's `min-w-10`) is its floor,
-          so under many-tab overflow the tabs shrink to reserve it instead of it
-          collapsing to 0 and clipping the button. */}
+      <Reorder.Group
+        as="div"
+        ref={scrollRef}
+        role="tablist"
+        axis="x"
+        values={groupTabs}
+        onReorder={handleReorder}
+        onWheel={handleWheel}
+        // Cross-group drop target: group strips advertise their group id for the
+        // drag hit-test and tint while a foreign tab hovers.
+        data-conv-group-strip={groupId ?? undefined}
+        // Tabs still share available width like browser tabs, but stop shrinking
+        // at a readable minimum (TabItem). Past that point this becomes a native
+        // horizontal scroller with its scrollbar visually hidden. The active tab
+        // is scrolled into view by the effect above, and a mouse wheel can browse
+        // the rest. The new-conversation control lives OUTSIDE this viewport so
+        // it never disappears with the overflowed tabs.
+        className="tab-strip-scroll flex h-full min-w-0 flex-1 items-stretch gap-0 overflow-x-auto overflow-y-hidden overscroll-x-contain"
+      >
+        {groupTabs.map((tab, index) => {
+          const folderInfo = folderIndex.get(tab.folderId)
+          // Drafts are group-bound: no cross-group drag, no move / split-and-move
+          // menu items. Within-group sorting (the Reorder.Group itself) is
+          // untouched. See `moveTabToGroup` for why.
+          const isDraft = tab.conversationId == null
+          // Neighbours of the active tab inset their workspace-bg baseline so the
+          // active tab's transparent reverse-corner foot (which flares over them)
+          // doesn't leave a stray line under it (globals.css `data-adjacent-active`).
+          const adjacentActive =
+            activeIndex < 0
+              ? undefined
+              : index === activeIndex - 1
+                ? "before"
+                : index === activeIndex + 1
+                  ? "after"
+                  : undefined
+          return (
+            <TabItem
+              key={tab.id}
+              tab={tab}
+              isActive={tab.id === displayActiveId}
+              isTileMode={isTileMode}
+              embedded
+              adjacentActive={adjacentActive}
+              folderName={folderInfo?.name ?? null}
+              folderBranch={branches.get(tab.folderId) ?? null}
+              isSplit={isSplit}
+              canSplitMove={canSplitMove && !isDraft}
+              canMoveToGroup={!isDraft}
+              moveTargets={moveTargets}
+              onTabDrag={
+                crossDragEnabled && !isDraft ? handleTabDrag : undefined
+              }
+              onTabDragEnd={
+                crossDragEnabled && !isDraft ? handleTabDragEnd : undefined
+              }
+              onSwitch={switchTab}
+              onClose={closeTab}
+              onCloseOthers={closeOtherTabs}
+              onCloseAll={closeAllTabs}
+              onPin={pinTab}
+              onToggleTile={handleToggleTile}
+              onSplit={handleSplit}
+              onMoveToGroup={moveTabToGroup}
+              onToggleSplitOrientation={handleToggleSplitOrientation}
+              onUnsplit={handleUnsplit}
+              onUnsplitAll={unsplitAll}
+              isCoarsePointer={isCoarsePointer}
+              isTouchSorting={touchSortingTabId === tab.id}
+              onTouchSortingStart={setTouchSortingTabId}
+              onTouchSortingEnd={handleTouchSortingEnd}
+            />
+          )
+        })}
+        {/* Own the unused part of a short strip and its bottom hairline. At
+            overflow this collapses to a tiny end inset so the last tab's reverse
+            corner is not clipped by the scroll viewport. */}
+        <div
+          data-adjacent-active={lastTabActive ? "after" : undefined}
+          className="relative h-full min-w-2 flex-1 ws-strip-line"
+        />
+      </Reorder.Group>
+      {/* Kept outside the scrolling viewport: creating a conversation and
+          grabbing the window remain available regardless of the tab count. */}
       <div
         // `relative` anchors two decorative pseudo-elements: the
         // `data-adjacent-active` inset baseline (globals.css `.ws-strip-line`
@@ -394,8 +407,7 @@ export function TabBar({ groupId }: TabBarProps) {
         // where this flush-pinned button begins — otherwise has none. Only the
         // conversation strip carries `tab-strip-tail`; the file strip floats its
         // trailing button far-right past a drag spacer, so it stays divider-free.
-        data-adjacent-active={lastTabActive ? "after" : undefined}
-        className="tab-strip-tail relative flex h-full flex-1 items-stretch ws-strip-line"
+        className="tab-strip-tail relative flex h-full shrink-0 items-stretch ws-strip-line"
       >
         <button
           type="button"
@@ -430,6 +442,6 @@ export function TabBar({ groupId }: TabBarProps) {
             the unsplit strip. */}
         <div data-tauri-drag-region className="h-full min-w-10 flex-1" />
       </div>
-    </Reorder.Group>
+    </div>
   )
 }

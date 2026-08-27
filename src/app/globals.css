@@ -1338,6 +1338,17 @@ html:not(.dark) {
   scrollbar-color: var(--border) transparent;
 }
 
+/* Browser-style conversation tabs keep a useful minimum width and overflow
+   horizontally. The active tab auto-scrolls into view and wheel input browses
+   the row, so the native bar would only waste scarce title-strip height. */
+.tab-strip-scroll {
+  scrollbar-width: none;
+}
+
+.tab-strip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 /* OverlayScrollbars custom theme — 6px track, grows to 8px on hover.
    Use compound selector to beat the base `.os-scrollbar` defaults
    (--os-size:0, --os-handle-bg:none) regardless of CSS load order. */

@@ -67,6 +67,17 @@ describe("tab trackpad click vs drag", () => {
   })
 })
 
+describe("conversation tab overflow", () => {
+  it("keeps tabs readable and the new-conversation control outside the scroller", () => {
+    expect(tabItem).toContain("min-w-48 grow-0 shrink basis-48")
+    expect(tabBar).toContain('className="tab-strip-scroll')
+    expect(tabBar).toContain("onWheel={handleWheel}")
+    expect(tabBar).toMatch(
+      /<\/Reorder\.Group>\s*\{\/\* Kept outside the scrolling viewport/
+    )
+  })
+})
+
 describe("tab drag selection guard wiring", () => {
   it("suppresses text selection for EVERY tab drag, composed with the long-press handlers", () => {
     // Held on drag start / released on drag end + unmount, so within-group
