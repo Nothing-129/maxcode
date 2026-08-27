@@ -12,7 +12,7 @@ import {
   countUnifiedDiffLineChanges,
   estimateChangedLineStats,
 } from "@/lib/line-change-stats"
-import { FilePenLine, Plane, Timer } from "lucide-react"
+import { Bike, Car, FilePenLine, Rocket, Snail, Timer } from "lucide-react"
 import type { AgentType } from "@/lib/types"
 import { AgentIcon } from "@/components/agent-icon"
 import { useTokenOutputSpeed } from "@/hooks/use-token-output-speed"
@@ -37,12 +37,52 @@ function formatCompactInt(n: number, formatter: Intl.NumberFormat): string {
   return formatter.format(n)
 }
 
-/** Match pi-web's four live output-speed bands. */
+export type TokenOutputSpeedBand = "slow" | "cruising" | "fast" | "maximum"
+
+/** Four speed-themed visual bands for the live output indicator. */
+export function tokenOutputSpeedBand(tps: number): TokenOutputSpeedBand {
+  if (tps >= 50) return "maximum"
+  if (tps >= 30) return "fast"
+  if (tps >= 15) return "cruising"
+  return "slow"
+}
+
 export function tokenOutputSpeedColor(tps: number): string {
-  if (tps >= 50) return "#53b3cb"
-  if (tps >= 30) return "#9bc53d"
-  if (tps >= 15) return "#f9c22e"
-  return "#e01a4f"
+  switch (tokenOutputSpeedBand(tps)) {
+    case "maximum":
+      return "#e11d75"
+    case "fast":
+      return "#f97316"
+    case "cruising":
+      return "#d4a72c"
+    case "slow":
+      return "#94a3b8"
+  }
+}
+
+function TokenOutputSpeedGlyph({
+  tps,
+  ariaLabel,
+}: {
+  tps: number
+  ariaLabel: string
+}) {
+  const props = {
+    "aria-label": ariaLabel,
+    className: "h-3 w-3 shrink-0",
+    style: { color: tokenOutputSpeedColor(tps) },
+  }
+
+  switch (tokenOutputSpeedBand(tps)) {
+    case "maximum":
+      return <Rocket {...props} />
+    case "fast":
+      return <Car {...props} />
+    case "cruising":
+      return <Bike {...props} />
+    case "slow":
+      return <Snail {...props} />
+  }
 }
 
 function asObject(value: unknown): Record<string, unknown> | null {
@@ -382,10 +422,9 @@ export function LiveTurnStats({
               {/* Name hangs off the icon, matching `ComposerContextUsage` —
                   `aria-label` on the bare wrapper span carries no role and
                   isn't reliably exposed. */}
-              <Plane
-                aria-label={t("outputSpeedAria")}
-                className="h-3 w-3 shrink-0"
-                style={{ color: tokenOutputSpeedColor(tps) }}
+              <TokenOutputSpeedGlyph
+                tps={tps}
+                ariaLabel={t("outputSpeedAria")}
               />
               {tps.toFixed(1)} tok/s
             </span>

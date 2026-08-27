@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest"
 
-import { extractLiveEditStats, tokenOutputSpeedColor } from "./live-turn-stats"
+import {
+  extractLiveEditStats,
+  tokenOutputSpeedBand,
+  tokenOutputSpeedColor,
+} from "./live-turn-stats"
 import type {
   LiveContentBlock,
   LiveMessage,
@@ -106,15 +110,30 @@ describe("extractLiveEditStats", () => {
 
 describe("tokenOutputSpeedColor", () => {
   it.each([
-    [0, "#e01a4f"],
-    [14.9, "#e01a4f"],
-    [15, "#f9c22e"],
-    [29.9, "#f9c22e"],
-    [30, "#9bc53d"],
-    [49.9, "#9bc53d"],
-    [50, "#53b3cb"],
-    [500, "#53b3cb"],
+    [0, "#94a3b8"],
+    [14.9, "#94a3b8"],
+    [15, "#d4a72c"],
+    [29.9, "#d4a72c"],
+    [30, "#f97316"],
+    [49.9, "#f97316"],
+    [50, "#e11d75"],
+    [500, "#e11d75"],
   ])("maps %s tok/s to %s", (tps, color) => {
     expect(tokenOutputSpeedColor(tps)).toBe(color)
+  })
+})
+
+describe("tokenOutputSpeedBand", () => {
+  it.each([
+    [0, "slow"],
+    [14.9, "slow"],
+    [15, "cruising"],
+    [29.9, "cruising"],
+    [30, "fast"],
+    [49.9, "fast"],
+    [50, "maximum"],
+    [500, "maximum"],
+  ])("maps %s tok/s to the %s band", (tps, band) => {
+    expect(tokenOutputSpeedBand(tps)).toBe(band)
   })
 })
