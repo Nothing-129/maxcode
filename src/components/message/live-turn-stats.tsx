@@ -376,12 +376,7 @@ export function LiveTurnStats({
             {/* Keep TPS visible on narrow web/mobile layouts. The row can wrap
                 on exceptionally small screens instead of dropping the metric. */}
             <span
-              className="inline-flex shrink-0 items-center gap-1 leading-none text-white tabular-nums"
-              style={{
-                backgroundColor: tokenOutputSpeedColor(tps),
-                borderRadius: 4,
-                padding: "1px 6px",
-              }}
+              className="inline-flex shrink-0 items-center gap-1 leading-none tabular-nums"
               title={t("outputSpeedTooltip")}
             >
               {/* Name hangs off the icon, matching `ComposerContextUsage` —
@@ -390,6 +385,7 @@ export function LiveTurnStats({
               <Plane
                 aria-label={t("outputSpeedAria")}
                 className="h-3 w-3 shrink-0"
+                style={{ color: tokenOutputSpeedColor(tps) }}
               />
               {tps.toFixed(1)} tok/s
             </span>
