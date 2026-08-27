@@ -1028,12 +1028,13 @@ export function PiConfigPanel({
                     setReasoning((prev) => ({
                       ...prev,
                       enabled: checked,
-                      // First enable with nothing remembered → offer pi's whole
-                      // vocabulary bar xhigh, which most backends reject.
+                      // First enable with nothing remembered → offer pi's
+                      // standard vocabulary. Extended levels need an explicit
+                      // provider declaration, so leave xhigh/max opt-in.
                       levels:
                         checked && prev.levels.length === 0
                           ? PI_THINKING_LEVELS.filter(
-                              (level) => level !== "xhigh"
+                              (level) => level !== "xhigh" && level !== "max"
                             )
                           : prev.levels,
                     }))

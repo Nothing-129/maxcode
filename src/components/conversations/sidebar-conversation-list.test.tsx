@@ -1428,6 +1428,80 @@ describe("SidebarConversationList — folder paging", () => {
   })
 })
 
+describe("SidebarConversationList — chat paging", () => {
+  const SHOW_MORE = enMessages.Folder.sidebar.showMoreFolder
+  const CHAT_SECTION = enMessages.Folder.sidebar.sectionChats
+
+  beforeEach(() => {
+    probes.card = 0
+    store.activeTabId = null
+    store.tabSpec = []
+    useAppWorkspaceStore.setState({
+      folders: [],
+      allFolders: [],
+      conversations: Array.from({ length: 22 }, (_, i) =>
+        conv(i + 1, 99, { kind: "chat" })
+      ),
+    })
+  })
+
+  const buttonWithText = (label: string) =>
+    Array.from(document.querySelectorAll("button")).find(
+      (button) => button.textContent === label
+    )
+
+  it("shows 10 chats and reveals another page on each Show more click", () => {
+    render(tree())
+
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(10)
+    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(20)
+    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(22)
+    expect(buttonWithText(SHOW_MORE)).toBeUndefined()
+  })
+
+  it("returns to the first page after Chat is collapsed and reopened", () => {
+    render(tree())
+
+    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(20)
+
+    act(() => fireEvent.click(buttonWithText(CHAT_SECTION)!))
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(0)
+    act(() => fireEvent.click(buttonWithText(CHAT_SECTION)!))
+
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(10)
+    expect(buttonWithText(SHOW_MORE)).toBeTruthy()
+  })
+
+  it("reveals the page containing the active chat before scrolling to it", () => {
+    store.activeTabId = "tab-1"
+    store.tabSpec = [
+      {
+        id: "tab-1",
+        conversationId: 1,
+        agentType: "claude_code",
+        folderId: 99,
+        title: "conv-1",
+        isPinned: false,
+      },
+    ]
+    const ref = createRef<SidebarConversationListHandle>()
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <SidebarConversationList ref={ref} showCompleted sortMode="created" />
+      </NextIntlClientProvider>
+    )
+
+    expect(document.querySelector('[data-conversation-id="1"]')).toBeNull()
+    act(() => ref.current?.scrollToActive())
+
+    expect(document.querySelector('[data-conversation-id="1"]')).not.toBeNull()
+    expect(virtuaCtl.scrollToIndex).toHaveBeenCalled()
+  })
+})
+
 describe("SidebarConversationList — expand / collapse all", () => {
   const SECTION_COLLAPSED_KEY = "workspace:sidebar-section-collapsed"
   const FOLDER_EXPANDED_KEY = "workspace:sidebar-folder-expanded"

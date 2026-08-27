@@ -50,7 +50,9 @@ impl Default for UiPreferences {
 /// one-time-migrate the legacy localStorage keys, so it must not be conflated
 /// with "row storing all-defaults". A malformed value warns and reads as
 /// defaults (never errors hard, matching `load_feedback_settings`).
-pub async fn load_ui_preferences(conn: &DatabaseConnection) -> Result<Option<UiPreferences>, AppCommandError> {
+pub async fn load_ui_preferences(
+    conn: &DatabaseConnection,
+) -> Result<Option<UiPreferences>, AppCommandError> {
     let Some(raw) = app_metadata_service::get_value(conn, UI_PREFERENCES_KEY)
         .await
         .map_err(AppCommandError::from)?
@@ -73,10 +75,9 @@ pub async fn set_ui_preferences_core(
     emitter: &EventEmitter,
     desired: UiPreferences,
 ) -> Result<UiPreferences, AppCommandError> {
-    let serialized =
-        serde_json::to_string(&desired).map_err(|e| AppCommandError::configuration_invalid(
-            format!("failed to serialize ui preferences: {e}"),
-        ))?;
+    let serialized = serde_json::to_string(&desired).map_err(|e| {
+        AppCommandError::configuration_invalid(format!("failed to serialize ui preferences: {e}"))
+    })?;
     app_metadata_service::upsert_value(conn, UI_PREFERENCES_KEY, &serialized)
         .await
         .map_err(AppCommandError::from)?;

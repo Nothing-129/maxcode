@@ -823,6 +823,48 @@ describe("buildRows", () => {
     ])
   })
 
+  describe("chat paging", () => {
+    const manyChats = Array.from({ length: 12 }, (_, i) =>
+      conv(i + 1, 99, { kind: "chat" })
+    )
+
+    it("limits the Chat section and appends a show-more row", () => {
+      const rows = buildRows({
+        pinned: [],
+        pinnedExpanded: true,
+        orderedFolderIds: [],
+        byFolder: new Map(),
+        folderExpanded: {},
+        folderTotalCounts: new Map(),
+        foldersExpanded: false,
+        chatConversations: manyChats,
+        chatsExpanded: true,
+        chatLimit: 10,
+      })
+
+      expect(rows.filter((row) => row.kind === "conversation")).toHaveLength(10)
+      expect(rows).toContainEqual({ kind: "chats-more", remaining: 2 })
+    })
+
+    it("omits the show-more row once the limit covers every chat", () => {
+      const rows = buildRows({
+        pinned: [],
+        pinnedExpanded: true,
+        orderedFolderIds: [],
+        byFolder: new Map(),
+        folderExpanded: {},
+        folderTotalCounts: new Map(),
+        foldersExpanded: false,
+        chatConversations: manyChats,
+        chatsExpanded: true,
+        chatLimit: 20,
+      })
+
+      expect(rows.filter((row) => row.kind === "conversation")).toHaveLength(12)
+      expect(rows.some((row) => row.kind === "chats-more")).toBe(false)
+    })
+  })
+
   it("always emits the Folders section, with an empty hint when no folders are open", () => {
     // Mirrors the Chat section: with chats present but no open folders, the
     // Folders header + a single folders-empty hint still render. (The fully-empty

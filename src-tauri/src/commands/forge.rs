@@ -1049,7 +1049,10 @@ mod tests {
         for s in [ForgeScenario::Fix, ForgeScenario::PlanFirst] {
             for provider in [ForgeProvider::GitHub, ForgeProvider::GitLab] {
                 let text = forge_instruction(s, provider, 7, URL);
-                assert!(text.contains("confirm it is real"), "{s:?} buries the check");
+                assert!(
+                    text.contains("confirm it is real"),
+                    "{s:?} buries the check"
+                );
                 assert!(
                     text.contains("required, not a formality"),
                     "{s:?} leaves the check optional"
@@ -1079,7 +1082,9 @@ mod tests {
                 assert!(text[branch..].contains("stop"), "{s:?} never ends the task");
                 // Before the work, not after it: an instruction that arrives
                 // once the fix is written is a retraction, not a gate.
-                let work = text.find("Once it is confirmed").expect("the work paragraph");
+                let work = text
+                    .find("Once it is confirmed")
+                    .expect("the work paragraph");
                 assert!(branch < work, "{s:?} states the gate after the work");
 
                 // …and that ending is a SUCCESS. An agent that files it as a

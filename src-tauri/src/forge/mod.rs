@@ -808,7 +808,8 @@ impl ForgeComment {
     /// string in that slot is a blank line where the author goes, not an
     /// anonymous author.
     pub fn author_name(raw: Option<String>) -> Option<String> {
-        raw.map(|name| name.trim().to_string()).filter(|name| !name.is_empty())
+        raw.map(|name| name.trim().to_string())
+            .filter(|name| !name.is_empty())
     }
 }
 
@@ -1466,9 +1467,20 @@ mod tests {
             filters(" PR ", 7, 1, 20).resolve().unwrap().0,
             ForgeItemKind::Change
         );
-        assert_eq!(filters("issue", 7, 0, 0).resolve().unwrap(), (ForgeItemKind::Issue, 7, 1, MIN_PER_PAGE));
-        assert_eq!(filters("issue", 7, 1, 5_000).resolve().unwrap().3, MAX_PER_PAGE);
-        for bad in [filters("mr", 7, 1, 20), filters("", 7, 1, 20), filters("issue", 0, 1, 20), filters("issue", -3, 1, 20)] {
+        assert_eq!(
+            filters("issue", 7, 0, 0).resolve().unwrap(),
+            (ForgeItemKind::Issue, 7, 1, MIN_PER_PAGE)
+        );
+        assert_eq!(
+            filters("issue", 7, 1, 5_000).resolve().unwrap().3,
+            MAX_PER_PAGE
+        );
+        for bad in [
+            filters("mr", 7, 1, 20),
+            filters("", 7, 1, 20),
+            filters("issue", 0, 1, 20),
+            filters("issue", -3, 1, 20),
+        ] {
             assert!(bad.resolve().is_err(), "{} #{}", bad.kind, bad.number);
         }
         // The wire default is the one the frontend mirrors.
@@ -1486,7 +1498,10 @@ mod tests {
             ForgeComment::edited_at(Some("2026-08-20T00:00:00Z"), Some(updated.to_string()))
         };
         assert_eq!(at("2026-08-20T00:00:00Z"), None, "the creation stamp");
-        assert_eq!(at("2026-08-20T09:00:00Z").as_deref(), Some("2026-08-20T09:00:00Z"));
+        assert_eq!(
+            at("2026-08-20T09:00:00Z").as_deref(),
+            Some("2026-08-20T09:00:00Z")
+        );
         // Nothing to compare against: an item with no creation time cannot be
         // shown to be unedited, and the timestamp is the only fact there is.
         assert_eq!(
@@ -1497,7 +1512,10 @@ mod tests {
 
         // An author slot the forge filled with nothing is no author — a blank
         // line where the name goes, not an anonymous one.
-        assert_eq!(ForgeComment::author_name(Some("  alice ".into())).as_deref(), Some("alice"));
+        assert_eq!(
+            ForgeComment::author_name(Some("  alice ".into())).as_deref(),
+            Some("alice")
+        );
         assert_eq!(ForgeComment::author_name(Some("   ".into())), None);
         assert_eq!(ForgeComment::author_name(None), None);
     }
@@ -1512,7 +1530,11 @@ mod tests {
             "http://gitlab.corp.com:8929/a/b/-/issues/7#note_1",
             "HTTPS://avatars.example/u/1",
         ] {
-            assert_eq!(sanitize_web_url(good).as_deref(), Some(good.trim()), "{good}");
+            assert_eq!(
+                sanitize_web_url(good).as_deref(),
+                Some(good.trim()),
+                "{good}"
+            );
         }
         for bad in [
             "javascript:alert(1)",

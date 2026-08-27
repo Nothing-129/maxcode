@@ -37,6 +37,14 @@ function formatCompactInt(n: number, formatter: Intl.NumberFormat): string {
   return formatter.format(n)
 }
 
+/** Match pi-web's four live output-speed bands. */
+export function tokenOutputSpeedColor(tps: number): string {
+  if (tps >= 50) return "#53b3cb"
+  if (tps >= 30) return "#9bc53d"
+  if (tps >= 15) return "#f9c22e"
+  return "#e01a4f"
+}
+
 function asObject(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null
   return value as Record<string, unknown>
@@ -347,7 +355,7 @@ export function LiveTurnStats({
 
   return (
     <div className="@container/turnstats shrink-0">
-      <div className="flex min-h-8 flex-wrap items-center justify-center gap-x-3 gap-y-1 px-4 py-1 text-xs leading-none text-muted-foreground">
+      <div className="flex min-h-8 flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1 text-xs leading-none text-muted-foreground @[24rem]/turnstats:gap-x-3 @[24rem]/turnstats:px-4">
         <AgentIcon
           agentType={agentType}
           className="h-3.5 w-3.5 animate-pulse"
@@ -362,27 +370,18 @@ export function LiveTurnStats({
           <Timer className="h-3 w-3 shrink-0" />
           {elapsedLabel}
         </span>
-        {editStats.files > 0 && (
-          <>
-            <span className="hidden text-border leading-none @[24rem]/turnstats:inline">
-              |
-            </span>
-            <span className="hidden items-center gap-1 leading-none @[24rem]/turnstats:inline-flex">
-              <FilePenLine className="h-3 w-3 shrink-0" />
-              {editStats.files}F +
-              {formatCompactInt(editStats.additions, compactNumberFormatter)}/-
-              {formatCompactInt(editStats.deletions, compactNumberFormatter)}
-            </span>
-          </>
-        )}
         {tps != null && (
           <>
-            <span className="hidden text-border leading-none @[30rem]/turnstats:inline">
-              |
-            </span>
-            {/* `tabular-nums` so the digits stop shimmering as the rate moves. */}
+            <span className="text-border leading-none">|</span>
+            {/* Keep TPS visible on narrow web/mobile layouts. The row can wrap
+                on exceptionally small screens instead of dropping the metric. */}
             <span
-              className="hidden items-center gap-1 leading-none tabular-nums @[30rem]/turnstats:inline-flex"
+              className="inline-flex shrink-0 items-center gap-1 leading-none text-white tabular-nums"
+              style={{
+                backgroundColor: tokenOutputSpeedColor(tps),
+                borderRadius: 4,
+                padding: "1px 6px",
+              }}
               title={t("outputSpeedTooltip")}
             >
               {/* Name hangs off the icon, matching `ComposerContextUsage` —
@@ -393,6 +392,19 @@ export function LiveTurnStats({
                 className="h-3 w-3 shrink-0"
               />
               {tps.toFixed(1)} tok/s
+            </span>
+          </>
+        )}
+        {editStats.files > 0 && (
+          <>
+            <span className="hidden text-border leading-none @[24rem]/turnstats:inline">
+              |
+            </span>
+            <span className="hidden items-center gap-1 leading-none @[24rem]/turnstats:inline-flex">
+              <FilePenLine className="h-3 w-3 shrink-0" />
+              {editStats.files}F +
+              {formatCompactInt(editStats.additions, compactNumberFormatter)}/-
+              {formatCompactInt(editStats.deletions, compactNumberFormatter)}
             </span>
           </>
         )}

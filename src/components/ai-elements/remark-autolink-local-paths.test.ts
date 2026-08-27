@@ -65,6 +65,33 @@ function autolink(value: string): { links: string[]; text: string } {
 const file = (path: string) => buildFilePathReferenceUri(path)
 
 describe("remarkAutolinkLocalPaths — linkified forms", () => {
+  it("keeps a Codex output citation with spaces and CJK as one file link", () => {
+    const path =
+      "/Users/nothng/Library/Application Support/app.codeg/chat-sessions/2026-08-27/abc/output/pdf/云客CRM开放平台接口文档_新版_v1.pdf"
+    const { links: out, text } = autolink(
+      `已整理完成：:codex-file-citation{path="${path}" purpose="output"}`
+    )
+
+    expect(out).toEqual([`${file(path)}|云客CRM开放平台接口文档_新版_v1.pdf`])
+    expect(text).toBe("已整理完成：")
+  })
+
+  it("keeps an incomplete Codex output citation inert while streaming", () => {
+    const path = "/Users/me/Library/Application Support/app.codeg/output/a.pdf"
+    const { links: out, text } = autolink(
+      `:codex-file-citation{path="${path}" purpose="out`
+    )
+
+    expect(out).toEqual([])
+    expect(text).toContain(path)
+  })
+
+  it("does not autolink the interior of a malformed Codex citation", () => {
+    const path = "/Users/me/Library/Application Support/app.codeg/output/a.pdf"
+    const raw = `:codex-file-citation{path="${path}" purpose="unknown"}`
+    expect(autolink(raw)).toEqual({ links: [], text: raw })
+  })
+
   it("wraps a bare-relative agent-table path in a codeg://file uri", () => {
     const path = "src-tauri/target/release/bundle/dmg/Codeg_0.26.1_aarch64.dmg"
     const { links: out, text } = autolink(path)

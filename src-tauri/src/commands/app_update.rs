@@ -119,8 +119,15 @@ pub async fn restart_app(
     // Atomically claim the relaunch (flips to `Restarting`) only if an update is
     // genuinely staged — same authority check as the server `restart_impl`.
     // Guards a stale window / direct IPC call from relaunching during
-    // idle/error/downloading/installing, and serializes concurrent clicks.
+    // idle/error/downloading/installing, and serializes concurrent requests.
     if !update_state::try_claim_restart(&handle, &emitter) {
+        // Every renderer window observes ReadyToRestart and may request the
+        // automatic relaunch before the Restarting event reaches it. Treat a
+        // relaunch another window already claimed as success: restart_app is
+        // idempotent while the process is on its way down.
+        if update_state::snapshot(&handle).status == update_state::AppUpdateLifecycle::Restarting {
+            return Ok(());
+        }
         return Err(AppCommandError::invalid_input(
             "No staged update to restart into",
         ));

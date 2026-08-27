@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { extractLiveEditStats } from "./live-turn-stats"
+import { extractLiveEditStats, tokenOutputSpeedColor } from "./live-turn-stats"
 import type {
   LiveContentBlock,
   LiveMessage,
@@ -101,5 +101,20 @@ describe("extractLiveEditStats", () => {
     const added = toolBlock(writeInput("p\nq", "z.ts"))
     const after = extractLiveEditStats(msg([shared, added]))
     expect(after).toEqual({ files: 2, additions: 5, deletions: 0 })
+  })
+})
+
+describe("tokenOutputSpeedColor", () => {
+  it.each([
+    [0, "#e01a4f"],
+    [14.9, "#e01a4f"],
+    [15, "#f9c22e"],
+    [29.9, "#f9c22e"],
+    [30, "#9bc53d"],
+    [49.9, "#9bc53d"],
+    [50, "#53b3cb"],
+    [500, "#53b3cb"],
+  ])("maps %s tok/s to %s", (tps, color) => {
+    expect(tokenOutputSpeedColor(tps)).toBe(color)
   })
 })

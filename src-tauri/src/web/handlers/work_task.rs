@@ -303,9 +303,14 @@ pub async fn work_task_start_all(
 pub async fn work_task_retry(
     Json(params): Json<RestartParams>,
 ) -> Result<Json<()>, AppCommandError> {
-    core::work_task_retry_core(params.id, params.note, params.blocks, params.allow_duplicate_source)
-        .await
-        .map_err(AppCommandError::from)?;
+    core::work_task_retry_core(
+        params.id,
+        params.note,
+        params.blocks,
+        params.allow_duplicate_source,
+    )
+    .await
+    .map_err(AppCommandError::from)?;
     Ok(Json(()))
 }
 

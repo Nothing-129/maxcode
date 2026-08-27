@@ -1538,12 +1538,7 @@ mod tests {
             "openclaw@2026.7.1-2",
             Some("22.22.3"),
         );
-        assert_npx_version(
-            AgentType::Cline,
-            "3.0.60",
-            "cline@3.0.60",
-            Some("22.0.0"),
-        );
+        assert_npx_version(AgentType::Cline, "3.0.60", "cline@3.0.60", Some("22.0.0"));
         assert_npx_version(
             AgentType::CodeBuddy,
             "2.139.0",
@@ -1585,7 +1580,11 @@ mod tests {
             "@qoder-ai/qodercli@1.1.31",
             Some("20.0.0"),
         );
-        assert_binary_version(AgentType::OpenCode, "1.18.23", "/releases/download/v1.18.23/");
+        assert_binary_version(
+            AgentType::OpenCode,
+            "1.18.23",
+            "/releases/download/v1.18.23/",
+        );
         match get_agent_meta(AgentType::OpenCode).distribution {
             AgentDistribution::Binary { platforms, .. } => {
                 assert!(platforms.iter().all(|platform| {

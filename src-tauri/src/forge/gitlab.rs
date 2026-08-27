@@ -75,7 +75,10 @@ pub async fn list_issues(
     if !req.labels.is_empty() {
         // Comma-joined, which is lossless here: GitLab forbids commas in label
         // titles, so no name can be split by this.
-        url.push_str(&format!("&labels={}", urlencode_query(&req.labels.join(","))));
+        url.push_str(&format!(
+            "&labels={}",
+            urlencode_query(&req.labels.join(","))
+        ));
     }
     if let Some(text) = req.search.as_deref() {
         // `search` is plain text on both collections, so unlike GitHub's `q`
@@ -83,15 +86,18 @@ pub async fn list_issues(
         // default and is stated anyway: the box promises that scope, and a
         // promise resting on somebody else's default is one release away from
         // being wrong.
-        url.push_str(&format!("&search={}&in=title,description", urlencode_query(text)));
+        url.push_str(&format!(
+            "&search={}&in=title,description",
+            urlencode_query(text)
+        ));
     }
 
     let response = api_get(auth, &url).await?;
     let total_count = header_i64(response.headers(), "x-total");
     // Empty means "no page after this one" — the one pagination signal GitLab
     // always sends, even where it declines to count.
-    let has_next = header_str(response.headers(), "x-next-page")
-        .is_some_and(|v| !v.trim().is_empty());
+    let has_next =
+        header_str(response.headers(), "x-next-page").is_some_and(|v| !v.trim().is_empty());
     let raw: Vec<RawItem> = response
         .json()
         .await
@@ -112,7 +118,11 @@ pub async fn list_issues(
             body: item.description.map(|b| truncate_chars(&b, BODY_CAP)),
             state: display_state(&item.state),
             draft: is_pr && (item.draft || item.work_in_progress),
-            labels: item.labels.into_iter().filter_map(RawItemLabel::into_label).collect(),
+            labels: item
+                .labels
+                .into_iter()
+                .filter_map(RawItemLabel::into_label)
+                .collect(),
             author: item.author.map(|a| a.username),
             updated_at: item.updated_at,
             html_url: item.web_url,
@@ -233,8 +243,8 @@ pub async fn list_notes(
         auth.api_base
     );
     let response = api_get(auth, &url).await?;
-    let has_next = header_str(response.headers(), "x-next-page")
-        .is_some_and(|v| !v.trim().is_empty());
+    let has_next =
+        header_str(response.headers(), "x-next-page").is_some_and(|v| !v.trim().is_empty());
     let raw: Vec<RawNote> = response
         .json()
         .await
@@ -293,7 +303,9 @@ pub async fn get_merge_request(
         .json()
         .await
         .map_err(|e| ForgeError::Network(format!("bad merge request payload: {e}")))?;
-    let foreign_project = raw.source_project_id.filter(|src| Some(*src) != raw.target_project_id);
+    let foreign_project = raw
+        .source_project_id
+        .filter(|src| Some(*src) != raw.target_project_id);
     let mut pr = map_merge_request(raw, owner_repo);
     if let Some(id) = foreign_project {
         if let Some(path) = project_path(auth, id).await {
@@ -385,7 +397,10 @@ pub async fn create_note(
         return Err(ForgeError::Invalid(format!("bad work item number: {iid}")));
     }
     let collection = collection_of(kind);
-    let url = format!("{}/projects/{project}/{collection}/{iid}/notes", auth.api_base);
+    let url = format!(
+        "{}/projects/{project}/{collection}/{iid}/notes",
+        auth.api_base
+    );
     #[derive(Deserialize)]
     struct CreatedNote {
         #[serde(default)]
@@ -413,7 +428,11 @@ static LOGIN_CACHE: LazyLock<RwLock<HashMap<String, String>>> =
 
 async fn current_login(auth: &ResolvedAuth) -> Result<String, ForgeError> {
     let cache_key = format!("{}\n{}", auth.api_base, auth.account_id);
-    if let Some(hit) = LOGIN_CACHE.read().ok().and_then(|c| c.get(&cache_key).cloned()) {
+    if let Some(hit) = LOGIN_CACHE
+        .read()
+        .ok()
+        .and_then(|c| c.get(&cache_key).cloned())
+    {
         return Ok(hit);
     }
     #[derive(Deserialize)]
@@ -821,8 +840,7 @@ mod tests {
                     if let Ok(mut slot) = issue_query.write() {
                         *slot = q.clone();
                     }
-                    let page: u32 =
-                        q.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
+                    let page: u32 = q.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
                     let mut headers = axum::http::HeaderMap::new();
                     // 3 matches over 2 pages — the shape GitLab sends when it
                     // is willing to count.
@@ -898,7 +916,10 @@ mod tests {
             .route(
                 "/projects/group%2Fsub%2Fproj/issues/7/notes",
                 post(move |Json(body): Json<serde_json::Value>| {
-                    issue_notes.lock().unwrap().push(("issues".to_string(), body));
+                    issue_notes
+                        .lock()
+                        .unwrap()
+                        .push(("issues".to_string(), body));
                     async { Json(serde_json::json!({ "id": 55 })) }
                 })
                 // The read side. Both pages mix system events into the same
@@ -936,7 +957,10 @@ mod tests {
             .route(
                 "/projects/group%2Fsub%2Fproj/merge_requests/7/notes",
                 post(move |Json(body): Json<serde_json::Value>| {
-                    mr_notes.lock().unwrap().push(("merge_requests".to_string(), body));
+                    mr_notes
+                        .lock()
+                        .unwrap()
+                        .push(("merge_requests".to_string(), body));
                     async { Json(serde_json::json!({ "id": 66 })) }
                 })
                 .get(|| async {
@@ -985,7 +1009,13 @@ mod tests {
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
-        (format!("http://{addr}"), creates, notes, user_hits, last_query)
+        (
+            format!("http://{addr}"),
+            creates,
+            notes,
+            user_hits,
+            last_query,
+        )
     }
 
     fn req(tab: super::super::ForgeTab, state: &str) -> ListIssuesRequest {
@@ -1021,8 +1051,14 @@ mod tests {
         assert_eq!(
             row.labels,
             vec![
-                ForgeLabel { name: "bug".into(), color: Some("#d9534f".into()) },
-                ForgeLabel { name: "legacy".into(), color: None },
+                ForgeLabel {
+                    name: "bug".into(),
+                    color: Some("#d9534f".into())
+                },
+                ForgeLabel {
+                    name: "legacy".into(),
+                    color: None
+                },
             ]
         );
         assert_eq!(row.author.as_deref(), Some("alice"));
@@ -1036,7 +1072,10 @@ mod tests {
 
         let page2 = list_issues(
             &auth,
-            &ListIssuesRequest { page: 2, ..req(super::super::ForgeTab::Issues, "open") },
+            &ListIssuesRequest {
+                page: 2,
+                ..req(super::super::ForgeTab::Issues, "open")
+            },
         )
         .await
         .expect("page 2");
@@ -1077,7 +1116,10 @@ mod tests {
         assert_eq!(wire_state(super::super::ForgeTab::Prs, "closed"), "all");
         // Issues have no merged state, so theirs stays a plain closed query —
         // nothing is filtered locally, so its count IS trustworthy.
-        assert_eq!(wire_state(super::super::ForgeTab::Issues, "closed"), "closed");
+        assert_eq!(
+            wire_state(super::super::ForgeTab::Issues, "closed"),
+            "closed"
+        );
         let issues = list_issues(&auth, &req(super::super::ForgeTab::Issues, "closed"))
             .await
             .expect("list");
@@ -1127,24 +1169,39 @@ mod tests {
         .expect("list");
         let sent = last.read().unwrap().clone();
         // Comma-joined: GitLab forbids commas in label titles, so nothing splits.
-        assert_eq!(sent.get("labels").map(String::as_str), Some("bug,help wanted"));
-        assert_eq!(sent.get("search").map(String::as_str), Some("login timeout"));
+        assert_eq!(
+            sent.get("labels").map(String::as_str),
+            Some("bug,help wanted")
+        );
+        assert_eq!(
+            sent.get("search").map(String::as_str),
+            Some("login timeout")
+        );
         // The scope the box promises, stated rather than inherited: it happens
         // to be GitLab's default too, and a promise resting on somebody else's
         // default is one release away from being wrong.
-        assert_eq!(sent.get("in").map(String::as_str), Some("title,description"));
+        assert_eq!(
+            sent.get("in").map(String::as_str),
+            Some("title,description")
+        );
         assert_eq!(sent.get("order_by").map(String::as_str), Some("updated_at"));
         assert_eq!(sent.get("sort").map(String::as_str), Some("asc"));
         // Without this the rows come back with bare label NAMES and every chip
         // in the workbench is grey.
-        assert_eq!(sent.get("with_labels_details").map(String::as_str), Some("true"));
+        assert_eq!(
+            sent.get("with_labels_details").map(String::as_str),
+            Some("true")
+        );
 
         // The default order, and GitLab's spelling of GitHub's `created`.
         list_issues(&auth, &req(super::super::ForgeTab::Issues, "open"))
             .await
             .expect("list");
         let plain = last.read().unwrap().clone();
-        assert_eq!(plain.get("order_by").map(String::as_str), Some("created_at"));
+        assert_eq!(
+            plain.get("order_by").map(String::as_str),
+            Some("created_at")
+        );
         assert_eq!(plain.get("sort").map(String::as_str), Some("desc"));
         // Absent filters are absent params, not empty ones — `labels=` matches
         // items with no labels at all on some GitLab versions. `in` belongs to
@@ -1177,9 +1234,15 @@ mod tests {
         assert_eq!(
             list.labels,
             vec![
-                ForgeLabel { name: "bug".into(), color: Some("#d9534f".into()) },
+                ForgeLabel {
+                    name: "bug".into(),
+                    color: Some("#d9534f".into())
+                },
                 // Unrecognized colour → no colour, not a dropped label.
-                ForgeLabel { name: "help wanted".into(), color: None },
+                ForgeLabel {
+                    name: "help wanted".into(),
+                    color: None
+                },
             ],
             "empty name dropped"
         );
@@ -1251,7 +1314,10 @@ mod tests {
         let second = list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 7, 2, 20)
             .await
             .expect("notes");
-        assert!(second.comments.is_empty(), "the page held only system events");
+        assert!(
+            second.comments.is_empty(),
+            "the page held only system events"
+        );
         assert!(second.has_next, "…and the discussion continues");
 
         let last = list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 7, 3, 20)
@@ -1280,12 +1346,16 @@ mod tests {
         );
 
         // Coordinates a client made up must not reach the API at all.
-        assert!(list_notes(&auth, "no-slash", ForgeItemKind::Issue, 7, 1, 20)
-            .await
-            .is_err());
-        assert!(list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 0, 1, 20)
-            .await
-            .is_err());
+        assert!(
+            list_notes(&auth, "no-slash", ForgeItemKind::Issue, 7, 1, 20)
+                .await
+                .is_err()
+        );
+        assert!(
+            list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 0, 1, 20)
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -1311,8 +1381,13 @@ mod tests {
     async fn a_merge_request_is_looked_up_by_iid() {
         let (api_base, _, _, _, _) = mock_api().await;
         let auth = auth_for(api_base);
-        let mr = get_merge_request(&auth, "Group/Sub/Proj", 4).await.expect("mr");
-        assert_eq!((mr.number, mr.head_ref.as_str(), mr.base_ref.as_str()), (4, "feature", "main"));
+        let mr = get_merge_request(&auth, "Group/Sub/Proj", 4)
+            .await
+            .expect("mr");
+        assert_eq!(
+            (mr.number, mr.head_ref.as_str(), mr.base_ref.as_str()),
+            (4, "feature", "main")
+        );
         assert_eq!(mr.head_sha, "deadbee", "diff_refs wins over sha");
         assert_eq!(mr.state, "open");
         assert!(!mr.merged);
@@ -1320,8 +1395,13 @@ mod tests {
         // every same_repo gate downstream asks.
         assert!(super::super::same_repo(&mr.head_repo, "group/sub/proj"));
 
-        let fork = get_merge_request(&auth, "group/sub/proj", 9).await.expect("mr");
-        assert_eq!(fork.head_repo, "contributor/proj", "fork path resolved for the message");
+        let fork = get_merge_request(&auth, "group/sub/proj", 9)
+            .await
+            .expect("mr");
+        assert_eq!(
+            fork.head_repo, "contributor/proj",
+            "fork path resolved for the message"
+        );
         assert!(!super::super::same_repo(&fork.head_repo, "group/sub/proj"));
 
         assert!(get_merge_request(&auth, "group/sub/proj", 0).await.is_err());
@@ -1412,11 +1492,25 @@ mod tests {
         assert_eq!(sent[0].1["body"], "done");
         assert_eq!(sent[1].0, "merge_requests");
         // A note has no URL of its own; the anchor on the item's page does.
-        assert!(issue_url.ends_with("/group/sub/proj/-/issues/7#note_55"), "{issue_url}");
-        assert!(mr_url.ends_with("/group/sub/proj/-/merge_requests/7#note_66"), "{mr_url}");
+        assert!(
+            issue_url.ends_with("/group/sub/proj/-/issues/7#note_55"),
+            "{issue_url}"
+        );
+        assert!(
+            mr_url.ends_with("/group/sub/proj/-/merge_requests/7#note_66"),
+            "{mr_url}"
+        );
 
-        assert!(create_note(&auth, "not-a-path", ForgeItemKind::Issue, 7, "x").await.is_err());
-        assert!(create_note(&auth, "group/sub/proj", ForgeItemKind::Issue, 0, "x").await.is_err());
+        assert!(
+            create_note(&auth, "not-a-path", ForgeItemKind::Issue, 7, "x")
+                .await
+                .is_err()
+        );
+        assert!(
+            create_note(&auth, "group/sub/proj", ForgeItemKind::Issue, 0, "x")
+                .await
+                .is_err()
+        );
     }
 
     #[tokio::test]
@@ -1442,7 +1536,10 @@ mod tests {
                 ..req(super::super::ForgeTab::Issues, "open")
             };
             assert!(
-                matches!(list_issues(&auth, &hostile).await, Err(ForgeError::Invalid(_))),
+                matches!(
+                    list_issues(&auth, &hostile).await,
+                    Err(ForgeError::Invalid(_))
+                ),
                 "{bad} should be refused"
             );
         }
@@ -1460,8 +1557,7 @@ mod tests {
     /// shown to be ours — "unknown" must not read as "same repository".
     #[test]
     fn an_unstated_source_project_is_not_this_repository() {
-        let raw: RawMergeRequest =
-            serde_json::from_value(mr_json(3, "opened", 1)).expect("parse");
+        let raw: RawMergeRequest = serde_json::from_value(mr_json(3, "opened", 1)).expect("parse");
         assert!(super::super::same_repo(
             &map_merge_request(raw, "group/proj").head_repo,
             "group/proj"
@@ -1472,5 +1568,4 @@ mod tests {
         let mapped = map_merge_request(raw, "group/proj");
         assert!(!super::super::same_repo(&mapped.head_repo, "group/proj"));
     }
-
 }

@@ -3736,7 +3736,9 @@ mod tests {
             instructions: Some("prefer ours on conflict".into()),
             queued_at: Utc::now(),
         };
-        assert!(queue_merge(&db.conn, t.id, &intent, seq, None).await.unwrap());
+        assert!(queue_merge(&db.conn, t.id, &intent, seq, None)
+            .await
+            .unwrap());
 
         let raw = get_model(&db.conn, t.id)
             .await
@@ -3771,7 +3773,9 @@ mod tests {
             instructions: None,
             ..intent
         };
-        assert!(!serde_json::to_string(&bare).unwrap().contains("instructions"));
+        assert!(!serde_json::to_string(&bare)
+            .unwrap()
+            .contains("instructions"));
         // …and the mirror: a row parked before the upgrade still parses.
         assert!(queued_merge(Some(
             r#"{"message":null,"delete_worktree":true,"queued_at":"2026-08-01T00:30:00Z"}"#

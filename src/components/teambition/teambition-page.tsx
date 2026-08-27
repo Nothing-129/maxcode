@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner"
 
 import { WorkbenchPageTitle } from "@/components/workbench/workbench-page-title"
+import { TeambitionSettingsDialog } from "@/components/teambition/teambition-settings-dialog"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -35,6 +36,10 @@ import {
 } from "@/lib/api"
 import { emitAppendTextToSession } from "@/lib/session-attachment-events"
 import { openUrl } from "@/lib/platform"
+import {
+  loadTeambitionSettings,
+  type TeambitionSettings,
+} from "@/lib/teambition-settings"
 import type {
   TeambitionBoard,
   TeambitionStatus,
@@ -42,8 +47,6 @@ import type {
 } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
-
-const PROJECT_NAME = "技术部敏捷项目"
 
 export function TeambitionPageTitle() {
   const t = useTranslations("Teambition")
@@ -63,6 +66,9 @@ export function TeambitionPage() {
   )
   const { openNewConversationTab } = useTabActions()
   const { routeId, openConversations } = useWorkbenchRoute()
+  const [settings, setSettings] = useState(loadTeambitionSettings)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [refreshVersion, setRefreshVersion] = useState(0)
   const [board, setBoard] = useState<TeambitionBoard | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -73,19 +79,19 @@ export function TeambitionPage() {
   const refresh = useCallback(async () => {
     setError(null)
     try {
-      setBoard(await teambitionBoard())
+      setBoard(await teambitionBoard(settings.serverId, settings.projectId))
     } catch (cause) {
       setError(toErrorMessage(cause))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [settings.projectId, settings.serverId])
 
   useEffect(() => {
     if (routeId === "teambition") {
       void refresh()
     }
-  }, [refresh, routeId])
+  }, [refresh, refreshVersion, routeId])
 
   const statusesById = useMemo(
     () => new Map(board?.statuses.map((status) => [status.id, status]) ?? []),
@@ -150,7 +156,12 @@ export function TeambitionPage() {
           : currentBoard
       )
       try {
-        const updated = await teambitionUpdateTaskStatus(task.taskId, target.id)
+        const updated = await teambitionUpdateTaskStatus(
+          settings.serverId,
+          settings.projectId,
+          task.taskId,
+          target.id
+        )
         setBoard((currentBoard) =>
           currentBoard
             ? {
@@ -184,7 +195,7 @@ export function TeambitionPage() {
         })
       }
     },
-    [board, statusesById, t, updatingIds]
+    [board, settings.projectId, settings.serverId, statusesById, t, updatingIds]
   )
 
   const insertIntoFolder = useCallback(
@@ -207,7 +218,7 @@ export function TeambitionPage() {
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium">{PROJECT_NAME}</p>
+          <p className="truncate text-sm font-medium">{settings.projectName}</p>
           <p className="text-xs text-muted-foreground">
             {t("taskCount", { count: board?.tasks.length ?? 0 })}
           </p>
@@ -226,6 +237,16 @@ export function TeambitionPage() {
           <RefreshCw className={cn("size-4", loading && "animate-spin")} />
           {t("refresh")}
         </Button>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          aria-label={t("settingsTitle")}
+          title={t("settingsTitle")}
+          onClick={() => setSettingsOpen(true)}
+        >
+          <Settings2 className="size-4" />
+        </Button>
       </div>
 
       {loading && !board ? (
@@ -241,14 +262,8 @@ export function TeambitionPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-2">
-            <Button
-              size="sm"
-              onClick={() => {
-                setLoading(true)
-                void refresh()
-              }}
-            >
-              {t("retry")}
+            <Button size="sm" onClick={() => setSettingsOpen(true)}>
+              {t("configure")}
             </Button>
             <Button
               size="sm"
@@ -269,7 +284,9 @@ export function TeambitionPage() {
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center">
           <SquareKanban className="size-9 text-muted-foreground" />
           <p className="text-sm font-medium">{t("empty")}</p>
-          <p className="text-xs text-muted-foreground">{t("emptyHint")}</p>
+          <p className="text-xs text-muted-foreground">
+            {t("emptyHint", { project: settings.projectName })}
+          </p>
         </div>
       ) : (
         <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4">
@@ -357,6 +374,18 @@ export function TeambitionPage() {
           })}
         </div>
       )}
+      <TeambitionSettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        settings={settings}
+        onSaved={(next: TeambitionSettings) => {
+          setSettings(next)
+          setBoard(null)
+          setError(null)
+          setLoading(true)
+          setRefreshVersion((version) => version + 1)
+        }}
+      />
     </div>
   )
 }

@@ -210,11 +210,25 @@ fn publish_after_releasing<F: FnOnce()>(guard: tokio::sync::OwnedMutexGuard<()>,
 fn restart_impl(state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandError> {
     ensure_supported()?;
     // Atomically claim the relaunch (flips the shared snapshot to `Restarting`)
-    // — rejects a stale status-bar / second-window click unless an update is
-    // genuinely staged, and serializes against a racing rollback/perform in the
-    // single `update_state` critical section. Only a successful claim means no
-    // other system op is running, so the op-lock below is free.
+    // — rejects a stale request unless an update is genuinely staged, and
+    // serializes against a racing rollback/perform in the single `update_state`
+    // critical section. A second window can attach once the first has claimed
+    // the restart; only the original claimant continues to the op-lock below.
     if !crate::update::state::try_claim_restart(&state.update_state, &state.emitter) {
+        // Multiple connected windows can observe ReadyToRestart before the
+        // first window's Restarting event arrives. Attaching to that already
+        // scheduled relaunch is a successful, idempotent restart request.
+        if crate::update::state::snapshot(&state.update_state).status
+            == crate::update::state::AppUpdateLifecycle::Restarting
+        {
+            return Ok(UpdateActionResult {
+                version: None,
+                need_restart: false,
+                restart_delay_ms: crate::update::runtime::restart_delay_ms(),
+                trial_seconds: trial_seconds_value(),
+                capability: crate::update::runtime::capability(),
+            });
+        }
         return Err(AppCommandError::invalid_input(
             "No staged update to restart into",
         ));
@@ -356,6 +370,29 @@ mod tests {
         assert_eq!(
             update_state::snapshot(&state.update_state).status,
             update_state::AppUpdateLifecycle::Idle
+        );
+        assert!(state.system_op_lock.try_lock().is_ok());
+    }
+
+    #[tokio::test]
+    async fn restart_attaches_when_another_window_already_claimed_it() {
+        let db = crate::db::test_helpers::fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+
+        // Model another window winning the restart race without actually
+        // scheduling a process exit in this test.
+        assert!(update_state::try_claim_rollback(
+            &state.update_state,
+            &state.emitter
+        ));
+        let result =
+            restart_impl(state.clone()).expect("an already-scheduled restart should be idempotent");
+
+        assert!(!result.need_restart);
+        assert_eq!(
+            update_state::snapshot(&state.update_state).status,
+            update_state::AppUpdateLifecycle::Restarting
         );
         assert!(state.system_op_lock.try_lock().is_ok());
     }

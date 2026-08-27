@@ -20,6 +20,7 @@ const fireReconnect = () => {
   for (const cb of [...reconnectCbs]) cb()
 }
 let liveHandler: ((s: AppUpdateState) => void) | null = null
+let desktopMode = false
 
 // What `check_app_update` answers. A function so a test can hang it, throw, or
 // vary the reply per call.
@@ -70,7 +71,7 @@ const onReconnect = vi.fn((cb: () => void) => {
 
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call, subscribe, onReconnect }),
-  isDesktop: () => false,
+  isDesktop: () => desktopMode,
   isRemoteDesktopMode: () => false,
   getActiveRemoteConnectionId: () => null,
 }))
@@ -108,6 +109,7 @@ beforeEach(() => {
   callQueue = []
   callImpl = null
   snapshot = { seq: 0, status: "idle" }
+  desktopMode = false
   checkResult = () => ({
     currentVersion: "0.21.7",
     update: null,
@@ -239,6 +241,29 @@ describe("UpdateProvider", () => {
       await Promise.resolve()
     })
     await waitFor(() => expect(text()).toBe("installing #51"))
+  })
+
+  it("automatically restarts once an installed update is ready", async () => {
+    desktopMode = true
+    snapshot = {
+      seq: 12,
+      status: "ready_to_restart",
+      version: "0.21.9",
+    }
+    // A desktop relaunch never resolves in production. Keep it pending here so
+    // the test verifies the automatic request without simulating app teardown.
+    callImpl = async (endpoint: string) => {
+      if (endpoint === "app_update_state") return snapshot
+      if (endpoint === "restart_app") return new Promise(() => {})
+      throw new Error(`unexpected endpoint: ${endpoint}`)
+    }
+
+    render(makeTree())
+
+    await waitFor(() => expect(call).toHaveBeenCalledWith("restart_app"))
+    expect(
+      call.mock.calls.filter(([endpoint]) => endpoint === "restart_app")
+    ).toHaveLength(1)
   })
 })
 

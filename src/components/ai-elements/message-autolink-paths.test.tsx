@@ -131,6 +131,31 @@ describe("MessageResponse — plain-text local paths autolink to file badges", (
     expect(window.open).not.toHaveBeenCalled()
   })
 
+  it("opens a Codex PDF citation with a spaced CJK path as one artifact", async () => {
+    const path =
+      "/Users/nothng/Library/Application Support/app.codeg/chat-sessions/2026-08-27/abc/output/pdf/云客CRM开放平台接口文档_新版_v1.pdf"
+    mocks.isLocalDesktop.mockReturnValue(true)
+    const { container } = render(
+      <MessageResponse>
+        {`已整理完成：:codex-file-citation{path="${path}" purpose="output"}`}
+      </MessageResponse>
+    )
+
+    await waitFor(() => {
+      expect(fileBadges(container)).toHaveLength(1)
+    })
+    expect(container.textContent).toContain(
+      "云客CRM开放平台接口文档_新版_v1.pdf"
+    )
+    expect(container.textContent).not.toContain("codex-file-citation")
+
+    fireEvent.click(fileBadges(container)[0])
+    await waitFor(() => {
+      expect(mocks.openPath).toHaveBeenCalledWith(path)
+    })
+    expect(mocks.openFilePreview).not.toHaveBeenCalled()
+  })
+
   it("autolinks glued-CJK prose and absolute/home paths", async () => {
     const { container } = render(
       <MessageResponse>

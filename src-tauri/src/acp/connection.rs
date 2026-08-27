@@ -1352,6 +1352,104 @@ fn agent_debug_callback(
     }
 }
 
+// pi-acp 0.0.33 predates Pi's seventh thinking level (`max`). Its two local
+// six-level allowlists make the adapter report a real `max` session as
+// `medium`, and reject `session/set_config_option(..., "max")` before Pi can
+// see it. Until the pinned adapter ships the upstream fix, patch only that
+// exact package version at launch. The replacements are exact and idempotent:
+// an unexpected 0.0.33 build fails closed instead of rewriting arbitrary JS.
+const PI_ACP_0033_LEVEL_CHECK: &str = "x === \"high\" || x === \"xhigh\";";
+const PI_ACP_0033_LEVEL_CHECK_WITH_MAX: &str =
+    "x === \"high\" || x === \"xhigh\" || x === \"max\";";
+const PI_ACP_0033_LEVELS: &str = "[\"off\", \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\"]";
+const PI_ACP_0033_LEVELS_WITH_MAX: &str =
+    "[\"off\", \"minimal\", \"low\", \"medium\", \"high\", \"xhigh\", \"max\"]";
+
+fn pi_acp_entrypoint(command: &Path) -> Option<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(canonical) = std::fs::canonicalize(command) {
+        candidates.push(canonical);
+    }
+    if let Some(bin_dir) = command.parent() {
+        if cfg!(windows) {
+            candidates.push(bin_dir.join("node_modules/pi-acp/dist/index.js"));
+        } else if let Some(prefix) = bin_dir.parent() {
+            candidates.push(prefix.join("lib/node_modules/pi-acp/dist/index.js"));
+            candidates.push(prefix.join("node_modules/pi-acp/dist/index.js"));
+        }
+    }
+    candidates.into_iter().find(|path| {
+        path.file_name().and_then(|name| name.to_str()) == Some("index.js")
+            && path
+                .parent()
+                .and_then(Path::file_name)
+                .and_then(|name| name.to_str())
+                == Some("dist")
+            && path.is_file()
+    })
+}
+
+fn ensure_pi_acp_max_support(command: &Path) -> Result<(), AcpError> {
+    static PATCH_LOCK: std::sync::OnceLock<std::sync::Mutex<()>> = std::sync::OnceLock::new();
+    let _guard = PATCH_LOCK
+        .get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
+
+    let Some(entrypoint) = pi_acp_entrypoint(command) else {
+        tracing::warn!(
+            "[ACP][Pi] could not locate pi-acp's package entrypoint from {} ; \
+             max compatibility patch was not applied",
+            command.display()
+        );
+        return Ok(());
+    };
+    let Some(package_dir) = entrypoint.parent().and_then(Path::parent) else {
+        return Ok(());
+    };
+    let package_json = std::fs::read_to_string(package_dir.join("package.json"))
+        .map_err(|e| AcpError::protocol(format!("read pi-acp package metadata failed: {e}")))?;
+    let version = serde_json::from_str::<serde_json::Value>(&package_json)
+        .ok()
+        .and_then(|value| value.get("version")?.as_str().map(str::to_owned));
+    if version.as_deref() != Some("0.0.33") {
+        return Ok(());
+    }
+
+    let source = std::fs::read_to_string(&entrypoint)
+        .map_err(|e| AcpError::protocol(format!("read pi-acp 0.0.33 entrypoint failed: {e}")))?;
+    let check_done = source.contains(PI_ACP_0033_LEVEL_CHECK_WITH_MAX);
+    let levels_done = source.contains(PI_ACP_0033_LEVELS_WITH_MAX);
+    if check_done && levels_done {
+        return Ok(());
+    }
+    if (!check_done && !source.contains(PI_ACP_0033_LEVEL_CHECK))
+        || (!levels_done && !source.contains(PI_ACP_0033_LEVELS))
+    {
+        return Err(AcpError::protocol(
+            "pi-acp 0.0.33 has an unexpected thinking-level implementation; \
+             MaxCode refused to apply its max-level compatibility patch",
+        ));
+    }
+    let patched = if check_done {
+        source
+    } else {
+        source.replacen(PI_ACP_0033_LEVEL_CHECK, PI_ACP_0033_LEVEL_CHECK_WITH_MAX, 1)
+    };
+    let patched = if levels_done {
+        patched
+    } else {
+        patched.replacen(PI_ACP_0033_LEVELS, PI_ACP_0033_LEVELS_WITH_MAX, 1)
+    };
+    std::fs::write(&entrypoint, patched)
+        .map_err(|e| AcpError::protocol(format!("patch pi-acp 0.0.33 max support failed: {e}")))?;
+    tracing::info!(
+        "[ACP][Pi] enabled max thinking-level compatibility in {}",
+        entrypoint.display()
+    );
+    Ok(())
+}
+
 async fn build_agent(
     agent_type: AgentType,
     runtime_env: &BTreeMap<String, String>,
@@ -1434,9 +1532,14 @@ async fn build_agent(
             for (k, v) in &merged_env {
                 parts.push(format!("{k}={v}"));
             }
+            let resolved_command = crate::commands::acp::resolve_npx_command(cmd).await;
+            if agent_type == AgentType::Pi {
+                if let Some(path) = resolved_command.as_deref() {
+                    ensure_pi_acp_max_support(path)?;
+                }
+            }
             parts.push(
-                crate::commands::acp::resolve_npx_command(cmd)
-                    .await
+                resolved_command
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|| {
                         crate::process::normalized_program(cmd)
@@ -1804,6 +1907,9 @@ pub async fn spawn_agent_connection(
         owner_window_label.clone(),
         None, // folder_id 由后续 prompt handler 在首次 send 时绑定 (Phase 2)
     );
+    if agent_type == AgentType::Pi {
+        initial_state.pi_agent_dir = Some(crate::commands::acp::pi_agent_dir_for_env(&runtime_env));
+    }
 
     // Install the SessionStarted dedup signal BEFORE wrapping into Arc so the
     // first event (StatusChanged{Connecting} below) doesn't race with the
@@ -2620,6 +2726,112 @@ fn map_session_config_options(
         .collect()
 }
 
+const PI_THINKING_LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
+
+#[derive(serde::Deserialize)]
+struct PiModelsFile {
+    #[serde(default)]
+    providers: HashMap<String, PiModelsProvider>,
+}
+
+#[derive(serde::Deserialize)]
+struct PiModelsProvider {
+    #[serde(default)]
+    models: Vec<PiModelsModel>,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PiModelsModel {
+    id: String,
+    #[serde(default)]
+    reasoning: bool,
+    #[serde(default)]
+    thinking_level_map: HashMap<String, Option<String>>,
+}
+
+fn pi_model_supported_thinking_levels(model: &PiModelsModel) -> Vec<&'static str> {
+    if !model.reasoning {
+        return vec!["off"];
+    }
+    PI_THINKING_LEVELS
+        .into_iter()
+        .filter(|level| match model.thinking_level_map.get(*level) {
+            Some(None) => false,
+            // Pi treats these as opt-in extensions. An absent entry is not the
+            // same as a normal level's implicit pass-through mapping.
+            None if matches!(*level, "xhigh" | "max") => false,
+            _ => true,
+        })
+        .collect()
+}
+
+fn clamp_pi_thinking_level(requested: &str, supported: &[&str]) -> String {
+    if supported.contains(&requested) {
+        return requested.to_string();
+    }
+    let Some(requested_index) = PI_THINKING_LEVELS
+        .iter()
+        .position(|level| *level == requested)
+    else {
+        return supported.first().copied().unwrap_or("off").to_string();
+    };
+    PI_THINKING_LEVELS[requested_index..]
+        .iter()
+        .chain(PI_THINKING_LEVELS[..requested_index].iter().rev())
+        .find(|candidate| supported.contains(candidate))
+        .copied()
+        .unwrap_or("off")
+        .to_string()
+}
+
+/// pi-acp 0.0.33 advertises one global thinking vocabulary, while Pi supports
+/// levels per model. Project a custom model's native `thinkingLevelMap` onto
+/// the ACP selector so the composer shows exactly what Pi will accept.
+fn normalize_pi_thinking_options(options: &mut [SessionConfigOptionInfo], agent_dir: &Path) {
+    let Some(model_key) = current_model_id_from_opts(options) else {
+        return;
+    };
+    let Some((provider_id, model_id)) = model_key.split_once('/') else {
+        return;
+    };
+    let Ok(raw) = std::fs::read_to_string(agent_dir.join("models.json")) else {
+        return;
+    };
+    let Ok(file) = serde_json::from_str::<PiModelsFile>(&raw) else {
+        return;
+    };
+    let Some(model) = file
+        .providers
+        .get(provider_id)
+        .and_then(|provider| provider.models.iter().find(|model| model.id == model_id))
+    else {
+        // Built-in models carry declarations in Pi's own registry; models.json
+        // has no authoritative override for them, so keep the adapter's list.
+        return;
+    };
+    let supported = pi_model_supported_thinking_levels(model);
+    let Some(thinking) = options
+        .iter_mut()
+        .find(|option| option.category.as_deref() == Some("thought_level"))
+    else {
+        return;
+    };
+    let SessionConfigKindInfo::Select(select) = &mut thinking.kind else {
+        return;
+    };
+    select.current_value = clamp_pi_thinking_level(&select.current_value, &supported);
+    select.options = supported
+        .iter()
+        .map(|level| SessionConfigSelectOptionInfo {
+            value: (*level).to_string(),
+            name: format!("Thinking: {level}"),
+            description: None,
+        })
+        .collect();
+    select.groups.clear();
+}
+
 /// Defensive fallback for Codex's approval-preset selector.
 ///
 /// codex-acp 1.0.0 advertises its modes through *both* standard ACP
@@ -2690,6 +2902,11 @@ async fn emit_session_config_options_values(
     let mut mapped = map_session_config_options(&config_options);
     if agent_type == AgentType::Codex {
         ensure_codex_mode_option(&mut mapped);
+    } else if agent_type == AgentType::Pi {
+        let agent_dir = state.read().await.pi_agent_dir.clone();
+        if let Some(agent_dir) = agent_dir.as_deref() {
+            normalize_pi_thinking_options(&mut mapped, agent_dir);
+        }
     }
     emit_with_state(
         state,
@@ -16108,6 +16325,119 @@ mod tests {
     // in the composer as the selector springing back for no reason. Only this
     // side can tell a request's answer from an unsolicited update, so the
     // comparison has to be exactly right here.
+
+    fn pi_selector_fixture(model: &str, current_level: &str) -> Vec<SessionConfigOptionInfo> {
+        let select =
+            |id: &str, category: &str, current: &str, values: &[&str]| SessionConfigOptionInfo {
+                id: id.to_string(),
+                name: id.to_string(),
+                description: None,
+                category: Some(category.to_string()),
+                kind: SessionConfigKindInfo::Select(SessionConfigSelectInfo {
+                    current_value: current.to_string(),
+                    options: values
+                        .iter()
+                        .map(|value| SessionConfigSelectOptionInfo {
+                            value: (*value).to_string(),
+                            name: (*value).to_string(),
+                            description: None,
+                        })
+                        .collect(),
+                    groups: vec![],
+                }),
+            };
+        vec![
+            select("model", "model", model, &[model]),
+            select(
+                "thought_level",
+                "thought_level",
+                current_level,
+                &PI_THINKING_LEVELS,
+            ),
+        ]
+    }
+
+    #[test]
+    fn pi_thinking_selector_follows_the_current_custom_model_map() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("models.json"),
+            serde_json::json!({
+                "providers": {
+                    "cpa": { "models": [{
+                        "id": "glm-5.3-flash",
+                        "reasoning": true,
+                        "thinkingLevelMap": {
+                            "off": null,
+                            "minimal": null,
+                            "low": "low",
+                            "medium": null,
+                            "high": "high",
+                            "xhigh": null,
+                            "max": "max"
+                        }
+                    }]}
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let mut options = pi_selector_fixture("cpa/glm-5.3-flash", "max");
+        normalize_pi_thinking_options(&mut options, dir.path());
+        let thinking = expect_select(&options[1].kind);
+        assert_eq!(thinking.current_value, "max");
+        assert_eq!(
+            thinking
+                .options
+                .iter()
+                .map(|option| option.value.as_str())
+                .collect::<Vec<_>>(),
+            ["low", "high", "max"]
+        );
+    }
+
+    #[test]
+    fn pi_thinking_selector_clamps_an_invalid_saved_level_like_pi() {
+        let model = PiModelsModel {
+            id: "glm-5.3-flash".into(),
+            reasoning: true,
+            thinking_level_map: HashMap::from([
+                ("off".into(), None),
+                ("minimal".into(), None),
+                ("medium".into(), None),
+                ("xhigh".into(), None),
+                ("max".into(), Some("max".into())),
+            ]),
+        };
+        let supported = pi_model_supported_thinking_levels(&model);
+        assert_eq!(supported, ["low", "high", "max"]);
+        // Pi searches upward first, so medium lands on high rather than low.
+        assert_eq!(clamp_pi_thinking_level("medium", &supported), "high");
+    }
+
+    #[test]
+    fn pi_acp_0033_compat_patch_adds_max_and_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let package_dir = dir.path().join("pi-acp");
+        let dist_dir = package_dir.join("dist");
+        std::fs::create_dir_all(&dist_dir).unwrap();
+        std::fs::write(package_dir.join("package.json"), r#"{"version":"0.0.33"}"#).unwrap();
+        let entrypoint = dist_dir.join("index.js");
+        std::fs::write(
+            &entrypoint,
+            format!(
+                "function valid(x) {{ return {PI_ACP_0033_LEVEL_CHECK} }}\nconst levels = {PI_ACP_0033_LEVELS};\n"
+            ),
+        )
+        .unwrap();
+
+        ensure_pi_acp_max_support(&entrypoint).unwrap();
+        ensure_pi_acp_max_support(&entrypoint).unwrap();
+        let patched = std::fs::read_to_string(entrypoint).unwrap();
+        assert!(patched.contains(PI_ACP_0033_LEVEL_CHECK_WITH_MAX));
+        assert!(patched.contains(PI_ACP_0033_LEVELS_WITH_MAX));
+    }
 
     fn rejection_fixture(current: &str) -> Vec<SessionConfigOptionInfo> {
         vec![SessionConfigOptionInfo {

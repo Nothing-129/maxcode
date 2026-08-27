@@ -5516,7 +5516,7 @@ fn pi_models_json_path() -> PathBuf {
 /// process env / `~/.pi/agent`. Launch-time trust seeding only has the per-agent
 /// env (the override never lands in codeg's own process env), so it must consult
 /// `runtime_env` to target the same agent dir pi-acp will spawn pi against.
-fn pi_agent_dir_for_env(runtime_env: &BTreeMap<String, String>) -> PathBuf {
+pub(crate) fn pi_agent_dir_for_env(runtime_env: &BTreeMap<String, String>) -> PathBuf {
     match runtime_env
         .get("PI_CODING_AGENT_DIR")
         .map(|raw| raw.trim().to_string())
@@ -6114,10 +6114,9 @@ pub struct PiModelReasoningSpec {
     pub thinking_level_map: BTreeMap<String, Option<String>>,
 }
 
-/// pi's fixed thinking-level vocabulary (`EXTENDED_THINKING_LEVELS` in pi-ai). A name
-/// outside this list is rejected by pi-acp with `invalidParams`, so it must never reach
-/// `models.json`.
-const PI_THINKING_LEVELS: [&str; 6] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+/// pi's fixed thinking-level vocabulary (`EXTENDED_THINKING_LEVELS` in pi-ai).
+/// Keep this mirror in sync with the frontend's `PI_THINKING_LEVELS`.
+const PI_THINKING_LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /// Read a JSON file into an owned object map, returning an empty map when the
 /// file is absent, unreadable, or does not parse to a JSON object. Pi's native
@@ -6197,8 +6196,7 @@ fn apply_pi_custom_model(
         let map: serde_json::Map<String, serde_json::Value> = spec
             .thinking_level_map
             .iter()
-            // A name pi does not know would make pi-acp reject the level with
-            // `invalidParams`; drop it rather than let it reach disk.
+            // Drop names pi does not know rather than let them reach disk.
             .filter(|(level, _)| PI_THINKING_LEVELS.contains(&level.as_str()))
             .map(|(level, value)| {
                 let value = match value {
@@ -14657,6 +14655,7 @@ base_url = \"https://example.test/v1\"
                     ("off", Some("none")),
                     ("minimal", None),
                     ("xhigh", Some("xhigh")),
+                    ("max", Some("max")),
                 ],
             )),
         );
@@ -14669,6 +14668,7 @@ base_url = \"https://example.test/v1\"
         assert_eq!(models[0]["thinkingLevelMap"]["off"], "none");
         assert!(models[0]["thinkingLevelMap"]["minimal"].is_null());
         assert_eq!(models[0]["thinkingLevelMap"]["xhigh"], "xhigh");
+        assert_eq!(models[0]["thinkingLevelMap"]["max"], "max");
     }
 
     /// The older writer skipped an already-listed model entirely, so a declaration
@@ -14750,8 +14750,7 @@ base_url = \"https://example.test/v1\"
         assert!(models[0].get("thinkingLevelMap").is_none());
     }
 
-    /// pi-acp rejects a level name outside pi's fixed six with `invalidParams`, so
-    /// one must never reach disk.
+    /// A level name outside pi's fixed vocabulary must never reach disk.
     #[test]
     fn pi_custom_model_filters_levels_pi_does_not_know() {
         let mut entry = serde_json::Map::new();

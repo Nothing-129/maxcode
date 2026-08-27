@@ -78,8 +78,8 @@ pub(crate) async fn publish_native_title(
 ) {
     let admit = {
         let mut s = state.write().await;
-        let admit = s.conversation_id.is_some()
-            && s.last_native_title.as_deref() != Some(title.as_str());
+        let admit =
+            s.conversation_id.is_some() && s.last_native_title.as_deref() != Some(title.as_str());
         if admit {
             s.last_native_title = Some(title.clone());
         }

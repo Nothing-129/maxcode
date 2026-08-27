@@ -180,7 +180,9 @@ pub fn permission_request_body(lang: Lang) -> &'static str {
         Lang::Ja => "エージェントが権限を要求しています。MaxCode で確認して承認してください。",
         Lang::Ko => "에이전트가 권한을 요청하고 있습니다. MaxCode에서 확인하고 승인하세요.",
         Lang::Es => "Un agente solicita permiso. Revísalo y apruébalo en MaxCode.",
-        Lang::De => "Ein Agent fordert eine Berechtigung an. Bitte in MaxCode prüfen und genehmigen.",
+        Lang::De => {
+            "Ein Agent fordert eine Berechtigung an. Bitte in MaxCode prüfen und genehmigen."
+        }
         Lang::Fr => "Un agent demande une autorisation. Vérifiez-la et approuvez-la dans MaxCode.",
         Lang::Pt => "Um agente está solicitando permissão. Revise e aprove no MaxCode.",
         Lang::Ar => "يطلب أحد الوكلاء إذنًا. يرجى مراجعته والموافقة عليه في MaxCode.",

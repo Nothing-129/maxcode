@@ -536,11 +536,7 @@ fn resolve_grok_cli() -> Option<PathBuf> {
     cand.is_file().then_some(cand)
 }
 
-fn title_cli_args(
-    agent_type: AgentType,
-    prompt: &str,
-    scratch: &Path,
-) -> Option<Vec<String>> {
+fn title_cli_args(agent_type: AgentType, prompt: &str, scratch: &Path) -> Option<Vec<String>> {
     let cwd = scratch.to_string_lossy().into_owned();
     match agent_type {
         AgentType::Grok => Some(vec![
@@ -726,10 +722,7 @@ mod tests {
     fn unlocked_native_title_does_not_block_an_in_flight_cli_refine() {
         let first_message = "录入金额后刷新动态面板";
         let native_title = "Dynamic Panel Refresh After Money Entry";
-        assert!(!can_overwrite_auto_title(
-            Some(native_title),
-            first_message
-        ));
+        assert!(!can_overwrite_auto_title(Some(native_title), first_message));
         assert!(can_commit_cli_refine(false));
         assert!(!can_commit_cli_refine(true));
     }
@@ -786,10 +779,7 @@ mod tests {
     fn codex_title_args_are_ephemeral_read_only_and_low_effort() {
         let args = title_cli_args(AgentType::Codex, "标题提示", Path::new("/tmp/title"))
             .expect("codex title args");
-        assert_eq!(
-            args.first().map(String::as_str),
-            Some("--ask-for-approval")
-        );
+        assert_eq!(args.first().map(String::as_str), Some("--ask-for-approval"));
         assert_eq!(args.get(1).map(String::as_str), Some("never"));
         assert_eq!(args.get(2).map(String::as_str), Some("exec"));
         for expected in [

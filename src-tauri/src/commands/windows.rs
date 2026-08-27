@@ -2178,7 +2178,10 @@ mod owner_window_tests {
         state.set_owner("settings".to_string(), "main".to_string());
         state.set_owner("settings".to_string(), "remote-workspace-3".to_string());
 
-        assert_eq!(state.take_owner("settings").as_deref(), Some("remote-workspace-3"));
+        assert_eq!(
+            state.take_owner("settings").as_deref(),
+            Some("remote-workspace-3")
+        );
     }
 }
 

@@ -138,9 +138,10 @@ export interface UpdateContextValue {
   /** Begin (or attach to) a background download+install of the available
    * update. Progress arrives via {@link state}. */
   startUpdate: () => Promise<void>
-  /** Relaunch into the staged update. Call when `state.status` is
-   * `ready_to_restart`. Desktop relaunches the app; server drives the
-   * countdown + health-poll + reload. */
+  /** Relaunch into the staged update. The provider calls this automatically
+   * when `state.status` becomes `ready_to_restart`; it remains exposed for the
+   * manual recovery button if that automatic attempt fails. Desktop relaunches
+   * the app; server drives the countdown + health-poll + reload. */
   restart: () => Promise<void>
   /** Revert to the previously-installed server bundle (server mode only). */
   rollback: () => Promise<void>
@@ -173,10 +174,15 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const [restartCountdown, setRestartCountdown] = useState<number | null>(null)
   const [isRollingBack, setIsRollingBack] = useState(false)
   // True from the moment a relaunch is requested until it completes (or the app
-  // is gone). Covers the desktop window between the click and the backend's
+  // is gone). Covers the desktop window between the request and the backend's
   // `restarting` event — where neither restartCountdown nor status would yet
-  // mark us busy — so a second click can't re-trigger the relaunch.
+  // mark us busy — so a second request can't re-trigger the relaunch.
   const [isRestarting, setIsRestarting] = useState(false)
+  // A ReadyToRestart snapshot is automatically consumed exactly once per
+  // transition. If that attempt fails, leaving the ref set deliberately keeps
+  // us out of a retry loop; the existing restart button remains as a manual
+  // recovery path.
+  const autoRestartedSeqRef = useRef<number | null>(null)
   // False until the first authoritative state (snapshot or event) lands. Until
   // then `state` is the default `idle` placeholder, which consumers must not
   // treat as a real "idle" backend status (e.g. offering rollback).
@@ -804,6 +810,21 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
       setIsRestarting(false)
     }
   }, [t])
+
+  // Installing an update is a single action: once the backend has finished
+  // downloading, verifying and staging it, relaunch immediately. Keeping this
+  // in the provider (rather than a particular settings/status component) also
+  // covers updates that finish while the user navigates elsewhere or reloads
+  // the renderer mid-download.
+  useEffect(() => {
+    if (state.status !== "ready_to_restart") {
+      autoRestartedSeqRef.current = null
+      return
+    }
+    if (autoRestartedSeqRef.current === state.seq) return
+    autoRestartedSeqRef.current = state.seq
+    void restart()
+  }, [restart, state.seq, state.status])
 
   const rollback = useCallback(async () => {
     setIsRollingBack(true)

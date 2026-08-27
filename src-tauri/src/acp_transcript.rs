@@ -1454,8 +1454,8 @@ mod tests {
         let root = temp_root();
         append_line_in(&root, "goose", "s0", &header_line("s0"));
         for (id, prev) in [("s1", "s0"), ("s2", "s1")] {
-            let header = TranscriptHeader::new("custom:goose", id, "/elsewhere", 9_999)
-                .continuing(prev);
+            let header =
+                TranscriptHeader::new("custom:goose", id, "/elsewhere", 9_999).continuing(prev);
             append_line_in(&root, "goose", id, &serde_json::to_string(&header).unwrap());
         }
 
@@ -1486,8 +1486,7 @@ mod tests {
         // headers must not hang the bind path.
         let root = temp_root();
         for (id, prev) in [("a", "b"), ("b", "a")] {
-            let header =
-                TranscriptHeader::new("custom:goose", id, "/repo", 1).continuing(prev);
+            let header = TranscriptHeader::new("custom:goose", id, "/repo", 1).continuing(prev);
             append_line_in(&root, "goose", id, &serde_json::to_string(&header).unwrap());
         }
         assert_eq!(

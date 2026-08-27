@@ -77,6 +77,15 @@ const SKIP_SUBTREE = new Set([
 // can only be glued prose.
 const PATH_RUN = /[~A-Za-z0-9_\-.+@%:\\\u0080-\uffff/]+/g
 
+// Codex emits generated files through this transcript-only annotation rather
+// than Markdown: `:codex-file-citation{path="…" purpose="output"}`. The path
+// is quoted precisely because it may contain spaces. If the generic path scan
+// below sees the annotation first, a macOS path such as `Application Support`
+// becomes two unrelated links and the second half opens relative to the chat
+// cwd. Recognize the whole annotation before scanning ordinary path tokens.
+const CODEX_FILE_CITATION_START = ":codex-file-citation{"
+const URL_SCHEME = /^[A-Za-z][A-Za-z\d+\-.]*:/
+
 const DRIVE_PREFIX = /^[A-Za-z]:[\\/]/
 const FILE_EXTENSION = /\.[A-Za-z0-9]{1,8}$/
 const DOMAIN_LIKE = /^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/
@@ -157,6 +166,76 @@ function pathUrlFor(token: string): string | null {
   return buildFilePathReferenceUri(token)
 }
 
+/** Find the annotation's unquoted closing brace, tolerating escaped quotes. */
+function codexFileCitationEnd(value: string, start: number): number {
+  let quoted = false
+  let escaped = false
+  for (
+    let i = start + CODEX_FILE_CITATION_START.length;
+    i < value.length;
+    i++
+  ) {
+    const ch = value[i]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (quoted && ch === "\\") {
+      escaped = true
+      continue
+    }
+    if (ch === '"') {
+      quoted = !quoted
+      continue
+    }
+    if (!quoted && ch === "}") return i
+  }
+  return -1
+}
+
+/** Decode the two escapes meaningful inside a quoted citation attribute. */
+function decodeCitationAttribute(value: string): string {
+  return value.replace(/\\(["\\])/g, "$1")
+}
+
+/**
+ * Parse one complete Codex file annotation. Unknown/malformed annotations are
+ * kept as inert prose so their path-looking interior can never become a wrong
+ * relative link.
+ */
+function parseCodexFileCitation(raw: string): string | null {
+  if (!raw.startsWith(CODEX_FILE_CITATION_START) || !raw.endsWith("}")) {
+    return null
+  }
+
+  const body = raw.slice(CODEX_FILE_CITATION_START.length, -1)
+  const attrs = new Map<string, string>()
+  let cursor = 0
+  while (cursor < body.length) {
+    while (/\s/.test(body[cursor] ?? "")) cursor += 1
+    if (cursor >= body.length) break
+    const match = /^([A-Za-z][A-Za-z\d_-]*)="((?:\\.|[^"\\])*)"/.exec(
+      body.slice(cursor)
+    )
+    if (!match) return null
+    attrs.set(match[1], decodeCitationAttribute(match[2]))
+    cursor += match[0].length
+  }
+
+  const path = attrs.get("path")
+  if (!path || attrs.get("purpose") !== "output" || /[\0\r\n]/.test(path)) {
+    return null
+  }
+  // A drive letter is a path, not a URI scheme. Everything else with a scheme
+  // is not a local file and must not enter the trusted codeg://file route.
+  if (URL_SCHEME.test(path) && !DRIVE_PREFIX.test(path)) return null
+  return path
+}
+
+function citationLabel(path: string): string {
+  return path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? path
+}
+
 type TextOrLink =
   | { type: "text"; value: string }
   | { type: "link"; url: string; children: { type: "text"; value: string }[] }
@@ -166,7 +245,7 @@ type TextOrLink =
  * null when nothing matched, so the caller can keep the original node (and
  * its identity/position) untouched.
  */
-function splitTextValue(value: string): TextOrLink[] | null {
+function splitPlainPathText(value: string): TextOrLink[] | null {
   const parts: TextOrLink[] = []
   let cursor = 0
   let matched = false
@@ -197,6 +276,54 @@ function splitTextValue(value: string): TextOrLink[] | null {
   if (cursor < value.length) {
     parts.push({ type: "text", value: value.slice(cursor) })
   }
+  return parts
+}
+
+/** Add prose while still linkifying any ordinary local paths it contains. */
+function pushPlainPathText(parts: TextOrLink[], value: string): void {
+  if (!value) return
+  const linked = splitPlainPathText(value)
+  if (linked) parts.push(...linked)
+  else parts.push({ type: "text", value })
+}
+
+/**
+ * Resolve complete Codex annotations atomically, then run the existing plain-
+ * path scanner only across the surrounding prose. An incomplete annotation is
+ * shielded too: while a response is streaming it remains inert until its
+ * closing brace arrives instead of briefly exposing two broken file buttons.
+ */
+function splitTextValue(value: string): TextOrLink[] | null {
+  const firstCitation = value.indexOf(CODEX_FILE_CITATION_START)
+  if (firstCitation < 0) return splitPlainPathText(value)
+
+  const parts: TextOrLink[] = []
+  let cursor = 0
+  let citationStart = firstCitation
+  while (citationStart >= 0) {
+    pushPlainPathText(parts, value.slice(cursor, citationStart))
+    const end = codexFileCitationEnd(value, citationStart)
+    if (end < 0) {
+      parts.push({ type: "text", value: value.slice(citationStart) })
+      cursor = value.length
+      break
+    }
+
+    const raw = value.slice(citationStart, end + 1)
+    const path = parseCodexFileCitation(raw)
+    if (path) {
+      parts.push({
+        type: "link",
+        url: buildFilePathReferenceUri(path),
+        children: [{ type: "text", value: citationLabel(path) }],
+      })
+    } else {
+      parts.push({ type: "text", value: raw })
+    }
+    cursor = end + 1
+    citationStart = value.indexOf(CODEX_FILE_CITATION_START, cursor)
+  }
+  pushPlainPathText(parts, value.slice(cursor))
   return parts
 }
 

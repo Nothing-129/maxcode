@@ -10,9 +10,9 @@
  * at all (pi-ai `dist/api/openai-responses.js`), so an undeclared model has nothing to
  * pick from in the first place.
  *
- * The vocabulary is pi's fixed six (`EXTENDED_THINKING_LEVELS` in pi-ai `dist/models.js`) —
- * unlike Kimi's free-form `support_efforts`, a level name outside this list is rejected by
- * pi-acp's `isThinkingLevel` with `invalidParams`.
+ * The vocabulary is pi's fixed seven (`EXTENDED_THINKING_LEVELS` in pi-ai
+ * `dist/models.js`). Keep this mirror in sync with pi: the composer and the
+ * `models.json` writer both rely on it.
  */
 
 export const PI_THINKING_LEVELS = [
@@ -22,14 +22,15 @@ export const PI_THINKING_LEVELS = [
   "medium",
   "high",
   "xhigh",
+  "max",
 ] as const
 
 export type PiThinkingLevel = (typeof PI_THINKING_LEVELS)[number]
 
 /**
  * pi's `thinkingLevelMap`. Does double duty:
- *  - availability — `null` removes the level from the picker; `xhigh` is inverted and
- *    needs an explicit non-null entry to appear at all.
+ *  - availability — `null` removes the level from the picker; the two extended
+ *    levels (`xhigh` and `max`) need explicit non-null entries to appear at all.
  *  - wire value — what pi sends as the provider's reasoning effort
  *    (`effort = thinkingLevelMap?.[level] ?? level`). Google-style backends need
  *    `low → "LOW"`; `off` sends `"none"` when unmapped.
@@ -60,7 +61,7 @@ export function implicitWireValue(level: PiThinkingLevel): string {
 
 /**
  * Which levels pi would offer for this map. Mirrors `getSupportedThinkingLevels`
- * exactly: a `null` entry drops the level, and `xhigh` requires an explicit entry.
+ * exactly: a `null` entry drops the level, and `xhigh` / `max` require explicit entries.
  */
 export function levelsFromMap(
   map: PiThinkingLevelMap | null | undefined
@@ -68,7 +69,7 @@ export function levelsFromMap(
   return PI_THINKING_LEVELS.filter((level) => {
     const mapped = map?.[level]
     if (mapped === null) return false
-    if (level === "xhigh") return mapped !== undefined
+    if (level === "xhigh" || level === "max") return mapped !== undefined
     return true
   })
 }
@@ -100,7 +101,8 @@ export function reasoningFromModel(
  *
  * Unchecked levels are pinned to `null`. A checked level gets an explicit entry only when
  * it has to: a custom wire value, `off` (so the "reasoning is off" effort is spelled out
- * like pi's own built-in `gpt-5.5`), or `xhigh` (which is invisible without one).
+ * like pi's own built-in `gpt-5.5`), or an extended level (`xhigh` / `max`, which
+ * is invisible without one).
  * Everything else is omitted — same meaning, smaller file.
  */
 export function reasoningToMap(
@@ -115,7 +117,7 @@ export function reasoningToMap(
     const override = reasoning.wireValues[level]?.trim()
     if (override) {
       map[level] = override
-    } else if (level === "off" || level === "xhigh") {
+    } else if (level === "off" || level === "xhigh" || level === "max") {
       map[level] = implicitWireValue(level)
     }
   }

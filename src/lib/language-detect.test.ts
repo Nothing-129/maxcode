@@ -190,6 +190,7 @@ describe("shouldOpenWithSystemApp", () => {
     ["src-tauri/target/release/bundle/macos/Codeg.app"],
     ["dist/tool.zip"],
     ["assets/演示视频.mp4"],
+    ["output/pdf/云客 CRM 开放平台接口文档.pdf"],
     ["~/Downloads/Installer.pkg"],
     ["C:\\Users\\a\\setup.exe"],
     // Case-insensitive extension match.

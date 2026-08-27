@@ -76,7 +76,13 @@ fn enum_spec_for(key: &str) -> Option<EnumSpec> {
         "default_reasoning_summary" => spec(&["auto", "concise", "detailed", "none"], false),
         "default_verbosity" => spec(&["low", "medium", "high"], true),
         "shell_type" => spec(
-            &["default", "local", "unified_exec", "disabled", "shell_command"],
+            &[
+                "default",
+                "local",
+                "unified_exec",
+                "disabled",
+                "shell_command",
+            ],
             false,
         ),
         // Only `freeform` is a variant; `function` would reject the whole catalog.
@@ -620,7 +626,11 @@ mod tests {
     #[test]
     fn bundled_snapshot_matches_launched_codex_shape() {
         let models = snap();
-        assert_eq!(models.len(), 8, "snapshot should carry codex 0.147's catalog");
+        assert_eq!(
+            models.len(),
+            8,
+            "snapshot should carry codex 0.147's catalog"
+        );
         assert!(models.iter().any(|m| slug_of(m) == Some("gpt-5.6-sol")));
         assert!(models.iter().any(|m| slug_of(m) == Some("gpt-5.5")));
         // codex-auto-review ships hidden.
@@ -739,7 +749,10 @@ mod tests {
         // A removal that still applies keeps the takeover.
         assert!(!is_effectively_empty(&excluding(&["gpt-5.2"]), &s));
         // Mixed: the live one wins.
-        assert!(!is_effectively_empty(&excluding(&["gpt-5.4", "gpt-5.2"]), &s));
+        assert!(!is_effectively_empty(
+            &excluding(&["gpt-5.4", "gpt-5.2"]),
+            &s
+        ));
         // A custom always counts.
         let with_custom = CodexModelConfig {
             customs: vec![CodexCustomEntry {
@@ -825,8 +838,15 @@ mod tests {
         };
         let cat = expand_to_catalog(&config, &snap());
         let x = find(&cat, "gw/n").expect("present");
-        for key in ["default_reasoning_summary", "web_search_tool_type", "shell_type"] {
-            assert!(!x.get(key).unwrap().is_null(), "{key} must keep the base value");
+        for key in [
+            "default_reasoning_summary",
+            "web_search_tool_type",
+            "shell_type",
+        ] {
+            assert!(
+                !x.get(key).unwrap().is_null(),
+                "{key} must keep the base value"
+            );
         }
         for key in ["apply_patch_tool_type", "tool_mode", "multi_agent_version"] {
             assert!(x.get(key).unwrap().is_null(), "{key} must accept null");
@@ -1063,9 +1083,13 @@ mod tests {
         // A ghost-only config (removals of officials codex has since hidden)
         // behaves the same: the files go away and the caller is told to drop the
         // `model_catalog_json` key, so the two never get out of sync.
-        write_catalog_files(r#"{"customs":[{"slug":"gw/y","base":"gpt-5.6-sol"}]}"#, &dir, &s)
-            .unwrap()
-            .expect("seeded");
+        write_catalog_files(
+            r#"{"customs":[{"slug":"gw/y","base":"gpt-5.6-sol"}]}"#,
+            &dir,
+            &s,
+        )
+        .unwrap()
+        .expect("seeded");
         assert!(dir.join(CATALOG_REL).exists());
         let ghosts = r#"{"customs":[],"excludedOfficials":["gpt-5.4","gpt-5.4-mini"]}"#;
         assert!(write_catalog_files(ghosts, &dir, &s).unwrap().is_none());

@@ -327,6 +327,11 @@ pub struct SessionState {
     pub modes: Option<SessionModeStateInfo>,
     pub current_mode: Option<String>,
     pub config_options: Option<Vec<SessionConfigOptionInfo>>,
+    /// Pi only: launch-time coding-agent directory (honours the connection's
+    /// `PI_CODING_AGENT_DIR`). The adapter does not expose the active model's
+    /// `thinkingLevelMap`, so selector projection reads `models.json` here to
+    /// hide levels that Pi itself would clamp or reject. Backend-internal.
+    pub pi_agent_dir: Option<PathBuf>,
     /// Grok only: per-model reasoning-effort specs, parsed from the top-level
     /// `models` of the session-establishment response (guaranteed on
     /// `session/new`; opportunistic on resume/fork). Grok never re-sends this on
@@ -574,6 +579,7 @@ impl SessionState {
             modes: None,
             current_mode: None,
             config_options: None,
+            pi_agent_dir: None,
             grok_model_specs: None,
             prompt_capabilities: None,
             fork_supported: false,

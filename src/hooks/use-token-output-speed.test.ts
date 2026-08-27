@@ -1,32 +1,39 @@
 import { act, renderHook } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-import { useTokenOutputSpeed } from "./use-token-output-speed"
+import {
+  getTokenOutputSegment,
+  useTokenOutputSpeed,
+} from "./use-token-output-speed"
 import type {
   LiveContentBlock,
   LiveMessage,
+  ToolCallInfo,
 } from "@/contexts/acp-connections-context"
 
 function msg(blocks: LiveContentBlock[], id = "live-1"): LiveMessage {
   return { id, role: "assistant", content: blocks, startedAt: 0 }
 }
 
-/** A completed tool call — content the turn carries but never scores. */
-const TOOL_BLOCK: LiveContentBlock = {
-  type: "tool_call",
-  info: {
-    tool_call_id: "tc-1",
+function tool(
+  id: string,
+  rawInput: string | null,
+  status = "pending"
+): LiveContentBlock {
+  const info: ToolCallInfo = {
+    tool_call_id: id,
     title: "tool",
     kind: "tool",
-    status: "completed",
+    status,
     content: null,
-    raw_input: null,
+    raw_input: rawInput,
     raw_output_chunks: [],
     raw_output_total_bytes: 0,
     locations: null,
     meta: null,
     images: [],
-  },
+  }
+  return { type: "tool_call", info }
 }
 
 let fakeNow = 0
@@ -38,8 +45,7 @@ function mount(message: LiveMessage) {
   )
 }
 
-/** Advance one sample period (or several), keeping the fake clock in step. */
-function tick(ms = 500) {
+function tick(ms = 300) {
   fakeNow += ms
   act(() => {
     vi.advanceTimersByTime(ms)
@@ -57,131 +63,190 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-describe("useTokenOutputSpeed", () => {
-  it("reports an estimated rate once a sample covers real wall clock", () => {
-    // 80 latin chars = 20 tokens, taken as the baseline at mount.
-    const { result, rerender } = mount(
-      msg([{ type: "text", text: "a".repeat(80) }])
-    )
-    expect(result.current).toBeNull()
-
-    // +200 chars = +50 tokens over the 500ms sample = 100 tok/s.
-    rerender({ message: msg([{ type: "text", text: "a".repeat(280) }]) })
-    tick()
-    expect(result.current).toBeCloseTo(100)
-  })
-
-  it("counts thinking blocks and skips sub-agent blocks", () => {
-    const { result, rerender } = mount(
+describe("getTokenOutputSegment", () => {
+  it("counts root text, thinking, and tool-call input", () => {
+    const segment = getTokenOutputSegment(
       msg([
-        { type: "text", text: "a".repeat(80) },
-        { type: "thinking", text: "a".repeat(80) },
-        { type: "text", text: "a".repeat(800), parentToolUseId: "pt-1" },
+        { type: "thinking", text: "think" },
+        { type: "text", text: "answer" },
+        { type: "text", text: "child", parentToolUseId: "delegate-1" },
+        tool("one", '{"path":"a.ts"}'),
+        tool("two", '{"path":"b.ts"}'),
       ])
     )
 
+    expect(segment.key).toBe("live-1:0")
+    expect(segment.texts).toEqual([
+      "think",
+      "answer",
+      '{"path":"a.ts"}',
+      '{"path":"b.ts"}',
+    ])
+    expect(segment.active).toBe(true)
+  })
+
+  it("starts a fresh generation after a tool round-trip", () => {
+    const segment = getTokenOutputSegment(
+      msg([
+        { type: "thinking", text: "old thinking" },
+        tool("one", "{}", "completed"),
+        { type: "text", text: "sub-agent", parentToolUseId: "one" },
+        { type: "thinking", text: "new thinking" },
+        { type: "text", text: "new answer" },
+      ])
+    )
+
+    expect(segment.key).toBe("live-1:3")
+    expect(segment.texts).toEqual(["new thinking", "new answer"])
+    expect(segment.active).toBe(true)
+  })
+
+  it("marks a generation inactive while its trailing tool executes", () => {
+    const segment = getTokenOutputSegment(
+      msg([{ type: "text", text: "before" }, tool("one", "{}", "in_progress")])
+    )
+    expect(segment.active).toBe(false)
+  })
+})
+
+describe("useTokenOutputSpeed", () => {
+  it("uses pi-web's cumulative token rate", () => {
+    const { result, rerender } = mount(
+      msg([{ type: "text", text: "a".repeat(120) }])
+    )
+
+    tick() // First non-zero observation: 30 estimated tokens.
+    expect(result.current).toBeNull()
+
+    rerender({ message: msg([{ type: "text", text: "a".repeat(240) }]) })
+    tick() // 300 ms is still inside the 500 ms warmup.
+    expect(result.current).toBeNull()
+
+    rerender({ message: msg([{ type: "text", text: "a".repeat(360) }]) })
+    tick()
+    // pi-web includes the first observed batch: 90 total tokens / 0.6 s.
+    expect(result.current).toBeCloseTo(150)
+  })
+
+  it("counts CJK one-to-one and skips sub-agent output", () => {
+    const child = {
+      type: "text",
+      text: "子".repeat(500),
+      parentToolUseId: "pt-1",
+    } as const
+    const { result, rerender } = mount(
+      msg([
+        { type: "thinking", text: "思".repeat(20) },
+        { type: "text", text: "答".repeat(20) },
+        child,
+      ])
+    )
+    tick()
+
     rerender({
       message: msg([
-        { type: "text", text: "a".repeat(160) },
-        { type: "thinking", text: "a".repeat(160) },
-        { type: "text", text: "a".repeat(900), parentToolUseId: "pt-1" },
+        { type: "thinking", text: "思".repeat(30) },
+        { type: "text", text: "答".repeat(30) },
+        child,
       ]),
     })
     tick()
-    // 160 new root chars = 40 tokens in half a second; the sub-agent's 100 new
-    // chars belong to its own capsule and score nothing here.
-    expect(result.current).toBeCloseTo(80)
+
+    rerender({
+      message: msg([
+        { type: "thinking", text: "思".repeat(40) },
+        { type: "text", text: "答".repeat(40) },
+        child,
+      ]),
+    })
+    tick()
+
+    expect(result.current).toBeCloseTo(80 / 0.6)
   })
 
-  it("keeps the wait for the first token out of the rate", () => {
-    // A turn opens with an empty message (`STATUS_CHANGED("prompting")`) and the
-    // model may think for seconds before its first token. That silence is
-    // latency, not slow output: averaged in, a 100 tok/s stream would open at a
-    // third of its rate and take seconds to climb.
+  it("keeps time-to-first-token out of the rate", () => {
     const { result, rerender } = mount(msg([]))
-    for (let i = 0; i < 6; i++) tick()
+    for (let i = 0; i < 10; i++) tick()
     expect(result.current).toBeNull()
 
-    // 200 latin chars = 50 tokens, all of them produced inside this one 500ms
-    // sample — so the first reading is the true 100 tok/s, neither dragged down
-    // by the three idle seconds nor thrown away as a bare baseline.
-    rerender({ message: msg([{ type: "text", text: "a".repeat(200) }]) })
+    rerender({ message: msg([{ type: "text", text: "字".repeat(60) }]) })
     tick()
-    expect(result.current).toBeCloseTo(100)
+    tick()
+    tick()
+    expect(result.current).toBeCloseTo(60 / 0.6)
   })
 
-  it("stays hidden until the turn has produced output", () => {
-    // A turn that opens with a long tool call and no text: content is flowing,
-    // but reading "0.0 tok/s" off it for ten seconds would be noise.
-    const { result, rerender } = mount(msg([TOOL_BLOCK]))
-    for (let i = 0; i < 20; i++) tick()
+  it("includes generated tool-call arguments", () => {
+    const { result, rerender } = mount(msg([tool("one", "a".repeat(120))]))
+    tick()
+    rerender({ message: msg([tool("one", "a".repeat(240))]) })
+    tick()
+    rerender({ message: msg([tool("one", "a".repeat(360))]) })
+    tick()
+    expect(result.current).toBeCloseTo(150)
+  })
+
+  it("hides TPS during tool execution and resets for the next generation", () => {
+    const { result, rerender } = mount(
+      msg([{ type: "text", text: "a".repeat(120) }])
+    )
+    tick()
+    tick()
+    tick()
+    expect(result.current).toBeCloseTo(50)
+
+    rerender({
+      message: msg([
+        { type: "text", text: "a".repeat(120) },
+        tool("one", "{}", "in_progress"),
+      ]),
+    })
+    tick()
     expect(result.current).toBeNull()
 
     rerender({
-      message: msg([TOOL_BLOCK, { type: "text", text: "a".repeat(400) }]),
+      message: msg([
+        { type: "text", text: "a".repeat(120) },
+        tool("one", "{}", "completed"),
+        { type: "text", text: "新".repeat(30) },
+      ]),
     })
     tick()
-    expect(result.current).not.toBeNull()
-    expect(result.current as number).toBeGreaterThan(0)
+    tick()
+    tick()
+    expect(result.current).toBeCloseTo(30 / 0.6)
   })
 
-  it("re-seats when a snapshot hydration replaces the live message", () => {
-    // Hydration swaps the message out wholesale instead of appending, so the
-    // accumulator's cached per-block prefixes can describe unrelated text. The
-    // replacement here is longer than what was cached but shares no prefix — if
-    // the reading trusted the cache it would measure only the length difference
-    // and report a far too small rate.
+  it("resets when hydration replaces the live message identity", () => {
     const { result, rerender } = mount(
       msg([{ type: "text", text: "a".repeat(400) }], "live-1")
     )
+    tick()
+    tick()
+    tick()
+    expect(result.current).not.toBeNull()
 
     rerender({
       message: msg([{ type: "text", text: "b".repeat(800) }], "live-2"),
     })
     tick()
-    // The re-seat drops the baseline, so this sample only seeds.
     expect(result.current).toBeNull()
-
-    // 800 → 1200 chars of the hydrated message = 100 new tokens in half a
-    // second, i.e. 200 tok/s — not the 100 chars a cache-trusting measure
-    // would have seen.
-    rerender({
-      message: msg([{ type: "text", text: "b".repeat(1200) }], "live-2"),
-    })
-    tick()
-    expect(result.current).toBeCloseTo(200)
-  })
-
-  it("decays through a silent gap instead of freezing the reading", () => {
-    // No new content at all — a quiet long-running tool, a retry backoff, or a
-    // permission prompt blocking the turn. The reading has to fall.
-    const { result, rerender } = mount(
-      msg([{ type: "text", text: "a".repeat(80) }])
-    )
-    const stalled = msg([{ type: "text", text: "a".repeat(280) }])
-    rerender({ message: stalled })
-    tick()
-    expect(result.current).toBeCloseTo(100)
-
-    for (let i = 0; i < 20; i++) tick()
-    expect(result.current as number).toBeLessThan(5)
   })
 
   it("repaints on its own cadence, not on every delta", () => {
     const { result, rerender } = mount(
-      msg([{ type: "text", text: "a".repeat(80) }])
+      msg([{ type: "text", text: "a".repeat(120) }])
     )
-    rerender({ message: msg([{ type: "text", text: "a".repeat(280) }]) })
     tick()
-    expect(result.current).toBeCloseTo(100)
+    tick()
+    tick()
+    const previous = result.current
 
-    // A big jump well inside the sample window: still the previous reading.
     rerender({ message: msg([{ type: "text", text: "a".repeat(4000) }]) })
     tick(200)
-    expect(result.current).toBeCloseTo(100)
+    expect(result.current).toBe(previous)
 
-    // Past the window, it catches up.
-    tick(300)
-    expect(result.current as number).toBeGreaterThan(100)
+    tick(100)
+    expect(result.current as number).toBeGreaterThan(previous as number)
   })
 })

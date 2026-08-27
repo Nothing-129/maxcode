@@ -10,11 +10,9 @@ use tokio::process::Command;
 use tokio::time::{timeout, Duration};
 
 use crate::app_error::AppCommandError;
+use crate::commands::acp::{resolve_command_on_path, resolve_npx_command};
 use crate::commands::mcp::find_local_server;
 
-const SERVER_ID: &str = "teambition";
-const PROJECT_ID: &str = "67244dbc1b2dbce76a282336";
-const PROJECT_TQL: &str = "projectId=67244dbc1b2dbce76a282336 AND isArchived=false";
 const USER_ROLES: &str = "creator,executor,involveMember";
 const PAGE_SIZE: &str = "1000";
 const PREFLIGHT_TIMEOUT: Duration = Duration::from_secs(20);
@@ -69,7 +67,7 @@ pub struct TeambitionTaskflow {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TeambitionBoard {
-    pub project_id: &'static str,
+    pub project_id: String,
     pub tasks: Vec<TeambitionTask>,
     pub statuses: Vec<TeambitionStatus>,
     pub taskflows: Vec<TeambitionTaskflow>,
@@ -90,6 +88,21 @@ type McpClient = RunningService<RoleClient, ()>;
 
 fn teambition_error(message: impl Into<String>) -> AppCommandError {
     AppCommandError::task_execution_failed(message)
+}
+
+fn validate_identifier(label: &str, value: String) -> Result<String, AppCommandError> {
+    let value = value.trim();
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .chars()
+            .all(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+    {
+        return Err(AppCommandError::invalid_input(format!(
+            "Invalid Teambition {label}"
+        )));
+    }
+    Ok(value.to_string())
 }
 
 fn validate_enabled(spec: &Map<String, Value>) -> Result<(), AppCommandError> {
@@ -141,10 +154,12 @@ async fn preflight_tools(client: &McpClient) -> Result<(), AppCommandError> {
     )))
 }
 
-async fn connect() -> Result<McpClient, AppCommandError> {
-    let server = find_local_server(SERVER_ID)?.ok_or_else(|| {
+async fn connect(server_id: &str) -> Result<McpClient, AppCommandError> {
+    let server = find_local_server(server_id)?.ok_or_else(|| {
         AppCommandError::configuration_missing(
-            "Teambition MCP is not configured. Add an enabled local MCP server named 'teambition'.",
+            format!(
+                "Teambition MCP server '{server_id}' is not configured. Configure it from the Teambition page."
+            ),
         )
     })?;
     let spec = server.spec.as_object().ok_or_else(|| {
@@ -169,6 +184,16 @@ async fn connect() -> Result<McpClient, AppCommandError> {
                 "Teambition MCP preflight failed: config is missing its command",
             )
         })?;
+
+    let executable = if executable == "npx" {
+        resolve_npx_command("npx").await.ok_or_else(|| {
+            AppCommandError::dependency_missing(
+                "Teambition MCP requires Node.js and npx, but MaxCode could not find npx",
+            )
+        })?
+    } else {
+        resolve_command_on_path(executable).unwrap_or_else(|| executable.into())
+    };
 
     let mut command = Command::new(executable);
     if let Some(args) = spec.get("args").and_then(Value::as_array) {
@@ -278,14 +303,17 @@ fn ensure_success(value: &Value) -> Result<(), AppCommandError> {
     Err(teambition_error(message))
 }
 
-async fn list_tasks(client: &McpClient) -> Result<Vec<TeambitionTask>, AppCommandError> {
+async fn list_tasks(
+    client: &McpClient,
+    project_id: &str,
+) -> Result<Vec<TeambitionTask>, AppCommandError> {
     let mut tasks = Vec::new();
     let mut page_token = String::new();
     loop {
         let mut arguments = json!({
             "roleTypes": USER_ROLES,
             "pageSize": PAGE_SIZE,
-            "tql": PROJECT_TQL,
+            "tql": format!("projectId={project_id} AND isArchived=false"),
         });
         if !page_token.is_empty() {
             arguments["pageToken"] = Value::String(page_token);
@@ -295,7 +323,7 @@ async fn list_tasks(client: &McpClient) -> Result<Vec<TeambitionTask>, AppComman
         tasks.extend(
             page.result
                 .into_iter()
-                .filter(|task| task.project_id == PROJECT_ID),
+                .filter(|task| task.project_id == project_id),
         );
         page_token = page.next_page_token;
         if page_token.is_empty() {
@@ -308,12 +336,15 @@ async fn list_tasks(client: &McpClient) -> Result<Vec<TeambitionTask>, AppComman
     Ok(tasks)
 }
 
-async fn list_statuses(client: &McpClient) -> Result<Vec<TeambitionStatus>, AppCommandError> {
+async fn list_statuses(
+    client: &McpClient,
+    project_id: &str,
+) -> Result<Vec<TeambitionStatus>, AppCommandError> {
     let mut statuses = Vec::new();
     let mut page_token = String::new();
     loop {
         let mut arguments = json!({
-            "projectId": PROJECT_ID,
+            "projectId": project_id,
             "pageSize": 1000,
         });
         if !page_token.is_empty() {
@@ -336,12 +367,15 @@ async fn list_statuses(client: &McpClient) -> Result<Vec<TeambitionStatus>, AppC
     Ok(statuses)
 }
 
-async fn list_taskflows(client: &McpClient) -> Result<Vec<TeambitionTaskflow>, AppCommandError> {
+async fn list_taskflows(
+    client: &McpClient,
+    project_id: &str,
+) -> Result<Vec<TeambitionTaskflow>, AppCommandError> {
     let page: ApiPage<TeambitionTaskflow> = parse_page(
         call_json(
             client,
             "searchTaskflowsV3",
-            json!({ "projectId": PROJECT_ID, "pageSize": 1000 }),
+            json!({ "projectId": project_id, "pageSize": 1000 }),
         )
         .await?,
     )?;
@@ -352,7 +386,11 @@ async fn list_taskflows(client: &McpClient) -> Result<Vec<TeambitionTaskflow>, A
         .collect())
 }
 
-async fn query_task(client: &McpClient, task_id: &str) -> Result<TeambitionTask, AppCommandError> {
+async fn query_task(
+    client: &McpClient,
+    project_id: &str,
+    task_id: &str,
+) -> Result<TeambitionTask, AppCommandError> {
     let page: ApiPage<TeambitionTask> =
         parse_page(call_json(client, "queryTaskV3", json!({ "taskId": task_id })).await?)?;
     let task = page
@@ -360,23 +398,28 @@ async fn query_task(client: &McpClient, task_id: &str) -> Result<TeambitionTask,
         .into_iter()
         .find(|task| task.task_id == task_id)
         .ok_or_else(|| AppCommandError::not_found("Teambition task not found"))?;
-    if task.project_id != PROJECT_ID {
+    if task.project_id != project_id {
         return Err(AppCommandError::permission_denied(
-            "Teambition task does not belong to 技术部敏捷项目",
+            "Teambition task does not belong to the configured project",
         ));
     }
     Ok(task)
 }
 
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn teambition_board() -> Result<TeambitionBoard, AppCommandError> {
-    let client = connect().await?;
+pub async fn teambition_board(
+    server_id: String,
+    project_id: String,
+) -> Result<TeambitionBoard, AppCommandError> {
+    let server_id = validate_identifier("MCP server ID", server_id)?;
+    let project_id = validate_identifier("project ID", project_id)?;
+    let client = connect(&server_id).await?;
     let result = async {
-        let tasks = list_tasks(&client).await?;
-        let statuses = list_statuses(&client).await?;
-        let taskflows = list_taskflows(&client).await?;
+        let tasks = list_tasks(&client, &project_id).await?;
+        let statuses = list_statuses(&client, &project_id).await?;
+        let taskflows = list_taskflows(&client, &project_id).await?;
         Ok(TeambitionBoard {
-            project_id: PROJECT_ID,
+            project_id,
             tasks,
             statuses,
             taskflows,
@@ -389,13 +432,17 @@ pub async fn teambition_board() -> Result<TeambitionBoard, AppCommandError> {
 
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn teambition_update_task_status(
+    server_id: String,
+    project_id: String,
     task_id: String,
     status_id: String,
 ) -> Result<TeambitionTask, AppCommandError> {
-    let client = connect().await?;
+    let server_id = validate_identifier("MCP server ID", server_id)?;
+    let project_id = validate_identifier("project ID", project_id)?;
+    let client = connect(&server_id).await?;
     let result = async {
-        let before = query_task(&client, &task_id).await?;
-        let statuses = list_statuses(&client).await?;
+        let before = query_task(&client, &project_id, &task_id).await?;
+        let statuses = list_statuses(&client, &project_id).await?;
         let current = statuses
             .iter()
             .find(|status| status.id == before.tfs_id)
@@ -423,7 +470,7 @@ pub async fn teambition_update_task_status(
         )
         .await?;
         ensure_success(&update)?;
-        let after = query_task(&client, &task_id).await?;
+        let after = query_task(&client, &project_id, &task_id).await?;
         if after.tfs_id != target.id {
             return Err(teambition_error(
                 "Teambition did not apply the requested task status",
@@ -485,5 +532,15 @@ mod tests {
     #[test]
     fn accepts_complete_required_tool_set() {
         assert!(missing_required_tools(REQUIRED_TOOLS).is_empty());
+    }
+
+    #[test]
+    fn validates_configured_identifiers() {
+        assert_eq!(
+            validate_identifier("project ID", " 67244dbc1b2dbce76a282336 ".into()).unwrap(),
+            "67244dbc1b2dbce76a282336"
+        );
+        assert!(validate_identifier("project ID", "projectId=x OR true".into()).is_err());
+        assert!(validate_identifier("MCP server ID", "".into()).is_err());
     }
 }

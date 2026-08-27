@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   emitAppendText: vi.fn(),
   openConversations: vi.fn(),
   openSettings: vi.fn(),
+  scanMcp: vi.fn(),
+  upsertMcp: vi.fn(),
   openNewConversationTab: vi.fn(),
   openUrl: vi.fn(),
 }))
@@ -28,6 +30,8 @@ vi.mock("@/lib/api", () => ({
   openSettingsWindow: mocks.openSettings,
   teambitionBoard: mocks.board,
   teambitionUpdateTaskStatus: mocks.updateStatus,
+  mcpScanLocal: mocks.scanMcp,
+  mcpUpsertLocalServer: mocks.upsertMcp,
 }))
 
 vi.mock("@/lib/session-attachment-events", () => ({
@@ -146,12 +150,24 @@ describe("TeambitionPage", () => {
     vi.clearAllMocks()
     mocks.board.mockResolvedValue(board)
     mocks.openSettings.mockResolvedValue(undefined)
+    mocks.scanMcp.mockResolvedValue([])
+    mocks.upsertMcp.mockResolvedValue({
+      id: "teambition",
+      spec: {},
+      apps: ["codex"],
+    })
     mocks.updateStatus.mockImplementation(
-      async (_taskId: string, statusId: string) => ({
+      async (
+        _serverId: string,
+        _projectId: string,
+        _taskId: string,
+        statusId: string
+      ) => ({
         ...task,
         tfsId: statusId,
       })
     )
+    localStorage.clear()
     vi.stubGlobal(
       "requestAnimationFrame",
       (callback: FrameRequestCallback): number => {
@@ -165,6 +181,10 @@ describe("TeambitionPage", () => {
     renderPage()
 
     expect(await screen.findByText("Implement MCP task board")).toBeVisible()
+    expect(mocks.board).toHaveBeenCalledWith(
+      "teambition",
+      "67244dbc1b2dbce76a282336"
+    )
     expect(screen.getByText("To do")).toBeVisible()
     expect(screen.getByText("In progress")).toBeVisible()
     expect(screen.queryByText("Other workflow")).toBeNull()
@@ -209,6 +229,33 @@ describe("TeambitionPage", () => {
 
     await user.click(screen.getByRole("button", { name: "Open MCP settings" }))
     expect(mocks.openSettings).toHaveBeenCalledWith("mcp")
+
+    await user.click(
+      screen.getByRole("button", { name: "Configure connection" })
+    )
+    expect(
+      screen.getByRole("dialog", { name: "Teambition connection" })
+    ).toBeVisible()
+
+    await user.type(screen.getByLabelText("User token"), "user-token-value")
+    await user.click(screen.getByRole("button", { name: "Save and connect" }))
+    await waitFor(() =>
+      expect(mocks.upsertMcp).toHaveBeenCalledWith({
+        serverId: "teambition",
+        apps: ["codex"],
+        spec: {
+          type: "stdio",
+          command: "npx",
+          args: ["-y", "@tng/teambition-openapi-mcp@0.2.2", "user-mcp"],
+          env: {
+            TB_MCP_USER_TOKEN: "user-token-value",
+            TB_MCP_TOOL_NAME_CASE: "camel",
+            TB_MCP_TOOLS: "task,project",
+          },
+        },
+      })
+    )
+    await waitFor(() => expect(mocks.board).toHaveBeenCalledTimes(2))
   })
 
   it("updates the task status and moves a dropped card to the target column", async () => {
@@ -232,7 +279,12 @@ describe("TeambitionPage", () => {
     fireEvent.drop(targetColumn as HTMLElement, { dataTransfer })
 
     await waitFor(() =>
-      expect(mocks.updateStatus).toHaveBeenCalledWith("task-1", "status-doing")
+      expect(mocks.updateStatus).toHaveBeenCalledWith(
+        "teambition",
+        "67244dbc1b2dbce76a282336",
+        "task-1",
+        "status-doing"
+      )
     )
     expect(
       within(targetColumn as HTMLElement).getByText("Implement MCP task board")

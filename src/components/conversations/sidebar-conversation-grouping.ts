@@ -472,6 +472,16 @@ export interface ChatsEmptyRow {
 }
 
 /**
+ * The "show more" footer of the flat Chat section. Chat histories can grow as
+ * large as a project folder, so they use the same incremental paging behavior
+ * instead of mounting every conversation at once.
+ */
+export interface ChatsMoreRow {
+  kind: "chats-more"
+  remaining: number
+}
+
+/**
  * The single empty-state hint shown under an expanded but empty "Folders"
  * section ("No folders open"). Like {@link ChatsEmptyRow} it is folderless — it
  * stands in for the whole (empty) folder list rather than one folder — so it
@@ -570,6 +580,7 @@ export type SidebarRow =
   | ConversationRow
   | EmptyHintRow
   | ChatsEmptyRow
+  | ChatsMoreRow
   | FoldersEmptyRow
   | RecentEmptyRow
   | RecentMoreRow
@@ -711,8 +722,9 @@ function pushConversationRow(
  *   conversations), so the section is a permanent entry point — its New-chat
  *   affordance and an empty hint stay reachable. When expanded and empty it
  *   contributes a single `chats-empty` hint row; otherwise its (flat, folderless)
- *   conversation rows. Pinned chat conversations live in the Pinned section, so
- *   they are excluded from `chatConversations`.
+ *   conversation rows, paged when `chatLimit` is set. A `chats-more` row reveals
+ *   the remainder. Pinned chat conversations live in the Pinned section, so they
+ *   are excluded from `chatConversations`.
  * - The "Recent" section contributes NOTHING AT ALL (not even a header) unless
  *   `showRecent` — it is the one section the user can switch off, and a
  *   permanently-visible header for a hidden section would defeat that. When
@@ -731,6 +743,9 @@ export function buildRows(args: {
   foldersExpanded: boolean
   chatConversations: readonly DbConversationSummary[]
   chatsExpanded: boolean
+  /** How many Chat conversations to emit before appending a
+   *  {@link ChatsMoreRow}. Optional — omitted means no limit. */
+  chatLimit?: number
   /** The flat "Recent" bucket — every reachable conversation, folder-bound and
    *  chat alike, newest first (see {@link selectRecentConversationsWithReuse}).
    *  Only read when `showRecent`. Optional — defaults to empty. */
@@ -797,6 +812,7 @@ export function buildRows(args: {
     foldersExpanded,
     chatConversations,
     chatsExpanded,
+    chatLimit,
     recentConversations = EMPTY_CONVERSATIONS,
     recentExpanded = true,
     showRecent = false,
@@ -935,7 +951,11 @@ export function buildRows(args: {
       if (chatConversations.length === 0) {
         rows.push({ kind: "chats-empty" })
       } else {
-        for (const conv of chatConversations) {
+        const shown =
+          chatLimit == null
+            ? chatConversations
+            : chatConversations.slice(0, Math.max(0, chatLimit))
+        for (const conv of shown) {
           pushConversationRow(
             rows,
             conv,
@@ -945,6 +965,8 @@ export function buildRows(args: {
             childrenLoading
           )
         }
+        const remaining = chatConversations.length - shown.length
+        if (remaining > 0) rows.push({ kind: "chats-more", remaining })
       }
     }
   }

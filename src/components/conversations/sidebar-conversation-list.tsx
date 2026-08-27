@@ -186,6 +186,10 @@ const EMPTY_CONTAINER_CHILDREN: ReadonlyMap<number, readonly number[]> =
 // the others.
 const FOLDER_PAGE_SIZE = 10
 
+// Chat-mode conversations are folderless in the UI but can grow just as large
+// as a folder history, so use the same page size and incremental reveal.
+const CHAT_PAGE_SIZE = FOLDER_PAGE_SIZE
+
 // Trackpad taps on WebKit report as pointerType "mouse", fire pointerdown,
 // then synthesize a delayed `click` after this header remounts (virtua
 // recycle / overlay flip). A per-instance ref dies with that remount, so the
@@ -984,6 +988,13 @@ export function SidebarConversationList({
   const foldersExpanded = !sectionCollapsed.folders
   const chatsExpanded = !sectionCollapsed.chats
   const recentExpanded = !sectionCollapsed.recent
+  // Session-only, like folder paging: collapsing/reopening Chat starts from a
+  // compact first page instead of preserving a long, previously-expanded list.
+  const [chatLimit, setChatLimit] = useState(CHAT_PAGE_SIZE)
+  const revealMoreChats = useCallback(
+    () => setChatLimit((n) => n + CHAT_PAGE_SIZE),
+    []
+  )
   // How many Recent rows are currently revealed. Session-only (not persisted):
   // "show me more of this list right now" is a reading gesture, not a setting —
   // and a fresh sidebar should open short again.
@@ -1115,6 +1126,7 @@ export function SidebarConversationList({
   }, [])
 
   const toggleSection = useCallback((section: SidebarSectionKey) => {
+    if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
     setSectionCollapsed((prev) => {
       const next = { ...prev, [section]: !prev[section] }
       saveSectionCollapsed(next)
@@ -1433,6 +1445,7 @@ export function SidebarConversationList({
         foldersExpanded,
         chatConversations,
         chatsExpanded,
+        chatLimit,
         recentConversations,
         recentExpanded,
         showRecent,
@@ -1456,6 +1469,7 @@ export function SidebarConversationList({
       foldersExpanded,
       chatConversations,
       chatsExpanded,
+      chatLimit,
       recentConversations,
       recentExpanded,
       showRecent,
@@ -1529,6 +1543,7 @@ export function SidebarConversationList({
       })
       // Collapse is a fresh look: next expand shows the first page again.
       setFolderLimitById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
+      setChatLimit(CHAT_PAGE_SIZE)
       setAllSectionsCollapsed(true)
     },
   }))
@@ -1567,6 +1582,20 @@ export function SidebarConversationList({
             saveSectionCollapsed(next)
             return next
           })
+          pendingScrollRef.current = true
+          return
+        }
+        // The active chat may live beyond the currently revealed page. Grow
+        // the limit to the smallest page that contains it, then scroll after
+        // the rebuilt row model includes the target.
+        const chatIndex = chatConversations.findIndex(
+          (candidate) =>
+            candidate.id === targetId && candidate.agent_type === targetAgent
+        )
+        if (chatIndex >= chatLimit) {
+          setChatLimit(
+            Math.ceil((chatIndex + 1) / CHAT_PAGE_SIZE) * CHAT_PAGE_SIZE
+          )
           pendingScrollRef.current = true
           return
         }
@@ -1668,6 +1697,8 @@ export function SidebarConversationList({
     pinnedExpanded,
     foldersExpanded,
     chatsExpanded,
+    chatConversations,
+    chatLimit,
   ])
 
   const toggleFolder = useCallback((folderId: number) => {
@@ -2607,6 +2638,36 @@ export function SidebarConversationList({
         </div>
       )
     }
+    if (row.kind === "chats-more") {
+      // Flat, folderless counterpart of the folder paging footer. It follows
+      // the same card geometry without a folder theme or ancestor rail.
+      return (
+        <div className="relative h-[2rem]">
+          <button
+            type="button"
+            onClick={revealMoreChats}
+            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            style={{
+              paddingLeft: "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
+            }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 flex items-center justify-center"
+              style={{
+                left: "var(--conv-rail-axis, 0.875rem)",
+                width: "0.875rem",
+                height: "0.875rem",
+                transform: "translate(-50%, -50%)",
+              }}
+            >
+              <ChevronDown className="h-[0.75rem] w-[0.75rem]" />
+            </span>
+            <span className="truncate">{t("showMoreFolder")}</span>
+          </button>
+        </div>
+      )
+    }
     if (row.kind === "folders-empty") {
       // Empty "Folders" section hint — mirrors chats-empty (folderless, no rail,
       // aligned with the section header's text inset). The header's own hover
@@ -2815,6 +2876,7 @@ export function SidebarConversationList({
     if (row.kind === "root-group") return `rootgroup-${row.folderId}`
     if (row.kind === "empty") return `empty-${row.folderId}`
     if (row.kind === "chats-empty") return "chats-empty"
+    if (row.kind === "chats-more") return "chats-more"
     if (row.kind === "folders-empty") return "folders-empty"
     if (row.kind === "recent-empty") return "recent-empty"
     if (row.kind === "recent-more") return "recent-more"

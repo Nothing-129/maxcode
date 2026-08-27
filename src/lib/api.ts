@@ -3165,15 +3165,22 @@ export async function workTaskUpdate(
   })
 }
 
-export async function teambitionBoard(): Promise<TeambitionBoard> {
-  return getTransport().call("teambition_board", {})
+export async function teambitionBoard(
+  serverId: string,
+  projectId: string
+): Promise<TeambitionBoard> {
+  return getTransport().call("teambition_board", { serverId, projectId })
 }
 
 export async function teambitionUpdateTaskStatus(
+  serverId: string,
+  projectId: string,
   taskId: string,
   statusId: string
 ): Promise<TeambitionTask> {
   return getTransport().call("teambition_update_task_status", {
+    serverId,
+    projectId,
     taskId,
     statusId,
   })

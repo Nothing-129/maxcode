@@ -748,7 +748,11 @@ mod tests {
             .await
             .expect("acceptance diff");
         let names: Vec<&str> = seen.iter().map(|f| f.file.as_str()).collect();
-        assert_eq!(names, ["a.txt", "new.txt"], "ignored files stay out: {seen:?}");
+        assert_eq!(
+            names,
+            ["a.txt", "new.txt"],
+            "ignored files stay out: {seen:?}"
+        );
         let new_file = seen.iter().find(|f| f.file == "new.txt").expect("new file");
         assert_eq!(
             (new_file.additions, new_file.deletions),
@@ -782,7 +786,10 @@ mod tests {
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .filter(|n| n.starts_with("codeg-diff-index"))
             .collect();
-        assert!(leftovers.is_empty(), "scratch index left behind: {leftovers:?}");
+        assert!(
+            leftovers.is_empty(),
+            "scratch index left behind: {leftovers:?}"
+        );
     }
 
     /// A file the ignore rules exclude but that is TRACKED anyway (`git add
@@ -1057,7 +1064,10 @@ mod tests {
         // ── the tip moved: the branch (and its commit) must survive ──
         let moved = dir.path().join("wt-moved");
         let moved_path = moved.to_str().expect("utf-8 path");
-        git_run(&repo, &["worktree", "add", "-q", "-b", "task/moved", moved_path]);
+        git_run(
+            &repo,
+            &["worktree", "add", "-q", "-b", "task/moved", moved_path],
+        );
         std::fs::write(moved.join("a.txt"), "one\ntwo\n").expect("write");
         git_run(&moved, &["commit", "-qam", "published"]);
         let published = rev_parse(moved_path, "HEAD").await.expect("published tip");
@@ -1070,7 +1080,9 @@ mod tests {
             .await
             .expect_err("a branch that outran the published tip is not deletable");
         assert_eq!(
-            rev_parse(repo_path, "refs/heads/task/moved").await.expect("branch alive"),
+            rev_parse(repo_path, "refs/heads/task/moved")
+                .await
+                .expect("branch alive"),
             outran,
             "the commit nobody published is still reachable"
         );
@@ -1078,7 +1090,10 @@ mod tests {
         // ── the tip is exactly what was published: the branch goes ──
         let same = dir.path().join("wt-same");
         let same_path = same.to_str().expect("utf-8 path");
-        git_run(&repo, &["worktree", "add", "-q", "-b", "task/same", same_path]);
+        git_run(
+            &repo,
+            &["worktree", "add", "-q", "-b", "task/same", same_path],
+        );
         std::fs::write(same.join("a.txt"), "one\nagain\n").expect("write");
         git_run(&same, &["commit", "-qam", "published"]);
         let tip = rev_parse(same_path, "HEAD").await.expect("tip");
@@ -1097,7 +1112,10 @@ mod tests {
         // finish rather than flag the same failure forever.
         let gone = dir.path().join("wt-gone");
         let gone_path = gone.to_str().expect("utf-8 path");
-        git_run(&repo, &["worktree", "add", "-q", "-b", "task/gone", gone_path]);
+        git_run(
+            &repo,
+            &["worktree", "add", "-q", "-b", "task/gone", gone_path],
+        );
         let gone_tip = rev_parse(gone_path, "HEAD").await.expect("tip");
         remove_worktree_and_branch(repo_path, gone_path, Some("task/gone"), Some(&gone_tip))
             .await

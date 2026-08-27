@@ -218,10 +218,9 @@ enum PendingCommandVerdict {
 /// The stripping requirement excludes the `<local-command-caveat>` the CLI
 /// writes around local commands — same submission, but it instructs nothing.
 fn is_same_submission_injection(value: &serde_json::Value, prompt_id: Option<&str>) -> bool {
-    let (Some(command_prompt_id), Some(record_prompt_id)) = (
-        prompt_id,
-        value.get("promptId").and_then(|p| p.as_str()),
-    ) else {
+    let (Some(command_prompt_id), Some(record_prompt_id)) =
+        (prompt_id, value.get("promptId").and_then(|p| p.as_str()))
+    else {
         return false;
     };
     if command_prompt_id != record_prompt_id || !is_meta_message(value) {
@@ -338,9 +337,9 @@ fn pending_command_verdict(
                 .and_then(|c| c.as_array())
                 .is_some_and(|blocks| {
                     !blocks.is_empty()
-                        && blocks.iter().all(|b| {
-                            b.get("type").and_then(|t| t.as_str()) == Some("tool_result")
-                        })
+                        && blocks
+                            .iter()
+                            .all(|b| b.get("type").and_then(|t| t.as_str()) == Some("tool_result"))
                 });
             if tool_results_only || extract_user_content(value).is_empty() {
                 PendingCommandVerdict::Wait
@@ -4146,9 +4145,10 @@ mod tests {
         ));
         // The hook instruction is addressed to the model, not spoken by the
         // user — it must stay out of the transcript.
-        assert!(!turns.iter().any(|t| t.blocks.iter().any(
-            |b| matches!(b, ContentBlock::Text { text } if text.contains("Stop hook"))
-        )));
+        assert!(!turns.iter().any(|t| t
+            .blocks
+            .iter()
+            .any(|b| matches!(b, ContentBlock::Text { text } if text.contains("Stop hook")))));
 
         // Mid-turn (the model is still thinking, no assistant record yet): the
         // hook injection alone must already resolve it, because the transcript
@@ -4644,7 +4644,10 @@ mod tests {
         acc.finalize_background_lifecycle();
         let cards = goal_cards(&group_into_turns(acc.messages));
         assert_eq!(
-            cards.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>(),
+            cards
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
             vec!["create_goal", "update_goal"]
         );
         assert_eq!(cards[1].1["status"], "complete");
@@ -4862,9 +4865,10 @@ mod tests {
         acc.finalize_background_lifecycle();
         let turns = group_into_turns(acc.messages);
         assert!(
-            !turns.iter().any(|t| t.blocks.iter().any(
-                |b| matches!(b, ContentBlock::Text { text } if text.contains("/model"))
-            )),
+            !turns.iter().any(|t| t
+                .blocks
+                .iter()
+                .any(|b| matches!(b, ContentBlock::Text { text } if text.contains("/model")))),
             "the cron owns that reply — the command must not claim its prompt slot"
         );
     }
@@ -4907,9 +4911,10 @@ mod tests {
         }
         acc.finalize_background_lifecycle();
         let turns = group_into_turns(acc.messages);
-        assert!(!turns.iter().any(|t| t.blocks.iter().any(
-            |b| matches!(b, ContentBlock::Text { text } if text.contains("/model"))
-        )));
+        assert!(!turns.iter().any(|t| t
+            .blocks
+            .iter()
+            .any(|b| matches!(b, ContentBlock::Text { text } if text.contains("/model")))));
     }
 
     /// A client-only command stays hidden even when the CLI writes several
@@ -4953,9 +4958,10 @@ mod tests {
         let turns = group_into_turns(acc.messages);
         let roles: Vec<_> = turns.iter().map(role_name).collect();
         assert_eq!(roles, vec!["user", "assistant"]);
-        assert!(!turns.iter().any(|t| t.blocks.iter().any(
-            |b| matches!(b, ContentBlock::Text { text } if text.contains("/model"))
-        )));
+        assert!(!turns.iter().any(|t| t
+            .blocks
+            .iter()
+            .any(|b| matches!(b, ContentBlock::Text { text } if text.contains("/model")))));
     }
 
     #[test]

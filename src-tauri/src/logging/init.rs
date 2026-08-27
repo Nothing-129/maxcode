@@ -835,9 +835,10 @@ mod tests {
 
         let seen = Arc::new(Mutex::new(Vec::new()));
         let subscriber = Registry::default()
-            .with(EnvFilter::builder().parse_lossy(
-                "trace,tungstenite::handshake::client[{message}]=trace",
-            ))
+            .with(
+                EnvFilter::builder()
+                    .parse_lossy("trace,tungstenite::handshake::client[{message}]=trace"),
+            )
             .with(filter_fn(|meta| !is_credential_dump_target(meta.target())))
             .with(CaptureTargets(seen.clone()));
 

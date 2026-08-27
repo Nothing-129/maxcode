@@ -14,7 +14,7 @@ import {
  * whole feature exists to kill.
  */
 describe("levelsFromMap", () => {
-  it("offers everything but xhigh for an undeclared map", () => {
+  it("offers standard levels only for an undeclared map", () => {
     expect(levelsFromMap(undefined)).toEqual([
       "off",
       "minimal",
@@ -32,10 +32,27 @@ describe("levelsFromMap", () => {
     ])
   })
 
-  it("needs an explicit entry before xhigh appears", () => {
-    expect(levelsFromMap({})).not.toContain("xhigh")
-    expect(levelsFromMap({ xhigh: "xhigh" })).toContain("xhigh")
-    expect(levelsFromMap({ xhigh: null })).not.toContain("xhigh")
+  it.each(["xhigh", "max"] as const)(
+    "needs an explicit entry before %s appears",
+    (level) => {
+      expect(levelsFromMap({})).not.toContain(level)
+      expect(levelsFromMap({ [level]: level })).toContain(level)
+      expect(levelsFromMap({ [level]: null })).not.toContain(level)
+    }
+  )
+
+  it("reads a low/high/max-only GLM declaration", () => {
+    expect(
+      levelsFromMap({
+        off: null,
+        minimal: null,
+        low: "low",
+        medium: null,
+        high: "high",
+        xhigh: null,
+        max: "max",
+      })
+    ).toEqual(["low", "high", "max"])
   })
 
   it("reads pi's own built-in gpt-5.5 declaration", () => {
@@ -52,11 +69,11 @@ describe("reasoningToMap", () => {
     expect(
       reasoningToMap({
         ...base,
-        levels: ["off", "minimal", "low", "medium", "high", "xhigh"],
+        levels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
       })
       // minimal/low/medium/high are omitted: absent already means "offered,
-      // sent verbatim". off and xhigh cannot be left to the default.
-    ).toEqual({ off: "none", xhigh: "xhigh" })
+      // sent verbatim". off and extended levels cannot be left to the default.
+    ).toEqual({ off: "none", xhigh: "xhigh", max: "max" })
   })
 
   it("pins every unchecked level to null and omits the checked ones", () => {
@@ -65,6 +82,7 @@ describe("reasoningToMap", () => {
       minimal: null,
       medium: null,
       xhigh: null,
+      max: null,
     })
   })
 
@@ -78,14 +96,14 @@ describe("reasoningToMap", () => {
     ).toMatchObject({ low: "LOW", high: "HIGH" })
   })
 
-  it("lets a custom wire value override the off/xhigh defaults", () => {
+  it("lets a custom wire value override the explicit defaults", () => {
     expect(
       reasoningToMap({
         ...base,
-        levels: ["off", "xhigh"],
-        wireValues: { off: "disabled", xhigh: "ultra" },
+        levels: ["off", "xhigh", "max"],
+        wireValues: { off: "disabled", xhigh: "ultra", max: "maximum" },
       })
-    ).toMatchObject({ off: "disabled", xhigh: "ultra" })
+    ).toMatchObject({ off: "disabled", xhigh: "ultra", max: "maximum" })
   })
 
   it("ignores a whitespace-only override", () => {
@@ -97,7 +115,7 @@ describe("reasoningToMap", () => {
 })
 
 /**
- * Load → save must not drift: the `"none"` / `"xhigh"` markers the writer is forced to
+ * Load → save must not drift: the explicit extended-level markers the writer is forced to
  * emit have to read back as "no override", or every reopen of the panel would rewrite
  * the file and the advanced editor would show noise instead of placeholders.
  */
@@ -105,7 +123,7 @@ describe("round trip", () => {
   const cases: Record<string, PiModelReasoning> = {
     "full set": {
       enabled: true,
-      levels: ["off", "minimal", "low", "medium", "high", "xhigh"],
+      levels: ["off", "minimal", "low", "medium", "high", "xhigh", "max"],
       wireValues: {},
     },
     "narrow set": {
@@ -158,8 +176,12 @@ describe("reasoningFromModel", () => {
 
   it("folds away a wire value that restates the default", () => {
     expect(
-      reasoningFromModel(true, { off: "none", low: "low", xhigh: "xhigh" })
-        .wireValues
+      reasoningFromModel(true, {
+        off: "none",
+        low: "low",
+        xhigh: "xhigh",
+        max: "max",
+      }).wireValues
     ).toEqual({})
   })
 })

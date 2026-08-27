@@ -212,8 +212,9 @@ export function isOfficePreviewable(path: string | null | undefined): boolean {
   return ext === "docx" || ext === "xlsx" || ext === "pptx"
 }
 
-// Binary artifacts and media the in-app preview cannot render — installers
-// (.dmg/.pkg/.exe), app bundles (.app), archives, audio/video, fonts. A file
+// Binary artifacts and media the in-app preview cannot render — PDF documents,
+// installers (.dmg/.pkg/.exe), app bundles (.app), archives, audio/video,
+// fonts. A file
 // reference with one of these extensions opens with the OS default
 // application (desktop opener's openPath) instead of the workspace text
 // preview, which for these types can only ever surface mojibake or a read
@@ -221,6 +222,8 @@ export function isOfficePreviewable(path: string | null | undefined): boolean {
 // in-app preview, so this set is deliberately an exclusion list, not a
 // "known text" allowlist.
 const OPEN_WITH_SYSTEM_APP_EXTENSIONS = new Set([
+  // documents without an in-app renderer
+  "pdf",
   // installers & app bundles
   "dmg",
   "pkg",
