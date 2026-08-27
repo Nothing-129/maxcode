@@ -823,15 +823,39 @@ pub async fn open_import_sessions_window(
     Ok(())
 }
 
+/// Bring `label` to the foreground: unminimize, unhide, then focus.
+///
+/// `set_focus` on its own is not enough: tao skips it outright while the
+/// window is hidden or minimized (both the Windows and the macOS backend
+/// guard on `is_visible && !is_minimized`), and the workspace close button
+/// *hides* `main` to the tray (see the `main` `CloseRequested` arm in
+/// `lib.rs`). Settings is deliberately an independent top-level window, so
+/// the workspace can be hidden while it is still open; restoring an owner by
+/// focus alone then left the app with nothing on screen once settings was
+/// closed too.
+///
+/// Single source of truth for the sequence: the tray / dock / single-instance
+/// path (`show_main_window`) and the auxiliary-window owner restores must not
+/// drift apart again. `unminimize` is inert when the window isn't minimized
+/// (macOS returns early; Windows first syncs the flag from `IsIconic`, so the
+/// diff it applies is empty), and `show` preserves the maximized flag — a
+/// tray-hidden maximized workspace comes back maximized.
+fn show_and_focus_window(app: &AppHandle, label: &str) {
+    let Some(window) = app.get_webview_window(label) else {
+        return;
+    };
+    let _ = window.unminimize();
+    let _ = window.show();
+    let _ = window.set_focus();
+}
+
 pub fn restore_windows_after_settings(
     app: &AppHandle,
     state: &SettingsWindowState,
     settings_window_label: &str,
 ) {
     if let Some(owner_label) = state.take_owner(settings_window_label) {
-        if let Some(window) = app.get_webview_window(&owner_label) {
-            let _ = window.set_focus();
-        }
+        show_and_focus_window(app, &owner_label);
     }
 }
 
@@ -841,9 +865,7 @@ pub fn restore_window_after_commit(
     commit_window_label: &str,
 ) {
     if let Some(owner_label) = state.take_owner(commit_window_label) {
-        if let Some(window) = app.get_webview_window(&owner_label) {
-            let _ = window.set_focus();
-        }
+        show_and_focus_window(app, &owner_label);
     }
 }
 
@@ -953,9 +975,7 @@ pub fn restore_window_after_merge(
     merge_window_label: &str,
 ) {
     if let Some(owner_label) = state.take_owner(merge_window_label) {
-        if let Some(window) = app.get_webview_window(&owner_label) {
-            let _ = window.set_focus();
-        }
+        show_and_focus_window(app, &owner_label);
     }
 }
 
@@ -1953,11 +1973,7 @@ pub fn can_hide_to_tray() -> bool {
 ///   * macOS dock-icon reopen
 #[cfg(feature = "tauri-runtime")]
 pub fn show_main_window(app: &AppHandle) {
-    if let Some(main) = app.get_webview_window("main") {
-        let _ = main.unminimize();
-        let _ = main.show();
-        let _ = main.set_focus();
-    }
+    show_and_focus_window(app, "main");
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -2135,6 +2151,35 @@ pub async fn set_tray_locale(
 ) -> Result<(), AppCommandError> {
     refresh_tray_menu(&app, locale)
         .map_err(|e| AppCommandError::window("Failed to refresh tray menu", e.to_string()))
+}
+
+#[cfg(test)]
+mod owner_window_tests {
+    use super::SettingsWindowState;
+
+    // `lib.rs` runs the restore on both `CloseRequested` and `Destroyed`, so the
+    // owner has to be handed back exactly once. That mattered less while the
+    // restore was a bare `set_focus`; now that it also unhides the owner, a
+    // second pass would fight a user who re-hid the workspace in between.
+    #[test]
+    fn settings_owner_is_handed_back_once() {
+        let state = SettingsWindowState::new();
+        state.set_owner("settings".to_string(), "main".to_string());
+
+        assert_eq!(state.take_owner("settings").as_deref(), Some("main"));
+        assert_eq!(state.take_owner("settings"), None);
+    }
+
+    // Re-opening settings from a different window re-points the owner, so the
+    // restore brings back the window the user actually came from.
+    #[test]
+    fn reopening_settings_repoints_the_owner() {
+        let state = SettingsWindowState::new();
+        state.set_owner("settings".to_string(), "main".to_string());
+        state.set_owner("settings".to_string(), "remote-workspace-3".to_string());
+
+        assert_eq!(state.take_owner("settings").as_deref(), Some("remote-workspace-3"));
+    }
 }
 
 #[cfg(test)]

@@ -51,7 +51,7 @@ pub const PROMPT_CAP: usize = 4000;
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ForgePanelSettings {
     /// Scenario the trigger dialog preselects for an ISSUE — a wire name
-    /// (`fix` / `investigate` / `plan_first`). `None` = the built-in default.
+    /// (`fix` / `plan_first`). `None` = the built-in default.
     ///
     /// Read by the DIALOG, not by the trigger: it decides what the radio group
     /// opens on, and the request that follows always names a scenario
@@ -288,7 +288,7 @@ mod tests {
         );
         // A scenario with nothing of its own still gets the `all` text.
         assert_eq!(
-            settings.standing_prompt("investigate").as_deref(),
+            settings.standing_prompt("plan_first").as_deref(),
             Some("Reply in English.")
         );
     }

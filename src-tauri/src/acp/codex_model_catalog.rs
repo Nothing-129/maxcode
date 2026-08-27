@@ -58,51 +58,78 @@ const IMPORT_SKIP_KEYS: &[&str] = &[
     "upgrade",
 ];
 
-// Authoritative strict-enum value sets, extracted from the codex binary itself
-// (`unknown variant …, expected one of …`). A custom override outside its set
-// would make codex reject the WHOLE catalog, so [`sanitized_override`] drops any
-// value not in these. `default_verbosity` / `apply_patch_tool_type` are also
-// nullable (JSON `null` = the enum's `None`), which is always allowed.
-const ENUM_REASONING_SUMMARY: &[&str] = &["auto", "concise", "detailed", "none"];
-const ENUM_VERBOSITY: &[&str] = &["low", "medium", "high"];
-const ENUM_SHELL_TYPE: &[&str] = &[
-    "default",
-    "local",
-    "unified_exec",
-    "disabled",
-    "shell_command",
-];
-// codex 0.144 accepts only `freeform` here (plus JSON null = the enum's `None`);
-// `function` is NOT a variant and would reject the whole catalog.
-const ENUM_APPLY_PATCH: &[&str] = &["freeform"];
+/// One strict-enum field: its allowed values and whether JSON `null` is also
+/// accepted. Both halves are load-bearing — codex rejects the WHOLE catalog on
+/// an unknown variant *and* on a `null` in a non-optional slot.
+struct EnumSpec {
+    allowed: &'static [&'static str],
+    nullable: bool,
+}
 
-fn strict_enum_for(key: &str) -> Option<&'static [&'static str]> {
+// Authoritative value sets + nullability, extracted from the codex binary itself
+// by feeding it candidate catalogs and reading the full `unknown variant …,
+// expected …` / `invalid type: null, expected …` errors (verified on 0.147 —
+// treat these as version-specific and re-probe when codex moves).
+fn enum_spec_for(key: &str) -> Option<EnumSpec> {
+    let spec = |allowed, nullable| Some(EnumSpec { allowed, nullable });
     match key {
-        "default_reasoning_summary" => Some(ENUM_REASONING_SUMMARY),
-        "default_verbosity" => Some(ENUM_VERBOSITY),
-        "shell_type" => Some(ENUM_SHELL_TYPE),
-        "apply_patch_tool_type" => Some(ENUM_APPLY_PATCH),
+        "default_reasoning_summary" => spec(&["auto", "concise", "detailed", "none"], false),
+        "default_verbosity" => spec(&["low", "medium", "high"], true),
+        "shell_type" => spec(
+            &["default", "local", "unified_exec", "disabled", "shell_command"],
+            false,
+        ),
+        // Only `freeform` is a variant; `function` would reject the whole catalog.
+        "apply_patch_tool_type" => spec(&["freeform"], true),
+        "web_search_tool_type" => spec(&["text", "text_and_image"], false),
+        // `tool_mode` / `multi_agent_version` parse leniently (codex silently
+        // downgrades an unknown value to `None`), but pinning them keeps the
+        // written catalog honest about what the user actually selected.
+        "tool_mode" => spec(&["direct", "code_mode", "code_mode_only"], true),
+        "multi_agent_version" => spec(&["v1", "v2"], true),
         _ => None,
     }
 }
 
+/// `ModelInfo` fields codex parses as a plain `bool`. A string here ("true",
+/// "yes", …) rejects the whole catalog, so the type is checked, not assumed.
+const BOOL_FIELDS: &[&str] = &[
+    "use_responses_lite",
+    "supported_in_api",
+    "support_verbosity",
+    "supports_parallel_tool_calls",
+    "supports_search_tool",
+    "supports_image_detail_original",
+    "supports_reasoning_summary_parameter",
+    "include_apps_usage_instructions",
+    "include_plugin_usage_instructions",
+    "include_skills_usage_instructions",
+];
+
 /// Whether a custom `overrides` entry is safe to write. A single value codex
 /// can't parse rejects the entire catalog, so:
-/// - `null` always passes (nullable enums accept `None`);
-/// - the 4 strict enum fields must carry a string in their allowed set;
+/// - strict enum fields must carry a string in their allowed set, or `null`
+///   only where that enum is genuinely optional;
+/// - boolean fields must carry an actual boolean;
 /// - `default_reasoning_level` must name one of the clone base's supported
-///   efforts (codex 0.144 accepts it leniently, but older codex is strict and
+///   efforts (codex 0.147 accepts it leniently, but older codex is strict and
 ///   the meaningful values are per-model anyway);
-/// - every other field passes through.
+/// - every other field passes through (unknown keys are ignored by codex).
 fn sanitized_override(key: &str, value: &Value, base: Option<&Map<String, Value>>) -> bool {
-    if value.is_null() {
-        return true;
-    }
-    if let Some(allowed) = strict_enum_for(key) {
+    if let Some(spec) = enum_spec_for(key) {
+        if value.is_null() {
+            return spec.nullable;
+        }
         return value
             .as_str()
-            .map(|s| allowed.contains(&s))
+            .map(|s| spec.allowed.contains(&s))
             .unwrap_or(false);
+    }
+    if BOOL_FIELDS.contains(&key) {
+        return value.is_boolean();
+    }
+    if value.is_null() {
+        return true;
     }
     if key == "default_reasoning_level" {
         let Some(s) = value.as_str() else {
@@ -255,10 +282,14 @@ pub fn expand_to_catalog(config: &CodexModelConfig, snapshot: &[Value]) -> Value
         out.push(Value::Object(obj));
     }
 
-    // Then every official verbatim, minus the ones the user removed.
+    // Then every official verbatim, minus the ones the user removed. A removal
+    // only applies to models codex actually *lists*: codex retires a model by
+    // flipping it to `hide` while keeping it around as a migration stub (its
+    // `upgrade` block) or for internal use (`codex-auto-review`), and dropping
+    // those breaks codex rather than tidying the picker.
     for m in snapshot {
         if let Some(slug) = slug_of(m) {
-            if excluded.contains(slug) {
+            if excluded.contains(slug) && is_listable(m) {
                 continue;
             }
             out.push(m.clone());
@@ -304,10 +335,30 @@ pub fn default_slug(config: &CodexModelConfig, snapshot: &[Value]) -> Option<Str
         .and_then(|m| slug_of(m).map(str::to_owned))
 }
 
-/// Whether the config represents "feature off" — no customs and no removed
-/// officials, so codex should use its own catalog untouched.
-pub fn is_empty(config: &CodexModelConfig) -> bool {
-    config.customs.is_empty() && config.excluded_officials.is_empty()
+/// Whether the config still deviates from codex's own catalog **in a way that
+/// applies** — i.e. "feature off", so codex should use its own catalog
+/// untouched. Removals of models codex has since retired to `hide` are ghosts:
+/// [`expand_to_catalog`] ignores them, so a config carrying only ghosts would
+/// have codeg replace the whole model table (freezing the official list) for a
+/// result identical to codex's own. Treating it as empty hands control back.
+pub fn is_effectively_empty(config: &CodexModelConfig, snapshot: &[Value]) -> bool {
+    if !config.customs.is_empty() {
+        return false;
+    }
+    let listable: HashSet<&str> = snapshot
+        .iter()
+        .filter(|m| is_listable(m))
+        .filter_map(|m| slug_of(m))
+        .collect();
+    // An empty/unavailable snapshot can't prove a removal is stale — stay
+    // conservative and keep whatever the user configured.
+    if listable.is_empty() {
+        return config.excluded_officials.is_empty();
+    }
+    !config
+        .excluded_officials
+        .iter()
+        .any(|s| listable.contains(s.as_str()))
 }
 
 /// The default slug for `OPENAI_MODEL` / root `model` **without** a snapshot:
@@ -507,10 +558,10 @@ fn io_err(context: &str, e: std::io::Error) -> AppCommandError {
 /// expanding against `snapshot` (the runtime official catalog).
 ///
 /// The sidecar is written **verbatim** from `raw_compact` so the value the
-/// editor reads back is byte-identical to what it stored. An empty config
-/// (no customs, no removed officials) removes both files and returns `None`,
-/// signalling the caller to drop the `model_catalog_json` key so codex uses its
-/// own catalog.
+/// editor reads back is byte-identical to what it stored. A config with no
+/// customs and no removal that still applies (see [`is_effectively_empty`])
+/// removes both files and returns `None`, signalling the caller to drop the
+/// `model_catalog_json` key so codex uses its own catalog.
 pub fn write_catalog_files(
     raw_compact: &str,
     codex_home: &Path,
@@ -520,7 +571,7 @@ pub fn write_catalog_files(
     let catalog_path = codex_home.join(CATALOG_REL);
     let source_path = codex_home.join(SOURCE_REL);
 
-    if is_empty(&config) {
+    if is_effectively_empty(&config, snapshot) {
         let _ = std::fs::remove_file(&catalog_path);
         let _ = std::fs::remove_file(&source_path);
         return Ok(None);
@@ -569,11 +620,7 @@ mod tests {
     #[test]
     fn bundled_snapshot_matches_launched_codex_shape() {
         let models = snap();
-        assert_eq!(
-            models.len(),
-            8,
-            "snapshot should carry codex 0.144's catalog"
-        );
+        assert_eq!(models.len(), 8, "snapshot should carry codex 0.147's catalog");
         assert!(models.iter().any(|m| slug_of(m) == Some("gpt-5.6-sol")));
         assert!(models.iter().any(|m| slug_of(m) == Some("gpt-5.5")));
         // codex-auto-review ships hidden.
@@ -582,7 +629,10 @@ mod tests {
             .find(|m| slug_of(m) == Some("codex-auto-review"))
             .expect("present");
         assert_eq!(review.get("visibility").unwrap(), "hide");
-        // Every codex required ModelInfo field present on entry 0.
+        // Every codex required ModelInfo field present on entry 0. Note
+        // `supports_reasoning_summaries` is NOT here: 0.147 renamed it to
+        // `supports_reasoning_summary_parameter`, which is skipped while it
+        // holds its `true` default and so never appears in the snapshot.
         let required = [
             "slug",
             "display_name",
@@ -590,10 +640,10 @@ mod tests {
             "supported_in_api",
             "priority",
             "supported_reasoning_levels",
-            "supports_reasoning_summaries",
             "support_verbosity",
             "supports_parallel_tool_calls",
             "shell_type",
+            "web_search_tool_type",
             "experimental_supported_tools",
             "base_instructions",
             "truncation_policy",
@@ -601,6 +651,12 @@ mod tests {
         for f in required {
             assert!(models[0].get(f).is_some(), "missing required field {f}");
         }
+        assert!(
+            models
+                .iter()
+                .all(|m| m.get("supports_reasoning_summaries").is_none()),
+            "0.147 dropped supports_reasoning_summaries — regenerate the snapshot"
+        );
         assert_eq!(fallback_base_slug(&models).as_deref(), Some("gpt-5.6-sol"));
     }
 
@@ -631,21 +687,74 @@ mod tests {
         assert_eq!(review.get("visibility").unwrap(), "hide");
     }
 
+    fn excluding(slugs: &[&str]) -> CodexModelConfig {
+        CodexModelConfig {
+            customs: Vec::new(),
+            excluded_officials: slugs.iter().map(|s| s.to_string()).collect(),
+            default: None,
+        }
+    }
+
     #[test]
     fn expand_excludes_removed_officials_and_empty_is_off() {
-        let config = CodexModelConfig {
-            customs: Vec::new(),
-            excluded_officials: vec!["gpt-5.4".into(), "gpt-5.2".into()],
-            default: None,
-        };
+        let config = excluding(&["gpt-5.2"]);
         let cat = expand_to_catalog(&config, &snap());
         let s = slugs(&cat);
-        assert!(!s.iter().any(|x| x == "gpt-5.4"));
         assert!(!s.iter().any(|x| x == "gpt-5.2"));
         assert!(s.iter().any(|x| x == "gpt-5.6-sol"));
         // Empty config = feature off.
-        assert!(is_empty(&CodexModelConfig::default()));
-        assert!(!is_empty(&config));
+        assert!(is_effectively_empty(&CodexModelConfig::default(), &snap()));
+        assert!(!is_effectively_empty(&config, &snap()));
+    }
+
+    /// codex retires a model by flipping it to `hide` (keeping its `upgrade`
+    /// migration stub), which turns an old removal into a ghost. Honouring the
+    /// ghost would delete the stub from the table codex reads.
+    #[test]
+    fn expand_keeps_hidden_officials_even_when_excluded() {
+        let s = snap();
+        // gpt-5.4 / gpt-5.4-mini are hidden in 0.147; codex-auto-review always is.
+        for slug in ["gpt-5.4", "gpt-5.4-mini", "codex-auto-review"] {
+            let hidden = s
+                .iter()
+                .find(|m| slug_of(m) == Some(slug))
+                .expect("in snapshot");
+            assert_eq!(hidden.get("visibility").unwrap(), "hide", "{slug}");
+        }
+        let cat = expand_to_catalog(&excluding(&["gpt-5.4", "gpt-5.4-mini"]), &s);
+        let out = slugs(&cat);
+        assert!(out.iter().any(|x| x == "gpt-5.4"));
+        assert!(out.iter().any(|x| x == "gpt-5.4-mini"));
+        assert_eq!(out.len(), s.len(), "nothing dropped");
+    }
+
+    #[test]
+    fn effectively_empty_ignores_ghost_exclusions() {
+        let s = snap();
+        // Only stale removals of now-hidden officials → hand control back.
+        assert!(is_effectively_empty(
+            &excluding(&["gpt-5.4", "gpt-5.4-mini"]),
+            &s
+        ));
+        // A removal that still applies keeps the takeover.
+        assert!(!is_effectively_empty(&excluding(&["gpt-5.2"]), &s));
+        // Mixed: the live one wins.
+        assert!(!is_effectively_empty(&excluding(&["gpt-5.4", "gpt-5.2"]), &s));
+        // A custom always counts.
+        let with_custom = CodexModelConfig {
+            customs: vec![CodexCustomEntry {
+                slug: "gw/x".into(),
+                display_name: None,
+                context_window: None,
+                base: "gpt-5.6-sol".into(),
+                overrides: Map::new(),
+            }],
+            ..Default::default()
+        };
+        assert!(!is_effectively_empty(&with_custom, &s));
+        // No snapshot → can't prove staleness, so don't discard the intent.
+        assert!(!is_effectively_empty(&excluding(&["gpt-5.4"]), &[]));
+        assert!(is_effectively_empty(&CodexModelConfig::default(), &s));
     }
 
     #[test]
@@ -688,6 +797,124 @@ mod tests {
         // Valid overrides preserved.
         assert_eq!(x.get("supports_search_tool").unwrap(), &Value::Bool(true));
         assert_eq!(x.get("default_reasoning_summary").unwrap(), "concise");
+    }
+
+    /// Nullability is per-key: codex answers `invalid type: null, expected
+    /// string or map` for the non-optional enums and rejects the whole catalog,
+    /// so a stray `null` (from a legacy override or an imported hand-written
+    /// file) must be dropped rather than written.
+    #[test]
+    fn expand_rejects_null_in_non_nullable_enums_but_allows_optional_ones() {
+        let config = CodexModelConfig {
+            customs: vec![CodexCustomEntry {
+                slug: "gw/n".into(),
+                display_name: None,
+                context_window: None,
+                base: "gpt-5.6-sol".into(),
+                overrides: Map::from_iter([
+                    ("default_reasoning_summary".into(), Value::Null),
+                    ("web_search_tool_type".into(), Value::Null),
+                    ("shell_type".into(), Value::Null),
+                    // These three ARE optional in codex.
+                    ("apply_patch_tool_type".into(), Value::Null),
+                    ("tool_mode".into(), Value::Null),
+                    ("multi_agent_version".into(), Value::Null),
+                ]),
+            }],
+            ..Default::default()
+        };
+        let cat = expand_to_catalog(&config, &snap());
+        let x = find(&cat, "gw/n").expect("present");
+        for key in ["default_reasoning_summary", "web_search_tool_type", "shell_type"] {
+            assert!(!x.get(key).unwrap().is_null(), "{key} must keep the base value");
+        }
+        for key in ["apply_patch_tool_type", "tool_mode", "multi_agent_version"] {
+            assert!(x.get(key).unwrap().is_null(), "{key} must accept null");
+        }
+    }
+
+    /// The compatibility template the editor writes must survive sanitization
+    /// intact — it is the whole point of the "third-party gateway" preset.
+    #[test]
+    fn expand_keeps_the_openai_compatible_override_bundle() {
+        let config = CodexModelConfig {
+            customs: vec![CodexCustomEntry {
+                slug: "gw/compat".into(),
+                display_name: None,
+                context_window: None,
+                base: "gpt-5.6-sol".into(),
+                overrides: Map::from_iter([
+                    ("tool_mode".into(), Value::Null),
+                    ("multi_agent_version".into(), Value::Null),
+                    ("use_responses_lite".into(), Value::Bool(false)),
+                    ("apply_patch_tool_type".into(), Value::Null),
+                    ("supports_image_detail_original".into(), Value::Bool(false)),
+                ]),
+            }],
+            ..Default::default()
+        };
+        let x = expand_to_catalog(&config, &snap());
+        let x = find(&x, "gw/compat").expect("present");
+        assert!(x.get("tool_mode").unwrap().is_null());
+        assert!(x.get("multi_agent_version").unwrap().is_null());
+        assert!(x.get("apply_patch_tool_type").unwrap().is_null());
+        assert_eq!(x.get("use_responses_lite").unwrap(), &Value::Bool(false));
+        assert_eq!(
+            x.get("supports_image_detail_original").unwrap(),
+            &Value::Bool(false)
+        );
+        // Enum values the editor offers for these keys are accepted too.
+        let picked = CodexModelConfig {
+            customs: vec![CodexCustomEntry {
+                slug: "gw/pick".into(),
+                display_name: None,
+                context_window: None,
+                base: "gpt-5.6-sol".into(),
+                overrides: Map::from_iter([
+                    ("tool_mode".into(), Value::String("direct".into())),
+                    ("multi_agent_version".into(), Value::String("v1".into())),
+                    ("web_search_tool_type".into(), Value::String("text".into())),
+                ]),
+            }],
+            ..Default::default()
+        };
+        let p = expand_to_catalog(&picked, &snap());
+        let p = find(&p, "gw/pick").expect("present");
+        assert_eq!(p.get("tool_mode").unwrap(), "direct");
+        assert_eq!(p.get("multi_agent_version").unwrap(), "v1");
+        assert_eq!(p.get("web_search_tool_type").unwrap(), "text");
+    }
+
+    /// A non-boolean in a boolean slot answers `invalid type: string …, expected
+    /// a boolean` and takes the whole catalog down with it.
+    #[test]
+    fn expand_drops_non_boolean_values_in_boolean_fields() {
+        let config = CodexModelConfig {
+            customs: vec![CodexCustomEntry {
+                slug: "gw/b".into(),
+                display_name: None,
+                context_window: None,
+                base: "gpt-5.6-sol".into(),
+                overrides: Map::from_iter([
+                    ("use_responses_lite".into(), Value::String("yes".into())),
+                    ("supports_search_tool".into(), Value::Null),
+                    (
+                        "supports_reasoning_summary_parameter".into(),
+                        Value::Bool(false),
+                    ),
+                ]),
+            }],
+            ..Default::default()
+        };
+        let cat = expand_to_catalog(&config, &snap());
+        let x = find(&cat, "gw/b").expect("present");
+        assert_eq!(x.get("use_responses_lite").unwrap(), &Value::Bool(true));
+        assert_eq!(x.get("supports_search_tool").unwrap(), &Value::Bool(true));
+        // A real boolean still lands.
+        assert_eq!(
+            x.get("supports_reasoning_summary_parameter").unwrap(),
+            &Value::Bool(false)
+        );
     }
 
     #[test]
@@ -739,10 +966,11 @@ mod tests {
         assert_eq!(bare.customs[0].base, "gpt-5.9");
         assert_eq!(bare.default.as_deref(), Some("gpt-5.9"));
         // Blank / empty object → feature off.
-        assert!(is_empty(&parse_model_config(None)));
-        assert!(is_empty(&parse_model_config(Some("   "))));
-        assert!(is_empty(&parse_model_config(Some("{}"))));
-        assert!(is_empty(&parse_model_config(Some(r#"{"customs":[]}"#))));
+        let off = |raw| is_effectively_empty(&parse_model_config(raw), &snap());
+        assert!(off(None));
+        assert!(off(Some("   ")));
+        assert!(off(Some("{}")));
+        assert!(off(Some(r#"{"customs":[]}"#)));
     }
 
     #[test]
@@ -796,11 +1024,16 @@ mod tests {
             .any(|x| x == "codex-auto-review"));
         assert_eq!(cfg.default.as_deref(), Some("gpt-5.5"));
 
-        // Round-trip: expanding reproduces gpt-5.5 + the custom, drops excluded.
+        // Round-trip: expanding reproduces gpt-5.5 + the custom, drops the
+        // listable officials the foreign catalog left out…
         let cat = expand_to_catalog(&cfg, &s);
         assert!(find(&cat, "gpt-5.5").is_some());
         assert!(find(&cat, "gw/opus").is_some());
-        assert!(find(&cat, "gpt-5.4").is_none());
+        assert!(find(&cat, "gpt-5.2").is_none());
+        // …while hidden ones survive: they were never inferred-excluded, and
+        // expansion would keep them regardless (they back codex internals).
+        assert!(find(&cat, "gpt-5.4").is_some());
+        assert!(find(&cat, "codex-auto-review").is_some());
     }
 
     #[test]
@@ -824,6 +1057,18 @@ mod tests {
         assert!(write_catalog_files(r#"{"customs":[]}"#, &dir, &s)
             .unwrap()
             .is_none());
+        assert!(!dir.join(CATALOG_REL).exists());
+        assert!(!dir.join(SOURCE_REL).exists());
+
+        // A ghost-only config (removals of officials codex has since hidden)
+        // behaves the same: the files go away and the caller is told to drop the
+        // `model_catalog_json` key, so the two never get out of sync.
+        write_catalog_files(r#"{"customs":[{"slug":"gw/y","base":"gpt-5.6-sol"}]}"#, &dir, &s)
+            .unwrap()
+            .expect("seeded");
+        assert!(dir.join(CATALOG_REL).exists());
+        let ghosts = r#"{"customs":[],"excludedOfficials":["gpt-5.4","gpt-5.4-mini"]}"#;
+        assert!(write_catalog_files(ghosts, &dir, &s).unwrap().is_none());
         assert!(!dir.join(CATALOG_REL).exists());
         assert!(!dir.join(SOURCE_REL).exists());
         let _ = std::fs::remove_dir_all(&dir);

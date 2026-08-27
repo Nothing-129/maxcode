@@ -14,7 +14,7 @@ use crate::db::service::remote_workspace_connection_service;
 #[cfg(feature = "tauri-runtime")]
 use crate::db::AppDatabase;
 #[cfg(feature = "tauri-runtime")]
-use crate::models::RemoteWorkspaceConnectionInfo;
+use crate::models::{RemoteWorkspaceConnectionInfo, RemoteWorkspaceHeader, ToHeaderMap};
 
 #[cfg(feature = "tauri-runtime")]
 const REMOTE_HEALTH_TIMEOUT: Duration = Duration::from_secs(8);
@@ -32,28 +32,41 @@ pub struct RemoteWorkspaceConnectionInput {
     #[serde(alias = "baseUrl")]
     pub base_url: String,
     pub token: String,
+    #[serde(default)]
+    pub headers: Vec<RemoteWorkspaceHeader>,
 }
 
 #[cfg(feature = "tauri-runtime")]
-async fn validate_remote_health(base_url: &str, token: &str) -> Result<(), AppCommandError> {
+async fn validate_remote_health(
+    base_url: &str,
+    token: &str,
+    headers: &[RemoteWorkspaceHeader],
+) -> Result<(), AppCommandError> {
     let normalized = remote_workspace_connection_service::normalize_base_url(base_url)?;
     let url = format!("{normalized}/api/health");
     let client = reqwest::Client::builder()
         .timeout(REMOTE_HEALTH_TIMEOUT)
+        // The health check is the first request to carry the connection's
+        // custom headers, and the one the user runs to prove the setup works.
+        // It gets the same host pinning as every later request, or "test
+        // succeeded" would mean something weaker than "save succeeded".
+        .redirect(crate::commands::remote_proxy::connection_redirect_policy())
         .build()
         .map_err(|e| {
             AppCommandError::configuration_invalid("Failed to create remote health client")
                 .with_detail(e.to_string())
         })?;
+    let headers = remote_workspace_connection_service::validate_headers(headers)?;
     let response = client
         .post(url)
         .bearer_auth(token.trim())
+        .headers(headers.to_header_map())
         .json(&serde_json::json!({}))
         .send()
         .await
         .map_err(|e| {
             AppCommandError::network("Unable to connect to remote workspace")
-                .with_detail(e.to_string())
+                .with_detail(crate::commands::remote_proxy::request_error_detail(&e))
         })?;
 
     if response.status() == StatusCode::UNAUTHORIZED {
@@ -99,7 +112,7 @@ pub async fn get_remote_workspace_connection(
 pub async fn test_remote_workspace_connection(
     input: RemoteWorkspaceConnectionInput,
 ) -> Result<(), AppCommandError> {
-    validate_remote_health(&input.base_url, &input.token).await
+    validate_remote_health(&input.base_url, &input.token, &input.headers).await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -108,12 +121,13 @@ pub async fn create_remote_workspace_connection(
     db: tauri::State<'_, AppDatabase>,
     input: RemoteWorkspaceConnectionInput,
 ) -> Result<RemoteWorkspaceConnectionInfo, AppCommandError> {
-    validate_remote_health(&input.base_url, &input.token).await?;
+    validate_remote_health(&input.base_url, &input.token, &input.headers).await?;
     remote_workspace_connection_service::create(
         &db.conn,
         &input.name,
         &input.base_url,
         &input.token,
+        &input.headers,
     )
     .await
 }
@@ -125,13 +139,14 @@ pub async fn update_remote_workspace_connection(
     id: i32,
     input: RemoteWorkspaceConnectionInput,
 ) -> Result<RemoteWorkspaceConnectionInfo, AppCommandError> {
-    validate_remote_health(&input.base_url, &input.token).await?;
+    validate_remote_health(&input.base_url, &input.token, &input.headers).await?;
     remote_workspace_connection_service::update(
         &db.conn,
         id,
         &input.name,
         &input.base_url,
         &input.token,
+        &input.headers,
     )
     .await
 }
@@ -177,7 +192,7 @@ pub async fn open_remote_workspace(
         return Ok(());
     }
 
-    validate_remote_health(&connection.base_url, &connection.token).await?;
+    validate_remote_health(&connection.base_url, &connection.token, &connection.headers).await?;
 
     let window_instance_id = new_remote_window_instance_id();
     let url = WebviewUrl::App(

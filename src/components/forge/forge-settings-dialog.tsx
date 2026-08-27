@@ -59,7 +59,6 @@ const PROMPT_CAP = 4000
  *  ("what to type here"), not the trigger hint ("what this will do"). */
 const SCENARIO_LABELS = {
   fix: "scenarioFix",
-  investigate: "scenarioInvestigate",
   plan_first: "scenarioPlanFirst",
   review_fix: "scenarioReviewFix",
   review_only: "scenarioReviewOnly",

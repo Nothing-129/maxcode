@@ -31,9 +31,9 @@ use serde::Deserialize;
 
 use super::auth::ResolvedAuth;
 use super::{
-    truncate_chars, urlencode_query, validate_state_filter, ForgeError, ForgeIssueList,
-    ForgeIssueRow, ForgeLabel, ForgeLabelList, ForgeTab, ListIssuesRequest, BODY_CAP,
-    LABEL_PAGE_SIZE,
+    sanitize_web_url, truncate_chars, urlencode_query, validate_state_filter, ForgeComment,
+    ForgeCommentList, ForgeError, ForgeIssueList, ForgeIssueRow, ForgeLabel, ForgeLabelList,
+    ForgeTab, ListIssuesRequest, BODY_CAP, LABEL_PAGE_SIZE,
 };
 
 /// How deep search pagination goes, per GitHub's documented limit. Beyond this
@@ -282,6 +282,120 @@ pub async fn list_labels(
             .collect(),
         truncated,
     })
+}
+
+/// One page of an item's conversation.
+///
+/// `/repos/{o}/{r}/issues/{n}/comments` serves ISSUES AND PULL REQUESTS alike
+/// — a pull request is an issue here — which is why this takes no item kind at
+/// all, and why it is also the endpoint the write-back posts to
+/// (`deliver::create_issue_comment`). `/pulls/{n}/comments` is a different
+/// collection: review comments anchored to a diff line, which are not what the
+/// item's `comments` count counts and not what a reader of the thread expects
+/// to find in it.
+///
+/// On the CORE quota (5000/hour), not search's 30-per-minute one — which is
+/// what makes opening the detail panel cheap even though the list it sits over
+/// is paid for out of the smaller budget.
+pub async fn list_comments(
+    auth: &ResolvedAuth,
+    owner_repo: &str,
+    number: i64,
+    page: u32,
+    per_page: u32,
+) -> Result<ForgeCommentList, ForgeError> {
+    let repo = super::normalize_repo(owner_repo)
+        .ok_or_else(|| ForgeError::Invalid(format!("bad repository path: {owner_repo}")))?;
+    if number <= 0 {
+        return Err(ForgeError::Invalid(format!("bad work item number: {number}")));
+    }
+    // Oldest first, which is this endpoint's own default and the only order a
+    // conversation reads in. It takes no `sort` parameter, so there is nothing
+    // to state — the ascending order is why "load more" appends.
+    let url = format!(
+        "{}/repos/{repo}/issues/{number}/comments?page={page}&per_page={per_page}",
+        auth.api_base
+    );
+    let response = api_get(auth, &url).await?;
+    // The pagination header, never the row count: a full page is not proof of
+    // a next one, and GitHub says so explicitly.
+    let has_next = has_next_link(response.headers());
+    let raw: Vec<RawComment> = response
+        .json()
+        .await
+        .map_err(|e| ForgeError::Network(format!("bad comments payload: {e}")))?;
+    Ok(ForgeCommentList {
+        comments: raw.into_iter().map(RawComment::into_comment).collect(),
+        page,
+        per_page,
+        has_next,
+    })
+}
+
+#[derive(Debug, Deserialize)]
+struct RawComment {
+    #[serde(default)]
+    id: i64,
+    #[serde(default)]
+    body: Option<String>,
+    #[serde(default)]
+    created_at: Option<String>,
+    #[serde(default)]
+    updated_at: Option<String>,
+    #[serde(default)]
+    html_url: Option<String>,
+    #[serde(default)]
+    user: Option<RawCommentUser>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RawCommentUser {
+    #[serde(default)]
+    login: String,
+    #[serde(default)]
+    avatar_url: Option<String>,
+}
+
+impl RawComment {
+    fn into_comment(self) -> ForgeComment {
+        let (author, author_avatar) = match self.user {
+            Some(user) => (
+                ForgeComment::author_name(Some(user.login)),
+                user.avatar_url.as_deref().and_then(sanitize_web_url),
+            ),
+            None => (None, None),
+        };
+        ForgeComment {
+            id: self.id.to_string(),
+            author,
+            author_avatar,
+            body: truncate_chars(self.body.as_deref().unwrap_or_default(), BODY_CAP),
+            updated_at: ForgeComment::edited_at(self.created_at.as_deref(), self.updated_at),
+            created_at: self.created_at,
+            html_url: self.html_url.as_deref().and_then(sanitize_web_url),
+        }
+    }
+}
+
+/// Whether GitHub's `Link` header offers a `rel="next"`.
+///
+/// The alternative — "the page came back full, so there is probably more" —
+/// promises a next page that is empty whenever the total is an exact multiple
+/// of the page size, which for a page size of 20 is every twentieth thread.
+fn has_next_link(headers: &reqwest::header::HeaderMap) -> bool {
+    headers
+        .get_all("link")
+        .iter()
+        .filter_map(|value| value.to_str().ok())
+        .any(|header| {
+            header.split(',').any(|part| {
+                // `<url>; rel="next"` — the quotes are what keep this from
+                // matching `rel="next-something"` if one ever appeared.
+                part.split(';')
+                    .skip(1)
+                    .any(|param| param.trim().eq_ignore_ascii_case("rel=\"next\""))
+            })
+        })
 }
 
 /// `GET {api_base}/user` → login, cached per `(api_base, account)` — resolving
@@ -533,6 +647,61 @@ mod tests {
                         { "name": "help wanted", "color": "rebeccapurple" },
                         { "name": "" },
                     ]))
+                }),
+            )
+            .route(
+                // Comments for BOTH kinds — a pull request is an issue here.
+                // Page 1 offers a `Link: rel="next"`, page 2 does not, which is
+                // the only signal the client is allowed to page on.
+                "/repos/acme/app/issues/42/comments",
+                get(|Query(params): Query<HashMap<String, String>>| async move {
+                    let page = params.get("page").cloned().unwrap_or_default();
+                    let body = if page == "2" {
+                        serde_json::json!([{
+                            "id": 3,
+                            "body": "second page",
+                            "created_at": "2026-08-21T00:00:00Z",
+                            "updated_at": "2026-08-21T00:00:00Z",
+                            "html_url": "https://github.test/acme/app/issues/42#issuecomment-3",
+                            "user": { "login": "hubot", "avatar_url": "javascript:alert(1)" },
+                        }])
+                    } else {
+                        serde_json::json!([
+                            {
+                                "id": 1,
+                                "body": "cannot reproduce",
+                                "created_at": "2026-08-20T00:00:00Z",
+                                // Stamped on creation — NOT an edit.
+                                "updated_at": "2026-08-20T00:00:00Z",
+                                "html_url": "https://github.test/acme/app/issues/42#issuecomment-1",
+                                "user": {
+                                    "login": "alice",
+                                    "avatar_url": "https://avatars.github.test/u/1",
+                                },
+                            },
+                            {
+                                "id": 2,
+                                "body": "reworded",
+                                "created_at": "2026-08-20T00:00:00Z",
+                                "updated_at": "2026-08-20T09:00:00Z",
+                                "html_url": "https://github.test/acme/app/issues/42#issuecomment-2",
+                                // A comment whose author is gone (deleted
+                                // account) — GitHub sends `user: null`.
+                                "user": null,
+                            },
+                        ])
+                    };
+                    let mut headers = HeaderMap::new();
+                    if page != "2" {
+                        headers.insert(
+                            "link",
+                            "<http://x/repos/acme/app/issues/42/comments?page=2>; rel=\"next\", \
+                             <http://x/repos/acme/app/issues/42/comments?page=9>; rel=\"last\""
+                                .parse()
+                                .unwrap(),
+                        );
+                    }
+                    (headers, Json(body))
                 }),
             )
             .route(
@@ -913,6 +1082,92 @@ mod tests {
         assert!(full.truncated);
 
         assert!(list_labels(&auth, "no-slash").await.is_err());
+    }
+
+    /// The thread comes from the ISSUE comments endpoint — the one that serves
+    /// pull requests too — and each entry is normalized on the way out: the
+    /// `updated_at` that merely repeats `created_at` is dropped (both are
+    /// stamped on creation, so passing it through would mark every comment as
+    /// edited) and a non-`http` avatar never reaches an `<img src>`.
+    #[tokio::test]
+    async fn comments_come_from_the_issue_thread_and_are_normalized() {
+        let (api_base, _, _) = mock_api().await;
+        let auth = auth_for(api_base);
+
+        let page = list_comments(&auth, "Acme/App", 42, 1, 20).await.expect("comments");
+        assert_eq!((page.page, page.per_page), (1, 20));
+        let ids: Vec<&str> = page.comments.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["1", "2"]);
+
+        let first = &page.comments[0];
+        assert_eq!(first.author.as_deref(), Some("alice"));
+        assert_eq!(first.body, "cannot reproduce");
+        assert_eq!(
+            first.author_avatar.as_deref(),
+            Some("https://avatars.github.test/u/1")
+        );
+        assert_eq!(
+            first.html_url.as_deref(),
+            Some("https://github.test/acme/app/issues/42#issuecomment-1")
+        );
+        // Created and "updated" at the same instant: not an edit.
+        assert_eq!(first.updated_at, None);
+
+        // A real edit keeps its timestamp…
+        assert_eq!(
+            page.comments[1].updated_at.as_deref(),
+            Some("2026-08-20T09:00:00Z")
+        );
+        // …and a deleted account leaves no author rather than an empty name.
+        assert_eq!(page.comments[1].author, None);
+    }
+
+    /// Paging follows the `Link` header, never "the page came back full" —
+    /// which would promise an empty next page on every thread whose length is
+    /// an exact multiple of the page size.
+    #[tokio::test]
+    async fn comment_paging_follows_the_link_header() {
+        let (api_base, _, _) = mock_api().await;
+        let auth = auth_for(api_base);
+
+        let first = list_comments(&auth, "acme/app", 42, 1, 20).await.expect("page 1");
+        assert!(first.has_next);
+
+        let second = list_comments(&auth, "acme/app", 42, 2, 20).await.expect("page 2");
+        assert!(!second.has_next, "no rel=next on the last page");
+        assert_eq!(second.comments.len(), 1);
+        // The `javascript:` avatar is refused rather than forwarded into the
+        // attribute that would honour it.
+        assert_eq!(second.comments[0].author_avatar, None);
+
+        // The header parser reads the RELATION, not the substring: `rel="next"`
+        // and nothing else opens the next page.
+        let link = |value: &str| {
+            let mut headers = reqwest::header::HeaderMap::new();
+            headers.insert("link", value.parse().unwrap());
+            has_next_link(&headers)
+        };
+        assert!(link("<http://x?page=2>; rel=\"next\""));
+        assert!(link("<http://x?page=9>; rel=\"last\", <http://x?page=2>; rel=\"next\""));
+        assert!(!link("<http://x?page=1>; rel=\"prev\", <http://x?page=1>; rel=\"first\""));
+        // A URL that merely CONTAINS the word must not count as the relation.
+        assert!(!link("<http://x?q=rel=\"next\">; rel=\"last\""));
+        assert!(!has_next_link(&reqwest::header::HeaderMap::new()));
+    }
+
+    /// Coordinates a client made up must not read someone else's thread.
+    #[tokio::test]
+    async fn a_bad_comment_target_is_rejected() {
+        let (api_base, _, _) = mock_api().await;
+        let auth = auth_for(api_base);
+        assert!(matches!(
+            list_comments(&auth, "no-slash", 42, 1, 20).await,
+            Err(ForgeError::Invalid(_))
+        ));
+        assert!(matches!(
+            list_comments(&auth, "acme/app", 0, 1, 20).await,
+            Err(ForgeError::Invalid(_))
+        ));
     }
 
     /// A repository path the client made up must not become a search that

@@ -30,6 +30,7 @@ import {
 } from "streamdown"
 import { markdownLinkComponents } from "./markdown-link"
 import { maskLiteralSpans } from "./markdown-mask"
+import { mermaidComponents } from "./mermaid-block"
 import { rehypePluginsAllowingCodeg } from "./rehype-allow-codeg"
 import { remarkAutolinkLocalPaths } from "./remark-autolink-local-paths"
 import { remarkTrimCjkAutolinkTail } from "./remark-cjk-autolink-tail"
@@ -516,8 +517,13 @@ function MessageResponseImpl({
       rehypePlugins={rehypePlugins}
       {...props}
       // Merge after spreading props so a caller can still override other
-      // elements, but the link icon + safety routing on `a` always wins.
-      components={{ ...props.components, ...markdownLinkComponents }}
+      // elements, but the link icon + safety routing on `a` — and the diagram
+      // block on `pre` — always win.
+      components={{
+        ...props.components,
+        ...markdownLinkComponents,
+        ...mermaidComponents,
+      }}
     >
       {normalized}
     </Streamdown>

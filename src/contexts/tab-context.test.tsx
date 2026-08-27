@@ -22,6 +22,7 @@ import {
   resetTabStore,
   selectIsSplit,
   useTabStore,
+  type OpenedDraftTarget,
 } from "@/stores/tab-store"
 import { leafIds } from "@/lib/tab-group-layout"
 import {
@@ -538,6 +539,100 @@ describe("TabProvider tab state transitions", () => {
     const draft = latestContext?.tabs.find((tab) => tab.id === activeId)
     expect(draft?.folderId).toBe(999)
     expect(draft?.agentType).toBe("claude_code")
+  })
+
+  it("pins the draft to a forced agent, outranking the folder default", () => {
+    // "Ask about this selection" opens the question on the agent that WROTE the
+    // text, so the force has to beat folder 1's pinned "codex" default — which
+    // otherwise wins over everything.
+    renderTabs()
+    expect(latestContext).not.toBeNull()
+
+    let opened: OpenedDraftTarget | null = null
+    act(() => {
+      opened = latestContext!.openNewConversationTab(1, "/repo", {
+        forceAgent: "claude_code",
+      })
+    })
+
+    const target = opened as OpenedDraftTarget | null
+    expect(target?.tabId).toBe(latestContext?.activeTabId)
+    expect(target).toMatchObject({ agentType: "claude_code", folderId: 1 })
+    const draft = latestContext?.tabs.find((tab) => tab.id === target?.tabId)
+    expect(draft?.agentType).toBe("claude_code")
+    // Explicit caller intent, so the provisional-agent correction pass must not
+    // "fix" it back to the resolved default once the agent list goes fresh.
+    expect(
+      useTabStore.getState().rawTabs.find((t) => t.id === target?.tabId)
+        ?.agentTypeProvisional
+    ).toBe(false)
+  })
+
+  it("promises the retargeted identity when it reuses the group's draft", () => {
+    // Each group keeps a single draft, so the second open retargets the first
+    // tab rather than adding one — ASYNCHRONOUSLY. Callers that hand work to the
+    // returned tab (the "ask about this selection" hand-off) must be told the
+    // identity it is heading for, not the stale one it still has, or they would
+    // act on the tab while it is still the previous folder's agent.
+    renderTabs()
+    expect(latestContext).not.toBeNull()
+
+    let first: OpenedDraftTarget | null = null
+    act(() => {
+      first = latestContext!.openNewConversationTab(1, "/repo")
+    })
+    expect((first as OpenedDraftTarget | null)?.tabId).toMatch(/^new-/)
+
+    let second: OpenedDraftTarget | null = null
+    act(() => {
+      // A different agent — the retarget path, not the plain focus path.
+      second = latestContext!.openNewConversationTab(1, "/repo", {
+        forceAgent: "claude_code",
+      })
+    })
+
+    const reused = second as OpenedDraftTarget | null
+    expect(reused?.tabId).toBe((first as OpenedDraftTarget | null)?.tabId)
+    // The promise is the POST-retarget identity, even though the tab has not
+    // been patched yet at this point.
+    expect(reused).toMatchObject({ agentType: "claude_code", folderId: 1 })
+    expect(
+      latestContext?.tabs.filter((t) => t.conversationId == null)
+    ).toHaveLength(1)
+  })
+
+  it("re-points an existing chat draft at a forced agent", () => {
+    // A chat-mode draft is normally left alone when it is reopened — it keeps
+    // whatever agent it was on, because `inherit` is only a suggestion. A FORCED
+    // agent is not: asking about a selection in a codex chat must not have the
+    // question answered by whichever agent the group's chat draft happened to be
+    // sitting on.
+    renderTabs()
+    expect(latestContext).not.toBeNull()
+
+    act(() => {
+      latestContext?.openChatModeTab({ forceAgent: "claude_code" })
+    })
+    const chatDraftId = latestContext?.activeTabId ?? ""
+    expect(
+      latestContext?.tabs.find((t) => t.id === chatDraftId)?.agentType
+    ).toBe("claude_code")
+
+    let reopened: OpenedDraftTarget | null = null
+    act(() => {
+      reopened = latestContext!.openChatModeTab({ forceAgent: "codex" })
+    })
+
+    const target = reopened as OpenedDraftTarget | null
+    expect(target?.tabId).toBe(chatDraftId)
+    expect(target).toMatchObject({ agentType: "codex", folderId: 0 })
+    const draft = latestContext?.tabs.find((t) => t.id === chatDraftId)
+    expect(draft?.agentType).toBe("codex")
+    expect(draft?.isChat).toBe(true)
+    expect(
+      useTabStore.getState().rawTabs.find((t) => t.id === chatDraftId)
+        ?.agentTypeProvisional
+    ).toBe(false)
   })
 
   it("activates an opened tab when another tab update is already queued", () => {

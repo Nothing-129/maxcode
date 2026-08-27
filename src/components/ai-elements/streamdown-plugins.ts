@@ -220,6 +220,23 @@ export function prefetchHeavyPlugins(kinds: HeavyKind[]): void {
   for (const kind of kinds) ensure(kind)
 }
 
+/**
+ * The Mermaid engine, once it has finished loading — `null` until then.
+ *
+ * Used by our own diagram block (`./mermaid-block.tsx`), which renders
+ * ` ```mermaid ` fences instead of Streamdown's built-in component. Same
+ * at-most-once module-level load as everything else here: the component only
+ * mounts when a fence is actually present, so calling `ensure` from it keeps
+ * the engine exactly as lazy as `useStreamdownPlugins` makes it.
+ */
+export function useMermaidEngine(): MermaidPlugin | null {
+  useSyncExternalStore(subscribe, getVersion, getVersion)
+  useEffect(() => {
+    ensure("mermaid")
+  }, [])
+  return loaded.mermaid ?? null
+}
+
 export type HeavyPluginNeeds = Record<HeavyKind, boolean>
 
 const NO_NEEDS: HeavyPluginNeeds = { code: false, math: false, mermaid: false }

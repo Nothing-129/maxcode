@@ -20,6 +20,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronsUp,
   Download,
   ExternalLink,
   FolderClosed,
@@ -110,6 +111,7 @@ import {
   mergeChildrenById,
   nextHeaderAfter,
   pointerYToTargetIndex,
+  RECENT_PAGE_SIZE,
   reuseSelected,
   reuseSet,
   selectChatConversationsWithReuse,
@@ -178,12 +180,6 @@ const EMPTY_CHILD_TO_PARENT: ReadonlyMap<number, number> = new Map()
 const EMPTY_CONTAINER_CHILDREN: ReadonlyMap<number, readonly number[]> =
   new Map()
 
-// How many conversations the "Recent" section shows before its "show more" row,
-// and how many each click adds. Recent deliberately re-lists what the Folders /
-// Chat sections already show, so an unbounded one pushes every section below it
-// off the screen — a page keeps it a glance-able "where was I" list.
-const RECENT_PAGE_SIZE = 15
-
 // How many conversations a folder body shows before its "show more" row, and
 // how many each click adds. Codex-style paging so a busy folder does not
 // bury every sibling below it; per-folder so expanding one does not page
@@ -230,7 +226,6 @@ export function resetFolderPointerToggleGuardForTests() {
   lastPointerToggleAt = 0
   recentPointerNewConversations.clear()
 }
-
 const FolderHeader = memo(function FolderHeader({
   folderId,
   folderName,
@@ -1008,6 +1003,23 @@ export function SidebarConversationList({
       ...prev,
       [folderId]: (prev[folderId] ?? FOLDER_PAGE_SIZE) + FOLDER_PAGE_SIZE,
     }))
+  }, [])
+  // The Recent footer's own button, so the reset can hand focus to it.
+  const recentMoreButtonRef = useRef<HTMLButtonElement>(null)
+  // The way back out. `recentLimit` only ever grew before, so a list expanded a
+  // few pages deep stayed that way for the rest of the session, pushing the
+  // sections under Recent off the screen.
+  const resetRecentLimit = useCallback(() => {
+    // Move focus FIRST, while the right-edge icon variant is still mounted:
+    // dropping the limit unmounts it (its `canReset` goes false) and would
+    // otherwise leave keyboard focus on <body>, i.e. back at the top of the
+    // document. The footer button always survives a reset — the reset only
+    // exists when more than a page is on screen, so a remainder is guaranteed —
+    // and in the reset-only variant it IS the clicked button, making this a
+    // no-op. Programmatic focus after a mouse click does not raise
+    // `:focus-visible`, so pointer users see no ring.
+    recentMoreButtonRef.current?.focus()
+    setRecentLimit(RECENT_PAGE_SIZE)
   }, [])
   // ── Per-conversation delegation sub-session expansion ───────────────────
   // Default COLLAPSED (unlike folders): only ids the user opened are tracked
@@ -2623,12 +2635,33 @@ export function SidebarConversationList({
       // box, centred on the var), and the label starts at the card's title
       // inset (`axis + 0.875rem`). Same row height and full rounding too, so
       // its hover pill is the one the rows above it use.
+      //
+      // Two directions live here. While pages remain, the row is "show more"
+      // and the reset hides at the right edge as an icon, on the same
+      // reveal-on-hover terms as the section headers' actions. Once the last
+      // page is out (`remaining === 0`) buildRows keeps the row alive for the
+      // reset alone, and it takes over the row: nothing is left to expand, so a
+      // hover-only affordance would be the section's only exit hiding itself.
+      const showMore = row.remaining > 0
+      const resetLabel = t("resetRecentLimit", { count: RECENT_PAGE_SIZE })
       return (
-        <div className="relative h-[2rem]">
+        <div className="group/recent-more relative h-[2rem]">
           <button
+            ref={recentMoreButtonRef}
             type="button"
-            onClick={revealMoreRecent}
-            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            onClick={showMore ? revealMoreRecent : resetRecentLimit}
+            className={cn(
+              // Lit from the ROW (`group-hover`), not from this button's own
+              // `:hover`. The reset icon is a sibling stacked on top, so with a
+              // plain `hover:` the pill went out the moment the pointer crossed
+              // onto it — the row read as un-hovered while the cursor was still
+              // inside it. Same reason the section headers put their group on
+              // the row container rather than the toggle button.
+              "relative flex h-[1.9375rem] w-full items-center rounded-full text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] group-hover/recent-more:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] group-hover/recent-more:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              // Reserved unconditionally (not just while hovered) so revealing
+              // the reset icon never reflows the label under the cursor.
+              showMore && row.canReset ? "pr-[1.75rem]" : "pr-[0.25rem]"
+            )}
             style={{
               paddingLeft: "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
             }}
@@ -2643,12 +2676,36 @@ export function SidebarConversationList({
                 transform: "translate(-50%, -50%)",
               }}
             >
-              <ChevronDown className="h-[0.75rem] w-[0.75rem]" />
+              {showMore ? (
+                <ChevronDown className="h-[0.75rem] w-[0.75rem]" />
+              ) : (
+                <ChevronsUp className="h-[0.75rem] w-[0.75rem]" />
+              )}
             </span>
             <span className="truncate">
-              {t("showMoreRecent", { count: row.remaining })}
+              {showMore
+                ? t("showMoreRecent", { count: row.remaining })
+                : resetLabel}
             </span>
           </button>
+          {showMore && row.canReset && (
+            // A SIBLING of the row button, never a child: buttons cannot nest.
+            // Being a sibling is also why the row's pill has to be driven from
+            // the group above — `:hover` only walks ancestors, and this button
+            // is not one, so the pill would blink off under the cursor.
+            // Geometry copied from the section headers' right-edge actions
+            // (`sidebar-section-header.tsx`) so every right-edge affordance in
+            // the sidebar lands on the same axis and reads as one family.
+            <button
+              type="button"
+              onClick={resetRecentLimit}
+              title={resetLabel}
+              aria-label={resetLabel}
+              className="absolute top-1/2 right-[0.375rem] flex h-6 w-6 -translate-y-1/2 cursor-pointer items-center justify-end rounded-[0.375rem] text-muted-foreground/90 opacity-0 outline-none transition-[color,opacity] duration-150 group-hover/recent-more:opacity-100 hover:text-sidebar-foreground focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset [@media(hover:none)]:opacity-100"
+            >
+              <ChevronsUp className="h-[0.875rem] w-[0.875rem]" />
+            </button>
+          )}
         </div>
       )
     }

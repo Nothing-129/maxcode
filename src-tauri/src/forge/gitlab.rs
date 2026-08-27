@@ -32,9 +32,10 @@ use serde::Deserialize;
 use super::auth::ResolvedAuth;
 use super::deliver::{ForgePr, NewPullRequest};
 use super::{
-    truncate_chars, urlencode_path, urlencode_query, validate_state_filter, web_origin, ForgeError,
-    ForgeIssueList, ForgeIssueRow, ForgeItemKind, ForgeLabel, ForgeLabelList, ForgeSort,
-    ListIssuesRequest, BODY_CAP, LABEL_PAGE_SIZE,
+    sanitize_web_url, truncate_chars, urlencode_path, urlencode_query, validate_state_filter,
+    web_origin, ForgeComment, ForgeCommentList, ForgeError, ForgeIssueList, ForgeIssueRow,
+    ForgeItemKind, ForgeLabel, ForgeLabelList, ForgeSort, ListIssuesRequest, BODY_CAP,
+    LABEL_PAGE_SIZE,
 };
 
 // ── reads ───────────────────────────────────────────────────────────────────
@@ -192,6 +193,85 @@ fn header_i64(headers: &reqwest::header::HeaderMap, name: &str) -> Option<i64> {
     header_str(headers, name)?.trim().parse().ok()
 }
 
+/// One page of an item's discussion, system events removed.
+///
+/// Two GitLab facts shape everything here:
+///
+/// 1. **The collection is part of the path.** `/issues/{iid}/notes` and
+///    `/merge_requests/{iid}/notes` are different endpoints over different
+///    numbering, so asking the wrong one either 404s or — worse — answers with
+///    the discussion of a real item that is not the one on screen.
+/// 2. **`notes` is not "comments".** It also carries the system events
+///    ("changed the milestone", "assigned to @bob"), which is exactly the
+///    difference between `notes` and the `user_notes_count` the row shows. They
+///    are dropped HERE so the thread matches the count above it.
+///
+/// Dropping them locally is why `has_next` comes from `X-Next-Page` rather
+/// than from how many rows survived: a page of nothing but system events is
+/// empty of comments and still has a discussion behind it.
+pub async fn list_notes(
+    auth: &ResolvedAuth,
+    owner_repo: &str,
+    kind: ForgeItemKind,
+    iid: i64,
+    page: u32,
+    per_page: u32,
+) -> Result<ForgeCommentList, ForgeError> {
+    let repo = super::normalize_repo(owner_repo)
+        .ok_or_else(|| ForgeError::Invalid(format!("bad repository path: {owner_repo}")))?;
+    let project = project_ref(owner_repo)?;
+    if iid <= 0 {
+        return Err(ForgeError::Invalid(format!("bad work item number: {iid}")));
+    }
+    let collection = collection_of(kind);
+    // Ascending, said out loud: GitLab's own default for notes is DESCENDING,
+    // so without this the thread would read backwards and "load more" would
+    // append older comments under newer ones.
+    let url = format!(
+        "{}/projects/{project}/{collection}/{iid}/notes\
+         ?order_by=created_at&sort=asc&page={page}&per_page={per_page}",
+        auth.api_base
+    );
+    let response = api_get(auth, &url).await?;
+    let has_next = header_str(response.headers(), "x-next-page")
+        .is_some_and(|v| !v.trim().is_empty());
+    let raw: Vec<RawNote> = response
+        .json()
+        .await
+        .map_err(|e| ForgeError::Network(format!("bad notes payload: {e}")))?;
+
+    let origin = web_origin(auth);
+    let comments = raw
+        .into_iter()
+        .filter(|note| !note.system)
+        .map(|note| ForgeComment {
+            author: ForgeComment::author_name(note.author.as_ref().map(|a| a.username.clone())),
+            author_avatar: note
+                .author
+                .as_ref()
+                .and_then(|a| a.avatar_url.as_deref())
+                .and_then(sanitize_web_url),
+            body: truncate_chars(note.body.as_deref().unwrap_or_default(), BODY_CAP),
+            updated_at: ForgeComment::edited_at(note.created_at.as_deref(), note.updated_at),
+            created_at: note.created_at,
+            // Notes carry no web URL of their own — the same anchor
+            // `create_note` hands back for the comment it just posted.
+            html_url: Some(format!(
+                "{origin}/{repo}/-/{collection}/{iid}#note_{}",
+                note.id
+            )),
+            id: note.id.to_string(),
+        })
+        .collect();
+
+    Ok(ForgeCommentList {
+        comments,
+        page,
+        per_page,
+        has_next,
+    })
+}
+
 /// One merge request by `iid` — what turns "!12" into something checkoutable.
 ///
 /// A merge request opened from a fork reports only the numeric id of its
@@ -307,11 +387,11 @@ pub async fn create_note(
     let collection = collection_of(kind);
     let url = format!("{}/projects/{project}/{collection}/{iid}/notes", auth.api_base);
     #[derive(Deserialize)]
-    struct RawNote {
+    struct CreatedNote {
         #[serde(default)]
         id: i64,
     }
-    let created: RawNote = api_post(auth, &url, &serde_json::json!({ "body": body }))
+    let created: CreatedNote = api_post(auth, &url, &serde_json::json!({ "body": body }))
         .await?
         .json()
         .await
@@ -583,6 +663,34 @@ impl RawItemLabel {
 struct RawUser {
     #[serde(default)]
     username: String,
+    /// GitLab hands back a gravatar.com URL for accounts that never uploaded
+    /// one, so this can point somewhere outside the instance entirely — the
+    /// avatar falls back to initials when it does not load.
+    #[serde(default)]
+    avatar_url: Option<String>,
+}
+
+/// One entry of a `notes` collection.
+///
+/// `system` is the load-bearing field: GitLab files "changed the milestone"
+/// and "assigned to @bob" as notes too, and they are what `user_notes_count`
+/// (the number the row shows) leaves out.
+#[derive(Debug, Deserialize)]
+struct RawNote {
+    #[serde(default)]
+    id: i64,
+    #[serde(default)]
+    body: Option<String>,
+    /// Defaults to FALSE, which is the safe direction to be wrong in: a
+    /// payload missing the field keeps a real comment rather than hiding one.
+    #[serde(default)]
+    system: bool,
+    #[serde(default)]
+    author: Option<RawUser>,
+    #[serde(default)]
+    created_at: Option<String>,
+    #[serde(default)]
+    updated_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -635,6 +743,25 @@ mod tests {
         }
     }
 
+    /// One entry of a `notes` collection. `system` is what separates a comment
+    /// somebody wrote from an event GitLab logged; `updated_at` matches
+    /// `created_at`, which is how a note that was never edited arrives.
+    fn note_json(id: i64, body: &str, system: bool) -> serde_json::Value {
+        serde_json::json!({
+            "id": id,
+            "body": body,
+            "system": system,
+            "created_at": "2026-08-20T00:00:00Z",
+            "updated_at": "2026-08-20T00:00:00Z",
+            "author": {
+                "username": "alice",
+                // GitLab hands out third-party gravatar URLs for accounts with
+                // no picture — an `http(s)` one still rides along.
+                "avatar_url": "https://gitlab.test/uploads/alice.png",
+            },
+        })
+    }
+
     fn item_json(iid: i64, state: &str) -> serde_json::Value {
         serde_json::json!({
             "iid": iid,
@@ -685,6 +812,7 @@ mod tests {
         let hits = user_hits.clone();
         let issue_query = last_query.clone();
         let mr_query = last_query.clone();
+        let issue_notes_query = last_query.clone();
         // The project path arrives percent-encoded, so it is ONE segment.
         let app = axum::Router::new()
             .route(
@@ -772,6 +900,37 @@ mod tests {
                 post(move |Json(body): Json<serde_json::Value>| {
                     issue_notes.lock().unwrap().push(("issues".to_string(), body));
                     async { Json(serde_json::json!({ "id": 55 })) }
+                })
+                // The read side. Both pages mix system events into the same
+                // collection, which is exactly what `user_notes_count` leaves
+                // out — and page 2 holds NOTHING else, the case that proves
+                // `has_next` cannot be inferred from how many rows survived.
+                .get(move |Query(q): Query<HashMap<String, String>>| async move {
+                    if let Ok(mut slot) = issue_notes_query.write() {
+                        *slot = q.clone();
+                    }
+                    let page: u32 = q.get("page").and_then(|p| p.parse().ok()).unwrap_or(1);
+                    let mut headers = axum::http::HeaderMap::new();
+                    headers.insert(
+                        "x-next-page",
+                        if page < 3 { "2" } else { "" }.parse().unwrap(),
+                    );
+                    let rows = if page >= 2 {
+                        vec![note_json(103, "changed the milestone", true)]
+                    } else {
+                        let mut edited = note_json(102, "reworded", false);
+                        edited["updated_at"] = serde_json::json!("2026-08-20T09:00:00Z");
+                        // An account that is gone: GitLab sends no author at all.
+                        let mut orphan = note_json(104, "from a deleted user", false);
+                        orphan["author"] = serde_json::Value::Null;
+                        vec![
+                            note_json(100, "assigned to @bob", true),
+                            note_json(101, "cannot reproduce", false),
+                            edited,
+                            orphan,
+                        ]
+                    };
+                    (headers, Json(serde_json::Value::Array(rows)))
                 }),
             )
             .route(
@@ -779,6 +938,14 @@ mod tests {
                 post(move |Json(body): Json<serde_json::Value>| {
                     mr_notes.lock().unwrap().push(("merge_requests".to_string(), body));
                     async { Json(serde_json::json!({ "id": 66 })) }
+                })
+                .get(|| async {
+                    let mut headers = axum::http::HeaderMap::new();
+                    headers.insert("x-next-page", "".parse().unwrap());
+                    (
+                        headers,
+                        Json(serde_json::json!([note_json(201, "looks good", false)])),
+                    )
                 }),
             )
             .route(
@@ -1018,6 +1185,107 @@ mod tests {
         );
         assert!(!list.truncated, "three of a hundred is not a full page");
         assert!(list_labels(&auth, "no-slash").await.is_err());
+    }
+
+    /// `notes` is not "comments": GitLab files its own events there too, and
+    /// they are exactly what `user_notes_count` — the number the row shows —
+    /// leaves out. Dropping them here is what keeps the thread and the count
+    /// above it describing the same thing.
+    ///
+    /// The order has to be ASKED for: GitLab's own default for notes is
+    /// descending, which would read the conversation backwards and make "load
+    /// more" append older comments under newer ones.
+    #[tokio::test]
+    async fn notes_drop_the_system_events_and_read_oldest_first() {
+        let (api_base, _, _, _, last_query) = mock_api().await;
+        let auth = auth_for(api_base);
+
+        let page = list_notes(&auth, "Group/Sub/Proj", ForgeItemKind::Issue, 7, 1, 20)
+            .await
+            .expect("notes");
+        let ids: Vec<&str> = page.comments.iter().map(|c| c.id.as_str()).collect();
+        assert_eq!(ids, vec!["101", "102", "104"], "the system events are gone");
+        assert_eq!((page.page, page.per_page), (1, 20));
+
+        {
+            let sent = last_query.read().unwrap();
+            assert_eq!(sent.get("order_by").map(String::as_str), Some("created_at"));
+            assert_eq!(sent.get("sort").map(String::as_str), Some("asc"));
+            assert_eq!(sent.get("page").map(String::as_str), Some("1"));
+            assert_eq!(sent.get("per_page").map(String::as_str), Some("20"));
+        }
+
+        let first = &page.comments[0];
+        assert_eq!(first.author.as_deref(), Some("alice"));
+        assert_eq!(first.body, "cannot reproduce");
+        assert_eq!(
+            first.author_avatar.as_deref(),
+            Some("https://gitlab.test/uploads/alice.png")
+        );
+        // Notes carry no web URL of their own — the same anchor `create_note`
+        // hands back, built from the WEB origin rather than the API base.
+        assert_eq!(
+            first.html_url.as_deref(),
+            Some("https://gitlab.test/group/sub/proj/-/issues/7#note_101")
+        );
+        // Stamped on creation, so not an edit; the reworded one keeps its mark.
+        assert_eq!(first.updated_at, None);
+        assert_eq!(
+            page.comments[1].updated_at.as_deref(),
+            Some("2026-08-20T09:00:00Z")
+        );
+        // A note whose author is gone leaves no name rather than an empty one.
+        assert_eq!(page.comments[2].author, None);
+        assert_eq!(page.comments[2].author_avatar, None);
+    }
+
+    /// `has_next` is the FORGE's answer, not "did anything survive filtering".
+    /// A page of nothing but system events is empty of comments and still has
+    /// the rest of the discussion behind it — inferring from the row count
+    /// would end the thread there.
+    #[tokio::test]
+    async fn a_page_of_only_system_events_still_reports_more() {
+        let (api_base, _, _, _, _) = mock_api().await;
+        let auth = auth_for(api_base);
+
+        let second = list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 7, 2, 20)
+            .await
+            .expect("notes");
+        assert!(second.comments.is_empty(), "the page held only system events");
+        assert!(second.has_next, "…and the discussion continues");
+
+        let last = list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 7, 3, 20)
+            .await
+            .expect("notes");
+        assert!(!last.has_next, "empty x-next-page ends the thread");
+    }
+
+    /// Issue notes and merge-request notes are DIFFERENT collections over
+    /// DIFFERENT numbering — the same rule the write side follows. Reading the
+    /// wrong one does not fail loudly; it answers with a real item's
+    /// discussion that is not the one on screen.
+    #[tokio::test]
+    async fn notes_are_read_from_the_collection_the_item_belongs_to() {
+        let (api_base, _, _, _, _) = mock_api().await;
+        let auth = auth_for(api_base);
+
+        let mr = list_notes(&auth, "group/sub/proj", ForgeItemKind::Change, 7, 1, 20)
+            .await
+            .expect("mr notes");
+        assert_eq!(mr.comments.len(), 1);
+        assert_eq!(mr.comments[0].body, "looks good");
+        assert_eq!(
+            mr.comments[0].html_url.as_deref(),
+            Some("https://gitlab.test/group/sub/proj/-/merge_requests/7#note_201")
+        );
+
+        // Coordinates a client made up must not reach the API at all.
+        assert!(list_notes(&auth, "no-slash", ForgeItemKind::Issue, 7, 1, 20)
+            .await
+            .is_err());
+        assert!(list_notes(&auth, "group/sub/proj", ForgeItemKind::Issue, 0, 1, 20)
+            .await
+            .is_err());
     }
 
     #[tokio::test]

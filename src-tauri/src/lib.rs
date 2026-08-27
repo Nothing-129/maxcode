@@ -1405,6 +1405,7 @@ mod tauri_app {
                 forge_commands::forge_list_issues,
                 forge_commands::forge_tab_count,
                 forge_commands::forge_list_labels,
+                forge_commands::forge_list_comments,
                 forge_commands::work_task_create_from_forge,
                 forge_commands::work_task_lookup_by_source,
                 forge_commands::forge_settings_get,

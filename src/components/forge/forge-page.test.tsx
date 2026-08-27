@@ -52,6 +52,12 @@ vi.mock("@/lib/api", () => ({
   forgeListIssues: vi.fn(),
   forgeListLabels: vi.fn(),
   forgeTabCount: vi.fn(),
+  // The detail panel fetches the item's discussion as soon as it opens. Left
+  // in flight here: every assertion below is about the LIST or the panel's own
+  // wiring, and a request that resolved would land its state update after the
+  // test that opened the panel had finished. The thread itself is covered in
+  // `forge-issue-detail-sheet.test.tsx`.
+  forgeListComments: vi.fn(() => new Promise(() => {})),
   openSettingsWindow: vi.fn().mockResolvedValue(undefined),
   workTaskLookupBySource: vi.fn().mockResolvedValue([]),
   workTaskCreateFromForge: vi.fn(),

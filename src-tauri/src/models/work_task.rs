@@ -168,7 +168,7 @@ pub struct WorkTaskConfig {
     pub label_snapshot: Option<serde_json::Value>,
     /// What the task's original work order produces. `Some("report")` marks a
     /// task whose first turn delivers findings in the reply rather than code
-    /// changes (forge "investigate" / "plan first" / "review only" scenarios);
+    /// changes (forge "plan first" / "review only" scenarios);
     /// the engine swaps the worktree guard's commit licence to match. `None`
     /// or an unrecognized value reads as a normal change-producing task — a
     /// config written by a newer build must still launch here.

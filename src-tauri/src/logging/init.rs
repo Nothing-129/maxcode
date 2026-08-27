@@ -19,6 +19,7 @@ use std::path::Path;
 
 use tracing_appender::non_blocking::{NonBlocking, WorkerGuard};
 use tracing_appender::rolling::Rotation;
+use tracing_subscriber::filter::filter_fn;
 use tracing_subscriber::{fmt, prelude::*, reload, EnvFilter, Registry};
 
 use crate::logging::budget::{self, BudgetedWriter};
@@ -76,6 +77,39 @@ pub struct LogGuard {
 ///   Protocol-level debugging stays reachable: a MORE SPECIFIC target beats a
 ///   crate-level ceiling, so setting `CODEG_LOG` to
 ///   `info,sacp::jsonrpc::transport_actor=trace` still dumps the wire.
+/// - `tungstenite` → `Debug` — `handshake/client.rs` TRACEs the serialized
+///   handshake **in full**: `trace!("Request: {:?}", …)` over the raw request
+///   bytes. For a remote workspace connection that request carries the
+///   connection's credentials — the bearer token (which travels as a
+///   `Sec-WebSocket-Protocol` value) and every custom header the user
+///   configured, which for the case the feature exists to serve is a Cloudflare
+///   Access service token. `HeaderValue::set_sensitive` does not help: that
+///   only governs HTTP/2 HPACK indexing and the `Debug` of the value itself,
+///   and this line formats bytes tungstenite has already written out. So a user
+///   who raises the level to trace to diagnose a connection problem and then
+///   attaches the log to a bug report ships their secrets with it.
+///
+///   `Debug` — not lower — because the crate's `debug!` lines are the useful,
+///   harmless ones ("Client handshake done.", "Trying to contact {uri}",
+///   "Received close frame"). `trace!` is where both problems live: this dump,
+///   and a line per WebSocket frame read and written (`protocol/frame/mod.rs`),
+///   which is the sacp firehose shape again — every ACP event twice over.
+/// - `tungstenite::handshake::client` → `Debug` — the same ceiling again, on
+///   the exact target the dump is emitted from, and this one is not negotiable.
+///   The crate-level entry above is a ceiling in the usual sense: a MORE
+///   specific directive beats it, which is what keeps `tungstenite::protocol`
+///   pinnable to trace for frame-level debugging. That escape hatch is right
+///   for a firehose and wrong for a credential, so the dump gets its own entry.
+///   Backstops are appended last and win at equal specificity (see
+///   [`build_env_filter`]), so a plain `tungstenite::handshake::client=trace`
+///   from the Settings UI or `CODEG_LOG` loses to this entry at any module
+///   depth. Asking for LESS is still honored: the clamp never raises
+///   verbosity, so `off` still means off.
+///
+///   This entry is not by itself sufficient, because a level table can only
+///   answer directives that are about levels — a field-qualified directive
+///   outranks it. [`is_credential_dump_target`] is what actually closes the
+///   target; this keeps the level story coherent alongside it.
 /// - `sqlx::query` → `Warn` — sqlx logs every executed statement, with its SQL
 ///   text, at INFO by default. Every `ConnectOptions` in the tree sets
 ///   `.sqlx_logging(false)`, but that is a per-call-site opt-out that a new
@@ -91,9 +125,34 @@ const TARGET_BACKSTOPS: &[(&str, LogLevel)] = &[
     ("kill_tree", LogLevel::Warn),
     ("sacp", LogLevel::Warn),
     ("sacp_tokio", LogLevel::Warn),
+    ("tungstenite", LogLevel::Debug),
+    ("tungstenite::handshake::client", LogLevel::Debug),
     ("sqlx::query", LogLevel::Warn),
     ("codeg_lib::logging", LogLevel::Off),
 ];
+
+/// The one target that is refused structurally rather than by level.
+///
+/// [`TARGET_BACKSTOPS`] is a table of *levels*, and a level is negotiable:
+/// `EnvFilter` ranks a field-qualified directive above a plain target one, so
+/// `CODEG_LOG='tungstenite::handshake::client[{message}]=trace'` outranks the
+/// entry there — and that `trace!` is a formatted event, so it has a `message`
+/// field to match on. The entry in the table still earns its place (it keeps
+/// the crate ceiling coherent and it is what the directive tests read), but it
+/// cannot be the whole answer.
+///
+/// A ceiling is the wrong shape for this line anyway. There is no verbosity to
+/// trade off: `handshake/client.rs` prints the serialized request, and in this
+/// codebase the only tungstenite client is the remote-workspace WebSocket, so
+/// every time that line prints at all it prints a bearer token and whatever
+/// custom credential headers the connection carries. So it is dropped before
+/// the level filter is consulted, and no directive in any syntax reaches it.
+///
+/// Anyone who genuinely needs the handshake bytes has `tungstenite::protocol`
+/// for frames, or a local edit here.
+fn is_credential_dump_target(target: &str) -> bool {
+    target == "tungstenite::handshake::client"
+}
 
 /// How much a level lets through, ascending. Distinct from [`LogLevel::rank`],
 /// which is a *severity* rank for filtering records (and puts `Off` at 0
@@ -455,6 +514,9 @@ fn build_subscriber(
         Some((non_blocking, guard)) => {
             Registry::default()
                 .with(filter_layer)
+                // A second global filter: an event must clear BOTH, so this one
+                // cannot be argued with by any `EnvFilter` directive.
+                .with(filter_fn(|meta| !is_credential_dump_target(meta.target())))
                 .with(fmt::layer().with_writer(std::io::stderr))
                 .with(BufferEmitLayer)
                 .with(fmt::layer().json().with_writer(non_blocking))
@@ -464,6 +526,9 @@ fn build_subscriber(
         None => {
             Registry::default()
                 .with(filter_layer)
+                // A second global filter: an event must clear BOTH, so this one
+                // cannot be argued with by any `EnvFilter` directive.
+                .with(filter_fn(|meta| !is_credential_dump_target(meta.target())))
                 .with(fmt::layer().with_writer(std::io::stderr))
                 .with(BufferEmitLayer)
                 .init();
@@ -620,12 +685,181 @@ mod tests {
             // INFO line — the 34GB-in-8.8h shape.
             "sacp=warn",
             "sacp_tokio=warn",
+            // The serialized WS handshake at TRACE — bearer token and every
+            // custom header of a remote workspace connection, in the clear.
+            // Clamped to the global `info` here: the ceiling never adds volume,
+            // it only refuses trace.
+            "tungstenite=info",
             // Every SQL statement at INFO if a ConnectOptions forgets to opt out.
             "sqlx::query=warn",
             "codeg_lib::logging=off",
         ] {
             assert!(rendered.contains(pin), "missing backstop {pin}: {rendered}");
         }
+    }
+
+    /// The specific accident the `tungstenite` ceiling exists to prevent: a user
+    /// raises the level to trace to diagnose a remote-workspace connection, and
+    /// the WS handshake dump takes their bearer token and every custom header —
+    /// the Cloudflare Access secret the feature exists to carry — to disk with
+    /// it. Both filter paths have to hold, since the env override builds its own.
+    #[test]
+    fn a_global_trace_cannot_capture_the_websocket_handshake_dump() {
+        let rendered = build_env_filter(&LogSettings {
+            level: LogLevel::Trace,
+            targets: Vec::new(),
+        })
+        .to_string();
+        assert!(
+            rendered.contains("tungstenite=debug"),
+            "global trace re-opened the handshake dump: {rendered}"
+        );
+        let env = env_override_directives("trace");
+        assert!(
+            EnvFilter::builder()
+                .parse_lossy(&env)
+                .to_string()
+                .contains("tungstenite=debug"),
+            "CODEG_LOG=trace re-opened the handshake dump: {env}"
+        );
+    }
+
+    /// The crate ceiling stops the accident; this stops the deliberate act.
+    /// A firehose ceiling is meant to be re-openable by naming a submodule —
+    /// that is how `tungstenite::protocol=trace` stays available for frame
+    /// debugging. A credential dump is not, so the exact target it is emitted
+    /// on carries its own backstop, which wins at equal specificity, and no
+    /// target is more specific than the module holding the `trace!`.
+    #[test]
+    fn the_handshake_dump_cannot_be_reopened_even_by_naming_its_target() {
+        for asked in [
+            "tungstenite::handshake::client=trace",
+            "trace,tungstenite::handshake::client=trace",
+        ] {
+            let rendered = EnvFilter::builder()
+                .parse_lossy(env_override_directives(asked))
+                .to_string();
+            assert!(
+                !rendered.contains("tungstenite::handshake::client=trace"),
+                "CODEG_LOG={asked} reopened the dump: {rendered}"
+            );
+        }
+
+        // The Settings UI builds its filter down a different path.
+        let rendered = build_env_filter(&LogSettings {
+            level: LogLevel::Trace,
+            targets: vec![TargetDirective {
+                target: "tungstenite::handshake::client".into(),
+                level: LogLevel::Trace,
+            }],
+        })
+        .to_string();
+        assert!(
+            !rendered.contains("tungstenite::handshake::client=trace"),
+            "the Settings UI reopened the dump: {rendered}"
+        );
+
+        // Asking for less is still honored — a ceiling never raises verbosity.
+        assert!(
+            env_override_directives("tungstenite::handshake::client=off")
+                .contains("tungstenite::handshake::client=off"),
+            "off must still mean off"
+        );
+
+        // And frame-level debugging stays reachable, which is the whole reason
+        // the crate-level entry remains a re-openable ceiling.
+        let frames = EnvFilter::builder()
+            .parse_lossy(env_override_directives("info,tungstenite::protocol=trace"))
+            .to_string();
+        assert!(
+            frames.contains("tungstenite::protocol=trace"),
+            "frame tracing must survive the crate ceiling: {frames}"
+        );
+    }
+
+    /// Why the level table cannot be the whole answer, pinned as a fact rather
+    /// than an argument: `EnvFilter` ranks a field-qualified directive above a
+    /// plain target one, and the dump is a formatted event so it has a
+    /// `message` field to qualify on. The first assertion shows the ceiling
+    /// losing; the second shows what actually holds the line.
+    #[test]
+    fn a_field_qualified_directive_defeats_the_ceiling_but_not_the_denial() {
+        let rendered = EnvFilter::builder()
+            .parse_lossy(env_override_directives(
+                "tungstenite::handshake::client[{message}]=trace",
+            ))
+            .to_string();
+        assert!(
+            rendered.contains("tungstenite::handshake::client[{message}]=trace"),
+            "expected the level table to be outranked here: {rendered}"
+        );
+
+        assert!(
+            is_credential_dump_target("tungstenite::handshake::client"),
+            "the dump's target must be denied outright, whatever the filter says"
+        );
+        // Exact match only — the denial must not swallow its neighbours.
+        for neighbour in [
+            "tungstenite::handshake::server",
+            "tungstenite::handshake",
+            "tungstenite::protocol",
+            "tungstenite",
+        ] {
+            assert!(
+                !is_credential_dump_target(neighbour),
+                "{neighbour} must stay reachable"
+            );
+        }
+    }
+
+    /// The predicate above is only half the claim; this exercises the wiring,
+    /// with the same two global filters the real subscriber is built from and
+    /// the most permissive directive anyone could write for the dump.
+    #[test]
+    fn the_denial_layer_drops_the_dump_and_nothing_else() {
+        use std::sync::{Arc, Mutex};
+
+        struct CaptureTargets(Arc<Mutex<Vec<String>>>);
+        impl<S: tracing::Subscriber> tracing_subscriber::Layer<S> for CaptureTargets {
+            fn on_event(
+                &self,
+                event: &tracing::Event<'_>,
+                _ctx: tracing_subscriber::layer::Context<'_, S>,
+            ) {
+                self.0
+                    .lock()
+                    .unwrap()
+                    .push(event.metadata().target().to_string());
+            }
+        }
+
+        let seen = Arc::new(Mutex::new(Vec::new()));
+        let subscriber = Registry::default()
+            .with(EnvFilter::builder().parse_lossy(
+                "trace,tungstenite::handshake::client[{message}]=trace",
+            ))
+            .with(filter_fn(|meta| !is_credential_dump_target(meta.target())))
+            .with(CaptureTargets(seen.clone()));
+
+        tracing::subscriber::with_default(subscriber, || {
+            tracing::trace!(target: "tungstenite::handshake::client", "Request: bearer s3cret");
+            tracing::trace!(target: "tungstenite::protocol", "frame");
+            tracing::trace!(target: "codeg_lib::acp", "unrelated");
+        });
+
+        let seen = seen.lock().unwrap();
+        assert!(
+            !seen.iter().any(|t| t == "tungstenite::handshake::client"),
+            "the dump reached a sink: {seen:?}"
+        );
+        assert!(
+            seen.iter().any(|t| t == "tungstenite::protocol"),
+            "frame tracing must still arrive: {seen:?}"
+        );
+        assert!(
+            seen.iter().any(|t| t == "codeg_lib::acp"),
+            "unrelated targets must still arrive: {seen:?}"
+        );
     }
 
     #[test]
@@ -635,8 +869,8 @@ mod tests {
         // re-opens the kill_tree per-PID firehose and the sacp wire dump.
         assert_eq!(
             env_override_directives("debug"),
-            "debug,kill_tree=warn,sacp=warn,sacp_tokio=warn,\
-             sqlx::query=warn,codeg_lib::logging=off"
+            "debug,kill_tree=warn,sacp=warn,sacp_tokio=warn,tungstenite=debug,\
+             tungstenite::handshake::client=debug,sqlx::query=warn,codeg_lib::logging=off"
         );
         // And the parsed filter still carries the clamps under a global debug.
         let rendered = EnvFilter::builder()
@@ -684,7 +918,8 @@ mod tests {
         // And the env-override path. `RUST_LOG=off` must be silent too.
         assert_eq!(
             env_override_directives("OFF"),
-            "OFF,kill_tree=off,sacp=off,sacp_tokio=off,sqlx::query=off,codeg_lib::logging=off",
+            "OFF,kill_tree=off,sacp=off,sacp_tokio=off,tungstenite=off,\
+             tungstenite::handshake::client=off,sqlx::query=off,codeg_lib::logging=off",
             "a bare off override collapses the ceilings, case-insensitively"
         );
     }
@@ -701,7 +936,8 @@ mod tests {
         // other ceiling collapses to off too.
         assert_eq!(
             env_override_directives("sacp=off"),
-            "sacp=off,kill_tree=off,sacp=off,sacp_tokio=off,sqlx::query=off,codeg_lib::logging=off"
+            "sacp=off,kill_tree=off,sacp=off,sacp_tokio=off,tungstenite=off,\
+             tungstenite::handshake::client=off,sqlx::query=off,codeg_lib::logging=off"
         );
         // ...but the same target asking for MORE is still refused: that is the
         // firehose this whole clamp exists to keep shut.

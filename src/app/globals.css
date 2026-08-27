@@ -1515,15 +1515,25 @@ html:not(.dark) {
 }
 
 /* Streamdown mermaid: keep diagrams crisp when zoomed.
-   The pan/zoom container applies `transform: scale()` together with an inline
-   `will-change: transform`. That pins it to a composited layer rasterized once
-   at 1x, and the GPU then upscales that bitmap on zoom — in WKWebView (Tauri)
-   this blurs the whole SVG (shapes + labels), worst at max zoom. Dropping
-   will-change lets the browser repaint the SVG vectors at the actual zoom level.
-   The component's inline style is not !important, so this rule wins the cascade.
-   Covers both the inline and fullscreen views (both render the same container). */
+
+   FALLBACK ONLY. Every `<Streamdown>` in the app installs `mermaidComponents`
+   (see components/ai-elements/mermaid-block.tsx), which claims ```mermaid
+   fences before Streamdown's own renderer ever sees them — precisely because
+   the problems below cannot be fixed properly from a stylesheet. This rule
+   stays for a consumer that forgets to install it.
+
+   Streamdown's pan/zoom container applies `transform: scale()` with an inline
+   `will-change: transform` AND a 150ms `transition-transform`. Either one pins
+   the element to a composited layer rasterized once at 1x, which the GPU then
+   upscales — in WKWebView (Tauri) that blurs the whole SVG, shapes and labels
+   alike. The transition is the worse half during a drag: every pointermove
+   restarts it, so the layer never leaves the compositor and the diagram smears
+   as it moves. Dropping both makes the browser repaint the vectors at the real
+   zoom level. The inline styles are not `!important`, so these win the cascade.
+   Covers the inline and fullscreen views alike (same container in both). */
 [data-streamdown="mermaid"] [role="application"] {
   will-change: auto !important;
+  transition: none !important;
 }
 
 /* Tool collapsible: fade-in on expand (height must change instantly for virtualizer) */

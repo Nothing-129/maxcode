@@ -7,6 +7,14 @@ import {
   type SidebarSectionOrder,
 } from "@/lib/sidebar-view-mode-storage"
 
+// How many conversations the "Recent" section shows before its "show more" row,
+// and how many each click adds. Recent deliberately re-lists what the Folders /
+// Chat sections already show, so an unbounded one pushes every section below it
+// off the screen — a page keeps it a glance-able "where was I" list. Lives here
+// (not in the list component) because `buildRows` needs it to tell an untouched
+// first page from an expanded one.
+export const RECENT_PAGE_SIZE = 15
+
 export function parseTimestamp(value: string): number {
   const timestamp = Date.parse(value)
   return Number.isNaN(timestamp) ? 0 : timestamp
@@ -485,14 +493,25 @@ export interface RecentEmptyRow {
 }
 
 /**
- * The "show more" footer of a truncated "Recent" section. Recent re-lists every
- * reachable conversation, so an untruncated one buries the sections below it;
- * the list shows a page at a time and this row reveals the next one. Carries
- * how many rows are still hidden so the label can say it.
+ * The paging footer of the "Recent" section. Recent re-lists every reachable
+ * conversation, so an untruncated one buries the sections below it; the list
+ * shows a page at a time and this row reveals the next one. Carries how many
+ * rows are still hidden so the label can say it.
+ *
+ * It is also where the list gets folded back up, which is why `remaining === 0`
+ * does NOT retire the row: once the section is past its first page the footer
+ * survives with `canReset` alone, as a pure "back to the first page" control.
+ * Retiring it there would take the only way out of a fully expanded list away
+ * exactly when the list is longest.
  */
 export interface RecentMoreRow {
   kind: "recent-more"
   remaining: number
+  /** Set only when the section is showing more than its first page, i.e. when
+   *  collapsing back to {@link RECENT_PAGE_SIZE} would actually hide rows.
+   *  Written only when true so equality assertions on the un-expanded footer
+   *  keep passing. */
+  canReset?: true
 }
 
 /**
@@ -726,7 +745,9 @@ export function buildRows(args: {
   showRecent?: boolean
   /** How many Recent conversations to emit before stopping and appending a
    *  {@link RecentMoreRow}. Optional — omitted means no limit (the historical
-   *  behavior, kept for tests). The app raises it a page at a time. */
+   *  behavior, kept for tests). The app raises it a page at a time, and the
+   *  footer row carries `canReset` once it is past the first page so the list
+   *  can be folded back to {@link RECENT_PAGE_SIZE}. */
   recentLimit?: number
   /** Default page size for each folder body. Optional — omitted means no
    *  limit (historical, kept for tests). The app passes 10 and raises a
@@ -960,7 +981,17 @@ export function buildRows(args: {
       )
     }
     const remaining = recentConversations.length - shown.length
-    if (remaining > 0) rows.push({ kind: "recent-more", remaining })
+    // The gate is "more than a page is on screen", not "recentLimit is past a
+    // page": a raised limit outlives the conversations it revealed (delete them
+    // and the limit still reads 30), which would leave a reset button that
+    // changes nothing on click. `recentLimit == null` is the unpaged mode —
+    // nothing was ever collapsed, so there is nothing to restore.
+    const canReset = recentLimit != null && shown.length > RECENT_PAGE_SIZE
+    if (remaining > 0 || canReset) {
+      const row: RecentMoreRow = { kind: "recent-more", remaining }
+      if (canReset) row.canReset = true
+      rows.push(row)
+    }
   }
 
   // Normalized (not consumed raw) so a truncated / repeated / unknown-entry

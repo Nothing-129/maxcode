@@ -1360,6 +1360,10 @@ pub fn build_router(
             post(handlers::forge::forge_list_labels),
         )
         .route(
+            "/forge_list_comments",
+            post(handlers::forge::forge_list_comments),
+        )
+        .route(
             "/work_task_create_from_forge",
             post(handlers::forge::work_task_create_from_forge),
         )

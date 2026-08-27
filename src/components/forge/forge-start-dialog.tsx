@@ -46,11 +46,14 @@ function descriptionKey(isPr: boolean, provider: ForgeProviderId) {
 
 /** The kind's scenario menu, default first — the server enforces the same
  *  split, this list only decides what the dialog offers. Labels/hints stay
- *  provider-neutral so PRs and MRs share one set of keys. */
+ *  provider-neutral so PRs and MRs share one set of keys.
+ *
+ *  There is no "investigate only" entry for issues: reproducing the report and
+ *  finding its cause is now the first step of BOTH issue templates, so offering
+ *  it as a separate mode made the check look like something the other two could
+ *  skip — which is how a task ends up fixing a problem that was never there. */
 export function scenariosForKind(isPr: boolean): ForgeScenarioId[] {
-  return isPr
-    ? ["review_fix", "review_only"]
-    : ["fix", "investigate", "plan_first"]
+  return isPr ? ["review_fix", "review_only"] : ["fix", "plan_first"]
 }
 
 /**
@@ -74,10 +77,6 @@ export function initialScenario(
  *  must stay literals rather than computed strings. */
 const SCENARIO_KEYS = {
   fix: { label: "scenarioFix", hint: "scenarioFixHint" },
-  investigate: {
-    label: "scenarioInvestigate",
-    hint: "scenarioInvestigateHint",
-  },
   plan_first: { label: "scenarioPlanFirst", hint: "scenarioPlanFirstHint" },
   review_fix: { label: "scenarioReviewFix", hint: "scenarioReviewFixHint" },
   review_only: { label: "scenarioReviewOnly", hint: "scenarioReviewOnlyHint" },

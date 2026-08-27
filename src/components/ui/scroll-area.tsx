@@ -21,6 +21,14 @@ type ScrollAreaProps = {
    * viewport synchronously after mount is racy; this fires at the right time.
    */
   onViewportRef?: (element: HTMLElement | null) => void
+  /**
+   * Writing direction for the scrollport. Worth setting to `"ltr"` for content
+   * that is inherently left-to-right whatever the UI language — source code,
+   * diffs, paths — because the scroll container's own direction is what fixes
+   * both the layout and the sign of `scrollLeft` (an RTL scrollport reports 0
+   * at its right edge and counts down into negatives).
+   */
+  dir?: "ltr" | "rtl"
   ref?: React.Ref<OverlayScrollbarsComponentRef>
 }
 
@@ -39,6 +47,7 @@ export function ScrollArea({
   y = "scroll",
   onScroll,
   onViewportRef,
+  dir,
   ref,
 }: ScrollAreaProps) {
   const options = useMemo<OverlayScrollbarsComponentProps["options"]>(
@@ -67,6 +76,7 @@ export function ScrollArea({
     <OverlayScrollbarsComponent
       ref={ref}
       className={className}
+      dir={dir}
       options={options}
       events={events}
       defer

@@ -137,6 +137,20 @@ impl ForgeItemKind {
             ForgeItemKind::Change => "pr",
         }
     }
+
+    /// The kind a wire value names, by the same two words [`key_segment`]
+    /// writes. Unknown values are refused rather than defaulted: on GitLab the
+    /// kind picks the COLLECTION, and guessing it reads issue #7 for merge
+    /// request !7 — a real item, belonging to somebody else's work.
+    pub fn parse(value: &str) -> Result<Self, ForgeError> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "issue" => Ok(ForgeItemKind::Issue),
+            "pr" => Ok(ForgeItemKind::Change),
+            other => Err(ForgeError::Invalid(format!(
+                "unknown work item kind: {other}"
+            ))),
+        }
+    }
 }
 
 /// i18n key for [`ForgeError::NoAccount`]. Dotted from the message root
@@ -668,6 +682,10 @@ fn default_per_page() -> u32 {
     DEFAULT_PER_PAGE
 }
 
+fn default_comment_per_page() -> u32 {
+    DEFAULT_COMMENT_PER_PAGE
+}
+
 /// One row of the workbench list (both tabs share the shape; `is_pr` is the
 /// split). `body` rides along because the trigger snapshot is taken from the
 /// list row — GitHub's `/issues` and GitLab's `/issues`+`/merge_requests` all
@@ -743,6 +761,137 @@ impl ForgeIssueList {
         } else {
             self.total_count
         }
+    }
+}
+
+/// One human comment on a work item, as the detail panel shows it.
+///
+/// "Human" is the whole selection rule and it is not free on either forge:
+/// GitHub keeps review comments (the ones anchored to a diff line) on a
+/// different endpoint entirely, and GitLab mixes its system events —
+/// "changed the milestone", "assigned to @bob" — into the very same `notes`
+/// collection. Both clients land on the same set the item's `comments` count
+/// describes, so the number in the panel's header and the thread under it
+/// cannot disagree.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct ForgeComment {
+    /// The forge's own id, as a STRING: GitHub's is a 64-bit integer and
+    /// GitLab's is a note id unique only within its project, and the only
+    /// thing this value is ever used for is a React key and de-duplication
+    /// across pages. Stringifying keeps the two shapes comparable without
+    /// implying they are the same number space.
+    pub id: String,
+    pub author: Option<String>,
+    /// Avatar URL, `http(s)` only (see [`sanitize_web_url`]).
+    pub author_avatar: Option<String>,
+    /// The comment's Markdown, capped like an issue body ([`BODY_CAP`]).
+    pub body: String,
+    pub created_at: Option<String>,
+    /// Set only when it differs from `created_at` — i.e. the comment was
+    /// edited. The panel says so; a timestamp that merely repeats the first
+    /// one would put "edited" on every comment ever written.
+    pub updated_at: Option<String>,
+    /// Anchor on the item's own page. GitHub sends one; GitLab notes carry no
+    /// URL of their own, so its client builds the `#note_{id}` anchor.
+    pub html_url: Option<String>,
+}
+
+impl ForgeComment {
+    /// An `updated_at` worth showing, i.e. one that says the comment was
+    /// EDITED. Both forges stamp it on creation too, so passing it through
+    /// unfiltered would mark every comment ever written as edited.
+    pub fn edited_at(created_at: Option<&str>, updated_at: Option<String>) -> Option<String> {
+        updated_at.filter(|updated| Some(updated.as_str()) != created_at)
+    }
+
+    /// A display name, or `None` when the forge sent nothing usable — an empty
+    /// string in that slot is a blank line where the author goes, not an
+    /// anonymous author.
+    pub fn author_name(raw: Option<String>) -> Option<String> {
+        raw.map(|name| name.trim().to_string()).filter(|name| !name.is_empty())
+    }
+}
+
+/// One page of an item's discussion.
+///
+/// No total: GitHub's comments endpoint does not count (only the `Link`
+/// header's last page implies one, at the cost of a second request) and
+/// GitLab's `X-Total` is optional. The item's own `comments` field is where
+/// the count comes from, which is the number the list already paid for.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct ForgeCommentList {
+    pub comments: Vec<ForgeComment>,
+    /// Echo of the page actually served (already clamped).
+    pub page: u32,
+    pub per_page: u32,
+    /// Whether the FORGE has another page — asked of the pagination headers,
+    /// never inferred from how many rows survived filtering. GitLab drops
+    /// system notes locally, so a page can arrive holding nothing a human
+    /// wrote while the discussion continues on the next one.
+    pub has_next: bool,
+}
+
+/// Comments per page. Smaller than a list page: a thread is read, not scanned,
+/// and each entry can be a screenful of Markdown.
+pub const DEFAULT_COMMENT_PER_PAGE: u32 = 20;
+
+/// Everything the CLIENT gets to decide about a comment request. As with
+/// [`ListFilters`], the repository is deliberately absent — the server derives
+/// it from the folder's own remote.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CommentFilters {
+    /// "issue" | "pr" — which COLLECTION on GitLab, and nothing at all on
+    /// GitHub, where a pull request is an issue.
+    pub kind: String,
+    /// The item's own number (`iid` on GitLab).
+    pub number: i64,
+    #[serde(default = "default_page")]
+    pub page: u32,
+    #[serde(default = "default_comment_per_page")]
+    pub per_page: u32,
+    /// Which stored account to spend. Auth, not a filter — consumed by the
+    /// command layer and never reaches a provider client.
+    #[serde(default)]
+    pub account_id: Option<String>,
+}
+
+impl CommentFilters {
+    /// The item this asks about, and the paging to ask with — validated and
+    /// clamped exactly once, here, so neither provider client has to trust the
+    /// wire (`per_page=0` is a 422 at GitHub and an empty page at GitLab).
+    pub fn resolve(&self) -> Result<(ForgeItemKind, i64, u32, u32), ForgeError> {
+        let kind = ForgeItemKind::parse(&self.kind)?;
+        if self.number <= 0 {
+            return Err(ForgeError::Invalid(format!(
+                "bad work item number: {}",
+                self.number
+            )));
+        }
+        Ok((
+            kind,
+            self.number,
+            self.page.max(1),
+            self.per_page.clamp(MIN_PER_PAGE, MAX_PER_PAGE),
+        ))
+    }
+}
+
+/// A forge-supplied URL, or `None` when it is not one this app will put in
+/// front of the user.
+///
+/// These values reach an `href` and an `<img src>`, and they come from
+/// whatever instance the account points at — a self-managed forge is free to
+/// answer with anything at all. Only `http` and `https` survive, which is what
+/// keeps `javascript:` and `data:` out of the two attributes that would honour
+/// them.
+pub fn sanitize_web_url(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        Some(trimmed.to_string())
+    } else {
+        None
     }
 }
 
@@ -1291,6 +1440,97 @@ mod tests {
             serde_json::to_string(&ForgeSort::LeastRecentlyUpdated).unwrap(),
             "\"least_recently_updated\""
         );
+    }
+
+    /// A comment request carries only COORDINATES, and both halves are
+    /// checked here rather than in either provider client: on GitLab the kind
+    /// picks the collection, so a wrong one reads a real item's discussion
+    /// that is not the one on screen, and out-of-range paging is a 422 at
+    /// GitHub and an empty page at GitLab.
+    #[test]
+    fn a_comment_request_validates_its_item_and_clamps_its_paging() {
+        let filters = |kind: &str, number: i64, page: u32, per_page: u32| CommentFilters {
+            kind: kind.into(),
+            number,
+            page,
+            per_page,
+            account_id: None,
+        };
+        assert_eq!(
+            filters("issue", 7, 2, 20).resolve().unwrap(),
+            (ForgeItemKind::Issue, 7, 2, 20)
+        );
+        // Both forges' changes are keyed "pr" — the same word the source key
+        // and the trigger use, so one spelling travels the whole way.
+        assert_eq!(
+            filters(" PR ", 7, 1, 20).resolve().unwrap().0,
+            ForgeItemKind::Change
+        );
+        assert_eq!(filters("issue", 7, 0, 0).resolve().unwrap(), (ForgeItemKind::Issue, 7, 1, MIN_PER_PAGE));
+        assert_eq!(filters("issue", 7, 1, 5_000).resolve().unwrap().3, MAX_PER_PAGE);
+        for bad in [filters("mr", 7, 1, 20), filters("", 7, 1, 20), filters("issue", 0, 1, 20), filters("issue", -3, 1, 20)] {
+            assert!(bad.resolve().is_err(), "{} #{}", bad.kind, bad.number);
+        }
+        // The wire default is the one the frontend mirrors.
+        let wire: CommentFilters =
+            serde_json::from_str(r#"{"kind":"issue","number":7}"#).expect("decodes");
+        assert_eq!((wire.page, wire.per_page), (1, DEFAULT_COMMENT_PER_PAGE));
+    }
+
+    /// Both forges stamp an `updated_at` on creation, so its mere presence
+    /// says nothing. Passing it through unfiltered would put "edited" on every
+    /// comment ever written.
+    #[test]
+    fn only_a_real_edit_carries_an_updated_timestamp() {
+        let at = |updated: &str| {
+            ForgeComment::edited_at(Some("2026-08-20T00:00:00Z"), Some(updated.to_string()))
+        };
+        assert_eq!(at("2026-08-20T00:00:00Z"), None, "the creation stamp");
+        assert_eq!(at("2026-08-20T09:00:00Z").as_deref(), Some("2026-08-20T09:00:00Z"));
+        // Nothing to compare against: an item with no creation time cannot be
+        // shown to be unedited, and the timestamp is the only fact there is.
+        assert_eq!(
+            ForgeComment::edited_at(None, Some("2026-08-20T09:00:00Z".into())).as_deref(),
+            Some("2026-08-20T09:00:00Z")
+        );
+        assert_eq!(ForgeComment::edited_at(Some("x"), None), None);
+
+        // An author slot the forge filled with nothing is no author — a blank
+        // line where the name goes, not an anonymous one.
+        assert_eq!(ForgeComment::author_name(Some("  alice ".into())).as_deref(), Some("alice"));
+        assert_eq!(ForgeComment::author_name(Some("   ".into())), None);
+        assert_eq!(ForgeComment::author_name(None), None);
+    }
+
+    /// These strings reach an `href` and an `<img src>`, and they come from
+    /// whatever instance the account points at. Only the two schemes those
+    /// attributes should ever carry survive.
+    #[test]
+    fn forge_supplied_urls_keep_only_the_web_schemes() {
+        for good in [
+            "https://github.com/acme/app/issues/7#issuecomment-1",
+            "http://gitlab.corp.com:8929/a/b/-/issues/7#note_1",
+            "HTTPS://avatars.example/u/1",
+        ] {
+            assert_eq!(sanitize_web_url(good).as_deref(), Some(good.trim()), "{good}");
+        }
+        for bad in [
+            "javascript:alert(1)",
+            "data:text/html,<script>x</script>",
+            "vbscript:msgbox",
+            "/relative/path",
+            "",
+            "   ",
+        ] {
+            assert_eq!(sanitize_web_url(bad), None, "{bad}");
+        }
+        // Padding is stripped, not treated as a reason to refuse — and it
+        // cannot be used to smuggle a scheme past the check.
+        assert_eq!(
+            sanitize_web_url("  https://x.test/a  ").as_deref(),
+            Some("https://x.test/a")
+        );
+        assert_eq!(sanitize_web_url("  javascript:alert(1)"), None);
     }
 
     /// Issue bodies are arbitrary UTF-8; a byte slice could split a code point

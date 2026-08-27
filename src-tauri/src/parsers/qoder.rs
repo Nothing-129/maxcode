@@ -43,10 +43,11 @@ use crate::parsers::{
 /// they do not appear as literals in the bundle. Re-verify by grepping those
 /// bare SUFFIXES, never the minified identifiers: they are renamed every
 /// release (`$t`/`b8A`/`L8A`/`H8A` at 1.1.23 became `ln`/`I1A`/`h1A`/`Q1A` at
-/// 1.1.28), so a grep written against the old names returns zero hits and
-/// reads as "the resolver is gone" when nothing moved. `GEMINI_CLI_HOME`
-/// really is a second key on the home lookup: qodercli carries its ancestry.
-/// Re-checked against the pinned 1.1.28 bundle: same precedence, same keys.)
+/// 1.1.28, then `on`/`F4A`/`U4A`/`N4A` at 1.1.31), so a grep written against
+/// the old names returns zero hits and reads as "the resolver is gone" when
+/// nothing moved. `GEMINI_CLI_HOME` really is a second key on the home lookup:
+/// qodercli carries its ancestry. Re-checked against the pinned 1.1.31 bundle:
+/// same precedence, same keys, same `.qoder` config-dir name.)
 ///
 /// Not mirrored, deliberately: the `--config-dir` FLAG, which codeg never
 /// passes, and the `QODERCN_*` twin, which belongs to the separate `.qoder-cn`

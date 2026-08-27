@@ -12019,26 +12019,10 @@ async fn emit_conversation_update(
             if let Some(title) = crate::acp::session_title::native_title_from_session_info(
                 info.title.value().map(|s| s.as_str()),
             ) {
-                // Test and set under ONE write lock. Nothing can interleave
-                // here today — a session's notifications are handled serially,
-                // and the only other writer of `last_native_title` is the
-                // `ConversationLinked` arm, which is emitted ONLY while the row
-                // is still unbound and therefore can never race a title this
-                // admits. That safety currently rests on two guards in
-                // different files agreeing; keeping the halves in one critical
-                // section makes it hold by construction instead.
-                let admit = {
-                    let mut s = state.write().await;
-                    let admit = s.conversation_id.is_some()
-                        && s.last_native_title.as_deref() != Some(title.as_str());
-                    if admit {
-                        s.last_native_title = Some(title.clone());
-                    }
-                    admit
-                };
-                if admit {
-                    emit_with_state(state, emitter, AcpEvent::NativeSessionTitle { title }).await;
-                }
+                // Shared with the transcript watcher's title path so the
+                // skip-cache and the unbound-row drop have exactly one
+                // spelling — see `session_title::publish_native_title`.
+                crate::acp::session_title::publish_native_title(state, emitter, title).await;
             }
             let neutral_goal_channel = state.read().await.neutral_goal_channel;
             if let Some(goal) = session_info_goal_value(neutral_goal_channel, info.meta.as_ref()) {

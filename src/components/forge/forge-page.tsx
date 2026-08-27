@@ -1116,6 +1116,11 @@ export function ForgePage() {
       <ForgeIssueDetailSheet
         row={detail}
         link={detail != null ? linkFor(detail) : null}
+        // The panel's comment thread needs one coordinate the row does not
+        // carry: which folder's remote the item belongs to. Same value the
+        // list was fetched with, so a folder switch (which closes the panel —
+        // see the reset effect above) cannot leave the two disagreeing.
+        folderId={effectiveFolderId}
         onOpenChange={(open) => {
           if (!open) setDetailRow(null)
         }}

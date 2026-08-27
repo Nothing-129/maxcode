@@ -12,6 +12,8 @@ import {
   headerIndexForFolder,
   mergeChildrenById,
   nextHeaderAfter,
+  pointerYToTargetIndex,
+  RECENT_PAGE_SIZE,
   reuseSelected,
   reuseSet,
   selectChatConversationsWithReuse,
@@ -1178,6 +1180,69 @@ describe("buildRows — Recent section", () => {
       })
       expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
     })
+
+    describe("resetting", () => {
+      // Enough to page twice over: one full first page, plus a second one.
+      const lots = Array.from({ length: RECENT_PAGE_SIZE + 4 }, (_, i) =>
+        conv(i + 1, 10)
+      )
+      const pagedArgs = {
+        ...baseArgs,
+        byFolder: new Map([[10, lots]]),
+        folderTotalCounts: new Map([[10, lots.length]]),
+        recentConversations: lots,
+        showRecent: true,
+      }
+
+      it("leaves the first page un-resettable", () => {
+        const rows = buildRows({ ...pagedArgs, recentLimit: RECENT_PAGE_SIZE })
+        // Exact equality: nothing to fold back yet, so no `canReset` at all.
+        expect(rows).toContainEqual({ kind: "recent-more", remaining: 4 })
+      })
+
+      it("marks the footer resettable once past the first page", () => {
+        const rows = buildRows({
+          ...pagedArgs,
+          recentLimit: RECENT_PAGE_SIZE + 2,
+        })
+        expect(rows).toContainEqual({
+          kind: "recent-more",
+          remaining: 2,
+          canReset: true,
+        })
+      })
+
+      it("keeps the footer alive after the last page, as a reset-only row", () => {
+        // The regression this guards: retiring the row at `remaining === 0`
+        // took the only way back to a short list away exactly when the list was
+        // longest.
+        const rows = buildRows({
+          ...pagedArgs,
+          recentLimit: RECENT_PAGE_SIZE * 2,
+        })
+        expect(
+          rows.filter((r) => r.kind === "conversation" && r.recent).length
+        ).toBe(lots.length)
+        expect(rows).toContainEqual({
+          kind: "recent-more",
+          remaining: 0,
+          canReset: true,
+        })
+      })
+
+      it("drops the reset once a raised limit outlives the rows it revealed", () => {
+        // Same raised limit, but the conversations are gone: collapsing back
+        // would hide nothing, so the row must not offer it.
+        const rows = buildRows({
+          ...pagedArgs,
+          byFolder: new Map([[10, many]]),
+          folderTotalCounts: new Map([[10, many.length]]),
+          recentConversations: many,
+          recentLimit: RECENT_PAGE_SIZE * 2,
+        })
+        expect(rows.some((r) => r.kind === "recent-more")).toBe(false)
+      })
+    })
   })
 })
 
@@ -1586,6 +1651,29 @@ describe("applyReorder", () => {
   it("keeps the order unchanged for invalid and no-op moves", () => {
     expect(applyReorder([1, 2, 3], 5, 0)).toEqual([1, 2, 3])
     expect(applyReorder([1, 2, 3], 1, 1)).toEqual([1, 2, 3])
+  })
+})
+
+describe("pointerYToTargetIndex", () => {
+  it("maps a pointer offset to the row under it", () => {
+    // surfaceTop=100, scrollTop=0, rowHeight=32 → y=148 lands in row 1 (132..164)
+    expect(pointerYToTargetIndex(148, 100, 0, 32, 5)).toBe(1)
+    expect(pointerYToTargetIndex(100, 100, 0, 32, 5)).toBe(0)
+  })
+
+  it("accounts for scroll offset", () => {
+    // Scrolled down 64px → the same screen Y points two rows lower.
+    expect(pointerYToTargetIndex(100, 100, 64, 32, 5)).toBe(2)
+  })
+
+  it("clamps above and below the surface", () => {
+    expect(pointerYToTargetIndex(0, 100, 0, 32, 5)).toBe(0)
+    expect(pointerYToTargetIndex(9999, 100, 0, 32, 5)).toBe(4)
+  })
+
+  it("is safe for degenerate inputs", () => {
+    expect(pointerYToTargetIndex(150, 100, 0, 32, 0)).toBe(0)
+    expect(pointerYToTargetIndex(150, 100, 0, 0, 5)).toBe(0)
   })
 })
 

@@ -257,18 +257,18 @@ describe("ForgeStartDialog", () => {
         />
       </NextIntlClientProvider>
     )
-    // Issues: fix (default) / investigate / plan first — and no PR entries,
-    // whose templates talk about pushing back to a branch this task lacks.
-    expect(screen.getAllByRole("radio")).toHaveLength(3)
+    // Issues: fix (default) / plan first — and no PR entries, whose templates
+    // talk about pushing back to a branch this task lacks. "Investigate only"
+    // is not among them: both remaining templates verify the report first, so
+    // a third entry would advertise that step as skippable.
+    expect(screen.getAllByRole("radio")).toHaveLength(2)
     expect(
       screen.getByRole("radio", { name: /Fix \/ implement/ })
     ).toBeChecked()
+    expect(screen.getByRole("radio", { name: /Plan first/ })).not.toBeChecked()
     expect(
-      screen.getByRole("radio", { name: /Investigate only/ })
-    ).not.toBeChecked()
-    expect(
-      screen.getByRole("radio", { name: /Plan first/ })
-    ).toBeInTheDocument()
+      screen.queryByRole("radio", { name: /Investigate/ })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("radio", { name: /Review/ })
     ).not.toBeInTheDocument()
@@ -288,12 +288,10 @@ describe("ForgeStartDialog", () => {
     })
     mount(row())
 
-    await user.click(screen.getByRole("radio", { name: /Investigate only/ }))
+    await user.click(screen.getByRole("radio", { name: /Plan first/ }))
     await user.click(screen.getByRole("button", { name: "Create task" }))
     await waitFor(() => expect(workTaskCreateFromForge).toHaveBeenCalled())
-    expect(workTaskCreateFromForge.mock.calls[0][0].scenario).toBe(
-      "investigate"
-    )
+    expect(workTaskCreateFromForge.mock.calls[0][0].scenario).toBe("plan_first")
   })
 
   it("turns a duplicate into a choice, and 'create anyway' forces", async () => {

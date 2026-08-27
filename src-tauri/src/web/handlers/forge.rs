@@ -10,7 +10,7 @@ use crate::app_error::AppCommandError;
 use crate::app_state::AppState;
 use crate::commands::forge as core;
 use crate::forge::settings::{ForgePanelSettings, ForgeSettingsStore};
-use crate::forge::{CountFilters, ListFilters};
+use crate::forge::{CommentFilters, CountFilters, ListFilters};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -47,6 +47,16 @@ pub struct TabCountParams {
     /// The filter half only — a count has no page or order (see
     /// `CountFilters`).
     pub filters: CountFilters,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ListCommentsParams {
+    pub folder_id: i32,
+    /// Which item, and which page of its discussion. Nested for the same
+    /// reason `query` is on the list: the repository is not in here, and
+    /// cannot be.
+    pub filters: CommentFilters,
 }
 
 #[derive(Deserialize)]
@@ -108,6 +118,15 @@ pub async fn forge_list_labels(
 ) -> Result<Json<crate::forge::ForgeLabelList>, AppCommandError> {
     Ok(Json(
         core::forge_list_labels_core(&state.db, params.folder_id, params.account_id).await?,
+    ))
+}
+
+pub async fn forge_list_comments(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<ListCommentsParams>,
+) -> Result<Json<crate::forge::ForgeCommentList>, AppCommandError> {
+    Ok(Json(
+        core::forge_list_comments_core(&state.db, params.folder_id, params.filters).await?,
     ))
 }
 

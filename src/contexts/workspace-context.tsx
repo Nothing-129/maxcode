@@ -257,8 +257,12 @@ function normalizePath(path: string): string {
   return path.replace(/\\/g, "/")
 }
 
+// Most callers pass an already-normalized path, but the working-diff overview
+// titles the tab after the FOLDER path, which is native — on Windows a
+// "/"-only split handed back `C:\work\repo` as the file name.
 function fileName(path: string): string {
-  return path.split("/").pop() || path
+  const index = Math.max(path.lastIndexOf("/"), path.lastIndexOf("\\"))
+  return (index >= 0 ? path.slice(index + 1) : path) || path
 }
 
 function isDirtyFileTab(tab: FileWorkspaceTab): boolean {

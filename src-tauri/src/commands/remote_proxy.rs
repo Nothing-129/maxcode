@@ -41,7 +41,10 @@ use serde_json::Value;
 use tauri::{AppHandle, Emitter, EventTarget, State, WebviewWindow};
 use tokio::sync::{mpsc, watch, Mutex, RwLock};
 use tokio_tungstenite::tungstenite::{
-    client::IntoClientRequest, handshake::client::Request, http::HeaderValue, Message,
+    client::IntoClientRequest,
+    handshake::client::Request,
+    http::{HeaderMap, HeaderValue},
+    Message,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -62,6 +65,7 @@ use crate::app_error::{
 };
 use crate::db::service::remote_workspace_connection_service;
 use crate::db::AppDatabase;
+use crate::models::ToHeaderMap;
 use crate::workspace_transfer::{
     TransferDirection, TransferState, WorkspaceTransferManager, WorkspaceTransferProgress,
     WORKSPACE_TRANSFER_PROGRESS_EVENT,
@@ -137,6 +141,85 @@ struct WsSubscriber {
     window_instance_id: String,
 }
 
+/// Matches `reqwest`'s own default redirect bound.
+const MAX_REMOTE_REDIRECTS: usize = 10;
+
+/// Two URLs reach the same server over the same kind of channel.
+///
+/// Scheme, host and port — a true origin, one notch stricter than the host-and-
+/// port test `reqwest` uses to decide whether to strip `Authorization`. The
+/// extra notch is the point: on a connection configured as `https://box:8443`,
+/// a hop to `http://box:8443` keeps reqwest's host and port identical, so its
+/// rule would allow it and put the connection's credentials on the wire in
+/// plaintext. Refusing a scheme change costs only the `http` → `https` upgrade
+/// on an identical explicit port, which is a URL the user can simply configure.
+fn same_remote_origin(a: &reqwest::Url, b: &reqwest::Url) -> bool {
+    a.scheme() == b.scheme()
+        && a.host_str() == b.host_str()
+        && a.port_or_known_default() == b.port_or_known_default()
+}
+
+/// `host:port` for an error message. The port is not decoration: two ports on
+/// one host are two origins here, and "refused a redirect off 127.0.0.1 to
+/// 127.0.0.1" would read as a bug.
+fn origin_label(url: &reqwest::Url) -> String {
+    match (url.host_str(), url.port_or_known_default()) {
+        (Some(host), Some(port)) => format!("{host}:{port}"),
+        (Some(host), None) => host.to_string(),
+        _ => url.as_str().to_string(),
+    }
+}
+
+/// Redirect policy for every request that carries a connection's credentials.
+///
+/// `reqwest` already drops `Authorization` once a redirect crosses to another
+/// host, so such a hop could only ever have come back 401 anyway. What it does
+/// not know to drop is the connection's custom headers, which are credentials
+/// of exactly the same kind — a Cloudflare Access service token, a proxy
+/// secret. Refusing the hop keeps them on the host the user configured, and
+/// turns what would have been a confusing 401 into a message that names the
+/// problem. Same-host redirects still follow, under reqwest's own bound.
+pub(crate) fn connection_redirect_policy() -> reqwest::redirect::Policy {
+    reqwest::redirect::Policy::custom(|attempt| {
+        let Some(previous) = attempt.previous().last() else {
+            return attempt.follow();
+        };
+        if !same_remote_origin(previous, attempt.url()) {
+            let message = format!(
+                "refused a redirect off {} to {}: it would hand the connection's \
+                 custom headers to another host",
+                origin_label(previous),
+                origin_label(attempt.url()),
+            );
+            return attempt.error(message);
+        }
+        // `>` not `>=`, to land on the same count `Policy::limited` allows.
+        if attempt.previous().len() > MAX_REMOTE_REDIRECTS {
+            return attempt.error(format!("more than {MAX_REMOTE_REDIRECTS} redirects"));
+        }
+        attempt.follow()
+    })
+}
+
+/// Flatten a failed request into a detail string worth showing.
+///
+/// `reqwest`'s own `Display` stops at the outermost layer — "error following
+/// redirect for url (…)", "error sending request for url (…)" — which is
+/// precisely the layer that carries no reason. Everything worth reading is in
+/// the source chain: the redirect refusal above, the connect error, the TLS
+/// failure. Without this the host-pinning error reaches the user as a bare
+/// "error following redirect" and looks like a bug rather than a decision.
+pub(crate) fn request_error_detail(err: &reqwest::Error) -> String {
+    let mut detail = err.to_string();
+    let mut source: Option<&(dyn std::error::Error + 'static)> = std::error::Error::source(err);
+    while let Some(cause) = source {
+        detail.push_str(": ");
+        detail.push_str(&cause.to_string());
+        source = cause.source();
+    }
+    detail
+}
+
 /// Tauri-managed singleton.
 pub struct RemoteProxyState {
     tasks: Mutex<HashMap<i32, Arc<WsTaskEntry>>>,
@@ -152,9 +235,11 @@ impl RemoteProxyState {
             destroyed_window_instances: Mutex::new(HashSet::new()),
             http: reqwest::Client::builder()
                 .timeout(HTTP_TIMEOUT)
+                .redirect(connection_redirect_policy())
                 .build()
                 .expect("failed to build reqwest client for remote proxy"),
             workspace_http: reqwest::Client::builder()
+                .redirect(connection_redirect_policy())
                 .build()
                 .expect("failed to build reqwest workspace client for remote proxy"),
         }
@@ -308,6 +393,7 @@ pub async fn remote_http_call(
         .http
         .post(&url)
         .bearer_auth(conn.token.trim())
+        .headers(conn.headers.to_header_map())
         .json(&body);
     // Per-request override beats the client-wide 30s default. Used by the
     // ACP probe path (`describeAgentOptions`) whose backend deadline is
@@ -318,7 +404,7 @@ pub async fn remote_http_call(
         request = request.timeout(requested.min(HTTP_TIMEOUT_MAX));
     }
     let response = request.send().await.map_err(|e| {
-        AppCommandError::network("Remote HTTP request failed").with_detail(e.to_string())
+        AppCommandError::network("Remote HTTP request failed").with_detail(request_error_detail(&e))
     })?;
 
     let status = response.status();
@@ -593,11 +679,13 @@ pub async fn remote_upload_attachment(
         .http
         .post(&url)
         .bearer_auth(conn.token.trim())
+        .headers(conn.headers.to_header_map())
         .multipart(form)
         .send()
         .await
         .map_err(|e| {
-            AppCommandError::network("Remote upload request failed").with_detail(e.to_string())
+            AppCommandError::network("Remote upload request failed")
+                .with_detail(request_error_detail(&e))
         })?;
 
     let status = response.status();
@@ -741,6 +829,7 @@ pub async fn remote_upload_workspace_paths(
             AppCommandError::not_found(format!("Remote connection {connection_id} not found"))
         })?;
 
+    let custom_headers = conn.headers.to_header_map();
     let (transfer_id, cancel_token) = transfers.register_transfer().await;
     let result = async {
         let _permit = transfers
@@ -804,6 +893,7 @@ pub async fn remote_upload_workspace_paths(
                         &proxy,
                         &conn.base_url,
                         conn.token.trim(),
+                        &custom_headers,
                         &transfer_id,
                         cancel_token.clone(),
                         &root_path,
@@ -821,6 +911,7 @@ pub async fn remote_upload_workspace_paths(
                     &proxy,
                     &conn.base_url,
                     conn.token.trim(),
+                    &custom_headers,
                     &transfer_id,
                     cancel_token.clone(),
                     &root_path,
@@ -888,6 +979,7 @@ async fn upload_one_workspace_path(
     proxy: &RemoteProxyState,
     base_url: &str,
     token: &str,
+    custom_headers: &HeaderMap,
     transfer_id: &str,
     cancel_token: CancellationToken,
     root_path: &str,
@@ -953,6 +1045,7 @@ async fn upload_one_workspace_path(
         .workspace_http
         .post(&url)
         .bearer_auth(token)
+        .headers(custom_headers.clone())
         .multipart(form)
         .send()
         .await
@@ -960,7 +1053,8 @@ async fn upload_one_workspace_path(
             if cancel_token.is_cancelled() {
                 return workspace_transfer_cancelled();
             }
-            AppCommandError::network("Remote workspace upload failed").with_detail(e.to_string())
+            AppCommandError::network("Remote workspace upload failed")
+                .with_detail(request_error_detail(&e))
         })?;
 
     let status = response.status();
@@ -1150,6 +1244,7 @@ async fn remote_workspace_download_stream(
             AppCommandError::not_found(format!("Remote connection {connection_id} not found"))
         })?;
 
+    let custom_headers = conn.headers.to_header_map();
     let (transfer_id, cancel_token) = transfers.register_transfer().await;
     let result = async {
         let _permit = transfers
@@ -1170,6 +1265,7 @@ async fn remote_workspace_download_stream(
             .workspace_http
             .post(ticket_url)
             .bearer_auth(conn.token.trim())
+            .headers(custom_headers.clone())
             .json(&serde_json::json!({
                 "rootPath": root_path,
                 "path": path,
@@ -1179,7 +1275,7 @@ async fn remote_workspace_download_stream(
             .await
             .map_err(|e| {
                 AppCommandError::network("Remote workspace download ticket failed")
-                    .with_detail(e.to_string())
+                    .with_detail(request_error_detail(&e))
             })?;
         let status = ticket_response.status();
         if status == reqwest::StatusCode::UNAUTHORIZED {
@@ -1197,15 +1293,16 @@ async fn remote_workspace_download_stream(
                 AppCommandError::network("Failed to parse remote download ticket")
                     .with_detail(e.to_string())
             })?;
-        let download_url = absolute_remote_ticket_url(&conn.base_url, &ticket.url);
+        let download_url = absolute_remote_ticket_url(&conn.base_url, &ticket.url)?;
         let response = proxy
             .workspace_http
             .get(download_url)
+            .headers(custom_headers.clone())
             .send()
             .await
             .map_err(|e| {
                 AppCommandError::network("Remote workspace download failed")
-                    .with_detail(e.to_string())
+                    .with_detail(request_error_detail(&e))
             })?;
 
         let status = response.status();
@@ -1314,14 +1411,40 @@ async fn remote_error_from_response(
     )
 }
 
-fn absolute_remote_ticket_url(base_url: &str, ticket_url: &str) -> String {
-    if ticket_url.starts_with("http://") || ticket_url.starts_with("https://") {
+/// Resolve the download URL the remote handed back, and refuse one that leaves
+/// the connection's origin.
+///
+/// `codeg-server` always answers with a path (`create_download_ticket` builds
+/// `/api/workspace_download/<ticket>`), so the absolute branch only ever fires
+/// for a remote that went off-script. It matters because this is the one
+/// request that carries the connection's custom headers with no bearer token
+/// gating them: a remote free to name any host is a remote free to choose who
+/// receives those credentials.
+fn absolute_remote_ticket_url(
+    base_url: &str,
+    ticket_url: &str,
+) -> Result<String, AppCommandError> {
+    let resolved = if ticket_url.starts_with("http://") || ticket_url.starts_with("https://") {
         ticket_url.to_string()
     } else if ticket_url.starts_with('/') {
         format!("{}{}", base_url.trim_end_matches('/'), ticket_url)
     } else {
         format!("{}/{}", base_url.trim_end_matches('/'), ticket_url)
+    };
+    let same_origin = match (
+        reqwest::Url::parse(base_url),
+        reqwest::Url::parse(&resolved),
+    ) {
+        (Ok(base), Ok(target)) => same_remote_origin(&base, &target),
+        _ => false,
+    };
+    if !same_origin {
+        return Err(AppCommandError::network(
+            "Remote download ticket points outside the connection",
+        )
+        .with_detail(format!("ticket url: {ticket_url}")));
     }
+    Ok(resolved)
 }
 
 fn partial_download_path(save_path: &str, transfer_id: &str) -> String {
@@ -1506,6 +1629,7 @@ pub async fn remote_ws_subscribe(
     let task_proxy = proxy_arc.clone();
     let base_url = conn.base_url.clone();
     let token = conn.token.clone();
+    let custom_headers = conn.headers.to_header_map();
     let task_entry = entry.clone();
 
     tauri::async_runtime::spawn(async move {
@@ -1515,6 +1639,7 @@ pub async fn remote_ws_subscribe(
             connection_id,
             base_url,
             token,
+            custom_headers,
             task_entry,
             shutdown_rx,
             outbound_rx,
@@ -1628,6 +1753,7 @@ async fn run_ws_task(
     connection_id: i32,
     base_url: String,
     token: String,
+    custom_headers: HeaderMap,
     entry: Arc<WsTaskEntry>,
     mut shutdown_rx: watch::Receiver<bool>,
     mut outbound_rx: mpsc::Receiver<String>,
@@ -1649,7 +1775,7 @@ async fn run_ws_task(
                 }
                 continue;
             }
-            res = connect_with_subprotocol_auth(&ws_url, &token) => res,
+            res = connect_with_subprotocol_auth(&ws_url, &token, &custom_headers) => res,
         };
 
         let mut socket = match connect_result {
@@ -1851,6 +1977,7 @@ async fn snapshot_subscribers(entry: &Arc<WsTaskEntry>) -> Vec<String> {
 async fn connect_with_subprotocol_auth(
     ws_url: &str,
     token: &str,
+    custom_headers: &HeaderMap,
 ) -> Result<
     tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>>,
     String,
@@ -1866,6 +1993,7 @@ async fn connect_with_subprotocol_auth(
         HeaderValue::from_str(&protocols_value)
             .map_err(|e| format!("invalid subprotocol value: {e}"))?,
     );
+    request.headers_mut().extend(custom_headers.clone());
 
     let (stream, _resp) = tokio_tungstenite::connect_async(request)
         .await
@@ -1907,6 +2035,191 @@ mod tests {
             shutdown_tx,
             outbound_tx,
         })
+    }
+
+    // ─── Host pinning for credential-carrying requests ──────────────────
+    //
+    // Both of these guard the same thing from two directions: the custom
+    // headers on a remote connection are credentials, and neither the remote
+    // nor a redirect it issues gets to choose which host receives them.
+
+    #[test]
+    fn ticket_url_resolves_a_path_against_the_connection() {
+        // The only shape `codeg-server` actually returns.
+        assert_eq!(
+            absolute_remote_ticket_url("https://box.example", "/api/workspace_download/t1")
+                .unwrap(),
+            "https://box.example/api/workspace_download/t1"
+        );
+        // A base with a path prefix keeps it — this is why the resolution is
+        // string concatenation and not `Url::join`, which would drop `/codeg`.
+        assert_eq!(
+            absolute_remote_ticket_url("https://box.example/codeg", "/api/workspace_download/t1")
+                .unwrap(),
+            "https://box.example/codeg/api/workspace_download/t1"
+        );
+        assert_eq!(
+            absolute_remote_ticket_url("https://box.example/", "api/workspace_download/t1")
+                .unwrap(),
+            "https://box.example/api/workspace_download/t1"
+        );
+        // Absolute, but still the connection's own host: allowed.
+        assert_eq!(
+            absolute_remote_ticket_url("https://box.example", "https://box.example/dl/t1").unwrap(),
+            "https://box.example/dl/t1"
+        );
+    }
+
+    #[test]
+    fn ticket_url_refuses_a_host_the_connection_did_not_name() {
+        for ticket in [
+            "https://evil.example/dl/t1",
+            // Same host, different port — a different server.
+            "https://box.example:8443/dl/t1",
+            // Same host, downgraded scheme.
+            "http://box.example/dl/t1",
+        ] {
+            let err = absolute_remote_ticket_url("https://box.example", ticket)
+                .expect_err("ticket url should be refused: {ticket}");
+            assert!(
+                err.message.contains("outside the connection"),
+                "unexpected message for {ticket}: {}",
+                err.message
+            );
+        }
+
+        // The case a host-and-port test alone would wave through: identical
+        // explicit port, scheme downgraded, so the credentials would have gone
+        // out in plaintext. `reqwest`'s own strip rule has this blind spot.
+        assert!(
+            absolute_remote_ticket_url("https://box.example:8443", "http://box.example:8443/dl/t1")
+                .is_err(),
+            "a plaintext downgrade on the same port must be refused"
+        );
+    }
+
+    /// Accept `responses.len()` connections in order, answering each with the
+    /// matching canned response. Returns the raw request text of each, so a
+    /// test can assert on the headers that actually arrived.
+    async fn serve_sequence(
+        listener: tokio::net::TcpListener,
+        responses: Vec<String>,
+    ) -> Vec<String> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut requests = Vec::with_capacity(responses.len());
+        for response in responses {
+            let (mut stream, _) = listener.accept().await.unwrap();
+            let mut buf = vec![0u8; 4096];
+            let n = stream.read(&mut buf).await.unwrap();
+            requests.push(String::from_utf8_lossy(&buf[..n]).to_string());
+            stream.write_all(response.as_bytes()).await.unwrap();
+            stream.flush().await.unwrap();
+        }
+        requests
+    }
+
+    fn redirect_to(location: &str) -> String {
+        // `Connection: close` so the follow-up hop opens a fresh connection and
+        // lands on the next `accept()` rather than being pipelined onto this one.
+        format!(
+            "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\n\
+             Connection: close\r\n\r\n"
+        )
+    }
+
+    fn ok_response() -> String {
+        "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_string()
+    }
+
+    #[tokio::test]
+    async fn redirect_to_another_host_never_delivers_the_custom_header() {
+        // Two loopback ports are two origins, so this is the cross-host case.
+        let hop = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let elsewhere = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let hop_addr = hop.local_addr().unwrap();
+        let elsewhere_addr = elsewhere.local_addr().unwrap();
+
+        let hop_task = tokio::spawn(serve_sequence(
+            hop,
+            vec![redirect_to(&format!("http://{elsewhere_addr}/next"))],
+        ));
+        let elsewhere_task = tokio::spawn(serve_sequence(elsewhere, vec![ok_response()]));
+
+        let client = reqwest::Client::builder()
+            .redirect(connection_redirect_policy())
+            // Hermetic: this box has HTTP_PROXY set, and reqwest does not
+            // bypass loopback for it. Without this the request reaches the
+            // proxy instead of the test server, which answers 502 — an error,
+            // so the cross-host case would pass for entirely the wrong reason.
+            .no_proxy()
+            .build()
+            .unwrap();
+        let err = client
+            .get(format!("http://{hop_addr}/start"))
+            .header("X-Access-Secret", "s3cret")
+            .send()
+            .await
+            .expect_err("a redirect off the connection host must not be followed");
+        assert!(err.is_redirect(), "expected a redirect error, got: {err}");
+        // reqwest's own Display is just "error following redirect for url (…)",
+        // so this also pins that the reason survives into what the UI renders.
+        let detail = request_error_detail(&err);
+        assert!(
+            detail.contains("refused a redirect off")
+                && detail.contains(&elsewhere_addr.to_string()),
+            "the refusal reason must reach the caller: {detail}"
+        );
+
+        let hop_request = hop_task.await.unwrap().remove(0);
+        assert!(
+            hop_request.contains("s3cret"),
+            "the configured host should still receive the header: {hop_request}"
+        );
+
+        // Nothing ever connected to the second host, so its `accept()` is still
+        // pending. That, rather than an assertion on headers it never saw, is
+        // the proof the credential stayed put.
+        elsewhere_task.abort();
+        assert!(
+            elsewhere_task.await.unwrap_err().is_cancelled(),
+            "the redirect target received a request"
+        );
+    }
+
+    #[tokio::test]
+    async fn redirect_within_the_same_host_still_follows_and_keeps_the_header() {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        let server = tokio::spawn(serve_sequence(
+            listener,
+            vec![redirect_to("/next"), ok_response()],
+        ));
+
+        let client = reqwest::Client::builder()
+            .redirect(connection_redirect_policy())
+            // Hermetic: this box has HTTP_PROXY set, and reqwest does not
+            // bypass loopback for it. Without this the request reaches the
+            // proxy instead of the test server, which answers 502 — an error,
+            // so the cross-host case would pass for entirely the wrong reason.
+            .no_proxy()
+            .build()
+            .unwrap();
+        let response = client
+            .get(format!("http://{addr}/start"))
+            .header("X-Access-Secret", "s3cret")
+            .send()
+            .await
+            .expect("a same-host redirect should still be followed");
+        assert!(response.status().is_success());
+
+        let requests = server.await.unwrap();
+        assert_eq!(requests.len(), 2, "the redirect should have been followed");
+        assert!(requests[1].starts_with("GET /next"), "got: {}", requests[1]);
+        assert!(
+            requests[1].contains("s3cret"),
+            "the header must survive a same-host hop: {}",
+            requests[1]
+        );
     }
 
     #[test]

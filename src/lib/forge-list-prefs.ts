@@ -14,6 +14,12 @@ export type ForgePageSize = (typeof FORGE_PAGE_SIZES)[number]
 /** Mirrors `DEFAULT_PER_PAGE` in src-tauri/src/forge/mod.rs. */
 export const DEFAULT_FORGE_PAGE_SIZE: ForgePageSize = 20
 
+/** Comments per "load more" — mirrors `DEFAULT_COMMENT_PER_PAGE` in
+ *  src-tauri/src/forge/mod.rs. Not offered as a setting: a thread is read
+ *  rather than scanned, so there is no equivalent of the list's page size to
+ *  remember. */
+export const DEFAULT_FORGE_COMMENT_PAGE_SIZE = 20
+
 function isPageSize(value: number): value is ForgePageSize {
   return (FORGE_PAGE_SIZES as readonly number[]).includes(value)
 }

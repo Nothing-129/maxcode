@@ -64,8 +64,13 @@ pub struct ForgeTaskDraft {
     /// How to handle the item — a template NAME, never template text (see the
     /// trust boundary above). `None` falls back to the kind's default so
     /// older clients keep triggering the way they always did.
+    ///
+    /// A raw string rather than the enum: a name this build no longer offers
+    /// has to be ANSWERED (see [`ForgeScenario::resolve`]) rather than rejected
+    /// by the deserializer, and "unknown variant `investigate`" is not an
+    /// answer a browser tab opened before the update can act on.
     #[serde(default)]
-    pub scenario: Option<ForgeScenario>,
+    pub scenario: Option<String>,
     /// Extra instruction the user typed in the trigger dialog.
     #[serde(default)]
     pub instruction: Option<String>,
@@ -86,20 +91,25 @@ pub struct ForgeTaskDraft {
 /// server-side instruction template and decides whether the task delivers a
 /// report or code changes; the client only ever names one of these.
 ///
-/// The "report" scenarios all close their loop the same way: the prompt tells
-/// the agent the user may RETURN the task for the follow-up work (fix what the
-/// investigation found, implement the reviewed plan, apply review findings),
-/// which is exactly the engine's existing review → follow-up cycle in the same
-/// worktree — including, for a PR task, the push-back-to-branch delivery.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "snake_case")]
+/// Every issue template opens the same way — establish that the reported
+/// problem is actually there before acting on it — because the alternative is
+/// a task that confidently fixes, or plans around, something that was never
+/// broken. That check is a STEP of the work, not a mode to pick: an
+/// "investigate only" choice next to these made the verification look optional
+/// in the two flows that need it most.
+///
+/// The "report" scenarios close their loop the same way: the prompt tells the
+/// agent the user may RETURN the task for the follow-up work (implement the
+/// reviewed plan, apply review findings), which is exactly the engine's
+/// existing review → follow-up cycle in the same worktree — including, for a
+/// PR task, the push-back-to-branch delivery.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ForgeScenario {
-    /// Issue: implement or fix it (the issue default).
+    /// Issue: confirm the problem, then implement or fix it (the issue
+    /// default).
     Fix,
-    /// Issue: reproduce and diagnose only — the reply is the deliverable.
-    Investigate,
-    /// Issue: write an implementation plan and stop; the user reviews the
-    /// plan, then returns the task for implementation.
+    /// Issue: confirm the problem, then write an implementation plan and stop;
+    /// the user reviews the plan, then returns the task for implementation.
     PlanFirst,
     /// PR/MR: review the change and fix on top (the PR default).
     ReviewFix,
@@ -107,15 +117,54 @@ pub enum ForgeScenario {
     ReviewOnly,
 }
 
+/// Wire names this build no longer offers, each with what to tell a client
+/// still showing it.
+///
+/// Retired names are REFUSED, never remapped onto a survivor: "investigate
+/// only" promised the agent would not touch the code, and both flows that
+/// absorbed its verification step may commit. Silently upgrading a read-only
+/// request into a change-producing one is the same mistake as answering a
+/// write-back question nobody was asked (see [`resolve_writeback`]).
+const RETIRED_SCENARIOS: &[(&str, &str)] = &[(
+    "investigate",
+    "\"investigate only\" is no longer a separate choice — fixing and planning both verify the \
+     issue first now",
+)];
+
 impl ForgeScenario {
+    /// The scenario a wire name selects, or `None` for a name this build does
+    /// not offer (retired, from a newer build, or simply wrong).
+    fn parse(name: &str) -> Option<Self> {
+        Some(match name {
+            "fix" => Self::Fix,
+            "plan_first" => Self::PlanFirst,
+            "review_fix" => Self::ReviewFix,
+            "review_only" => Self::ReviewOnly,
+            _ => return None,
+        })
+    }
+
     /// Resolve the selection against the item kind: default when absent,
-    /// reject a scenario that belongs to the other kind (a stale or crafted
-    /// client — same reason the provider claim is checked, worth saying out
-    /// loud rather than minting a task whose prompt contradicts its item).
-    fn resolve(selected: Option<Self>, is_pr: bool) -> Result<Self, AppCommandError> {
-        let scenario = selected.unwrap_or(if is_pr { Self::ReviewFix } else { Self::Fix });
+    /// reject a name this build does not offer, and reject a scenario that
+    /// belongs to the other kind (a stale or crafted client — same reason the
+    /// provider claim is checked, worth saying out loud rather than minting a
+    /// task whose prompt contradicts its item).
+    fn resolve(selected: Option<&str>, is_pr: bool) -> Result<Self, AppCommandError> {
+        let Some(name) = selected.map(str::trim).filter(|name| !name.is_empty()) else {
+            return Ok(if is_pr { Self::ReviewFix } else { Self::Fix });
+        };
+        let scenario = Self::parse(name).ok_or_else(|| {
+            let reason = RETIRED_SCENARIOS
+                .iter()
+                .find(|(retired, _)| *retired == name)
+                .map(|(_, why)| (*why).to_string())
+                .unwrap_or_else(|| format!("unknown way to handle this item: \"{name}\""));
+            AppCommandError::invalid_input(format!(
+                "{reason} — refresh the workbench and try again"
+            ))
+        })?;
         let fits = match scenario {
-            Self::Fix | Self::Investigate | Self::PlanFirst => !is_pr,
+            Self::Fix | Self::PlanFirst => !is_pr,
             Self::ReviewFix | Self::ReviewOnly => is_pr,
         };
         if !fits {
@@ -136,13 +185,12 @@ impl ForgeScenario {
     /// recorded on the task config so the engine's worktree guard grants a
     /// matching licence instead of "commit as you like".
     fn is_report(self) -> bool {
-        matches!(self, Self::Investigate | Self::PlanFirst | Self::ReviewOnly)
+        matches!(self, Self::PlanFirst | Self::ReviewOnly)
     }
 
     fn as_str(self) -> &'static str {
         match self {
             Self::Fix => "fix",
-            Self::Investigate => "investigate",
             Self::PlanFirst => "plan_first",
             Self::ReviewFix => "review_fix",
             Self::ReviewOnly => "review_only",
@@ -168,6 +216,24 @@ impl ForgeScenario {
 /// transcript, where a work task's prompt renders verbatim with the sender's
 /// own line breaks. A single newline between two paragraphs makes the whole
 /// order read as one wall of prose there.
+///
+/// Shape of the issue templates: anchor, then verify, then the branch where
+/// verification FAILS, then the work, then what the reply must contain. The
+/// failure branch comes before the work on purpose — an agent that reads
+/// "confirm it, then fix it" as one instruction treats confirmation as a
+/// formality on the way to the fix, and the whole point of the step is that
+/// it has an outcome which ends the task.
+///
+/// That branch also has to say it is a SUCCESS, and this part is load-bearing
+/// rather than encouragement. An agent holding the companion's task tools is
+/// told to report `blocked` when it "could not complete the task", the engine
+/// turns that verdict into a failed task, and `complete_task` only accepts a
+/// task in review — so an agent that files the honest "it does not reproduce"
+/// answer as a blocker leaves the user with a red card and no way to accept
+/// the very outcome this template asked for. Naming the outcome here keeps the
+/// classification with the instruction that produces it, and keeps the real
+/// blockers (a project that will not build, a missing credential) pointed at
+/// the failure path where they belong.
 fn forge_instruction(
     scenario: ForgeScenario,
     provider: ForgeProvider,
@@ -177,33 +243,53 @@ fn forge_instruction(
     let noun = provider.change_noun();
     match scenario {
         ForgeScenario::Fix => format!(
-            "Handle issue #{number} ({url}).\n\nRead the fenced external content below to \
-             understand what is being asked, then implement or fix it inside this worktree. \
-             Verify your changes the way this project would (build, tests, lint — whatever \
-             applies) before you finish."
-        ),
-        ForgeScenario::Investigate => format!(
-            "Investigate issue #{number} ({url}) — analysis only: do not fix or implement \
-             anything in this turn.\n\nRead the fenced external content below, then \
-             investigate it against the code in this worktree: reproduce the problem if you \
-             can, locate the root cause, and judge impact and scope (for a feature request: \
-             feasibility and what it would take). Run whatever you need to prove it, but \
-             leave the worktree clean — put the repro steps or test snippet and its observed \
-             output in the report instead of committing them (this task delivers nothing to \
-             merge, and a committed \"proof\" would read as work to land).\n\nDeliver the \
-             findings in your reply: whether it reproduces and how, the cause with file/line \
-             references, and a concrete recommendation. The user may send this task back \
-             afterwards to have you implement the fix in this same worktree."
+            "Handle issue #{number} ({url}): confirm it is real, then fix it.\n\nStart by \
+             establishing that the problem is actually there — this step is required, not a \
+             formality. Read the fenced external content below, then check it against the \
+             code in this worktree: reproduce the reported behaviour (a failing command, test \
+             or minimal case), or otherwise show from the code where and why it goes wrong, \
+             and identify the cause with file and line references. For a feature request, \
+             confirm the behaviour is genuinely missing rather than already available under \
+             another name or setting.\n\nIf you cannot confirm it, do NOT change any code: a \
+             fix invented for a problem that is not there is worse than no fix at all, and it \
+             costs the reviewer more to discover. Report what you ran, what you saw instead, \
+             the most likely explanation (already fixed, works as designed, wrong version, \
+             missing information), and what you would need to take it further — then leave \
+             the worktree clean and stop. The user can send this task back with more detail. \
+             Ending there is a SUCCESSFUL outcome for this task, not a blocked one: \"it does \
+             not reproduce, and here is everything I checked\" is the work product. Report \
+             this task as blocked only if something stopped you from checking at all — the \
+             project would not build, a service or credential you needed was \
+             missing.\n\nOnce it is confirmed, fix the cause you identified rather than the \
+             symptom, and keep the change as small as the problem needs. Then verify it: show \
+             that what you reproduced no longer happens, and run whatever this project would \
+             (build, tests, lint — whatever applies).\n\nSay in your reply what you confirmed \
+             and how, what you changed and why, and how you verified it."
         ),
         ForgeScenario::PlanFirst => format!(
-            "Plan issue #{number} ({url}) — this turn delivers a plan, not an \
-             implementation.\n\nRead the fenced external content below, explore the code in \
-             this worktree as needed, and write an implementation plan: the approach and why, \
-             the files and surfaces to touch, the risks and open questions, and how the \
-             change will be verified. Do NOT start implementing, and change no files.\n\nPut \
-             the full plan in your reply. The user reviews it and then sends this task back \
-             for you to implement it in this same worktree — write the plan you would want \
-             to execute from."
+            "Plan issue #{number} ({url}): confirm it is real, then plan the change. This \
+             turn delivers a plan, not an implementation.\n\nStart by establishing that the \
+             problem is actually there — this step is required, not a formality. Read the \
+             fenced external content below, then check it against the code in this worktree: \
+             reproduce the reported behaviour or show from the code where and why it goes \
+             wrong, and identify the cause with file and line references. For a feature \
+             request, confirm the behaviour is genuinely missing rather than already \
+             available under another name or setting. Run whatever you need to prove it, but \
+             change no files — the evidence goes in the report, not into commits (this task \
+             delivers nothing to merge, and a committed \"proof\" would read as work to \
+             land).\n\nIf you cannot confirm it, do NOT write a plan for it: a plan for a \
+             problem that is not there sends someone off to build the wrong thing. Report \
+             what you ran, what you saw instead, the most likely explanation, and what you \
+             would need to take it further, and stop there. Ending there is a SUCCESSFUL \
+             outcome for this task, not a blocked one: \"there is nothing to plan yet, and \
+             here is why\" is the work product. Report this task as blocked only if something \
+             stopped you from checking at all — the project would not build, a service or \
+             credential you needed was missing.\n\nOnce it is confirmed, write \
+             the implementation plan: the approach and why, the files and surfaces to touch, \
+             the risks and open questions, and how the change will be verified. Do NOT start \
+             implementing, and change no files.\n\nPut the evidence and the full plan in your \
+             reply. The user reviews it and then sends this task back for you to implement it \
+             in this same worktree — write the plan you would want to execute from."
         ),
         ForgeScenario::ReviewFix => format!(
             "Review {noun} #{number} ({url}) and fix what needs fixing.\n\nThis worktree is \
@@ -443,6 +529,41 @@ pub async fn forge_tab_count_core(
     Ok(listed.ok().and_then(|page| page.trustworthy_count()))
 }
 
+/// One page of an item's discussion, for the detail panel.
+///
+/// Its own command rather than a field on the list row, and this is a real
+/// trade rather than tidiness: a thread is one request PER ITEM, so folding it
+/// into the list would spend thirty of them to draw a page whose reader opens
+/// at most one. Asking only when the panel opens keeps the cost proportional
+/// to what is actually read — and on GitHub it lands on the core quota
+/// (5000/hour) instead of the 30-per-minute one the list itself lives on, so
+/// opening item after item cannot starve the list behind it.
+///
+/// The item's COORDINATES come from the client (kind and number, the same two
+/// values the trigger takes) and everything else is derived here — repository
+/// from the folder's own remote, credentials from the resolved account. Both
+/// are validated before they reach a provider client: on GitLab the kind picks
+/// the collection, so a wrong one reads a real item that is not this one.
+pub async fn forge_list_comments_core(
+    db: &AppDatabase,
+    folder_id: i32,
+    filters: forge::CommentFilters,
+) -> Result<forge::ForgeCommentList, AppCommandError> {
+    let (kind, number, page, per_page) = filters.resolve().map_err(AppCommandError::from)?;
+    let (remote, auth) = resolve_folder_repo(db, folder_id, filters.account_id.as_deref()).await?;
+    Ok(match remote.provider {
+        // No kind: a pull request IS an issue at GitHub, and both are served
+        // from `/issues/{n}/comments` (see `github::list_comments`).
+        ForgeProvider::GitHub => {
+            forge::github::list_comments(&auth, &remote.owner_repo, number, page, per_page).await?
+        }
+        ForgeProvider::GitLab => {
+            forge::gitlab::list_notes(&auth, &remote.owner_repo, kind, number, page, per_page)
+                .await?
+        }
+    })
+}
+
 /// The repository's label vocabulary, for the workbench's label filter. Its
 /// own command rather than a field on the list response: the labels change far
 /// more slowly than the list, so the frontend fetches them once per repository
@@ -465,15 +586,7 @@ pub async fn work_task_create_from_forge_core(
     draft: ForgeTaskDraft,
 ) -> Result<ForgeCreateResult, AppCommandError> {
     let source = &draft.source;
-    let item_kind = match source.kind.trim() {
-        "issue" => ForgeItemKind::Issue,
-        "pr" => ForgeItemKind::Change,
-        other => {
-            return Err(AppCommandError::invalid_input(format!(
-                "unknown work item kind: {other}"
-            )))
-        }
-    };
+    let item_kind = ForgeItemKind::parse(&source.kind).map_err(AppCommandError::from)?;
     let is_pr = item_kind == ForgeItemKind::Change;
     let claimed_provider = ForgeProvider::parse(&source.provider).map_err(AppCommandError::from)?;
 
@@ -582,7 +695,7 @@ pub async fn work_task_create_from_forge_core(
     // The client names a scenario; the template text is ours (the dialog's
     // extra instruction is plain user input in its own paragraph, same trust
     // level as any chat).
-    let scenario = ForgeScenario::resolve(draft.scenario, is_pr)?;
+    let scenario = ForgeScenario::resolve(draft.scenario.as_deref(), is_pr)?;
     // The panel's standing instructions ride in from settings rather than from
     // the request, for the same reason the templates do: prompt text is not
     // something a client hands us. Resolved for THIS folder — its own row if it
@@ -765,6 +878,16 @@ pub async fn forge_list_labels(
 
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn forge_list_comments(
+    db: tauri::State<'_, AppDatabase>,
+    folder_id: i32,
+    filters: forge::CommentFilters,
+) -> Result<forge::ForgeCommentList, AppCommandError> {
+    forge_list_comments_core(&db, folder_id, filters).await
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn work_task_create_from_forge(
     app: tauri::AppHandle,
     db: tauri::State<'_, AppDatabase>,
@@ -813,10 +936,9 @@ mod tests {
 
     const URL: &str = "https://github.com/acme/app/issues/7";
 
-    fn all_scenarios() -> [ForgeScenario; 5] {
+    fn all_scenarios() -> [ForgeScenario; 4] {
         [
             ForgeScenario::Fix,
-            ForgeScenario::Investigate,
             ForgeScenario::PlanFirst,
             ForgeScenario::ReviewFix,
             ForgeScenario::ReviewOnly,
@@ -835,13 +957,16 @@ mod tests {
             ForgeScenario::resolve(None, true).unwrap(),
             ForgeScenario::ReviewFix
         );
+        // A field that arrived as an empty string is the same "nothing was
+        // picked" the absent one is, not a name to look up.
+        assert_eq!(
+            ForgeScenario::resolve(Some("  "), false).unwrap(),
+            ForgeScenario::Fix
+        );
         for s in all_scenarios() {
-            let issue_side = matches!(
-                s,
-                ForgeScenario::Fix | ForgeScenario::Investigate | ForgeScenario::PlanFirst
-            );
-            assert!(ForgeScenario::resolve(Some(s), !issue_side).is_ok());
-            let err = ForgeScenario::resolve(Some(s), issue_side).unwrap_err();
+            let issue_side = matches!(s, ForgeScenario::Fix | ForgeScenario::PlanFirst);
+            assert!(ForgeScenario::resolve(Some(s.as_str()), !issue_side).is_ok());
+            let err = ForgeScenario::resolve(Some(s.as_str()), issue_side).unwrap_err();
             assert!(
                 err.to_string().contains("does not apply"),
                 "cross-kind {s:?} must be refused: {err}"
@@ -849,15 +974,43 @@ mod tests {
         }
     }
 
-    /// Wire names are snake_case — what the dialog sends.
+    /// Wire names are snake_case — what the dialog sends — and every one of
+    /// them survives the round trip through `as_str`.
     #[test]
     fn scenario_parses_from_wire_names() {
         for s in all_scenarios() {
-            let parsed: ForgeScenario =
-                serde_json::from_value(serde_json::json!(s.as_str())).expect("round-trips");
-            assert_eq!(parsed, s);
+            assert_eq!(ForgeScenario::parse(s.as_str()), Some(s));
         }
-        assert!(serde_json::from_value::<ForgeScenario>(serde_json::json!("rewrite")).is_err());
+        assert_eq!(ForgeScenario::parse("rewrite"), None);
+    }
+
+    /// A retired name is REFUSED with something the user can act on, and
+    /// never remapped: "investigate only" asked for a turn that touches no
+    /// code, and both surviving issue flows may commit. A stale tab must not
+    /// have its read-only request quietly upgraded into a change-producing
+    /// task.
+    #[test]
+    fn a_retired_scenario_is_refused_by_name_not_remapped() {
+        let err = ForgeScenario::resolve(Some("investigate"), false).unwrap_err();
+        let text = err.to_string();
+        assert!(text.contains("investigate only"), "{text}");
+        assert!(text.contains("verify the issue first"), "{text}");
+        assert!(text.contains("refresh the workbench"), "{text}");
+
+        // An unrecognized name gets the generic version of the same answer.
+        let unknown = ForgeScenario::resolve(Some("rewrite"), false).unwrap_err();
+        assert!(unknown.to_string().contains("\"rewrite\""), "{unknown}");
+        assert!(
+            unknown.to_string().contains("refresh the workbench"),
+            "{unknown}"
+        );
+
+        // Every retired name still has to be one this build cannot resolve —
+        // an entry left behind after a name was brought back would produce an
+        // error message for a scenario that works.
+        for (name, _) in RETIRED_SCENARIOS {
+            assert_eq!(ForgeScenario::parse(name), None, "{name} is live again");
+        }
     }
 
     /// Milestone/completion reporting belongs to the engine's "Work task
@@ -885,6 +1038,68 @@ mod tests {
         }
     }
 
+    /// Every issue template makes verification a STEP with an outcome, not a
+    /// preamble: it says the check is required, and it gives the failure
+    /// branch its own paragraph BEFORE the work, ending in "stop". Without
+    /// that branch an agent reads "confirm it, then fix it" as one instruction
+    /// and produces a fix for a problem it never found — which is exactly what
+    /// removing the separate "investigate only" choice has to keep out.
+    #[test]
+    fn the_issue_templates_require_confirmation_before_acting() {
+        for s in [ForgeScenario::Fix, ForgeScenario::PlanFirst] {
+            for provider in [ForgeProvider::GitHub, ForgeProvider::GitLab] {
+                let text = forge_instruction(s, provider, 7, URL);
+                assert!(text.contains("confirm it is real"), "{s:?} buries the check");
+                assert!(
+                    text.contains("required, not a formality"),
+                    "{s:?} leaves the check optional"
+                );
+                assert!(
+                    text.contains("reproduce the reported behaviour"),
+                    "{s:?} does not say what confirming means"
+                );
+                assert!(
+                    text.contains("file and line references"),
+                    "{s:?} accepts a hunch as confirmation"
+                );
+                // A feature request has nothing to reproduce; without this the
+                // "required" step reads as impossible and gets skipped whole.
+                assert!(
+                    text.contains("For a feature request"),
+                    "{s:?} has no answer for a request that is not a defect"
+                );
+
+                let branch = text
+                    .find("If you cannot confirm it")
+                    .unwrap_or_else(|| panic!("{s:?} has no failure branch"));
+                assert!(
+                    text[branch..].starts_with("If you cannot confirm it, do NOT"),
+                    "{s:?} does not say what must not happen"
+                );
+                assert!(text[branch..].contains("stop"), "{s:?} never ends the task");
+                // Before the work, not after it: an instruction that arrives
+                // once the fix is written is a retraction, not a gate.
+                let work = text.find("Once it is confirmed").expect("the work paragraph");
+                assert!(branch < work, "{s:?} states the gate after the work");
+
+                // …and that ending is a SUCCESS. An agent that files it as a
+                // blocker fails the task instead (engine `verdict_blocked`),
+                // and a failed task cannot be accepted — `complete_task` takes
+                // review tasks only. Real blockers keep the failure path.
+                let outcome = &text[branch..work];
+                assert!(
+                    outcome.contains("SUCCESSFUL outcome for this task, not a blocked one"),
+                    "{s:?} leaves the honest \"it does not reproduce\" answer looking like a \
+                     failure"
+                );
+                assert!(
+                    outcome.contains("blocked only if something stopped you from checking at all"),
+                    "{s:?} gives real blockers nowhere to go"
+                );
+            }
+        }
+    }
+
     /// Each scenario states its own goal, and the report ones close their
     /// loop: the reply carries the deliverable, and the user can return the
     /// task for the follow-up work.
@@ -894,23 +1109,19 @@ mod tests {
 
         let fix = forge_instruction(ForgeScenario::Fix, gh, 7, URL);
         assert!(fix.starts_with("Handle issue #7"));
-        assert!(fix.contains("implement or fix it inside this worktree"));
-
-        let investigate = forge_instruction(ForgeScenario::Investigate, gh, 7, URL);
-        assert!(investigate.contains("analysis only"));
-        assert!(investigate.contains("do not fix or implement anything"));
-        // Proof goes INTO the report — a committed "proof" would be a landable
-        // diff on a task whose acceptance path must stay "complete", and the
-        // engine refuses completion while landable changes exist.
-        assert!(investigate.contains("leave the worktree clean"));
-        assert!(investigate.contains("nothing to merge"));
-        assert!(!investigate.contains("may commit"));
-        assert!(investigate.contains("send this task back"));
+        assert!(fix.contains("fix the cause you identified rather than the symptom"));
+        assert!(fix.contains("run whatever this project would"));
 
         let plan = forge_instruction(ForgeScenario::PlanFirst, gh, 7, URL);
         assert!(plan.contains("a plan, not an implementation"));
         assert!(plan.contains("Do NOT start implementing"));
         assert!(plan.contains("sends this task back"));
+        // Proof goes INTO the report — a committed "proof" would be a landable
+        // diff on a task whose acceptance path must stay "complete", and the
+        // engine refuses completion while landable changes exist.
+        assert!(plan.contains("change no files"));
+        assert!(plan.contains("nothing to merge"));
+        assert!(!plan.contains("may commit"));
 
         let review_fix = forge_instruction(ForgeScenario::ReviewFix, gh, 7, URL);
         assert!(review_fix.starts_with("Review pull request #7"));
@@ -1210,14 +1421,11 @@ mod tests {
     }
 
     /// The deliverable flag is what makes the engine swap the commit licence —
-    /// exactly the three reply-deliverable scenarios, never the change ones.
+    /// exactly the reply-deliverable scenarios, never the change ones.
     #[test]
     fn report_scenarios_and_only_those_mark_the_report_deliverable() {
         for s in all_scenarios() {
-            let expect = matches!(
-                s,
-                ForgeScenario::Investigate | ForgeScenario::PlanFirst | ForgeScenario::ReviewOnly
-            );
+            let expect = matches!(s, ForgeScenario::PlanFirst | ForgeScenario::ReviewOnly);
             assert_eq!(s.is_report(), expect, "{s:?}");
         }
     }

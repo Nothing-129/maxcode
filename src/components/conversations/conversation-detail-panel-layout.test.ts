@@ -424,6 +424,32 @@ describe("ConversationDetailPanel send-path hardening", () => {
     expect(source).toContain("if (!connectionReady) return")
   })
 
+  it("gates the queue auto-flush on the SAME readiness predicate as the send", () => {
+    // The flush DEQUEUES before handing the message to handleSend, so a gate
+    // weaker than handleSend's own check takes the message off the queue and
+    // then loses it when the send bails. The two drifted once already: the agent
+    // term was added to `connectionReady` while the flush kept its own inlined
+    // connStatus+cwd pair, so a draft whose agent had just been switched — its
+    // old connection still live at the same cwd — silently ate the message.
+    // Both must read the one variable.
+    //
+    // Scoped to the flush effect's own body: `connStatus` is a legitimate gate
+    // elsewhere in the file (answering a question, forking), so banning it
+    // outright would be wrong.
+    const start = source.indexOf("// Flush queued messages whenever the agent")
+    const end = source.indexOf("autoSendQueueRef.current()", start)
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const flushEffect = source.slice(start, end)
+
+    expect(flushEffect).toContain("if (!connectionReady) return")
+    expect(flushEffect).toContain("if (!connectionReadyRef.current) return")
+    // No re-spelling of the predicate: the connection is judged ONLY through
+    // the shared variable.
+    expect(flushEffect).not.toContain("connStatus")
+    expect(flushEffect).not.toContain("connectedWorkingDir")
+  })
+
   it("disables the welcome composer while connected-but-not-ready", () => {
     // The composer reads a downgraded status so its send affordance is disabled
     // during the transient mismatch window instead of inviting a rejected send.

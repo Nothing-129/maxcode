@@ -37,7 +37,7 @@ vi.mock("sonner", () => ({ toast: { error: (m: string) => toastError(m) } }))
 import { ForgeSettingsDialog } from "./forge-settings-dialog"
 
 const GLOBAL: ForgePanelSettings = {
-  default_issue_scenario: "investigate",
+  default_issue_scenario: "plan_first",
   default_pr_scenario: "review_only",
   writeback_default: false,
   scenario_prompts: { all: "Reply in English.", review_fix: "Check the i18n." },
@@ -111,7 +111,7 @@ describe("ForgeSettingsDialog global scope", () => {
 
     expect(
       screen.getByRole("combobox", { name: "Default for issues" })
-    ).toHaveTextContent("Investigate only")
+    ).toHaveTextContent("Plan first")
     expect(
       screen.getByRole("combobox", {
         name: "Default for pull / merge requests",
@@ -149,7 +149,7 @@ describe("ForgeSettingsDialog global scope", () => {
     const { folderId, settings } = lastSave()
     expect(folderId).toBeNull()
     expect(settings.writeback_default).toBe(true)
-    expect(settings.default_issue_scenario).toBe("investigate")
+    expect(settings.default_issue_scenario).toBe("plan_first")
     expect(settings.scenario_prompts).toEqual({ review_fix: "Check the i18n." })
     // The page is handed the STORED store, so the next trigger dialog opens on
     // it without another read.
@@ -164,7 +164,7 @@ describe("ForgeSettingsDialog global scope", () => {
     expect(screen.getByRole("textbox")).toHaveValue("Check the i18n.")
     // A scenario with nothing configured shows an empty box, not the previous
     // segment's text.
-    await user.click(screen.getByRole("tab", { name: /Investigate only/ }))
+    await user.click(screen.getByRole("tab", { name: /Plan first/ }))
     expect(screen.getByRole("textbox")).toHaveValue("")
 
     await user.type(screen.getByRole("textbox"), "Look at the logs.")
@@ -173,7 +173,7 @@ describe("ForgeSettingsDialog global scope", () => {
     expect(lastSave().settings.scenario_prompts).toEqual({
       all: "Reply in English.",
       review_fix: "Check the i18n.",
-      investigate: "Look at the logs.",
+      plan_first: "Look at the logs.",
     })
   })
 
@@ -218,6 +218,25 @@ describe("ForgeSettingsDialog global scope", () => {
         name: "Default for pull / merge requests",
       })
     ).toHaveTextContent("Review & fix")
+  })
+
+  /** Same guard, for the name this build RETIRED: a saved "investigate only"
+   *  default is still sitting in storage, and preselecting it would send the
+   *  trigger dialog off with a scenario the server refuses. */
+  it("falls back when a stored default names a retired scenario", async () => {
+    forgeSettingsGet.mockResolvedValue({
+      global: { ...GLOBAL, default_issue_scenario: "investigate" },
+      folders: {},
+    })
+    await mountLoaded()
+
+    expect(
+      screen.getByRole("combobox", { name: "Default for issues" })
+    ).toHaveTextContent("Fix / implement")
+    // And the retired entry is gone from the instruction strip entirely.
+    expect(
+      screen.queryByRole("tab", { name: /Investigate/ })
+    ).not.toBeInTheDocument()
   })
 
   it("reports a failed save in place rather than closing over it", async () => {
@@ -266,7 +285,7 @@ describe("ForgeSettingsDialog folder scope", () => {
     await user.click(screen.getByRole("tab", { name: "Custom" }))
     expect(
       screen.getByRole("combobox", { name: "Default for issues" })
-    ).toHaveTextContent("Investigate only")
+    ).toHaveTextContent("Plan first")
     expect(screen.getByRole("textbox")).toHaveValue("Reply in English.")
 
     await user.click(screen.getByRole("button", { name: "Save" }))
@@ -283,7 +302,7 @@ describe("ForgeSettingsDialog folder scope", () => {
       global: GLOBAL,
       folders: {
         "4": {
-          default_issue_scenario: "plan_first",
+          default_issue_scenario: "fix",
           writeback_default: true,
           scenario_prompts: { all: "Reply in Chinese." },
         },
@@ -297,7 +316,7 @@ describe("ForgeSettingsDialog folder scope", () => {
     )
     expect(
       screen.getByRole("combobox", { name: "Default for issues" })
-    ).toHaveTextContent("Plan first")
+    ).toHaveTextContent("Fix / implement")
     // Its OWN prompts, wholesale — the global `review_fix` entry is not layered
     // underneath, which is the rule the backend applies too.
     expect(screen.getByRole("textbox")).toHaveValue("Reply in Chinese.")
@@ -333,7 +352,7 @@ describe("ForgeSettingsDialog folder scope", () => {
       global: GLOBAL,
       folders: {
         "4": {
-          default_issue_scenario: "plan_first",
+          default_issue_scenario: "fix",
           writeback_default: true,
           scenario_prompts: {},
         },
@@ -342,7 +361,7 @@ describe("ForgeSettingsDialog folder scope", () => {
     await mountLoaded({ folderId: 4 })
     expect(
       screen.getByRole("combobox", { name: "Default for issues" })
-    ).toHaveTextContent("Plan first")
+    ).toHaveTextContent("Fix / implement")
 
     // The picker's accessible name is whatever it currently shows — the
     // folder — because a button's own text outranks its `title`.
@@ -351,7 +370,7 @@ describe("ForgeSettingsDialog folder scope", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", { name: "Default for issues" })
-      ).toHaveTextContent("Investigate only")
+      ).toHaveTextContent("Plan first")
     )
     expect(
       screen.queryByRole("tab", { name: "Custom" })

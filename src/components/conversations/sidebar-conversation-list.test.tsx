@@ -1207,6 +1207,143 @@ describe("SidebarConversationList — Recent section", () => {
       Array.from(document.querySelectorAll("[data-conversation-id]"))
     ).toHaveLength(2)
   })
+
+  describe("paging", () => {
+    // `recentLimit` starts at RECENT_PAGE_SIZE and only ever grew, so a list
+    // expanded a few pages deep stayed that way for the rest of the session.
+    // These cover the way back out.
+    const PAGE = 15
+    const FOLDER_PAGE = 10
+    const TOTAL = PAGE + 4
+
+    // Recent duplicates canonical rows, but the merged MaxCode sidebar also
+    // pages each folder independently. Subtract only the canonical rows that
+    // are actually visible so these assertions isolate the Recent slice.
+    const recentRowCount = () =>
+      Array.from(document.querySelectorAll("[data-conversation-id]")).length -
+      Math.min(TOTAL, FOLDER_PAGE)
+
+    const buttonWithText = (text: string) =>
+      Array.from(document.querySelectorAll("button")).find((b) =>
+        b.textContent?.includes(text)
+      )
+    const resetButton = () =>
+      Array.from(document.querySelectorAll("button")).find(
+        (b) => b.getAttribute("aria-label") === resetLabel
+      )
+
+    const showMoreLabel = (count: number) =>
+      enMessages.Folder.sidebar.showMoreRecent.replace("{count}", String(count))
+    const resetLabel = enMessages.Folder.sidebar.resetRecentLimit.replace(
+      "{count}",
+      String(PAGE)
+    )
+
+    beforeEach(() => {
+      // The collapse test above persists `{recent: true}` into
+      // `workspace:sidebar-section-collapsed`, and the list hydrates from it —
+      // leave it and this whole section renders collapsed (zero rows).
+      localStorage.clear()
+      const folders = [folder(1, "Repo")]
+      useAppWorkspaceStore.setState({
+        folders,
+        allFolders: folders,
+        conversations: Array.from({ length: TOTAL }, (_, i) => conv(i + 1, 1)),
+      })
+    })
+
+    it("folds a multi-page list back to the first page", () => {
+      render(recentTree(true))
+      expect(recentRowCount()).toBe(PAGE)
+      // No reset on an untouched first page — there is nothing to fold back.
+      expect(resetButton()).toBeUndefined()
+
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(TOTAL - PAGE))!)
+      })
+      expect(recentRowCount()).toBe(TOTAL)
+
+      // Everything is out, so the footer survives as a reset-only row: the
+      // "show more" label is gone but the row itself is still the way back.
+      expect(buttonWithText(showMoreLabel(0))).toBeUndefined()
+      act(() => {
+        fireEvent.click(buttonWithText(resetLabel)!)
+      })
+      expect(recentRowCount()).toBe(PAGE)
+    })
+
+    it("offers the reset at the row's right edge while pages remain", () => {
+      // 3 pages' worth, so one "show more" click still leaves a remainder and
+      // the footer keeps both affordances at once.
+      const conversations = Array.from({ length: PAGE * 3 }, (_, i) =>
+        conv(i + 1, 1)
+      )
+      useAppWorkspaceStore.setState({ conversations })
+      render(recentTree(true))
+
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(PAGE * 2))!)
+      })
+      const recentRows = () =>
+        Array.from(document.querySelectorAll("[data-conversation-id]")).length -
+        Math.min(conversations.length, FOLDER_PAGE)
+      expect(recentRows()).toBe(PAGE * 2)
+      // Still more to reveal…
+      expect(buttonWithText(showMoreLabel(PAGE))).toBeDefined()
+      // …and the icon-only reset is a SIBLING of the row button, not nested
+      // (buttons cannot nest) — so it is reachable on its own.
+      const reset = resetButton()
+      expect(reset).toBeDefined()
+      expect(reset!.querySelector("button")).toBeNull()
+
+      act(() => {
+        fireEvent.click(reset!)
+      })
+      expect(recentRows()).toBe(PAGE)
+    })
+
+    it("keeps keyboard focus on the footer through a reset", () => {
+      // The icon reset unmounts itself on activation, so without an explicit
+      // hand-off focus falls to <body> — a keyboard user lands back at the top
+      // of the document. Covers both variants: the icon (which disappears) and
+      // the reset-only row (whose button survives as "show more").
+      useAppWorkspaceStore.setState({
+        conversations: Array.from({ length: PAGE * 3 }, (_, i) =>
+          conv(i + 1, 1)
+        ),
+      })
+      render(recentTree(true))
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(PAGE * 2))!)
+      })
+
+      const icon = resetButton()!
+      act(() => {
+        icon.focus()
+        fireEvent.click(icon)
+      })
+      expect(document.activeElement).not.toBe(document.body)
+      const footer = buttonWithText(showMoreLabel(PAGE * 2))!
+      expect(document.activeElement).toBe(footer)
+
+      // Now the reset-only variant: reveal everything, then reset from the row.
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(PAGE * 2))!)
+      })
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(PAGE))!)
+      })
+      const rowReset = buttonWithText(resetLabel)!
+      act(() => {
+        rowReset.focus()
+        fireEvent.click(rowReset)
+      })
+      expect(document.activeElement).not.toBe(document.body)
+      expect(document.activeElement).toBe(
+        buttonWithText(showMoreLabel(PAGE * 2))
+      )
+    })
+  })
 })
 
 describe("SidebarConversationList — folder paging", () => {

@@ -35,7 +35,9 @@ pub use message::{
     TurnRole, TurnUsage, UnifiedMessage,
 };
 pub use quick_message::QuickMessageInfo;
-pub use remote_workspace_connection::RemoteWorkspaceConnectionInfo;
+pub use remote_workspace_connection::{
+    RemoteWorkspaceConnectionInfo, RemoteWorkspaceHeader, ToHeaderMap,
+};
 pub use system::{
     AvailableTerminalShells, GitCredentials, GitDetectResult, GitHubAccount,
     GitHubAccountsSettings, GitHubTokenValidation, GitSettings, SystemLanguageSettings,
