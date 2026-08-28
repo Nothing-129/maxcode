@@ -2127,25 +2127,24 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   position: absolute;
   left: 0.1875rem;
   top: 50%;
-  width: 2px;
-  /* Exactly one line box tall so consecutive quoted lines' rules meet with no
-     seam. This tracks the `line-height: 1.55` declared on
-     `.codeg-composer .ProseMirror` above: inherited as a unitless number, it
-     resolves to 1.55 × this element's own font size, which is what `em` is. */
-  height: 1.55em;
+  /* Keep the quote marker visually distinct from the native caret. A full-line
+     2px rule sat at the same x coordinate as the caret on the blank line that
+     follows an inserted quote, which looked exactly like a stuck second caret.
+     The shorter, wider muted pill still reads as a blockquote marker (including
+     in monochrome) without changing the hidden `> ` text or its caret geometry. */
+  width: 3px;
+  height: 1.1em;
   transform: translateY(-50%);
-  border-radius: 1px;
-  background: var(--border);
+  border-radius: 999px;
+  background: var(--muted-foreground);
+  opacity: 0.55;
   pointer-events: none;
 }
-/* `lh` says the same thing without depending on the two numbers staying in
-   sync — but it needs its own block: a plain second `height` declaration is
-   folded away by the CSS minifier, taking the fallback with it, and where `lh`
-   is unsupported an invalid `height` on an absolutely positioned pseudo-element
-   collapses it to nothing (no rule at all, silently). */
+/* `lh` keeps the pill proportional to the actual line box. It needs its own
+   block so the minifier preserves the `em` fallback for older webviews. */
 @supports (height: 1lh) {
   .codeg-composer .ProseMirror .codeg-quote-marker::before {
-    height: 1lh;
+    height: 0.72lh;
   }
 }
 

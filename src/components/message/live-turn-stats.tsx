@@ -410,26 +410,23 @@ export function LiveTurnStats({
           <Timer className="h-3 w-3 shrink-0" />
           {elapsedLabel}
         </span>
-        {tps != null && (
-          <>
-            <span className="text-border leading-none">|</span>
-            {/* Keep TPS visible on narrow web/mobile layouts. The row can wrap
-                on exceptionally small screens instead of dropping the metric. */}
-            <span
-              className="inline-flex shrink-0 items-center gap-1 leading-none tabular-nums"
-              title={t("outputSpeedTooltip")}
-            >
-              {/* Name hangs off the icon, matching `ComposerContextUsage` —
-                  `aria-label` on the bare wrapper span carries no role and
-                  isn't reliably exposed. */}
-              <TokenOutputSpeedGlyph
-                tps={tps}
-                ariaLabel={t("outputSpeedAria")}
-              />
-              {tps.toFixed(1)} tok/s
-            </span>
-          </>
-        )}
+        <span className="text-border leading-none">|</span>
+        {/* Keep TPS visible on narrow web/mobile layouts. The placeholder also
+            prevents the row from shifting during warmup and tool execution. */}
+        <span
+          className="inline-flex shrink-0 items-center gap-1 leading-none tabular-nums"
+          title={t("outputSpeedTooltip")}
+        >
+          {/* Name hangs off the icon, matching `ComposerContextUsage` —
+              `aria-label` on the bare wrapper span carries no role and
+              isn't reliably exposed. Use the slow/neutral glyph until a live
+              estimate is available. */}
+          <TokenOutputSpeedGlyph
+            tps={tps ?? 0}
+            ariaLabel={t("outputSpeedAria")}
+          />
+          {tps == null ? "--" : tps.toFixed(1)} tok/s
+        </span>
         {editStats.files > 0 && (
           <>
             <span className="hidden text-border leading-none @[24rem]/turnstats:inline">

@@ -1,7 +1,10 @@
+import { render, screen } from "@testing-library/react"
+import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it } from "vitest"
 
 import {
   extractLiveEditStats,
+  LiveTurnStats,
   tokenOutputSpeedBand,
   tokenOutputSpeedColor,
 } from "./live-turn-stats"
@@ -9,6 +12,7 @@ import type {
   LiveContentBlock,
   LiveMessage,
 } from "@/contexts/acp-connections-context"
+import enMessages from "@/i18n/messages/en.json"
 
 // --- fixtures --------------------------------------------------------------
 
@@ -105,6 +109,18 @@ describe("extractLiveEditStats", () => {
     const added = toolBlock(writeInput("p\nq", "z.ts"))
     const after = extractLiveEditStats(msg([shared, added]))
     expect(after).toEqual({ files: 2, additions: 5, deletions: 0 })
+  })
+})
+
+describe("LiveTurnStats", () => {
+  it("keeps a TPS placeholder visible before a speed estimate is ready", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <LiveTurnStats message={msg([])} agentType="codex" />
+      </NextIntlClientProvider>
+    )
+
+    expect(screen.getByText("-- tok/s")).toBeInTheDocument()
   })
 })
 

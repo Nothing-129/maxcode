@@ -313,8 +313,9 @@ pub fn supports_cli_auto_title(agent_type: AgentType) -> bool {
     matches!(agent_type, AgentType::Codex | AgentType::Grok)
 }
 
-/// Instant heuristic (if the row is still a placeholder) plus a background
-/// one-shot CLI refine using the conversation's own agent.
+/// Install the local heuristic first, then run one background CLI refine using
+/// the conversation's own agent. A failed process leaves the local title in
+/// place; there is no retry loop or delayed retry task.
 pub async fn kickoff_cli_auto_title(
     agent_type: AgentType,
     conn: DatabaseConnection,
@@ -340,26 +341,23 @@ pub async fn kickoff_cli_auto_title(
         return;
     }
 
-    if is_placeholder_title(summary.title.as_deref().unwrap_or("")) {
-        match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic.clone())
-            .await
-        {
-            Ok(true) => {
-                crate::commands::conversations::emit_conversation_upsert(
-                    &emitter,
-                    &conn,
-                    conversation_id,
-                )
-                .await;
-            }
-            Ok(false) => {}
-            Err(e) => tracing::debug!(
+    match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic.clone()).await
+    {
+        Ok(true) => {
+            crate::commands::conversations::emit_conversation_upsert(
+                &emitter,
+                &conn,
                 conversation_id,
-                error = %e,
-                agent = %agent_type.as_wire(),
-                "heuristic title write failed"
-            ),
+            )
+            .await;
         }
+        Ok(false) => {}
+        Err(e) => tracing::debug!(
+            conversation_id,
+            error = %e,
+            agent = %agent_type.as_wire(),
+            "heuristic title write failed"
+        ),
     }
 
     if !begin_refine(conversation_id) {
