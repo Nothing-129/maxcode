@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MaxCode</string>
+    <string name="setup_title_select">选择连接</string>
+    <string name="setup_title">连接 MaxCode</string>
+    <string name="setup_title_add">添加连接</string>
+    <string name="setup_title_edit">编辑连接</string>
+    <string name="setup_subtitle_select">选择一个已保存的远程地址，或添加新的连接。</string>
+    <string name="setup_subtitle">通过轻量安卓外壳，继续使用 MaxCode Web 工作区。</string>
+    <string name="setup_subtitle_add">填写名称、远程 URL 和 Token，连接成功后进入工作区。</string>
+    <string name="setup_subtitle_edit">修改这个连接的名称、远程 URL 或 Token。</string>
+    <string name="connection_name_label">名称</string>
+    <string name="connection_name_hint">例如：家里服务器</string>
+    <string name="server_url_label">远程 URL</string>
+    <string name="server_url_hint">192.168.1.20:3030</string>
+    <string name="token_label">Token</string>
+    <string name="token_hint">CODEG_TOKEN</string>
+    <string name="show_token">显示 Token</string>
+    <string name="connect">连接</string>
+    <string name="connecting">正在检查连接…</string>
+    <string name="cancel">取消</string>
+    <string name="saved_hint">连接保存在本机，Token 通过 Android Keystore 加密。完全退出应用后重新打开，即可再次选择连接。</string>
+    <string name="http_warning">HTTP 连接未加密，请仅在可信私有网络中使用；远程访问建议配置 HTTPS。</string>
+    <string name="error_name_required">请输入连接名称。</string>
+    <string name="error_name_format">连接名称不能包含换行符。</string>
+    <string name="error_url_required">请输入远程 URL。</string>
+    <string name="error_token_required">请输入 Token。</string>
+    <string name="error_token_format">Token 不能包含换行符。</string>
+    <string name="error_invalid_url">请输入有效的 HTTP 或 HTTPS 服务器 URL，不要包含路径、查询参数或用户名密码。</string>
+    <string name="error_unauthorized">服务器拒绝了这个 Token。</string>
+    <string name="error_http_status">服务器返回 HTTP %1$d，请确认填写的是 MaxCode 服务地址。</string>
+    <string name="error_redirect">健康检查发生跳转，请直接填写跳转后的 MaxCode URL。</string>
+    <string name="error_network">无法连接服务器，请检查地址、服务状态和当前网络。</string>
+    <string name="error_tls">无法验证 HTTPS 证书，应用不会绕过证书错误。</string>
+    <string name="error_secure_store">无法在本机安全保存 Token。</string>
+    <string name="add_connection">添加连接…</string>
+    <string name="delete_connection_title">删除连接？</string>
+    <string name="delete_connection_message">从本机删除“%1$s”及其已保存的 URL 和 Token？</string>
+    <string name="edit">编辑</string>
+    <string name="delete">删除</string>
+    <string name="connection_switch_failed">无法更新本机保存的连接。</string>
+    <string name="connection_deleted">连接已删除。</string>
+    <string name="external_link_failed">没有可打开此链接的应用。</string>
+    <string name="file_picker_failed">没有可用的文件选择器。</string>
+    <string name="download_opened_externally">已使用浏览器打开下载链接。</string>
+    <string name="download_not_supported">当前 WebView 暂不支持下载这种链接。</string>
+</resources>

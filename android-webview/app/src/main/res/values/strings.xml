@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MaxCode</string>
+    <string name="setup_title_select">Choose a connection</string>
+    <string name="setup_title">Connect to MaxCode</string>
+    <string name="setup_title_add">Add connection</string>
+    <string name="setup_title_edit">Edit connection</string>
+    <string name="setup_subtitle_select">Choose a saved remote address, or add a new connection.</string>
+    <string name="setup_subtitle">Use your MaxCode Web workspace through a lightweight Android shell.</string>
+    <string name="setup_subtitle_add">Enter a name, remote URL, and token, then open the workspace.</string>
+    <string name="setup_subtitle_edit">Update this connection’s name, remote URL, or token.</string>
+    <string name="connection_name_label">Name</string>
+    <string name="connection_name_hint">For example: Home server</string>
+    <string name="server_url_label">Remote URL</string>
+    <string name="server_url_hint">192.168.1.20:3030</string>
+    <string name="token_label">Token</string>
+    <string name="token_hint">CODEG_TOKEN</string>
+    <string name="show_token">Show token</string>
+    <string name="connect">Connect</string>
+    <string name="connecting">Checking connection…</string>
+    <string name="cancel">Cancel</string>
+    <string name="saved_hint">Connections stay on this device, with tokens encrypted by Android Keystore. Fully close and reopen the app to choose again.</string>
+    <string name="http_warning">HTTP is not encrypted. Use it only on a trusted private network; prefer HTTPS for remote access.</string>
+    <string name="error_name_required">Enter a connection name.</string>
+    <string name="error_name_format">The connection name cannot contain a line break.</string>
+    <string name="error_url_required">Enter the remote URL.</string>
+    <string name="error_token_required">Enter the token.</string>
+    <string name="error_token_format">The token cannot contain a line break.</string>
+    <string name="error_invalid_url">Enter a valid HTTP or HTTPS server URL without a path, query, or credentials.</string>
+    <string name="error_unauthorized">The server rejected this token.</string>
+    <string name="error_http_status">The server returned HTTP %1$d. Check that this is the MaxCode server address.</string>
+    <string name="error_redirect">The server redirected the health check. Enter the final MaxCode URL directly.</string>
+    <string name="error_network">Could not reach the server. Check the address, server, and network.</string>
+    <string name="error_tls">The HTTPS certificate could not be verified. Certificate errors are not bypassed.</string>
+    <string name="error_secure_store">Could not save the token securely on this device.</string>
+    <string name="add_connection">Add connection…</string>
+    <string name="delete_connection_title">Delete connection?</string>
+    <string name="delete_connection_message">Remove “%1$s” and its saved URL and token from this device?</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    <string name="connection_switch_failed">Could not update the saved connection.</string>
+    <string name="connection_deleted">Connection deleted.</string>
+    <string name="external_link_failed">No app can open this link.</string>
+    <string name="file_picker_failed">No file picker is available.</string>
+    <string name="download_opened_externally">Download opened in your browser.</string>
+    <string name="download_not_supported">This WebView cannot download this type of link yet.</string>
+</resources>

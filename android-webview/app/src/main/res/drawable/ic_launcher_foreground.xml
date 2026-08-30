@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/maxcode_icon"
+    android:insetLeft="28dp"
+    android:insetTop="28dp"
+    android:insetRight="28dp"
+    android:insetBottom="28dp" />

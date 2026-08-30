@@ -952,6 +952,16 @@ html:not(.dark) {
   background-color: transparent;
 }
 
+/* Android's edge-to-edge WebView reports its real status-bar/cutout height via
+   this custom property. Keep the drawer surface immersive, but move its header
+   controls below the system icons. Browsers and desktop builds keep the 0px
+   fallback and remain pixel-identical. */
+@media (max-width: 767px) {
+  .mobile-sidebar-drawer {
+    padding-top: var(--maxcode-android-status-bar-inset, 0px) !important;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]):not(.light) {
     --background: oklch(0.16 0.002 95);

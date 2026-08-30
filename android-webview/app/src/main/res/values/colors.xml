@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="surface">#F7F5F0</color>
+    <color name="surface_card">#FFFFFFFF</color>
+    <color name="text_primary">#171714</color>
+    <color name="text_secondary">#66645D</color>
+    <color name="accent">#1769D2</color>
+    <color name="primary_button">#1769D2</color>
+    <color name="primary_button_pressed">#1256AD</color>
+    <color name="primary_button_text">#FFFFFFFF</color>
+    <color name="warning">#8A5700</color>
+    <color name="error">#B3261E</color>
+    <color name="divider">#DDD9CF</color>
+    <color name="navigation_bar">#F7F5F0</color>
+    <color name="launcher_background">#F4F6FA</color>
+</resources>
