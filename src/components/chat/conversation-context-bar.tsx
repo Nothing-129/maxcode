@@ -471,7 +471,7 @@ const FolderPicker = memo(function FolderPicker({
         )}
       >
         <Folder className="size-3 shrink-0 text-muted-foreground" />
-        <span className="max-w-[140px] truncate">{currentFolderName}</span>
+        <span className="max-w-[8.75rem] truncate">{currentFolderName}</span>
         <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
       </Button>
     )

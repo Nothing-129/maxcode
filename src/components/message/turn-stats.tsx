@@ -33,7 +33,7 @@ interface TurnStatsProps {
   /** ISO timestamp of the preceding user prompt — used to infer duration. */
   previousUserAt?: string | null
   isResponseComplete?: boolean
-  /** Hide the duration when it is already presented in the activity summary. */
+  /** Hide the duration when the completed-turn header already presents it. */
   showDuration?: boolean
   copyText?: string
   /** ISO timestamp marking when the assistant reply finished. */
@@ -72,8 +72,7 @@ export function TurnStats({
 }: TurnStatsProps) {
   const locale = useLocale()
   const t = useTranslations("Folder.chat.messageList")
-  // Reuse the live timer's elapsed-unit strings so the per-turn duration
-  // tooltip renders the exact same localized "Xh Ym Zs" format.
+  // Reuse the live timer's elapsed-unit strings for the standalone fallback.
   const tLive = useTranslations("Folder.chat.liveTurnStats")
   const tTasks = useTranslations("Tasks")
   const scroll = useMessageScroll()
@@ -118,10 +117,14 @@ export function TurnStats({
   )
   const hasCopy = copyText.trim().length > 0
   const hasUsage = Boolean(usage)
-  const hasDuration = showDuration && resolvedDurationMs != null
+  // The duration itself is shown by the reply's fold header
+  // (`CompletedTurnContent`) in the message list. Keep the resolved fallback as
+  // the substantial-reply signal even when that header owns presentation.
+  const hasDuration = resolvedDurationMs != null
+  const displayDuration = showDuration && hasDuration
   const hasCompletedAt = Boolean(completedLabel)
   // Usage OR duration: some agents (Cursor) never report per-turn token
-  // usage, but a turn with a duration chip is still a substantial reply
+  // usage, but a turn that took real time is still a substantial reply
   // worth jumping back from.
   const hasJump =
     isResponseComplete &&
@@ -154,7 +157,7 @@ export function TurnStats({
   )
 
   if (!isResponseComplete) return null
-  if (!hasCopy && !hasUsage && !hasDuration && !hasCompletedAt && !hasJump)
+  if (!hasCopy && !hasUsage && !displayDuration && !hasCompletedAt && !hasJump)
     return null
 
   return (
@@ -266,7 +269,7 @@ export function TurnStats({
             </TooltipContent>
           </Tooltip>
         )}
-        {hasDuration && resolvedDurationMs != null && (
+        {displayDuration && resolvedDurationMs != null && (
           <span
             className="inline-flex h-6 items-center gap-1 px-1.5 tabular-nums"
             aria-label={`${t("duration")}: ${formatElapsedLabel(resolvedDurationMs, tLive)}`}

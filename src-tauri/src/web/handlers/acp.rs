@@ -928,6 +928,53 @@ pub async fn acp_sync_antigravity_settings(
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct AcpAntigravityLoginStartParams {
+    pub method_id: String,
+}
+
+pub async fn acp_antigravity_login_start(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<AcpAntigravityLoginStartParams>,
+) -> Result<Json<crate::acp::antigravity_login::AntigravityLoginStart>, AppCommandError> {
+    let result = acp_commands::acp_antigravity_login_start_core(&state.db, params.method_id)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpAntigravityLoginFinishParams {
+    pub handle: String,
+    pub redirect: String,
+}
+
+pub async fn acp_antigravity_login_finish(
+    Json(params): Json<AcpAntigravityLoginFinishParams>,
+) -> Result<Json<crate::acp::antigravity_login::AntigravityLoginOutcome>, AppCommandError> {
+    let result = acp_commands::acp_antigravity_login_finish_core(params.handle, params.redirect)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(result))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AcpAntigravityLoginCancelParams {
+    pub handle: String,
+}
+
+pub async fn acp_antigravity_login_cancel(
+    Json(params): Json<AcpAntigravityLoginCancelParams>,
+) -> Result<Json<()>, AppCommandError> {
+    acp_commands::acp_antigravity_login_cancel_core(params.handle)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(()))
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AcpPiProjectTrustStateParams {
     pub workspace: String,
 }

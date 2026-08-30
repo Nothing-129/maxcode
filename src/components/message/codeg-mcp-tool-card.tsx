@@ -181,7 +181,7 @@ export function CodegMcpToolCard({
               is auditing, so it must read exactly as it was sent. */}
           {prompt !== "" && (
             <div className="px-3 pt-2">
-              <div className="mb-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              <div className="mb-1 text-3xs font-medium uppercase tracking-wide text-muted-foreground">
                 {t("promptLabel")}
               </div>
               <div className="max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 px-2 py-1.5 text-xs text-foreground/90">

@@ -75,7 +75,12 @@ export function ModelOptionPicker({
         align="start"
         onPointerDownOutside={onPointerDownOutside}
         onFocusOutside={onFocusOutside}
-        className="w-[22rem] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
+        // `max-h-(--radix-popover-content-available-height)` is the vertical twin
+        // of the `max-w` guard: the trigger sits at the bottom of the composer, so
+        // the popup opens upward and the list's own cap (`MAX_LIST_HEIGHT_REM`) is
+        // a rem — at high zoom it outgrows the space above the trigger. The list
+        // inside is flex-shrinkable, so it gives way to this cap.
+        className="max-h-(--radix-popover-content-available-height) w-[22rem] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
       >
         <ModelOptionList
           groups={groups}

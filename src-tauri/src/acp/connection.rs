@@ -398,19 +398,55 @@ fn sync_antigravity_settings_file(runtime_env: &BTreeMap<String, String>) -> Ant
 /// mean guessing, and a guess here creates a stray tree AND leaves the real
 /// `auth.type` unwritten, so the sync reports the skip instead.
 fn antigravity_acp_dir_for_env(runtime_env: &BTreeMap<String, String>) -> Result<PathBuf, String> {
-    // NOT trimmed: the spawn layer's "is this var removed" test is an exact
-    // empty-string check (`vendor/sacp-tokio/src/acp_agent.rs`), so a
-    // whitespace-only value reaches the child verbatim and trimming here would
-    // name a directory it never opens.
-    let configured = runtime_env.get("GEMINI_HOME").filter(|v| !v.is_empty());
+    antigravity_acp_dir_with_inherited(runtime_env, std::env::var_os("GEMINI_HOME"))
+}
+
+/// [`antigravity_acp_dir_for_env`] with codeg's own `GEMINI_HOME` handed in.
+///
+/// Split out so the three-state resolution can be tested without mutating the
+/// process environment. A `temp_env` writer would race every other test that
+/// reads `GEMINI_HOME` — `resolve_antigravity_acp_dir` does, one assertion away
+/// in this same module — and that race is silent: the writer's value simply
+/// leaks into the reader's expectation.
+fn antigravity_acp_dir_with_inherited(
+    runtime_env: &BTreeMap<String, String>,
+    inherited: Option<std::ffi::OsString>,
+) -> Result<PathBuf, String> {
+    // Three states, and they are NOT interchangeable — the same distinction
+    // [`crate::acp::file_system_runtime::child_home_dir`] spells out for `HOME`,
+    // for the same reason. `merge_agent_env` names only the variables a launch
+    // SETS, so an ABSENT key means the child inherits codeg's value, and a
+    // container that relocates the tree does exactly that: `GEMINI_HOME` in the
+    // image's own environment, nothing in the per-agent row. Reading only the
+    // row made codeg write `auth.type` — and name the token file — under
+    // `~/.gemini` (i.e. `/root/.gemini`) while the agent used the relocated
+    // one, so the file the panel talked about was never the file the session
+    // read.
+    let configured = match runtime_env.get("GEMINI_HOME") {
+        // Explicitly removed (blank ⇒ `env_remove`): the child sees no
+        // `GEMINI_HOME` at all and falls back to `~/.gemini`.
+        Some(value) if value.is_empty() => None,
+        // Overridden. NOT trimmed: the spawn layer's "is this var removed" test
+        // is an exact empty-string check
+        // (`vendor/sacp-tokio/src/acp_agent.rs`), so a whitespace-only value
+        // reaches the child verbatim and trimming here would name a directory
+        // it never opens.
+        Some(value) => Some(std::ffi::OsString::from(value)),
+        // Absent: the child inherits codeg's environment, so codeg's own answer
+        // is exact. Empty is filtered because the server's `paths.py` treats an
+        // empty `GEMINI_HOME` as unset (`if not home`).
+        None => inherited.filter(|value| !value.is_empty()),
+    };
 
     // The CHILD's home, not codeg's. `merge_agent_env` copies `HOME` into the
     // child like any other variable, so a launch that relocates it moves both
     // the `~/.gemini` default and any `~` in `GEMINI_HOME` with it — and the
     // server, running `os.path.expanduser` in that environment, resolves them
     // there. Only a value that is already absolute is independent of it.
-    let needs_home = configured
-        .is_none_or(|value| value == "~" || value.starts_with("~/") || value.starts_with("~\\"));
+    let needs_home = configured.as_ref().is_none_or(|value| {
+        let value = value.to_string_lossy();
+        value == "~" || value.starts_with("~/") || value.starts_with("~\\")
+    });
     let home = crate::acp::file_system_runtime::child_home_dir(runtime_env);
     if needs_home && home.is_none() {
         return Err(
@@ -420,11 +456,10 @@ fn antigravity_acp_dir_for_env(runtime_env: &BTreeMap<String, String>) -> Result
         );
     }
 
-    Ok(crate::parsers::antigravity::resolve_gemini_home_from_value(
-        configured.map(std::ffi::OsString::from),
-        home,
+    Ok(
+        crate::parsers::antigravity::resolve_gemini_home_from_value(configured, home)
+            .join(ANTIGRAVITY_ACP_SUBDIR),
     )
-    .join(ANTIGRAVITY_ACP_SUBDIR))
 }
 
 /// `<GEMINI_HOME>/antigravity-acp`, the ACP server's private subtree.
@@ -530,6 +565,52 @@ pub fn sync_antigravity_settings_for_env(
     runtime_env: &BTreeMap<String, String>,
 ) -> AntigravitySyncReport {
     sync_antigravity_settings_file(runtime_env)
+}
+
+/// The environment a real Antigravity launch hands the agent process.
+///
+/// Factored out of [`build_agent`]'s `Binary` branch so the browser-free
+/// sign-in flow ([`crate::acp::antigravity_login`]) can spawn the SAME binary
+/// with the SAME environment. That identity is the whole point: the sign-in
+/// child is the one that writes the OAuth token, and the token's location is
+/// decided by `GEMINI_HOME` (via `paths.py`) and its storage backend by
+/// `AGY_ACP_FORCE_FILE_STORAGE` — so a child launched with a different
+/// environment would faithfully sign the user in and then leave the credential
+/// somewhere no session ever reads.
+///
+/// Deliberately does NOT run [`sync_antigravity_settings_file`]: this returns a
+/// value and that writes a file, and the sign-in path wants the report rather
+/// than a silently dropped one. Callers run the sync themselves.
+pub fn antigravity_launch_env(runtime_env: &BTreeMap<String, String>) -> Vec<(String, String)> {
+    let registry_env: &[(&'static str, &'static str)] =
+        match registry::get_agent_meta(AgentType::Antigravity).distribution {
+            AgentDistribution::Binary { env, .. } => env,
+            // Unreachable while the registry entry stays `Binary`; an empty
+            // base is the correct answer for every other shape anyway, since
+            // `runtime_env` carries everything the panel owns.
+            _ => &[],
+        };
+    let mut merged = merge_agent_env(registry_env, runtime_env);
+    apply_antigravity_env_policy(&mut merged, runtime_env);
+    merged
+}
+
+/// The `auth.type` values Antigravity accepts, for callers that must validate a
+/// method id before acting on it.
+pub fn is_antigravity_auth_method(method_id: &str) -> bool {
+    ANTIGRAVITY_AUTH_METHODS.contains(&method_id)
+}
+
+/// `<GEMINI_HOME>/antigravity-acp` for a launch carrying `runtime_env`, for
+/// callers outside this module that need to name a file the agent keeps there
+/// (its OAuth token, alongside the `settings.json` this module writes).
+///
+/// Same resolution, same `Err` contract as the private original: see
+/// [`antigravity_acp_dir_for_env`].
+pub fn antigravity_acp_dir_for_runtime_env(
+    runtime_env: &BTreeMap<String, String>,
+) -> Result<PathBuf, String> {
+    antigravity_acp_dir_for_env(runtime_env)
 }
 
 /// Read `settings.json` for editing.
@@ -3891,6 +3972,21 @@ fn build_client_capabilities(
     // with no filesystem watcher; codeg is not one. Nothing else in either
     // release depends on it, and both adapters no-op without the
     // advertisement, so staying out costs us nothing.
+    //
+    // codex-acp 1.7.0 added a third, "nativeSubagentSessions" (the draft ACP
+    // subagent RFD; the canonical gate is a `clientCapabilities.subagents: {}`
+    // field, with this AIR key as the fallback for SDKs that strip it). It must
+    // stay out for a harder reason than cost: `agent-client-protocol-schema`
+    // 0.11.7 cannot RECEIVE the result. Its `SessionUpdate` is an
+    // internally-tagged enum with no catch-all arm, so the `subagent_spawned` /
+    // `subagent_state_update` notifications would fail to deserialize — and
+    // since the adapter switches child messages, thoughts, tools and
+    // permissions onto a child session id announced only in that first
+    // notification, opting in would make subagent work vanish from the timeline
+    // rather than render better. Without the advertisement the lifecycle stays
+    // the legacy `subAgentActivity` tool call codeg already renders, whose
+    // shape is unchanged from 1.4.0. Revisit when the schema crate ships both
+    // the capability field and the update variants.
     if matches!(agent_type, AgentType::ClaudeCode | AgentType::Codex) {
         meta.insert(
             "jetbrains".to_string(),
@@ -6328,6 +6424,8 @@ async fn handle_permission_request(
         }
     }
 
+    hoist_request_permission_meta(&mut tool_call_value, req.meta.as_ref());
+
     admit_permission(
         perms,
         state,
@@ -6626,11 +6724,13 @@ async fn apply_preferred_session_options(
     let mut options = initial_config_options;
     for (config_id, value_id) in preferred_config_values {
         // Skip the round-trip when the agent's current value already matches.
-        // Note: codex-acp 1.0.0 advertises "mode" as a config option (so the
-        // match check below normally fires), but we still do NOT skip when a
-        // requested config_id is absent from the advertised options — older or
-        // edge-case builds accept `set_config_option` for an unadvertised "mode"
-        // (see `ensure_codex_mode_option`), so let the agent decide.
+        // Note: codex-acp advertises "mode" as a config option (so the match
+        // check below normally fires), but we still do NOT skip when a
+        // requested config_id is absent from the advertised options — an agent
+        // may accept `set_config_option` for an id it never advertised. codex
+        // does: its `applySessionConfigOption` switches on `configId` alone,
+        // with no advertised-list check (verified in the 1.7.0 bundle). So let
+        // the agent decide.
         let advertised = options.iter().find(|o| o.id.to_string() == *config_id);
         let already_matches =
             advertised.is_some_and(|o| config_option_already_holds(o, value_id.as_str()));
@@ -7562,6 +7662,13 @@ fn stop_reason_to_str(reason: StopReason) -> &'static str {
 /// same `SessionLoadFailed` banner (Reload / New conversation) instead of a raw
 /// protocol error.
 ///
+/// A third case is archived rather than lost: `codex archive <id>` parks a
+/// rollout, and a later `session/load` answers -32603 with a body naming both
+/// the session and the command that brings it back. That one is a *recoverable*
+/// state, so it earns its own code — the banner can name the fix — but it takes
+/// the same banner rather than the silent `session/new` fallback, which would
+/// orphan a history the user is one command away from restoring.
+///
 /// Returns `None` for failures that must keep the existing behavior:
 /// "Method not found" (agent lacks resume → silent `session/new` fallback),
 /// "Authentication required" (silent stop), and any other error (emit
@@ -7572,6 +7679,14 @@ fn classify_session_load_failure(
 ) -> Option<&'static str> {
     if matches!(code, sacp::schema::ErrorCode::ResourceNotFound) {
         return Some("resource_not_found");
+    }
+    // codex-acp on an archived rollout: the -32603 body reads
+    // "session <id> is archived. Run `codex unarchive <id>` …". Matched on the
+    // wire message for the same reason as the family below — the code is a
+    // generic Internal error. Checked BEFORE that family so the more specific
+    // (and recoverable) verdict wins if a body ever carries both signals.
+    if message.contains("is archived") {
+        return Some("session_archived");
     }
     // Upstream signals for an unrecoverable session (claude-agent-acp 0.58.1):
     //  - "process exited"    → "Claude Code process exited with code 1",
@@ -8662,7 +8777,12 @@ async fn run_conversation_loop<'a>(
                                         .await
                                     } else {
                                         set_session_config_option(
-                                            &cx, &sid, state, emitter, agent_type, config_id,
+                                            &cx,
+                                            &sid,
+                                            state,
+                                            emitter,
+                                            agent_type,
+                                            config_id,
                                             value_id,
                                         )
                                         .await
@@ -9497,6 +9617,54 @@ fn pi_result_content_is_stringify_noise(
             .is_some_and(pi_result_is_empty_announcement)
 }
 
+/// Resolve the live `raw_output` string for an OpenCode tool call.
+///
+/// OpenCode's ACP adapter reports a finished tool on BOTH channels: the clean
+/// result text on `content[]`, and the envelope `{output, metadata?,
+/// attachments?}` — wrapping that very same string — on `rawOutput` (a failure
+/// sends `{error, metadata?}` beside the error text). Stringifying the envelope
+/// shadows the clean text, because the live renderer's `raw_output_chunks` win
+/// over `content` (`conversation-runtime-store.ts`), so every card that parses
+/// the result ITSELF is handed JSON source instead of the result.
+///
+/// Verified against opencode 1.18.23 (driven over real ACP with a stub MCP
+/// server): a codeg-mcp `ask_user_question` completes as
+///   content:   [{"type":"content","content":{"type":"text","text":"The user
+///               answered your question(s):\n1. [框架] …\n   → 选项 A\n"}}]
+///   rawOutput: {"output":"<that same text>","metadata":{"truncated":false}}
+/// OpenCode drops the MCP `structuredContent` entirely, so the human-readable
+/// lines ARE the whole record — and `AskQuestionResultCard`, seeing only the
+/// one-line JSON blob, matched neither the structured envelope nor the text
+/// fallback and rendered an answered question as "no selection", while the
+/// history parser (which reads the same `state.output` bare) rendered it fine.
+///
+/// Same parity rule as Grok and pi (see [`grok_live_tool_output`]): whenever
+/// `content` carries anything, it IS OpenCode's own rendering of this result —
+/// return `None` and let it render. Only with no `content` is the envelope
+/// unwrapped, mirroring `parsers/opencode.rs`: `output`, else the failure
+/// `error`, else `metadata.output` (a command writing only to stderr leaves
+/// `state.output` empty while the combined stream stays in the metadata). An
+/// unrecognized payload still stringifies as before, so no result is ever lost.
+fn opencode_live_tool_output(
+    content: &Option<String>,
+    raw_output: &Option<serde_json::Value>,
+) -> Option<String> {
+    if content.as_deref().is_some_and(|c| !c.trim().is_empty()) {
+        return None;
+    }
+    let raw = raw_output.as_ref()?;
+    fn text(value: Option<&serde_json::Value>) -> Option<&str> {
+        value
+            .and_then(serde_json::Value::as_str)
+            .filter(|s| !s.trim().is_empty())
+    }
+    text(raw.get("output"))
+        .or_else(|| text(raw.get("error")))
+        .or_else(|| text(raw.pointer("/metadata/output")))
+        .map(structurize_live_output)
+        .or_else(|| json_value_to_text(raw_output).map(|t| structurize_live_output(&t)))
+}
+
 /// What a pi `agent_message_chunk` actually IS (issue #525).
 ///
 /// pi-acp puts the assistant's prose AND its own lifecycle announcements on the
@@ -10189,6 +10357,54 @@ fn is_codex_plan_review(
         .and_then(|codex| codex.get("kind"))
         .and_then(serde_json::Value::as_str)
         == Some("plan_review")
+}
+
+/// Copy a permission request's REQUEST-level `_meta.permission` onto the card's
+/// tool call, where the dialog can reach it.
+///
+/// `session/request_permission` carries presentation data at two levels: on each
+/// option (`PermissionOptionInfo.meta`, already forwarded verbatim) and on the
+/// request itself. Only the tool call and the options reach the frontend —
+/// `AcpEvent::PermissionRequest` has no request-meta field — so without this the
+/// request level is dropped on the floor.
+///
+/// That became load-bearing in codex-acp 1.7.0, which moved Codex's own reason
+/// for asking out of `toolCall.title` (1.4.0 sent
+/// `params.reason ?? "Permissions Request"`) into
+/// `_meta.permission = {version: 1, title, description?}`. The title is now one
+/// of four fixed strings and the reason lives only in `description`, so a card
+/// built from the tool call alone would read "Edit files" where it used to
+/// explain WHY the edit needs approval. claude-agent-acp does not send this
+/// block; nothing changes for it.
+///
+/// Hoisting rather than adding an event field is deliberate: the tool call is
+/// already the card's payload end-to-end (`PendingPermissionState.tool_call`,
+/// the snapshot, the WebSocket envelope, `parsePermissionToolCall`), so the
+/// reason survives a reconnect and a snapshot restore for free. `_meta` is
+/// namespaced by producer, and `permission` is unclaimed at tool-call level —
+/// codex's permission tool calls carry no `_meta` at all, and claude's carries
+/// only `claudeCode`. An existing `_meta.permission` is therefore never
+/// overwritten: the insert is skipped if the key is already present.
+fn hoist_request_permission_meta(
+    tool_call: &mut serde_json::Value,
+    request_meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) {
+    let Some(permission) = request_meta.and_then(|m| m.get("permission")) else {
+        return;
+    };
+    let Some(obj) = tool_call.as_object_mut() else {
+        return;
+    };
+    let meta = obj
+        .entry("_meta")
+        .or_insert_with(|| serde_json::Value::Object(serde_json::Map::new()));
+    let Some(meta) = meta.as_object_mut() else {
+        // A non-object `_meta` is malformed; leave it exactly as the agent sent
+        // it rather than replacing content the card may still be parsing.
+        return;
+    };
+    meta.entry("permission")
+        .or_insert_with(|| permission.clone());
 }
 
 /// True when an `initialize` response advertises the ACP steering extension —
@@ -11762,6 +11978,11 @@ async fn emit_conversation_update(
                 // `content` already carries; shipping it shadows the clean text
                 // with JSON source (see pi_live_tool_output).
                 pi_live_tool_output(&content, &tc.raw_output)
+            } else if matches!(agent_type, AgentType::OpenCode) {
+                // OpenCode's rawOutput is the `{output, metadata}` envelope
+                // around the SAME text `content` already carries; shipping it
+                // shadows the clean text (see opencode_live_tool_output).
+                opencode_live_tool_output(&content, &tc.raw_output)
             } else {
                 json_value_to_text(&tc.raw_output)
                     .map(|text| unwrap_codebuddy_deferred_output(agent_type, &text).unwrap_or(text))
@@ -11966,6 +12187,11 @@ async fn emit_conversation_update(
                 // Symmetric with the ToolCall arm — and the arm that matters:
                 // pi delivers the result on the update (see pi_live_tool_output).
                 pi_live_tool_output(&content, &tcu.fields.raw_output)
+            } else if matches!(agent_type, AgentType::OpenCode) {
+                // Symmetric with the ToolCall arm — and the arm that matters:
+                // OpenCode delivers every result on the completion update (see
+                // opencode_live_tool_output).
+                opencode_live_tool_output(&content, &tcu.fields.raw_output)
             } else {
                 json_value_to_text(&tcu.fields.raw_output)
                     .map(|text| unwrap_codebuddy_deferred_output(agent_type, &text).unwrap_or(text))
@@ -13280,12 +13506,16 @@ mod tests {
             assert!(capabilities
                 .iter()
                 .any(|v| v.as_str() == Some("sessionFailure")));
-            // And nothing else. Adding a capability here is not free: it is
-            // what turns a per-prompt request on, and "agentFileChangeReport"
+            // And nothing else. Adding a capability here is not free — it is
+            // what turns the corresponding behavior on, and neither of the two
+            // that exist is wanted: "agentFileChangeReport"
             // (claude-agent-acp 0.69.0 / codex-acp 1.4.0) buys an extra model
             // round-trip per turn for a clamped, self-reported subset of what
-            // the `workspace_state` watcher already sees. See the reasoning at
-            // the advertisement site before relaxing this.
+            // the `workspace_state` watcher already sees, and
+            // "nativeSubagentSessions" (codex-acp 1.7.0) would move subagent
+            // output onto child session ids carried by `SessionUpdate` variants
+            // `agent-client-protocol-schema` 0.11.7 cannot deserialize at all.
+            // See the reasoning at the advertisement site before relaxing this.
             assert_eq!(
                 capabilities,
                 &vec![serde_json::Value::String("sessionFailure".to_string())],
@@ -13422,6 +13652,76 @@ mod tests {
     }
 
     #[test]
+    fn hoist_request_permission_meta_carries_the_codex_reason_onto_the_card() {
+        // codex-acp 1.7.0: the title is a fixed string and the REASON only
+        // exists at request level, so the card is built from a tool call that
+        // does not explain itself until this hoist runs.
+        let mut tool_call = serde_json::json!({
+            "toolCallId": "command-7",
+            "kind": "execute",
+            "status": "pending",
+            "title": "Run command",
+            "rawInput": { "command": "npm test", "cwd": "/workspace" }
+        });
+        let request_meta = meta_map(serde_json::json!({
+            "permission": {
+                "version": 1,
+                "title": "Run command?",
+                "description": "The test suite needs to run outside the current sandbox."
+            }
+        }));
+        hoist_request_permission_meta(&mut tool_call, Some(&request_meta));
+        assert_eq!(
+            tool_call["_meta"]["permission"]["description"],
+            serde_json::json!("The test suite needs to run outside the current sandbox.")
+        );
+        // Untouched otherwise — the standard fields stay the authority.
+        assert_eq!(tool_call["title"], serde_json::json!("Run command"));
+    }
+
+    #[test]
+    fn hoist_request_permission_meta_preserves_existing_tool_call_meta() {
+        // An agent-supplied `_meta` must survive: claude puts `claudeCode.title`
+        // there and the dialog prefers it over the raw title. And a tool call
+        // that already carried `permission` wins over the request level — it is
+        // the more specific of the two.
+        let mut tool_call = serde_json::json!({
+            "toolCallId": "t1",
+            "_meta": { "claudeCode": { "title": "Run the test suite" },
+                       "permission": { "version": 1, "description": "from the tool call" } }
+        });
+        let request_meta = meta_map(serde_json::json!({
+            "permission": { "version": 1, "description": "from the request" }
+        }));
+        hoist_request_permission_meta(&mut tool_call, Some(&request_meta));
+        assert_eq!(
+            tool_call["_meta"]["claudeCode"]["title"],
+            serde_json::json!("Run the test suite")
+        );
+        assert_eq!(
+            tool_call["_meta"]["permission"]["description"],
+            serde_json::json!("from the tool call")
+        );
+    }
+
+    #[test]
+    fn hoist_request_permission_meta_is_a_noop_without_a_permission_block() {
+        // Every agent but codex ≥1.7.0 sends no request-level `permission`, and
+        // codex's own plan-review request sends `codex` instead. Neither may
+        // grow a stray `_meta` key.
+        for request_meta in [
+            None,
+            Some(meta_map(serde_json::json!({
+                "codex": { "kind": "plan_review", "planItemId": "p1" }
+            }))),
+        ] {
+            let mut tool_call = serde_json::json!({ "toolCallId": "t1" });
+            hoist_request_permission_meta(&mut tool_call, request_meta.as_ref());
+            assert_eq!(tool_call, serde_json::json!({ "toolCallId": "t1" }));
+        }
+    }
+
+    #[test]
     fn codex_retry_indicator_extracts_message_and_object_http_status() {
         // codex-acp #289: object-variant `codexErrorInfo` carries an inner
         // `httpStatusCode`; the message + status are surfaced.
@@ -13521,6 +13821,46 @@ mod tests {
             ),
             Some("session_unavailable"),
         );
+    }
+
+    #[test]
+    fn classify_load_failure_names_an_archived_session() {
+        // The reported case: `codex archive <id>`, then reopen the conversation.
+        // codex-acp answers session/load with a generic -32603 whose data names
+        // the session and the command that restores it.
+        let archived = "Internal error: {\n  \"details\": \"session \
+             019bf0c4-4d1a-7c3e-9f21-6a0e5b8d2c47 is archived. Run `codex \
+             unarchive 019bf0c4-4d1a-7c3e-9f21-6a0e5b8d2c47` to restore it.\"\n}";
+        assert_eq!(
+            classify_session_load_failure(sacp::schema::ErrorCode::InternalError, archived),
+            Some("session_archived"),
+        );
+
+        // Archived is the more specific verdict: a body carrying both signals
+        // must not degrade into the generic "unavailable" family, which offers
+        // the user no way back.
+        assert_eq!(
+            classify_session_load_failure(
+                sacp::schema::ErrorCode::InternalError,
+                "Session not found: session abc is archived.",
+            ),
+            Some("session_archived"),
+        );
+
+        // Codex reads history back out of its own rollout store, so an archived
+        // session must stop with the banner — silently opening a new session
+        // would orphan history that one command restores.
+        assert!(!recovers_load_failure_locally(
+            AgentType::Codex,
+            Some("session_archived")
+        ));
+        // A custom agent's history is codeg's own transcript, so it keeps the
+        // silent local recovery it has for the other classified failures.
+        let custom = AgentType::custom("glm-acp-agent").expect("valid id");
+        assert!(recovers_load_failure_locally(
+            custom,
+            Some("session_archived")
+        ));
     }
 
     #[test]
@@ -14078,6 +14418,77 @@ mod tests {
             antigravity_gcp_field(&filled, Some("oauth-business"), "GOOGLE_CLOUD_PROJECT"),
             GcpField::Set("p")
         ));
+    }
+
+    /// A `GEMINI_HOME` that only codeg's OWN environment carries still names
+    /// the directory the agent uses.
+    ///
+    /// `merge_agent_env` lists the variables a launch SETS; anything absent is
+    /// inherited, and relocating the tree from a container's environment
+    /// (`GEMINI_HOME=/data/gemini` in the image, nothing in the per-agent row)
+    /// is exactly that shape. Treating "absent" as "unset" sent codeg to
+    /// `~/.gemini` — so on a Docker deployment it wrote `auth.type` into
+    /// `/root/.gemini` while the agent read the relocated file, and the panel
+    /// named a token path that was never written. The same three-state
+    /// distinction `child_home_dir` makes for `HOME`, for the same reason.
+    #[test]
+    fn antigravity_settings_path_follows_a_gemini_home_codeg_only_inherits() {
+        // Platform-native, and HOME is pinned in the row rather than read from
+        // the process: other tests relocate the real one through `temp_env`,
+        // and a read here would race them. codeg's own `GEMINI_HOME` is
+        // injected for the same reason — see
+        // [`antigravity_acp_dir_with_inherited`].
+        #[cfg(windows)]
+        let (home_key, child_home, inherited, from_row) = (
+            "USERPROFILE",
+            "C:\\srv\\agy",
+            "C:\\data\\gemini",
+            "C:\\srv\\row",
+        );
+        #[cfg(not(windows))]
+        let (home_key, child_home, inherited, from_row) =
+            ("HOME", "/srv/agy", "/data/gemini", "/srv/row");
+        let base = || BTreeMap::from([(home_key.to_string(), child_home.to_string())]);
+
+        let codegs_own = || Some(std::ffi::OsString::from(inherited));
+
+        // ABSENT from the row: the child inherits codeg's, so codeg's own value
+        // is the exact answer.
+        assert_eq!(
+            antigravity_acp_dir_with_inherited(&base(), codegs_own()).expect("nameable"),
+            PathBuf::from(inherited).join(ANTIGRAVITY_ACP_SUBDIR)
+        );
+
+        // Present in the row: that is what the child is launched with, so it
+        // outranks the inherited one.
+        let mut overridden = base();
+        overridden.insert("GEMINI_HOME".to_string(), from_row.to_string());
+        assert_eq!(
+            antigravity_acp_dir_with_inherited(&overridden, codegs_own()).expect("nameable"),
+            PathBuf::from(from_row).join(ANTIGRAVITY_ACP_SUBDIR)
+        );
+
+        // Present but EMPTY is a removal (the spawn layer reads a blank as
+        // `env_remove`), and a removal is NOT the same as absent: the child then
+        // sees no `GEMINI_HOME` at all and falls back to `~/.gemini` under its
+        // own home. Collapsing the two would send codeg to the inherited value
+        // for a launch that deliberately took it away.
+        let mut removed = base();
+        removed.insert("GEMINI_HOME".to_string(), String::new());
+        assert_eq!(
+            antigravity_acp_dir_with_inherited(&removed, codegs_own()).expect("nameable"),
+            PathBuf::from(child_home)
+                .join(".gemini")
+                .join(ANTIGRAVITY_ACP_SUBDIR)
+        );
+
+        // And codeg having none either is the plain default.
+        assert_eq!(
+            antigravity_acp_dir_with_inherited(&base(), None).expect("nameable"),
+            PathBuf::from(child_home)
+                .join(".gemini")
+                .join(ANTIGRAVITY_ACP_SUBDIR)
+        );
     }
 
     /// `GEMINI_HOME=~/x` names `$HOME/x` to the server, so it has to name the
@@ -16910,6 +17321,169 @@ mod tests {
         );
         // Absent rawOutput.
         assert_eq!(grok_live_tool_output(&None, &None), None);
+    }
+
+    /// The captured opencode 1.18.23 completion envelope for a codeg-mcp
+    /// `ask_user_question` — the clean answer text on both channels, the
+    /// `rawOutput` one wrapped in `{output, metadata}`.
+    fn opencode_ask_raw_output() -> serde_json::Value {
+        serde_json::json!({
+            "output": "The user answered your question(s):\n1. [框架] 选一个前端框架\n   → 选项 A\n",
+            "metadata": {"truncated": false},
+        })
+    }
+
+    /// The envelope must never shadow `content`: it wraps the very same string,
+    /// and the JSON blob is what made an answered question render "no selection".
+    #[test]
+    fn opencode_live_tool_output_prefers_content() {
+        let content = Some(
+            "The user answered your question(s):\n1. [框架] 选一个前端框架\n   → 选项 A\n"
+                .to_string(),
+        );
+        assert_eq!(
+            opencode_live_tool_output(&content, &Some(opencode_ask_raw_output())),
+            None
+        );
+    }
+
+    /// With no `content` the envelope is unwrapped to the bare result text —
+    /// never the stringified object. Whitespace-only content counts as none.
+    #[test]
+    fn opencode_live_tool_output_unwraps_output_when_content_empty() {
+        let raw = Some(opencode_ask_raw_output());
+        let expected =
+            "The user answered your question(s):\n1. [框架] 选一个前端框架\n   → 选项 A\n";
+        assert_eq!(
+            opencode_live_tool_output(&None, &raw).as_deref(),
+            Some(expected)
+        );
+        assert_eq!(
+            opencode_live_tool_output(&Some("   ".to_string()), &raw).as_deref(),
+            Some(expected)
+        );
+    }
+
+    /// Failures send `{error, metadata}`, and a command that writes only to
+    /// stderr leaves `output` empty while the combined stream stays in
+    /// `metadata.output` — both mirror `parsers/opencode.rs`.
+    #[test]
+    fn opencode_live_tool_output_falls_back_to_error_and_metadata_output() {
+        let failed = Some(serde_json::json!({
+            "error": "The tool call was aborted",
+            "metadata": {},
+        }));
+        assert_eq!(
+            opencode_live_tool_output(&None, &failed).as_deref(),
+            Some("The tool call was aborted")
+        );
+
+        let stderr_only = Some(serde_json::json!({
+            "output": "",
+            "metadata": {"output": "boom\n", "exit": 1},
+        }));
+        assert_eq!(
+            opencode_live_tool_output(&None, &stderr_only).as_deref(),
+            Some("boom\n")
+        );
+    }
+
+    /// An unrecognized payload still stringifies exactly as before — the fix
+    /// unwraps a known envelope, it never drops a result on the floor.
+    #[test]
+    fn opencode_live_tool_output_keeps_unknown_payloads() {
+        let unknown = Some(serde_json::json!({"weird": {"shape": 1}}));
+        assert_eq!(
+            opencode_live_tool_output(&None, &unknown).as_deref(),
+            Some(r#"{"weird":{"shape":1}}"#)
+        );
+        assert_eq!(opencode_live_tool_output(&None, &None), None);
+    }
+
+    /// End-to-end over the frames opencode 1.18.23 actually put on the wire for a
+    /// codeg-mcp `ask_user_question` (captured by driving `opencode acp` against a
+    /// stub MCP server). The card reconstructs the answer from the result TEXT —
+    /// opencode drops the MCP `structuredContent` — so the completion must hand
+    /// the frontend that text, not the `{output, metadata}` blob that shadows it
+    /// and made an answered question render "no selection" while streaming.
+    #[tokio::test]
+    async fn opencode_ask_question_completion_emits_the_answer_text() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+
+        let (_, _, opening_output, _) = pi_emit(
+            AgentType::OpenCode,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call",
+                "toolCallId": "call_probe_1",
+                "title": "codeg-mcp_ask_user_question",
+                "kind": "other",
+                "status": "pending",
+                "locations": [],
+                "rawInput": {},
+            }),
+        )
+        .await;
+        assert!(
+            opening_output.is_none(),
+            "the pending frame carries no result: {opening_output:?}"
+        );
+
+        let (content, _, raw_output, _) = pi_emit(
+            AgentType::OpenCode,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_probe_1",
+                "status": "completed",
+                "content": [{
+                    "type": "content",
+                    "content": {
+                        "type": "text",
+                        "text": "The user answered your question(s):\n1. [框架] 选一个前端框架\n   → 选项 A\n",
+                    },
+                }],
+                "rawOutput": opencode_ask_raw_output(),
+            }),
+        )
+        .await;
+
+        assert_eq!(
+            content.as_deref(),
+            Some("The user answered your question(s):\n1. [框架] 选一个前端框架\n   → 选项 A\n"),
+            "the clean answer text reaches the card"
+        );
+        assert!(
+            raw_output.is_none(),
+            "the envelope must not shadow it: {raw_output:?}"
+        );
+    }
+
+    /// The unwrap is agent-gated: every other agent keeps the existing
+    /// `json_value_to_text` behavior for an object `rawOutput`.
+    #[tokio::test]
+    async fn non_opencode_keeps_the_stringified_envelope() {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, _, raw_output, _) = pi_emit(
+            AgentType::ClaudeCode,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call-1",
+                "status": "completed",
+                "rawOutput": {"output": "hi", "metadata": {"truncated": false}},
+            }),
+        )
+        .await;
+        assert_eq!(
+            raw_output.as_deref(),
+            Some(r#"{"metadata":{"truncated":false},"output":"hi"}"#)
+        );
     }
 
     /// A finished Grok terminal `tool_call_update` carries the readable output in

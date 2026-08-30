@@ -955,7 +955,7 @@ function DiffFileList({
   return (
     <div className="h-full flex flex-col min-h-0">
       <div className="border-b border-border bg-muted/25 px-3 py-2 space-y-1">
-        <div className="text-[11px] text-muted-foreground flex items-center gap-3">
+        <div className="text-2xs text-muted-foreground flex items-center gap-3">
           {badge && (
             <span className="font-medium text-foreground/80 font-mono">
               {badge}
@@ -992,7 +992,7 @@ function DiffFileList({
                   <span className="text-xs truncate flex-1 min-w-0 font-mono">
                     {file.path}
                   </span>
-                  <span className="shrink-0 flex items-center gap-2 text-[10px] font-mono">
+                  <span className="shrink-0 flex items-center gap-2 text-3xs font-mono">
                     {file.additions > 0 && (
                       <span className="text-green-600 dark:text-green-400">
                         +{file.additions}
@@ -2010,7 +2010,7 @@ export function FileWorkspacePanel() {
     return (
       <div className="h-full relative">
         {activeFileTab.loading && (
-          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-2xs text-muted-foreground backdrop-blur-sm">
             {t("loading")}
           </div>
         )}
@@ -2042,7 +2042,7 @@ export function FileWorkspacePanel() {
     return (
       <div className="h-full relative">
         {activeFileTab.loading && (
-          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-2xs text-muted-foreground backdrop-blur-sm">
             {t("loading")}
           </div>
         )}
@@ -2114,7 +2114,7 @@ export function FileWorkspacePanel() {
     return (
       <div className="h-full relative">
         {activeFileTab.loading && (
-          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-2xs text-muted-foreground backdrop-blur-sm">
             {t("loading")}
           </div>
         )}
@@ -2204,7 +2204,7 @@ export function FileWorkspacePanel() {
     return (
       <div className="h-full relative">
         {activeFileTab.loading && (
-          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+          <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-2xs text-muted-foreground backdrop-blur-sm">
             {t("loading")}
           </div>
         )}
@@ -2227,14 +2227,14 @@ export function FileWorkspacePanel() {
   return (
     <div className="h-full relative">
       {activeFileTab.loading && (
-        <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-[11px] text-muted-foreground backdrop-blur-sm">
+        <div className="absolute top-2 right-3 z-10 rounded-md bg-background/70 px-2 py-1 text-2xs text-muted-foreground backdrop-blur-sm">
           {t("loading")}
         </div>
       )}
       <div className="h-full flex flex-col min-h-0">
         {diffOutline && (
           <div className="border-b border-border bg-muted/25">
-            <div className="px-3 py-1.5 text-[11px] text-muted-foreground flex items-center gap-3">
+            <div className="px-3 py-1.5 text-2xs text-muted-foreground flex items-center gap-3">
               <span>{t("fileCount", { count: diffOutline.files.length })}</span>
               <span className="font-mono text-green-600 dark:text-green-400">
                 +{diffOutline.totalAdditions}
@@ -2251,7 +2251,7 @@ export function FileWorkspacePanel() {
                     type="button"
                     onClick={handlePrevHunk}
                     disabled={activeHunkIndex <= 0}
-                    className="rounded border border-border bg-background px-2 py-0.5 text-[10px] disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
                   >
                     <ChevronRight className="h-3 w-3 rotate-180" />
                     {t("prev")}
@@ -2263,7 +2263,7 @@ export function FileWorkspacePanel() {
                       activeHunkIndex < 0 ||
                       activeHunkIndex >= allHunks.length - 1
                     }
-                    className="rounded border border-border bg-background px-2 py-0.5 text-[10px] disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
                   >
                     {t("next")}
                     <ChevronRight className="h-3 w-3" />
@@ -2284,7 +2284,7 @@ export function FileWorkspacePanel() {
                     <button
                       type="button"
                       onClick={() => toggleFileCollapsed(file.key)}
-                      className="w-full px-2 py-1.5 text-[11px] flex items-center gap-1 hover:bg-muted/60 transition-colors"
+                      className="w-full px-2 py-1.5 text-2xs flex items-center gap-1 hover:bg-muted/60 transition-colors"
                     >
                       <ChevronRight
                         className={`h-3 w-3 shrink-0 transition-transform ${
@@ -2301,7 +2301,7 @@ export function FileWorkspacePanel() {
                       >
                         {file.path}
                       </span>
-                      <span className="ml-auto shrink-0 flex items-center gap-2 text-[10px]">
+                      <span className="ml-auto shrink-0 flex items-center gap-2 text-3xs">
                         <span className="font-mono text-green-600 dark:text-green-400">
                           +{file.additions}
                         </span>
@@ -2324,7 +2324,7 @@ export function FileWorkspacePanel() {
                           return (
                             <div
                               key={hunk.key}
-                              className={`flex items-center gap-1 rounded border px-1.5 py-1 text-[10px] ${
+                              className={`flex items-center gap-1 rounded border px-1.5 py-1 text-3xs ${
                                 isActive
                                   ? "border-primary/50 bg-primary/10"
                                   : "border-border/70 bg-muted/30"
@@ -2364,7 +2364,7 @@ export function FileWorkspacePanel() {
                 )
               })}
               {diffOutline.files.length === 0 && (
-                <div className="text-[11px] text-muted-foreground px-1 py-0.5">
+                <div className="text-2xs text-muted-foreground px-1 py-0.5">
                   {t("noParsedDiffSections")}
                 </div>
               )}

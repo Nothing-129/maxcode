@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Funnel,
   GitPullRequestArrow,
+  Plus,
   Search,
   X,
 } from "lucide-react"
@@ -67,6 +68,7 @@ import { ForgeBetaBadge } from "@/components/forge/forge-beta-badge"
 import { OPEN_FORGE_SETTINGS_EVENT } from "@/components/forge/forge-chrome-actions"
 import { ForgeIssueDetailSheet } from "@/components/forge/forge-issue-detail-sheet"
 import { ForgeIssueRowItem } from "@/components/forge/forge-issue-row"
+import { ForgeNewIssueDialog } from "@/components/forge/forge-new-issue-dialog"
 import { ForgeSettingsDialog } from "@/components/forge/forge-settings-dialog"
 import { ForgeStartDialog } from "@/components/forge/forge-start-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
@@ -201,6 +203,74 @@ interface LoadedList {
   data: ForgeIssueList
 }
 
+/** An item's identity across every list this page can show. Both halves are
+ *  needed: GitHub numbers issues and pull requests from one sequence, GitLab
+ *  from two, so `#7` alone names two different things on a GitLab project. */
+function rowKey(row: ForgeIssueRow): string {
+  return `${row.is_pr ? "pr" : "issue"}:${row.number}`
+}
+
+function sameItem(a: ForgeIssueRow, b: ForgeIssueRow): boolean {
+  return a.is_pr === b.is_pr && a.number === b.number
+}
+
+/** One row swapped for a newer copy of the SAME item, or the very same
+ *  `LoadedList` when this page does not hold it — a new object there would
+ *  re-render every row to change nothing. */
+function replaceRow(
+  held: LoadedList | null,
+  updated: ForgeIssueRow
+): LoadedList | null {
+  if (held == null) return held
+  let touched = false
+  const rows = held.data.rows.map((r) => {
+    if (!sameItem(r, updated)) return r
+    touched = true
+    return updated
+  })
+  return touched ? { ...held, data: { ...held.data, rows } } : held
+}
+
+/**
+ * A row this page took from a write, and the list generation it was taken at.
+ *
+ * The generation is what makes this safe to apply: only a response whose
+ * request was ISSUED BEFORE the write can be missing it. See `rememberWrite`.
+ */
+interface AdoptedRow {
+  row: ForgeIssueRow
+  at: number
+}
+
+/**
+ * A list response, with the writes it could not have known about written back
+ * over it — and the notes that can never apply again dropped.
+ *
+ * `entry.at < requestId` means the write was recorded before this request even
+ * went out, so the forge had already seen it and its own answer is the fresher
+ * one. Generations only increase, so such an entry can never apply to a later
+ * response either: it is retired here rather than left to grow without bound.
+ */
+function reconcile(
+  data: ForgeIssueList,
+  requestId: number,
+  adopted: Map<string, AdoptedRow>
+): ForgeIssueList {
+  if (adopted.size === 0) return data
+  for (const [key, entry] of adopted) {
+    if (entry.at < requestId) adopted.delete(key)
+  }
+  if (adopted.size === 0) return data
+  let touched = false
+  const rows = data.rows.map((r) => {
+    const entry = adopted.get(rowKey(r))
+    if (entry == null) return r
+    touched = true
+    return entry.row
+  })
+  return touched ? { ...data, rows } : data
+}
+
 /**
  * One badge number, and the filter set it was counted under.
  *
@@ -326,6 +396,7 @@ export function ForgePage() {
   const [startRow, setStartRow] = useState<ForgeIssueRow | null>(null)
   /** The item the right-side detail panel is open on, or `null` for closed. */
   const [detailRow, setDetailRow] = useState<ForgeIssueRow | null>(null)
+  const [newIssueOpen, setNewIssueOpen] = useState(false)
   /** The panel's preferences, EVERY scope — what a trigger dialog OPENS with,
    *  and nothing else this page reads. Loaded once and replaced in place when
    *  the settings dialog saves; `null` means "not loaded yet, or the read
@@ -337,6 +408,11 @@ export function ForgePage() {
   const [labelOptions, setLabelOptions] = useState<ForgeLabel[]>([])
   const [labelsTruncated, setLabelsTruncated] = useState(false)
   const reqRef = useRef(0)
+  /** Rows taken from a write, keyed by item — what `reconcile` writes back
+   *  over a list response that went out before the write. A ref, not state: it
+   *  has to be readable by a fetch already in flight, and changing it must
+   *  neither re-render nor re-fire anything. */
+  const adoptedRef = useRef(new Map<string, AdoptedRow>())
   /** Generation counter for the task-link lookup (see `refreshLinks`). */
   const linksReqRef = useRef(0)
   /** Request generations kept PER TAB. One shared counter would make a probe
@@ -372,6 +448,14 @@ export function ForgePage() {
     setCounts({})
     setStartRow(null)
     setDetailRow(null)
+    // The new-issue dialog goes with them, and for the same reason as the
+    // panel: it files against the folder it was opened over, and a folder
+    // switch while it is open would file the issue somewhere else.
+    setNewIssueOpen(false)
+    // And so do the write notes. They are keyed by `issue:42`, which names a
+    // different item in a different repository — carrying them across would
+    // write one project's closed issue over another project's open one.
+    adoptedRef.current.clear()
     if (effectiveFolderId == null) return
     let cancelled = false
     setRemoteLoading(true)
@@ -449,7 +533,14 @@ export function ForgePage() {
         perPage: pageSize,
       })
       if (id !== reqRef.current) return
-      setLoaded({ scope: listScope, data: result })
+      // The forge's page, with anything written from this panel since the
+      // request went out put back over it — see `reconcile`. Landing it raw
+      // would undo a close the user watched succeed, because the list is
+      // served from an index that lags a write by seconds.
+      setLoaded({
+        scope: listScope,
+        data: reconcile(result, id, adoptedRef.current),
+      })
       // The badge for the tab on screen, free: this response already counted
       // exactly what a probe would have. `incomplete` withholds it — GitHub
       // says the search timed out, so the number is short of the truth, and a
@@ -766,6 +857,113 @@ export function ForgePage() {
     )
   }, [rows, detailRow])
 
+  /**
+   * Note a row this page took from a write, for the list responses that have
+   * not landed yet.
+   *
+   * A list request SENT BEFORE a write was answered from an index that had not
+   * seen it, so it carries the row the write changed away from — and since
+   * nothing re-fetches after a write, it would leave it there. Discarding that
+   * response outright was the first attempt and it was worse: the very same
+   * request may be the one a tab switch is waiting on, and throwing it away
+   * left the new tab on skeletons with no dependency left to change and
+   * re-fire the fetch. So the response lands in full, with the adopted rows
+   * written back over it (see `reconcile`).
+   */
+  const rememberWrite = useCallback((updated: ForgeIssueRow) => {
+    adoptedRef.current.set(rowKey(updated), {
+      row: updated,
+      // The most recently ISSUED request. A response owing to this generation
+      // or an older one predates the write; a request issued AFTER it is the
+      // user asking again, and whatever the forge says then stands.
+      at: reqRef.current,
+    })
+  }, [])
+
+  /**
+   * Take the row a write on the forge answered with, everywhere this page
+   * holds one.
+   *
+   * BOTH places, and that is the whole point. The panel reads its item out of
+   * the loaded list whenever the list still has it (see `detail` above), so
+   * updating only `detailRow` would leave a just-closed issue reading "Open"
+   * for as long as its stale row sat in the page.
+   *
+   * And deliberately no re-fetch. The list is served from GitHub's SEARCH
+   * index, which lags a write by seconds to minutes — an immediate re-read
+   * would very often answer with the state that was just changed away from and
+   * overwrite what the user watched succeed. The forge's answer to the write
+   * itself has no such lag, so it stands until the next refresh, filter change
+   * or page turn, by which time the index has caught up too.
+   */
+  const adoptRow = useCallback(
+    (updated: ForgeIssueRow) => {
+      rememberWrite(updated)
+      setDetailRow((held) =>
+        held != null && sameItem(held, updated) ? updated : held
+      )
+      setLoaded((held) => replaceRow(held, updated))
+    },
+    [rememberWrite]
+  )
+
+  /**
+   * One more comment on an item, counted onto whatever this page holds NOW.
+   *
+   * Deliberately an identity plus an increment rather than a row: a comment
+   * request can be in the air across a close, and a row captured when the post
+   * started would carry that item's pre-close state back over the newer one.
+   * The identity is the one thing about an item that cannot go stale — an
+   * issue does not change its number — so a late answer still lands on the
+   * right row and touches only the number it is entitled to.
+   */
+  const countComment = useCallback(
+    (item: { isPr: boolean; number: number }) => {
+      const bump = (r: ForgeIssueRow): ForgeIssueRow => ({
+        ...r,
+        comments: r.comments + 1,
+      })
+      const matches = (r: ForgeIssueRow) =>
+        r.is_pr === item.isPr && r.number === item.number
+      /**
+       * The row THIS call bumped, when the list was the one holding it.
+       *
+       * A plain local, deliberately: the two updaters below run in hook order
+       * within one processing pass (`loaded` is declared before `detailRow`),
+       * so the second sees what the first decided. Asking `adoptedRef` instead
+       * — "is there already a note for this item?" — was wrong, and not
+       * subtly: a note from the PREVIOUS comment satisfies it just as well, so
+       * a second comment on a panel-only item recorded nothing and a list
+       * response landing afterwards rolled the count back by one.
+       */
+      let fromList: ForgeIssueRow | null = null
+      // Noted for reconciliation exactly as a state change is: a list response
+      // in flight when the comment landed knows nothing about it either, and
+      // would otherwise put the count back.
+      setLoaded((held) => {
+        const current = held?.data.rows.find(matches)
+        if (current == null) return held
+        const bumped = bump(current)
+        fromList = bumped
+        rememberWrite(bumped)
+        return replaceRow(held, bumped)
+      })
+      setDetailRow((held) => {
+        if (held == null || !matches(held)) return held
+        // The list's copy wherever there is one. It is what `detail` renders
+        // and what reconciliation writes onto, so letting the panel keep a
+        // separately-bumped copy would be two counts of the same comment
+        // waiting to disagree.
+        const noted: ForgeIssueRow | null = fromList
+        if (noted != null) return noted
+        const bumped = bump(held)
+        rememberWrite(bumped)
+        return bumped
+      })
+    },
+    [rememberWrite]
+  )
+
   const refreshLinks = useCallback(async () => {
     // Its own generation counter, not `reqRef`: this stream and the list fetch
     // run on different triggers (a `work-task://changed` event refreshes links
@@ -875,6 +1073,26 @@ export function ForgePage() {
             onPickFolder={pickFolder}
             remote={remote}
           />
+
+          {/* Only once a repository is resolved: without one there is nowhere
+              for the issue to go and the backend would refuse it. Sits with
+              the SOURCE rather than with the filters below because it acts on
+              the repository, not on the list. It stays offered on the pull
+              request tab too — "file an issue about this" is exactly the
+              thought a review produces, and putting it behind a tab switch
+              would be hiding it. */}
+          {remote != null && effectiveFolderId != null ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="secondary"
+              className="h-8 shrink-0 gap-1.5 rounded-full px-3 text-[0.8125rem] font-medium"
+              onClick={() => setNewIssueOpen(true)}
+            >
+              <Plus className="size-3.5" aria-hidden />
+              {t("newIssue")}
+            </Button>
+          ) : null}
 
           <Tabs
             className="shrink-0 sm:ms-auto"
@@ -1127,7 +1345,34 @@ export function ForgePage() {
         onStart={() => {
           if (detail != null) setStartRow(detail)
         }}
+        onRowUpdated={adoptRow}
+        onCommentPosted={countComment}
       />
+
+      {remote != null && effectiveFolderId != null ? (
+        <ForgeNewIssueDialog
+          open={newIssueOpen}
+          folderId={effectiveFolderId}
+          repo={remote.owner_repo}
+          // The vocabulary the label FILTER already fetched for this
+          // repository — one read serves both, and the dialog must not wait on
+          // a round trip to draw.
+          labelOptions={labelOptions}
+          onOpenChange={setNewIssueOpen}
+          onCreated={(created) => {
+            setNewIssueOpen(false)
+            // Straight into the panel on what was just filed: it is the only
+            // way to see the number and the link the forge assigned, and it is
+            // where the follow-up ("start a task on this") already lives.
+            setDetailRow(created)
+            // Under the "pull requests" tab a new ISSUE is not in this list at
+            // all, and under a narrowed filter it may not be either — so the
+            // list is re-read rather than prepended to, and shows the issue
+            // exactly when it belongs there.
+            void fetchPage()
+          }}
+        />
+      ) : null}
 
       {startRow != null && remote != null && effectiveFolderId != null ? (
         <ForgeStartDialog

@@ -184,7 +184,9 @@ vi.mock("next-themes", () => ({
 
 vi.mock("@/hooks/use-appearance", () => ({
   useThemeColor: () => ({ themeColor: "blue" }),
-  useZoomLevel: () => {},
+  // 100% — the folder-drag row height reads this, so the drag cases below
+  // measure against the same 32px row the real hook yields at that zoom.
+  useZoomLevel: () => ({ zoomLevel: 100, setZoomLevel: () => {} }),
 }))
 
 vi.mock("@/hooks/use-sorted-available-agents", () => ({

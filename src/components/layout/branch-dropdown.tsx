@@ -633,7 +633,7 @@ export function BranchDropdown({ folder, isChatMode }: BranchDropdownProps) {
             className="flex h-6 min-w-0 items-center gap-1.5 rounded-full px-2 text-xs text-muted-foreground outline-none transition-colors hover:bg-foreground/10 hover:text-foreground"
           >
             <GitFork className="size-3 shrink-0" />
-            <span className="max-w-[160px] truncate">{t("noBranch")}</span>
+            <span className="max-w-[10rem] truncate">{t("noBranch")}</span>
           </button>
         </PopoverTrigger>
         <PopoverContent side="top" align="start" className="w-64 p-1">
@@ -675,21 +675,28 @@ export function BranchDropdown({ folder, isChatMode }: BranchDropdownProps) {
             ) : (
               <GitBranch className="size-3 shrink-0 text-muted-foreground" />
             )}
-            <span className="max-w-[160px] truncate">
+            <span className="max-w-[10rem] truncate">
               {branch ?? head?.branch ?? head?.short_sha ?? t("noBranch")}
             </span>
             <ChevronDown className="size-3 shrink-0 text-muted-foreground/60" />
           </Button>
         </PopoverTrigger>
         {/* No `overflow-hidden`: the list's inner shell clips to the rounding so
-            the right-side action bubble can overflow past this edge. */}
+            the right-side action bubble can overflow past this edge.
+            `max-h-(--radix-popover-content-available-height)` is the vertical twin
+            of the `max-w` guard: the trigger sits in the status bar, so the popup
+            opens upward and its own cap (`MAX_LIST_HEIGHT_REM`, 30rem) is a rem —
+            at 250% zoom that is 1200px, taller than the space above the trigger,
+            and the top of the list ran off the window. Radix publishes the room it
+            actually has on that side; the list below is flex-shrinkable so it
+            gives way to this cap instead of overflowing it. */}
         <PopoverContent
           ref={contentRef}
           side="top"
           align="start"
           onPointerDownOutside={onPointerDownOutside}
           onFocusOutside={onFocusOutside}
-          className="w-[22rem] max-w-[calc(100vw-1rem)] p-0"
+          className="max-h-(--radix-popover-content-available-height) w-[22rem] max-w-[calc(100vw-1rem)] p-0"
         >
           <BranchSelectorList
             operations={operations}

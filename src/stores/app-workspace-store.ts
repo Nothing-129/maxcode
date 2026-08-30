@@ -16,6 +16,10 @@ import {
   isConversationActivity,
   isRunningConversationStatus,
 } from "@/lib/conversation-unread"
+import {
+  forgetClosedConversation,
+  forgetClosedTabsInFolder,
+} from "@/lib/closed-tab-stack"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import type {
   AgentStats,
@@ -156,6 +160,17 @@ const DELETED_TOMBSTONE_CAP = 512
 // client) must not resurrect the row. Ids are DB autoincrement and never
 // reused, so the tombstone is permanent; the set is FIFO-bounded.
 const deletedIds = new Set<number>()
+
+/**
+ * Has this client seen `id` deleted? `reopen_last_closed_tab` asks before it
+ * restores a conversation: `applyConversationRemove` purges what is on the
+ * stack at that moment, but a tab that was still OPEN when the delete landed
+ * gets recorded afterwards, when the user closes it by hand. Consulting the
+ * tombstone at restore time means a deletion seen at any point wins.
+ */
+export function isConversationDeleted(id: number): boolean {
+  return deletedIds.has(id)
+}
 
 // Folder removals, as `folder id → the mutation sequence number it landed at`.
 // `fetchFolders` replaces both lists wholesale, so a snapshot that was ALREADY
@@ -327,6 +342,14 @@ export const useAppWorkspaceStore = create<AppWorkspaceStoreState>()(
     // Remove a conversation by id. Idempotent: an unknown id leaves state
     // untouched (no re-render; keeps `stats` stable).
     applyConversationRemove: (id) => {
+      // The single funnel for "this conversation is gone": the backend
+      // broadcasts Deleted to every client including the one that asked, so
+      // this covers a local delete, another window's, and a partially-failed
+      // bulk delete (each success emits on its own). Reaching into the
+      // closed-tab stack here is what stops `reopen_last_closed_tab` from
+      // restoring a conversation that was closed BEFORE it was deleted — the
+      // close-time opt-out only sees tabs that are still open.
+      forgetClosedConversation(id)
       deletedIds.add(id)
       if (deletedIds.size > DELETED_TOMBSTONE_CAP) {
         // FIFO eviction — Set preserves insertion order.
@@ -401,6 +424,10 @@ export const useAppWorkspaceStore = create<AppWorkspaceStoreState>()(
     },
 
     applyFolderRemove: (folderId) => {
+      // Same reasoning as `applyConversationRemove`: tabs closed while the
+      // folder still existed are already on the reopen stack, and their cwd is
+      // about to stop existing.
+      forgetClosedTabsInFolder(folderId)
       rememberRemovedFolder(folderId)
       const { folders, allFolders, branches, gitHeads } = get()
       const patch: Partial<AppWorkspaceStoreState> = {}

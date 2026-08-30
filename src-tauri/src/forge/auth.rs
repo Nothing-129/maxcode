@@ -38,6 +38,10 @@ pub struct ResolvedAuth {
     /// pick an account by host) is what makes "the branch is pushed by the
     /// account that triggered the task" true.
     pub username: String,
+    /// The account's picture, as the forge reported it when the token was
+    /// validated. Display only, and never a reason to fail: an account stored
+    /// before avatars were recorded simply has none.
+    pub avatar_url: Option<String>,
     pub token: String,
     /// Token scopes as recorded when the account was added, for display only.
     /// Deliberately NOT used as a gate: GitHub's fine-grained tokens report no
@@ -119,6 +123,7 @@ pub async fn resolve_forge_auth(
         server_host: host,
         account_id: account.id.clone(),
         username: account.username.clone(),
+        avatar_url: account.avatar_url.clone(),
         token,
         scopes: account.scopes.clone(),
     })

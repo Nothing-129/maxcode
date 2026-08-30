@@ -190,6 +190,7 @@ pub fn build_router(
         )
         .route("/get_folder", post(handlers::folders::get_folder))
         .route("/open_folder", post(handlers::folders::open_folder))
+        .route("/open_in_code", post(handlers::folders::open_in_code))
         .route(
             "/open_worktree_folder",
             post(handlers::folders::open_worktree_folder),
@@ -770,6 +771,18 @@ pub fn build_router(
         .route(
             "/acp_sync_antigravity_settings",
             post(handlers::acp::acp_sync_antigravity_settings),
+        )
+        .route(
+            "/acp_antigravity_login_start",
+            post(handlers::acp::acp_antigravity_login_start),
+        )
+        .route(
+            "/acp_antigravity_login_finish",
+            post(handlers::acp::acp_antigravity_login_finish),
+        )
+        .route(
+            "/acp_antigravity_login_cancel",
+            post(handlers::acp::acp_antigravity_login_cancel),
         )
         .route(
             "/acp_pi_project_trust_state",
@@ -1362,6 +1375,35 @@ pub fn build_router(
         .route(
             "/forge_list_comments",
             post(handlers::forge::forge_list_comments),
+        )
+        .route(
+            "/forge_create_comment",
+            post(handlers::forge::forge_create_comment),
+        )
+        .route(
+            "/forge_set_item_state",
+            post(handlers::forge::forge_set_item_state),
+        )
+        .route(
+            "/forge_create_issue",
+            post(handlers::forge::forge_create_issue),
+        )
+        .route(
+            "/forge_change_detail",
+            post(handlers::forge::forge_change_detail),
+        )
+        .route(
+            "/forge_change_files",
+            post(handlers::forge::forge_change_files),
+        )
+        .route("/forge_identity", post(handlers::forge::forge_identity))
+        .route(
+            "/forge_merge_options",
+            post(handlers::forge::forge_merge_options),
+        )
+        .route(
+            "/forge_merge_change",
+            post(handlers::forge::forge_merge_change),
         )
         .route(
             "/work_task_create_from_forge",

@@ -87,6 +87,8 @@ impl CodexParser {
 
         let mut conversation_id: Option<String> = None;
         let mut cwd: Option<String> = None;
+        let mut parent_id: Option<String> = None;
+        let mut session_header_seen = false;
         let mut git_branch: Option<String> = None;
         let mut model: Option<String> = None;
         let mut title: Option<String> = None;
@@ -164,6 +166,16 @@ impl CodexParser {
                             .get("cwd")
                             .and_then(|s| s.as_str())
                             .map(|s| s.to_string());
+                        // Only the FIRST header names this thread's parent. A
+                        // forked child replays the parent's header further down
+                        // the same file and that copy declares no parent, so a
+                        // last-one-wins read would clear the child's `parent_id`
+                        // and hand it back to the importer as a root session.
+                        // Same rule `parse_codex_subagent_stats` uses.
+                        if !session_header_seen {
+                            session_header_seen = true;
+                            parent_id = codex_parent_thread_id(payload);
+                        }
                         _cli_version = payload
                             .get("cli_version")
                             .and_then(|s| s.as_str())
@@ -390,7 +402,7 @@ impl CodexParser {
             message_count,
             model,
             git_branch,
-            parent_id: None,
+            parent_id,
             parent_tool_use_id: None,
             delegation_call_id: None,
         }))
@@ -1865,10 +1877,40 @@ fn build_collab_wait_input(status: &serde_json::Map<String, serde_json::Value>) 
     (input.to_string(), any_error)
 }
 
-/// Whether a transcript's opening record declares it a forked thread
-/// (`session_meta.parent_thread_id`) — codex 0.147's sub-agent shape, where the
-/// child is a rollout of its own and `fork_turns` copies the parent's history
-/// into its head.
+/// The parent thread id a rollout's `session_meta` payload declares, or `None`
+/// for a root session.
+///
+/// TWO shapes carry it and both are live on disk, so neither branch may be
+/// dropped. The structured `source.subagent.thread_spawn.parent_thread_id` is
+/// the one every sub-agent rollout has (checked across on-disk rollouts from
+/// 0.117 through 0.147); the flat `parent_thread_id` is a later, additive
+/// mirror that only some versions write, always alongside the structured form
+/// and never on its own. Reading only the flat field — as this did before —
+/// therefore misses real sub-agents, which is what let their rollouts list as
+/// importable root sessions and let their replayed history be counted as their
+/// own (see [`is_forked_thread_header`]).
+///
+/// A present-but-blank id is treated as absent: it names no parent, and a
+/// whitespace `parent_id` would still read as "this is a child" downstream.
+fn codex_parent_thread_id(payload: &serde_json::Value) -> Option<String> {
+    payload
+        .get("parent_thread_id")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .or_else(|| {
+            payload
+                .pointer("/source/subagent/thread_spawn/parent_thread_id")
+                .and_then(serde_json::Value::as_str)
+                .map(str::trim)
+                .filter(|id| !id.is_empty())
+        })
+        .map(ToOwned::to_owned)
+}
+
+/// Whether a transcript's opening record declares it a FORKED thread — codex
+/// 0.147's `fork_turns` sub-agent shape, where the child is a rollout of its own
+/// and the parent's history is copied into its head.
 ///
 /// That copy is the problem: the parent's own tool calls sit at the top of the
 /// child's file, indistinguishable at the record level from the child's, so
@@ -1881,11 +1923,27 @@ fn build_collab_wait_input(status: &serde_json::Map<String, serde_json::Value>) 
 /// still names the sub-agent and badges its thread id (both come from the
 /// PARENT's rollout); only the nested tool-call list is absent. The legacy
 /// `agent-<id>.jsonl` shape has no such prefix and is unaffected.
+///
+/// BOTH markers are required, because "is a sub-agent" and "replays the parent"
+/// are different things and only the second one may be refused. A parent thread
+/// id alone says a thread was spawned by another; `forked_from_id` is codex's
+/// own declaration that this rollout was seeded with that thread's history. On
+/// disk they split cleanly — of 46 sub-agent rollouts, the 23 carrying
+/// `forked_from_id` are exactly the 23 that also replay a second `session_meta`
+/// header, and the other 23 are ordinary children whose tool calls are their
+/// own. Refusing on the parent id alone silently blanks the capsule for those.
 fn is_forked_thread_header(value: &serde_json::Value) -> bool {
-    value.get("type").and_then(|t| t.as_str()) == Some("session_meta")
-        && value
-            .pointer("/payload/parent_thread_id")
-            .is_some_and(|v| v.as_str().is_some_and(|s| !s.is_empty()))
+    if value.get("type").and_then(|t| t.as_str()) != Some("session_meta") {
+        return false;
+    }
+    let Some(payload) = value.get("payload") else {
+        return false;
+    };
+    codex_parent_thread_id(payload).is_some()
+        && payload
+            .get("forked_from_id")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|id| !id.trim().is_empty())
 }
 
 fn parse_codex_subagent_stats(
@@ -2144,6 +2202,8 @@ impl CodexParser {
 
         let mut messages = Vec::new();
         let mut cwd: Option<String> = None;
+        let mut parent_id: Option<String> = None;
+        let mut session_header_seen = false;
         let mut git_branch: Option<String> = None;
         let mut model: Option<String> = None;
         let mut title: Option<String> = None;
@@ -2343,6 +2403,13 @@ impl CodexParser {
                             .get("cwd")
                             .and_then(|s| s.as_str())
                             .map(|s| s.to_string());
+                        // First header wins — see the same latch in
+                        // `parse_jsonl_summary`: the replayed parent header that
+                        // follows a forked child's own declares no parent.
+                        if !session_header_seen {
+                            session_header_seen = true;
+                            parent_id = codex_parent_thread_id(payload);
+                        }
                         git_branch = payload
                             .get("git")
                             .and_then(|g| g.get("branch"))
@@ -3816,7 +3883,7 @@ impl CodexParser {
             message_count: turns.len() as u32,
             model,
             git_branch,
-            parent_id: None,
+            parent_id,
             parent_tool_use_id: None,
             delegation_call_id: None,
         };
@@ -4809,6 +4876,7 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use super::codex_parent_thread_id;
     use super::extract_codex_title_candidate;
     use super::extract_context_window_used_tokens_from_token_count_info;
     use super::extract_response_item_user_image_blocks;
@@ -4867,6 +4935,166 @@ mod tests {
         let index_path = codex_home.join("session_index.jsonl");
         let parser = CodexParser::with_base_dir(sessions_dir);
         (temp_dir, parser, index_path)
+    }
+
+    /// `fork_turns` copies the PARENT's history into the child's head, and that
+    /// copy carries the parent's own `session_meta` — on a real machine 23 of 46
+    /// sub-agent rollouts hold a second header. That header declares no parent
+    /// of its own, so reading `session_meta` last-record-wins clears the child's
+    /// `parent_id` and the rollout lists as an importable root again. The FIRST
+    /// header decides, exactly as `parse_codex_subagent_stats` already does via
+    /// its `checked_header` latch.
+    #[test]
+    fn replayed_parent_header_does_not_clear_the_child_parent_id() {
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+        let child = "01a0098a-7e8a-72d3-b7c0-2df130c84063";
+        let parent = "01a0098a-5c58-7000-8000-000000000001";
+        let lines = [
+            rollout_line(
+                "2026-08-16T15:47:46Z",
+                "session_meta",
+                serde_json::json!({
+                    "id": child,
+                    "cwd": "/tmp/demo",
+                    "source": {"subagent": {"thread_spawn": {"parent_thread_id": parent}}}
+                }),
+            ),
+            // The replayed parent header, verbatim as codex writes it.
+            rollout_line(
+                "2026-08-16T15:47:46Z",
+                "session_meta",
+                serde_json::json!({"id": parent, "cwd": "/tmp/demo"}),
+            ),
+            rollout_line(
+                "2026-08-16T15:47:47Z",
+                "event_msg",
+                serde_json::json!({"type": "user_message", "message": "child task"}),
+            ),
+        ];
+        fs::write(
+            temp_dir
+                .path()
+                .join(format!("rollout-2026-08-16T15-47-46-{child}.jsonl")),
+            format!("{}\n", lines.join("\n")),
+        )
+        .expect("write rollout");
+
+        let parser = CodexParser::with_base_dir(temp_dir.path().to_path_buf());
+        let summaries = parser.list_conversations().expect("list conversations");
+        assert_eq!(summaries.len(), 1);
+        assert_eq!(
+            summaries[0].parent_id.as_deref(),
+            Some(parent),
+            "a replayed parent header must not clear the child's parent_id"
+        );
+
+        let detail = parser
+            .get_conversation(child)
+            .expect("load conversation detail");
+        assert_eq!(detail.summary.parent_id.as_deref(), Some(parent));
+    }
+
+    /// Both on-disk sub-agent shapes must surface `parent_id`, because that is
+    /// the only thing keeping these rollouts out of the importer's root list
+    /// (`import_service::collect_local_summaries` drops `parent_id.is_some()`).
+    /// The STRUCTURED case is the one that matters most: it is the shape every
+    /// real sub-agent rollout carries, while the flat mirror only accompanies
+    /// it on some versions.
+    #[test]
+    fn native_parent_thread_is_preserved_in_list_and_detail() {
+        let parent = "019ff3f7-0000-7000-8000-000000000001";
+        let temp_dir = tempfile::tempdir().expect("create temp dir");
+
+        // Same parent id, two payload shapes, one directory — so a regression in
+        // either branch shows up as a listed root session.
+        let cases = [
+            (
+                "019ff3f7-937a-7671-b4f6-e404cb729d30",
+                serde_json::json!({ "parent_thread_id": format!(" {parent} ") }),
+            ),
+            (
+                "019ff3f7-937a-7671-b4f6-e404cb729d31",
+                serde_json::json!({
+                    "source": {"subagent": {"thread_spawn": {
+                        "parent_thread_id": parent,
+                        "depth": 1,
+                        "agent_nickname": "Gibbs",
+                        "agent_role": "worker"
+                    }}}
+                }),
+            ),
+        ];
+
+        for (conversation_id, extra) in &cases {
+            let mut payload = serde_json::json!({"id": conversation_id, "cwd": "/tmp/demo"});
+            let map = payload.as_object_mut().expect("payload object");
+            for (k, v) in extra.as_object().expect("extra object") {
+                map.insert(k.clone(), v.clone());
+            }
+            let lines = [
+                rollout_line("2026-08-28T10:00:00Z", "session_meta", payload),
+                rollout_line(
+                    "2026-08-28T10:00:01Z",
+                    "event_msg",
+                    serde_json::json!({"type": "user_message", "message": "child task"}),
+                ),
+            ];
+            fs::write(
+                temp_dir.path().join(format!(
+                    "rollout-2026-08-28T10-00-00-{conversation_id}.jsonl"
+                )),
+                format!("{}\n", lines.join("\n")),
+            )
+            .expect("write rollout");
+        }
+
+        let parser = CodexParser::with_base_dir(temp_dir.path().to_path_buf());
+        let summaries = parser.list_conversations().expect("list conversations");
+        assert_eq!(summaries.len(), cases.len());
+
+        for (conversation_id, _) in &cases {
+            let listed = summaries
+                .iter()
+                .find(|s| s.id == *conversation_id)
+                .unwrap_or_else(|| panic!("{conversation_id} listed"));
+            assert_eq!(
+                listed.parent_id.as_deref(),
+                Some(parent),
+                "{conversation_id} must report its parent so the importer skips it"
+            );
+
+            let detail = parser
+                .get_conversation(conversation_id)
+                .expect("load conversation detail");
+            assert_eq!(detail.summary.parent_id, listed.parent_id);
+        }
+    }
+
+    #[test]
+    fn parent_thread_falls_back_to_structured_source_and_rejects_blanks() {
+        let preferred = serde_json::json!({
+            "parent_thread_id": " root-parent ",
+            "source": {"subagent": {"thread_spawn": {"parent_thread_id": "nested-parent"}}}
+        });
+        assert_eq!(
+            codex_parent_thread_id(&preferred).as_deref(),
+            Some("root-parent")
+        );
+
+        let fallback = serde_json::json!({
+            "parent_thread_id": "  ",
+            "source": {"subagent": {"thread_spawn": {"parent_thread_id": " nested-parent "}}}
+        });
+        assert_eq!(
+            codex_parent_thread_id(&fallback).as_deref(),
+            Some("nested-parent")
+        );
+
+        let blank = serde_json::json!({
+            "parent_thread_id": " ",
+            "source": {"subagent": {"thread_spawn": {"parent_thread_id": "\t"}}}
+        });
+        assert_eq!(codex_parent_thread_id(&blank), None);
     }
 
     #[test]
@@ -7662,9 +7890,13 @@ mod tests {
     #[test]
     fn forked_child_transcript_yields_no_stats() {
         // A codex 0.147 sub-agent thread opens with its own `session_meta`
-        // (carrying `parent_thread_id`) and then replays the PARENT's history,
-        // tool calls included. Counting those would credit the child with the
-        // parent's work, so the whole file is refused.
+        // (carrying `parent_thread_id` AND `forked_from_id`) and then replays the
+        // PARENT's history, tool calls included. Counting those would credit the
+        // child with the parent's work, so the whole file is refused.
+        //
+        // `forked_from_id` is what makes it a replay, and on disk it is never
+        // absent from one: the 23 sub-agent rollouts that carry it are exactly
+        // the 23 that also hold the replayed second header below.
         let child = "01a0098a-7e8a-72d3-b7c0-2df130c84063";
         let dir = temp_session_dir("forked-child");
         // The lookup matches a rollout whose stem ends with the thread id,
@@ -7675,7 +7907,10 @@ mod tests {
                 rollout_line(
                     "2026-08-16T07:47:46Z",
                     "session_meta",
-                    serde_json::json!({"id":child,"parent_thread_id":"parent","cwd":"/tmp/demo"}),
+                    serde_json::json!({
+                        "id": child, "cwd": "/tmp/demo",
+                        "parent_thread_id": "parent", "forked_from_id": "parent"
+                    }),
                 ),
                 rollout_line(
                     "2026-08-16T07:47:46Z",
@@ -7698,6 +7933,84 @@ mod tests {
             parse_codex_subagent_stats(&dir, child).is_none(),
             "a forked child transcript must contribute no stats"
         );
+
+        // The same replay as codex actually writes it: the parent id lives under
+        // the structured subagent source and there is NO flat mirror. Matching
+        // only the flat field counted these files, crediting the child with the
+        // parent's replayed tool calls.
+        let structured = "019e88cb-ada0-7611-b7cf-25a6e3535722";
+        fs::write(
+            dir.join(format!("rollout-2026-06-02T22-45-10-{structured}.jsonl")),
+            [
+                rollout_line(
+                    "2026-06-02T22:45:10Z",
+                    "session_meta",
+                    serde_json::json!({
+                        "id": structured,
+                        "cwd": "/tmp/demo",
+                        "forked_from_id": "parent",
+                        "source": {"subagent": {"thread_spawn": {
+                            "parent_thread_id": "parent", "depth": 1, "agent_role": "explorer"
+                        }}}
+                    }),
+                ),
+                rollout_line(
+                    "2026-06-02T22:45:10Z",
+                    "session_meta",
+                    serde_json::json!({"id": "parent", "cwd": "/tmp/demo"}),
+                ),
+                rollout_line(
+                    "2026-06-02T22:45:11Z",
+                    "response_item",
+                    serde_json::json!({
+                        "type":"function_call","call_id":"parents_own","name":"exec_command",
+                        "arguments": serde_json::json!({"cmd":"git status"}).to_string(),
+                    }),
+                ),
+            ]
+            .join("\n"),
+        )
+        .expect("write structured forked child");
+        assert!(
+            parse_codex_subagent_stats(&dir, structured).is_none(),
+            "the structured subagent shape must be refused too"
+        );
+
+        // A spawned child that was NOT seeded with the parent's history: it has a
+        // parent thread id but no `forked_from_id` and no replayed header, so the
+        // tool calls in it are its own and MUST still be counted. Half the
+        // sub-agent rollouts on disk look like this; refusing them on the parent
+        // id alone blanks the capsule's tool list for real work.
+        let clean = "019d9929-6a00-7543-b045-172ebb06e5eb";
+        fs::write(
+            dir.join(format!("rollout-2026-04-17T01-58-42-{clean}.jsonl")),
+            [
+                rollout_line(
+                    "2026-04-17T01:58:42Z",
+                    "session_meta",
+                    serde_json::json!({
+                        "id": clean,
+                        "cwd": "/tmp/demo",
+                        "source": {"subagent": {"thread_spawn": {
+                            "parent_thread_id": "parent", "depth": 1, "agent_role": "worker"
+                        }}}
+                    }),
+                ),
+                rollout_line(
+                    "2026-04-17T01:58:43Z",
+                    "response_item",
+                    serde_json::json!({
+                        "type":"function_call","call_id":"its_own","name":"exec_command",
+                        "arguments": serde_json::json!({"cmd":"pnpm test"}).to_string(),
+                    }),
+                ),
+            ]
+            .join("\n"),
+        )
+        .expect("write clean child");
+        let clean_stats =
+            parse_codex_subagent_stats(&dir, clean).expect("a non-replayed child keeps its stats");
+        assert_eq!(clean_stats.tool_calls.len(), 1);
 
         // The legacy shape has no replayed prefix and still resolves.
         fs::write(

@@ -57,6 +57,14 @@ pub async fn open_folder(
     ))
 }
 
+/// Launch Visual Studio Code against a file or directory on this host.
+pub async fn open_in_code(
+    Json(params): Json<AddFolderParams>,
+) -> Result<Json<()>, AppCommandError> {
+    crate::commands::open_in::open_in_code_core(params.path).await?;
+    Ok(Json(()))
+}
+
 #[derive(serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenWorktreeFolderParams {

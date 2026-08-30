@@ -261,7 +261,7 @@ export function SystemNetworkSettings() {
             }
           >
             {autostartError !== null && (
-              <p className="text-[11px] text-amber-500">
+              <p className="text-2xs text-amber-500">
                 {t("autostartUnavailable", { message: autostartError })}
               </p>
             )}
@@ -326,9 +326,9 @@ export function SystemNetworkSettings() {
               aria-invalid={proxyUrlError ? true : undefined}
             />
             {proxyUrlError && (
-              <p className="text-[11px] text-destructive">{proxyUrlError}</p>
+              <p className="text-2xs text-destructive">{proxyUrlError}</p>
             )}
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {t("proxyHint", { example: PROXY_EXAMPLE })}
             </p>
           </div>

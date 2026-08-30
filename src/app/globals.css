@@ -22,7 +22,20 @@
 
   font-family: var(--font-sans);
   font-size: 16px;
-  line-height: 24px;
+  /* 这条行高被所有没自带 line-height 的文字继承，必须跟着根字号一起放大：写死 24px
+     的话缩放到 300% 时字长到 42px、行盒却仍是 24px，`truncate` 的 overflow:hidden
+     会把侧栏导航标签、会话标题、文件夹选择器的汉字上下各切掉几像素。
+
+     em 而非 rem：**根元素上的 rem 在 WebKit 里不解析为根字号，而是解析为 font-size
+     的初始值 16px**。缩放是 AppearanceProvider 往 <html> 上写 font-size 实现的，
+     于是 `1.5rem` 在这里被永久钉死在 24px —— 不是失效竞态，300% 冷启动同样是 24px。
+     Chromium 按规范解析为 1.5×根字号，所以这个 bug 只在桌面端（Tauri = WKWebView）
+     出现，浏览器里跑 server 模式看不到。根元素上的 em 就是它自己的 font-size，两个
+     引擎都实时解析：100% 下算出 24px（与旧写法逐像素相同），300% 下 72px。
+
+     `calc(1.5 * 1rem)` 和 `var(--lh)`（值为 1.5rem）在 WebKit 上同样被钉死，换写法
+     绕不过去；要留在 :root 上就只能用 em。 */
+  line-height: 1.5em;
   font-weight: 400;
 
   font-synthesis: none;
@@ -1043,6 +1056,18 @@ html:not(.dark) {
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* 比 text-xs(12px) 更小的两档字号。缩放档位（80%–150%）改的是 html 的 font-size，
+   所以只有 rem 会跟着放大 —— 全仓原先散落的 `text-[11px]` / `text-[10px]` 在缩放到
+   150% 时仍是 11px/10px，旁边的 text-sm 却涨到 21px，小字被压得越来越不成比例。
+   刻意只声明 font-size、不声明 line-height：被它们替换掉的 `text-[Npx]` 任意值同样
+   只写 font-size，行高照旧由 leading-* 或继承决定，换过来在 100% 缩放下零视觉差异。 */
+@utility text-2xs {
+  font-size: 0.6875rem; /* 11px @100% */
+}
+@utility text-3xs {
+  font-size: 0.625rem; /* 10px @100% */
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -1557,6 +1582,83 @@ html:not(.dark) {
   }
   to {
     opacity: 1;
+  }
+}
+
+/* Reply fold body — the "Worked for …" header's progress section
+   (`CompletedTurnContent`). Unlike the tool collapsibles above, this one DOES
+   animate its height: it is the one fold per reply the reader toggles by hand,
+   and the answer below reading as pushed down / pulled back up is the whole
+   point of the affordance.
+
+   Driven by `grid-template-rows: 0fr ↔ 1fr`, never by a measured pixel height.
+   `instant-collapsible` exists precisely because Radix measured content height
+   on every open-on-mount and turned a long history into a forced-layout storm;
+   this keeps that promise — no JS reads layout, the engine interpolates the
+   track. The single child carries the clipping (and all the padding, so the
+   collapsed track really reaches zero instead of stalling at its own padding).
+
+   Kept as a CSS animation rather than a transition because `instant-collapsible`
+   holds closing content mounted by watching `animationName` / `animationend`. */
+.reply-fold-body {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+
+.reply-fold-body > * {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* easeOutCubic opening (the body decelerates into place as it pushes the answer
+   down) against easeInCubic closing (it accelerates away as it folds up). A
+   single sharp ease-out on both ends made the open read as a snap.
+
+   The enter animation is opt-in via `.reply-fold-enter`, which the component
+   adds only for a real closed→open toggle. A body that MOUNTS open — the row
+   key flipping at settlement, the detail refetch, the virtualizer recycling the
+   row — must paint expanded rather than replay the unfold. The exit animation
+   is unconditional: it is what unmounts the content. */
+.reply-fold-body[data-state="open"].reply-fold-enter {
+  animation: reply-fold-open 200ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.reply-fold-body[data-state="closed"] {
+  animation: reply-fold-close 160ms cubic-bezier(0.32, 0, 0.67, 0) forwards;
+}
+
+@keyframes reply-fold-open {
+  from {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+  to {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+}
+
+@keyframes reply-fold-close {
+  from {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+  to {
+    grid-template-rows: 0fr;
+    opacity: 0;
+  }
+}
+
+/* Reduced motion: snap. The close animation still has to RUN (it is what
+   unmounts the content — see the `animationend` presence check in
+   `instant-collapsible`), so shorten it to a single frame rather than removing
+   it, and drop the height travel so nothing slides. */
+@media (prefers-reduced-motion: reduce) {
+  .reply-fold-body[data-state="open"].reply-fold-enter {
+    animation: none;
+  }
+  .reply-fold-body[data-state="closed"] {
+    animation: reply-fold-close 1ms linear forwards;
   }
 }
 
@@ -2382,7 +2484,11 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .browser-tab-hover::before {
   content: "";
   position: absolute;
-  inset: 2px 2px 8px 2px;
+  /* rem 而非 2/2/8/2 px：底部这一格是**镜像 `.browser-tab-seat` 的 0.5rem 座高**（凹
+     弧脚的地盘），写死 px 的话缩放到 250% 时座是 20px 而药丸只让出 8px —— 药丸下沿落进
+     脚区，上面注释里「让开脚部」的前提就不成立了。100% 下 0.125rem=2px、0.5rem=8px，
+     逐像素与原值相同。 */
+  inset: 0.125rem 0.125rem 0.5rem 0.125rem;
   z-index: -1;
   border-radius: 0.5rem;
   background-color: color-mix(in oklab, var(--background) 60%, transparent);
@@ -2443,23 +2549,35 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   width: 0.5rem;
   background-color: var(--background);
 }
+/* ★ 遮罩半径必须与上面的 0.5rem 见方盒**同单位**：写死 7px/8px 时，缩放到 250% 盒子是
+   20px 见方而凹弧只有 8px 半径 —— 弧只啃掉左上角一小口，剩下的仍是实心方块，视觉上就是
+   两个「方脚」而非反向圆角（用户在 250% 下反馈「反向圆角过渡不自然」）。0.4375rem=7px、
+   0.5rem=8px @100%，逐像素与原值相同；抗锯齿带宽也随之等比。 */
 .browser-tab-seat::before {
   left: -0.5rem;
   -webkit-mask-image: radial-gradient(
     circle at top left,
-    transparent 7px,
-    #000 8px
+    transparent 0.4375rem,
+    #000 0.5rem
   );
-  mask-image: radial-gradient(circle at top left, transparent 7px, #000 8px);
+  mask-image: radial-gradient(
+    circle at top left,
+    transparent 0.4375rem,
+    #000 0.5rem
+  );
 }
 .browser-tab-seat::after {
   right: -0.5rem;
   -webkit-mask-image: radial-gradient(
     circle at top right,
-    transparent 7px,
-    #000 8px
+    transparent 0.4375rem,
+    #000 0.5rem
   );
-  mask-image: radial-gradient(circle at top right, transparent 7px, #000 8px);
+  mask-image: radial-gradient(
+    circle at top right,
+    transparent 0.4375rem,
+    #000 0.5rem
+  );
 }
 /* Workspace 背景图开启：所有 tab 全透明，seat 反向圆角默认不显示（否则透明 tab 会挂
    var(--background) 白色小圆角）。非激活 tab 的 seat 已不随 hover 显示（见上「仅激活」），

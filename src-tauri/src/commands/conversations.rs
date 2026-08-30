@@ -1246,11 +1246,17 @@ pub async fn get_folder_conversation_core(
     // The transcript is the richer source for the session's model. Codex is
     // the concrete case: an ACP-driven row is created before any
     // `turn_context` names a model, so the DB column can stay NULL forever
-    // while the rollout file knows the answer. Fill the *returned* summary
-    // only — the row itself is left alone — so the usage sync's
-    // session-model fallback and the detail view both see it.
-    if summary.model.is_none() {
-        summary.model = parsed_model;
+    // while the rollout file knows the answer.
+    //
+    // The parse WINS over the column rather than merely filling a hole in it.
+    // `seed_model_if_empty` now persists the first model a session is seen
+    // using, so "fill only when NULL" would pin this summary — and with it the
+    // details dialog, which reads `summary.model` ahead of the turns — to that
+    // first value for the life of the conversation, and a mid-session `/model`
+    // switch would never show. The stored value stays as the fallback for a
+    // transcript that names no model at all.
+    if let Some(parsed) = parsed_model.filter(|m| !m.trim().is_empty()) {
+        summary.model = Some(parsed);
     }
 
     // Historical recovery for the read-only sub-agent viewer: JSONL parsers
@@ -1496,6 +1502,11 @@ pub async fn get_folder_conversation_with_live_core(
     // hand. `refresh_auto_title` re-checks the lock and equality, so once the
     // title converges this becomes a cheap no-op on every later turn. The
     // pre-check here just avoids the extra DB round-trip in the common case.
+    //
+    // One upsert for the whole fetch: the title and the model can both land on
+    // the same open, and the sidebar has no use for two broadcasts of the same
+    // row a microsecond apart.
+    let mut upserted = false;
     if !detail.summary.title_locked {
         if let Some(parsed) = parsed_title.as_deref().map(str::trim) {
             if !parsed.is_empty() && detail.summary.title.as_deref() != Some(parsed) {
@@ -1508,7 +1519,7 @@ pub async fn get_folder_conversation_with_live_core(
                 {
                     Ok(true) => {
                         detail.summary.title = Some(parsed.to_string());
-                        emit_conversation_upsert(emitter, conn, conversation_id).await;
+                        upserted = true;
                         chat_channel_manager
                             .sync_conversation_title(conn, conversation_id, parsed)
                             .await;
@@ -1520,6 +1531,25 @@ pub async fn get_folder_conversation_with_live_core(
                 }
             }
         }
+    }
+
+    // Session-model backfill, the sibling of the auto-title above and for the
+    // same reason: the row was inserted before any model was named, and the
+    // sidebar reads the row rather than the transcript this parse just walked.
+    // `seed_model_if_empty` re-checks emptiness in SQL, so once a session has a
+    // model this is a no-op that writes nothing.
+    if let Some(model) = detail.summary.model.clone() {
+        match conversation_service::seed_model_if_empty(conn, conversation_id, &model).await {
+            Ok(true) => upserted = true,
+            Ok(false) => {}
+            Err(e) => tracing::error!(
+                "[conversations] session-model backfill failed for {conversation_id}: {e}"
+            ),
+        }
+    }
+
+    if upserted {
+        emit_conversation_upsert(emitter, conn, conversation_id).await;
     }
 
     if let Some((pending, started_at)) = manager
