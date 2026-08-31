@@ -10450,6 +10450,15 @@ pub async fn acp_touch_connection(
 
 #[cfg(feature = "tauri-runtime")]
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn acp_probe_connection(
+    connection_id: String,
+    manager: State<'_, ConnectionManager>,
+) -> Result<bool, AcpError> {
+    Ok(manager.is_live(&connection_id).await)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_list_connections(
     manager: State<'_, ConnectionManager>,
 ) -> Result<Vec<ConnectionInfo>, AcpError> {

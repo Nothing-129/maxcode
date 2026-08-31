@@ -52,6 +52,7 @@ describe("advanceReplyFold", () => {
     running: false,
     runId: null,
     roundOpen: true,
+    roundOpenUserPreference: null,
   }
   // Live-message ids — the logical run, one per reply.
   const A = "lm-a"
@@ -73,14 +74,14 @@ describe("advanceReplyFold", () => {
     expect(advanceReplyFold(initial, idle(A))).toBe(initial)
   })
 
-  it("arms once the agent starts replying and stays armed after it settles", () => {
+  it("folds the current round when it settles while keeping it armed", () => {
     const armed = advanceReplyFold(initial, live(A))
     expect(armed.armed).toBe(true)
-    // The reply settling must NOT disarm — that is the auto-fold-on-finish
-    // this replaced. Only the running edge moves.
+    // Completion folds the process work, but the round remains current so a
+    // manual re-open survives the persisted-turn replacements that follow.
     const settled = advanceReplyFold(armed, idle(A))
     expect(settled.armed).toBe(true)
-    expect(settled.roundOpen).toBe(true)
+    expect(settled.roundOpen).toBe(false)
     expect(settled.running).toBe(false)
     // Steady state after that: nothing left to move.
     expect(advanceReplyFold(settled, idle(A))).toBe(settled)
@@ -94,8 +95,29 @@ describe("advanceReplyFold", () => {
       running: true,
       runId: A,
       roundOpen: false,
+      roundOpenUserPreference: false,
     }
     expect(advanceReplyFold(folded, idle(A)).roundOpen).toBe(false)
+  })
+
+  it("keeps an explicit open preference when the round settles", () => {
+    const open: ReplyFoldState = {
+      ...advanceReplyFold(initial, live(A)),
+      roundOpenUserPreference: true,
+    }
+
+    expect(advanceReplyFold(open, idle(A)).roundOpen).toBe(true)
+  })
+
+  it("re-opens an automatically folded round if the same live reply resumes", () => {
+    let s = advanceReplyFold(initial, live(A))
+    s = advanceReplyFold(s, idle(A))
+    expect(s.roundOpen).toBe(false)
+    expect(s.roundOpenUserPreference).toBeNull()
+
+    const rebridged = advanceReplyFold(s, live(A))
+    expect(rebridged.running).toBe(true)
+    expect(rebridged.roundOpen).toBe(true)
   })
 
   it("folds the thread and disarms on send", () => {
@@ -109,6 +131,7 @@ describe("advanceReplyFold", () => {
       armed: false,
       running: false,
       roundOpen: true,
+      roundOpenUserPreference: null,
     })
     // The epoch only ever has to MOVE — its absolute value is an invalidation
     // token, and a round starting bumps it too.
@@ -125,6 +148,7 @@ describe("advanceReplyFold", () => {
       armed: true,
       running: true,
       roundOpen: true,
+      roundOpenUserPreference: null,
     })
     expect(steered.epoch).toBeGreaterThan(armed.epoch)
   })
@@ -149,7 +173,7 @@ describe("advanceReplyFold", () => {
     // Same no-send host: folding round 1 by hand set `roundOpen: false`, and a
     // latched `armed` meant round 2 inherited it and arrived already collapsed.
     let s = advanceReplyFold(initial, live(A))
-    s = { ...s, roundOpen: false } // reader folds the live round
+    s = { ...s, roundOpen: false, roundOpenUserPreference: false }
     s = advanceReplyFold(s, idle(A)) // it settles, still folded
     expect(s.roundOpen).toBe(false)
 
@@ -165,7 +189,7 @@ describe("advanceReplyFold", () => {
     // the reader had folded the old one) with its live content hidden. The live
     // message is the run, so the merge cannot alias the two.
     let s = advanceReplyFold(initial, live(A))
-    s = { ...s, roundOpen: false } // reader folds reply A
+    s = { ...s, roundOpen: false, roundOpenUserPreference: false }
     s = advanceReplyFold(s, idle(null)) // A settles, live message cleared
     const settledEpoch = s.epoch
 
@@ -188,7 +212,7 @@ describe("advanceReplyFold", () => {
     s = advanceReplyFold(s, live(A)) // live stream attaches mid-round
     expect(s.runId).toBe(A)
     const latchedEpoch = s.epoch
-    s = { ...s, roundOpen: false } // reader folds the reply
+    s = { ...s, roundOpen: false, roundOpenUserPreference: false }
 
     s = advanceReplyFold(s, idle(null)) // premature COMPLETE_TURN
     const rebridged = advanceReplyFold(s, live(A))
@@ -204,7 +228,7 @@ describe("advanceReplyFold", () => {
     // reply the reader had folded and fold the history they had opened — on
     // every reconnect.
     let s = advanceReplyFold(initial, live(A))
-    s = { ...s, roundOpen: false } // reader folds the live reply
+    s = { ...s, roundOpen: false, roundOpenUserPreference: false }
     const rebased = advanceReplyFold(s, live(B)) // snapshot hydration
     expect(rebased.runId).toBe(B)
     expect(rebased.epoch).toBe(s.epoch)
@@ -221,7 +245,7 @@ describe("advanceReplyFold", () => {
     // conversation-runtime-context.test.tsx). That reaches the fold state as
     // running true → false → true for ONE reply, carrying one unchanged id.
     let s = advanceReplyFold(initial, live(A))
-    s = { ...s, roundOpen: false } // reader folds the live reply
+    s = { ...s, roundOpen: false, roundOpenUserPreference: false }
     const armedEpoch = s.epoch
 
     s = advanceReplyFold(s, idle(A)) // premature COMPLETE_TURN

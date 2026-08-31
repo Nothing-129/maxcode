@@ -119,7 +119,7 @@ beforeEach(() => {
 })
 
 describe("QuickActionsDropdown", () => {
-  it("groups all eleven actions under their headings on desktop", async () => {
+  it("groups all ten actions under their headings on desktop", async () => {
     await mountAndOpen()
 
     for (const group of ["Workspace", "Sessions", "Navigation", "More"]) {
@@ -134,7 +134,6 @@ describe("QuickActionsDropdown", () => {
       "Import local sessions",
       AUTOMATIONS_ROW,
       "To-dos",
-      "Teambition",
       FORGE_ROW,
       "Show pet",
     ]) {
@@ -200,10 +199,6 @@ describe("QuickActionsDropdown", () => {
     await reopen()
     await clickItem("To-dos")
     expect(mocks.setRoute).toHaveBeenCalledWith("tasks")
-
-    await reopen()
-    await clickItem("Teambition")
-    expect(mocks.setRoute).toHaveBeenCalledWith("teambition")
 
     await reopen()
     await clickItem(FORGE_ROW)

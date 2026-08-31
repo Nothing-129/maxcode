@@ -5,6 +5,13 @@ This file provides guidance to Code Agent when working with code in this reposit
 ## 工作协议
 
 - 如果涉及上传或推送，只允许上传或推送到用户自己的 GitHub 仓库，禁止上传或推送到上游仓库。
+- 合并上游前必须从 `main` 创建临时集成分支，并在合并提交前运行
+  `pnpm upstream:impact`。命中下游重叠文件或行为热点时，需要评审对应上游提交，
+  不得用 `ours` / `theirs` 批量覆盖。
+- 下游专属或与上游不同的用户可观察行为，必须在
+  `src/maxcode-contracts/` 添加独立契约测试，并登记到
+  `config/maxcode-upstream-hotspots.json`。完整流程见
+  `docs/maintenance/upstream-integration.md`。
 
 ## 项目概述
 

@@ -1458,44 +1458,6 @@ export interface WorkTask {
   finished_at: string | null
 }
 
-export interface TeambitionTask {
-  taskId: string
-  projectId: string
-  uniqueId: number
-  content: string
-  tfsId: string
-  sfcId: string
-  executorId: string | null
-  dueDate: string | null
-  accomplishTime: string | null
-  isDone: boolean
-  priority: number
-  created: string
-  updated: string
-}
-
-export interface TeambitionStatus {
-  id: string
-  name: string
-  kind: string
-  pos: number
-  taskflowId: string
-  isDeleted: boolean
-}
-
-export interface TeambitionTaskflow {
-  id: string
-  name: string
-  isDeleted: boolean
-}
-
-export interface TeambitionBoard {
-  projectId: string
-  tasks: TeambitionTask[]
-  statuses: TeambitionStatus[]
-  taskflows: TeambitionTaskflow[]
-}
-
 /** Provenance snapshot of a forge-triggered task (mirrors Rust ForgeSourceMeta). */
 export interface ForgeSourceMeta {
   provider: ForgeProviderId

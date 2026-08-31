@@ -214,11 +214,10 @@ describe("CompletedTurnContent", () => {
     expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
   })
 
-  it("does not fold the round when the reply finishes", () => {
-    // The regression this guards: fold state used to be keyed on the `parts`
-    // array, which the stream settling replaces — so a reply folded itself up
-    // the instant it finished. The host owns the round positionally now, so a
-    // re-adapted (new array) settled reply must stay exactly as open as it was.
+  it("folds the round when the reply finishes", () => {
+    // The host owns the round positionally, so completion can deliberately
+    // fold a re-adapted (new array) reply without relying on component remount
+    // defaults. The final answer remains outside the folded process body.
     const live = freshCompletedParts()
     const view = renderWithIntl(
       <CompletedTurnContent
@@ -242,7 +241,7 @@ describe("CompletedTurnContent", () => {
           durationMs={69_000}
           completed
           currentRound
-          roundOpen
+          roundOpen={false}
           foldEpoch={0}
         />
       </NextIntlClientProvider>
@@ -250,10 +249,9 @@ describe("CompletedTurnContent", () => {
 
     expect(
       screen.getByRole("button", { name: "Worked for 1m 9s" })
-    ).toHaveAttribute("aria-expanded", "true")
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    ).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("I found the relevant component.")).toBeNull()
+    expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
   })
 
   it("does not replay the unfold when an open reply re-mounts", () => {

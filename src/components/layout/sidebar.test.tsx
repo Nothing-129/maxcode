@@ -264,7 +264,7 @@ describe("Sidebar — View options grouping", () => {
     renderSidebar()
     await user.click(screen.getByRole("button", { name: "View options" }))
 
-    // Eight checkboxes inline turned the root into a wall; they now sit one hop
+    // Seven checkboxes inline turned the root into a wall; they now sit one hop
     // in, behind their group. Sort by / Section order stay inline — the
     // control on the right is the proof this is about the two inventories and
     // not the menu failing to render.

@@ -136,6 +136,12 @@ struct SpawnDedupKey {
 /// genuinely broken.
 pub(crate) const SPAWN_HANDSHAKE_TIMEOUT_SECS: u64 = 60;
 
+/// A connection that never leaves `Connecting` owns a real agent process but
+/// cannot serve prompts. Do not let that process live forever merely because a
+/// frontend still has its tab open. The periodic idle sweep applies this
+/// independent deadline even when the normal connected-idle timeout is longer.
+pub(crate) const CONNECTING_TIMEOUT_SECS: u64 = 60;
+
 /// Read the spawn-handshake timeout from `CODEG_ACP_SPAWN_HANDSHAKE_TIMEOUT_SECS`,
 /// falling back to `SPAWN_HANDSHAKE_TIMEOUT_SECS`. Returns the configured
 /// `Duration`. Tests can construct the manager with a custom value via
@@ -372,7 +378,6 @@ impl ConnectionManager {
         let conn = AgentConnection {
             id: id.to_string(),
             agent_type,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(tokio::sync::RwLock::new(state)),
@@ -415,7 +420,6 @@ impl ConnectionManager {
         let conn = AgentConnection {
             id: id.to_string(),
             agent_type,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(tokio::sync::RwLock::new(state)),
@@ -544,13 +548,28 @@ impl ConnectionManager {
         Ok(connection_id)
     }
 
-    /// Bump `last_activity_at` for a live connection so the idle sweep
-    /// won't reap it. Used by the frontend keepalive loop to protect
-    /// connections backing currently-open conversation tabs (the
-    /// frontend is the only side that knows which tabs the user has
-    /// open). Silently no-ops if the connection is missing or already
-    /// in a terminal state — touch must never resurrect a dead
-    /// connection or contend with the spawn/disconnect paths.
+    /// Return whether a connection is live without changing its idle clock.
+    /// Liveness probes must stay read-only: using `touch` for a probe makes a
+    /// background tab immortal because every probe postpones idle collection.
+    pub async fn is_live(&self, conn_id: &str) -> bool {
+        let state_arc = {
+            let connections = self.connections.lock().await;
+            match connections.get(conn_id) {
+                Some(conn) => conn.state.clone(),
+                None => return false,
+            }
+        };
+        let state = state_arc.read().await;
+        !matches!(
+            state.status,
+            ConnectionStatus::Disconnected | ConnectionStatus::Error
+        )
+    }
+
+    /// Bump `last_activity_at` for a live connection so the idle sweep won't
+    /// reap it. Reserved for surfaces the user is actively using. A connecting
+    /// row deliberately does NOT get its clock refreshed: the independent
+    /// connecting watchdog must be able to reclaim a wedged startup.
     pub async fn touch(&self, conn_id: &str) -> bool {
         let state_arc = {
             let connections = self.connections.lock().await;
@@ -566,12 +585,16 @@ impl ConnectionManager {
         ) {
             return false;
         }
-        state.last_activity_at = chrono::Utc::now();
+        if state.status != ConnectionStatus::Connecting {
+            state.last_activity_at = chrono::Utc::now();
+        }
         true
     }
 
-    /// Disconnect connections that have been idle longer than `idle_timeout`.
-    /// "Idle" means: status is `Connected`, no `pending_permission`, no
+    /// Disconnect connections that have been idle longer than `idle_timeout`,
+    /// plus startups that remain `Connecting` past
+    /// [`CONNECTING_TIMEOUT_SECS`]. "Idle" means: status is `Connected`, no
+    /// `pending_permission`, no
     /// launched-but-unresolved background work (async sub-agent / background
     /// shell — disconnecting kills the agent CLI and the background work with
     /// it), and no activity (no events, no commands) for at least
@@ -593,18 +616,29 @@ impl ConnectionManager {
                     // mutex on it.
                     continue;
                 };
-                if state.status != ConnectionStatus::Connected {
-                    continue;
-                }
-                if state.pending_permission.is_some() {
-                    continue;
-                }
-                if state.has_active_background_work(now) {
-                    continue;
-                }
                 let elapsed = now.signed_duration_since(state.last_activity_at);
-                if elapsed >= timeout {
-                    victims.push(id.clone());
+                match state.status.clone() {
+                    ConnectionStatus::Connecting => {
+                        let connecting_timeout =
+                            chrono::Duration::seconds(CONNECTING_TIMEOUT_SECS as i64);
+                        if elapsed >= connecting_timeout {
+                            victims.push(id.clone());
+                        }
+                    }
+                    ConnectionStatus::Connected => {
+                        if state.pending_permission.is_some() {
+                            continue;
+                        }
+                        if state.has_active_background_work(now) {
+                            continue;
+                        }
+                        if elapsed >= timeout {
+                            victims.push(id.clone());
+                        }
+                    }
+                    ConnectionStatus::Prompting
+                    | ConnectionStatus::Disconnected
+                    | ConnectionStatus::Error => {}
                 }
             }
             victims
@@ -2325,8 +2359,22 @@ impl ConnectionManager {
     }
 
     pub async fn list_connections(&self) -> Vec<ConnectionInfo> {
-        let connections = self.connections.lock().await;
-        connections.values().map(|c| c.info()).collect()
+        let rows: Vec<_> = {
+            let connections = self.connections.lock().await;
+            connections
+                .values()
+                .map(|conn| (conn.id.clone(), conn.agent_type, conn.state.clone()))
+                .collect()
+        };
+        let mut out = Vec::with_capacity(rows.len());
+        for (id, agent_type, state) in rows {
+            out.push(ConnectionInfo {
+                id,
+                agent_type,
+                status: state.read().await.status.clone(),
+            });
+        }
+        out
     }
 
     /// Raw per-connection rows for the pet panel's active-session list.
@@ -3474,7 +3522,6 @@ mod tests {
         AgentConnection {
             id: id.to_string(),
             agent_type: crate::models::agent::AgentType::ClaudeCode,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),
@@ -3807,7 +3854,6 @@ mod tests {
         let conn = AgentConnection {
             id: conn_id.to_string(),
             agent_type,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),
@@ -4580,7 +4626,6 @@ mod tests {
         let conn = AgentConnection {
             id: "c-shield".to_string(),
             agent_type: AgentType::ClaudeCode,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),
@@ -5782,6 +5827,70 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn liveness_probe_does_not_refresh_idle_clock() {
+        let mgr = ConnectionManager::new();
+        insert_fake_connection(
+            &mgr,
+            "probe-only",
+            AgentType::ClaudeCode,
+            None,
+            EventEmitter::Noop,
+        )
+        .await;
+        backdate_last_activity(&mgr, "probe-only", 600).await;
+
+        assert!(mgr.is_live("probe-only").await);
+        let n = mgr.sweep_idle(Duration::from_secs(300)).await;
+        assert_eq!(n, 1, "a read-only probe must not keep an idle agent hot");
+    }
+
+    #[tokio::test]
+    async fn connecting_touch_does_not_postpone_watchdog() {
+        let mgr = ConnectionManager::new();
+        insert_fake_connection(
+            &mgr,
+            "wedged-start",
+            AgentType::ClaudeCode,
+            None,
+            EventEmitter::Noop,
+        )
+        .await;
+        {
+            let state = mgr.get_state("wedged-start").await.unwrap();
+            state.write().await.status = ConnectionStatus::Connecting;
+        }
+        backdate_last_activity(&mgr, "wedged-start", CONNECTING_TIMEOUT_SECS as i64 + 1).await;
+
+        assert!(mgr.touch("wedged-start").await);
+        let n = mgr.sweep_idle(Duration::from_secs(3600)).await;
+        assert_eq!(
+            n, 1,
+            "a wedged startup must be reclaimed after its deadline"
+        );
+    }
+
+    #[tokio::test]
+    async fn list_connections_reads_authoritative_session_status() {
+        let mgr = ConnectionManager::new();
+        insert_fake_connection(
+            &mgr,
+            "live-status",
+            AgentType::ClaudeCode,
+            None,
+            EventEmitter::Noop,
+        )
+        .await;
+        {
+            let state = mgr.get_state("live-status").await.unwrap();
+            state.write().await.status = ConnectionStatus::Prompting;
+        }
+
+        let rows = mgr.list_connections().await;
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].status, ConnectionStatus::Prompting);
+    }
+
+    #[tokio::test]
     async fn sweep_idle_disconnects_idle_connected_connections() {
         let mgr = ConnectionManager::new();
         insert_fake_connection(
@@ -6221,7 +6330,6 @@ mod tests {
         let conn = AgentConnection {
             id: conn_id.to_string(),
             agent_type: crate::models::agent::AgentType::ClaudeCode,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),
@@ -6904,7 +7012,6 @@ mod tests {
         let conn = AgentConnection {
             id: "c-relink".to_string(),
             agent_type: AgentType::ClaudeCode,
-            status: ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),

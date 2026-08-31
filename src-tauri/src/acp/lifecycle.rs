@@ -1739,7 +1739,6 @@ mod tests {
         crate::acp::connection::AgentConnection {
             id: id.to_string(),
             agent_type: AgentType::ClaudeCode,
-            status: crate::acp::types::ConnectionStatus::Connected,
             owner_window_label: "test-window".to_string(),
             cmd_tx: tx,
             state: Arc::new(RwLock::new(state)),

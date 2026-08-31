@@ -36,6 +36,10 @@ const ReleaseNotes = dynamic(
 
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
 
+function updateToastId(version: string): string {
+  return `app-update-${version}`
+}
+
 function Spinner({ className }: { className?: string }) {
   return (
     <div
@@ -138,10 +142,17 @@ export function StatusBarUpdate() {
     if (readDismissedVersion() === availableVersion) return
     if (readNotifiedVersion() === availableVersion) return
     writeNotifiedVersion(availableVersion)
+    const toastId = updateToastId(availableVersion)
     toast.info(t("foundUpdate", { version: availableVersion }), {
+      id: toastId,
       action: {
         label: t("viewRelease", { version: availableVersion }),
-        onClick: () => setOpen(true),
+        onClick: () => {
+          // The update panel opens directly above the status bar. Leaving this
+          // bottom-right toast mounted would cover its primary action.
+          toast.dismiss(toastId)
+          setOpen(true)
+        },
       },
     })
   }, [availableVersion, dismissedVersion, t])
@@ -284,7 +295,15 @@ export function StatusBarUpdate() {
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (nextOpen && availableVersion) {
+          toast.dismiss(updateToastId(availableVersion))
+        }
+        setOpen(nextOpen)
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           aria-label={triggerLabel}

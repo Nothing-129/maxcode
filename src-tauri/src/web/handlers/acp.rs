@@ -156,6 +156,17 @@ pub async fn acp_touch_connection(
     Ok(Json(touched))
 }
 
+pub async fn acp_probe_connection(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<AcpTouchConnectionParams>,
+) -> Result<Json<bool>, AppCommandError> {
+    let live = state
+        .connection_manager
+        .is_live(&params.connection_id)
+        .await;
+    Ok(Json(live))
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AcpPromptParams {

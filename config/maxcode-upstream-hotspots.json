@@ -1,0 +1,321 @@
+{
+  "version": 2,
+  "hotspots": [
+    {
+      "id": "maintenance.upstream-integration-guard",
+      "category": "maintenance",
+      "description": "MaxCode inventories downstream behavior, detects incoming overlap, and runs independent contracts before an upstream merge.",
+      "origins": ["worktree-2026-08-31"],
+      "paths": [
+        "config/maxcode-upstream-hotspots.json",
+        "scripts/check-upstream-impact.mjs",
+        "docs/maintenance/",
+        "eslint.config.mjs",
+        "package.json",
+        ".github/workflows/test.yml",
+        "AGENTS.md"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-impact-guard.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.reply-folding",
+      "category": "product",
+      "description": "Live work stays expanded, completed process work folds automatically, the final answer stays visible, and an explicit reader preference wins.",
+      "origins": ["108154e4", "worktree-2026-08-31"],
+      "paths": [
+        "src/components/message/completed-turn-content.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-reply-folding.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "conversations.agent-defaults",
+      "category": "product",
+      "description": "New drafts remember the last agent per scope, then fall back through folder, inherited, and user-sorted agent choices.",
+      "origins": ["dc86bec0", "16941c88"],
+      "paths": [
+        "src/lib/resolve-default-agent.ts",
+        "src/lib/last-selected-agent-storage.ts",
+        "src/lib/enabled-acp-agents-storage.ts",
+        "src/hooks/use-acp-agents.ts",
+        "src/stores/tab-store.ts",
+        "src/components/conversations/conversation-detail-panel.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-and-ui.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversations.unread-and-status",
+      "category": "product",
+      "description": "Settled background activity becomes unread, visible threads clear, all unread can be cleared, and status colors/actions remain independently configurable.",
+      "origins": ["53144985", "06bb8457", "c283e981", "8d9cb933", "1a4a3532"],
+      "paths": [
+        "src/lib/conversation-unread.ts",
+        "src/lib/conversation-unread-storage.ts",
+        "src/lib/conversation-status-prefs.ts",
+        "src/lib/ui-preferences-store.ts",
+        "src/stores/conversation-unread-store.ts",
+        "src/components/conversations/conversation-unread-sync.tsx",
+        "src/components/conversations/conversation-unread-dot.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/tabs/tab-item.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-and-ui.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversations.sidebar-folder-interactions",
+      "category": "product",
+      "description": "Completed sessions are hidden by default; sidebar sections, folders, worktrees, paging, trackpad reorder, and newly created folder ordering stay stable.",
+      "origins": [
+        "108154e4",
+        "bae6751c",
+        "9eaecc27",
+        "2245d322",
+        "7ca7b5b3",
+        "16941c88",
+        "worktree-2026-08-31"
+      ],
+      "paths": [
+        "src/lib/sidebar-view-mode-storage.ts",
+        "src/components/conversations/sidebar-conversation-grouping.ts",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/stores/app-workspace-store.ts",
+        "src-tauri/src/db/service/folder_service.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-and-ui.contract.test.ts"
+      ]
+    },
+    {
+      "id": "navigation.tabs-touch-and-selection",
+      "category": "product",
+      "description": "Conversation tabs scroll at fixed width, fine-pointer drag requires intent, mobile navigation collapses correctly, and transcript text remains selectable.",
+      "origins": ["7a445edf", "f60fecca", "eb9cee07", "7ca7b5b3"],
+      "paths": [
+        "src/components/tabs/tab-bar.tsx",
+        "src/components/tabs/tab-item.tsx",
+        "src/hooks/use-long-press-drag.ts",
+        "src/hooks/use-collapse-sidebar-on-navigate.ts",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-and-ui.contract.test.ts"
+      ]
+    },
+    {
+      "id": "messages.local-paths-and-artifacts",
+      "category": "product",
+      "description": "Plain local artifact paths become safe file references and binary artifacts open or reveal through the desktop host.",
+      "origins": ["7ca7b5b3", "06bb8457", "c283e981"],
+      "paths": [
+        "src/components/ai-elements/remark-autolink-local-paths.ts",
+        "src/components/ai-elements/message.tsx",
+        "src/components/message/file-reference-actions.tsx",
+        "src/lib/language-detect.ts",
+        "src-tauri/capabilities/default.json"
+      ],
+      "contracts": ["src/maxcode-contracts/local-paths.contract.test.ts"]
+    },
+    {
+      "id": "messages.system-font-and-duration",
+      "category": "product",
+      "description": "System sans/mono fonts are the defaults and completed turns show an inferred processed duration when the agent omits one.",
+      "origins": ["d61af64a"],
+      "paths": [
+        "src/lib/font-presets.ts",
+        "src/lib/appearance-script.ts",
+        "src/components/message/turn-stats.tsx",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-and-ui.contract.test.ts"
+      ]
+    },
+    {
+      "id": "web.auth-and-session-recovery",
+      "category": "runtime",
+      "description": "Transient WebSocket loss preserves credentials, probes health with backoff, restores subscriptions, and only authenticated 401 responses show session expiry.",
+      "origins": ["352bc868", "2c859b2a"],
+      "paths": [
+        "src/lib/transport/web-transport.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/message/live-transcript-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
+      "id": "web.pwa-installation",
+      "category": "platform",
+      "description": "Web deployments expose an installable standalone PWA while Tauri avoids service-worker registration.",
+      "origins": ["cbd85449", "bddabc51"],
+      "paths": [
+        "src/app/manifest.ts",
+        "src/app/layout.tsx",
+        "src/components/pwa-register.tsx",
+        "public/sw.js",
+        "public/icon-192.png",
+        "public/icon-512.png",
+        "public/icon-maskable-192.png",
+        "public/icon-maskable-512.png"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
+      "id": "updates.maxcode-channel-and-ui",
+      "category": "product",
+      "description": "The status bar reports MaxCode releases, persists discovery/dismissal, and dismisses a discovery toast when its update panel opens.",
+      "origins": ["b558e9bb", "ba09a7b5", "dceb62ac", "worktree-2026-08-31"],
+      "paths": [
+        "src/components/layout/status-bar-update.tsx",
+        "src/components/providers/update-provider.tsx",
+        "src/lib/update-check-storage.ts",
+        "src-tauri/src/commands/app_update.rs",
+        "src-tauri/tauri.conf.json"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
+      "id": "agents.acp-compatibility-and-titles",
+      "category": "runtime",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, CLI-generated titles, locale-aware Grok titles, history plans, and redundant image-read filtering.",
+      "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/acp/codex_catalog_source.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/parsers/grok.rs",
+        "src-tauri/src/session_title.rs",
+        "src/components/settings/acp-agent-settings.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+    },
+    {
+      "id": "agents.bounded-connection-lifecycle",
+      "category": "runtime",
+      "description": "Only active surfaces refresh idle time, background probes are read-only, two idle owner processes stay warm, busy work is protected, and wedged startup processes are reaped.",
+      "origins": ["2c859b2a", "worktree-2026-08-31"],
+      "paths": [
+        "src/lib/constants.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/idle_sweep.rs",
+        "src-tauri/src/acp/lifecycle.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/web/handlers/acp.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/acp-runtime.contract.test.ts"]
+    },
+    {
+      "id": "settings.pi-maximum-thinking",
+      "category": "product",
+      "description": "Pi exposes its extended maximum thinking level and labels it in every supported locale.",
+      "origins": ["e1fda1d3"],
+      "paths": [
+        "src/lib/pi-thinking.ts",
+        "src/components/settings/pi-config-panel.tsx",
+        "src/i18n/messages/ar.json",
+        "src/i18n/messages/de.json",
+        "src/i18n/messages/en.json",
+        "src/i18n/messages/es.json",
+        "src/i18n/messages/fr.json",
+        "src/i18n/messages/ja.json",
+        "src/i18n/messages/ko.json",
+        "src/i18n/messages/pt.json",
+        "src/i18n/messages/zh-CN.json",
+        "src/i18n/messages/zh-TW.json"
+      ],
+      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+    },
+    {
+      "id": "android.webview-client",
+      "category": "platform",
+      "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, and device compatibility fixes.",
+      "origins": ["bddabc51", "worktree-2026-08-31"],
+      "paths": [
+        "android-webview/",
+        "src/app/globals.css",
+        "src/app/manifest.ts"
+      ],
+      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+    },
+    {
+      "id": "branding.maxcode",
+      "category": "branding",
+      "description": "Product names, icons, documentation, installers, and release links remain on the MaxCode personal fork.",
+      "origins": ["9eaecc27", "dc86bec0", "c7a21a24"],
+      "paths": [
+        "README.md",
+        "docs/readme/",
+        "public/icon.svg",
+        "public/icon-32x32.png",
+        "public/icon-128x128.png",
+        "src-tauri/icons/",
+        "src-tauri/tauri.conf.json",
+        "install.sh",
+        "install.ps1"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
+      "id": "release.signed-multiplatform-artifacts",
+      "category": "release",
+      "description": "Release automation builds only explicit desktop/server targets, signs updater artifacts, validates latest.json, notarizes macOS, and publishes MaxCode-named bundles.",
+      "origins": [
+        "dceb62ac",
+        "fb081d78",
+        "6f2d54d7",
+        "cac62307",
+        "f9fe2f61",
+        "080f85ab",
+        "184ed068",
+        "ed829b52"
+      ],
+      "paths": [
+        ".github/workflows/release.yml",
+        "src-tauri/tauri.conf.json",
+        "src-tauri/src/update/",
+        "install.sh",
+        "install.ps1"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    }
+  ],
+  "retired": [
+    {
+      "id": "integrations.teambition",
+      "category": "product",
+      "status": "retired",
+      "description": "The Teambition task-board integration was added and then intentionally removed before this inventory was established.",
+      "origins": ["16f8bbbb", "worktree-2026-08-31"],
+      "reason": "The current product no longer exposes the route, settings, frontend components, API, or backend handlers; it must not be resurrected during an upstream merge."
+    }
+  ]
+}

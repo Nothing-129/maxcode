@@ -46,6 +46,18 @@ fn to_detail(m: folder::Model) -> FolderDetail {
     }
 }
 
+/// Return a sort value ahead of every folder currently in the database.
+/// Existing values are left untouched, so their relative order is preserved.
+async fn highest_priority_sort_order(conn: &DatabaseConnection) -> Result<i32, DbError> {
+    Ok(folder::Entity::find()
+        .order_by_asc(folder::Column::SortOrder)
+        .one(conn)
+        .await?
+        .map(|m| m.sort_order)
+        .unwrap_or(1)
+        .saturating_sub(1))
+}
+
 pub async fn get_folder_by_id(
     conn: &DatabaseConnection,
     folder_id: i32,
@@ -108,6 +120,7 @@ async fn add_folder_inner(
         .await?;
 
     let model = if let Some(row) = existing {
+        let is_reopening = !row.is_open || row.deleted_at.is_some();
         let mut active = row.into_active_model();
         active.name = Set(name);
         active.last_opened_at = Set(now);
@@ -119,14 +132,15 @@ async fn add_folder_inner(
         if let ParentWrite::Set(parent_id) = parent {
             active.parent_id = Set(parent_id);
         }
+        if is_reopening {
+            active.sort_order = Set(highest_priority_sort_order(conn).await?);
+        }
         active.update(conn).await?
     } else {
-        let max_order = folder::Entity::find()
-            .order_by_desc(folder::Column::SortOrder)
-            .one(conn)
-            .await?
-            .map(|m| m.sort_order)
-            .unwrap_or(0);
+        // Lower values render first. Give a newly opened workspace folder the
+        // highest priority while preserving the relative order of every
+        // existing folder.
+        let first_order = highest_priority_sort_order(conn).await?;
         let active = folder::ActiveModel {
             id: NotSet,
             name: Set(name.clone()),
@@ -138,7 +152,7 @@ async fn add_folder_inner(
             updated_at: Set(now),
             deleted_at: Set(None),
             is_open: Set(true),
-            sort_order: Set(max_order + 1),
+            sort_order: Set(first_order),
             color: Set(DEFAULT_FOLDER_COLOR.to_string()),
             parent_id: Set(match parent {
                 ParentWrite::Preserve => None,
@@ -413,9 +427,13 @@ pub async fn set_folder_open(
     let row = folder::Entity::find_by_id(folder_id).one(conn).await?;
 
     if let Some(row) = row {
+        let is_reopening = is_open && !row.is_open;
         let mut active = row.into_active_model();
         active.is_open = Set(is_open);
         active.updated_at = Set(Utc::now());
+        if is_reopening {
+            active.sort_order = Set(highest_priority_sort_order(conn).await?);
+        }
         active.update(conn).await?;
     }
     Ok(())
@@ -508,4 +526,50 @@ pub async fn reorder_folders(conn: &DatabaseConnection, ids: Vec<i32>) -> Result
         .await?;
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db::test_helpers::fresh_in_memory_db;
+
+    #[tokio::test]
+    async fn newly_added_folder_has_the_highest_sort_priority() {
+        let db = fresh_in_memory_db().await;
+        let first = add_folder(&db.conn, "/tmp/first").await.unwrap();
+        let second = add_folder(&db.conn, "/tmp/second").await.unwrap();
+
+        // Establish an explicit existing order, then verify that adding a
+        // folder places it ahead without disturbing that order.
+        reorder_folders(&db.conn, vec![first.id, second.id])
+            .await
+            .unwrap();
+        let newest = add_folder(&db.conn, "/tmp/newest").await.unwrap();
+
+        let listed = list_open_folder_details(&db.conn).await.unwrap();
+        assert_eq!(
+            listed.iter().map(|folder| folder.id).collect::<Vec<_>>(),
+            vec![newest.id, first.id, second.id]
+        );
+        assert!(listed[0].sort_order < listed[1].sort_order);
+    }
+
+    #[tokio::test]
+    async fn reopened_folder_returns_with_the_highest_sort_priority() {
+        let db = fresh_in_memory_db().await;
+        let first = add_folder(&db.conn, "/tmp/first").await.unwrap();
+        let second = add_folder(&db.conn, "/tmp/second").await.unwrap();
+        reorder_folders(&db.conn, vec![first.id, second.id])
+            .await
+            .unwrap();
+
+        set_folder_open(&db.conn, second.id, false).await.unwrap();
+        set_folder_open(&db.conn, second.id, true).await.unwrap();
+
+        let listed = list_open_folder_details(&db.conn).await.unwrap();
+        assert_eq!(
+            listed.iter().map(|folder| folder.id).collect::<Vec<_>>(),
+            vec![second.id, first.id]
+        );
+    }
 }

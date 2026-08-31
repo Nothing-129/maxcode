@@ -30,6 +30,7 @@ import {
   acpAnswerQuestion,
   acpAnswerPlanApproval,
   acpDisconnect,
+  acpProbeConnection,
   acpTouchConnection,
   acpGetSessionSnapshot,
   acpFindConnectionForConversation,
@@ -82,6 +83,7 @@ import {
   CONNECTION_IDLE_TIMEOUT_MS,
   CONNECTION_KEEPALIVE_INTERVAL_MS,
   IDLE_SWEEP_INTERVAL_MS,
+  MAX_IDLE_WARM_CONNECTIONS,
 } from "@/lib/constants"
 import { sendSystemNotification } from "@/lib/notification"
 import {
@@ -353,6 +355,76 @@ export interface ConnectionState {
    * the snapshot — dismissal is per-client UI state.
    */
   configStaleDismissed: boolean
+}
+
+export interface IdleWarmConnectionEviction {
+  connectionId: string
+  contextKeys: string[]
+}
+
+/**
+ * Select background, idle OWNER connections beyond the warm LRU budget.
+ * Grouping by backend connection id is load-bearing: backend dedup can give
+ * several local surfaces the same process, and it must be evicted at most once.
+ * Unknown/busy/viewer/delegation states fail closed and are never candidates.
+ */
+export function selectIdleWarmConnectionEvictions(
+  connections: ReadonlyMap<string, ConnectionState>,
+  openTabKeys: ReadonlySet<string>,
+  activeKey: string | null,
+  lastActivity: ReadonlyMap<string, number>,
+  maxWarm = MAX_IDLE_WARM_CONNECTIONS
+): IdleWarmConnectionEviction[] {
+  type Group = IdleWarmConnectionEviction & {
+    hasOpenTab: boolean
+    hasOwner: boolean
+    protected: boolean
+    lastActive: number
+  }
+  const groups = new Map<string, Group>()
+  for (const [contextKey, conn] of connections) {
+    let group = groups.get(conn.connectionId)
+    if (!group) {
+      group = {
+        connectionId: conn.connectionId,
+        contextKeys: [],
+        hasOpenTab: false,
+        hasOwner: false,
+        protected: false,
+        lastActive: 0,
+      }
+      groups.set(conn.connectionId, group)
+    }
+    group.contextKeys.push(contextKey)
+    group.hasOpenTab ||= openTabKeys.has(contextKey)
+    group.hasOwner ||= !conn.isViewer && !conn.isDelegationChild
+    group.lastActive = Math.max(
+      group.lastActive,
+      lastActivity.get(contextKey) ?? 0
+    )
+    group.protected ||=
+      contextKey === activeKey ||
+      conn.status !== "connected" ||
+      conn.isViewer ||
+      conn.isDelegationChild ||
+      conn.backgroundOutstanding > 0 ||
+      conn.pendingPermission != null ||
+      conn.pendingAskQuestion != null ||
+      conn.pendingPlanApproval != null
+  }
+
+  const candidates = [...groups.values()]
+    .filter((group) => group.hasOpenTab && group.hasOwner && !group.protected)
+    .sort(
+      (a, b) =>
+        b.lastActive - a.lastActive ||
+        a.connectionId.localeCompare(b.connectionId)
+    )
+
+  return candidates.slice(Math.max(0, maxWarm)).map((group) => ({
+    connectionId: group.connectionId,
+    contextKeys: group.contextKeys,
+  }))
 }
 
 type ConnectRequest = {
@@ -2904,6 +2976,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // Open tab keys — updated by child TabProvider via registerOpenTabKeys
   const openTabKeysRef = useRef(new Set<string>())
+  // Backend ids currently being LRU/idle-evicted. Teardown is async, so a slow
+  // disconnect must not be issued again on the next timer tick.
+  const evictingConnectionIdsRef = useRef(new Set<string>())
 
   // Guard against concurrent connect() calls
   const connectingKeysRef = useRef(new Set<string>())
@@ -4567,15 +4642,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   /**
    * Ask the backend whether it still holds a live connection under this id.
-   * `acp_touch_connection` answers `false` for BOTH "unknown id" and "already
-   * terminal", which is exactly the question. A transport failure is
-   * inconclusive, so it counts as alive — a flaky IPC must never settle a
-   * healthy streaming session.
+   * This probe is deliberately read-only: checking a background tab must not
+   * postpone its idle deadline. A transport failure is inconclusive, so it
+   * counts as alive — a flaky IPC must never settle a healthy stream.
    */
   const isConnectionLiveOnBackend = useCallback(
     async (connectionId: string): Promise<boolean> => {
       try {
-        return await acpTouchConnection(connectionId)
+        return await acpProbeConnection(connectionId)
       } catch {
         return true
       }
@@ -4614,20 +4688,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [dispatch, releaseConnectionRoute, teardownAttachSubscription]
   )
 
-  // ── Backend keepalive + liveness reconciliation timer ──
-  // Frontend is the only side that knows which conversation tabs the
-  // user has open. Without this, the backend's idle sweep
-  // (CODEG_ACP_IDLE_TIMEOUT_SECS, default 180s) would reap connections
-  // backing visible tabs whenever the user was just reading without
-  // sending — forcing them to re-spawn the agent on next message.
-  // Touching only bumps last_activity_at; it does not emit any event.
-  //
-  // The touch doubles as a liveness probe, and every non-terminal state is
-  // probed — not just `connected`. A `prompting` entry whose terminal event
-  // went missing is otherwise unreachable: no sweep re-checks it and
-  // `connect()` treats it as already connected, so the tab sits on
-  // "responding" with a dead Stop button. `false` means the backend has no
-  // live connection under that id, which is exactly the condition to settle.
+  // ── Active keepalive + read-only liveness reconciliation ──
+  // Only the active surface refreshes the backend idle clock. Every open tab is
+  // still probed so a missed terminal event cannot strand its local state, but
+  // those probes no longer make background agents immortal.
   useEffect(() => {
     const timer = setInterval(() => {
       const currentActiveKey = storeRef.current.activeKey
@@ -4649,7 +4713,11 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       if (currentActiveKey) consider(currentActiveKey)
       for (const contextKey of currentOpenTabKeys) consider(contextKey)
       for (const { contextKey, connectionId } of toTouch) {
-        void isConnectionLiveOnBackend(connectionId).then((live) => {
+        const check =
+          contextKey === currentActiveKey
+            ? acpTouchConnection(connectionId).catch(() => true)
+            : isConnectionLiveOnBackend(connectionId)
+        void check.then((live) => {
           if (!live) markConnectionGone(contextKey, connectionId)
         })
       }
@@ -4658,24 +4726,28 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(timer)
   }, [isConnectionLiveOnBackend, markConnectionGone])
 
-  // ── Idle sweep timer ──
-  // Complements the backend keepalive: this sweep targets connections
-  // that are NOT in `openTabKeys ∪ {activeKey}` — i.e. connections the
-  // frontend opened but is no longer surfacing to the user (panel
-  // dismissed, navigated away). The backend's own idle sweep would
-  // reap them on its 60s cadence regardless; doing it here too keeps
-  // the React store free of stale entries and triggers an explicit
-  // disconnect rather than waiting for the backend's own timeout.
-  // Connections backing currently-open tabs are never reaped here —
-  // those are kept alive by the keepalive loop above.
+  // ── Idle + warm-LRU sweep timer ──
+  // Closed surfaces retain the one-minute local timeout. Open tabs may keep at
+  // most MAX_IDLE_WARM_CONNECTIONS background owner processes; overflow is
+  // disconnected least-recently-used first while tabs and transcripts remain.
+  // Busy, permission-blocked, viewer and delegation connections are protected.
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now()
       const currentActiveKey = storeRef.current.activeKey
-
       const currentOpenTabKeys = openTabKeysRef.current
-      const toDisconnect: { contextKey: string; connectionId: string }[] = []
+      const groupsToDisconnect = new Map<string, string[]>()
+      for (const group of selectIdleWarmConnectionEvictions(
+        storeRef.current.connections,
+        currentOpenTabKeys,
+        currentActiveKey,
+        lastActivityRef.current
+      )) {
+        groupsToDisconnect.set(group.connectionId, group.contextKeys)
+      }
+
       for (const [contextKey, conn] of storeRef.current.connections) {
+        if (groupsToDisconnect.has(conn.connectionId)) continue
         if (contextKey === currentActiveKey) continue
         if (currentOpenTabKeys.has(contextKey)) continue
         if (conn.status === "prompting" || conn.status === "connecting") {
@@ -4700,23 +4772,52 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         if (conn.backgroundOutstanding > 0) continue
         const lastActive = lastActivityRef.current.get(contextKey) ?? 0
         if (now - lastActive > CONNECTION_IDLE_TIMEOUT_MS) {
-          toDisconnect.push({
-            contextKey,
-            connectionId: conn.connectionId,
-          })
+          const keys = groupsToDisconnect.get(conn.connectionId) ?? []
+          keys.push(contextKey)
+          groupsToDisconnect.set(conn.connectionId, keys)
         }
       }
 
-      for (const { contextKey, connectionId } of toDisconnect) {
-        acpDisconnect(connectionId).catch(() => {})
-        releaseConnectionRoute(connectionId, contextKey)
-        teardownAttachSubscription(contextKey)
-        lastActivityRef.current.delete(contextKey)
+      for (const [connectionId, selectedKeys] of groupsToDisconnect) {
+        if (evictingConnectionIdsRef.current.has(connectionId)) continue
+
+        // Re-check the whole deduplicated backend group immediately before
+        // teardown. A tab can become active or receive work between selection
+        // and this loop; fail closed instead of interrupting it.
+        const liveKeys = [...storeRef.current.connections]
+          .filter(([, conn]) => conn.connectionId === connectionId)
+          .map(([key]) => key)
+        const protectedNow = liveKeys.some((key) => {
+          const conn = storeRef.current.connections.get(key)
+          return (
+            !conn ||
+            key === storeRef.current.activeKey ||
+            conn.status !== "connected" ||
+            conn.isViewer ||
+            conn.isDelegationChild ||
+            conn.backgroundOutstanding > 0 ||
+            conn.pendingPermission != null ||
+            conn.pendingAskQuestion != null ||
+            conn.pendingPlanApproval != null
+          )
+        })
+        if (protectedNow) continue
+
+        const keys = new Set([...selectedKeys, ...liveKeys])
+        evictingConnectionIdsRef.current.add(connectionId)
+        void acpDisconnect(connectionId)
+          .catch(() => {})
+          .finally(() => evictingConnectionIdsRef.current.delete(connectionId))
+        for (const contextKey of keys) {
+          releaseConnectionRoute(connectionId, contextKey)
+          teardownAttachSubscription(contextKey)
+          lastActivityRef.current.delete(contextKey)
+          // Reclaimed for idleness, not closed: the tab is still open and its
+          // next activation must resume this session, not start a new one.
+          captureIdentityBeforeRemoval(contextKey)
+          dispatch({ type: "CONNECTION_REMOVED", contextKey })
+        }
         pendingUnmappedEventsRef.current.delete(connectionId)
-        // Reclaimed for idleness, not closed: the tab is still open and its
-        // Reconnect button must resume this session, not start a new one.
-        captureIdentityBeforeRemoval(contextKey)
-        dispatch({ type: "CONNECTION_REMOVED", contextKey })
       }
     }, IDLE_SWEEP_INTERVAL_MS)
 

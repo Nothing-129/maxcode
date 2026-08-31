@@ -289,6 +289,19 @@ describe("applyFolderRemove", () => {
   })
 })
 
+describe("upsertFolder — sort priority", () => {
+  it("places a newly added highest-priority folder first immediately", () => {
+    const store = useAppWorkspaceStore.getState()
+    store.upsertFolder(makeFolder({ id: 1, sort_order: 1 }))
+    store.upsertFolder(makeFolder({ id: 2, sort_order: 2 }))
+    store.upsertFolder(makeFolder({ id: 3, sort_order: 0 }))
+
+    const after = useAppWorkspaceStore.getState()
+    expect(after.folders.map((folder) => folder.id)).toEqual([3, 1, 2])
+    expect(after.allFolders.map((folder) => folder.id)).toEqual([3, 1, 2])
+  })
+})
+
 describe("applyFolderRemove — in-flight fetch resurrection guard", () => {
   it("subtracts a removed folder from a snapshot that was already in flight", async () => {
     // Mount / reconnect `fetchFolders` replaces both lists wholesale. A

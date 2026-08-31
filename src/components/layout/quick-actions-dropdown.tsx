@@ -13,7 +13,6 @@ import {
   PawPrint,
   Rocket,
   Settings,
-  SquareKanban,
   Zap,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -249,12 +248,6 @@ export function QuickActionsDropdown() {
                 {attentionCount}
               </span>
             )}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => setRoute("teambition")}>
-            <SquareKanban />
-            <span className="min-w-0 flex-1 truncate">
-              {tSidebar("teambition")}
-            </span>
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => setRoute("forge")}>
             <LayoutTemplate />

@@ -182,11 +182,12 @@ export type ThreadRenderItem =
  * the turns themselves.
  *
  * - `armed` — the agent has started replying since the last send, so the newest
- *   assistant run is "the current round" and shows expanded. Within an epoch it
- *   only ever latches TRUE: a round must not fold itself up the moment it
- *   finishes.
- * - `roundOpen` — that round's toggle, so folding it by hand sticks through the
- *   re-adaptations a reply goes through on its way into history.
+ *   assistant run is "the current round". Within an epoch it stays latched after
+ *   completion so a manual re-open survives the re-adaptations that follow.
+ * - `roundOpen` — that round's toggle. A running round starts open and folds
+ *   automatically on completion; a reader can then open it again.
+ * - `roundOpenUserPreference` — preserves an explicit toggle across completion
+ *   and transient completed -> running re-bridges; `null` follows the defaults.
  * - `epoch` — bumped on every send. `CompletedTurnContent` stamps its manual
  *   fold overrides with it, so one bump folds every reply above the new message
  *   without having to walk the thread.
@@ -194,8 +195,7 @@ export type ThreadRenderItem =
  * Positional (the newest run) on purpose: a reply's identity changes twice on
  * the way into history — the stream settling into a promoted local turn, then
  * the authoritative detail refetch renaming it — so an id-keyed flag would drop
- * the expansion mid-read, which is the "it folds itself up as soon as it
- * finishes" behaviour this replaces.
+ * the completion fold or a later manual re-open mid-read.
  */
 export interface ReplyFoldState {
   signal: number
@@ -213,6 +213,7 @@ export interface ReplyFoldState {
    */
   runId: string | null
   roundOpen: boolean
+  roundOpenUserPreference: boolean | null
 }
 
 /** One render's observation of the thread, fed to `advanceReplyFold`. */
@@ -258,6 +259,7 @@ export function advanceReplyFold(
       running,
       runId,
       roundOpen: true,
+      roundOpenUserPreference: null,
     }
   }
   if (running && !prev.running) {
@@ -271,7 +273,11 @@ export function advanceReplyFold(
     // different live-message id — see `ReplyFoldInput.runId` for why this must
     // be the live message rather than the render item.
     if (runId !== null && runId === prev.runId) {
-      return { ...prev, running: true }
+      return {
+        ...prev,
+        running: true,
+        roundOpen: prev.roundOpenUserPreference ?? true,
+      }
     }
     // A reply just STARTED: it is the new round — armed, expanded, and folding
     // whatever sat open above it, exactly as a send does.
@@ -291,6 +297,7 @@ export function advanceReplyFold(
       running: true,
       runId,
       roundOpen: true,
+      roundOpenUserPreference: null,
     }
   }
   if (running && prev.running && runId !== prev.runId) {
@@ -320,9 +327,15 @@ export function advanceReplyFold(
     return { ...prev, runId }
   }
   if (!running && prev.running) {
-    // The round settled. Only `running` moves — `armed` and `roundOpen` must
-    // survive, or the reply would fold itself up the moment it finishes.
-    return { ...prev, running: false }
+    // The round settled: fold its process work by default while leaving the
+    // trailing answer visible. An explicit reader toggle wins over that
+    // default. Keep `armed` latched so a later re-open is not lost when the
+    // persisted turn is re-adapted or its duration is backfilled.
+    return {
+      ...prev,
+      running: false,
+      roundOpen: prev.roundOpenUserPreference ?? false,
+    }
   }
   return prev
 }
@@ -1085,6 +1098,7 @@ export function MessageListView({
     running: false,
     runId: null,
     roundOpen: true,
+    roundOpenUserPreference: null,
   }))
   const fold = advanceReplyFold(storedFold, {
     sendSignal,
@@ -1094,7 +1108,9 @@ export function MessageListView({
   if (fold !== storedFold) setFold(fold)
   const handleRoundOpenChange = useCallback((open: boolean) => {
     setFold((prev) =>
-      prev.roundOpen === open ? prev : { ...prev, roundOpen: open }
+      prev.roundOpen === open && prev.roundOpenUserPreference === open
+        ? prev
+        : { ...prev, roundOpen: open, roundOpenUserPreference: open }
     )
   }, [])
 

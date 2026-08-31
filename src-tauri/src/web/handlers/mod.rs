@@ -30,7 +30,6 @@ pub mod quick_messages;
 pub mod science;
 pub mod session_info;
 pub mod system_settings;
-pub mod teambition;
 pub mod terminal;
 pub mod token_usage;
 pub mod ui_preferences;

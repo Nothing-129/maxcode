@@ -1,7 +1,7 @@
 {
   "name": "codeg",
   "private": true,
-  "version": "0.29.1",
+  "version": "0.29.2",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "next dev --turbopack",
@@ -9,9 +9,13 @@
     "lint": "eslint",
     "tauri": "tauri",
     "test": "vitest run",
+    "test:maxcode": "vitest run src/maxcode-contracts",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
+    "upstream:impact": "node scripts/check-upstream-impact.mjs",
+    "upstream:guard:validate": "node scripts/check-upstream-impact.mjs --validate-only",
+    "upstream:guard": "node scripts/check-upstream-impact.mjs --validate-only && vitest run src/maxcode-contracts",
     "server:build": "cd src-tauri && cargo build --release --bin codeg-server --no-default-features",
     "server:dev": "cd src-tauri && cargo run --bin codeg-server --no-default-features",
     "tauri:prepare-sidecars": "node src-tauri/scripts/prepare-sidecars.mjs",

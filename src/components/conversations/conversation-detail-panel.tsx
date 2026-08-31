@@ -39,6 +39,7 @@ import {
   type AskSelectionParkedDetail,
 } from "@/lib/ask-selection-handoff"
 import { useConnectionLifecycle } from "@/hooks/use-connection-lifecycle"
+import { useConnection } from "@/hooks/use-connection"
 import { useMessageQueue, type QueuedMessage } from "@/hooks/use-message-queue"
 import { MessageListView } from "@/components/message/message-list-view"
 import {
@@ -2265,6 +2266,38 @@ const ConversationTabView = memo(function ConversationTabView({
   )
 })
 
+interface LazyConversationTabViewProps extends ConversationTabViewProps {
+  visible: boolean
+}
+
+/**
+ * Cold background tabs keep their tab metadata and persisted transcript but do
+ * not retain the heavy conversation React tree. A live owner stays mounted
+ * until the connection pool evicts it; busy work is therefore never detached
+ * merely because the user switched tabs. Viewer surfaces can remount/reattach
+ * on demand without owning (or killing) the shared backend process.
+ */
+const LazyConversationTabView = memo(function LazyConversationTabView({
+  visible,
+  ...props
+}: LazyConversationTabViewProps) {
+  const conn = useConnection(props.tabId)
+  const hasOwnedLiveConnection =
+    !conn.isViewer &&
+    (conn.status === "connecting" ||
+      conn.status === "connected" ||
+      conn.status === "prompting")
+  const hasProtectedWork =
+    conn.backgroundOutstanding > 0 ||
+    conn.pendingPermission != null ||
+    conn.pendingQuestion != null ||
+    conn.pendingAskQuestion != null ||
+    conn.pendingPlanApproval != null
+
+  if (!visible && !hasOwnedLiveConnection && !hasProtectedWork) return null
+  return <ConversationTabView {...props} />
+})
+
 // A group rect (percentages) counts as touching a container edge within this
 // tolerance — ratio math can land a hair off exact 0 / 100.
 const GROUP_EDGE_EPSILON = 0.1
@@ -2660,7 +2693,7 @@ export function ConversationDetailPanel() {
     const visible = canTileG || tab.id === groupSelection[groupId]
     const folderPath = allFolders.find((f) => f.id === tab.folderId)?.path
     const view = (
-      <ConversationTabView
+      <LazyConversationTabView
         tabId={tab.id}
         conversationId={tab.conversationId}
         agentType={tab.agentType}
@@ -2669,6 +2702,7 @@ export function ConversationDetailPanel() {
         showActiveFlow={(isSplit || canTileG) && active}
         reloadSignal={reloadByTabId[tab.id] ?? 0}
         groupId={groupId}
+        visible={visible}
       />
     )
     return (

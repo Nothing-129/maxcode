@@ -104,6 +104,10 @@ public final class MainActivity extends Activity {
     private boolean mainFrameFailed;
     private boolean connecting;
     private boolean browserImmersive;
+    private final boolean needsOppoStatusBarWorkaround =
+            DeviceCompatibility.needsOppoStatusBarWorkaround(
+                    Build.MANUFACTURER,
+                    Build.BRAND);
     private int statusBarInsetCssPixels;
     private volatile boolean destroyed;
 
@@ -319,7 +323,6 @@ public final class MainActivity extends Activity {
         }
 
         setupMode = SetupMode.SELECT;
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         browserScreen.setVisibility(View.GONE);
         setupScreen.setVisibility(View.VISIBLE);
         connectionChooser.setVisibility(View.VISIBLE);
@@ -335,18 +338,22 @@ public final class MainActivity extends Activity {
 
     private void renderConnections() {
         savedConnectionsList.removeAllViews();
-        for (ConnectionConfig connection : catalog.connections()) {
+        for (int index = 0; index < catalog.connections().size(); index++) {
+            ConnectionConfig connection = catalog.connections().get(index);
             View row = getLayoutInflater()
                     .inflate(R.layout.connection_row, savedConnectionsList, false);
             Button openButton = row.findViewById(R.id.open_connection_button);
             Button editButton = row.findViewById(R.id.edit_connection_button);
             Button deleteButton = row.findViewById(R.id.delete_connection_button);
+            View divider = row.findViewById(R.id.connection_divider);
             openButton.setText(connection.name());
             openButton.setOnClickListener(view -> selectConnection(connection));
             editButton.setOnClickListener(
                     view -> showSetup(SetupMode.EDIT, connection, 0));
             deleteButton.setOnClickListener(
                     view -> confirmDeleteConnection(connection));
+            divider.setVisibility(
+                    index == catalog.connections().size() - 1 ? View.GONE : View.VISIBLE);
             savedConnectionsList.addView(row);
         }
     }
@@ -448,7 +455,6 @@ public final class MainActivity extends Activity {
 
         tokenInput.setText("");
         cancelButton.setVisibility(View.GONE);
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_SECURE);
         setImmersiveStatusBar(true);
         setupScreen.setVisibility(View.GONE);
         browserScreen.setVisibility(View.VISIBLE);
@@ -465,7 +471,6 @@ public final class MainActivity extends Activity {
         setImmersiveStatusBar(false);
         setupMode = mode;
         editingConnection = mode == SetupMode.EDIT ? connection : null;
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_SECURE);
         browserScreen.setVisibility(View.GONE);
         setupScreen.setVisibility(View.VISIBLE);
         connectionChooser.setVisibility(View.GONE);
@@ -643,6 +648,12 @@ public final class MainActivity extends Activity {
                         WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
                 left = bars.left;
                 top = bars.top;
+                if (needsOppoStatusBarWorkaround) {
+                    Insets topSafeArea = windowInsets.getInsetsIgnoringVisibility(
+                            WindowInsets.Type.statusBars()
+                                    | WindowInsets.Type.displayCutout());
+                    top = Math.max(top, topSafeArea.top);
+                }
                 right = bars.right;
                 bottom = bars.bottom;
             } else {
@@ -725,7 +736,9 @@ public final class MainActivity extends Activity {
         String currentUrl = target.getUrl();
         if (!UrlNormalizer.isSameOrigin(activeConfig.baseUrl(), currentUrl)) return;
         target.evaluateJavascript(
-                WebBootstrapScript.setAndroidStatusBarInset(statusBarInsetCssPixels),
+                WebBootstrapScript.setAndroidStatusBarInset(
+                        statusBarInsetCssPixels,
+                        needsOppoStatusBarWorkaround),
                 null);
     }
 

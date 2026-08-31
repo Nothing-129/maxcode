@@ -26,17 +26,27 @@ public final class WebBootstrapScriptTest {
     }
 
     @Test
-    public void androidSafeAreaOnlyOffsetsTheMobileSidebar() {
-        String script = WebBootstrapScript.setAndroidStatusBarInset(27);
+    public void defaultAndroidSafeAreaOnlyOffsetsTheMobileSidebar() {
+        String script = WebBootstrapScript.setAndroidStatusBarInset(27, false);
 
         assertTrue(script.contains("mobile-sidebar-drawer"));
+        assertFalse(script.contains("div.fixed.inset-0"));
         assertTrue(script.contains("27px"));
         assertFalse(script.contains("body{"));
     }
 
     @Test
+    public void oppoSafeAreaAlsoOffsetsFullPageShells() {
+        String script = WebBootstrapScript.setAndroidStatusBarInset(27, true);
+
+        assertTrue(script.contains("div.fixed.inset-0"));
+        assertTrue(script.contains("div.h-screen"));
+        assertTrue(script.contains("box-sizing:border-box"));
+    }
+
+    @Test
     public void androidAppWindowsNavigateTheCurrentWebView() {
-        String script = WebBootstrapScript.setAndroidStatusBarInset(24);
+        String script = WebBootstrapScript.setAndroidStatusBarInset(24, false);
 
         assertTrue(script.contains("window.open=function"));
         assertTrue(script.contains("window.location.assign"));

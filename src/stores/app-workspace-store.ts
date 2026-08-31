@@ -404,12 +404,21 @@ export const useAppWorkspaceStore = create<AppWorkspaceStoreState>()(
       forgetRemovedFolder(detail.id)
       const upsert = (prev: FolderDetail[]) => {
         const idx = prev.findIndex((f) => f.id === detail.id)
+        const updated = [...prev]
         if (idx >= 0) {
-          const updated = [...prev]
           updated[idx] = detail
-          return updated
+        } else {
+          updated.push(detail)
         }
-        return [...prev, detail]
+        // The backend assigns new folders a lower sort_order so they appear at
+        // the highest priority. Sort the incremental upsert too, otherwise the
+        // new folder stays at the bottom until the next full refetch.
+        return updated.sort(
+          (a, b) =>
+            a.sort_order - b.sort_order ||
+            b.last_opened_at.localeCompare(a.last_opened_at) ||
+            a.id - b.id
+        )
       }
       const { folders, allFolders } = get()
       // Mirror the backend's list split: hidden chat folders are excluded from

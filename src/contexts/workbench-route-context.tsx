@@ -22,7 +22,6 @@ export type WorkbenchRouteId =
   | "conversations"
   | "automations"
   | "tasks"
-  | "teambition"
   | "forge"
   | "tokenUsage"
 

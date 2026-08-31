@@ -168,6 +168,18 @@ export async function acpDisconnect(connectionId: string): Promise<void> {
   return invoke("acp_disconnect", { connectionId })
 }
 
+export async function acpTouchConnection(
+  connectionId: string
+): Promise<boolean> {
+  return invoke("acp_touch_connection", { connectionId })
+}
+
+export async function acpProbeConnection(
+  connectionId: string
+): Promise<boolean> {
+  return invoke("acp_probe_connection", { connectionId })
+}
+
 export async function acpListConnections(): Promise<ConnectionInfo[]> {
   return invoke("acp_list_connections")
 }

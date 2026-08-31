@@ -20,8 +20,16 @@ final class WebBootstrapScript {
                 + "document.dispatchEvent(new Event('visibilitychange'));})();";
     }
 
-    static String setAndroidStatusBarInset(int insetCssPixels) {
+    static String setAndroidStatusBarInset(
+            int insetCssPixels,
+            boolean protectPageShells) {
         int safeInset = Math.max(0, insetCssPixels);
+        String pageSafeAreaCss = protectPageShells
+                ? "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
+                        + "div.h-screen.flex.flex-col.overflow-hidden.bg-background."
+                        + "text-foreground{box-sizing:border-box;"
+                        + "padding-top:var(--maxcode-android-status-bar-inset)!important;}"
+                : "";
         return "(function(){var d=document.documentElement;"
                 + "d.style.setProperty('--maxcode-android-status-bar-inset','"
                 + safeInset
@@ -29,7 +37,9 @@ final class WebBootstrapScript {
                 + "var s=document.getElementById(i);if(!s){s=document.createElement('style');"
                 + "s.id=i;(document.head||d).appendChild(s);}"
                 + "s.textContent='@media (max-width:767px){.mobile-sidebar-drawer{"
-                + "padding-top:var(--maxcode-android-status-bar-inset)!important;}}';"
+                + "padding-top:var(--maxcode-android-status-bar-inset)!important;}}"
+                + pageSafeAreaCss
+                + "';"
                 + "if(!window.__maxcodeAndroidWindowOpenPatched){"
                 + "window.__maxcodeAndroidWindowOpenPatched=true;"
                 + "var originalOpen=window.open;window.open=function(url,name,features){"

@@ -562,15 +562,6 @@ pub fn build_router(
             post(handlers::mcp::mcp_set_server_apps),
         )
         .route("/mcp_remove_server", post(handlers::mcp::mcp_remove_server))
-        // ─── Teambition (official MCP) ───
-        .route(
-            "/teambition_board",
-            post(handlers::teambition::teambition_board),
-        )
-        .route(
-            "/teambition_update_task_status",
-            post(handlers::teambition::teambition_update_task_status),
-        )
         // ─── Version control settings ───
         .route("/detect_git", post(handlers::version_control::detect_git))
         .route(
@@ -673,6 +664,10 @@ pub fn build_router(
         .route(
             "/acp_touch_connection",
             post(handlers::acp::acp_touch_connection),
+        )
+        .route(
+            "/acp_probe_connection",
+            post(handlers::acp::acp_probe_connection),
         )
         .route("/acp_prompt", post(handlers::acp::acp_prompt))
         .route("/acp_preflight", post(handlers::acp::acp_preflight))

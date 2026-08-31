@@ -1,4 +1,4 @@
-import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { UpdateContextValue } from "@/components/providers/update-provider"
@@ -14,8 +14,13 @@ vi.mock("@/components/providers/update-provider", () => ({
 const openUrl = vi.fn()
 vi.mock("@/lib/platform", () => ({ openUrl: (u: string) => openUrl(u) }))
 
-const { toastInfo } = vi.hoisted(() => ({ toastInfo: vi.fn() }))
-vi.mock("sonner", () => ({ toast: { info: toastInfo } }))
+const { toastInfo, toastDismiss } = vi.hoisted(() => ({
+  toastInfo: vi.fn(),
+  toastDismiss: vi.fn(),
+}))
+vi.mock("sonner", () => ({
+  toast: { info: toastInfo, dismiss: toastDismiss },
+}))
 
 // The popover pulls the markdown stack in lazily; keep the test off the ESM
 // markdown pipeline (its rendering is the settings page's concern).
@@ -85,6 +90,7 @@ beforeEach(() => {
   dismissAvailable.mockClear()
   checkNow.mockClear()
   toastInfo.mockClear()
+  toastDismiss.mockClear()
   openUrl.mockClear()
   localStorage.clear()
 })
@@ -283,11 +289,24 @@ describe("StatusBarUpdate — discovery notification", () => {
     expect(toastInfo).toHaveBeenCalledTimes(1)
     expect(toastInfo).toHaveBeenCalledWith(
       "New version v0.21.9 found",
-      expect.objectContaining({ action: expect.any(Object) })
+      expect.objectContaining({
+        id: "app-update-0.21.9",
+        action: expect.any(Object),
+      })
     )
 
     first.unmount()
     renderWith({ available: RELEASE })
     expect(toastInfo).toHaveBeenCalledTimes(1)
+  })
+
+  it("dismisses the discovery toast before opening the update panel", async () => {
+    renderWith({ available: RELEASE })
+
+    const options = toastInfo.mock.calls[0]?.[1]
+    act(() => options.action.onClick())
+
+    expect(toastDismiss).toHaveBeenCalledWith("app-update-0.21.9")
+    expect(await screen.findByText("Update available")).toBeVisible()
   })
 })

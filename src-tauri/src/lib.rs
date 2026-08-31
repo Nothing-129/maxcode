@@ -74,9 +74,9 @@ mod tauri_app {
         question as question_commands, quick_messages as quick_messages_commands,
         remote_proxy as remote_proxy_commands, remote_workspace as remote_workspace_commands,
         science as science_commands, session_info as session_info_commands, system_settings,
-        teambition as teambition_commands, terminal as terminal_commands,
-        token_usage as token_usage_commands, ui_preferences, version_control, windows,
-        work_task as work_task_commands, workspace_state as workspace_state_commands,
+        terminal as terminal_commands, token_usage as token_usage_commands, ui_preferences,
+        version_control, windows, work_task as work_task_commands,
+        workspace_state as workspace_state_commands,
     };
     use crate::terminal::manager::TerminalManager;
     use crate::{db, git_credential, network, paths, process, web};
@@ -1255,6 +1255,7 @@ mod tauri_app {
                 acp_commands::acp_answer_plan_approval,
                 acp_commands::acp_disconnect,
                 acp_commands::acp_touch_connection,
+                acp_commands::acp_probe_connection,
                 acp_commands::acp_list_connections,
                 acp_commands::acp_get_session_snapshot,
                 acp_commands::acp_get_session_snapshot_by_conversation,
@@ -1435,8 +1436,6 @@ mod tauri_app {
                 mcp_commands::mcp_upsert_local_server,
                 mcp_commands::mcp_set_server_apps,
                 mcp_commands::mcp_remove_server,
-                teambition_commands::teambition_board,
-                teambition_commands::teambition_update_task_status,
                 notification::send_notification,
                 file_io::save_binary_file,
                 file_io::save_text_file,

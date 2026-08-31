@@ -51,6 +51,7 @@
     </LinearLayout>
 
     <View
+        android:id="@+id/connection_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:layout_marginStart="12dp"

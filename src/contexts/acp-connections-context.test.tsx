@@ -10,6 +10,7 @@ import {
 import { parsePermissionToolCall } from "@/lib/permission-request"
 import { subscribe } from "@/lib/platform"
 import { saveConfigPreference } from "@/lib/selector-prefs-storage"
+import { CONNECTION_KEEPALIVE_INTERVAL_MS } from "@/lib/constants"
 import type { AttachHandlers } from "@/lib/transport/types"
 import type {
   EventEnvelope,
@@ -40,7 +41,9 @@ const h = vi.hoisted(() => {
     acpConnect: vi.fn(),
     acpDisconnect: vi.fn(),
     acpGetSessionSnapshot: vi.fn(),
+    // Historical spy name retained for the read-only liveness probe tests.
     acpTouchConnection: vi.fn(),
+    acpActiveTouchConnection: vi.fn(),
     acpCancel: vi.fn(),
     buildDelegationSeedEnvelopes: vi.fn(() => []),
     denormalizeSnapshot: vi.fn(),
@@ -110,7 +113,8 @@ vi.mock("@/lib/api", () => ({
   acpSetConfigOption: vi.fn(),
   acpCancel: h.acpCancel,
   acpRespondPermission: vi.fn(),
-  acpTouchConnection: h.acpTouchConnection,
+  acpProbeConnection: h.acpTouchConnection,
+  acpTouchConnection: h.acpActiveTouchConnection,
   // Imported by the conversation runtime store (a real dependency of the
   // provider via the background-activity bridge). The settled path no longer
   // refetches (it flips the launch card in-memory); reject any stray call so a
@@ -193,6 +197,8 @@ beforeEach(() => {
   // probe treats `false` as "gone", so a default of `undefined` would settle
   // healthy connections in unrelated suites.
   h.acpTouchConnection.mockResolvedValue(true)
+  h.acpActiveTouchConnection.mockReset()
+  h.acpActiveTouchConnection.mockResolvedValue(true)
   h.acpCancel.mockReset()
   h.acpCancel.mockResolvedValue(undefined)
   h.tCalls.length = 0
@@ -222,6 +228,42 @@ function hydrateSnapshot(
     handlers.onSnapshot(snapshot, snapshot.event_seq)
   })
 }
+
+describe("active keepalive vs background liveness", () => {
+  it("touches only the active connection and probes an open background tab read-only", async () => {
+    vi.useFakeTimers()
+    try {
+      h.acpConnect
+        .mockResolvedValueOnce("active-conn")
+        .mockResolvedValueOnce("background-conn")
+      await mountProvider()
+      await act(async () => {
+        await h.actions!.connect("active-tab", "claude_code", "/tmp/a")
+        await h.actions!.connect("background-tab", "claude_code", "/tmp/b")
+      })
+      act(() => {
+        h.actions!.setActiveKey("active-tab")
+        h.actions!.registerOpenTabKeys(
+          new Set(["active-tab", "background-tab"])
+        )
+      })
+      h.acpTouchConnection.mockClear()
+      h.acpActiveTouchConnection.mockClear()
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CONNECTION_KEEPALIVE_INTERVAL_MS)
+      })
+
+      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("active-conn")
+      expect(h.acpActiveTouchConnection).not.toHaveBeenCalledWith(
+        "background-conn"
+      )
+      expect(h.acpTouchConnection).toHaveBeenCalledWith("background-conn")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
 
 describe("AcpConnectionsProvider cross-client viewer lifecycle", () => {
   it("attaches as a viewer (no spawn) when a live connection is discovered", async () => {
