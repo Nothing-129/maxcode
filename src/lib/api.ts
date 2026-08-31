@@ -2110,6 +2110,25 @@ export async function getFolderConversationTurns(
   })
 }
 
+export interface ConversationShareInfo {
+  token: string
+  shared_at: string
+}
+
+/** Create or refresh the immutable snapshot behind a conversation's link. */
+export async function createConversationShare(
+  conversationId: number
+): Promise<ConversationShareInfo> {
+  return getTransport().call("create_conversation_share", { conversationId })
+}
+
+/** Burn the active capability token; an old link can never be re-enabled. */
+export async function revokeConversationShare(
+  conversationId: number
+): Promise<void> {
+  return getTransport().call("revoke_conversation_share", { conversationId })
+}
+
 export async function removeFolderFromHistory(path: string): Promise<void> {
   return getTransport().call("remove_folder_from_history", { path })
 }

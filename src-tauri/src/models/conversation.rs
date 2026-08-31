@@ -70,6 +70,18 @@ pub struct DbConversationSummary {
     pub origin_cwd: Option<String>,
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GenerationStats {
+    /// Summed time-to-first-token over `ttft_steps`, in milliseconds.
+    pub ttft_ms: u64,
+    /// Model steps carrying a recorded first-token boundary.
+    pub ttft_steps: u64,
+    /// Summed first-token-to-completion wall time over usage-reporting steps.
+    pub decode_ms: u64,
+    /// Summed provider output tokens over the same decode-timed steps.
+    pub decode_tokens: u64,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionStats {
     pub total_usage: Option<TurnUsage>,
@@ -82,6 +94,10 @@ pub struct SessionStats {
     pub context_window_max_tokens: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_window_usage_percent: Option<f64>,
+    /// Optional generation latency/throughput totals. DeepSeek Harness records
+    /// the exact step and first-token boundaries needed for these figures.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_stats: Option<GenerationStats>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

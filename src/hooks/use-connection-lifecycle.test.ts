@@ -38,6 +38,28 @@ describe("shouldDisconnectOnUnmount", () => {
     ).toBe(true)
   })
 
+  it("keeps an idle owner when only its hidden UI unmounts", () => {
+    expect(
+      shouldDisconnectOnUnmount({
+        status: "connected",
+        isViewer: false,
+        backgroundOutstanding: 0,
+        preserveIdleOwner: true,
+      })
+    ).toBe(false)
+  })
+
+  it("still detaches a viewer when a hidden UI unmounts", () => {
+    expect(
+      shouldDisconnectOnUnmount({
+        status: "connected",
+        isViewer: true,
+        backgroundOutstanding: 0,
+        preserveIdleOwner: true,
+      })
+    ).toBe(true)
+  })
+
   it("always tears down viewers — their disconnect only detaches", () => {
     expect(
       shouldDisconnectOnUnmount({

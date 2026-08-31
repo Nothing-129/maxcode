@@ -2,9 +2,14 @@ import { describe, expect, it } from "vitest"
 
 import {
   selectIdleWarmConnectionEvictions,
+  selectIdleWarmConnectionPlan,
   type ConnectionState,
 } from "@/contexts/acp-connections-context"
-import { MAX_IDLE_WARM_CONNECTIONS } from "@/lib/constants"
+import {
+  IDLE_WARM_CONNECTION_TTL_MS,
+  MAX_IDLE_WARM_CONNECTIONS,
+} from "@/lib/constants"
+import { getConversationTabRetention } from "@/lib/conversation-tab-retention"
 import { source } from "./contract-source"
 
 function connection(
@@ -18,6 +23,7 @@ function connection(
     isDelegationChild: false,
     backgroundOutstanding: 0,
     pendingPermission: null,
+    pendingQuestion: null,
     pendingAskQuestion: null,
     pendingPlanApproval: null,
     ...overrides,
@@ -25,24 +31,33 @@ function connection(
 }
 
 describe("MaxCode contract: bounded ACP connection lifecycle", () => {
-  it("keeps two idle background owners warm and evicts the LRU overflow", () => {
+  it("keeps two recent idle owners truly warm for ten minutes", () => {
     expect(MAX_IDLE_WARM_CONNECTIONS).toBe(2)
+    expect(IDLE_WARM_CONNECTION_TTL_MS).toBe(10 * 60 * 1000)
 
+    const now = 1_000_000
     const connections = new Map<string, ConnectionState>()
     const activity = new Map<string, number>()
     for (let index = 1; index <= MAX_IDLE_WARM_CONNECTIONS + 2; index += 1) {
       connections.set(`tab-${index}`, connection(`conn-${index}`))
-      activity.set(`tab-${index}`, index)
+      activity.set(`tab-${index}`, now - (4 - index) * 1_000)
     }
 
     expect(
-      selectIdleWarmConnectionEvictions(
+      selectIdleWarmConnectionPlan(
         connections,
         new Set(connections.keys()),
         `tab-${MAX_IDLE_WARM_CONNECTIONS + 2}`,
-        activity
+        activity,
+        now
       )
-    ).toEqual([{ connectionId: "conn-1", contextKeys: ["tab-1"] }])
+    ).toEqual({
+      warm: [
+        { connectionId: "conn-3", contextKeys: ["tab-3"] },
+        { connectionId: "conn-2", contextKeys: ["tab-2"] },
+      ],
+      evictions: [{ connectionId: "conn-1", contextKeys: ["tab-1"] }],
+    })
   })
 
   it("protects active work and deduplicates shared backend connections", () => {
@@ -62,7 +77,31 @@ describe("MaxCode contract: bounded ACP connection lifecycle", () => {
     ).toEqual([{ connectionId: "shared", contextKeys: ["a", "b"] }])
   })
 
-  it("keeps backend probes read-only and reaps wedged Connecting processes", () => {
+  it("unmounts heavy idle tab UI without dropping its warm owner", () => {
+    expect(
+      getConversationTabRetention({
+        visible: false,
+        status: "connected",
+        isViewer: false,
+        backgroundOutstanding: 0,
+        hasPendingInteraction: false,
+      })
+    ).toEqual({
+      mounted: false,
+      preserveOwnedConnectionOnUnmount: true,
+    })
+
+    const panel = source(
+      "src/components/conversations/conversation-detail-panel.tsx"
+    )
+    const lifecycle = source("src/hooks/use-connection-lifecycle.ts")
+    expect(panel).toContain("preserveIdleOwnerOnUnmount")
+    expect(lifecycle).toContain(
+      'args.preserveIdleOwner && args.status === "connected"'
+    )
+  })
+
+  it("keeps cold probes read-only and reaps wedged Connecting processes", () => {
     const manager = source("src-tauri/src/acp/manager.rs")
     expect(manager).toContain("pub async fn is_live(&self, conn_id: &str)")
     expect(manager).toContain("CONNECTING_TIMEOUT_SECS")

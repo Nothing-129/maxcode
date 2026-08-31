@@ -28,13 +28,15 @@ interface UseConnectionLifecycleOptions {
    */
   conversationId?: number
   /**
-   * Read at unmount-cleanup time: true when the component is unmounting
-   * because the view is being REPARENTED (its tab moved between split groups /
-   * an unsplit merged it), not closed. A transient unmount must not
-   * disconnect — the remounted instance re-attaches to the same live
-   * connection under the same contextKey.
+   * Read at unmount-cleanup time: true when the view is being REPARENTED, not
+   * closed. A transient unmount must not disconnect — the remounted instance
+   * reuses the same live connection under the same contextKey.
    */
   isTransientUnmount?: () => boolean
+  /** True for the handoff render before a hidden idle LOCAL owner's heavy UI
+   *  unmounts. The provider retains the ACP connection under the bounded warm
+   *  pool; viewers never receive this flag. */
+  preserveIdleOwnerOnUnmount?: boolean
 }
 
 export interface UseConnectionLifecycleReturn {
@@ -83,9 +85,10 @@ export interface UseConnectionLifecycleReturn {
  * backend max-age valve expires it). Viewers always tear down: their
  * disconnect only detaches (never kills the owner's agent), and the sweep
  * skips viewers so leaving one attached would leak its subscription.
- * EXCEPT on a transient unmount (tab reparented across split groups, not
- * closed): the remounted view re-attaches to the same connection, so neither
- * owners nor viewers tear down.
+ * EXCEPT on a transient reparent unmount, where the remounted view reuses the
+ * same connection. Hidden idle LOCAL owners have a separate preservation flag
+ * so their heavy UI can unmount; viewers deliberately never qualify and still
+ * detach their subscription.
  * Shares `isConnectionBusy` with the preview-replacement release
  * (`disconnectIfIdle`) so the two teardown paths can't drift apart.
  * Exported for tests.
@@ -95,9 +98,11 @@ export function shouldDisconnectOnUnmount(args: {
   isViewer: boolean
   backgroundOutstanding: number
   transientUnmount?: boolean
+  preserveIdleOwner?: boolean
 }): boolean {
   if (args.transientUnmount) return false
   if (args.isViewer) return true
+  if (args.preserveIdleOwner && args.status === "connected") return false
   return !isConnectionBusy(args)
 }
 
@@ -119,6 +124,7 @@ export function useConnectionLifecycle({
   sessionId,
   conversationId,
   isTransientUnmount,
+  preserveIdleOwnerOnUnmount,
 }: UseConnectionLifecycleOptions): UseConnectionLifecycleReturn {
   const t = useTranslations("Folder.chat.connectionLifecycle")
   const { setActiveKey, touchActivity } = useAcpActions()
@@ -342,6 +348,10 @@ export function useConnectionLifecycle({
   useEffect(() => {
     isTransientUnmountRef.current = isTransientUnmount
   }, [isTransientUnmount])
+  const preserveIdleOwnerOnUnmountRef = useRef(preserveIdleOwnerOnUnmount)
+  useEffect(() => {
+    preserveIdleOwnerOnUnmountRef.current = preserveIdleOwnerOnUnmount
+  }, [preserveIdleOwnerOnUnmount])
 
   // Clean up on unmount (e.g. tab closed): disconnect the ACP connection
   // so it doesn't leak, and remove lingering tasks.
@@ -368,6 +378,7 @@ export function useConnectionLifecycle({
           isViewer: isViewerRef.current,
           backgroundOutstanding: backgroundOutstandingRef.current,
           transientUnmount: isTransientUnmountRef.current?.() === true,
+          preserveIdleOwner: preserveIdleOwnerOnUnmountRef.current === true,
         })
       ) {
         connDisconnectRef.current().catch(() => {})

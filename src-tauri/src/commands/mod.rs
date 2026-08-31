@@ -7,6 +7,7 @@ pub mod backup;
 pub mod chat_authoring;
 pub mod chat_channel;
 pub mod conversations;
+pub mod conversation_share;
 pub mod custom_agents;
 pub mod custom_skills;
 pub mod delegation;

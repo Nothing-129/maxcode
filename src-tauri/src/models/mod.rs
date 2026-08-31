@@ -23,8 +23,8 @@ pub use chat_channel::{ChannelStatusInfo, ChatChannelInfo, ChatChannelMessageLog
 pub use conversation::{
     AgentConversationCount, AgentStats, ConversationDetail, ConversationSummary,
     ConversationTurnsPage, DbConversationDetail, DbConversationSummary, FolderInfo,
-    ImportFolderOutcome, ImportResult, ImportSelectedResult, ScanFolder, ScanResult, ScanSession,
-    ScanSessionStatus, SelectedSessionKey, SessionStats, SidebarData,
+    GenerationStats, ImportFolderOutcome, ImportResult, ImportSelectedResult, ScanFolder,
+    ScanResult, ScanSession, ScanSessionStatus, SelectedSessionKey, SessionStats, SidebarData,
 };
 pub use folder::{
     FolderCommandInfo, FolderDetail, FolderHistoryEntry, OpenedTab, OpenedTabsSnapshot,

@@ -1914,7 +1914,23 @@
       "markCompleted": "标记为已完成",
       "reopen": "重新打开",
       "expandSubsessions": "展开子会话",
-      "collapseSubsessions": "折叠子会话"
+      "collapseSubsessions": "折叠子会话",
+      "shareConversation": "分享会话",
+      "shareDialogTitle": "分享只读会话",
+      "shareDialogDescription": "为“{title}”创建一个只能查看的快照链接。",
+      "shareCreating": "正在创建分享链接…",
+      "shareLink": "分享链接",
+      "shareCopy": "复制链接",
+      "shareSnapshotHint": "链接展示当前快照，不会随之后的对话更新。任何拿到链接的人都能查看。",
+      "shareFailed": "分享链接创建失败，请确认 Web 服务可以启动后重试。",
+      "shareRevoke": "取消分享",
+      "shareDone": "完成",
+      "shareReadOnly": "只读",
+      "shareUnavailableTitle": "分享内容不可用",
+      "shareUnavailableDescription": "链接可能无效、已被取消，或分享服务暂时无法访问。",
+      "shareRoleUser": "你",
+      "shareRoleAssistant": "助手",
+      "shareRoleSystem": "系统"
     },
     "search": {
       "dialogTitle": "搜索",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value} 秒",
         "outputSpeedAria": "估算输出速度",
         "outputSpeedTooltip": "估算输出速度（正文 + 思考 + 工具参数）"
+      },
+      "generationStats": {
+        "ttftAverage": "首 token 平均 {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "查看原始 JSON",

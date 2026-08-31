@@ -230,21 +230,64 @@ function hydrateSnapshot(
 }
 
 describe("active keepalive vs background liveness", () => {
-  it("touches only the active connection and probes an open background tab read-only", async () => {
+  it("touches the active and two LRU warm connections while probing overflow read-only", async () => {
     vi.useFakeTimers()
     try {
       h.acpConnect
         .mockResolvedValueOnce("active-conn")
-        .mockResolvedValueOnce("background-conn")
+        .mockResolvedValueOnce("background-1")
+        .mockResolvedValueOnce("background-2")
+        .mockResolvedValueOnce("background-3")
       await mountProvider()
+      vi.setSystemTime(1_000)
       await act(async () => {
         await h.actions!.connect("active-tab", "claude_code", "/tmp/a")
-        await h.actions!.connect("background-tab", "claude_code", "/tmp/b")
+      })
+      emitAcpEvent(latestAttachHandlers(), {
+        seq: 1,
+        connection_id: "active-conn",
+        type: "status_changed",
+        status: "connected",
+      })
+      vi.setSystemTime(2_000)
+      await act(async () => {
+        await h.actions!.connect("background-1", "claude_code", "/tmp/b1")
+      })
+      emitAcpEvent(latestAttachHandlers(), {
+        seq: 1,
+        connection_id: "background-1",
+        type: "status_changed",
+        status: "connected",
+      })
+      vi.setSystemTime(3_000)
+      await act(async () => {
+        await h.actions!.connect("background-2", "claude_code", "/tmp/b2")
+      })
+      emitAcpEvent(latestAttachHandlers(), {
+        seq: 1,
+        connection_id: "background-2",
+        type: "status_changed",
+        status: "connected",
+      })
+      vi.setSystemTime(4_000)
+      await act(async () => {
+        await h.actions!.connect("background-3", "claude_code", "/tmp/b3")
+      })
+      emitAcpEvent(latestAttachHandlers(), {
+        seq: 1,
+        connection_id: "background-3",
+        type: "status_changed",
+        status: "connected",
       })
       act(() => {
         h.actions!.setActiveKey("active-tab")
         h.actions!.registerOpenTabKeys(
-          new Set(["active-tab", "background-tab"])
+          new Set([
+            "active-tab",
+            "background-1",
+            "background-2",
+            "background-3",
+          ])
         )
       })
       h.acpTouchConnection.mockClear()
@@ -255,10 +298,12 @@ describe("active keepalive vs background liveness", () => {
       })
 
       expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("active-conn")
+      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("background-2")
+      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("background-3")
       expect(h.acpActiveTouchConnection).not.toHaveBeenCalledWith(
-        "background-conn"
+        "background-1"
       )
-      expect(h.acpTouchConnection).toHaveBeenCalledWith("background-conn")
+      expect(h.acpTouchConnection).toHaveBeenCalledWith("background-1")
     } finally {
       vi.useRealTimers()
     }

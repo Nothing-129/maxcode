@@ -1360,6 +1360,7 @@ mod tests {
             context_window_used_tokens: None,
             context_window_max_tokens: None,
             context_window_usage_percent: None,
+            generation_stats: None,
         }
     }
 

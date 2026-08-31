@@ -1914,7 +1914,23 @@
       "markCompleted": "완료로 표시",
       "reopen": "다시 열기",
       "expandSubsessions": "하위 대화 펼치기",
-      "collapseSubsessions": "하위 대화 접기"
+      "collapseSubsessions": "하위 대화 접기",
+      "shareConversation": "대화 공유",
+      "shareDialogTitle": "읽기 전용 대화 공유",
+      "shareDialogDescription": "“{title}”의 보기 전용 스냅샷 링크를 만듭니다.",
+      "shareCreating": "공유 링크 만드는 중…",
+      "shareLink": "공유 링크",
+      "shareCopy": "링크 복사",
+      "shareSnapshotHint": "링크는 현재 스냅샷만 보여 주며 이후 대화로 업데이트되지 않습니다. 링크가 있는 사람은 누구나 볼 수 있습니다.",
+      "shareFailed": "공유 링크를 만들 수 없습니다. 웹 서비스를 시작할 수 있는지 확인한 후 다시 시도하세요.",
+      "shareRevoke": "공유 중지",
+      "shareDone": "완료",
+      "shareReadOnly": "읽기 전용",
+      "shareUnavailableTitle": "공유 대화를 사용할 수 없음",
+      "shareUnavailableDescription": "링크가 잘못되었거나 취소되었거나 공유 서비스에 일시적으로 접근할 수 없습니다.",
+      "shareRoleUser": "나",
+      "shareRoleAssistant": "어시스턴트",
+      "shareRoleSystem": "시스템"
     },
     "search": {
       "dialogTitle": "검색",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value}초",
         "outputSpeedAria": "예상 출력 속도",
         "outputSpeedTooltip": "예상 출력 속도（텍스트 + 추론 + 도구 인수）"
+      },
+      "generationStats": {
+        "ttftAverage": "첫 token 평균 {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "원본 JSON 보기",

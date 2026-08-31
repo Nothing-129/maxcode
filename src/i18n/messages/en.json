@@ -1914,7 +1914,23 @@
       "markCompleted": "Mark as completed",
       "reopen": "Reopen",
       "expandSubsessions": "Expand sub-conversations",
-      "collapseSubsessions": "Collapse sub-conversations"
+      "collapseSubsessions": "Collapse sub-conversations",
+      "shareConversation": "Share conversation",
+      "shareDialogTitle": "Share read-only conversation",
+      "shareDialogDescription": "Create a view-only snapshot link for “{title}”.",
+      "shareCreating": "Creating share link…",
+      "shareLink": "Share link",
+      "shareCopy": "Copy link",
+      "shareSnapshotHint": "The link shows this snapshot and will not update with later messages. Anyone with the link can view it.",
+      "shareFailed": "Could not create the share link. Make sure the web service can start, then try again.",
+      "shareRevoke": "Stop sharing",
+      "shareDone": "Done",
+      "shareReadOnly": "Read only",
+      "shareUnavailableTitle": "Shared conversation unavailable",
+      "shareUnavailableDescription": "The link may be invalid, revoked, or the sharing service may be temporarily unavailable.",
+      "shareRoleUser": "You",
+      "shareRoleAssistant": "Assistant",
+      "shareRoleSystem": "System"
     },
     "search": {
       "dialogTitle": "Search",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value}s",
         "outputSpeedAria": "Estimated output speed",
         "outputSpeedTooltip": "Estimated output speed (text + thinking + tool arguments)"
+      },
+      "generationStats": {
+        "ttftAverage": "TTFT avg {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "Show raw JSON",

@@ -78,6 +78,7 @@ import {
   COMPOSER_CHROME_SURFACE_CLASS,
 } from "@/components/chat/composer/composer-chrome"
 import { ComposerContextUsage } from "@/components/chat/composer-context-usage"
+import { ComposerGenerationStats } from "@/components/chat/composer-generation-stats"
 import { ComposerConnectionStatus } from "@/components/chat/composer-connection-status"
 import { InlineModeSelector } from "@/components/chat/mode-selector"
 import {
@@ -2106,8 +2107,8 @@ export function MessageInput({
           // add the same 1px transparent border, paired with the picker buttons'
           // `px-1.5`). The row only renders while attached below the composer, so
           // it always takes the rounded-bottom box treatment. Pickers sit at the
-          // left edge; the context-usage circle + agent connection status
-          // right-align at the trailing edge.
+          // left edge; generation stats, context usage, and connection status
+          // right-align together as runtime metrics at the trailing edge.
           <div className="flex items-center justify-between gap-2 rounded-b-2xl px-2 pt-1 text-xs text-muted-foreground">
             <div className="flex min-w-0 items-center gap-1">
               <ConversationFolderBranchPicker tabId={attachmentTabId} />
@@ -2119,6 +2120,7 @@ export function MessageInput({
                 send button's right edge in the action bar above — no centring
                 slot, which would inset the narrow icon and break the alignment. */}
             <div className="flex shrink-0 items-center gap-3 pr-px">
+              <ComposerGenerationStats tabId={attachmentTabId ?? null} />
               <ComposerContextUsage tabId={attachmentTabId ?? null} />
               <ComposerConnectionStatus tabId={attachmentTabId ?? null} />
             </div>

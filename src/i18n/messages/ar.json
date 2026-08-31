@@ -1914,7 +1914,23 @@
       "markCompleted": "وضع علامة كمكتمل",
       "reopen": "إعادة فتح",
       "expandSubsessions": "توسيع المحادثات الفرعية",
-      "collapseSubsessions": "طي المحادثات الفرعية"
+      "collapseSubsessions": "طي المحادثات الفرعية",
+      "shareConversation": "مشاركة المحادثة",
+      "shareDialogTitle": "مشاركة المحادثة للقراءة فقط",
+      "shareDialogDescription": "إنشاء رابط لقطة للعرض فقط للمحادثة «{title}».",
+      "shareCreating": "جارٍ إنشاء رابط المشاركة…",
+      "shareLink": "رابط المشاركة",
+      "shareCopy": "نسخ الرابط",
+      "shareSnapshotHint": "يعرض الرابط هذه اللقطة ولن يتحدث بالرسائل اللاحقة. يمكن لأي شخص لديه الرابط مشاهدتها.",
+      "shareFailed": "تعذر إنشاء رابط المشاركة. تأكد من إمكانية تشغيل خدمة الويب ثم حاول مجددًا.",
+      "shareRevoke": "إيقاف المشاركة",
+      "shareDone": "تم",
+      "shareReadOnly": "للقراءة فقط",
+      "shareUnavailableTitle": "المحادثة المشتركة غير متاحة",
+      "shareUnavailableDescription": "قد يكون الرابط غير صالح أو ملغى، أو قد تكون خدمة المشاركة غير متاحة مؤقتًا.",
+      "shareRoleUser": "أنت",
+      "shareRoleAssistant": "المساعد",
+      "shareRoleSystem": "النظام"
     },
     "search": {
       "dialogTitle": "بحث",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value}ث",
         "outputSpeedAria": "السرعة التقديرية للإخراج",
         "outputSpeedTooltip": "السرعة التقديرية للإخراج (نص + تفكير + وسائط الأدوات)"
+      },
+      "generationStats": {
+        "ttftAverage": "متوسط أول token ‏{duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "عرض JSON الخام",

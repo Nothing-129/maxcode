@@ -272,6 +272,18 @@ export interface SessionStats {
   context_window_used_tokens?: number | null
   context_window_max_tokens?: number | null
   context_window_usage_percent?: number | null
+  generation_stats?: GenerationStats | null
+}
+
+export interface GenerationStats {
+  /** Summed time-to-first-token over ttft_steps, in milliseconds. */
+  ttft_ms: number
+  /** Model steps carrying a recorded first-token boundary. */
+  ttft_steps: number
+  /** Summed first-token-to-completion time over usage-reporting steps. */
+  decode_ms: number
+  /** Provider output tokens over the same decode-timed steps. */
+  decode_tokens: number
 }
 
 export interface MessageTurn {
@@ -301,6 +313,20 @@ export interface ConversationDetail {
    * `BackgroundOverlayEntry` in the conversation runtime store.
    */
   transcript_watermark?: number | null
+}
+
+/** Public, path-free snapshot returned only after presenting a share token. */
+export interface SharedConversationSnapshot {
+  version: number
+  title: string | null
+  agent_type: AgentType
+  model: string | null
+  message_count: number
+  created_at: string
+  updated_at: string
+  shared_at: string
+  turns: MessageTurn[]
+  session_stats?: SessionStats | null
 }
 
 export interface FolderInfo {

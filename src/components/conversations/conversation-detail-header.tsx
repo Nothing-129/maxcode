@@ -2,13 +2,18 @@
 
 import { memo, useCallback, useState } from "react"
 import {
+  Check,
   ChevronRight,
   Circle,
+  Copy,
   EllipsisVertical,
   Info,
+  Link2Off,
+  Loader2,
   Pencil,
   Pin,
   PinOff,
+  Share2,
   SquarePen,
   Trash2,
 } from "lucide-react"
@@ -16,11 +21,19 @@ import { useTranslations } from "next-intl"
 import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import {
+  createConversationShare,
   deleteConversation,
+  getWebServerStatus,
+  revokeConversationShare,
+  startWebServer,
   updateConversationPinned,
   updateConversationStatus,
   updateConversationTitle,
 } from "@/lib/api"
+import {
+  buildConversationShareUrl,
+  selectConversationShareAddress,
+} from "@/lib/conversation-share"
 import { formatConversationTitle } from "@/lib/conversation-title"
 import { ConversationHeaderFolderPicker } from "@/components/chat/conversation-context-bar"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -44,6 +57,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -60,6 +74,12 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { copyTextToClipboard } from "@/lib/utils"
+import {
+  getServerBaseUrl,
+  isDesktop,
+  isRemoteDesktopMode,
+} from "@/lib/transport"
 import {
   resolveActiveSessionDetails,
   type ActiveSessionDetails,
@@ -148,6 +168,14 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     tabId: string
     title: string
   } | null>(null)
+  const [shareTarget, setShareTarget] = useState<{
+    id: number
+    title: string
+  } | null>(null)
+  const [shareUrl, setShareUrl] = useState("")
+  const [shareError, setShareError] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareCopied, setShareCopied] = useState(false)
 
   const persisted = conversationId != null
   const displayTitle =
@@ -248,6 +276,58 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setDetails(resolved)
   }, [conversationId, runtimeConversationId, runtimeId])
 
+  const handleShareOpen = useCallback(() => {
+    if (conversationId == null) return
+    const target = { id: conversationId, title: displayTitle }
+    setShareTarget(target)
+    setShareUrl("")
+    setShareError(false)
+    setShareCopied(false)
+    setShareLoading(true)
+    void (async () => {
+      try {
+        const share = await createConversationShare(target.id)
+        let baseUrl: string
+        if (isRemoteDesktopMode() || !isDesktop()) {
+          baseUrl = getServerBaseUrl()
+        } else {
+          const status =
+            (await getWebServerStatus()) ?? (await startWebServer())
+          baseUrl = selectConversationShareAddress(status.addresses) ?? ""
+        }
+        if (!baseUrl) throw new Error("Share server address is unavailable")
+        setShareUrl(buildConversationShareUrl(baseUrl, share.token))
+      } catch (err) {
+        console.error("[ConversationDetailHeader] create share:", err)
+        setShareError(true)
+      } finally {
+        setShareLoading(false)
+      }
+    })()
+  }, [conversationId, displayTitle])
+
+  const handleCopyShare = useCallback(async () => {
+    if (!shareUrl) return
+    const copied = await copyTextToClipboard(shareUrl)
+    setShareCopied(copied)
+  }, [shareUrl])
+
+  const handleRevokeShare = useCallback(async () => {
+    if (shareTarget == null) return
+    setShareLoading(true)
+    setShareError(false)
+    try {
+      await revokeConversationShare(shareTarget.id)
+      setShareTarget(null)
+      setShareUrl("")
+    } catch (err) {
+      console.error("[ConversationDetailHeader] revoke share:", err)
+      setShareError(true)
+    } finally {
+      setShareLoading(false)
+    }
+  }, [shareTarget])
+
   return (
     // Transparent (no surface class): the title header reads as part of the
     // message canvas below it rather than as a frosted chrome band. With a
@@ -311,6 +391,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               <Info className="h-4 w-4" />
               {tDetails("menuLabel")}
             </DropdownMenuItem>
+            <DropdownMenuItem disabled={!persisted} onSelect={handleShareOpen}>
+              <Share2 className="h-4 w-4" />
+              {t("shareConversation")}
+            </DropdownMenuItem>
             {allowStatusActions ? (
               <>
                 <DropdownMenuSeparator />
@@ -371,6 +455,70 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {t("cancel")}
             </Button>
             <Button onClick={handleRenameConfirm}>{t("save")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={shareTarget != null}
+        onOpenChange={(open) => {
+          if (!open) setShareTarget(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{t("shareDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("shareDialogDescription", {
+                title: shareTarget?.title ?? "",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          {shareLoading && !shareUrl ? (
+            <div className="flex items-center justify-center gap-2 py-5 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" />
+              {t("shareCreating")}
+            </div>
+          ) : null}
+          {shareUrl ? (
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Input value={shareUrl} readOnly aria-label={t("shareLink")} />
+                <Button
+                  type="button"
+                  size="icon"
+                  variant="outline"
+                  onClick={handleCopyShare}
+                  aria-label={t("shareCopy")}
+                >
+                  {shareCopied ? (
+                    <Check className="size-4" />
+                  ) : (
+                    <Copy className="size-4" />
+                  )}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {t("shareSnapshotHint")}
+              </p>
+            </div>
+          ) : null}
+          {shareError ? (
+            <p className="text-sm text-destructive">{t("shareFailed")}</p>
+          ) : null}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={shareLoading || !shareUrl}
+              onClick={handleRevokeShare}
+            >
+              <Link2Off className="size-4" />
+              {t("shareRevoke")}
+            </Button>
+            <Button type="button" onClick={() => setShareTarget(null)}>
+              {t("shareDone")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -7,8 +7,8 @@ use chrono::{DateTime, Utc};
 use serde_json::Value;
 
 use crate::models::{
-    AgentType, ContentBlock, ConversationDetail, ConversationSummary, MessageTurn, TurnRole,
-    TurnUsage,
+    AgentType, ContentBlock, ConversationDetail, ConversationSummary, GenerationStats, MessageTurn,
+    SessionStats, TurnRole, TurnUsage,
 };
 use crate::parsers::expand_home_prefix;
 use crate::parsers::{
@@ -227,11 +227,23 @@ impl DeepSeekParser {
         let max_tokens = parsed
             .context_window
             .or_else(|| infer_context_window_max_tokens(parsed.model.as_deref()));
-        let session_stats = merge_context_window_stats(
+        let mut session_stats = merge_context_window_stats(
             compute_session_stats(&turns),
             parsed.last_step_input_side,
             max_tokens,
         );
+        if parsed.generation_stats.ttft_steps > 0 || parsed.generation_stats.decode_ms > 0 {
+            let stats = session_stats.get_or_insert(SessionStats {
+                total_usage: None,
+                total_tokens: None,
+                total_duration_ms: 0,
+                context_window_used_tokens: None,
+                context_window_max_tokens: None,
+                context_window_usage_percent: None,
+                generation_stats: None,
+            });
+            stats.generation_stats = Some(parsed.generation_stats);
+        }
 
         let summary = ConversationSummary {
             id: conversation_id.to_string(),
@@ -338,6 +350,9 @@ struct SessionParse {
     message_count: u32,
     /// Content-bearing records — whether the session is worth listing at all.
     content_events: u32,
+    /// Whole-log generation timing totals, folded with DeepSeek Harness's own
+    /// `sessionStats` projection semantics.
+    generation_stats: GenerationStats,
 }
 
 /// Read a session's log text: the Zstandard file when present, else the
@@ -522,6 +537,35 @@ fn event_millis(value: &Value) -> Option<DateTime<Utc>> {
     DateTime::from_timestamp_millis(value.get("time")?.as_i64()?)
 }
 
+/// DeepSeek Harness's `isTokenDelta`: empty heartbeat/tool frames do not mark
+/// the first-token boundary, while a tool name by itself does.
+fn is_deepseek_token_delta(data: Option<&Value>) -> bool {
+    let Some(chunk) = data.and_then(|data| data.get("chunk")) else {
+        return false;
+    };
+    match chunk.get("type").and_then(Value::as_str) {
+        Some("text-delta" | "reasoning-delta") => chunk
+            .get("text")
+            .and_then(Value::as_str)
+            .is_some_and(|text| !text.is_empty()),
+        Some("tool-call-delta") => {
+            chunk
+                .get("argumentsDelta")
+                .and_then(Value::as_str)
+                .is_some_and(|arguments| !arguments.is_empty())
+                || chunk.get("name").is_some()
+        }
+        _ => false,
+    }
+}
+
+struct OpenGenerationStep {
+    turn: u64,
+    step: u64,
+    started_ms: i64,
+    first_token_ms: Option<i64>,
+}
+
 /// Render every `{type:"image"}` part of a message `content[]` array, in wire
 /// order. Empty when the message carries none, which is every message written
 /// before 0.6.0 and most written after it.
@@ -618,6 +662,7 @@ fn parse_session_events(text: &str, attachments: Option<&Path>) -> SessionParse 
     let mut open_assistant: Option<usize> = None;
     let mut pending_usage: Option<TurnUsage> = None;
     let mut turn_started_at: Option<DateTime<Utc>> = None;
+    let mut open_generation_step: Option<OpenGenerationStep> = None;
     // Compactions between their `start` and `end` markers, by `compactionId`.
     // A map rather than a single slot because the markers bracket a model call:
     // context injected while the summary runs may sit between the pair, and
@@ -633,11 +678,29 @@ fn parse_session_events(text: &str, attachments: Option<&Path>) -> SessionParse 
             continue;
         };
         let event_type = value.get("type").and_then(Value::as_str).unwrap_or("");
-        // Raw stream chunks duplicate `assistant/message` content (and the
-        // compacted `*-chunks` rows carry `seq0`/`time0` instead of `time`).
+        // Raw stream chunks duplicate `assistant/message` content, but their
+        // first non-empty delta is the authoritative first-token boundary used
+        // by DeepSeek Harness's own whole-session stats projection.
+        if event_type == "assistant/chunk" {
+            let data = value.get("data");
+            if let Some(open) = open_generation_step.as_mut() {
+                let matches_step = data
+                    .and_then(|data| {
+                        data.get("turn")
+                            .and_then(Value::as_u64)
+                            .zip(data.get("step").and_then(Value::as_u64))
+                    })
+                    .is_some_and(|(turn, step)| turn == open.turn && step == open.step);
+                if matches_step && open.first_token_ms.is_none() && is_deepseek_token_delta(data) {
+                    open.first_token_ms = value.get("time").and_then(Value::as_i64);
+                }
+            }
+            continue;
+        }
+        // Compacted chunk rows carry `seq0`/`time0` and are presentation-only.
         if matches!(
             event_type,
-            "assistant/chunk" | "tool-call-chunks" | "reasoning-chunks" | "text-chunks"
+            "tool-call-chunks" | "reasoning-chunks" | "text-chunks"
         ) {
             continue;
         }
@@ -686,6 +749,25 @@ fn parse_session_events(text: &str, attachments: Option<&Path>) -> SessionParse 
                     turn_started_at,
                 );
                 turn_started_at = None;
+            }
+            "step/start" => {
+                let Some(data) = data else { continue };
+                let (Some(turn), Some(step), Some(started_ms)) = (
+                    data.get("turn").and_then(Value::as_u64),
+                    data.get("step").and_then(Value::as_u64),
+                    value.get("time").and_then(Value::as_i64),
+                ) else {
+                    continue;
+                };
+                open_generation_step = Some(OpenGenerationStep {
+                    turn,
+                    step,
+                    started_ms,
+                    first_token_ms: None,
+                });
+            }
+            "step/end" => {
+                open_generation_step = None;
             }
             "user/message" => {
                 let Some(data) = data else { continue };
@@ -765,6 +847,41 @@ fn parse_session_events(text: &str, attachments: Option<&Path>) -> SessionParse 
             }
             "assistant/message" => {
                 let Some(data) = data else { continue };
+                if let Some(open) = open_generation_step.as_ref() {
+                    let matches_step = data
+                        .get("turn")
+                        .and_then(Value::as_u64)
+                        .zip(data.get("step").and_then(Value::as_u64))
+                        .is_some_and(|(turn, step)| turn == open.turn && step == open.step);
+                    if matches_step {
+                        if let (Some(completed_ms), Some(first_token_ms)) = (
+                            value.get("time").and_then(Value::as_i64),
+                            open.first_token_ms,
+                        ) {
+                            sp.generation_stats.ttft_ms =
+                                sp.generation_stats.ttft_ms.saturating_add(
+                                    first_token_ms.saturating_sub(open.started_ms).max(0) as u64,
+                                );
+                            sp.generation_stats.ttft_steps =
+                                sp.generation_stats.ttft_steps.saturating_add(1);
+                            if let Some(output_tokens) = data
+                                .get("usage")
+                                .and_then(|usage| usage.get("outputTokens"))
+                                .and_then(Value::as_u64)
+                            {
+                                sp.generation_stats.decode_ms =
+                                    sp.generation_stats.decode_ms.saturating_add(
+                                        completed_ms.saturating_sub(first_token_ms).max(0) as u64,
+                                    );
+                                sp.generation_stats.decode_tokens = sp
+                                    .generation_stats
+                                    .decode_tokens
+                                    .saturating_add(output_tokens);
+                            }
+                        }
+                        open_generation_step = None;
+                    }
+                }
                 let step_usage = usage_from_step(data.get("usage"));
                 if let Some(usage) = &step_usage {
                     sp.last_step_input_side = Some(
@@ -1291,6 +1408,19 @@ mod tests {
                 1_786_708_737_023,
                 json!({"provider": "deepseek-official", "model": "deepseek-v4-flash", "contextWindow": 1_000_000}),
             ),
+            // Empty stream frames do not count; the first non-empty delta does.
+            event(
+                "assistant/chunk",
+                9,
+                1_786_708_737_200,
+                json!({"turn": 1, "step": 1, "chunk": {"type": "text-delta", "text": ""}}),
+            ),
+            event(
+                "assistant/chunk",
+                10,
+                1_786_708_737_517,
+                json!({"turn": 1, "step": 1, "chunk": {"type": "reasoning-delta", "text": "先"}}),
+            ),
             event(
                 "assistant/message",
                 29,
@@ -1334,6 +1464,15 @@ mod tests {
                     },
                     "meta": {"path": "/tmp/target.txt"}
                 }),
+            ),
+            event("step/end", 32, 1_786_708_738_190, json!({"turn": 1, "step": 1})),
+            event("step/start", 33, 1_786_708_738_200, json!({"turn": 1, "step": 2})),
+            // A tool name is visible generated output even before arguments.
+            event(
+                "assistant/chunk",
+                34,
+                1_786_708_738_500,
+                json!({"turn": 1, "step": 2, "chunk": {"type": "tool-call-delta", "argumentsDelta": "", "name": "answer"}}),
             ),
             event(
                 "assistant/message",
@@ -1550,6 +1689,12 @@ mod tests {
         let total = stats.total_usage.expect("usage");
         assert_eq!(total.input_tokens, 1514 + 111);
         assert_eq!(total.output_tokens, 49 + 100);
+        let generation = stats.generation_stats.expect("generation stats");
+        // Step 1: 500ms TTFT + 652ms decode; step 2: 300ms + 500ms.
+        assert_eq!(generation.ttft_ms, 800);
+        assert_eq!(generation.ttft_steps, 2);
+        assert_eq!(generation.decode_ms, 1_152);
+        assert_eq!(generation.decode_tokens, 149);
 
         let _ = fs::remove_dir_all(&dir);
     }

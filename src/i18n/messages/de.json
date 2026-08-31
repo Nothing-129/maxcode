@@ -1914,7 +1914,23 @@
       "markCompleted": "Als abgeschlossen markieren",
       "reopen": "Erneut öffnen",
       "expandSubsessions": "Unterkonversationen einblenden",
-      "collapseSubsessions": "Unterkonversationen ausblenden"
+      "collapseSubsessions": "Unterkonversationen ausblenden",
+      "shareConversation": "Konversation teilen",
+      "shareDialogTitle": "Konversation schreibgeschützt teilen",
+      "shareDialogDescription": "Einen schreibgeschützten Snapshot-Link für „{title}“ erstellen.",
+      "shareCreating": "Freigabelink wird erstellt…",
+      "shareLink": "Freigabelink",
+      "shareCopy": "Link kopieren",
+      "shareSnapshotHint": "Der Link zeigt diesen Snapshot und wird nicht mit späteren Nachrichten aktualisiert. Jeder mit dem Link kann ihn ansehen.",
+      "shareFailed": "Der Freigabelink konnte nicht erstellt werden. Stelle sicher, dass der Webdienst gestartet werden kann, und versuche es erneut.",
+      "shareRevoke": "Freigabe beenden",
+      "shareDone": "Fertig",
+      "shareReadOnly": "Schreibgeschützt",
+      "shareUnavailableTitle": "Geteilte Konversation nicht verfügbar",
+      "shareUnavailableDescription": "Der Link ist möglicherweise ungültig, wurde widerrufen oder der Freigabedienst ist vorübergehend nicht erreichbar.",
+      "shareRoleUser": "Du",
+      "shareRoleAssistant": "Assistent",
+      "shareRoleSystem": "System"
     },
     "search": {
       "dialogTitle": "Suchen",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value} Sek",
         "outputSpeedAria": "Geschätzte Ausgabegeschwindigkeit",
         "outputSpeedTooltip": "Geschätzte Ausgabegeschwindigkeit (Text + Denken + Werkzeugargumente)"
+      },
+      "generationStats": {
+        "ttftAverage": "Erster Token Ø {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "Rohes JSON anzeigen",

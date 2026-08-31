@@ -33,6 +33,14 @@ import {
   parseCodexSearchTitle,
 } from "@/lib/codex-command-action"
 import { COLLAB_AGENT_TOOL_NAME, mergeCollabOp } from "@/lib/collab-tool"
+import {
+  addGenerationStats,
+  generationStatsFromLiveMessage,
+} from "@/lib/live-generation-stats"
+import {
+  loadGenerationStats,
+  saveGenerationStats,
+} from "@/lib/generation-stats-storage"
 import { collapseLiveCollabBlocks } from "@/lib/collab-collapse"
 import { kimiTodoWriteEntries } from "@/lib/plan-parse"
 import { toErrorMessage } from "@/lib/app-error"
@@ -483,6 +491,35 @@ function createEmptySession(
     loadingOlderTurns: false,
     olderTurnsPrependEpoch: 0,
     pendingCleanup: false,
+  }
+}
+
+/** Native parsers win when they carry exact metrics; otherwise keep live ACP totals. */
+function mergeIncomingSessionStats(
+  current: SessionStats | null,
+  incoming: SessionStats | null | undefined
+): SessionStats | null {
+  if (!incoming) return current
+  if (incoming.generation_stats || !current?.generation_stats) return incoming
+  return { ...incoming, generation_stats: current.generation_stats }
+}
+
+function hydrateStoredGenerationStats(
+  conversationId: number,
+  detail: DbConversationDetail
+): DbConversationDetail {
+  if (detail.session_stats?.generation_stats) return detail
+  const stored = loadGenerationStats(conversationId)
+  if (!stored) return detail
+  return {
+    ...detail,
+    session_stats: {
+      ...(detail.session_stats ?? {
+        total_usage: null,
+        total_duration_ms: 0,
+      }),
+      generation_stats: stored,
+    },
   }
 }
 
@@ -1853,7 +1890,10 @@ function reducer(
         detailLoading: false,
         detailError: null,
         externalId: nextExternalId ?? current.externalId,
-        sessionStats: action.detail.session_stats ?? current.sessionStats,
+        sessionStats: mergeIncomingSessionStats(
+          current.sessionStats,
+          action.detail.session_stats
+        ),
         backgroundTurns: nextBackgroundTurns,
         ...(isActivelyInteracting
           ? keepAllLiveBuffers
@@ -2018,6 +2058,22 @@ function reducer(
             { attachAgentTranscripts: false }
           ).turns
         : []
+      const observedGenerationStats = sourceLiveMessage
+        ? generationStatsFromLiveMessage(sourceLiveMessage, Date.now())
+        : null
+      const nextGenerationStats = addGenerationStats(
+        current.sessionStats?.generation_stats,
+        observedGenerationStats
+      )
+      const nextSessionStats = nextGenerationStats
+        ? {
+            ...(current.sessionStats ?? {
+              total_usage: null,
+              total_duration_ms: 0,
+            }),
+            generation_stats: nextGenerationStats,
+          }
+        : current.sessionStats
 
       // Promote: optimisticTurns + streamingTurns → localTurns. Dedup by turn
       // id (keep the latest copy) so a re-promotion of an already-promoted turn
@@ -2083,6 +2139,7 @@ function reducer(
         // reply is already persisted.
         lastTurnOwned: current.syncState === "awaiting_persist",
         pendingBackgroundSettlements: remainingSettlements,
+        sessionStats: nextSessionStats,
       }))
     }
 
@@ -2500,16 +2557,20 @@ function reducer(
 
       if (!changed && !action.sessionStats) return state
 
+      const nextSessionStats = mergeIncomingSessionStats(
+        current.sessionStats,
+        action.sessionStats
+      )
       const patchedDetail =
-        current.detail && action.sessionStats
-          ? { ...current.detail, session_stats: action.sessionStats }
+        current.detail && nextSessionStats
+          ? { ...current.detail, session_stats: nextSessionStats }
           : current.detail
 
       return updateSessionInState(state, action.conversationId, () => ({
         ...current,
         localTurns: changed ? patchedTurns : current.localTurns,
         detail: patchedDetail,
-        sessionStats: action.sessionStats ?? current.sessionStats,
+        sessionStats: nextSessionStats,
       }))
     }
 
@@ -3342,7 +3403,11 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
     getFolderConversation(conversationId, { tailTurns: TAIL_TURNS_DEFAULT })
       .then((detail) => {
         if (!isLatestGeneration(conversationId, generation)) return
-        dispatch({ type: "FETCH_DETAIL_SUCCESS", conversationId, detail })
+        dispatch({
+          type: "FETCH_DETAIL_SUCCESS",
+          conversationId,
+          detail: hydrateStoredGenerationStats(conversationId, detail),
+        })
       })
       .catch((error: unknown) => {
         if (!isLatestGeneration(conversationId, generation)) return
@@ -3376,7 +3441,7 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
         dispatch({
           type: "FETCH_DETAIL_SUCCESS",
           conversationId,
-          detail,
+          detail: hydrateStoredGenerationStats(fetchId, detail),
           preserveLive: options?.preserveLive ?? false,
         })
       })
@@ -3729,6 +3794,12 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       // again, etc.) reconciles it against the DB whenever that naturally
       // happens.
       dispatch({ type: "COMPLETE_TURN", conversationId, liveMessage })
+      const completed = get().byConversationId.get(conversationId)
+      const persistedId = completed?.dbConversationId ?? conversationId
+      saveGenerationStats(
+        persistedId,
+        completed?.sessionStats?.generation_stats
+      )
     },
     appendOptimisticTurn: (conversationId, turn, turnToken) =>
       dispatch({
@@ -3763,20 +3834,34 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       }),
     setExternalId: (conversationId, externalId) =>
       dispatch({ type: "SET_EXTERNAL_ID", conversationId, externalId }),
-    setDbConversationId: (conversationId, dbConversationId) =>
+    setDbConversationId: (conversationId, dbConversationId) => {
       dispatch({
         type: "SET_DB_CONVERSATION_ID",
         conversationId,
         dbConversationId,
-      }),
+      })
+      if (dbConversationId != null) {
+        saveGenerationStats(
+          dbConversationId,
+          get().byConversationId.get(conversationId)?.sessionStats
+            ?.generation_stats
+        )
+      }
+    },
     setSyncState: (conversationId, syncState) =>
       dispatch({ type: "SET_SYNC_STATE", conversationId, syncState }),
-    migrateConversation: (fromConversationId, toConversationId) =>
+    migrateConversation: (fromConversationId, toConversationId) => {
       dispatch({
         type: "MIGRATE_CONVERSATION",
         fromConversationId,
         toConversationId,
-      }),
+      })
+      saveGenerationStats(
+        toConversationId,
+        get().byConversationId.get(toConversationId)?.sessionStats
+          ?.generation_stats
+      )
+    },
     setPendingCleanup: (conversationId, pendingCleanup) =>
       dispatch({ type: "SET_PENDING_CLEANUP", conversationId, pendingCleanup }),
     setAcpLoadError: (conversationId, error) =>

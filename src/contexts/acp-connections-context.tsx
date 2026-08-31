@@ -19,6 +19,12 @@ import type {
 import { randomUUID } from "@/lib/utils"
 import { inferLiveToolName } from "@/lib/tool-call-normalization"
 import {
+  createLiveGenerationTiming,
+  markLiveGenerationOutput,
+  markLiveToolSettled,
+  type LiveGenerationTiming,
+} from "@/lib/live-generation-stats"
+import {
   acpConnect,
   acpGetAgentStatus,
   acpPrompt,
@@ -82,6 +88,7 @@ import { getAgentLabel } from "@/lib/custom-agents"
 import {
   CONNECTION_IDLE_TIMEOUT_MS,
   CONNECTION_KEEPALIVE_INTERVAL_MS,
+  IDLE_WARM_CONNECTION_TTL_MS,
   IDLE_SWEEP_INTERVAL_MS,
   MAX_IDLE_WARM_CONNECTIONS,
 } from "@/lib/constants"
@@ -208,6 +215,8 @@ export interface LiveMessage {
   role: "assistant" | "tool"
   content: LiveContentBlock[]
   startedAt: number
+  /** Client-observed model-step boundaries used for composer averages. */
+  generationTiming?: LiveGenerationTiming
 }
 
 // ── Per-connection state ──
@@ -362,19 +371,27 @@ export interface IdleWarmConnectionEviction {
   contextKeys: string[]
 }
 
+export interface IdleWarmConnectionPlan {
+  warm: IdleWarmConnectionEviction[]
+  evictions: IdleWarmConnectionEviction[]
+}
+
+type IdleWarmConnectionCandidate = IdleWarmConnectionEviction & {
+  lastActive: number
+}
+
 /**
- * Select background, idle OWNER connections beyond the warm LRU budget.
+ * Select background, idle OWNER connections eligible for the warm LRU budget.
  * Grouping by backend connection id is load-bearing: backend dedup can give
  * several local surfaces the same process, and it must be evicted at most once.
  * Unknown/busy/viewer/delegation states fail closed and are never candidates.
  */
-export function selectIdleWarmConnectionEvictions(
+function selectIdleWarmConnectionCandidates(
   connections: ReadonlyMap<string, ConnectionState>,
   openTabKeys: ReadonlySet<string>,
   activeKey: string | null,
-  lastActivity: ReadonlyMap<string, number>,
-  maxWarm = MAX_IDLE_WARM_CONNECTIONS
-): IdleWarmConnectionEviction[] {
+  lastActivity: ReadonlyMap<string, number>
+): IdleWarmConnectionCandidate[] {
   type Group = IdleWarmConnectionEviction & {
     hasOpenTab: boolean
     hasOwner: boolean
@@ -409,17 +426,79 @@ export function selectIdleWarmConnectionEvictions(
       conn.isDelegationChild ||
       conn.backgroundOutstanding > 0 ||
       conn.pendingPermission != null ||
+      conn.pendingQuestion != null ||
       conn.pendingAskQuestion != null ||
       conn.pendingPlanApproval != null
   }
 
-  const candidates = [...groups.values()]
+  return [...groups.values()]
     .filter((group) => group.hasOpenTab && group.hasOwner && !group.protected)
     .sort(
       (a, b) =>
         b.lastActive - a.lastActive ||
         a.connectionId.localeCompare(b.connectionId)
     )
+    .map(({ connectionId, contextKeys, lastActive }) => ({
+      connectionId,
+      contextKeys,
+      lastActive,
+    }))
+}
+
+/**
+ * Split eligible background owners into truly-warm and reclaimed groups.
+ * Recent LRU winners are refreshed by the keepalive timer; overflow and slots
+ * older than the warm TTL are disconnected by the idle sweep.
+ */
+export function selectIdleWarmConnectionPlan(
+  connections: ReadonlyMap<string, ConnectionState>,
+  openTabKeys: ReadonlySet<string>,
+  activeKey: string | null,
+  lastActivity: ReadonlyMap<string, number>,
+  now: number,
+  maxWarm = MAX_IDLE_WARM_CONNECTIONS,
+  warmTtlMs = IDLE_WARM_CONNECTION_TTL_MS
+): IdleWarmConnectionPlan {
+  const candidates = selectIdleWarmConnectionCandidates(
+    connections,
+    openTabKeys,
+    activeKey,
+    lastActivity
+  )
+  const warm = candidates
+    .filter((group) => now - group.lastActive <= warmTtlMs)
+    .slice(0, Math.max(0, maxWarm))
+  const warmIds = new Set(warm.map((group) => group.connectionId))
+  const toPublicGroup = ({
+    connectionId,
+    contextKeys,
+  }: IdleWarmConnectionCandidate): IdleWarmConnectionEviction => ({
+    connectionId,
+    contextKeys,
+  })
+
+  return {
+    warm: warm.map(toPublicGroup),
+    evictions: candidates
+      .filter((group) => !warmIds.has(group.connectionId))
+      .map(toPublicGroup),
+  }
+}
+
+/** Count-only compatibility helper used by callers that do not apply a TTL. */
+export function selectIdleWarmConnectionEvictions(
+  connections: ReadonlyMap<string, ConnectionState>,
+  openTabKeys: ReadonlySet<string>,
+  activeKey: string | null,
+  lastActivity: ReadonlyMap<string, number>,
+  maxWarm = MAX_IDLE_WARM_CONNECTIONS
+): IdleWarmConnectionEviction[] {
+  const candidates = selectIdleWarmConnectionCandidates(
+    connections,
+    openTabKeys,
+    activeKey,
+    lastActivity
+  )
 
   return candidates.slice(Math.max(0, maxWarm)).map((group) => ({
     connectionId: group.connectionId,
@@ -1203,12 +1282,32 @@ function dedupeCommandsByName(
  */
 function ensureLiveMessage(prev: LiveMessage | null): LiveMessage {
   if (prev) return prev
+  const startedAt = Date.now()
   return {
     id: randomUUID(),
     role: "assistant",
     content: [],
-    startedAt: Date.now(),
+    startedAt,
+    generationTiming: createLiveGenerationTiming(startedAt),
   }
+}
+
+function lastRootGeneratedBlock(content: LiveContentBlock[]) {
+  for (let index = content.length - 1; index >= 0; index--) {
+    const block = content[index]
+    if (
+      block.type === "tool_call" ||
+      ((block.type === "text" || block.type === "thinking") &&
+        block.parentToolUseId == null)
+    ) {
+      return block
+    }
+  }
+  return undefined
+}
+
+function isSettledToolStatus(status: string | null | undefined): boolean {
+  return status === "completed" || status === "failed"
 }
 
 /** Last time an out-of-turn drop was logged — module-level sampling clock. */
@@ -1331,9 +1430,21 @@ function applyStreamingAction(
   }
 
   if (!newContent) return null
+  const isRootToken = action.parentToolUseId == null && action.text.length > 0
+  const contentIndex = Math.max(0, newContent.length - 1)
+  const generationTiming = isRootToken
+    ? markLiveGenerationOutput(
+        prev.generationTiming,
+        prev.startedAt,
+        contentIndex,
+        prev.generationTiming?.nextStepStartedAt != null ||
+          lastRootGeneratedBlock(prev.content)?.type === "tool_call",
+        Date.now()
+      )
+    : prev.generationTiming
   return {
     ...conn,
-    liveMessage: { ...prev, content: newContent },
+    liveMessage: { ...prev, content: newContent, generationTiming },
     // Streaming content implies the SDK has recovered from any in-flight
     // Claude API retry, so hide the retry banner immediately instead of
     // waiting for the prompt cycle to end.
@@ -1652,11 +1763,13 @@ function connectionsReducer(
       const next = new Map(state)
       const updated = { ...conn, status: action.status }
       if (action.status === "prompting") {
+        const startedAt = Date.now()
         updated.liveMessage = {
           id: randomUUID(),
           role: "assistant",
           content: [],
-          startedAt: Date.now(),
+          startedAt,
+          generationTiming: createLiveGenerationTiming(startedAt),
         }
         updated.pendingQuestion = null
         updated.claudeApiRetry = null
@@ -1840,7 +1953,24 @@ function connectionsReducer(
           },
         ]
       }
-      const nextLiveMessage = { ...prev, content: newContent }
+      let generationTiming = prev.generationTiming
+      if (existingIndex === -1) {
+        generationTiming = markLiveGenerationOutput(
+          generationTiming,
+          prev.startedAt,
+          Math.max(0, newContent.length - 1),
+          generationTiming?.nextStepStartedAt != null,
+          Date.now()
+        )
+      }
+      if (isSettledToolStatus(action.status)) {
+        generationTiming = markLiveToolSettled(
+          generationTiming,
+          prev.startedAt,
+          Date.now()
+        )
+      }
+      const nextLiveMessage = { ...prev, content: newContent, generationTiming }
       const nextInfo = findLiveToolCallInfo(newContent, action.tool_call_id)
       const next = new Map(state)
       next.set(action.contextKey, {
@@ -1908,6 +2038,10 @@ function connectionsReducer(
         (b) =>
           b.type === "tool_call" && b.info.tool_call_id === action.tool_call_id
       )
+      const previousStatus =
+        existingIndex >= 0 && prev.content[existingIndex]?.type === "tool_call"
+          ? prev.content[existingIndex].info.status
+          : null
       let newContent: LiveContentBlock[]
 
       if (existingIndex === -1) {
@@ -1997,7 +2131,31 @@ function connectionsReducer(
         ]
       }
 
-      const nextLiveMessage = { ...prev, content: newContent }
+      let generationTiming = prev.generationTiming
+      if (existingIndex === -1) {
+        generationTiming = markLiveGenerationOutput(
+          generationTiming,
+          prev.startedAt,
+          Math.max(0, newContent.length - 1),
+          generationTiming?.nextStepStartedAt != null,
+          Date.now()
+        )
+      }
+      const nextStatus = findLiveToolCallInfo(
+        newContent,
+        action.tool_call_id
+      )?.status
+      if (
+        !isSettledToolStatus(previousStatus) &&
+        isSettledToolStatus(nextStatus)
+      ) {
+        generationTiming = markLiveToolSettled(
+          generationTiming,
+          prev.startedAt,
+          Date.now()
+        )
+      }
+      const nextLiveMessage = { ...prev, content: newContent, generationTiming }
       const nextInfo = findLiveToolCallInfo(newContent, action.tool_call_id)
       const next = new Map(state)
       next.set(action.contextKey, {
@@ -4688,19 +4846,29 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [dispatch, releaseConnectionRoute, teardownAttachSubscription]
   )
 
-  // ── Active keepalive + read-only liveness reconciliation ──
-  // Only the active surface refreshes the backend idle clock. Every open tab is
-  // still probed so a missed terminal event cannot strand its local state, but
-  // those probes no longer make background agents immortal.
+  // ── Active/true-warm keepalive + read-only liveness reconciliation ──
+  // The active surface and the two recent, TTL-bounded warm owners refresh the
+  // backend idle clock. Every other open tab is still probed so a missed
+  // terminal event cannot strand its local state, but those probes never make
+  // cold background agents immortal.
   useEffect(() => {
     const timer = setInterval(() => {
       const currentActiveKey = storeRef.current.activeKey
       const currentOpenTabKeys = openTabKeysRef.current
-      const seen = new Set<string>()
-      const toTouch: { contextKey: string; connectionId: string }[] = []
+      const warmIds = new Set(
+        selectIdleWarmConnectionPlan(
+          storeRef.current.connections,
+          currentOpenTabKeys,
+          currentActiveKey,
+          lastActivityRef.current,
+          Date.now()
+        ).warm.map((group) => group.connectionId)
+      )
+      const checks = new Map<
+        string,
+        { contextKeys: Set<string>; shouldTouch: boolean }
+      >()
       const consider = (contextKey: string) => {
-        if (seen.has(contextKey)) return
-        seen.add(contextKey)
         const conn = storeRef.current.connections.get(contextKey)
         if (!conn) return
         if (conn.status === "disconnected" || conn.status === "error") return
@@ -4708,17 +4876,27 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // released by `detachDelegationChild`; settling one here would fight
         // that lifecycle.
         if (conn.isDelegationChild) return
-        toTouch.push({ contextKey, connectionId: conn.connectionId })
+        const group = checks.get(conn.connectionId) ?? {
+          contextKeys: new Set<string>(),
+          shouldTouch: false,
+        }
+        group.contextKeys.add(contextKey)
+        group.shouldTouch ||=
+          contextKey === currentActiveKey || warmIds.has(conn.connectionId)
+        checks.set(conn.connectionId, group)
       }
       if (currentActiveKey) consider(currentActiveKey)
       for (const contextKey of currentOpenTabKeys) consider(contextKey)
-      for (const { contextKey, connectionId } of toTouch) {
-        const check =
-          contextKey === currentActiveKey
-            ? acpTouchConnection(connectionId).catch(() => true)
-            : isConnectionLiveOnBackend(connectionId)
+      for (const [connectionId, group] of checks) {
+        const check = group.shouldTouch
+          ? acpTouchConnection(connectionId).catch(() => true)
+          : isConnectionLiveOnBackend(connectionId)
         void check.then((live) => {
-          if (!live) markConnectionGone(contextKey, connectionId)
+          if (!live) {
+            for (const contextKey of group.contextKeys) {
+              markConnectionGone(contextKey, connectionId)
+            }
+          }
         })
       }
     }, CONNECTION_KEEPALIVE_INTERVAL_MS)
@@ -4728,25 +4906,33 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // ── Idle + warm-LRU sweep timer ──
   // Closed surfaces retain the one-minute local timeout. Open tabs may keep at
-  // most MAX_IDLE_WARM_CONNECTIONS background owner processes; overflow is
-  // disconnected least-recently-used first while tabs and transcripts remain.
-  // Busy, permission-blocked, viewer and delegation connections are protected.
+  // most MAX_IDLE_WARM_CONNECTIONS background owner processes for
+  // IDLE_WARM_CONNECTION_TTL_MS after their latest event/activity; overflow
+  // and expired slots are disconnected while tabs and transcripts remain.
+  // Busy, interaction-blocked, viewer and delegation connections are protected.
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now()
       const currentActiveKey = storeRef.current.activeKey
       const currentOpenTabKeys = openTabKeysRef.current
       const groupsToDisconnect = new Map<string, string[]>()
-      for (const group of selectIdleWarmConnectionEvictions(
+      const warmPlan = selectIdleWarmConnectionPlan(
         storeRef.current.connections,
         currentOpenTabKeys,
         currentActiveKey,
-        lastActivityRef.current
-      )) {
+        lastActivityRef.current,
+        now
+      )
+      const warmIds = new Set(warmPlan.warm.map((group) => group.connectionId))
+      for (const group of warmPlan.evictions) {
         groupsToDisconnect.set(group.connectionId, group.contextKeys)
       }
 
       for (const [contextKey, conn] of storeRef.current.connections) {
+        // A deduplicated backend process can have both open and closed local
+        // surfaces. Never let the closed-surface timeout tear down a process
+        // currently selected as warm for another open tab.
+        if (warmIds.has(conn.connectionId)) continue
         if (groupsToDisconnect.has(conn.connectionId)) continue
         if (contextKey === currentActiveKey) continue
         if (currentOpenTabKeys.has(contextKey)) continue
@@ -4797,6 +4983,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             conn.isDelegationChild ||
             conn.backgroundOutstanding > 0 ||
             conn.pendingPermission != null ||
+            conn.pendingQuestion != null ||
             conn.pendingAskQuestion != null ||
             conn.pendingPlanApproval != null
           )

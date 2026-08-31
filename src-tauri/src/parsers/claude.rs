@@ -774,6 +774,7 @@ fn merge_claude_context_window_stats(
             context_window_used_tokens: used_tokens,
             context_window_max_tokens: max_tokens,
             context_window_usage_percent: usage_percent,
+            generation_stats: None,
         }),
     }
 }

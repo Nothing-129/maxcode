@@ -50,6 +50,14 @@ pub fn build_router(
             post(handlers::conversations::get_conversation),
         )
         .route(
+            "/create_conversation_share",
+            post(handlers::conversation_share::create_conversation_share),
+        )
+        .route(
+            "/revoke_conversation_share",
+            post(handlers::conversation_share::revoke_conversation_share),
+        )
+        .route(
             "/list_all_conversations",
             post(handlers::conversations::list_all_conversations),
         )
@@ -1569,6 +1577,10 @@ pub fn build_router(
     // The login page needs to read the user's preferred language before
     // authenticating so it can render in their chosen locale.
     let public_api = Router::new()
+        .route(
+            "/shared_conversation",
+            post(handlers::conversation_share::get_shared_conversation),
+        )
         .route(
             "/get_system_language_settings",
             post(handlers::system_settings::get_system_language_settings),

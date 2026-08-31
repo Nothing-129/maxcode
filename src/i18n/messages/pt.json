@@ -1914,7 +1914,23 @@
       "markCompleted": "Marcar como concluída",
       "reopen": "Reabrir",
       "expandSubsessions": "Expandir subconversas",
-      "collapseSubsessions": "Recolher subconversas"
+      "collapseSubsessions": "Recolher subconversas",
+      "shareConversation": "Compartilhar conversa",
+      "shareDialogTitle": "Compartilhar conversa somente para leitura",
+      "shareDialogDescription": "Criar um link de snapshot somente para visualização de “{title}”.",
+      "shareCreating": "Criando link de compartilhamento…",
+      "shareLink": "Link de compartilhamento",
+      "shareCopy": "Copiar link",
+      "shareSnapshotHint": "O link mostra este snapshot e não será atualizado com mensagens posteriores. Qualquer pessoa com o link poderá visualizá-lo.",
+      "shareFailed": "Não foi possível criar o link. Verifique se o serviço Web pode ser iniciado e tente novamente.",
+      "shareRevoke": "Parar de compartilhar",
+      "shareDone": "Concluído",
+      "shareReadOnly": "Somente leitura",
+      "shareUnavailableTitle": "Conversa compartilhada indisponível",
+      "shareUnavailableDescription": "O link pode ser inválido, revogado ou o serviço de compartilhamento pode estar temporariamente indisponível.",
+      "shareRoleUser": "Você",
+      "shareRoleAssistant": "Assistente",
+      "shareRoleSystem": "Sistema"
     },
     "search": {
       "dialogTitle": "Buscar",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value} s",
         "outputSpeedAria": "Velocidade de saída estimada",
         "outputSpeedTooltip": "Velocidade de saída estimada (texto + raciocínio + argumentos de ferramenta)"
+      },
+      "generationStats": {
+        "ttftAverage": "1º token médio {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "Ver JSON bruto",

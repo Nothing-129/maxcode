@@ -71,6 +71,26 @@
       ]
     },
     {
+      "id": "conversations.read-only-sharing",
+      "category": "product",
+      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; public viewers receive a transcript-only read-only surface.",
+      "origins": ["worktree-2026-08-31"],
+      "paths": [
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/shared-conversation-view.tsx",
+        "src/app/share/",
+        "src/lib/conversation-share.ts",
+        "src-tauri/src/commands/conversation_share.rs",
+        "src-tauri/src/web/handlers/conversation_share.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/db/migration/m20260831_000001_conversation_share.rs",
+        "src-tauri/src/db/service/conversation_share_service.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-sharing.contract.test.ts"
+      ]
+    },
+    {
       "id": "conversations.sidebar-folder-interactions",
       "category": "product",
       "description": "Completed sessions are hidden by default; sidebar sections, folders, worktrees, paging, trackpad reorder, and newly created folder ordering stay stable.",
@@ -145,6 +165,28 @@
       ]
     },
     {
+      "id": "messages.generation-stats",
+      "category": "product",
+      "description": "Conversations show DeepSeek-Harness-compatible average first-token latency and decode throughput beside the branch when the measured composer space is sufficient; DeepSeek uses native exact records and live ACP agents collect browser-observed step boundaries.",
+      "origins": ["worktree-2026-08-31"],
+      "paths": [
+        "src-tauri/src/models/conversation.rs",
+        "src-tauri/src/models/mod.rs",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src/lib/types.ts",
+        "src/lib/live-generation-stats.ts",
+        "src/lib/generation-stats-storage.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/stores/conversation-runtime-store.ts",
+        "src/components/chat/composer-generation-stats.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/deepseek-generation-stats.contract.test.ts"
+      ]
+    },
+    {
       "id": "web.auth-and-session-recovery",
       "category": "runtime",
       "description": "Transient WebSocket loss preserves credentials, probes health with backoff, restores subscriptions, and only authenticated 401 responses show session expiry.",
@@ -214,10 +256,11 @@
     {
       "id": "agents.bounded-connection-lifecycle",
       "category": "runtime",
-      "description": "Only active surfaces refresh idle time, background probes are read-only, two idle owner processes stay warm, busy work is protected, and wedged startup processes are reaped.",
+      "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped.",
       "origins": ["2c859b2a", "worktree-2026-08-31"],
       "paths": [
         "src/lib/constants.ts",
+        "src/lib/conversation-tab-retention.ts",
         "src/contexts/acp-connections-context.tsx",
         "src/components/conversations/conversation-detail-panel.tsx",
         "src-tauri/src/acp/connection.rs",

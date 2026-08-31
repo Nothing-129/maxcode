@@ -619,6 +619,7 @@ pub fn compute_session_stats(turns: &[MessageTurn]) -> Option<SessionStats> {
         context_window_used_tokens: None,
         context_window_max_tokens: None,
         context_window_usage_percent: None,
+        generation_stats: None,
     })
 }
 
@@ -824,6 +825,7 @@ pub fn merge_context_window_stats(
             context_window_used_tokens: used_tokens,
             context_window_max_tokens: max_tokens,
             context_window_usage_percent: usage_percent,
+            generation_stats: None,
         }),
     }
 }
@@ -1669,6 +1671,7 @@ mod tests {
             context_window_used_tokens: None,
             context_window_max_tokens: None,
             context_window_usage_percent: None,
+            generation_stats: None,
         });
         let merged_existing =
             merge_context_window_stats(existing, Some(200), Some(1000)).expect("merged");

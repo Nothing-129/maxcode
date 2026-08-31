@@ -1914,7 +1914,23 @@
       "markCompleted": "完了にする",
       "reopen": "再開する",
       "expandSubsessions": "サブ会話を展開",
-      "collapseSubsessions": "サブ会話を折りたたむ"
+      "collapseSubsessions": "サブ会話を折りたたむ",
+      "shareConversation": "会話を共有",
+      "shareDialogTitle": "読み取り専用で会話を共有",
+      "shareDialogDescription": "「{title}」の閲覧専用スナップショットリンクを作成します。",
+      "shareCreating": "共有リンクを作成中…",
+      "shareLink": "共有リンク",
+      "shareCopy": "リンクをコピー",
+      "shareSnapshotHint": "リンクには現在のスナップショットが表示され、以降の会話は反映されません。リンクを知っている人は誰でも閲覧できます。",
+      "shareFailed": "共有リンクを作成できませんでした。Web サービスを起動できることを確認して、もう一度お試しください。",
+      "shareRevoke": "共有を停止",
+      "shareDone": "完了",
+      "shareReadOnly": "読み取り専用",
+      "shareUnavailableTitle": "共有された会話を表示できません",
+      "shareUnavailableDescription": "リンクが無効、取り消し済み、または共有サービスに一時的にアクセスできない可能性があります。",
+      "shareRoleUser": "あなた",
+      "shareRoleAssistant": "アシスタント",
+      "shareRoleSystem": "システム"
     },
     "search": {
       "dialogTitle": "検索",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value}秒",
         "outputSpeedAria": "推定出力速度",
         "outputSpeedTooltip": "推定出力速度（テキスト + 思考 + ツール引数）"
+      },
+      "generationStats": {
+        "ttftAverage": "初回 token 平均 {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "生の JSON を表示",

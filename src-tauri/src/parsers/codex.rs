@@ -4141,6 +4141,7 @@ fn merge_codex_context_window_stats(
             context_window_used_tokens: used_tokens,
             context_window_max_tokens: max_tokens,
             context_window_usage_percent: usage_percent,
+            generation_stats: None,
         }),
     }
 }
@@ -4167,6 +4168,7 @@ fn merge_codex_total_usage_stats(
             context_window_used_tokens: None,
             context_window_max_tokens: None,
             context_window_usage_percent: None,
+            generation_stats: None,
         }),
         None => None,
     }
@@ -5455,6 +5457,7 @@ mod tests {
             context_window_used_tokens: None,
             context_window_max_tokens: None,
             context_window_usage_percent: None,
+            generation_stats: None,
         };
         let total = TurnUsage {
             input_tokens: 100,

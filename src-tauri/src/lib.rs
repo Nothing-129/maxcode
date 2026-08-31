@@ -65,7 +65,8 @@ mod tauri_app {
     use crate::commands::{
         acp as acp_commands, app_update as app_update_commands, automation as automation_commands,
         background as background_commands, backup, chat_authoring as chat_authoring_commands,
-        chat_channel as chat_channel_commands, conversations,
+        chat_channel as chat_channel_commands, conversation_share as conversation_share_commands,
+        conversations,
         custom_skills as custom_skills_commands, delegation as delegation_commands,
         experts as experts_commands, feedback as feedback_commands, file_io, folder_commands,
         folder_links, folders, forge as forge_commands, logging as logging_commands,
@@ -1035,6 +1036,8 @@ mod tauri_app {
                 conversations::update_conversation_title,
                 conversations::update_conversation_pinned,
                 conversations::delete_conversation,
+                conversation_share_commands::create_conversation_share,
+                conversation_share_commands::revoke_conversation_share,
                 folders::load_folder_history,
                 folders::get_folder,
                 folders::list_open_folder_details,

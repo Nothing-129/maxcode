@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest"
 import {
   selectIdleWarmConnectionEvictions,
+  selectIdleWarmConnectionPlan,
   type ConnectionState,
 } from "@/contexts/acp-connections-context"
+import {
+  IDLE_WARM_CONNECTION_TTL_MS,
+  MAX_IDLE_WARM_CONNECTIONS,
+} from "@/lib/constants"
 
 function connection(
   connectionId: string,
@@ -15,6 +20,7 @@ function connection(
     isDelegationChild: false,
     backgroundOutstanding: 0,
     pendingPermission: null,
+    pendingQuestion: null,
     pendingAskQuestion: null,
     pendingPlanApproval: null,
     ...overrides,
@@ -45,6 +51,42 @@ describe("idle warm connection LRU", () => {
     ])
   })
 
+  it("touches only the two recent warm slots and expires old candidates", () => {
+    const now = 1_000_000
+    const connections = new Map<string, ConnectionState>([
+      ["newest", connection("newest")],
+      ["second", connection("second")],
+      ["overflow", connection("overflow")],
+      ["expired", connection("expired")],
+    ])
+    const activity = new Map([
+      ["newest", now - 1_000],
+      ["second", now - 2_000],
+      ["overflow", now - 3_000],
+      ["expired", now - IDLE_WARM_CONNECTION_TTL_MS - 1],
+    ])
+
+    expect(
+      selectIdleWarmConnectionPlan(
+        connections,
+        new Set(connections.keys()),
+        null,
+        activity,
+        now,
+        MAX_IDLE_WARM_CONNECTIONS
+      )
+    ).toEqual({
+      warm: [
+        { connectionId: "newest", contextKeys: ["newest"] },
+        { connectionId: "second", contextKeys: ["second"] },
+      ],
+      evictions: [
+        { connectionId: "overflow", contextKeys: ["overflow"] },
+        { connectionId: "expired", contextKeys: ["expired"] },
+      ],
+    })
+  })
+
   it("never evicts busy, permission-blocked, viewer, or delegation connections", () => {
     const connections = new Map<string, ConnectionState>([
       ["prompting", connection("prompting", { status: "prompting" })],
@@ -53,6 +95,7 @@ describe("idle warm connection LRU", () => {
         "permission",
         connection("permission", { pendingPermission: {} as never }),
       ],
+      ["question", connection("question", { pendingQuestion: {} as never })],
       ["viewer", connection("viewer", { isViewer: true })],
       ["delegation", connection("delegation", { isDelegationChild: true })],
       ["idle", connection("idle")],

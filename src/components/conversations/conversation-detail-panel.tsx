@@ -29,6 +29,7 @@ import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { groupOfTab, isReparentUnmount } from "@/stores/tab-store"
 import { computeRects, leafIds } from "@/lib/tab-group-layout"
+import { getConversationTabRetention } from "@/lib/conversation-tab-retention"
 import { useTaskContext } from "@/contexts/task-context"
 import { cn, copyTextToClipboard, randomUUID } from "@/lib/utils"
 import { buildAskPrompt, buildQuotedMarkdown } from "@/lib/message-quote"
@@ -174,6 +175,8 @@ interface ConversationTabViewProps {
    *  reparent (the tab moved to another group — remount, keep the connection)
    *  apart from a real teardown (pane switch / route change — disconnect). */
   groupId: string
+  /** Set for one handoff render before a hidden idle owner UI unmounts. */
+  preserveIdleOwnerOnUnmount?: boolean
 }
 
 function buildOptimisticUserTurnFromDraft(
@@ -245,6 +248,7 @@ const ConversationTabView = memo(function ConversationTabView({
   showActiveFlow,
   reloadSignal,
   groupId,
+  preserveIdleOwnerOnUnmount,
 }: ConversationTabViewProps) {
   const t = useTranslations("Folder.conversation")
   const tWelcome = useTranslations("Folder.chat.welcomeInputPanel")
@@ -589,13 +593,14 @@ const ConversationTabView = memo(function ConversationTabView({
     // Drives cross-client viewer discovery: when another client is already
     // live on this conversation, attach to its connection instead of spawning.
     conversationId: dbConversationId ?? undefined,
-    // A cross-group move / unsplit reparents this view (React remounts it)
-    // while the tab stays open — that unmount must not tear the connection
-    // down. See `isReparentUnmount` for why "still open" alone is too broad.
+    // A cross-group move / unsplit reparents this view (React remounts it), so
+    // neither owner nor viewer should detach. Separately, the lazy wrapper uses
+    // a one-render handoff before an idle local owner sheds this heavy UI.
     isTransientUnmount: useCallback(
       () => isReparentUnmount(useTabStore.getState(), tabId, groupId),
       [tabId, groupId]
     ),
+    preserveIdleOwnerOnUnmount,
   })
   const { status: connStatus, sessionId: connSessionId } = conn
   const messageQueue = useMessageQueue()
@@ -2271,31 +2276,48 @@ interface LazyConversationTabViewProps extends ConversationTabViewProps {
 }
 
 /**
- * Cold background tabs keep their tab metadata and persisted transcript but do
- * not retain the heavy conversation React tree. A live owner stays mounted
- * until the connection pool evicts it; busy work is therefore never detached
- * merely because the user switched tabs. Viewer surfaces can remount/reattach
- * on demand without owning (or killing) the shared backend process.
+ * Background tabs keep their tab metadata and persisted transcript but do not
+ * retain the heavy conversation React tree while idle. A recent owner can keep
+ * its lightweight ACP process warm independently; busy/pending work stays
+ * mounted, and viewer surfaces detach/remount without owning the process.
  */
 const LazyConversationTabView = memo(function LazyConversationTabView({
   visible,
   ...props
 }: LazyConversationTabViewProps) {
   const conn = useConnection(props.tabId)
-  const hasOwnedLiveConnection =
-    !conn.isViewer &&
-    (conn.status === "connecting" ||
-      conn.status === "connected" ||
-      conn.status === "prompting")
-  const hasProtectedWork =
-    conn.backgroundOutstanding > 0 ||
-    conn.pendingPermission != null ||
-    conn.pendingQuestion != null ||
-    conn.pendingAskQuestion != null ||
-    conn.pendingPlanApproval != null
+  const retention = getConversationTabRetention({
+    visible,
+    status: conn.status,
+    isViewer: conn.isViewer,
+    backgroundOutstanding: conn.backgroundOutstanding,
+    hasPendingInteraction:
+      conn.pendingPermission != null ||
+      conn.pendingQuestion != null ||
+      conn.pendingAskQuestion != null ||
+      conn.pendingPlanApproval != null,
+  })
+  const [idleOwnerVirtualized, setIdleOwnerVirtualized] = useState(false)
+  const needsIdleOwnerHandoff = retention.preserveOwnedConnectionOnUnmount
+  useEffect(() => {
+    // Defer one tick: ConversationTabView first receives the preservation flag,
+    // then its lifecycle ref is current before the following render unmounts it.
+    const timer = setTimeout(
+      () => setIdleOwnerVirtualized(needsIdleOwnerHandoff),
+      0
+    )
+    return () => clearTimeout(timer)
+  }, [needsIdleOwnerHandoff])
 
-  if (!visible && !hasOwnedLiveConnection && !hasProtectedWork) return null
-  return <ConversationTabView {...props} />
+  if (!retention.mounted) {
+    if (!needsIdleOwnerHandoff || idleOwnerVirtualized) return null
+  }
+  return (
+    <ConversationTabView
+      {...props}
+      preserveIdleOwnerOnUnmount={needsIdleOwnerHandoff}
+    />
+  )
 })
 
 // A group rect (percentages) counts as touching a container edge within this

@@ -393,6 +393,7 @@ impl HermesParser {
             context_window_used_tokens: None,
             context_window_max_tokens: None,
             context_window_usage_percent: None,
+            generation_stats: None,
         };
 
         let max = super::infer_context_window_max_tokens(model);

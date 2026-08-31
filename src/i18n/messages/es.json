@@ -1914,7 +1914,23 @@
       "markCompleted": "Marcar como completada",
       "reopen": "Reabrir",
       "expandSubsessions": "Expandir subconversaciones",
-      "collapseSubsessions": "Contraer subconversaciones"
+      "collapseSubsessions": "Contraer subconversaciones",
+      "shareConversation": "Compartir conversación",
+      "shareDialogTitle": "Compartir conversación de solo lectura",
+      "shareDialogDescription": "Crear un enlace de instantánea de solo lectura para «{title}».",
+      "shareCreating": "Creando enlace para compartir…",
+      "shareLink": "Enlace para compartir",
+      "shareCopy": "Copiar enlace",
+      "shareSnapshotHint": "El enlace muestra esta instantánea y no se actualizará con mensajes posteriores. Cualquiera que tenga el enlace podrá verla.",
+      "shareFailed": "No se pudo crear el enlace. Comprueba que el servicio web pueda iniciarse e inténtalo de nuevo.",
+      "shareRevoke": "Dejar de compartir",
+      "shareDone": "Listo",
+      "shareReadOnly": "Solo lectura",
+      "shareUnavailableTitle": "Conversación compartida no disponible",
+      "shareUnavailableDescription": "Es posible que el enlace no sea válido, se haya revocado o que el servicio no esté disponible temporalmente.",
+      "shareRoleUser": "Tú",
+      "shareRoleAssistant": "Asistente",
+      "shareRoleSystem": "Sistema"
     },
     "search": {
       "dialogTitle": "Buscar",
@@ -3170,6 +3186,10 @@
         "elapsedSeconds": "{value} s",
         "outputSpeedAria": "Velocidad de salida estimada",
         "outputSpeedTooltip": "Velocidad de salida estimada (texto + razonamiento + argumentos de herramientas)"
+      },
+      "generationStats": {
+        "ttftAverage": "Promedio del primer token {duration}",
+        "tokensPerSecond": "{throughput} tok/s"
       },
       "jsonTree": {
         "viewRaw": "Ver JSON sin formato",
