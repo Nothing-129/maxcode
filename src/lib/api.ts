@@ -4426,6 +4426,7 @@ export interface WebServiceConfig {
   token: string | null
   port: number | null
   autoStart: boolean
+  publicShareUrl: string | null
 }
 
 export async function getWebServiceConfig(): Promise<WebServiceConfig> {

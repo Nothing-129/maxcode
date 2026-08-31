@@ -137,6 +137,8 @@ $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg\web"; codeg-server
 docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 ```
 
+如需生成公网可访问的只读会话分享链接，请在 **设置 → Web 服务**填写公网分享地址；服务器或 Docker 部署也可以设置 `CODEG_PUBLIC_URL=https://maxcode.example.com`。该地址应由反向代理、端口映射或隧道转发到 MaxCode。
+
 Compose、预编译二进制、源码构建与就地升级见上游 Codeg 的[部署文档](https://docs.codeg.app/zh/getting-started/deployment)；环境变量见 [配置](https://docs.codeg.app/zh/getting-started/configuration)。想构建 MaxCode，可参考上游的[开发](https://docs.codeg.app/zh/reference/development)与[架构](https://docs.codeg.app/zh/reference/architecture)文档。
 
 ## 🔒 隐私与安全

@@ -17,6 +17,40 @@ const h = vi.hoisted(() => ({
   deleteConversation: vi.fn(async () => {}),
   updateConversationStatus: vi.fn(async () => {}),
   updateConversationPinned: vi.fn(async () => {}),
+  createConversationShare: vi.fn(async () => ({
+    token: "0123456789abcdef0123456789abcdef",
+    shared_at: "2026-08-31T00:00:00Z",
+  })),
+  revokeConversationShare: vi.fn(async () => {}),
+  webServiceConfig: {
+    token: "server-token",
+    port: 3080,
+    autoStart: false,
+    publicShareUrl: null,
+  } as {
+    token: string | null
+    port: number | null
+    autoStart: boolean
+    publicShareUrl: string | null
+  },
+  getWebServiceConfig: vi.fn(async () => h.webServiceConfig),
+  updateWebServiceConfig: vi.fn(
+    async (config: {
+      token: string | null
+      port: number | null
+      autoStart: boolean
+      publicShareUrl: string | null
+    }) => {
+      h.webServiceConfig = config
+      return config
+    }
+  ),
+  getWebServerStatus: vi.fn(async () => null),
+  startWebServer: vi.fn(async () => ({
+    port: 3080,
+    token: "server-token",
+    addresses: ["http://127.0.0.1:3080"],
+  })),
   closeTab: vi.fn(),
   openNewConversationTab: vi.fn(),
   updateConversationLocal: vi.fn(),
@@ -28,6 +62,17 @@ vi.mock("@/lib/api", () => ({
   deleteConversation: h.deleteConversation,
   updateConversationStatus: h.updateConversationStatus,
   updateConversationPinned: h.updateConversationPinned,
+  createConversationShare: h.createConversationShare,
+  revokeConversationShare: h.revokeConversationShare,
+  getWebServiceConfig: h.getWebServiceConfig,
+  updateWebServiceConfig: h.updateWebServiceConfig,
+  getWebServerStatus: h.getWebServerStatus,
+  startWebServer: h.startWebServer,
+}))
+vi.mock("@/lib/transport", () => ({
+  getServerBaseUrl: () => "http://localhost:3000",
+  isDesktop: () => false,
+  isRemoteDesktopMode: () => false,
 }))
 vi.mock("@/contexts/tab-context", () => ({
   useTabActions: () => ({
@@ -93,6 +138,12 @@ function withIntl(ui: ReactElement) {
 describe("ConversationDetailHeader dialog target snapshot", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    h.webServiceConfig = {
+      token: "server-token",
+      port: 3080,
+      autoStart: false,
+      publicShareUrl: null,
+    }
   })
 
   it("deletes the conversation the dialog was opened for, even after the active tab switches", async () => {
@@ -143,5 +194,66 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
       expect(h.updateConversationTitle).toHaveBeenCalledWith(1, "renamed")
     })
     expect(h.updateConversationTitle).not.toHaveBeenCalledWith(2, "renamed")
+  })
+
+  it("asks for a public address once, saves it, and reuses it next time", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { findByLabelText, getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+
+    const publicUrlInput = await findByLabelText("Public share address")
+    expect(h.createConversationShare).not.toHaveBeenCalled()
+    await user.type(publicUrlInput, "https://maxcode.example.com")
+    await user.click(getByRole("button", { name: "Save and share" }))
+
+    await waitFor(() => {
+      expect(h.updateWebServiceConfig).toHaveBeenCalledWith({
+        token: "server-token",
+        port: 3080,
+        autoStart: false,
+        publicShareUrl: "https://maxcode.example.com",
+      })
+      expect(getByLabelText("Share link")).toHaveValue(
+        "https://maxcode.example.com/share#0123456789abcdef0123456789abcdef"
+      )
+    })
+
+    await user.click(getByRole("button", { name: "Done" }))
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+
+    await waitFor(() => {
+      expect(h.createConversationShare).toHaveBeenCalledTimes(2)
+      expect(getByLabelText("Share link")).toHaveValue(
+        "https://maxcode.example.com/share#0123456789abcdef0123456789abcdef"
+      )
+    })
+    expect(h.updateWebServiceConfig).toHaveBeenCalledTimes(1)
+  })
+
+  it("can use the local address once without saving it", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { findByLabelText, getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await findByLabelText("Public share address")
+    await user.click(
+      getByRole("button", { name: "Use local address this time" })
+    )
+
+    await waitFor(() => {
+      expect(getByLabelText("Share link")).toHaveValue(
+        "http://localhost:3000/share#0123456789abcdef0123456789abcdef"
+      )
+    })
+    expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
+    expect(h.webServiceConfig.publicShareUrl).toBeNull()
   })
 })

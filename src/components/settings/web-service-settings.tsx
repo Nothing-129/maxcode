@@ -43,6 +43,7 @@ const DEFAULT_PORT = 3080
 import { openUrl } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
+import { normalizeConversationPublicShareUrl } from "@/lib/conversation-share"
 
 // Remembers which reachable address the user last chose to display/open.
 // Keyed by host (IP) only, so the choice survives a port change.
@@ -286,6 +287,7 @@ export function WebServiceSettings() {
   const [error, setError] = useState("")
   const [portProbe, setPortProbe] = useState<WebServicePortProbe | null>(null)
   const [autoStart, setAutoStart] = useState(false)
+  const [publicShareUrl, setPublicShareUrl] = useState("")
   const [configLoaded, setConfigLoaded] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
 
@@ -304,6 +306,7 @@ export function WebServiceSettings() {
         token: null,
         port: null,
         autoStart: false,
+        publicShareUrl: null,
       }
       const [info, configResult] = await Promise.all([
         getWebServerStatus(),
@@ -314,6 +317,7 @@ export function WebServiceSettings() {
       const savedConfig = configResult.config
       setStatus(info)
       setAutoStart(savedConfig.autoStart ?? false)
+      setPublicShareUrl(savedConfig.publicShareUrl ?? "")
       if (info) {
         setPort(String(info.port))
         setToken(info.token)
@@ -377,18 +381,27 @@ export function WebServiceSettings() {
       if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
         return
       }
+      const normalizedPublicShareUrl = publicShareUrl.trim()
+        ? normalizeConversationPublicShareUrl(publicShareUrl)
+        : null
+      if (publicShareUrl.trim() && !normalizedPublicShareUrl) {
+        setError(t("publicShareUrlInvalid"))
+        return
+      }
 
       try {
         await updateWebServiceConfig({
           port: portNum,
           token: token.trim() || null,
           autoStart: nextAutoStart,
+          publicShareUrl: normalizedPublicShareUrl,
         })
+        setError("")
       } catch {
         setError(t("saveConfigFailed"))
       }
     },
-    [autoStart, port, t, token]
+    [autoStart, port, publicShareUrl, t, token]
   )
 
   useEffect(() => {
@@ -531,6 +544,25 @@ export function WebServiceSettings() {
             placeholder={t("tokenPlaceholder")}
           />
           <p className="text-xs text-muted-foreground">{t("tokenHint")}</p>
+
+          {/* Used only to construct public capability links. The reverse
+              proxy/tunnel remains responsible for routing this origin here. */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">
+              {t("publicShareUrlLabel")}
+            </label>
+            <input
+              type="url"
+              value={publicShareUrl}
+              onChange={(event) => setPublicShareUrl(event.target.value)}
+              placeholder={t("publicShareUrlPlaceholder")}
+              spellCheck={false}
+              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            />
+            <p className="text-xs text-muted-foreground">
+              {t("publicShareUrlHint")}
+            </p>
+          </div>
 
           {/* Auto-start config */}
           <div className="flex items-center gap-4">

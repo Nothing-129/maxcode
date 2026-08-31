@@ -73,18 +73,21 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; public viewers receive a transcript-only read-only surface.",
+      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; an explicit public origin wins over Web, LAN, and loopback fallbacks.",
       "origins": ["worktree-2026-08-31"],
       "paths": [
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/conversations/shared-conversation-view.tsx",
+        "src/components/settings/web-service-settings.tsx",
         "src/app/share/",
         "src/lib/conversation-share.ts",
         "src-tauri/src/commands/conversation_share.rs",
         "src-tauri/src/web/handlers/conversation_share.rs",
         "src-tauri/src/web/router.rs",
+        "src-tauri/src/web/mod.rs",
         "src-tauri/src/db/migration/m20260831_000001_conversation_share.rs",
-        "src-tauri/src/db/service/conversation_share_service.rs"
+        "src-tauri/src/db/service/conversation_share_service.rs",
+        "docker-compose.yml"
       ],
       "contracts": [
         "src/maxcode-contracts/conversation-sharing.contract.test.ts"

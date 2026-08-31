@@ -44,4 +44,32 @@ describe("MaxCode contract: read-only conversation sharing", () => {
     expect(view).not.toContain("MessageInput")
     expect(view).not.toContain("acp_prompt")
   })
+
+  it("prefers an explicit public origin and keeps private addresses as fallbacks", () => {
+    const link = source("src/lib/conversation-share.ts")
+    const publicBranch = link.indexOf("if (options.publicShareUrl)")
+    const runtimeBranch = link.indexOf("if (options.runtimeUrl)")
+    const listenerFallback = link.indexOf(
+      "selectConversationShareAddress(options.addresses"
+    )
+    expect(publicBranch).toBeGreaterThanOrEqual(0)
+    expect(runtimeBranch).toBeGreaterThan(publicBranch)
+    expect(listenerFallback).toBeGreaterThan(runtimeBranch)
+
+    const web = source("src-tauri/src/web/mod.rs")
+    expect(web).toContain('std::env::var("CODEG_PUBLIC_URL")')
+    expect(web).toContain("web_service_public_share_url")
+  })
+
+  it("captures and persists the public origin on first share", () => {
+    const header = source(
+      "src/components/conversations/conversation-detail-header.tsx"
+    )
+    const saveConfig = header.indexOf("await updateWebServiceConfig({")
+    const createLink = header.indexOf("await createShareLink(", saveConfig)
+    expect(saveConfig).toBeGreaterThanOrEqual(0)
+    expect(createLink).toBeGreaterThan(saveConfig)
+    expect(header).toContain('t("shareUseLocalAddress")')
+    expect(header).toContain('resolved?.source === "configured_public"')
+  })
 })

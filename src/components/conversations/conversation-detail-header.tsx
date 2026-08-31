@@ -23,16 +23,21 @@ import { useImeGuard } from "@/hooks/use-ime-guard"
 import {
   createConversationShare,
   deleteConversation,
+  getWebServiceConfig,
   getWebServerStatus,
   revokeConversationShare,
   startWebServer,
+  updateWebServiceConfig,
   updateConversationPinned,
   updateConversationStatus,
   updateConversationTitle,
+  type WebServiceConfig,
 } from "@/lib/api"
 import {
   buildConversationShareUrl,
-  selectConversationShareAddress,
+  normalizeConversationPublicShareUrl,
+  resolveConversationShareAddress,
+  type ConversationShareAddressSource,
 } from "@/lib/conversation-share"
 import { formatConversationTitle } from "@/lib/conversation-title"
 import { ConversationHeaderFolderPicker } from "@/components/chat/conversation-context-bar"
@@ -176,6 +181,12 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const [shareError, setShareError] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
+  const [shareAddressSource, setShareAddressSource] =
+    useState<ConversationShareAddressSource | null>(null)
+  const [shareNeedsPublicUrl, setShareNeedsPublicUrl] = useState(false)
+  const [sharePublicUrlInput, setSharePublicUrlInput] = useState("")
+  const [sharePublicUrlInvalid, setSharePublicUrlInvalid] = useState(false)
+  const [shareConfig, setShareConfig] = useState<WebServiceConfig | null>(null)
 
   const persisted = conversationId != null
   const displayTitle =
@@ -276,6 +287,43 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setDetails(resolved)
   }, [conversationId, runtimeConversationId, runtimeId])
 
+  const createShareLink = useCallback(
+    async (
+      target: { id: number; title: string },
+      publicShareUrl: string | null
+    ) => {
+      setShareNeedsPublicUrl(false)
+      setShareError(false)
+      setShareLoading(true)
+      try {
+        const share = await createConversationShare(target.id)
+        let runtimeUrl: string | null = null
+        let addresses: string[] = []
+        if (isRemoteDesktopMode() || !isDesktop()) {
+          runtimeUrl = getServerBaseUrl()
+        } else {
+          const status =
+            (await getWebServerStatus()) ?? (await startWebServer())
+          addresses = status.addresses
+        }
+        const resolved = resolveConversationShareAddress({
+          publicShareUrl,
+          runtimeUrl,
+          addresses,
+        })
+        if (!resolved) throw new Error("Share server address is unavailable")
+        setShareAddressSource(resolved.source)
+        setShareUrl(buildConversationShareUrl(resolved.baseUrl, share.token))
+      } catch (err) {
+        console.error("[ConversationDetailHeader] create share:", err)
+        setShareError(true)
+      } finally {
+        setShareLoading(false)
+      }
+    },
+    []
+  )
+
   const handleShareOpen = useCallback(() => {
     if (conversationId == null) return
     const target = { id: conversationId, title: displayTitle }
@@ -283,28 +331,71 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setShareUrl("")
     setShareError(false)
     setShareCopied(false)
+    setShareAddressSource(null)
+    setShareNeedsPublicUrl(false)
+    setSharePublicUrlInput("")
+    setSharePublicUrlInvalid(false)
+    setShareConfig(null)
     setShareLoading(true)
     void (async () => {
       try {
-        const share = await createConversationShare(target.id)
-        let baseUrl: string
-        if (isRemoteDesktopMode() || !isDesktop()) {
-          baseUrl = getServerBaseUrl()
-        } else {
-          const status =
-            (await getWebServerStatus()) ?? (await startWebServer())
-          baseUrl = selectConversationShareAddress(status.addresses) ?? ""
+        const config = await getWebServiceConfig()
+        setShareConfig(config)
+        const runtimeUrl =
+          isRemoteDesktopMode() || !isDesktop() ? getServerBaseUrl() : null
+        const resolved = resolveConversationShareAddress({
+          publicShareUrl: config.publicShareUrl,
+          runtimeUrl,
+        })
+        if (
+          resolved?.source === "configured_public" ||
+          resolved?.source === "runtime_public"
+        ) {
+          await createShareLink(target, config.publicShareUrl)
+          return
         }
-        if (!baseUrl) throw new Error("Share server address is unavailable")
-        setShareUrl(buildConversationShareUrl(baseUrl, share.token))
+        setShareNeedsPublicUrl(true)
       } catch (err) {
-        console.error("[ConversationDetailHeader] create share:", err)
+        console.error("[ConversationDetailHeader] prepare share:", err)
         setShareError(true)
       } finally {
         setShareLoading(false)
       }
     })()
-  }, [conversationId, displayTitle])
+  }, [conversationId, createShareLink, displayTitle])
+
+  const handleSavePublicUrlAndShare = useCallback(async () => {
+    if (shareTarget == null || shareConfig == null) return
+    const publicShareUrl =
+      normalizeConversationPublicShareUrl(sharePublicUrlInput)
+    if (!publicShareUrl) {
+      setSharePublicUrlInvalid(true)
+      return
+    }
+    setShareLoading(true)
+    setShareError(false)
+    try {
+      const savedConfig = await updateWebServiceConfig({
+        ...shareConfig,
+        publicShareUrl,
+      })
+      setShareConfig(savedConfig)
+      await createShareLink(
+        shareTarget,
+        savedConfig.publicShareUrl ?? publicShareUrl
+      )
+    } catch (err) {
+      console.error("[ConversationDetailHeader] save public share URL:", err)
+      setShareError(true)
+    } finally {
+      setShareLoading(false)
+    }
+  }, [createShareLink, shareConfig, sharePublicUrlInput, shareTarget])
+
+  const handleUseLocalShareAddress = useCallback(() => {
+    if (shareTarget == null) return
+    void createShareLink(shareTarget, null)
+  }, [createShareLink, shareTarget])
 
   const handleCopyShare = useCallback(async () => {
     if (!shareUrl) return
@@ -474,10 +565,44 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               })}
             </DialogDescription>
           </DialogHeader>
-          {shareLoading && !shareUrl ? (
+          {shareLoading && !shareUrl && !shareNeedsPublicUrl ? (
             <div className="flex items-center justify-center gap-2 py-5 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
               {t("shareCreating")}
+            </div>
+          ) : null}
+          {shareNeedsPublicUrl && !shareUrl ? (
+            <div className="space-y-2">
+              <label
+                htmlFor="conversation-share-public-url"
+                className="text-sm font-medium"
+              >
+                {t("sharePublicUrlLabel")}
+              </label>
+              <Input
+                id="conversation-share-public-url"
+                value={sharePublicUrlInput}
+                onChange={(event) => {
+                  setSharePublicUrlInput(event.target.value)
+                  setSharePublicUrlInvalid(false)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    void handleSavePublicUrlAndShare()
+                  }
+                }}
+                placeholder={t("sharePublicUrlPlaceholder")}
+                aria-invalid={sharePublicUrlInvalid}
+                autoFocus
+              />
+              <p className="text-xs text-muted-foreground">
+                {t("sharePublicUrlHint")}
+              </p>
+              {sharePublicUrlInvalid ? (
+                <p className="text-xs text-destructive">
+                  {t("sharePublicUrlInvalid")}
+                </p>
+              ) : null}
             </div>
           ) : null}
           {shareUrl ? (
@@ -501,25 +626,55 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               <p className="text-xs text-muted-foreground">
                 {t("shareSnapshotHint")}
               </p>
+              {shareAddressSource === "lan" ||
+              shareAddressSource === "loopback" ||
+              shareAddressSource === "runtime_private" ? (
+                <p className="text-xs text-amber-600 dark:text-amber-400">
+                  {t("sharePrivateAddressHint")}
+                </p>
+              ) : null}
             </div>
           ) : null}
           {shareError ? (
             <p className="text-sm text-destructive">{t("shareFailed")}</p>
           ) : null}
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={shareLoading || !shareUrl}
-              onClick={handleRevokeShare}
-            >
-              <Link2Off className="size-4" />
-              {t("shareRevoke")}
-            </Button>
-            <Button type="button" onClick={() => setShareTarget(null)}>
-              {t("shareDone")}
-            </Button>
-          </DialogFooter>
+          {shareNeedsPublicUrl && !shareUrl ? (
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={shareLoading}
+                onClick={handleUseLocalShareAddress}
+              >
+                {t("shareUseLocalAddress")}
+              </Button>
+              <Button
+                type="button"
+                disabled={shareLoading}
+                onClick={() => void handleSavePublicUrlAndShare()}
+              >
+                {shareLoading ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : null}
+                {t("shareSavePublicUrl")}
+              </Button>
+            </DialogFooter>
+          ) : (
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={shareLoading || !shareUrl}
+                onClick={handleRevokeShare}
+              >
+                <Link2Off className="size-4" />
+                {t("shareRevoke")}
+              </Button>
+              <Button type="button" onClick={() => setShareTarget(null)}>
+                {t("shareDone")}
+              </Button>
+            </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
 

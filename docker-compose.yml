@@ -13,6 +13,8 @@ services:
       - CODEG_TOKEN=${CODEG_TOKEN:-}
       - CODEG_PORT=3080
       - CODEG_HOST=0.0.0.0
+      # Public root origin used only when building read-only share links.
+      - CODEG_PUBLIC_URL=${CODEG_PUBLIC_URL:-}
     # In-place upgrades (Settings → Software Update) rewrite the binaries and
     # web assets inside this container's writable layer, not the image. The
     # codeg-data volume persists, but an upgrade lives only in the running

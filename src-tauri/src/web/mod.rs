@@ -28,6 +28,7 @@ use crate::db::service::app_metadata_service;
 const WEB_SERVICE_TOKEN_KEY: &str = "web_service_token";
 const WEB_SERVICE_PORT_KEY: &str = "web_service_port";
 const WEB_SERVICE_AUTO_START_KEY: &str = "web_service_auto_start";
+const WEB_SERVICE_PUBLIC_SHARE_URL_KEY: &str = "web_service_public_share_url";
 pub const DEFAULT_WEB_SERVICE_PORT: u16 = 3080;
 
 pub struct WebServerState {
@@ -234,6 +235,34 @@ pub struct WebServiceConfig {
     pub token: Option<String>,
     pub port: Option<u16>,
     pub auto_start: bool,
+    /// Public root origin used to construct share links. It does not change the
+    /// listener bind address; a reverse proxy or tunnel must route it here.
+    #[serde(default)]
+    pub public_share_url: Option<String>,
+}
+
+fn normalize_public_share_url(value: Option<String>) -> Result<Option<String>, AppCommandError> {
+    let raw = value.unwrap_or_default().trim().to_string();
+    if raw.is_empty() {
+        return Ok(None);
+    }
+    let parsed = reqwest::Url::parse(&raw)
+        .map_err(|_| AppCommandError::invalid_input("web_server.invalid_public_share_url"))?;
+    // The static export is hosted at the root today. Rejecting subpaths avoids
+    // minting plausible-looking links that the router can never serve.
+    if !matches!(parsed.scheme(), "http" | "https")
+        || parsed.host_str().is_none()
+        || !parsed.username().is_empty()
+        || parsed.password().is_some()
+        || parsed.query().is_some()
+        || parsed.fragment().is_some()
+        || parsed.path() != "/"
+    {
+        return Err(AppCommandError::invalid_input(
+            "web_server.invalid_public_share_url",
+        ));
+    }
+    Ok(Some(raw.trim_end_matches('/').to_string()))
 }
 
 pub async fn load_web_service_config(
@@ -252,10 +281,23 @@ pub async fn load_web_service_config(
             .await
             .map_err(AppCommandError::from)?,
     );
+    let stored_public_share_url =
+        app_metadata_service::get_value(conn, WEB_SERVICE_PUBLIC_SHARE_URL_KEY)
+            .await
+            .map_err(AppCommandError::from)?;
+    // Deployment configuration is authoritative for standalone/Docker mode;
+    // desktop normally has no env override and uses the persisted setting.
+    let public_share_url = normalize_public_share_url(
+        std::env::var("CODEG_PUBLIC_URL")
+            .ok()
+            .filter(|value| !value.trim().is_empty())
+            .or(stored_public_share_url),
+    )?;
     Ok(WebServiceConfig {
         token: token.filter(|value| !value.trim().is_empty()),
         port,
         auto_start,
+        public_share_url,
     })
 }
 
@@ -266,6 +308,7 @@ pub async fn update_web_service_config_core(
     let token = config.token.unwrap_or_default().trim().to_string();
     let port = config.port.unwrap_or(DEFAULT_WEB_SERVICE_PORT);
     let auto_start = if config.auto_start { "true" } else { "false" }.to_string();
+    let public_share_url = normalize_public_share_url(config.public_share_url)?.unwrap_or_default();
     let port_str = port.to_string();
 
     conn.transaction::<_, (), AppCommandError>(move |txn| {
@@ -279,6 +322,13 @@ pub async fn update_web_service_config_core(
             app_metadata_service::upsert_value(txn, WEB_SERVICE_AUTO_START_KEY, &auto_start)
                 .await
                 .map_err(AppCommandError::from)?;
+            app_metadata_service::upsert_value(
+                txn,
+                WEB_SERVICE_PUBLIC_SHARE_URL_KEY,
+                &public_share_url,
+            )
+            .await
+            .map_err(AppCommandError::from)?;
             Ok(())
         })
     })
@@ -292,6 +342,24 @@ pub async fn update_web_service_config_core(
     })?;
 
     load_web_service_config(conn).await
+}
+
+#[cfg(test)]
+mod public_share_url_tests {
+    use super::normalize_public_share_url;
+
+    #[test]
+    fn accepts_only_a_root_http_origin() {
+        assert_eq!(
+            normalize_public_share_url(Some("https://maxcode.example.com/".to_string())).unwrap(),
+            Some("https://maxcode.example.com".to_string())
+        );
+        assert!(normalize_public_share_url(Some("file:///tmp/share".to_string())).is_err());
+        assert!(
+            normalize_public_share_url(Some("https://example.com/maxcode".to_string())).is_err()
+        );
+        assert!(normalize_public_share_url(Some("https://user@example.com".to_string())).is_err());
+    }
 }
 
 /// Stable i18n-key prefixes — the frontend maps these to localized text.
