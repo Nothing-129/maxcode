@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "이 폴더를 워크스페이스에서 제거하시겠습니까?",
       "removeFolderConfirmDescription": "워크스페이스에서 \"{name}\"을(를) 제거하시겠습니까? 관련 탭과 터미널이 닫힙니다.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "왼쪽 분할에서 열기",
+        "openInRightSplit": "오른쪽 분할에서 열기",
+        "splitLimitReached": "왼쪽과 오른쪽 분할이 모두 사용 중입니다. 하나를 먼저 닫으세요.",
         "manageConversations": "대화 관리…",
         "manageLinks": "연결된 폴더",
         "changeColor": "색상 변경",
@@ -1896,6 +1899,9 @@
       "copiedField": "{field} 복사됨"
     },
     "conversationCard": {
+      "folderZone": "{name} 분할",
+      "otherFolderZone": "기타",
+      "closeFolderZone": "{name} 분할 닫기",
       "untitledConversation": "제목 없는 대화",
       "newConversation": "새 대화",
       "attachToCurrentSession": "세션에 추가",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "입력하여 대화를 검색하세요",
       "typeToSearchFiles": "입력하여 파일 또는 디렉토리를 검색하세요",
       "noResults": "검색 결과가 없습니다.",
-      "untitledConversation": "제목 없는 대화"
+      "untitledConversation": "제목 없는 대화",
+      "folderZoneOccupied": "왼쪽과 오른쪽 분할이 모두 사용 중입니다. 하나를 먼저 닫으세요."
     },
     "folderTitleBar": {
       "showSidebar": "사이드바 표시",

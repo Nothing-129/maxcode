@@ -1660,6 +1660,7 @@ const ConversationTabView = memo(function ConversationTabView({
         workingDirForConnection,
         { targetGroup: groupId, forceAgent: selectedAgent }
       )
+      if (!target) return
       // Park against the identity the store PROMISED that tab, not against what
       // it looks like right now — reusing a draft from another folder/agent
       // retargets it asynchronously, and the prompt must not be taken until

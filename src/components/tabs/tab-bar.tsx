@@ -4,14 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { WheelEvent as ReactWheelEvent } from "react"
 import { Reorder } from "motion/react"
 import type { PanInfo } from "motion/react"
-import { SquarePen } from "lucide-react"
+import { Folder, SquarePen, X } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import type { TabItem as TabItemData } from "@/contexts/tab-context"
-import { groupOfTab } from "@/stores/tab-store"
+import { groupOfTab, OTHER_FOLDER_ZONE_ID } from "@/stores/tab-store"
 import {
   firstLeafId,
   leafIds,
@@ -24,6 +24,12 @@ import {
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu"
 import { TabItem, type TabMoveTarget } from "./tab-item"
 
 interface TabBarProps {
@@ -45,6 +51,7 @@ export function TabBar({ groupId }: TabBarProps) {
   const groupLayout = useTabStore((s) => s.groupLayout)
   const groupSelection = useTabStore((s) => s.groupSelection)
   const tileByGroup = useTabStore((s) => s.tileByGroup)
+  const groupFolder = useTabStore((s) => s.groupFolder)
   const {
     switchTab,
     closeTab,
@@ -56,6 +63,7 @@ export function TabBar({ groupId }: TabBarProps) {
     moveTabToGroup,
     toggleGroupOrientation,
     dissolveGroup,
+    closeGroup,
     unsplitAll,
     reorderTabs,
     reorderGroupTabs,
@@ -86,6 +94,13 @@ export function TabBar({ groupId }: TabBarProps) {
   const displayActiveId =
     groupId == null ? activeTabId : (groupSelection[groupId] ?? null)
   const isTileMode = !!tileByGroup[stripGroupId]
+  const boundFolder = allFolders.find(
+    (folder) => folder.id === groupFolder[stripGroupId]
+  )
+  const isOtherZone = groupFolder[stripGroupId] === OTHER_FOLDER_ZONE_ID
+  const zoneName = isOtherZone
+    ? t("otherFolderZone")
+    : (boundFolder?.alias?.trim() ?? "") || boundFolder?.name || null
   const handleToggleTile = useCallback(
     () => toggleGroupTile(stripGroupId),
     [toggleGroupTile, stripGroupId]
@@ -159,15 +174,22 @@ export function TabBar({ groupId }: TabBarProps) {
     ) => {
       const { x, y } = clientPointFromDrag(event, info)
       const target = resolveDropTarget(x, y)
+      const compatibleTarget =
+        target == null ||
+        groupFolder[target.gid] == null ||
+        groupFolder[target.gid] === OTHER_FOLDER_ZONE_ID ||
+        groupFolder[target.gid] === tab.folderId
+          ? target
+          : null
       updateTabDrag({
         tabId: tab.id,
         title: tab.title,
         x,
         y,
-        overGroupId: target?.gid ?? null,
+        overGroupId: compatibleTarget?.gid ?? null,
       })
     },
-    [resolveDropTarget, updateTabDrag]
+    [groupFolder, resolveDropTarget, updateTabDrag]
   )
   const handleTabDragEnd = useCallback(
     (
@@ -179,6 +201,12 @@ export function TabBar({ groupId }: TabBarProps) {
       const target = resolveDropTarget(x, y)
       endTabDrag()
       if (!target) return
+      if (
+        groupFolder[target.gid] != null &&
+        groupFolder[target.gid] !== OTHER_FOLDER_ZONE_ID &&
+        groupFolder[target.gid] !== tab.folderId
+      )
+        return
       // Strip drop: land at the cursor position (midpoint count). Shell-body
       // drop: append (the store clamps the oversized index to the tail).
       const index = target.strip
@@ -194,7 +222,7 @@ export function TabBar({ groupId }: TabBarProps) {
         : Number.MAX_SAFE_INTEGER
       moveTabToGroup(tab.id, target.gid, { index })
     },
-    [resolveDropTarget, endTabDrag, moveTabToGroup]
+    [resolveDropTarget, endTabDrag, groupFolder, moveTabToGroup]
   )
   const crossDragEnabled = groupId != null && isSplit
 
@@ -294,7 +322,7 @@ export function TabBar({ groupId }: TabBarProps) {
 
   const handleTouchSortingEnd = useCallback(
     () => setTouchSortingTabId(null),
-    []
+    [setTouchSortingTabId]
   )
 
   if (groupTabs.length === 0) return null
@@ -313,6 +341,26 @@ export function TabBar({ groupId }: TabBarProps) {
         isDropTarget && "bg-primary/8"
       )}
     >
+      {isSplit && zoneName && (
+        <ContextMenu>
+          <ContextMenuTrigger asChild>
+            <div
+              className="ml-1 flex max-w-32 shrink-0 items-center gap-1.5 self-center rounded-md bg-foreground/6 px-2 py-1 text-[0.6875rem] font-medium text-muted-foreground"
+              title={boundFolder?.path ?? zoneName}
+              aria-label={t("folderZone", { name: zoneName })}
+            >
+              <Folder className="h-3 w-3 shrink-0" />
+              <span className="truncate">{zoneName}</span>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem onSelect={() => closeGroup(stripGroupId)}>
+              <X className="h-4 w-4" />
+              {t("closeFolderZone", { name: zoneName })}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      )}
       <Reorder.Group
         as="div"
         ref={scrollRef}
@@ -338,6 +386,12 @@ export function TabBar({ groupId }: TabBarProps) {
           // menu items. Within-group sorting (the Reorder.Group itself) is
           // untouched. See `moveTabToGroup` for why.
           const isDraft = tab.conversationId == null
+          const compatibleMoveTargets = moveTargets.filter(
+            (target) =>
+              groupFolder[target.groupId] == null ||
+              groupFolder[target.groupId] === OTHER_FOLDER_ZONE_ID ||
+              groupFolder[target.groupId] === tab.folderId
+          )
           // Neighbours of the active tab inset their workspace-bg baseline so the
           // active tab's transparent reverse-corner foot (which flares over them)
           // doesn't leave a stray line under it (globals.css `data-adjacent-active`).
@@ -361,8 +415,8 @@ export function TabBar({ groupId }: TabBarProps) {
               folderBranch={branches.get(tab.folderId) ?? null}
               isSplit={isSplit}
               canSplitMove={canSplitMove && !isDraft}
-              canMoveToGroup={!isDraft}
-              moveTargets={moveTargets}
+              canMoveToGroup={!isDraft && compatibleMoveTargets.length > 0}
+              moveTargets={compatibleMoveTargets}
               onTabDrag={
                 crossDragEnabled && !isDraft ? handleTabDrag : undefined
               }

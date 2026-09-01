@@ -109,6 +109,10 @@ export interface TabItemInternal {
   isChat?: boolean
 }
 
+/** Device-local folder binding used by the trailing catch-all split. Real
+ * folder ids are positive; chat mode uses 0, leaving -1 unambiguous. */
+export const OTHER_FOLDER_ZONE_ID = -1
+
 export type TabItem = TabItemInternal
 
 interface DraftRetargetRequest {
@@ -168,6 +172,10 @@ export interface TabStoreState {
   groupOf: Record<string, string>
   groupSelection: Record<string, string>
   tileByGroup: Record<string, boolean>
+  /** Folder affinity for a split leaf. Positive values bind a concrete folder;
+   *  `OTHER_FOLDER_ZONE_ID` is the trailing catch-all zone. Device-local and
+   *  persisted with the split layout. */
+  groupFolder: Record<string, number>
   /**
    * Transient cross-group tab drag (never persisted): the dragged tab, the
    * live pointer position, and the FOREIGN group currently under the pointer
@@ -203,7 +211,7 @@ export interface TabStoreState {
     agentType: AgentType,
     pin?: boolean,
     title?: string
-  ) => void
+  ) => boolean
   /**
    * `recordForReopen: false` closes without offering the tab to
    * `reopen_last_closed_tab`. Pass it whenever the tab is going away because
@@ -227,6 +235,11 @@ export interface TabStoreState {
     direction: SplitDirection,
     opts: { move: boolean }
   ) => void
+  openFolderInSplit: (
+    folderId: number,
+    workingDir: string,
+    side: "left" | "right"
+  ) => OpenedDraftTarget | null
   moveTabToGroup: (
     tabId: string,
     targetGroupId: string,
@@ -240,6 +253,7 @@ export interface TabStoreState {
   endTabDrag: () => void
   toggleGroupOrientation: (groupId: string) => void
   dissolveGroup: (groupId: string) => void
+  closeGroup: (groupId: string) => void
   unsplitAll: () => void
   reorderGroupTabs: (groupId: string, orderedTabs: TabItem[]) => void
   resizeGroupSplit: (
@@ -260,12 +274,12 @@ export interface TabStoreState {
        *  text came from), not merely suggest one. */
       forceAgent?: AgentType
     }
-  ) => OpenedDraftTarget
+  ) => OpenedDraftTarget | null
   openChatModeTab: (options?: {
     targetGroup?: string
     /** See `openNewConversationTab`'s `forceAgent`. */
     forceAgent?: AgentType
-  }) => OpenedDraftTarget
+  }) => OpenedDraftTarget | null
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: AgentType) => void
   setDraftAgentFromFallback: (tabId: string, agentType: AgentType) => void
@@ -554,6 +568,83 @@ function resolveTargetGroup(
     : firstLeafId(st.groupLayout)
 }
 
+/** Folder-aware routing layered over focus routing. Concrete bindings win;
+ * unmatched folders share the trailing catch-all zone. */
+function resolveTargetGroupForFolder(
+  st: Pick<
+    TabStoreState,
+    "activeTabId" | "groupOf" | "groupLayout" | "groupFolder"
+  >,
+  folderId: number,
+  explicit?: string
+): string | null {
+  const leaves = leafIds(st.groupLayout)
+  if (
+    explicit != null &&
+    leaves.includes(explicit) &&
+    (st.groupFolder[explicit] == null ||
+      st.groupFolder[explicit] === folderId ||
+      st.groupFolder[explicit] === OTHER_FOLDER_ZONE_ID)
+  ) {
+    return explicit
+  }
+  const bound = leaves.find((groupId) => st.groupFolder[groupId] === folderId)
+  if (bound) return bound
+
+  const other = leaves.find(
+    (groupId) => st.groupFolder[groupId] === OTHER_FOLDER_ZONE_ID
+  )
+  if (other) return other
+
+  const fallback = resolveTargetGroup(st, explicit)
+  if (st.groupFolder[fallback] == null) return fallback
+  const unbound = leaves.find((groupId) => st.groupFolder[groupId] == null)
+  if (unbound) return unbound
+  return leaves.length < 2 ? fallback : null
+}
+
+interface FolderTargetPlan {
+  targetGroup: string
+  groupLayout: LayoutNode
+  groupFolder: Record<string, number>
+}
+
+/** Resolve a folder target, creating the final "Other" split when both folder
+ * slots are already occupied. The plan is applied atomically with the tab write
+ * so the new leaf is never normalized away while empty. */
+function planTargetGroupForFolder(
+  st: Pick<
+    TabStoreState,
+    "activeTabId" | "groupOf" | "groupLayout" | "groupFolder"
+  >,
+  folderId: number,
+  explicit?: string
+): FolderTargetPlan | null {
+  const resolved = resolveTargetGroupForFolder(st, folderId, explicit)
+  if (resolved != null) {
+    return {
+      targetGroup: resolved,
+      groupLayout: st.groupLayout,
+      groupFolder: st.groupFolder,
+    }
+  }
+
+  const leaves = leafIds(st.groupLayout)
+  if (leaves.length !== 2) return null
+  const anchor = leaves[leaves.length - 1]
+  const targetGroup = makeGroupId()
+  const groupLayout = splitGroup(st.groupLayout, anchor, "right", targetGroup)
+  if (groupLayout === st.groupLayout) return null
+  return {
+    targetGroup,
+    groupLayout,
+    groupFolder: {
+      ...st.groupFolder,
+      [targetGroup]: OTHER_FOLDER_ZONE_ID,
+    },
+  }
+}
+
 function sanitizeStringRecord(value: unknown): Record<string, string> {
   const out: Record<string, string> = {}
   if (typeof value !== "object" || value === null) return out
@@ -568,6 +659,15 @@ function sanitizeBoolRecord(value: unknown): Record<string, boolean> {
   if (typeof value !== "object" || value === null) return out
   for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
     if (typeof v === "boolean") out[k] = v
+  }
+  return out
+}
+
+function sanitizeNumberRecord(value: unknown): Record<string, number> {
+  const out: Record<string, number> = {}
+  if (typeof value !== "object" || value === null) return out
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof v === "number" && Number.isFinite(v)) out[k] = v
   }
   return out
 }
@@ -636,6 +736,7 @@ function readPersistedGroupState(): {
   groupOf: Record<string, string>
   groupSelection: Record<string, string>
   tileByGroup: Record<string, boolean>
+  groupFolder: Record<string, number>
 } {
   pendingRestoreDrafts = []
   pendingRestoreActiveDraft = null
@@ -644,6 +745,7 @@ function readPersistedGroupState(): {
     groupOf: {} as Record<string, string>,
     groupSelection: {} as Record<string, string>,
     tileByGroup: {} as Record<string, boolean>,
+    groupFolder: {} as Record<string, number>,
   })
   if (typeof window === "undefined") return fallback()
   try {
@@ -660,6 +762,7 @@ function readPersistedGroupState(): {
           groupOf: sanitizeStringRecord(parsed.assignments),
           groupSelection: sanitizeStringRecord(parsed.selection),
           tileByGroup: sanitizeBoolRecord(parsed.tileByGroup),
+          groupFolder: sanitizeNumberRecord(parsed.folderBindings),
         }
       }
     }
@@ -724,6 +827,7 @@ function persistGroupState() {
     assignments,
     selection,
     tileByGroup: st.tileByGroup,
+    folderBindings: st.groupFolder,
     drafts,
     // Only a DRAFT focus needs restoring here; conversation focus rides the
     // synced `opened_tabs.is_active`.
@@ -799,8 +903,8 @@ function schedulePersistGroupState() {
 }
 
 function shallowRecordEqual(
-  a: Record<string, string> | Record<string, boolean>,
-  b: Record<string, string> | Record<string, boolean>
+  a: Record<string, unknown>,
+  b: Record<string, unknown>
 ): boolean {
   const ak = Object.keys(a)
   const bk = Object.keys(b)
@@ -892,6 +996,12 @@ function applyGroupInvariants() {
   }
 
   let tileByGroup = st.tileByGroup
+  let groupFolder = st.groupFolder
+  if (leaves.length < 2 && Object.keys(groupFolder).length > 0) {
+    // Folder affinity describes a left/right relationship. Once one side is
+    // gone, the remaining ordinary tab strip must accept any folder again.
+    groupFolder = {}
+  }
   if (tabSetKnown) {
     const leafSet = new Set(leaves)
     let prunedTile: Record<string, boolean> | null = null
@@ -902,12 +1012,21 @@ function applyGroupInvariants() {
       }
     }
     if (prunedTile) tileByGroup = prunedTile
+    let prunedFolders: Record<string, number> | null = null
+    for (const groupId of Object.keys(groupFolder)) {
+      if (!leafSet.has(groupId)) {
+        prunedFolders = prunedFolders ?? { ...groupFolder }
+        delete prunedFolders[groupId]
+      }
+    }
+    if (prunedFolders) groupFolder = prunedFolders
   }
 
   const changed =
     groupOf !== st.groupOf ||
     layout !== st.groupLayout ||
     tileByGroup !== st.tileByGroup ||
+    groupFolder !== st.groupFolder ||
     !shallowRecordEqual(selection, st.groupSelection)
   if (changed) {
     useTabStore.setState({
@@ -915,9 +1034,62 @@ function applyGroupInvariants() {
       groupLayout: layout,
       groupSelection: selection,
       tileByGroup,
+      groupFolder,
     })
   }
   persistGroupState()
+}
+
+/**
+ * A folder-bound group is a single active slot, not a conventional tab stack.
+ * Opening another conversation in that zone replaces the previous tab while
+ * leaving the conversation itself available in the sidebar. This also repairs
+ * persisted/remote layouts created before the single-tab rule existed.
+ *
+ * Returns a fresh state snapshot because callers must derive `tabs` from the
+ * filtered `rawTabs`. Removed tabs intentionally do not enter the reopen stack:
+ * the user navigated within a folder slot rather than explicitly closing them.
+ */
+function enforceFolderZoneSingleTabs(): TabStoreState {
+  let st = useTabStore.getState()
+  const leaves = leafIds(st.groupLayout)
+  if (leaves.length < 2) return st
+
+  const removeIds = new Set<string>()
+  for (const groupId of leaves) {
+    if (st.groupFolder[groupId] == null) continue
+    const members = st.rawTabs.filter(
+      (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === groupId
+    )
+    if (members.length <= 1) continue
+
+    const active = members.find((tab) => tab.id === st.activeTabId)
+    const selected = members.find(
+      (tab) => tab.id === st.groupSelection[groupId]
+    )
+    const keep = active ?? selected ?? members[members.length - 1]
+    for (const tab of members) {
+      if (tab.id !== keep.id) removeIds.add(tab.id)
+    }
+  }
+
+  if (removeIds.size === 0) return st
+
+  const groupOf = { ...st.groupOf }
+  for (const tab of st.rawTabs) {
+    if (!removeIds.has(tab.id)) continue
+    delete groupOf[tab.id]
+    discardAskSelectionPrompts(tab.id)
+    if (tab.conversationId == null) {
+      clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tab.id))
+    }
+  }
+  useTabStore.setState({
+    rawTabs: st.rawTabs.filter((tab) => !removeIds.has(tab.id)),
+    groupOf,
+  })
+  st = useTabStore.getState()
+  return st
 }
 
 /** Focus a tab and realign the per-group selection with it. The shared path
@@ -937,7 +1109,7 @@ function focusTab(tabId: string) {
  * rawTabs/childSummaries write, on `conversations` change, and when labels change.
  */
 function recomputeTabs() {
-  const st = useTabStore.getState()
+  const st = enforceFolderZoneSingleTabs()
   const { rawTabs, childSummaries } = st
   const conversations = useAppWorkspaceStore.getState().conversations
   const prev = st.tabs
@@ -1110,11 +1282,14 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         focusTab(activateTabId)
       }
       runtime.activateConversationPane()
-      return
+      return true
     }
 
-    // New tabs land in the focused group (the active tab's group).
-    const targetGroup = resolveTargetGroup(prevState)
+    // Folder-bound split zones outrank global focus. Legacy/unbound layouts
+    // keep the original focused-group behavior.
+    const targetPlan = planTargetGroupForFolder(prevState, folderId)
+    if (targetPlan == null) return false
+    const { targetGroup } = targetPlan
 
     // Format the seed title so a draft/conversation title carrying an inline
     // reference link (`[README.md](file://…)`) shows its label, not raw
@@ -1149,10 +1324,12 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         rawTabs: [...prevState.rawTabs, newTab],
         activeTabId: tabId,
         groupOf: { ...prevState.groupOf, [tabId]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
       })
       recomputeTabs()
       runtime.activateConversationPane()
-      return
+      return true
     }
 
     // Preview replacement stays within the focused group — a preview parked in
@@ -1171,6 +1348,8 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         rawTabs: updated,
         activeTabId: tabId,
         groupOf: { ...prevState.groupOf, [tabId]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
         previewReplacedTabIds: [
           ...prevState.previewReplacedTabIds,
           replacedPreviewTabId,
@@ -1178,16 +1357,19 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       })
       recomputeTabs()
       runtime.activateConversationPane()
-      return
+      return true
     }
 
     set({
       rawTabs: [...prevState.rawTabs, newTab],
       activeTabId: tabId,
       groupOf: { ...prevState.groupOf, [tabId]: targetGroup },
+      groupLayout: targetPlan.groupLayout,
+      groupFolder: targetPlan.groupFolder,
     })
     recomputeTabs()
     runtime.activateConversationPane()
+    return true
   },
 
   closeTab: (tabId, options) => {
@@ -1217,7 +1399,12 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       let draftKeyHandedOver = false
 
       if (next.length === 0) {
-        if (useAppWorkspaceStore.getState().folders.length === 0) {
+        // Closing an unsent draft must actually close it. Replacing it with an
+        // indistinguishable new draft makes the tab (and a folder zone seeded
+        // with that draft) appear impossible to close.
+        if (closingTab.conversationId == null) {
+          set({ rawTabs: [], activeTabId: null })
+        } else if (useAppWorkspaceStore.getState().folders.length === 0) {
           set({ rawTabs: [], activeTabId: null })
         } else {
           const replacementTab = makeReplacementDraftTab(closingTab)
@@ -1414,6 +1601,13 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       set({
         groupLayout: nextLayout,
         groupOf: { ...st.groupOf, [tabId]: newGroupId },
+        groupFolder:
+          st.groupFolder[sourceGroup] == null
+            ? st.groupFolder
+            : {
+                ...st.groupFolder,
+                [newGroupId]: st.groupFolder[sourceGroup],
+              },
         activeTabId: tabId,
       })
       recomputeTabs()
@@ -1481,10 +1675,126 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       rawTabs: [...st.rawTabs, newTab],
       groupLayout: nextLayout,
       groupOf: { ...st.groupOf, [newTab.id]: newGroupId },
+      groupFolder:
+        st.groupFolder[sourceGroup] == null
+          ? st.groupFolder
+          : {
+              ...st.groupFolder,
+              [newGroupId]: st.groupFolder[sourceGroup],
+            },
       activeTabId: newTab.id,
     })
     recomputeTabs()
     runtime.activateConversationPane()
+  },
+
+  openFolderInSplit: (folderId, workingDir, side) => {
+    const st = get()
+    const leaves = leafIds(st.groupLayout)
+    const existingGroup = leaves.find(
+      (groupId) => st.groupFolder[groupId] === folderId
+    )
+    const sideIndex = side === "left" ? 0 : 1
+    const sideGroup = leaves[sideIndex]
+
+    if (existingGroup && existingGroup === sideGroup) {
+      return get().openNewConversationTab(folderId, workingDir, {
+        targetGroup: existingGroup,
+      })
+    }
+
+    if (leaves.length >= 2 && sideGroup) {
+      const groupOf = { ...st.groupOf }
+      const groupFolder = { ...st.groupFolder }
+
+      if (existingGroup) {
+        // The folder is already open on the opposite side: swap the two slots,
+        // preserving both tab stacks while honoring the explicitly chosen side.
+        for (const tab of st.rawTabs) {
+          const current = groupOfTab(st.groupOf, st.groupLayout, tab.id)
+          if (current === existingGroup) groupOf[tab.id] = sideGroup
+          else if (current === sideGroup) groupOf[tab.id] = existingGroup
+        }
+        const displacedBinding = groupFolder[sideGroup]
+        groupFolder[sideGroup] = folderId
+        if (displacedBinding == null) delete groupFolder[existingGroup]
+        else groupFolder[existingGroup] = displacedBinding
+        set({ groupOf, groupFolder })
+      } else {
+        // Choosing an occupied side is an explicit replacement. Close that
+        // side's tabs (conversations themselves remain intact), then reuse the
+        // stable slot for the requested folder. The catch-all stays last.
+        const closing = st.rawTabs.filter(
+          (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === sideGroup
+        )
+        const closingIds = new Set(closing.map((tab) => tab.id))
+        for (const tab of closing) {
+          pushClosedTab(snapshotConversationTab(tab))
+          discardAskSelectionPrompts(tab.id)
+          if (tab.conversationId == null) {
+            clearMessageInputDraftV2(
+              buildNewConversationDraftStorageKey(tab.id)
+            )
+          }
+          delete groupOf[tab.id]
+        }
+        groupFolder[sideGroup] = folderId
+        set({
+          rawTabs: st.rawTabs.filter((tab) => !closingIds.has(tab.id)),
+          activeTabId: closingIds.has(st.activeTabId ?? "")
+            ? null
+            : st.activeTabId,
+          groupOf,
+          groupFolder,
+        })
+      }
+
+      return get().openNewConversationTab(folderId, workingDir, {
+        targetGroup: sideGroup,
+      })
+    }
+
+    const sourceGroup = resolveTargetGroup(st)
+    const sourceTabs = st.rawTabs.filter(
+      (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === sourceGroup
+    )
+    const newGroupId = makeGroupId()
+    const nextLayout = splitGroup(st.groupLayout, sourceGroup, side, newGroupId)
+    if (nextLayout === st.groupLayout) {
+      return get().openNewConversationTab(folderId, workingDir)
+    }
+
+    // First folder split: move already-open tabs for the requested folder to
+    // the chosen side and infer the other side's concrete folder when possible.
+    const groupOf = { ...st.groupOf }
+    for (const tab of sourceTabs) {
+      groupOf[tab.id] = tab.folderId === folderId ? newGroupId : sourceGroup
+    }
+    const remainingFolderIds = new Set(
+      sourceTabs
+        .filter((tab) => tab.folderId !== folderId)
+        .map((tab) => (tab.isChat ? 0 : tab.folderId))
+    )
+    const inferredSourceFolder =
+      st.groupFolder[sourceGroup] ??
+      (remainingFolderIds.size === 1
+        ? remainingFolderIds.values().next().value
+        : undefined)
+
+    set({
+      groupLayout: nextLayout,
+      groupOf,
+      groupFolder: {
+        ...st.groupFolder,
+        ...(inferredSourceFolder != null
+          ? { [sourceGroup]: inferredSourceFolder }
+          : {}),
+        [newGroupId]: folderId,
+      },
+    })
+    return get().openNewConversationTab(folderId, workingDir, {
+      targetGroup: newGroupId,
+    })
   },
 
   moveTabToGroup: (tabId, targetGroupId, opts) => {
@@ -1493,6 +1803,13 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     if (!moving) return
     if (!leafIds(st.groupLayout).includes(targetGroupId)) return
     if (groupOfTab(st.groupOf, st.groupLayout, tabId) === targetGroupId) return
+    const targetFolder = st.groupFolder[targetGroupId]
+    if (
+      targetFolder != null &&
+      targetFolder !== OTHER_FOLDER_ZONE_ID &&
+      targetFolder !== moving.folderId
+    )
+      return
     // Drafts are group-bound: each group owns its unsent scratch conversation
     // (its own composer text, its own folder/agent context), and every group can
     // spawn one on demand from its own strip. Moving one would leave a group
@@ -1585,8 +1902,57 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         groupOf[tab.id] = target
       }
     }
-    set({ groupOf, groupLayout: removeGroup(st.groupLayout, groupId) })
+    const groupFolder = { ...st.groupFolder }
+    delete groupFolder[groupId]
+    // Merging two folder zones produces a mixed, deliberately-unbound group.
+    delete groupFolder[target]
+    set({
+      groupOf,
+      groupFolder,
+      groupLayout: removeGroup(st.groupLayout, groupId),
+    })
     recomputeTabs()
+  },
+
+  closeGroup: (groupId) => {
+    const st = get()
+    const leaves = leafIds(st.groupLayout)
+    if (!leaves.includes(groupId)) return
+    const closing = st.rawTabs.filter(
+      (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === groupId
+    )
+    const closingIds = new Set(closing.map((tab) => tab.id))
+    for (const tab of closing) {
+      pushClosedTab(snapshotConversationTab(tab))
+      discardAskSelectionPrompts(tab.id)
+      if (tab.conversationId == null) {
+        clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tab.id))
+      }
+    }
+
+    const rawTabs = st.rawTabs.filter((tab) => !closingIds.has(tab.id))
+    const groupOf = { ...st.groupOf }
+    for (const tabId of closingIds) delete groupOf[tabId]
+    const groupFolder = { ...st.groupFolder }
+    delete groupFolder[groupId]
+    const groupLayout =
+      leaves.length > 1
+        ? removeGroup(st.groupLayout, groupId)
+        : singleGroupLayout(groupId)
+
+    let activeTabId = st.activeTabId
+    if (activeTabId == null || closingIds.has(activeTabId)) {
+      const neighbor = neighborGroupId(st.groupLayout, groupId)
+      const selected = neighbor ? st.groupSelection[neighbor] : undefined
+      activeTabId =
+        selected != null && rawTabs.some((tab) => tab.id === selected)
+          ? selected
+          : (rawTabs[0]?.id ?? null)
+    }
+
+    set({ rawTabs, activeTabId, groupOf, groupFolder, groupLayout })
+    recomputeTabs()
+    runtime.activateConversationPane()
   },
 
   unsplitAll: () => {
@@ -1597,6 +1963,7 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     set({
       groupLayout: singleGroupLayout(firstLeafId(st.groupLayout)),
       groupOf: {},
+      groupFolder: {},
     })
     recomputeTabs()
   },
@@ -1693,7 +2060,13 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     const prevState = get()
     // Per-group draft singleton: reuse the target group's existing draft tab
     // (regardless of folder), so each group carries at most one draft.
-    const targetGroup = resolveTargetGroup(prevState, options?.targetGroup)
+    const targetPlan = planTargetGroupForFolder(
+      prevState,
+      folderId,
+      options?.targetGroup
+    )
+    if (targetPlan == null) return null
+    const { targetGroup } = targetPlan
     const existingTab = prevState.rawTabs.find(
       (t) =>
         t.conversationId == null &&
@@ -1717,6 +2090,8 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         rawTabs: [...prevState.rawTabs, newTab],
         activeTabId: tabId,
         groupOf: { ...prevState.groupOf, [tabId]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
       })
       recomputeTabs()
       runtime.activateConversationPane()
@@ -1782,7 +2157,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     // Per-group draft singleton — all draft handling below is scoped to the
     // target group. Capture its existing draft (if any) up front so a stale
     // ACP session can be torn down after we flip it to chat mode.
-    const targetGroup = resolveTargetGroup(st, options?.targetGroup)
+    const targetPlan = planTargetGroupForFolder(st, 0, options?.targetGroup)
+    if (targetPlan == null) return null
+    const { targetGroup } = targetPlan
     const inTargetGroup = (t: TabItemInternal) =>
       groupOfTab(st.groupOf, st.groupLayout, t.id) === targetGroup
     const existingDraft = st.rawTabs.find(
@@ -1815,6 +2192,8 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         rawTabs: [...prevState.rawTabs, newTab],
         activeTabId: tabId,
         groupOf: { ...prevState.groupOf, [tabId]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
       })
       recomputeTabs()
     } else if (existingTab.isChat && existingTab.folderId === 0) {
@@ -2678,9 +3057,11 @@ export function useTabActions() {
       pinTab: s.pinTab,
       toggleGroupTile: s.toggleGroupTile,
       splitTab: s.splitTab,
+      openFolderInSplit: s.openFolderInSplit,
       moveTabToGroup: s.moveTabToGroup,
       toggleGroupOrientation: s.toggleGroupOrientation,
       dissolveGroup: s.dissolveGroup,
+      closeGroup: s.closeGroup,
       unsplitAll: s.unsplitAll,
       reorderGroupTabs: s.reorderGroupTabs,
       resizeGroupSplit: s.resizeGroupSplit,

@@ -119,6 +119,21 @@
       ]
     },
     {
+      "id": "navigation.folder-bound-tab-splits",
+      "category": "product",
+      "description": "Left and right conversation split zones bind to explicit workspace folders, while unmatched folders share a trailing Other zone; each bound zone is a single active tab slot, folder remarks label zones, and closing a zone closes its current tab.",
+      "origins": ["worktree-2026-09-01"],
+      "paths": [
+        "src/lib/tab-group-layout.ts",
+        "src/stores/tab-store.ts",
+        "src/components/tabs/tab-bar.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/search-command-dialog.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/folder-split-zones.contract.test.ts"]
+    },
+    {
       "id": "navigation.tabs-touch-and-selection",
       "category": "product",
       "description": "Conversation tabs scroll at fixed width, fine-pointer drag requires intent, mobile navigation collapses correctly, and transcript text remains selectable.",

@@ -35,6 +35,12 @@ describe("splitGroup", () => {
     expect(tree.orientation).toBe("vertical")
   })
 
+  it("inserts a left split before the source group", () => {
+    const tree = splitGroup(leaf("a"), "a", "left", "b") as SplitNode
+    expect(tree.orientation).toBe("horizontal")
+    expect(leafIds(tree)).toEqual(["b", "a"])
+  })
+
   it("flattens a same-orientation split into a sibling insert", () => {
     const two = splitGroup(leaf("a"), "a", "right", "b")
     const three = splitGroup(two, "a", "right", "c") as SplitNode

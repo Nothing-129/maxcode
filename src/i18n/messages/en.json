@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "Remove folder from workspace?",
       "removeFolderConfirmDescription": "Remove \"{name}\" from the workspace? Its tabs and terminals will close.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "Open in Left Split",
+        "openInRightSplit": "Open in Right Split",
+        "splitLimitReached": "The left and right splits are already in use. Close one before opening another folder.",
         "manageConversations": "Manage conversations…",
         "manageLinks": "Linked folders",
         "changeColor": "Change color",
@@ -1896,6 +1899,9 @@
       "copiedField": "Copied {field}"
     },
     "conversationCard": {
+      "folderZone": "{name} split",
+      "otherFolderZone": "Other",
+      "closeFolderZone": "Close {name} split",
       "untitledConversation": "Untitled conversation",
       "newConversation": "New Conversation",
       "attachToCurrentSession": "Add to session",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "Type to search conversations",
       "typeToSearchFiles": "Type to search files or directories",
       "noResults": "No results found.",
-      "untitledConversation": "Untitled conversation"
+      "untitledConversation": "Untitled conversation",
+      "folderZoneOccupied": "The left and right splits are already in use. Close one before opening another folder."
     },
     "folderTitleBar": {
       "showSidebar": "Show Sidebar",

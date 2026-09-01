@@ -5,6 +5,7 @@ import { formatDistanceToNow } from "date-fns"
 import { enUS, zhCN, zhTW } from "date-fns/locale"
 import { File, Folder } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
+import { toast } from "sonner"
 import { useAuxPanelContext } from "@/contexts/aux-panel-context"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -150,10 +151,14 @@ export function SearchCommandDialog({
       // isn't stranded behind the route overlay — covers re-selecting the
       // already-active tab, which doesn't change activeTabId.
       openConversations()
-      openTab(conv.folder_id, conv.id, conv.agent_type, true)
+      const opened = openTab(conv.folder_id, conv.id, conv.agent_type, true)
+      if (!opened) {
+        toast.info(t("folderZoneOccupied"))
+        return
+      }
       onOpenChange(false)
     },
-    [openTab, onOpenChange, openConversations]
+    [openTab, onOpenChange, openConversations, t]
   )
 
   const handleSelectFile = useCallback(

@@ -218,7 +218,7 @@ export interface TabContextValue {
     agentType: TabItem["agentType"],
     pin?: boolean,
     title?: string
-  ) => void
+  ) => boolean
   /** See `TabStoreState.closeTab` for `recordForReopen`. */
   closeTab: (tabId: string, options?: { recordForReopen?: boolean }) => void
   closeConversationTab: (
@@ -232,6 +232,11 @@ export interface TabContextValue {
   switchTab: (tabId: string) => void
   pinTab: (tabId: string) => void
   toggleGroupTile: (groupId: string) => void
+  openFolderInSplit: (
+    folderId: number,
+    workingDir: string,
+    side: "left" | "right"
+  ) => OpenedDraftTarget | null
   consumeRemoteActivation: () => boolean
   openNewConversationTab: (
     folderId: number,
@@ -242,11 +247,11 @@ export interface TabContextValue {
       targetGroup?: string
       forceAgent?: TabItem["agentType"]
     }
-  ) => OpenedDraftTarget
+  ) => OpenedDraftTarget | null
   openChatModeTab: (options?: {
     targetGroup?: string
     forceAgent?: TabItem["agentType"]
-  }) => OpenedDraftTarget
+  }) => OpenedDraftTarget | null
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: TabItem["agentType"]) => void
   setDraftAgentFromFallback: (
@@ -294,6 +299,7 @@ export function useTabContext(): TabContextValue {
       switchTab: s.switchTab,
       pinTab: s.pinTab,
       toggleGroupTile: s.toggleGroupTile,
+      openFolderInSplit: s.openFolderInSplit,
       consumeRemoteActivation: s.consumeRemoteActivation,
       openNewConversationTab: s.openNewConversationTab,
       openChatModeTab: s.openChatModeTab,

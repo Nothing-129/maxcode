@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "从工作区移除该文件夹？",
       "removeFolderConfirmDescription": "从工作区移除 \"{name}\"？其相关 Tab 与终端将会关闭。",
       "folderHeaderMenu": {
+        "openInLeftSplit": "在左侧分区打开",
+        "openInRightSplit": "在右侧分区打开",
+        "splitLimitReached": "左右分区都已占用，请先关闭一个分区。",
         "manageConversations": "会话管理…",
         "manageLinks": "关联的文件夹",
         "changeColor": "修改颜色",
@@ -1896,6 +1899,9 @@
       "copiedField": "已复制{field}"
     },
     "conversationCard": {
+      "folderZone": "{name} 分区",
+      "otherFolderZone": "其他",
+      "closeFolderZone": "关闭 {name} 分区",
       "untitledConversation": "未命名会话",
       "newConversation": "新建会话",
       "attachToCurrentSession": "添加到会话",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "输入关键词搜索会话",
       "typeToSearchFiles": "输入关键词搜索文件或目录",
       "noResults": "未找到结果。",
-      "untitledConversation": "未命名会话"
+      "untitledConversation": "未命名会话",
+      "folderZoneOccupied": "左右分区都已占用，请先关闭一个分区。"
     },
     "folderTitleBar": {
       "showSidebar": "显示侧边栏",

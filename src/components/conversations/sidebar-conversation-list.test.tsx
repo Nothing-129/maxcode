@@ -59,10 +59,24 @@ const stableWorkspaceFns = vi.hoisted(() => ({
 }))
 
 const stableTabFns = vi.hoisted(() => ({
-  openTab: () => {},
+  openTab: () => true,
   closeConversationTab: () => {},
   closeTabsByFolder: () => {},
-  openNewConversationTab: vi.fn(),
+  openNewConversationTab: vi.fn(() => ({
+    tabId: "new-conversation",
+    agentType: "codex",
+    folderId: 1,
+  })),
+  openChatModeTab: vi.fn(() => ({
+    tabId: "new-chat",
+    agentType: "codex",
+    folderId: 0,
+  })),
+  openFolderInSplit: vi.fn(() => ({
+    tabId: "new-folder-split",
+    agentType: "codex",
+    folderId: 1,
+  })),
 }))
 
 const stableAgents = vi.hoisted(() => ({ sortedTypes: ["claude_code"] }))
@@ -339,6 +353,7 @@ beforeEach(() => {
   virtuaCtl.onScroll = null
   virtuaCtl.scrollToIndex.mockClear()
   stableTabFns.openNewConversationTab.mockClear()
+  stableTabFns.openFolderInSplit.mockClear()
   stableWorkspaceFns.reorderFolders.mockClear()
 })
 
@@ -922,6 +937,27 @@ describe("SidebarConversationList — folder ⋯ opens the same menu as right-cl
 
     // The identical menu is now open — assert a label unique to the folder menu.
     expect(document.body.textContent).toContain("Manage conversations")
+  })
+
+  it("opens the folder in the requested split side", () => {
+    render(tree())
+    const moreBtn = document.querySelector('[aria-label="More options"]')
+    act(() => {
+      fireEvent.click(moreBtn as HTMLElement)
+    })
+    const rightSplit = Array.from(
+      document.querySelectorAll<HTMLElement>('[role="menuitem"]')
+    ).find((item) => item.textContent?.includes("Open in Right Split"))
+    expect(rightSplit).toBeDefined()
+
+    act(() => {
+      fireEvent.click(rightSplit!)
+    })
+    expect(stableTabFns.openFolderInSplit).toHaveBeenCalledWith(
+      1,
+      "/p/1",
+      "right"
+    )
   })
 })
 

@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "إزالة المجلد من مساحة العمل؟",
       "removeFolderConfirmDescription": "إزالة \"{name}\" من مساحة العمل؟ سيتم إغلاق علامات التبويب والمحطات المرتبطة.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "فتح في القسم الأيسر",
+        "openInRightSplit": "فتح في القسم الأيمن",
+        "splitLimitReached": "القسمان الأيسر والأيمن مستخدمان. أغلق أحدهما قبل فتح مجلد آخر.",
         "manageConversations": "إدارة المحادثات…",
         "manageLinks": "المجلدات المرتبطة",
         "changeColor": "تغيير اللون",
@@ -1896,6 +1899,9 @@
       "copiedField": "تم نسخ {field}"
     },
     "conversationCard": {
+      "folderZone": "قسم {name}",
+      "otherFolderZone": "أخرى",
+      "closeFolderZone": "إغلاق قسم {name}",
       "untitledConversation": "محادثة بدون عنوان",
       "newConversation": "محادثة جديدة",
       "attachToCurrentSession": "إضافة إلى الجلسة",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "اكتب للبحث في المحادثات",
       "typeToSearchFiles": "اكتب للبحث في الملفات أو المجلدات",
       "noResults": "لم يتم العثور على نتائج.",
-      "untitledConversation": "محادثة بدون عنوان"
+      "untitledConversation": "محادثة بدون عنوان",
+      "folderZoneOccupied": "القسمان الأيسر والأيمن مستخدمان. أغلق أحدهما قبل فتح مجلد آخر."
     },
     "folderTitleBar": {
       "showSidebar": "إظهار الشريط الجانبي",

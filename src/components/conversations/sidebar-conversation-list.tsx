@@ -34,6 +34,8 @@ import {
   Loader2,
   MonitorCloud,
   MoreHorizontal,
+  PanelLeft,
+  PanelRight,
   Palette,
   Rocket,
   Settings,
@@ -247,6 +249,7 @@ const FolderHeader = memo(function FolderHeader({
   onToggle,
   onRemoveFromWorkspace,
   onNewConversation,
+  onOpenInSplit,
   onImport,
   onManageConversations,
   onManageLinks,
@@ -292,6 +295,7 @@ const FolderHeader = memo(function FolderHeader({
   onToggle: (folderId: number) => void
   onRemoveFromWorkspace: (folderId: number) => void
   onNewConversation: (folderId: number) => void
+  onOpenInSplit: (folderId: number, side: "left" | "right") => void
   onImport: (folderId: number) => void
   onManageConversations: (folderId: number) => void
   onManageLinks: (folderId: number) => void
@@ -644,6 +648,14 @@ const FolderHeader = memo(function FolderHeader({
             <SquarePen className="h-4 w-4" />
             {t("newConversation")}
           </ContextMenuItem>
+          <ContextMenuItem onSelect={() => onOpenInSplit(folderId, "left")}>
+            <PanelLeft className="h-4 w-4" />
+            {t("folderHeaderMenu.openInLeftSplit")}
+          </ContextMenuItem>
+          <ContextMenuItem onSelect={() => onOpenInSplit(folderId, "right")}>
+            <PanelRight className="h-4 w-4" />
+            {t("folderHeaderMenu.openInRightSplit")}
+          </ContextMenuItem>
           <ContextMenuItem onSelect={() => onImport(folderId)}>
             <Download className="h-4 w-4" />
             {t("importLocalSessions")}
@@ -907,6 +919,7 @@ export function SidebarConversationList({
     closeTabsByFolder,
     openNewConversationTab,
     openChatModeTab,
+    openFolderInSplit,
   } = useTabActions()
   const { openConversations } = useWorkbenchRoute()
 
@@ -2012,17 +2025,29 @@ export function SidebarConversationList({
       // Selecting a conversation returns to the conversation workspace if a
       // workbench route (e.g. Automations) was taking over the content region.
       openConversations()
-      openTab(folderId, id, agentType as Parameters<typeof openTab>[2], false)
+      const opened = openTab(
+        folderId,
+        id,
+        agentType as Parameters<typeof openTab>[2],
+        false
+      )
+      if (!opened) toast.info(t("folderHeaderMenu.splitLimitReached"))
     },
-    [openTab, openConversations]
+    [openTab, openConversations, t]
   )
 
   const handleDoubleClick = useCallback(
     (id: number, agentType: string, folderId: number) => {
       openConversations()
-      openTab(folderId, id, agentType as Parameters<typeof openTab>[2], true)
+      const opened = openTab(
+        folderId,
+        id,
+        agentType as Parameters<typeof openTab>[2],
+        true
+      )
+      if (!opened) toast.info(t("folderHeaderMenu.splitLimitReached"))
     },
-    [openTab, openConversations]
+    [openTab, openConversations, t]
   )
 
   const handleRename = useCallback(
@@ -2082,11 +2107,21 @@ export function SidebarConversationList({
     // same defense the sidebar's own "New chat" row takes, so neither entry
     // point is ever a dead end.
     if (!activeFolder) {
-      openChatModeTab()
+      if (!openChatModeTab()) {
+        toast.info(t("folderHeaderMenu.splitLimitReached"))
+      }
       return
     }
-    openNewConversationTab(activeFolder.id, activeFolder.path)
-  }, [activeFolder, openChatModeTab, openNewConversationTab, openConversations])
+    if (!openNewConversationTab(activeFolder.id, activeFolder.path)) {
+      toast.info(t("folderHeaderMenu.splitLimitReached"))
+    }
+  }, [
+    activeFolder,
+    openChatModeTab,
+    openNewConversationTab,
+    openConversations,
+    t,
+  ])
 
   const handleNewConversationForFolder = useCallback(
     (folderId: number) => {
@@ -2096,9 +2131,25 @@ export function SidebarConversationList({
       // Starting a conversation returns to the conversation workspace if a
       // workbench route (e.g. Automations) was taking over the content region.
       openConversations()
-      openNewConversationTab(folderId, folder.path)
+      if (!openNewConversationTab(folderId, folder.path)) {
+        toast.info(t("folderHeaderMenu.splitLimitReached"))
+      }
     },
-    [folderIndex, onNavigate, openNewConversationTab, openConversations]
+    [folderIndex, onNavigate, openNewConversationTab, openConversations, t]
+  )
+
+  const handleOpenFolderInSplit = useCallback(
+    (folderId: number, side: "left" | "right") => {
+      const folder = folderIndex.get(folderId)
+      if (!folder) return
+      onNavigate?.()
+      openConversations()
+      const opened = openFolderInSplit(folderId, folder.path, side)
+      if (!opened) {
+        toast.info(t("folderHeaderMenu.splitLimitReached"))
+      }
+    },
+    [folderIndex, onNavigate, openConversations, openFolderInSplit, t]
   )
 
   // "Import local sessions" now lives in a dedicated picker window (scan →
@@ -2534,6 +2585,7 @@ export function SidebarConversationList({
         }
         onRemoveFromWorkspace={handleRemoveFolder}
         onNewConversation={handleNewConversationForFolder}
+        onOpenInSplit={handleOpenFolderInSplit}
         onImport={handleImportForFolder}
         onManageConversations={handleManageConversations}
         onManageLinks={handleManageFolderLinks}

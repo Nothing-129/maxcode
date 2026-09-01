@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "Ordner aus Arbeitsbereich entfernen?",
       "removeFolderConfirmDescription": "\"{name}\" aus dem Arbeitsbereich entfernen? Zugehörige Tabs und Terminals werden geschlossen.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "Links geteilt öffnen",
+        "openInRightSplit": "Rechts geteilt öffnen",
+        "splitLimitReached": "Der linke und rechte Bereich werden bereits verwendet. Schließe zuerst einen Bereich.",
         "manageConversations": "Konversationen verwalten…",
         "manageLinks": "Verknüpfte Ordner",
         "changeColor": "Farbe ändern",
@@ -1896,6 +1899,9 @@
       "copiedField": "{field} kopiert"
     },
     "conversationCard": {
+      "folderZone": "Bereich {name}",
+      "otherFolderZone": "Andere",
+      "closeFolderZone": "Bereich {name} schließen",
       "untitledConversation": "Unbenannte Konversation",
       "newConversation": "Neue Konversation",
       "attachToCurrentSession": "Zur Sitzung hinzufügen",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "Tippen, um Konversationen zu suchen",
       "typeToSearchFiles": "Tippen, um Dateien oder Verzeichnisse zu suchen",
       "noResults": "Keine Ergebnisse gefunden.",
-      "untitledConversation": "Unbenannte Konversation"
+      "untitledConversation": "Unbenannte Konversation",
+      "folderZoneOccupied": "Der linke und rechte Bereich werden bereits verwendet. Schließe zuerst einen Bereich."
     },
     "folderTitleBar": {
       "showSidebar": "Seitenleiste anzeigen",

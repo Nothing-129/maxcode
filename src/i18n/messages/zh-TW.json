@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "從工作區移除此資料夾？",
       "removeFolderConfirmDescription": "從工作區移除 \"{name}\"？相關分頁與終端機將會關閉。",
       "folderHeaderMenu": {
+        "openInLeftSplit": "在左側分區開啟",
+        "openInRightSplit": "在右側分區開啟",
+        "splitLimitReached": "左右分區都已使用，請先關閉一個分區。",
         "manageConversations": "會話管理…",
         "manageLinks": "已連結的資料夾",
         "changeColor": "修改顏色",
@@ -1896,6 +1899,9 @@
       "copiedField": "已複製{field}"
     },
     "conversationCard": {
+      "folderZone": "{name} 分區",
+      "otherFolderZone": "其他",
+      "closeFolderZone": "關閉 {name} 分區",
       "untitledConversation": "未命名會話",
       "newConversation": "新增會話",
       "attachToCurrentSession": "添加到會話",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "輸入關鍵字搜尋會話",
       "typeToSearchFiles": "輸入關鍵字搜尋檔案或目錄",
       "noResults": "找不到結果。",
-      "untitledConversation": "未命名會話"
+      "untitledConversation": "未命名會話",
+      "folderZoneOccupied": "左右分區都已使用，請先關閉一個分區。"
     },
     "folderTitleBar": {
       "showSidebar": "顯示側邊欄",

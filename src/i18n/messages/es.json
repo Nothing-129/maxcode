@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "¿Eliminar carpeta del espacio de trabajo?",
       "removeFolderConfirmDescription": "¿Eliminar \"{name}\" del espacio de trabajo? Sus pestañas y terminales se cerrarán.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "Abrir en división izquierda",
+        "openInRightSplit": "Abrir en división derecha",
+        "splitLimitReached": "Las divisiones izquierda y derecha ya están en uso. Cierra una antes de abrir otra carpeta.",
         "manageConversations": "Gestionar conversaciones…",
         "manageLinks": "Carpetas vinculadas",
         "changeColor": "Cambiar color",
@@ -1896,6 +1899,9 @@
       "copiedField": "{field} copiado"
     },
     "conversationCard": {
+      "folderZone": "División {name}",
+      "otherFolderZone": "Otros",
+      "closeFolderZone": "Cerrar división {name}",
       "untitledConversation": "Conversación sin título",
       "newConversation": "Nueva conversación",
       "attachToCurrentSession": "Agregar a la sesión",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "Escribe para buscar conversaciones",
       "typeToSearchFiles": "Escribe para buscar archivos o directorios",
       "noResults": "No se encontraron resultados.",
-      "untitledConversation": "Conversación sin título"
+      "untitledConversation": "Conversación sin título",
+      "folderZoneOccupied": "Las divisiones izquierda y derecha ya están en uso. Cierra una antes de abrir otra carpeta."
     },
     "folderTitleBar": {
       "showSidebar": "Mostrar barra lateral",

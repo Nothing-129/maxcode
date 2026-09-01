@@ -19,6 +19,7 @@ import {
 import {
   groupOfTab,
   isReparentUnmount,
+  OTHER_FOLDER_ZONE_ID,
   resetTabStore,
   selectIsSplit,
   useTabStore,
@@ -416,6 +417,23 @@ describe("TabProvider tab state transitions", () => {
     expect(screen.getByTestId("active")).toHaveTextContent(tabsText)
   })
 
+  it("really closes the last unsent draft instead of replacing it", () => {
+    renderTabs()
+
+    act(() => {
+      latestContext?.openNewConversationTab(1, "/repo")
+    })
+    const draftTabId = latestContext?.activeTabId
+    expect(draftTabId).toMatch(/^new-/)
+
+    act(() => {
+      latestContext?.closeTab(draftTabId!)
+    })
+
+    expect(screen.getByTestId("tabs")).toHaveTextContent("")
+    expect(screen.getByTestId("active")).toHaveTextContent("none")
+  })
+
   it("redirects a new-conversation action targeting a hidden chat folder to chat mode", () => {
     // The open-folder list (`folders`) excludes chat folders after refetch, but
     // `allFolders` keeps them — chat detection must read `allFolders`, else a
@@ -492,7 +510,7 @@ describe("TabProvider tab state transitions", () => {
     expect(repl?.isChat ?? false).toBe(false)
   })
 
-  it("retargets the replacement draft when reopening a closed draft for another folder in the same batch", async () => {
+  it("opens a clean draft for another folder after the last draft closes", async () => {
     renderTabs()
 
     expect(latestContext).not.toBeNull()
@@ -509,13 +527,13 @@ describe("TabProvider tab state transitions", () => {
       latestContext?.openNewConversationTab(2, "/other")
     })
 
-    const replacementTabId = screen.getByTestId("tabs").textContent ?? ""
-    expect(replacementTabId).toMatch(/^new-/)
-    expect(replacementTabId).not.toBe(draftTabId)
-    expect(screen.getByTestId("active")).toHaveTextContent(replacementTabId)
+    const nextTabId = screen.getByTestId("tabs").textContent ?? ""
+    expect(nextTabId).toMatch(/^new-/)
+    expect(nextTabId).not.toBe(draftTabId)
+    expect(screen.getByTestId("active")).toHaveTextContent(nextTabId)
 
     await waitFor(() => {
-      expect(disconnectMock).toHaveBeenCalledWith(replacementTabId)
+      expect(disconnectMock).not.toHaveBeenCalled()
       expect(screen.getByTestId("active-folder")).toHaveTextContent("2")
     })
   })
@@ -1961,6 +1979,206 @@ describe("TabProvider tab groups", () => {
     expect(store().activeTabId).toBe("conv-1-codex-2")
     expect(store().groupSelection[home]).toBe("conv-1-codex-1")
     expect(store().groupSelection[g1]).toBe("conv-1-codex-2")
+  })
+
+  it("creates a folder-bound split and routes later opens back to it", async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(1, 2), tabItem(2, 3)])
+    const home = leaves()[0]
+
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+    })
+
+    const right = newLeafBeside(home)
+    expect(leaves()).toEqual([home, right])
+    expect(store().groupFolder).toMatchObject({ [home]: 1, [right]: 2 })
+    const folderTwoDraft = store().rawTabs.find(
+      (tab) => tab.conversationId == null && tab.folderId === 2
+    )
+    expect(folderTwoDraft).toBeDefined()
+    expect(groupOfId(folderTwoDraft!.id)).toBe(right)
+    expect(store().rawTabs.some((tab) => tab.id === "conv-2-codex-3")).toBe(
+      false
+    )
+
+    // Focus the left side, then open an existing folder-B conversation from
+    // elsewhere (sidebar/search). Folder affinity must outrank global focus.
+    act(() => {
+      store().switchTab("conv-1-codex-1")
+      store().openTab(2, 4, "codex", true, "Fourth")
+    })
+    expect(groupOfId("conv-2-codex-4")).toBe(right)
+    expect(store().activeTabId).toBe("conv-2-codex-4")
+    expect(
+      store().rawTabs.filter((tab) => groupOfId(tab.id) === right)
+    ).toHaveLength(1)
+    expect(store().rawTabs.some((tab) => tab.id === folderTwoDraft!.id)).toBe(
+      false
+    )
+
+    const blob = JSON.parse(localStorage.getItem("workspace:tab-groups:v1")!)
+    expect(blob.folderBindings).toMatchObject({ [home]: 1, [right]: 2 })
+  })
+
+  it("can insert a folder zone on the left and rejects cross-folder moves", async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(1, 2)])
+    const original = leaves()[0]
+
+    act(() => {
+      store().openFolderInSplit(2, "/other", "left")
+    })
+
+    const left = newLeafBeside(original)
+    expect(leaves()).toEqual([left, original])
+    expect(store().groupFolder[left]).toBe(2)
+    expect(store().groupFolder[original]).toBe(1)
+
+    act(() => {
+      store().moveTabToGroup("conv-1-codex-1", left)
+    })
+    expect(groupOfId("conv-1-codex-1")).toBe(original)
+  })
+
+  it("collapses a bound zone when its last tab closes", async () => {
+    await renderWithTabs([tabItem(1, 1, true)])
+    const home = leaves()[0]
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+    })
+    const right = newLeafBeside(home)
+    const draft = store().rawTabs.find(
+      (tab) => tab.conversationId == null && groupOfId(tab.id) === right
+    )!
+
+    act(() => {
+      store().closeTab(draft.id)
+    })
+
+    expect(leaves()).toEqual([home])
+    expect(selectIsSplit(store())).toBe(false)
+    expect(store().groupFolder).toEqual({})
+    expect(store().rawTabs.some((tab) => tab.id === draft.id)).toBe(false)
+  })
+
+  it('routes unmatched folders into a trailing "Other" zone', async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(2, 2)])
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+    })
+    let openedExisting: boolean | undefined
+    let openedDraft: OpenedDraftTarget | null | undefined
+
+    act(() => {
+      openedExisting = store().openTab(3, 30, "codex", true, "Third")
+    })
+
+    expect(openedExisting).toBe(true)
+    expect(leaves()).toHaveLength(3)
+    const other = leaves()[2]
+    expect(store().groupFolder[other]).toBe(OTHER_FOLDER_ZONE_ID)
+    expect(groupOfId("conv-3-codex-30")).toBe(other)
+
+    act(() => {
+      openedDraft = store().openNewConversationTab(3, "/third")
+    })
+    expect(openedDraft).not.toBeNull()
+    expect(store().rawTabs.some((tab) => tab.id === "conv-3-codex-30")).toBe(
+      false
+    )
+    expect(groupOfId(openedDraft!.tabId)).toBe(other)
+
+    act(() => {
+      store().openTab(4, 40, "codex", true, "Fourth")
+    })
+    expect(groupOfId("conv-4-codex-40")).toBe(other)
+    expect(store().rawTabs.some((tab) => tab.id === openedDraft!.tabId)).toBe(
+      false
+    )
+    expect(
+      store().rawTabs.filter((tab) => groupOfId(tab.id) === other)
+    ).toHaveLength(1)
+  })
+
+  it("replaces the explicitly chosen folder side without creating a fourth zone", async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(2, 2)])
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+      store().openTab(3, 30, "codex", true, "Third")
+    })
+    const [left, right, other] = leaves()
+    let result: OpenedDraftTarget | null | undefined
+
+    act(() => {
+      result = store().openFolderInSplit(999, "/third", "right")
+    })
+
+    expect(result).not.toBeNull()
+    expect(leaves()).toEqual([left, right, other])
+    expect(store().groupFolder[right]).toBe(999)
+    expect(store().groupFolder[other]).toBe(OTHER_FOLDER_ZONE_ID)
+    expect(store().rawTabs.some((tab) => tab.folderId === 2)).toBe(false)
+    expect(groupOfId(result!.tabId)).toBe(right)
+  })
+
+  it("closes a folder zone together with every tab in it", async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(2, 2)])
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+    })
+    const [left, right] = leaves()
+    const folderTwoTab = store().rawTabs.find(
+      (tab) => tab.folderId === 2 && groupOfId(tab.id) === right
+    )
+    expect(folderTwoTab).toBeDefined()
+    expect(
+      store().rawTabs.filter((tab) => groupOfId(tab.id) === right)
+    ).toHaveLength(1)
+
+    act(() => {
+      store().closeGroup(right)
+    })
+
+    expect(leaves()).toEqual([left])
+    expect(store().rawTabs.some((tab) => tab.folderId === 2)).toBe(false)
+    expect(store().groupFolder).toEqual({})
+  })
+
+  it("keeps ordinary unbound groups as multi-tab strips", async () => {
+    await renderWithTabs([tabItem(1, 1, true), tabItem(1, 2, true)])
+
+    act(() => {
+      store().openTab(1, 3, "codex", true, "Third")
+    })
+
+    expect(selectIsSplit(store())).toBe(false)
+    expect(store().rawTabs.map((tab) => tab.id)).toEqual([
+      "conv-1-codex-1",
+      "conv-1-codex-2",
+      "conv-1-codex-3",
+    ])
+  })
+
+  it("restores folder bindings with the split layout after restart", async () => {
+    const first = await renderWithTabs([tabItem(1, 1, true)])
+    const home = leaves()[0]
+    act(() => {
+      store().openFolderInSplit(2, "/other", "right")
+    })
+    const right = newLeafBeside(home)
+
+    first.unmount()
+    act(() => {
+      resetTabStore()
+    })
+    await renderWithTabs([tabItem(1, 1, true)])
+
+    expect(leaves()).toEqual([home, right])
+    expect(store().groupFolder).toMatchObject({ [home]: 1, [right]: 2 })
+    const restoredDraft = store().rawTabs.find(
+      (tab) => tab.conversationId == null && tab.folderId === 2
+    )
+    expect(restoredDraft).toBeDefined()
+    expect(groupOfId(restoredDraft!.id)).toBe(right)
   })
 
   it("split-and-move is a no-op when the tab is alone in its group", async () => {

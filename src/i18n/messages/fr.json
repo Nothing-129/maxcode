@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "Retirer le dossier de l'espace de travail ?",
       "removeFolderConfirmDescription": "Retirer \"{name}\" de l'espace de travail ? Les onglets et terminaux associés seront fermés.",
       "folderHeaderMenu": {
+        "openInLeftSplit": "Ouvrir dans la division gauche",
+        "openInRightSplit": "Ouvrir dans la division droite",
+        "splitLimitReached": "Les divisions gauche et droite sont déjà utilisées. Fermez-en une avant d'ouvrir un autre dossier.",
         "manageConversations": "Gérer les conversations…",
         "manageLinks": "Dossiers liés",
         "changeColor": "Changer la couleur",
@@ -1896,6 +1899,9 @@
       "copiedField": "{field} copié"
     },
     "conversationCard": {
+      "folderZone": "Division {name}",
+      "otherFolderZone": "Autres",
+      "closeFolderZone": "Fermer la division {name}",
       "untitledConversation": "Conversation sans titre",
       "newConversation": "Nouvelle conversation",
       "attachToCurrentSession": "Ajouter à la session",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "Tapez pour rechercher des conversations",
       "typeToSearchFiles": "Tapez pour rechercher des fichiers ou répertoires",
       "noResults": "Aucun résultat trouvé.",
-      "untitledConversation": "Conversation sans titre"
+      "untitledConversation": "Conversation sans titre",
+      "folderZoneOccupied": "Les divisions gauche et droite sont déjà utilisées. Fermez-en une avant d'ouvrir un autre dossier."
     },
     "folderTitleBar": {
       "showSidebar": "Afficher la barre latérale",

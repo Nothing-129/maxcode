@@ -33,7 +33,7 @@ export interface SplitNode {
 
 export type LayoutNode = GroupLeaf | SplitNode
 
-export type SplitDirection = "right" | "down"
+export type SplitDirection = "left" | "right" | "down"
 
 /** Group id of the initial (and post-reset) single-leaf layout. */
 export const ROOT_GROUP_ID = "g-main"
@@ -133,7 +133,8 @@ export function splitGroup(
   newGroupId: string
 ): LayoutNode {
   const orientation: SplitOrientation =
-    direction === "right" ? "horizontal" : "vertical"
+    direction === "down" ? "vertical" : "horizontal"
+  const insertBefore = direction === "left"
 
   const walk = (node: LayoutNode): LayoutNode => {
     if (node.type === "group") {
@@ -142,7 +143,9 @@ export function splitGroup(
         type: "split",
         id: `s-${newGroupId}`,
         orientation,
-        children: [node, singleGroupLayout(newGroupId)],
+        children: insertBefore
+          ? [singleGroupLayout(newGroupId), node]
+          : [node, singleGroupLayout(newGroupId)],
         ratios: [0.5, 0.5],
       }
     }
@@ -155,8 +158,9 @@ export function splitGroup(
         const ratios = [...node.ratios]
         const share = ratios[idx] / 2
         ratios[idx] = share
-        children.splice(idx + 1, 0, singleGroupLayout(newGroupId))
-        ratios.splice(idx + 1, 0, share)
+        const insertAt = insertBefore ? idx : idx + 1
+        children.splice(insertAt, 0, singleGroupLayout(newGroupId))
+        ratios.splice(insertAt, 0, share)
         return { ...node, children, ratios }
       }
     }

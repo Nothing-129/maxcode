@@ -1765,6 +1765,9 @@
       "removeFolderConfirmTitle": "このフォルダをワークスペースから削除しますか？",
       "removeFolderConfirmDescription": "\"{name}\" をワークスペースから削除しますか？関連するタブとターミナルが閉じられます。",
       "folderHeaderMenu": {
+        "openInLeftSplit": "左の分割で開く",
+        "openInRightSplit": "右の分割で開く",
+        "splitLimitReached": "左右の分割は使用中です。どちらかを閉じてください。",
         "manageConversations": "会話の管理…",
         "manageLinks": "リンク済みフォルダー",
         "changeColor": "色を変更",
@@ -1896,6 +1899,9 @@
       "copiedField": "{field}をコピーしました"
     },
     "conversationCard": {
+      "folderZone": "{name} 分割",
+      "otherFolderZone": "その他",
+      "closeFolderZone": "{name} 分割を閉じる",
       "untitledConversation": "無題の会話",
       "newConversation": "新しい会話",
       "attachToCurrentSession": "セッションに追加",
@@ -1951,7 +1957,8 @@
       "typeToSearch": "入力して会話を検索",
       "typeToSearchFiles": "入力してファイルまたはディレクトリを検索",
       "noResults": "結果が見つかりません。",
-      "untitledConversation": "無題の会話"
+      "untitledConversation": "無題の会話",
+      "folderZoneOccupied": "左右の分割は使用中です。どちらかを閉じてください。"
     },
     "folderTitleBar": {
       "showSidebar": "サイドバーを表示",
