@@ -360,16 +360,26 @@ const ConversationTabView = memo(function ConversationTabView({
     [ownTab, hasPersistedConversation]
   )
 
-  // Expose the runtime session key to the tab so the aux panel (Diff sidebar)
-  // can look up live turns even before the DB conversation is created.
+  // Expose the runtime session key to the tab so composer/aux-panel consumers
+  // read the same store entry as this view. A newly-created conversation keeps
+  // its virtual id for this mount. If the view later remounts, however, its
+  // stable id is now the persisted conversation id; replace the stale virtual
+  // id left on the tab or footer metrics keep reading an abandoned store entry.
   useEffect(() => {
     if (effectiveConversationId !== conversationId) {
       setTabRuntimeConversationId(tabId, effectiveConversationId)
+    } else if (
+      conversationId != null &&
+      ownTab?.runtimeConversationId != null &&
+      ownTab.runtimeConversationId !== conversationId
+    ) {
+      setTabRuntimeConversationId(tabId, conversationId)
     }
   }, [
     tabId,
     effectiveConversationId,
     conversationId,
+    ownTab?.runtimeConversationId,
     setTabRuntimeConversationId,
   ])
 

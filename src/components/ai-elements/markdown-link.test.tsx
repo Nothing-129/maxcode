@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   renderModal: vi.fn((props: LinkSafetyModalProps) =>
     props.isOpen ? <div data-testid="link-modal">{props.url}</div> : null
   ),
+  workspaceLinkHook: vi.fn(),
 }))
 
 vi.mock("./link-safety", async (importOriginal) => {
@@ -15,20 +16,24 @@ vi.mock("./link-safety", async (importOriginal) => {
   const actual = await importOriginal<typeof import("./link-safety")>()
   return {
     ...actual,
-    useStreamdownLinkSafety: () => ({
-      enabled: true,
-      onLinkCheck: mocks.onLinkCheck,
-      renderModal: mocks.renderModal,
-    }),
+    useStreamdownLinkSafety: () => {
+      mocks.workspaceLinkHook()
+      return {
+        enabled: true,
+        onLinkCheck: mocks.onLinkCheck,
+        renderModal: mocks.renderModal,
+      }
+    },
   }
 })
 
-import { MarkdownLink } from "./markdown-link"
+import { MarkdownLink, PublicMarkdownLink } from "./markdown-link"
 
 describe("MarkdownLink", () => {
   beforeEach(() => {
     mocks.onLinkCheck.mockReset()
     mocks.renderModal.mockClear()
+    mocks.workspaceLinkHook.mockClear()
     vi.spyOn(window, "open").mockReturnValue(null)
   })
 
@@ -259,5 +264,50 @@ describe("MarkdownLink", () => {
       expect(badge).toHaveAttribute("data-reference-badge")
       expect(badge).toHaveAttribute("data-ref-type", "file")
     })
+  })
+})
+
+describe("PublicMarkdownLink", () => {
+  beforeEach(() => {
+    mocks.workspaceLinkHook.mockClear()
+  })
+
+  it("keeps external links interactive without reading workspace context", () => {
+    render(
+      <PublicMarkdownLink href="https://example.com/docs">
+        docs
+      </PublicMarkdownLink>
+    )
+
+    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute(
+      "href",
+      "https://example.com/docs"
+    )
+    expect(mocks.workspaceLinkHook).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ["file:///repo/src/app.ts", "app.ts"],
+    ["codeg://file/%2Frepo%2Fsrc%2Fapp.ts", "app.ts"],
+    ["../relative/docs", "docs"],
+    ["streamdown:incomplete-link", "partial"],
+  ])("renders non-public target %s as inert text", (href, label) => {
+    render(<PublicMarkdownLink href={href}>{label}</PublicMarkdownLink>)
+
+    expect(screen.getByText(label)).toHaveAttribute("title", href)
+    expect(screen.queryByRole("link")).toBeNull()
+    expect(screen.queryByRole("button")).toBeNull()
+    expect(mocks.workspaceLinkHook).not.toHaveBeenCalled()
+  })
+
+  it("canonicalizes a protocol-relative public link to https", () => {
+    render(
+      <PublicMarkdownLink href="//example.com/docs">docs</PublicMarkdownLink>
+    )
+
+    expect(screen.getByRole("link", { name: "docs" })).toHaveAttribute(
+      "href",
+      "https://example.com/docs"
+    )
   })
 })

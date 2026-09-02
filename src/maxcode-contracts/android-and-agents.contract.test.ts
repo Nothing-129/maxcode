@@ -51,6 +51,9 @@ describe("MaxCode contract: agent compatibility", () => {
     expect(titles).toContain(
       "title_prompt_redacts_before_applying_the_400_character_limit"
     )
+    expect(titles).toContain(
+      "can_overwrite_multiline_frontend_and_parser_seeds"
+    )
     expect(parsers).toContain("crate::session_title::redact_title_input")
     expect(titles).toContain('"temperature": 0')
     expect(titles).not.toContain("tokio::process::Command")

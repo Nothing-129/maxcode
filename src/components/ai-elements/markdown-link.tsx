@@ -11,6 +11,7 @@ import {
   parseFilePathReferenceUri,
 } from "@/components/chat/composer/reference-uri"
 import { FileReferenceActions } from "@/components/message/file-reference-actions"
+import { BrowserLink } from "@/components/ui/browser-link"
 import type { ReferenceAttrs } from "@/components/chat/composer/types"
 import { classifyResourceKind, type ResourceKind } from "@/lib/resource-kind"
 import { cn } from "@/lib/utils"
@@ -32,6 +33,7 @@ const RESOURCE_KIND_ICON: Record<ResourceKind, LucideIcon> = {
 // Streamdown swaps the href of a not-yet-closed markdown link with this
 // sentinel while the message is still streaming.
 const INCOMPLETE_LINK = "streamdown:incomplete-link"
+const PUBLIC_EXTERNAL_PROTOCOL = /^(?:https?:|mailto:|tel:)/i
 
 type MarkdownLinkProps = ComponentProps<"a"> & {
   // react-markdown passes the originating hast node; it must not reach the DOM.
@@ -240,10 +242,65 @@ export function MarkdownLink({
   )
 }
 
+function publicExternalHref(href: string | undefined): string | null {
+  const value = href?.trim()
+  if (!value || value === INCOMPLETE_LINK) return null
+  if (value.startsWith("//")) return `https:${value}`
+  return PUBLIC_EXTERNAL_PROTOCOL.test(value) ? value : null
+}
+
+/**
+ * Link renderer for the unauthenticated, read-only conversation share.
+ *
+ * The normal MarkdownLink deliberately reaches into WorkspaceProvider so
+ * local paths can open in the editor. A public share has no workspace (and
+ * must not gain one merely to render transcript prose), so only genuine
+ * external links remain interactive here. Local paths, codeg references,
+ * relative URLs and incomplete streaming links stay visible but inert.
+ */
+export function PublicMarkdownLink(props: MarkdownLinkProps) {
+  const { href, children, className } = props
+  const externalHref = publicExternalHref(href)
+  if (!externalHref) {
+    return (
+      <span className={cn("wrap-anywhere", className)} title={href}>
+        {children}
+      </span>
+    )
+  }
+
+  const kind = classifyResourceKind(externalHref)
+  const Icon = kind ? RESOURCE_KIND_ICON[kind] : null
+
+  return (
+    <BrowserLink
+      href={externalHref}
+      data-resource-kind={kind ?? undefined}
+      title={externalHref}
+      className={cn(
+        "wrap-anywhere font-medium text-primary underline",
+        className
+      )}
+    >
+      {Icon ? (
+        <Icon
+          aria-hidden="true"
+          className="mr-0.5 inline size-[1em] align-[-0.15em] opacity-80"
+        />
+      ) : null}
+      {children}
+    </BrowserLink>
+  )
+}
+
 // react-markdown's `Components` map carries a string index signature that forces
 // every element override to accept `Record<string, unknown>` props, which is
 // incompatible with MarkdownLink's precise anchor props. The cast bridges that
 // gap — MarkdownLink receives exactly the props react-markdown passes for `a`.
 export const markdownLinkComponents: Components = {
   a: MarkdownLink as Components["a"],
+}
+
+export const publicMarkdownLinkComponents: Components = {
+  a: PublicMarkdownLink as Components["a"],
 }

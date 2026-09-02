@@ -37,7 +37,7 @@ function Block({
         </div>
       ) : (
         <div className="prose prose-sm max-w-none break-words dark:prose-invert">
-          <MessageResponse>{block.text}</MessageResponse>
+          <MessageResponse linkMode="public">{block.text}</MessageResponse>
         </div>
       )
     case "thinking":

@@ -28,7 +28,10 @@ import {
   defaultRehypePlugins,
   defaultRemarkPlugins,
 } from "streamdown"
-import { markdownLinkComponents } from "./markdown-link"
+import {
+  markdownLinkComponents,
+  publicMarkdownLinkComponents,
+} from "./markdown-link"
 import { maskLiteralSpans } from "./markdown-mask"
 import { mermaidComponents } from "./mermaid-block"
 import { rehypePluginsAllowingCodeg } from "./rehype-allow-codeg"
@@ -346,7 +349,9 @@ export const MessageBranchPage = ({
 // use it — they render as plain text + reference badges via PlainTextWithBadges
 // (see message/plain-text-with-badges.tsx) — so the former user-only `softBreaks`
 // / `/slash`-badging hooks were removed.
-export type MessageResponseProps = ComponentProps<typeof Streamdown>
+export type MessageResponseProps = ComponentProps<typeof Streamdown> & {
+  linkMode?: "workspace" | "public"
+}
 
 // remark-math uses dollar delimiters. `\[...\]` / `\(...\)` are rewritten
 // to `$$...$$`. Single-dollar `$...$` is disabled (`singleDollarTextMath:
@@ -481,6 +486,7 @@ const rehypePlugins = rehypePluginsAllowingCodeg(defaultRehypePlugins)
 function MessageResponseImpl({
   className,
   children,
+  linkMode = "workspace",
   ...props
 }: MessageResponseProps) {
   const normalized = useMemo(
@@ -517,11 +523,14 @@ function MessageResponseImpl({
       rehypePlugins={rehypePlugins}
       {...props}
       // Merge after spreading props so a caller can still override other
-      // elements, but the link icon + safety routing on `a` — and the diagram
-      // block on `pre` — always win.
+      // elements, but the selected link policy on `a` — and the diagram block
+      // on `pre` — always win. Public shares use an external-only renderer
+      // that never reaches into WorkspaceProvider.
       components={{
         ...props.components,
-        ...markdownLinkComponents,
+        ...(linkMode === "public"
+          ? publicMarkdownLinkComponents
+          : markdownLinkComponents),
         ...mermaidComponents,
       }}
     >
@@ -532,7 +541,9 @@ function MessageResponseImpl({
 
 export const MessageResponse = memo(
   MessageResponseImpl,
-  (prevProps, nextProps) => prevProps.children === nextProps.children
+  (prevProps, nextProps) =>
+    prevProps.children === nextProps.children &&
+    prevProps.linkMode === nextProps.linkMode
 )
 
 MessageResponse.displayName = "MessageResponse"

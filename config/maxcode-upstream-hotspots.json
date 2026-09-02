@@ -73,9 +73,11 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; an explicit public origin wins over Web, LAN, and loopback fallbacks.",
+      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
       "origins": ["worktree-2026-08-31"],
       "paths": [
+        "src/components/ai-elements/markdown-link.tsx",
+        "src/components/ai-elements/message.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/conversations/shared-conversation-view.tsx",
         "src/components/settings/web-service-settings.tsx",
@@ -90,7 +92,8 @@
         "docker-compose.yml"
       ],
       "contracts": [
-        "src/maxcode-contracts/conversation-sharing.contract.test.ts"
+        "src/maxcode-contracts/conversation-sharing.contract.test.ts",
+        "src/maxcode-contracts/public-share-link-rendering.contract.test.ts"
       ]
     },
     {
@@ -187,7 +190,7 @@
     {
       "id": "messages.generation-stats",
       "category": "product",
-      "description": "Conversations show DeepSeek-Harness-compatible average first-token latency and decode throughput beside the branch when the measured composer space is sufficient; DeepSeek uses native exact records and live ACP agents collect browser-observed step boundaries.",
+      "description": "Conversations show DeepSeek-Harness-compatible average first-token latency and decode throughput beside the branch when the measured composer space is sufficient; DeepSeek uses native exact records, live ACP agents collect browser-observed step boundaries, and remounted tabs rebind stale virtual runtime IDs so saved figures remain visible.",
       "origins": ["worktree-2026-08-31"],
       "paths": [
         "src-tauri/src/models/conversation.rs",
@@ -198,12 +201,14 @@
         "src/lib/generation-stats-storage.ts",
         "src/contexts/acp-connections-context.tsx",
         "src/stores/conversation-runtime-store.ts",
+        "src/components/conversations/conversation-detail-panel.tsx",
         "src/components/chat/composer-generation-stats.tsx",
         "src/components/chat/message-input.tsx",
         "src/i18n/messages/"
       ],
       "contracts": [
-        "src/maxcode-contracts/deepseek-generation-stats.contract.test.ts"
+        "src/maxcode-contracts/deepseek-generation-stats.contract.test.ts",
+        "src/maxcode-contracts/generation-stats-runtime-id.contract.test.ts"
       ]
     },
     {
@@ -259,7 +264,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",

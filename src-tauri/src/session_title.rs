@@ -276,8 +276,8 @@ pub fn title_seed_from_blocks(blocks: &[crate::acp::types::PromptInputBlock]) ->
 
 /// Whether an unlocked title may still be replaced by heuristic / refine.
 ///
-/// True for placeholders, the first-line heuristic, the 80-char create-row
-/// seed, or any prefix of the first user message (the frontend slices to 80).
+/// True for placeholders, the first-line heuristic, the frontend's raw 80-char
+/// create-row seed, the parser's 100-char seed, or a legacy collapsed prefix.
 /// False for a later user message against an already-named conversation.
 pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> bool {
     let Some(current) = current.map(str::trim).filter(|t| !t.is_empty()) else {
@@ -288,6 +288,22 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     }
     let heuristic = heuristic_title(first_message);
     if !heuristic.is_empty() && current == heuristic {
+        return true;
+    }
+    // A new-tab send creates the row before the backend receives the prompt.
+    // Its temporary title preserves whitespace and slices the raw display text
+    // to 80 characters, so a multiline prompt cannot be compared against only
+    // the whitespace-collapsed form below.
+    let frontend_seed: String = first_message.chars().take(80).collect();
+    if current == frontend_seed.trim() {
+        return true;
+    }
+    // Once a transcript refresh lands, the same unlocked placeholder may use
+    // the parser's whitespace-preserving, 100-character title instead. Accept
+    // that exact derivation too, without treating an arbitrary title as safe to
+    // overwrite.
+    let parser_seed = crate::parsers::title_from_user_text(first_message);
+    if !parser_seed.is_empty() && current == parser_seed.trim() {
         return true;
     }
     let redacted = redact_title_input(first_message);
@@ -897,6 +913,23 @@ mod tests {
         let seed: String = msg.chars().take(80).collect();
         assert!(can_overwrite_auto_title(Some(&seed), msg));
         assert!(!can_overwrite_auto_title(Some("用户手改的名字"), msg));
+    }
+
+    #[test]
+    fn can_overwrite_multiline_frontend_and_parser_seeds() {
+        let msg = "修改CustomerAwards\n/*\n * 十万以内按百分之零点五\n * 二十万以内按百分之一\n * 五十万以内按百分之二\n * 五十万以上按百分之三\n */\n请参考现有月结规则处理，并补充对应测试、边界条件和变更说明。";
+        let frontend_seed: String = msg.chars().take(80).collect();
+        let parser_seed = crate::parsers::title_from_user_text(msg);
+
+        assert!(frontend_seed.contains('\n'));
+        assert!(parser_seed.contains('\n'));
+        assert_ne!(frontend_seed, parser_seed);
+        assert!(can_overwrite_auto_title(Some(&frontend_seed), msg));
+        assert!(can_overwrite_auto_title(Some(&parser_seed), msg));
+        assert!(!can_overwrite_auto_title(
+            Some("用户手动命名的月结规则"),
+            msg
+        ));
     }
 
     #[test]
