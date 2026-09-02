@@ -32,6 +32,11 @@ pub struct UpdateTerminalSettingsParams {
     pub settings: SystemTerminalSettings,
 }
 
+#[derive(Deserialize)]
+pub struct UpdateTitleModelSettingsParams {
+    pub settings: SystemTitleModelSettingsUpdate,
+}
+
 // ---------------------------------------------------------------------------
 // Read handlers
 // ---------------------------------------------------------------------------
@@ -57,6 +62,13 @@ pub async fn get_system_terminal_settings(
 ) -> Result<Json<SystemTerminalSettings>, AppCommandError> {
     let db = &state.db;
     let settings = settings_commands::load_system_terminal_settings(&db.conn).await?;
+    Ok(Json(settings))
+}
+
+pub async fn get_system_title_model_settings(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<SystemTitleModelSettings>, AppCommandError> {
+    let settings = settings_commands::load_system_title_model_settings(&state.db.conn).await?;
     Ok(Json(settings))
 }
 
@@ -143,4 +155,24 @@ pub async fn update_system_terminal_settings(
     )
     .await?;
     Ok(Json(settings))
+}
+
+pub async fn update_system_title_model_settings(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<UpdateTitleModelSettingsParams>,
+) -> Result<Json<SystemTitleModelSettings>, AppCommandError> {
+    let settings =
+        settings_commands::set_system_title_model_settings_core(&state.db.conn, params.settings)
+            .await?;
+    Ok(Json(settings))
+}
+
+pub async fn test_system_title_model_settings(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<UpdateTitleModelSettingsParams>,
+) -> Result<Json<SystemTitleModelTestResult>, AppCommandError> {
+    let result =
+        settings_commands::test_system_title_model_settings_core(&state.db.conn, params.settings)
+            .await?;
+    Ok(Json(result))
 }

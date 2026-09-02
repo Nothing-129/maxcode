@@ -32,12 +32,43 @@ describe("MaxCode contract: agent compatibility", () => {
     }
   })
 
-  it("keeps locale-aware CLI titles and Grok history filtering", () => {
+  it("keeps configurable locale-aware HTTP titles and Grok history filtering", () => {
     const titles = source("src-tauri/src/session_title.rs")
+    const settings = source("src-tauri/src/commands/system_settings.rs")
+    const settingsUi = source(
+      "src/components/settings/system-network-settings.tsx"
+    )
+    const webSettings = source("src-tauri/src/web/handlers/system_settings.rs")
+    const api = source("src/lib/api.ts")
     const grok = source("src-tauri/src/parsers/grok.rs")
+    const parsers = source("src-tauri/src/parsers/mod.rs")
     expect(titles).toContain("resolve_title_locale")
     expect(titles).toContain("title_prompt_follows_locale")
+    expect(titles).toContain("AgentType::Grok | AgentType::Pi")
+    expect(titles).toContain("llm_title_via_api")
+    expect(titles).toContain("redact_title_input")
+    expect(titles).toContain("body.extend(settings.request_params.clone())")
+    expect(titles).toContain(
+      "title_prompt_redacts_before_applying_the_400_character_limit"
+    )
+    expect(parsers).toContain("crate::session_title::redact_title_input")
+    expect(titles).toContain('"temperature": 0')
+    expect(titles).not.toContain("tokio::process::Command")
     expect(titles).toContain("is_grok_title_scratch_cwd")
+    expect(settings).toContain("SYSTEM_TITLE_MODEL_SETTINGS_KEY")
+    expect(settings).toContain("api_key_configured")
+    expect(settings).toContain("test_system_title_model_settings_core")
+    expect(settings).toContain("normalize_title_model_request_params")
+    expect(webSettings).toContain(
+      "settings_commands::test_system_title_model_settings_core"
+    )
+    expect(api).toContain(
+      'getTransport().call("test_system_title_model_settings"'
+    )
+    expect(settingsUi).toContain('t("titleModelTitle")')
+    expect(settingsUi).toContain('t("titleModelTest")')
+    expect(settingsUi).toContain('t("titleModelPrivacyHint")')
+    expect(settingsUi).toContain('t("titleModelRequestParams")')
     expect(grok).toContain("is_redundant_session_image_read")
     expect(grok).toContain('"plan" =>')
   })

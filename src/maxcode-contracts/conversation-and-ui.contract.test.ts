@@ -102,6 +102,15 @@ describe("MaxCode contract: message and pointer presentation", () => {
     expect(hasHorizontalDragIntent(16, 20)).toBe(false)
   })
 
+  it("keeps touch swipe starts from toggling sidebar folders", () => {
+    const sidebar = source(
+      "src/components/conversations/sidebar-conversation-list.tsx"
+    )
+    expect(sidebar).toContain(
+      'event.button !== 0 || event.pointerType !== "mouse"'
+    )
+  })
+
   it("keeps overflowing tabs scrollable and preserves native transcript selection", () => {
     expect(source("src/components/tabs/tab-bar.tsx")).toContain(
       "overflow-x-auto overflow-y-hidden"

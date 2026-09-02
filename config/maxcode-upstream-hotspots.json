@@ -96,7 +96,7 @@
     {
       "id": "conversations.sidebar-folder-interactions",
       "category": "product",
-      "description": "Completed sessions are hidden by default; sidebar sections, folders, worktrees, paging, trackpad reorder, and newly created folder ordering stay stable.",
+      "description": "Completed sessions are hidden by default; sidebar sections, folders, worktrees, paging, trackpad reorder, touch-safe folder activation, and newly created folder ordering stay stable.",
       "origins": [
         "108154e4",
         "bae6751c",
@@ -104,7 +104,8 @@
         "2245d322",
         "7ca7b5b3",
         "16941c88",
-        "worktree-2026-08-31"
+        "worktree-2026-08-31",
+        "worktree-2026-09-02"
       ],
       "paths": [
         "src/lib/sidebar-view-mode-storage.ts",
@@ -121,12 +122,13 @@
     {
       "id": "navigation.folder-bound-tab-splits",
       "category": "product",
-      "description": "Left and right conversation split zones bind to explicit workspace folders, while unmatched folders share a trailing Other zone; each bound zone is a single active tab slot, folder remarks label zones, and closing a zone closes its current tab.",
-      "origins": ["worktree-2026-09-01"],
+      "description": "Left and right conversation split zones bind to explicit workspace folders, while unmatched folders share a trailing Other zone; each bound zone is a single active tab slot, folder remarks label zones, closing a zone closes its current tab, and mobile keeps a single full-width active conversation without discarding the desktop split.",
+      "origins": ["worktree-2026-09-01", "worktree-2026-09-02"],
       "paths": [
         "src/lib/tab-group-layout.ts",
         "src/stores/tab-store.ts",
         "src/components/tabs/tab-bar.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/search-command-dialog.tsx",
         "src/i18n/messages/"
@@ -257,7 +259,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, CLI-generated titles, locale-aware Grok titles, history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",
@@ -265,9 +267,21 @@
         "src-tauri/src/acp/codex_catalog_source.rs",
         "src-tauri/src/acp/manager.rs",
         "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/system_settings.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/models/mod.rs",
+        "src-tauri/src/models/system.rs",
+        "src-tauri/src/paths.rs",
+        "src-tauri/src/web/handlers/system_settings.rs",
+        "src-tauri/src/web/router.rs",
         "src-tauri/src/parsers/grok.rs",
+        "src-tauri/src/parsers/mod.rs",
         "src-tauri/src/session_title.rs",
-        "src/components/settings/acp-agent-settings.tsx"
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/components/settings/system-network-settings.tsx",
+        "src/lib/api.ts",
+        "src/lib/types.ts",
+        "src/i18n/messages/"
       ],
       "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
     },

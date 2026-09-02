@@ -6,6 +6,51 @@ pub struct SystemProxySettings {
     pub proxy_url: Option<String>,
 }
 
+/// Public, secret-free view of the dedicated model used to refine automatic
+/// conversation titles. `base_url` is an OpenAI-compatible API root (for
+/// example `https://api.groq.com/openai/v1`); the backend appends
+/// `/chat/completions` when issuing a request.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default)]
+pub struct SystemTitleModelSettings {
+    pub enabled: bool,
+    pub base_url: String,
+    pub model: String,
+    pub api_key_configured: bool,
+    pub request_params: Vec<TitleModelRequestParam>,
+}
+
+/// One additional top-level JSON property sent to the title model. Values stay
+/// as text in settings so the K/V editor can round-trip them; the backend parses
+/// valid JSON scalars/objects/arrays at request time and otherwise sends a
+/// string.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default)]
+pub struct TitleModelRequestParam {
+    pub key: String,
+    pub value: String,
+}
+
+/// Settings write shape. An omitted/blank `api_key` preserves the stored key;
+/// `clear_api_key` removes it explicitly, so read APIs never need to return a
+/// credential to the browser.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[serde(default)]
+pub struct SystemTitleModelSettingsUpdate {
+    pub enabled: bool,
+    pub base_url: String,
+    pub model: String,
+    pub api_key: Option<String>,
+    pub clear_api_key: bool,
+    pub request_params: Vec<TitleModelRequestParam>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SystemTitleModelTestResult {
+    pub title: String,
+    pub latency_ms: u64,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum AppLocale {

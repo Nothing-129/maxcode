@@ -42,6 +42,19 @@ describe("MaxCode contract: folder-bound tab splits", () => {
     expect(store).toContain("rawTabs: st.rawTabs.filter")
   })
 
+  it("keeps mobile navigation single-pane when desktop folder zones are persisted", () => {
+    const panel = source(
+      "src/components/conversations/conversation-detail-panel.tsx"
+    )
+    expect(panel).toContain("const showSplitLayout = isSplit && !isMobile")
+    expect(panel).toMatch(
+      /const visible = isMobile\s*\? active\s*: canTileG \|\| tab\.id === groupSelection\[groupId\]/
+    )
+    expect(panel).toContain(
+      'isMobile\n            ? { left: 0, top: 0, width: "100%", height: "100%" }'
+    )
+  })
+
   it("lets seeded drafts and entire folder zones close", () => {
     const store = source("src/stores/tab-store.ts")
     expect(store).toContain("if (closingTab.conversationId == null)")

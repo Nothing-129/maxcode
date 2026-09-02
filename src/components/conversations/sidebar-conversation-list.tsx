@@ -385,7 +385,14 @@ const FolderHeader = memo(function FolderHeader({
   }, [aliasValue, folderId, onSetAlias])
 
   const handleTogglePointerDown = (event: React.PointerEvent) => {
-    if (event.button) return
+    // This eager path exists only for WebKit trackpad taps, which arrive as a
+    // fine `mouse` pointer and can recycle the virtual row before `click`.
+    // A finger beginning the Drawer's close swipe also starts with
+    // `pointerdown`; toggling here would therefore open/close the folder before
+    // the browser has enough movement to recognize and consume the swipe.
+    // Touch and pen wait for the normal click path, which the browser cancels
+    // when that press turns into a drag/swipe.
+    if (event.button !== 0 || event.pointerType !== "mouse") return
     // Toggle on press — a trackpad tap on WebKit often remounts this button
     // (virtua / sticky overlay) before `click`, so waiting for `click` drops
     // the first tap. Mouse `click` is sync and would be fine either way.

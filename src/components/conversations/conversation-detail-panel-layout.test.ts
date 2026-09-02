@@ -47,8 +47,9 @@ describe("ConversationDetailPanel mobile context menu", () => {
       source.indexOf("export function ConversationDetailPanel()")
     )
 
+    expect(panelSource).toContain("const isMobile = useIsMobile()")
     expect(panelSource).toContain(
-      "const isMobileWeb = useIsMobile() && !isDesktop()"
+      "const isMobileWeb = isMobile && !isDesktop()"
     )
     expect(panelSource).toContain("disabled={isMobileWeb}")
     expect(panelSource).toMatch(
@@ -311,14 +312,34 @@ describe("ConversationDetailPanel split-group render model", () => {
   })
 
   it("marks the active session whenever several are visible (split or tiled)", () => {
-    expect(source).toContain("showActiveFlow={(isSplit || canTileG) && active}")
+    expect(source).toContain(
+      "showActiveFlow={(showSplitLayout || canTileG) && active}"
+    )
+  })
+
+  it("collapses persisted desktop folder splits to the active conversation on mobile", () => {
+    expect(source).toContain("const showSplitLayout = isSplit && !isMobile")
+    expect(source).toMatch(
+      /const visible = isMobile\s*\? active\s*: canTileG \|\| tab\.id === groupSelection\[groupId\]/
+    )
+    expect(source).toContain(
+      'isMobile &&\n            !mobileGroupActive &&\n            "conversation-tab-hidden invisible pointer-events-none"'
+    )
+    expect(source).toContain(
+      'isMobile\n            ? { left: 0, top: 0, width: "100%", height: "100%" }'
+    )
+    expect(source).toContain(
+      "inert={isMobile && !mobileGroupActive ? true : undefined}"
+    )
   })
 
   it("gives each split group its own strip and divider overlays only while split", () => {
     expect(source).toContain("<TabBar groupId={groupId} />")
     const handlesIdx = source.indexOf("groupHandles.map((handle) => (")
     expect(handlesIdx).toBeGreaterThan(-1)
-    expect(source.slice(handlesIdx - 80, handlesIdx)).toContain("{isSplit &&")
+    expect(source.slice(handlesIdx - 100, handlesIdx)).toContain(
+      "{showSplitLayout &&"
+    )
   })
 
   // Each split group keeps the unsplit layout's "tabs + conversation title
@@ -327,10 +348,10 @@ describe("ConversationDetailPanel split-group render model", () => {
   it("pairs every split group with its own title bar and gates the global one", () => {
     const shellStart = source.indexOf("const renderGroupShell = (groupId")
     const shellBody = source.slice(shellStart, shellStart + 6000)
-    expect(shellBody).toContain("{isSplit && selTab && (")
+    expect(shellBody).toContain("{showSplitLayout && selTab && (")
     expect(shellBody).toContain("<ConversationDetailHeader")
     expect(shellBody).toContain("tabId={selTab.id}")
-    expect(source).toContain("{!isSplit && activeTab && (")
+    expect(source).toContain("{!showSplitLayout && activeTab && (")
   })
 
   // While split the workspace layout drops its title-bar strip row ENTIRELY —

@@ -2366,7 +2366,8 @@ function SplitStripCornerReserve({ side }: { side: "left" | "right" }) {
 export function ConversationDetailPanel() {
   const t = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
-  const isMobileWeb = useIsMobile() && !isDesktop()
+  const isMobile = useIsMobile()
+  const isMobileWeb = isMobile && !isDesktop()
   const {
     completeTurn: runtimeCompleteTurn,
     removeConversation: runtimeRemoveConversation,
@@ -2646,6 +2647,15 @@ export function ConversationDetailPanel() {
   )
   const orderedGroupIds = useMemo(() => leafIds(groupLayout), [groupLayout])
   const isSplit = orderedGroupIds.length > 1
+  // Folder zones are a desktop presentation. Their device-local assignments
+  // may still be present when the same Web client is opened at phone width,
+  // but mobile navigation promises one full-width active conversation. If the
+  // desktop rects keep painting there, the old folder's group remains visible
+  // after the sidebar activates a conversation in another group, which looks
+  // exactly like the selection jumped back. Keep the group trees mounted (and
+  // keep the persisted split intact for desktop), but collapse their chrome and
+  // visibility to the latest active tab while the viewport is mobile.
+  const showSplitLayout = isSplit && !isMobile
   const tabsByGroup = useMemo(() => {
     const byGroup = new Map<string, typeof tabs>()
     for (const groupId of orderedGroupIds) byGroup.set(groupId, [])
@@ -2672,13 +2682,14 @@ export function ConversationDetailPanel() {
       orderedGroupIds
         .filter(
           (groupId) =>
+            !isMobile &&
             tileByGroup[groupId] &&
             (tabsByGroup.get(groupId)?.length ?? 0) > 1 &&
             groupSelection[groupId] != null
         )
         .map((groupId) => groupSelection[groupId])
         .join("|"),
-    [orderedGroupIds, tileByGroup, tabsByGroup, groupSelection]
+    [orderedGroupIds, tileByGroup, tabsByGroup, groupSelection, isMobile]
   )
   useEffect(() => {
     if (!tiledSelectionKey) return
@@ -2712,8 +2723,12 @@ export function ConversationDetailPanel() {
     canTileG: boolean
   ) => {
     const active = tab.id === activeTabId
-    // Visible = tiled (all group members shown) or the group's selected tab.
-    const visible = canTileG || tab.id === groupSelection[groupId]
+    // Mobile is a single-pane navigator even when a desktop folder split is
+    // persisted. Only the actual active tab may paint there; per-group
+    // selections are kept solely so the desktop split can be restored.
+    const visible = isMobile
+      ? active
+      : canTileG || tab.id === groupSelection[groupId]
     const folderPath = allFolders.find((f) => f.id === tab.folderId)?.path
     const view = (
       <LazyConversationTabView
@@ -2722,7 +2737,7 @@ export function ConversationDetailPanel() {
         agentType={tab.agentType}
         workingDir={tab.workingDir ?? folderPath}
         isActive={active}
-        showActiveFlow={(isSplit || canTileG) && active}
+        showActiveFlow={(showSplitLayout || canTileG) && active}
         reloadSignal={reloadByTabId[tab.id] ?? 0}
         groupId={groupId}
         visible={visible}
@@ -2755,7 +2770,7 @@ export function ConversationDetailPanel() {
         {/* The visible active cue is now the composer's flowing gradient border
             (see message-input.tsx); keep a non-visual cue for assistive tech
             when several sessions are visible (tiled and/or split). */}
-        {(isSplit || canTileG) && active && (
+        {(showSplitLayout || canTileG) && active && (
           <span className="sr-only">{t("activeConversationIndicator")}</span>
         )}
         {/* A backgrounded tab is kept mounted and merely hidden (its session is
@@ -2776,7 +2791,8 @@ export function ConversationDetailPanel() {
     const rect = groupRects.get(groupId)
     if (!rect) return null
     const groupTabs = tabsByGroup.get(groupId) ?? []
-    const canTileG = !!tileByGroup[groupId] && groupTabs.length > 1
+    const mobileGroupActive = groupTabs.some((tab) => tab.id === activeTabId)
+    const canTileG = !isMobile && !!tileByGroup[groupId] && groupTabs.length > 1
     // Only the TOP-edge strips sit under the fixed corner overlays (the split
     // layout has no title-bar row above them) — the leftmost/rightmost of that
     // row carry the corner reserves the unsplit strip row normally provides.
@@ -2801,25 +2817,35 @@ export function ConversationDetailPanel() {
       <div
         key={groupId}
         data-conv-group-shell={groupId}
-        className="absolute flex min-h-0 flex-col overflow-hidden"
-        style={{
-          left: `${rect.x}%`,
-          top: `${rect.y}%`,
-          width: `${rect.w}%`,
-          height: `${rect.h}%`,
-        }}
+        className={cn(
+          "absolute flex min-h-0 flex-col overflow-hidden",
+          isMobile &&
+            !mobileGroupActive &&
+            "conversation-tab-hidden invisible pointer-events-none"
+        )}
+        style={
+          isMobile
+            ? { left: 0, top: 0, width: "100%", height: "100%" }
+            : {
+                left: `${rect.x}%`,
+                top: `${rect.y}%`,
+                width: `${rect.w}%`,
+                height: `${rect.h}%`,
+              }
+        }
+        inert={isMobile && !mobileGroupActive ? true : undefined}
       >
         {/* While split, each group owns its own strip (the workspace layout's
             title-bar row is gone entirely), and the TOP-edge strips add the
             corner reserves that row normally carries. */}
-        {isSplit && (
+        {showSplitLayout && (
           <div className="flex h-10 shrink-0 items-stretch bg-muted ws-transparent-bg">
             {touchesLeft && <SplitStripCornerReserve side="left" />}
             <TabBar groupId={groupId} />
             {touchesRight && <SplitStripCornerReserve side="right" />}
           </div>
         )}
-        {isSplit && selTab && (
+        {showSplitLayout && selTab && (
           <div
             className="shrink-0"
             // Clicking a non-focused group's title bar focuses that group
@@ -2879,7 +2905,7 @@ export function ConversationDetailPanel() {
   return (
     <>
       <div className="flex h-full min-h-0 flex-col overflow-hidden">
-        {!isSplit && activeTab && (
+        {!showSplitLayout && activeTab && (
           <ConversationDetailHeader
             tabId={activeTab.id}
             conversationId={activeTab.conversationId}
@@ -2905,7 +2931,7 @@ export function ConversationDetailPanel() {
                   sibling tabs remount and a live streaming response is torn
                   down. */}
               {orderedGroupIds.map((groupId) => renderGroupShell(groupId))}
-              {isSplit &&
+              {showSplitLayout &&
                 groupHandles.map((handle) => (
                   <GroupSplitHandle
                     key={`${handle.splitId}:${handle.index}`}

@@ -3353,6 +3353,34 @@ export interface SystemProxySettings {
   proxy_url: string | null
 }
 
+export interface SystemTitleModelSettings {
+  enabled: boolean
+  base_url: string
+  model: string
+  api_key_configured: boolean
+  request_params: TitleModelRequestParam[]
+}
+
+export interface TitleModelRequestParam {
+  key: string
+  value: string
+}
+
+export interface SystemTitleModelSettingsUpdate {
+  enabled: boolean
+  base_url: string
+  model: string
+  /** Blank/null preserves the existing key; clear_api_key removes it. */
+  api_key: string | null
+  clear_api_key: boolean
+  request_params: TitleModelRequestParam[]
+}
+
+export interface SystemTitleModelTestResult {
+  title: string
+  latency_ms: number
+}
+
 export type AppLocale =
   | "en"
   | "zh_cn"

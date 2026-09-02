@@ -504,12 +504,13 @@ pub fn fold_reference_links(text: &str) -> String {
     out
 }
 
-/// Derive a conversation title from a user's first message: fold inline
-/// reference links to their labels, then cap the length. Folding first ensures a
-/// `[name](file://<long path>)` mention becomes `name` instead of a raw — and,
-/// once truncated, unterminable — Markdown link.
+/// Derive a conversation title from a user's first message: redact recognized
+/// sensitive values, fold inline reference links to their labels, then cap the
+/// length. Folding first ensures a `[name](file://<long path>)` mention becomes
+/// `name` instead of a raw — and, once truncated, unterminable — Markdown link.
 pub fn title_from_user_text(text: &str) -> String {
-    truncate_str(&fold_reference_links(text), 100)
+    let redacted = crate::session_title::redact_title_input(text);
+    truncate_str(&fold_reference_links(&redacted), 100)
 }
 
 /// Fill in `duration_ms` for assistant turns whose agent reports no timing of
@@ -1536,6 +1537,19 @@ mod tests {
         let title = title_from_user_text(&long);
         assert_eq!(title.chars().count(), 103); // 100 + "..."
         assert!(title.ends_with("..."));
+    }
+
+    #[test]
+    fn title_from_user_text_redacts_sensitive_values() {
+        let title = title_from_user_text(
+            "排查 password=parser-secret，身份证 11010519491231002X，邮箱 me@example.com",
+        );
+        assert!(!title.contains("parser-secret"));
+        assert!(!title.contains("11010519491231002X"));
+        assert!(!title.contains("me@example.com"));
+        assert!(title.contains("<redacted-secret>"));
+        assert!(title.contains("<redacted-id>"));
+        assert!(title.contains("<redacted-email>"));
     }
 
     #[test]

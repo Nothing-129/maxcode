@@ -1288,11 +1288,12 @@ impl ConnectionManager {
         } else {
             None
         };
-        let cli_auto_title_seed = if crate::session_title::supports_cli_auto_title(agent_type) {
-            crate::session_title::title_seed_from_blocks(&blocks)
-        } else {
-            None
-        };
+        let dedicated_auto_title_seed =
+            if crate::session_title::supports_dedicated_auto_title(agent_type) {
+                crate::session_title::title_seed_from_blocks(&blocks)
+            } else {
+                None
+            };
 
         // Seed an unlocked title from the first prompt so the sidebar is not
         // "Untitled" while the agent is still working. Native ACP titles
@@ -1386,11 +1387,13 @@ impl ConnectionManager {
                         ),
                     }
                 }
-                if let (Some(cid), Some(seed)) = (conversation_id_for_status, cli_auto_title_seed) {
+                if let (Some(cid), Some(seed)) =
+                    (conversation_id_for_status, dedicated_auto_title_seed)
+                {
                     let conn = db.conn.clone();
                     let title_emitter = emitter.clone();
                     tokio::spawn(async move {
-                        crate::session_title::kickoff_cli_auto_title(
+                        crate::session_title::kickoff_auto_title(
                             agent_type,
                             conn,
                             title_emitter,
@@ -5009,6 +5012,19 @@ mod tests {
         let seed = delegation_child_title_seed(&[PromptInputBlock::Text { text: long }]).unwrap();
         assert_eq!(seed.chars().count(), 103);
         assert!(seed.ends_with("..."));
+    }
+
+    #[test]
+    fn delegation_child_title_seed_redacts_sensitive_values() {
+        let seed = delegation_child_title_seed(&[PromptInputBlock::Text {
+            text: "排查登录 password=child-secret，联系 13800138000".into(),
+        }])
+        .unwrap();
+
+        assert!(!seed.contains("child-secret"));
+        assert!(!seed.contains("13800138000"));
+        assert!(seed.contains("<redacted-secret>"));
+        assert!(seed.contains("<redacted-phone>"));
     }
 
     /// A successful UI send (delegation = None, text present) emits

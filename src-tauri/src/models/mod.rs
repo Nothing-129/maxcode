@@ -41,7 +41,9 @@ pub use remote_workspace_connection::{
 pub use system::{
     AvailableTerminalShells, GitCredentials, GitDetectResult, GitHubAccount,
     GitHubAccountsSettings, GitHubTokenValidation, GitSettings, SystemLanguageSettings,
-    SystemProxySettings, SystemTerminalSettings, TerminalShellOption,
+    SystemProxySettings, SystemTerminalSettings, SystemTitleModelSettings,
+    SystemTitleModelSettingsUpdate, SystemTitleModelTestResult, TerminalShellOption,
+    TitleModelRequestParam,
 };
 #[cfg(feature = "tauri-runtime")]
 pub use system::{SystemAutostartSettings, SystemRenderingSettings};

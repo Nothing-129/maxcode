@@ -1,17 +1,18 @@
-//! Codex and Grok sidebar titles: first-line heuristic, then a locale-matched
-//! one-shot CLI refine using the same agent as the conversation.
+//! Codex, Grok, and Pi sidebar titles: first-line heuristic, then an optional
+//! locale-matched refine through the user's dedicated OpenAI-compatible model.
 //!
 //! Grok's own `generated_title` is English-biased and lives in a separate
 //! prompt from `~/.grok/AGENTS.md`, while Codex CLI does not automatically
 //! generate a semantic title. New chats get the first user line immediately;
-//! a low-effort `grok -p` / `codex exec` then replaces it with a short title in
-//! the app UI language. Manual rename (`title_locked`) always wins.
+//! a configured lightweight HTTP model can then replace it with a short title
+//! in the app UI language. Manual rename (`title_locked`) always wins.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use regex::Regex;
 use sea_orm::DatabaseConnection;
 
 use crate::db::service::conversation_service;
@@ -23,8 +24,14 @@ use crate::web::event_bridge::EventEmitter;
 const HEURISTIC_MAX_CHARS: usize = 28;
 const LLM_TITLE_MAX_CHARS: usize = 32;
 const LLM_SNIPPET_MAX_CHARS: usize = 400;
-const LLM_TIMEOUT: Duration = Duration::from_secs(45);
-const TITLE_SCRATCH_DIR_NAME: &str = "grok-title-scratch";
+const LLM_TIMEOUT: Duration = Duration::from_secs(8);
+const LEGACY_TITLE_SCRATCH_DIR_NAME: &str = "grok-title-scratch";
+
+const REDACTED_SECRET: &str = "<redacted-secret>";
+const REDACTED_ID: &str = "<redacted-id>";
+const REDACTED_BANK_CARD: &str = "<redacted-bank-card>";
+const REDACTED_PHONE: &str = "<redacted-phone>";
+const REDACTED_EMAIL: &str = "<redacted-email>";
 
 const PLACEHOLDERS: &[&str] = &[
     "New chat",
@@ -111,12 +118,12 @@ pub fn is_placeholder_title(title: &str) -> bool {
     t.is_empty() || PLACEHOLDERS.iter().any(|p| p.eq_ignore_ascii_case(t))
 }
 
-/// True when `cwd` is the isolated directory used for headless title jobs.
-/// Those sessions must never appear in the sidebar.
+/// True when `cwd` is the isolated directory used by pre-HTTP title jobs.
+/// Those historical helper sessions must never appear in the sidebar.
 pub fn is_grok_title_scratch_cwd(cwd: &str) -> bool {
     Path::new(cwd)
         .file_name()
-        .is_some_and(|name| name == TITLE_SCRATCH_DIR_NAME)
+        .is_some_and(|name| name == LEGACY_TITLE_SCRATCH_DIR_NAME)
 }
 
 /// The title-refine prompt itself, if it leaked into a session file.
@@ -134,10 +141,106 @@ pub fn is_title_refine_prompt(text: &str) -> bool {
         || t.starts_with("اكتب عنوان جلسة قصير")
 }
 
+fn redact_with(
+    value: String,
+    regex: &'static OnceLock<Regex>,
+    pattern: &str,
+    replacement: &str,
+) -> String {
+    regex
+        .get_or_init(|| Regex::new(pattern).expect("valid title redaction regex"))
+        .replace_all(&value, replacement)
+        .into_owned()
+}
+
+/// Best-effort local redaction for text used in automatic titles.
+///
+/// This runs before either the offline heuristic or the optional model prompt.
+/// It intentionally targets high-confidence formats and labelled credentials so
+/// ordinary issue numbers and short numeric values remain useful title context.
+pub fn redact_title_input(message: &str) -> String {
+    static URL_CREDENTIAL: OnceLock<Regex> = OnceLock::new();
+    static EN_CREDENTIAL: OnceLock<Regex> = OnceLock::new();
+    static ZH_CREDENTIAL: OnceLock<Regex> = OnceLock::new();
+    static DIRECT_SECRET: OnceLock<Regex> = OnceLock::new();
+    static CN_ID: OnceLock<Regex> = OnceLock::new();
+    static BANK_CARD: OnceLock<Regex> = OnceLock::new();
+    static CN_MOBILE: OnceLock<Regex> = OnceLock::new();
+    static CN_LANDLINE: OnceLock<Regex> = OnceLock::new();
+    static INTERNATIONAL_PHONE: OnceLock<Regex> = OnceLock::new();
+    static EMAIL: OnceLock<Regex> = OnceLock::new();
+
+    let mut redacted = message.to_string();
+    redacted = redact_with(
+        redacted,
+        &URL_CREDENTIAL,
+        r"(?i)(https?://[^/\s:@]+:)[^@\s/]+@",
+        &format!("${{1}}{REDACTED_SECRET}@"),
+    );
+    redacted = redact_with(
+        redacted,
+        &EN_CREDENTIAL,
+        r#"(?i)["']?\b(password|passwd|pwd|passcode|api[\s_-]*key|access[\s_-]*token|auth[\s_-]*token|secret)\b["']?\s*[:=]\s*(?:"[^"]*"|'[^']*'|[^\s,，;；}\]]+)"#,
+        &format!("${{1}}: {REDACTED_SECRET}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &ZH_CREDENTIAL,
+        r#"(密码|口令|密钥|令牌)\s*(?:[:=：]|是)\s*(?:"[^"]*"|'[^']*'|[^\s,，;；}\]]+)"#,
+        &format!("${{1}}：{REDACTED_SECRET}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &DIRECT_SECRET,
+        r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]{8,}|\b(?:sk|xai)-[A-Za-z0-9_-]{8,}\b|\bgh[pousr]_[A-Za-z0-9]{8,}\b|\bgithub_pat_[A-Za-z0-9_]{8,}\b|\bAIza[A-Za-z0-9_-]{16,}\b|\bAKIA[A-Z0-9]{12,}\b|\bxox[baprs]-[A-Za-z0-9-]{8,}\b|\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b",
+        REDACTED_SECRET,
+    );
+
+    // Match structured numeric identifiers before phone numbers so an ID or
+    // bank card is represented by its more useful category.
+    redacted = redact_with(
+        redacted,
+        &CN_ID,
+        r"(^|[^0-9])(?:[1-9][0-9]{5}(?:18|19|20)[0-9]{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12][0-9]|3[01])[0-9]{3}[0-9Xx]|[1-9][0-9]{14})([^0-9]|$)",
+        &format!("${{1}}{REDACTED_ID}${{2}}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &BANK_CARD,
+        r"(^|[^0-9])(?:[0-9][ -]?){15,18}[0-9]([^0-9]|$)",
+        &format!("${{1}}{REDACTED_BANK_CARD}${{2}}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &CN_MOBILE,
+        r"(^|[^0-9])(?:\+?86[ -]?)?1[3-9][0-9](?:[ -]?[0-9]){8}([^0-9]|$)",
+        &format!("${{1}}{REDACTED_PHONE}${{2}}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &CN_LANDLINE,
+        r"(^|[^0-9])0[0-9]{2,3}[ -]?[0-9]{7,8}([^0-9]|$)",
+        &format!("${{1}}{REDACTED_PHONE}${{2}}"),
+    );
+    redacted = redact_with(
+        redacted,
+        &INTERNATIONAL_PHONE,
+        r"(^|[^0-9])\+[1-9][0-9](?:[ ()-]?[0-9]){6,13}([^0-9]|$)",
+        &format!("${{1}}{REDACTED_PHONE}${{2}}"),
+    );
+    redact_with(
+        redacted,
+        &EMAIL,
+        r"(?i)\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        REDACTED_EMAIL,
+    )
+}
+
 /// Offline title: first non-empty line, folded links, collapsed whitespace,
 /// max ~28 display chars. Matches grok-app's instant heuristic.
 pub fn heuristic_title(message: &str) -> String {
-    let folded = fold_reference_links(message);
+    let redacted = redact_title_input(message);
+    let folded = fold_reference_links(&redacted);
     let line = folded
         .lines()
         .map(str::trim)
@@ -187,7 +290,8 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     if !heuristic.is_empty() && current == heuristic {
         return true;
     }
-    let folded = fold_reference_links(first_message);
+    let redacted = redact_title_input(first_message);
+    let folded = fold_reference_links(&redacted);
     let collapsed: String = folded.split_whitespace().collect::<Vec<_>>().join(" ");
     if collapsed.starts_with(current) {
         return true;
@@ -196,9 +300,9 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     current == seed
 }
 
-/// Once a CLI refine has started, only a user-locked title can block its result.
-/// Native agent titles may arrive while the CLI is running and are still automatic.
-fn can_commit_cli_refine(title_locked: bool) -> bool {
+/// Once a model refine has started, only a user-locked title can block its result.
+/// Native agent titles may arrive while the request is running and are still automatic.
+fn can_commit_model_refine(title_locked: bool) -> bool {
     !title_locked
 }
 
@@ -263,7 +367,8 @@ pub fn title_prompt(snippet: &str, locale: TitleLocale) -> String {
 }
 
 fn title_prompt_for_message(message: &str, locale: TitleLocale) -> String {
-    let snippet: String = message.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
+    let redacted = redact_title_input(message);
+    let snippet: String = redacted.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
     title_prompt(&snippet, locale)
 }
 
@@ -308,22 +413,25 @@ pub fn clean_llm_title(raw: &str) -> Option<String> {
     Some(truncate_chars(&t, LLM_TITLE_MAX_CHARS))
 }
 
-/// Agents whose native title behavior needs the locale-matched one-shot refine.
-pub fn supports_cli_auto_title(agent_type: AgentType) -> bool {
-    matches!(agent_type, AgentType::Codex | AgentType::Grok)
+/// Agents whose native title behavior needs the locale-matched model refine.
+pub fn supports_dedicated_auto_title(agent_type: AgentType) -> bool {
+    matches!(
+        agent_type,
+        AgentType::Codex | AgentType::Grok | AgentType::Pi
+    )
 }
 
-/// Install the local heuristic first, then run one background CLI refine using
-/// the conversation's own agent. A failed process leaves the local title in
-/// place; there is no retry loop or delayed retry task.
-pub async fn kickoff_cli_auto_title(
+/// Install the local heuristic first, then run one background HTTP refine when
+/// a dedicated title model is configured. A failed request leaves the local
+/// title in place.
+pub async fn kickoff_auto_title(
     agent_type: AgentType,
     conn: DatabaseConnection,
     emitter: EventEmitter,
     conversation_id: i32,
     first_message: String,
 ) {
-    if !supports_cli_auto_title(agent_type) {
+    if !supports_dedicated_auto_title(agent_type) {
         return;
     }
     let heuristic = heuristic_title(&first_message);
@@ -360,14 +468,23 @@ pub async fn kickoff_cli_auto_title(
         ),
     }
 
-    if !begin_refine(conversation_id) {
-        return;
-    }
-
     let locale = crate::commands::system_settings::load_system_language_settings(&conn)
         .await
         .map(|s| resolve_title_locale(&s))
         .unwrap_or(TitleLocale::En);
+    let title_model =
+        match crate::commands::system_settings::load_title_model_runtime_settings(&conn).await {
+            Ok(Some(settings)) => settings,
+            Ok(None) => return,
+            Err(e) => {
+                tracing::debug!(error = %e, "title model settings unavailable");
+                return;
+            }
+        };
+
+    if !begin_refine(conversation_id) {
+        return;
+    }
 
     tokio::spawn(async move {
         struct RefineGuard(i32);
@@ -378,14 +495,18 @@ pub async fn kickoff_cli_auto_title(
         }
         let _guard = RefineGuard(conversation_id);
 
-        let Some(refined) = llm_title_via_cli(agent_type, &first_message, locale).await else {
-            return;
+        let refined = match llm_title_via_api(&title_model, &first_message, locale).await {
+            Ok(title) => title,
+            Err(e) => {
+                tracing::debug!(error = %e, "title model refine failed");
+                return;
+            }
         };
 
         let Ok(current) = conversation_service::get_by_id(&conn, conversation_id).await else {
             return;
         };
-        if !can_commit_cli_refine(current.title_locked) {
+        if !can_commit_model_refine(current.title_locked) {
             return;
         }
         if current.title.as_deref() == Some(refined.as_str()) {
@@ -521,109 +642,129 @@ fn end_refine(id: i32) {
     }
 }
 
-fn resolve_grok_cli() -> Option<PathBuf> {
-    if let Some(path) = crate::commands::acp::resolve_system_agent_binary("grok") {
-        return Some(path);
-    }
-    let home = dirs::home_dir()?;
-    let cand = if cfg!(windows) {
-        home.join(".grok").join("bin").join("grok.exe")
+fn title_chat_completions_url(base_url: &str) -> String {
+    let base = base_url.trim_end_matches('/');
+    if base.ends_with("/chat/completions") {
+        base.to_string()
     } else {
-        home.join(".grok").join("bin").join("grok")
-    };
-    cand.is_file().then_some(cand)
-}
-
-fn title_cli_args(agent_type: AgentType, prompt: &str, scratch: &Path) -> Option<Vec<String>> {
-    let cwd = scratch.to_string_lossy().into_owned();
-    match agent_type {
-        AgentType::Grok => Some(vec![
-            "-p".into(),
-            prompt.into(),
-            "--effort".into(),
-            "low".into(),
-            "--max-turns".into(),
-            "2".into(),
-            "--always-approve".into(),
-            "--no-subagents".into(),
-            "--disable-web-search".into(),
-            "--no-auto-update".into(),
-            "--cwd".into(),
-            cwd,
-            "--disallowed-tools".into(),
-            "run_terminal_cmd,run_terminal_command,web_search,web_fetch,search_replace,write,Agent,spawn_subagent,bash,bash_tool".into(),
-        ]),
-        AgentType::Codex => Some(vec![
-            "--ask-for-approval".into(),
-            "never".into(),
-            "exec".into(),
-            "--ephemeral".into(),
-            "--skip-git-repo-check".into(),
-            "--ignore-rules".into(),
-            "--sandbox".into(),
-            "read-only".into(),
-            "--color".into(),
-            "never".into(),
-            "-c".into(),
-            "model_reasoning_effort=\"low\"".into(),
-            "-C".into(),
-            cwd,
-            prompt.into(),
-        ]),
-        _ => None,
+        format!("{base}/chat/completions")
     }
 }
 
-async fn llm_title_via_cli(
-    agent_type: AgentType,
+fn extract_chat_completion_title(body: &serde_json::Value) -> Option<String> {
+    body.pointer("/choices/0/message/content")
+        .and_then(serde_json::Value::as_str)
+        .and_then(clean_llm_title)
+}
+
+fn provider_error_detail(raw: &str) -> String {
+    serde_json::from_str::<serde_json::Value>(raw)
+        .ok()
+        .and_then(|value| {
+            value
+                .pointer("/error/message")
+                .and_then(serde_json::Value::as_str)
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| truncate_chars(raw.trim(), 300))
+}
+
+async fn llm_title_via_api(
+    settings: &crate::commands::system_settings::TitleModelRuntimeSettings,
     message: &str,
     locale: TitleLocale,
-) -> Option<String> {
+) -> Result<String, crate::app_error::AppCommandError> {
     let prompt = title_prompt_for_message(message, locale);
-    let scratch = crate::paths::codeg_grok_title_scratch_dir();
-    if let Err(e) = std::fs::create_dir_all(&scratch) {
-        tracing::debug!(error = %e, "title scratch dir create failed");
-        return None;
+    let client = reqwest::Client::builder()
+        .timeout(LLM_TIMEOUT)
+        .build()
+        .map_err(|e| {
+            crate::app_error::AppCommandError::network(
+                "Failed to create the title model HTTP client",
+            )
+            .with_detail(e.to_string())
+        })?;
+    let url = title_chat_completions_url(&settings.base_url);
+    let mut body = serde_json::json!({
+        "model": settings.model,
+        "messages": [{ "role": "user", "content": prompt }],
+        "temperature": 0,
+        "max_tokens": 64,
+        "stream": false
+    });
+    if let Some(body) = body.as_object_mut() {
+        body.extend(settings.request_params.clone());
     }
 
-    let (program, prefix_args) = match agent_type {
-        AgentType::Grok => (resolve_grok_cli()?, Vec::new()),
-        AgentType::Codex => {
-            let (node, codex_js) = crate::acp::codex_catalog_source::runtime_cli_command().await?;
-            (node, vec![codex_js.to_string_lossy().into_owned()])
+    let mut last_error = None;
+    for attempt in 0..2 {
+        let mut request = client.post(&url).json(&body);
+        if let Some(api_key) = settings.api_key.as_deref() {
+            request = request.bearer_auth(api_key);
         }
-        _ => return None,
-    };
-    let args = title_cli_args(agent_type, &prompt, &scratch)?;
-    let mut cmd = tokio::process::Command::new(&program);
-    crate::process::configure_tokio_command(&mut cmd);
-    cmd.args(prefix_args).args(args).kill_on_drop(true);
-
-    let output = match tokio::time::timeout(LLM_TIMEOUT, cmd.output()).await {
-        Ok(Ok(output)) => output,
-        Ok(Err(e)) => {
-            tracing::debug!(agent = %agent_type.as_wire(), error = %e, "title cli spawn failed");
-            return None;
+        match request.send().await {
+            Ok(response) if response.status().is_success() => {
+                let value = response.json::<serde_json::Value>().await.map_err(|e| {
+                    crate::app_error::AppCommandError::network("Title model returned invalid JSON")
+                        .with_detail(e.to_string())
+                })?;
+                return extract_chat_completion_title(&value).ok_or_else(|| {
+                    crate::app_error::AppCommandError::configuration_invalid(
+                        "Title model returned no usable title",
+                    )
+                });
+            }
+            Ok(response) => {
+                let status = response.status();
+                let retryable =
+                    status.as_u16() == 408 || status.as_u16() == 429 || status.is_server_error();
+                let raw = response.text().await.unwrap_or_default();
+                let detail = provider_error_detail(&raw);
+                let error = if matches!(status.as_u16(), 401 | 403) {
+                    crate::app_error::AppCommandError::authentication_failed(format!(
+                        "Title model authentication failed ({status})"
+                    ))
+                } else {
+                    crate::app_error::AppCommandError::network(format!(
+                        "Title model request failed ({status})"
+                    ))
+                };
+                let error = if detail.is_empty() {
+                    error
+                } else {
+                    error.with_detail(detail)
+                };
+                if !retryable {
+                    return Err(error);
+                }
+                last_error = Some(error);
+            }
+            Err(e) => {
+                last_error = Some(
+                    crate::app_error::AppCommandError::network("Title model request failed")
+                        .with_detail(e.to_string()),
+                );
+            }
         }
-        Err(_) => {
-            tracing::debug!(agent = %agent_type.as_wire(), "title cli timed out");
-            return None;
+        if attempt == 0 {
+            tokio::time::sleep(Duration::from_millis(150)).await;
         }
-    };
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    if let Some(title) = clean_llm_title(&stdout) {
-        return Some(title);
     }
-    if !output.status.success() {
-        tracing::debug!(
-            status = %output.status,
-            stderr = %String::from_utf8_lossy(&output.stderr).trim(),
-            agent = %agent_type.as_wire(),
-            "title cli failed"
-        );
-    }
-    None
+    Err(last_error.unwrap_or_else(|| {
+        crate::app_error::AppCommandError::network("Title model request failed")
+    }))
+}
+
+pub(crate) async fn test_title_model_connection(
+    settings: &crate::commands::system_settings::TitleModelRuntimeSettings,
+    locale: TitleLocale,
+) -> Result<String, crate::app_error::AppCommandError> {
+    llm_title_via_api(
+        settings,
+        "Test the conversation title model configuration",
+        locale,
+    )
+    .await
 }
 
 #[cfg(test)]
@@ -650,6 +791,42 @@ mod tests {
         let t = heuristic_title("[README.md](file:///Users/x/README.md) 看看");
         assert!(!t.contains("file://"));
         assert!(t.contains("README.md"));
+    }
+
+    #[test]
+    fn redacts_labelled_credentials_and_common_api_tokens() {
+        let message = r#"password=hunter2, 密码是 \"中文口令 123\", api_key: sk-superSecret123, Authorization: Bearer abc.def-123456"#;
+        let redacted = redact_title_input(message);
+
+        assert!(!redacted.contains("hunter2"));
+        assert!(!redacted.contains("中文口令 123"));
+        assert!(!redacted.contains("sk-superSecret123"));
+        assert!(!redacted.contains("abc.def-123456"));
+        assert!(redacted.matches(REDACTED_SECRET).count() >= 4);
+    }
+
+    #[test]
+    fn redacts_identity_contact_and_payment_values() {
+        let message = "联系 138 0013 8000，身份证 11010519491231002X，银行卡 6222 0202 0123 4567，邮箱 user@example.com";
+        let redacted = redact_title_input(message);
+
+        assert_eq!(
+            redacted,
+            "联系 <redacted-phone>，身份证 <redacted-id>，银行卡 <redacted-bank-card>，邮箱 <redacted-email>"
+        );
+    }
+
+    #[test]
+    fn redaction_keeps_short_numbers_and_dates_as_title_context() {
+        let message = "修复 #12345 在 2026-09-02 访问 11434 端口的问题";
+        assert_eq!(redact_title_input(message), message);
+    }
+
+    #[test]
+    fn heuristic_title_never_exposes_a_recognized_secret() {
+        let title = heuristic_title("登录失败，password=do-not-show-this-value");
+        assert!(!title.contains("do-not-show-this-value"));
+        assert!(title.contains("<redacted"));
     }
 
     #[test]
@@ -698,6 +875,20 @@ mod tests {
     }
 
     #[test]
+    fn title_prompt_redacts_before_applying_the_400_character_limit() {
+        let message = format!(
+            "{} password=secret-near-the-limit user@example.com",
+            "中".repeat(350)
+        );
+        let prompt = title_prompt_for_message(&message, TitleLocale::Zh);
+
+        assert!(!prompt.contains("secret-near-the-limit"));
+        assert!(!prompt.contains("user@example.com"));
+        assert!(prompt.contains(REDACTED_SECRET));
+        assert!(prompt.contains(REDACTED_EMAIL));
+    }
+
+    #[test]
     fn can_overwrite_placeholder_and_seed() {
         let msg = "帮我改一下登录页样式并且顺便看看权限";
         assert!(can_overwrite_auto_title(None, msg));
@@ -717,12 +908,12 @@ mod tests {
     }
 
     #[test]
-    fn unlocked_native_title_does_not_block_an_in_flight_cli_refine() {
+    fn unlocked_native_title_does_not_block_an_in_flight_model_refine() {
         let first_message = "录入金额后刷新动态面板";
         let native_title = "Dynamic Panel Refresh After Money Entry";
         assert!(!can_overwrite_auto_title(Some(native_title), first_message));
-        assert!(can_commit_cli_refine(false));
-        assert!(!can_commit_cli_refine(true));
+        assert!(can_commit_model_refine(false));
+        assert!(!can_commit_model_refine(true));
     }
 
     #[test]
@@ -767,38 +958,33 @@ mod tests {
     }
 
     #[test]
-    fn cli_auto_title_support_is_limited_to_codex_and_grok() {
-        assert!(supports_cli_auto_title(AgentType::Codex));
-        assert!(supports_cli_auto_title(AgentType::Grok));
-        assert!(!supports_cli_auto_title(AgentType::ClaudeCode));
+    fn dedicated_auto_title_support_includes_codex_grok_and_pi() {
+        assert!(supports_dedicated_auto_title(AgentType::Codex));
+        assert!(supports_dedicated_auto_title(AgentType::Grok));
+        assert!(supports_dedicated_auto_title(AgentType::Pi));
+        assert!(!supports_dedicated_auto_title(AgentType::ClaudeCode));
     }
 
     #[test]
-    fn codex_title_args_are_ephemeral_read_only_and_low_effort() {
-        let args = title_cli_args(AgentType::Codex, "标题提示", Path::new("/tmp/title"))
-            .expect("codex title args");
-        assert_eq!(args.first().map(String::as_str), Some("--ask-for-approval"));
-        assert_eq!(args.get(1).map(String::as_str), Some("never"));
-        assert_eq!(args.get(2).map(String::as_str), Some("exec"));
-        for expected in [
-            "--ephemeral",
-            "--skip-git-repo-check",
-            "--ignore-rules",
-            "read-only",
-            "never",
-            "model_reasoning_effort=\"low\"",
-            "标题提示",
-        ] {
-            assert!(args.iter().any(|arg| arg == expected), "missing {expected}");
-        }
+    fn appends_chat_completions_to_api_root() {
+        assert_eq!(
+            title_chat_completions_url("https://api.groq.com/openai/v1/"),
+            "https://api.groq.com/openai/v1/chat/completions"
+        );
+        assert_eq!(
+            title_chat_completions_url("http://localhost:11434/v1/chat/completions"),
+            "http://localhost:11434/v1/chat/completions"
+        );
     }
 
     #[test]
-    fn grok_title_args_keep_low_effort_headless_mode() {
-        let args = title_cli_args(AgentType::Grok, "标题提示", Path::new("/tmp/title"))
-            .expect("grok title args");
-        assert_eq!(args.first().map(String::as_str), Some("-p"));
-        assert!(args.windows(2).any(|pair| pair == ["--effort", "low"]));
-        assert!(args.iter().any(|arg| arg == "--disable-web-search"));
+    fn extracts_standard_chat_completion_title() {
+        let body = serde_json::json!({
+            "choices": [{ "message": { "content": "标题：修复登录状态" } }]
+        });
+        assert_eq!(
+            extract_chat_completion_title(&body).as_deref(),
+            Some("修复登录状态")
+        );
     }
 }

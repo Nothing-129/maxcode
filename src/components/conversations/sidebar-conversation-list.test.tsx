@@ -574,6 +574,36 @@ describe("SidebarConversationList — folder expand/collapse", () => {
     expect(document.body.textContent).toContain("conv-21")
   })
 
+  it("does not toggle a folder when a touch pointer begins a sidebar swipe", () => {
+    render(tree())
+    const folderOne = document.querySelector(
+      '[data-folder-id="1"]'
+    ) as HTMLElement
+    expect(document.body.textContent).toContain("conv-11")
+
+    act(() => {
+      const ev = new Event("pointerdown", {
+        bubbles: true,
+        cancelable: true,
+      })
+      Object.assign(ev, {
+        button: 0,
+        buttons: 1,
+        pointerId: 1,
+        pointerType: "touch",
+      })
+      folderOne.dispatchEvent(ev)
+    })
+
+    // A swipe begins with this press but never produces a click, so the folder
+    // must remain untouched. A real tap still follows through to onClick.
+    expect(document.body.textContent).toContain("conv-11")
+    act(() => {
+      fireEvent.click(folderOne)
+    })
+    expect(document.body.textContent).not.toContain("conv-11")
+  })
+
   it("does not lose a rapid second toggle while the first render is pending", () => {
     localStorage.setItem(
       "workspace:sidebar-folder-expanded",

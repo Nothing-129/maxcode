@@ -134,6 +134,9 @@ import type {
   AvailableTerminalShells,
   SystemLanguageSettings,
   SystemProxySettings,
+  SystemTitleModelSettings,
+  SystemTitleModelSettingsUpdate,
+  SystemTitleModelTestResult,
   SystemRenderingSettings,
   SystemAutostartSettings,
   SystemTerminalSettings,
@@ -1704,6 +1707,22 @@ export async function updateSystemProxySettings(
   settings: SystemProxySettings
 ): Promise<SystemProxySettings> {
   return getTransport().call("update_system_proxy_settings", { settings })
+}
+
+export async function getSystemTitleModelSettings(): Promise<SystemTitleModelSettings> {
+  return getTransport().call("get_system_title_model_settings")
+}
+
+export async function updateSystemTitleModelSettings(
+  settings: SystemTitleModelSettingsUpdate
+): Promise<SystemTitleModelSettings> {
+  return getTransport().call("update_system_title_model_settings", { settings })
+}
+
+export async function testSystemTitleModelSettings(
+  settings: SystemTitleModelSettingsUpdate
+): Promise<SystemTitleModelTestResult> {
+  return getTransport().call("test_system_title_model_settings", { settings })
 }
 
 export async function getSystemLanguageSettings(): Promise<SystemLanguageSettings> {
