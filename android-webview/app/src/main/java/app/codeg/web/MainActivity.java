@@ -26,6 +26,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.ClientCertRequest;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
@@ -644,8 +645,13 @@ public final class MainActivity extends Activity {
             int right;
             int bottom;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                // Edge-to-edge (setDecorFitsSystemWindows(false)) disables the
+                // manifest adjustResize, so the IME inset must be consumed here
+                // or the keyboard covers the focused input.
                 Insets bars = windowInsets.getInsets(
-                        WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
+                        WindowInsets.Type.systemBars()
+                                | WindowInsets.Type.displayCutout()
+                                | WindowInsets.Type.ime());
                 left = bars.left;
                 top = bars.top;
                 if (needsOppoStatusBarWorkaround) {
@@ -788,6 +794,35 @@ public final class MainActivity extends Activity {
                 && browserScreen.getVisibility() == View.VISIBLE) {
             webView.onResume();
             webView.postDelayed(this::notifyWebWake, WAKE_DELAY_MILLIS);
+            restoreWebViewInput();
+        }
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            restoreWebViewInput();
+        }
+    }
+
+    private void restoreWebViewInput() {
+        // Regaining window focus can leave Chromium's IME connection stale on
+        // some ROMs (seen on ColorOS): the page input stays focused, so tapping
+        // it again never re-opens the keyboard. Re-asking is a no-op while no
+        // editable element is focused, because WebView only exposes an
+        // InputConnection for a focused editable.
+        if (destroyed
+                || webView == null
+                || browserScreen == null
+                || browserScreen.getVisibility() != View.VISIBLE) {
+            return;
+        }
+        webView.requestFocus();
+        InputMethodManager inputMethodManager =
+                getSystemService(InputMethodManager.class);
+        if (inputMethodManager != null) {
+            inputMethodManager.showSoftInput(webView, 0);
         }
     }
 

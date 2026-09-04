@@ -19,8 +19,8 @@ android {
         applicationId = "app.codeg.web"
         minSdk = 26
         targetSdk = 35
-        versionCode = 17
-        versionName = "0.3.5"
+        versionCode = 19
+        versionName = "0.3.7"
     }
 
     signingConfigs {

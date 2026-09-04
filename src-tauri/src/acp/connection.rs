@@ -3437,10 +3437,37 @@ async fn apply_grok_preferred_options(
     preferred_config_values: &BTreeMap<String, String>,
     specs: &HashMap<String, GrokModelSpec>,
 ) {
+    // Grok's native custom default is authoritative over MaxCode's remembered
+    // model pick. Provider switchers such as CCS rewrite `~/.grok/config.toml`
+    // out of band; keeping a stale stock-model id here would issue
+    // `session/set_model` immediately after `session/new`/`load` and route the
+    // request back to Grok's first-party endpoint with no matching auth context.
+    // Effort remains a user preference and is still restored below.
+    let configured_custom_default = crate::parsers::grok::grok_configured_custom_default_model(
+        &crate::parsers::grok::resolve_grok_home_dir(),
+    );
+    let saved_model_preference = preferred_config_values
+        .get(GROK_MODEL_OPTION_ID)
+        .map(String::as_str);
+    let model_preference = grok_model_preference_for_connect(
+        saved_model_preference,
+        configured_custom_default.as_deref(),
+    );
+    if let (Some(saved), Some(configured)) =
+        (saved_model_preference, configured_custom_default.as_deref())
+    {
+        if saved != configured {
+            tracing::info!(
+                "[ACP] Grok custom default '{configured}' overrides stale saved model \
+                 preference '{saved}' on connect"
+            );
+        }
+    }
+
     // Model preference — a pure `set_model` (no effort override). On success we
     // also re-point the effort selector at the newly-preferred model (grok ships
     // per-model effort only at birth, never on set_model).
-    if let Some(pref) = preferred_config_values.get(GROK_MODEL_OPTION_ID).cloned() {
+    if let Some(pref) = model_preference {
         // Split the eligibility read (immutable) from the rebuild (mutable) so we
         // never hold a `&mut opts` borrow across `set_grok_effort_selector_for_model`.
         let eligible = opts
@@ -3497,6 +3524,19 @@ async fn apply_grok_preferred_options(
             }
         }
     }
+}
+
+/// Resolve the model MaxCode should apply after a Grok session is established.
+/// A declared custom native default wins because it is the provider switcher's
+/// current source of truth; otherwise preserve the user's normal remembered
+/// selector choice.
+fn grok_model_preference_for_connect(
+    saved_preference: Option<&str>,
+    configured_custom_default: Option<&str>,
+) -> Option<String> {
+    configured_custom_default
+        .or(saved_preference)
+        .map(str::to_string)
 }
 
 /// The Grok model selector's current value, read from an in-memory options list.
@@ -16627,6 +16667,22 @@ mod tests {
         assert!(!is_grok_incompatible_agent_switch(
             &sacp::Error::internal_error()
         ));
+    }
+
+    #[test]
+    fn grok_custom_default_overrides_a_stale_saved_model_on_connect() {
+        assert_eq!(
+            grok_model_preference_for_connect(Some("grok-4.6"), Some("grok-4.5")),
+            Some("grok-4.5".to_string())
+        );
+        assert_eq!(
+            grok_model_preference_for_connect(Some("grok-4.6"), None),
+            Some("grok-4.6".to_string())
+        );
+        assert_eq!(
+            grok_model_preference_for_connect(None, Some("cpa-grok")),
+            Some("cpa-grok".to_string())
+        );
     }
 
     #[test]

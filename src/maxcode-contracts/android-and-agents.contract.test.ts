@@ -76,6 +76,19 @@ describe("MaxCode contract: agent compatibility", () => {
     expect(grok).toContain('"plan" =>')
   })
 
+  it("keeps generated titles tied to the Shanghai conversation creation date", () => {
+    const titles = source("src-tauri/src/session_title.rs")
+    expect(titles).toContain("let created_at = summary.created_at;")
+    expect(titles).not.toContain("let created_at = summary.updated_at;")
+    expect(titles).toContain("with_timezone(&Shanghai)")
+    expect(titles).toContain('format("%m%d")')
+    expect(titles).toContain("MMDD｜类型｜主题")
+    expect(titles).toContain(
+      "功能、设计、修复、优化、发布、探索、文档、研究"
+    )
+    expect(titles).toContain("无法判断主题时不要猜，原样输出当前标题")
+  })
+
   it("keeps built-in ACP discovery and CLI preflight integration", () => {
     const registry = source("src-tauri/src/acp/registry.rs")
     const preflight = source("src-tauri/src/acp/preflight.rs")

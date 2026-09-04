@@ -102,6 +102,43 @@ pub(crate) fn grok_catalog_context_window(home: &Path, model: &str) -> Option<u6
         })
 }
 
+/// The custom model alias selected as Grok's default in `config.toml`.
+///
+/// A scalar `[models].default` by itself may name one of Grok's stock models;
+/// it is considered custom only when a matching `[model.<id>]` declaration is
+/// present. That distinction matters to the live ACP connection: selector
+/// preferences are persisted by MaxCode, but an out-of-band provider switch
+/// (for example CCS rewriting `config.toml`) must take precedence over a stale
+/// stock-model preference or Grok will silently return to its first-party API.
+pub(crate) fn grok_custom_default_model_from_config_toml(raw: &str) -> Option<String> {
+    let table = raw.parse::<toml::Table>().ok()?;
+    let id = table
+        .get("models")?
+        .as_table()?
+        .get("default")?
+        .as_str()?
+        .trim();
+    if id.is_empty() {
+        return None;
+    }
+    table
+        .get("model")?
+        .as_table()?
+        .get(id)?
+        .as_table()
+        .map(|_| id.to_string())
+}
+
+/// Read [`grok_custom_default_model_from_config_toml`] from an explicit Grok
+/// home. Read/parse failures intentionally yield `None`: the connection then
+/// retains the established selector-preference behavior instead of failing to
+/// start because an optional native config cannot be inspected.
+pub(crate) fn grok_configured_custom_default_model(home: &Path) -> Option<String> {
+    fs::read_to_string(home.join("config.toml"))
+        .ok()
+        .and_then(|raw| grok_custom_default_model_from_config_toml(&raw))
+}
+
 /// `models.<id>.info.context_window` from Grok's `models_cache.json`. Non-positive
 /// / missing / malformed → `None`.
 fn grok_context_window_from_models_cache(raw: &str, model: &str) -> Option<u64> {
@@ -2790,6 +2827,28 @@ mod tests {
             grok_context_window_from_config_toml("[model.mine]\ncontext_window = -1\n", "mine"),
             None
         );
+    }
+
+    #[test]
+    fn custom_default_model_requires_a_matching_model_block() {
+        let ccs = r#"
+[models]
+default = "grok-4.5"
+
+[model."grok-4.5"]
+name = "CPA"
+model = "grok-4.6"
+base_url = "http://127.0.0.1:8317/v1"
+api_backend = "responses"
+"#;
+        assert_eq!(
+            grok_custom_default_model_from_config_toml(ccs).as_deref(),
+            Some("grok-4.5")
+        );
+
+        let stock = "[models]\ndefault = \"grok-4.6\"\n";
+        assert_eq!(grok_custom_default_model_from_config_toml(stock), None);
+        assert_eq!(grok_custom_default_model_from_config_toml("[models"), None);
     }
 
     #[test]

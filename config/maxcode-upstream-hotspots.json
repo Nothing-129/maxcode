@@ -264,7 +264,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",
@@ -329,6 +329,19 @@
         "src/i18n/messages/zh-TW.json"
       ],
       "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+    },
+    {
+      "id": "agents.grok-custom-endpoint-precedence",
+      "category": "runtime",
+      "description": "A Grok custom default written by CCS or another native provider switcher overrides MaxCode's stale remembered stock-model selection when sessions connect or resume.",
+      "origins": ["worktree-2026-09-03"],
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/grok.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/grok-custom-endpoint.contract.test.ts"
+      ]
     },
     {
       "id": "android.webview-client",

@@ -12,6 +12,8 @@ use std::path::Path;
 use std::sync::{Mutex, OnceLock};
 use std::time::Duration;
 
+use chrono::{DateTime, Utc};
+use chrono_tz::Asia::Shanghai;
 use regex::Regex;
 use sea_orm::DatabaseConnection;
 
@@ -130,15 +132,25 @@ pub fn is_grok_title_scratch_cwd(cwd: &str) -> bool {
 pub fn is_title_refine_prompt(text: &str) -> bool {
     let t = text.trim_start();
     t.starts_with("为下面这条用户消息起一个简短会话标题")
+        || t.starts_with("为下面的对话生成一个简洁、具体、适合左侧栏显示的标题")
         || t.starts_with("為下面這則使用者訊息起一個簡短對話標題")
+        || t.starts_with("為下面的對話產生一個簡潔、具體、適合側邊欄顯示的標題")
         || t.starts_with("Write a short session title for the user message")
+        || t.starts_with("Write a concise, specific sidebar title for the conversation")
         || t.starts_with("次のユーザーメッセージに短いセッションタイトル")
+        || t.starts_with("次の会話に、サイドバー向けの簡潔で具体的なタイトル")
         || t.starts_with("다음 사용자 메시지에 짧은 세션 제목")
+        || t.starts_with("다음 대화에 사이드바용으로 간결하고 구체적인 제목")
         || t.starts_with("Escribe un título de sesión corto")
+        || t.starts_with("Escribe un título breve y específico para la barra lateral")
         || t.starts_with("Schreibe einen kurzen Sitzungstitel")
+        || t.starts_with("Schreibe einen kurzen, konkreten Titel für die Seitenleiste")
         || t.starts_with("Écris un titre de session court")
+        || t.starts_with("Écris un titre bref et précis adapté à la barre latérale")
         || t.starts_with("Escreva um título de sessão curto")
+        || t.starts_with("Escreva um título curto e específico para a barra lateral")
         || t.starts_with("اكتب عنوان جلسة قصير")
+        || t.starts_with("اكتب عنوانًا موجزًا ومحددًا للمحادثة")
 }
 
 fn redact_with(
@@ -330,62 +342,157 @@ pub fn resolve_title_locale(settings: &SystemLanguageSettings) -> TitleLocale {
     }
 }
 
-pub fn title_prompt(snippet: &str, locale: TitleLocale) -> String {
+fn created_date_mmdd(created_at: DateTime<Utc>) -> String {
+    created_at
+        .with_timezone(&Shanghai)
+        .format("%m%d")
+        .to_string()
+}
+
+pub fn title_prompt(
+    snippet: &str,
+    original_title: &str,
+    created_at: DateTime<Utc>,
+    locale: TitleLocale,
+) -> String {
+    let created_date = created_date_mmdd(created_at);
     match locale {
         TitleLocale::En => format!(
-            "Write a short session title for the user message below.\n\
-             Requirements: at most 8 English words (or match the message language if it is not English); \
-             output the title only; no quotes, prefixes, or explanation.\n\n\
-             User message:\n{snippet}"
+            "Write a concise, specific sidebar title for the conversation below.\n\
+             Rules:\n\
+             - The date is {created_date}, converted from the conversation's createdAt in Asia/Shanghai. Use it exactly; never use updatedAt.\n\
+             - Use exactly this format: MMDD｜type｜topic.\n\
+             - Type must be exactly one of: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Derive the topic from the actual conversation content and do not repeat the project name.\n\
+             - Keep the title short, concrete, and suitable for the sidebar.\n\
+             - If the topic cannot be determined, do not guess; output the current title unchanged.\n\
+             Output only the title, with no quotes, prefix, or explanation.\n\n\
+             Current title:\n{original_title}\n\n\
+             Conversation content:\n{snippet}"
         ),
         TitleLocale::Zh => format!(
-            "为下面这条用户消息起一个简短会话标题。要求：最多16个汉字或8个英文单词；只输出标题；不要引号、标点前缀、解释。\n\n\
-             用户消息：\n{snippet}"
+            "为下面的对话生成一个简洁、具体、适合左侧栏显示的标题。\n\
+             规则：\n\
+             - 日期固定为 {created_date}，它由对话创建时间 createdAt 按 Asia/Shanghai 转换得到；直接使用该日期，不要使用 updatedAt。\n\
+             - 格式统一为：MMDD｜类型｜主题。\n\
+             - 类型只能是：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - 主题根据对话实际内容提炼，不要重复项目名称。\n\
+             - 标题保持简洁、具体，适合左侧栏显示。\n\
+             - 无法判断主题时不要猜，原样输出当前标题。\n\
+             只输出标题，不要引号、前缀或解释。\n\n\
+             当前标题：\n{original_title}\n\n\
+             对话内容：\n{snippet}"
         ),
         TitleLocale::ZhTw => format!(
-            "為下面這則使用者訊息起一個簡短對話標題。要求：最多16個漢字或8個英文單詞；只輸出標題；不要引號、標點前綴、解釋。\n\n\
-             使用者訊息：\n{snippet}"
+            "為下面的對話產生一個簡潔、具體、適合側邊欄顯示的標題。\n\
+             規則：\n\
+             - 日期固定為 {created_date}，它由對話建立時間 createdAt 按 Asia/Shanghai 轉換而來；直接使用該日期，不要使用 updatedAt。\n\
+             - 格式統一為：MMDD｜類型｜主題。\n\
+             - 類型只能是：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - 主題依據對話實際內容提煉，不要重複專案名稱。\n\
+             - 標題保持簡潔、具體，適合側邊欄顯示。\n\
+             - 無法判斷主題時不要猜，原樣輸出目前標題。\n\
+             只輸出標題，不要引號、前綴或解釋。\n\n\
+             目前標題：\n{original_title}\n\n\
+             對話內容：\n{snippet}"
         ),
         TitleLocale::Ja => format!(
-            "次のユーザーメッセージに短いセッションタイトルを付けてください。要件：最大16文字；タイトルのみ出力；引用符・接頭辞・説明は不要。\n\n\
-             ユーザーメッセージ：\n{snippet}"
+            "次の会話に、サイドバー向けの簡潔で具体的なタイトルを付けてください。\n\
+             ルール：\n\
+             - 日付は {created_date}。会話の createdAt を Asia/Shanghai に変換した値です。updatedAt は使わないでください。\n\
+             - 形式は必ず MMDD｜タイプ｜トピック。\n\
+             - タイプは次のいずれかをそのまま使用：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - 実際の会話内容からトピックを抽出し、プロジェクト名を繰り返さないでください。\n\
+             - 判定できない場合は推測せず、現在のタイトルをそのまま出力してください。\n\
+             タイトルだけを出力し、引用符、接頭辞、説明は付けないでください。\n\n\
+             現在のタイトル：\n{original_title}\n\n\
+             会話内容：\n{snippet}"
         ),
         TitleLocale::Ko => format!(
-            "다음 사용자 메시지에 짧은 세션 제목을 붙이세요. 요구사항: 최대 16자; 제목만 출력; 따옴표, 접두사, 설명 금지.\n\n\
-             사용자 메시지:\n{snippet}"
+            "다음 대화에 사이드바용으로 간결하고 구체적인 제목을 만드세요.\n\
+             규칙:\n\
+             - 날짜는 {created_date}이며 대화 createdAt을 Asia/Shanghai로 변환한 값입니다. updatedAt은 사용하지 마세요.\n\
+             - 형식은 반드시 MMDD｜유형｜주제입니다.\n\
+             - 유형은 다음 중 하나를 그대로 사용하세요: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - 실제 대화 내용에서 주제를 추출하고 프로젝트 이름을 반복하지 마세요.\n\
+             - 주제를 판단할 수 없으면 추측하지 말고 현재 제목을 그대로 출력하세요.\n\
+             따옴표, 접두사, 설명 없이 제목만 출력하세요.\n\n\
+             현재 제목:\n{original_title}\n\n\
+             대화 내용:\n{snippet}"
         ),
         TitleLocale::Es => format!(
-            "Escribe un título de sesión corto para el mensaje del usuario.\n\
-             Requisitos: como máximo 8 palabras; solo el título; sin comillas, prefijos ni explicación.\n\n\
-             Mensaje:\n{snippet}"
+            "Escribe un título breve y específico para la barra lateral.\n\
+             Reglas:\n\
+             - La fecha es {created_date}, convertida desde createdAt a Asia/Shanghai. Úsala exactamente y nunca uses updatedAt.\n\
+             - El formato exacto es MMDD｜tipo｜tema.\n\
+             - El tipo debe ser uno de estos valores exactos: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Extrae el tema del contenido real y no repitas el nombre del proyecto.\n\
+             - Si no se puede determinar el tema, no inventes; conserva el título actual sin cambios.\n\
+             Devuelve solo el título, sin comillas, prefijos ni explicación.\n\n\
+             Título actual:\n{original_title}\n\n\
+             Contenido de la conversación:\n{snippet}"
         ),
         TitleLocale::De => format!(
-            "Schreibe einen kurzen Sitzungstitel für die folgende Nutzernachricht.\n\
-             Anforderungen: höchstens 8 Wörter; nur den Titel ausgeben; keine Anführungszeichen, Prefixe oder Erklärungen.\n\n\
-             Nutzernachricht:\n{snippet}"
+            "Schreibe einen kurzen, konkreten Titel für die Seitenleiste.\n\
+             Regeln:\n\
+             - Das Datum ist {created_date}, aus createdAt nach Asia/Shanghai umgerechnet. Verwende genau dieses Datum und niemals updatedAt.\n\
+             - Das genaue Format ist MMDD｜Typ｜Thema.\n\
+             - Der Typ muss exakt einer dieser Werte sein: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Leite das Thema aus dem tatsächlichen Gespräch ab und wiederhole den Projektnamen nicht.\n\
+             - Wenn das Thema nicht bestimmbar ist, rate nicht und gib den aktuellen Titel unverändert aus.\n\
+             Gib nur den Titel aus, ohne Anführungszeichen, Präfix oder Erklärung.\n\n\
+             Aktueller Titel:\n{original_title}\n\n\
+             Gesprächsinhalt:\n{snippet}"
         ),
         TitleLocale::Fr => format!(
-            "Écris un titre de session court pour le message utilisateur ci-dessous.\n\
-             Exigences : 8 mots maximum ; uniquement le titre ; pas de guillemets, préfixes ni explication.\n\n\
-             Message :\n{snippet}"
+            "Écris un titre bref et précis adapté à la barre latérale.\n\
+             Règles :\n\
+             - La date est {created_date}, convertie depuis createdAt vers Asia/Shanghai. Utilise-la telle quelle et n'utilise jamais updatedAt.\n\
+             - Le format exact est MMDD｜type｜sujet.\n\
+             - Le type doit être exactement l'une de ces valeurs : 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Déduis le sujet du contenu réel et ne répète pas le nom du projet.\n\
+             - Si le sujet est indéterminable, ne devine pas et conserve le titre actuel sans modification.\n\
+             Retourne uniquement le titre, sans guillemets, préfixe ni explication.\n\n\
+             Titre actuel :\n{original_title}\n\n\
+             Contenu de la conversation :\n{snippet}"
         ),
         TitleLocale::Pt => format!(
-            "Escreva um título de sessão curto para a mensagem do usuário abaixo.\n\
-             Requisitos: no máximo 8 palavras; apenas o título; sem aspas, prefixos ou explicação.\n\n\
-             Mensagem:\n{snippet}"
+            "Escreva um título curto e específico para a barra lateral.\n\
+             Regras:\n\
+             - A data é {created_date}, convertida de createdAt para Asia/Shanghai. Use-a exatamente e nunca use updatedAt.\n\
+             - O formato exato é MMDD｜tipo｜tema.\n\
+             - O tipo deve ser exatamente um destes valores: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Extraia o tema do conteúdo real e não repita o nome do projeto.\n\
+             - Se não for possível determinar o tema, não adivinhe; mantenha o título atual inalterado.\n\
+             Retorne apenas o título, sem aspas, prefixo ou explicação.\n\n\
+             Título atual:\n{original_title}\n\n\
+             Conteúdo da conversa:\n{snippet}"
         ),
         TitleLocale::Ar => format!(
-            "اكتب عنوان جلسة قصير لرسالة المستخدم أدناه.\n\
-             المتطلبات: 8 كلمات كحد أقصى؛ العنوان فقط؛ بدون علامات اقتباس أو بادئات أو شرح.\n\n\
-             رسالة المستخدم:\n{snippet}"
+            "اكتب عنوانًا موجزًا ومحددًا للمحادثة ومناسبًا للشريط الجانبي.\n\
+             القواعد:\n\
+             - التاريخ هو {created_date} بعد تحويل createdAt إلى Asia/Shanghai. استخدمه كما هو ولا تستخدم updatedAt مطلقًا.\n\
+             - التنسيق الدقيق هو MMDD｜النوع｜الموضوع.\n\
+             - يجب أن يكون النوع إحدى هذه القيم حرفيًا: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - استخلص الموضوع من المحتوى الفعلي ولا تكرر اسم المشروع.\n\
+             - إذا تعذر تحديد الموضوع فلا تخمّن، وأخرج العنوان الحالي دون تغيير.\n\
+             أخرج العنوان فقط، بلا علامات اقتباس أو بادئة أو شرح.\n\n\
+             العنوان الحالي:\n{original_title}\n\n\
+             محتوى المحادثة:\n{snippet}"
         ),
     }
 }
 
-fn title_prompt_for_message(message: &str, locale: TitleLocale) -> String {
+fn title_prompt_for_message(
+    message: &str,
+    original_title: &str,
+    created_at: DateTime<Utc>,
+    locale: TitleLocale,
+) -> String {
     let redacted = redact_title_input(message);
     let snippet: String = redacted.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
-    title_prompt(&snippet, locale)
+    let safe_original_title = redact_title_input(original_title);
+    title_prompt(&snippet, &safe_original_title, created_at, locale)
 }
 
 pub fn clean_llm_title(raw: &str) -> Option<String> {
@@ -464,6 +571,12 @@ pub async fn kickoff_auto_title(
     if !can_overwrite_auto_title(summary.title.as_deref(), &first_message) {
         return;
     }
+    // The heuristic is written immediately below, so this is the title that
+    // is actually visible while the model request runs. It is also already
+    // redacted and short enough that returning it unchanged preserves it
+    // exactly through `clean_llm_title`.
+    let original_title = heuristic.clone();
+    let created_at = summary.created_at;
 
     match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic.clone()).await
     {
@@ -511,7 +624,15 @@ pub async fn kickoff_auto_title(
         }
         let _guard = RefineGuard(conversation_id);
 
-        let refined = match llm_title_via_api(&title_model, &first_message, locale).await {
+        let refined = match llm_title_via_api(
+            &title_model,
+            &first_message,
+            &original_title,
+            created_at,
+            locale,
+        )
+        .await
+        {
             Ok(title) => title,
             Err(e) => {
                 tracing::debug!(error = %e, "title model refine failed");
@@ -688,9 +809,11 @@ fn provider_error_detail(raw: &str) -> String {
 async fn llm_title_via_api(
     settings: &crate::commands::system_settings::TitleModelRuntimeSettings,
     message: &str,
+    original_title: &str,
+    created_at: DateTime<Utc>,
     locale: TitleLocale,
 ) -> Result<String, crate::app_error::AppCommandError> {
-    let prompt = title_prompt_for_message(message, locale);
+    let prompt = title_prompt_for_message(message, original_title, created_at, locale);
     let client = reqwest::Client::builder()
         .timeout(LLM_TIMEOUT)
         .build()
@@ -778,6 +901,8 @@ pub(crate) async fn test_title_model_connection(
     llm_title_via_api(
         settings,
         "Test the conversation title model configuration",
+        "Test the conversation title model configuration",
+        Utc::now(),
         locale,
     )
     .await
@@ -786,6 +911,12 @@ pub(crate) async fn test_title_model_connection(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn fixed_created_at() -> DateTime<Utc> {
+        DateTime::parse_from_rfc3339("2026-09-02T16:30:00Z")
+            .expect("valid timestamp")
+            .with_timezone(&Utc)
+    }
 
     #[test]
     fn placeholders() {
@@ -872,20 +1003,52 @@ mod tests {
 
     #[test]
     fn title_prompt_follows_locale() {
-        let zh = title_prompt("list open prs", TitleLocale::Zh);
-        assert!(zh.contains("用户消息："));
+        let created_at = fixed_created_at();
+        let zh = title_prompt(
+            "list open prs",
+            "list open prs",
+            created_at,
+            TitleLocale::Zh,
+        );
+        assert!(zh.contains("对话内容："));
         assert!(zh.contains("list open prs"));
-        assert!(!zh.contains("User message:"));
+        assert!(!zh.contains("Conversation content:"));
 
-        let en = title_prompt("list open prs", TitleLocale::En);
-        assert!(en.contains("User message:"));
+        let en = title_prompt(
+            "list open prs",
+            "list open prs",
+            created_at,
+            TitleLocale::En,
+        );
+        assert!(en.contains("Conversation content:"));
         assert!(!en.contains("用户消息"));
+    }
+
+    #[test]
+    fn title_prompt_uses_created_at_in_shanghai_and_structured_rules() {
+        let prompt = title_prompt(
+            "修复登录状态",
+            "登录状态",
+            fixed_created_at(),
+            TitleLocale::Zh,
+        );
+
+        assert_eq!(created_date_mmdd(fixed_created_at()), "0903");
+        assert!(prompt.contains("日期固定为 0903"));
+        assert!(prompt.contains("createdAt 按 Asia/Shanghai"));
+        assert!(prompt.contains("不要使用 updatedAt"));
+        assert!(prompt.contains("MMDD｜类型｜主题"));
+        assert!(prompt.contains("功能、设计、修复、优化、发布、探索、文档、研究"));
+        assert!(prompt.contains("不要重复项目名称"));
+        assert!(prompt.contains("无法判断主题时不要猜，原样输出当前标题"));
+        assert!(prompt.contains("当前标题：\n登录状态"));
     }
 
     #[test]
     fn title_prompt_uses_only_the_first_400_user_characters() {
         let message = format!("{}SHOULD_NOT_APPEAR", "中".repeat(LLM_SNIPPET_MAX_CHARS));
-        let prompt = title_prompt_for_message(&message, TitleLocale::Zh);
+        let prompt =
+            title_prompt_for_message(&message, "原始标题", fixed_created_at(), TitleLocale::Zh);
         assert!(prompt.contains(&"中".repeat(LLM_SNIPPET_MAX_CHARS)));
         assert!(!prompt.contains("SHOULD_NOT_APPEAR"));
     }
@@ -896,12 +1059,26 @@ mod tests {
             "{} password=secret-near-the-limit user@example.com",
             "中".repeat(350)
         );
-        let prompt = title_prompt_for_message(&message, TitleLocale::Zh);
+        let prompt =
+            title_prompt_for_message(&message, "原始标题", fixed_created_at(), TitleLocale::Zh);
 
         assert!(!prompt.contains("secret-near-the-limit"));
         assert!(!prompt.contains("user@example.com"));
         assert!(prompt.contains(REDACTED_SECRET));
         assert!(prompt.contains(REDACTED_EMAIL));
+    }
+
+    #[test]
+    fn title_prompt_redacts_the_fallback_title() {
+        let prompt = title_prompt_for_message(
+            "无法判断主题",
+            "登录 password=do-not-send-this",
+            fixed_created_at(),
+            TitleLocale::Zh,
+        );
+
+        assert!(!prompt.contains("do-not-send-this"));
+        assert!(prompt.contains("登录 password: <redacted-secret>"));
     }
 
     #[test]
@@ -977,6 +1154,9 @@ mod tests {
         assert!(!is_grok_title_scratch_cwd("/Users/me/proj"));
         assert!(is_title_refine_prompt(
             "为下面这条用户消息起一个简短会话标题。要求：最多16个汉字"
+        ));
+        assert!(is_title_refine_prompt(
+            "为下面的对话生成一个简洁、具体、适合左侧栏显示的标题。"
         ));
         assert!(!is_title_refine_prompt("帮我改登录页"));
     }
