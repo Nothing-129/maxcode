@@ -35,8 +35,8 @@ use super::{
     ForgeChangedFile, ForgeChangedFileList, ForgeCheck, ForgeCheckList, ForgeCheckState,
     ForgeComment, ForgeCommentList, ForgeError, ForgeFileStatus, ForgeIssueList, ForgeIssueRow,
     ForgeItemKind, ForgeLabel, ForgeLabelList, ForgeMergeMethod, ForgeMergeOptions,
-    ForgeMergeStrategy, ForgeStateAction, ForgeTab, ListIssuesRequest, ResolvedNewIssue, BODY_CAP,
-    LABEL_PAGE_SIZE,
+    ForgeMergeStrategy, ForgeProvider, ForgeStateAction, ForgeTab, ListIssuesRequest,
+    ResolvedNewIssue, BODY_CAP, LABEL_PAGE_SIZE,
 };
 
 /// How deep search pagination goes, per GitHub's documented limit. Beyond this
@@ -1185,13 +1185,29 @@ async fn classify_failure(status: u16, response: reqwest::Response) -> ForgeErro
         401 | 403 => ForgeError::Auth(format!("GitHub returned {status}")),
         404 => ForgeError::NotFound,
         _ => {
-            let message = response
+            let host = response
+                .url()
+                .host_str()
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let message: String = response
                 .text()
                 .await
                 .unwrap_or_default()
                 .chars()
                 .take(300)
                 .collect();
+            // A GitLab asked for GitHub Enterprise's `/api/v3` says so in
+            // as many words. That is not an API error to report — it is the
+            // instance identifying itself, and the only sane response is to
+            // believe it and stop calling this host a GitHub.
+            if status == 410 && message.contains("API V3 is no longer supported") {
+                super::auth::remember_forge(&host, ForgeProvider::GitLab);
+                return ForgeError::WrongForge {
+                    host,
+                    detected: ForgeProvider::GitLab,
+                };
+            }
             ForgeError::Api { status, message }
         }
     }
@@ -2333,6 +2349,87 @@ mod tests {
         let addr = listener.local_addr().unwrap();
         tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
         (format!("http://{addr}"), writes)
+    }
+
+    /// The reported bug, from the client's side: a self-hosted GitLab that
+    /// codeg had classified as a GitHub Enterprise gets asked for `/api/v3`,
+    /// and GitLab replies 410 saying exactly what it is.
+    ///
+    /// That must not surface as "forge API error 410: {...}" — the raw dump the
+    /// issue reporter saw. It is an identification, so it becomes
+    /// [`ForgeError::WrongForge`] AND is written to the detection cache, which
+    /// is what makes the caller's retry go to the GitLab client instead.
+    #[tokio::test]
+    async fn a_gitlab_answering_a_v3_request_identifies_itself() {
+        use axum::routing::get;
+        // `/search/issues` is where this client's list comes from — see the
+        // module header. The path only has to be the one actually requested;
+        // what is under test is how the ANSWER is classified.
+        let app = axum::Router::new().route(
+            "/search/issues",
+            get(|| async {
+                (
+                    axum::http::StatusCode::GONE,
+                    "{\"error\":\"API V3 is no longer supported. Use API V4 instead.\"}",
+                )
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let auth = auth_for(format!("http://{addr}"));
+        let err = list_issues(&auth, &req(ForgeTab::Issues))
+            .await
+            .expect_err("410 must not be a success");
+        match err {
+            ForgeError::WrongForge { detected, host } => {
+                assert_eq!(detected, ForgeProvider::GitLab);
+                assert_eq!(host, "127.0.0.1");
+            }
+            other => panic!("expected WrongForge, got {other:?}"),
+        }
+        // Corrected BEFORE the error was returned, so the caller's retry cannot
+        // land on the same wrong client.
+        assert_eq!(
+            super::super::auth::recall_forge("127.0.0.1"),
+            Some(ForgeProvider::GitLab)
+        );
+        super::super::auth::forget_forge("127.0.0.1");
+    }
+
+    /// A 410 that is NOT GitLab identifying itself stays an ordinary API error.
+    /// The body is the whole discriminator, so a bare status must not be enough
+    /// to re-classify a host.
+    ///
+    /// Addressed as `localhost` rather than `127.0.0.1` on purpose: the
+    /// detection cache is keyed by host and process-wide, so sharing a key with
+    /// the test above would make the two race.
+    #[tokio::test]
+    async fn an_unrelated_410_is_still_an_api_error() {
+        use axum::routing::get;
+        let app = axum::Router::new().route(
+            "/search/issues",
+            get(|| async {
+                (
+                    axum::http::StatusCode::GONE,
+                    "{\"message\":\"Issues are disabled\"}",
+                )
+            }),
+        );
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+
+        let auth = auth_for(format!("http://localhost:{port}"));
+        let err = list_issues(&auth, &req(ForgeTab::Issues))
+            .await
+            .expect_err("410");
+        assert!(
+            matches!(err, ForgeError::Api { status: 410, .. }),
+            "got {err:?}"
+        );
+        assert_eq!(super::super::auth::recall_forge("localhost"), None);
     }
 
     /// The composer gets the STORED comment back — id, author and permalink —

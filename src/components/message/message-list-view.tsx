@@ -2,6 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
+  isLiveTurnId,
   selectTimelineTurns,
   useConversationRuntimeActions,
   useConversationRuntimeStore,
@@ -33,7 +34,11 @@ import { AgentPlanOverlay } from "@/components/chat/agent-plan-overlay"
 import { SubAgentOverlay } from "@/components/chat/sub-agent-overlay"
 import { SessionViewerHost } from "@/components/message/session-viewer-host"
 import { normalizeToolName } from "@/lib/tool-call-normalization"
-import { isDelegateToAgentToolName } from "@/lib/delegation-card"
+import { parseResumeTaskId } from "@/lib/codeg-mcp-tool"
+import {
+  isDelegateToAgentToolName,
+  isRefusedResume,
+} from "@/lib/delegation-card"
 import type { DelegationCardSource } from "@/hooks/use-delegation-card-model"
 import {
   MessageThread,
@@ -119,6 +124,23 @@ interface MessageListViewProps {
    * on the same terms as `onQuoteSelection`. MUST be referentially stable.
    */
   onAskSelection?: (selection: string, question: string) => void
+  /**
+   * Keep a text selection from this transcript as a note next to it. Only the
+   * canvas has a board to put one on, so every other surface omits it and the
+   * action isn't offered. MUST be referentially stable.
+   */
+  onSaveNoteSelection?: (text: string) => void
+  /**
+   * Fork the session at a rendered assistant turn ("fork from here"). Undefined
+   * hides the affordance everywhere in this view — pass it only where a fork
+   * can actually run (live connection, agent supports `session/fork`). Embeds
+   * that are not the owning conversation surface leave it unset.
+   *
+   * "No turn in flight" is deliberately NOT part of this gate: that condition
+   * is transient and comes back, so the view renders it as a disabled button
+   * (see `forkBusy`) rather than making every reply's footer flicker.
+   */
+  onForkFromTurn?: (turnId: string) => void
 }
 
 export interface ResolvedMessageGroup {
@@ -155,6 +177,12 @@ export type ThreadRenderItem =
        *  `armed` flag this is what makes a run "the current round" — see the
        *  fold state below. */
       isLastAssistantRun: boolean
+      /** Nothing follows this item in the thread — not a user message, not a
+       *  compaction divider. Distinct from `isLastAssistantRun`, which is still
+       *  true for a reply the user interrupted at its very end (that promotes
+       *  as assistant then user message, so the newest REPLY is not the tail).
+       *  Read by the fork gate, where the two differ by a wrong fork point. */
+      isThreadTail: boolean
       /** Raw assistant sub-turn(s) that compose this reply — fed to the
        *  per-reply artifacts card so it can list files changed this reply. */
       sourceTurns: MessageTurn[]
@@ -368,20 +396,34 @@ export function singletonSourceTurns(turn: MessageTurn): MessageTurn[] {
   return cached
 }
 
-// Collect the `delegate_to_agent` tool calls within a turn's adapted parts,
-// recursing through tool-groups and goal-runs (a delegate call is normally a
-// standalone part — `isAgentLikeToolName` keeps it out of tool-groups — but we
-// scan nested containers defensively so a delegation is never missed).
+// Collect the sub-agent delegations within a turn's adapted parts, recursing
+// through tool-groups and goal-runs (both kinds are normally standalone parts —
+// `isAgentLikeToolName` keeps them out of tool-groups — but we scan nested
+// containers defensively so a delegation is never missed).
+//
+// Two kinds qualify:
+//   - `delegate_to_agent`, which STARTED a sub-agent, keyed by its own
+//     tool_use_id;
+//   - `resume_delegation`, which brought an interrupted one BACK. Its own
+//     tool_call_id is not a binding key (the broker re-binds the child to the
+//     original delegate call, usually in an earlier turn), so it is keyed by
+//     the task id in its arguments — `taskIdHint`, exactly as
+//     `ResumedDelegationCard` does. Without this arm a resumed sub-agent would
+//     be missing from the overlay while it runs, because the reply that
+//     resumed it contains no `delegate_to_agent` call at all.
+//
+// `seenTaskIds` de-dupes repeated resumes of one task inside a single reply
+// (the second is refused, but the overlay renders a row per source regardless).
 function collectDelegationSources(
   parts: AdaptedContentPart[],
-  out: DelegationCardSource[]
+  out: DelegationCardSource[],
+  seenTaskIds: Set<string>
 ): void {
   for (const part of parts) {
     if (part.type === "tool-call") {
-      if (
-        part.toolCallId &&
-        isDelegateToAgentToolName(normalizeToolName(part.toolName))
-      ) {
+      if (!part.toolCallId) continue
+      const name = normalizeToolName(part.toolName)
+      if (isDelegateToAgentToolName(name)) {
         out.push({
           parentToolUseId: part.toolCallId,
           input: part.input ?? null,
@@ -390,20 +432,45 @@ function collectDelegationSources(
           state: part.state,
           meta: part.meta ?? null,
         })
+      } else if (name === "resume_delegation") {
+        // A refusal names the task's agent and child but revived nothing —
+        // listing it would put a sub-agent in the overlay that is not running
+        // on this turn's behalf. Same judgement as `ResumedDelegationCard`,
+        // which falls back to the plain tool card here.
+        if (isRefusedResume(part.output ?? null, part.errorText ?? null)) {
+          continue
+        }
+        const taskId = parseResumeTaskId(part.input ?? null)
+        // No task id ⇒ nothing to resolve the sub-agent by; a duplicate ⇒
+        // already listed.
+        if (!taskId || seenTaskIds.has(taskId)) continue
+        seenTaskIds.add(taskId)
+        out.push({
+          parentToolUseId: part.toolCallId,
+          taskIdHint: taskId,
+          // Deliberately not the resume's `{task_id, reason}` arguments —
+          // `parseInput` looks for `task`/`agent_type`/`working_dir` and would
+          // only warn about an unrecognized shape. See `ResumedDelegationCard`.
+          input: null,
+          output: part.output ?? null,
+          errorText: part.errorText ?? null,
+          state: part.state,
+          meta: part.meta ?? null,
+        })
       }
     } else if (part.type === "tool-group") {
-      collectDelegationSources(part.items, out)
+      collectDelegationSources(part.items, out, seenTaskIds)
     } else if (part.type === "goal-run") {
-      collectDelegationSources(part.items, out)
+      collectDelegationSources(part.items, out, seenTaskIds)
     }
   }
 }
 
-function extractDelegationSources(
+export function extractDelegationSources(
   parts: AdaptedContentPart[]
 ): DelegationCardSource[] {
   const out: DelegationCardSource[] = []
-  collectDelegationSources(parts, out)
+  collectDelegationSources(parts, out, new Set())
   return out
 }
 
@@ -712,6 +779,52 @@ const UserMessageTaskButton = memo(function UserMessageTaskButton({
   )
 })
 
+/**
+ * Flag the thread's last rendered element, which is where the backend's tail
+ * fork would land — a user message or a compaction divider after the newest
+ * reply means that reply is NOT it. Blocks that render nothing are stepped
+ * over: they occupy an index without occupying the thread.
+ *
+ * Mutates in place, like the loop that resets these flags just before it (a
+ * cached merged item is reset there every render, so a stale `true` cannot
+ * survive). Exported for tests.
+ */
+export function markThreadTail(items: ThreadRenderItem[]): void {
+  for (let idx = items.length - 1; idx >= 0; idx--) {
+    const item = items[idx]
+    if (item.kind === "turn" && isEmptyTurnItem(item)) continue
+    if (item.kind === "turn") item.isThreadTail = true
+    break
+  }
+}
+
+/**
+ * Whether forking at this reply would land somewhere other than where the user
+ * pointed — so the affordance greys out until it wouldn't.
+ *
+ * A turn this session streamed carries a `live-…` id until the post-turn
+ * reparse backfills the parser's name (`source_turn_id`). The backend cannot
+ * resolve such an id and deliberately degrades to a TAIL fork rather than
+ * refusing the click. That is exactly right at the END of the thread — the tail
+ * IS the fork point — and a silent lie anywhere before it.
+ *
+ * Anywhere before it is reachable: a reply the user steered mid-turn promotes
+ * as assistant / user message / assistant, so its first half is a settled
+ * group carrying a fork button while the backfill is a second and a half away.
+ * The exception is therefore the thread TAIL, not the newest assistant reply:
+ * steer at the very end of a turn and the promotion is assistant + user message
+ * with nothing after it, which leaves the newest reply one message short of the
+ * tail — and the parse ending on a user turn means `source_turn_id` never
+ * arrives to correct it (see `computeTurnMetadataPatches`). Exported for tests.
+ */
+export function isForkPointUnnamed(
+  forkPoint: MessageTurn | null,
+  isThreadTail: boolean
+): boolean {
+  if (forkPoint === null || isThreadTail) return false
+  return forkPoint.source_turn_id == null && isLiveTurnId(forkPoint.id)
+}
+
 const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   group,
   dimmed = false,
@@ -724,6 +837,9 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   roundOpen = true,
   onRoundOpenChange,
   foldEpoch = 0,
+  onForkFromTurn,
+  forkDisabled = false,
+  isThreadTail = false,
 }: {
   group: ResolvedMessageGroup
   dimmed?: boolean
@@ -736,6 +852,11 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   roundOpen?: boolean
   onRoundOpenChange?: (open: boolean) => void
   foldEpoch?: number
+  onForkFromTurn?: (turnId: string) => void
+  forkDisabled?: boolean
+  /** Whether nothing follows this group in the thread — the one position where
+   *  a turn the backend cannot name still forks where the user pointed. */
+  isThreadTail?: boolean
 }) {
   if (group.role === "system") {
     return <CollapsibleSystemMessage parts={group.parts} />
@@ -750,6 +871,12 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
     group.completed_at,
     previousUserAt
   )
+  // The fork point is the group's LAST turn: forking is "up to and including
+  // this reply", and a merged group ends where the reply does.
+  const forkPoint = sourceTurns?.length
+    ? sourceTurns[sourceTurns.length - 1]
+    : null
+  const forkPointUnnamed = isForkPointUnnamed(forkPoint, isThreadTail)
 
   return (
     <div className={dimmed ? "opacity-70" : undefined}>
@@ -800,6 +927,24 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           showDuration={false}
           copyText={extractTextFromParts(group.parts)}
           completedAt={group.completed_at}
+          forkDisabled={forkDisabled || forkPointUnnamed}
+          forkDisabledReason={forkPointUnnamed ? "unnamed" : "busy"}
+          onForkFromHere={
+            // Gated on a settled turn — forking mid-stream would name a message
+            // the agent is still writing.
+            //
+            // `source_turn_id` first: a turn produced in THIS session is named
+            // `live-…`, which the backend cannot resolve against its own parse
+            // — sending it forked at the tail and produced a copy of the parent.
+            // The post-turn reparse backfills the parser's name; `id` is the
+            // right answer only for turns that came from the parser already,
+            // and for the newest reply, where the tail IS the fork point.
+            onForkFromTurn && isResponseComplete && forkPoint
+              ? () => {
+                  onForkFromTurn(forkPoint.source_turn_id ?? forkPoint.id)
+                }
+              : undefined
+          }
         />
       )}
     </div>
@@ -860,6 +1005,8 @@ export function MessageListView({
   userTurnHeader = null,
   onQuoteSelection,
   onAskSelection,
+  onSaveNoteSelection,
+  onForkFromTurn,
 }: MessageListViewProps) {
   const t = useTranslations("Folder.chat.messageList")
   const sharedT = useTranslations("Folder.chat.shared")
@@ -1003,6 +1150,7 @@ export function MessageListView({
         previousUserIndex: null,
         previousUserAt: null,
         isLastAssistantRun: false,
+        isThreadTail: false,
         sourceTurns: singletonSourceTurns(allTurns[i]),
       }
     })
@@ -1027,6 +1175,7 @@ export function MessageListView({
       item.previousUserIndex = null
       item.previousUserAt = null
       item.isLastAssistantRun = false
+      item.isThreadTail = false
 
       // isRoleTransition: role differs from previous turn item
       if (idx > 0) {
@@ -1060,6 +1209,7 @@ export function MessageListView({
       lastAssistantItem.isLastAssistantRun = true
       lastAssistantRunning = !lastAssistantItem.isResponseComplete
     }
+    markThreadTail(items)
 
     const lastPhase = timelineTurns[timelineTurns.length - 1]?.phase ?? null
     if (
@@ -1123,6 +1273,12 @@ export function MessageListView({
     [historicalPlanEntries]
   )
 
+  // A turn in flight doesn't take the fork affordance away, it greys it out:
+  // the host keeps `onForkFromTurn` set for the whole "prompting" window (see
+  // its gate in `conversation-detail-panel`), and every reply's footer says
+  // "not right now" instead of dropping its button and shifting the icon row.
+  const forkBusy = connStatus === "prompting"
+
   const renderThreadItem = useCallback(
     (item: ThreadRenderItem) => {
       switch (item.kind) {
@@ -1155,6 +1311,9 @@ export function MessageListView({
                 roundOpen={fold.roundOpen}
                 onRoundOpenChange={handleRoundOpenChange}
                 foldEpoch={fold.epoch}
+                onForkFromTurn={onForkFromTurn}
+                forkDisabled={forkBusy}
+                isThreadTail={item.isThreadTail}
               />
             </div>
           )
@@ -1178,6 +1337,8 @@ export function MessageListView({
       fold.roundOpen,
       fold.epoch,
       handleRoundOpenChange,
+      onForkFromTurn,
+      forkBusy,
     ]
   )
 
@@ -1450,6 +1611,7 @@ export function MessageListView({
           containerRef={selectionBoxRef}
           onQuote={onQuoteSelection}
           onAsk={onAskSelection}
+          onSaveAsNote={onSaveNoteSelection}
         />
       </div>
     </SessionViewerHost>

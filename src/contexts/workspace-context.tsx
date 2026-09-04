@@ -121,10 +121,16 @@ interface WorkspaceActionsValue {
   // ONLY a resolution base for relative paths (defaults to the active
   // folder); once the path is absolute it plays no further role — the tab
   // is identified by the absolute path alone.
+  //
+  // Resolves with that absolute normalized path — i.e. the tab's identity —
+  // or null when the input could not be resolved (a bare relative path with
+  // no folder to resolve against). Callers that only want the side effect
+  // ignore it; a caller that must then FIND the tab (the file viewer drawer)
+  // has no other way to reproduce this resolution.
   openFilePreview: (
     path: string,
     options?: { line?: number; reload?: boolean; folderId?: number }
-  ) => Promise<void>
+  ) => Promise<string | null>
   // Refetch the open tab matching the absolute `path` without changing
   // activeFileTabId. No-op when no tab matches or when the tab has unsaved
   // local edits (use markTabsStale for that case).
@@ -1125,7 +1131,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       options?: { line?: number; reload?: boolean; folderId?: number }
     ) => {
       const absPath = await resolveOpenAbsolutePath(rawPath, options?.folderId)
-      if (!absPath) return
+      if (!absPath) return null
       // A binary artifact — an installer, app bundle, archive, or media file
       // the in-app preview cannot render — is handed to the OS default
       // application instead (the "double-click it in the file manager"
@@ -1142,70 +1148,103 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
             description: toErrorMessage(error),
           })
         }
-        return
+        return absPath
       }
       const io = splitAbsPath(absPath)
-      if (!io) return
-      const requestedLine =
-        typeof options?.line === "number" && Number.isFinite(options.line)
-          ? Math.max(1, Math.floor(options.line))
-          : null
-      if (requestedLine) {
-        fileRevealRequestIdRef.current += 1
-        setPendingFileReveal({
-          requestId: fileRevealRequestIdRef.current,
-          path: absPath,
-          line: requestedLine,
-        })
-      } else {
-        setPendingFileReveal(null)
-      }
-      const tabId = buildFileTabId({ kind: "file", path: absPath })
-      const image = isImageFile(absPath)
-      const office = !image && isOfficePreviewable(absPath)
-      const seed = loadingTab(
-        tabId,
-        null,
-        "file",
-        fileName(absPath),
-        absPath,
-        absPath,
-        image ? "image" : office ? "office" : languageFromPath(absPath)
-      )
-
-      const decision = decideLoad(seed, options?.reload ?? false)
-      if (decision.kind === "skip") return
-      const { gen } = decision
-
-      try {
-        // Office files (.docx/.xlsx/.pptx) are binary OpenXML — never read as
-        // text. The OfficePreview component renders them via the OfficeCLI
-        // backend on its own, so just settle the tab as a ready preview shell.
-        if (office) {
-          if (!settleFetch(tabId, gen)) return
-          setFileTabs((prev) =>
-            prev.map((tab) =>
-              tab.id === tabId
-                ? {
-                    ...tab,
-                    content: "",
-                    readonly: true,
-                    loading: false,
-                    saveState: "idle",
-                    saveError: null,
-                    stale: false,
-                  }
-                : tab
-            )
-          )
-          return
+      if (!io) return null
+      // The load runs in an inner closure purely so every early `return`
+      // below stays a plain "stop here" — the resolved absolute path is the
+      // caller's answer either way, and surfaces that mirror the tab
+      // elsewhere (the transcript's file viewer drawer) need it to find the
+      // tab this call created.
+      await (async () => {
+        const requestedLine =
+          typeof options?.line === "number" && Number.isFinite(options.line)
+            ? Math.max(1, Math.floor(options.line))
+            : null
+        if (requestedLine) {
+          fileRevealRequestIdRef.current += 1
+          setPendingFileReveal({
+            requestId: fileRevealRequestIdRef.current,
+            path: absPath,
+            line: requestedLine,
+          })
+        } else {
+          setPendingFileReveal(null)
         }
+        const tabId = buildFileTabId({ kind: "file", path: absPath })
+        const image = isImageFile(absPath)
+        const office = !image && isOfficePreviewable(absPath)
+        const seed = loadingTab(
+          tabId,
+          null,
+          "file",
+          fileName(absPath),
+          absPath,
+          absPath,
+          image ? "image" : office ? "office" : languageFromPath(absPath)
+        )
 
-        if (image) {
-          const ext = absPath.split(".").pop()?.toLowerCase() ?? ""
-          const mime = IMAGE_MIME[ext] ?? "image/png"
-          const b64 = await withTimeout(
-            readFileBase64(absPath),
+        const decision = decideLoad(seed, options?.reload ?? false)
+        if (decision.kind === "skip") return
+        const { gen } = decision
+
+        try {
+          // Office files (.docx/.xlsx/.pptx) are binary OpenXML — never read as
+          // text. The OfficePreview component renders them via the OfficeCLI
+          // backend on its own, so just settle the tab as a ready preview shell.
+          if (office) {
+            if (!settleFetch(tabId, gen)) return
+            setFileTabs((prev) =>
+              prev.map((tab) =>
+                tab.id === tabId
+                  ? {
+                      ...tab,
+                      content: "",
+                      readonly: true,
+                      loading: false,
+                      saveState: "idle",
+                      saveError: null,
+                      stale: false,
+                    }
+                  : tab
+              )
+            )
+            return
+          }
+
+          if (image) {
+            const ext = absPath.split(".").pop()?.toLowerCase() ?? ""
+            const mime = IMAGE_MIME[ext] ?? "image/png"
+            const b64 = await withTimeout(
+              readFileBase64(absPath),
+              15_000,
+              t("previewRequestTimedOut")
+            )
+            if (!settleFetch(tabId, gen)) return
+            setFileTabs((prev) =>
+              prev.map((tab) =>
+                tab.id === tabId
+                  ? {
+                      ...tab,
+                      content: `data:${mime};base64,${b64}`,
+                      readonly: true,
+                      loading: false,
+                      saveState: "idle",
+                      saveError: null,
+                      stale: false,
+                    }
+                  : tab
+              )
+            )
+            return
+          }
+
+          const [result, gitBaseContent] = await withTimeout(
+            Promise.all([
+              readFileForEdit(io.rootPath, io.ioPath),
+              fetchGitBase(absPath),
+            ]),
             15_000,
             t("previewRequestTimedOut")
           )
@@ -1215,58 +1254,36 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
               tab.id === tabId
                 ? {
                     ...tab,
-                    content: `data:${mime};base64,${b64}`,
-                    readonly: true,
-                    loading: false,
+                    content: result.content,
+                    gitBaseContent: dedupeGitBase(
+                      result.content,
+                      gitBaseContent
+                    ),
+                    savedContent: result.content,
+                    isDirty: false,
+                    etag: result.etag,
+                    mtimeMs: result.mtime_ms,
+                    readonly: result.readonly,
+                    lineEnding: result.line_ending,
                     saveState: "idle",
                     saveError: null,
+                    loading: false,
                     stale: false,
                   }
                 : tab
             )
           )
-          return
+        } catch (error) {
+          if (!settleFetch(tabId, gen)) return
+          if (requestedLine) {
+            setPendingFileReveal((prev) =>
+              prev && prev.path === absPath ? null : prev
+            )
+          }
+          rejectTab(tabId, toErrorMessage(error))
         }
-
-        const [result, gitBaseContent] = await withTimeout(
-          Promise.all([
-            readFileForEdit(io.rootPath, io.ioPath),
-            fetchGitBase(absPath),
-          ]),
-          15_000,
-          t("previewRequestTimedOut")
-        )
-        if (!settleFetch(tabId, gen)) return
-        setFileTabs((prev) =>
-          prev.map((tab) =>
-            tab.id === tabId
-              ? {
-                  ...tab,
-                  content: result.content,
-                  gitBaseContent: dedupeGitBase(result.content, gitBaseContent),
-                  savedContent: result.content,
-                  isDirty: false,
-                  etag: result.etag,
-                  mtimeMs: result.mtime_ms,
-                  readonly: result.readonly,
-                  lineEnding: result.line_ending,
-                  saveState: "idle",
-                  saveError: null,
-                  loading: false,
-                  stale: false,
-                }
-              : tab
-          )
-        )
-      } catch (error) {
-        if (!settleFetch(tabId, gen)) return
-        if (requestedLine) {
-          setPendingFileReveal((prev) =>
-            prev && prev.path === absPath ? null : prev
-          )
-        }
-        rejectTab(tabId, toErrorMessage(error))
-      }
+      })()
+      return absPath
     },
     [
       decideLoad,

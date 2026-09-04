@@ -83,9 +83,7 @@ describe("MaxCode contract: agent compatibility", () => {
     expect(titles).toContain("with_timezone(&Shanghai)")
     expect(titles).toContain('format("%m%d")')
     expect(titles).toContain("MMDD｜类型｜主题")
-    expect(titles).toContain(
-      "功能、设计、修复、优化、发布、探索、文档、研究"
-    )
+    expect(titles).toContain("功能、设计、修复、优化、发布、探索、文档、研究")
     expect(titles).toContain("无法判断主题时不要猜，原样输出当前标题")
   })
 

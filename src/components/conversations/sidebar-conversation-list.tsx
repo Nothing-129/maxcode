@@ -29,6 +29,8 @@ import {
   FolderOpenDot,
   FolderRoot,
   GripVertical,
+  Layers,
+  LayersPlus,
   Link2,
   ListChecks,
   Loader2,
@@ -72,11 +74,14 @@ import type {
   ConversationStatus,
   DbConversationSummary,
   FolderDetail,
+  FolderGroupDetail,
 } from "@/lib/types"
 import { getAgentLabel } from "@/lib/custom-agents"
 import {
   loadFolderExpanded,
   saveFolderExpanded,
+  loadFolderGroupExpanded,
+  saveFolderGroupExpanded,
   loadSectionCollapsed,
   saveSectionCollapsed,
   loadConversationExpanded,
@@ -93,6 +98,7 @@ import {
   FOLDER_THEME_COLOR_INHERIT,
   THEME_COLOR_PREVIEW,
   THEME_COLORS,
+  folderTitleTintVars,
   normalizeFolderThemeColor,
   type FolderThemeColor,
   type ThemeColor,
@@ -103,9 +109,16 @@ import {
   CONV_RAIL_DEPTH_STEP,
 } from "./sidebar-conversation-card"
 import {
-  applyReorder,
+  applyLayoutMove,
+  buildDragSlots,
   buildOwnerHeaderIndex,
   buildRows,
+  buildSidebarLayout,
+  EMPTY_SIDEBAR_LAYOUT,
+  layoutFolderIds,
+  layoutToEntries,
+  locateEntry,
+  reconcileLayout,
   computeStickyState,
   flatIndexOfConversation,
   folderHeaderFlatIndices,
@@ -123,11 +136,15 @@ import {
   selectRecentConversationsWithReuse,
   worktreeChildrenByParent,
   worktreeHeaderAlias,
+  type DragSlot,
+  type SidebarEntry,
+  type SidebarLayout,
   type SidebarRow,
 } from "./sidebar-conversation-grouping"
 import { useRemoteWorkspaceConnections } from "@/hooks/use-remote-workspace-connections"
 import { useSubsessionSync } from "@/hooks/use-subsession-sync"
 import { SidebarSectionHeader } from "./sidebar-section-header"
+import { SidebarFolderGroupHeader } from "./sidebar-folder-group-header"
 import { ConversationManageDialog } from "./conversation-manage-dialog"
 import { CloneDialog } from "@/components/layout/clone-dialog"
 import { RemoteWorkspaceManageDialog } from "@/components/layout/remote-workspace-manage-dialog"
@@ -259,12 +276,17 @@ const FolderHeader = memo(function FolderHeader({
   onOpenInSystemExplorer,
   onOpenInTerminal,
   onOpenInCode,
+  folderGroups,
+  currentGroupId,
+  onMoveToGroup,
+  onNewGroupWithFolder,
   isDragging = false,
   onGripPointerDown,
   suppressed = false,
   depth = 0,
   variant = "repo",
   worktreeBranch = null,
+  rootBranch = null,
 }: {
   folderId: number
   folderName: string
@@ -305,6 +327,20 @@ const FolderHeader = memo(function FolderHeader({
   onOpenInSystemExplorer: (folderId: number) => void
   onOpenInTerminal: (folderId: number) => void
   onOpenInCode: (folderId: number) => void
+  /**
+   * Every folder group, for the "Move to group" submenu. Omitted on the header
+   * variants that can't move on their own (worktree sub-groups and the "root"
+   * sub-group follow their repo), which is also what hides the submenu there.
+   * Must be referentially stable to preserve the memo.
+   */
+  folderGroups?: readonly FolderGroupDetail[]
+  /** Which group this folder is currently in (null = top level), for the check
+   *  mark in that submenu. */
+  currentGroupId?: number | null
+  onMoveToGroup?: (folderId: number, groupId: number | null) => void
+  /** Create a group and move this folder into it in one step — the path a user
+   *  takes when the group they want doesn't exist yet. */
+  onNewGroupWithFolder?: (folderId: number) => void
   isDragging?: boolean
   onGripPointerDown?: (folderId: number, event: React.PointerEvent) => void
   /**
@@ -334,12 +370,20 @@ const FolderHeader = memo(function FolderHeader({
    *   `alias [ name ]` label as a repo, with the branch standing in for the
    *   alias (see {@link worktreeHeaderAlias}).
    * - `root`: a repo container's own-sessions sub-group — the FolderRoot glyph
-   *   and a fixed, non-localized "root" label.
+   *   and the same `alias [ name ]` label as the two above, with the container's
+   *   live branch standing in for the alias and a fixed, non-localized "root"
+   *   for the name (see {@link rootBranch}).
    */
   variant?: "repo" | "worktree" | "root"
   /** The worktree's branch name (its own `git_branch`), used as the alias when
    *  none is set. Leaves the bare folder name when absent. */
   worktreeBranch?: string | null
+  /**
+   * The container repo's live HEAD branch, for the `root` variant only. Absent
+   * (unknown HEAD, detached, or not yet resolved) degrades the label to the
+   * bare "root" this row carried before there was a branch to show.
+   */
+  rootBranch?: string | null
 }) {
   // Own the translations here rather than receiving `t` as a prop: next-intl
   // returns a fresh `t` on every parent render, so passing it down would defeat
@@ -421,6 +465,15 @@ const FolderHeader = memo(function FolderHeader({
     onNewConversation(folderId)
   }
 
+  const titleTint = folderTitleTintVars(themeColor)
+  // The `[ name ]` half of an aliased label is normally a DEEPER shade than the
+  // alias beside it. A tinted title has no deeper shade to reach for (the tint
+  // is already pinned to the one lightness that clears AA on this surface), so
+  // it just inherits — the brackets alone carry the alias/name split there.
+  const bracketClassName = titleTint
+    ? "text-current"
+    : "text-sidebar-foreground"
+
   return (
     <>
       <ContextMenu>
@@ -487,9 +540,19 @@ const FolderHeader = memo(function FolderHeader({
                   )}
                 </span>
                 <div className="flex min-w-0 flex-1 items-center gap-[0.5rem]">
+                  {/* The folder's chosen colour lands HERE and nowhere else: the
+                      row's hover pill, its badges and every conversation card
+                      under it stay on the app theme. `folderTitleTintVars`
+                      writes both themes' values as inline custom properties and
+                      `.folder-title-tint` (globals.css) picks one; `inherit`
+                      returns undefined and the default class carries the day. */}
                   <span
+                    style={titleTint}
                     className={cn(
-                      "min-w-0 flex-shrink truncate text-left text-[0.875rem] font-normal text-sidebar-foreground/75"
+                      "min-w-0 flex-shrink truncate text-left text-[0.875rem] font-normal",
+                      titleTint
+                        ? "folder-title-tint"
+                        : "text-sidebar-foreground/75"
                     )}
                   >
                     {variant === "worktree" ? (
@@ -498,19 +561,26 @@ const FolderHeader = memo(function FolderHeader({
                       <FolderAliasLabel
                         name={folderName}
                         alias={worktreeHeaderAlias(folderAlias, worktreeBranch)}
-                        bracketClassName="text-sidebar-foreground"
+                        bracketClassName={bracketClassName}
                       />
                     ) : variant === "root" ? (
-                      // The container repo's own-sessions sub-group is labeled
-                      // with a fixed, non-localized "root" (its glyph is
-                      // FolderRoot); it stands for the repo root regardless of UI
-                      // language.
-                      "root"
+                      // The container repo's own-sessions sub-group: its live
+                      // branch as the alias, a fixed "root" as the name — the
+                      // same two-part label its worktree siblings render, so the
+                      // whole subtree reads as one column of branches. "root"
+                      // stays non-localized: it stands for the repo root
+                      // regardless of UI language. With no known branch this
+                      // collapses back to the bare "root" it has always shown.
+                      <FolderAliasLabel
+                        name="root"
+                        alias={rootBranch ?? null}
+                        bracketClassName={bracketClassName}
+                      />
                     ) : (
                       <FolderAliasLabel
                         name={folderName}
                         alias={folderAlias}
-                        bracketClassName="text-sidebar-foreground"
+                        bracketClassName={bracketClassName}
                       />
                     )}
                   </span>
@@ -804,6 +874,58 @@ const FolderHeader = memo(function FolderHeader({
             <Tag className="h-4 w-4" />
             {t("folderHeaderMenu.setAlias")}
           </ContextMenuItem>
+          {/* The keyboard/menu path into and out of a folder group — the drag
+              gesture is the fast one, but it is pointer-only, and a folder
+              inside a collapsed group has no drag target at all until you open
+              it. Hidden on worktree / root sub-groups (no handlers passed):
+              those follow their repo and can't be grouped on their own. */}
+          {folderGroups != null && onMoveToGroup != null && (
+            <ContextMenuSub>
+              <ContextMenuSubTrigger>
+                <Layers className="h-4 w-4" />
+                {t("folderGroup.moveToGroup")}
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="min-w-[12rem]">
+                <ContextMenuItem
+                  onSelect={() => onMoveToGroup(folderId, null)}
+                  className="gap-2"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    {t("folderGroup.removeFromGroup")}
+                  </span>
+                  {currentGroupId == null ? (
+                    <Check className="h-3.5 w-3.5 shrink-0" />
+                  ) : null}
+                </ContextMenuItem>
+                {folderGroups.length > 0 && <ContextMenuSeparator />}
+                {folderGroups.map((group) => (
+                  <ContextMenuItem
+                    key={group.id}
+                    onSelect={() => onMoveToGroup(folderId, group.id)}
+                    className="gap-2"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {group.name}
+                    </span>
+                    {currentGroupId === group.id ? (
+                      <Check className="h-3.5 w-3.5 shrink-0" />
+                    ) : null}
+                  </ContextMenuItem>
+                ))}
+                {onNewGroupWithFolder != null && (
+                  <>
+                    <ContextMenuSeparator />
+                    <ContextMenuItem
+                      onSelect={() => onNewGroupWithFolder(folderId)}
+                    >
+                      <LayersPlus className="h-4 w-4" />
+                      {t("folderGroup.newGroupAndMove")}
+                    </ContextMenuItem>
+                  </>
+                )}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          )}
           <ContextMenuSeparator />
           <ContextMenuItem
             variant="destructive"
@@ -902,6 +1024,12 @@ export function SidebarConversationList({
   const folders = useAppWorkspaceStore((s) => s.folders)
   const allFolders = useAppWorkspaceStore((s) => s.allFolders)
   const conversations = useAppWorkspaceStore((s) => s.conversations)
+  // Live HEAD branch per folder, for the container repos' "root" sub-group
+  // labels. Safe to subscribe to from a list this hot: `applyGitHead` is
+  // equality-guarded, so the Map reference only changes when a branch actually
+  // changes — not on every poll tick.
+  const branches = useAppWorkspaceStore((s) => s.branches)
+  const ensureGitHead = useAppWorkspaceStore((s) => s.ensureGitHead)
   const loading = useAppWorkspaceStore((s) => s.conversationsLoading)
   const error = useAppWorkspaceStore((s) => s.conversationsError)
   const refreshConversations = useAppWorkspaceStore(
@@ -913,7 +1041,14 @@ export function SidebarConversationList({
   const removeFolderFromWorkspace = useAppWorkspaceStore(
     (s) => s.removeFolderFromWorkspace
   )
-  const reorderFolders = useAppWorkspaceStore((s) => s.reorderFolders)
+  const folderGroups = useAppWorkspaceStore((s) => s.folderGroups)
+  const applySidebarLayout = useAppWorkspaceStore((s) => s.applySidebarLayout)
+  const createFolderGroup = useAppWorkspaceStore((s) => s.createFolderGroup)
+  const updateFolderGroup = useAppWorkspaceStore((s) => s.updateFolderGroup)
+  const deleteFolderGroupAction = useAppWorkspaceStore(
+    (s) => s.deleteFolderGroup
+  )
+  const setFolderGroupAction = useAppWorkspaceStore((s) => s.setFolderGroup)
   const refreshFolder = useAppWorkspaceStore((s) => s.refreshFolder)
   const refreshing = loading
   const { activeFolder } = useActiveFolder()
@@ -994,6 +1129,11 @@ export function SidebarConversationList({
   // click can see the first click's pending intent.
   const folderExpandedRef = useRef(folderExpanded)
   folderExpandedRef.current = folderExpanded
+  // Collapsed state of each folder GROUP, keyed by group id. Absent key =
+  // expanded, mirroring `folderExpanded`. Hydrated from localStorage on mount.
+  const [folderGroupExpanded, setFolderGroupExpanded] = useState<
+    Record<number, boolean>
+  >({})
   // Repo ids whose "root" sub-group (a container repo's own sessions, shown only
   // under "Show worktrees") is collapsed. Session-only, not persisted: the
   // container's own collapse — which hides the whole subtree — IS persisted via
@@ -1107,10 +1247,14 @@ export function SidebarConversationList({
   } = useRemoteWorkspaceConnections()
   // Folder whose links are being managed (context menu -> Linked folders).
   const [linksFolder, setLinksFolder] = useState<FolderDetail | null>(null)
-  const [dragging, setDragging] = useState<number | null>(null)
+  // What is being dragged: a folder or a whole group. `null` = no drag. Widened
+  // from a bare folder id when groups arrived, since a group reorders as one
+  // unit (its members travel with it and never appear on the drag surface).
+  const [dragging, setDragging] = useState<SidebarEntry | null>(null)
   const [reordering, setReordering] = useState(false)
-  const [dragOrder, setDragOrder] = useState<number[] | null>(null)
-  const pendingOrderRef = useRef<number[] | null>(null)
+  // Optimistic layout while a drag is in flight; `null` = use the store's.
+  const [dragLayout, setDragLayout] = useState<SidebarLayout | null>(null)
+  const pendingLayoutRef = useRef<SidebarLayout | null>(null)
 
   // Floating sticky folder header. `stickyFolderId` is the ONLY new render
   // state and changes solely when the scroll crosses into a different folder —
@@ -1120,10 +1264,18 @@ export function SidebarConversationList({
   const [stickyFolderId, setStickyFolderId] = useState<number | null>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const stickyRafRef = useRef<number | null>(null)
+  // Read by the imperative scroll path without re-subscribing virtua's listener.
+  const draggingRef = useRef<SidebarEntry | null>(dragging)
+  draggingRef.current = dragging
+
+  // Custom pointer-based folder reorder (replaces motion `Reorder`, which can't
+  // coexist with virtualization — see the perf plan). Refs are read by the
+  // window pointer listeners so the public callbacks stay referentially stable
+  // (the `FolderHeader` memo depends on a stable `onGripPointerDown`).
   const dragSurfaceRef = useRef<HTMLDivElement>(null)
   const listSurfaceRef = useRef<HTMLDivElement>(null)
   const dragPointerRef = useRef<{
-    folderId: number
+    entry: SidebarEntry
     pointerId: number
     startX: number
     startY: number
@@ -1136,13 +1288,20 @@ export function SidebarConversationList({
     pointerId: number
   } | null>(null)
   const autoscrollRef = useRef<number | null>(null)
-  const reorderableFolderIdsRef = useRef<number[]>([])
+  // Snapshots read by the imperative drag listeners without re-subscribing them.
+  const layoutRef = useRef<SidebarLayout>(EMPTY_SIDEBAR_LAYOUT)
+  // The authoritative (drag-free) layout, kept separately from `layoutRef` so
+  // the drop can reconcile against server truth rather than against its own
+  // optimistic view. See `handleDragEnd`.
+  const storeLayoutRef = useRef<SidebarLayout>(EMPTY_SIDEBAR_LAYOUT)
+  const dragSlotsRef = useRef<DragSlot[]>([])
   const reorderingRef = useRef(false)
 
   useEffect(() => {
     // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
 
     setFolderExpanded(loadFolderExpanded())
+    setFolderGroupExpanded(loadFolderGroupExpanded())
     setSectionCollapsed(loadSectionCollapsed())
     setConversationExpanded(new Set(loadConversationExpanded()))
   }, [])
@@ -1152,6 +1311,28 @@ export function SidebarConversationList({
     setSectionCollapsed((prev) => {
       const next = { ...prev, [section]: !prev[section] }
       saveSectionCollapsed(next)
+      return next
+    })
+  }, [])
+
+  const toggleFolderGroup = useCallback((groupId: number) => {
+    setFolderGroupExpanded((prev) => {
+      // Absent key = expanded, so the first click has to write `false`.
+      const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
+      saveFolderGroupExpanded(next)
+      return next
+    })
+  }, [])
+
+  /** Drive every folder group at once, for expand/collapse-all. Reads the group
+   *  list imperatively so the callback stays stable across group changes. */
+  const setAllGroupsCollapsed = useCallback((collapsed: boolean) => {
+    setFolderGroupExpanded(() => {
+      const next: Record<number, boolean> = {}
+      for (const group of useAppWorkspaceStore.getState().folderGroups) {
+        next[group.id] = !collapsed
+      }
+      saveFolderGroupExpanded(next)
       return next
     })
   }, [])
@@ -1403,40 +1584,38 @@ export function SidebarConversationList({
     return map
   }, [conversations, displayChildToParent])
 
-  // The top-level folder sequence: worktree child folders are excluded (they
-  // follow their parent). When "Show worktrees" is off this is ALSO the display
-  // order; when on, `buildRows` nests each repo's worktree children back in.
-  // Hidden chat folders never reach this list — the backend already excludes
-  // them from the open-folder set (`folder_service::list_open_folder_details`).
-  const reorderableFolderIds = useMemo(() => {
-    const folderIdSet = new Set(folders.map((folder) => folder.id))
-    if (dragOrder) {
-      const seen = new Set<number>()
-      const ids: number[] = []
-      for (const id of dragOrder) {
-        if (folderIdSet.has(id) && !seen.has(id) && !childToParent.has(id)) {
-          seen.add(id)
-          ids.push(id)
-        }
-      }
-      for (const folder of folders) {
-        if (!seen.has(folder.id) && !childToParent.has(folder.id)) {
-          seen.add(folder.id)
-          ids.push(folder.id)
-        }
-      }
-      return ids
-    }
-    const seen = new Set<number>()
-    const ids: number[] = []
-    for (const f of folders) {
-      if (!seen.has(f.id) && !childToParent.has(f.id)) {
-        seen.add(f.id)
-        ids.push(f.id)
-      }
-    }
-    return ids
-  }, [folders, dragOrder, childToParent])
+  // The REORDERABLE folders: worktree child folders are excluded (they follow
+  // their parent, never reorder on their own). Hidden chat folders never reach
+  // here — the backend already excludes them from the open-folder set
+  // (`folder_service::list_open_folder_details`).
+  const reorderableFolders = useMemo(
+    () => folders.filter((f) => !childToParent.has(f.id)),
+    [folders, childToParent]
+  )
+
+  // The mixed top-level shape of the Folders section: groups interleaved with
+  // ungrouped folders, plus each group's members. Source of truth for both the
+  // row model and the drag gesture.
+  //
+  // While a drag is in flight the optimistic `dragLayout` wins so siblings shift
+  // live as the pointer moves — but it is still reconciled against the real
+  // folder/group lists on every render, so a folder opened or closed mid-drag
+  // (an automation minting a worktree, say) neither disappears nor sticks
+  // around. Reconciling means re-deriving from the store and then re-applying
+  // the drag's single move, rather than trusting a stale snapshot.
+  const storeLayout = useMemo(
+    () =>
+      buildSidebarLayout({ folders: reorderableFolders, groups: folderGroups }),
+    [reorderableFolders, folderGroups]
+  )
+  const layout = useMemo(
+    () => (dragLayout ? reconcileLayout(dragLayout, storeLayout) : storeLayout),
+    [storeLayout, dragLayout]
+  )
+
+  // Flat id list in render order — what `worktreeChildrenByParent` and
+  // `buildRows`' folder count consume.
+  const reorderableFolderIds = useMemo(() => layoutFolderIds(layout), [layout])
 
   // "Show worktrees" container map: repo id → its open worktree child folder ids
   // (sorted). A repo present here renders as a CONTAINER — buildRows nests its
@@ -1459,7 +1638,24 @@ export function SidebarConversationList({
     [containerChildren]
   )
 
-  const darkMode = resolvedTheme === "dark"
+  // Resolve each container's HEAD so its "root" sub-group can be labeled with
+  // the branch its main worktree is on. Needed because the app-wide branch poll
+  // only covers the ACTIVE folder, and working inside a worktree makes the
+  // worktree active, not its container — the label would otherwise read a bare
+  // "root" forever. `ensureGitHead` is idempotent and de-dupes in-flight reads,
+  // so this costs one request per container per session.
+  //
+  // One-shot, deliberately: the container is refreshed by the regular poll
+  // whenever it IS the active folder, and an in-app checkout on it writes the
+  // store directly (`use-switch-to-branch`). Only a branch switched from OUTSIDE
+  // the app, on a container that is not active, reads stale — the same bargain
+  // the tab-bar branch chips already make, and not worth a second poll loop.
+  useEffect(() => {
+    for (const repoId of containerRepoIds) {
+      const path = folderIndex.get(repoId)?.path
+      if (path) ensureGitHead(repoId, path)
+    }
+  }, [containerRepoIds, folderIndex, ensureGitHead])
 
   // Flat row model for windowing — the pinned section, the folders section, and
   // every conversation live in this ONE array fed to the single Virtualizer (no
@@ -1493,6 +1689,8 @@ export function SidebarConversationList({
         childrenLoading,
         containerChildren,
         rootGroupCollapsed,
+        layout,
+        groupExpanded: folderGroupExpanded,
       }),
     [
       pinned,
@@ -1516,6 +1714,8 @@ export function SidebarConversationList({
       childrenLoading,
       containerChildren,
       rootGroupCollapsed,
+      layout,
+      folderGroupExpanded,
     ]
   )
 
@@ -1523,7 +1723,8 @@ export function SidebarConversationList({
   // scrollToActive reads current values without being torn down and re-subscribed.
   const rowsRef = useRef<SidebarRow[]>(rows)
   rowsRef.current = rows
-  reorderableFolderIdsRef.current = reorderableFolderIds
+  layoutRef.current = layout
+  storeLayoutRef.current = storeLayout
   reorderingRef.current = reordering
 
   const visibleConversationIds = useMemo(
@@ -1537,6 +1738,17 @@ export function SidebarConversationList({
   useEffect(() => {
     useConversationUnreadStore.getState().setVisible(visibleConversationIds)
   }, [visibleConversationIds])
+
+  // Drop-target rows for the in-flight drag, and the surface that renders them.
+  // Rebuilt from the (reconciled) layout on every render so a folder that
+  // appeared or vanished mid-drag is immediately a valid / invalid target — the
+  // slot array and what the user sees can never disagree, because they are the
+  // same array.
+  const dragSlots = useMemo<DragSlot[]>(
+    () => (dragging ? buildDragSlots(layout, dragging) : []),
+    [dragging, layout]
+  )
+  dragSlotsRef.current = dragSlots
 
   // Sticky-overlay lookup tables, rebuilt only when the flat rows change
   // (folder add/remove/expand, not status events). Consumed exclusively by the
@@ -1563,6 +1775,9 @@ export function SidebarConversationList({
         saveFolderExpanded(next)
         return next
       })
+      // Folder GROUPS are collapsible headers too — leaving one closed is
+      // exactly the "the button did nothing" case this control exists to avoid.
+      setAllGroupsCollapsed(false)
       // Expand every container's root sub-group too (session-only state).
       setRootGroupCollapsed((prev) => (prev.size === 0 ? prev : new Set()))
       setAllSectionsCollapsed(false)
@@ -1579,6 +1794,7 @@ export function SidebarConversationList({
       // Collapse is a fresh look: next expand shows the first page again.
       setFolderLimitById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
       setChatLimit(CHAT_PAGE_SIZE)
+      setAllGroupsCollapsed(true)
       setAllSectionsCollapsed(true)
     },
   }))
@@ -2176,42 +2392,180 @@ export function SidebarConversationList({
     void openImportSessionsWindow()
   }, [])
 
-  const persistReorder = useCallback(
-    async (order: number[]) => {
-      if (order.length === 0) return
+  // ── Folder groups ─────────────────────────────────────────────────────────
+  // Creating a group opens a small naming dialog rather than dropping an
+  // "Untitled" band into the list: a group's whole job is to be labelled, and an
+  // inline-rename-after-the-fact flow leaves a meaningless row behind whenever
+  // the user is interrupted. `pendingGroupFolderId` carries the folder to move
+  // in once created — that is the "New group…" entry inside a folder's "Move to
+  // group" submenu, where creating and moving are one intent.
+  const [newGroupOpen, setNewGroupOpen] = useState(false)
+  const [newGroupName, setNewGroupName] = useState("")
+  const [pendingGroupFolderId, setPendingGroupFolderId] = useState<
+    number | null
+  >(null)
+  const [deleteGroupConfirm, setDeleteGroupConfirm] = useState<{
+    groupId: number
+    name: string
+    count: number
+  } | null>(null)
+  const newGroupIme = useImeGuard()
+
+  const openNewGroupDialog = useCallback(() => {
+    setPendingGroupFolderId(null)
+    setNewGroupName("")
+    setNewGroupOpen(true)
+  }, [])
+
+  const handleNewGroupWithFolder = useCallback((folderId: number) => {
+    setPendingGroupFolderId(folderId)
+    setNewGroupName("")
+    setNewGroupOpen(true)
+  }, [])
+
+  const handleMoveToGroup = useCallback(
+    async (folderId: number, groupId: number | null) => {
+      try {
+        await setFolderGroupAction(folderId, groupId)
+      } catch (e) {
+        toast.error(
+          t("toasts.moveToGroupFailed", { message: toErrorMessage(e) })
+        )
+      }
+    },
+    [setFolderGroupAction, t]
+  )
+
+  const confirmNewGroup = useCallback(async () => {
+    const name = newGroupName.trim() || t("folderGroup.defaultName")
+    const folderId = pendingGroupFolderId
+    setNewGroupOpen(false)
+    setPendingGroupFolderId(null)
+    try {
+      const group = await createFolderGroup(name)
+      // Created-and-move is two calls, but only the second can fail on its own;
+      // an empty group left behind is visible and removable, so there is nothing
+      // to unwind.
+      if (folderId != null) await setFolderGroupAction(folderId, group.id)
+    } catch (e) {
+      toast.error(t("toasts.createGroupFailed", { message: toErrorMessage(e) }))
+    }
+  }, [
+    newGroupName,
+    pendingGroupFolderId,
+    createFolderGroup,
+    setFolderGroupAction,
+    t,
+  ])
+
+  const handleRenameGroup = useCallback(
+    async (groupId: number, name: string) => {
+      try {
+        await updateFolderGroup(groupId, { name })
+      } catch (e) {
+        toast.error(
+          t("toasts.updateGroupFailed", { message: toErrorMessage(e) })
+        )
+      }
+    },
+    [updateFolderGroup, t]
+  )
+
+  const handleChangeGroupColor = useCallback(
+    async (groupId: number, color: FolderThemeColor) => {
+      try {
+        await updateFolderGroup(groupId, { color })
+      } catch (e) {
+        toast.error(
+          t("toasts.updateGroupFailed", { message: toErrorMessage(e) })
+        )
+      }
+    },
+    [updateFolderGroup, t]
+  )
+
+  // Deleting an EMPTY group is unambiguous and instantly redoable, so it skips
+  // the dialog. A group holding folders gets one, because "delete" reads as
+  // "delete the folders too" — the copy is there to say it doesn't.
+  const handleDeleteGroup = useCallback(
+    (groupId: number) => {
+      const group = useAppWorkspaceStore
+        .getState()
+        .folderGroups.find((g) => g.id === groupId)
+      if (!group) return
+      const count = layoutRef.current.membersByGroup.get(groupId)?.length ?? 0
+      if (count === 0) {
+        void deleteFolderGroupAction(groupId).catch((e) => {
+          toast.error(
+            t("toasts.deleteGroupFailed", { message: toErrorMessage(e) })
+          )
+        })
+        return
+      }
+      setDeleteGroupConfirm({ groupId, name: group.name, count })
+    },
+    [deleteFolderGroupAction, t]
+  )
+
+  const confirmDeleteGroup = useCallback(async () => {
+    const pending = deleteGroupConfirm
+    setDeleteGroupConfirm(null)
+    if (!pending) return
+    try {
+      await deleteFolderGroupAction(pending.groupId)
+    } catch (e) {
+      toast.error(t("toasts.deleteGroupFailed", { message: toErrorMessage(e) }))
+    }
+  }, [deleteGroupConfirm, deleteFolderGroupAction, t])
+
+  const persistLayout = useCallback(
+    async (next: SidebarLayout) => {
+      const entries = layoutToEntries(next)
+      if (entries.length === 0) return
       setReordering(true)
       try {
-        await reorderFolders(order)
-      } catch (err) {
-        toast.error(
-          t("toasts.reorderFoldersFailed", { message: toErrorMessage(err) })
-        )
+        await applySidebarLayout(entries)
+      } catch (e) {
+        const msg = toErrorMessage(e)
+        toast.error(t("toasts.applyLayoutFailed", { message: msg }))
       } finally {
         setReordering(false)
       }
     },
-    [reorderFolders, t]
+    [applySidebarLayout, t]
   )
 
-  const handleReorder = useCallback((nextIds: number[]) => {
-    pendingOrderRef.current = nextIds
-    setDragOrder(nextIds)
+  const handleReorder = useCallback((next: SidebarLayout) => {
+    pendingLayoutRef.current = next
+    setDragLayout(next)
   }, [])
 
   const handleDragEnd = useCallback(async () => {
     setDragging(null)
-    const order = pendingOrderRef.current
-    pendingOrderRef.current = null
-    if (!order) {
-      setDragOrder(null)
+    const next = pendingLayoutRef.current
+    pendingLayoutRef.current = null
+    if (!next) {
+      setDragLayout(null)
       return
     }
     try {
-      await persistReorder(order)
+      // Reconcile ONE more time against the authoritative layout before
+      // writing. The rendered layout is reconciled every render, but this
+      // snapshot was taken at the last pointermove — and the workspace can move
+      // between that move and the release (another window regrouping a folder,
+      // a task closing one, an automation opening a worktree). Persisting the
+      // pre-mutation view would let a drop silently overwrite a change the user
+      // never saw, because `apply_sidebar_layout` is authoritative for every row
+      // it names. Reconciling here keeps "what is written" equal to "what was on
+      // screen" — while still carrying the user's last move, which a plain read
+      // of the rendered layout could lose if no render flushed after it.
+      await persistLayout(reconcileLayout(next, storeLayoutRef.current))
     } finally {
-      setDragOrder(null)
+      // Clear the optimistic override once the store has absorbed the new
+      // layout (or, on failure, once its rollback has restored the old one).
+      setDragLayout(null)
     }
-  }, [persistReorder])
+  }, [persistLayout])
 
   // ── Custom folder-drag gesture ────────────────────────────────────────────
   // Height of one folder header row (Tailwind `h-[2rem]`); the drag surface
@@ -2251,17 +2605,36 @@ export function SidebarConversationList({
       const state = dragPointerRef.current
       const surface = dragSurfaceRef.current
       if (!state || !surface) return
-      const order = reorderableFolderIdsRef.current
-      const targetIndex = pointerYToTargetIndex(
+      const slots = dragSlotsRef.current
+      // The surface's live rect already reflects scroll, so no scrollTop term.
+      const slotIndex = pointerYToTargetIndex(
         clientY,
         surface.getBoundingClientRect().top,
         0,
         FOLDER_ROW_HEIGHT,
-        order.length
+        slots.length
       )
-      const fromIndex = order.indexOf(state.folderId)
-      if (fromIndex < 0 || fromIndex === targetIndex) return
-      handleReorder(applyReorder(order, fromIndex, targetIndex))
+      const slot = slots[slotIndex]
+      if (!slot) return
+      const current = layoutRef.current
+      // Skip the no-op: without this every pointermove would allocate a fresh
+      // layout object and re-render the whole surface at pointer frequency.
+      const at = locateEntry(current, state.entry)
+      if (
+        at &&
+        at.groupId === slot.target.groupId &&
+        at.index === slot.target.index
+      ) {
+        return
+      }
+      handleReorder(
+        applyLayoutMove(
+          current,
+          state.entry,
+          slot.target.groupId,
+          slot.target.index
+        )
+      )
     },
     [handleReorder, FOLDER_ROW_HEIGHT]
   )
@@ -2320,9 +2693,9 @@ export function SidebarConversationList({
   const cancelDrag = useCallback(() => {
     teardownDragListeners()
     dragPointerRef.current = null
-    pendingOrderRef.current = null
+    pendingLayoutRef.current = null
     setDragging(null)
-    setDragOrder(null)
+    setDragLayout(null)
   }, [teardownDragListeners])
 
   const finishDrag = useCallback(() => {
@@ -2360,8 +2733,10 @@ export function SidebarConversationList({
         if (moved < DRAG_THRESHOLD_PX) return
         state.started = true
         captureDragPointer(event.pointerId)
-        setDragging(state.folderId)
-        setDragOrder(reorderableFolderIdsRef.current.slice())
+        setDragging(state.entry)
+        // Seed the optimistic layout from the current one so the drag surface
+        // has something to render before the first target update lands.
+        setDragLayout(layoutRef.current)
       }
       updateDragTarget(event.clientY)
       maybeAutoscroll(event.clientY)
@@ -2419,12 +2794,13 @@ export function SidebarConversationList({
     }
   }, [cancelDrag])
 
-  const beginFolderDrag = useCallback(
-    (folderId: number, event: React.PointerEvent) => {
-      if (event.button !== 0 || reorderingRef.current) return
+  const beginEntryDrag = useCallback(
+    (entry: SidebarEntry, event: React.PointerEvent) => {
+      if (event.button !== 0) return
+      if (reorderingRef.current) return
       if (dragPointerRef.current) return
       dragPointerRef.current = {
-        folderId,
+        entry,
         pointerId: event.pointerId,
         startX: event.clientX,
         startY: event.clientY,
@@ -2459,6 +2835,23 @@ export function SidebarConversationList({
     ]
   )
 
+  // Per-kind adapters so the memoized headers get an `(id, event)` callback with
+  // a stable identity — building `{ kind, id }` inline in the JSX would allocate
+  // a fresh function per render and defeat every header's memo.
+  const beginFolderDrag = useCallback(
+    (folderId: number, event: React.PointerEvent) => {
+      beginEntryDrag({ kind: "folder", id: folderId }, event)
+    },
+    [beginEntryDrag]
+  )
+  const beginGroupDrag = useCallback(
+    (groupId: number, event: React.PointerEvent) => {
+      beginEntryDrag({ kind: "group", id: groupId }, event)
+    },
+    [beginEntryDrag]
+  )
+
+  // Safety net: drop listeners / stop autoscroll if the list unmounts mid-drag.
   useEffect(() => () => teardownDragListeners(), [teardownDragListeners])
 
   // One dialog everywhere: it owns directory selection *and* the follow-up
@@ -2485,8 +2878,13 @@ export function SidebarConversationList({
   const showEmptyWorkspaceActions =
     folders.length === 0 && conversations.length === 0
 
+  // A folder's chosen colour drives both its title tint and MaxCode's scoped
+  // row theme. The wrapper stays per-row (rather than around the virtualized
+  // folder subtree), so the colour remains stable without leaking into sibling
+  // folders or breaking virtualization boundaries.
   const folderThemeColor = (folderId: number): FolderThemeColor =>
     normalizeFolderThemeColor(folderIndex.get(folderId)?.color)
+  const darkMode = resolvedTheme === "dark"
 
   // Folder-section sessions indent one step under the header (`depth >= 1`)
   // but must not grow a spine from the folder icon. Skip that first rail
@@ -2526,6 +2924,27 @@ export function SidebarConversationList({
     )
   }
 
+  // Which group each folder belongs to, straight off the resolved layout, so it
+  // agrees with what is actually rendered (including mid-drag) rather than with
+  // a possibly-stale `folder.group_id`.
+  const groupIdByFolder = useMemo(() => {
+    const map = new Map<number, number>()
+    for (const [groupId, members] of layout.membersByGroup) {
+      for (const memberId of members) map.set(memberId, groupId)
+    }
+    return map
+  }, [layout])
+
+  // A folder inside a group is indented one level, exactly like a worktree
+  // sub-group — the same `depth` machinery drives its glyph inset, connector
+  // rails and its conversations' indent, so the whole subtree shifts together. A
+  // worktree child inherits its repo's group, since the repo is what carries the
+  // family into the group.
+  const groupDepth = (folderId: number): number => {
+    const familyRoot = childToParent.get(folderId) ?? folderId
+    return groupIdByFolder.has(familyRoot) ? 1 : 0
+  }
+
   // Running sessions across a container repo and all its worktrees — the count
   // shown on the container header (its own sessions live in the root sub-group,
   // so the bare per-folder number would understate the repo family).
@@ -2534,6 +2953,23 @@ export function SidebarConversationList({
     const kids = containerChildren.get(repoId)
     if (kids) {
       for (const kid of kids) total += folderRunningCounts.get(kid) ?? 0
+    }
+    return total
+  }
+
+  // The same number one level up: a GROUP's badge is the running sessions across
+  // every folder in it. Members are always reorderable top-level folders, so
+  // `containerRunningCount` is the right per-member term in both worktree modes
+  // — with "Show worktrees" on it adds the worktree children (their own display
+  // groups), with it off `folderRunningCounts` has already folded them in.
+  //
+  // Computed here at render, deliberately NOT in `buildRows`: like the folder
+  // badge, a status event must move one number on one memoized header, never
+  // rebuild the row model.
+  const groupRunningCount = (groupId: number): number => {
+    let total = 0
+    for (const memberId of layout.membersByGroup.get(groupId) ?? []) {
+      total += containerRunningCount(memberId)
     }
     return total
   }
@@ -2549,6 +2985,10 @@ export function SidebarConversationList({
       /** Render as the container repo's own-sessions "root" sub-group (FolderRoot
        *  glyph, indented, session-only collapse) rather than the repo header. */
       rootGroup?: boolean
+      /** Force depth 0. Used by the drag surface, where every row must be the
+       *  same fixed height AND the same indent for `pointerYToTargetIndex`; the
+       *  surface conveys nesting with its own explicit indent instead. */
+      flat?: boolean
     }
   ) => {
     const folderEntry = folderIndex.get(folderId)
@@ -2565,7 +3005,12 @@ export function SidebarConversationList({
     const isContainer =
       !isRootGroup && showWorktrees && containerRepoIds.has(folderId)
     const variant = isRootGroup ? "root" : isWorktree ? "worktree" : "repo"
-    const depth = isRootGroup || isWorktree ? 1 : 0
+    // Sub-group indent (worktree / root) stacks ON TOP of the group indent, so a
+    // worktree of a grouped repo sits at depth 2. `opts.flat` zeroes both on the
+    // drag surface, whose fixed-height row math needs every row at one indent.
+    const depth = opts.flat
+      ? 0
+      : (isRootGroup || isWorktree ? 1 : 0) + groupDepth(folderId)
     const runningCount = isContainer
       ? containerRunningCount(folderId)
       : (folderRunningCounts.get(folderId) ?? 0)
@@ -2602,6 +3047,18 @@ export function SidebarConversationList({
         onOpenInSystemExplorer={handleOpenFolderInSystemExplorer}
         onOpenInTerminal={handleOpenFolderInTerminal}
         onOpenInCode={handleOpenFolderInCode}
+        // "Move to group" only on real, reorderable folder headers. A worktree
+        // sub-group and a container's "root" sub-group follow their repo and
+        // can't be grouped on their own, so they get no submenu at all rather
+        // than one that silently moves something else.
+        folderGroups={isRootGroup || isWorktree ? undefined : folderGroups}
+        currentGroupId={groupIdByFolder.get(folderId) ?? null}
+        onMoveToGroup={
+          isRootGroup || isWorktree ? undefined : handleMoveToGroup
+        }
+        onNewGroupWithFolder={
+          isRootGroup || isWorktree ? undefined : handleNewGroupWithFolder
+        }
         isDragging={opts.dragging}
         onGripPointerDown={
           opts.grip !== false && !isRootGroup && !isWorktree
@@ -2612,6 +3069,14 @@ export function SidebarConversationList({
         depth={depth}
         variant={variant}
         worktreeBranch={folderEntry?.gitBranch ?? null}
+        // The container's live HEAD (the root sub-group shares its repo's id).
+        // `gitBranch` is only a fallback for shape's sake — the folder row's
+        // `git_branch` column is never written by the folder flow.
+        rootBranch={
+          isRootGroup
+            ? (branches.get(folderId) ?? folderEntry?.gitBranch ?? null)
+            : null
+        }
       />
     )
   }
@@ -2652,6 +3117,11 @@ export function SidebarConversationList({
           onImportSessions={
             row.section === "folders" ? handleOpenImportWindow : undefined
           }
+          // "New group" — the one action in this cluster that organises the
+          // list rather than adding to it. Stable callback, so the memo holds.
+          onNewFolderGroup={
+            row.section === "folders" ? openNewGroupDialog : undefined
+          }
           // Every section header carries a top gap: it separates "Folders" from
           // the "Pinned" section above it, and — now that a fixed New chat /
           // Search region sits above the scrolled list — gives the first section
@@ -2661,10 +3131,49 @@ export function SidebarConversationList({
         />
       )
     }
+    if (row.kind === "folder-group") {
+      const group = folderGroups.find((g) => g.id === row.groupId)
+      if (!group) return null
+      return (
+        <SidebarFolderGroupHeader
+          groupId={row.groupId}
+          name={group.name}
+          runningCount={groupRunningCount(row.groupId)}
+          expanded={row.expanded}
+          onToggle={toggleFolderGroup}
+          onRename={handleRenameGroup}
+          onChangeColor={handleChangeGroupColor}
+          onDelete={handleDeleteGroup}
+          themeColor={normalizeFolderThemeColor(group.color)}
+          appThemeColor={appThemeColor}
+          isDragging={dragging?.kind === "group" && dragging.id === row.groupId}
+          onGripPointerDown={beginGroupDrag}
+        />
+      )
+    }
+    if (row.kind === "group-empty") {
+      // Folderless hint at the member indent (depth 1), so it reads as being
+      // INSIDE the group rather than as another top-level row.
+      return (
+        <div
+          className="flex h-[2rem] items-center text-[0.75rem] text-muted-foreground/70"
+          style={{
+            paddingLeft: `calc(var(--conv-rail-axis) + 0.875rem + ${CONV_RAIL_DEPTH_STEP})`,
+          }}
+        >
+          <span className="truncate">{t("folderGroup.empty")}</span>
+        </div>
+      )
+    }
     if (row.kind === "folder") {
       return themeWrap(
         row.folderId,
         folderHeaderElement(row.folderId, {
+          dragging: dragging?.kind === "folder" && dragging.id === row.folderId,
+          // Worktree child headers follow their parent and never reorder on
+          // their own, so they are not drag initiators (no grip). Only
+          // reorderable top-level repos keep the grip.
+          grip: !(showWorktrees && childToParent.has(row.folderId)),
           // While this folder's sticky overlay is showing, the overlay is the
           // accessible control; make the (occluded) in-list copy inert so it is
           // not a duplicate tab stop / announcement.
@@ -2674,27 +3183,33 @@ export function SidebarConversationList({
     }
     if (row.kind === "root-group") {
       // A container repo's own-sessions sub-group. Shares the repo id (for its
-      // bucket / count / theme) but is its own row kind with its own toggle.
+      // bucket / count / theme) but is its own row kind with its own toggle, and
+      // is never draggable (it follows the container).
       return themeWrap(
         row.folderId,
         folderHeaderElement(row.folderId, {
+          dragging: false,
+          grip: false,
           rootGroup: true,
         })
       )
     }
     if (row.kind === "empty") {
-      // Sessions hang one step under the header (plain folder or worktree
-      // sub-group). Only a worktree / root-group empty hint draws the
-      // container spine — a plain folder stays indented, without a rail.
+      // A worktree / root sub-group's empty hint is indented one level so its
+      // text lines up under the (depth-1) sub-group's sessions, matching the
+      // header. A plain folder's hint stays at depth 0. Group membership adds
+      // another level on top, exactly as it does for the header.
       const nested =
         showWorktrees &&
         (childToParent.has(row.folderId) || containerRepoIds.has(row.folderId))
-      const depth = 1
+      const depth = (nested ? 1 : 0) + groupDepth(row.folderId)
       return themeWrap(
         row.folderId,
-        // Full row height (h-[2rem], the fixed virtua item size) so the
-        // container connector spine stays continuous THROUGH an empty
-        // worktree ("no conversations") instead of breaking at a shorter box.
+        // Full row height (h-[2rem], the fixed virtua item size) so the container
+        // connector spine stays continuous THROUGH an empty sub-group ("no
+        // conversations") instead of breaking at a shorter box. The ancestor rail
+        // spans this row; it renders nothing at depth 0 (a plain folder has no
+        // spine).
         <div
           className="relative flex h-[2rem] items-center text-[0.75rem] text-muted-foreground/70"
           style={{
@@ -2913,13 +3428,10 @@ export function SidebarConversationList({
       )
     }
     const conv = row.conversation
-    // Theme the row by its display group. With "Show worktrees" off a worktree
-    // conversation renders under its parent group (themed as the parent); on, it
-    // renders under its own worktree header (themed as itself). `displayChildToParent`
-    // captures both — empty when the toggle is on.
-    const groupId = displayChildToParent.get(conv.folder_id) ?? conv.folder_id
-    return themeWrap(
-      groupId,
+    // No folder tint reaches this row: a card always renders in the app theme,
+    // whichever colour its folder carries. The colour is a label for the FOLDER,
+    // not a skin for the sessions inside it.
+    return (
       <SidebarConversationCard
         conversation={conv}
         isSelected={
@@ -2953,6 +3465,8 @@ export function SidebarConversationList({
   // prefix to stay distinct from its canonical twin.
   const rowKey = (row: SidebarRow): string => {
     if (row.kind === "section") return `section-${row.section}`
+    if (row.kind === "folder-group") return `foldergroup-${row.groupId}`
+    if (row.kind === "group-empty") return `groupempty-${row.groupId}`
     if (row.kind === "folder") return `folder-${row.folderId}`
     if (row.kind === "root-group") return `rootgroup-${row.folderId}`
     if (row.kind === "empty") return `empty-${row.folderId}`
@@ -3072,18 +3586,82 @@ export function SidebarConversationList({
                         data-folder-drag-surface
                         className="flex flex-col"
                       >
-                        {reorderableFolderIds.map((folderId) => (
-                          <div key={folderId}>
-                            {themeWrap(
-                              folderId,
-                              folderHeaderElement(folderId, {
-                                dragging: dragging === folderId,
-                                collapsed: true,
-                                grip: false,
-                              })
-                            )}
-                          </div>
-                        ))}
+                        {dragSlots.map((slot, index) => {
+                          if (slot.render.kind === "ungroup") {
+                            return (
+                              <div
+                                key="ungroup"
+                                className={cn(
+                                  "flex h-[2rem] items-center rounded-full",
+                                  "border border-dashed border-sidebar-border",
+                                  "px-[0.75rem] text-[0.75rem] text-muted-foreground/80"
+                                )}
+                              >
+                                <span className="truncate">
+                                  {t("folderGroup.dropToUngroup")}
+                                </span>
+                              </div>
+                            )
+                          }
+                          if (slot.render.kind === "group") {
+                            const groupId = slot.render.id
+                            const group = folderGroups.find(
+                              (g) => g.id === groupId
+                            )
+                            // Keep the drag slots and rendered rows aligned even
+                            // if another window removes a group mid-gesture.
+                            if (!group) {
+                              return (
+                                <div
+                                  key={`g-${groupId}`}
+                                  className="h-[2rem]"
+                                />
+                              )
+                            }
+                            return (
+                              <div key={`g-${groupId}`}>
+                                <SidebarFolderGroupHeader
+                                  presentation
+                                  groupId={groupId}
+                                  name={group.name}
+                                  runningCount={groupRunningCount(groupId)}
+                                  expanded={false}
+                                  themeColor={normalizeFolderThemeColor(
+                                    group.color
+                                  )}
+                                  appThemeColor={appThemeColor}
+                                  isDragging={
+                                    dragging.kind === "group" &&
+                                    dragging.id === groupId
+                                  }
+                                />
+                              </div>
+                            )
+                          }
+                          const { id: folderId, depth } = slot.render
+                          return (
+                            <div
+                              key={`f-${folderId}-${index}`}
+                              style={
+                                depth > 0
+                                  ? { paddingLeft: CONV_RAIL_DEPTH_STEP }
+                                  : undefined
+                              }
+                            >
+                              {themeWrap(
+                                folderId,
+                                folderHeaderElement(folderId, {
+                                  dragging:
+                                    dragging.kind === "folder" &&
+                                    dragging.id === folderId,
+                                  collapsed: true,
+                                  grip: false,
+                                  flat: true,
+                                })
+                              )}
+                            </div>
+                          )
+                        })}
                       </div>
                     ) : null}
                   </>
@@ -3119,8 +3697,9 @@ export function SidebarConversationList({
                 >
                   {themeWrap(
                     stickyFolderId,
-                    <div className="bg-sidebar">
+                    <div className="pointer-events-auto bg-sidebar">
                       {folderHeaderElement(stickyFolderId, {
+                        dragging: false,
                         grip: false,
                         onToggle: toggleFolder,
                       })}
@@ -3150,6 +3729,15 @@ export function SidebarConversationList({
             <ContextMenuItem onSelect={handleProjectBoot}>
               <Rocket className="h-4 w-4" />
               {tFolderDropdown("projectBoot")}
+            </ContextMenuItem>
+            {/* The trigger wraps the whole scroll area, so this is also the menu
+                a right-click on the "Folders" heading (or on empty space below
+                the list) opens — the same entry point as the heading's
+                hover-revealed button, reachable without aiming at a 24px
+                target. */}
+            <ContextMenuItem onSelect={openNewGroupDialog}>
+              <LayersPlus className="h-4 w-4" />
+              {t("folderGroup.newGroup")}
             </ContextMenuItem>
             <ContextMenuItem onSelect={handleOpenImportWindow}>
               <Download className="h-4 w-4" />
@@ -3228,6 +3816,68 @@ export function SidebarConversationList({
           <AlertDialogFooter>
             <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
             <AlertDialogAction onClick={handleRemoveFolderConfirm}>
+              {tCommon("confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Naming a group up front, rather than dropping an "Untitled" band into
+          the list and relying on a follow-up rename that an interrupted user
+          never performs. Doubles as the "New group…" step inside a folder's
+          "Move to group" submenu — `pendingGroupFolderId` is what makes the two
+          one gesture. */}
+      <Dialog open={newGroupOpen} onOpenChange={setNewGroupOpen}>
+        <DialogContent className="sm:max-w-[24rem]">
+          <DialogHeader>
+            <DialogTitle>{t("folderGroup.newGroupTitle")}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={newGroupName}
+            onChange={(e) => setNewGroupName(e.target.value)}
+            {...newGroupIme.props}
+            onKeyDown={(e) => {
+              // Never commit mid-composition: an IME's candidate-selection
+              // Enter would otherwise create a group named half a word.
+              if (newGroupIme.isComposing(e)) return
+              if (e.key === "Enter") void confirmNewGroup()
+            }}
+            placeholder={t("folderGroup.namePlaceholder")}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewGroupOpen(false)}>
+              {tCommon("cancel")}
+            </Button>
+            <Button onClick={() => void confirmNewGroup()}>
+              {tCommon("create")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Shown only for a NON-empty group (see `handleDeleteGroup`). The copy's
+          job is to say the folders survive — "delete group" otherwise reads as
+          "delete the folders in it". */}
+      <AlertDialog
+        open={deleteGroupConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteGroupConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {t("folderGroup.deleteConfirmTitle")}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("folderGroup.deleteConfirmDescription", {
+                name: deleteGroupConfirm?.name ?? "",
+                count: deleteGroupConfirm?.count ?? 0,
+              })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tCommon("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void confirmDeleteGroup()}>
               {tCommon("confirm")}
             </AlertDialogAction>
           </AlertDialogFooter>

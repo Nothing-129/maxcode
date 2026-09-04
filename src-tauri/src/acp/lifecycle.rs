@@ -541,7 +541,8 @@ fn format_terminal_error(message: &str, code: Option<&str>) -> String {
 /// `{providerIdentifier, toolName, args: {...}}`. Mirrors the frontend
 /// `ARGS_WRAPPER_KEYS` in `delegation-card.ts` so the two sides peel exactly
 /// the same shapes.
-const ARGS_WRAPPER_KEYS: [&str; 6] = ["arguments", "input", "params", "payload", "_meta", "args"];
+pub(crate) const ARGS_WRAPPER_KEYS: [&str; 6] =
+    ["arguments", "input", "params", "payload", "_meta", "args"];
 
 /// Walk wrapper layers — and one level of double-encoded JSON-of-JSON — down to
 /// the object that actually carries the `delegate_to_agent` arguments, and

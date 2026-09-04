@@ -8,8 +8,20 @@ import {
   terminalResize,
   terminalKill,
 } from "@/lib/api"
-import { createWriteQueue } from "@/lib/terminal/write-queue"
+import { createWriteQueue, type WriteQueue } from "@/lib/terminal/write-queue"
 import { getTerminalTheme } from "@/lib/terminal/theme"
+import {
+  copyTerminalSelection,
+  isTerminalCopyShortcut,
+} from "@/lib/terminal/shortcuts"
+import {
+  applyTermMods,
+  kbdLiftPx,
+  termKeySeq,
+  type TermKeyBarKey,
+  type TermMods,
+} from "@/lib/terminal/keybar"
+import { TermKeybar } from "@/components/terminal/term-keybar"
 import { useZoomLevel, useTerminalFont } from "@/hooks/use-appearance"
 import { detectPlatform } from "@/hooks/use-platform"
 import type { TerminalEvent } from "@/lib/types"
@@ -60,6 +72,11 @@ interface TerminalViewProps {
   initialCommand?: string
   isActive: boolean
   isVisible: boolean
+  /**
+   * 移动端虚拟键栏可见性。父级基于 `useIsMobile()` + 折叠开关判定；桌面端
+   * 永远为 false。
+   */
+  keybarVisible?: boolean
   onProcessExited?: (terminalId: string) => void
 }
 
@@ -70,6 +87,7 @@ export function TerminalView({
   initialCommand,
   isActive,
   isVisible,
+  keybarVisible = false,
   onProcessExited,
 }: TerminalViewProps) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -88,6 +106,90 @@ export function TerminalView({
   const terminalLigaturesRef = useRef(terminalLigatures)
   const ligaturesAddonRef = useRef<DisposableAddon | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // ---- 移动端虚拟键栏（CTRL/ALT 闩锁 + 软键盘跟随）----
+  // modsRef 是编码真值（xterm.onData 闭包里读它不会过期）；modsUi 只驱动按钮
+  // 高亮。两者经 setMods() 同步，避免 setMods 引用漂移。
+  const [modsUi, setModsUi] = useState<TermMods>({ ctrl: false, alt: false })
+  const modsRef = useRef<TermMods>({ ctrl: false, alt: false })
+  const setMods = (next: TermMods) => {
+    modsRef.current = next
+    setModsUi(next)
+  }
+  // writeQueue 在 init() 里创建，键栏按键也必须走这条队列——否则与软键盘
+  // onData 抢着调 terminalWrite 会让顺序变成不可预期的乱序（FIFO 不再成立）。
+  const writeQueueRef = useRef<WriteQueue | null>(null)
+
+  const toggleMod = (m: "ctrl" | "alt") => {
+    const cur = modsRef.current
+    setMods(
+      m === "ctrl"
+        ? { ctrl: !cur.ctrl, alt: false }
+        : { ctrl: false, alt: !cur.alt }
+    )
+    termRef.current?.focus()
+  }
+
+  const pressKey = (key: TermKeyBarKey) => {
+    const cur = modsRef.current
+    // DECCKM：应用光标键模式下方向键/Home/End 必须发 ESC O X，否则 vim/htop
+    // 之类按 terminfo 匹配的程序会把 ESC [ A 拆成三个键。
+    const appCursorKeys =
+      termRef.current?.modes.applicationCursorKeysMode ?? false
+    const data = termKeySeq(key, cur, appCursorKeys)
+    if (cur.ctrl || cur.alt) setMods({ ctrl: false, alt: false }) // 闩锁被消费
+    writeQueueRef.current?.enqueue(data)
+    termRef.current?.focus()
+  }
+
+  // 键栏收敛三个条件：移动端命中 + 父级未折叠（都由 keybarVisible 带下来）+
+  // 当前 tab 是活动 tab（否则隐藏 tab 上挂着的死按钮会浪费 DOM 与焦点环）。
+  const showKeybar = keybarVisible && isActive && isVisible
+
+  // 键栏一旦不可见就复位闩锁。armed 状态只由键栏按钮高亮呈现，收起键栏（切走
+  // tab、收起面板、折叠键栏）后闩锁仍然生效的话，下一个软键盘字符会被无声地
+  // 包装成控制码，而屏幕上没有任何东西提示它 armed 过。
+  useEffect(() => {
+    if (!showKeybar) setMods({ ctrl: false, alt: false })
+  }, [showKeybar])
+
+  // ---- 软键盘弹起跟随 ----
+  // 键盘打开时 visualViewport 被压缩：算出底部被遮住的像素数 kbdLift，
+  // 用 max-height 钳制 xterm + 键栏所在的 flex 容器 —— 键栏作为最后一个
+  // flex 子项自然抬到键盘上方；xterm 随容器变小，原有 ResizeObserver 自动
+  // refit + 发 terminal_resize。
+  const [kbdLift, setKbdLift] = useState(0)
+  useEffect(() => {
+    if (!keybarVisible) {
+      setKbdLift(0)
+      return
+    }
+    const vv = window.visualViewport
+    if (!vv) return
+    let raf = 0
+    let last = -1
+    const update = () => {
+      raf = 0
+      const lift = kbdLiftPx(window.innerHeight, vv.height, vv.offsetTop)
+      if (lift !== last) {
+        last = lift
+        setKbdLift(lift)
+      }
+    }
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    vv.addEventListener("resize", schedule)
+    vv.addEventListener("scroll", schedule)
+    window.addEventListener("resize", schedule)
+    update()
+    return () => {
+      if (raf) cancelAnimationFrame(raf)
+      vv.removeEventListener("resize", schedule)
+      vv.removeEventListener("scroll", schedule)
+      window.removeEventListener("resize", schedule)
+    }
+  }, [keybarVisible])
 
   useEffect(() => {
     isActiveRef.current = isActive
@@ -150,6 +252,8 @@ export function TerminalView({
       // duplicate already-delivered bytes, worse than a drop in a shell. See
       // lib/terminal/write-queue.ts.
       const writeQueue = createWriteQueue((d) => terminalWrite(terminalId, d))
+      // 暴露给键栏按键——必须走这条队列，否则与软键盘输入抢着发会乱序。
+      writeQueueRef.current = writeQueue
 
       // Shell line-editing shortcuts. Sends readline/zle bindings so they
       // work regardless of terminfo.
@@ -169,6 +273,14 @@ export function TerminalView({
 
         const writeSeq = (seq: string) => {
           writeQueue.enqueue(seq)
+          e.preventDefault()
+          return false
+        }
+
+        // Swallowed whether or not anything is selected, so an empty-selection
+        // Ctrl+Shift+C never falls through to the PTY.
+        if (isTerminalCopyShortcut(e, isMac)) {
+          void copyTerminalSelection(term)
           e.preventDefault()
           return false
         }
@@ -204,7 +316,15 @@ export function TerminalView({
         // Some apps toggle focus reporting; don't leak focus in/out sequences
         // into the shell prompt when tabs are switched.
         if (data === "\x1b[I" || data === "\x1b[O") return
-        writeQueue.enqueue(data)
+        // 虚拟键栏闩锁 armed 时包装软键盘输入（CTRL+字母→控制码、ALT→ESC 前缀）
+        const cur = modsRef.current
+        if (cur.ctrl || cur.alt) {
+          const { out, consumed } = applyTermMods(data, cur)
+          if (consumed) setMods({ ctrl: false, alt: false })
+          writeQueue.enqueue(out)
+        } else {
+          writeQueue.enqueue(data)
+        }
       })
 
       // Debounced resize — avoid flooding IPC during drag
@@ -299,6 +419,7 @@ export function TerminalView({
 
       cleanup = () => {
         writeQueue.dispose()
+        writeQueueRef.current = null
         if (resizeTimer) clearTimeout(resizeTimer)
         if (fitTimer) clearTimeout(fitTimer)
         themeObserver.disconnect()
@@ -384,7 +505,33 @@ export function TerminalView({
       }}
       aria-hidden={!isActive}
     >
-      <div ref={containerRef} className="h-full w-full" />
+      {/* xterm + 键栏所在的 flex 列：kbdLift 收缩外层高度，让键栏抬到软键盘上方。
+          键盘收起时改让底部安全区（刘海屏 home indicator）——移动端终端走的是
+          Drawer，portal 到 body，拿不到外壳那层 pb-[env(safe-area-inset-bottom)]，
+          不减这一块最后一行按钮就压在 home indicator 上。键盘弹起时 home
+          indicator 本来就被键盘盖住，再减一次只会多出一条空隙。 */}
+      <div
+        className="flex h-full w-full min-h-0 flex-col gap-1"
+        style={
+          showKeybar
+            ? {
+                maxHeight:
+                  kbdLift > 0
+                    ? `calc(100% - ${kbdLift}px)`
+                    : "calc(100% - env(safe-area-inset-bottom))",
+              }
+            : undefined
+        }
+      >
+        <div ref={containerRef} className="min-h-0 flex-1" />
+        {showKeybar && (
+          <TermKeybar
+            mods={modsUi}
+            onToggleMod={toggleMod}
+            onPressKey={pressKey}
+          />
+        )}
+      </div>
       {loading && isActive && (
         <div className="absolute inset-0 flex items-center justify-center bg-background/80">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">

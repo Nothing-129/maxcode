@@ -1429,6 +1429,29 @@ html:not(.dark) {
   }
 }
 
+/* Sidebar folder / folder-group TITLES painted in the folder's chosen colour.
+   Same shape as `.forge-label` above: `folderTitleTintVars()` (theme-presets.ts)
+   writes BOTH themes' values as inline custom properties and these rules pick
+   the set, because an inline style cannot see the theme class on the root — and
+   because picking in JS would flash the light colour on every cold start in dark
+   mode. The colour deliberately lands on the title TEXT ONLY; the row around it
+   (hover pill, badges, and every conversation card under it) stays on the app
+   theme. Unlayered like the chips, so it beats a Tailwind `text-*` utility if
+   the two ever meet on one element. */
+.folder-title-tint {
+  color: var(--folder-title-light);
+}
+
+.dark .folder-title-tint {
+  color: var(--folder-title-dark);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) .folder-title-tint {
+    color: var(--folder-title-dark);
+  }
+}
+
 /* The forge workbench's "a request is out" sweep (see `PendingBar`). Its own
    keyframes rather than an animation utility: the travel is expressed in the
    SWEEP's width, not the track's, so it has to run from fully off one edge
@@ -2798,4 +2821,171 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   --tu-seq-5: color-mix(in oklab, var(--tu-accent) 64%, var(--card));
   --tu-seq-6: color-mix(in oklab, var(--tu-accent) 81%, var(--card));
   --tu-seq-7: var(--tu-accent);
+}
+
+/* ─── Conversation canvas (ReactFlow) ─── */
+
+/* Running-conversation breathing ring: opacity only, on the card's ring —
+   no transform, no layout work. Guarded by motion-safe at the usage site. */
+@keyframes canvas-breathe {
+  0%,
+  100% {
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      var(--tw-ring-shadow, 0 0 #0000);
+  }
+  50% {
+    box-shadow:
+      var(--tw-ring-offset-shadow, 0 0 #0000),
+      0 0 0 3px color-mix(in oklab, var(--primary) 14%, transparent);
+  }
+}
+
+.canvas-surface {
+  /* Dots grid ink; when the workspace background image is on, the surface
+     turns transparent so the image shows through — drop the dot ink so the
+     grid reads as texture, not noise. */
+  --canvas-dot-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 22%,
+    transparent
+  );
+  /* ReactFlow theme variables → app tokens, all 12 presets + dark for free. */
+  --xy-background-color: transparent;
+  --xy-minimap-background-color: var(--card);
+  --xy-minimap-mask-background-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 12%,
+    transparent
+  );
+  --xy-minimap-node-background-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 30%,
+    transparent
+  );
+  --xy-selection-background-color: color-mix(
+    in oklab,
+    var(--primary) 8%,
+    transparent
+  );
+  --xy-selection-border-default: 1px solid
+    color-mix(in oklab, var(--primary) 45%, transparent);
+  --xy-node-border-radius: 0.75rem;
+  background-color: var(--background);
+}
+/* Board units.
+ *
+ * Everything ON the board — where a card sits, how wide a region is, how tall a
+ * row of the grid is — is a FLOW unit: a plain number that ReactFlow renders,
+ * SQLite stores and the Rust side mirrors (`canvas_detach_member` lands a
+ * detached card with the same arithmetic). A rem cannot be a coordinate, so
+ * those numbers can never follow the appearance zoom.
+ *
+ * The typography inside them therefore must not either, or the two disagree at
+ * every zoom but 100%: the slot stays 132 tall while its contents grow, which is
+ * how a card ended up with a title clipped through the middle of a line at 150%
+ * and a blank third line's worth of dead space at 116%. Same for a region's
+ * fixed header band and a note's fixed box.
+ *
+ * So the board opts out of the app's zoom and keeps its own scale — which it
+ * already has, and which is the honest knob for "make the board bigger": the
+ * zoom control in the corner (and the wheel), persisted per visit.
+ *
+ * Redefining the theme variables is enough for the utilities, because every
+ * Tailwind v4 size resolves through one: `p-3` → `calc(var(--spacing) * 3)`,
+ * `text-xs` → `var(--text-xs)`, `rounded-xl` → `calc(var(--radius) * 1.4)`. The
+ * line heights those text utilities pair with are unitless ratios and follow
+ * their font size for free; the INHERITED one does not, hence the reset below.
+ *
+ * Applies to board CONTENT only. The dock, the zoom pill, the minimap and every
+ * portalled menu are window chrome and keep following the appearance zoom. */
+.canvas-board-units {
+  /* The inherited metrics matter as much as the scale below: text with no size
+     utility of its own would otherwise arrive from outside the board already
+     scaled. 16px is what the root font-size is at 100%, which is the whole
+     definition of "board units".
+
+     `line-height` has to be restated for a subtler reason: `:root` declares it
+     in `em` (deliberately — see the note up there), and an em line-height
+     computes to an absolute LENGTH before it inherits. So a 13px label with no
+     `leading-*` of its own would sit in the root's 36px line box at 150% no
+     matter what this scope says about font sizes — enough to burst a region's
+     fixed 40px header band. Unitless re-resolves against each element's own
+     size, and lands on exactly the same 24px as the root does at 100%. */
+  font-size: 16px;
+  line-height: 1.5;
+  --spacing: 4px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --radius: 10px;
+}
+[data-workspace-bg="on"] .canvas-surface {
+  background-color: transparent;
+  --canvas-dot-color: color-mix(
+    in oklab,
+    var(--muted-foreground) 12%,
+    transparent
+  );
+}
+.canvas-surface .canvas-dots circle {
+  fill: var(--canvas-dot-color);
+}
+/* Appearance only. What takes the map OUT of the absolute positioning its own
+   `<Panel>` wrapper comes with — so it can stack above the zoom controls rather
+   than land on them — is an inline style on the component, deliberately: see
+   the note in `canvas-dock`. Do not re-add `position`/`margin` here; two owners
+   of one layout decision is how it got broken the first time. */
+.canvas-surface .canvas-minimap {
+  border-radius: 0.75rem;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  transition: opacity 120ms ease;
+}
+/* Out of the way while the board is being dragged. The map is an orientation
+   aid for a board that is standing still; during a pan it is a bright rectangle
+   redrawing itself while the thing it depicts moves under it. Opacity rather
+   than `display: none` so the controls beneath it don't jump up and back, and
+   so it fades in rather than popping. */
+.canvas-surface[data-canvas-panning] .canvas-minimap {
+  opacity: 0;
+}
+/* RF wraps each custom node in an absolutely-positioned div; the default
+   focus outline fights the cards' own selected ring. */
+.canvas-surface .react-flow__node:focus {
+  outline: none;
+}
+/* A left-drag on empty board draws the marquee — and ReactFlow deliberately
+   does NOT `preventDefault` that pointerdown (it only does so when the press
+   landed on a child), so the browser drops a text-selection anchor on the pane
+   as well. The drag then sweeps a native selection through every `select-text`
+   region in DOCUMENT order, which is why an expanded card's transcript
+   highlighted even when the marquee never touched it. Refusing to start a
+   selection on the pane removes the anchor; `.select-text` inside a card opts
+   itself back in, so dragging within a transcript still selects its text. Same
+   mechanism ReactFlow already applies to `.react-flow__node` — this just puts
+   it one level up, on their shared container. */
+.canvas-surface .react-flow__pane {
+  user-select: none;
+}
+/* …and for the duration of the drag, nothing on the board is selectable at all.
+   The rule above only refuses the ANCHOR; a subtree that opts back in is still
+   fair game for a selection sweeping through it, and two of them do opt back in
+   — a card body says `select-text`, and form controls get it from the UA
+   stylesheet. `!important` is what beats those, and the attribute is what keeps
+   it to the gesture (`use-canvas-marquee-text-guard`), so selecting a reply
+   inside a card is untouched. Same shape as the panning cursor below. */
+.canvas-surface[data-canvas-marquee],
+.canvas-surface[data-canvas-marquee] * {
+  user-select: none !important;
+}
+/* Right-drag panning is ours, not d3-zoom's (every draggable node carries the
+   `nopan` class its filter refuses), so the grabbing cursor is ours too — and
+   it has to beat every element's own cursor, including a card's text. */
+.canvas-surface[data-canvas-panning],
+.canvas-surface[data-canvas-panning] * {
+  cursor: grabbing !important;
 }

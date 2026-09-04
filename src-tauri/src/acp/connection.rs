@@ -28,8 +28,9 @@ use sacp::{
     SessionMessage, UntypedMessage,
 };
 use sacp_tokio::AcpAgent;
-use tokio::sync::{mpsc, RwLock};
+use tokio::sync::{mpsc, oneshot, RwLock};
 
+use crate::acp::agent_mentions::append_agent_routes;
 use crate::acp::background_watch;
 use crate::acp::error::AcpError;
 use crate::acp::file_system_runtime::{
@@ -43,11 +44,12 @@ use crate::acp::terminal_runtime::{
     TerminalRuntime, TerminalRuntimeError, TerminalShellRuntimeConfig,
 };
 use crate::acp::types::{
-    AcpEvent, AvailableCommandInfo, ConnectionStatus, GrokModelSpec, PermissionOptionInfo,
-    PlanEntryInfo, PromptCapabilitiesInfo, PromptInputBlock, SessionConfigBooleanInfo,
-    SessionConfigKindInfo, SessionConfigOptionInfo, SessionConfigSelectGroupInfo,
-    SessionConfigSelectInfo, SessionConfigSelectOptionInfo, SessionFailureRecord, SessionModeInfo,
-    SessionModeStateInfo, ToolCallImageInfo, UserMessageBlock,
+    AcpEvent, AsyncTaskDelta, AsyncTaskUsage, AvailableCommandInfo, ConnectionStatus,
+    GrokModelSpec, PermissionOptionInfo, PlanEntryInfo, PromptCapabilitiesInfo, PromptInputBlock,
+    SessionConfigBooleanInfo, SessionConfigKindInfo, SessionConfigOptionInfo,
+    SessionConfigSelectGroupInfo, SessionConfigSelectInfo, SessionConfigSelectOptionInfo,
+    SessionFailureRecord, SessionModeInfo, SessionModeStateInfo, ToolCallImageInfo,
+    UserMessageBlock,
 };
 use crate::logging::throttle::LeadingEdgeThrottle;
 use crate::models::agent::AgentType;
@@ -86,6 +88,28 @@ fn merge_agent_env(
     prepend_officecli_path(&mut merged);
 
     merged.into_iter().collect()
+}
+
+/// Whether a Cursor launch gets the root `--force` (Run Everything) flag, from
+/// the panel's `CURSOR_FORCE` knob.
+///
+/// The knob is TRI-state on purpose. It used to be written as "1" for on and
+/// *deleted* for off, which made "the user chose Ask" indistinguishable from
+/// "never configured" — and since the panel rendered the missing key as Run
+/// Everything while this function rendered it as Ask, the switch showed one
+/// thing and the session did another. Off is now written as an explicit "0",
+/// and both sides read the same rule: unset means Ask.
+///
+/// Unset resolving to Ask (not Run Everything) is deliberate. It is what every
+/// Cursor session has actually been doing all along, so no existing install
+/// silently loses its confirmation prompts; `--force` also turns cursor's own
+/// sandbox off (`approvalMode: unrestricted` → `insecure_none`), which is not
+/// something to switch on for someone who never asked.
+pub(crate) fn cursor_force_enabled(value: Option<&str>) -> bool {
+    let Some(value) = value.map(str::trim) else {
+        return false;
+    };
+    value == "1" || value.eq_ignore_ascii_case("true")
 }
 
 /// Cursor subscription-mode launch policy. When the user picked the official
@@ -930,20 +954,42 @@ pub enum ConnectionCommand {
         option_id: String,
     },
     Fork {
+        /// Fork at a chosen message instead of the tail. `None` keeps the
+        /// tail-fork the fork-send composer has always done; see
+        /// [`crate::acp::fork::ForkPoint`] for how each agent resolves it.
+        fork_point: Option<crate::acp::fork::ForkPoint>,
         reply:
             tokio::sync::oneshot::Sender<Result<crate::acp::types::ForkProtocolResult, AcpError>>,
     },
-    /// Inject a live-feedback note into the RUNNING turn over the ACP
+    /// Inject a live-feedback message into the RUNNING turn over the ACP
     /// `_session/steering` extension (native push channel — see
-    /// `manager::submit_feedback`). The loop does the protocol round-trip
-    /// only and replies the parsed outcome; recording the note + the
-    /// `FeedbackSubmitted` broadcast happen in the manager's
-    /// cancellation-shielded task, mirroring Fork's protocol/persistence
-    /// split. The idle arm replies `Err(NoActiveTurn)` so the oneshot can
-    /// never hang.
+    /// `manager::submit_feedback`). Carries the same `PromptInputBlock`s a
+    /// normal prompt does (text plus image attachments), mapped onto the wire
+    /// with the same conversion, so a steered draft keeps its attachments.
+    /// The loop does the protocol round-trip only and replies the parsed
+    /// outcome; recording the note + the `FeedbackSubmitted` broadcast happen
+    /// in the manager's cancellation-shielded task, mirroring Fork's
+    /// protocol/persistence split. The idle arm replies `Err(NoActiveTurn)`
+    /// so the oneshot can never hang.
     Steer {
-        text: String,
+        blocks: Vec<PromptInputBlock>,
         reply: tokio::sync::oneshot::Sender<Result<SteerOutcome, AcpError>>,
+    },
+    /// Stop one AIR async task (`_session/async_task/stop`; claude-agent-acp
+    /// 0.73+). Handled in BOTH loops on purpose: background work is normally
+    /// launched by — and outlives — a turn, so the user is as likely to reach
+    /// for the stop button mid-turn as between turns.
+    ///
+    /// The reply is the adapter's own `stopped` flag, not "did the request
+    /// succeed": it answers `false` for a task it will not stop (unknown,
+    /// already terminal, or a stop already in flight). The visible result
+    /// arrives on the normal channel either way — the adapter follows a
+    /// successful stop with an `async_task_state_update` and a transcript line
+    /// — so this is only what the caller needs to avoid claiming it stopped
+    /// something it didn't.
+    StopAsyncTask {
+        task_id: String,
+        reply: tokio::sync::oneshot::Sender<Result<bool, AcpError>>,
     },
     Disconnect,
 }
@@ -1277,6 +1323,24 @@ async fn record_turn_end(
 /// model at all publishes it on. `None` when the agent exposes no model
 /// selector — most custom agents don't, and a fabricated label would be worse
 /// than an empty field.
+/// The value every advertised config option currently holds, keyed by option
+/// id, in exactly the shape [`apply_preferred_session_options`] consumes for
+/// `preferred_config_values` (a select's value id; `"true"`/`"false"` for a
+/// boolean — see `config_option_already_holds`).
+///
+/// Used to carry a session's selectors across a fork.
+fn current_config_option_values(opts: &[SessionConfigOptionInfo]) -> BTreeMap<String, String> {
+    opts.iter()
+        .map(|opt| {
+            let value = match &opt.kind {
+                SessionConfigKindInfo::Select(sel) => sel.current_value.clone(),
+                SessionConfigKindInfo::Boolean(b) => b.current_value.to_string(),
+            };
+            (opt.id.clone(), value)
+        })
+        .collect()
+}
+
 fn current_model_id_from_opts(opts: &[SessionConfigOptionInfo]) -> Option<String> {
     opts.iter()
         .find(|o| o.category.as_deref() == Some("model"))
@@ -1768,12 +1832,9 @@ async fn build_agent(
                 // apply, and an org policy can downgrade it to rule-based
                 // approval). Sourced from the panel's permission-mode
                 // control (env_json key CURSOR_FORCE — codeg-side knob; the
-                // CLI reads no such env var).
-                if runtime_env
-                    .get("CURSOR_FORCE")
-                    .map(|v| v.trim())
-                    .is_some_and(|v| v == "1" || v.eq_ignore_ascii_case("true"))
-                {
+                // CLI reads no such env var). Unset means Ask; see
+                // `cursor_force_enabled`.
+                if cursor_force_enabled(runtime_env.get("CURSOR_FORCE").map(String::as_str)) {
                     cmd_args.insert(0, "--force".to_string());
                 }
             }
@@ -2358,6 +2419,26 @@ struct PermissionQueue<R = PendingPermission> {
     /// The card currently published to clients. `None` = nothing on screen.
     showing: Option<String>,
     waiting: VecDeque<QueuedPermission>,
+    /// Abort handles for permission requests this connection answers on ANOTHER
+    /// surface — today only pi's extension-UI `select`, which renders on the
+    /// interactive question card (`try_bridge_pi_select_ask`). They publish no
+    /// permission card, so they are deliberately outside `responders` /
+    /// `showing` / `waiting` and the invariant above.
+    ///
+    /// They still have to be parked HERE rather than tracked separately,
+    /// because a drain is the connection's "everything waiting on the user is
+    /// moot now" signal and fires from several places (both turn-completion
+    /// paths, an idle cancel, a mid-turn disconnect). pi is the first asker that
+    /// can outlive its turn — pi-acp dispatches the dialog detached, and pi
+    /// resolves a timed / aborted one locally without telling it — so a missed
+    /// drain leaves the agent blocked AND wedges the connection's
+    /// one-ask-at-a-time slot, sending every later select back to the raw
+    /// approval card this bridge exists to replace. Sitting in the queue makes
+    /// that coverage structural: a new drain site cannot forget them.
+    ///
+    /// Dropping the sender is the signal; the bridged task then cancels its
+    /// question and answers the agent `Cancelled`.
+    detached: Vec<oneshot::Sender<()>>,
 }
 
 // Hand-written rather than derived: `#[derive(Default)]` would demand
@@ -2368,6 +2449,7 @@ impl<R> Default for PermissionQueue<R> {
             responders: HashMap::new(),
             showing: None,
             waiting: VecDeque::new(),
+            detached: Vec::new(),
         }
     }
 }
@@ -2427,13 +2509,25 @@ impl<R: PermissionResponder> PermissionQueue<R> {
     /// key forever (the pre-existing idle-`Cancel` ghost, #442).
     ///
     /// Queued cards need no compensation: they were never published, so no
-    /// client rendered them and `track_request` never counted them.
+    /// client rendered them and `track_request` never counted them. Neither do
+    /// the `detached` ones — dropping their abort senders lets each bridged
+    /// task clear its own surface.
     fn drain(&mut self) -> Option<String> {
         for (_, pending) in self.responders.drain() {
             pending.respond_cancelled();
         }
         self.waiting.clear();
+        self.detached.clear();
         self.showing.take()
+    }
+
+    /// Park an abort handle for a request answered on another surface — see
+    /// [`Self::detached`].
+    fn park_detached(&mut self, abort: oneshot::Sender<()>) {
+        // A fired/dropped handle is a task that already finished; sweeping them
+        // here keeps a long connection from accumulating dead entries.
+        self.detached.retain(|tx| !tx.is_closed());
+        self.detached.push(abort);
     }
 
     /// How many cards are waiting BEHIND the one on screen.
@@ -2990,9 +3084,14 @@ async fn emit_selectors_ready(state: &Arc<RwLock<SessionState>>, emitter: &Event
     emit_with_state(state, emitter, AcpEvent::SelectorsReady).await;
 }
 
+/// The conventional id of a model selector. ACP reserves none — `category:
+/// "model"` is the spec-level signal — but every agent codeg drives spells the
+/// id this way, and the frontend's `isModelConfigOption` accepts either.
+const MODEL_CONFIG_OPTION_ID: &str = "model";
+
 /// Synthesized config-option id for Grok's model picker (drives the composer's
 /// grouped model selector via the frontend's `isModelConfigOption`).
-const GROK_MODEL_OPTION_ID: &str = "model";
+const GROK_MODEL_OPTION_ID: &str = MODEL_CONFIG_OPTION_ID;
 
 /// Synthesized config-option id for Grok's per-session reasoning-effort selector.
 /// Grok ships effort choices in `x.ai/sessionConfig` under `category:"mode"`
@@ -3384,9 +3483,9 @@ fn build_grok_set_model_params(
 async fn send_steer_request(
     cx: &ConnectionTo<Agent>,
     session_id: &SessionId,
-    text: &str,
+    blocks: &[PromptInputBlock],
 ) -> Result<SteerOutcome, AcpError> {
-    let params = build_steer_params(session_id.0.as_ref(), text);
+    let params = build_steer_params(session_id.0.as_ref(), blocks);
     let untyped_req = UntypedMessage::new("_session/steering", params)
         .map_err(|e| AcpError::protocol(format!("Failed to build steering request: {e}")))?;
     let raw = cx
@@ -3397,17 +3496,51 @@ async fn send_steer_request(
     parse_steer_outcome(&raw)
 }
 
-/// Build the `_session/steering` params. The prompt is a single text block
-/// (codeg steering is text-only), and `_meta.steering.idleBehavior =
-/// "promptRequired"` opts into the turn-end-race contract: a turn that
-/// settled first yields `{outcome:"promptRequired"}` WITHOUT consuming the
-/// content, so the host resubmits it through a normal `session/prompt`.
-fn build_steer_params(session_id: &str, text: &str) -> serde_json::Value {
+/// Build the `_session/steering` params. The prompt carries the caller's
+/// blocks through [`map_prompt_blocks`] — the SAME conversion a
+/// `session/prompt` uses — so a steered draft's image attachments reach the
+/// adapter in the exact encoding its prompt path already accepts (a plain
+/// note is still a single text block, as before). `_meta.steering
+/// .idleBehavior = "promptRequired"` opts into the turn-end-race contract: a
+/// turn that settled first yields `{outcome:"promptRequired"}` WITHOUT
+/// consuming the content, so the host resubmits it through a normal
+/// `session/prompt`.
+fn build_steer_params(session_id: &str, blocks: &[PromptInputBlock]) -> serde_json::Value {
     serde_json::json!({
         "sessionId": session_id,
-        "prompt": [{ "type": "text", "text": text }],
+        "prompt": map_prompt_blocks(blocks.to_vec()),
         "_meta": { "steering": { "idleBehavior": "promptRequired" } },
     })
+}
+
+/// Send `_session/async_task/stop` (the AIR async-task control) to stop one
+/// background task. Untyped for the same reason as `_session/steering`: an
+/// extension method the schema has no typed request for.
+///
+/// Returns the adapter's `stopped` flag. A missing/non-boolean field reads as
+/// `false` rather than raising: the adapter answers `{stopped:false}` for a task
+/// it declines to stop, so "no clear yes" and "no" call for the same handling,
+/// and a transport-level failure is already an `Err` on the path above.
+async fn send_stop_async_task_request(
+    cx: &ConnectionTo<Agent>,
+    session_id: &SessionId,
+    task_id: &str,
+) -> Result<bool, AcpError> {
+    let params = serde_json::json!({
+        "sessionId": session_id.0.as_ref(),
+        "asyncTaskId": task_id,
+    });
+    let untyped_req = UntypedMessage::new("_session/async_task/stop", params)
+        .map_err(|e| AcpError::protocol(format!("Failed to build async task stop request: {e}")))?;
+    let raw = cx
+        .send_request_to(Agent, untyped_req)
+        .block_task()
+        .await
+        .map_err(|e| AcpError::protocol(format!("Async task stop request failed: {e}")))?;
+    Ok(raw
+        .get("stopped")
+        .and_then(serde_json::Value::as_bool)
+        .unwrap_or(false))
 }
 
 /// Parse a `_session/steering` response's top-level `outcome`. Strict on
@@ -3790,6 +3923,12 @@ async fn apply_and_emit_session_config_options(
     preferred_config_values: &BTreeMap<String, String>,
     initial_config_options: Vec<SessionConfigOption>,
 ) {
+    // Every establishment starts from an empty ledger. `SessionState` outlives a
+    // fork transition, so without this the child would inherit — and defend —
+    // whatever the parent asserted, on paths that never write it back: Grok's
+    // dedicated branch below, and the empty-preferences early return inside
+    // `apply_preferred_session_options`. See `SessionState::asserted_config_values`.
+    state.write().await.asserted_config_values.clear();
     if agent_type == AgentType::Grok {
         let specs = grok_model_specs.cloned().unwrap_or_default();
         if let Some(mut opts) = synthesize_grok_config_options(grok_meta, &specs) {
@@ -3938,6 +4077,19 @@ fn claude_raw_sdk_session_meta(
 ///   `claude_chunk_parent_tool_use_id`). The adapter checks strictly
 ///   `=== true`, and a pre-0.63 binary ignores the unknown key, so this is
 ///   inert everywhere it isn't understood.
+/// - Any agent that launches `cursor-agent … acp` (the built-in Cursor entry
+///   and custom agents wrapping the same binary — see
+///   `registry::uses_cursor_acp_backend`): `_meta["parameterizedModelPicker"]
+///   = true`. cursor-agent's ACP layer reads exactly this key
+///   (`clientSupportsParameterizedModelPicker`, strictly `=== true`) to pick
+///   between its two model-picker shapes. Without it the `model` select is the
+///   EXPLODED variant list — one row per model×parameter combination, valued
+///   by the variant string — and `set_config_option` accepts no other id. With
+///   it the picker splits into a `model` select over model names plus one
+///   option per model parameter (`fast`, thinking level), which is the only
+///   way Composer's Fast switch is reachable. A build that predates the key
+///   ignores it and stays on variants, so this is inert where it isn't
+///   understood.
 fn build_client_capabilities(
     agent_type: AgentType,
     host_tools: HostToolsPolicy,
@@ -3979,9 +4131,25 @@ fn build_client_capabilities(
             serde_json::Value::Bool(true),
         );
     }
-    // The capabilities array is deliberately "sessionFailure" ONLY.
-    // claude-agent-acp 0.69.0 and codex-acp 1.4.0 added a second AIR
-    // capability, "agentFileChangeReport": advertise it and every prompt may
+    // claude-agent-acp 0.73.0 added "asyncTasks", and it is advertised — to
+    // claude ONLY, because codex-acp 1.8.0 does not implement the channel
+    // (its bundle contains no `asyncTasks` string at all). It publishes the
+    // lifecycle of Claude's NON-AGENT background work (background shells,
+    // workflows, monitors) as `async_task_spawned` / `_progress` /
+    // `_state_update`, all on the parent session id. Unlike the two capabilities
+    // below, this one adds something codeg cannot get anywhere else: the
+    // transcript watcher (`background_watch`) can see that a task was launched
+    // but explicitly CANNOT tell a still-running task from one whose CLI died,
+    // it never sees workflow/monitor tasks at all (they produce no tool call),
+    // and there is no way to stop a task from outside. This channel carries a
+    // real terminal edge, a liveness boundary, an output file path, and the
+    // `_session/async_task/stop` control. Sub-agent tasks stay out of it by the
+    // adapter's own filter (`taskType: "local_agent"` is marked ignored), so
+    // advertising this does not disturb the sub-agent surfaces.
+    //
+    // The remaining two AIR capabilities are deliberately still out.
+    // claude-agent-acp 0.69.0 and codex-acp 1.4.0 added
+    // "agentFileChangeReport": advertise it and every prompt may
     // carry `_meta.jetbrains.air.agentFileChangeReportRequest = {version: 1,
     // requestId}`, after which the agent runs an EXTRA model round-trip at the
     // end of the turn (claude: a Stop hook plus a hidden continuation calling
@@ -4000,26 +4168,60 @@ fn build_client_capabilities(
     // release depends on it, and both adapters no-op without the
     // advertisement, so staying out costs us nothing.
     //
-    // codex-acp 1.7.0 added a third, "nativeSubagentSessions" (the draft ACP
-    // subagent RFD; the canonical gate is a `clientCapabilities.subagents: {}`
-    // field, with this AIR key as the fallback for SDKs that strip it). It must
-    // stay out for a harder reason than cost: `agent-client-protocol-schema`
-    // 0.11.7 cannot RECEIVE the result. Its `SessionUpdate` is an
-    // internally-tagged enum with no catch-all arm, so the `subagent_spawned` /
-    // `subagent_state_update` notifications would fail to deserialize — and
-    // since the adapter switches child messages, thoughts, tools and
-    // permissions onto a child session id announced only in that first
-    // notification, opting in would make subagent work vanish from the timeline
-    // rather than render better. Without the advertisement the lifecycle stays
-    // the legacy `subAgentActivity` tool call codeg already renders, whose
-    // shape is unchanged from 1.4.0. Revisit when the schema crate ships both
-    // the capability field and the update variants.
+    // codex-acp 1.7.0 and claude-agent-acp 0.73.0 have a third,
+    // "nativeSubagentSessions" (the draft ACP subagent RFD; the canonical gate
+    // is a `clientCapabilities.subagents: {}` field, with this AIR key as the
+    // fallback for SDKs that strip it). It stays out — and the reason is no
+    // longer "the schema crate can't deserialize it". `air_async_task_delta`
+    // proves a raw pre-dispatch reader gets around that for any variant. The
+    // reason is that advertising DELETES the frame codeg renders subagents
+    // from, and replaces it with strictly less:
+    //
+    // * The adapter suppresses the `Agent`/`Task` tool call outright once the
+    //   capability is on — `NativeSubagentRuntime.route()` returns null for it,
+    //   commented "Native Agent/Task control calls are intentionally not
+    //   transcript tools". codex does the same to its `subAgentActivity` item.
+    // * That tool call is codeg's whole anchor. `conversation-runtime-store`
+    //   registers its id as an "agent" capsule, nests the child's tool calls
+    //   under it by `meta.claudeCode.parentToolUseId`, and attaches the child's
+    //   prose to it as `agent_transcript`.
+    // * `subagent_spawned` cannot replace it: it carries `subagentSessionId`,
+    //   `name`, `task` and an empty `capabilities` — and NO `parentToolUseId`.
+    //   The child's own updates keep theirs, but it names the tool call that
+    //   was just suppressed, so every one of them would arrive as an orphan.
+    // * The child's output is not new information either. `route()` rewrites
+    //   only `sessionId`; the `_meta.claudeCode.parentToolUseId` codeg already
+    //   routes on rides through untouched. So opting in would move the same
+    //   content onto a session id codeg would then have to map back — to a
+    //   capsule it no longer receives.
+    //
+    // Net: the advertisement trades a precise rendering for a poorer one plus a
+    // connection-level session router, against a spec that is still an
+    // UNMERGED draft (agent-client-protocol#1992) whose adapter file calls
+    // itself "Temporary typed surface … replaced by SDK exports when the draft
+    // ships". Revisit when the draft lands and the announcement carries enough
+    // to rebuild the capsule — a parent tool-use id, or the child tool calls
+    // arriving with one codeg has seen.
     if matches!(agent_type, AgentType::ClaudeCode | AgentType::Codex) {
+        let mut capabilities = vec!["sessionFailure"];
+        if agent_type == AgentType::ClaudeCode {
+            capabilities.push("asyncTasks");
+        }
         meta.insert(
             "jetbrains".to_string(),
             serde_json::json!({
-                "air": { "version": 1, "capabilities": ["sessionFailure"] }
+                "air": { "version": 1, "capabilities": capabilities }
             }),
+        );
+    }
+    // Cursor ACP gates Composer 2.5's `fast` parameter behind this client
+    // capability. Without it the agent advertises only the default variant
+    // (Fast); with it the model picker splits into separate `model` and
+    // `fast` config options that `session/set_config_option` can set.
+    if registry::uses_cursor_acp_backend(agent_type) {
+        meta.insert(
+            "parameterizedModelPicker".to_string(),
+            serde_json::Value::Bool(true),
         );
     }
     if !meta.is_empty() {
@@ -4476,6 +4678,8 @@ fn companion_features_arg(flags: CompanionFeatureFlags) -> Option<String> {
 struct CompanionInjection {
     token: String,
     feedback_available: bool,
+    /// Whether the `delegate_to_agent` tool group was exposed this launch.
+    delegation_enabled: bool,
 }
 
 async fn inject_codeg_mcp(
@@ -4486,6 +4690,30 @@ async fn inject_codeg_mcp(
     tasks_enabled: bool,
     host_tools: HostToolsPolicy,
 ) -> Option<CompanionInjection> {
+    inject_codeg_mcp_with_binary_locator(
+        servers,
+        injection,
+        parent_connection_id,
+        working_dir,
+        tasks_enabled,
+        host_tools,
+        locate_codeg_mcp_binary,
+    )
+    .await
+}
+
+async fn inject_codeg_mcp_with_binary_locator<F>(
+    servers: &mut Vec<McpServer>,
+    injection: &DelegationInjection,
+    parent_connection_id: &str,
+    working_dir: &Path,
+    tasks_enabled: bool,
+    host_tools: HostToolsPolicy,
+    locate_binary: F,
+) -> Option<CompanionInjection>
+where
+    F: FnOnce() -> Option<PathBuf>,
+{
     // codeg-mcp carries BOTH the delegation tools and the live-feedback tool.
     // Inject it when EITHER feature is enabled; the `--features` arg tells the
     // companion which tool groups to expose so a disabled feature's tools never
@@ -4517,6 +4745,18 @@ async fn inject_codeg_mcp(
              anyway. Turn that per-agent switch off to restore the delegation tools."
         );
     }
+    // Which agents the user switched off, so the companion's advertised enum
+    // tracks the live toggle. One indexed query, skipped outright when
+    // delegation is off, and it fails open: the spawn-time disabled check is
+    // the hard gate either way.
+    let disabled = if delegation_enabled {
+        injection
+            .agent_availability
+            .disabled_agent_wire_slugs()
+            .await
+    } else {
+        Vec::new()
+    };
     let flags = CompanionFeatureFlags {
         delegation: delegation_enabled,
         feedback: feedback_enabled,
@@ -4526,9 +4766,12 @@ async fn inject_codeg_mcp(
         automations: authoring.automations_enabled,
         taskboard: authoring.work_tasks_enabled,
     };
-    // `None` (no feature enabled) short-circuits the whole injection.
+    // `None` (no feature enabled) short-circuits BEFORE the binary lookup, the
+    // token registration and the server append: there is no companion to launch,
+    // and looking for a binary we would never use would also emit the "binary
+    // not found" warning below for a connection that asked for nothing.
     let features_arg = companion_features_arg(flags)?;
-    let Some(binary_path) = locate_codeg_mcp_binary() else {
+    let Some(binary_path) = locate_binary() else {
         tracing::warn!(
             "[delegation][WARN] codeg-mcp companion binary not found (checked CODEG_MCP_BIN, \
              exe sibling, and PATH); skipping delegate_to_agent / check_user_feedback / \
@@ -4537,6 +4780,13 @@ async fn inject_codeg_mcp(
         );
         return None;
     };
+    // Registered-and-enabled custom agents become extra `delegate_to_agent`
+    // targets; disabled BUILT-INS are subtracted companion-side
+    // (`--disabled-agents`) so the embedded schema stays the single source of
+    // truth for the builtin list and its order. Either flag is omitted when
+    // empty, which also keeps an older codeg-mcp binary — one that rejects
+    // unknown flags at startup — working for installations needing neither.
+    let (custom_slugs, disabled_builtins) = delegate_target_args(&disabled);
     let token = uuid::Uuid::new_v4().to_string();
     injection
         .tokens
@@ -4548,7 +4798,7 @@ async fn inject_codeg_mcp(
             },
         )
         .await;
-    let mut server = McpServerStdio::new("codeg-mcp", binary_path);
+    let mut server = McpServerStdio::new("codeg-mcp", binary_path.clone());
     let mut args = vec![
         "--parent-connection-id".to_string(),
         parent_connection_id.to_string(),
@@ -4566,20 +4816,6 @@ async fn inject_codeg_mcp(
         "--features".to_string(),
         features_arg,
     ];
-    // Advertised delegate targets track the user's enable toggles, read
-    // fresh at injection time. Registered-and-enabled custom agents become
-    // extra `delegate_to_agent` targets; disabled BUILT-INS are subtracted
-    // companion-side (`--disabled-agents`) so the embedded schema stays the
-    // single source of truth for the builtin list and its order. Either flag
-    // is omitted when empty: the companion then serves its embedded
-    // builtin-only schema unchanged, and an older codeg-mcp binary (which
-    // rejects unknown flags at startup) keeps working for every installation
-    // that needs neither.
-    let disabled = injection
-        .agent_availability
-        .disabled_agent_wire_slugs()
-        .await;
-    let (custom_slugs, disabled_builtins) = delegate_target_args(&disabled);
     if !custom_slugs.is_empty() {
         args.push("--custom-agents".to_string());
         args.push(custom_slugs.join(","));
@@ -4593,6 +4829,7 @@ async fn inject_codeg_mcp(
     Some(CompanionInjection {
         token,
         feedback_available: feedback_enabled,
+        delegation_enabled: flags.delegation,
     })
 }
 
@@ -4789,14 +5026,16 @@ async fn run_connection(
     let perms = pending_perms.clone();
     let state_outer = Arc::clone(&state);
 
-    // Grok's native `ask_user_question` (verified against 0.2.101) arrives as an
-    // `_x.ai/ask_user_question` ACP ext request that BLOCKS on the reply — rather
-    // than the codeg-mcp tool. Capture the shared question access + feature toggle
-    // (both live on the delegation injection) so the ext handler can register the
-    // questions through the SAME interactive-card pipeline and answer grok once the
-    // user submits. `None` when the companion isn't injected — the handler then
-    // lets grok fall back to its inert rendering.
-    let grok_ask_access = delegation_injection
+    // Shared question access + feature toggle (both live on the delegation
+    // injection) for the agents that ask NATIVELY, over a blocking request of
+    // their own rather than the codeg-mcp tool: grok's `_x.ai/ask_user_question`
+    // ext request (verified against 0.2.101) and pi's extension-UI `select`,
+    // which pi-acp folds into `session/request_permission`. Both handlers
+    // register the questions through the SAME interactive-card pipeline and
+    // answer the blocked request once the user submits. `None` when the
+    // companion isn't injected — the handlers then leave the agent on its
+    // pre-bridge rendering.
+    let native_ask_access = delegation_injection
         .as_ref()
         .map(|inj| (Arc::clone(&inj.questions), inj.ask.clone()));
     let grok_ask_conn_id = connection_id.clone();
@@ -4847,9 +5086,33 @@ async fn run_connection(
                 let perms = perms.clone();
                 let perm_cwd = cwd_string.clone();
                 let state_inner = Arc::clone(&state);
+                // pi routes its `ctx.ui.select` questions through this channel;
+                // diverting them needs the shared question access (and the ask
+                // feature toggle).
+                let perm_ask_access = native_ask_access.clone();
+                let perm_conn_id = connection_id.clone();
                 async move |req: RequestPermissionRequest,
                             responder: Responder<RequestPermissionResponse>,
                             _cx: ConnectionTo<Agent>| {
+                    // pi asks the user a question THROUGH this channel (see
+                    // `try_bridge_pi_select_ask`); route it to the interactive
+                    // question card instead of an approval card. Every reject
+                    // path hands the responder back, so the request continues
+                    // down the normal permission path untouched.
+                    let responder = match try_bridge_pi_select_ask(
+                        &perm_ask_access,
+                        &perm_conn_id,
+                        &state_inner,
+                        &emitter_inner,
+                        &perms,
+                        &req,
+                        responder,
+                    )
+                    .await
+                    {
+                        Ok(()) => return Ok(()),
+                        Err(responder) => responder,
+                    };
                     handle_permission_request(
                         &state_inner,
                         &emitter_inner,
@@ -5000,7 +5263,7 @@ async fn run_connection(
         )
         .on_receive_request(
             {
-                let access = grok_ask_access.clone();
+                let access = native_ask_access.clone();
                 let conn_id = grok_ask_conn_id.clone();
                 let card_state = Arc::clone(&grok_ask_state);
                 let card_emitter = grok_ask_emitter.clone();
@@ -5042,7 +5305,7 @@ async fn run_connection(
                 // access + kill switch); approval-style requests (MCP
                 // tool-call approvals, message-only confirms) route through
                 // the permission card via `pending_perms`.
-                let access = grok_ask_access.clone();
+                let access = native_ask_access.clone();
                 let conn_id = grok_ask_conn_id.clone();
                 let perms = perms.clone();
                 let state_inner = Arc::clone(&state);
@@ -5286,10 +5549,18 @@ async fn run_connection(
                 s.goal_actions = Some(goal_actions);
                 if let Some(ref injected) = delegate_injection {
                     s.delegation_token = Some(injected.token.clone());
+                    s.delegation_enabled = injected.delegation_enabled;
                     // The agent's actual feedback capability for this session
                     // — the authoritative gate for submit + UI, fixed at
                     // launch.
                     s.feedback_tool_available = injected.feedback_available;
+                } else {
+                    // Keep a reused/test state fail-closed if companion
+                    // injection was skipped; no stale token or delegation
+                    // capability may survive.
+                    s.delegation_token = None;
+                    s.delegation_enabled = false;
+                    s.feedback_tool_available = false;
                 }
             }
 
@@ -5412,6 +5683,8 @@ async fn run_connection(
                                 terminal_runtime.clone(),
                                 &cwd,
                                 &cwd_string,
+                                supports_resume,
+                                &mcp_servers,
                                 &prompt_ledger,
                                 delegation_injection.as_ref(),
                                 &stderr_tail,
@@ -5523,6 +5796,15 @@ async fn run_connection(
                                 let h = emitter_clone.clone();
                                 let st = Arc::clone(&state);
                                 let dispatch = fix_usage_update_nulls(dispatch);
+                                // Historical replay: a task announced in a past
+                                // session is not running now, and its terminal
+                                // edge may never have been recorded. Drop rather
+                                // than seed the live strip with zombie rows —
+                                // but drop HERE, so it isn't counted as an
+                                // update codeg failed to read.
+                                if air_async_task_delta(&dispatch).is_some() {
+                                    continue;
+                                }
                                 let _ = MatchDispatch::new(dispatch)
                                     .if_notification(async |notif: SessionNotification| {
                                         if recording {
@@ -5640,6 +5922,8 @@ async fn run_connection(
                             terminal_runtime.clone(),
                             &cwd,
                             &cwd_string,
+                            supports_resume,
+                            &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
                             &stderr_tail,
@@ -5825,6 +6109,8 @@ async fn run_connection(
                             terminal_runtime.clone(),
                             &cwd,
                             &cwd_string,
+                            supports_resume,
+                            &mcp_servers,
                             &prompt_ledger,
                             delegation_injection.as_ref(),
                             &stderr_tail,
@@ -5905,6 +6191,8 @@ async fn run_connection(
                     terminal_runtime.clone(),
                     &cwd,
                     &cwd_string,
+                    supports_resume,
+                    &mcp_servers,
                     &prompt_ledger,
                     delegation_injection.as_ref(),
                     &stderr_tail,
@@ -6067,6 +6355,175 @@ async fn handle_grok_ask_user_question(
             }
         }
     });
+}
+
+/// Bridge pi's extension-UI `select` — the way a pi extension asks the user a
+/// multiple-choice question (`ctx.ui.select`) — into codeg's interactive question
+/// card.
+///
+/// pi has no dedicated ask channel: pi-acp turns the dialog into a plain
+/// `session/request_permission` (see
+/// [`crate::acp::question::parse_pi_select_ask`] for the wire shape), so codeg
+/// used to render it as a generic approval card that dumped the synthetic tool
+/// call as raw JSON, and — because pi never emits a `session/update` for that
+/// `pi-ui-*` id — left NO record of the answer once the card was dismissed
+/// (#644). This registers the choices through the shared
+/// [`crate::acp::question::SessionQuestionAccess`] (the SAME path the codeg-mcp
+/// ask tool uses), answers the blocked permission request with the option the
+/// user picked, and emits the answered `AskQuestionResultCard` into the stream.
+///
+/// `Err(responder)` hands the request back for the ordinary permission path,
+/// which is the outcome for everything that isn't a pi select, for a select the
+/// card cannot represent faithfully, and for a connection with an ask already
+/// pending — none of those are worse than the pre-bridge behavior.
+///
+/// A bridged select still parks an abort handle on `perms`, so every permission
+/// drain reclaims it exactly as it reclaimed the approval card this replaces —
+/// see [`PermissionQueue::detached`] for why that matters for pi specifically.
+async fn try_bridge_pi_select_ask(
+    access: &Option<(
+        Arc<dyn crate::acp::question::SessionQuestionAccess>,
+        crate::acp::question::QuestionRuntimeConfig,
+    )>,
+    connection_id: &str,
+    state: &Arc<RwLock<SessionState>>,
+    emitter: &EventEmitter,
+    perms: &PendingPermissions,
+    req: &RequestPermissionRequest,
+    responder: Responder<RequestPermissionResponse>,
+) -> Result<(), Responder<RequestPermissionResponse>> {
+    // Gated on pi's OWN marker rather than `AgentType::Pi`: the id prefix +
+    // `method: "select"` + `choice-*` option ids are pi-acp's fingerprint, and
+    // that also covers a pi registered under a custom agent id (which does not
+    // resolve to `AgentType::Pi`).
+    let tool_call_id = req.tool_call.tool_call_id.to_string();
+    if !tool_call_id.starts_with(crate::acp::question::PI_EXTENSION_UI_ID_PREFIX) {
+        return Err(responder);
+    }
+    let Some((questions, ask_cfg)) = access else {
+        return Err(responder);
+    };
+    // Same kill switch as the codeg-mcp ask tool: when the feature is off, the
+    // approval card stays the way to answer.
+    if !ask_cfg.is_enabled().await {
+        return Err(responder);
+    }
+    let tool_call = serde_json::to_value(&req.tool_call).unwrap_or_default();
+    let options: Vec<(String, String)> = req
+        .options
+        .iter()
+        .map(|o| (o.option_id.to_string(), o.name.clone()))
+        .collect();
+    let Some(ask) = crate::acp::question::parse_pi_select_ask(&tool_call, &options) else {
+        return Err(responder);
+    };
+    // Park the abort handle BEFORE registering, never after: both are await
+    // points, so a drain can land between them, and a handle parked afterwards
+    // would be one the drain never saw — leaving the ask alive across it, which
+    // is the wedge this exists to prevent. Ordering it first is what closes the
+    // window rather than narrowing it: dropping the sender is STICKY, so a drain
+    // in the gap is still observed by the task below on its first poll, which
+    // then cancels the question it just registered. (A re-check after parking
+    // would not close it — the same reasoning as `PermissionQueue`'s emit-inside-
+    // the-lock note.) An early return from here leaves the handle behind with its
+    // receiver dropped; `park_detached` sweeps those, and a drain clears them.
+    let (abort_tx, abort_rx) = oneshot::channel();
+    perms.lock().await.park_detached(abort_tx);
+    // `register_question` consumes the spec; keep the ask to map the answer back
+    // to pi's option id and to render the answered in-stream card.
+    let Some(registered) = questions
+        .register_question(connection_id, vec![ask.spec.clone()])
+        .await
+    else {
+        return Err(responder);
+    };
+    let state = Arc::clone(state);
+    let emitter = emitter.clone();
+    let questions = Arc::clone(questions);
+    let connection_id = connection_id.to_string();
+    let question_id = registered.question_id;
+    // The user answers out-of-band (the `answer_question` endpoint resolves the
+    // one-shot below), so await it on a task — keeping the ACP dispatch loop free
+    // — then unblock pi.
+    tokio::spawn(async move {
+        // `biased` so an answer that lands in the same instant as a drain still
+        // counts: the user clicked, and pi can still be told what they picked.
+        let answer = tokio::select! {
+            biased;
+            answered = registered.answer_rx => answered.ok(),
+            _ = abort_rx => None,
+        };
+        match answer {
+            Some(outcome) => {
+                let option_id = crate::acp::question::pi_select_option_id(&outcome, &ask);
+                // Keep the record honest: an answer pi could not be given (a
+                // decline, or free text typed into the card's always-present
+                // "Other" box) is reported as a decline, which is exactly what
+                // pi is about to be told.
+                let recorded = if option_id.is_some() {
+                    outcome
+                } else {
+                    crate::acp::question::QuestionOutcome {
+                        answers: Vec::new(),
+                        declined: true,
+                    }
+                };
+                // The in-stream "提问回答" capsule. pi resolves the answer over
+                // THIS permission round-trip and never emits a tool_call for the
+                // `pi-ui-*` id, so without this the pick vanishes with the card.
+                // Emitted BEFORE unblocking pi so it lands ahead of pi's
+                // follow-up output; pi is blocked on the reply, so nothing races.
+                emit_with_state(
+                    &state,
+                    &emitter,
+                    AcpEvent::ToolCall {
+                        // pi's own id for the dialog, so the one card is keyed
+                        // to the request it answers.
+                        tool_call_id,
+                        title: "ask_user_question".to_string(),
+                        kind: "other".to_string(),
+                        status: "completed".to_string(),
+                        content: None,
+                        raw_input: Some(
+                            crate::acp::question::grok_result_card_input(std::slice::from_ref(
+                                &ask.spec,
+                            ))
+                            .to_string(),
+                        ),
+                        raw_output: Some(
+                            crate::acp::question::grok_result_card_output(&recorded).to_string(),
+                        ),
+                        locations: None,
+                        meta: None,
+                        images: None,
+                    },
+                )
+                .await;
+                let outcome = match option_id {
+                    Some(option_id) => RequestPermissionOutcome::Selected(
+                        SelectedPermissionOutcome::new(option_id),
+                    ),
+                    None => RequestPermissionOutcome::Cancelled,
+                };
+                let _ = responder.respond(RequestPermissionResponse::new(outcome));
+            }
+            // Either the ask was canceled outright (turn cancel, teardown) or a
+            // permission drain reclaimed it — the connection's "everything
+            // waiting on the user is moot now" signal, which for pi also means
+            // pi has abandoned the dialog on its side. Nothing to render; clear
+            // the ask so the NEXT select can register, and unblock pi with the
+            // cancel it would have gotten from the drained permission queue.
+            None => {
+                questions
+                    .cancel_question(&connection_id, &question_id)
+                    .await;
+                let _ = responder.respond(RequestPermissionResponse::new(
+                    RequestPermissionOutcome::Cancelled,
+                ));
+            }
+        }
+    });
+    Ok(())
 }
 
 /// Bridge grok's native `_x.ai/exit_plan_mode` ext request into codeg's
@@ -6543,6 +7000,16 @@ async fn set_session_config_option(
     config_id: String,
     value_id: String,
 ) -> Result<(), sacp::Error> {
+    // An explicit set means someone has taken ownership of this option — the
+    // user in the composer, or the post-establishment re-assert (already
+    // drained). Either way the establishment-time value stops being the one to
+    // defend, or the user's own pick would be reverted by the next push.
+    // Establishment itself goes through `..._inner` and is unaffected.
+    state
+        .write()
+        .await
+        .asserted_config_values
+        .remove(&config_id);
     // The whole selector transport carries values as opaque strings; only here,
     // at the wire, does the option's advertised kind decide how to encode it.
     let is_boolean = state
@@ -6631,6 +7098,46 @@ fn config_option_already_holds(option: &SessionConfigOption, value: &str) -> boo
         SessionConfigKind::Boolean(b) => b.current_value == (value == "true"),
         _ => false,
     }
+}
+
+/// Whether an advertised option IS the agent's model selector. ACP reserves no
+/// id for it, so match either signal — the `category` every agent that has a
+/// model publishes it under (see [`current_model_id_from_opts`]) or the
+/// conventional `model` id, the same pair the frontend's `isModelConfigOption`
+/// checks.
+fn is_model_config_option(option: &SessionConfigOption) -> bool {
+    matches!(option.category, Some(SessionConfigOptionCategory::Model))
+        || option.id.to_string() == MODEL_CONFIG_OPTION_ID
+}
+
+/// Saved preferences in application order: the model selector first, then every
+/// other id in its natural (sorted) order.
+///
+/// Order is load-bearing because a model switch RE-SCOPES the options hanging
+/// off it. Cursor's parameterized picker is the case that forced this: it
+/// answers `set_config_option("model", …)` by reloading THAT model's own saved
+/// (or default) parameter values, and rejects a parameter id the model in
+/// effect does not define. Replaying by raw key order would put `fast` before
+/// `model` and lose it to the switch — or hard-fail it against the outgoing
+/// model. Grok's dedicated path (`apply_grok_preferred_options`) already
+/// hard-codes the same order for the same reason; this is the generic half.
+///
+/// A preferred id the agent never advertised is ordered as a non-model option
+/// unless it is literally `model` — the fallback stays deliberately narrow
+/// because an unadvertised id is still sent (see `apply_preferred_session_options`).
+fn order_preferred_config_values<'a>(
+    options: &[SessionConfigOption],
+    preferred: &'a BTreeMap<String, String>,
+) -> Vec<(&'a String, &'a String)> {
+    let (model_first, rest): (Vec<_>, Vec<_>) = preferred.iter().partition(|(config_id, _)| {
+        options
+            .iter()
+            .find(|o| o.id.to_string() == **config_id)
+            .map_or(config_id.as_str() == MODEL_CONFIG_OPTION_ID, |o| {
+                is_model_config_option(o)
+            })
+    });
+    model_first.into_iter().chain(rest).collect()
 }
 
 /// Wire-level half of `set_session_config_option`: send the JSON-RPC request and
@@ -6749,7 +7256,11 @@ async fn apply_preferred_session_options(
 
     let session_id = session.session_id().clone();
     let mut options = initial_config_options;
-    for (config_id, value_id) in preferred_config_values {
+    // Model first — see `order_preferred_config_values`. Ordered once against
+    // the INITIAL list: every later list is the same agent's answer to a set,
+    // so the model selector cannot move between ids mid-replay.
+    let ordered = order_preferred_config_values(&options, preferred_config_values);
+    for (config_id, value_id) in ordered {
         // Skip the round-trip when the agent's current value already matches.
         // Note: codex-acp advertises "mode" as a config option (so the match
         // check below normally fires), but we still do NOT skip when a
@@ -6779,7 +7290,71 @@ async fn apply_preferred_session_options(
         }
     }
 
+    // Record what the agent CONFIRMED, not what we asked for, so a rejected or
+    // rewritten pick is never re-asserted against the agent's own verdict
+    // (`config_option_rejection` already tells the user about those). See
+    // `SessionState::asserted_config_values` for why this is retained at all.
+    let settled = current_config_option_values(&map_session_config_options(&options));
+    //
+    // Assigned unconditionally, empty result included: establishment OWNS the
+    // ledger. `SessionState` spans fork transitions, so merging into whatever
+    // the previous session left behind would defend values this session never
+    // asserted — and, when the agent rejected them here, values it has already
+    // refused once.
+    state.write().await.asserted_config_values = preferred_config_values
+        .iter()
+        .filter(|(config_id, value_id)| settled.get(*config_id) == Some(*value_id))
+        .map(|(config_id, value_id)| (config_id.clone(), value_id.clone()))
+        .collect();
+
     options
+}
+
+/// Compare an agent-pushed config-option list against the values codeg asserted
+/// at session establishment and return the ones the push contradicts, removing
+/// each from the ledger as it is returned, **in application order**.
+///
+/// Removing on read is what bounds this: an option can be re-asserted at most
+/// once per session, so an agent that re-pins unconditionally costs one extra
+/// round-trip instead of an endless ping-pong. An empty ledger (the state after
+/// the first prompt, and for every agent that doesn't push) makes this a cheap
+/// read of a `BTreeMap` that is almost always empty.
+///
+/// The order is not cosmetic, and a `BTreeMap`'s alphabetical one is wrong.
+/// Reverting a model re-pin is precisely the case where a single push drifts
+/// BOTH the model and the effort hanging off it, and replaying `effort` before
+/// `model` lets the model switch re-scope effort right back — with both ledger
+/// entries already spent. `order_preferred_config_values` is the same
+/// model-first rule the establishment replay uses, for the same reason.
+async fn take_asserted_config_drift(
+    state: &Arc<RwLock<SessionState>>,
+    pushed: &[SessionConfigOption],
+) -> Vec<(String, String)> {
+    if state.read().await.asserted_config_values.is_empty() {
+        return Vec::new();
+    }
+    let pushed_values = current_config_option_values(&map_session_config_options(pushed));
+    let drifted: BTreeMap<String, String> = {
+        let mut snapshot = state.write().await;
+        let drifted: BTreeMap<String, String> = snapshot
+            .asserted_config_values
+            .iter()
+            .filter(|(config_id, asserted)| {
+                pushed_values
+                    .get(*config_id)
+                    .is_some_and(|pushed| pushed != *asserted)
+            })
+            .map(|(config_id, asserted)| (config_id.clone(), asserted.clone()))
+            .collect();
+        for config_id in drifted.keys() {
+            snapshot.asserted_config_values.remove(config_id);
+        }
+        drifted
+    };
+    order_preferred_config_values(pushed, &drifted)
+        .into_iter()
+        .map(|(config_id, value_id)| (config_id.clone(), value_id.clone()))
+        .collect()
 }
 
 const TERMINAL_POLL_INTERVAL_MS: u64 = 200;
@@ -7509,12 +8084,53 @@ fn map_prompt_blocks(blocks: Vec<PromptInputBlock>) -> Vec<ContentBlock> {
         .collect()
 }
 
+/// The single final agent boundary. `delegation_enabled` is this connection's
+/// launch verdict, so routing is appended for EVERY agent that received the
+/// companion's delegation group — that flag is the only gate, and it is already
+/// the injection gate's own verdict (`supports_mcp` + `agent_delivers_wire_mcp`
+/// + the delegation feature being on).
+fn prepare_agent_bound_prompt(
+    agent_type: AgentType,
+    mut blocks: Vec<PromptInputBlock>,
+    delegation_enabled: bool,
+) -> Vec<ContentBlock> {
+    append_agent_routes(&mut blocks, delegation_enabled);
+    if agent_type == AgentType::Grok {
+        blocks = normalize_grok_image_blocks(blocks);
+    }
+    map_prompt_blocks(blocks)
+}
+
+/// The mode a fork should carry into its child: the event-tracked mode of the
+/// live parent, but only when that parent actually advertises modes.
+///
+/// `SessionState` spans nested fork transitions, so `current_mode` alone can
+/// belong to an ancestor. `parent_modes` is the capability gate that discards
+/// it — see [`ForkExitInfo::inherited_mode_id`].
+fn live_mode_for_fork(
+    state: &SessionState,
+    parent_modes: Option<&SessionModeState>,
+) -> Option<String> {
+    parent_modes.and(state.current_mode.clone())
+}
+
 /// Result when the conversation loop exits due to a fork request.
 struct ForkExitInfo {
     fork_response: sacp::schema::ForkSessionResponse,
     /// Raw top-level `models` from the fork response (Grok per-model effort data),
     /// captured before the typed deserialize drops it. `None` when absent.
     fork_models_raw: Option<serde_json::Value>,
+    /// The parent's live mode, or `None` when the parent advertised no modes.
+    ///
+    /// Captured here rather than read off `SessionState` in the fork handler
+    /// because `emit_session_modes` is a no-op for a modes-less session
+    /// (`connection.rs`, `if let Some(mode_state) = modes`), so
+    /// `current_mode` survives a transition into one and would hand an
+    /// ancestor's mode to a child that does advertise modes. The parent's
+    /// `ActiveSession` is the only capability answer that can't go stale.
+    /// Its `current_mode_id` is NOT used — codeg tracks mode changes through
+    /// events, and the attach-time snapshot never sees them.
+    inherited_mode_id: Option<String>,
     original_session_id: String,
     reply: tokio::sync::oneshot::Sender<Result<crate::acp::types::ForkProtocolResult, AcpError>>,
     connection: ConnectionTo<Agent>,
@@ -7523,9 +8139,9 @@ struct ForkExitInfo {
 /// After `run_conversation_loop` returns, handle normal exit or fork transition.
 ///
 /// When fork is requested, the original session has already been dropped by the
-/// caller.  We attach to the forked session (S2) directly using the
-/// `ForkSessionResponse` — no separate `session/load` is needed because S2 was
-/// just created in-memory by the agent on this connection.
+/// caller. The forked session (S2) is then RE-ESTABLISHED with `session/resume`
+/// before it is attached — see the comment at the resume call for why the
+/// `ForkSessionResponse` alone is not enough to prompt on.
 #[allow(clippy::too_many_arguments)]
 async fn handle_fork_or_exit(
     loop_result: Result<Option<ForkExitInfo>, sacp::Error>,
@@ -7536,8 +8152,13 @@ async fn handle_fork_or_exit(
     perms: &PendingPermissions,
     cmd_rx: &mut mpsc::Receiver<ConnectionCommand>,
     terminal_runtime: Arc<TerminalRuntime>,
-    _cwd: &std::path::Path,
+    cwd: &std::path::Path,
     cwd_string: &str,
+    // `session_capabilities.resume` from initialize, plus the connection's MCP
+    // server list: together they are everything `build_resume_session_request`
+    // needs to make the forked session real on the agent.
+    supports_resume: bool,
+    mcp_servers: &[McpServer],
     // Threaded through from run_connection: the connection-scoped prompt
     // ledger (the forked session's loop keeps fingerprinting into the SAME
     // ledger the still-running watcher consumes from).
@@ -7562,10 +8183,42 @@ async fn handle_fork_or_exit(
     let fork_models_raw = fork_info.fork_models_raw;
     let new_sid = fork_resp.session_id.0.to_string();
 
+    // Carry the parent session's selectors across the fork, read BEFORE any
+    // emit below replaces them with the new session's.
+    //
+    // A fork continues the same conversation, so its mode and model must
+    // continue too — but nothing on the agent side arranges that. `session/new`
+    // semantics apply: claude builds the resumed session from its own defaults,
+    // and codex's fork response describes the thread as freshly configured. The
+    // gap only became visible once the fork stopped attaching claude's
+    // (empty, modes-less) fork response, because an empty response overwrote
+    // nothing and the composer simply kept showing the parent's selectors; a
+    // populated one resets them. Restoring them here is the same machinery a
+    // reconnect uses, and it is a no-op per option when the value already
+    // matches, so an agent that does inherit pays nothing.
+    //
+    // Mode comes pre-gated from the fork request (`ForkExitInfo::
+    // inherited_mode_id`); config values are read here because
+    // `emit_session_config_options_values` always writes the list — an agent
+    // with no config options leaves an empty one, not a stale one.
+    let inherited_mode_id = fork_info.inherited_mode_id;
+    let inherited_config_values = state
+        .read()
+        .await
+        .config_options
+        .as_deref()
+        .map(current_config_option_values)
+        .unwrap_or_default();
+
     tracing::info!(
         "[ACP] Fork transition: attaching to forked session {} (original: {})",
         new_sid,
         fork_info.original_session_id
+    );
+    tracing::info!(
+        "[ACP] Fork inheriting selectors: mode={:?} config={:?}",
+        inherited_mode_id,
+        inherited_config_values
     );
 
     // Reply protocol-level result to manager.fork_session, which will combine
@@ -7577,21 +8230,85 @@ async fn handle_fork_or_exit(
             original_session_id: fork_info.original_session_id,
         }));
 
-    // Build a NewSessionResponse from the ForkSessionResponse so we can
-    // attach directly — the forked session is already live on this process.
-    let initial_config_options = fork_resp.config_options.clone();
-    let new_resp = NewSessionResponse::new(fork_resp.session_id)
-        .modes(fork_resp.modes)
-        .config_options(fork_resp.config_options)
-        .meta(fork_resp.meta);
+    // Make the forked session REAL on the agent before anything prompts on it.
+    //
+    // `session/fork` hands back a session id, but on both adapters that
+    // implement it that id is not yet usable — in two different, equally silent
+    // ways:
+    //
+    //   * claude-agent-acp 0.73.0's `unstable_forkSession` returns the SDK's
+    //     `{ sessionId }` verbatim and never inserts it into its own `sessions`
+    //     map, so the first `session/prompt` hits the `if (!session) throw new
+    //     Error("Session not found")` guard at the top of `prompt()`. It also
+    //     returns no modes and no config options at all.
+    //   * codex-acp 1.8.0's `SessionFork` calls `threadUnsubscribe` on the
+    //     freshly forked thread to release its writer lock. A prompt on it then
+    //     runs to completion inside codex — the rollout file grows — but the
+    //     core streams no `turn/*` notifications to an unsubscribed thread, so
+    //     `runTurn` awaits a completion event that never arrives: the turn hangs
+    //     forever and not one token reaches the transcript.
+    //
+    // `session/resume` repairs both: claude's `getOrCreateSession` creates the
+    // session under the SAME id (`createSession` uses `resume` as the id), and
+    // codex's `resumeSession` re-subscribes the thread. Both adapters advertise
+    // it. Resume — not load — because load would replay the whole forked history
+    // for us to drain and discard; the transcript the user sees comes from the
+    // disk parser (same reasoning as the reconnect ladder above).
+    //
+    // Degradation is deliberate and total: an agent that forks WITHOUT
+    // advertising resume, or whose resume fails, falls back to attaching the
+    // fork response exactly as before. Neither is worse off than it was before
+    // this call existed.
+    let resumed = if supports_resume {
+        let resume_req = build_resume_session_request(
+            agent_type,
+            SessionId::new(new_sid.clone()),
+            cwd,
+            mcp_servers.to_vec(),
+        );
+        match send_resume_session(&cx, resume_req).await {
+            Ok(pair) => Some(pair),
+            Err(e) => {
+                tracing::warn!(
+                    "[ACP] session/resume on the forked session failed ({e}); \
+                     attaching to the fork response as-is"
+                );
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    // Prefer the resume response: it describes the session as the agent holds it
+    // right now, and for claude it is the ONLY source of modes/config options.
+    let (initial_config_options, new_resp, models_raw) = match resumed {
+        Some((resume_resp, resume_models_raw)) => (
+            resume_resp.config_options.clone(),
+            NewSessionResponse::new(SessionId::new(new_sid.clone()))
+                .modes(resume_resp.modes)
+                .config_options(resume_resp.config_options)
+                .meta(resume_resp.meta),
+            resume_models_raw,
+        ),
+        None => (
+            fork_resp.config_options.clone(),
+            NewSessionResponse::new(fork_resp.session_id)
+                .modes(fork_resp.modes)
+                .config_options(fork_resp.config_options)
+                .meta(fork_resp.meta),
+            fork_models_raw,
+        ),
+    };
     let grok_meta = if agent_type == AgentType::Grok {
         new_resp.meta.clone()
     } else {
         None
     };
-    // Opportunistic: grok may carry per-model effort data on a fork response.
+    // Opportunistic: grok may carry per-model effort data on a fork (or, when
+    // the fork was re-established above, a resume) response.
     let grok_model_specs =
-        (agent_type == AgentType::Grok).then(|| parse_grok_model_specs(fork_models_raw.as_ref()));
+        (agent_type == AgentType::Grok).then(|| parse_grok_model_specs(models_raw.as_ref()));
     let mut session = cx.attach_session(new_resp, Default::default())?;
 
     // A fork is a new session id, hence a new transcript file. Its history
@@ -7615,11 +8332,21 @@ async fn handle_fork_or_exit(
         agent_type,
         grok_meta.as_ref(),
         grok_model_specs.as_ref(),
-        None,
-        &BTreeMap::new(),
+        inherited_mode_id.as_deref(),
+        &inherited_config_values,
         initial_config_options.unwrap_or_default(),
     )
     .await;
+    tracing::info!(
+        "[ACP] Fork selectors after restore: mode={:?} model={:?}",
+        state.read().await.current_mode,
+        state
+            .read()
+            .await
+            .config_options
+            .as_deref()
+            .and_then(current_model_id_from_opts)
+    );
     emit_selectors_ready(state, emitter).await;
 
     let loop_result = run_conversation_loop(
@@ -7651,8 +8378,10 @@ async fn handle_fork_or_exit(
         perms,
         cmd_rx,
         terminal_runtime,
-        _cwd,
+        cwd,
         cwd_string,
+        supports_resume,
+        mcp_servers,
         prompt_ledger,
         delegation_injection,
         stderr_tail,
@@ -7715,6 +8444,19 @@ fn classify_session_load_failure(
     if message.contains("is archived") {
         return Some("session_archived");
     }
+    // codex holds a per-thread writer lock, and `session/fork` releases only the
+    // CHILD's (`threadUnsubscribe({threadId: response.thread.id})` in codex-acp
+    // 1.8.0) — the parent stays open in the forking process. Opening the sibling
+    // row codeg creates to keep the pre-fork history therefore lands here with
+    // "thread <id> already has an active writer".
+    //
+    // Nothing is lost and nothing is broken: the session is busy, not gone. That
+    // is why it must never fall through to `session/new` — doing so rebinds that
+    // row to a fresh empty session and destroys the only pointer to the history
+    // it exists to preserve. Closing the forked session frees the lock.
+    if message.contains("already has an active writer") {
+        return Some("session_busy");
+    }
     // Upstream signals for an unrecoverable session (claude-agent-acp 0.58.1):
     //  - "process exited"    → "Claude Code process exited with code 1",
     //                          "The Claude Agent process exited unexpectedly…"
@@ -7741,7 +8483,15 @@ fn classify_session_load_failure(
 /// `classified` is [`classify_session_load_failure`]'s verdict; `None` (an
 /// unexpected failure) is never recovered here — it keeps the existing
 /// emit-then-fall-back-to-`session/new` behaviour.
+///
+/// `session_busy` is excluded outright, for ANY agent. Every other verdict means
+/// the session is gone, so opening a fresh one and linking the history forward
+/// loses nothing; a busy session is still there, and starting over would replace
+/// a live history with an empty session for a lock that clears on its own.
 fn recovers_load_failure_locally(agent_type: AgentType, classified: Option<&'static str>) -> bool {
+    if classified == Some("session_busy") {
+        return false;
+    }
     classified.is_some() && transcript_dir_for(agent_type).is_some()
 }
 
@@ -8223,6 +8973,12 @@ async fn run_conversation_loop<'a>(
     // the same failure (the agent is speaking a protocol we can't read), so the
     // operator wants one signal, not three interleaved ones.
     let mut drop_log_throttle = LeadingEdgeThrottle::new(DROPPED_UPDATE_LOG_WINDOW);
+    // Options an agent push reverted after codeg asserted them at establishment.
+    // Queued rather than re-asserted in place because the select below borrows
+    // `session` for `read_update`, and the re-assert needs its connection;
+    // drained immediately after the select, still inside the idle loop (the
+    // OUTER loop only advances on a command, which may never come).
+    let mut config_drift_to_reassert: Vec<(String, String)> = Vec::new();
     loop {
         // Wait for either a user command or a session update (e.g. available_commands_update)
         let cmd = loop {
@@ -8236,9 +8992,23 @@ async fn run_conversation_loop<'a>(
                             let st = Arc::clone(state);
                             let cwd_opt = Some(cwd);
                             let dispatch = fix_usage_update_nulls(dispatch);
+                            // Background work outlives the turn that started it,
+                            // so these frames arrive on the IDLE loop as often
+                            // as inside one.
+                            if let Some(delta) = air_async_task_delta(&dispatch) {
+                                emit_with_state(&st, &h, AcpEvent::AsyncTask { delta }).await;
+                            } else {
+                            let drift = &mut config_drift_to_reassert;
                             let _ = MatchDispatch::new(dispatch)
                                 .if_notification(
                                     async |notif: SessionNotification| {
+                                        // BEFORE the emit: it overwrites the very
+                                        // state the comparison reads.
+                                        if let SessionUpdate::ConfigOptionUpdate(update) = &notif.update {
+                                            drift.extend(
+                                                take_asserted_config_drift(&st, &update.config_options).await,
+                                            );
+                                        }
                                         emit_conversation_update(&st, &h, agent_type, notif.update, cwd_opt, &mut raw_output_cache, &mut cb_state).await;
                                         Ok(())
                                     },
@@ -8249,12 +9019,39 @@ async fn run_conversation_loop<'a>(
                                     Ok(())
                                 })
                                 .await;
+                            }
                         }
                         Ok(_) => {}
                         Err(e) => {
                             log_dropped_update(&mut drop_log_throttle, "idle", &e);
                         }
                     }
+                }
+            }
+            // Reached only on the update arm (the command arm breaks out), so
+            // `session` is free again here.
+            for (config_id, value_id) in std::mem::take(&mut config_drift_to_reassert) {
+                tracing::info!(
+                    "[ACP] re-asserting '{config_id}'='{value_id}' — the agent reverted it \
+                     after codeg applied it at session establishment"
+                );
+                let cx = session.connection();
+                let sid = session.session_id().clone();
+                if let Err(e) = set_session_config_option(
+                    &cx,
+                    &sid,
+                    state,
+                    emitter,
+                    agent_type,
+                    config_id.clone(),
+                    value_id,
+                )
+                .await
+                {
+                    // Advisory: the agent is running what it pushed and has already
+                    // told the frontend so. Failing the connection over a selector
+                    // would be far worse than the value not being restored.
+                    tracing::warn!("[ACP] failed to re-assert '{config_id}' after a revert: {e}");
                 }
             }
         };
@@ -8268,6 +9065,11 @@ async fn run_conversation_loop<'a>(
                 // consumed: the transcript record this prompt becomes must
                 // classify as wire-rendered foreground, not overlay.
                 prompt_ledger.record_prompt_blocks(&blocks);
+                // Establishment is over the moment the user speaks: from here a
+                // config push is attributable to the prompt (`/model` typed in
+                // chat is one), so codeg stops arbitrating and the agent owns
+                // the selectors. See `SessionState::asserted_config_values`.
+                state.write().await.asserted_config_values.clear();
                 // Cursor's ACP store carries no per-turn timestamps at all
                 // (see `crate::turn_timings`), so codeg journals its own
                 // observation of the turn span: hash + ordinal here (before
@@ -8288,17 +9090,12 @@ async fn run_conversation_loop<'a>(
                         .collect();
                     (crate::turn_timings::prompt_hash(&text), cursor_turn_ord)
                 });
-                // Grok: settle each image onto the carriage grok can read —
-                // decodable ones as native Image blocks (so its describe
-                // sidecar runs), the rest back as resource blobs. The last
-                // point that sees the blocks, so every producer (composer,
-                // queued draft, work task, delegation) is covered at once.
-                let blocks = if agent_type == AgentType::Grok {
-                    normalize_grok_image_blocks(blocks)
-                } else {
-                    blocks
-                };
-                let prompt_blocks = map_prompt_blocks(blocks);
+                // Keep the user's blocks pristine through ledgering, previews,
+                // and cross-client broadcast. Only the final agent-bound prompt
+                // receives the machine routing block derived from agent badges.
+                let delegation_enabled = state.read().await.delegation_enabled;
+                let prompt_blocks =
+                    prepare_agent_bound_prompt(agent_type, blocks, delegation_enabled);
                 if prompt_blocks.is_empty() {
                     // Defensive: the manager rejects empty prompts before the
                     // concurrency gate is set / the command is enqueued (see
@@ -8506,7 +9303,27 @@ async fn run_conversation_loop<'a>(
                                         )
                                         .await;
                                     }
-                                    if let Err(e) = MatchDispatch::new(dispatch)
+                                    // Consumed before the typed pipeline (see
+                                    // `air_async_task_delta`). Only a SPAWN
+                                    // counts as this turn's output: a turn whose
+                                    // only visible result is "I launched a
+                                    // background job" is not an empty turn, but
+                                    // a progress/state tick from a task an
+                                    // EARLIER turn started is not this turn's
+                                    // work — background frames arrive inside
+                                    // later turns as a matter of course, and
+                                    // letting them set the flag would silence
+                                    // the empty-turn diagnosis for a prompt the
+                                    // agent really did answer with nothing.
+                                    if let Some(delta) = air_async_task_delta(&dispatch) {
+                                        probe.saw_agent_output |= delta.spawned;
+                                        emit_with_state(
+                                            &st,
+                                            &h,
+                                            AcpEvent::AsyncTask { delta },
+                                        )
+                                        .await;
+                                    } else if let Err(e) = MatchDispatch::new(dispatch)
                                         .if_notification(
                                             async |notif: SessionNotification| {
                                                 // Body lives in a named `-> ()`
@@ -8864,7 +9681,7 @@ async fn run_conversation_loop<'a>(
                                         let _ = reply.send(landed);
                                     }
                                 }
-                                Some(ConnectionCommand::Steer { text, reply }) => {
+                                Some(ConnectionCommand::Steer { blocks, reply }) => {
                                     // Protocol round-trip only — the manager's
                                     // cancellation-shielded task records the
                                     // note + broadcasts `FeedbackSubmitted`
@@ -8876,7 +9693,7 @@ async fn run_conversation_loop<'a>(
                                     // commands, not session updates. A dead
                                     // receiver is fine — the reply is then
                                     // moot (teardown), nothing to unwind.
-                                    let outcome = send_steer_request(&cx, &sid, &text).await;
+                                    let outcome = send_steer_request(&cx, &sid, &blocks).await;
                                     // A steered message still lands in the
                                     // agent's OWN transcript as a user record,
                                     // which `group_into_turns` reads as the
@@ -8900,9 +9717,23 @@ async fn run_conversation_loop<'a>(
                                     // — the overlay is the only place its work
                                     // can surface at all.
                                     if matches!(outcome, Ok(SteerOutcome::Injected)) {
-                                        prompt_ledger.record_text(&text);
+                                        prompt_ledger.record_prompt_blocks(&blocks);
                                     }
                                     let _ = reply.send(outcome);
+                                }
+                                Some(ConnectionCommand::StopAsyncTask {
+                                    task_id,
+                                    reply,
+                                }) => {
+                                    // Mid-turn is the COMMON case: a background
+                                    // task is usually launched by the turn that
+                                    // is still running. Awaited inline like
+                                    // Steer above — sacp pumps I/O on its own
+                                    // task, so this defers other queued
+                                    // commands, not the turn's updates.
+                                    let _ = reply.send(
+                                        send_stop_async_task_request(&cx, &sid, &task_id).await,
+                                    );
                                 }
                                 Some(ConnectionCommand::Cancel) => {
                                     // Send CancelNotification to agent to stop the current turn
@@ -9140,12 +9971,20 @@ async fn run_conversation_loop<'a>(
                     let _ = reply.send(landed);
                 }
             }
-            Some(ConnectionCommand::Steer { text: _, reply }) => {
+            Some(ConnectionCommand::Steer { blocks: _, reply }) => {
                 // Steering only means something for a RUNNING turn. Reply —
                 // never drop — so the manager's shielded task can't hang on
                 // the oneshot; the caller falls back to a normal prompt (the
                 // same reroute the frontend already has for a turn-end race).
                 let _ = reply.send(Err(AcpError::NoActiveTurn));
+            }
+            Some(ConnectionCommand::StopAsyncTask { task_id, reply }) => {
+                // Unlike Steer, this is NOT turn-scoped: background work
+                // outlives the turn that launched it, and stopping it between
+                // turns is exactly what the button is for.
+                let cx = session.connection();
+                let sid = session.session_id().clone();
+                let _ = reply.send(send_stop_async_task_request(&cx, &sid, &task_id).await);
             }
             Some(ConnectionCommand::Cancel) => {
                 let cx = session.connection();
@@ -9180,7 +10019,7 @@ async fn run_conversation_loop<'a>(
                     inj.broker.cancel_by_parent_turn(conn_id).await;
                 }
             }
-            Some(ConnectionCommand::Fork { reply }) => {
+            Some(ConnectionCommand::Fork { fork_point, reply }) => {
                 if !supports_fork {
                     let _ = reply.send(Err(AcpError::protocol(
                         "This agent does not support session/fork".to_string(),
@@ -9189,12 +10028,16 @@ async fn run_conversation_loop<'a>(
                 }
                 let cx = session.connection();
                 let sid = session.session_id().clone();
+                let inherited_mode_id =
+                    live_mode_for_fork(&*state.read().await, session.modes().as_ref());
                 tracing::info!(
-                    "[ACP] Sending session/fork for session_id={} cwd={}",
+                    "[ACP] Sending session/fork for session_id={} cwd={} fork_point={:?}",
                     sid.0,
-                    cwd
+                    cwd,
+                    fork_point.as_ref().map(|p| &p.message_id)
                 );
-                let result = crate::acp::fork::fork_session(&cx, &sid, cwd).await;
+                let result =
+                    crate::acp::fork::fork_session(&cx, &sid, cwd, fork_point.as_ref()).await;
                 match result {
                     Ok((fork_response, fork_models_raw)) => {
                         tracing::info!(
@@ -9204,6 +10047,7 @@ async fn run_conversation_loop<'a>(
                         return Ok(Some(ForkExitInfo {
                             fork_response,
                             fork_models_raw,
+                            inherited_mode_id,
                             original_session_id: sid.0.to_string(),
                             reply,
                             connection: cx,
@@ -10401,8 +11245,17 @@ fn is_codex_plan_review(
 /// `_meta.permission = {version: 1, title, description?}`. The title is now one
 /// of four fixed strings and the reason lives only in `description`, so a card
 /// built from the tool call alone would read "Edit files" where it used to
-/// explain WHY the edit needs approval. claude-agent-acp does not send this
-/// block; nothing changes for it.
+/// explain WHY the edit needs approval.
+///
+/// claude-agent-acp 0.73.0 made the same move, which is why this must stay
+/// UNGATED. There it is not merely load-bearing but the ONLY source of a
+/// heading: its rebuilt `permissions/` layer emits exactly one `_meta` in the
+/// whole subtree — this request-level block, whose `description` is
+/// `Reason: <decisionReason>` — and the permission tool call it pairs with is
+/// built from `toolInfoFromToolUse`, which returns `{title, kind, content}` and
+/// no `_meta.claudeCode` at all. So the dialog's preferred
+/// `_meta.claudeCode.title` is absent on 0.73.0 cards and falls through to what
+/// this hoists.
 ///
 /// Hoisting rather than adding an event field is deliberate: the tool call is
 /// already the card's payload end-to-end (`PendingPermissionState.tool_call`,
@@ -10410,7 +11263,8 @@ fn is_codex_plan_review(
 /// reason survives a reconnect and a snapshot restore for free. `_meta` is
 /// namespaced by producer, and `permission` is unclaimed at tool-call level —
 /// codex's permission tool calls carry no `_meta` at all, and claude's carries
-/// only `claudeCode`. An existing `_meta.permission` is therefore never
+/// only `claudeCode` (nothing at all since 0.73.0). An existing
+/// `_meta.permission` is therefore never
 /// overwritten: the insert is skipped if the key is already present.
 fn hoist_request_permission_meta(
     tool_call: &mut serde_json::Value,
@@ -11791,6 +12645,82 @@ fn fix_usage_update_nulls(mut dispatch: Dispatch) -> Dispatch {
     dispatch
 }
 
+/// Read one AIR async-task frame out of a raw `session/update` dispatch.
+///
+/// This runs BEFORE `MatchDispatch` on purpose, and consuming the frame here is
+/// not an optimization — it is the only way to see it at all.
+/// `MatchDispatch::if_notification` matches on the METHOD first and then hard-
+/// errors when the params don't parse, so it never reaches `.otherwise()`; and
+/// `agent-client-protocol-schema` 0.11.7's `SessionUpdate` is an
+/// internally-tagged enum with no catch-all arm, so these three variants cannot
+/// deserialize. Left alone they would land on the dropped-update path, which
+/// also feeds the empty-turn diagnosis — a turn that only ran background work
+/// would be reported as an agent that said nothing. Same raw-rewrite seam as
+/// [`fix_usage_update_nulls`].
+///
+/// Deliberately NOT gated on `agent_type`. Only claude-agent-acp is offered the
+/// `asyncTasks` capability today (see `build_client_capabilities`), so nothing
+/// else should send these — but if something does, reading the frame is
+/// strictly better than dropping it, and both adapters implement the same AIR
+/// vocabulary.
+fn air_async_task_delta(dispatch: &Dispatch) -> Option<AsyncTaskDelta> {
+    let Dispatch::Notification(msg) = dispatch else {
+        return None;
+    };
+    // Method-checked as well as shape-checked. These frames only ever ride on
+    // `session/update`, and claiming a dispatch before the typed pipeline is
+    // destructive — nothing downstream gets a second look at it — so a future
+    // extension method that happens to nest an `update.sessionUpdate` must not
+    // be swallowed here. (Session scoping is already settled upstream: this
+    // dispatch came off an `ActiveSession` read, which only yields frames whose
+    // session id matches.)
+    if msg.method() != "session/update" {
+        return None;
+    }
+    let update = msg.params.get("update")?;
+    let spawned = match update.get("sessionUpdate").and_then(|v| v.as_str())? {
+        "async_task_spawned" => true,
+        "async_task_progress" | "async_task_state_update" => false,
+        _ => return None,
+    };
+    let field = |key: &str| air_task_str(update.get(key));
+    let task_id = field("asyncTaskId")?;
+    Some(AsyncTaskDelta {
+        task_id,
+        spawned,
+        name: field("name"),
+        task_type: field("taskType"),
+        description: field("description"),
+        show_in_transcript: update.get("showInTranscript").and_then(|v| v.as_bool()),
+        can_stop: update.get("canStop").and_then(|v| v.as_bool()),
+        state: field("state"),
+        summary: field("summary"),
+        last_tool_name: field("lastToolName"),
+        usage: air_task_usage(update.get("usage")),
+        output_file_path: field("outputFilePath"),
+        tool_call_id: field("toolCallId"),
+    })
+}
+
+/// A trimmed non-blank string field, or `None`. Blank is treated as absent so a
+/// whitespace-only summary can't blank out a good one during the merge.
+fn air_task_str(value: Option<&serde_json::Value>) -> Option<String> {
+    let s = value?.as_str()?.trim();
+    (!s.is_empty()).then(|| s.to_string())
+}
+
+/// All-or-nothing, matching the adapter: it drops a `usage` object that is
+/// missing any of the three counters rather than publishing a partial one.
+fn air_task_usage(value: Option<&serde_json::Value>) -> Option<AsyncTaskUsage> {
+    let usage = value?;
+    let n = |key: &str| usage.get(key).and_then(serde_json::Value::as_u64);
+    Some(AsyncTaskUsage {
+        total_tokens: n("totalTokens")?,
+        tool_uses: n("toolUses")?,
+        duration_ms: n("durationMs")?,
+    })
+}
+
 /// Convert a SessionUpdate into AcpEvent(s) and emit to frontend.
 ///
 /// `raw_output_cache` is a per-session cache used to detect cumulative
@@ -12413,6 +13343,19 @@ async fn emit_conversation_update(
             .await;
         }
         SessionUpdate::ConfigOptionUpdate(update) => {
+            // Agent-initiated push, applied verbatim: it reports what the agent
+            // is actually running, and nothing here distinguishes "the user
+            // typed /model" from "the agent re-pinned its own default". Logged
+            // because it can silently overwrite a value codeg just applied.
+            //
+            // Whether an establishment-time value gets defended against this is
+            // decided one level up, in the idle loop's copy of this arm
+            // (`take_asserted_config_drift`) — it has to run BEFORE this emit,
+            // which overwrites the state the comparison reads.
+            tracing::info!(
+                "[ACP] agent pushed config_option_update: model={:?}",
+                current_model_id_from_opts(&map_session_config_options(&update.config_options))
+            );
             emit_session_config_options_values(state, emitter, agent_type, update.config_options)
                 .await;
         }
@@ -12804,6 +13747,67 @@ mod tests {
                 ("c".to_string(), StubSettled::Cancelled),
             ],
             "queued responders must be cancelled too, not leaked"
+        );
+    }
+
+    #[test]
+    fn permission_queue_drain_aborts_detached_requests_and_leaves_no_dead_handles() {
+        // pi's extension-UI select is answered on the question card, so it parks
+        // only an abort handle here (#644). A drain MUST fire it: pi dispatches
+        // the dialog detached and resolves a timed one locally, so an unreclaimed
+        // bridge leaves pi blocked and wedges the connection's one-ask slot,
+        // sending every later select back to the raw approval card.
+        let (mut q, log) = stub_queue();
+        admit_stub(&mut q, &log, "a");
+        let (tx, mut rx) = oneshot::channel::<()>();
+        q.park_detached(tx);
+        assert!(
+            rx.try_recv().is_err() && !rx.is_terminated(),
+            "still parked"
+        );
+
+        assert_eq!(q.drain().as_deref(), Some("a"));
+        assert!(
+            matches!(rx.try_recv(), Err(oneshot::error::TryRecvError::Closed)),
+            "the drain must drop the abort handle so the bridged task wakes"
+        );
+
+        // Parking sweeps handles whose task already finished, so a long-lived
+        // connection doesn't accumulate them.
+        let (dead_tx, dead_rx) = oneshot::channel::<()>();
+        q.park_detached(dead_tx);
+        drop(dead_rx);
+        let (live_tx, _live_rx) = oneshot::channel::<()>();
+        q.park_detached(live_tx);
+        assert_eq!(q.detached.len(), 1, "the closed handle must be swept");
+    }
+
+    #[tokio::test]
+    async fn a_detached_request_drained_before_its_task_starts_still_aborts() {
+        // Why `try_bridge_pi_select_ask` parks its abort handle BEFORE
+        // registering the question: registration and parking are separate await
+        // points, so a drain can land between them. Parking first makes that
+        // window safe rather than merely narrow — dropping the sender is sticky,
+        // so the bridged task, which only starts afterwards, still observes it on
+        // its first poll and reclaims the ask instead of parking forever.
+        let (mut q, _log) = stub_queue();
+        let (abort_tx, abort_rx) = oneshot::channel::<()>();
+        q.park_detached(abort_tx);
+        q.drain();
+
+        // The answer channel is deliberately left OPEN and unresolved, so the
+        // only thing that can settle this select is the drained abort handle.
+        let (_answer_tx, answer_rx) = oneshot::channel::<u8>();
+        let answered = tokio::select! {
+            biased;
+            answered = answer_rx => answered.ok(),
+            _ = abort_rx => None,
+        };
+        assert!(
+            answered.is_none(),
+            "a drain that lands before the task starts must still abort it — \
+             otherwise the ask survives the drain and wedges the connection's \
+             one-ask slot, sending every later select back to the raw card"
         );
     }
 
@@ -13533,20 +14537,31 @@ mod tests {
             assert!(capabilities
                 .iter()
                 .any(|v| v.as_str() == Some("sessionFailure")));
-            // And nothing else. Adding a capability here is not free — it is
-            // what turns the corresponding behavior on, and neither of the two
-            // that exist is wanted: "agentFileChangeReport"
+            // And exactly this much. Adding a capability here is not free — it
+            // is what turns the corresponding behavior on.
+            //
+            // "asyncTasks" (claude-agent-acp 0.73.0) IS wanted, and only claude
+            // has it: codex-acp 1.8.0 contains no async-task code at all, so
+            // advertising it there would be a promise about a channel that
+            // cannot answer.
+            //
+            // The other two stay out. "agentFileChangeReport"
             // (claude-agent-acp 0.69.0 / codex-acp 1.4.0) buys an extra model
             // round-trip per turn for a clamped, self-reported subset of what
             // the `workspace_state` watcher already sees, and
-            // "nativeSubagentSessions" (codex-acp 1.7.0) would move subagent
-            // output onto child session ids carried by `SessionUpdate` variants
-            // `agent-client-protocol-schema` 0.11.7 cannot deserialize at all.
-            // See the reasoning at the advertisement site before relaxing this.
+            // "nativeSubagentSessions" would make both adapters SUPPRESS the
+            // `Agent`/`Task` tool call that codeg builds its whole subagent
+            // rendering around, replacing it with an announcement that carries
+            // no parent tool-use id to rebuild it from. See the reasoning at
+            // the advertisement site before relaxing this.
+            let expected: Vec<serde_json::Value> = if agent == AgentType::ClaudeCode {
+                vec!["sessionFailure".into(), "asyncTasks".into()]
+            } else {
+                vec!["sessionFailure".into()]
+            };
             assert_eq!(
-                capabilities,
-                &vec![serde_json::Value::String("sessionFailure".to_string())],
-                "{agent:?} must advertise ONLY sessionFailure"
+                capabilities, &expected,
+                "{agent:?} advertises an unexpected AIR capability set"
             );
         }
         // Claude keeps its subagent-transcript flag alongside.
@@ -13569,6 +14584,152 @@ mod tests {
                     .unwrap();
             assert!(caps.get("_meta").and_then(|m| m.get("jetbrains")).is_none());
         }
+    }
+
+    #[test]
+    fn client_capabilities_advertise_parameterized_model_picker_for_cursor() {
+        let caps = serde_json::to_value(build_client_capabilities(
+            AgentType::Cursor,
+            HostToolsPolicy::Default,
+        ))
+        .unwrap();
+        assert_eq!(
+            caps.get("_meta")
+                .and_then(|m| m.get("parameterizedModelPicker"))
+                .and_then(|v| v.as_bool()),
+            Some(true),
+            "Cursor initialize must advertise parameterizedModelPicker"
+        );
+        // Cursor must not pick up Claude/Codex-only extensions.
+        assert!(caps.get("_meta").and_then(|m| m.get("jetbrains")).is_none());
+        assert!(caps
+            .get("_meta")
+            .and_then(|m| m.get("subagent-transcript"))
+            .is_none());
+    }
+
+    #[test]
+    fn client_capabilities_advertise_parameterized_model_picker_for_custom_cursor_agent() {
+        use std::collections::BTreeMap;
+
+        use crate::acp::custom_registry::{
+            hydrate, hydrate_test_guard, BinaryPlatformSpec, CustomAgentDef, CustomAgentSpec,
+            CustomDistributionKind,
+        };
+
+        let _guard = hydrate_test_guard();
+        // Every platform, because `build_meta` REJECTS a binary def with no
+        // entry for the machine it runs on — a windows-only spec would leave
+        // the id unregistered on every other host and this test would then be
+        // asserting against `unregistered_meta`, not a cursor launch recipe.
+        let mut binary = BTreeMap::new();
+        for platform in [
+            "darwin-aarch64",
+            "darwin-x86_64",
+            "linux-aarch64",
+            "linux-x86_64",
+            "windows-aarch64",
+            "windows-x86_64",
+        ] {
+            binary.insert(
+                platform.to_string(),
+                BinaryPlatformSpec {
+                    archive: format!(
+                        "https://downloads.cursor.com/lab/2026.08.11-e8db854/{platform}/agent-cli-package.tar.gz"
+                    ),
+                    cmd: if platform.starts_with("windows") {
+                        "./dist-package/cursor-agent.cmd".into()
+                    } else {
+                        "./dist-package/cursor-agent".into()
+                    },
+                    args: vec!["acp".into()],
+                    ..Default::default()
+                },
+            );
+        }
+        let def = CustomAgentDef {
+            registry_id: "test-cursor-acp".into(),
+            name: "Test Cursor ACP".into(),
+            description: String::new(),
+            version: "1.0.0".into(),
+            distribution_kind: CustomDistributionKind::Binary,
+            spec: CustomAgentSpec {
+                binary,
+                ..Default::default()
+            },
+            icon_url: None,
+            skills_shared_store: false,
+            skills_dir: None,
+            source: Default::default(),
+            version_probe: None,
+            supports_mcp: true,
+        };
+        assert!(
+            hydrate(&[def]).is_empty(),
+            "the def must actually register — an unregistered id falls back to \
+             unregistered_meta, which advertises nothing"
+        );
+        let caps = serde_json::to_value(build_client_capabilities(
+            AgentType::Custom("test-cursor-acp"),
+            HostToolsPolicy::Default,
+        ))
+        .unwrap();
+        assert_eq!(
+            caps.get("_meta")
+                .and_then(|m| m.get("parameterizedModelPicker"))
+                .and_then(|v| v.as_bool()),
+            Some(true),
+            "custom cursor-agent acp must advertise parameterizedModelPicker"
+        );
+        hydrate(&[]);
+    }
+
+    #[test]
+    fn client_capabilities_skip_parameterized_model_picker_for_non_cursor_custom_agent() {
+        use crate::acp::custom_registry::{
+            hydrate, hydrate_test_guard, CustomAgentDef, CustomAgentSpec, CustomDistributionKind,
+            NpxSpec,
+        };
+
+        let _guard = hydrate_test_guard();
+        let def = CustomAgentDef {
+            registry_id: "test-codex-acp".into(),
+            name: "Test Codex ACP".into(),
+            description: String::new(),
+            version: "1.7.0".into(),
+            distribution_kind: CustomDistributionKind::Npx,
+            spec: CustomAgentSpec {
+                npx: Some(NpxSpec {
+                    package: "@agentclientprotocol/codex-acp@1.7.0".into(),
+                    args: vec![],
+                    env: Default::default(),
+                    cmd: Some("codex-acp".into()),
+                    node_required: None,
+                }),
+                ..Default::default()
+            },
+            icon_url: None,
+            skills_shared_store: false,
+            skills_dir: None,
+            source: Default::default(),
+            version_probe: None,
+            supports_mcp: true,
+        };
+        // Same reason as the cursor case: an unregistered id would satisfy the
+        // negative assertion for the wrong reason.
+        assert!(hydrate(&[def]).is_empty());
+        let caps = serde_json::to_value(build_client_capabilities(
+            AgentType::Custom("test-codex-acp"),
+            HostToolsPolicy::Default,
+        ))
+        .unwrap();
+        assert!(
+            caps.get("_meta")
+                .and_then(|m| m.get("parameterizedModelPicker"))
+                .is_none(),
+            "non-cursor custom agents must not advertise parameterizedModelPicker"
+        );
+        hydrate(&[]);
     }
 
     #[test]
@@ -13642,12 +14803,54 @@ mod tests {
 
     #[test]
     fn build_steer_params_shape_carries_the_prompt_required_opt_in() {
-        let params = build_steer_params("sess-1", "use the staging db");
+        let params = build_steer_params(
+            "sess-1",
+            &[crate::acp::types::PromptInputBlock::Text {
+                text: "use the staging db".into(),
+            }],
+        );
         assert_eq!(params["sessionId"], "sess-1");
-        assert_eq!(params["prompt"][0]["type"], "text");
-        assert_eq!(params["prompt"][0]["text"], "use the staging db");
+        // EXACT equality, not field probes: routing a text-only note through
+        // `map_prompt_blocks` must stay byte-identical to the hand-built
+        // `[{type,text}]` this used to emit. A future schema bump that starts
+        // serializing `annotations`/`_meta` as null would change the wire for
+        // every existing steer, and a field probe would not notice.
+        assert_eq!(
+            params["prompt"],
+            serde_json::json!([{ "type": "text", "text": "use the staging db" }])
+        );
         // The opt-in is what keeps the idle race host-owned — its absence
         // would regress to detached `startedNewTurn` turns.
+        assert_eq!(
+            params["_meta"]["steering"]["idleBehavior"],
+            "promptRequired"
+        );
+    }
+
+    #[test]
+    fn build_steer_params_maps_image_blocks_like_a_prompt() {
+        // A steered draft with an attachment must hit the wire in the SAME
+        // encoding `session/prompt` uses (`map_prompt_blocks`): the adapter's
+        // steering handler feeds the array through its normal prompt
+        // conversion, so ACP camelCase (`mimeType`) is what it reads.
+        let params = build_steer_params(
+            "sess-1",
+            &[
+                crate::acp::types::PromptInputBlock::Text {
+                    text: "match this mock".into(),
+                },
+                crate::acp::types::PromptInputBlock::Image {
+                    data: "aGk=".into(),
+                    mime_type: "image/png".into(),
+                    uri: None,
+                },
+            ],
+        );
+        assert_eq!(params["prompt"][0]["type"], "text");
+        assert_eq!(params["prompt"][0]["text"], "match this mock");
+        assert_eq!(params["prompt"][1]["type"], "image");
+        assert_eq!(params["prompt"][1]["data"], "aGk=");
+        assert_eq!(params["prompt"][1]["mimeType"], "image/png");
         assert_eq!(
             params["_meta"]["steering"]["idleBehavior"],
             "promptRequired"
@@ -13890,6 +15093,35 @@ mod tests {
         ));
     }
 
+    /// After a codex fork, the sibling row codeg creates to keep the pre-fork
+    /// history points at the PARENT thread — whose writer the forking process
+    /// still holds, because `session/fork` only unsubscribes the child. Opening
+    /// it must stop with a banner, never fall through to `session/new`: that
+    /// rebinds the row to a fresh empty session and destroys the only pointer to
+    /// the history the row exists for. The lock clears when the fork is closed.
+    #[test]
+    fn classify_load_failure_names_a_session_another_client_holds() {
+        let busy = "Internal error: {\n  \"details\": \"thread \
+             01a0626c-c601-78f1-a13d-2b26dd168501 already has an active \
+             writer\"\n}";
+        assert_eq!(
+            classify_session_load_failure(sacp::schema::ErrorCode::InternalError, busy),
+            Some("session_busy"),
+        );
+
+        assert!(!recovers_load_failure_locally(
+            AgentType::Codex,
+            Some("session_busy")
+        ));
+        // Unlike every other verdict, this one is refused for a custom agent
+        // too: the others mean the session is GONE, so opening a fresh one and
+        // linking the transcript forward loses nothing. A busy session is still
+        // there, and starting over would trade a live history for an empty
+        // session to work around a lock that clears on its own.
+        let custom = AgentType::custom("glm-acp-agent").expect("valid id");
+        assert!(!recovers_load_failure_locally(custom, Some("session_busy")));
+    }
+
     #[test]
     fn classify_load_failure_keeps_existing_behavior_for_recoverable_errors() {
         // "Method not found" (agent lacks resume) and "Authentication required"
@@ -13988,6 +15220,22 @@ mod tests {
             assert!(!env.iter().any(|(k, _)| k == "CURSOR_API_KEY"));
             assert!(!env.iter().any(|(k, _)| k == "CURSOR_API_BASE_URL"));
         }
+    }
+
+    #[test]
+    fn cursor_force_knob_is_tri_state() {
+        // On.
+        for on in ["1", "true", "TRUE", " 1 "] {
+            assert!(cursor_force_enabled(Some(on)), "{on:?} must enable --force");
+        }
+        // Explicitly off — the value the panel now writes for "Ask before
+        // running", which has to be distinguishable from the unset case.
+        for off in ["0", "false", "", "  "] {
+            assert!(!cursor_force_enabled(Some(off)), "{off:?} must not force");
+        }
+        // Never configured. Ask, matching what Cursor sessions have always
+        // actually done, and matching what the panel now shows.
+        assert!(!cursor_force_enabled(None));
     }
 
     #[test]
@@ -14926,6 +16174,15 @@ mod tests {
         assert!(deepseek.get("elicitation").is_some());
         assert!(deepseek.get("_meta").is_none());
 
+        // Cursor: parameterized model picker only (no elicitation / AIR).
+        let cursor = caps_of(AgentType::Cursor);
+        assert_eq!(
+            cursor["_meta"]["parameterizedModelPicker"],
+            serde_json::Value::Bool(true)
+        );
+        assert!(cursor.get("elicitation").is_none());
+        assert!(cursor["_meta"].get("jetbrains").is_none());
+
         // Everyone else: neither gate; fs + terminal always advertised.
         let other = caps_of(AgentType::Gemini);
         assert!(other.get("_meta").is_none());
@@ -15259,6 +16516,45 @@ mod tests {
             }
             other => panic!("expected Error, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn final_agent_boundary_appends_routes_for_every_agent_holding_a_snapshot() {
+        let visible = "ask [@Antigravity](codeg://agent/antigravity) to build";
+        let blocks = vec![PromptInputBlock::Text {
+            text: visible.into(),
+        }];
+        // Not Codex-specific: any parent whose companion carried the delegation
+        // group routes, including custom agents.
+        for parent in [
+            AgentType::Codex,
+            AgentType::ClaudeCode,
+            AgentType::Gemini,
+            AgentType::custom("delegating-custom").expect("valid custom id"),
+        ] {
+            let prompt = prepare_agent_bound_prompt(parent, blocks.clone(), true);
+            assert_eq!(prompt.len(), 2, "{parent} must receive the routing block");
+            assert!(matches!(
+                &prompt[0],
+                ContentBlock::Text(text) if text.text == visible
+            ));
+            assert!(matches!(
+                &prompt[1],
+                ContentBlock::Text(text)
+                    if text.text.contains("Codeg composer routing metadata (authoritative)")
+                        && text.text.contains(r#""agentType":"antigravity""#)
+            ));
+        }
+
+        // An agent that never received the companion (OpenClaw's
+        // supports_mcp=false, pi's wire exclusion) reaches here with delegation
+        // off and keeps a pristine prompt.
+        let unrouted = prepare_agent_bound_prompt(AgentType::OpenClaw, blocks, false);
+        assert_eq!(unrouted.len(), 1);
+        assert!(matches!(
+            &unrouted[0],
+            ContentBlock::Text(text) if text.text == visible
+        ));
     }
 
     #[test]
@@ -15818,6 +17114,125 @@ mod tests {
             &notif("auto_compact_completed"),
             AgentType::Codex
         ));
+    }
+
+    /// Helper mirroring what claude-agent-acp puts on the wire: a plain
+    /// `session/update` notification carrying one AIR async-task frame.
+    fn async_task_notif(update: serde_json::Value) -> Dispatch {
+        Dispatch::Notification(
+            UntypedMessage::new(
+                "session/update",
+                serde_json::json!({ "sessionId": "s", "update": update }),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// The spawn frame is the only one carrying the task's identity, so every
+    /// field of it has to survive the raw read — the merge downstream can only
+    /// revise what this captured.
+    #[test]
+    fn async_task_spawn_frame_is_read_whole() {
+        let delta = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_spawned",
+            "asyncTaskId": "t1",
+            "name": "pnpm test",
+            "taskType": "shell",
+            "description": "pnpm test --watch",
+            "showInTranscript": false,
+            "canStop": true,
+            "outputFilePath": "/tmp/tasks/t1.output",
+            "toolCallId": "tool-9",
+        })))
+        .expect("spawn frame");
+        assert!(delta.spawned);
+        assert_eq!(delta.task_id, "t1");
+        assert_eq!(delta.name.as_deref(), Some("pnpm test"));
+        assert_eq!(delta.task_type.as_deref(), Some("shell"));
+        assert_eq!(delta.description.as_deref(), Some("pnpm test --watch"));
+        assert_eq!(delta.show_in_transcript, Some(false));
+        assert_eq!(delta.can_stop, Some(true));
+        assert_eq!(
+            delta.output_file_path.as_deref(),
+            Some("/tmp/tasks/t1.output")
+        );
+        assert_eq!(delta.tool_call_id.as_deref(), Some("tool-9"));
+    }
+
+    /// Progress and state frames revise an announced task. They must NOT read as
+    /// creates — `spawned` is what lets `apply_event` refuse to invent a row for
+    /// an announcement codeg failed to read.
+    #[test]
+    fn async_task_progress_and_state_frames_are_not_creates() {
+        let progress = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_progress",
+            "asyncTaskId": "t1",
+            "lastToolName": "Bash",
+            "usage": { "totalTokens": 1200, "toolUses": 3, "durationMs": 4500 },
+        })))
+        .expect("progress frame");
+        assert!(!progress.spawned);
+        assert_eq!(progress.last_tool_name.as_deref(), Some("Bash"));
+        assert_eq!(
+            progress.usage,
+            Some(AsyncTaskUsage {
+                total_tokens: 1200,
+                tool_uses: 3,
+                duration_ms: 4500,
+            })
+        );
+        // Absent fields stay absent — the merge must not blank a stored value.
+        assert!(progress.name.is_none());
+        assert!(progress.state.is_none());
+
+        let state = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_state_update",
+            "asyncTaskId": "t1",
+            "state": "completed",
+            "summary": "3 files changed",
+        })))
+        .expect("state frame");
+        assert!(!state.spawned);
+        assert_eq!(state.state.as_deref(), Some("completed"));
+        assert_eq!(state.summary.as_deref(), Some("3 files changed"));
+    }
+
+    /// The interceptor sits in front of EVERY dispatch, so a false positive
+    /// would silently swallow ordinary session updates.
+    #[test]
+    fn async_task_reader_claims_only_its_own_three_variants() {
+        for other in ["agent_message_chunk", "tool_call", "usage_update", "plan"] {
+            assert!(
+                air_async_task_delta(&async_task_notif(serde_json::json!({
+                    "sessionUpdate": other,
+                    "asyncTaskId": "t1",
+                })))
+                .is_none(),
+                "{other} must reach the typed pipeline"
+            );
+        }
+        // A frame with no usable id identifies no row, so there is nothing to
+        // merge it into — leave it to the normal drop accounting.
+        assert!(air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_spawned",
+            "asyncTaskId": "   ",
+            "name": "orphan",
+        })))
+        .is_none());
+    }
+
+    /// The adapter drops a `usage` object missing any of its three counters
+    /// rather than publishing a partial one; a half-read usage would render as
+    /// a task that used 0 tokens.
+    #[test]
+    fn async_task_usage_is_all_or_nothing() {
+        let delta = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_progress",
+            "asyncTaskId": "t1",
+            "usage": { "totalTokens": 10, "toolUses": 1 },
+        })))
+        .expect("progress frame");
+        assert!(delta.usage.is_none());
     }
 
     /// The `session/load` replay drains a PAST session, so anything that would
@@ -16402,6 +17817,70 @@ mod tests {
             None
         );
         assert_eq!(current_model_id_from_opts(&[]), None);
+    }
+
+    /// A fork continues the conversation, so it must continue the conversation's
+    /// selectors: `handle_fork_or_exit` reads the parent session's options and
+    /// replays them onto the forked one as preferred values. That only works if
+    /// the extraction speaks the shape `apply_preferred_session_options` (and
+    /// `config_option_already_holds`) consume — a select's value id, and a
+    /// boolean as "true"/"false".
+    #[test]
+    fn current_config_option_values_round_trips_what_the_preference_replay_expects() {
+        let opts = vec![
+            SessionConfigOptionInfo {
+                id: "model".to_string(),
+                name: "Model".to_string(),
+                description: None,
+                category: Some("model".to_string()),
+                kind: SessionConfigKindInfo::Select(SessionConfigSelectInfo {
+                    current_value: "opus".to_string(),
+                    options: Vec::new(),
+                    groups: Vec::new(),
+                }),
+            },
+            SessionConfigOptionInfo {
+                id: "auto_approve".to_string(),
+                name: "Auto-approve".to_string(),
+                description: None,
+                category: None,
+                kind: SessionConfigKindInfo::Boolean(SessionConfigBooleanInfo {
+                    current_value: true,
+                }),
+            },
+        ];
+
+        let values = current_config_option_values(&opts);
+        assert_eq!(values.get("model").map(String::as_str), Some("opus"));
+        assert_eq!(values.get("auto_approve").map(String::as_str), Some("true"));
+
+        // Each extracted value must satisfy the same equality the replay uses to
+        // skip a round trip, or restoring a selector would re-set every option.
+        for opt in &opts {
+            let schema = SessionConfigOption::new(
+                opt.id.clone(),
+                opt.name.clone(),
+                match &opt.kind {
+                    SessionConfigKindInfo::Select(sel) => {
+                        SessionConfigKind::Select(sacp::schema::SessionConfigSelect::new(
+                            sel.current_value.clone(),
+                            sacp::schema::SessionConfigSelectOptions::Ungrouped(Vec::new()),
+                        ))
+                    }
+                    SessionConfigKindInfo::Boolean(b) => SessionConfigKind::Boolean(
+                        sacp::schema::SessionConfigBoolean::new(b.current_value),
+                    ),
+                },
+            );
+            let extracted = values.get(&opt.id).expect("every option is extracted");
+            assert!(
+                config_option_already_holds(&schema, extracted),
+                "option {} must read back as already holding {extracted}",
+                opt.id
+            );
+        }
+
+        assert!(current_config_option_values(&[]).is_empty());
     }
 
     #[test]
@@ -19777,6 +21256,88 @@ mod tests {
         ));
     }
 
+    struct TestConversationDepthLookup;
+
+    #[async_trait::async_trait]
+    impl crate::acp::delegation::broker::ConversationDepthLookup for TestConversationDepthLookup {
+        async fn parent_of(
+            &self,
+            _id: i32,
+        ) -> Result<Option<i32>, crate::acp::delegation::types::DelegationError> {
+            Ok(None)
+        }
+    }
+
+    struct TestNoQuestions;
+
+    #[async_trait::async_trait]
+    impl crate::acp::question::SessionQuestionAccess for TestNoQuestions {
+        async fn register_question(
+            &self,
+            _parent_connection_id: &str,
+            _questions: Vec<crate::acp::question::QuestionSpec>,
+        ) -> Option<crate::acp::question::RegisteredQuestion> {
+            None
+        }
+
+        async fn cancel_question(&self, _parent_connection_id: &str, _question_id: &str) {}
+
+        async fn cancel_questions_by_parent(&self, _parent_connection_id: &str) {}
+    }
+
+    struct TestNoPlanApprovals;
+
+    #[async_trait::async_trait]
+    impl crate::acp::plan_approval::SessionPlanApprovalAccess for TestNoPlanApprovals {
+        async fn register_plan_approval(
+            &self,
+            _parent_connection_id: &str,
+            _tool_call_id: String,
+            _plan_markdown: String,
+        ) -> Option<crate::acp::plan_approval::RegisteredPlanApproval> {
+            None
+        }
+
+        async fn cancel_plan_approvals_by_parent(&self, _parent_connection_id: &str) {}
+    }
+
+    struct TestAllAgentsAvailable;
+
+    #[async_trait::async_trait]
+    impl AgentAvailabilityLookup for TestAllAgentsAvailable {
+        async fn disabled_agent_wire_slugs(&self) -> Vec<String> {
+            Vec::new()
+        }
+    }
+
+    fn test_delegation_injection(
+        agent_availability: Arc<dyn AgentAvailabilityLookup>,
+    ) -> DelegationInjection {
+        use crate::acp::delegation::broker::DelegationBroker;
+        use crate::acp::delegation::listener::TokenRegistry;
+        use crate::acp::delegation::spawner::{mock::MockSpawner, ConnectionSpawner};
+
+        let broker = Arc::new(DelegationBroker::new(
+            Arc::new(MockSpawner::default()) as Arc<dyn ConnectionSpawner>,
+            Arc::new(TestConversationDepthLookup)
+                as Arc<dyn crate::acp::delegation::broker::ConversationDepthLookup>,
+        ));
+        DelegationInjection {
+            broker,
+            tokens: Arc::new(TokenRegistry::default()),
+            socket_path: std::path::PathBuf::from("/tmp/codeg-mcp.sock"),
+            agent_availability,
+            feedback: crate::acp::feedback::FeedbackRuntimeConfig::new(),
+            ask: crate::acp::question::QuestionRuntimeConfig::new(),
+            sessions: crate::acp::session_info::SessionInfoRuntimeConfig::new(),
+            authoring: crate::acp::chat_authoring::ChatAuthoringRuntimeConfig::new(),
+            questions: Arc::new(TestNoQuestions)
+                as Arc<dyn crate::acp::question::SessionQuestionAccess>,
+            plan_approvals: Arc::new(TestNoPlanApprovals)
+                as Arc<dyn crate::acp::plan_approval::SessionPlanApprovalAccess>,
+        }
+    }
+
     // ─── inject_codeg_mcp: enabled=false short-circuit ──────────
     //
     // Guards the "default off" product contract: when the broker config has
@@ -19788,75 +21349,14 @@ mod tests {
     // opts in via the settings panel.
     #[tokio::test]
     async fn inject_codeg_delegate_skipped_when_broker_disabled() {
-        use crate::acp::delegation::broker::{ConversationDepthLookup, DelegationBroker};
-        use crate::acp::delegation::listener::TokenRegistry;
-        use crate::acp::delegation::spawner::{mock::MockSpawner, ConnectionSpawner};
-        use crate::acp::delegation::types::DelegationError;
-
-        struct EmptyLookup;
-        #[async_trait::async_trait]
-        impl ConversationDepthLookup for EmptyLookup {
-            async fn parent_of(&self, _id: i32) -> Result<Option<i32>, DelegationError> {
-                Ok(None)
-            }
-        }
-
-        let broker = Arc::new(DelegationBroker::new(
-            Arc::new(MockSpawner::default()) as Arc<dyn ConnectionSpawner>,
-            Arc::new(EmptyLookup) as Arc<dyn ConversationDepthLookup>,
-        ));
         // No set_config call: broker carries its default config, which is
         // `enabled: false` after the product-default flip. This is the
         // exact state a fresh install reaches before the user touches the
         // settings panel. Feedback is likewise disabled by default, so with
         // BOTH features off the companion isn't injected at all.
-        struct NoQuestions;
-        #[async_trait::async_trait]
-        impl crate::acp::question::SessionQuestionAccess for NoQuestions {
-            async fn register_question(
-                &self,
-                _parent_connection_id: &str,
-                _questions: Vec<crate::acp::question::QuestionSpec>,
-            ) -> Option<crate::acp::question::RegisteredQuestion> {
-                None
-            }
-            async fn cancel_question(&self, _parent_connection_id: &str, _question_id: &str) {}
-            async fn cancel_questions_by_parent(&self, _parent_connection_id: &str) {}
-        }
-        struct NoPlanApprovals;
-        #[async_trait::async_trait]
-        impl crate::acp::plan_approval::SessionPlanApprovalAccess for NoPlanApprovals {
-            async fn register_plan_approval(
-                &self,
-                _parent_connection_id: &str,
-                _tool_call_id: String,
-                _plan_markdown: String,
-            ) -> Option<crate::acp::plan_approval::RegisteredPlanApproval> {
-                None
-            }
-            async fn cancel_plan_approvals_by_parent(&self, _parent_connection_id: &str) {}
-        }
-        struct AllEnabled;
-        #[async_trait::async_trait]
-        impl AgentAvailabilityLookup for AllEnabled {
-            async fn disabled_agent_wire_slugs(&self) -> Vec<String> {
-                Vec::new()
-            }
-        }
-        let injection = DelegationInjection {
-            broker,
-            tokens: Arc::new(TokenRegistry::default()),
-            socket_path: std::path::PathBuf::from("/tmp/codeg-mcp.sock"),
-            agent_availability: Arc::new(AllEnabled) as Arc<dyn AgentAvailabilityLookup>,
-            feedback: crate::acp::feedback::FeedbackRuntimeConfig::new(),
-            ask: crate::acp::question::QuestionRuntimeConfig::new(),
-            sessions: crate::acp::session_info::SessionInfoRuntimeConfig::new(),
-            authoring: crate::acp::chat_authoring::ChatAuthoringRuntimeConfig::new(),
-            questions: Arc::new(NoQuestions)
-                as Arc<dyn crate::acp::question::SessionQuestionAccess>,
-            plan_approvals: Arc::new(NoPlanApprovals)
-                as Arc<dyn crate::acp::plan_approval::SessionPlanApprovalAccess>,
-        };
+        let injection = test_delegation_injection(
+            Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
+        );
 
         let mut servers: Vec<McpServer> = Vec::new();
         let result = inject_codeg_mcp(
@@ -20200,6 +21700,266 @@ mod tests {
         let untyped = UntypedMessage::new("session/new", req).expect("builds");
         assert_eq!(untyped.method(), "session/new");
         assert_eq!(untyped.params(), &expected);
+    }
+
+    /// The saved-preference replay must set the model BEFORE anything scoped to
+    /// it. Cursor's parameterized picker (unlocked by
+    /// `_meta.parameterizedModelPicker`) ships `fast` / thinking options that
+    /// belong to the CURRENT model: setting `model` reloads that model's own
+    /// parameter values, and setting a parameter the model in effect does not
+    /// define is rejected outright. Raw key order is alphabetical, which puts
+    /// `fast` first — exactly backwards.
+    #[test]
+    fn preferred_config_values_apply_the_model_first() {
+        let options: Vec<SessionConfigOption> = serde_json::from_value(serde_json::json!([
+            {
+                "type": "select",
+                "id": "mode",
+                "name": "Mode",
+                "category": "mode",
+                "currentValue": "agent",
+                "options": [{"value": "agent", "name": "Agent"}]
+            },
+            {
+                "type": "select",
+                "id": "model",
+                "name": "Model",
+                "category": "model",
+                "currentValue": "composer-2.5",
+                "options": [{"value": "composer-2.5", "name": "Composer 2.5"}]
+            },
+            {
+                "type": "select",
+                "id": "fast",
+                "name": "Fast",
+                "category": "model_config",
+                "currentValue": "true",
+                "options": [{"value": "true", "name": "On"}, {"value": "false", "name": "Off"}]
+            },
+        ]))
+        .expect("parses");
+
+        let preferred = BTreeMap::from([
+            ("fast".to_string(), "false".to_string()),
+            ("mode".to_string(), "plan".to_string()),
+            ("model".to_string(), "composer-2.5".to_string()),
+        ]);
+        let ordered: Vec<&str> = order_preferred_config_values(&options, &preferred)
+            .into_iter()
+            .map(|(id, _)| id.as_str())
+            .collect();
+        assert_eq!(
+            ordered,
+            vec!["model", "fast", "mode"],
+            "model leads; the rest keep their sorted order"
+        );
+
+        // An agent that labels its model selector only by category still leads.
+        let by_category: Vec<SessionConfigOption> = serde_json::from_value(serde_json::json!([
+            {
+                "type": "select",
+                "id": "llm",
+                "name": "Model",
+                "category": "model",
+                "currentValue": "a",
+                "options": [{"value": "a", "name": "A"}]
+            },
+        ]))
+        .expect("parses");
+        let preferred = BTreeMap::from([
+            ("effort".to_string(), "high".to_string()),
+            ("llm".to_string(), "b".to_string()),
+        ]);
+        let ordered: Vec<&str> = order_preferred_config_values(&by_category, &preferred)
+            .into_iter()
+            .map(|(id, _)| id.as_str())
+            .collect();
+        assert_eq!(ordered, vec!["llm", "effort"]);
+
+        // Nothing model-shaped: the order is untouched, and an id the agent
+        // never advertised is still replayed (it is not codeg's call to drop).
+        let preferred = BTreeMap::from([
+            ("a_thing".to_string(), "1".to_string()),
+            ("z_thing".to_string(), "2".to_string()),
+        ]);
+        let ordered: Vec<&str> = order_preferred_config_values(&[], &preferred)
+            .into_iter()
+            .map(|(id, _)| id.as_str())
+            .collect();
+        assert_eq!(ordered, vec!["a_thing", "z_thing"]);
+    }
+
+    /// The claude shape: a model select plus the effort option that hangs off it.
+    fn asserted_drift_options(model: &str, effort: &str) -> Vec<SessionConfigOption> {
+        serde_json::from_value(serde_json::json!([
+            {
+                "type": "select",
+                "id": "model",
+                "name": "Model",
+                "category": "model",
+                "currentValue": model,
+                "options": [
+                    {"value": "sonnet[1m]", "name": "Sonnet"},
+                    {"value": "claude-fable-5-1[1m]", "name": "Fable"},
+                ],
+            },
+            {
+                "type": "select",
+                "id": "effort",
+                "name": "Effort",
+                "currentValue": effort,
+                "options": [{"value": "high", "name": "High"}, {"value": "medium", "name": "Medium"}],
+            },
+        ]))
+        .expect("parses")
+    }
+
+    fn asserted_drift_state(asserted: &[(&str, &str)]) -> Arc<RwLock<SessionState>> {
+        let mut st = SessionState::new(
+            "conn-drift".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        );
+        st.asserted_config_values = asserted
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_string()))
+            .collect();
+        Arc::new(RwLock::new(st))
+    }
+
+    /// The fork symptom in miniature: codeg applies the parent's `sonnet[1m]`,
+    /// claude answers OK, then ~2ms later pushes its own re-pin. Effort rides
+    /// along because a model switch re-scopes it — one push, two reverted
+    /// options, and BOTH have to come back.
+    ///
+    /// Order is the load-bearing half: alphabetically `effort` precedes `model`,
+    /// and replaying it first lets the model switch re-scope effort straight
+    /// back — with both ledger entries already spent, so nothing defends it a
+    /// second time. Model must lead, exactly as in the establishment replay.
+    #[tokio::test]
+    async fn an_agent_push_that_reverts_an_asserted_value_is_reported_as_drift() {
+        let state = asserted_drift_state(&[("model", "sonnet[1m]"), ("effort", "high")]);
+
+        let drift = take_asserted_config_drift(
+            &state,
+            &asserted_drift_options("claude-fable-5-1[1m]", "medium"),
+        )
+        .await;
+
+        assert_eq!(
+            drift,
+            vec![
+                ("model".to_string(), "sonnet[1m]".to_string()),
+                ("effort".to_string(), "high".to_string()),
+            ],
+            "both reverted options come back, at the values codeg applied, model first"
+        );
+    }
+
+    /// Removing on read is the whole ping-pong bound: an agent that re-pins
+    /// unconditionally costs exactly one extra round-trip, then wins.
+    #[tokio::test]
+    async fn each_asserted_option_is_defended_at_most_once() {
+        let state = asserted_drift_state(&[("model", "sonnet[1m]")]);
+        let pushed = asserted_drift_options("claude-fable-5-1[1m]", "high");
+
+        assert_eq!(take_asserted_config_drift(&state, &pushed).await.len(), 1);
+        assert!(
+            take_asserted_config_drift(&state, &pushed).await.is_empty(),
+            "a second identical push must not start a set_config_option loop"
+        );
+        assert!(state.read().await.asserted_config_values.is_empty());
+    }
+
+    /// Silence in the two cases that must stay silent: a push that agrees, and
+    /// the post-prompt state where the agent owns the selectors outright.
+    #[tokio::test]
+    async fn an_agreeing_push_and_an_empty_ledger_produce_no_drift() {
+        let agreeing = asserted_drift_state(&[("model", "sonnet[1m]"), ("effort", "high")]);
+        assert!(take_asserted_config_drift(
+            &agreeing,
+            &asserted_drift_options("sonnet[1m]", "high")
+        )
+        .await
+        .is_empty());
+        assert_eq!(
+            agreeing.read().await.asserted_config_values.len(),
+            2,
+            "an agreeing push consumes nothing — the next one still gets defended"
+        );
+
+        let after_first_prompt = asserted_drift_state(&[]);
+        assert!(take_asserted_config_drift(
+            &after_first_prompt,
+            &asserted_drift_options("claude-fable-5-1[1m]", "medium")
+        )
+        .await
+        .is_empty());
+    }
+
+    /// An option the push doesn't mention at all is not drift — a partial list
+    /// is the agent narrowing what it reports, not reverting what it omits.
+    #[tokio::test]
+    async fn an_option_absent_from_the_push_is_not_drift() {
+        let state = asserted_drift_state(&[("model", "sonnet[1m]"), ("sandbox", "read-only")]);
+
+        let drift = take_asserted_config_drift(
+            &state,
+            &asserted_drift_options("claude-fable-5-1[1m]", "high"),
+        )
+        .await;
+
+        assert_eq!(drift, vec![("model".to_string(), "sonnet[1m]".to_string())]);
+        assert_eq!(
+            state
+                .read()
+                .await
+                .asserted_config_values
+                .keys()
+                .collect::<Vec<_>>(),
+            vec!["sandbox"],
+            "the unmentioned option stays defended"
+        );
+    }
+
+    /// `emit_session_modes` is a no-op for a modes-less session, so
+    /// `current_mode` outlives a transition into one. Without the parent's
+    /// capability gate a fork would hand that ancestor's mode to a child that
+    /// does advertise modes.
+    #[test]
+    fn a_modes_less_parent_does_not_pass_an_ancestors_mode_to_the_fork() {
+        let mut st = SessionState::new(
+            "conn-fork-mode".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        );
+        st.apply_event(&AcpEvent::ModeChanged {
+            mode_id: "bypassPermissions".to_string(),
+        });
+        assert_eq!(st.current_mode.as_deref(), Some("bypassPermissions"));
+
+        assert_eq!(
+            live_mode_for_fork(&st, None),
+            None,
+            "a parent with no modes has no mode to inherit, stale value or not"
+        );
+
+        let modes = SessionModeState::new(
+            "default".to_string(),
+            vec![sacp::schema::SessionMode::new(
+                "bypassPermissions",
+                "Bypass",
+            )],
+        );
+        assert_eq!(
+            live_mode_for_fork(&st, Some(&modes)).as_deref(),
+            Some("bypassPermissions"),
+            "the event-tracked mode is inherited, not the attach-time snapshot's"
+        );
     }
 
     #[test]

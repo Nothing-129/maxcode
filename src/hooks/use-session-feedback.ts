@@ -27,7 +27,11 @@ import { useAcpEvent } from "@/contexts/acp-connections-context"
 import { acpGetSessionSnapshot, submitSessionFeedback } from "@/lib/api"
 import { toErrorMessage } from "@/lib/app-error"
 import { isNoActiveTurnRejection } from "@/lib/turn-busy"
-import type { ConnectionStatus, FeedbackItem } from "@/lib/types"
+import type {
+  ConnectionStatus,
+  FeedbackItem,
+  PromptInputBlock,
+} from "@/lib/types"
 
 /** Merge snapshot-hydrated notes with live ones, keyed by id; live entries win
  *  (they carry the most recent status). Snapshot order first, live-only after. */
@@ -46,6 +50,18 @@ export interface UseSessionFeedbackArgs {
   connStatus: ConnectionStatus | null
   /** Whether the live-feedback feature is enabled (global setting). */
   enabled: boolean
+  /**
+   * Note ids the live transcript adopted as mid-turn user turns
+   * (`ConnectionState.steeredMessageIds`). Their strips are dropped: the note
+   * IS the message now, and showing both would print it twice.
+   *
+   * Taken from the connection rather than derived here on purpose. The
+   * transcript can only adopt a note while a turn is actually running, and a
+   * note submitted on the closing edge of one may miss that window; letting
+   * this hook guess would eventually guess the other way from the reducer and
+   * leave a message showing in neither place.
+   */
+  steeredMessageIds?: readonly string[]
   /** Reroute a note as an ordinary prompt when the turn ended before it could be
    *  submitted (turn-end race). */
   onResendAsPrompt?: (text: string) => void
@@ -77,14 +93,19 @@ export interface UseSessionFeedback {
    *  every failure — including the turn-end `NoActiveTurn` race — is
    *  RETHROWN untouched (no toast, no reroute). The composer owns its own
    *  fallback (enqueue) and draft-preservation policy, which `submit`'s
-   *  dialog-shaped error handling would preempt. */
-  steer: (text: string) => Promise<FeedbackItem>
+   *  dialog-shaped error handling would preempt. `blocks` carries the full
+   *  draft when it holds attachments (native wire only; the backend's
+   *  `NoActiveTurn` rejection on the pull path reroutes it to the queue
+   *  whole, so an attachment is never silently dropped); `text` stays the
+   *  recorded/display form. */
+  steer: (text: string, blocks?: PromptInputBlock[]) => Promise<FeedbackItem>
 }
 
 export function useSessionFeedback({
   connectionId,
   connStatus,
   enabled,
+  steeredMessageIds,
   onResendAsPrompt,
 }: UseSessionFeedbackArgs): UseSessionFeedback {
   const t = useTranslations("LiveFeedback")
@@ -354,12 +375,15 @@ export function useSessionFeedback({
   // queue on `NoActiveTurn`, keep the draft on real failures. Shared with
   // `submit`: the optimistic note append and the channel reconciliation.
   const steer = useCallback(
-    async (rawText: string): Promise<FeedbackItem> => {
+    async (
+      rawText: string,
+      blocks?: PromptInputBlock[]
+    ): Promise<FeedbackItem> => {
       const text = rawText.trim()
       if (!text || !connectionId) {
         throw new Error("nothing to steer")
       }
-      const item = await submitSessionFeedback(connectionId, text)
+      const item = await submitSessionFeedback(connectionId, text, blocks)
       // A resolution that landed after a connection switch must not touch the
       // new connection's channel state or note list (reconcileChannel guards
       // itself too; the append needs the same protection).
@@ -384,11 +408,20 @@ export function useSessionFeedback({
     (toolAvailable || nativeSteering) &&
     isPrompting
   const channel: "native" | "pull" = nativeSteering ? "native" : "pull"
-  const showList = notes.length > 0 && isPrompting
+  // Drop the notes the transcript is already rendering as user turns. Kept as
+  // a derivation rather than a filter on `setNotes` so a note stays recoverable
+  // as a strip if the transcript never took it.
+  const visibleNotes = useMemo(() => {
+    if (!steeredMessageIds || steeredMessageIds.length === 0) return notes
+    const adopted = new Set(steeredMessageIds)
+    const remaining = notes.filter((n) => !adopted.has(n.id))
+    return remaining.length === notes.length ? notes : remaining
+  }, [notes, steeredMessageIds])
+  const showList = visibleNotes.length > 0 && isPrompting
 
   return useMemo(
     () => ({
-      notes,
+      notes: visibleNotes,
       featureEnabled: enabled,
       canSubmit,
       channel,
@@ -401,7 +434,7 @@ export function useSessionFeedback({
       steer,
     }),
     [
-      notes,
+      visibleNotes,
       enabled,
       canSubmit,
       channel,

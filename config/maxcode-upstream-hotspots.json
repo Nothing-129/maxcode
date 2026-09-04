@@ -43,6 +43,7 @@
         "src/lib/enabled-acp-agents-storage.ts",
         "src/hooks/use-acp-agents.ts",
         "src/stores/tab-store.ts",
+        "src/components/canvas/canvas-view.tsx",
         "src/components/conversations/conversation-detail-panel.tsx"
       ],
       "contracts": [

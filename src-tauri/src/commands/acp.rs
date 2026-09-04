@@ -190,6 +190,57 @@ fn apply_custom_version_to_url(url: &str, registry_version: &str, custom_version
     url.replace(registry_version, custom_version)
 }
 
+/// Per-agent `env_json` key that opts an npx agent into installing the
+/// package's `latest` npm dist-tag instead of the reviewed registry pin.
+/// Owned by the "Adapter version" control in Agent Settings, riding the same
+/// per-agent env store as pi's `PI_ACP_PI_COMMAND` runtime override and the
+/// host-tools knob. Consulted at install/upgrade time ONLY: a launch always
+/// runs whatever is installed, and nothing polls npm in the background.
+///
+/// Exactly the value `latest` opts in; absence or any other value stays on the
+/// pin. Unlike `CODEG_ACP_HOST_TOOLS` there is no process-env second layer to
+/// make "absent" ambiguous, so the settings control may delete the key for the
+/// pinned default — both readers (this one and `adapterChannelFromEnvText` in
+/// acp-agent-settings.tsx) treat absent as pinned.
+pub(crate) const ADAPTER_CHANNEL_ENV: &str = "CODEG_ADAPTER_CHANNEL";
+const ADAPTER_CHANNEL_LATEST: &str = "latest";
+
+/// Whether a resolved per-agent env opts into the `latest` adapter channel.
+/// Takes the MERGED env (`build_runtime_env_from_setting`) rather than raw
+/// `env_json`, so it reads the same layers the launch path and the settings
+/// page display — a value set through the agent's local config file counts too.
+fn adapter_channel_is_latest(env: &BTreeMap<String, String>) -> bool {
+    env.get(ADAPTER_CHANNEL_ENV)
+        .is_some_and(|value| value.trim() == ADAPTER_CHANNEL_LATEST)
+}
+
+/// The npm install spec(s) one prepare call will attempt, in order: the spec to
+/// try first, plus the fallback to retry on failure (at most one).
+///
+/// An explicit `version_override` (the Custom install dialog) always wins and
+/// never falls back — the user asked for that exact version, and quietly
+/// installing a different one would relabel their choice. With no override, a
+/// latest-channel agent tries the `latest` dist-tag first and keeps the pinned
+/// registry spec as the fallback, so npm being unreachable (or a mirror not
+/// yet carrying the tag's target) degrades to the reviewed pin instead of a
+/// failed install. The default stays byte-identical to `build_npm_install_spec`.
+fn npm_install_attempts(
+    package: &str,
+    version_override: Option<&str>,
+    latest_channel: bool,
+) -> Result<(String, Option<String>), AcpError> {
+    let pinned = build_npm_install_spec(package, version_override)?;
+    let overridden = version_override.is_some_and(|raw| !raw.trim().is_empty());
+    if latest_channel && !overridden {
+        let latest = format!(
+            "{}@{ADAPTER_CHANNEL_LATEST}",
+            package_name_from_spec(package)
+        );
+        return Ok((latest, Some(pinned)));
+    }
+    Ok((pinned, None))
+}
+
 /// Check whether an NPX agent command is spawnable.
 /// Uses PATH first, then codeg's EACCES fallback prefix, then the current npm
 /// global prefix. The explicit fallback-prefix probe keeps this correct even
@@ -7286,7 +7337,7 @@ async fn hermes_setup_argvs() -> (Vec<String>, Vec<String>) {
         // Unreachable: Hermes is always an Npx distribution. Fall through to
         // the npx guidance with the same pinned spec so a future match-arm
         // change can't resurrect a stale recipe.
-        _ => "hermes-agent@0.20.6",
+        _ => "hermes-agent@0.21.0",
     };
     let build = |tail: &[&str]| -> Vec<String> {
         let mut argv = vec![
@@ -10383,12 +10434,34 @@ pub async fn acp_fork(
     connection_id: String,
     conversation_id: Option<i32>,
     folder_id: Option<i32>,
+    // "Fork from here": the rendered turn to fork at. `None` = fork at the
+    // tail, the composer's fork-send behaviour.
+    fork_from_turn_id: Option<String>,
     db: State<'_, AppDatabase>,
     manager: State<'_, ConnectionManager>,
 ) -> Result<ForkResultInfo, AcpError> {
     manager
-        .fork_session(&db, &connection_id, conversation_id, folder_id)
+        .fork_session(
+            &db,
+            &connection_id,
+            conversation_id,
+            folder_id,
+            fork_from_turn_id,
+        )
         .await
+}
+
+/// Stop one AIR async task. `Ok(false)` = the adapter declined (unknown,
+/// already terminal, or a stop already in flight) — a real answer, not a
+/// failure.
+#[cfg(feature = "tauri-runtime")]
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub async fn acp_stop_async_task(
+    connection_id: String,
+    task_id: String,
+    manager: State<'_, ConnectionManager>,
+) -> Result<bool, AcpError> {
+    manager.stop_async_task(&connection_id, &task_id).await
 }
 
 #[cfg(feature = "tauri-runtime")]
@@ -12253,10 +12326,6 @@ pub(crate) async fn acp_prepare_npx_agent_core(
     let meta = registry::get_agent_meta(agent_type);
     let result = match meta.distribution {
         registry::AgentDistribution::Npx { package, cmd, .. } => {
-            // `version_override` of None/empty keeps the registry-pinned spec;
-            // a custom version installs `<name>@<version>` instead.
-            let install_spec = build_npm_install_spec(package, version_override.as_deref())?;
-
             let default = agent_setting_service::AgentDefaultInput {
                 agent_type,
                 registry_id: registry::registry_id_for(agent_type).to_string(),
@@ -12266,11 +12335,25 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                 .await
                 .map_err(|e| AcpError::protocol(e.to_string()))?;
 
-            let existing = agent_setting_service::get_by_agent_type(&db.conn, agent_type)
+            let setting = agent_setting_service::get_by_agent_type(&db.conn, agent_type)
                 .await
                 .ok()
-                .flatten()
-                .and_then(|m| m.installed_version);
+                .flatten();
+            let existing = setting.as_ref().and_then(|m| m.installed_version.clone());
+            // The latest-channel opt-in reads the same merged env layers the
+            // launch and the settings page resolve, so the control can never
+            // show one channel while the install applies another.
+            let latest_channel = adapter_channel_is_latest(&build_runtime_env_from_setting(
+                agent_type,
+                setting.as_ref(),
+                load_agent_local_config_json(agent_type).as_deref(),
+            ));
+            // `version_override` of None/empty keeps the channel's spec (the
+            // registry pin, or `<name>@latest` for a latest-channel agent); a
+            // custom version installs `<name>@<version>` instead, on either
+            // channel.
+            let (first_spec, fallback_spec) =
+                npm_install_attempts(package, version_override.as_deref(), latest_channel)?;
 
             // Best-effort uninstall before reinstall. Forces npm to re-resolve
             // the dependency graph from scratch, which is required for
@@ -12300,11 +12383,51 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                 emitter,
                 &task_id,
                 AgentInstallEventKind::Log,
-                format!("Installing {} ({install_spec})", meta.name),
+                format!("Installing {} ({first_spec})", meta.name),
             );
-            install_npm_global_package_streaming(&install_spec, &task_id, emitter)
-                .await
-                .map_err(|e| annotate_npm_bootstrap_failure(&install_spec, e))?;
+            let install_spec =
+                match install_npm_global_package_streaming(&first_spec, &task_id, emitter).await {
+                    Ok(()) => first_spec,
+                    Err(err) => {
+                        // FAIL SAFE TO THE PIN. A latest-channel install can die on
+                        // things the pin does not (npm unreachable, a mirror not yet
+                        // carrying the tag's target, a yanked release), and the user
+                        // asked for "newest when possible", not "nothing unless
+                        // newest". Retry the reviewed pinned spec, saying so in the
+                        // same install log — and let the recorded installed version
+                        // report what actually landed.
+                        let Some(pinned_spec) = fallback_spec else {
+                            return Err(annotate_npm_bootstrap_failure(&first_spec, err));
+                        };
+                        let err = annotate_npm_bootstrap_failure(&first_spec, err);
+                        tracing::warn!(
+                            "[acp] latest install {first_spec} failed ({err}); \
+                         falling back to pinned {pinned_spec}"
+                        );
+                        emit_agent_install_event(
+                            emitter,
+                            &task_id,
+                            AgentInstallEventKind::Log,
+                            format!("ERROR: installing {first_spec} failed: {err}"),
+                        );
+                        emit_agent_install_event(
+                            emitter,
+                            &task_id,
+                            AgentInstallEventKind::Log,
+                            format!("Falling back to the pinned version ({pinned_spec})..."),
+                        );
+                        emit_agent_install_event(
+                            emitter,
+                            &task_id,
+                            AgentInstallEventKind::Log,
+                            format!("Installing {} ({pinned_spec})", meta.name),
+                        );
+                        install_npm_global_package_streaming(&pinned_spec, &task_id, emitter)
+                            .await
+                            .map_err(|e| annotate_npm_bootstrap_failure(&pinned_spec, e))?;
+                        pinned_spec
+                    }
+                };
 
             // For a bootstrap/native package, npm metadata existing does NOT
             // mean the agent can run: a skipped postinstall or missing native
@@ -16250,6 +16373,91 @@ wire_api = "chat"
         assert!(build_npm_install_spec("cline@3.0.9", Some("latest")).is_err());
     }
 
+    // The pinned default is byte-identical to what `build_npm_install_spec`
+    // produced before the channel existed, with no fallback attempt.
+    #[test]
+    fn npm_install_attempts_defaults_to_the_pinned_spec() {
+        assert_eq!(
+            npm_install_attempts("@google/gemini-cli@0.44.1", None, false).unwrap(),
+            ("@google/gemini-cli@0.44.1".to_string(), None)
+        );
+        assert_eq!(
+            npm_install_attempts("@google/gemini-cli@0.44.1", Some("  "), false).unwrap(),
+            ("@google/gemini-cli@0.44.1".to_string(), None)
+        );
+    }
+
+    // The latest channel tries the `latest` dist-tag first and keeps the
+    // registry pin as the fallback, so a failed latest install degrades to the
+    // reviewed version instead of no install at all.
+    #[test]
+    fn npm_install_attempts_maps_latest_channel_onto_the_dist_tag() {
+        assert_eq!(
+            npm_install_attempts("@google/gemini-cli@0.44.1", None, true).unwrap(),
+            (
+                "@google/gemini-cli@latest".to_string(),
+                Some("@google/gemini-cli@0.44.1".to_string())
+            )
+        );
+        // A blank override is the same as none.
+        assert_eq!(
+            npm_install_attempts("cline@3.0.9", Some(" "), true).unwrap(),
+            ("cline@latest".to_string(), Some("cline@3.0.9".to_string()))
+        );
+    }
+
+    // An explicit custom version wins on either channel and never falls back:
+    // the user asked for that exact version, and quietly installing another
+    // would relabel their choice.
+    #[test]
+    fn npm_install_attempts_lets_an_explicit_override_win() {
+        assert_eq!(
+            npm_install_attempts("cline@3.0.9", Some("2.0.0"), true).unwrap(),
+            ("cline@2.0.0".to_string(), None)
+        );
+        assert!(npm_install_attempts("cline@3.0.9", Some("nightly"), true).is_err());
+    }
+
+    // The latest channel introduces a NEW SPEC SHAPE (`<name>@latest`), and the
+    // spec — not the agent type — is what every downstream step keys off.
+    // `npm_package_requires_scripts` is the one that bites: hermes-agent's
+    // postinstall bootstraps its runtime, and it is the only package codeg
+    // force-enables lifecycle scripts for. A spec shape that hid the package
+    // name from it would install a shim that only fails later, at connect,
+    // with "runtime is not ready". Both attempts must be recognized, since
+    // either one can be the spec that actually lands.
+    #[test]
+    fn the_latest_spec_still_names_the_package_downstream_readers_key_off() {
+        let (latest, pinned) = npm_install_attempts("hermes-agent@0.21.0", None, true).unwrap();
+        assert_eq!(latest, "hermes-agent@latest");
+        assert!(npm_package_requires_scripts(&latest));
+        assert!(npm_package_requires_scripts(&pinned.unwrap()));
+        // And the `@latest` tag is never mistaken for a version number, so a
+        // successful latest install falls through to the real post-install
+        // probe instead of recording "latest" as the installed version.
+        assert_eq!(version_from_package_spec(&latest), None);
+    }
+
+    // Only the exact (trimmed) sentinel opts into the latest channel; absence
+    // and every other value stay on the pin, matching the frontend reader.
+    #[test]
+    fn adapter_channel_reads_only_the_exact_latest_sentinel() {
+        let env = |value: Option<&str>| {
+            let mut map = BTreeMap::new();
+            map.insert("XAI_API_KEY".to_string(), "abc".to_string());
+            if let Some(value) = value {
+                map.insert(ADAPTER_CHANNEL_ENV.to_string(), value.to_string());
+            }
+            map
+        };
+        assert!(!adapter_channel_is_latest(&env(None)));
+        assert!(adapter_channel_is_latest(&env(Some("latest"))));
+        assert!(adapter_channel_is_latest(&env(Some(" latest "))));
+        assert!(!adapter_channel_is_latest(&env(Some("pinned"))));
+        assert!(!adapter_channel_is_latest(&env(Some("Latest"))));
+        assert!(!adapter_channel_is_latest(&env(Some(""))));
+    }
+
     #[test]
     fn apply_custom_version_to_url_substitutes_all_occurrences() {
         // Codex URL embeds the version twice (path tag + asset filename).
@@ -17886,7 +18094,7 @@ wire_api = "chat"
                     .expect("npx recipe must pin via --package");
                 assert_eq!(
                     argv.get(pkg_idx + 1).map(String::as_str),
-                    Some("hermes-agent@0.20.6")
+                    Some("hermes-agent@0.21.0")
                 );
                 assert_eq!(argv.get(pkg_idx + 2).map(String::as_str), Some("hermes"));
             } else {
@@ -18513,7 +18721,7 @@ model = "gpt"
             )
         };
 
-        let annotated = annotate_npm_bootstrap_failure("hermes-agent@0.20.6", download());
+        let annotated = annotate_npm_bootstrap_failure("hermes-agent@0.21.0", download());
         let text = annotated.to_string();
         assert!(text.contains("fetch failed"), "keeps the original error");
         assert!(text.contains("HTTP(S)_PROXY"), "adds the proxy hint");
@@ -18531,7 +18739,7 @@ model = "gpt"
 
         // A hermes failure that isn't a download stays untouched.
         let permissions = annotate_npm_bootstrap_failure(
-            "hermes-agent@0.20.6",
+            "hermes-agent@0.21.0",
             AcpError::Protocol("failed to install npm package globally: EACCES".to_string()),
         );
         assert!(!permissions.to_string().contains("HTTP(S)_PROXY"));

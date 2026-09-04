@@ -725,6 +725,124 @@ describe("adaptMessageTurn proposed plan", () => {
     const adapted = wrap("Just a normal reply.")
     expect(adapted.content.map((p) => p.type)).toEqual(["text"])
   })
+
+  // Regression: any agent may write *about* the tag. Verbatim from a Claude
+  // Code reply that explained this very parser — the unclosed mention inside a
+  // code span used to swallow the rest of the sentence into a plan card.
+  it("keeps a tag quoted in an inline code span as plain text", () => {
+    const text =
+      "**缺陷 A — 计划卡片**。新增 `event_msg.item_completed` 分支，" +
+      "并把助手的 `<proposed_plan>` 记录从 promotion 闸门前拦下来单独处理。"
+    const adapted = wrap(text)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+    expect(adapted.content[0]).toMatchObject({ type: "text", text })
+  })
+
+  it("keeps a quoted open/close pair inside one code span as plain text", () => {
+    const text = "| **2** | `<proposed_plan>…</proposed_plan>` ← 计划回来了 |"
+    const adapted = wrap(text)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+    expect(adapted.content[0]).toMatchObject({ type: "text", text })
+  })
+
+  it("keeps several quoted mentions in one block as plain text", () => {
+    const text =
+      "| 助手正文落在哪 | `item_completed`(14) + `<proposed_plan>`(15) | 正常 |\n" +
+      "解析器两份都不要：`<proposed_plan>` 撞上 promotion 闸门。"
+    const adapted = wrap(text)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+    expect(adapted.content[0]).toMatchObject({ type: "text", text })
+  })
+
+  it("keeps tags inside a fenced code block as plain text", () => {
+    const text =
+      "codex writes the record like this:\n\n" +
+      "```text\n<proposed_plan>\n# Plan\n</proposed_plan>\n```\n\nThat is all."
+    const adapted = wrap(text)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+    expect(adapted.content[0]).toMatchObject({ type: "text", text })
+  })
+
+  // Mid-stream the closing backtick has not arrived, so the code-span check
+  // cannot see the quote yet; the opener is still mid-line, which is what stops
+  // a half-typed sentence from flashing a plan card.
+  it("keeps a half-typed quote as plain text while the turn streams", () => {
+    const adapted = wrap("并把助手的 `<proposed_plan>", true)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+  })
+
+  it("ignores an indented tag markdown would render as code", () => {
+    const adapted = wrap("Example:\n\n    <proposed_plan>\n    # Plan")
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+  })
+
+  // A tab reaches CommonMark's four-column indent on its own.
+  it("ignores a tab-indented tag", () => {
+    const adapted = wrap("Example:\n\n\t<proposed_plan>\n\t# Plan")
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+  })
+
+  // A CRLF line slice ends in `\r`, which `.` never matches — leaving it in
+  // makes every fence unrecognisable and silently disables the code-block
+  // guard on Windows-style text.
+  it("keeps tags inside a CRLF fenced code block as plain text", () => {
+    const text =
+      "before\r\n```text\r\n<proposed_plan>\r\n# Plan\r\n" +
+      "</proposed_plan>\r\n```\r\nafter"
+    const adapted = wrap(text)
+    expect(adapted.content.map((p) => p.type)).toEqual(["text"])
+    expect(adapted.content[0]).toMatchObject({ type: "text", text })
+  })
+
+  it("still lifts a real plan from CRLF text", () => {
+    const adapted = wrap(
+      "Here is my plan.\r\n<proposed_plan>\r\n# Plan\r\n\r\n- step one\r\n" +
+        "</proposed_plan>\r\nProceeding."
+    )
+    expect(adapted.content.map((p) => p.type)).toEqual([
+      "text",
+      "proposed-plan",
+      "text",
+    ])
+    expect(adapted.content[1]).toMatchObject({
+      markdown: "# Plan\r\n\r\n- step one",
+      isStreaming: false,
+    })
+  })
+
+  it("still lifts a real plan from a block that also quotes the tag", () => {
+    const adapted = wrap(
+      "The `<proposed_plan>` tag wraps it.\n" +
+        "<proposed_plan>\n# Plan\n\n- step one\n</proposed_plan>\nProceeding."
+    )
+    expect(adapted.content.map((p) => p.type)).toEqual([
+      "text",
+      "proposed-plan",
+      "text",
+    ])
+    expect(adapted.content[0]).toMatchObject({
+      text: "The `<proposed_plan>` tag wraps it.\n",
+    })
+    expect(adapted.content[1]).toMatchObject({
+      markdown: "# Plan\n\n- step one",
+      isStreaming: false,
+    })
+  })
+
+  it("closes on the real tag, not one quoted inside the plan body", () => {
+    const adapted = wrap(
+      "<proposed_plan>\n# Plan\n\n```text\n</proposed_plan>\n```\n" +
+        "</proposed_plan>\nProceeding."
+    )
+    expect(adapted.content.map((p) => p.type)).toEqual([
+      "proposed-plan",
+      "text",
+    ])
+    expect(adapted.content[0]).toMatchObject({
+      markdown: "# Plan\n\n```text\n</proposed_plan>\n```",
+    })
+    expect(adapted.content[1]).toMatchObject({ text: "\nProceeding." })
+  })
 })
 
 describe("adaptMessageTurn goal update text", () => {
@@ -1046,6 +1164,132 @@ describe("adaptMessageTurn plan handling", () => {
     const tc = adapted.content[1]
     if (tc.type !== "tool-call") throw new Error("expected a tool-call")
     expect(tc.toolName).toBe("EnterPlanMode")
+  })
+
+  it("carries a reloaded codex plan turn: plan card, then its approval marker", () => {
+    // The seam with `parsers/codex.rs`. A Plan-mode turn reaching this adapter
+    // from disk is exactly these blocks: codex's own `<proposed_plan>` text
+    // (the announcement and the model-history copy collapsed into one), then
+    // an input-less `plan_review` call settled with codex-acp's approval
+    // wording — the same shape the live permission gate seeds, so both paths
+    // render one <PlanModeCard>. If either half stops resolving, the
+    // historical plan turn silently degrades to raw XML plus a bare tool card.
+    const adapted = adaptMessageTurn(
+      {
+        id: "codex-plan-reload",
+        role: "assistant",
+        timestamp: "2026-09-02T03:39:41.791Z",
+        blocks: [
+          {
+            type: "text",
+            text: "<proposed_plan>\n# 演示计划\n\n- step one\n</proposed_plan>\n\n如果你希望调整，告诉我。",
+          },
+          {
+            type: "tool_use",
+            tool_use_id: "codex-plan-review-3",
+            tool_name: "plan_review",
+            // Null on the wire, exactly as the parser emits it: the plan is
+            // already in the transcript, so the call carries no input.
+            input_preview: null,
+          },
+          {
+            type: "tool_result",
+            tool_use_id: "codex-plan-review-3",
+            output_preview: "User approved the plan.",
+            is_error: false,
+          },
+        ],
+      },
+      msgText,
+      false
+    )
+
+    expect(adapted.content.map((p) => p.type)).toEqual([
+      "proposed-plan",
+      "text",
+      "tool-call",
+    ])
+
+    const plan = adapted.content[0]
+    if (plan.type !== "proposed-plan") throw new Error("expected proposed-plan")
+    expect(plan.markdown).toBe("# 演示计划\n\n- step one")
+    expect(plan.isStreaming).toBe(false)
+    // The prose codex writes after the block stays prose, not plan.
+    expect(JSON.stringify(adapted.content)).not.toContain("<proposed_plan>")
+
+    const review = adapted.content[2]
+    if (review.type !== "tool-call") throw new Error("expected a tool-call")
+    // `plan_review` must survive verbatim (the renderer gate is
+    // underscore-preserving) and settle, or PlanModeCard reports "awaiting"
+    // for a decision the user already made.
+    expect(review.toolName).toBe("plan_review")
+    expect(review.state).toBe("output-available")
+    expect(review.output).toBe("User approved the plan.")
+  })
+
+  it("drops the plan text codex also sent as the review card's input", () => {
+    // Live, codex publishes its Plan-mode plan on BOTH channels at once: as an
+    // ordinary agent_message (plain prose) and as `rawInput.plan` on the
+    // plan-review permission request. Both land in one turn, so the reader saw
+    // the entire plan twice — once bare, once boxed.
+    const plan = "# 演示计划\n\n- step one"
+    const adapted = adaptMessageTurn(
+      {
+        id: "codex-plan-live",
+        role: "assistant",
+        timestamp: "2026-09-02T03:39:41.791Z",
+        blocks: [
+          { type: "text", text: plan },
+          {
+            type: "tool_use",
+            tool_use_id: "plan-review:item-7",
+            tool_name: "plan_review",
+            input_preview: JSON.stringify({ plan }),
+          },
+          {
+            type: "tool_result",
+            tool_use_id: "plan-review:item-7",
+            output_preview: "User approved the plan.",
+            is_error: false,
+          },
+        ],
+      },
+      msgText,
+      false
+    )
+
+    // Only the card survives — it carries the title, the clamp and the decision.
+    expect(adapted.content.map((p) => p.type)).toEqual(["tool-call"])
+    const review = adapted.content[0]
+    if (review.type !== "tool-call") throw new Error("expected a tool-call")
+    expect(review.toolName).toBe("plan_review")
+    expect(review.input).toContain("step one")
+  })
+
+  it("keeps assistant text that only resembles the review card's plan", () => {
+    // Exact match only: a message that quotes or extends the plan is the
+    // agent's own prose and must not be swallowed.
+    const plan = "# 演示计划\n\n- step one"
+    const adapted = adaptMessageTurn(
+      {
+        id: "codex-plan-live-extended",
+        role: "assistant",
+        timestamp: "2026-09-02T03:39:41.791Z",
+        blocks: [
+          { type: "text", text: `${plan}\n\n如果你希望调整，告诉我。` },
+          {
+            type: "tool_use",
+            tool_use_id: "plan-review:item-8",
+            tool_name: "plan_review",
+            input_preview: JSON.stringify({ plan }),
+          },
+        ],
+      },
+      msgText,
+      false
+    )
+
+    expect(adapted.content.map((p) => p.type)).toEqual(["text", "tool-call"])
   })
 
   it("keeps an empty thinking block while streaming (live Thinking… indicator)", () => {

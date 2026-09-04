@@ -64,7 +64,6 @@ import {
   FolderSelect,
   type FolderSelectOption,
 } from "@/components/shared/folder-select"
-import { ForgeBetaBadge } from "@/components/forge/forge-beta-badge"
 import { OPEN_FORGE_SETTINGS_EVENT } from "@/components/forge/forge-chrome-actions"
 import { ForgeIssueDetailSheet } from "@/components/forge/forge-issue-detail-sheet"
 import { ForgeIssueRowItem } from "@/components/forge/forge-issue-row"
@@ -90,7 +89,9 @@ import { buildForgeSourceKey } from "@/lib/forge-source-key"
 import {
   FORGE_PAGE_SIZES,
   loadForgePageSize,
+  loadForgeTab,
   saveForgePageSize,
+  saveForgeTab,
   type ForgePageSize,
 } from "@/lib/forge-list-prefs"
 import { pageCount, pageSlots } from "@/lib/forge-pagination"
@@ -130,6 +131,18 @@ const LABEL_SCOPE_SEP = String.fromCharCode(0)
  *  generic code that other failures share, and offering "add an account" for
  *  a dead token or a mismatched pin would send the user somewhere useless. */
 const NO_ACCOUNT_I18N_KEY = "Forge.errors.noAccount"
+
+/** Must mirror `UNSUPPORTED_HOST_I18N_KEY` in src-tauri/src/forge/mod.rs.
+ *  `Forge`-scoped here because this page renders the message itself, off
+ *  `ForgeRemote.supported`, rather than waiting for the backend to raise it —
+ *  the same words either way, from the same entry. */
+const UNSUPPORTED_HOST_KEY = "errors.unsupportedHost"
+
+/** Must mirror `WRONG_FORGE_I18N_KEY` in src-tauri/src/forge/mod.rs. The
+ *  backend sends this only after it has ALREADY corrected which forge the host
+ *  is, so the recovery is to ask again rather than to tell the user anything —
+ *  see `forgeCorrectedRef`. */
+const WRONG_FORGE_I18N_KEY = "Forge.errors.wrongForge"
 
 /** How long typing has to stop before the filter becomes a request. GitHub's
  *  search endpoint allows THIRTY calls a minute (its own quota, separate from
@@ -232,6 +245,118 @@ function replaceRow(
 }
 
 /**
+ * Whether a just-filed issue is one the CURRENT FILTERS match — which is what
+ * the tab badge counts, regardless of the tab or the page being looked at.
+ *
+ * `assignedMe` is a flat no rather than a test: the new-issue dialog files with
+ * no assignee (it offers no field for one) and both forges read that filter as
+ * a literal `assignee:` qualifier, so a new issue never matches it.
+ *
+ * A non-empty `search` is a flat no as well, and deliberately not an attempt.
+ * The text goes to the forge as a query with qualifiers inside it, scoped to
+ * title+body; a local substring test would be answering confidently for a
+ * language it does not implement. Labels are the one filter that can be
+ * decided here, and they are conjunctive on both forges.
+ */
+function matchesFilters(
+  created: ForgeIssueRow,
+  filters: {
+    stateFilter: StateFilter
+    assignedMe: boolean
+    labelFilter: string[]
+    search: string
+  }
+): boolean {
+  if (filters.stateFilter === "closed") return false
+  if (filters.assignedMe) return false
+  if (filters.search.trim() !== "") return false
+  if (filters.labelFilter.length === 0) return true
+  const names = new Set(created.labels.map((l) => l.name))
+  return filters.labelFilter.every((name) => names.has(name))
+}
+
+/**
+ * ...and whether the page on screen is the one it lands on.
+ *
+ * Sort is the half that is easy to miss. Under `oldest` /
+ * `least_recently_updated` the newest issue sorts to the LAST page, so putting
+ * it at the top would be placing it where it will never be seen again once the
+ * index catches up — worse than not placing it, because it looks settled.
+ */
+function belongsOnPage(
+  created: ForgeIssueRow,
+  view: {
+    tab: ForgeTab
+    page: number
+    sort: ForgeSort
+    stateFilter: StateFilter
+    assignedMe: boolean
+    labelFilter: string[]
+    search: string
+  }
+): boolean {
+  if (view.tab !== "issues") return false
+  if (view.page !== 1) return false
+  if (view.sort !== "newest" && view.sort !== "recently_updated") return false
+  return matchesFilters(created, view)
+}
+
+/**
+ * One row put at the front of a page, the page kept the length it was — the row
+ * pushed off the end belongs to page 2 now — and the counters the new row is
+ * part of moved up by one.
+ *
+ * Split out from `insertRow` because `reconcile` needs the same placement on a
+ * bare `ForgeIssueList`, and a page that gains a row in two places must gain it
+ * the same way in both.
+ */
+function prependRow(
+  data: ForgeIssueList,
+  created: ForgeIssueRow
+): ForgeIssueList {
+  const rows = [created, ...data.rows]
+  const overflow = rows.length > data.per_page
+  // `reachable_count` is a CEILING, not a tally — how many matches the forge
+  // will page through at all (GitHub Search serves 1000 and answers 422 past
+  // them), and it is what the footer builds page NUMBERS from. Filing an issue
+  // does not raise that ceiling, so it is deliberately left alone: incrementing
+  // it to 1001 would number a fifty-first page the forge refuses to serve.
+  // `total_count` is the tally and does move.
+  const capped = data.reachable_count != null
+  return {
+    ...data,
+    rows: overflow ? rows.slice(0, data.per_page) : rows,
+    total_count: data.total_count == null ? null : data.total_count + 1,
+    // The row trimmed off the end moves to the page after this one — which is
+    // only somewhere that can be asked for when paging is not already at its
+    // ceiling. At the ceiling the row waits for the index instead of being
+    // promised a page that would come back empty.
+    has_next: capped ? data.has_next : data.has_next || overflow,
+  }
+}
+
+/**
+ * A just-filed issue placed into the list on screen.
+ *
+ * The counterpart to `replaceRow`, and it exists for the same reason `adoptRow`
+ * refuses to re-fetch: the list comes from an index that has not heard about
+ * the write yet, so a new row has to be PLACED rather than fetched. Whether it
+ * belongs here at all is `belongsOnPage`'s question; this only does the placing.
+ */
+function insertRow(
+  held: LoadedList | null,
+  created: ForgeIssueRow
+): LoadedList | null {
+  if (held == null) return held
+  // The index is allowed to be ahead of this page for once — a refresh may have
+  // landed between the write and here. Adopting the row beats duplicating it.
+  if (held.data.rows.some((r) => sameItem(r, created))) {
+    return replaceRow(held, created)
+  }
+  return { ...held, data: prependRow(held.data, created) }
+}
+
+/**
  * A row this page took from a write, and the list generation it was taken at.
  *
  * The generation is what makes this safe to apply: only a response whose
@@ -240,6 +365,22 @@ function replaceRow(
 interface AdoptedRow {
   row: ForgeIssueRow
   at: number
+  /**
+   * The `placementScope` this row was FILED under, for a row this page placed
+   * into the list itself rather than took over one the forge had already
+   * served.
+   *
+   * Creating is the one write a stale response cannot be corrected for by
+   * overwriting, because the row is not in it to overwrite — it has to be put
+   * back. Scoped, because "missing" is only wrong for the exact view the row
+   * was judged to belong to: the same response under any other filter set,
+   * order or page is right not to carry it, and putting the row back there
+   * would be showing a row that does not match what was asked for.
+   *
+   * `placementScope` rather than `listScope` for precisely that reason — the
+   * latter is only folder and tab, which is not enough to tell those apart.
+   */
+  insertScope?: string
 }
 
 /**
@@ -254,6 +395,7 @@ interface AdoptedRow {
 function reconcile(
   data: ForgeIssueList,
   requestId: number,
+  scope: string,
   adopted: Map<string, AdoptedRow>
 ): ForgeIssueList {
   if (adopted.size === 0) return data
@@ -262,13 +404,26 @@ function reconcile(
   }
   if (adopted.size === 0) return data
   let touched = false
+  const held = new Set<string>()
   const rows = data.rows.map((r) => {
-    const entry = adopted.get(rowKey(r))
+    const key = rowKey(r)
+    held.add(key)
+    const entry = adopted.get(key)
     if (entry == null) return r
     touched = true
     return entry.row
   })
-  return touched ? { ...data, rows } : data
+  let next = touched ? { ...data, rows } : data
+  // Rows this page filed that the response does not have. Walked in the order
+  // they were noted (oldest first) and each put at the FRONT, so with several
+  // outstanding the most recently filed ends up on top — which is the order the
+  // forge itself will serve them in once the index catches up.
+  for (const entry of adopted.values()) {
+    if (entry.insertScope !== scope) continue
+    if (held.has(rowKey(entry.row))) continue
+    next = prependRow(next, entry.row)
+  }
+  return next
 }
 
 /**
@@ -322,7 +477,32 @@ export function repoWebUrl(remote: ForgeRemote): string {
 
 export function ForgePageTitle() {
   const t = useTranslations("Forge")
-  return <WorkbenchPageTitle title={t("title")} badge={<ForgeBetaBadge />} />
+  return <WorkbenchPageTitle title={t("title")} />
+}
+
+/**
+ * The way out of the two dead ends adding an account can actually fix: a forge
+ * host with no credential yet, and a host whose name says nothing about which
+ * forge it runs (declaring an account for it is what tells us).
+ *
+ * The label is passed in rather than translated here so this stays a leaf both
+ * branches can drop in place — they already hold the translator.
+ */
+function AddAccountButton({ label }: { label: string }) {
+  return (
+    <Button
+      size="sm"
+      variant="secondary"
+      onClick={() => {
+        void openSettingsWindow("version-control").catch(() => {
+          // Settings is a separate window; a failure to open it must not take
+          // down the page that offered the button.
+        })
+      }}
+    >
+      {label}
+    </Button>
+  )
 }
 
 function loadStoredFolderId(): number | null {
@@ -369,7 +549,18 @@ export function ForgePage() {
 
   const [remote, setRemote] = useState<ForgeRemote | null>(null)
   const [remoteLoading, setRemoteLoading] = useState(false)
-  const [tab, setTab] = useState<ForgeTab>("issues")
+  /** Bumped when the backend reports it had this host's forge wrong. It is a
+   *  dependency of the remote lookup, so bumping it re-derives `provider` —
+   *  which is what makes the correction visible in the tab wording too, not
+   *  just in which client the next request uses. */
+  const [forgeCorrection, setForgeCorrection] = useState(0)
+  /** Folders already corrected once. The backend cannot report `WrongForge`
+   *  twice for the same host (it caches the detection before returning), so a
+   *  second report means something else is wrong and the error belongs on
+   *  screen rather than in another silent retry. */
+  const forgeCorrectedRef = useRef<Set<number>>(new Set())
+  // Restored synchronously, like the page size below and for the same reason.
+  const [tab, setTab] = useState<ForgeTab>(loadForgeTab)
   // Open by default: a triage list opens on the work that is still work.
   const [stateFilter, setStateFilter] = useState<StateFilter>("open")
   const [assignedMe, setAssignedMe] = useState(false)
@@ -472,13 +663,41 @@ export function ForgePage() {
     return () => {
       cancelled = true
     }
-  }, [effectiveFolderId])
+  }, [effectiveFolderId, forgeCorrection])
+
+  /**
+   * The remote only when codeg can actually read it.
+   *
+   * A repository on Bitbucket, Gitee or someone's Gitea parses into perfectly
+   * good coordinates and resolves to a provider — the last-resort GitHub guess
+   * — that no call of ours can answer. Everything which would SPEND a request,
+   * or offer an action that needs one, hangs off this rather than off `remote`,
+   * so such a host costs nothing and is explained (see the `supported` branch
+   * below) instead of failing later as a raw API error. `remote` itself stays
+   * whole: the repository is still worth naming in the bar at the top.
+   *
+   * Same object or null, so its identity is as stable as `remote`'s — these
+   * are fetch dependencies.
+   */
+  const readable = remote?.supported ? remote : null
 
   /** Which list the rows belong to — see [`LoadedList`]. */
   const listScope = `${effectiveFolderId}:${tab}`
   /** Which RESULT SET the badges count — see [`TabCounts`]. No tab, no page,
    *  no order: none of the three can change either number. */
   const countsScope = `${effectiveFolderId}:${stateFilter}:${assignedMe}:${labelFilter.join(LABEL_SCOPE_SEP)}:${search}`
+  /**
+   * Everything that decides whether a row belongs on the page being shown: the
+   * folder and tab, the filter set, and the order and page number that place it
+   * within them. What an INSERT note is keyed to — see `AdoptedRow.insertScope`.
+   *
+   * Deliberately not `listScope`, which is only folder and tab. Keyed on that,
+   * a row filed while nothing was filtered would be put back into a response
+   * that had correctly left it out: apply a label the new issue does not carry,
+   * comment on it from the panel still open on it before that request lands,
+   * and the re-stamped note prepends a non-matching row into a filtered list.
+   */
+  const placementScope = `${listScope}:${countsScope}:${sort}:${page}`
   /** The only tab a probe is ever spent on. */
   const otherTab: ForgeTab = tab === "issues" ? "prs" : "issues"
 
@@ -517,7 +736,7 @@ export function ForgePage() {
   }, [])
 
   const fetchPage = useCallback(async () => {
-    if (effectiveFolderId == null || remote == null) return
+    if (effectiveFolderId == null || readable == null) return
     const id = ++reqRef.current
     setLoading(true)
     setError(null)
@@ -537,23 +756,36 @@ export function ForgePage() {
       // request went out put back over it — see `reconcile`. Landing it raw
       // would undo a close the user watched succeed, because the list is
       // served from an index that lags a write by seconds.
-      setLoaded({
-        scope: listScope,
-        data: reconcile(result, id, adoptedRef.current),
-      })
+      const data = reconcile(result, id, placementScope, adoptedRef.current)
+      setLoaded({ scope: listScope, data })
       // The badge for the tab on screen, free: this response already counted
       // exactly what a probe would have. `incomplete` withholds it — GitHub
       // says the search timed out, so the number is short of the truth, and a
       // bare digit on a tab has nowhere to admit that (the footer, which has
       // the room, says it there instead).
+      //
+      // Counted off the RECONCILED page rather than the forge's raw one, so the
+      // digit and the rows below it are the same page. They part otherwise: a
+      // response that predates a just-filed issue has the row put back into it
+      // (see `reconcile`), and recording `result.total_count` would then print
+      // a badge one short of a list the reader can see the extra row in.
       claimCount(tab)
-      recordCount(
-        countsScope,
-        tab,
-        result.incomplete ? null : result.total_count
-      )
+      recordCount(countsScope, tab, result.incomplete ? null : data.total_count)
     } catch (e) {
       if (id !== reqRef.current) return
+      // "This host is a GitLab, not a GitHub" is a fact the backend just
+      // learned and has already acted on — showing it to the user would be
+      // reporting our own bookkeeping as their problem. Ask again instead;
+      // the retry goes to the right client and simply works.
+      if (
+        extractAppCommandError(e)?.i18n_key === WRONG_FORGE_I18N_KEY &&
+        effectiveFolderId != null &&
+        !forgeCorrectedRef.current.has(effectiveFolderId)
+      ) {
+        forgeCorrectedRef.current.add(effectiveFolderId)
+        setForgeCorrection((n) => n + 1)
+        return
+      }
       setLoaded(null)
       setError({ raw: e })
     } finally {
@@ -561,8 +793,9 @@ export function ForgePage() {
     }
   }, [
     effectiveFolderId,
-    remote,
+    readable,
     listScope,
+    placementScope,
     countsScope,
     claimCount,
     recordCount,
@@ -585,7 +818,7 @@ export function ForgePage() {
    */
   const fetchCount = useCallback(
     async (which: ForgeTab) => {
-      if (effectiveFolderId == null || remote == null) return
+      if (effectiveFolderId == null || readable == null) return
       const scope = countsScope
       const id = claimCount(which)
       probingRef.current[which] = `${scope}:${which}`
@@ -613,7 +846,7 @@ export function ForgePage() {
     },
     [
       effectiveFolderId,
-      remote,
+      readable,
       countsScope,
       claimCount,
       recordCount,
@@ -627,8 +860,8 @@ export function ForgePage() {
   // (Re)load on any filter/paging/remote change. `page` is in `fetchPage`'s
   // deps, so a page click IS the refetch — there is no separate trigger.
   useEffect(() => {
-    if (remote != null) void fetchPage()
-  }, [remote, fetchPage])
+    if (readable != null) void fetchPage()
+  }, [readable, fetchPage])
 
   // Read through a ref so the probe below can consult the numbers it writes
   // without depending on them — a dependency there would re-arm the effect
@@ -665,7 +898,7 @@ export function ForgePage() {
   useEffect(() => {
     publishRefresh({
       refresh:
-        remote == null
+        readable == null
           ? null
           : () => {
               // Both, or "reload" would leave a stale number sitting on the
@@ -683,7 +916,7 @@ export function ForgePage() {
     fetchPage,
     fetchCount,
     otherTab,
-    remote,
+    readable,
     loading,
     countsLoading,
   ])
@@ -743,7 +976,7 @@ export function ForgePage() {
   // search's much smaller one. Best-effort: a repository whose labels cannot be
   // read still lists perfectly well, it just offers no label filter.
   useEffect(() => {
-    if (effectiveFolderId == null || remote == null) return
+    if (effectiveFolderId == null || readable == null) return
     let cancelled = false
     setLabelOptions([])
     setLabelsTruncated(false)
@@ -759,7 +992,7 @@ export function ForgePage() {
     return () => {
       cancelled = true
     }
-  }, [effectiveFolderId, remote])
+  }, [effectiveFolderId, readable])
 
   /** Any change that redefines the result set puts you back on page 1 —
    *  otherwise a narrower filter lands on a page number that no longer
@@ -870,15 +1103,31 @@ export function ForgePage() {
    * re-fire the fetch. So the response lands in full, with the adopted rows
    * written back over it (see `reconcile`).
    */
-  const rememberWrite = useCallback((updated: ForgeIssueRow) => {
-    adoptedRef.current.set(rowKey(updated), {
-      row: updated,
-      // The most recently ISSUED request. A response owing to this generation
-      // or an older one predates the write; a request issued AFTER it is the
-      // user asking again, and whatever the forge says then stands.
-      at: reqRef.current,
-    })
-  }, [])
+  const rememberWrite = useCallback(
+    (updated: ForgeIssueRow, insertScope?: string) => {
+      const key = rowKey(updated)
+      const prior = adoptedRef.current.get(key)
+      adoptedRef.current.set(key, {
+        row: updated,
+        // The most recently ISSUED request. A response owing to this generation
+        // or an older one predates the write; a request issued AFTER it is the
+        // user asking again, and whatever the forge says then stands.
+        at: reqRef.current,
+        // Set only by a CREATE, and only for the scope the new row belongs to:
+        // it is what tells `reconcile` to put the row back rather than merely
+        // overwrite it. See `AdoptedRow.insertScope`.
+        //
+        // Inherited from the note being replaced when this write does not carry
+        // one of its own, because that is the ordinary path and not an edge: a
+        // create opens the detail panel ON the new issue, so commenting on it
+        // or closing it is the very next thing available to do. Overwriting the
+        // note flat would drop the create's scope and hand the row back to the
+        // stale list response this whole mechanism exists to survive.
+        insertScope: insertScope ?? prior?.insertScope,
+      })
+    },
+    []
+  )
 
   /**
    * Take the row a write on the forge answered with, everywhere this page
@@ -905,6 +1154,78 @@ export function ForgePage() {
       setLoaded((held) => replaceRow(held, updated))
     },
     [rememberWrite]
+  )
+
+  /**
+   * The issue this panel just filed, shown without asking the forge for it.
+   *
+   * The re-read this replaces looked obviously right and was exactly the bug it
+   * was meant to prevent: the list is served from GitHub's SEARCH index, which
+   * lags a write by seconds to minutes, so re-fetching the moment an issue is
+   * filed usually answers with a page the issue is not in yet — and lands it,
+   * erasing the thing the writer was waiting to see. It is the trap `adoptRow`
+   * above documents; filing was the one write on this page still walking into
+   * it, and "just hit refresh" was the reader's only way out.
+   *
+   * What the re-read was really buying was PLACEMENT — a new issue is not in
+   * the pull-request list at all, and under a narrowed filter it may not be in
+   * this one either. That question is answered from the filters the page
+   * already holds (see `belongsOnPage`) instead of by asking. When the answer
+   * is no the list is left exactly as it is: the detail panel opens on the new
+   * issue regardless, so nothing filed ever goes unseen.
+   */
+  const adoptCreated = useCallback(
+    (created: ForgeIssueRow) => {
+      const view = {
+        tab,
+        page,
+        sort,
+        stateFilter,
+        assignedMe,
+        labelFilter,
+        search,
+      }
+      if (belongsOnPage(created, view)) {
+        // Noted BEFORE the placement and scoped to this view, so a list
+        // response already in the air — which was issued before the issue
+        // existed and cannot contain it — puts the row back instead of
+        // quietly dropping it (see `reconcile`).
+        rememberWrite(created, placementScope)
+        setLoaded((held) => insertRow(held, created))
+      }
+      // The badge counts MATCHES, not the rows on screen, so it moves on the
+      // filters alone: a reader on page 2, or sorted oldest-first, still has
+      // one more issue than the digit claimed. Claimed first exactly as
+      // `fetchPage` does — a probe already in the air counted this repository
+      // before the issue existed, and would otherwise land on top of the bump
+      // and put the number back.
+      if (!matchesFilters(created, view)) return
+      // Through the ref, not the rendered value. The dialog captures this
+      // callback before it awaits the forge and calls the captured copy on the
+      // way back, so a probe that lands during the round trip would otherwise
+      // be invisible here and the bump would count up from a number that has
+      // already moved.
+      const badge = countsRef.current.issues
+      if (badge == null || badge.scope !== countsScope || badge.value == null) {
+        return
+      }
+      claimCount("issues")
+      recordCount(countsScope, "issues", badge.value + 1)
+    },
+    [
+      tab,
+      page,
+      sort,
+      stateFilter,
+      assignedMe,
+      labelFilter,
+      search,
+      placementScope,
+      countsScope,
+      rememberWrite,
+      claimCount,
+      recordCount,
+    ]
   )
 
   /**
@@ -1081,7 +1402,7 @@ export function ForgePage() {
               request tab too — "file an issue about this" is exactly the
               thought a review produces, and putting it behind a tab switch
               would be hiding it. */}
-          {remote != null && effectiveFolderId != null ? (
+          {readable != null && effectiveFolderId != null ? (
             <Button
               type="button"
               size="sm"
@@ -1097,7 +1418,13 @@ export function ForgePage() {
           <Tabs
             className="shrink-0 sm:ms-auto"
             value={tab}
-            onValueChange={(v) => resetTo(() => setTab(v as ForgeTab))}
+            onValueChange={(v) => {
+              // Written on the CLICK, not from an effect on `tab`: the value
+              // worth remembering is the one the user chose, and an effect
+              // would also persist the initial value it just read back.
+              saveForgeTab(v as ForgeTab)
+              resetTo(() => setTab(v as ForgeTab))
+            }}
           >
             <TabsList className="h-8">
               <TabsTrigger value="issues">
@@ -1251,6 +1578,19 @@ export function ForgePage() {
           <ListSkeleton rows={skeletonRows} />
         ) : remote == null ? (
           <EmptyHint text={t("noRemote")} />
+        ) : !remote.supported ? (
+          // Said BEFORE anything is fetched, and in place of the list: the
+          // remote is real, it just is not one of the two forges codeg speaks.
+          // What used to happen here was a request nobody could serve, reported
+          // as whatever the wrong API said back — "no GitHub account for
+          // gitee.com", or a raw 404 — neither of which names the actual
+          // limitation. The account button stays, because it is also the way IN
+          // for a self-hosted instance under a name that says nothing (declaring
+          // an account for the host is what tells us which forge it runs).
+          <EmptyHint
+            text={t(UNSUPPORTED_HOST_KEY, { host: remote.server_host })}
+            action={<AddAccountButton label={t("addAccount")} />}
+          />
         ) : failure != null ? (
           <EmptyHint
             text={failure.message}
@@ -1259,18 +1599,7 @@ export function ForgePage() {
               // or a stale pinned account id lands here too, and sending those
               // to the "add" flow would be advice that cannot work.
               failure.needsAccount ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => {
-                    void openSettingsWindow("version-control").catch(() => {
-                      // Settings is a separate window; a failure to open it
-                      // must not take down the page that offered the button.
-                    })
-                  }}
-                >
-                  {t("addAccount")}
-                </Button>
+                <AddAccountButton label={t("addAccount")} />
               ) : null
             }
           />
@@ -1306,7 +1635,7 @@ export function ForgePage() {
         )}
       </ScrollArea>
 
-      {remote != null && failure == null ? (
+      {readable != null && failure == null ? (
         list != null ? (
           <ListFooter
             list={list}
@@ -1349,11 +1678,11 @@ export function ForgePage() {
         onCommentPosted={countComment}
       />
 
-      {remote != null && effectiveFolderId != null ? (
+      {readable != null && effectiveFolderId != null ? (
         <ForgeNewIssueDialog
           open={newIssueOpen}
           folderId={effectiveFolderId}
-          repo={remote.owner_repo}
+          repo={readable.owner_repo}
           // The vocabulary the label FILTER already fetched for this
           // repository — one read serves both, and the dialog must not wait on
           // a round trip to draw.
@@ -1365,19 +1694,18 @@ export function ForgePage() {
             // way to see the number and the link the forge assigned, and it is
             // where the follow-up ("start a task on this") already lives.
             setDetailRow(created)
-            // Under the "pull requests" tab a new ISSUE is not in this list at
-            // all, and under a narrowed filter it may not be either — so the
-            // list is re-read rather than prepended to, and shows the issue
-            // exactly when it belongs there.
-            void fetchPage()
+            // ...and into the list behind it, from the forge's own answer
+            // rather than by re-reading an index that has not caught up. See
+            // `adoptCreated`.
+            adoptCreated(created)
           }}
         />
       ) : null}
 
-      {startRow != null && remote != null && effectiveFolderId != null ? (
+      {startRow != null && readable != null && effectiveFolderId != null ? (
         <ForgeStartDialog
           row={startRow}
-          remote={remote}
+          remote={readable}
           folderId={effectiveFolderId}
           // Resolved for the folder on screen: its own panel settings if it has
           // any, else the global row (see `effectiveForgeSettings`).

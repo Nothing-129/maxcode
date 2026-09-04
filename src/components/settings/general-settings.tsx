@@ -74,7 +74,7 @@ export function GeneralSettings() {
   // Backend-driven shell label keys are dynamic strings, so widen `t`
   // for that single call site rather than casting at every use.
   const tDynamic = t as unknown as (key: string) => string
-  const { isWindows } = usePlatform()
+  const { isWindows, isLinux } = usePlatform()
 
   // Rendering settings are a local Tauri preference (preferences.json). They
   // are only meaningful when the active transport is the local Tauri shell —
@@ -82,7 +82,11 @@ export function GeneralSettings() {
   // which deliberately does not expose this endpoint.
   const renderingSettingsLoadable =
     isDesktop() && getActiveRemoteConnectionId() === null
-  const renderingSectionVisible = renderingSettingsLoadable && isWindows
+  // Windows (WebView2) and Linux (WebKitGTK) each expose an env knob the
+  // backend can flip at startup. macOS (WKWebView) exposes none, so showing a
+  // switch that cannot do anything there would be a lie.
+  const renderingSectionVisible =
+    renderingSettingsLoadable && (isWindows || isLinux)
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)

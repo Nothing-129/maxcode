@@ -110,6 +110,7 @@ const defaultFoldersMock: FolderDetail[] = [
     parent_id: null,
     kind: "regular",
     alias: null,
+    group_id: null,
   },
   {
     id: 2,
@@ -123,6 +124,7 @@ const defaultFoldersMock: FolderDetail[] = [
     parent_id: null,
     kind: "regular",
     alias: null,
+    group_id: null,
   },
 ]
 
@@ -451,6 +453,7 @@ describe("TabProvider tab state transitions", () => {
       parent_id: null,
       kind: "chat",
       alias: null,
+      group_id: null,
     }
     act(() => {
       useAppWorkspaceStore.setState({
@@ -485,6 +488,7 @@ describe("TabProvider tab state transitions", () => {
       parent_id: null,
       kind: "chat",
       alias: null,
+      group_id: null,
     }
     act(() => {
       useAppWorkspaceStore.setState({

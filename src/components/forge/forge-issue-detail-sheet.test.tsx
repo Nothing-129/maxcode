@@ -8,6 +8,7 @@
  * three-state action the row does — with the way out to the forge kept as a
  * real link.
  */
+import { useImperativeHandle, type ReactNode, type Ref } from "react"
 import {
   act,
   cleanup,
@@ -87,6 +88,84 @@ const toastError = vi.hoisted(() => vi.fn())
 const toastSuccess = vi.hoisted(() => vi.fn())
 vi.mock("sonner", () => ({
   toast: { error: toastError, success: toastSuccess },
+}))
+
+/**
+ * The geometry the virtualized thread reads, and the scroll it reads it from.
+ *
+ * jsdom lays nothing out, so the numbers a real virtualizer would measure have
+ * to be supplied: `scrollSize` is how tall the loaded comments come to and
+ * `viewportSize` how much of them fits. `scroll()` is the gesture itself — the
+ * only way to reach the auto-load path, because a scroll event in jsdom moves
+ * nothing and virtua would report zero for everything anyway.
+ */
+const virtuaCtl = vi.hoisted(() => ({
+  scrollSize: 0,
+  viewportSize: 0,
+  onScroll: null as ((offset: number) => void) | null,
+  /** The `startMargin` the panel last measured — see the assertion on it. */
+  startMargin: 0,
+}))
+
+/**
+ * Every row, not a window.
+ *
+ * virtua renders ZERO rows under jsdom (it windows from a viewport that is
+ * always 0px tall), which would take the whole discussion out of every
+ * assertion in this file. The established stand-in — see the
+ * model-option-list / logs-settings / sidebar-conversation-list tests — renders
+ * the lot, and is exactly why the windowing itself needs manual QA on a long
+ * thread.
+ *
+ * The `as` / `item` tags are honoured rather than flattened, so the list stays
+ * a list here as it does in a browser. `ref` is a plain prop (React 19), which
+ * is how the real one types it too.
+ */
+vi.mock("virtua", () => ({
+  Virtualizer: ({
+    data,
+    children,
+    as: Container = "div",
+    item: Item = "div",
+    startMargin = 0,
+    onScroll,
+    ref,
+  }: {
+    data: unknown[]
+    children: (row: unknown, index: number) => ReactNode
+    as?: "ol" | "div"
+    item?: "li" | "div"
+    startMargin?: number
+    onScroll?: (offset: number) => void
+    ref?: Ref<unknown>
+  }) => {
+    virtuaCtl.onScroll = onScroll ?? null
+    virtuaCtl.startMargin = startMargin
+    useImperativeHandle(ref, () => ({
+      get scrollSize() {
+        return virtuaCtl.scrollSize
+      },
+      get viewportSize() {
+        return virtuaCtl.viewportSize
+      },
+      get scrollOffset() {
+        return 0
+      },
+      findItemIndex: () => 0,
+      getItemOffset: () => 0,
+      getItemSize: () => 0,
+      scrollToIndex: () => {},
+      scrollTo: () => {},
+      scrollBy: () => {},
+    }))
+    return (
+      <Container>
+        {data.map((rowData, index) => (
+          <Item key={index}>{children(rowData, index)}</Item>
+        ))}
+      </Container>
+    )
+  },
 }))
 
 function comment(overrides: Partial<ForgeComment> = {}): ForgeComment {
@@ -227,6 +306,13 @@ function mount(
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // A thread that fits its pane, so nothing auto-loads unless a case says so:
+  // the trigger is "the viewport bottom is within 800px of the list's end", and
+  // an unset geometry (0/0) satisfies it on the first scroll.
+  virtuaCtl.scrollSize = 10_000
+  virtuaCtl.viewportSize = 600
+  virtuaCtl.onScroll = null
+  virtuaCtl.startMargin = 0
   // Still in flight, by default: mounting the panel always asks for the
   // thread, and a request that RESOLVES would land its state update after a
   // test that never awaited it had finished — an `act(…)` warning on every
@@ -649,6 +735,161 @@ describe("ForgeIssueDetailSheet", () => {
       await screen.findByText("Login times out")
       expect(forgeListComments).not.toHaveBeenCalled()
       expect(screen.queryByText("Comments")).not.toBeInTheDocument()
+    })
+
+    /**
+     * The thread is windowed, and reading it to the end asks for the rest.
+     *
+     * Only the DECISION is testable here: virtua is mocked away (see the top of
+     * this file), so these drive the scroll callback with the geometry a real
+     * one would have reported. Whether the window itself is drawn correctly —
+     * and whether the measured `startMargin` puts it under the description
+     * rather than through it — is manual QA on a real thread.
+     */
+    describe("scrolling to the end of it", () => {
+      /** The offset that puts the viewport's bottom edge inside the 800px
+       *  trigger distance of the list's end, and one that leaves it well
+       *  short. `startMargin` is 0 under jsdom (nothing is laid out), so the
+       *  list's end is `scrollSize` alone. */
+      const NEAR_END = 10_000 - 600 - 700
+      const MIDWAY = 1_000
+
+      /** Drives one scroll event through the mocked virtualizer, wrapped
+       *  because the fetch it may start updates state. */
+      async function scrollTo(offset: number) {
+        await act(async () => {
+          virtuaCtl.onScroll?.(offset)
+        })
+      }
+
+      it("loads the next page as the reader nears the last comment", async () => {
+        forgeListComments
+          .mockResolvedValueOnce(
+            commentPage([comment({ id: "1", body: "first" })], true, 1)
+          )
+          .mockResolvedValueOnce(
+            commentPage([comment({ id: "2", body: "second" })], false, 2)
+          )
+        mount(row())
+        await screen.findByText("first")
+
+        await scrollTo(NEAR_END)
+        expect(await screen.findByText("second")).toBeInTheDocument()
+        expect(forgeListComments).toHaveBeenLastCalledWith(7, {
+          kind: "issue",
+          number: 42,
+          page: 2,
+        })
+      })
+
+      it("leaves the rest alone while the reader is still in the middle", async () => {
+        forgeListComments.mockResolvedValue(
+          commentPage([comment({ id: "1", body: "first" })], true, 1)
+        )
+        mount(row())
+        await screen.findByText("first")
+        expect(forgeListComments).toHaveBeenCalledTimes(1)
+
+        await scrollTo(MIDWAY)
+        expect(forgeListComments).toHaveBeenCalledTimes(1)
+      })
+
+      /** `has_next: false` is the end of the thread. Reaching the bottom of a
+       *  fully-loaded discussion must not keep asking the forge for a page it
+       *  has already said does not exist. */
+      it("asks for nothing once the forge says there is no more", async () => {
+        forgeListComments.mockResolvedValue(
+          commentPage([comment({ id: "1", body: "only" })], false, 1)
+        )
+        mount(row())
+        await screen.findByText("only")
+        expect(forgeListComments).toHaveBeenCalledTimes(1)
+
+        await scrollTo(NEAR_END)
+        expect(forgeListComments).toHaveBeenCalledTimes(1)
+      })
+
+      /**
+       * One page per gesture, not one per frame.
+       *
+       * A scroll fires an event on every frame it moves, and virtua hands over
+       * whichever callback its own effect last committed — which for the frame
+       * after a fetch starts is still the one that was built when nothing was
+       * in flight. Without the in-flight flag this is three requests for page
+       * 2, and the last to land wins.
+       */
+      it("asks for the page once however many scroll events arrive", async () => {
+        forgeListComments.mockResolvedValueOnce(
+          commentPage([comment({ id: "1", body: "first" })], true, 1)
+        )
+        // Never settles, so every later event arrives with the fetch still out.
+        forgeListComments.mockReturnValue(new Promise(() => {}))
+        mount(row())
+        await screen.findByText("first")
+        expect(forgeListComments).toHaveBeenCalledTimes(1)
+
+        await scrollTo(NEAR_END)
+        await scrollTo(NEAR_END + 1)
+        await scrollTo(NEAR_END + 2)
+        expect(forgeListComments).toHaveBeenCalledTimes(2)
+      })
+
+      /**
+       * A broken network is the one thing that must NOT be retried by reading.
+       *
+       * The reader is already at the end of the thread when a page fails, so
+       * every further scroll event is another attempt — and the strip that says
+       * what went wrong would never be on screen long enough to read. Recovery
+       * stays on its "Try again".
+       */
+      it("stops asking once a page has failed, and resumes from the retry", async () => {
+        const user = userEvent.setup()
+        forgeListComments
+          .mockResolvedValueOnce(
+            commentPage([comment({ id: "1", body: "first" })], true, 1)
+          )
+          .mockRejectedValueOnce(new Error("offline"))
+          .mockResolvedValueOnce(
+            commentPage([comment({ id: "2", body: "second" })], false, 2)
+          )
+        mount(row())
+        await screen.findByText("first")
+
+        await scrollTo(NEAR_END)
+        await screen.findByText("offline")
+        expect(forgeListComments).toHaveBeenCalledTimes(2)
+
+        await scrollTo(NEAR_END + 1)
+        await scrollTo(NEAR_END + 2)
+        expect(forgeListComments).toHaveBeenCalledTimes(2)
+
+        await user.click(screen.getByRole("button", { name: "Try again" }))
+        expect(await screen.findByText("second")).toBeInTheDocument()
+        // The page that FAILED, not the one after it.
+        expect(forgeListComments).toHaveBeenNthCalledWith(3, 7, {
+          kind: "issue",
+          number: 42,
+          page: 2,
+        })
+      })
+
+      /** Windowing is a rendering technique, not a licence to stop being a
+       *  list: virtua takes the tags rather than wrapping them, so a screen
+       *  reader still hears "list, 2 items". */
+      it("stays a list of list items", async () => {
+        forgeListComments.mockResolvedValue(
+          commentPage([
+            comment({ id: "1", body: "first" }),
+            comment({ id: "2", body: "second" }),
+          ])
+        )
+        mount(row())
+        await screen.findByText("first")
+
+        const list = screen.getByRole("list")
+        expect(list.tagName).toBe("OL")
+        expect(within(list).getAllByRole("listitem")).toHaveLength(2)
+      })
     })
   })
 
@@ -1734,7 +1975,11 @@ describe("ForgeIssueDetailSheet merge box", () => {
     mount(row({ is_pr: true }))
 
     const button = await screen.findByRole("button", { name: "Merge" })
-    const lastComment = screen.getByText("Ship it")
+    // Awaited rather than read straight off: the thread is virtualized, and it
+    // stands the placeholder up until OverlayScrollbars has handed it the
+    // scrollport to window against. The merge box needs no such thing, so it
+    // can be on screen first — which says nothing about where it SITS.
+    const lastComment = await screen.findByText("Ship it")
     const composer = screen.getByRole("textbox", { name: "Leave a comment…" })
     // `DOCUMENT_POSITION_FOLLOWING` — the node argument comes LATER in the
     // document than the one the method is called on.

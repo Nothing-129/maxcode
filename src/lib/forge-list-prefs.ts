@@ -1,6 +1,9 @@
 "use client"
 
+import type { ForgeTab } from "@/lib/types"
+
 const PAGE_SIZE_KEY = "workspace:forge-page-size"
+const TAB_KEY = "workspace:forge-tab"
 
 /**
  * Page sizes the workbench offers. Kept small and fixed rather than free-form:
@@ -50,6 +53,44 @@ export function saveForgePageSize(size: ForgePageSize): void {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(PAGE_SIZE_KEY, String(size))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Which half of the panel opens by default. Issues, because a triage list
+ *  opens on the work that is still work — and because it is the tab that
+ *  "Start a task on this" was built for. */
+export const DEFAULT_FORGE_TAB: ForgeTab = "issues"
+
+/**
+ * The remembered switcher position.
+ *
+ * Remembered for the same reason the page SIZE is and the page NUMBER is not:
+ * it says which list you work in, not where you happened to be in one. Someone
+ * who lives in pull requests reopens the panel on pull requests.
+ *
+ * Not scoped per folder on purpose — the choice is about how you use the panel,
+ * not about a repository, and a per-repository memory would put you somewhere
+ * different every time you switched projects.
+ */
+export function loadForgeTab(): ForgeTab {
+  if (typeof window === "undefined") return DEFAULT_FORGE_TAB
+  try {
+    const raw = localStorage.getItem(TAB_KEY)
+    // Anything unrecognized — hand-edited, or a tab a future build offered —
+    // reads back as the default rather than as a value the switcher cannot
+    // show and no list can be fetched for.
+    return raw === "issues" || raw === "prs" ? raw : DEFAULT_FORGE_TAB
+  } catch {
+    return DEFAULT_FORGE_TAB
+  }
+}
+
+export function saveForgeTab(tab: ForgeTab): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(TAB_KEY, tab)
   } catch {
     /* ignore */
   }

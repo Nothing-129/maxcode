@@ -307,8 +307,25 @@ describe("useSessionFeedback", () => {
     await act(async () => {
       await result.current.steer("go left")
     })
-    expect(mockSubmit).toHaveBeenCalledWith("c1", "go left")
+    expect(mockSubmit).toHaveBeenCalledWith("c1", "go left", undefined)
     expect(result.current.notes.map((n) => n.id)).toContain("st1")
+
+    // A draft with attachments hands its full block list through untouched —
+    // the API layer owns upload-marker stripping, the backend the channel
+    // gate; the hook adds nothing.
+    const blocks = [
+      { type: "text" as const, text: "match this" },
+      {
+        type: "image" as const,
+        data: "aGk=",
+        mime_type: "image/png",
+      },
+    ]
+    mockSubmit.mockResolvedValueOnce(note("st2", "match this", "delivered"))
+    await act(async () => {
+      await result.current.steer("match this", blocks)
+    })
+    expect(mockSubmit).toHaveBeenCalledWith("c1", "match this", blocks)
 
     const noTurn = new Error("no turn")
     mockSubmit.mockRejectedValueOnce(noTurn)
@@ -463,5 +480,115 @@ describe("useSessionFeedback", () => {
     // Connection goes live (streaming) → tool availability is re-read.
     rerender({ ...baseProps, connStatus: "prompting" })
     await waitFor(() => expect(result.current.canSubmit).toBe(true))
+  })
+})
+
+/**
+ * A note the transcript adopted as a mid-turn user turn is a MESSAGE now, so
+ * its strip above the composer goes away - otherwise the same text is on
+ * screen twice for the rest of the turn.
+ *
+ * The adoption decision belongs to the connection reducer (it is the only
+ * thing that knows whether there was a running turn to splice the message
+ * into), so the hook is told which ids were taken rather than guessing. A note
+ * that was NOT adopted keeps its strip, which is what makes "shows in exactly
+ * one place" true in both directions.
+ */
+describe("useSessionFeedback steered-note strips", () => {
+  // Widen the props type so a test can vary `steeredMessageIds`;
+  // `baseProps` alone would pin it to the three fields it declares.
+  const props: Parameters<typeof useSessionFeedback>[0] = baseProps
+
+  it("drops the strip for a note the transcript adopted", async () => {
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useSessionFeedback>[0]) =>
+        useSessionFeedback(props),
+      { initialProps: props }
+    )
+    act(() => {
+      capturedHandler?.({
+        type: "feedback_submitted",
+        connection_id: "c1",
+        item: note("n1", "use the other API", "delivered"),
+      } as unknown as EventEnvelope)
+    })
+    await waitFor(() => expect(result.current.notes).toHaveLength(1))
+
+    // The reducer spliced it into the live turn.
+    rerender({ ...baseProps, steeredMessageIds: ["n1"] })
+    expect(result.current.notes).toHaveLength(0)
+    expect(result.current.showList).toBe(false)
+  })
+
+  it("keeps the strip for a note the transcript could not adopt", async () => {
+    const { result } = renderHook(
+      (props: Parameters<typeof useSessionFeedback>[0]) =>
+        useSessionFeedback(props),
+      { initialProps: { ...baseProps, steeredMessageIds: [] } }
+    )
+    act(() => {
+      capturedHandler?.({
+        type: "feedback_submitted",
+        connection_id: "c1",
+        item: note("n1", "landed after the turn ended", "delivered"),
+      } as unknown as EventEnvelope)
+    })
+    // No adoption reported, so the note stays visible somewhere.
+    await waitFor(() => expect(result.current.notes).toHaveLength(1))
+    expect(result.current.showList).toBe(true)
+  })
+
+  it("leaves pull-channel notes alone - they never become messages", async () => {
+    // A `check_user_feedback` note reaches the agent as a tool result, not as
+    // a user message, so it has no user turn on reload either. Strips are the
+    // right and only home for it, waiting or read.
+    const { result } = renderHook(
+      (props: Parameters<typeof useSessionFeedback>[0]) =>
+        useSessionFeedback(props),
+      { initialProps: { ...baseProps, steeredMessageIds: [] } }
+    )
+    act(() => {
+      capturedHandler?.({
+        type: "feedback_submitted",
+        connection_id: "c1",
+        item: note("n1", "waiting note"),
+      } as unknown as EventEnvelope)
+    })
+    await waitFor(() => expect(result.current.notes).toHaveLength(1))
+    act(() => {
+      capturedHandler?.({
+        type: "feedback_consumed",
+        connection_id: "c1",
+        ids: ["n1"],
+        delivered_at: "2026-06-07T00:00:05Z",
+      } as unknown as EventEnvelope)
+    })
+    // Read by the agent, still a strip.
+    expect(result.current.notes).toHaveLength(1)
+    expect(result.current.notes[0].status).toBe("delivered")
+    expect(result.current.showList).toBe(true)
+  })
+
+  it("only drops the ids it was given", async () => {
+    const { result, rerender } = renderHook(
+      (props: Parameters<typeof useSessionFeedback>[0]) =>
+        useSessionFeedback(props),
+      { initialProps: props }
+    )
+    act(() => {
+      capturedHandler?.({
+        type: "feedback_submitted",
+        connection_id: "c1",
+        item: note("n1", "one", "delivered"),
+      } as unknown as EventEnvelope)
+      capturedHandler?.({
+        type: "feedback_submitted",
+        connection_id: "c1",
+        item: note("n2", "two", "delivered"),
+      } as unknown as EventEnvelope)
+    })
+    await waitFor(() => expect(result.current.notes).toHaveLength(2))
+    rerender({ ...baseProps, steeredMessageIds: ["n1"] })
+    expect(result.current.notes.map((n) => n.id)).toEqual(["n2"])
   })
 })

@@ -244,6 +244,7 @@ impl CodeBuddyParser {
                             duration_ms: None,
                             model: record_model(&value),
                             completed_at: Some(ts),
+                            agent_message_id: None,
                         });
                     }
                 }
@@ -270,6 +271,7 @@ impl CodeBuddyParser {
                         duration_ms: None,
                         model: None,
                         completed_at: Some(ts),
+                        agent_message_id: None,
                     });
                 }
                 "function_call_result" => {
@@ -299,6 +301,7 @@ impl CodeBuddyParser {
                         duration_ms: None,
                         model: None,
                         completed_at: Some(ts),
+                        agent_message_id: None,
                     });
                 }
                 _ => {}
@@ -922,6 +925,7 @@ fn text_message(
         duration_ms: None,
         model,
         completed_at: Some(ts),
+        agent_message_id: None,
     }
 }
 
@@ -947,6 +951,7 @@ fn group_into_turns(messages: Vec<UnifiedMessage>) -> Vec<MessageTurn> {
                 duration_ms: None,
                 model: None,
                 completed_at: msg.completed_at,
+                agent_message_id: None,
             });
             i += 1;
         } else if matches!(msg.role, MessageRole::System) {
@@ -959,6 +964,7 @@ fn group_into_turns(messages: Vec<UnifiedMessage>) -> Vec<MessageTurn> {
                 duration_ms: None,
                 model: None,
                 completed_at: msg.completed_at,
+                agent_message_id: None,
             });
             i += 1;
         } else {
@@ -997,6 +1003,7 @@ fn group_into_turns(messages: Vec<UnifiedMessage>) -> Vec<MessageTurn> {
                 duration_ms,
                 model: turn_model,
                 completed_at,
+                agent_message_id: None,
             });
         }
     }

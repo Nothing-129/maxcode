@@ -97,6 +97,34 @@ vi.mock("@/lib/transport", () => ({
 vi.mock("@/lib/turn-busy", () => ({
   isNoActiveTurnRejection: vi.fn(() => false),
 }))
+// Nothing here mounts a Toaster, so toasts would vanish silently — record them
+// instead. The steering tests assert the uploading gate's honest signal.
+vi.mock("sonner", () => ({
+  toast: { error: vi.fn(), info: vi.fn(), success: vi.fn(), dismiss: vi.fn() },
+}))
+// Wrap-mock (rich-composer pattern above): render the REAL attachments hook,
+// but let a test stage image attachments — the drop/paste pipelines that
+// normally populate them need real files and upload endpoints.
+type ComposerAttachmentsApi = ReturnType<
+  typeof import("./composer/use-composer-attachments").useComposerAttachments
+>
+const attachmentsOverride = vi.hoisted(() => ({
+  current: null as Partial<ComposerAttachmentsApi> | null,
+}))
+vi.mock("./composer/use-composer-attachments", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("./composer/use-composer-attachments")>()
+  return {
+    ...actual,
+    useComposerAttachments: (
+      ...args: Parameters<typeof actual.useComposerAttachments>
+    ) => {
+      const real = actual.useComposerAttachments(...args)
+      const override = attachmentsOverride.current
+      return override ? { ...real, ...override } : real
+    },
+  }
+})
 // virtua renders 0 rows under jsdom — render children directly so the large
 // (searchable + virtualized) model list is exercisable here too.
 vi.mock("virtua", async () => {
@@ -971,6 +999,7 @@ describe("MessageInput native steering (insert into current turn)", () => {
   afterEach(() => {
     cleanup()
     composerHandle.current = null
+    attachmentsOverride.current = null
     vi.clearAllMocks()
   })
 
@@ -1044,7 +1073,10 @@ describe("MessageInput native steering (insert into current turn)", () => {
     await user.click(
       await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
     )
-    await waitFor(() => expect(onSteer).toHaveBeenCalledWith("go left"))
+    // A plain-text draft steers as text alone — no blocks payload.
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledWith("go left", undefined)
+    )
     // Unsettled: the draft must survive until the backend confirms.
     expect(serializeDocToText(editor.state.doc)).toContain("go left")
 
@@ -1105,5 +1137,148 @@ describe("MessageInput native steering (insert into current turn)", () => {
     // Real failure: nothing queued, draft intact for retry.
     expect(onEnqueue).not.toHaveBeenCalled()
     expect(serializeDocToText(editor.state.doc)).toContain("keep me")
+  })
+
+  const stagedImage = {
+    id: "att-1",
+    type: "image" as const,
+    data: "aGk=",
+    uri: null,
+    name: "mock.png",
+    mimeType: "image/png",
+  }
+  const stagedImageBlock = {
+    type: "image" as const,
+    data: "aGk=",
+    mime_type: "image/png",
+  }
+
+  it("steers a draft with an image attachment, blocks included", async () => {
+    // The whole point of block steering: the entry stays enabled with an
+    // image staged, and the handler ships the SAME block list a normal send
+    // would build — text prose plus the attachment — with the prose as the
+    // recorded note.
+    const user = userEvent.setup()
+    attachmentsOverride.current = {
+      attachments: [stagedImage],
+      imagePromptBlocks: () => [stagedImageBlock],
+    }
+    const onSteer = vi.fn().mockResolvedValue(undefined)
+    const editor = await mountPrompting({ onSteer })
+    typeDraft(editor, "match this mock")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerIntoTurn)).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByLabelText(MI.steerIntoTurn))
+    const item = await screen.findByRole("menuitem", {
+      name: MI.steerIntoTurn,
+    })
+    expect(item).not.toHaveAttribute("aria-disabled", "true")
+    await user.click(item)
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledWith("match this mock", [
+        { type: "text", text: "match this mock" },
+        stagedImageBlock,
+      ])
+    )
+    // Confirmed: the draft clears like any successful steer.
+    await waitFor(() =>
+      expect(serializeDocToText(editor.state.doc)).not.toContain(
+        "match this mock"
+      )
+    )
+  })
+
+  it("steers an image-only draft with the attachment summary as the note", async () => {
+    // No prose to record, so the note falls back to the draft's display text
+    // (what the queue chip would have shown) while the wire still carries the
+    // real image block.
+    const user = userEvent.setup()
+    attachmentsOverride.current = {
+      attachments: [stagedImage],
+      imagePromptBlocks: () => [stagedImageBlock],
+    }
+    const onSteer = vi.fn().mockResolvedValue(undefined)
+    await mountPrompting({ onSteer })
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerIntoTurn)).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByLabelText(MI.steerIntoTurn))
+    await user.click(
+      await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
+    )
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledWith("Attached 1 attachment", [
+        stagedImageBlock,
+      ])
+    )
+  })
+
+  it("blocks steering while an image upload is still settling", async () => {
+    // Same guard as a plain send: an unsettled upload has no server-side uri
+    // to hydrate from. The gate must be its own honest toast — the enqueue
+    // fallback would otherwise ship a bytes-less marker block.
+    const user = userEvent.setup()
+    const { toast } = await import("sonner")
+    attachmentsOverride.current = {
+      attachments: [{ ...stagedImage, uploading: true }],
+      hasUploadingImage: true,
+      imagePromptBlocks: () => [stagedImageBlock],
+    }
+    const onSteer = vi.fn()
+    const editor = await mountPrompting({ onSteer })
+    typeDraft(editor, "wait for it")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerIntoTurn)).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByLabelText(MI.steerIntoTurn))
+    await user.click(
+      await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
+    )
+    expect(onSteer).not.toHaveBeenCalled()
+    expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+      enMessages.Folder.chat.messageInput.attachUploadInProgress
+    )
+    // Draft and attachment stay put for the retry.
+    expect(serializeDocToText(editor.state.doc)).toContain("wait for it")
+  })
+
+  it("queues the attachment too when the blocks steer is rejected", async () => {
+    // The load-bearing half of "attachments are never silently dropped": the
+    // backend rejects a blocks-bearing note on the pull path (and on the
+    // turn-end race) with NoActiveTurn, and this fallback has to re-route the
+    // WHOLE draft — image included — not just the prose.
+    const user = userEvent.setup()
+    const { isNoActiveTurnRejection } = await import("@/lib/turn-busy")
+    vi.mocked(isNoActiveTurnRejection).mockReturnValue(true)
+    attachmentsOverride.current = {
+      attachments: [stagedImage],
+      imagePromptBlocks: () => [stagedImageBlock],
+    }
+    const onSteer = vi.fn().mockRejectedValue(new Error("no active turn"))
+    const onEnqueue = vi.fn()
+    const editor = await mountPrompting({ onSteer, onEnqueue })
+    typeDraft(editor, "late note")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerIntoTurn)).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByLabelText(MI.steerIntoTurn))
+    await user.click(
+      await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
+    )
+
+    await waitFor(() => expect(onEnqueue).toHaveBeenCalled())
+    const [draft] = onEnqueue.mock.calls[0]
+    expect(draft.blocks).toEqual([
+      { type: "text", text: "late note" },
+      stagedImageBlock,
+    ])
+    await waitFor(() =>
+      expect(serializeDocToText(editor.state.doc)).not.toContain("late note")
+    )
   })
 })

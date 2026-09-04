@@ -7,9 +7,7 @@ describe("MaxCode contract: Grok custom endpoint precedence", () => {
     const connection = source("src-tauri/src/acp/connection.rs")
     const grokParser = source("src-tauri/src/parsers/grok.rs")
 
-    expect(grokParser).toContain(
-      "grok_custom_default_model_from_config_toml"
-    )
+    expect(grokParser).toContain("grok_custom_default_model_from_config_toml")
     expect(grokParser).toContain(
       '.get("model")?\n        .as_table()?\n        .get(id)?'
     )

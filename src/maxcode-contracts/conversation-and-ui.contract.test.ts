@@ -30,6 +30,10 @@ describe("MaxCode contract: conversation defaults and navigation", () => {
     })
 
     expect(result).toEqual({ agentType: "codex", provisional: false })
+
+    const canvas = source("src/components/canvas/canvas-view.tsx")
+    expect(canvas).toContain("getLastSelectedAgent(")
+    expect(canvas).toContain("saveLastSelectedAgent(")
   })
 
   it("keeps completed sessions hidden by default and excludes retired navigation", () => {
@@ -74,6 +78,19 @@ describe("MaxCode contract: conversation defaults and navigation", () => {
     expect(folders).toContain(
       "reopened_folder_returns_with_the_highest_sort_priority"
     )
+  })
+
+  it("keeps folder conversations indented and folder colors scoped per row", () => {
+    const grouping = source(
+      "src/components/conversations/sidebar-conversation-grouping.ts"
+    )
+    expect(grouping).toContain("pushFolderBody(folderId, baseDepth + 1)")
+
+    const sidebar = source(
+      "src/components/conversations/sidebar-conversation-list.tsx"
+    )
+    expect(sidebar).toContain("const themeWrap =")
+    expect(sidebar).toContain("data-theme={")
   })
 })
 

@@ -50,7 +50,9 @@ pub struct FeedbackItem {
     pub text: String,
     pub created_at: DateTime<Utc>,
     pub status: FeedbackStatus,
-    /// When the agent read this note. `None` while `Pending`.
+    /// When the agent read this note. `None` while `Pending`. On the native
+    /// push path it is the submit instant (see [`Self::new_delivered`]) — a
+    /// lower bound on the read rather than the read itself.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub delivered_at: Option<DateTime<Utc>>,
 }
@@ -73,6 +75,12 @@ impl FeedbackItem {
     /// let `read_pending_feedback` hand the same text to a `check_user_feedback`
     /// call and double-deliver it (the Pending-only read is the mutual
     /// exclusion between the push and pull channels).
+    ///
+    /// `at` is the SUBMIT instant, taken before the injection is handed to the
+    /// adapter (`submit_feedback_native`), so `created_at` is provably earlier
+    /// than the agent's own transcript copy of the message — the ordering the
+    /// frontend needs to recognize that copy. `delivered_at` shares it, and is
+    /// therefore a lower bound on the read rather than the read itself.
     pub fn new_delivered(id: String, text: String, at: DateTime<Utc>) -> Self {
         Self {
             id,

@@ -272,6 +272,12 @@ export function GitLogBranchFilterList({
     () =>
       buildBranchRows({
         operations,
+        // `null`, not `[]`: this list has no worktree section AT ALL. That one
+        // exists to switch the workspace into another worktree's directory,
+        // which filtering the log never does, and those branches are already in
+        // the local tree below. `[]` would mean "has the section, currently
+        // empty" and would render a header + empty row here.
+        worktreeNodes: null,
         localNodes,
         remoteSections,
         localCount: branchList.local.length,
@@ -444,11 +450,13 @@ export function GitLogBranchFilterList({
 
     if (row.kind === "section" || row.kind === "group") {
       const depth = row.kind === "section" ? 0 : row.depth
+      // Only the two branch scopes reach this list — it passes no worktree
+      // leaves, so `buildBranchRows` never emits that section here.
       const label =
         row.kind === "section"
-          ? row.scope === "local"
-            ? t("localBranches")
-            : t("remoteBranches")
+          ? row.scope === "remote"
+            ? t("remoteBranches")
+            : t("localBranches")
           : row.label
       return (
         <button

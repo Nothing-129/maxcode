@@ -300,6 +300,31 @@ export interface MessageTurn {
    * `timestamp + duration_ms` — those two fields encode unrelated spans in
    * most parsers. */
   completed_at?: string | null
+  /** The id the AGENT knows this turn's message by, when codeg can name it the
+   * same way the agent does — `id` above is positional (`turn-3`) and names
+   * nothing an agent could look up.
+   *
+   * Present only where the turn can be a fork point ("fork from here"), which
+   * today means Claude and DeepSeek assistant turns. Its absence does NOT mean
+   * the turn cannot be forked at: codex forks by content fingerprint instead,
+   * and DeepSeek falls back to one — all resolved entirely in the backend, so
+   * never gate the fork affordance on this. */
+  agent_message_id?: string | null
+  /** CLIENT-ONLY, never on the wire. The id the PARSER gave this turn.
+   *
+   * A turn produced in the current session is named
+   * `live-<conversationId>-<liveMessageId>` by `buildStreamingTurnsFromLiveMessage`
+   * and keeps that name after it settles into `localTurns`. The backend has
+   * never heard of it — it resolves turns against a fresh parse, whose turns are
+   * `turn-N` — so asking the backend to act on "this turn" by its live id
+   * silently finds nothing. "Fork from here" hit exactly that: it degraded to a
+   * tail fork, and the forked session came out identical to its parent.
+   *
+   * Backfilled by the post-turn reparse (`computeTurnMetadataPatches`), which
+   * already aligns parsed turns onto local ones to fill in usage/duration.
+   * Absent on turns that came from the parser to begin with — those already ARE
+   * `turn-N` — so read it as `turn.source_turn_id ?? turn.id`. */
+  source_turn_id?: string | null
 }
 
 export interface ConversationDetail {
@@ -388,7 +413,70 @@ export interface FolderDetail {
    * folder's real `path`/`id`.
    */
   alias: string | null
+  /**
+   * Sidebar folder group this folder sits in, or null for top level. Purely a
+   * sidebar-organisation concept: never consulted for cwd, agent or
+   * conversation resolution. Always null on worktree children — they follow
+   * their repo, which is what carries the whole family into a group.
+   *
+   * May name a group that no longer exists (deleted in another window between
+   * this snapshot and the group list's); `buildSidebarLayout` falls such a
+   * folder back to the top level rather than hiding it.
+   */
+  group_id: number | null
 }
+
+/**
+ * A sidebar folder group: a named, optionally colored band that holds folders.
+ * Groups never nest and never hold conversations directly.
+ *
+ * `sort_order` is its position among TOP-LEVEL siblings, sharing one numeric
+ * space with the `sort_order` of ungrouped folders — that shared sequence is
+ * what lets groups and loose folders interleave in a single list.
+ */
+export interface FolderGroupDetail {
+  id: number
+  name: string
+  /**
+   * A {@link FolderThemeColor} value, or `"inherit"` for the app theme. Tints
+   * only the group's own header row; member folders keep their own color.
+   */
+  color: string
+  sort_order: number
+}
+
+/** Which kind of sidebar entry a {@link SidebarLayoutEntry} names. */
+export type SidebarEntryKind = "folder" | "group"
+
+/**
+ * One row of the sidebar's desired layout, as submitted after a drag. The
+ * client sends the COMPLETE visible layout — the top-level sequence followed by
+ * each group's members, in render order — and the backend assigns `sort_order`
+ * from a per-container counter. Positional, so the client never computes
+ * `sort_order` values itself; idempotent, so a replay is a no-op.
+ */
+export interface SidebarLayoutEntry {
+  kind: SidebarEntryKind
+  id: number
+  /** Only meaningful for `folder` entries: the group it lands in, or null for
+   *  top level. Always null for `group` entries — groups never nest. */
+  groupId: number | null
+}
+
+/**
+ * Payload for the global `folder-group://changed` side-channel. Group CRUD
+ * carries its detail so clients apply it without a re-fetch; `layout` carries
+ * nothing on purpose — one drag rewrites `group_id`/`sort_order` across every
+ * visible folder, so a single "re-read both lists" nudge is smaller and
+ * order-independent compared to a burst of per-row upserts. Mirrors the Rust
+ * `FolderGroupChange` (serde `tag = "kind"`).
+ */
+export type FolderGroupChange =
+  | { kind: "upsert"; group: FolderGroupDetail }
+  | { kind: "deleted"; id: number }
+  | { kind: "layout" }
+
+export const FOLDER_GROUP_CHANGED_EVENT = "folder-group://changed"
 
 /**
  * Result of `createChatConversation`: the new conversation id plus the hidden
@@ -631,6 +719,103 @@ export interface ConversationsBulkChanged {
 }
 
 export const CONVERSATIONS_BULK_CHANGED_EVENT = "conversations://bulk-changed"
+
+// ─── Conversation canvas ───
+
+/** What a canvas node is bound to. Mirrors the Rust `CanvasNodeKind`. */
+export type CanvasNodeKind =
+  | "folder"
+  | "group"
+  | "agent"
+  | "conversation"
+  | "custom"
+  | "note"
+
+/** One element on the conversation canvas. Mirrors the Rust `CanvasNode`:
+ *  a binding region (folder / folder group / agent / single conversation), a
+ *  hand-curated `custom` region, or a sticky `note`. `folder_id` /
+ *  `folder_group_id` / `conversation_id` are soft references — a binding whose
+ *  target is gone renders as unresolved. */
+export interface CanvasNode {
+  id: number
+  kind: CanvasNodeKind
+  folder_id: number | null
+  /** kind=group: the sidebar folder group this region mirrors. */
+  folder_group_id: number | null
+  agent_type: string | null
+  conversation_id: number | null
+  /** kind=custom: pinned conversation ids in insertion order; `[]` otherwise. */
+  member_ids: number[]
+  title: string | null
+  content: string | null
+  color: string | null
+  collapsed: boolean
+  /**
+   * Region grid shape. `0` on an axis means AUTO — columns are derived from the
+   * region width, rows are capped by `MAX_VISIBLE_MEMBERS`. A non-zero value
+   * pins that axis, which is what makes a resize step by whole cards. Always 0
+   * on pinned cards and notes.
+   */
+  grid_columns: number
+  grid_rows: number
+  x: number
+  y: number
+  width: number
+  height: number
+  created_at: string
+  updated_at: string
+}
+
+/** Response of `canvas_list_nodes`: the full node set plus the revision it was
+ *  read at (single read transaction server-side). Seeds `lastRevision`. */
+export interface CanvasSnapshot {
+  nodes: CanvasNode[]
+  revision: number
+}
+
+/** Envelope of every canvas mutation: the result plus the revision its single
+ *  broadcast event carries. Responses never advance `lastRevision` — the event
+ *  stream is the only ordered channel (see canvas-store). */
+export interface CanvasMutation<T> {
+  value: T
+  revision: number
+}
+
+export interface CanvasNodeMovePayload {
+  id: number
+  x: number
+  y: number
+}
+
+/** Payload for the global `canvas://changed` side-channel: exactly one event
+ *  per committed mutation, carrying a dense server revision. Payloads are
+ *  full-state and idempotent, so every client — including the originator —
+ *  applies them identically. Mirrors the Rust `CanvasChange` enum. */
+export type CanvasChange =
+  | { kind: "upsert"; node: CanvasNode; revision: number }
+  | { kind: "moved"; moves: CanvasNodeMovePayload[]; revision: number }
+  | { kind: "deleted"; id: number; revision: number }
+  | {
+      kind: "detached"
+      removed_from: number | null
+      node: CanvasNode
+      revision: number
+    }
+  | {
+      kind: "grouped"
+      node: CanvasNode
+      /** Pinned cards the new region absorbed, deleted in the same commit. */
+      deleted_ids: number[]
+      revision: number
+    }
+  | {
+      kind: "pruned"
+      deleted_ids: number[]
+      updated: CanvasNode[]
+      revision: number
+    }
+
+export const CANVAS_CHANGED_EVENT = "canvas://changed"
 
 export interface DbConversationDetail {
   summary: DbConversationSummary
@@ -1804,6 +1989,12 @@ export interface ForgeRemote {
   /** Which forge this host is — decided by the backend from the configured
    *  accounts and the hostname, never chosen here. */
   provider: ForgeProviderId
+  /** Whether `provider` is KNOWN rather than assumed — an account configured
+   *  for the host, or a hostname naming one of the two forges. `false` is a
+   *  remote that parsed perfectly well but lives somewhere codeg cannot read
+   *  (Bitbucket, Gitee, a Gitea): the panel says only GitHub and GitLab are
+   *  supported rather than spending a call that fails as a raw API error. */
+  supported: boolean
 }
 
 /** Latest task (any state) for a source key — the row chip's data. */
@@ -1985,6 +2176,15 @@ export interface WorkTaskFolderSettings {
   /** Shell line run inside a freshly created worktree before the agent
    *  starts (deps install, env seeding). */
   init_command?: string | null
+  /** Context-window occupancy (percent) at or above which a round that RESUMES
+   *  the task's session compacts first: the engine sends `compact_command`,
+   *  waits for that turn to land, and only then sends the round's own message.
+   *  0 = off. A fresh session is never compacted — it starts empty. */
+  auto_compact_percent: number
+  /** The command sent to compact, verbatim (e.g. `/compact`). Null/blank
+   *  resolves per agent: what the live session advertises, else a built-in
+   *  default for the agents codeg knows first-hand. */
+  compact_command?: string | null
   /** Extra instructions appended after the built-in prompt of a launch stage.
    *  Keys are the engine's stage ids (`work` | `retry` | `return` | `merge`)
    *  plus the reserved `all`, which applies to every stage. */
@@ -2407,13 +2607,27 @@ export type AcpEvent =
       type: "session_failure"
       record: SessionFailureRecord
     }
+  /**
+   * A JetBrains AIR async-task delta (claude only — see `AsyncTaskDelta`).
+   * PARTIAL by design: the reducer merges it into the connection's task table
+   * by the same rule the backend snapshot applies, and only a `spawned` delta
+   * may create a row.
+   */
+  | {
+      type: "async_task"
+      delta: AsyncTaskDelta
+    }
   | {
       type: "session_load_failed"
       session_id: string
       message: string
       /**
        * Stable backend identifier: `"resource_not_found"`,
-       * `"session_unavailable"`, or `"session_archived"`.
+       * `"session_unavailable"`, `"session_archived"`, or `"session_busy"`.
+       *
+       * The first three mean the session is gone. `"session_busy"` does not —
+       * another live session holds it (codex keeps the parent thread's writer
+       * after a fork), and it clears when that one closes.
        */
       code: string
     }
@@ -2765,6 +2979,80 @@ export interface SessionFailureRecord {
   dismissed?: boolean
 }
 
+/**
+ * Cumulative cost of one async task (mirror of Rust `AsyncTaskUsage`). All
+ * three counters are present together or the object is absent — the adapter
+ * drops a partial one.
+ */
+export interface AsyncTaskUsage {
+  total_tokens: number
+  tool_uses: number
+  duration_ms: number
+}
+
+/**
+ * One JetBrains AIR async task (mirror of Rust `AsyncTaskRecord`;
+ * claude-agent-acp 0.73+, published only because codeg advertises the
+ * `asyncTasks` AIR capability — codex-acp has no such channel).
+ *
+ * Claude's NON-AGENT background work: background shells, workflows, monitors.
+ * Sub-agents are excluded by the adapter itself. This is the MERGED row, not a
+ * wire frame — the adapter announces a task once and then revises it with
+ * partial deltas (`AsyncTaskDelta`), and the reducer applies the same merge as
+ * the backend's `SessionState::apply_event` so a client hydrating from the
+ * snapshot and one that saw every delta agree.
+ */
+export interface AsyncTaskRecord {
+  task_id: string
+  /** Adapter-authored label — the workflow name, else the description. */
+  name: string
+  /** Already friendly: `shell` | `workflow` | `monitor` | `task`, or an
+   *  unmapped future value rendered as itself. NOT the SDK's raw type. */
+  task_type: string
+  description: string
+  /** Whether the task earns its own transcript card upstream. The strip renders
+   *  either way and does not read this today; `false` marks work already drawn
+   *  as an ordinary tool call (a background `Bash` is). */
+  show_in_transcript: boolean
+  /** Whether `_session/async_task/stop` is offered for this task. */
+  can_stop: boolean
+  /** `running` | `paused` | `completed` | `failed` | `stopped`. Anything
+   *  outside the terminal three is treated as still live. */
+  state: string
+  summary?: string | null
+  last_tool_name?: string | null
+  usage?: AsyncTaskUsage | null
+  /** Absolute path to the task's output file, when the adapter recovered one. */
+  output_file_path?: string | null
+  /** The tool call this task belongs to, when it has one. */
+  tool_call_id?: string | null
+}
+
+/**
+ * One async-task delta as it arrived on the wire (mirror of Rust
+ * `AsyncTaskDelta`). `task_id` says which row, `spawned` says whether this
+ * frame may CREATE one, and every other field is an optional revision —
+ * ABSENT MEANS UNCHANGED, never "clear it".
+ */
+export interface AsyncTaskDelta {
+  task_id: string
+  /** True only for `async_task_spawned`, the only frame carrying a task's
+   *  identity. A delta naming an unknown task is dropped rather than creating a
+   *  nameless placeholder row. */
+  spawned: boolean
+  name?: string | null
+  task_type?: string | null
+  description?: string | null
+  show_in_transcript?: boolean | null
+  can_stop?: boolean | null
+  state?: string | null
+  summary?: string | null
+  last_tool_name?: string | null
+  usage?: AsyncTaskUsage | null
+  output_file_path?: string | null
+  tool_call_id?: string | null
+}
+
 export interface LiveSessionSnapshot {
   connection_id: string
   conversation_id: number | null
@@ -2825,6 +3113,11 @@ export interface LiveSessionSnapshot {
    *  watermarks included, so an attaching client seeds the same monotonic
    *  merge the live path applies. Absent while empty (the common case). */
   session_failures?: SessionFailureRecord[]
+  /** AIR async tasks, merged. Terminal rows included: they carry the ids the
+   *  subsequent live deltas revise, so a client seeded without them would
+   *  re-create a settled task as a running one on its next correction. Absent
+   *  while empty (the common case). */
+  async_tasks?: AsyncTaskRecord[]
   /** Goal-control action vocabulary the goal card gates its buttons on: the
    *  advertised `_meta.goal.actions` for neutral-goal adapters (claude has no
    *  "pause"), else the legacy ["pause","clear"] pair. `null` while the
@@ -3559,6 +3852,22 @@ export interface LocalMcpServer {
   id: string
   spec: Record<string, unknown>
   apps: McpAppType[]
+}
+
+/** One agent whose MCP config the scan could not read. */
+export interface LocalMcpSourceWarning {
+  app: McpAppType
+  message: string
+}
+
+/**
+ * A local MCP scan: everything codeg could read, plus a warning per source it
+ * could not. A single unreadable config degrades to a warning instead of
+ * failing the whole scan (issue #632).
+ */
+export interface LocalMcpScan {
+  servers: LocalMcpServer[]
+  warnings: LocalMcpSourceWarning[]
 }
 
 export interface McpMarketplaceProvider {

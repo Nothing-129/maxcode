@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
-import { describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/api", () => ({
   getSystemTerminalSettings: vi.fn(async () => ({ default_shell: null })),
@@ -53,13 +53,16 @@ vi.mock("@/lib/api", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock("@/lib/platform", () => ({ isDesktop: () => true }))
 vi.mock("@/lib/transport", () => ({ getActiveRemoteConnectionId: () => null }))
-// Windows, so the rendering section (desktop + Windows only) is on screen.
+// The rendering section is gated on the host webview having an env knob to
+// flip, so the platform has to be steerable per test. `vi.hoisted` because the
+// `vi.mock` factory is lifted above every plain `const` in this file.
+const platform = vi.hoisted(() => ({ current: "windows" as PlatformType }))
 vi.mock("@/hooks/use-platform", () => ({
   usePlatform: () => ({
-    platform: "windows",
-    isMac: false,
-    isWindows: true,
-    isLinux: false,
+    platform: platform.current,
+    isMac: platform.current === "macos",
+    isWindows: platform.current === "windows",
+    isLinux: platform.current === "linux",
   }),
 }))
 vi.mock("@/lib/updater", () => ({ relaunchApp: vi.fn() }))
@@ -68,7 +71,16 @@ vi.mock("@/hooks/use-feedback-enabled", () => ({
 }))
 
 import { GeneralSettings } from "./general-settings"
+import type { PlatformType } from "@/hooks/use-platform"
 import enMessages from "@/i18n/messages/en.json"
+
+function renderSettings() {
+  return render(
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <GeneralSettings />
+    </NextIntlClientProvider>
+  )
+}
 
 /**
  * The page is a stack of sections rendered through the shared
@@ -78,12 +90,12 @@ import enMessages from "@/i18n/messages/en.json"
  * right and silently loses the association), and each section actually mounts.
  */
 describe("GeneralSettings", () => {
+  beforeEach(() => {
+    platform.current = "windows"
+  })
+
   it("mounts every section and wires each row's label to its control", async () => {
-    render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <GeneralSettings />
-      </NextIntlClientProvider>
-    )
+    renderSettings()
 
     // Terminal section: the heading itself names the picker.
     const shell = await screen.findByLabelText("Default Terminal")
@@ -118,5 +130,28 @@ describe("GeneralSettings", () => {
     expect(screen.getByLabelText("Get session info")).toBeInTheDocument()
     expect(screen.getByLabelText("Create automations")).toBeInTheDocument()
     expect(screen.getByLabelText("Create to-do tasks")).toBeInTheDocument()
+  })
+
+  // The switch only means something where the backend has an env knob to flip
+  // at startup: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on Windows,
+  // `WEBKIT_DISABLE_*` on Linux. WKWebView has neither.
+  it("offers the rendering toggle on Linux too", async () => {
+    platform.current = "linux"
+    renderSettings()
+
+    await screen.findByLabelText("Default Terminal")
+    expect(
+      screen.getByLabelText("Disable hardware acceleration")
+    ).toBeInTheDocument()
+  })
+
+  it("hides the rendering toggle on macOS", async () => {
+    platform.current = "macos"
+    renderSettings()
+
+    await screen.findByLabelText("Default Terminal")
+    expect(
+      screen.queryByLabelText("Disable hardware acceleration")
+    ).not.toBeInTheDocument()
   })
 })

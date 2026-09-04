@@ -49,6 +49,7 @@ import {
 import { AgentToolCallPart } from "./agent-tool-call"
 import { AskQuestionResultCard } from "./ask-question-result-card"
 import { CodegMcpToolCard } from "./codeg-mcp-tool-card"
+import { ResumedDelegationCard } from "./resumed-delegation-card"
 import { CollabAgentCard } from "./collab-agent-card"
 import {
   ContextCompactionCard,
@@ -80,7 +81,7 @@ import { BackgroundTaskCard } from "./background-task-card"
 import { GeneratedImagesBlock } from "./generated-images-block"
 import { GoalRunPart, GoalToolCallPart } from "./goal-tool-call"
 import { PlanCard, PlanEntriesList } from "./plan-card"
-import { PlanModeCard } from "./plan-mode-card"
+import { PlanMarkdownCard, PlanModeCard } from "./plan-mode-card"
 import { PlainTextWithBadges } from "./plain-text-with-badges"
 import {
   FileTextIcon,
@@ -89,7 +90,6 @@ import {
   TerminalIcon,
   SearchIcon,
   GlobeIcon,
-  ClipboardListIcon,
   ListTodoIcon,
   SparklesIcon,
   CircleCheckIcon,
@@ -2232,11 +2232,13 @@ function parseCliExecutionEnvelope(text: string): {
 const TextPart = memo(function TextPart({
   text,
   isUser = false,
+  isStreaming = false,
 }: {
   text: string
   // User messages render as plain text + inline reference badges (no Markdown),
   // matching the plain-text composer. Assistant / system text keeps full Markdown.
   isUser?: boolean
+  isStreaming?: boolean
 }) {
   if (isUser) {
     return (
@@ -2247,7 +2249,12 @@ const TextPart = memo(function TextPart({
   }
   return (
     <div className='break-words text-sm prose prose-sm dark:prose-invert max-w-none [&_ul]:list-inside [&_ol]:list-inside [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
-      <MessageResponse>{text}</MessageResponse>
+      <MessageResponse
+        mode={isStreaming ? "streaming" : "static"}
+        parseIncompleteMarkdown={isStreaming}
+      >
+        {text}
+      </MessageResponse>
     </div>
   )
 })
@@ -2708,6 +2715,36 @@ const ToolCallPart = memo(function ToolCallPart({
     )
   }
 
+  // codeg-mcp resume_delegation: the sub-agent that came back. Rendered as the
+  // delegation card itself (with a ⟳ marker) rather than a task-id row above
+  // one, and tried BEFORE the generic workbench card below — which stays as the
+  // fallback for a REFUSED resume (`not_resumable`, unknown task), where there
+  // is no sub-agent to draw and only the reason is worth reading.
+  if (toolNameLower === "resume_delegation" && part.toolCallId) {
+    return (
+      <ResumedDelegationCard
+        toolCallId={part.toolCallId}
+        input={part.input ?? null}
+        output={part.output ?? null}
+        errorText={part.errorText ?? null}
+        state={part.state}
+        meta={part.meta ?? null}
+        // Whether a sub-agent resolves is only known inside the card (it takes
+        // a hook to find out), so the fallback goes in rather than the decision
+        // coming out.
+        fallback={
+          <CodegMcpToolCard
+            tool="resume_delegation"
+            input={part.input ?? null}
+            output={part.output ?? null}
+            errorText={part.errorText ?? null}
+            state={part.state}
+          />
+        }
+      />
+    )
+  }
+
   // The remaining codeg-mcp workbench companions (session lookup, work-task
   // reporting, chat authoring). One compact line stating what the call was
   // about, in the same visual language as the delegation cards, instead of the
@@ -2906,29 +2943,23 @@ const PlanPart = memo(function PlanPart({
 
 // Codex Plan-mode `<proposed_plan>` block: free-form markdown plan document
 // rendered inside card chrome (distinct from the TodoWrite checklist PlanCard).
+//
+// Renders through the SAME <PlanMarkdownCard> the live `plan_review` tool call
+// uses. The two carriers of a codex plan — this lifted block on reload, that
+// tool call live — previously had their own chrome, so the reloaded plan lost
+// the prose styling and the clamp/expand footer the live one had.
 const ProposedPlanPart = memo(function ProposedPlanPart({
   part,
 }: {
   part: Extract<AdaptedContentPart, { type: "proposed-plan" }>
 }) {
   const t = useTranslations("Folder.chat.proposedPlan")
-  const markdown = part.markdown.trim()
   return (
-    <div className="overflow-hidden rounded-lg border bg-card/50 ws-msg-card">
-      <div className="flex items-center gap-2 border-b px-3 py-2">
-        <ClipboardListIcon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="min-w-0 flex-1 truncate text-sm font-medium">
-          {t("title")}
-        </span>
-      </div>
-      <div className="px-3 py-2 text-sm">
-        {markdown.length > 0 ? (
-          <MessageResponse>{markdown}</MessageResponse>
-        ) : (
-          <span className="text-muted-foreground">{t("planning")}</span>
-        )}
-      </div>
-    </div>
+    <PlanMarkdownCard
+      markdown={part.markdown.trim()}
+      label={t("title")}
+      emptyLabel={t("planning")}
+    />
   )
 })
 
@@ -3140,6 +3171,7 @@ interface ContentPartsRendererProps {
   role?: MessageRole
   isResponseComplete?: boolean
   durationMs?: number | null
+  isStreaming?: boolean
 }
 
 export const ContentPartsRenderer = memo(function ContentPartsRenderer({
@@ -3147,14 +3179,22 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
   role,
   isResponseComplete = false,
   durationMs,
+  isStreaming = false,
 }: ContentPartsRendererProps) {
   const renderPart = (part: AdaptedContentPart, keyId: string): ReactNode => {
     if (part.type === "text") {
+      // An empty text part renders nothing but still earns a `space-y-4` gap
+      // below, which reads as a blank band inside the bubble. A user turn is
+      // final by the time it is rendered, so an empty one is always residue —
+      // never a stream that has not produced its first token yet, which is why
+      // this is scoped to `user` and assistant text is left to render as-is.
+      if (role === "user" && part.text.trim().length === 0) return null
       return (
         <TextPart
           key={`text-${keyId}`}
           text={part.text}
           isUser={role === "user"}
+          isStreaming={isStreaming}
         />
       )
     }
@@ -3243,7 +3283,7 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {parts.map((part, i) => renderPart(part, `${i}`))}
     </div>
   )

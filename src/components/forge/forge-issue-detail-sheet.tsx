@@ -3,12 +3,15 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ReactNode,
+  type RefObject,
 } from "react"
 import { useTranslations } from "next-intl"
+import { Virtualizer, type VirtualizerHandle } from "virtua"
 import { toast } from "sonner"
 import {
   Check,
@@ -274,6 +277,8 @@ function CommentThread({
   identity,
   onPosted,
   beforeComposer,
+  viewportRef,
+  viewportEl,
 }: {
   folderId: number
   kind: "issue" | "pr"
@@ -290,6 +295,10 @@ function CommentThread({
    *  before the place you would say the next thing. Empty for an issue, which
    *  has nothing to land. */
   beforeComposer?: ReactNode
+  /** The pane's own scrollport, passed straight through to [`CommentList`] —
+   *  see there for why the list needs both the ref and the element. */
+  viewportRef: RefObject<HTMLElement | null>
+  viewportEl: HTMLElement | null
 }) {
   const t = useTranslations("Forge")
   /** The pages the FORGE has served, in the order it served them. */
@@ -368,6 +377,32 @@ function CommentThread({
     void load(1)
   }, [load])
 
+  /**
+   * The scroll has reached the end of what is loaded, so load the rest.
+   *
+   * The flag is what makes this safe to call from a scroll event, and it is
+   * not the same guard as `loading`. virtua holds the latest callback in a ref
+   * it updates from an effect, so for the frame between a fetch starting and
+   * that effect running it is still the PREVIOUS callback — the one that closed
+   * over `loading: false` — that a scroll reaches. Scroll events arrive every
+   * frame, so without a flag written the instant the request goes out, one
+   * flick past the end would ask for the same page two or three times.
+   *
+   * A failure stops it dead. That is the difference between "load the rest as
+   * you read" and a broken network retrying the same page forever — recovery
+   * from a failure stays where it is now, on the button in [`FailureStrip`],
+   * which is the one place a reader can see what went wrong before asking
+   * again.
+   */
+  const fetching = useRef(false)
+  const loadNextOnScroll = useCallback(() => {
+    if (fetching.current || loading || !hasNext || failure != null) return
+    fetching.current = true
+    void load(nextPage).finally(() => {
+      fetching.current = false
+    })
+  }, [failure, hasNext, load, loading, nextPage])
+
   /** What the thread shows: the forge's pages, then anything posted here that
    *  has not turned up in them yet. `appendUnseen` is what retires a posted
    *  comment once its real page arrives, rather than showing it twice. */
@@ -401,13 +436,12 @@ function CommentThread({
       {firstLoad ? (
         <CommentSkeleton />
       ) : comments.length > 0 ? (
-        <ol className="flex flex-col gap-3">
-          {comments.map((comment) => (
-            <li key={comment.id}>
-              <CommentCard comment={comment} />
-            </li>
-          ))}
-        </ol>
+        <CommentList
+          comments={comments}
+          viewportRef={viewportRef}
+          viewportEl={viewportEl}
+          onNearEnd={loadNextOnScroll}
+        />
       ) : null}
 
       {empty ? (
@@ -424,10 +458,15 @@ function CommentThread({
         />
       ) : null}
 
-      {/* Offered whenever the FORGE says there is more, even with nothing on
-          screen: GitLab drops its system events after paginating, so a page of
-          nothing but "changed the milestone" arrives empty with the real
-          discussion still behind it. */}
+      {/* Kept even though the scroll now loads the rest on its own, because
+          the two cover different halves. Offered whenever the FORGE says there
+          is more, even with nothing on screen: GitLab drops its system events
+          after paginating, so a page of nothing but "changed the milestone"
+          arrives empty with the real discussion still behind it — and a page
+          with nothing on it is a page nobody can scroll to the end of, so the
+          automatic load would never fire. It is also what a reader reaches for
+          the moment the automatic one is held back, which is any time a fetch
+          has just failed. */}
       {hasNext && failure == null ? (
         <Button
           type="button"
@@ -460,6 +499,160 @@ function CommentThread({
     </section>
   )
 }
+
+/**
+ * How close to the end of the loaded thread the scroll gets before the next
+ * page is asked for. The same distance the commit timeline uses, and for the
+ * same reason: far enough out that a page has time to land before the reader
+ * arrives at the gap, close enough that scrolling halfway down a long thread
+ * does not fetch the whole of it.
+ */
+const LOAD_MORE_PX = 800
+
+/**
+ * The comments themselves, windowed.
+ *
+ * A thread of three hundred comments used to be three hundred mounted Markdown
+ * renderers — `MessageResponse` memoizes, so it is not the re-renders that
+ * cost, it is parsing and building three hundred subtrees the reader can see
+ * two of. Virtualized, only the ones near the viewport exist.
+ *
+ * The pane's scrollport is the scroller, deliberately: a box of its own would
+ * be a second scrollbar inside the panel and would trap the wheel over the
+ * discussion. That is what `scrollRef` is for — and what `startMargin` is the
+ * price of, because virtua does not measure where it sits inside a scroller it
+ * did not create (its only automatic mode is "my parent is the scroller"). The
+ * ELEMENT comes down beside the ref because a ref cannot be depended on: virtua
+ * reads `scrollRef` once, on mount, and OverlayScrollbars initializes deferred,
+ * so the list has to wait for the viewport to exist before it mounts at all.
+ *
+ * Until it does, the same placeholder the first load shows. Not the plain list
+ * standing in: the swap from one to the other would unmount every comment and
+ * parse the whole thread's Markdown a second time — and the only time this gap
+ * is open with comments already in hand is a cached answer that beat
+ * OverlayScrollbars to the frame.
+ */
+function CommentList({
+  comments,
+  viewportRef,
+  viewportEl,
+  onNearEnd,
+}: {
+  comments: ForgeComment[]
+  viewportRef: RefObject<HTMLElement | null>
+  /** The same element `viewportRef` points at, as state — see above. */
+  viewportEl: HTMLElement | null
+  /** The scroll has come within [`LOAD_MORE_PX`] of the last loaded comment.
+   *  Whether that should actually fetch anything is the thread's call. */
+  onNearEnd: () => void
+}) {
+  const handleRef = useRef<VirtualizerHandle>(null)
+  /** Wraps the virtualizer so its top edge can be measured. The wrapper adds no
+   *  box of its own, so its top IS the list's top. */
+  const boxRef = useRef<HTMLDivElement>(null)
+  const [startMargin, setStartMargin] = useState(0)
+
+  /**
+   * How far the list starts from the top of the scrolled content.
+   *
+   * Measured rather than declared because what sits above it is the item's own
+   * description, whose height is whatever the author's Markdown came to — and
+   * changes again when its images arrive.
+   *
+   * Free of feedback in both directions, which is what makes it safe to run
+   * from an observer that fires on any layout change in the pane. The list is
+   * BELOW everything this measures, so its own height cannot move its top; and
+   * the two rect reads and `scrollTop` cancel, so the answer is the same at
+   * every scroll position.
+   */
+  const measure = useCallback(() => {
+    const box = boxRef.current
+    if (box == null || viewportEl == null) return
+    const next =
+      box.getBoundingClientRect().top -
+      viewportEl.getBoundingClientRect().top +
+      viewportEl.scrollTop
+    // Sub-pixel noise is not a change worth a render — and a state update per
+    // observer callback is a render per observer callback.
+    setStartMargin((held) => (Math.abs(held - next) < 0.5 ? held : next))
+  }, [viewportEl])
+
+  useLayoutEffect(() => {
+    if (viewportEl == null) return
+    measure()
+    const observer = new ResizeObserver(measure)
+    // The pane itself, for a resized window or a panel that changed width, and
+    // the content inside it, for the description growing an image. Watching the
+    // content means this also fires as the list's own height settles, which
+    // costs a measurement that returns the same number — see [`measure`].
+    observer.observe(viewportEl)
+    const content = viewportEl.firstElementChild
+    if (content != null) observer.observe(content)
+    return () => observer.disconnect()
+  }, [measure, viewportEl])
+
+  // Re-created whenever either input changes, which virtua expects: it keeps
+  // whatever it was last handed in a ref of its own rather than subscribing to
+  // the function, so a new identity costs nothing.
+  const handleScroll = useCallback(
+    (offset: number) => {
+      const handle = handleRef.current
+      if (handle == null) return
+      // `offset` is the scrollport's own scrollTop and `scrollSize` is the
+      // VIRTUALIZER's total height — it counts neither what is above the list
+      // nor the composer below it. Adding the margin back is what puts the two
+      // in one coordinate system, and what keeps this measuring the end of the
+      // DISCUSSION rather than the end of the panel.
+      const end = startMargin + handle.scrollSize
+      if (offset + handle.viewportSize >= end - LOAD_MORE_PX) onNearEnd()
+    },
+    [onNearEnd, startMargin]
+  )
+
+  if (viewportEl == null) return <CommentSkeleton />
+
+  return (
+    <div ref={boxRef}>
+      <Virtualizer
+        ref={handleRef}
+        scrollRef={viewportRef}
+        data={comments}
+        startMargin={startMargin}
+        // Generous, because the rows are: a comment is a paragraph or twenty,
+        // where the lists this number is usually tuned for are single lines.
+        bufferSize={800}
+        // The list stays a list. virtua takes the tags rather than a wrapper,
+        // so `ol`/`li` survive virtualization instead of becoming two divs.
+        as="ol"
+        item="li"
+        onScroll={handleScroll}
+      >
+        {/* Keyed by the comment, not left to the index virtua falls back to:
+            a refresh REPLACES the whole collection (see `load`), and an edited
+            or deleted comment would otherwise hand its measured height, and its
+            rendered Markdown, to whichever comment landed in its slot. */}
+        {(comment: ForgeComment, index: number) => (
+          <div key={comment.id} className={index > 0 ? COMMENT_GAP : undefined}>
+            <CommentCard comment={comment} />
+          </div>
+        )}
+      </Virtualizer>
+    </div>
+  )
+}
+
+/**
+ * The space between two comments, as padding INSIDE the row.
+ *
+ * Not the `gap-3` this list used to have, and not a margin either: virtua lays
+ * its rows out absolutely from their measured border boxes, and neither a flex
+ * gap nor a margin is part of one — both would be dropped on the floor and the
+ * comments would sit on top of each other. On the leading edge rather than the
+ * trailing one so the last row adds nothing after itself (the section's own gap
+ * already separates it from what follows) and so appending a page never
+ * re-sizes a row that is already measured.
+ */
+const COMMENT_GAP = "pt-3"
 
 /**
  * The box a comment is written in.
@@ -1483,11 +1676,16 @@ function TabPane({
   value,
   active,
   mounted,
+  onViewportRef,
   children,
 }: {
   value: DetailTab
   active: DetailTab
   mounted: ReadonlySet<DetailTab>
+  /** Hands back the element that actually scrolls, once OverlayScrollbars has
+   *  made one. Passed only by the pane whose content needs to bind to it — the
+   *  virtualized comment list (see [`CommentList`]). */
+  onViewportRef?: (element: HTMLElement | null) => void
   children: ReactNode
 }) {
   return (
@@ -1498,7 +1696,9 @@ function TabPane({
       className="min-h-0"
     >
       {mounted.has(value) ? (
-        <ScrollArea className="h-full">{children}</ScrollArea>
+        <ScrollArea className="h-full" onViewportRef={onViewportRef}>
+          {children}
+        </ScrollArea>
       ) : null}
     </TabsContent>
   )
@@ -2012,6 +2212,8 @@ function Conversation({
   identity,
   onCommentPosted,
   beforeComposer,
+  viewportRef,
+  viewportEl,
 }: {
   row: ForgeIssueRow
   folderId: number | null
@@ -2021,6 +2223,12 @@ function Conversation({
   /** A change's merge controls, for the slot between the thread and the box.
    *  Absent for an issue — see [`CommentThread`]. */
   beforeComposer?: ReactNode
+  /** The scrollport this pane is drawn in, on its way to [`CommentList`]. It
+   *  comes from ABOVE rather than being found from here, because the element
+   *  that scrolls belongs to the pane and only the panel knows which of its two
+   *  layouts is on screen. */
+  viewportRef: RefObject<HTMLElement | null>
+  viewportEl: HTMLElement | null
 }) {
   const t = useTranslations("Forge")
   const body = row.body?.trim()
@@ -2080,6 +2288,8 @@ function Conversation({
             onCommentPosted({ isPr: row.is_pr, number: row.number })
           }
           beforeComposer={beforeComposer}
+          viewportRef={viewportRef}
+          viewportEl={viewportEl}
         />
       ) : null}
     </>
@@ -2235,6 +2445,26 @@ export function ForgeIssueDetailSheet({
    *  property of the folder, not of the item being read. Gated on the panel
    *  being open, because the drawer is mounted whether or not it is. */
   const identity = useForgeIdentity(folderId, row != null)
+
+  /**
+   * The element the conversation is scrolled in, for the virtualized thread
+   * inside it (see [`CommentList`]).
+   *
+   * Twice over, because the two consumers want different things from it. virtua
+   * takes a REF and reads it once on mount; the list has to know when the
+   * element APPEARS, which a ref cannot say — OverlayScrollbars initializes
+   * deferred, so at first render there is nothing to bind to.
+   *
+   * One pair for both layouts. A change is read through tabs and an issue
+   * through a single scroll, but only ever one of the two is mounted, so only
+   * one of them can be reporting a viewport at a time.
+   */
+  const viewportRef = useRef<HTMLElement | null>(null)
+  const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null)
+  const handleViewportRef = useCallback((element: HTMLElement | null) => {
+    viewportRef.current = element
+    setViewportEl(element)
+  }, [])
 
   const [tab, setTab] = useState<DetailTab>("conversation")
   /** Which panes have ever been shown. A pane that has been visited stays
@@ -2468,12 +2698,19 @@ export function ForgeIssueDetailSheet({
               </TabsList>
             </div>
 
-            <TabPane value="conversation" active={tab} mounted={mounted}>
+            <TabPane
+              value="conversation"
+              active={tab}
+              mounted={mounted}
+              onViewportRef={handleViewportRef}
+            >
               <Conversation
                 row={row}
                 folderId={folderId}
                 identity={identity}
                 onCommentPosted={onCommentPosted}
+                viewportRef={viewportRef}
+                viewportEl={viewportEl}
                 beforeComposer={
                   canMerge ? (
                     <MergeBox
@@ -2521,12 +2758,17 @@ export function ForgeIssueDetailSheet({
             </TabPane>
           </Tabs>
         ) : (
-          <ScrollArea className="min-h-0 flex-1">
+          <ScrollArea
+            className="min-h-0 flex-1"
+            onViewportRef={handleViewportRef}
+          >
             <Conversation
               row={row}
               folderId={folderId}
               identity={identity}
               onCommentPosted={onCommentPosted}
+              viewportRef={viewportRef}
+              viewportEl={viewportEl}
             />
           </ScrollArea>
         )}

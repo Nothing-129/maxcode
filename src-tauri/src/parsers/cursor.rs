@@ -989,6 +989,7 @@ fn build_turns(
                         duration_ms: None,
                         model: None,
                         completed_at: None,
+                        agent_message_id: None,
                     });
                 }
             }
@@ -1005,6 +1006,7 @@ fn build_turns(
                     duration_ms,
                     model: meta.last_used_model.clone(),
                     completed_at,
+                    agent_message_id: None,
                 });
             }
         } else if let Some(shell_turn) = wire::first_message(&turn_bytes, 2) {
@@ -1039,6 +1041,7 @@ fn build_turns(
                 duration_ms: None,
                 model: None,
                 completed_at: None,
+                agent_message_id: None,
             });
             let tool_id = format!("cursor-shell-{i}");
             let (preview, exit_code) = output.unwrap_or((None, 0));
@@ -1071,6 +1074,7 @@ fn build_turns(
                 duration_ms,
                 model: None,
                 completed_at,
+                agent_message_id: None,
             });
         }
     }

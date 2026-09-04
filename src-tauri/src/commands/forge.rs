@@ -37,6 +37,12 @@ pub struct ForgeRemote {
     /// and handed to the client for display and for building the reverse-lookup
     /// keys. The client never picks it: that choice selects a credential.
     pub provider: ForgeProvider,
+    /// Whether `provider` is known rather than assumed — see
+    /// `HostProfile::recognized`. `false` says the remote parsed fine but names
+    /// a host codeg has no reason to think is GitHub or GitLab, so the panel
+    /// says so up front instead of spending a request that comes back as a raw
+    /// API failure.
+    pub supported: bool,
 }
 
 /// Client-supplied coordinates of the work item being triggered.
@@ -438,6 +444,7 @@ pub async fn folder_forge_remote_core(
         // whatever configured it, and this value crosses to the client.
         remote_url: redact_userinfo(&url),
         provider: profile.provider,
+        supported: profile.recognized,
     }))
 }
 

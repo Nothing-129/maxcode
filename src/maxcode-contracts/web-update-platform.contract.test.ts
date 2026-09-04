@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto"
+import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import manifest from "@/app/manifest"
-import { source, sourceExists } from "./contract-source"
+import { repoPath, source, sourceExists } from "./contract-source"
 
 describe("MaxCode contract: resilient web installation", () => {
   it("ships a standalone MaxCode PWA with any and maskable icons", () => {
@@ -53,5 +55,12 @@ describe("MaxCode contract: updater and release channel", () => {
     expect(source("install.ps1")).toContain('$Repo = "Nothing-129/maxcode"')
     expect(sourceExists("public/icon.svg")).toBe(true)
     expect(sourceExists("src-tauri/icons/icon.icns")).toBe(true)
+  })
+
+  it("keeps the custom layered-terminal macOS icon", () => {
+    const icon = readFileSync(repoPath("src-tauri/icons/icon.icns"))
+    expect(createHash("sha256").update(icon).digest("hex")).toBe(
+      "2336a914b5bb8623b487b93dd9e1c4bca45c55c2020046268009143218c5b798"
+    )
   })
 })

@@ -2,7 +2,15 @@
  * Parsing helpers for the codeg-mcp *workbench* companion tools — the ones that
  * report back into codeg itself rather than driving a sub-agent:
  * `get_session_info`, `task_progress`, `task_complete`, `create_automation` and
- * `create_work_task`.
+ * `create_work_task` — plus `resume_delegation`.
+ *
+ * `resume_delegation` is the odd one out: it revives a sub-agent, so its
+ * primary renderer is `ResumedDelegationCard`, which states WHICH sub-agent
+ * came back rather than echoing a task id. This module still parses it, for
+ * two jobs the delegation card can't do — supplying that card's `task_id` /
+ * `reason` / result text, and being the fallback when the resume was REFUSED
+ * (`not_resumable`, unknown task): there is no sub-agent to draw then, only a
+ * reason to read.
  *
  * The delegation trio (`delegate_to_agent` / `get_delegation_status` /
  * `cancel_delegation`), `ask_user_question` and `check_user_feedback` each own a
@@ -39,6 +47,7 @@ export const CODEG_MCP_WORKBENCH_TOOLS = [
   "task_complete",
   "create_automation",
   "create_work_task",
+  "resume_delegation",
 ] as const
 
 export type CodegMcpWorkbenchTool = (typeof CODEG_MCP_WORKBENCH_TOOLS)[number]
@@ -76,6 +85,16 @@ export interface CodegMcpToolModel {
    * generic tool shell this card replaced, which dumped every argument.
    */
   prompt: string | null
+  /**
+   * `resume_delegation`'s optional `reason` argument — why the run was being
+   * revived. `null` for every other tool and when the LLM omitted it.
+   *
+   * Surfaced for the same reason as `prompt` above: it is the only free-form
+   * text a resume carries, it is injected into the child's continuation
+   * prompt, and nothing echoes it back in the result — so without this it
+   * would be visible nowhere.
+   */
+  reason: string | null
   /** The result text, envelopes peeled. `null` while the call is in flight. */
   resultText: string | null
   status: "running" | "ok" | "err"
@@ -199,6 +218,25 @@ const ARG_SPECS: Record<
     fields: ["title", "prompt"],
     detail: (args) => str(args, "title"),
   },
+  resume_delegation: {
+    // `task_id` alone identifies the payload; the optional `reason` never
+    // appears without it.
+    fields: ["task_id"],
+    detail: (args) => str(args, "task_id"),
+  },
+}
+
+/**
+ * The `task_id` argument of a `resume_delegation` call — the handle everything
+ * about a resumed sub-agent is resolved by (its own tool_call_id is never a
+ * delegation binding key). Exported for callers that need only this and not the
+ * whole model, notably `collectDelegationSources`.
+ */
+export function parseResumeTaskId(
+  input: string | null | undefined
+): string | null {
+  const args = parseArgs(input, (obj) => obj.task_id !== undefined)
+  return args ? str(args, "task_id") : null
 }
 
 function parseVerdict(
@@ -296,6 +334,8 @@ export function parseCodegMcpToolCall(params: {
     detail: args ? spec.detail(args) : null,
     verdict: params.tool === "task_complete" ? parseVerdict(args) : null,
     prompt: authoring && args ? str(args, "prompt") : null,
+    reason:
+      params.tool === "resume_delegation" && args ? str(args, "reason") : null,
     resultText: isError ? (params.errorText?.trim() ?? resultText) : resultText,
     status: isError
       ? "err"

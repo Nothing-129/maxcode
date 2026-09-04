@@ -56,6 +56,7 @@ function folder(overrides: Partial<FolderDetail> = {}): FolderDetail {
     parent_id: null,
     kind: "regular",
     alias: null,
+    group_id: null,
     ...overrides,
   }
 }

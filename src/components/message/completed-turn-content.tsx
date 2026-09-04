@@ -87,9 +87,24 @@ const manualFold = new WeakMap<
  * far edge): the rule underneath is a section divider and spans the reply,
  * while the control it belongs to reads as one unit. No corner radius — a
  * radius curls the ends of a lone `border-b` up into little hooks.
+ *
+ * The rule is tinted from `--foreground` rather than taking `--border`, which
+ * it cannot use at any opacity: `--border` is a near-white `oklch(0.922)` in
+ * light and `white/10%` in dark, so the usual `border-border/50` came out at
+ * roughly `oklch(0.96)` on white and white at 5% on near-black — invisible in
+ * both, and worst in dark. A foreground tint inverts with the theme instead —
+ * the same derivation as task-card's outline and `--ws-chrome-border`, which
+ * both reach for `--foreground` for exactly this reason.
+ *
+ * The TINT is what buys the legibility here, not the strength: at 10% this
+ * lands about where `--border` would if it were used undiluted, except it now
+ * holds up in dark and over a workspace background image, where the token
+ * washes out. Deliberately no heavier — the header is a quiet label the reader
+ * scans past, and a rule spanning the full width of every reply in the thread
+ * carries far more weight than a lone boxed card's outline does.
  */
 const HEADER_CLASS =
-  "flex w-full items-center gap-1 border-b border-border/50 pb-1.5 text-xs font-medium text-muted-foreground/70"
+  "flex w-full items-center gap-1 border-b border-foreground/10 pb-1.5 text-xs font-medium text-muted-foreground/70"
 
 export const CompletedTurnContent = memo(function CompletedTurnContent({
   parts,
@@ -217,6 +232,14 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
     </Shimmer>
   )
 
+  // Streamdown's incomplete-markdown repair (remend) may only run on text that
+  // is still being written. On settled text it appends a closer after spans
+  // that are ALREADY complete — a glob inside code, an identifier like `_meta`
+  // — leaving a stray `*` / `_`; landing after a final code fence, that closer
+  // reopens the block (#555). Every branch below renders some slice of this one
+  // turn, so they all get the same answer.
+  const isStreaming = !completed
+
   if (!foldable) {
     // Parsers leave empty placeholder turns between tool exchanges;
     // `mergeConsecutiveAssistantTurns` only swallows them mid-run, so a lone
@@ -229,12 +252,22 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
       split.progress.length === 0 &&
       !hasVisibleAnswer(split.answer)
     if (blank) {
-      return <ContentPartsRenderer parts={parts} role="assistant" />
+      return (
+        <ContentPartsRenderer
+          parts={parts}
+          role="assistant"
+          isStreaming={isStreaming}
+        />
+      )
     }
     return (
       <div className="space-y-3">
         <div className={HEADER_CLASS}>{labelNode}</div>
-        <ContentPartsRenderer parts={parts} role="assistant" />
+        <ContentPartsRenderer
+          parts={parts}
+          role="assistant"
+          isStreaming={isStreaming}
+        />
       </div>
     )
   }
@@ -274,13 +307,21 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
         >
           <div>
             <div className="pt-3">
-              <ContentPartsRenderer parts={split.progress} role="assistant" />
+              <ContentPartsRenderer
+                parts={split.progress}
+                role="assistant"
+                isStreaming={isStreaming}
+              />
             </div>
           </div>
         </CollapsibleContent>
       </Collapsible>
       {split.answer.length > 0 && (
-        <ContentPartsRenderer parts={split.answer} role="assistant" />
+        <ContentPartsRenderer
+          parts={split.answer}
+          role="assistant"
+          isStreaming={isStreaming}
+        />
       )}
     </div>
   )
