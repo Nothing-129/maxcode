@@ -2891,6 +2891,7 @@
           "turnFailedMaxTokens": "{agent} がこのターンの最大トークン数に達しました。",
           "turnFailedMaxTurnRequests": "{agent} がこのターンで許可された最大リクエスト数に達しました。",
           "turnFailedUnknown": "{agent} が不明な停止理由でターンを終了しました。",
+          "turnFailedAuthRequired": "{agent} はこのターンを実行する前に再度のサインインを必要としています。設定からサインインしてから、メッセージを送り直してください。",
           "grokModelSwitchIncompatibleAgent": "{agent} は既存の会話ではこのモデルに切り替えられません。新しいセッションを開始して使用してください。",
           "turnFailedEmpty": "{agent} は応答を生成せずにターンを終了しました。",
           "turnFailedEmptyProtocol": "{agent} の出力を MaxCode が解析できませんでした。エージェントのバージョンがプロトコルと一致していない可能性があります。",
@@ -2976,8 +2977,10 @@
         "send": "送信",
         "queueMessage": "キューに追加",
         "steerIntoTurn": "現在のターンに挿入",
+        "steerAsNote": "次の確認用にメモを送信",
         "steerQueuedInstead": "代わりにキューに追加しました。次のターンで送信されます。",
         "steerFailed": "現在のターンに挿入できませんでした",
+        "steerNoteFailed": "メモを送信できませんでした",
         "slashCommands": "スラッシュコマンド",
         "slashSearchPlaceholder": "コマンドを検索...",
         "slashSearchEmpty": "一致するコマンドがありません",
@@ -3362,6 +3365,7 @@
             "child_max_tokens": "サブエージェント: トークン上限",
             "child_max_turn_requests": "サブエージェント: 要求上限",
             "child_empty": "サブエージェント応答なし",
+            "child_auth_required": "サブエージェント要サインイン",
             "child_unknown": "サブエージェント: エラー",
             "unknown": "不明なタスク"
           }

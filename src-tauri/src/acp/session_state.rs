@@ -1394,6 +1394,16 @@ impl SessionState {
     ///
     /// Refreshed by ANY async-task delta, so a task that keeps reporting keeps
     /// its exemption for as long as it runs.
+    ///
+    /// That clause is claude-only in practice. codex-acp publishes no
+    /// `async_task_progress` channel at all (only `_spawned` and
+    /// `_state_update`), so a codex background terminal stamps the clock ONCE at
+    /// its announcement and then goes quiet — its exemption expires one window
+    /// after it started, however long the process actually runs. Deliberately
+    /// left alone: before this capability was advertised a codex background
+    /// terminal had no exemption whatsoever, and inventing a refresh here would
+    /// mean pinning a connection open on a liveness claim nothing re-verifies —
+    /// the exact failure this age bound exists to prevent.
     pub fn has_live_async_task(&self, now: DateTime<Utc>) -> bool {
         if !self
             .async_tasks

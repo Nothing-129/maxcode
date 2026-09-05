@@ -2891,6 +2891,7 @@
           "turnFailedMaxTokens": "{agent} a atteint la limite maximale de jetons pour ce tour.",
           "turnFailedMaxTurnRequests": "{agent} a atteint le nombre maximal de requêtes autorisées pour ce tour.",
           "turnFailedUnknown": "{agent} a terminé le tour avec une raison d'arrêt inconnue.",
+          "turnFailedAuthRequired": "{agent} a besoin que vous vous reconnectiez avant de pouvoir exécuter ce tour. Connectez-vous depuis les Paramètres, puis renvoyez le message.",
           "grokModelSwitchIncompatibleAgent": "{agent} ne peut pas basculer vers ce modèle dans une conversation existante. Démarrez une nouvelle session pour l'utiliser.",
           "turnFailedEmpty": "{agent} a terminé le tour sans produire de réponse.",
           "turnFailedEmptyProtocol": "{agent} a produit une sortie que MaxCode n'a pas pu analyser — la version de l'agent ne correspond peut-être pas au protocole.",
@@ -2976,8 +2977,10 @@
         "send": "Envoyer",
         "queueMessage": "Mettre en file d'attente",
         "steerIntoTurn": "Insérer dans le tour en cours",
+        "steerAsNote": "Envoyer une note pour la prochaine vérification",
         "steerQueuedInstead": "Mis en file d'attente — il sera envoyé au tour suivant.",
         "steerFailed": "Impossible d'insérer dans le tour en cours",
+        "steerNoteFailed": "Impossible d'envoyer votre note",
         "slashCommands": "Commandes slash",
         "slashSearchPlaceholder": "Rechercher des commandes...",
         "slashSearchEmpty": "Aucune commande correspondante",
@@ -3362,6 +3365,7 @@
             "child_max_tokens": "sous-agent : limite de jetons",
             "child_max_turn_requests": "sous-agent : limite de requêtes",
             "child_empty": "sous-agent sans sortie",
+            "child_auth_required": "sous-agent : connexion requise",
             "child_unknown": "sous-agent : erreur",
             "unknown": "tâche inconnue"
           }

@@ -9,6 +9,7 @@ import {
 } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
+import { toast } from "sonner"
 import type { ComponentProps } from "react"
 import type { Editor } from "@tiptap/core"
 import { afterEach, describe, expect, it, vi } from "vitest"
@@ -995,7 +996,7 @@ describe("MessageInput slash menu while the agent connects", () => {
   })
 })
 
-describe("MessageInput native steering (insert into current turn)", () => {
+describe("MessageInput mid-turn send (live-feedback channel)", () => {
   afterEach(() => {
     cleanup()
     composerHandle.current = null
@@ -1013,6 +1014,9 @@ describe("MessageInput native steering (insert into current turn)", () => {
       disabled: true,
       onCancel: vi.fn(),
       onEnqueue: vi.fn(),
+      // The prop defaults to the weaker `pull` promise, so the native cases
+      // below have to say so explicitly; the pull case overrides it back.
+      steerChannel: "native",
       ...props,
     })
     await waitFor(
@@ -1070,9 +1074,10 @@ describe("MessageInput native steering (insert into current turn)", () => {
     )
 
     await user.click(screen.getByLabelText(MI.steerIntoTurn))
-    await user.click(
-      await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
-    )
+    const item = await screen.findByRole("menuitem", { name: MI.steerIntoTurn })
+    // The glyph promises what the label does — the bolt is the instant insert.
+    expect(item.querySelector(".lucide-zap")).not.toBeNull()
+    await user.click(item)
     // A plain-text draft steers as text alone — no blocks payload.
     await waitFor(() =>
       expect(onSteer).toHaveBeenCalledWith("go left", undefined)
@@ -1139,6 +1144,39 @@ describe("MessageInput native steering (insert into current turn)", () => {
     expect(serializeDocToText(editor.state.doc)).toContain("keep me")
   })
 
+  it("labels the mid-turn action honestly on the pull channel", async () => {
+    // A pull-tool session gets the same split, but its action must never
+    // promise an instant insert: the note is recorded as waiting and read on
+    // the agent's next check, so the copy says exactly that.
+    const user = userEvent.setup()
+    const onSteer = vi.fn().mockResolvedValue(undefined)
+    const editor = await mountPrompting({ onSteer, steerChannel: "pull" })
+    typeDraft(editor, "check the tests")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerAsNote)).toBeInTheDocument()
+    )
+    expect(screen.queryByLabelText(MI.steerIntoTurn)).toBeNull()
+
+    // The action itself rides the same steer path — only the copy differs.
+    await user.click(screen.getByLabelText(MI.steerAsNote))
+    const pullItem = await screen.findByRole("menuitem", {
+      name: MI.steerAsNote,
+    })
+    // ...and so does the glyph: the notes strip's waiting clock, never the
+    // instant-insert bolt.
+    expect(pullItem.querySelector(".lucide-clock")).not.toBeNull()
+    expect(pullItem.querySelector(".lucide-zap")).toBeNull()
+    await user.click(pullItem)
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledWith("check the tests", undefined)
+    )
+    await waitFor(() =>
+      expect(serializeDocToText(editor.state.doc)).not.toContain(
+        "check the tests"
+      )
+    )
+  })
+
   const stagedImage = {
     id: "att-1",
     type: "image" as const,
@@ -1188,6 +1226,62 @@ describe("MessageInput native steering (insert into current turn)", () => {
         "match this mock"
       )
     )
+  })
+
+  it("defaults to the pull copy when no channel is declared", async () => {
+    // The weaker promise is the default: a call site that wires `onSteer` but
+    // forgets `steerChannel` must understate delivery, never claim an insert.
+    const editor = await mountPrompting({
+      onSteer: vi.fn(),
+      steerChannel: undefined,
+    })
+    typeDraft(editor, "no channel declared")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerAsNote)).toBeInTheDocument()
+    )
+    expect(screen.queryByLabelText(MI.steerIntoTurn)).toBeNull()
+    // The menu item, not just the trigger: they read from `steerChannel`
+    // independently, so a default that leaked into only one of them would
+    // still promise an insert somewhere.
+    await userEvent.setup().click(screen.getByLabelText(MI.steerAsNote))
+    expect(
+      await screen.findByRole("menuitem", { name: MI.steerAsNote })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByRole("menuitem", { name: MI.steerIntoTurn })
+    ).toBeNull()
+  })
+
+  it("names the note, not an insert, when a pull send fails", async () => {
+    // The failure toast is the last place the pull channel could overpromise:
+    // "couldn't insert into the current turn" would describe a delivery this
+    // session never attempted.
+    const user = userEvent.setup()
+    const { isNoActiveTurnRejection } = await import("@/lib/turn-busy")
+    vi.mocked(isNoActiveTurnRejection).mockReturnValue(false)
+    const onSteer = vi.fn().mockRejectedValue(new Error("boom"))
+    const editor = await mountPrompting({ onSteer, steerChannel: "pull" })
+    typeDraft(editor, "keep me")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerAsNote)).toBeInTheDocument()
+    )
+
+    await user.click(screen.getByLabelText(MI.steerAsNote))
+    await user.click(
+      await screen.findByRole("menuitem", { name: MI.steerAsNote })
+    )
+
+    await waitFor(() =>
+      expect(vi.mocked(toast.error)).toHaveBeenCalledWith(
+        MI.steerNoteFailed,
+        expect.anything()
+      )
+    )
+    // Exactly one toast: raising the insert copy alongside the note copy is
+    // the same overpromise, just louder.
+    expect(vi.mocked(toast.error)).toHaveBeenCalledTimes(1)
+    // Same draft policy as native: a real failure keeps the text for retry.
+    expect(serializeDocToText(editor.state.doc)).toContain("keep me")
   })
 
   it("steers an image-only draft with the attachment summary as the note", async () => {
@@ -1279,6 +1373,34 @@ describe("MessageInput native steering (insert into current turn)", () => {
     ])
     await waitFor(() =>
       expect(serializeDocToText(editor.state.doc)).not.toContain("late note")
+    )
+  })
+
+  it("labels the mid-turn action honestly on the pull channel", async () => {
+    // A pull-tool session gets the same split, but its action must never
+    // promise an instant insert: the note is recorded as waiting and read on
+    // the agent's next check, so the copy says exactly that.
+    const user = userEvent.setup()
+    const onSteer = vi.fn().mockResolvedValue(undefined)
+    const editor = await mountPrompting({ onSteer, steerChannel: "pull" })
+    typeDraft(editor, "check the tests")
+    await waitFor(() =>
+      expect(screen.getByLabelText(MI.steerAsNote)).toBeInTheDocument()
+    )
+    expect(screen.queryByLabelText(MI.steerIntoTurn)).toBeNull()
+
+    // The action itself rides the same steer path — only the copy differs.
+    await user.click(screen.getByLabelText(MI.steerAsNote))
+    await user.click(
+      await screen.findByRole("menuitem", { name: MI.steerAsNote })
+    )
+    await waitFor(() =>
+      expect(onSteer).toHaveBeenCalledWith("check the tests", undefined)
+    )
+    await waitFor(() =>
+      expect(serializeDocToText(editor.state.doc)).not.toContain(
+        "check the tests"
+      )
     )
   })
 })

@@ -37,7 +37,10 @@ vi.mock("sonner", () => ({
   toast: { error: vi.fn(), info: vi.fn(), success: vi.fn() },
 }))
 
-import { useSessionFeedback } from "./use-session-feedback"
+import {
+  useSessionFeedback,
+  type UseSessionFeedbackArgs,
+} from "./use-session-feedback"
 import { acpGetSessionSnapshot, submitSessionFeedback } from "@/lib/api"
 import { isNoActiveTurnRejection } from "@/lib/turn-busy"
 import { toast } from "sonner"
@@ -282,6 +285,7 @@ describe("useSessionFeedback", () => {
 
     await waitFor(() => expect(result.current.canSubmit).toBe(true))
     expect(result.current.channel).toBe("native")
+    expect(result.current.steerAvailable).toBe(true)
   })
 
   it("stays on the pull channel when only the tool is available", async () => {
@@ -295,6 +299,237 @@ describe("useSessionFeedback", () => {
 
     await waitFor(() => expect(result.current.canSubmit).toBe(true))
     expect(result.current.channel).toBe("pull")
+    // The pull tool is a working delivery channel — the composer's mid-turn
+    // send must be offered here too, not only on native sessions.
+    expect(result.current.steerAvailable).toBe(true)
+  })
+
+  it("reports no steer channel when the session has neither", async () => {
+    // No tool (launched before the feature was enabled / agent without MCP)
+    // and no native steering: the composer must keep its historical Stop-only
+    // prompting form, so `steerAvailable` stays false even mid-turn.
+    mockSnapshot.mockResolvedValue(
+      snapshot({
+        feedback_tool_available: false,
+        native_steering_available: false,
+      })
+    )
+    const { result } = renderHook(() => useSessionFeedback(baseProps))
+
+    // Both flags START false, so asserting before the reads land would pass
+    // no matter what the hook does with them. Wait for BOTH snapshot reads
+    // (hydrate + self-heal, each fired on mount) and flush their resolutions
+    // first — only then does `false` mean "the snapshot said no channel".
+    await waitFor(() => expect(mockSnapshot).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.steerAvailable).toBe(false)
+    expect(result.current.canSubmit).toBe(false)
+  })
+
+  it("drops the steer channel when switching to a session without one", async () => {
+    // The flags only ever UPGRADE from a snapshot, so the per-connection reset
+    // is the sole thing standing between a capable session and the next tab
+    // inheriting its channel. Without it the composer would keep offering the
+    // mid-turn send on a session whose backend rejects every note.
+    const { result, rerender } = renderHook(
+      (props: UseSessionFeedbackArgs) => useSessionFeedback(props),
+      { initialProps: baseProps as UseSessionFeedbackArgs }
+    )
+    await waitFor(() => expect(result.current.steerAvailable).toBe(true))
+
+    mockSnapshot.mockResolvedValue(
+      snapshot({
+        feedback_tool_available: false,
+        native_steering_available: false,
+      })
+    )
+    rerender({ ...baseProps, connectionId: "c2" })
+
+    await waitFor(() => expect(result.current.steerAvailable).toBe(false))
+    expect(result.current.canSubmit).toBe(false)
+  })
+
+  // --- notes that outlive their turn -------------------------------------
+
+  /** Mount mid-turn, land `items` as live notes, then end the turn. */
+  async function endTurnWith(
+    items: FeedbackItem[],
+    props: Partial<UseSessionFeedbackArgs> = {}
+  ) {
+    const hook = renderHook(
+      (p: UseSessionFeedbackArgs) => useSessionFeedback(p),
+      { initialProps: { ...baseProps, ...props } as UseSessionFeedbackArgs }
+    )
+    await waitFor(() => expect(capturedHandler).toBeTruthy())
+    for (const item of items) {
+      act(() =>
+        capturedHandler!({
+          seq: 0,
+          connection_id: "c1",
+          type: "feedback_submitted",
+          item,
+        } as EventEnvelope)
+      )
+    }
+    // The agent stopped without ever calling `check_user_feedback`.
+    hook.rerender({
+      ...baseProps,
+      ...props,
+      connStatus: "connected",
+    } as UseSessionFeedbackArgs)
+    return hook
+  }
+
+  it("keeps an unread note listed once the turn ends, as expired", async () => {
+    const { result } = await endTurnWith([note("n1", "use pnpm")])
+
+    // The whole point: the list used to hide the moment `isPrompting` dropped,
+    // taking the user's unread text with it.
+    expect(result.current.showList).toBe(true)
+    expect(result.current.notesExpired).toBe(true)
+    expect(result.current.notes.map((n) => n.id)).toEqual(["n1"])
+  })
+
+  it("retires the note the agent read and keeps the one it did not", async () => {
+    const { result } = await endTurnWith([
+      note("read", "already seen", "delivered"),
+      note("unread", "use pnpm"),
+    ])
+
+    // A delivered note steered the turn it belonged to — nothing left to
+    // salvage, so it goes with the turn.
+    expect(result.current.notes.map((n) => n.id)).toEqual(["unread"])
+    expect(result.current.notesExpired).toBe(true)
+  })
+
+  it("hides the list when the turn ends with every note read", async () => {
+    const { result } = await endTurnWith([
+      note("read", "already seen", "delivered"),
+    ])
+
+    expect(result.current.showList).toBe(false)
+    expect(result.current.notesExpired).toBe(false)
+  })
+
+  it.each(["connecting", "disconnected", "error"] as const)(
+    "does not call the turn over on a %s session",
+    async (connStatus) => {
+      // Only a live, IDLE session proves the turn ended. These three can read
+      // "not prompting" with the agent still running and the note still
+      // consumable — a mid-turn attach hydrates in `connecting`, and the
+      // liveness sweep flips to `disconnected` when the terminal event never
+      // arrived. Offering "send as message" there buys a duplicate: the user
+      // queues a copy, the agent goes on to read the original.
+      const { result } = renderHook(
+        (p: UseSessionFeedbackArgs) => useSessionFeedback(p),
+        { initialProps: { ...baseProps, connStatus } as UseSessionFeedbackArgs }
+      )
+      await waitFor(() => expect(capturedHandler).toBeTruthy())
+      act(() =>
+        capturedHandler!({
+          seq: 0,
+          connection_id: "c1",
+          type: "feedback_submitted",
+          item: note("n1", "use pnpm"),
+        } as EventEnvelope)
+      )
+
+      expect(result.current.notesExpired).toBe(false)
+      expect(result.current.showList).toBe(false)
+    }
+  )
+
+  it("resendNote sends the note's text as a message and retires the row", async () => {
+    const onResendAsPrompt = vi.fn()
+    const { result } = await endTurnWith([note("n1", "use pnpm")], {
+      onResendAsPrompt,
+    })
+
+    act(() => result.current.resendNote("n1"))
+
+    expect(onResendAsPrompt).toHaveBeenCalledWith("use pnpm")
+    expect(onResendAsPrompt).toHaveBeenCalledTimes(1)
+    expect(result.current.showList).toBe(false)
+  })
+
+  it("resendNote sends once even when clicked twice in a tick", async () => {
+    // Both calls see the row: it only leaves on the next render. Resending is
+    // the one action here that would actually reach the agent twice.
+    const onResendAsPrompt = vi.fn()
+    const { result } = await endTurnWith([note("n1", "use pnpm")], {
+      onResendAsPrompt,
+    })
+
+    act(() => {
+      result.current.resendNote("n1")
+      result.current.resendNote("n1")
+    })
+
+    expect(onResendAsPrompt).toHaveBeenCalledTimes(1)
+  })
+
+  it("dismissNote retires only its own row, and sends nothing", async () => {
+    const onResendAsPrompt = vi.fn()
+    const { result } = await endTurnWith(
+      [note("n1", "use pnpm"), note("n2", "and run the tests")],
+      { onResendAsPrompt }
+    )
+
+    act(() => result.current.dismissNote("n1"))
+
+    expect(onResendAsPrompt).not.toHaveBeenCalled()
+    expect(result.current.notes.map((n) => n.id)).toEqual(["n2"])
+  })
+
+  it("keeps a retired row retired against a late submit broadcast", async () => {
+    const { result } = await endTurnWith([note("n1", "use pnpm")])
+    act(() => result.current.dismissNote("n1"))
+    expect(result.current.showList).toBe(false)
+
+    // The broadcast for that very note arriving out of order must not re-add
+    // the row the user already dealt with.
+    act(() =>
+      capturedHandler!({
+        seq: 0,
+        connection_id: "c1",
+        type: "feedback_submitted",
+        item: note("n1", "use pnpm"),
+      } as EventEnvelope)
+    )
+
+    expect(result.current.notes).toHaveLength(0)
+    expect(result.current.showList).toBe(false)
+  })
+
+  it("keeps a retired row retired across a re-hydrate", async () => {
+    // The note stays `pending` backend-side until the next turn clears it, so
+    // the snapshot still carries it — only the tombstone keeps a row the user
+    // already dealt with from reappearing.
+    mockSnapshot.mockResolvedValue(
+      snapshot({ feedback: [note("n1", "use pnpm")] })
+    )
+    const { result, rerender } = renderHook(
+      (props: UseSessionFeedbackArgs) => useSessionFeedback(props),
+      { initialProps: baseProps as UseSessionFeedbackArgs }
+    )
+    await waitFor(() => expect(result.current.notes).toHaveLength(1))
+    act(() => result.current.dismissNote("n1"))
+    expect(result.current.notes).toHaveLength(0)
+
+    // Toggling the feature off and back on re-runs the hydrate on the SAME
+    // connection, against a snapshot that still lists the note.
+    const before = mockSnapshot.mock.calls.length
+    rerender({ ...baseProps, enabled: false })
+    rerender(baseProps)
+    await waitFor(() =>
+      expect(mockSnapshot.mock.calls.length).toBeGreaterThan(before)
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(result.current.notes).toHaveLength(0)
   })
 
   it("steer appends optimistically on success and RETHROWS on failure", async () => {

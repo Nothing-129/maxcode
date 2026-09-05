@@ -2891,6 +2891,7 @@
           "turnFailedMaxTokens": "{agent} reached the maximum token limit for this turn.",
           "turnFailedMaxTurnRequests": "{agent} reached the maximum number of allowed requests for this turn.",
           "turnFailedUnknown": "{agent} ended the turn with an unrecognized stop reason.",
+          "turnFailedAuthRequired": "{agent} needs you to sign in again before it can run this turn. Sign in from Settings, then send the message again.",
           "grokModelSwitchIncompatibleAgent": "{agent} can't switch to that model in an existing conversation. Start a new session to use it.",
           "turnFailedEmpty": "{agent} ended the turn without producing any response.",
           "turnFailedEmptyProtocol": "{agent} produced output that MaxCode could not parse — the agent version may not match the protocol.",
@@ -2978,8 +2979,10 @@
         "send": "Send",
         "queueMessage": "Queue message",
         "steerIntoTurn": "Insert into current turn",
+        "steerAsNote": "Send note for next check",
         "steerQueuedInstead": "Queued instead — it will be sent with the next turn.",
         "steerFailed": "Couldn't insert into the current turn",
+        "steerNoteFailed": "Couldn't send your note",
         "slashCommands": "Slash commands",
         "slashSearchPlaceholder": "Search commands...",
         "slashSearchEmpty": "No matching commands",
@@ -3362,6 +3365,7 @@
             "child_max_tokens": "subagent token limit",
             "child_max_turn_requests": "subagent request limit",
             "child_empty": "subagent no output",
+            "child_auth_required": "subagent needs sign-in",
             "child_unknown": "subagent unknown error",
             "unknown": "unknown task"
           }

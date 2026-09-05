@@ -2695,11 +2695,14 @@ impl ConnectionManager {
 
         // The pull tool delivers plain text (`PendingFeedback`), so a draft
         // carrying attachment blocks cannot ride it without silently dropping
-        // them. This only arises when the channel downgraded between the
-        // frontend's channel read and this call (startedNewTurn latch);
-        // `NoActiveTurn` is the rejection the caller already maps to its
-        // queue fallback, which re-routes the WHOLE draft — attachments
-        // included — as the next turn's prompt.
+        // them. Two ways to get here: an ordinary pull session (the composer
+        // offers its mid-turn send on every session with a delivery channel,
+        // so a codex/grok/gemini draft with an image lands right here), or a
+        // native session that downgraded between the frontend's channel read
+        // and this call (startedNewTurn latch). `NoActiveTurn` is the
+        // rejection the caller already maps to its queue fallback, which
+        // re-routes the WHOLE draft — attachments included — as the next
+        // turn's prompt.
         if blocks.is_some() {
             return Err(AcpError::NoActiveTurn);
         }

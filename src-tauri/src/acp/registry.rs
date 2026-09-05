@@ -629,12 +629,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // chunks (present since ≤0.69.0; `ContentChunk::message_id` behind
             // the schema's `unstable_message_id` feature).
             //
-            // (d) NOT adopted, and still gated bilaterally: the AIR capability
-            // array grew to `["sessionFailure", "agentFileChangeReport",
-            // "nativeSubagentSessions", "asyncTasks"]`. codeg advertises only
-            // `sessionFailure`, so `native-subagents.js` and `async-tasks.js`
-            // stay dark and this upgrade carries no regression risk. See
-            // `build_client_capabilities` for why each is out.
+            // (d) The AIR capability array grew to `["sessionFailure",
+            // "agentFileChangeReport", "nativeSubagentSessions", "asyncTasks"]`.
+            // codeg adopted `asyncTasks` and deliberately leaves the other two
+            // out, so `native-subagents.js` and `file-change-audit.js` stay
+            // dark. See `build_client_capabilities` for why each is in or out.
             //
             // Also new and reachable through existing generic paths:
             // `exit-plan.js` + `clear-context-coordinator.js` give ExitPlanMode
@@ -645,9 +644,67 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `tool-result-meta.js` parses the SDK's `tool_result_meta` sidecar
             // (`nonExecutionKind` + `userFeedback`) but only feeds exit-plan's
             // internal reconciliation. `engines.node` stays ">=22".
+            //
+            // 0.74.0 is a small, focused release (`diff -rq` against 0.73.0:
+            // `acp-agent.js`, `session-failure-extension.js`, one new
+            // `hide-claude-auth.js`, and `package.json`). `initialize` does not
+            // move at all — same `sessionCapabilities`, same AIR capability
+            // array, same `engines.node`, same `@anthropic-ai/claude-agent-sdk`
+            // 0.3.257 — so every capability decision above still holds. What
+            // DOES change, in the order it matters:
+            //
+            // (e) BREAKING for AIR clients, and the reason this bump needed
+            // code: `auth_required` no longer settles the turn. 0.73.0's
+            // `failActiveWithSessionFailure` resolved an AIR client's prompt
+            // with a disguised `end_turn` carrying the record on the response
+            // `_meta`; 0.74.0 special-cases the kind BEFORE that path and does
+            // both halves instead — it publishes ONE session-scoped `access`
+            // record (severity `error`, `actions: ["login"]`, title
+            // "Sign in to continue using Claude.", the CLI's own
+            // "… Please run /login" prose demoted to `details`) on the UPDATE
+            // channel, and then REJECTS the prompt with the `authRequired`
+            // JSON-RPC error, because ACP defines that rejection as the signal
+            // that starts a client's own auth flow. Both halves already have a
+            // consumer here — `air_session_failure` renders the strip with its
+            // Login button — but the rejection did not: `run_conversation_loop`
+            // propagated every prompt error, so a mid-session sign-out would
+            // have torn the whole connection down (terminal `Error` →
+            // `Disconnected`, conversation row flipped to Cancelled) where
+            // 0.73.0 just ended the turn. `run_conversation_loop` now keeps an
+            // `ErrorCode::AuthRequired` prompt rejection turn-scoped; see the
+            // `Err(e) if e.code == AuthRequired` arm there.
+            //
+            // (f) Three fixes that land for free. A 401 no longer publishes a
+            // "Retrying Claude, attempt N of M" WARNING before the sign-out
+            // error (upstream #1072) — that strip used to outlive the refusal
+            // with no action to clear it. A record whose `recoveryPolicy` is
+            // `auth_status` now also clears (agent-side bookkeeping; nothing
+            // goes on the wire) when a real model answers, so an out-of-band
+            // sign-in no longer leaves a stale row that makes the adapter
+            // dedupe away the NEXT sign-out — and codeg's `login` action is
+            // exactly that case, since it opens /settings/agents and the
+            // credential is then fixed outside the query process. And
+            // `createSession` now discards a query it spawned but never
+            // registered, so a failed `session/new` stops leaking a live CLI
+            // child.
+            //
+            // (g) Inert here. `--hide-claude-auth` (new `hide-claude-auth.js`:
+            // refuse turns a claude.ai subscription would pay for, plus the
+            // sign-out respawn machinery) is argv-gated and `args` below is
+            // empty — codeg has no per-agent argv override, and a user who
+            // builds a CUSTOM agent around that flag gets `AgentType::Custom`,
+            // which is not advertised AIR at all. That also makes the record's
+            // new `reason` field unreachable: `CLAUDE_SUBSCRIPTION_NOT_SUPPORTED_REASON`
+            // is its only producer, so `parse_session_failure_record`
+            // deliberately does not read it. Likewise the hardening of the
+            // legacy gateway `authenticate` (an absent payload still succeeds;
+            // a PRESENT one must now carry an absolute http(s) `baseUrl`) and
+            // the containment of a per-session failure during
+            // `providers/set`/`providers/disable` — codeg calls neither method
+            // on claude.
             distribution: AgentDistribution::Npx {
-                version: "0.73.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.73.0",
+                version: "0.74.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.74.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -895,9 +952,60 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // three names). Steering still ships no `promptRequired` opt-in
             // (tarball grep: zero hits), and there is still no `engines.node`,
             // so the 20.0.0 floor is retained.
+            //
+            // 1.9.0 + 1.10.0 add exactly five wire methods between them (diff of
+            // the two bundles' method literals: nothing was REMOVED), of which
+            // three are internal app-server calls and two face the client:
+            //
+            // (a) 1.10.0 — AIR **`asyncTasks`**, and this is the bump's reason.
+            // codex's background terminals (a shell the model leaves running,
+            // e.g. via the `unified_exec` tool) now publish the same lifecycle
+            // claude-agent-acp 0.73.0 does, so `build_client_capabilities` now
+            // advertises the capability to Codex as well. It is purely
+            // additive: `CodexBackgroundTerminalTasks` is constructed with
+            // `enabled = clientSupportsAirCapability(…, "asyncTasks")` and every
+            // method short-circuits on `isActive()`, so NOT advertising is
+            // byte-identical to 1.8.0. Verified against a live 1.10.0 over
+            // stdio, WITH and WITHOUT the advertisement — see the wire trace in
+            // `build_client_capabilities`. The control run is the argument for
+            // opting in: without it the launching `execute` tool call sits at
+            // `in_progress` for the rest of the connection and codeg learns
+            // nothing at all about the process behind it.
+            //
+            // (b) 1.9.0 — **`_auth/status_update`**, a connection-level (NO
+            // `sessionId`) notification pushed unconditionally: once just after
+            // the `initialize` response, then on each authenticate / logout /
+            // session create, and on the app-server's `account/updated`. It is
+            // NOT capability-gated in either direction; the agent only
+            // ANNOUNCES it via `agentCapabilities._meta.authStatus = {}`. codeg
+            // claims and drops it in `handle_auth_status_update` — see there for
+            // why a silent drop is not an option.
+            //
+            // (c) 1.9.0 — `account/rateLimits/read` (internal): `/status` now
+            // refreshes the rate limits before printing instead of showing
+            // whatever the last turn happened to report, prints an extra
+            // "individual spend limit" line, and flips the context line from
+            // "N% left" to "N% used". All three are agent TEXT that codeg
+            // renders as markdown — the whole repo has no `/status` parser
+            // (`lib/codex-command-action.ts`, codeg's only codex-text reader,
+            // handles tool-call titles and command-result envelopes, never a
+            // slash-command's reply), so this is display-only.
+            //
+            // (d) 1.9.0 — `sessionState.lastTokenUsage` is reset when a turn
+            // actually STARTS rather than when a prompt is received, so a prompt
+            // that dies before its turn opens no longer blanks the last usage.
+            // codeg reads `usage_update` frames and is unaffected.
+            //
+            // `thread/backgroundTerminals/{list,terminate}` are the app-server
+            // half of (a) and never reach ACP. Steering STILL ships no
+            // `promptRequired` opt-in (tarball grep: zero hits ⇒ the arm below
+            // stays None), `agentFileChangeReport` / native subagent sessions
+            // are still not adopted, and there is still no `engines.node`, so
+            // the 20.0.0 floor is retained. `@openai/codex` moves ^0.152 →
+            // ^0.153.3 (one minor plus patches).
             distribution: AgentDistribution::Npx {
-                version: "1.8.0",
-                package: "@agentclientprotocol/codex-acp@1.8.0",
+                version: "1.10.0",
+                package: "@agentclientprotocol/codex-acp@1.10.0",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
@@ -1785,8 +1893,8 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.73.0",
-            "@agentclientprotocol/claude-agent-acp@0.73.0",
+            "0.74.0",
+            "@agentclientprotocol/claude-agent-acp@0.74.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -1818,8 +1926,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "1.8.0",
-            "@agentclientprotocol/codex-acp@1.8.0",
+            "1.10.0",
+            "@agentclientprotocol/codex-acp@1.10.0",
             Some("20.0.0"),
         );
         assert_npx_version(AgentType::Pi, "0.0.33", "pi-acp@0.0.33", Some("22.0.0"));

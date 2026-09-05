@@ -1481,6 +1481,118 @@ describe("adaptMessageTurn plan handling", () => {
   )
 })
 
+describe("adaptMessageTurn — Codex grep no-match results", () => {
+  const msgText = {
+    attachedResources: "Attached resources",
+    toolCallFailed: "Tool failed",
+  }
+
+  function adaptSearchResult({
+    toolName = "Search for 'definitely absent'",
+    output = JSON.stringify({ exit_code: 1, formatted_output: "" }),
+    isError = true,
+    pairing = "id",
+    isStreaming = false,
+  }: {
+    toolName?: string
+    output?: string
+    isError?: boolean
+    pairing?: "id" | "position"
+    isStreaming?: boolean
+  } = {}): AdaptedToolCallPart {
+    const toolUseId = pairing === "id" ? "search-1" : null
+    const adapted = adaptMessageTurn(
+      {
+        id: `codex-search-${pairing}-${isStreaming ? "live" : "reload"}`,
+        role: "assistant",
+        timestamp: "2026-09-04T00:00:00.000Z",
+        blocks: [
+          {
+            type: "tool_use",
+            tool_use_id: toolUseId,
+            tool_name: toolName,
+            input_preview: JSON.stringify({ pattern: "definitely absent" }),
+          },
+          {
+            type: "tool_result",
+            tool_use_id: toolUseId,
+            output_preview: output,
+            is_error: isError,
+          },
+        ],
+      },
+      msgText,
+      isStreaming
+    )
+    const group = adapted.content[0]
+    if (group?.type !== "tool-group" || !group.items[0]) {
+      throw new Error("expected a grouped tool call")
+    }
+    return group.items[0]
+  }
+
+  it.each([
+    ["id", false],
+    ["id", true],
+    ["position", false],
+    ["position", true],
+  ] as const)(
+    "normalizes an exact exit-1 empty grep envelope for %s pairing (streaming=%s)",
+    (pairing, isStreaming) => {
+      const raw = JSON.stringify({ exit_code: 1, formatted_output: "" })
+      const part = adaptSearchResult({ pairing, isStreaming, output: raw })
+
+      expect(part.state).toBe("output-available")
+      expect(part.errorText).toBeUndefined()
+      expect(part.output).toBe(raw)
+    }
+  )
+
+  // A shell that echoes a bare newline still means "no matches":
+  // <SearchResultsOutput> renders any blank body that way, so the card status
+  // has to agree or the same result reads as red-with-"No matches".
+  it("normalizes a whitespace-only exit-1 grep envelope", () => {
+    const raw = JSON.stringify({ exit_code: 1, formatted_output: "\r\n" })
+    const part = adaptSearchResult({ output: raw })
+
+    expect(part.state).toBe("output-available")
+    expect(part.errorText).toBeUndefined()
+    expect(part.output).toBe(raw)
+  })
+
+  it.each([
+    [
+      "an ordinary command",
+      "bash",
+      JSON.stringify({ exit_code: 1, formatted_output: "" }),
+    ],
+    [
+      "a glob command",
+      "List files",
+      JSON.stringify({ exit_code: 1, formatted_output: "" }),
+    ],
+    [
+      "grep output",
+      "Search for 'definitely absent'",
+      JSON.stringify({
+        exit_code: 1,
+        formatted_output: "rg: permission denied",
+      }),
+    ],
+    [
+      "a higher exit code",
+      "Search for 'definitely absent'",
+      JSON.stringify({ exit_code: 2, formatted_output: "" }),
+    ],
+    ["a non-Codex result", "Search for 'definitely absent'", ""],
+  ])("keeps %s on the error path", (_label, toolName, output) => {
+    const part = adaptSearchResult({ toolName, output })
+
+    expect(part.state).toBe("output-error")
+    expect(part.errorText).toBe(output || undefined)
+  })
+})
+
 describe("adaptMessageTurn — image tool results", () => {
   const msgText = {
     attachedResources: "Attached resources",

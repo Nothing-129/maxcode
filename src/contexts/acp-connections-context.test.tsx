@@ -2481,6 +2481,27 @@ describe("empty-turn error diagnostics", () => {
     })
   })
 
+  // claude-agent-acp 0.74.0 rejects the prompt with ACP's `authRequired` on a
+  // mid-session sign-out. The backend keeps that turn-scoped and synthesizes
+  // `turn_failed_auth_required`; without its own case here the user would get
+  // the raw English "needs you to sign in again" string instead.
+  it("localizes the auth-required turn code", async () => {
+    const handlers = await connectOwner()
+
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "error",
+      message: "raw english fallback",
+      agent_type: "claude_code",
+      code: "turn_failed_auth_required",
+    })
+
+    expect(h.store!.getConnection(TAB)!.error).toBe(
+      "backendErrors.turnFailedAuthRequired"
+    )
+  })
+
   it("routes details to the alert's evidence slot, keeping them out of detail, conn.error and the OS notification", async () => {
     const handlers = await connectOwner()
     h.pushAlert.mockClear()

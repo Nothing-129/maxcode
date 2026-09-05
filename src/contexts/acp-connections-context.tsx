@@ -4521,6 +4521,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
                 return t("backendErrors.turnFailedUnknown", {
                   agent: agentLabel,
                 })
+              // The agent refused the prompt with ACP's `authRequired` instead
+              // of running it. The connection is deliberately kept alive, so
+              // this reads as "sign in and send it again", not as a crash. An
+              // AIR-capable agent additionally publishes an `access` failure
+              // record whose Login button opens agent settings.
+              case "turn_failed_auth_required":
+                return t("backendErrors.turnFailedAuthRequired", {
+                  agent: agentLabel,
+                })
               case "turn_failed_empty":
                 return t("backendErrors.turnFailedEmpty", {
                   agent: agentLabel,

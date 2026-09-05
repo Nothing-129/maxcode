@@ -58,17 +58,20 @@ interface ChatInputProps {
   isEditingQueueItem?: boolean
   onSaveQueueEdit?: (draft: PromptDraft) => void
   onCancelQueueEdit?: () => void
-  /** Inject the draft into the RUNNING turn over the native steering channel.
-   *  Present only when the session's live-feedback channel is native
-   *  (`useSessionFeedback().channel === "native"`); resolves once recorded,
-   *  rejects on any failure (incl. the turn-end race) so MessageInput can run
-   *  its own enqueue fallback / draft preservation. `blocks` carries the full
-   *  draft when it holds more than plain text (image attachments, file
-   *  badges); `text` stays the recorded/display form. Must stay in sync with
+  /** Send the draft into the RUNNING turn over the session's live-feedback
+   *  channel. Present only when the session has a working delivery channel
+   *  (`useSessionFeedback().steerAvailable`); resolves once recorded, rejects
+   *  on any failure (incl. the turn-end race) so MessageInput can run its own
+   *  enqueue fallback / draft preservation. `blocks` carries the full draft
+   *  when it holds more than plain text (image attachments, file badges);
+   *  `text` stays the recorded/display form. Must stay in sync with
    *  `MessageInputProps.onSteer` — the optional second parameter makes a
    *  stale one-arg declaration here assignable, so tsc would NOT catch a
    *  wrapper that silently drops the blocks. */
   onSteer?: (text: string, blocks?: PromptInputBlock[]) => Promise<void>
+  /** Which channel `onSteer` rides (`useSessionFeedback().channel`); picks
+   *  the composer's honest copy. See `MessageInput`. */
+  steerChannel?: "native" | "pull"
   onAddFeedback?: () => void
   feedbackAddDisabled?: boolean
   /**
@@ -125,6 +128,7 @@ export const ChatInput = memo(function ChatInput({
   onSaveQueueEdit,
   onCancelQueueEdit,
   onSteer,
+  steerChannel,
   onAddFeedback,
   feedbackAddDisabled,
   allowOfflineCompose = false,
@@ -220,6 +224,7 @@ export const ChatInput = memo(function ChatInput({
         onSaveQueueEdit={onSaveQueueEdit}
         onCancelQueueEdit={onCancelQueueEdit}
         onSteer={onSteer}
+        steerChannel={steerChannel}
         onAddFeedback={onAddFeedback}
         feedbackAddDisabled={feedbackAddDisabled}
         injectContent={injectContent}

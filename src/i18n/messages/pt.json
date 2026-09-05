@@ -2891,6 +2891,7 @@
           "turnFailedMaxTokens": "{agent} atingiu o limite máximo de tokens para este turno.",
           "turnFailedMaxTurnRequests": "{agent} atingiu o número máximo de solicitações permitidas para este turno.",
           "turnFailedUnknown": "{agent} encerrou o turno com um motivo de parada desconhecido.",
+          "turnFailedAuthRequired": "O {agent} precisa que você entre novamente antes de executar este turno. Faça login nas Configurações e envie a mensagem de novo.",
           "grokModelSwitchIncompatibleAgent": "{agent} não pode mudar para esse modelo em uma conversa existente. Inicie uma nova sessão para usá-lo.",
           "turnFailedEmpty": "{agent} encerrou o turno sem produzir nenhuma resposta.",
           "turnFailedEmptyProtocol": "{agent} produziu uma saída que o MaxCode não conseguiu analisar — a versão do agente pode não corresponder ao protocolo.",
@@ -2976,8 +2977,10 @@
         "send": "Enviar",
         "queueMessage": "Adicionar à fila",
         "steerIntoTurn": "Inserir no turno atual",
+        "steerAsNote": "Enviar nota para a próxima verificação",
         "steerQueuedInstead": "Adicionado à fila — será enviado no próximo turno.",
         "steerFailed": "Não foi possível inserir no turno atual",
+        "steerNoteFailed": "Não foi possível enviar a sua nota",
         "slashCommands": "Comandos de barra",
         "slashSearchPlaceholder": "Buscar comandos...",
         "slashSearchEmpty": "Nenhum comando correspondente",
@@ -3362,6 +3365,7 @@
             "child_max_tokens": "subagente: limite de tokens",
             "child_max_turn_requests": "subagente: limite de solicitações",
             "child_empty": "subagente sem saída",
+            "child_auth_required": "subagente exige login",
             "child_unknown": "subagente: erro",
             "unknown": "tarefa desconhecida"
           }

@@ -2891,6 +2891,7 @@
           "turnFailedMaxTokens": "{agent} 已达到本轮回复的最大 Token 限制。",
           "turnFailedMaxTurnRequests": "{agent} 已达到本轮回复允许的最大请求次数。",
           "turnFailedUnknown": "{agent} 以未知的停止原因结束了本轮回复。",
+          "turnFailedAuthRequired": "{agent} 需要你重新登录后才能执行本轮回复。请在设置中登录，然后重新发送这条消息。",
           "grokModelSwitchIncompatibleAgent": "{agent} 无法在已有对话中切换到该模型，请新建会话以使用它。",
           "turnFailedEmpty": "{agent} 本轮没有产生任何回复就结束了。",
           "turnFailedEmptyProtocol": "{agent} 本轮的输出 MaxCode 无法解析，可能是代理版本与协议不匹配。",
@@ -2978,8 +2979,10 @@
         "send": "发送",
         "queueMessage": "加入队列",
         "steerIntoTurn": "插入当前回合",
+        "steerAsNote": "发送留言，供下次检查时读取",
         "steerQueuedInstead": "已转入队列——将随下一回合发送。",
         "steerFailed": "无法插入当前回合",
+        "steerNoteFailed": "留言发送失败",
         "slashCommands": "斜杠命令",
         "slashSearchPlaceholder": "搜索命令...",
         "slashSearchEmpty": "没有匹配的命令",
@@ -3362,6 +3365,7 @@
             "child_max_tokens": "子代理超出 token 上限",
             "child_max_turn_requests": "子代理超出请求上限",
             "child_empty": "子代理无响应",
+            "child_auth_required": "子智能体需登录",
             "child_unknown": "子代理未知错误",
             "unknown": "未知任务"
           }

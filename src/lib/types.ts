@@ -2608,7 +2608,7 @@ export type AcpEvent =
       record: SessionFailureRecord
     }
   /**
-   * A JetBrains AIR async-task delta (claude only — see `AsyncTaskDelta`).
+   * A JetBrains AIR async-task delta (claude + codex — see `AsyncTaskDelta`).
    * PARTIAL by design: the reducer merges it into the connection's task table
    * by the same rule the backend snapshot applies, and only a `spawned` delta
    * may create a row.
@@ -2992,22 +2992,30 @@ export interface AsyncTaskUsage {
 
 /**
  * One JetBrains AIR async task (mirror of Rust `AsyncTaskRecord`;
- * claude-agent-acp 0.73+, published only because codeg advertises the
- * `asyncTasks` AIR capability — codex-acp has no such channel).
+ * claude-agent-acp 0.73+ and codex-acp 1.10+, published only because codeg
+ * advertises the `asyncTasks` AIR capability).
  *
- * Claude's NON-AGENT background work: background shells, workflows, monitors.
- * Sub-agents are excluded by the adapter itself. This is the MERGED row, not a
- * wire frame — the adapter announces a task once and then revises it with
- * partial deltas (`AsyncTaskDelta`), and the reducer applies the same merge as
- * the backend's `SessionState::apply_event` so a client hydrating from the
- * snapshot and one that saw every delta agree.
+ * The agent's NON-AGENT background work: Claude's background shells, workflows
+ * and monitors; codex's background terminals. Sub-agents are excluded by the
+ * adapters themselves. This is the MERGED row, not a wire frame — the adapter
+ * announces a task once and then revises it with partial deltas
+ * (`AsyncTaskDelta`), and the reducer applies the same merge as the backend's
+ * `SessionState::apply_event` so a client hydrating from the snapshot and one
+ * that saw every delta agree.
+ *
+ * codex fills in far less than claude: no `description`, `usage` or
+ * `output_file_path`, and `task_id` simply EQUALS `tool_call_id` for a
+ * root-session task. Every one of those is optional by design, so the strip
+ * degrades to a name-only row rather than rendering blanks.
  */
 export interface AsyncTaskRecord {
   task_id: string
-  /** Adapter-authored label — the workflow name, else the description. */
+  /** Adapter-authored label — claude: the workflow name, else the description;
+   *  codex: the launching tool call's title, else the raw command. */
   name: string
   /** Already friendly: `shell` | `workflow` | `monitor` | `task`, or an
-   *  unmapped future value rendered as itself. NOT the SDK's raw type. */
+   *  unmapped future value rendered as itself. NOT the SDK's raw type.
+   *  codex publishes `shell` for every background terminal. */
   task_type: string
   description: string
   /** Whether the task earns its own transcript card upstream. The strip renders

@@ -24,8 +24,8 @@ use sacp::schema::{
 use sacp::schema::{HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio};
 use sacp::util::MatchDispatch;
 use sacp::{
-    on_receive_request, Agent, Client, ConnectionTo, Dispatch, JsonRpcRequest, Responder,
-    SessionMessage, UntypedMessage,
+    on_receive_notification, on_receive_request, Agent, Client, ConnectionTo, Dispatch,
+    JsonRpcRequest, Responder, SessionMessage, UntypedMessage,
 };
 use sacp_tokio::AcpAgent;
 use tokio::sync::{mpsc, oneshot, RwLock};
@@ -976,17 +976,18 @@ pub enum ConnectionCommand {
         reply: tokio::sync::oneshot::Sender<Result<SteerOutcome, AcpError>>,
     },
     /// Stop one AIR async task (`_session/async_task/stop`; claude-agent-acp
-    /// 0.73+). Handled in BOTH loops on purpose: background work is normally
-    /// launched by — and outlives — a turn, so the user is as likely to reach
-    /// for the stop button mid-turn as between turns.
+    /// 0.73+, codex-acp 1.10+ — identical params and response on both).
+    /// Handled in BOTH loops on purpose: background work is normally launched
+    /// by — and outlives — a turn, so the user is as likely to reach for the
+    /// stop button mid-turn as between turns.
     ///
     /// The reply is the adapter's own `stopped` flag, not "did the request
     /// succeed": it answers `false` for a task it will not stop (unknown,
     /// already terminal, or a stop already in flight). The visible result
-    /// arrives on the normal channel either way — the adapter follows a
-    /// successful stop with an `async_task_state_update` and a transcript line
-    /// — so this is only what the caller needs to avoid claiming it stopped
-    /// something it didn't.
+    /// arrives on the normal channel either way — a successful stop is followed
+    /// by an `async_task_state_update` (and, on codex, by the launching tool
+    /// call finally settling `failed` with exit code -1) — so this is only what
+    /// the caller needs to avoid claiming it stopped something it didn't.
     StopAsyncTask {
         task_id: String,
         reply: tokio::sync::oneshot::Sender<Result<bool, AcpError>>,
@@ -4131,11 +4132,9 @@ fn build_client_capabilities(
             serde_json::Value::Bool(true),
         );
     }
-    // claude-agent-acp 0.73.0 added "asyncTasks", and it is advertised — to
-    // claude ONLY, because codex-acp 1.8.0 does not implement the channel
-    // (its bundle contains no `asyncTasks` string at all). It publishes the
-    // lifecycle of Claude's NON-AGENT background work (background shells,
-    // workflows, monitors) as `async_task_spawned` / `_progress` /
+    // claude-agent-acp 0.73.0 added "asyncTasks", and codex-acp 1.10.0 joined
+    // it, so BOTH are advertised. It publishes the lifecycle of an agent's
+    // NON-AGENT background work as `async_task_spawned` / `_progress` /
     // `_state_update`, all on the parent session id. Unlike the two capabilities
     // below, this one adds something codeg cannot get anywhere else: the
     // transcript watcher (`background_watch`) can see that a task was launched
@@ -4146,6 +4145,42 @@ fn build_client_capabilities(
     // `_session/async_task/stop` control. Sub-agent tasks stay out of it by the
     // adapter's own filter (`taskType: "local_agent"` is marked ignored), so
     // advertising this does not disturb the sub-agent surfaces.
+    //
+    // For claude those tasks are background shells, workflows and monitors; for
+    // codex they are BACKGROUND TERMINALS — a shell process the model leaves
+    // running past the tool call, which codex core tracks under
+    // `thread/backgroundTerminals/*`. codex-acp only announces a terminal that
+    // its own `thread/backgroundTerminals/list` still reports as alive, so an
+    // ordinary foreground command never appears here.
+    //
+    // The codex half was captured off a live 1.10.0 over stdio, and the control
+    // run (identical prompt, capability withheld) is what settles the trade:
+    //
+    //   WITHOUT the advertisement — one frame, then silence for the rest of the
+    //   connection:
+    //     tool_call        {toolCallId:"exec-…", status:"in_progress",
+    //                       kind:"execute", title:"sleep 400"}
+    //   The turn ends `end_turn` with that call still `in_progress`. There is no
+    //   completion, no terminal edge, and nothing that says why.
+    //
+    //   WITH it, the same run adds:
+    //     tool_call_update {toolCallId:"exec-…",
+    //                       _meta.jetbrains.air.asyncTasks.backgrounded:true}
+    //     async_task_spawned {asyncTaskId:"exec-…", name:"sleep 400",
+    //                         taskType:"shell", showInTranscript:false,
+    //                         canStop:true, toolCallId:"exec-…"}
+    //     …and on `_session/async_task/stop` → {stopped:true}:
+    //     async_task_state_update {asyncTaskId:"exec-…", state:"stopped",
+    //                              toolCallId:"exec-…"}
+    //     tool_call_update {toolCallId:"exec-…", status:"failed", exit_code:-1}
+    //
+    // Three details of the codex shape that the shared reader already absorbs:
+    // `asyncTaskId` EQUALS the `toolCallId` for a root-session task (the adapter
+    // only prefixes `<threadId>:` for a sub-agent thread); there is no
+    // `description`, `usage` or `outputFilePath`, so the strip row is name-only;
+    // and the `backgrounded` marker rides a `_meta` block with NO `version` key,
+    // unlike its `sessionFailure` sibling — the frontend's
+    // `toolCallMovedToBackground` must not gate on one.
     //
     // The remaining two AIR capabilities are deliberately still out.
     // claude-agent-acp 0.69.0 and codex-acp 1.4.0 added
@@ -4203,14 +4238,13 @@ fn build_client_capabilities(
     // to rebuild the capsule — a parent tool-use id, or the child tool calls
     // arriving with one codeg has seen.
     if matches!(agent_type, AgentType::ClaudeCode | AgentType::Codex) {
-        let mut capabilities = vec!["sessionFailure"];
-        if agent_type == AgentType::ClaudeCode {
-            capabilities.push("asyncTasks");
-        }
         meta.insert(
             "jetbrains".to_string(),
             serde_json::json!({
-                "air": { "version": 1, "capabilities": capabilities }
+                "air": {
+                    "version": 1,
+                    "capabilities": ["sessionFailure", "asyncTasks"],
+                }
             }),
         );
     }
@@ -5327,6 +5361,13 @@ async fn run_connection(
                 }
             },
             on_receive_request!(),
+        )
+        .on_receive_notification(
+            async move |notif: AuthStatusUpdateNotification, _cx: ConnectionTo<Agent>| {
+                handle_auth_status_update(agent_type, notif);
+                Ok(())
+            },
+            on_receive_notification!(),
         )
         .connect_with(agent, async move |cx| -> Result<(), sacp::Error> {
             let state = state_outer;
@@ -8862,6 +8903,9 @@ fn finish_turn_reason<'a>(
 /// `empty` is a synthesized reason emitted by `run_conversation_loop` when the
 /// agent reports `EndTurn` without producing any agent output; `empty` carries
 /// an `EmptyTurnReport` that refines the code and attaches redacted evidence.
+/// `auth_required` is the other synthesized reason: the agent REJECTED the
+/// prompt with ACP's -32000 instead of ending the turn, which asks the user to
+/// sign in and retry rather than reporting anything wrong with the turn itself.
 fn turn_failure_error_event(
     reason_str: &str,
     agent_type: AgentType,
@@ -8886,6 +8930,11 @@ fn turn_failure_error_event(
         "unknown" => (
             "turn_failed_unknown",
             format!("{agent_type} ended the turn with an unrecognized stop reason."),
+            None,
+        ),
+        "auth_required" => (
+            "turn_failed_auth_required",
+            format!("{agent_type} needs you to sign in again before it can run this turn."),
             None,
         ),
         "empty" => {
@@ -9458,7 +9507,110 @@ async fn run_conversation_loop<'a>(
                             }
                         }
                         prompt_result = &mut prompt_response => {
-                            let response = prompt_result?;
+                            // ACP defines the `authRequired` rejection as the
+                            // signal that the CLIENT should run its auth flow
+                            // and come back — the session survives it, so this
+                            // one error code must not unwind the connection the
+                            // way `?` unwinds every other prompt failure
+                            // (terminal `Error` → `Disconnected`, and the
+                            // lifecycle worker flips the conversation row to
+                            // Cancelled). It is a TURN failure, so it takes the
+                            // turn-failure exit instead and the loop goes back
+                            // to idle with the session intact.
+                            //
+                            // claude-agent-acp 0.74.0 made this reachable in the
+                            // ordinary case: through 0.73.0 a mid-session
+                            // sign-out settled an AIR client's turn with a
+                            // disguised `end_turn` carrying the failure record,
+                            // and 0.74.0 publishes that record on the update
+                            // channel and rejects the prompt as well. The
+                            // adapter deliberately keeps the session addressable
+                            // across the refusal ("the client can sign in and
+                            // retry on the same session"), which is only true if
+                            // the client keeps its end too. Agent-agnostic on
+                            // purpose: every agent that answers -32000 here is
+                            // asking for credentials, not reporting a dead
+                            // process — which is why `session/load` already
+                            // treats "Authentication required" as an expected
+                            // outcome rather than an error to surface.
+                            let response = match prompt_result {
+                                Ok(response) => response,
+                                Err(e)
+                                    if matches!(
+                                        e.code,
+                                        sacp::schema::ErrorCode::AuthRequired
+                                    ) =>
+                                {
+                                    tracing::warn!(
+                                        "[ACP] session/prompt refused with authRequired ({e}); \
+                                         ending the turn and keeping the session"
+                                    );
+                                    if !tracked_terminal_tool_calls.is_empty() {
+                                        poll_tracked_terminal_tool_calls(
+                                            terminal_runtime.as_ref(),
+                                            &sid,
+                                            state,
+                                            emitter,
+                                            &mut tracked_terminal_tool_calls,
+                                        )
+                                        .await;
+                                    }
+                                    // Synthesized like `empty`: no `StopReason`
+                                    // ever arrives for a rejected prompt, so the
+                                    // turn needs a reason of its own. AIR-capable
+                                    // agents ALSO publish an `access` failure
+                                    // record with a `login` action, which the
+                                    // banner renders — the two are complementary
+                                    // (a transient alert plus a persistent strip
+                                    // with the way back in), and this Error is
+                                    // the only surface for agents with no AIR.
+                                    if let Some(err_event) = turn_failure_error_event(
+                                        "auth_required",
+                                        agent_type,
+                                        None,
+                                    ) {
+                                        emit_with_state(state, emitter, err_event).await;
+                                    }
+                                    // Not journaled (that is `end_turn` only),
+                                    // but still recorded: the transcript's turn
+                                    // ended here, and omitting it would leave the
+                                    // history parser reading the next prompt as a
+                                    // continuation of this one.
+                                    record_turn_end(
+                                        agent_type,
+                                        &sid.0,
+                                        "auth_required",
+                                        turn_started_at_ms,
+                                        current_session_model_id(state).await,
+                                    )
+                                    .await;
+                                    // Same wedge guard as the two sibling turn
+                                    // exits — see the `StopReason` branch above
+                                    // for why the drain and the event must share
+                                    // one critical section.
+                                    drain_permissions_then_emit(
+                                        perms,
+                                        state,
+                                        emitter,
+                                        AcpEvent::TurnComplete {
+                                            session_id: sid.0.to_string(),
+                                            stop_reason: "auth_required".into(),
+                                            agent_type: agent_type.to_string(),
+                                        },
+                                    )
+                                    .await;
+                                    // Non-`end_turn`, so cascade-cancel like
+                                    // every other turn-failure exit: the parent
+                                    // will never consume an in-flight delegation
+                                    // result. Turn-scoped — the connection is
+                                    // still alive.
+                                    if let Some(inj) = delegation_injection {
+                                        inj.broker.cancel_by_parent_turn(conn_id).await;
+                                    }
+                                    break;
+                                }
+                                Err(e) => return Err(e),
+                            };
                             // A turn's terminal AIR failure rides on the
                             // response `_meta` (see `response_session_failure`
                             // — the update channel only carries the retry
@@ -12542,6 +12694,80 @@ fn grok_ext_notification_is_alert(dispatch: &Dispatch, agent_type: AgentType) ->
     }
 }
 
+/// codex-acp 1.9.0's `_auth/status_update` — the agent reporting which identity
+/// IT is logged in with.
+///
+/// Connection-level: unlike every other agent push codeg reads, the params carry
+/// NO `sessionId`, which is exactly why it needs a handler of its own (see
+/// [`handle_auth_status_update`]). Only `authStatus` is modelled; the payload is
+/// kept as a raw value so a new `kind` or an added field can never turn a
+/// well-formed push into a deserialization failure.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sacp::JsonRpcNotification)]
+#[notification(method = "_auth/status_update")]
+#[serde(rename_all = "camelCase")]
+struct AuthStatusUpdateNotification {
+    auth_status: serde_json::Value,
+}
+
+/// Claim `_auth/status_update` and drop it, loudly enough to be greppable.
+///
+/// codex-acp pushes this unconditionally — once right after the `initialize`
+/// response, then on every authenticate / logout / session create, and whenever
+/// the app-server reports `account/updated`. It is not gated on anything codeg
+/// advertises; the agent merely ANNOUNCES the channel with
+/// `agentCapabilities._meta.authStatus = {}`.
+///
+/// A handler is registered rather than letting it fall through because falling
+/// through is not free. sacp walks the handler chain, finds no claimant (the
+/// per-session `ActiveSessionHandler` only matches frames carrying its own
+/// `sessionId`, and this one carries none), and then does two things for every
+/// such notification: logs `Rejecting message with error, no handler` at INFO,
+/// and calls `Dispatch::respond_with_error`, which for a NOTIFICATION means
+/// `send_error_notification` — codeg writes a bare JSON-RPC error object back to
+/// an agent that never asked a question. Claiming the frame here is what keeps
+/// the bump from introducing that.
+///
+/// Nothing consumes the payload yet, and that is a deliberate stop: the status
+/// describes the AGENT-owned login only (routing codeg itself configured through
+/// `providers/set` is explicitly excluded upstream), and every failure it could
+/// warn about already arrives as an AIR `sessionFailure` carrying an actionable
+/// `login`. The shape is recorded here so a future consumer does not have to
+/// re-derive it:
+///
+///   {"authStatus": {"kind": "account" | "api_key" | "external" | "gateway"
+///                           | "none",
+///                   "label": "ChatGPT Pro" | "OpenAI API key"
+///                            | "Custom model gateway" | "Not logged in" | …,
+///                   "detail"?: "<gateway provider id>",
+///                   "account"?: {"email"?, "plan"?, "organization"?},
+///                   "vendor"?: {…}}}
+///
+/// Observed against a live 1.10.0 whose `~/.codex/config.toml` selects a custom
+/// provider: `{"kind":"gateway","label":"Custom model gateway","detail":"codeg"}`.
+/// The payload is NOT logged whole: `account.email` and `account.organization`
+/// are the signed-in person's identity, and codeg's log file is user-visible
+/// (and shipped in diagnostics). `kind` and `label` are the two fields that
+/// answer "which identity is this connection using", and neither identifies a
+/// person — `label` is one of a fixed vocabulary ("ChatGPT Pro", "OpenAI API
+/// key", "Custom model gateway", "Not logged in") plus, for a gateway, the
+/// provider id the user configured locally.
+fn handle_auth_status_update(agent_type: AgentType, notif: AuthStatusUpdateNotification) {
+    let field = |key: &str| {
+        notif
+            .auth_status
+            .get(key)
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("")
+            .to_string()
+    };
+    tracing::debug!(
+        agent = %agent_type,
+        kind = %field("kind"),
+        label = %field("label"),
+        "[ACP] agent reported its auth status (no consumer)"
+    );
+}
+
 /// Whether codeg has a mapper for this ext-notification method.
 ///
 /// Used ONLY to keep the unrecognized-method log quiet about methods we do know
@@ -12658,11 +12884,13 @@ fn fix_usage_update_nulls(mut dispatch: Dispatch) -> Dispatch {
 /// would be reported as an agent that said nothing. Same raw-rewrite seam as
 /// [`fix_usage_update_nulls`].
 ///
-/// Deliberately NOT gated on `agent_type`. Only claude-agent-acp is offered the
-/// `asyncTasks` capability today (see `build_client_capabilities`), so nothing
-/// else should send these — but if something does, reading the frame is
-/// strictly better than dropping it, and both adapters implement the same AIR
-/// vocabulary.
+/// Deliberately NOT gated on `agent_type`. claude-agent-acp and codex-acp are
+/// the two adapters offered the `asyncTasks` capability (see
+/// `build_client_capabilities`), so nothing else should send these — but if
+/// something does, reading the frame is strictly better than dropping it, since
+/// every AIR speaker uses the same vocabulary. The two shapes differ only in how
+/// much they fill in: claude names a `description`, `usage` and
+/// `outputFilePath`; codex sends the command as `name` and stops there.
 fn air_async_task_delta(dispatch: &Dispatch) -> Option<AsyncTaskDelta> {
     let Dispatch::Notification(msg) = dispatch else {
         return None;
@@ -14514,6 +14742,51 @@ mod tests {
         );
     }
 
+    /// claude-agent-acp 0.74.0's mid-session sign-out record, verbatim off the
+    /// `session_info_update` channel (`sessionFailureMeta`: id, revision,
+    /// category, severity, title, details, actions — `kind`/`recoveryPolicy`
+    /// stay agent-internal). Two things in it changed with that release and
+    /// are worth pinning:
+    ///
+    /// * the CLI's own "… Please run /login" prose moved OUT of `title` into
+    ///   `details`, leaving the policy's client-neutral fallback as the title —
+    ///   so the strip reads as a heading with the TUI advice behind its
+    ///   expander, not the other way round;
+    /// * the record may carry a `reason` refinement. codeg never produces one
+    ///   (it is `--hide-claude-auth`-only; see the registry entry), and the
+    ///   parser reads fields individually, so an unknown key must simply ride
+    ///   through instead of failing the record.
+    #[test]
+    fn parse_session_failure_record_reads_claude_074_sign_out() {
+        let signed_out = serde_json::json!({
+            "id": "sess-7:session-error:epoch-1:1",
+            "revision": 1,
+            "category": "access",
+            "severity": "error",
+            "title": "Sign in to continue using Claude.",
+            "details": "Invalid API key · Please run /login",
+            "actions": ["login"],
+        });
+        let record = parse_session_failure_record(&signed_out).expect("record");
+        assert_eq!(record.category, "access");
+        assert_eq!(record.severity, "error");
+        assert_eq!(record.title, "Sign in to continue using Claude.");
+        assert_eq!(
+            record.details.as_deref(),
+            Some("Invalid API key · Please run /login")
+        );
+        // The banner renders a Login button off exactly this.
+        assert_eq!(record.actions, vec!["login".to_string()]);
+
+        // Same record plus the release's new refinement: parsed identically.
+        let mut with_reason = signed_out.clone();
+        with_reason["reason"] = serde_json::json!("claude_subscription_not_supported");
+        assert_eq!(
+            parse_session_failure_record(&with_reason).expect("record"),
+            record
+        );
+    }
+
     #[test]
     fn client_capabilities_advertise_air_for_claude_and_codex_only() {
         // Both AIR speakers must send EXACTLY the shape the adapters gate on:
@@ -14540,10 +14813,10 @@ mod tests {
             // And exactly this much. Adding a capability here is not free — it
             // is what turns the corresponding behavior on.
             //
-            // "asyncTasks" (claude-agent-acp 0.73.0) IS wanted, and only claude
-            // has it: codex-acp 1.8.0 contains no async-task code at all, so
-            // advertising it there would be a promise about a channel that
-            // cannot answer.
+            // "asyncTasks" IS wanted, from BOTH (claude-agent-acp 0.73.0,
+            // codex-acp 1.10.0): it is the only channel that reports whether an
+            // agent's background work is still alive, and the only one that can
+            // stop it.
             //
             // The other two stay out. "agentFileChangeReport"
             // (claude-agent-acp 0.69.0 / codex-acp 1.4.0) buys an extra model
@@ -14554,11 +14827,8 @@ mod tests {
             // rendering around, replacing it with an announcement that carries
             // no parent tool-use id to rebuild it from. See the reasoning at
             // the advertisement site before relaxing this.
-            let expected: Vec<serde_json::Value> = if agent == AgentType::ClaudeCode {
-                vec!["sessionFailure".into(), "asyncTasks".into()]
-            } else {
-                vec!["sessionFailure".into()]
-            };
+            let expected: Vec<serde_json::Value> =
+                vec!["sessionFailure".into(), "asyncTasks".into()];
             assert_eq!(
                 capabilities, &expected,
                 "{agent:?} advertises an unexpected AIR capability set"
@@ -17197,6 +17467,86 @@ mod tests {
         assert_eq!(state.summary.as_deref(), Some("3 files changed"));
     }
 
+    /// codex-acp 1.10.0's frames, verbatim off a live stdio session (`sleep 400`
+    /// left running in a persistent shell, then stopped). codex fills in far
+    /// less than claude — no `description`, `usage` or `outputFilePath`, and the
+    /// task id EQUALS the tool call id — so the reader has to survive on the
+    /// spawn frame's four fields alone, and `to_record`'s defaults must not
+    /// invent anything the strip would then render.
+    #[test]
+    fn async_task_reader_handles_the_codex_spawn_and_stop_frames() {
+        let spawn = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_spawned",
+            "asyncTaskId": "exec-74096479-1a0d-4c6d-bbfa-ae10fce94da2",
+            "name": "sleep 400",
+            "taskType": "shell",
+            "showInTranscript": false,
+            "canStop": true,
+            "toolCallId": "exec-74096479-1a0d-4c6d-bbfa-ae10fce94da2",
+        })))
+        .expect("codex spawn frame");
+        assert!(spawn.spawned);
+        assert_eq!(spawn.name.as_deref(), Some("sleep 400"));
+        assert_eq!(spawn.task_type.as_deref(), Some("shell"));
+        assert_eq!(spawn.can_stop, Some(true));
+        // Absent upstream, and they must stay absent rather than become empty
+        // strings the strip would render as a blank meta line.
+        assert!(spawn.description.is_none());
+        assert!(spawn.usage.is_none());
+        assert!(spawn.output_file_path.is_none());
+        assert_eq!(spawn.tool_call_id.as_deref(), Some(spawn.task_id.as_str()));
+
+        let record = spawn.to_record();
+        assert_eq!(record.name, "sleep 400");
+        assert_eq!(record.task_type, "shell");
+        // No `state` on the wire: the row must start LIVE, or the strip would
+        // never show a task that codex only ever revises at its terminal edge.
+        assert_eq!(record.state, "running");
+        assert!(record.can_stop);
+        assert!(!crate::acp::types::async_task_state_is_terminal(
+            &record.state
+        ));
+
+        let stopped = air_async_task_delta(&async_task_notif(serde_json::json!({
+            "sessionUpdate": "async_task_state_update",
+            "asyncTaskId": "exec-74096479-1a0d-4c6d-bbfa-ae10fce94da2",
+            "state": "stopped",
+            "toolCallId": "exec-74096479-1a0d-4c6d-bbfa-ae10fce94da2",
+        })))
+        .expect("codex stop frame");
+        assert!(!stopped.spawned);
+        assert_eq!(stopped.state.as_deref(), Some("stopped"));
+        assert!(crate::acp::types::async_task_state_is_terminal("stopped"));
+    }
+
+    /// The `_auth/status_update` payload codex-acp 1.9+ pushes, unchanged. The
+    /// only contract that matters is that it DESERIALIZES — sacp answers an
+    /// unclaimed notification with a `method_not_found` error notification
+    /// written back to the agent, and a strict struct here would put codeg back
+    /// on that path the first time OpenAI adds a field.
+    #[test]
+    fn auth_status_update_deserializes_every_observed_kind() {
+        for payload in [
+            // Observed live: a `~/.codex/config.toml` selecting a custom provider.
+            serde_json::json!({"authStatus": {
+                "kind": "gateway", "label": "Custom model gateway", "detail": "codeg"
+            }}),
+            serde_json::json!({"authStatus": {
+                "kind": "account", "label": "ChatGPT Pro",
+                "account": {"email": "a@b.c", "plan": "pro"}
+            }}),
+            serde_json::json!({"authStatus": {"kind": "none", "label": "Not logged in"}}),
+            // A future kind, and a future sibling field, must both still parse.
+            serde_json::json!({"authStatus": {"kind": "something_new"}, "extra": 1}),
+        ] {
+            let notif: AuthStatusUpdateNotification =
+                serde_json::from_value(payload.clone()).unwrap_or_else(|e| {
+                    panic!("must not reject {payload}: {e}");
+                });
+            assert!(notif.auth_status.is_object());
+        }
+    }
+
     /// The interceptor sits in front of EVERY dispatch, so a false positive
     /// would silently swallow ordinary session updates.
     #[test]
@@ -17713,6 +18063,30 @@ mod tests {
             assert_eq!(code.as_deref(), Some(expected));
             assert!(details.is_none(), "{reason} must not carry details");
         }
+    }
+
+    /// The synthesized reason for an `authRequired` prompt REJECTION
+    /// (claude-agent-acp 0.74.0's mid-session sign-out). It must produce its
+    /// own code — reusing `refusal` would tell the user the agent declined the
+    /// work, when it actually declined the credentials — and it must stay
+    /// non-terminal, because the whole point of that arm in
+    /// `run_conversation_loop` is that the connection outlives the turn.
+    #[test]
+    fn turn_failure_error_event_maps_auth_required_without_killing_the_connection() {
+        let Some(AcpEvent::Error {
+            code,
+            details,
+            terminal,
+            message,
+            ..
+        }) = turn_failure_error_event("auth_required", AgentType::ClaudeCode, None)
+        else {
+            panic!("auth_required should produce an error event");
+        };
+        assert_eq!(code.as_deref(), Some("turn_failed_auth_required"));
+        assert!(details.is_none());
+        assert!(!terminal, "a sign-out never kills the connection");
+        assert!(message.contains("sign in"), "message was {message:?}");
     }
 
     #[test]
