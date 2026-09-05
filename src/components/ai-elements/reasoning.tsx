@@ -24,7 +24,10 @@ import {
 import { Streamdown, defaultRemarkPlugins } from "streamdown"
 
 import { Shimmer } from "./shimmer"
-import { markdownLinkComponents } from "./markdown-link"
+import {
+  markdownLinkComponents,
+  publicMarkdownLinkComponents,
+} from "./markdown-link"
 import { mermaidComponents } from "./mermaid-block"
 import { normalizeMathDelimiters } from "./message"
 import { remarkTrimCjkAutolinkTail } from "./remark-cjk-autolink-tail"
@@ -228,6 +231,7 @@ export type ReasoningContentProps = ComponentProps<
   typeof CollapsibleContent
 > & {
   children: string
+  linkMode?: "workspace" | "public"
 }
 
 const remarkPlugins = [
@@ -240,9 +244,18 @@ const remarkPlugins = [
 ]
 
 const reasoningComponents = { ...markdownLinkComponents, ...mermaidComponents }
+const publicReasoningComponents = {
+  ...publicMarkdownLinkComponents,
+  ...mermaidComponents,
+}
 
 export const ReasoningContent = memo(
-  ({ className, children, ...props }: ReasoningContentProps) => {
+  ({
+    className,
+    children,
+    linkMode = "workspace",
+    ...props
+  }: ReasoningContentProps) => {
     // Reasoning is a LIVE surface — `Reasoning` auto-opens this panel the
     // moment streaming starts, so it re-renders on every delta of a block that
     // routinely runs into the thousands of tokens. `mode="static"` re-parses
@@ -274,7 +287,11 @@ export const ReasoningContent = memo(
           mode={isStreaming ? "streaming" : "static"}
           parseIncompleteMarkdown={isStreaming}
           // Enforce the link icon + safety override after spreading props.
-          components={reasoningComponents}
+          components={
+            linkMode === "public"
+              ? publicReasoningComponents
+              : reasoningComponents
+          }
         >
           {normalized}
         </Streamdown>

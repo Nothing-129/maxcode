@@ -16,7 +16,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
+use chrono_tz::Asia::Shanghai;
 use sea_orm::{ActiveModelTrait, EntityTrait, IntoActiveModel, Set};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::Mutex;
@@ -503,14 +504,12 @@ impl AutomationEngine {
             .map_err(|e| e.to_string())?;
 
         // Create the conversation row, then adopt it in send_prompt (Branch A).
-        // Named after the AUTOMATION, not its prompt — the same name the
-        // enqueue-a-task branch already gives the card it files, and the only
-        // label that says which automation this run belongs to. Locked right
-        // after, so the per-turn auto-title backfill can't swap it for whatever
-        // the agent's session file parses to (issue #495). A prompt-derived
-        // title was no more distinguishing anyway: the prompt is fixed, so
-        // every run of an automation carried the identical one.
-        let title = first_chars(&auto.name, 80);
+        // Automation runs use a deterministic structured title instead of the
+        // prompt-based model title: `MMDD｜自动｜automation name`. The date is
+        // the launch date in Asia/Shanghai, matching regular structured titles.
+        // Keep it locked so the per-turn parser backfill cannot replace that
+        // run identity with the automation's fixed prompt (issue #495).
+        let title = automation_conversation_title(&auto.name, Utc::now());
         let conversation_id =
             match create_conversation_core(&self.db.conn, cwd.folder_id, agent_type, Some(title))
                 .await
@@ -1063,6 +1062,14 @@ fn first_chars(s: &str, n: usize) -> String {
     s.chars().take(n).collect()
 }
 
+fn automation_conversation_title(name: &str, created_at: DateTime<Utc>) -> String {
+    let date = created_at
+        .with_timezone(&Shanghai)
+        .format("%m%d")
+        .to_string();
+    first_chars(&format!("{date}｜自动｜{}", name.trim()), 80)
+}
+
 /// The separator `path` writes its own segments with, so a derived sibling
 /// stays in the same form the folder was registered under instead of mixing
 /// `C:\work\repo` with a `/`. A bare drive designator (`C:`) carries no
@@ -1222,6 +1229,27 @@ mod tests {
     fn first_chars_truncates_on_char_boundary() {
         assert_eq!(first_chars("hello world", 5), "hello");
         assert_eq!(first_chars("日本語テスト", 3), "日本語");
+    }
+
+    #[test]
+    fn automation_titles_use_shanghai_launch_date_and_name() {
+        let created_at = DateTime::parse_from_rfc3339("2026-09-03T16:30:00Z")
+            .expect("valid timestamp")
+            .with_timezone(&Utc);
+        assert_eq!(
+            automation_conversation_title("  今天未完成核查  ", created_at),
+            "0904｜自动｜今天未完成核查"
+        );
+    }
+
+    #[test]
+    fn automation_titles_stay_within_sidebar_limit() {
+        let created_at = DateTime::parse_from_rfc3339("2026-09-04T09:00:00Z")
+            .expect("valid timestamp")
+            .with_timezone(&Utc);
+        let title = automation_conversation_title(&"任".repeat(100), created_at);
+        assert_eq!(title.chars().count(), 80);
+        assert!(title.starts_with("0904｜自动｜"));
     }
 
     // The std file lock treats independent `open()`s as separate holders even

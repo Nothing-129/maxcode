@@ -74,7 +74,7 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
+      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; shared thinking stays collapsed by default with the desktop interaction, an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
       "origins": ["worktree-2026-08-31"],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
@@ -292,6 +292,16 @@
       "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
     },
     {
+      "id": "automation.structured-conversation-titles",
+      "category": "product",
+      "description": "Automation runs use locked Shanghai-date-prefixed sidebar titles in the form MMDD｜自动｜automation name, preserving run identity against prompt-derived parser backfills.",
+      "origins": ["worktree-2026-09-04"],
+      "paths": ["src-tauri/src/automation/engine.rs"],
+      "contracts": [
+        "src/maxcode-contracts/automation-title.contract.test.ts"
+      ]
+    },
+    {
       "id": "agents.bounded-connection-lifecycle",
       "category": "runtime",
       "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped.",
@@ -355,6 +365,16 @@
         "src/app/manifest.ts"
       ],
       "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+    },
+    {
+      "id": "appearance.gpt-shell-surfaces",
+      "category": "product",
+      "description": "The neutral light workspace matches GPT's shell hierarchy with a pure-white main canvas and a cool #f9f9fa sidebar, including the no-theme fallback.",
+      "origins": ["worktree-2026-09-04"],
+      "paths": ["src/app/globals.css"],
+      "contracts": [
+        "src/maxcode-contracts/workspace-surface-colors.contract.test.ts"
+      ]
     },
     {
       "id": "branding.maxcode",

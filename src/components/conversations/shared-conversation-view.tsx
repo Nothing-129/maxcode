@@ -6,6 +6,11 @@ import { Bot, CalendarDays, Loader2, LockKeyhole } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 import { MessageResponse } from "@/components/ai-elements/message"
+import {
+  Reasoning,
+  ReasoningContent,
+  ReasoningTrigger,
+} from "@/components/ai-elements/reasoning"
 import { getAgentLabel } from "@/lib/custom-agents"
 import { readConversationShareToken } from "@/lib/conversation-share"
 import type {
@@ -42,14 +47,10 @@ function Block({
       )
     case "thinking":
       return (
-        <details className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-sm">
-          <summary className="cursor-pointer text-muted-foreground">
-            Thinking
-          </summary>
-          <div className="mt-2 whitespace-pre-wrap break-words">
-            {block.text}
-          </div>
-        </details>
+        <Reasoning defaultOpen={false}>
+          <ReasoningTrigger />
+          <ReasoningContent linkMode="public">{block.text}</ReasoningContent>
+        </Reasoning>
       )
     case "tool_use":
       return (
