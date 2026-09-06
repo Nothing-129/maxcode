@@ -3728,6 +3728,14 @@ export interface SystemLanguageSettings {
 
 export interface SystemTerminalSettings {
   default_shell: string | null
+  /**
+   * Force ANSI color out of agent-run commands (`CLICOLOR_FORCE=1` on the agent
+   * process) so their output renders colored in the transcript's terminal card.
+   * Off by default: the variable is inherited by every command the agent runs,
+   * outranks `NO_COLOR`, and so breaks machine parsing of things like
+   * `gh … --json`.
+   */
+  colorize_command_output: boolean
 }
 
 export interface TerminalShellOption {

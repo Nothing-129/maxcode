@@ -5,6 +5,7 @@ import {
   Cpu,
   FolderCog,
   Loader2,
+  Palette,
   RefreshCw,
   SquareTerminal,
 } from "lucide-react"
@@ -100,6 +101,14 @@ export function GeneralSettings() {
   )
   const [customShellPath, setCustomShellPath] = useState<string>("")
   const [customPathExists, setCustomPathExists] = useState<boolean | null>(null)
+  // The last persisted `default_shell`, kept verbatim. Both terminal settings
+  // share one stored row, so saving the color toggle has to send the shell
+  // back unchanged — and `selectedShellId`/`customShellPath` can't reconstruct
+  // it (the custom row is cleared until the user presses Save).
+  const [storedDefaultShell, setStoredDefaultShell] = useState<string | null>(
+    null
+  )
+  const [colorizeCommandOutput, setColorizeCommandOutput] = useState(false)
 
   const [disableHwAccel, setDisableHwAccel] = useState(false)
   const [savingRendering, setSavingRendering] = useState(false)
@@ -125,6 +134,8 @@ export function GeneralSettings() {
         ])
 
       setAvailableShells(terminalShells)
+      setStoredDefaultShell(terminalSettings.default_shell)
+      setColorizeCommandOutput(terminalSettings.colorize_command_output)
       const initialId = resolveSelectedShellId(
         terminalSettings.default_shell,
         terminalShells.options
@@ -172,11 +183,15 @@ export function GeneralSettings() {
       try {
         const result = await updateSystemTerminalSettings({
           default_shell: defaultShell,
+          // Sent back unchanged — the save replaces the whole stored row, so
+          // omitting it would silently reset the color opt-in.
+          colorize_command_output: colorizeCommandOutput,
         })
         // Re-fetch options to refresh `exists` flags (e.g. user just installed
         // pwsh, or backend filter dropped a cross-platform stale value).
         const refreshedShells = await getAvailableTerminalShells()
         setAvailableShells(refreshedShells)
+        setStoredDefaultShell(result.default_shell)
         const nextSelectedId = resolveSelectedShellId(
           result.default_shell,
           refreshedShells.options
@@ -200,7 +215,30 @@ export function GeneralSettings() {
         setSavingTerminal(false)
       }
     },
-    [t]
+    [colorizeCommandOutput, t]
+  )
+
+  // Persist the command-color opt-in, sending the current shell back
+  // unchanged. Reverts the switch on failure so it never shows a state the
+  // backend rejected.
+  const persistColorizeCommandOutput = useCallback(
+    async (next: boolean, prev: boolean) => {
+      setSavingTerminal(true)
+      try {
+        const result = await updateSystemTerminalSettings({
+          default_shell: storedDefaultShell,
+          colorize_command_output: next,
+        })
+        setColorizeCommandOutput(result.colorize_command_output)
+      } catch (err) {
+        setColorizeCommandOutput(prev)
+        const message = toErrorMessage(err)
+        toast.error(t("terminalSaveFailed", { message }))
+      } finally {
+        setSavingTerminal(false)
+      }
+    },
+    [storedDefaultShell, t]
   )
 
   const onShellSelectChange = useCallback(
@@ -367,6 +405,33 @@ export function GeneralSettings() {
                   )}
                 </SettingRow>
               </SettingCard>
+            )}
+          </SettingsSection>
+
+          {/* Command output coloring is opt-in: forcing ANSI on the agent process
+            also affects machine-readable output that agents pipe into tools. */}
+          <SettingsSection
+            icon={Palette}
+            title={t("colorizeCommandOutput")}
+            description={t("colorizeCommandOutputDescription")}
+            htmlFor="colorize-command-output"
+            control={
+              <Switch
+                id="colorize-command-output"
+                checked={colorizeCommandOutput}
+                disabled={savingTerminal}
+                onCheckedChange={(next) => {
+                  const prev = colorizeCommandOutput
+                  setColorizeCommandOutput(next)
+                  void persistColorizeCommandOutput(next, prev)
+                }}
+              />
+            }
+          >
+            {colorizeCommandOutput && (
+              <p className="text-2xs text-amber-500">
+                {t("colorizeCommandOutputWarning")}
+              </p>
             )}
           </SettingsSection>
 

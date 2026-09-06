@@ -390,6 +390,9 @@ pub(crate) fn normalize_terminal_settings(
             .map(str::trim)
             .filter(|value| !value.is_empty())
             .map(str::to_string),
+        // Nothing to canonicalize on a bool; carried explicitly so adding a
+        // field here can never silently drop it back to the default.
+        colorize_command_output: settings.colorize_command_output,
     }
 }
 
@@ -466,16 +469,23 @@ pub(crate) async fn load_system_terminal_settings(
     Ok(normalize_terminal_settings(parsed))
 }
 
-/// Load the persisted shell selection into the live ACP terminal runtime.
+/// Load the persisted terminal settings into the live runtimes: the shell
+/// selection into the ACP terminal runtime, and the command-color opt-in into
+/// the launch env (`crate::acp::connection::set_force_command_color`).
 ///
 /// This runs during app startup; a failure leaves the runtime on its system
 /// fallback so a malformed old preference cannot prevent agents from running.
-pub async fn apply_persisted_terminal_shell_config(
+/// Both live values are applied from ONE load — they share a stored row, and
+/// reading it twice would let a save land between the two reads.
+pub async fn apply_persisted_terminal_settings(
     conn: &DatabaseConnection,
     config: &TerminalShellRuntimeConfig,
 ) {
     match load_system_terminal_settings(conn).await {
-        Ok(settings) => config.set(settings.default_shell).await,
+        Ok(settings) => {
+            crate::acp::connection::set_force_command_color(settings.colorize_command_output);
+            config.set(settings.default_shell).await;
+        }
         Err(err) => tracing::warn!(
             "[settings] failed to load default terminal shell for ACP runtime: {err}"
         ),
@@ -500,8 +510,11 @@ pub(crate) async fn set_system_terminal_settings_core(
         .await
         .map_err(AppCommandError::from)?;
 
-    // Update the shared handle before notifying the frontend, so an already
+    // Update the shared handles before notifying the frontend, so an already
     // connected model can issue its next terminal request with the new shell.
+    // The color flag only reaches a launch's env, so it lands on the NEXT
+    // connection rather than the running one.
+    crate::acp::connection::set_force_command_color(normalized.colorize_command_output);
     config.set(normalized.default_shell.clone()).await;
     crate::web::event_bridge::emit_event(
         emitter,
@@ -1122,6 +1135,7 @@ mod tests {
             &EventEmitter::Noop,
             SystemTerminalSettings {
                 default_shell: Some("  pwsh.exe  ".to_string()),
+                colorize_command_output: false,
             },
         )
         .await
@@ -1131,7 +1145,7 @@ mod tests {
         assert_eq!(config.snapshot().await.as_deref(), Some("pwsh.exe"));
 
         let restarted_config = TerminalShellRuntimeConfig::new();
-        apply_persisted_terminal_shell_config(&db.conn, &restarted_config).await;
+        apply_persisted_terminal_settings(&db.conn, &restarted_config).await;
         assert_eq!(
             restarted_config.snapshot().await.as_deref(),
             Some("pwsh.exe")
@@ -1354,5 +1368,69 @@ mod tests {
             .expect("reload saved title settings");
         assert_eq!(persisted.base_url, "https://saved.example/v1");
         assert_eq!(persisted.model, "saved-model");
+    }
+
+    /// The command-color opt-in survives a save AND a restart, and reaches the
+    /// launch env both times — a value that only persisted would leave every
+    /// connection made before the next restart on the wrong setting.
+    #[tokio::test]
+    async fn colorize_command_output_persists_and_reaches_the_launch_env() {
+        let db = fresh_in_memory_db().await;
+        let config = TerminalShellRuntimeConfig::new();
+
+        // Off is the default, and the whole point of the change — assert it
+        // before anything writes, so a regression to "forced on" fails here.
+        assert!(!crate::acp::connection::force_command_color_enabled());
+
+        let saved = set_system_terminal_settings_core(
+            &db.conn,
+            &config,
+            &EventEmitter::Noop,
+            SystemTerminalSettings {
+                default_shell: None,
+                colorize_command_output: true,
+            },
+        )
+        .await
+        .expect("save terminal setting");
+
+        assert!(saved.colorize_command_output);
+        assert!(crate::acp::connection::force_command_color_enabled());
+
+        // A fresh process would start with the global at its `false` default;
+        // the startup load is what has to put it back.
+        crate::acp::connection::set_force_command_color(false);
+        apply_persisted_terminal_settings(&db.conn, &config).await;
+        assert!(crate::acp::connection::force_command_color_enabled());
+
+        let reloaded = load_system_terminal_settings(&db.conn)
+            .await
+            .expect("load terminal settings");
+        assert!(reloaded.colorize_command_output);
+
+        // Leave the process global as this test found it — it is shared by
+        // every test in this binary.
+        crate::acp::connection::set_force_command_color(false);
+    }
+
+    /// A row stored before the field existed must load as "off" rather than
+    /// failing to parse (which would strand the user's shell choice too).
+    #[tokio::test]
+    async fn terminal_settings_row_without_the_color_field_loads_as_off() {
+        let db = fresh_in_memory_db().await;
+        app_metadata_service::upsert_value(
+            &db.conn,
+            SYSTEM_TERMINAL_SETTINGS_KEY,
+            r#"{"default_shell":"pwsh.exe"}"#,
+        )
+        .await
+        .expect("seed legacy terminal row");
+
+        let loaded = load_system_terminal_settings(&db.conn)
+            .await
+            .expect("load terminal settings");
+
+        assert_eq!(loaded.default_shell.as_deref(), Some("pwsh.exe"));
+        assert!(!loaded.colorize_command_output);
     }
 }

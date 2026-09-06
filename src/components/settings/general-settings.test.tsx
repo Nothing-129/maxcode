@@ -3,7 +3,10 @@ import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 vi.mock("@/lib/api", () => ({
-  getSystemTerminalSettings: vi.fn(async () => ({ default_shell: null })),
+  getSystemTerminalSettings: vi.fn(async () => ({
+    default_shell: null,
+    colorize_command_output: false,
+  })),
   getAvailableTerminalShells: vi.fn(async () => ({
     resolved_shell: "/bin/zsh",
     options: [
@@ -77,6 +80,7 @@ vi.mock("@/hooks/use-feedback-enabled", () => ({
   primeFeedbackEnabled: vi.fn(),
 }))
 
+import { updateSystemTerminalSettings } from "@/lib/api"
 import { GeneralSettings } from "./general-settings"
 import type { PlatformType } from "@/hooks/use-platform"
 import enMessages from "@/i18n/messages/en.json"
@@ -122,6 +126,7 @@ describe("GeneralSettings", () => {
     // that option, so these double as the labels asserted above.
     for (const heading of [
       "Default Terminal",
+      "Colorize command output",
       "Disable hardware acceleration",
       "Desktop notifications",
       "Notification sounds",
@@ -138,6 +143,38 @@ describe("GeneralSettings", () => {
     expect(screen.getByLabelText("Get session info")).toBeInTheDocument()
     expect(screen.getByLabelText("Create automations")).toBeInTheDocument()
     expect(screen.getByLabelText("Create to-do tasks")).toBeInTheDocument()
+  })
+
+  /**
+   * The command-color switch ships OFF and has to stay that way — forcing
+   * `CLICOLOR_FORCE` on the agent breaks machine parsing of everything the
+   * agent runs, so an accidental default flip is the regression worth
+   * catching. The save also has to carry `default_shell` back unchanged: both
+   * settings share one stored row, so a payload missing it would wipe the
+   * user's shell choice.
+   */
+  it("defaults command color off and preserves the shell when toggling it", async () => {
+    renderSettings()
+
+    const colorize = await screen.findByLabelText("Colorize command output")
+    expect(colorize).toHaveAttribute("data-state", "unchecked")
+    expect(
+      screen.queryByText(/CLICOLOR_FORCE=1 for the agent/)
+    ).not.toBeInTheDocument()
+
+    fireEvent.click(colorize)
+
+    await waitFor(() =>
+      expect(colorize).toHaveAttribute("data-state", "checked")
+    )
+    expect(vi.mocked(updateSystemTerminalSettings)).toHaveBeenCalledWith({
+      default_shell: null,
+      colorize_command_output: true,
+    })
+    // Turning it on surfaces what it costs, right where it was turned on.
+    expect(
+      screen.getByText(/CLICOLOR_FORCE=1 for the agent/)
+    ).toBeInTheDocument()
   })
 
   // The switch only means something where the backend has an env knob to flip

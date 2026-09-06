@@ -621,7 +621,7 @@ mod tauri_app {
                     let db_for_shell = app.state::<db::AppDatabase>().conn.clone();
                     let shell_config = app.state::<ConnectionManager>().terminal_shell_config();
                     tauri::async_runtime::block_on(async move {
-                        crate::commands::system_settings::apply_persisted_terminal_shell_config(
+                        crate::commands::system_settings::apply_persisted_terminal_settings(
                             &db_for_shell,
                             &shell_config,
                         )
