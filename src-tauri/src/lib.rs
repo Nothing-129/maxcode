@@ -1261,6 +1261,7 @@ mod tauri_app {
                 folders::git_diff_with_branch,
                 folders::git_show_diff,
                 folders::git_show_file,
+                folders::git_show_file_base64,
                 folders::git_commit,
                 folders::git_rollback_file,
                 folders::git_add_files,

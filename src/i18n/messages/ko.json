@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "나란히 보기로 전환",
         "unified": "인라인 보기로 전환"
+      },
+      "binaryFile": "바이너리 파일 — 내용을 표시하지 않음",
+      "image": {
+        "sideBySide": "나란히 보기로 전환",
+        "swipe": "슬라이드 비교 보기로 전환",
+        "swipeHandle": "이미지 비교 슬라이더",
+        "noImage": "이 리비전에는 이미지가 없습니다",
+        "unavailable": "이쪽을 불러오지 못했습니다",
+        "tooLarge": "이미지가 너무 커서 미리 볼 수 없습니다({size})",
+        "loading": "이미지 로드 중..."
       }
     },
     "conversationContextBar": {

@@ -3999,6 +3999,25 @@ export interface GitStatusEntry {
   file: string
 }
 
+/**
+ * A file's raw bytes at a git ref (mirrors Rust `GitBlobBase64`). The binary
+ * counterpart of `gitShowFile`, which refuses anything with a NUL byte — image
+ * diffs read their "before" side through this.
+ */
+export interface GitBlobBase64 {
+  /** False when the path does not exist at that ref: an added or deleted file. */
+  exists: boolean
+  /** True when the *revision* is what did not resolve, rather than the path in
+   *  it — only the caller knows whether that is expected (the parent of a root
+   *  commit) or a failure (a branch that stopped resolving). */
+  ref_missing: boolean
+  /** Base64 of the blob; empty when `exists` is false or `too_large` is true. */
+  data: string
+  /** Size git records for the blob, reported even when the bytes were skipped. */
+  byte_size: number
+  too_large: boolean
+}
+
 export type GitResetMode = "soft" | "mixed" | "hard" | "keep"
 
 export interface GitBranchList {

@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "切换为左右分栏视图",
         "unified": "切换为内联视图"
+      },
+      "binaryFile": "二进制文件 — 不显示内容",
+      "image": {
+        "sideBySide": "切换为左右分栏视图",
+        "swipe": "切换为滑动对比视图",
+        "swipeHandle": "图片对比滑块",
+        "noImage": "此版本没有图片",
+        "unavailable": "无法加载此侧内容",
+        "tooLarge": "图片过大，无法预览（{size}）",
+        "loading": "正在加载图片..."
       }
     },
     "conversationContextBar": {

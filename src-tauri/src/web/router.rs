@@ -412,6 +412,10 @@ pub fn build_router(
             post(handlers::git::git_commit_branches),
         )
         .route("/git_show_file", post(handlers::git::git_show_file))
+        .route(
+            "/git_show_file_base64",
+            post(handlers::git::git_show_file_base64),
+        )
         .route("/git_diff", post(handlers::git::git_diff))
         .route(
             "/git_diff_with_branch",

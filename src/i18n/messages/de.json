@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "Zur Zwei-Spalten-Ansicht wechseln",
         "unified": "Zur Inline-Ansicht wechseln"
+      },
+      "binaryFile": "Binärdatei — Inhalt wird nicht angezeigt",
+      "image": {
+        "sideBySide": "Zur Zwei-Spalten-Ansicht wechseln",
+        "swipe": "Zur Wisch-Ansicht wechseln",
+        "swipeHandle": "Schieberegler für Bildvergleich",
+        "noImage": "Kein Bild in dieser Revision",
+        "unavailable": "Diese Seite konnte nicht geladen werden",
+        "tooLarge": "Bild zu groß für die Vorschau ({size})",
+        "loading": "Bilder werden geladen..."
       }
     },
     "conversationContextBar": {

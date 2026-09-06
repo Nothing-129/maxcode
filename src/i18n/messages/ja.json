@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "左右分割ビューに切り替え",
         "unified": "インラインビューに切り替え"
+      },
+      "binaryFile": "バイナリファイル — 内容は表示されません",
+      "image": {
+        "sideBySide": "左右分割ビューに切り替え",
+        "swipe": "スワイプ比較ビューに切り替え",
+        "swipeHandle": "画像比較スライダー",
+        "noImage": "このリビジョンに画像はありません",
+        "unavailable": "この側を読み込めませんでした",
+        "tooLarge": "画像が大きすぎてプレビューできません（{size}）",
+        "loading": "画像を読み込み中..."
       }
     },
     "conversationContextBar": {

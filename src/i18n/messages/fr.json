@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "Passer à la vue côte à côte",
         "unified": "Passer à la vue en ligne"
+      },
+      "binaryFile": "Fichier binaire — contenu non affiché",
+      "image": {
+        "sideBySide": "Passer à la vue côte à côte",
+        "swipe": "Passer à la vue par balayage",
+        "swipeHandle": "Curseur de comparaison d'images",
+        "noImage": "Aucune image dans cette révision",
+        "unavailable": "Impossible de charger ce côté",
+        "tooLarge": "Image trop grande pour l'aperçu ({size})",
+        "loading": "Chargement des images..."
       }
     },
     "conversationContextBar": {

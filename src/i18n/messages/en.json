@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "Switch to side-by-side view",
         "unified": "Switch to inline view"
+      },
+      "binaryFile": "Binary file — content not shown",
+      "image": {
+        "sideBySide": "Switch to side-by-side view",
+        "swipe": "Switch to swipe view",
+        "swipeHandle": "Image comparison slider",
+        "noImage": "No image at this revision",
+        "unavailable": "Could not load this side",
+        "tooLarge": "Image too large to preview ({size})",
+        "loading": "Loading images..."
       }
     },
     "conversationContextBar": {

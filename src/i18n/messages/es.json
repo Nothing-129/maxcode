@@ -3823,6 +3823,16 @@
       "viewMode": {
         "split": "Cambiar a la vista lado a lado",
         "unified": "Cambiar a la vista en línea"
+      },
+      "binaryFile": "Archivo binario — contenido no mostrado",
+      "image": {
+        "sideBySide": "Cambiar a la vista lado a lado",
+        "swipe": "Cambiar a la vista deslizante",
+        "swipeHandle": "Control deslizante de comparación de imágenes",
+        "noImage": "No hay imagen en esta revisión",
+        "unavailable": "No se pudo cargar este lado",
+        "tooLarge": "Imagen demasiado grande para previsualizar ({size})",
+        "loading": "Cargando imágenes..."
       }
     },
     "conversationContextBar": {

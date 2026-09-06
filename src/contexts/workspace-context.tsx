@@ -39,6 +39,7 @@ import {
 import { isAbsoluteFilePath } from "@/lib/file-path-display"
 import { pushClosedTab, snapshotFileTab } from "@/lib/closed-tab-stack"
 import {
+  isBinaryImageFile,
   isHiddenPath,
   isHtmlPreviewable,
   isImageFile,
@@ -46,6 +47,11 @@ import {
   isOfficePreviewable,
   languageFromPath,
 } from "@/lib/language-detect"
+import {
+  loadImageDiffSides,
+  type ImageDiffSides,
+  type ImageDiffSource,
+} from "@/lib/image-diff"
 import { toErrorMessage } from "@/lib/app-error"
 import { isLocalDesktop, openPath } from "@/lib/platform"
 import { shouldOpenWithSystemApp } from "@/lib/language-detect"
@@ -88,6 +94,11 @@ export interface FileWorkspaceTab {
   modifiedContent?: string
   gitBaseContent?: string
   savedContent?: string
+  /** Both sides of an image diff, on a `rich-diff` tab whose file is a binary
+   *  image. Set INSTEAD of originalContent/modifiedContent, which are
+   *  text-shaped; `language === "image"` is what tells the panel which of the
+   *  two the tab carries. */
+  imageDiff?: ImageDiffSides
   isDirty?: boolean
   etag?: string | null
   mtimeMs?: number | null
@@ -1055,6 +1066,19 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     []
   )
 
+  const resolveImageDiffTab = useCallback(
+    (tabId: string, imageDiff: ImageDiffSides) => {
+      setFileTabs((prev) =>
+        prev.map((tab) =>
+          tab.id === tabId
+            ? { ...tab, imageDiff, content: "", loading: false }
+            : tab
+        )
+      )
+    },
+    []
+  )
+
   const consumePendingFileReveal = useCallback((requestId: number) => {
     setPendingFileReveal((prev) =>
       prev && prev.requestId === requestId ? null : prev
@@ -1581,6 +1605,42 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     openFilePreview,
   ])
 
+  // The image counterpart of the three rich-diff loaders below: a binary image
+  // has no text sides to fetch (`git show` refuses it outright), so both sides
+  // come back as bytes and land on the tab as an `imageDiff` instead.
+  const loadImageRichDiff = useCallback(
+    async (args: {
+      tabId: string
+      gen: number
+      folderPath: string
+      file: string
+      original: ImageDiffSource
+      modified: ImageDiffSource
+      timeoutMessage: string
+    }) => {
+      try {
+        const sides = await withTimeout(
+          loadImageDiffSides(
+            args.folderPath,
+            args.file,
+            args.original,
+            args.modified
+          ),
+          20_000,
+          args.timeoutMessage
+        )
+        if (settleFetch(args.tabId, args.gen)) {
+          resolveImageDiffTab(args.tabId, sides)
+        }
+      } catch (error) {
+        if (settleFetch(args.tabId, args.gen)) {
+          rejectTab(args.tabId, toErrorMessage(error))
+        }
+      }
+    },
+    [rejectTab, resolveImageDiffTab, settleFetch]
+  )
+
   const openWorkingTreeDiff = useCallback(
     async (
       rawPath?: string,
@@ -1708,7 +1768,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       })
       const title = t("diffTitleFile", { name: fileName(path) })
       const description = path
-      const lang = languageFromPath(path)
+      const isImageDiff = isBinaryImageFile(path)
+      const lang = isImageDiff ? "image" : languageFromPath(path)
 
       const seed = loadingTab(
         tabId,
@@ -1722,6 +1783,20 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const decision = beginDiffLoad(seed)
       if (decision.skip) return
       const { gen } = decision
+      if (isImageDiff) {
+        await loadImageRichDiff({
+          tabId,
+          gen,
+          folderPath,
+          file: path,
+          // A fresh repo has an unborn HEAD: nothing came before, which is
+          // an absent side rather than a failed read.
+          original: { kind: "ref", ref: "HEAD", missingRefIsAbsent: true },
+          modified: { kind: "worktree" },
+          timeoutMessage: t("diffRequestTimedOut"),
+        })
+        return
+      }
       try {
         const [originalContent, modifiedResult] = await withTimeout(
           Promise.all([
@@ -1742,6 +1817,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     },
     [
       beginDiffLoad,
+      loadImageRichDiff,
       rejectTab,
       resolveTab,
       resolveRichDiffTab,
@@ -1787,7 +1863,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         : t("compareDescriptionBranch", { branch: targetBranch })
 
       if (mode !== "overview" && path) {
-        const lang = languageFromPath(path)
+        const isImageDiff = isBinaryImageFile(path)
+        const lang = isImageDiff ? "image" : languageFromPath(path)
         const seed = loadingTab(
           tabId,
           target.id,
@@ -1800,6 +1877,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         const decision = beginDiffLoad(seed)
         if (decision.skip) return
         const { gen } = decision
+        if (isImageDiff) {
+          await loadImageRichDiff({
+            tabId,
+            gen,
+            folderPath,
+            file: path,
+            original: { kind: "ref", ref: targetBranch },
+            modified: { kind: "worktree" },
+            timeoutMessage: t("branchCompareRequestTimedOut"),
+          })
+          return
+        }
         try {
           const [originalContent, modifiedResult] = await withTimeout(
             Promise.all([
@@ -1846,6 +1935,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     },
     [
       beginDiffLoad,
+      loadImageRichDiff,
       rejectTab,
       resolveRichDiffTab,
       resolveTab,
@@ -1883,7 +1973,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         : message || t("diffDescriptionCommit", { commit })
 
       if (path) {
-        const lang = languageFromPath(path)
+        const isImageDiff = isBinaryImageFile(path)
+        const lang = isImageDiff ? "image" : languageFromPath(path)
         const seed = loadingTab(
           tabId,
           target.id,
@@ -1896,6 +1987,27 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         const decision = beginDiffLoad(seed)
         if (decision.skip) return
         const { gen } = decision
+        if (isImageDiff) {
+          await loadImageRichDiff({
+            tabId,
+            gen,
+            folderPath,
+            file: path,
+            // A commit's parent fails to resolve for two reasons: it is a
+            // root commit, or this is a shallow clone's boundary. Both read
+            // as "nothing came before" — which is what git itself reports
+            // (`git show` at a shallow boundary lists every file as added),
+            // and what the text diff beside this one already assumes.
+            original: {
+              kind: "ref",
+              ref: `${commit}~1`,
+              missingRefIsAbsent: true,
+            },
+            modified: { kind: "ref", ref: commit },
+            timeoutMessage: t("commitDiffRequestTimedOut"),
+          })
+          return
+        }
         try {
           const [originalContent, modifiedContent] = await withTimeout(
             Promise.all([
@@ -1938,6 +2050,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     },
     [
       beginDiffLoad,
+      loadImageRichDiff,
       rejectTab,
       resolveTab,
       resolveRichDiffTab,
