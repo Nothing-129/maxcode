@@ -1078,8 +1078,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             name: "Gemini CLI",
             description: "Google's official CLI for Gemini",
             distribution: AgentDistribution::Npx {
-                version: "0.57.0",
-                package: "@google/gemini-cli@0.57.0",
+                version: "0.58.0",
+                package: "@google/gemini-cli@0.58.0",
                 cmd: "gemini",
                 args: &["--acp", "--skip-trust"],
                 env: &[],
@@ -1094,8 +1094,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             name: "OpenClaw",
             description: "OpenClaw is a personal AI assistant you run on your own devices.",
             distribution: AgentDistribution::Npx {
-                version: "2026.8.1",
-                package: "openclaw@2026.8.1",
+                version: "2026.9.2",
+                package: "openclaw@2026.9.2",
                 cmd: "openclaw",
                 args: &["acp"],
                 env: &[],
@@ -1227,8 +1227,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             name: "CodeBuddy",
             description: "Tencent Cloud's official AI coding assistant (ACP)",
             distribution: AgentDistribution::Npx {
-                version: "2.144.0",
-                package: "@tencent-ai/codebuddy-code@2.144.0",
+                version: "2.146.0",
+                package: "@tencent-ai/codebuddy-code@2.146.0",
                 cmd: "codebuddy",
                 args: &["--acp"],
                 env: &[],
@@ -1622,8 +1622,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // own copy AES-GCM-encrypted under the machine key, so it is not
             // the source). `engines.node: ">=20"`.
             distribution: AgentDistribution::Npx {
-                version: "1.1.44",
-                package: "@qoder-ai/qodercli@1.1.44",
+                version: "1.1.45",
+                package: "@qoder-ai/qodercli@1.1.45",
                 cmd: "qoder",
                 args: &["--acp"],
                 env: &[],
@@ -2036,21 +2036,21 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Gemini,
-            "0.57.0",
-            "@google/gemini-cli@0.57.0",
+            "0.58.0",
+            "@google/gemini-cli@0.58.0",
             Some("20.0.0"),
         );
         assert_npx_version(
             AgentType::OpenClaw,
-            "2026.8.1",
-            "openclaw@2026.8.1",
+            "2026.9.2",
+            "openclaw@2026.9.2",
             Some("22.22.3"),
         );
         assert_npx_version(AgentType::Cline, "3.0.61", "cline@3.0.61", Some("22.0.0"));
         assert_npx_version(
             AgentType::CodeBuddy,
-            "2.144.0",
-            "@tencent-ai/codebuddy-code@2.144.0",
+            "2.146.0",
+            "@tencent-ai/codebuddy-code@2.146.0",
             Some("22.0.0"),
         );
         // Kimi Code must never land on 0.37.0–0.38.0: every session in that
@@ -2082,8 +2082,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Qoder,
-            "1.1.44",
-            "@qoder-ai/qodercli@1.1.44",
+            "1.1.45",
+            "@qoder-ai/qodercli@1.1.45",
             Some("20.0.0"),
         );
         assert_binary_version(
