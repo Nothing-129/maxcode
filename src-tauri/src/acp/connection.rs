@@ -15981,8 +15981,16 @@ mod tests {
 
         // And a home that cannot be named at all is unknown for the same
         // reason: there is a file somewhere, codeg just cannot say where.
+        // Platform-native key, as in the path tests below: `child_home_dir`
+        // reads `USERPROFILE` on Windows (`expanduser` never consults `HOME`
+        // there), so blanking `HOME` removes nothing, the fallback lands on the
+        // runner's real profile, and the answer flips to `Absent`.
+        #[cfg(windows)]
+        let home_key = "USERPROFILE";
+        #[cfg(not(windows))]
+        let home_key = "HOME";
         let unnameable = BTreeMap::from([
-            ("HOME".to_string(), String::new()),
+            (home_key.to_string(), String::new()),
             ("GEMINI_HOME".to_string(), String::new()),
         ]);
         assert_eq!(
