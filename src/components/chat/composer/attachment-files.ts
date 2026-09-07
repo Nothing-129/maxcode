@@ -43,7 +43,7 @@ const MIME_BY_EXT: Record<string, string> = {
 }
 
 /** Ceiling on the bytes a dropped local image may inline for its thumbnail. */
-export const DRAG_DROP_IMAGE_MAX_BYTES = 20_000_000
+export const DRAG_DROP_IMAGE_MAX_BYTES = 100 * 1024 * 1024
 
 export function fileNameFromPath(path: string): string {
   return path.split(/[/\\]/).pop() || path

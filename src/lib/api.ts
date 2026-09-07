@@ -3816,7 +3816,7 @@ export async function listDirectoryWithFiles(
 // `commands/remote_proxy.rs`). Sized to match the desktop drag-drop image
 // limit (`DRAG_DROP_IMAGE_MAX_BYTES`) so the same screenshot attaches in
 // every mode; oversize is rejected up front with a visible toast.
-export const UPLOAD_MAX_BYTES = 20 * 1024 * 1024
+export const UPLOAD_MAX_BYTES = 100 * 1024 * 1024
 
 // `btoa` only accepts a binary string, and `String.fromCharCode(...bytes)`
 // hits the call-stack limit somewhere around a few hundred KB. Chunk the

@@ -2247,13 +2247,13 @@ const TextPart = memo(function TextPart({
 }) {
   if (isUser) {
     return (
-      <div className="break-words text-sm">
+      <div className="chat-message-text break-words">
         <PlainTextWithBadges text={text} />
       </div>
     )
   }
   return (
-    <div className='break-words text-sm prose prose-sm dark:prose-invert max-w-none [&_ul]:list-inside [&_ol]:list-inside [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
+    <div className='chat-message-text break-words prose prose-sm dark:prose-invert max-w-none [&_ul]:list-inside [&_ol]:list-inside [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
       <MessageResponse
         mode={isStreaming ? "streaming" : "static"}
         parseIncompleteMarkdown={isStreaming}

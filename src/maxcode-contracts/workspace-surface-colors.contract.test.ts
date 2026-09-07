@@ -36,12 +36,12 @@ describe("MaxCode contract: GPT-matched workspace surfaces", () => {
       expect(new Set(declarations["--background"])).toEqual(
         new Set(["#ffffff"])
       )
-      expect(new Set(declarations["--sidebar"])).toEqual(new Set(["#fdfcfd"]))
+      expect(new Set(declarations["--sidebar"])).toEqual(new Set(["#fcfcfc"]))
     }
   )
 
   // Sampled from the Codex desktop half of the user's 2026-09-07 comparison:
-  // dominant sidebar RGB = 253,252,253; main canvas RGB = 255,255,255.
+  // dominant sidebar RGB = 252,252,252; main canvas RGB = 255,255,255.
   it("matches the desktop reference's white canvas and near-white sidebar", () => {
     const globals = source("src/app/globals.css")
 
@@ -53,8 +53,30 @@ describe("MaxCode contract: GPT-matched workspace surfaces", () => {
     )?.groups?.tokens
 
     expect(neutral).toContain("--background: #ffffff;")
-    expect(neutral).toContain("--sidebar: #fdfcfd;")
+    expect(neutral).toContain("--sidebar: #fcfcfc;")
     expect(fallback).toContain("--background: #ffffff;")
-    expect(fallback).toContain("--sidebar: #fdfcfd;")
+    expect(fallback).toContain("--sidebar: #fcfcfc;")
+  })
+  it("softens only neutral light composer paint without changing layout", () => {
+    const rules: Record<string, Record<string, string>> = {}
+    postcss.parse(source("src/app/globals.css")).walkRules((rule) => {
+      if (!rule.selector.includes(':root:is([data-theme="neutral"]')) return
+      const declarations: Record<string, string> = {}
+      rule.walkDecls((decl) => {
+        declarations[decl.prop] = decl.value.replace(/\s+/g, " ")
+      })
+      rules[rule.selector.replace(/\s+/g, " ")] = declarations
+    })
+    const scope =
+      ':root:is([data-theme="neutral"], :not([data-theme])):not(.dark)'
+    expect(rules[`${scope} .codeg-composer-chrome`]).toEqual({
+      "border-color": "rgb(0 0 0 / 6%)",
+    })
+    expect(rules[`${scope} .maxcode-composer-shadow`]).toEqual({
+      "box-shadow": "0 2px 6px rgb(0 0 0 / 2%), 0 8px 32px rgb(0 0 0 / 3%)",
+    })
+    expect(source("src/components/chat/composer/composer-chrome.ts")).toContain(
+      "maxcode-composer-shadow"
+    )
   })
 })

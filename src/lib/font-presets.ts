@@ -112,6 +112,7 @@ export const DEFAULT_TERMINAL_FONT_ID = "system-mono"
 /** 编辑器 / 终端基础字号（px）。最终字号 = base × zoom% / 100，与现有缩放叠加。 */
 export const FONT_SIZES = [10, 11, 12, 13, 14, 15, 16, 18, 20] as const
 export type FontSize = (typeof FONT_SIZES)[number]
+export const DEFAULT_CHAT_FONT_SIZE: FontSize = 14
 export const DEFAULT_EDITOR_FONT_SIZE: FontSize = 13
 export const DEFAULT_TERMINAL_FONT_SIZE: FontSize = 13
 

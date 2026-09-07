@@ -180,3 +180,9 @@ export function useWorkspaceBackground() {
     workspaceBgSourceUrl,
   }
 }
+
+/** 聊天正文独立字号，不改变窗口缩放。 */
+export function useChatFontSize() {
+  const { chatFontSize, setChatFontSize } = useAppearance()
+  return { chatFontSize, setChatFontSize }
+}

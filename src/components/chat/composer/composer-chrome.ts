@@ -13,7 +13,7 @@ export const COMPOSER_CHROME_BOX_CLASS =
   "codeg-composer-chrome relative rounded-2xl border border-foreground/15"
 
 export const COMPOSER_CHROME_SHADOW_CLASS =
-  "shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
+  "maxcode-composer-shadow shadow-[0_1px_3px_rgba(15,23,42,0.06)] dark:shadow-[0_1px_3px_rgba(0,0,0,0.35)]"
 
 /** Opaque surface that still goes transparent over a workspace background. */
 export const COMPOSER_CHROME_SURFACE_CLASS = "bg-background ws-transparent-bg"

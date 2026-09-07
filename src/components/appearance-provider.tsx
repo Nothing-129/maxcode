@@ -24,6 +24,7 @@ import {
   DEFAULT_UI_FONT_ID,
   DEFAULT_EDITOR_FONT_ID,
   DEFAULT_TERMINAL_FONT_ID,
+  DEFAULT_CHAT_FONT_SIZE,
   DEFAULT_EDITOR_FONT_SIZE,
   DEFAULT_TERMINAL_FONT_SIZE,
   type FontSize,
@@ -37,6 +38,7 @@ import {
   STORAGE_KEY_UI_FONT_STACK,
   STORAGE_KEY_EDITOR_FONT,
   STORAGE_KEY_EDITOR_FONT_CUSTOM,
+  STORAGE_KEY_CHAT_FONT_SIZE,
   STORAGE_KEY_EDITOR_FONT_SIZE,
   STORAGE_KEY_EDITOR_LIGATURES,
   STORAGE_KEY_EDITOR_WORD_WRAP,
@@ -127,6 +129,8 @@ type AppearanceContextValue = {
   /** 终端字体（驱动 xterm fontFamily） */
   terminalFont: FontSelection
   setTerminalFont: (id: string, custom?: string) => void
+  chatFontSize: FontSize
+  setChatFontSize: (size: FontSize) => void
   editorFontSize: FontSize
   setEditorFontSize: (size: FontSize) => void
   terminalFontSize: FontSize
@@ -394,6 +398,16 @@ export function AppearanceProvider({
       DEFAULT_TERMINAL_FONT_ID
     )
   )
+  const [chatFontSize, setChatFontSizeState] = useState<FontSize>(() =>
+    readFontSize(STORAGE_KEY_CHAT_FONT_SIZE, DEFAULT_CHAT_FONT_SIZE)
+  )
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--chat-font-size",
+      `${chatFontSize / 16}rem`
+    )
+  }, [chatFontSize])
+
   const [editorFontSize, setEditorFontSizeState] = useState<FontSize>(() =>
     readFontSize(STORAGE_KEY_EDITOR_FONT_SIZE, DEFAULT_EDITOR_FONT_SIZE)
   )
@@ -544,6 +558,12 @@ export function AppearanceProvider({
     setTerminalFontState({ id, custom })
     persist(STORAGE_KEY_TERMINAL_FONT, id)
     persist(STORAGE_KEY_TERMINAL_FONT_CUSTOM, custom)
+  }, [])
+
+  const setChatFontSize = useCallback((size: FontSize) => {
+    if (!isValidFontSize(size)) return
+    setChatFontSizeState(size)
+    persist(STORAGE_KEY_CHAT_FONT_SIZE, String(size))
   }, [])
 
   const setEditorFontSize = useCallback((size: FontSize) => {
@@ -891,6 +911,7 @@ export function AppearanceProvider({
       STORAGE_KEY_UI_FONT_STACK,
       STORAGE_KEY_EDITOR_FONT,
       STORAGE_KEY_EDITOR_FONT_CUSTOM,
+      STORAGE_KEY_CHAT_FONT_SIZE,
       STORAGE_KEY_EDITOR_FONT_SIZE,
       STORAGE_KEY_EDITOR_LIGATURES,
       STORAGE_KEY_EDITOR_WORD_WRAP,
@@ -918,6 +939,9 @@ export function AppearanceProvider({
       setUiFontState(ui)
       setEditorFontState(ed)
       setTerminalFontState(tm)
+      setChatFontSizeState(
+        readFontSize(STORAGE_KEY_CHAT_FONT_SIZE, DEFAULT_CHAT_FONT_SIZE)
+      )
       setEditorFontSizeState(
         readFontSize(STORAGE_KEY_EDITOR_FONT_SIZE, DEFAULT_EDITOR_FONT_SIZE)
       )
@@ -1063,6 +1087,8 @@ export function AppearanceProvider({
         setEditorFont,
         terminalFont,
         setTerminalFont,
+        chatFontSize,
+        setChatFontSize,
         editorFontSize,
         setEditorFontSize,
         terminalFontSize,

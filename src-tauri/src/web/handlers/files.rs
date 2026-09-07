@@ -208,7 +208,7 @@ pub async fn create_file_tree_entry(
 ///
 /// This is the user-facing attachment ceiling for web / remote-workspace mode
 /// (oversize is rejected with a visible toast), sized to match the desktop
-/// drag-drop image limit (`DRAG_DROP_IMAGE_MAX_BYTES`, 20 MB) so the same
+/// drag-drop image limit (`DRAG_DROP_IMAGE_MAX_BYTES`, 100 MiB) so the same
 /// screenshot attaches in every mode. Uploaded images are re-inlined into the
 /// prompt server-side (`acp::prompt_hydration`), so this also bounds that
 /// read-back. The handler streams to disk chunk-by-chunk, so raising the cap
@@ -219,7 +219,7 @@ pub async fn create_file_tree_entry(
 ///
 /// Mirrored by `UPLOAD_MAX_BYTES` in `commands/remote_proxy.rs` and
 /// `src/lib/api.ts` — keep the three in lockstep.
-pub const UPLOAD_MAX_BYTES: u64 = 20 * 1024 * 1024;
+pub const UPLOAD_MAX_BYTES: u64 = 100 * 1024 * 1024;
 
 /// Env-controlled cap on the *total* bytes resident under
 /// `uploads_root/`. Per-file `UPLOAD_MAX_BYTES` bounds one payload; this
@@ -1265,7 +1265,7 @@ mod tests {
     #[test]
     fn reservation_uses_content_length_when_small() {
         // A 1 MiB upload against a 10 MiB total quota must reserve ~1 MiB,
-        // not the 20 MiB worst case (which would reject every upload on
+        // not the 100 MiB worst case (which would reject every upload on
         // servers whose quota is below the per-file maximum).
         let cl = 1024 * 1024 + 300; // file + multipart framing overhead
         assert_eq!(upload_reservation_bytes(Some(cl)), cl);

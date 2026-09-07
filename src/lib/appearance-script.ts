@@ -1,5 +1,7 @@
 // src/lib/appearance-script.ts
 
+import { DEFAULT_CHAT_FONT_SIZE, FONT_SIZES } from "./font-presets"
+
 import {
   CUSTOM_CSS_ELEMENT_ID,
   CUSTOM_THEME_TOKENS,
@@ -21,6 +23,7 @@ export const STORAGE_KEY_ZOOM_LEVEL = "codeg-zoom-level"
 // 只有界面字体需要 *_STACK（已解析的 CSS font-family 栈），供 inline 脚本零依赖地
 // 预水合写入 --font-sans；编辑器/终端字体只走各自的 Monaco/xterm 选项，水合后才挂载，
 // 无需预水合，也不写任何全局 CSS 变量。*_FONT 存 id、*_CUSTOM 存自定义族名供回显。
+export const STORAGE_KEY_CHAT_FONT_SIZE = "codeg-chat-font-size"
 export const STORAGE_KEY_UI_FONT = "codeg-ui-font"
 export const STORAGE_KEY_UI_FONT_CUSTOM = "codeg-ui-font-custom"
 export const STORAGE_KEY_UI_FONT_STACK = "codeg-ui-font-stack"
@@ -101,6 +104,10 @@ const SCRIPT = `
     var storedZoom = parseInt(localStorage.getItem("${STORAGE_KEY_ZOOM_LEVEL}") || "", 10);
     var zoom = VALID_ZOOMS.indexOf(storedZoom) >= 0 ? storedZoom : 100;
     document.documentElement.style.fontSize = (16 * zoom / 100) + "px";
+
+    var chatSize = Number(localStorage.getItem("${STORAGE_KEY_CHAT_FONT_SIZE}"));
+    if (${JSON.stringify(FONT_SIZES)}.indexOf(chatSize) < 0) chatSize = ${DEFAULT_CHAT_FONT_SIZE};
+    document.documentElement.style.setProperty("--chat-font-size", (chatSize / 16) + "rem");
 
     // 界面字体：预水合写入 --font-sans（普通组件与会话消息区都跟随它）。
     // stack 只是「显式选择」的缓存，不是偏好本身：仅当存在显式 id（codeg-ui-font）

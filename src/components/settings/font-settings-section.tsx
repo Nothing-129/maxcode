@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import {
+  useChatFontSize,
   useEditorFont,
   useTerminalFont,
   useUiFont,
@@ -168,6 +169,7 @@ function LigatureRow({
 
 export function FontSettingsSection() {
   const t = useTranslations("AppearanceSettings")
+  const { chatFontSize, setChatFontSize } = useChatFontSize()
   const { uiFont, setUiFont, uiFontStack } = useUiFont()
   const {
     editorFont,
@@ -224,6 +226,21 @@ export function FontSettingsSection() {
           customPlaceholder={customPlaceholder}
           ariaLabel={t("fonts.interface")}
         />
+      </div>
+
+      <div className="space-y-2">
+        <label className={fieldLabel}>{t("fonts.chatFontSize")}</label>
+        <SizeSelect
+          value={chatFontSize}
+          onChange={setChatFontSize}
+          ariaLabel={t("fonts.chatFontSize")}
+        />
+        <p className="text-xs text-muted-foreground">
+          {t("fonts.chatFontSizeHint")}
+        </p>
+        <p className="chat-message-text rounded-lg border bg-muted/30 p-3">
+          {t("fonts.chatPreview")}
+        </p>
       </div>
 
       {/* ===== 编辑器字体 ===== */}

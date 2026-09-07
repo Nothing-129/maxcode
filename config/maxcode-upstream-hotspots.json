@@ -2,6 +2,51 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "attachments.hundred-mib-upload",
+      "category": "product",
+      "description": "Local attachments allow 100 MiB per file across Web, desktop drag/drop and remote uploads; multipart framing has extra headroom and prompt image hydration allows one maximum-sized image.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": [
+        "src/lib/api.ts",
+        "src/components/chat/composer/attachment-files.ts",
+        "src/components/chat/composer/use-composer-attachments.ts",
+        "src-tauri/src/web/handlers/files.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/commands/remote_proxy.rs",
+        "src-tauri/src/acp/prompt_hydration.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/attachment-upload-size.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.codex-plugin-context-filter",
+      "category": "product",
+      "description": "Codex injected recommended_plugins records never appear as chat turns, titles or message counts; real prompts remain visible.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": ["src-tauri/src/parsers/codex.rs"],
+      "contracts": [
+        "src/maxcode-contracts/codex-plugin-context.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.independent-font-size",
+      "category": "product",
+      "description": "Chat message text has a persisted independent font size, with pre-hydration and cross-window sync; interface controls retain their size.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": [
+        "src/lib/font-presets.ts",
+        "src/lib/appearance-script.ts",
+        "src/components/appearance-provider.tsx",
+        "src/hooks/use-appearance.ts",
+        "src/components/settings/font-settings-section.tsx",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/app/globals.css",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/chat-font-size.contract.test.tsx"]
+    },
+    {
       "id": "conversations.manual-title-refresh",
       "category": "product",
       "description": "Conversation context menus explicitly regenerate titles with the saved model, dedupe pending UI requests, preserve originals on failure and concurrent renames, and support Tauri/Web.",
@@ -408,21 +453,27 @@
     {
       "id": "android.webview-client",
       "category": "platform",
-      "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, and device compatibility fixes.",
-      "origins": ["bddabc51", "worktree-2026-08-31"],
+      "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, device compatibility fixes, and local attachment results returned through single URIs or multi-select ClipData.",
+      "origins": ["bddabc51", "worktree-2026-08-31", "worktree-2026-09-07"],
       "paths": [
         "android-webview/",
         "src/app/globals.css",
         "src/app/manifest.ts"
       ],
-      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/android-and-agents.contract.test.ts",
+        "src/maxcode-contracts/android-file-attachments.contract.test.ts"
+      ]
     },
     {
       "id": "appearance.gpt-shell-surfaces",
       "category": "product",
-      "description": "The neutral light workspace matches the user's 2026-09-07 Codex desktop reference with a pure-white main canvas and a near-white #fdfcfd sidebar, including the no-theme fallback. Every matching light-mode surface declaration is checked to reject global or higher-specificity token overrides.",
+      "description": "The neutral light workspace matches the user's 2026-09-07 Codex desktop reference with a pure-white main canvas and a neutral near-white #fcfcfc sidebar and softer composer border/shadow without layout changes, including the no-theme fallback. Every matching light-mode surface declaration is checked to reject global or higher-specificity token overrides.",
       "origins": ["worktree-2026-09-04"],
-      "paths": ["src/app/globals.css"],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/chat/composer/composer-chrome.ts"
+      ],
       "contracts": [
         "src/maxcode-contracts/workspace-surface-colors.contract.test.ts"
       ]

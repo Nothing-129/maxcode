@@ -48,18 +48,18 @@ use crate::web::handlers::files::UPLOAD_MAX_BYTES;
 /// again in the viewer broadcast projection.
 ///
 /// Without this, the 2 MiB HTTP body limit stops being a memory backstop: a
-/// ~2 KiB body carrying many markers to one 20 MiB upload would expand to
+/// ~2 KiB body carrying many markers to one 100 MiB upload would expand to
 /// hundreds of MiB server-side. The value allows a realistic prompt (a
 /// handful of large screenshots) while bounding the worst case to
-/// ~85 MiB of base64 (+ one clone for the viewer projection).
-pub const HYDRATION_TOTAL_MAX_BYTES: u64 = 64 * 1024 * 1024;
+/// ~134 MiB of base64 (+ one clone for the viewer projection).
+pub const HYDRATION_TOTAL_MAX_BYTES: u64 = UPLOAD_MAX_BYTES;
 
 /// Global bound on prompts hydrating CONTENT concurrently. The per-connection
 /// prompt lock (held at the call site) already serializes hydration within a
 /// connection, but the connection count itself is unbounded — one token can
 /// open many sessions — so without a cross-connection bound N connections
 /// could all be inside the read+encode phase at once. Two permits bound the
-/// concurrent hydration WORK (≤ 2 × 85 MiB of base64 being produced at any
+/// concurrent hydration WORK (≤ 2 × 134 MiB of base64 being produced at any
 /// instant) while still letting two conversations attach images at the same
 /// moment without queueing.
 ///
@@ -424,15 +424,15 @@ mod tests {
 
     #[tokio::test]
     async fn rejects_when_duplicate_markers_exceed_the_aggregate_cap() {
-        // One legitimate ≤20 MiB upload referenced enough times to blow the
-        // 64 MiB aggregate: 4 × 18 MiB = 72 MiB. The cap must count every
+        // One legitimate upload referenced four times to exceed the aggregate
+        // ceiling by four bytes. The cap must count every
         // marker occurrence (each becomes its own base64 copy), and reject in
         // pass 1 — before any content read — so a tiny HTTP body cannot
         // amplify into hundreds of MiB of server memory.
         let root = tempfile::tempdir().unwrap();
         let file = root.path().join("big.png");
         let f = std::fs::File::create(&file).unwrap();
-        f.set_len(18 * 1024 * 1024).unwrap();
+        f.set_len(HYDRATION_TOTAL_MAX_BYTES / 4 + 1).unwrap();
         drop(f);
 
         let uri = to_file_uri(&file);
@@ -457,7 +457,7 @@ mod tests {
 
     #[tokio::test]
     async fn admits_markers_under_the_aggregate_cap() {
-        // 3 × 18 MiB = 54 MiB < 64 MiB — must hydrate all three. Sparse files
+        // 3 × 18 MiB = 54 MiB < 100 MiB — must hydrate all three. Sparse files
         // read as zeros, which is fine for the size accounting under test.
         let root = tempfile::tempdir().unwrap();
         let file = root.path().join("ok.png");

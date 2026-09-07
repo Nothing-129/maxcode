@@ -839,9 +839,16 @@ public final class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode != FILE_CHOOSER_REQUEST || filePathCallback == null) return;
-        Uri[] result = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
-        filePathCallback.onReceiveValue(result);
+        Uri[] result = FileChooserResult.parse(resultCode, data);
+        if (BuildConfig.DEBUG) {
+            android.util.Log.d("MaxCodeFileChooser", "result=" + resultCode
+                    + " clipItems=" + (data != null && data.getClipData() != null
+                            ? data.getClipData().getItemCount() : 0)
+                    + " files=" + (result == null ? 0 : result.length));
+        }
+        ValueCallback<Uri[]> callback = filePathCallback;
         filePathCallback = null;
+        callback.onReceiveValue(result);
     }
 
     @Override

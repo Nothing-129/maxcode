@@ -4705,6 +4705,11 @@ fn is_environment_context_message(input: &str) -> bool {
     trimmed.starts_with("<environment_context>") && trimmed.ends_with("</environment_context>")
 }
 
+/// Codex app plugin discovery may share a record with AGENTS/environment context.
+fn is_recommended_plugins_message(input: &str) -> bool {
+    input.trim_start().starts_with("<recommended_plugins>")
+}
+
 /// codex re-injects `<codex_internal_context source="goal">Continue working …`
 /// user turns while a `/goal` is active. These are machine context, never a real
 /// prompt, so they must never become a conversation title (they otherwise leak in
@@ -4744,6 +4749,7 @@ fn is_promotable_user_text(input: &str) -> bool {
         || is_agents_instruction_message(trimmed)
         || is_environment_context_message(trimmed)
         || is_codex_internal_context_message(trimmed)
+        || is_recommended_plugins_message(trimmed)
     {
         return false;
     }
@@ -4881,6 +4887,7 @@ fn extract_codex_title_candidate(input: &str, fallback_attached: bool) -> Option
         || is_agents_instruction_message(trimmed)
         || is_environment_context_message(trimmed)
         || is_codex_internal_context_message(trimmed)
+        || is_recommended_plugins_message(trimmed)
     {
         return None;
     }
@@ -11349,6 +11356,53 @@ mod tests {
                 ("assistant", Some("real reply after".into())),
             ],
             "only the handoff summary is suppressed"
+        );
+    }
+
+    #[test]
+    fn recommended_plugins_context_never_becomes_a_turn_or_title() {
+        for context in [
+            "<recommended_plugins>\n- Airtable\n</recommended_plugins>",
+            "  \n<recommended_plugins>\n- Airtable\n</recommended_plugins>\n# AGENTS.md instructions for /tmp/demo\n\n<INSTRUCTIONS>rules</INSTRUCTIONS>\n<environment_context>cwd</environment_context>",
+        ] {
+            assert_eq!(extract_codex_title_candidate(context, true), None);
+            for canonical in [false, true] {
+                let mut lines = serde_json::json!({
+                    "timestamp": "2026-03-01T10:00:00Z",
+                    "type": "session_meta",
+                    "payload": {"id": "plugins-1", "cwd": "/tmp/demo"}
+                }).to_string() + "\n";
+                let prompt = "文字字体在哪里放大？";
+                for text in [context, prompt] {
+                    lines.push_str(&serde_json::json!({
+                        "timestamp": "2026-03-01T10:00:01Z",
+                        "type": "response_item",
+                        "payload": {"type": "message", "role": "user",
+                            "content": [{"type": "input_text", "text": text}]}
+                    }).to_string());
+                    lines.push('\n');
+                }
+                if canonical {
+                    lines.push_str(&serde_json::json!({
+                        "timestamp": "2026-03-01T10:00:02Z",
+                        "type": "event_msg",
+                        "payload": {"type": "user_message", "message": prompt}
+                    }).to_string());
+                    lines.push('\n');
+                }
+                let detail = parse_rollout("plugins", &lines, "plugins-1");
+                assert_eq!(turn_texts(&detail), vec![("user", Some(prompt.into()))]);
+                assert_eq!(detail.summary.title.as_deref(), Some(prompt));
+                let summary = summary_of("plugins-summary", &lines);
+                assert_eq!(summary.message_count, 1);
+                assert_eq!(summary.title.as_deref(), Some(prompt));
+            }
+        }
+        let quoted = "解释 <recommended_plugins> 标签的含义";
+        assert!(super::is_promotable_user_text(quoted));
+        assert_eq!(
+            extract_codex_title_candidate(quoted, true).as_deref(),
+            Some(quoted)
         );
     }
 

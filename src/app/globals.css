@@ -89,7 +89,7 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #fdfcfd;
+  --sidebar: #fcfcfc;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -124,7 +124,7 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #fdfcfd;
+  --sidebar: #fcfcfc;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -2164,6 +2164,19 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   cursor: pointer;
 }
 
+/* Neutral light desktop surfaces: keep geometry and focus behavior intact. */
+:root:is([data-theme="neutral"], :not([data-theme])):not(.dark)
+  .codeg-composer-chrome {
+  border-color: rgb(0 0 0 / 6%);
+}
+
+:root:is([data-theme="neutral"], :not([data-theme])):not(.dark)
+  .maxcode-composer-shadow {
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 2%),
+    0 8px 32px rgb(0 0 0 / 3%);
+}
+
 /* Active-session composer: a gradient that flows around the input border as the
    active-conversation cue (replaces the old top-center icon). The ::before
    overlays the element's existing 1px border — `inset:-1px` reaches the
@@ -2986,4 +2999,22 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .canvas-surface[data-canvas-panning],
 .canvas-surface[data-canvas-panning] * {
   cursor: grabbing !important;
+}
+
+/* Chat body size is independent of interface controls and editor preferences. */
+.chat-message-text {
+  font-size: var(--chat-font-size, 0.875rem);
+  line-height: 1.5;
+}
+.chat-message-text h1 {
+  font-size: 1.7142857em;
+}
+.chat-message-text h2 {
+  font-size: 1.4285714em;
+}
+.chat-message-text h3 {
+  font-size: 1.2857143em;
+}
+.chat-message-text [data-streamdown="code-block-body"] {
+  font-size: calc(var(--chat-font-size, 0.875rem) * 13 / 14);
 }
