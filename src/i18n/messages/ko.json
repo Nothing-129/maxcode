@@ -1994,6 +1994,10 @@
       "copiedField": "{field} 복사됨"
     },
     "conversationCard": {
+      "refreshTitle": "제목 다시 생성",
+      "refreshingTitle": "제목 생성 중…",
+      "refreshTitleSuccess": "제목이 갱신되었습니다",
+      "refreshTitleFailed": "제목 생성 실패: {message}",
       "folderZone": "{name} 분할",
       "otherFolderZone": "기타",
       "closeFolderZone": "{name} 분할 닫기",

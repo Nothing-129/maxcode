@@ -1,9 +1,48 @@
 import { describe, expect, it } from "vitest"
+import postcss from "postcss"
 
 import { source } from "./contract-source"
 
 describe("MaxCode contract: GPT-matched workspace surfaces", () => {
-  it("keeps the neutral light canvas white and the sidebar cool gray", () => {
+  it.each(["neutral", null])(
+    "rejects competing light surface declarations for theme %s",
+    (theme) => {
+      const root = document.implementation.createHTMLDocument().documentElement
+      root.className = "light"
+      if (theme) root.setAttribute("data-theme", theme)
+
+      // Inspect every matching rule, not just the preset block: a later or
+      // more specific html selector must not silently replace these tokens.
+      const declarations: Record<string, string[]> = {
+        "--background": [],
+        "--sidebar": [],
+      }
+      postcss.parse(source("src/app/globals.css")).walkRules((rule) => {
+        if (
+          !rule.nodes.some(
+            (node) => node.type === "decl" && node.prop in declarations
+          )
+        ) {
+          return
+        }
+        if (!root.matches(rule.selector)) return
+        rule.walkDecls((decl) => {
+          if (decl.prop in declarations) {
+            declarations[decl.prop].push(decl.value.toLowerCase())
+          }
+        })
+      })
+
+      expect(new Set(declarations["--background"])).toEqual(
+        new Set(["#ffffff"])
+      )
+      expect(new Set(declarations["--sidebar"])).toEqual(new Set(["#fdfcfd"]))
+    }
+  )
+
+  // Sampled from the Codex desktop half of the user's 2026-09-07 comparison:
+  // dominant sidebar RGB = 253,252,253; main canvas RGB = 255,255,255.
+  it("matches the desktop reference's white canvas and near-white sidebar", () => {
     const globals = source("src/app/globals.css")
 
     const neutral = globals.match(
@@ -14,8 +53,8 @@ describe("MaxCode contract: GPT-matched workspace surfaces", () => {
     )?.groups?.tokens
 
     expect(neutral).toContain("--background: #ffffff;")
-    expect(neutral).toContain("--sidebar: #f9f9fa;")
+    expect(neutral).toContain("--sidebar: #fdfcfd;")
     expect(fallback).toContain("--background: #ffffff;")
-    expect(fallback).toContain("--sidebar: #f9f9fa;")
+    expect(fallback).toContain("--sidebar: #fdfcfd;")
   })
 })

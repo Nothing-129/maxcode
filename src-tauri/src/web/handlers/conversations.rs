@@ -336,6 +336,31 @@ pub struct UpdateConversationTitleParams {
     pub title: String,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RefreshConversationTitleParams {
+    pub conversation_id: i32,
+}
+
+pub async fn refresh_conversation_title(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<RefreshConversationTitleParams>,
+) -> Result<Json<String>, AppCommandError> {
+    let title = conv_commands::refresh_conversation_title_core(
+        &state.db.conn,
+        &state.emitter,
+        params.conversation_id,
+    )
+    .await?;
+    conv_commands::sync_conversation_title_to_channels_core(
+        &state.db.conn,
+        &state.chat_channel_manager,
+        params.conversation_id,
+    )
+    .await;
+    Ok(Json(title))
+}
+
 pub async fn update_conversation_title(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<UpdateConversationTitleParams>,

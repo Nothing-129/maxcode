@@ -1994,6 +1994,10 @@
       "copiedField": "تم نسخ {field}"
     },
     "conversationCard": {
+      "refreshTitle": "إعادة إنشاء العنوان",
+      "refreshingTitle": "جارٍ إنشاء العنوان…",
+      "refreshTitleSuccess": "تم تحديث العنوان",
+      "refreshTitleFailed": "تعذر إنشاء العنوان: {message}",
       "folderZone": "قسم {name}",
       "otherFolderZone": "أخرى",
       "closeFolderZone": "إغلاق قسم {name}",

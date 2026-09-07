@@ -1604,6 +1604,10 @@ pub async fn get_folder_conversation_with_live_core(
         }
     }
 
+    // Retry with the original user turn before pagination can hide it. The
+    // helper respects locked titles, active requests and a recovery cooldown.
+    crate::session_title::recover_auto_title(conn, emitter, &detail.summary, &detail.turns).await;
+
     // Session-model backfill, the sibling of the auto-title above and for the
     // same reason: the row was inserted before any model was named, and the
     // sidebar reads the row rather than the transcript this parse just walked.
@@ -2298,6 +2302,39 @@ pub async fn update_conversation_status(
     update_conversation_status_core(&db.conn, conversation_id, status).await?;
     emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, conversation_id).await;
     Ok(())
+}
+
+pub async fn refresh_conversation_title_core(
+    conn: &sea_orm::DatabaseConnection,
+    emitter: &EventEmitter,
+    conversation_id: i32,
+) -> Result<String, AppCommandError> {
+    let expected = conversation_service::get_by_id(conn, conversation_id).await?;
+    let (detail, _) = get_folder_conversation_core(conn, conversation_id).await?;
+    let title = crate::session_title::generate_manual_title(conn, &expected, &detail.turns).await?;
+    if !conversation_service::commit_manual_refreshed_title(conn, &expected, title.clone()).await? {
+        return Err(AppCommandError::invalid_input(
+            "Conversation changed during title generation; refresh again",
+        ));
+    }
+    emit_conversation_upsert(emitter, conn, conversation_id).await;
+    Ok(title)
+}
+
+#[cfg(feature = "tauri-runtime")]
+#[tauri::command]
+pub async fn refresh_conversation_title(
+    app: tauri::AppHandle,
+    db: tauri::State<'_, AppDatabase>,
+    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
+    conversation_id: i32,
+) -> Result<String, AppCommandError> {
+    let title =
+        refresh_conversation_title_core(&db.conn, &EventEmitter::Tauri(app), conversation_id)
+            .await?;
+    sync_conversation_title_to_channels_core(&db.conn, &chat_channel_manager, conversation_id)
+        .await;
+    Ok(title)
 }
 
 pub async fn update_conversation_title_core(

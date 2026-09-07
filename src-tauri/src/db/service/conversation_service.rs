@@ -182,6 +182,31 @@ pub async fn update_title(
     Ok(())
 }
 
+/// Explicit model refresh keeps recency and locks the result. A concurrent
+/// rename, deletion, or automatic title update invalidates the snapshot.
+pub async fn commit_manual_refreshed_title(
+    conn: &DatabaseConnection,
+    expected: &DbConversationSummary,
+    title: String,
+) -> Result<bool, DbError> {
+    use sea_orm::sea_query::Expr;
+    let title_matches = match &expected.title {
+        Some(title) => conversation::Column::Title.eq(title),
+        None => conversation::Column::Title.is_null(),
+    };
+    let result = conversation::Entity::update_many()
+        .col_expr(conversation::Column::Title, Expr::value(title))
+        .col_expr(conversation::Column::TitleLocked, Expr::value(true))
+        .filter(conversation::Column::Id.eq(expected.id))
+        .filter(conversation::Column::DeletedAt.is_null())
+        .filter(conversation::Column::TitleLocked.eq(expected.title_locked))
+        .filter(conversation::Column::UpdatedAt.eq(expected.updated_at))
+        .filter(title_matches)
+        .exec(conn)
+        .await?;
+    Ok(result.rows_affected > 0)
+}
+
 /// Auto-derive counterpart to [`update_title`]: write `title` ONLY when the row
 /// is not user-locked and the value actually changed. Never sets `title_locked`
 /// (the title stays eligible for future auto-refreshes, e.g. when an agent like

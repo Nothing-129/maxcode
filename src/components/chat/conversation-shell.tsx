@@ -19,7 +19,6 @@ import type {
 } from "@/lib/types"
 import type { SessionFailureAction } from "@/lib/session-failures"
 import { SessionFailureBanner } from "@/components/chat/session-failure-banner"
-import { AsyncTaskStrip } from "@/components/chat/async-task-strip"
 import type {
   PendingPermission,
   PendingQuestion,
@@ -54,11 +53,10 @@ interface ConversationShellProps {
    *  every surface with a live store — dismissing is client-local, so viewers
    *  get it too. */
   onSessionFailureDismiss?: (ids: string[]) => void
-  /** AIR async tasks for this connection. The strip filters to the live ones
-   *  itself; omit/empty renders nothing. */
+  /** Retained for upstream caller compatibility. MaxCode does not render a
+   *  background task strip above the transcript. */
   asyncTasks?: AsyncTaskRecord[]
-  /** Stops one async task. Omitted for read-only surfaces — the stop buttons
-   *  are then hidden, which is right: a viewer has no connection to ask. */
+  /** Retained for upstream caller compatibility; unused by this surface. */
   onStopAsyncTask?: (taskId: string) => Promise<boolean>
   pendingPermission: PendingPermission | null
   pendingQuestion: PendingQuestion | null
@@ -157,8 +155,6 @@ export function ConversationShell({
   sessionFailures,
   onSessionFailureAction,
   onSessionFailureDismiss,
-  asyncTasks,
-  onStopAsyncTask,
   pendingPermission,
   pendingQuestion,
   pendingAskQuestion,
@@ -283,15 +279,6 @@ export function ConversationShell({
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {topBanner}
-
-      {/* Above the transcript, not down in the composer dock: this is the state
-          of work running RIGHT NOW, and pinning it here keeps it still while the
-          messages scroll under it — the stop button doesn't move out from under
-          the pointer. The dock below is for things that come and go with the
-          turn (retry line, last error). */}
-      {asyncTasks && asyncTasks.length > 0 && (
-        <AsyncTaskStrip tasks={asyncTasks} onStop={onStopAsyncTask} />
-      )}
 
       <div className="flex-1 min-h-0">{children}</div>
 

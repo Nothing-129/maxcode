@@ -89,7 +89,7 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #f9f9fa;
+  --sidebar: #fdfcfd;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -124,7 +124,7 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #f9f9fa;
+  --sidebar: #fdfcfd;
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
@@ -951,10 +951,9 @@
   --sidebar-ring: oklch(0.541 0.281 293.009);
 }
 
-/* Codex-like light sidebar: visibly separated from the warm-white workspace. */
-html:not(.dark) {
-  --sidebar: rgb(247 247 245);
-}
+/* Workspace surface colors belong to the theme presets above. Do not add a
+   global light-mode token override here: it masks the neutral GPT colors.
+   Guarded by workspace-surface-colors.contract.test.ts. */
 
 /* The mobile navigation lives in a white popover drawer, unlike the desktop
    sidebar whose entire surface is --sidebar. Conversation rows carry
@@ -2831,8 +2830,7 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   0%,
   100% {
     box-shadow:
-      var(--tw-ring-offset-shadow, 0 0 #0000),
-      var(--tw-ring-shadow, 0 0 #0000);
+      var(--tw-ring-offset-shadow, 0 0 #0000), var(--tw-ring-shadow, 0 0 #0000);
   }
   50% {
     box-shadow:

@@ -1,5 +1,8 @@
 "use client"
 
+import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
+import { RefreshCw } from "lucide-react"
+
 import {
   memo,
   useState,
@@ -259,6 +262,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   expanded = false,
   onToggleExpand,
 }: SidebarConversationCardProps) {
+  const { refreshTitle, refreshing, refreshTitleLabel } =
+    useRefreshConversationTitle(conversation.id)
   const t = useTranslations("Folder.conversationCard")
   const ime = useImeGuard()
   const tSidebar = useTranslations("Folder.sidebar")
@@ -736,6 +741,15 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                 <ContextMenuSeparator />
               </>
             )}
+            <ContextMenuItem
+              disabled={conversation.id == null || refreshing}
+              onSelect={() => void refreshTitle()}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", refreshing && "animate-spin")}
+              />
+              {refreshTitleLabel}
+            </ContextMenuItem>
             <ContextMenuItem onSelect={handleRenameOpen}>
               <Pencil className="h-4 w-4" />
               {t("rename")}

@@ -44,7 +44,6 @@ describe("MaxCode contract: agent compatibility", () => {
     const parsers = source("src-tauri/src/parsers/mod.rs")
     expect(titles).toContain("resolve_title_locale")
     expect(titles).toContain("title_prompt_follows_locale")
-    expect(titles).toContain("AgentType::Grok | AgentType::Pi")
     expect(titles).toContain("llm_title_via_api")
     expect(titles).toContain("redact_title_input")
     expect(titles).toContain("body.extend(settings.request_params.clone())")
@@ -74,6 +73,19 @@ describe("MaxCode contract: agent compatibility", () => {
     expect(settingsUi).toContain('t("titleModelRequestParams")')
     expect(grok).toContain("is_redundant_session_image_read")
     expect(grok).toContain('"plan" =>')
+  })
+
+  it("uses structured auto titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code", () => {
+    const titles = source("src-tauri/src/session_title.rs")
+    const support = titles
+      .split("pub fn supports_dedicated_auto_title")[1]
+      .split("pub async fn kickoff_auto_title")[0]
+    for (const agent of ["Codex", "Grok", "Pi", "DeepSeek", "ClaudeCode"]) {
+      expect(support).toContain(`AgentType::${agent}`)
+    }
+    const manager = source("src-tauri/src/acp/manager.rs")
+    expect(manager).toContain("supports_dedicated_auto_title(agent_type)")
+    expect(manager).toContain("crate::session_title::kickoff_auto_title(")
   })
 
   it("keeps generated titles tied to the Shanghai conversation creation date", () => {

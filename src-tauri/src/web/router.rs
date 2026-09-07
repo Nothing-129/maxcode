@@ -168,6 +168,10 @@ pub fn build_router(
             post(handlers::conversations::update_conversation_status),
         )
         .route(
+            "/refresh_conversation_title",
+            post(handlers::conversations::refresh_conversation_title),
+        )
+        .route(
             "/update_conversation_title",
             post(handlers::conversations::update_conversation_title),
         )

@@ -1994,6 +1994,10 @@
       "copiedField": "{field} copiado"
     },
     "conversationCard": {
+      "refreshTitle": "Gerar título novamente",
+      "refreshingTitle": "Gerando título…",
+      "refreshTitleSuccess": "Título atualizado",
+      "refreshTitleFailed": "Falha ao gerar o título: {message}",
       "folderZone": "Divisão {name}",
       "otherFolderZone": "Outros",
       "closeFolderZone": "Fechar divisão {name}",

@@ -1994,6 +1994,10 @@
       "copiedField": "Copied {field}"
     },
     "conversationCard": {
+      "refreshTitle": "Refresh title",
+      "refreshingTitle": "Refreshing title…",
+      "refreshTitleSuccess": "Title refreshed",
+      "refreshTitleFailed": "Failed to refresh title: {message}",
       "folderZone": "{name} split",
       "otherFolderZone": "Other",
       "closeFolderZone": "Close {name} split",

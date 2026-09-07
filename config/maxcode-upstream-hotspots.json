@@ -2,6 +2,59 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "conversations.manual-title-refresh",
+      "category": "product",
+      "description": "Conversation context menus explicitly regenerate titles with the saved model, dedupe pending UI requests, preserve originals on failure and concurrent renames, and support Tauri/Web.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": [
+        "src/hooks/use-refresh-conversation-title.ts",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/tabs/tab-item.tsx",
+        "src/lib/api.ts",
+        "src/i18n/messages/",
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/db/service/conversation_service.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/web/handlers/conversations.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/manual-title-refresh.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "conversations.structured-title-recovery",
+      "category": "product",
+      "description": "Dedicated titles normalize MMDD｜type｜topic, reject invalid/truncated responses, recover from the first transcript turn with cooldown, preserve locked names, and log failures without credentials.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": [
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/session_title_tests.rs",
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/commands/system_settings.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/structured-title-recovery.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.no-top-background-task-strip",
+      "category": "product",
+      "description": "All MaxCode chat surfaces omit the background task strip above the transcript while preserving background task execution and transcript content.",
+      "origins": ["worktree-2026-09-07"],
+      "paths": [
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/chat/async-task-strip.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/canvas/canvas-conversation-surface.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-no-top-task-strip.contract.test.ts"
+      ]
+    },
+    {
       "id": "maintenance.upstream-integration-guard",
       "category": "maintenance",
       "description": "MaxCode inventories downstream behavior, detects incoming overlap, and runs independent contracts before an upstream merge.",
@@ -265,7 +318,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, and Pi without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",
@@ -367,7 +420,7 @@
     {
       "id": "appearance.gpt-shell-surfaces",
       "category": "product",
-      "description": "The neutral light workspace matches GPT's shell hierarchy with a pure-white main canvas and a cool #f9f9fa sidebar, including the no-theme fallback.",
+      "description": "The neutral light workspace matches the user's 2026-09-07 Codex desktop reference with a pure-white main canvas and a near-white #fdfcfd sidebar, including the no-theme fallback. Every matching light-mode surface declaration is checked to reject global or higher-specificity token overrides.",
       "origins": ["worktree-2026-09-04"],
       "paths": ["src/app/globals.css"],
       "contracts": [

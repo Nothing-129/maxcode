@@ -1994,6 +1994,10 @@
       "copiedField": "已複製{field}"
     },
     "conversationCard": {
+      "refreshTitle": "重新產生標題",
+      "refreshingTitle": "正在重新產生標題…",
+      "refreshTitleSuccess": "標題已更新",
+      "refreshTitleFailed": "重新產生標題失敗：{message}",
       "folderZone": "{name} 分區",
       "otherFolderZone": "其他",
       "closeFolderZone": "關閉 {name} 分區",

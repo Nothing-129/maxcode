@@ -1181,6 +1181,7 @@ mod tauri_app {
                 conversations::create_chat_dir,
                 conversations::update_conversation_status,
                 conversations::update_conversation_title,
+                conversations::refresh_conversation_title,
                 conversations::update_conversation_pinned,
                 conversations::delete_conversation,
                 conversation_share_commands::create_conversation_share,

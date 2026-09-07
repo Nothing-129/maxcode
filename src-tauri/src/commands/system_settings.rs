@@ -935,7 +935,7 @@ mod tests {
                 }
             }
             let _ = tx.send(String::from_utf8_lossy(&request).into_owned());
-            let body = r#"{"choices":[{"message":{"content":"Test title model"}}]}"#;
+            let body = r#"{"choices":[{"message":{"content":"0101/探索/Test title model"}}]}"#;
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
                 body.len(),
@@ -1338,7 +1338,7 @@ mod tests {
         .await
         .expect("test title model");
 
-        assert_eq!(result.title, "Test title model");
+        assert!(result.title.ends_with("｜探索｜Test title model"));
         let request = request_rx.await.expect("captured title request");
         assert!(request.contains("POST /v1/chat/completions HTTP/1.1"));
         assert!(request

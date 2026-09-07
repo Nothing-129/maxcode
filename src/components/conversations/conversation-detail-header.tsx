@@ -1,5 +1,9 @@
 "use client"
 
+import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
+import { RefreshCw } from "lucide-react"
+import { cn } from "@/lib/utils"
+
 import { memo, useCallback, useState } from "react"
 import {
   Check,
@@ -128,6 +132,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   title,
   status,
 }: ConversationDetailHeaderProps) {
+  const { refreshTitle, refreshing, refreshTitleLabel } =
+    useRefreshConversationTitle(conversationId)
   const t = useTranslations("Folder.conversationCard")
   const ime = useImeGuard()
   const tConv = useTranslations("Folder.conversation")
@@ -463,6 +469,15 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {t("newConversation")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
+            <DropdownMenuItem
+              disabled={conversationId == null || refreshing}
+              onSelect={() => void refreshTitle()}
+            >
+              <RefreshCw
+                className={cn("h-4 w-4", refreshing && "animate-spin")}
+              />
+              {refreshTitleLabel}
+            </DropdownMenuItem>
             <DropdownMenuItem disabled={!persisted} onSelect={handleRenameOpen}>
               <Pencil className="h-4 w-4" />
               {t("rename")}

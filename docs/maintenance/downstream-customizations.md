@@ -12,6 +12,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
 | 会话 | 回复运行时展开、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
 | 会话 | 按文件夹/聊天范围记住智能体，按明确优先级选择新会话默认智能体 | `dc86bec0`、`16941c88` | `conversations.agent-defaults` |
 | 会话 | 未读检测、可见会话消除未读、全部已读、状态颜色和状态操作开关 | `53144985`、`06bb8457`、`c283e981`、`8d9cb933`、`1a4a3532` | `conversations.unread-and-status` |
@@ -23,7 +24,9 @@
 | Web | 断线不清凭证、健康探测退避重连、恢复订阅、仅有凭证的 401 判定会话过期 | `352bc868`、`2c859b2a` | `web.auth-and-session-recovery` |
 | Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
-| 智能体 | ACP 注册/预检、CLI 自动标题、Grok 本地化标题与历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
+| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题，失败及并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
+| 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
+| 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
 | 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |

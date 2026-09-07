@@ -1994,6 +1994,10 @@
       "copiedField": "{field}をコピーしました"
     },
     "conversationCard": {
+      "refreshTitle": "タイトルを再生成",
+      "refreshingTitle": "タイトルを再生成中…",
+      "refreshTitleSuccess": "タイトルを更新しました",
+      "refreshTitleFailed": "タイトルの再生成に失敗しました：{message}",
       "folderZone": "{name} 分割",
       "otherFolderZone": "その他",
       "closeFolderZone": "{name} 分割を閉じる",

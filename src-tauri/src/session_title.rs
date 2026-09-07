@@ -1,5 +1,6 @@
-//! Codex, Grok, and Pi sidebar titles: first-line heuristic, then an optional
-//! locale-matched refine through the user's dedicated OpenAI-compatible model.
+//! Codex, Grok, Pi, DeepSeek Harness, and Claude Code sidebar titles:
+//! first-line heuristic, then an optional locale-matched refine through the
+//! user's dedicated OpenAI-compatible model.
 //!
 //! Grok's own `generated_title` is English-biased and lives in a separate
 //! prompt from `~/.grok/AGENTS.md`, while Codex CLI does not automatically
@@ -7,10 +8,10 @@
 //! a configured lightweight HTTP model can then replace it with a short title
 //! in the app UI language. Manual rename (`title_locked`) always wins.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 use std::sync::{Mutex, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Utc};
 use chrono_tz::Asia::Shanghai;
@@ -540,8 +541,85 @@ pub fn clean_llm_title(raw: &str) -> Option<String> {
 pub fn supports_dedicated_auto_title(agent_type: AgentType) -> bool {
     matches!(
         agent_type,
-        AgentType::Codex | AgentType::Grok | AgentType::Pi
+        AgentType::Codex
+            | AgentType::Grok
+            | AgentType::Pi
+            | AgentType::DeepSeek
+            | AgentType::ClaudeCode
     )
+}
+
+/// Recover only from the original transcript, never from a later follow-up.
+/// Called before turn-window slicing; a native/parser title must not prevent
+/// retrying a failed model request. Locked titles still win at read and write.
+pub async fn recover_auto_title(
+    conn: &DatabaseConnection,
+    emitter: &EventEmitter,
+    summary: &crate::models::DbConversationSummary,
+    turns: &[crate::models::MessageTurn],
+) {
+    if summary.title_locked || !supports_dedicated_auto_title(summary.agent_type) {
+        return;
+    }
+    if let Some(seed) = original_title_seed(turns) {
+        start_auto_title(
+            summary.agent_type,
+            conn.clone(),
+            emitter.clone(),
+            summary.id,
+            seed,
+            true,
+        )
+        .await;
+    }
+}
+
+/// Explicit refresh may replace a locked name, but never changes model settings
+/// or lifts the lock while the network request is running.
+pub(crate) async fn generate_manual_title(
+    conn: &DatabaseConnection,
+    summary: &crate::models::DbConversationSummary,
+    turns: &[crate::models::MessageTurn],
+) -> Result<String, crate::app_error::AppCommandError> {
+    use crate::app_error::AppCommandError;
+    let seed = original_title_seed(turns).ok_or_else(|| {
+        AppCommandError::invalid_input("No user message is available to generate a title")
+    })?;
+    let settings = crate::commands::system_settings::load_title_model_runtime_settings(conn)
+        .await?
+        .ok_or_else(|| {
+            AppCommandError::configuration_missing(
+                "Configure and enable the title model in Settings first",
+            )
+        })?;
+    let locale = crate::commands::system_settings::load_system_language_settings(conn)
+        .await
+        .map(|value| resolve_title_locale(&value))
+        .unwrap_or(TitleLocale::En);
+    let original = summary.title.as_deref().unwrap_or("");
+    let title = llm_title_via_api(&settings, &seed, original, summary.created_at, locale).await?;
+    normalize_structured_title(&title, summary.created_at).ok_or_else(|| {
+        AppCommandError::configuration_invalid(
+            "The model could not generate a structured title from this conversation",
+        )
+    })
+}
+
+fn original_title_seed(turns: &[crate::models::MessageTurn]) -> Option<String> {
+    use crate::models::{ContentBlock, TurnRole};
+    let first = turns
+        .iter()
+        .find(|turn| matches!(turn.role, TurnRole::User))?;
+    let text = first
+        .blocks
+        .iter()
+        .filter_map(|block| match block {
+            ContentBlock::Text { text } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!text.trim().is_empty()).then_some(text)
 }
 
 /// Install the local heuristic first, then run one background HTTP refine when
@@ -553,6 +631,25 @@ pub async fn kickoff_auto_title(
     emitter: EventEmitter,
     conversation_id: i32,
     first_message: String,
+) {
+    start_auto_title(
+        agent_type,
+        conn,
+        emitter,
+        conversation_id,
+        first_message,
+        false,
+    )
+    .await;
+}
+
+async fn start_auto_title(
+    agent_type: AgentType,
+    conn: DatabaseConnection,
+    emitter: EventEmitter,
+    conversation_id: i32,
+    first_message: String,
+    original_transcript: bool,
 ) {
     if !supports_dedicated_auto_title(agent_type) {
         return;
@@ -568,53 +665,60 @@ pub async fn kickoff_auto_title(
     if summary.title_locked {
         return;
     }
-    if !can_overwrite_auto_title(summary.title.as_deref(), &first_message) {
+    let can_seed = can_overwrite_auto_title(summary.title.as_deref(), &first_message);
+    if !original_transcript && !can_seed {
         return;
     }
-    // The heuristic is written immediately below, so this is the title that
-    // is actually visible while the model request runs. It is also already
-    // redacted and short enough that returning it unchanged preserves it
-    // exactly through `clean_llm_title`.
-    let original_title = heuristic.clone();
+    // Preserve an already useful native title while recovery runs.
+    let original_title = if can_seed {
+        heuristic.clone()
+    } else {
+        summary.title.clone().unwrap_or_else(|| heuristic.clone())
+    };
     let created_at = summary.created_at;
-
-    match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic.clone()).await
-    {
-        Ok(true) => {
-            crate::commands::conversations::emit_conversation_upsert(
-                &emitter,
-                &conn,
-                conversation_id,
-            )
-            .await;
-        }
-        Ok(false) => {}
-        Err(e) => tracing::debug!(
-            conversation_id,
-            error = %e,
-            agent = %agent_type.as_wire(),
-            "heuristic title write failed"
-        ),
-    }
 
     let locale = crate::commands::system_settings::load_system_language_settings(&conn)
         .await
         .map(|s| resolve_title_locale(&s))
         .unwrap_or(TitleLocale::En);
-    let title_model =
-        match crate::commands::system_settings::load_title_model_runtime_settings(&conn).await {
-            Ok(Some(settings)) => settings,
-            Ok(None) => return,
-            Err(e) => {
-                tracing::debug!(error = %e, "title model settings unavailable");
-                return;
+    let title_model = match crate::commands::system_settings::load_title_model_runtime_settings(
+        &conn,
+    )
+    .await
+    {
+        Ok(Some(settings)) => settings,
+        Ok(None) => {
+            // Keep the offline first-line behavior when the model is disabled.
+            if can_seed && !original_transcript {
+                match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic)
+                    .await
+                {
+                    Ok(true) => {
+                        crate::commands::conversations::emit_conversation_upsert(
+                            &emitter,
+                            &conn,
+                            conversation_id,
+                        )
+                        .await
+                    }
+                    Ok(false) => {}
+                    Err(_) => tracing::error!(conversation_id, "heuristic title write failed"),
+                }
             }
-        };
+            return;
+        }
+        Err(e) => {
+            tracing::error!(conversation_id, reason = %e.message, error_code = ?e.code, "title model settings unavailable");
+            return;
+        }
+    };
 
     if !begin_refine(conversation_id) {
         return;
     }
 
+    // Dedupe before any mutation; repeated detail fetches cannot reset a
+    // native title or launch parallel requests for the same conversation.
     tokio::spawn(async move {
         struct RefineGuard(i32);
         impl Drop for RefineGuard {
@@ -623,6 +727,21 @@ pub async fn kickoff_auto_title(
             }
         }
         let _guard = RefineGuard(conversation_id);
+        if can_seed && !original_transcript {
+            match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic).await
+            {
+                Ok(true) => {
+                    crate::commands::conversations::emit_conversation_upsert(
+                        &emitter,
+                        &conn,
+                        conversation_id,
+                    )
+                    .await
+                }
+                Ok(false) => {}
+                Err(_) => tracing::error!(conversation_id, "heuristic title write failed"),
+            }
+        }
 
         let refined = match llm_title_via_api(
             &title_model,
@@ -635,10 +754,16 @@ pub async fn kickoff_auto_title(
         {
             Ok(title) => title,
             Err(e) => {
-                tracing::debug!(error = %e, "title model refine failed");
+                tracing::error!(conversation_id, reason = %e.message, error_code = ?e.code, "title model refine failed; will retry on a later conversation open");
                 return;
             }
         };
+
+        // The prompt explicitly permits returning the old title when there
+        // is insufficient context. Do not lock that fallback as a success.
+        if refined == clean_llm_title(&redact_title_input(&original_title)).unwrap_or_default() {
+            return;
+        }
 
         let Ok(current) = conversation_service::get_by_id(&conn, conversation_id).await else {
             return;
@@ -646,13 +771,6 @@ pub async fn kickoff_auto_title(
         if !can_commit_model_refine(current.title_locked) {
             return;
         }
-        if current.title.as_deref() == Some(refined.as_str()) {
-            let _ =
-                conversation_service::commit_refined_title(&conn, conversation_id, refined.clone())
-                    .await;
-            return;
-        }
-
         match conversation_service::commit_refined_title(&conn, conversation_id, refined.clone())
             .await
         {
@@ -665,12 +783,7 @@ pub async fn kickoff_auto_title(
                 .await;
             }
             Ok(false) => {}
-            Err(e) => tracing::debug!(
-                conversation_id,
-                error = %e,
-                agent = %agent_type.as_wire(),
-                "refined title write failed"
-            ),
+            Err(_) => tracing::error!(conversation_id, "refined title write failed"),
         }
     });
 }
@@ -766,11 +879,30 @@ fn refining_ids() -> &'static Mutex<HashSet<i32>> {
     IDS.get_or_init(|| Mutex::new(HashSet::new()))
 }
 
+const TITLE_RECOVERY_COOLDOWN: Duration = Duration::from_secs(300);
+
+fn refine_attempts() -> &'static Mutex<HashMap<i32, Instant>> {
+    static ATTEMPTS: OnceLock<Mutex<HashMap<i32, Instant>>> = OnceLock::new();
+    ATTEMPTS.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
 fn begin_refine(id: i32) -> bool {
-    refining_ids()
+    let Ok(mut attempts) = refine_attempts().lock() else {
+        return false;
+    };
+    let now = Instant::now();
+    attempts.retain(|_, started| now.duration_since(*started) < TITLE_RECOVERY_COOLDOWN);
+    if attempts.contains_key(&id) {
+        return false;
+    }
+    let inserted = refining_ids()
         .lock()
         .map(|mut set| set.insert(id))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    if inserted {
+        attempts.insert(id, now);
+    }
+    inserted
 }
 
 fn end_refine(id: i32) {
@@ -792,6 +924,31 @@ fn extract_chat_completion_title(body: &serde_json::Value) -> Option<String> {
     body.pointer("/choices/0/message/content")
         .and_then(serde_json::Value::as_str)
         .and_then(clean_llm_title)
+}
+
+/// Normalize only the two field separators, preserving slashes in the topic.
+/// The creation date is authoritative; models must not choose updatedAt/today.
+fn normalize_structured_title(raw: &str, created_at: DateTime<Utc>) -> Option<String> {
+    let title = clean_llm_title(raw)?;
+    let mut parts = title.splitn(3, ['｜', '|', '/']);
+    let date = parts.next()?.trim();
+    let kind = parts.next()?.trim();
+    let topic = parts.next()?.trim();
+    if date.len() != 4
+        || !date.bytes().all(|b| b.is_ascii_digit())
+        || ![
+            "功能", "设计", "修复", "优化", "发布", "探索", "文档", "研究",
+        ]
+        .contains(&kind)
+        || topic.is_empty()
+        || topic.contains(['｜', '|'])
+    {
+        return None;
+    }
+    Some(truncate_chars(
+        &format!("{}｜{kind}｜{topic}", created_date_mmdd(created_at)),
+        LLM_TITLE_MAX_CHARS,
+    ))
 }
 
 fn provider_error_detail(raw: &str) -> String {
@@ -836,22 +993,44 @@ async fn llm_title_via_api(
     }
 
     let mut last_error = None;
-    for attempt in 0..2 {
+    for attempt in 0..3 {
         let mut request = client.post(&url).json(&body);
         if let Some(api_key) = settings.api_key.as_deref() {
             request = request.bearer_auth(api_key);
         }
         match request.send().await {
             Ok(response) if response.status().is_success() => {
-                let value = response.json::<serde_json::Value>().await.map_err(|e| {
-                    crate::app_error::AppCommandError::network("Title model returned invalid JSON")
-                        .with_detail(e.to_string())
-                })?;
-                return extract_chat_completion_title(&value).ok_or_else(|| {
-                    crate::app_error::AppCommandError::configuration_invalid(
-                        "Title model returned no usable title",
-                    )
-                });
+                match response.json::<serde_json::Value>().await {
+                    Ok(value) => {
+                        let title = extract_chat_completion_title(&value);
+                        let fallback = clean_llm_title(&redact_title_input(original_title));
+                        let truncated = value
+                            .pointer("/choices/0/finish_reason")
+                            .and_then(serde_json::Value::as_str)
+                            == Some("length");
+                        if !truncated {
+                            if let Some(title) = title {
+                                if fallback.as_deref() == Some(title.as_str()) {
+                                    return Ok(title);
+                                }
+                                if let Some(normalized) =
+                                    normalize_structured_title(&title, created_at)
+                                {
+                                    return Ok(normalized);
+                                }
+                            }
+                        }
+                        last_error =
+                            Some(crate::app_error::AppCommandError::configuration_invalid(
+                                "Title model returned an invalid or truncated structured title",
+                            ));
+                    }
+                    Err(_) => {
+                        last_error = Some(crate::app_error::AppCommandError::network(
+                            "Title model returned invalid JSON",
+                        ))
+                    }
+                }
             }
             Ok(response) => {
                 let status = response.status();
@@ -885,8 +1064,13 @@ async fn llm_title_via_api(
                 );
             }
         }
-        if attempt == 0 {
-            tokio::time::sleep(Duration::from_millis(150)).await;
+        if attempt < 2 {
+            tokio::time::sleep(Duration::from_millis(if attempt == 0 {
+                150
+            } else {
+                2_000
+            }))
+            .await;
         }
     }
     Err(last_error.unwrap_or_else(|| {
@@ -1171,11 +1355,13 @@ mod tests {
     }
 
     #[test]
-    fn dedicated_auto_title_support_includes_codex_grok_and_pi() {
+    fn dedicated_auto_title_support_includes_deepseek_and_claude_code() {
         assert!(supports_dedicated_auto_title(AgentType::Codex));
         assert!(supports_dedicated_auto_title(AgentType::Grok));
         assert!(supports_dedicated_auto_title(AgentType::Pi));
-        assert!(!supports_dedicated_auto_title(AgentType::ClaudeCode));
+        assert!(supports_dedicated_auto_title(AgentType::DeepSeek));
+        assert!(supports_dedicated_auto_title(AgentType::ClaudeCode));
+        assert!(!supports_dedicated_auto_title(AgentType::Gemini));
     }
 
     #[test]
@@ -1201,3 +1387,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "session_title_tests.rs"]
+mod recovery_tests;
