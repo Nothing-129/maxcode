@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -81,6 +87,7 @@ vi.mock("@/hooks/use-feedback-enabled", () => ({
 }))
 
 import {
+  getAvailableTerminalShells,
   getSystemTerminalSettings,
   updateSystemTerminalSettings,
 } from "@/lib/api"
@@ -207,6 +214,54 @@ describe("GeneralSettings", () => {
     )
     expect(vi.mocked(updateSystemTerminalSettings)).not.toHaveBeenCalled()
     expect(colorize).toHaveAttribute("data-state", "unchecked")
+  })
+
+  /**
+   * The other end of the same coupling: once a shell save has landed, the
+   * color toggle has to echo the NEW shell back. The save is followed by a
+   * fallible options refresh, and a failure there used to leave the remembered
+   * shell one revision behind — so the next toggle would faithfully resend the
+   * superseded value and undo a save the user watched succeed.
+   */
+  it("keeps a just-saved shell when the options refresh fails", async () => {
+    vi.mocked(updateSystemTerminalSettings).mockClear()
+    // A stored path outside the option list renders the custom-path row, which
+    // is the save route that needs no Select interaction.
+    vi.mocked(getSystemTerminalSettings).mockResolvedValueOnce({
+      default_shell: "/opt/fish",
+      colorize_command_output: false,
+    })
+
+    renderSettings()
+
+    const path = await screen.findByLabelText("Shell path")
+    fireEvent.change(path, { target: { value: "/opt/fish2" } })
+
+    // The save lands; only the refresh that follows it fails.
+    vi.mocked(getAvailableTerminalShells).mockRejectedValueOnce(
+      new Error("options unavailable")
+    )
+    // Several sections have a "Save"; this one sits in the input's own row.
+    const shellRow = path.parentElement as HTMLElement
+    fireEvent.click(within(shellRow).getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSystemTerminalSettings)).toHaveBeenCalledWith({
+        default_shell: "/opt/fish2",
+        colorize_command_output: false,
+      })
+    )
+
+    const colorize = screen.getByLabelText("Colorize command output")
+    await waitFor(() => expect(colorize).toBeEnabled())
+    fireEvent.click(colorize)
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSystemTerminalSettings)).toHaveBeenLastCalledWith({
+        default_shell: "/opt/fish2",
+        colorize_command_output: true,
+      })
+    )
   })
 
   // The switch only means something where the backend has an env knob to flip

@@ -192,11 +192,16 @@ export function GeneralSettings() {
           // omitting it would silently reset the color opt-in.
           colorize_command_output: colorizeCommandOutput,
         })
+        // Record the persisted shell BEFORE anything else that can throw. The
+        // row is already written at this point, so every later failure in this
+        // block is cosmetic — except leaving this stale, which would have the
+        // color toggle send the superseded shell back and undo the save that
+        // just succeeded.
+        setStoredDefaultShell(result.default_shell)
         // Re-fetch options to refresh `exists` flags (e.g. user just installed
         // pwsh, or backend filter dropped a cross-platform stale value).
         const refreshedShells = await getAvailableTerminalShells()
         setAvailableShells(refreshedShells)
-        setStoredDefaultShell(result.default_shell)
         const nextSelectedId = resolveSelectedShellId(
           result.default_shell,
           refreshedShells.options
