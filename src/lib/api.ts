@@ -1904,6 +1904,16 @@ export async function validateGitLabToken(
   return getTransport().call("validate_gitlab_token", { serverUrl, token })
 }
 
+/** Same answer shape again, from Gitea's `GET /api/v1/user`. `scopes` always
+ *  comes back empty: Gitea reports a token's scopes only on an endpoint that
+ *  wants the account password and refuses the token being checked. */
+export async function validateGiteaToken(
+  serverUrl: string,
+  token: string
+): Promise<GitHubTokenValidation> {
+  return getTransport().call("validate_gitea_token", { serverUrl, token })
+}
+
 export async function updateGitHubAccounts(
   settings: GitHubAccountsSettings
 ): Promise<GitHubAccountsSettings> {
@@ -5069,6 +5079,18 @@ export interface BackupManifestEntry {
   sha256: string
 }
 
+/** How badly one third-party SQLite store degraded during backup. */
+export type SqliteDegradation =
+  | "recoveredOnCopy"
+  | "bareFileOnly"
+  | "notArchived"
+
+export interface DegradedSqlite {
+  agent: string
+  archivePath: string
+  level: SqliteDegradation
+}
+
 export interface BackupManifest {
   formatVersion: number
   kind: string
@@ -5078,6 +5100,10 @@ export interface BackupManifest {
   runtime: string
   includesExternalTranscripts: boolean
   includesSecrets: boolean
+  /** Which codeg-owned sections this archive claims to manage. */
+  managedSections?: string[] | null
+  /** Stores that could not be snapshotted cleanly. */
+  degradedSqlite?: DegradedSqlite[]
   entries: BackupManifestEntry[]
 }
 
@@ -5110,11 +5136,40 @@ export interface BackupPreview {
   rejectReason?: string | null
 }
 
+/** Why an archive entry was refused outright (the live file was untouched). */
+export type ExternalRefusalReason = "legacyUnprovableSqlitePair"
+
+export interface RefusedExternal {
+  archivePath: string
+  targetPath: string
+  reason: ExternalRefusalReason
+}
+
+export type ExternalDowngradeReason = "agentsRunning"
+
+export interface ExternalDowngrade {
+  reason: ExternalDowngradeReason
+  agents: string[]
+  path: string
+}
+
 export interface StagedRestore {
   stagingDir: string
   manifest: BackupManifest
   restoredExternalPath?: string | null
   skippedConflicts: string[]
+  refusedExternal?: RefusedExternal[]
+  /** Set when the requested external mode could not be honored. */
+  externalDowngraded?: ExternalDowngrade | null
+}
+
+/** A pre-restore safety snapshot the user can inspect or roll back to. */
+export interface SafetySnapshot {
+  id: string
+  path: string
+  createdAt?: string | null
+  sizeBytes: number
+  rollbackSupported: boolean
 }
 
 /** Where (if anywhere) external agent transcripts are restored. */
@@ -5170,11 +5225,20 @@ export async function exportBackupDesktop(
 // while the backend is still working (and possibly committing a restore).
 const BACKUP_LONG_CALL_TIMEOUT_MS = 60 * 60_000
 
+export interface BackupTicketResult {
+  url: string
+  filename: string
+  /** Stores that could not be snapshotted cleanly. The desktop path reads
+   *  these off the returned manifest; the web path has no manifest, so the
+   *  ticket carries them. */
+  degradedSqlite: DegradedSqlite[]
+}
+
 /** Web export: build server-side, then trigger a browser download via ticket. */
 export async function exportBackupWeb(
   opts: BackupExportOptions
-): Promise<void> {
-  const ticket = await getTransport().call<{ url: string; filename: string }>(
+): Promise<BackupTicketResult> {
+  const ticket = await getTransport().call<BackupTicketResult>(
     "backup_create_ticket",
     {
       includeExternalTranscripts: opts.includeExternalTranscripts,
@@ -5188,6 +5252,7 @@ export async function exportBackupWeb(
   document.body.appendChild(a)
   a.click()
   a.remove()
+  return ticket
 }
 
 /** Web restore step 1: upload the archive once; returns an opaque upload id. */
@@ -5235,43 +5300,62 @@ export async function uploadBackupWeb(
   })
 }
 
-/** Validate a backup (desktop: by path). */
-export async function inspectBackupDesktop(
-  srcPath: string,
-  passphrase?: string | null
-): Promise<BackupPreview> {
-  return getTransport().call<BackupPreview>("backup_inspect", {
-    srcPath,
-    passphrase: passphrase ?? null,
-  })
+/**
+ * A decrypted archive parked under the data dir, reused by the conflict scan
+ * and by staging. `sourceId` is absent when the archive is encrypted and no
+ * usable passphrase was given — prompt and prepare again.
+ */
+export interface PreparedBackupSource {
+  sourceId?: string | null
+  preview: BackupPreview
 }
 
-/** Validate a backup (web: by upload id). */
-export async function inspectBackupWeb(
-  uploadId: string,
+/** Restore step 1 (desktop: by path) — decrypt once, preview, get a handle. */
+export async function prepareBackupSourceDesktop(
+  srcPath: string,
   passphrase?: string | null
-): Promise<BackupPreview> {
-  return getTransport().call<BackupPreview>(
-    "backup_inspect",
-    {
-      uploadId,
-      passphrase: passphrase ?? null,
-    },
+): Promise<PreparedBackupSource> {
+  return getTransport().call<PreparedBackupSource>(
+    "backup_prepare_source",
+    { srcPath, passphrase: passphrase ?? null },
     { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
   )
 }
 
-/** Stage a restore (desktop: by path). Applied on next app start. */
-export async function stageRestoreDesktop(args: {
-  srcPath: string
+/** Restore step 1 (web: by upload id). */
+export async function prepareBackupSourceWeb(
+  uploadId: string,
   passphrase?: string | null
+): Promise<PreparedBackupSource> {
+  return getTransport().call<PreparedBackupSource>(
+    "backup_prepare_source",
+    { uploadId, passphrase: passphrase ?? null },
+    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
+  )
+}
+
+/**
+ * Drop a prepared source. Safe to call on an already-released handle, and safe
+ * to skip — an abandoned source is reaped on idle and at startup — but calling
+ * it removes the decrypted archive immediately.
+ */
+export async function releaseBackupSource(sourceId: string): Promise<boolean> {
+  return getTransport().call<boolean>("backup_release_source", { sourceId })
+}
+
+/** Stage a restore (desktop). Applied on next app start. */
+export async function stageRestoreDesktop(args: {
+  sourceId: string
   externalMode?: ExternalRestoreMode | null
 }): Promise<StagedRestore> {
-  return getTransport().call<StagedRestore>("backup_restore_stage", {
-    srcPath: args.srcPath,
-    passphrase: args.passphrase ?? null,
-    externalMode: args.externalMode ?? null,
-  })
+  return getTransport().call<StagedRestore>(
+    "backup_restore_stage",
+    {
+      sourceId: args.sourceId,
+      externalMode: args.externalMode ?? null,
+    },
+    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
+  )
 }
 
 export interface StageRestoreWebResult {
@@ -5280,17 +5364,15 @@ export interface StageRestoreWebResult {
   staged: StagedRestore
 }
 
-/** Stage a restore (web: by upload id). Applied on next server start. */
+/** Stage a restore (web). Applied on next server start. */
 export async function stageRestoreWeb(args: {
-  uploadId: string
-  passphrase?: string | null
+  sourceId: string
   externalMode?: ExternalRestoreMode | null
 }): Promise<StageRestoreWebResult> {
   return getTransport().call<StageRestoreWebResult>(
     "backup_restore_stage",
     {
-      uploadId: args.uploadId,
-      passphrase: args.passphrase ?? null,
+      sourceId: args.sourceId,
       externalMode: args.externalMode ?? null,
     },
     { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
@@ -5305,25 +5387,44 @@ export interface ExternalConflict {
 }
 
 /** Scan a backup for external transcripts whose live target already exists. */
-export async function scanExternalConflictsDesktop(
-  srcPath: string,
-  passphrase?: string | null
+export async function scanExternalConflicts(
+  sourceId: string
 ): Promise<ExternalConflict[]> {
   return getTransport().call<ExternalConflict[]>(
     "backup_scan_external_conflicts",
-    { srcPath, passphrase: passphrase ?? null }
+    { sourceId },
+    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
   )
 }
 
-export async function scanExternalConflictsWeb(
-  uploadId: string,
-  passphrase?: string | null
-): Promise<ExternalConflict[]> {
-  return getTransport().call<ExternalConflict[]>(
-    "backup_scan_external_conflicts",
-    { uploadId, passphrase: passphrase ?? null },
-    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
+/**
+ * Agents connected right now. Advisory only — the actual guarantee is a lock
+ * the backend takes before it writes, which downgrades to the side location
+ * rather than failing.
+ */
+export async function backupActiveAgents(): Promise<string[]> {
+  return getTransport().call<string[]>("backup_active_agents", {})
+}
+
+/** Pre-restore safety snapshots still on disk, newest first. */
+export async function listSafetySnapshots(): Promise<SafetySnapshot[]> {
+  return getTransport().call<SafetySnapshot[]>(
+    "backup_list_safety_snapshots",
+    {}
   )
+}
+
+/** Stage a rollback to a safety snapshot; applied on the next start. */
+export async function rollbackToSnapshot(snapshotId: string): Promise<unknown> {
+  return getTransport().call("backup_rollback", { snapshotId })
+}
+
+/**
+ * Discard a staged restore that was never applied. The escape hatch when the
+ * restart after staging never happened and every retry hits `alreadyPending`.
+ */
+export async function discardPendingRestore(): Promise<boolean> {
+  return getTransport().call<boolean>("backup_discard_pending", {})
 }
 
 // ── Forge workbench (Issues/PR) ────────────────────────────────────────────

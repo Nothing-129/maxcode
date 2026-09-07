@@ -63,4 +63,33 @@ describe("MaxCode contract: updater and release channel", () => {
       "2336a914b5bb8623b487b93dd9e1c4bca45c55c2020046268009143218c5b798"
     )
   })
+
+  it("keeps notification titles and every locale's test notification on MaxCode", () => {
+    for (const path of [
+      "src/contexts/acp-connections-context.tsx",
+      "src/contexts/tasks-view-context.tsx",
+    ]) {
+      const content = source(path)
+      expect(content).toContain(' - MaxCode` : "MaxCode"')
+      expect(content).not.toMatch(/ - Codeg`|: "Codeg"/)
+    }
+    for (const locale of [
+      "ar",
+      "de",
+      "en",
+      "es",
+      "fr",
+      "ja",
+      "ko",
+      "pt",
+      "zh-CN",
+      "zh-TW",
+    ]) {
+      const messages = source(`src/i18n/messages/${locale}.json`)
+      expect(messages).toContain('"testTitle": "MaxCode"')
+    }
+    expect(source("src-tauri/src/commands/notification.rs")).toContain(
+      "let requested = app.config().identifier.clone()"
+    )
+  })
 })

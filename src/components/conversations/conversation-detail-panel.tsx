@@ -123,6 +123,7 @@ import {
   lastUserPromptText,
   type SessionFailureAction,
 } from "@/lib/session-failures"
+import { contentBlocksFromUserMessage } from "@/lib/user-message-blocks"
 import { getAgentLabel } from "@/lib/custom-agents"
 import {
   applySavedConfigPreferences,
@@ -218,15 +219,10 @@ function buildUserTurnFromMessageBlocks(
   messageId: string,
   blocks: UserMessageBlock[]
 ): MessageTurn {
-  const contentBlocks: ContentBlock[] = blocks.map((b) =>
-    b.type === "image"
-      ? { type: "image", data: b.data, mime_type: b.mime_type, uri: null }
-      : { type: "text", text: b.text }
-  )
   return {
     id: messageId,
     role: "user",
-    blocks: contentBlocks,
+    blocks: contentBlocksFromUserMessage(blocks),
     timestamp: new Date().toISOString(),
   }
 }

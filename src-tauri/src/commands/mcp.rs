@@ -3196,8 +3196,8 @@ fn read_kimi_code_servers() -> Result<BTreeMap<String, Value>, AppCommandError> 
 /// (Kimi ignores it). `transport` is then dropped from the canonical spec so it
 /// can't leak into another agent's config on a cross-agent sync. See issue #325.
 ///
-/// Schema last checked against 0.40.1 (byte-identical to 0.39.1): unchanged
-/// since 0.23.3 apart from the optional `runtime_id` stdio field 0.38.0 added.
+/// Schema last checked against 0.41.0: unchanged since 0.23.3 apart from the
+/// optional `runtime_id` stdio field 0.38.0 added.
 fn kimi_code_entry_to_canonical(spec: &Value, id: &str) -> Result<Value, AppCommandError> {
     let Some(obj) = spec.as_object() else {
         return canonicalize_spec(spec, "Kimi Code config");

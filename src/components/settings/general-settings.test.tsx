@@ -52,7 +52,14 @@ vi.mock("@/lib/api", () => ({
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 vi.mock("@/lib/platform", () => ({ isDesktop: () => true }))
-vi.mock("@/lib/transport", () => ({ getActiveRemoteConnectionId: () => null }))
+vi.mock("@/lib/transport", () => ({
+  getActiveRemoteConnectionId: () => null,
+  // Read by the desktop-notification section to decide whether permission is
+  // the browser's to grant or the OS's; `false` puts it on the browser branch,
+  // which is the one with visible controls to assert on.
+  isDesktop: () => false,
+  getShellTransport: () => ({ call: vi.fn() }),
+}))
 // The rendering section is gated on the host webview having an env knob to
 // flip, so the platform has to be steerable per test. `vi.hoisted` because the
 // `vi.mock` factory is lifted above every plain `const` in this file.
@@ -116,6 +123,7 @@ describe("GeneralSettings", () => {
     for (const heading of [
       "Default Terminal",
       "Disable hardware acceleration",
+      "Desktop notifications",
       "Notification sounds",
       "Multi-Agent Collaboration",
       "In-conversation tools",

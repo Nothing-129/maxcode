@@ -2514,6 +2514,49 @@ describe("buildStreamingTurnsFromLiveMessage - mid-turn steering messages", () =
     expect(turns[0].timestamp).toBe(new Date(0).toISOString())
   })
 
+  it("renders a steered attachment as its blocks, not as the display text", () => {
+    // `text` is what the composer collapsed the draft into, so a steer that
+    // carried an image must render from `blocks` — otherwise the running turn
+    // shows a sentence about the image and only a reload puts the image back.
+    const turns = buildStreamingTurnsFromLiveMessage(
+      1,
+      live([
+        {
+          type: "steering",
+          id: "note-1",
+          text: "this colour",
+          createdAt: STEER_AT,
+          blocks: [
+            { type: "text", text: "this colour" },
+            {
+              type: "image",
+              data: "aGk=",
+              mime_type: "image/png",
+              uri: null,
+            },
+          ],
+        },
+      ])
+    ).turns
+    expect(turns[0].role).toBe("user")
+    expect(turns[0].blocks).toEqual([
+      { type: "text", text: "this colour" },
+      { type: "image", data: "aGk=", mime_type: "image/png", uri: null },
+    ])
+  })
+
+  it("still renders a text-only steer from its text alone", () => {
+    // The historical shape: no blocks on the note, so nothing about the
+    // text-only path changes.
+    const turns = buildStreamingTurnsFromLiveMessage(
+      1,
+      live([
+        { type: "steering", id: "note-1", text: "stop", createdAt: STEER_AT },
+      ])
+    ).turns
+    expect(turns[0].blocks).toEqual([{ type: "text", text: "stop" }])
+  })
+
   it("renders a delivered mid-turn message as its own user turn", () => {
     const turns = buildStreamingTurnsFromLiveMessage(
       1,

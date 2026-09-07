@@ -152,13 +152,16 @@ impl AcpAgentMeta {
     /// Having a `registry_version` does not imply it: a binary agent's custom
     /// install works by substituting the requested version into the pinned
     /// download URL (`apply_custom_version_to_url`), which only produces a
-    /// different URL when the pinned version is a substring of it. Antigravity
-    /// is the counter-example — its `version` is the ACP registry's `1.0.0`
-    /// while its URLs carry Google's build id
-    /// (`agy_acp_server_20260818_01_RC01`), so the substitution is a no-op and
-    /// the "install 1.2.3" the user asked for would download the SAME bytes
-    /// and cache them under the new number. That is worse than refusing:
+    /// different URL when the pinned version is a substring of it. An agent
+    /// whose archives are named after an opaque build id rather than the
+    /// release is therefore excluded: the substitution is a no-op, and the
+    /// "install 1.2.3" the user asked for would download the SAME bytes and
+    /// cache them under the new number. That is worse than refusing —
     /// `installed_version` then reports a build that was never fetched.
+    /// Antigravity was that case until Google renamed its archives after the
+    /// release (see its registry entry); no built-in agent is today, so the
+    /// rule is covered by a synthetic entry in the tests rather than a real
+    /// one.
     ///
     /// Judged per-platform, because only the current platform's URL is ever
     /// downloaded and a future agent may template one target but not another.
@@ -1167,8 +1170,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             name: "CodeBuddy",
             description: "Tencent Cloud's official AI coding assistant (ACP)",
             distribution: AgentDistribution::Npx {
-                version: "2.143.0",
-                package: "@tencent-ai/codebuddy-code@2.143.0",
+                version: "2.144.0",
+                package: "@tencent-ai/codebuddy-code@2.144.0",
                 cmd: "codebuddy",
                 args: &["--acp"],
                 env: &[],
@@ -1210,21 +1213,26 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // "does not declare a runtime identity" throw is nowhere in the
             // bundle. Any future bump must re-check at least this much.
             //
-            // 0.40.1 passes that check unchanged, and the rest of the surface
-            // codeg touches is identical to 0.39.1: same 37 `runtime_id` sites,
-            // the same `mcp.json` Zod schema (see `commands/mcp.rs`), and a
-            // live `initialize` still answering `sessionCapabilities: {list,
-            // resume, close, delete, fork, additionalDirectories}` with
-            // image + embeddedContext prompts and MCP http+sse. The bundle
-            // SHRANK by ~68KB, which looks alarming and is not: 0.40.0 finally
-            // deleted the legacy ACP server class that still called the dead
-            // `acpMcpServersToConfigs`. Grepping capabilities without checking
-            // which class you landed in used to find that stale copy first and
-            // report `sessionCapabilities: {list, resume}` — a phantom
-            // regression; it is gone now, so a single hit is the live one.
+            // 0.41.0 passes that check unchanged: the converter's absent-`type`
+            // arm still emits `{transport:"stdio", command, args, env,
+            // runtime_id:"local"}`, all three session entry points still route
+            // through it (`session/fork` deliberately warns and ignores
+            // `mcpServers`, inheriting the source session's), and the "does not
+            // declare a runtime identity" throw is nowhere in the bundle. The
+            // rest of the surface codeg touches is unmoved too: the same
+            // `mcp.json` Zod schema (see `commands/mcp.rs`) and an `initialize`
+            // answering `sessionCapabilities: {list, resume, close, delete,
+            // fork, additionalDirectories}` with image + embeddedContext
+            // prompts and MCP http+sse. Reading those off the bundle is safe
+            // again only because 0.40.0 deleted the legacy ACP server class
+            // that still called the dead `acpMcpServersToConfigs`: before that,
+            // grepping capabilities without checking which class you landed in
+            // found the stale copy first and reported `sessionCapabilities:
+            // {list, resume}` — a phantom regression. Both names are gone from
+            // the bundle now, so a single hit is the live one.
             distribution: AgentDistribution::Npx {
-                version: "0.40.1",
-                package: "@moonshot-ai/kimi-code@0.40.1",
+                version: "0.41.0",
+                package: "@moonshot-ai/kimi-code@0.41.0",
                 cmd: "kimi",
                 args: &["acp"],
                 env: &[],
@@ -1335,39 +1343,39 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // (downloads.cursor.com/lab/<version>/<os>/<arch>/...); custom
             // versions substitute into the same pattern.
             distribution: AgentDistribution::Binary {
-                version: "2026.08.31-4057e58",
+                version: "2026.09.02-c22c1a3",
                 cmd: "cursor-agent",
                 args: &["acp"],
                 env: &[],
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/darwin/arm64/agent-cli-package.tar.gz",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/darwin/arm64/agent-cli-package.tar.gz",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "darwin-x86_64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/darwin/x64/agent-cli-package.tar.gz",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/darwin/x64/agent-cli-package.tar.gz",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/linux/arm64/agent-cli-package.tar.gz",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/linux/arm64/agent-cli-package.tar.gz",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/linux/x64/agent-cli-package.tar.gz",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/linux/x64/agent-cli-package.tar.gz",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/windows/arm64/agent-cli-package.zip",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/windows/arm64/agent-cli-package.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://downloads.cursor.com/lab/2026.08.31-4057e58/windows/x64/agent-cli-package.zip",
+                        url: "https://downloads.cursor.com/lab/2026.09.02-c22c1a3/windows/x64/agent-cli-package.zip",
                         sha256: None,
                     },
                 ],
@@ -1546,8 +1554,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // own copy AES-GCM-encrypted under the machine key, so it is not
             // the source). `engines.node: ">=20"`.
             distribution: AgentDistribution::Npx {
-                version: "1.1.41",
-                package: "@qoder-ai/qodercli@1.1.41",
+                version: "1.1.44",
+                package: "@qoder-ai/qodercli@1.1.44",
                 cmd: "qoder",
                 args: &["--acp"],
                 env: &[],
@@ -1596,19 +1604,23 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `auth.type` set, the server runs its own browser OAuth loopback
             // flow inside `session/new`.
             //
-            // VERSION vs URL. `version` is the ACP registry's ("1.0.0"); the
-            // URLs carry Google's build id (`agy_acp_server_20260818_01_RC01`)
-            // instead, so the two do NOT substitute into each other — bump
-            // both together. Because the version is not templatable into the
-            // URL, `supports_custom_version()` answers false for this agent and
-            // both the settings page and the download path refuse a custom
-            // version outright, rather than relabelling the cache entry with a
-            // build that was never fetched.
+            // VERSION vs URL. These used to disagree: `version` was the ACP
+            // registry's `1.0.0` while the archives carried a dated build id
+            // (`agy_acp_server_20260818_01_RC01`), so substituting a requested
+            // version into the URL was a no-op and `supports_custom_version()`
+            // answered false. Google has since renamed the archives after the
+            // release itself (`agy_acp_server_1.1.1`) and back-published the
+            // old build under `agy_acp_server_1.0.0`, so the version now
+            // templates into the URL like every other binary agent and the
+            // custom-version control appears for Antigravity. The numbering is
+            // sparse — 1.0.1 was never published, and a typed version that does
+            // not exist 404s at download rather than caching the wrong bytes —
+            // which is the same contract Cursor and OpenCode already have.
             // `darwin-x86_64` is deliberately absent: upstream publishes no
             // Intel macOS build, so those machines get `PlatformNotSupported`
             // rather than a 404 mid-download.
             distribution: AgentDistribution::Binary {
-                version: "1.0.0",
+                version: "1.1.1",
                 // Never resolvable on PATH (there is no standalone CLI by
                 // this name); it exists because `Binary` requires one, and
                 // for dir-tree agents `installed_binary_path` ignores it in
@@ -1625,27 +1637,27 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-agy_acp_server_20260818_01_RC01-darwin-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-agy_acp_server_1.1.1-darwin-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_20260818_01_RC01-linux-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_20260818_01_RC01-linux-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_20260818_01_RC01-windows-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_20260818_01_RC01-windows-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-x86_64.zip",
                         sha256: None,
                     },
                 ],
@@ -1747,7 +1759,7 @@ mod tests {
                 dir_entry,
                 ..
             } => {
-                assert_eq!(version, "1.0.0");
+                assert_eq!(version, "1.1.1");
                 assert_eq!(cmd, "agy_acp_server");
                 let entry = dir_entry.expect("antigravity must use dir-tree extraction");
                 assert_eq!(entry.unix, "agy_acp_server.par");
@@ -1757,8 +1769,8 @@ mod tests {
                 assert!(!platforms.iter().any(|p| p.platform == "darwin-x86_64"));
                 for platform in platforms {
                     assert!(
-                        platform.url.contains("agy_acp_server_20260818_01_RC01"),
-                        "{} URL lost the build id: {}",
+                        platform.url.contains("agy_acp_server_1.1.1"),
+                        "{} URL lost the release name: {}",
                         platform.platform,
                         platform.url
                     );
@@ -1784,25 +1796,82 @@ mod tests {
         }
     }
 
+    /// A binary agent whose archives are named after an opaque build id rather
+    /// than the release: substituting a requested version into its URL is a
+    /// no-op, so the same archive would come down and get cached under whatever
+    /// number was typed. Every platform carries the same build id so the
+    /// assertion below holds whichever one `current_platform()` resolves to.
+    ///
+    /// Antigravity was this shape until Google renamed its archives after the
+    /// release; the entry is kept synthetic so the rule stays covered without
+    /// waiting for another agent to ship an untemplatable URL.
+    const BUILD_ID_URL_PLATFORMS: &[PlatformBinary] = &[
+        PlatformBinary {
+            platform: "darwin-aarch64",
+            url: "https://example.invalid/agent_20260818_01_RC01-darwin-arm64.zip",
+            sha256: None,
+        },
+        PlatformBinary {
+            platform: "darwin-x86_64",
+            url: "https://example.invalid/agent_20260818_01_RC01-darwin-x64.zip",
+            sha256: None,
+        },
+        PlatformBinary {
+            platform: "linux-aarch64",
+            url: "https://example.invalid/agent_20260818_01_RC01-linux-arm64.zip",
+            sha256: None,
+        },
+        PlatformBinary {
+            platform: "linux-x86_64",
+            url: "https://example.invalid/agent_20260818_01_RC01-linux-x86_64.zip",
+            sha256: None,
+        },
+        PlatformBinary {
+            platform: "windows-aarch64",
+            url: "https://example.invalid/agent_20260818_01_RC01-windows-arm64.zip",
+            sha256: None,
+        },
+        PlatformBinary {
+            platform: "windows-x86_64",
+            url: "https://example.invalid/agent_20260818_01_RC01-windows-x86_64.zip",
+            sha256: None,
+        },
+    ];
+
     /// The URL is what decides whether a custom version can be installed, not
     /// the presence of a `version`.
     ///
-    /// Antigravity has both a registry version (`1.0.0`) and download URLs that
-    /// never mention it — they carry Google's build id — so substituting a
-    /// requested version into the URL is a no-op: the same archive comes down
-    /// and gets cached under whatever number was typed, leaving
-    /// `installed_version` describing a build that was never fetched. The
-    /// settings page used to offer the control to every binary agent with a
-    /// version, which is exactly that inference.
+    /// An agent can have both a registry version and download URLs that never
+    /// mention it, and then substituting a requested version into the URL is a
+    /// no-op: the same archive comes down and gets cached under whatever number
+    /// was typed, leaving `installed_version` describing a build that was never
+    /// fetched. The settings page used to offer the control to every binary
+    /// agent with a version, which is exactly that inference.
     #[test]
     fn custom_version_install_follows_the_url_not_the_version_field() {
+        let build_id_agent = AcpAgentMeta {
+            agent_type: AgentType::Custom("build-id-agent"),
+            supports_mcp: true,
+            name: "Build Id Agent",
+            description: "an agent whose archives are named after a build id",
+            distribution: AgentDistribution::Binary {
+                version: "1.0.0",
+                cmd: "agent",
+                args: &[],
+                env: &[],
+                platforms: BUILD_ID_URL_PLATFORMS,
+                dir_entry: None,
+            },
+        };
         assert!(
-            !get_agent_meta(AgentType::Antigravity).supports_custom_version(),
-            "antigravity's URLs carry a build id, so a version cannot be templated in"
+            !build_id_agent.supports_custom_version(),
+            "a build-id URL carries no version, so one cannot be templated in"
         );
         // Cursor is the control: a binary agent whose release path IS its
         // pinned version, so the substitution genuinely selects a build.
         assert!(get_agent_meta(AgentType::Cursor).supports_custom_version());
+        // Antigravity joined it once Google's archives took the release name.
+        assert!(get_agent_meta(AgentType::Antigravity).supports_custom_version());
         // npx installs `<package>@<version>` directly — no URL involved.
         assert!(get_agent_meta(AgentType::Codex).supports_custom_version());
     }
@@ -1815,8 +1884,8 @@ mod tests {
         let meta = get_agent_meta(AgentType::Cursor);
         assert_binary_version(
             AgentType::Cursor,
-            "2026.08.31-4057e58",
-            "/lab/2026.08.31-4057e58/",
+            "2026.09.02-c22c1a3",
+            "/lab/2026.09.02-c22c1a3/",
         );
         match meta.distribution {
             AgentDistribution::Binary {
@@ -1912,16 +1981,16 @@ mod tests {
         assert_npx_version(AgentType::Cline, "3.0.61", "cline@3.0.61", Some("22.0.0"));
         assert_npx_version(
             AgentType::CodeBuddy,
-            "2.143.0",
-            "@tencent-ai/codebuddy-code@2.143.0",
+            "2.144.0",
+            "@tencent-ai/codebuddy-code@2.144.0",
             Some("22.0.0"),
         );
         // Kimi Code must never land on 0.37.0–0.38.0: every session in that
         // range dies on the codeg-mcp stdio entry (see the registry entry).
         assert_npx_version(
             AgentType::KimiCode,
-            "0.40.1",
-            "@moonshot-ai/kimi-code@0.40.1",
+            "0.41.0",
+            "@moonshot-ai/kimi-code@0.41.0",
             Some("22.19.0"),
         );
         assert_npx_version(
@@ -1945,8 +2014,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Qoder,
-            "1.1.41",
-            "@qoder-ai/qodercli@1.1.41",
+            "1.1.44",
+            "@qoder-ai/qodercli@1.1.44",
             Some("20.0.0"),
         );
         assert_binary_version(

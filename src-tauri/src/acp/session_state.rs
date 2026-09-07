@@ -1260,7 +1260,42 @@ impl SessionState {
                 // here so snapshot replay reconstructs the same list the live
                 // node holds.
                 if !self.feedback.iter().any(|f| f.id == item.id) {
-                    self.feedback.push(item.clone());
+                    let mut item = item.clone();
+                    // Enforce the per-turn attachment budget HERE, under the
+                    // same `&mut self` that appends, because this is the only
+                    // authorized writer. Checking it at the submit site instead
+                    // would be a read followed by a write with an agent
+                    // round-trip in between: two steers admitted concurrently
+                    // would both read the same retained total, both pass, and
+                    // both retain — and a replay/attach node applying this
+                    // event would not be bounded at all. One critical section
+                    // makes the bound hold however the note got here.
+                    //
+                    // Only the RETAINED copy is trimmed. The note still
+                    // delivers and the event still carried its blocks to
+                    // whoever is attached right now; what the budget protects
+                    // is this list, which outlives the event and is rebuilt
+                    // into every snapshot.
+                    if let Some(blocks) = item.blocks.as_deref() {
+                        let retained: usize = self
+                            .feedback
+                            .iter()
+                            .filter_map(|f| f.blocks.as_deref())
+                            .map(crate::acp::feedback::attachment_bytes)
+                            .sum();
+                        let incoming = crate::acp::feedback::attachment_bytes(blocks);
+                        if retained.saturating_add(incoming)
+                            > crate::acp::feedback::MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN
+                        {
+                            tracing::warn!(
+                                "[ACP][feedback] steer attachments exceed the per-turn \
+                                 budget (retained={retained} incoming={incoming}); \
+                                 keeping the note without them"
+                            );
+                            item.blocks = None;
+                        }
+                    }
+                    self.feedback.push(item);
                 }
             }
             AcpEvent::FeedbackConsumed { ids, delivered_at } => {

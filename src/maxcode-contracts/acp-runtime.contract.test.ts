@@ -108,4 +108,16 @@ describe("MaxCode contract: bounded ACP connection lifecycle", () => {
     expect(manager).toContain("liveness_probe_does_not_refresh_idle_clock")
     expect(manager).toContain("connecting_touch_does_not_postpone_watchdog")
   })
+
+  it("keeps backup restore aware of authoritative session state and exiting processes", () => {
+    const manager = source("src-tauri/src/acp/manager.rs")
+    const gate = manager
+      .split("pub async fn live_or_draining_agent_names")[1]
+      ?.split("pub async fn probe_agent_options")[0]
+    expect(gate).toContain("c.state.try_read().map_or(true")
+    expect(gate).toContain("state.status")
+    expect(gate).toContain("c.child_pid.load")
+    expect(gate).toContain("prune_reaped(&mut draining)")
+    expect(gate).not.toContain("c.status")
+  })
 })

@@ -203,7 +203,33 @@
       "panelOpacityHint": "Cuán opacos son la barra lateral, los paneles y las barras de pestañas. Más bajo deja ver más la imagen.",
       "errorTooLarge": "La imagen es demasiado grande (máx. 16 MB).",
       "errorUnsupportedFormat": "Formato de imagen no admitido. Elige un PNG, JPEG, WebP o GIF.",
-      "errorUploadFailed": "No se pudo establecer la imagen de fondo."
+      "errorUploadFailed": "No se pudo establecer la imagen de fondo.",
+      "market": {
+        "open": "Mercado de fondos",
+        "title": "Mercado de fondos",
+        "description": "Explora la galería pública de Wallhaven; haz clic para descargar y aplicar.",
+        "searchPlaceholder": "Buscar fondos…",
+        "categories": {
+          "all": "Todo",
+          "general": "Paisajes",
+          "anime": "Anime",
+          "people": "Personas"
+        },
+        "pageInfo": "Página {page} de {lastPage}",
+        "prevPage": "Anterior",
+        "nextPage": "Siguiente",
+        "refresh": "Actualizar",
+        "empty": "No se encontraron fondos coincidentes.",
+        "error": "No se pudo cargar el mercado de fondos.",
+        "retry": "Reintentar",
+        "cardLabel": "Aplicar el fondo {id}",
+        "applied": "En uso",
+        "unavailable": "No disponible",
+        "tooLarge": "Demasiado grande para un fondo: {actual} (límite {limit})",
+        "downloadFailed": "Error de descarga. Reinténtalo.",
+        "appliedToast": "Fondo aplicado",
+        "credit": "Imágenes de wallhaven.cc · solo SFW"
+      }
     }
   },
   "SystemSettings": {
@@ -340,6 +366,10 @@
     "gitlabDescription": "Gestiona las cuentas de GitLab para autenticación. Los tokens se almacenan localmente.",
     "gitlabTokenHint": "Crea un token de acceso personal con el ámbito api en GitLab → Preferences → Access tokens.",
     "gitlabNoAccounts": "Aún no hay ninguna cuenta de GitLab",
+    "giteaTitle": "Cuentas de Gitea",
+    "giteaDescription": "Gestiona las cuentas de Gitea (y Forgejo) para autenticación. Los tokens se almacenan localmente.",
+    "giteaTokenHint": "Crea un token de acceso con los ámbitos write:repository, write:issue y read:user en Gitea → Settings → Applications.",
+    "giteaNoAccounts": "Aún no hay ninguna cuenta de Gitea",
     "noAccounts": "No hay cuentas de GitHub configuradas.",
     "addAccount": "Añadir cuenta",
     "serverUrl": "URL del servidor",
@@ -372,7 +402,7 @@
     "loadFailed": "Error al cargar configuración: {message}",
     "gitAccount": {
       "sectionTitle": "Cuentas de servidor Git",
-      "sectionDescription": "Gestiona credenciales para servidores Git que no son GitHub (GitLab, Bitbucket, autoalojados, etc.).",
+      "sectionDescription": "Gestiona las credenciales de servidores Git que no tienen su propia sección (Bitbucket, autoalojados, etc.).",
       "noAccounts": "No hay cuentas de servidor Git configuradas.",
       "addAccount": "Añadir cuenta",
       "addTitle": "Añadir cuenta Git",
@@ -1592,7 +1622,7 @@
   "GeneralSettings": {
     "loading": "Cargando...",
     "sectionTitle": "General",
-    "sectionDescription": "Preferencias centralizadas para el terminal predeterminado, la aceleración de renderizado, los sonidos de notificación y la delegación entre agentes.",
+    "sectionDescription": "Preferencias centralizadas para el terminal predeterminado, la aceleración de renderizado, las notificaciones y la delegación entre agentes.",
     "terminalTitle": "Terminal predeterminada",
     "terminalDescription": "Elige el shell que se usa al abrir nuevas pestañas de terminal desde la barra de terminal o el árbol de archivos. Los agentes también lo usan cuando piden a MaxCode que ejecute una línea de comandos completa.",
     "terminalSystemDefault": "Predeterminado del sistema",
@@ -1672,6 +1702,9 @@
     "searchPlaceholder": "Buscar título o ruta…",
     "allAgents": "Todos los agentes",
     "onlyImportable": "Solo importables",
+    "includeDeleted": "Incluir eliminadas",
+    "includeDeletedWithCount": "Incluir eliminadas ({count})",
+    "includeDeletedHint": "Eliminar una sesión en MaxCode solo la oculta: la conversación y su historial siguen aquí. Activa esto para seleccionar sesiones eliminadas y restaurarlas en su sitio.",
     "selectAll": "Seleccionar todo",
     "clearSelection": "Limpiar",
     "expandAll": "Expandir todo",
@@ -1684,6 +1717,7 @@
     "toggleSessionAria": "Seleccionar la sesión {title}",
     "statusImported": "Importada",
     "statusDeleted": "Eliminada",
+    "statusDeletedRestorable": "Eliminada: importarla restaura la conversación original",
     "untitled": "Sesión sin título",
     "messageCount": "{count} mensajes",
     "selectedCount": "{count} seleccionadas",
@@ -1692,6 +1726,7 @@
     "close": "Cerrar",
     "doneTitle": "Importación finalizada",
     "doneImported": "Importadas",
+    "doneRestored": "Restauradas",
     "doneUpdated": "Actualizadas",
     "doneSkipped": "Omitidas",
     "doneCreatedFolders": "Carpetas creadas",
@@ -2904,6 +2939,8 @@
         "eventErrorTitle": "Error del agente",
         "notificationTurnComplete": "{agent} ha terminado de responder",
         "notificationError": "{agent} error: {message}",
+        "notificationQuestion": "{agent} espera tu respuesta",
+        "notificationErrorRedacted": "{agent} encontró un error",
         "claudeApiRetry": {
           "fallbackError": "authentication_failed",
           "retryingWithMax": "reintentando {attempt}/{max}",
@@ -3707,6 +3744,8 @@
       },
       "backgroundTasks": {
         "settledFallback": "Tarea en segundo plano finalizada ({status})",
+        "notifySettledOne": "{agent}: terminó una tarea en segundo plano",
+        "notifySettledMany": "{agent}: terminaron {count} tareas en segundo plano",
         "cardRunning": "Ejecutándose en segundo plano",
         "cardLaunchedPending": "Tarea lanzada en segundo plano",
         "cardCompleted": "Tarea en segundo plano completada",
@@ -4521,7 +4560,15 @@
       "button": "Exportar copia",
       "inProgress": "Creando copia de seguridad…",
       "success": "Copia de seguridad creada.",
-      "started": "Descarga de la copia iniciada."
+      "started": "Descarga de la copia iniciada.",
+      "degradedTitle": "Algunas bases de datos de sesiones de agentes necesitaron un tratamiento especial",
+      "degradedHint": "Estos agentes guardan sus sesiones en SQLite. La copia sigue conteniéndolas salvo que se indique lo contrario abajo.",
+      "degradedMore": "…y {count} más.",
+      "degradedLevel": {
+        "recoveredOnCopy": "recuperada desde una copia privada: completa",
+        "bareFileOnly": "archivada sin su registro de escritura anticipada: pueden faltar los mensajes más recientes",
+        "notArchived": "no archivada: cambiaba mientras se copiaba"
+      }
     },
     "restore": {
       "selectFile": "Seleccionar archivo de copia",
@@ -4559,11 +4606,37 @@
         "scanning": "Comprobando conflictos…",
         "noConflicts": "No se sobrescribirá ningún archivo existente.",
         "conflictCount": "Se verían afectados {count} archivo(s) existente(s).",
-        "conflictSkipNote": "Los archivos existentes se conservan (se omiten) salvo que actives la sobrescritura."
+        "conflictSkipNote": "Los archivos existentes se conservan (se omiten) salvo que actives la sobrescritura.",
+        "agentsRunning": "Hay {count} agente(s) en ejecución ({agents}). Ciérralos primero o las transcripciones se guardarán en una carpeta aparte en lugar de volver a su sitio."
       },
-      "restartFailed": "La restauración quedó preparada, pero el servidor no pudo reiniciarse. Reinícialo manualmente para aplicarla."
+      "restartFailed": "La restauración quedó preparada, pero el servidor no pudo reiniciarse. Reinícialo manualmente para aplicarla.",
+      "discardPending": "Descartar la restauración preparada",
+      "discarded": "Se descartó la restauración preparada.",
+      "pendingBlockedHint": "Ya hay una restauración preparada esperando un reinicio. Descártala para preparar otra.",
+      "result": {
+        "title": "Restauración preparada",
+        "needsRestart": "Se aplicará en el próximo arranque. Antes se guarda una instantánea de tus datos actuales.",
+        "downgraded": "{agents} estaba(n) en ejecución, así que las transcripciones no se escribieron en sus ubicaciones originales. Se guardaron en {path}.",
+        "skipped": "Se conservaron {count} archivo(s) existente(s)",
+        "refused": "No se reescribieron {count} base(s) de datos de sesión",
+        "refusedHint": "Provienen de una copia antigua que guardaba la base de datos y su registro de escritura anticipada por separado, y no se puede demostrar que se correspondan. Tus bases de datos actuales quedaron intactas: restaura a una carpeta aparte para obtener los archivos originales.",
+        "restartNow": "Reiniciar ahora",
+        "later": "Más tarde"
+      }
     },
-    "remoteUnsupported": "La copia de seguridad y la restauración actúan sobre los datos de la máquina que ejecuta MaxCode. Estás conectado a un espacio de trabajo remoto: gestiona sus copias desde ese servidor directamente."
+    "remoteUnsupported": "La copia de seguridad y la restauración actúan sobre los datos de la máquina que ejecuta MaxCode. Estás conectado a un espacio de trabajo remoto: gestiona sus copias desde ese servidor directamente.",
+    "progress": {
+      "cancel": "Cancelar"
+    },
+    "snapshots": {
+      "title": "Instantáneas previas a la restauración",
+      "hint": "Cada restauración guarda antes una instantánea de tus datos actuales. Se conservan las dos más recientes.",
+      "empty": "Aún no hay instantáneas.",
+      "rollback": "Volver a esta",
+      "unsupported": "Solo consulta",
+      "rollbackConfirmTitle": "¿Volver a esta instantánea?",
+      "rollbackConfirmBody": "Esto reemplaza tus datos actuales por la instantánea y reinicia. Antes se guarda una instantánea de los datos que se reemplazan."
+    }
   },
   "backup": {
     "restore": {
@@ -4625,6 +4698,45 @@
     "saved": "Ajustes de herramientas guardados",
     "saveFailed": "No se pudieron guardar los ajustes de herramientas",
     "loadFailed": "Error al cargar: {detail}"
+  },
+  "DesktopNotificationSettings": {
+    "title": "Notificaciones de escritorio",
+    "description": "Muestra una notificación del sistema cuando un agente te necesita. Se configura por dispositivo: en otro navegador o equipo el ajuste es independiente.",
+    "permissionTitle": "Permiso",
+    "permissionGranted": "Permitidas",
+    "permissionDenied": "Bloqueadas",
+    "permissionDefault": "Sin solicitar",
+    "permissionUnsupported": "No disponible",
+    "permissionManagedByOs": "Gestionado por el sistema",
+    "permissionGrantedHint": "Este navegador mostrará las notificaciones de MaxCode.",
+    "permissionDeniedHint": "Este navegador está bloqueando las notificaciones de MaxCode. Solo puedes revertirlo desde los ajustes del sitio en el navegador: una página no puede volver a preguntar.",
+    "permissionDefaultHint": "Aún no se ha preguntado a este navegador. No habrá notificaciones hasta que las permitas.",
+    "permissionUnsupportedHint": "Las notificaciones necesitan un contexto seguro. Accede a este servidor por HTTPS o en localhost.",
+    "permissionManagedByOsHint": "La app de escritorio envía a través del centro de notificaciones del sistema, que no informa de si MaxCode está permitido. Envía una prueba para comprobarlo.",
+    "identityTitle": "Se envía como",
+    "identityHint": "El sistema registra estas notificaciones bajo esta app; los interruptores que se aplican son los suyos.",
+    "identityDegradedHint": "No se pudo usar el identificador propio de MaxCode, así que el sistema las envía como {bundleId} y se aplican los interruptores de esa app. Instala MaxCode en la carpeta Aplicaciones para recuperar su identidad.",
+    "requestPermission": "Permitir notificaciones",
+    "permissionGrantedToast": "Notificaciones permitidas.",
+    "permissionDeniedToast": "Las notificaciones se bloquearon. Vuelve a activarlas en los ajustes del sitio de tu navegador.",
+    "openSystemSettings": "Abrir ajustes del sistema",
+    "openSystemSettingsFailed": "No se pudieron abrir los ajustes de notificaciones del sistema.",
+    "sendTest": "Enviar una prueba",
+    "testTitle": "MaxCode",
+    "testBody": "Las notificaciones de escritorio funcionan.",
+    "testSent": "Notificación de prueba enviada.",
+    "testFailed": "No se pudo enviar la notificación de prueba.",
+    "whenTitle": "Notificar cuando",
+    "whenHint": "Una ventana en un segundo monitor está visible pero sin foco: elige “La ventana no tiene el foco” si nunca te llegan las notificaciones.",
+    "whenAlways": "Siempre",
+    "whenUnfocused": "La ventana no tiene el foco",
+    "whenHidden": "La ventana no está visible",
+    "hideBody": "Ocultar el contenido",
+    "hideBodyHint": "Muestra una línea genérica en lugar de la salida del agente. El centro de notificaciones conserva el contenido fuera de la app, incluso tras cerrar la conversación. El título sigue nombrando la carpeta, para que sepas a qué ventana volver.",
+    "eventsTitle": "Eventos",
+    "eventsHint": "Desactiva los eventos que no deban interrumpirte. Las repeticiones del mismo evento en pocos segundos se agrupan en una sola notificación.",
+    "eventBackgroundTask": "Tarea en segundo plano",
+    "eventWorkTask": "Tarea de trabajo"
   },
   "NotificationSoundSettings": {
     "title": "Sonidos de notificación",
@@ -4937,6 +5049,8 @@
     "errorView": "Ver",
     "notifyReview": "Listo para revisar: {title}",
     "notifyFailed": "La tarea falló: {title}",
+    "notifyReviewRedacted": "Hay una tarea lista para revisar",
+    "notifyFailedRedacted": "Una tarea falló",
     "createFromMessage": "Crear tarea desde el mensaje",
     "detailTokens": "Tokens totales",
     "editorTitleNew": "Nueva tarea",
@@ -5412,7 +5526,7 @@
     "noRemote": "Esta carpeta no tiene un remoto reconocible (origin)",
     "errors": {
       "noAccount": "No hay ninguna cuenta de {provider} configurada para {host}. Añade una en Configuración → Control de versiones para cargar este repositorio.",
-      "unsupportedHost": "El panel del repositorio solo admite GitHub y GitLab, y {host} no se reconoce como ninguno de los dos. Si es una instancia autoalojada de GitHub Enterprise o GitLab, añade una cuenta para ella en Configuración → Control de versiones.",
+      "unsupportedHost": "El panel del repositorio solo admite GitHub, GitLab y Gitea, y {host} no se reconoce como ninguno de ellos. Si es una instancia autoalojada de GitHub Enterprise, GitLab, Gitea o Forgejo, añade una cuenta para ella en Configuración → Control de versiones.",
       "wrongForge": "{host} es un {provider}, no la forja con la que estaba clasificado. La detección se ha corregido: vuelve a cargar para reintentar."
     },
     "addAccount": "Añadir una cuenta",

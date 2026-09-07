@@ -297,15 +297,13 @@
       "description": "Automation runs use locked Shanghai-date-prefixed sidebar titles in the form MMDD｜自动｜automation name, preserving run identity against prompt-derived parser backfills.",
       "origins": ["worktree-2026-09-04"],
       "paths": ["src-tauri/src/automation/engine.rs"],
-      "contracts": [
-        "src/maxcode-contracts/automation-title.contract.test.ts"
-      ]
+      "contracts": ["src/maxcode-contracts/automation-title.contract.test.ts"]
     },
     {
       "id": "agents.bounded-connection-lifecycle",
       "category": "runtime",
-      "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped.",
-      "origins": ["2c859b2a", "worktree-2026-08-31"],
+      "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped. Backup restore uses authoritative session state and treats locked sessions and unreaped children as live.",
+      "origins": ["2c859b2a", "worktree-2026-08-31", "worktree-2026-09-07"],
       "paths": [
         "src/lib/constants.ts",
         "src/lib/conversation-tab-retention.ts",
@@ -390,7 +388,11 @@
         "src-tauri/icons/",
         "src-tauri/tauri.conf.json",
         "install.sh",
-        "install.ps1"
+        "install.ps1",
+        "src/contexts/acp-connections-context.tsx",
+        "src/contexts/tasks-view-context.tsx",
+        "src/i18n/messages/",
+        "src-tauri/src/commands/notification.rs"
       ],
       "contracts": [
         "src/maxcode-contracts/web-update-platform.contract.test.ts"
@@ -419,6 +421,16 @@
       ],
       "contracts": [
         "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
+      "id": "agents.opencode-verified-distribution",
+      "category": "runtime",
+      "description": "OpenCode installs only pinned release assets with a SHA256 for every supported platform; an upstream version bump must not remove verification.",
+      "origins": ["1bf8a772", "worktree-2026-09-07"],
+      "paths": ["src-tauri/src/acp/registry.rs"],
+      "contracts": [
+        "src/maxcode-contracts/opencode-distribution.contract.test.ts"
       ]
     }
   ],

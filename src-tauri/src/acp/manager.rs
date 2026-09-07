@@ -216,8 +216,61 @@ async fn wait_for_session_started(
     (outcome, start.elapsed())
 }
 
+/// A connection that has left the map while its process may still be running.
+struct DrainingChild {
+    agent: AgentType,
+    /// The connection's live pid cell. `on_spawn` publishes the pid and
+    /// `on_exit` zeroes it on a real reap.
+    pid: Arc<std::sync::atomic::AtomicU32>,
+    parked_at: std::time::Instant,
+}
+
+type DrainingChildren = Vec<DrainingChild>;
+
+/// How long a child whose pid reads zero is still treated as possibly running.
+///
+/// Zero is ambiguous: it means "reaped" AND "not spawned yet". A connection
+/// torn down mid-spawn can publish a live pid moments later, so dropping it
+/// immediately would hide a real writer. The grace resolves the ambiguity in
+/// the safe direction — a false positive only downgrades a restore to the side
+/// location, while a false negative unlinks a file an agent is writing.
+const DRAIN_GRACE: std::time::Duration = std::time::Duration::from_secs(30);
+
+/// Drop entries that are provably finished: pid back to zero and long enough
+/// ago that it cannot be a spawn still in flight.
+fn prune_reaped(draining: &mut DrainingChildren) {
+    draining.retain(|c| {
+        c.pid.load(std::sync::atomic::Ordering::SeqCst) != 0 || c.parked_at.elapsed() < DRAIN_GRACE
+    });
+}
+
 pub struct ConnectionManager {
     pub(crate) connections: Arc<Mutex<HashMap<String, AgentConnection>>>,
+    /// Connections whose teardown was requested but whose child process has
+    /// not been reaped yet.
+    ///
+    /// `disconnect` drops the map entry immediately and only then signals the
+    /// child, so without this an agent that is still exiting — and still able
+    /// to append to its transcript — is invisible to the backup restore gate,
+    /// which would then unlink files it is still writing.
+    ///
+    /// Each entry holds the connection's live `child_pid` cell. `on_exit`
+    /// zeroes it on a REAL reap; a connection that merely ended keeps its pid,
+    /// because `ChildGuard::drop` signals the tree without waiting. So
+    /// "non-zero" is exactly the codebase's existing definition of "this
+    /// process may still be running", the same one the shutdown backstop
+    /// relies on. Pruned on every push and every read, so it stays small.
+    draining: Arc<Mutex<DrainingChildren>>,
+    /// Read-held for the whole of `spawn_agent`, write-held while a backup
+    /// restore writes transcripts back to the agents' own directories.
+    ///
+    /// Enumerating live connections and then writing is a check-then-use with
+    /// a gap wide enough to drive through: staging a large archive takes
+    /// minutes, and automations, the work-task engine and MCP delegation all
+    /// start connections without a user clicking anything. Taking the write
+    /// lock BEFORE enumerating closes it — no connection can appear between
+    /// the count and the writes.
+    external_restore_lock: Arc<tokio::sync::RwLock<()>>,
     /// Per-(agent, working_dir, session_id) async mutex. Held across the
     /// dedup-lookup + spawn + SessionStarted-wait critical section so two
     /// concurrent `spawn_agent` calls for the same logical session can't
@@ -297,6 +350,8 @@ impl ConnectionManager {
     pub fn new() -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
+            external_restore_lock: Arc::new(tokio::sync::RwLock::new(())),
+            draining: Arc::new(Mutex::new(Vec::new())),
             spawn_locks: Arc::new(Mutex::new(HashMap::new())),
             spawn_handshake_timeout: spawn_handshake_timeout_from_env(),
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
@@ -312,6 +367,8 @@ impl ConnectionManager {
     pub fn clone_ref(&self) -> Self {
         Self {
             connections: self.connections.clone(),
+            external_restore_lock: self.external_restore_lock.clone(),
+            draining: self.draining.clone(),
             spawn_locks: self.spawn_locks.clone(),
             spawn_handshake_timeout: self.spawn_handshake_timeout,
             terminal_shell_config: self.terminal_shell_config.clone(),
@@ -358,6 +415,8 @@ impl ConnectionManager {
     fn with_spawn_handshake_timeout(timeout: Duration) -> Self {
         Self {
             connections: Arc::new(Mutex::new(HashMap::new())),
+            external_restore_lock: Arc::new(tokio::sync::RwLock::new(())),
+            draining: Arc::new(Mutex::new(Vec::new())),
             spawn_locks: Arc::new(Mutex::new(HashMap::new())),
             spawn_handshake_timeout: timeout,
             terminal_shell_config: TerminalShellRuntimeConfig::new(),
@@ -467,6 +526,12 @@ impl ConnectionManager {
         preferred_mode_id: Option<String>,
         preferred_config_values: BTreeMap<String, String>,
     ) -> Result<String, AcpError> {
+        // Held for the whole establishment. A restore writing back to the
+        // agents' own directories takes the write side, so it can never see an
+        // empty connection list and then have one appear underneath it. Not
+        // re-entrant: nothing reachable from here calls `spawn_agent` again.
+        let _restore_guard = self.external_restore_lock.read().await;
+
         // Connection dedup: when resuming an agent session (session_id is
         // Some), look for a live AgentConnection that already represents
         // the same external session in the same working_dir for the same
@@ -2166,17 +2231,70 @@ impl ConnectionManager {
     }
 
     pub async fn disconnect(&self, conn_id: &str) -> Result<(), AcpError> {
-        let cmd_tx = {
+        let removed = {
+            // The map lock is held ACROSS the handoff into `draining`, and
+            // readers take it in the same order, so an observer can never see
+            // the connection in neither place.
             let mut connections = self.connections.lock().await;
-            connections.remove(conn_id).map(|conn| conn.cmd_tx)
+            let removed = connections.remove(conn_id);
+            if let Some(conn) = &removed {
+                self.park_draining(conn).await;
+            }
+            removed
         };
-        if let Some(cmd_tx) = cmd_tx {
+        if let Some(conn) = removed {
             tracing::info!("[ACP] disconnect connection={}", conn_id);
-            let _ = cmd_tx.send(ConnectionCommand::Disconnect).await;
+            let _ = conn.cmd_tx.send(ConnectionCommand::Disconnect).await;
             Ok(())
         } else {
             Err(AcpError::ConnectionNotFound(conn_id.into()))
         }
+    }
+
+    /// Remember a connection's child until it is provably finished. Call while
+    /// holding the connections lock, immediately after removing the entry.
+    async fn park_draining(&self, conn: &AgentConnection) {
+        let mut draining = self.draining.lock().await;
+        prune_reaped(&mut draining);
+        draining.push(DrainingChild {
+            agent: conn.agent_type,
+            pid: conn.child_pid.clone(),
+            parked_at: std::time::Instant::now(),
+        });
+    }
+
+    /// Every agent that could still be writing to its own files: connected or
+    /// prompting, plus any whose connection is gone but whose process is not.
+    ///
+    /// Taken under the connections lock so the `disconnect` handoff into
+    /// `draining` is atomic from here — otherwise a restore could look between
+    /// the two and conclude nothing is running.
+    pub async fn live_or_draining_agent_names(&self) -> Vec<String> {
+        let connections = self.connections.lock().await;
+        let mut names: Vec<String> = connections
+            .values()
+            .filter(|c| {
+                // MaxCode keeps the authoritative status in SessionState.
+                // Do not await its lock while holding the connection map:
+                // a busy writer is conservatively treated as still live.
+                c.child_pid.load(std::sync::atomic::Ordering::SeqCst) != 0
+                    || c.state.try_read().map_or(true, |state| {
+                        matches!(
+                            state.status,
+                            ConnectionStatus::Connecting
+                                | ConnectionStatus::Connected
+                                | ConnectionStatus::Prompting
+                        )
+                    })
+            })
+            .map(|c| c.agent_type.to_string())
+            .collect();
+        let mut draining = self.draining.lock().await;
+        prune_reaped(&mut draining);
+        names.extend(draining.iter().map(|c| c.agent.to_string()));
+        names.sort();
+        names.dedup();
+        names
     }
 
     /// Probe an agent for the modes / config_options it advertises on a fresh
@@ -2364,6 +2482,9 @@ impl ConnectionManager {
             let mut txs = Vec::with_capacity(ids.len());
             for id in ids {
                 if let Some(conn) = connections.remove(&id) {
+                    // Same handoff as `disconnect`: closing a window leaves
+                    // the agents exiting, not exited.
+                    self.park_draining(&conn).await;
                     txs.push(conn.cmd_tx);
                 }
             }
@@ -2481,6 +2602,13 @@ impl ConnectionManager {
         .await;
 
         disconnected
+    }
+
+    /// Block new connections from being established until the returned guard
+    /// is dropped. The caller must enumerate live connections only AFTER
+    /// holding this, never before.
+    pub async fn lock_out_new_connections(&self) -> tokio::sync::OwnedRwLockWriteGuard<()> {
+        self.external_restore_lock.clone().write_owned().await
     }
 
     pub async fn list_connections(&self) -> Vec<ConnectionInfo> {
@@ -2781,6 +2909,11 @@ impl ConnectionManager {
         // AFTER the admission checks above so a rejected steer never triggers
         // file reads, and BEFORE the shield below so a failure aborts with no
         // side effects.
+        // Whether the caller sent a real draft rather than bare text. Read
+        // BEFORE `blocks` is consumed below, and the sole gate on recording a
+        // block list at all: a text-only steer must keep producing exactly the
+        // note it always produced.
+        let had_blocks = blocks.is_some();
         let wire_blocks = match blocks {
             Some(mut blocks) => {
                 crate::acp::prompt_hydration::hydrate_prompt_blocks(
@@ -2813,6 +2946,31 @@ impl ConnectionManager {
             }
             None => vec![PromptInputBlock::Text { text: text.clone() }],
         };
+        // Project what the user sent for the broadcast, AFTER hydration and
+        // from the same bytes the agent gets — the contract an ordinary prompt
+        // already follows (`user_blocks_from_prompt` at the `UserMessage`
+        // emit). Without it the note reaches the live transcript as `text`
+        // alone, which is the composer's DISPLAY form: a steered image would
+        // render as words about an image until a reload replaced it with the
+        // agent's own copy.
+        //
+        // `None` for a text-only steer, so that path's note is unchanged and
+        // the frontend keeps rendering it from `text`.
+        //
+        // Filtered on the ATTACHMENT bytes rather than on `blocks.is_some()`: a
+        // draft that projects down to text alone says nothing `text` does not
+        // already say, and recording a list for it would put one on a note the
+        // field's contract calls text-only.
+        //
+        // No budget check here on purpose — the per-turn attachment bound lives
+        // at the single authorized writer (`SessionState::apply_event`'s
+        // `FeedbackSubmitted` arm), where the check and the append share one
+        // critical section. Enforcing it here would be a read, an agent
+        // round-trip, then a write: concurrent steers would both read the same
+        // total and both pass it.
+        let record_blocks = had_blocks
+            .then(|| crate::acp::user_blocks_from_prompt(&wire_blocks))
+            .filter(|projected| crate::acp::feedback::attachment_bytes(projected) > 0);
         let conn_id_for_task = conn_id.to_string();
         let handle = tokio::spawn(async move {
             let outcome: Result<FeedbackItem, AcpError> = async {
@@ -2860,8 +3018,12 @@ impl ConnectionManager {
                         state.write().await.native_steering_available = false;
                     }
                 }
-                let item =
-                    FeedbackItem::new_delivered(uuid::Uuid::new_v4().to_string(), text, created_at);
+                let item = FeedbackItem::new_delivered(
+                    uuid::Uuid::new_v4().to_string(),
+                    text,
+                    created_at,
+                    record_blocks,
+                );
                 // Ungated on purpose — see the invariant on this fn's doc.
                 emit_with_state(
                     &state,
@@ -3819,6 +3981,137 @@ impl SessionPlanApprovalAccess for ConnectionManagerPlanApprovalLookup {
 mod tests {
     use super::*;
     use crate::acp::connection::AgentConnection;
+
+    #[tokio::test]
+    async fn restore_gate_reads_session_status_and_protects_busy_or_exiting_children() {
+        let mgr = ConnectionManager::new();
+        mgr.insert_test_connection("restore-gate", AgentType::Codex, None, EventEmitter::Noop)
+            .await;
+        let state = mgr.get_state("restore-gate").await.unwrap();
+        for status in [
+            ConnectionStatus::Connecting,
+            ConnectionStatus::Connected,
+            ConnectionStatus::Prompting,
+        ] {
+            state.write().await.status = status;
+            assert_eq!(mgr.live_or_draining_agent_names().await, vec!["Codex CLI"]);
+        }
+        state.write().await.status = ConnectionStatus::Disconnected;
+        assert!(mgr.live_or_draining_agent_names().await.is_empty());
+
+        let held = state.write().await;
+        let names =
+            tokio::time::timeout(Duration::from_secs(1), mgr.live_or_draining_agent_names())
+                .await
+                .expect("restore enumeration must not wait on the session writer");
+        assert_eq!(names, vec!["Codex CLI"]);
+        drop(held);
+
+        let conns = mgr.connections.lock().await;
+        conns
+            .get("restore-gate")
+            .unwrap()
+            .child_pid
+            .store(4242, std::sync::atomic::Ordering::SeqCst);
+        drop(conns);
+        assert_eq!(mgr.live_or_draining_agent_names().await, vec!["Codex CLI"]);
+    }
+
+    /// An agent that has left the connection map but not yet exited can still
+    /// be appending to the transcript a restore is about to unlink, so the
+    /// gate has to see it. `disconnect` drops the map entry immediately, which
+    /// is why the pid is parked separately rather than the entry being kept.
+    #[tokio::test]
+    async fn disconnect_keeps_a_live_child_visible_after_the_map_entry_is_gone() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let mgr = ConnectionManager::new();
+        mgr.insert_test_connection("c1", AgentType::ClaudeCode, None, EventEmitter::Noop)
+            .await;
+        let pid = {
+            let conns = mgr.connections.lock().await;
+            conns.get("c1").unwrap().child_pid.clone()
+        };
+        pid.store(4242, SeqCst); // spawned
+
+        mgr.disconnect("c1").await.unwrap();
+        assert!(
+            mgr.list_connections().await.is_empty(),
+            "the map entry goes immediately — that is the whole problem"
+        );
+        assert_eq!(
+            mgr.live_or_draining_agent_names().await,
+            vec!["Claude Code".to_string()]
+        );
+    }
+
+    /// Closing a window tears down its agents the same way, and leaves them
+    /// exiting rather than exited.
+    #[tokio::test]
+    async fn closing_a_window_also_keeps_its_children_visible() {
+        use std::sync::atomic::Ordering::SeqCst;
+        let mgr = ConnectionManager::new();
+        mgr.insert_test_connection("c1", AgentType::Codex, None, EventEmitter::Noop)
+            .await;
+        {
+            let conns = mgr.connections.lock().await;
+            conns.get("c1").unwrap().child_pid.store(777, SeqCst);
+        }
+        assert_eq!(mgr.disconnect_by_owner_window("test-window").await, 1);
+        assert_eq!(
+            mgr.live_or_draining_agent_names().await,
+            vec!["Codex CLI".to_string()]
+        );
+    }
+
+    /// A pid of zero means BOTH "reaped" and "not spawned yet", so a
+    /// connection torn down mid-spawn — which can publish a live pid moments
+    /// later — must not be dismissed. It ages out instead.
+    #[tokio::test]
+    async fn a_child_that_has_not_published_a_pid_is_still_assumed_live() {
+        let mgr = ConnectionManager::new();
+        mgr.insert_test_connection("c1", AgentType::Codex, None, EventEmitter::Noop)
+            .await;
+        mgr.disconnect("c1").await.unwrap();
+        assert_eq!(
+            mgr.live_or_draining_agent_names().await,
+            vec!["Codex CLI".to_string()],
+            "within the grace window an unpublished pid counts as running"
+        );
+
+        // Backdate past the grace: now zero can only mean finished.
+        {
+            let mut draining = mgr.draining.lock().await;
+            for child in draining.iter_mut() {
+                child.parked_at = std::time::Instant::now() - DRAIN_GRACE * 2;
+            }
+        }
+        assert!(mgr.live_or_draining_agent_names().await.is_empty());
+        assert_eq!(
+            mgr.draining.lock().await.len(),
+            0,
+            "reading prunes, so the list cannot grow without bound"
+        );
+    }
+
+    /// `spawn_agent` takes the read side of `external_restore_lock` as its
+    /// very first statement, so holding the write side is what makes a backup
+    /// restore's "are any agents running?" check a real gate rather than a
+    /// check-then-use with a multi-minute gap.
+    #[tokio::test]
+    async fn lock_out_new_connections_blocks_connection_establishment() {
+        let mgr = ConnectionManager::new();
+        let guard = mgr.lock_out_new_connections().await;
+        assert!(
+            mgr.external_restore_lock.try_read().is_err(),
+            "no connection may be established while the lockout is held"
+        );
+        drop(guard);
+        assert!(mgr.external_restore_lock.try_read().is_ok());
+    }
+    // Test-only: the budget itself is enforced at the append in
+    // `SessionState::apply_event`, so nothing in this module's production code
+    // names it — only the tests that pin the bound do.
+    use crate::acp::feedback::MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN;
     use crate::acp::session_state::SessionState;
     use crate::acp::types::ConnectionStatus;
     use crate::web::event_bridge::{EventEmitter, WebEvent, WebEventBroadcaster};
@@ -7872,6 +8165,31 @@ mod tests {
         })
     }
 
+    /// [`answer_steer`] for a test that submits more than once: answers `n`
+    /// Steer commands with the same outcome. The loop is what makes concurrent
+    /// submits resolvable — each waits on its own reply channel, so a
+    /// single-shot answerer would leave the second one hanging.
+    /// Takes a bare [`SteerOutcome`] (which is `Copy`) rather than the
+    /// `Result` [`answer_steer`] accepts, because `AcpError` is not `Clone` and
+    /// a repeated answerer has to hand out the same value more than once. No
+    /// caller needs a repeated FAILURE.
+    fn answer_steer_n(
+        mut rx: tokio::sync::mpsc::Receiver<ConnectionCommand>,
+        outcome: SteerOutcome,
+        n: usize,
+    ) -> tokio::task::JoinHandle<()> {
+        tokio::spawn(async move {
+            for _ in 0..n {
+                match rx.recv().await {
+                    Some(ConnectionCommand::Steer { reply, .. }) => {
+                        let _ = reply.send(Ok(outcome));
+                    }
+                    _ => panic!("expected a Steer command"),
+                }
+            }
+        })
+    }
+
     /// The note's instant must precede the injection reaching the agent. The
     /// adapter hands the text to the agent BEFORE it answers `injected`, so the
     /// agent can write its own transcript copy of the message while this call
@@ -7943,6 +8261,11 @@ mod tests {
                 text: "ship it".into()
             }]
         );
+        // ...and so does the NOTE: a text-only steer records no block list, so
+        // every consumer keeps rendering it from `text` alone. This is the
+        // half that keeps the attachment support below from changing the
+        // historical path.
+        assert_eq!(item.blocks, None);
 
         let state = mgr.get_state("c1").await.unwrap();
         {
@@ -7960,8 +8283,12 @@ mod tests {
     #[tokio::test]
     async fn native_submit_with_blocks_carries_the_draft_and_records_the_text() {
         // A draft with an image attachment steers as its full block list (the
-        // wire payload) while the recorded note stays the display text — the
-        // strip/snapshot/broadcast never carry image bytes.
+        // wire payload) while the recorded note's `text` stays the display
+        // form. The note ALSO carries the projected blocks, because `text` is
+        // what the composer collapsed the attachment into: without them the
+        // live transcript renders a sentence about an image where the image
+        // should be, and only a reload (which reads the agent's own copy) puts
+        // it back. Projection matches an ordinary prompt's `user_message`.
         let mgr = ConnectionManager::new();
         let rx = mgr
             .insert_test_connection_live("c1", AgentType::ClaudeCode, None, EventEmitter::Noop)
@@ -7985,8 +8312,177 @@ mod tests {
             .unwrap();
         assert_eq!(item.status, FeedbackStatus::Delivered);
         assert_eq!(item.text, "make it match this mock");
+        // The note carries the image, so the live transcript can render it at
+        // the point the user sent it rather than waiting for a reload.
+        assert_eq!(
+            item.blocks,
+            Some(vec![
+                crate::acp::types::UserMessageBlock::Text {
+                    text: "make it match this mock".into()
+                },
+                crate::acp::types::UserMessageBlock::Image {
+                    data: "aGk=".into(),
+                    mime_type: "image/png".into(),
+                },
+            ])
+        );
         // The wire carried the caller's blocks verbatim, attachment included.
         assert_eq!(fake_loop.await.unwrap(), draft);
+    }
+
+    #[tokio::test]
+    async fn a_draft_that_projects_to_text_alone_records_no_block_list() {
+        // `blocks` means "this note carried more than its text". A draft whose
+        // projection is text-only says nothing `text` does not, so recording a
+        // list for it would put one on a note the field's contract calls
+        // text-only — and the frontend would key its dedup on that list.
+        let mgr = ConnectionManager::new();
+        let rx = mgr
+            .insert_test_connection_live("c1", AgentType::ClaudeCode, None, EventEmitter::Noop)
+            .await;
+        mark_native_steering_ready(&mgr, "c1").await;
+        let fake_loop = answer_steer(rx, Ok(SteerOutcome::Injected));
+
+        let item = mgr
+            .submit_feedback(
+                "c1",
+                "just words".into(),
+                Some(vec![PromptInputBlock::Text {
+                    text: "just words".into(),
+                }]),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(item.blocks, None);
+        // The wire still carried what the caller sent — only the RECORD is
+        // trimmed, so the agent's input is untouched.
+        assert_eq!(
+            fake_loop.await.unwrap(),
+            vec![PromptInputBlock::Text {
+                text: "just words".into()
+            }]
+        );
+    }
+
+    #[tokio::test]
+    async fn steer_attachments_past_the_per_turn_budget_are_not_retained() {
+        // The budget guards what OUTLIVES the event: `SessionState.feedback`,
+        // which every snapshot is rebuilt from. So it is enforced at the append
+        // — the single authorized writer, where the check and the push share
+        // one critical section — not at the submit site, where a read, an agent
+        // round-trip and a write would let two concurrent steers both pass it.
+        //
+        // Past the budget the note still DELIVERS and the event still carries
+        // its blocks to whoever is attached right now; only the retained copy
+        // drops them, so a reconnect renders it from `text` like any text-only
+        // steer.
+        let mgr = ConnectionManager::new();
+        let rx = mgr
+            .insert_test_connection_live("c1", AgentType::ClaudeCode, None, EventEmitter::Noop)
+            .await;
+        mark_native_steering_ready(&mgr, "c1").await;
+        let fake_loop = answer_steer(rx, Ok(SteerOutcome::Injected));
+
+        let huge = "A".repeat(MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN + 1);
+        let item = mgr
+            .submit_feedback(
+                "c1",
+                "one enormous screenshot".into(),
+                Some(vec![PromptInputBlock::Image {
+                    data: huge,
+                    mime_type: "image/png".into(),
+                    uri: None,
+                }]),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            item.status,
+            FeedbackStatus::Delivered,
+            "over budget is not a rejection — the agent already has the content"
+        );
+
+        // The RETAINED note is the one that had to shed the attachment.
+        let state = mgr.get_state("c1").await.unwrap();
+        {
+            let s = state.read().await;
+            assert_eq!(s.feedback.len(), 1);
+            assert_eq!(
+                s.feedback[0].blocks, None,
+                "an over-budget attachment must not be kept for the turn"
+            );
+            assert_eq!(s.feedback[0].text, "one enormous screenshot");
+        }
+
+        // And the wire was never trimmed: the budget governs what codeg KEEPS,
+        // not what the agent receives.
+        let sent = fake_loop.await.unwrap();
+        assert!(matches!(
+            sent.as_slice(),
+            [PromptInputBlock::Image { data, .. }]
+                if data.len() == MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN + 1
+        ));
+    }
+
+    #[tokio::test]
+    async fn concurrent_over_budget_steers_cannot_both_be_retained() {
+        // The interleaving a submit-site check could not stop: two steers whose
+        // attachments each fit the budget alone but not together. The append is
+        // serialized by the state write lock, so the second one sees the first
+        // already retained and sheds its own blocks.
+        let mgr = ConnectionManager::new();
+        let rx = mgr
+            .insert_test_connection_live("c1", AgentType::ClaudeCode, None, EventEmitter::Noop)
+            .await;
+        mark_native_steering_ready(&mgr, "c1").await;
+        let fake_loop = answer_steer_n(rx, SteerOutcome::Injected, 2);
+
+        // Two thirds of the budget each: either alone is admissible, the pair
+        // is not.
+        let half = "A".repeat((MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN / 3) * 2);
+        let shot = |text: &str| {
+            let data = half.clone();
+            let text = text.to_string();
+            let mgr = &mgr;
+            async move {
+                mgr.submit_feedback(
+                    "c1",
+                    text,
+                    Some(vec![PromptInputBlock::Image {
+                        data,
+                        mime_type: "image/png".into(),
+                        uri: None,
+                    }]),
+                )
+                .await
+                .unwrap()
+            }
+        };
+        let (a, b) = tokio::join!(shot("first"), shot("second"));
+        assert_eq!(a.status, FeedbackStatus::Delivered);
+        assert_eq!(b.status, FeedbackStatus::Delivered);
+        fake_loop.await.unwrap();
+
+        let state = mgr.get_state("c1").await.unwrap();
+        let s = state.read().await;
+        assert_eq!(s.feedback.len(), 2, "both notes are still recorded");
+        let retained: usize = s
+            .feedback
+            .iter()
+            .filter_map(|f| f.blocks.as_deref())
+            .map(crate::acp::feedback::attachment_bytes)
+            .sum();
+        assert!(
+            retained <= MAX_FEEDBACK_ATTACHMENT_BYTES_PER_TURN,
+            "the aggregate bound holds across concurrent steers: retained={retained}"
+        );
+        assert_eq!(
+            s.feedback.iter().filter(|f| f.blocks.is_some()).count(),
+            1,
+            "exactly one of the pair keeps its attachment"
+        );
     }
 
     #[test]

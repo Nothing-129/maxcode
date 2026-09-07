@@ -624,11 +624,17 @@ export interface ImportResult {
   imported: number
   updated: number
   skipped: number
+  /** Soft-deleted conversations this import brought back. Only ever non-zero
+   *  for the picker, which imports sessions the user checked one by one. */
+  restored: number
 }
 
 /** Mirrors Rust `ScanSessionStatus` — how one locally-discovered session
  *  reconciles against the DB by `(external_id, agent_type)`. `deleted` means
- *  only soft-deleted rows exist; import never resurrects those. */
+ *  only soft-deleted rows exist — deletion is a soft delete, so importing such
+ *  a session RESTORES the existing row (id, history and all) instead of
+ *  inserting a second one. The picker gates that behind an explicit
+ *  "include deleted" opt-in so a select-all can never mass-resurrect. */
 export type ScanSessionStatus = "new" | "imported" | "deleted"
 
 /** Mirrors Rust `ScanSession`: one locally-discovered agent session in the
@@ -681,6 +687,7 @@ export interface ImportFolderOutcome {
   imported: number
   updated: number
   skipped: number
+  restored: number
 }
 
 /** Mirrors Rust `ImportSelectedResult` — response of
@@ -689,6 +696,8 @@ export interface ImportSelectedResult {
   imported: number
   updated: number
   skipped: number
+  /** Soft-deleted conversations the user re-selected, brought back in place. */
+  restored: number
   not_found: number
   failed: number
   created_folders: number
@@ -2926,6 +2935,15 @@ export interface FeedbackItem {
   created_at: string
   status: FeedbackStatus
   delivered_at?: string | null
+  /** What the user actually sent, when the note carried more than plain text
+   *  (image attachments). Absent for a text-only note — every pull-channel one,
+   *  and the historical native one — where `text` is the whole message.
+   *
+   *  Needed because `text` is the DISPLAY form the composer collapses a draft
+   *  into, so a steered image would otherwise reach the live transcript as
+   *  words about an image. Backend-projected by `user_blocks_from_prompt`
+   *  after hydration, the same shape `user_message` broadcasts. */
+  blocks?: UserMessageBlock[] | null
 }
 
 /** Snapshot of the most recent ACP runtime error. */
@@ -3826,7 +3844,10 @@ export interface GitHubAccount {
   provider?: ForgeProviderId | null
 }
 
-export type ForgeProviderId = "github" | "gitlab"
+/** Mirrors `forge::ForgeProvider`. `"gitea"` covers Forgejo too — it is a
+ *  Gitea fork serving the same `/api/v1`, and one wire value keeps one
+ *  instance's accounts and provenance keys from splitting in two. */
+export type ForgeProviderId = "github" | "gitlab" | "gitea"
 
 export interface GitHubAccountsSettings {
   accounts: GitHubAccount[]

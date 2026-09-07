@@ -24,7 +24,8 @@
 | Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
 | 智能体 | ACP 注册/预检、CLI 自动标题、Grok 本地化标题与历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
-| 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
+| 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
+| 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |
 | Android | 多服务器连接、安全令牌存储、健康检查、WebView 引导、OPPO 状态栏安全区和列表细节 | `bddabc51`、当前工作区 | `android.webview-client` |
 | 品牌 | MaxCode 名称、图标、文档、安装器和个人仓库链接 | `9eaecc27`、`dc86bec0`、`c7a21a24` | `branding.maxcode` |

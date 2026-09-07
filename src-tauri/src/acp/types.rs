@@ -773,7 +773,9 @@ pub enum ConfigStaleKind {
 /// `Resource` (how an `image:false` / `embedded_context:true` agent carries a
 /// pasted image — and still how a format the agent cannot decode travels) is
 /// promoted to `Image` so the viewer renders a thumbnail, not a link.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+// `Eq` because `FeedbackItem` carries these and derives it; every field is a
+// `String`, so the bound costs nothing.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum UserMessageBlock {
     Text { text: String },

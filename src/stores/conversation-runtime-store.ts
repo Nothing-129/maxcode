@@ -9,6 +9,7 @@ import { registerBackendScopedStoreReset } from "@/stores/backend-scoped-store-r
 import type {
   AgentExecutionStats,
   AgentTranscriptEntry,
+  ContentBlock,
   ConversationTurnsPage,
   DbConversationDetail,
   MessageTurn,
@@ -1278,7 +1279,14 @@ export function buildStreamingTurnsFromLiveMessage(
     if (block.type === "steering") {
       groups.push({
         role: "user",
-        blocks: [{ type: "text", text: block.text }],
+        // `blocks` is what the user actually sent and wins whenever it is
+        // there; `text` is the composer's display form, which collapses
+        // attachments into words, so falling back to it for a draft that had
+        // an image would print a sentence about the image instead of the
+        // image. Absent for a text-only steer, which is the historical shape.
+        blocks: block.blocks?.length
+          ? block.blocks
+          : [{ type: "text", text: block.text }],
         // Display only; an unreadable stamp falls back to the turn's start.
         // The persisted-copy match reads the stamp itself, not this, so it is
         // never fooled by that fallback.
@@ -1897,13 +1905,25 @@ function userTurnContentKey(turn: MessageTurn): string {
   )
 }
 
-/** The same key for a mid-turn steered message, whose persisted copy is a user
- *  turn carrying exactly its text (see `suppressPersistedSteeredPrompts`). */
-function steeredContentKey(text: string): string {
+/**
+ * The same key for a mid-turn steered message, whose persisted copy is a user
+ * turn carrying exactly what was sent (see `suppressPersistedSteeredPrompts`).
+ *
+ * Keyed on `blocks` whenever the steer carried them, because that is what the
+ * agent wrote to its transcript: keying an image-bearing steer on its text
+ * alone could never match the persisted copy (whose key folds in the full image
+ * data), so the suppression would silently stop working for exactly the
+ * messages it was added to handle. `text` remains the key for a text-only
+ * steer, which is the shape that has always come through here.
+ */
+function steeredContentKey(
+  text: string,
+  blocks?: ContentBlock[] | null
+): string {
   return userTurnContentKey({
     id: "",
     role: "user",
-    blocks: [{ type: "text", text }],
+    blocks: blocks?.length ? blocks : [{ type: "text", text }],
     timestamp: "",
   })
 }
@@ -3499,7 +3519,7 @@ function suppressPersistedSteeredPrompts(
     if (block.type !== "steering") continue
     const at = Date.parse(block.createdAt)
     if (!Number.isFinite(at)) continue
-    const key = steeredContentKey(block.text)
+    const key = steeredContentKey(block.text, block.blocks)
     steeredAt ??= new Map<string, number>()
     const known = steeredAt.get(key)
     if (known === undefined || at < known) steeredAt.set(key, at)
