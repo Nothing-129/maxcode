@@ -1647,7 +1647,7 @@
     "terminalShellNotFoundWarning": "このパスはホスト上に存在しません。",
     "terminalCurrentShell": "現在使用中: {path}",
     "colorizeCommandOutput": "コマンド出力に色を付ける",
-    "colorizeCommandOutputDescription": "エージェントが実行するコマンドに ANSI カラーを強制し、その出力をトランスクリプト上でプレーンテキストではなくカラーで表示します。",
+    "colorizeCommandOutputDescription": "エージェントが実行するコマンドに ANSI カラーを強制し、その出力をトランスクリプト上でプレーンテキストではなくカラーで表示します。新しいセッションから有効になります。",
     "colorizeCommandOutputWarning": "この設定はエージェントに CLICOLOR_FORCE=1 を渡します。多くのツールはこれを NO_COLOR より優先し、しかもエージェントが実行するすべてのコマンドに適用されます（あなたが読むものだけではありません）。有効な間は、`gh --json` を `jq` にパイプするような解析前提の出力が壊れることがあります。",
     "renderingDescription": "アプリで黒画面や描画不具合が発生する場合（Windows では一部の AMD GPU や Intel 内蔵 GPU、Linux では NVIDIA プロプライエタリドライバーで報告あり）、ハードウェアアクセラレーションを無効化してください。Windows と Linux のデスクトップ版のみ有効です。",
     "disableHardwareAcceleration": "ハードウェアアクセラレーションを無効化",

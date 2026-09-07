@@ -1647,7 +1647,7 @@
     "terminalShellNotFoundWarning": "目前主機上不存在此路徑。",
     "terminalCurrentShell": "目前使用：{path}",
     "colorizeCommandOutput": "為命令輸出著色",
-    "colorizeCommandOutputDescription": "強制智慧代理執行的命令輸出 ANSI 色彩，使其在對話記錄中以彩色而非純文字呈現。",
+    "colorizeCommandOutputDescription": "強制智慧代理執行的命令輸出 ANSI 色彩，使其在對話記錄中以彩色而非純文字呈現。對新建工作階段生效。",
     "colorizeCommandOutputWarning": "此選項會為智慧代理設定 CLICOLOR_FORCE=1，多數工具會讓它優先於 NO_COLOR，並且對智慧代理執行的每一條命令都生效，而不只是你會閱讀的那些。開啟期間，需要被解析的輸出（例如 `gh --json` 透過管線傳給 `jq`）可能會失敗。",
     "renderingDescription": "若應用出現黑屏或渲染異常（Windows 上常見於 AMD 顯示卡或部分 Intel 內顯，Linux 上常見於 NVIDIA 閉源驅動），可關閉硬體加速。僅 Windows 與 Linux 桌面端生效。",
     "disableHardwareAcceleration": "停用硬體加速",

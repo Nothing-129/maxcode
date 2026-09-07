@@ -80,7 +80,10 @@ vi.mock("@/hooks/use-feedback-enabled", () => ({
   primeFeedbackEnabled: vi.fn(),
 }))
 
-import { updateSystemTerminalSettings } from "@/lib/api"
+import {
+  getSystemTerminalSettings,
+  updateSystemTerminalSettings,
+} from "@/lib/api"
 import { GeneralSettings } from "./general-settings"
 import type { PlatformType } from "@/hooks/use-platform"
 import enMessages from "@/i18n/messages/en.json"
@@ -175,6 +178,35 @@ describe("GeneralSettings", () => {
     expect(
       screen.getByText(/CLICOLOR_FORCE=1 for the agent/)
     ).toBeInTheDocument()
+  })
+
+  /**
+   * A failed load is the one state where the switch must not be operable. The
+   * save replaces the whole stored row, so a toggle made before the row was
+   * read would send `default_shell: null` — indistinguishable from "the user
+   * picked the system shell" — and quietly discard a configured shell path.
+   * The picker is already inert here; the switch has to be too.
+   */
+  it("keeps the command-color switch inert when the settings fail to load", async () => {
+    vi.mocked(updateSystemTerminalSettings).mockClear()
+    vi.mocked(getSystemTerminalSettings).mockRejectedValueOnce(
+      new Error("backend unreachable")
+    )
+
+    renderSettings()
+
+    const colorize = await screen.findByLabelText("Colorize command output")
+    expect(colorize).toBeDisabled()
+
+    fireEvent.click(colorize)
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Load failed: backend unreachable/)
+      ).toBeInTheDocument()
+    )
+    expect(vi.mocked(updateSystemTerminalSettings)).not.toHaveBeenCalled()
+    expect(colorize).toHaveAttribute("data-state", "unchecked")
   })
 
   // The switch only means something where the backend has an env knob to flip

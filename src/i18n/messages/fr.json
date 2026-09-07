@@ -1647,7 +1647,7 @@
     "terminalShellNotFoundWarning": "Ce chemin n’existe pas sur cet hôte.",
     "terminalCurrentShell": "Actuellement utilisé : {path}",
     "colorizeCommandOutput": "Coloriser la sortie des commandes",
-    "colorizeCommandOutputDescription": "Force la couleur ANSI dans les commandes exécutées par les agents, afin que leur sortie s'affiche en couleur dans la transcription plutôt qu'en texte brut.",
+    "colorizeCommandOutputDescription": "Force la couleur ANSI dans les commandes exécutées par les agents, afin que leur sortie s'affiche en couleur dans la transcription plutôt qu'en texte brut. S'applique aux nouvelles sessions.",
     "colorizeCommandOutputWarning": "Cette option définit CLICOLOR_FORCE=1 pour l'agent. La plupart des outils lui donnent la priorité sur NO_COLOR, et elle s'applique à toutes les commandes exécutées par l'agent, pas seulement à celles que vous lisez. Les sorties destinées à être analysées, comme `gh --json` redirigé vers `jq`, peuvent échouer tant qu'elle est activée.",
     "renderingDescription": "Désactivez l’accélération matérielle si l’application affiche un écran noir ou des défauts de rendu (fréquent sur certaines GPU AMD ou GPU Intel intégrées sous Windows, et avec le pilote propriétaire NVIDIA sous Linux). N’a d’effet que sur les versions de bureau Windows et Linux.",
     "disableHardwareAcceleration": "Désactiver l’accélération matérielle",

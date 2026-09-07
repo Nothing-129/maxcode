@@ -610,13 +610,15 @@ mod tauri_app {
                     });
                 }
 
-                // Push the persisted default shell into the ACP terminal
-                // runtime BEFORE any background task that can spawn an agent
-                // (the chat-channel dispatcher below is one). The handle is
-                // read at terminal-create time, so a late seed would only ever
-                // be a narrow race — but "seeded before anything can connect"
-                // is cheap to guarantee here and matches server startup, which
-                // seeds before it binds.
+                // Push the persisted terminal settings into their live
+                // runtimes BEFORE any background task that can spawn an agent
+                // (the chat-channel dispatcher below is one). For the shell
+                // handle a late seed would only ever be a narrow race, since
+                // it is read at terminal-create time; the command-color flag
+                // is read while BUILDING a launch's env, so a late seed there
+                // would silently hand the first agent of the run the wrong
+                // one. "Seeded before anything can connect" covers both, and
+                // matches server startup, which seeds before it binds.
                 {
                     let db_for_shell = app.state::<db::AppDatabase>().conn.clone();
                     let shell_config = app.state::<ConnectionManager>().terminal_shell_config();

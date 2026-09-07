@@ -1647,7 +1647,7 @@
     "terminalShellNotFoundWarning": "이 경로는 현재 호스트에 존재하지 않습니다.",
     "terminalCurrentShell": "현재 사용 중: {path}",
     "colorizeCommandOutput": "명령 출력에 색 입히기",
-    "colorizeCommandOutputDescription": "에이전트가 실행하는 명령에 ANSI 색상을 강제해, 그 출력이 대화 기록에서 일반 텍스트가 아닌 컬러로 표시되게 합니다.",
+    "colorizeCommandOutputDescription": "에이전트가 실행하는 명령에 ANSI 색상을 강제해, 그 출력이 대화 기록에서 일반 텍스트가 아닌 컬러로 표시되게 합니다. 새 세션부터 적용됩니다.",
     "colorizeCommandOutputWarning": "이 설정은 에이전트에 CLICOLOR_FORCE=1 을 지정합니다. 대부분의 도구는 이를 NO_COLOR보다 우선하며, 읽게 될 명령뿐 아니라 에이전트가 실행하는 모든 명령에 적용됩니다. 켜져 있는 동안에는 `gh --json` 을 `jq` 로 파이프하는 것처럼 파싱을 전제로 한 출력이 깨질 수 있습니다.",
     "renderingDescription": "앱이 검은 화면이 되거나 렌더링 문제가 발생하면(Windows에서는 일부 AMD GPU 또는 Intel 내장 GPU, Linux에서는 NVIDIA 독점 드라이버에서 보고됨) 하드웨어 가속을 끄세요. Windows 및 Linux 데스크톱에서만 적용됩니다.",
     "disableHardwareAcceleration": "하드웨어 가속 비활성화",

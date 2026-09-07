@@ -1647,7 +1647,7 @@
     "terminalShellNotFoundWarning": "Dieser Pfad existiert auf diesem Host nicht.",
     "terminalCurrentShell": "Aktuell verwendet: {path}",
     "colorizeCommandOutput": "Befehlsausgabe einfärben",
-    "colorizeCommandOutputDescription": "Erzwingt ANSI-Farben in den Befehlen, die Agenten ausführen, sodass deren Ausgabe im Verlauf farbig statt als reiner Text erscheint.",
+    "colorizeCommandOutputDescription": "Erzwingt ANSI-Farben in den Befehlen, die Agenten ausführen, sodass deren Ausgabe im Verlauf farbig statt als reiner Text erscheint. Gilt ab neuen Sitzungen.",
     "colorizeCommandOutputWarning": "Dies setzt CLICOLOR_FORCE=1 für den Agenten. Die meisten Werkzeuge stellen das über NO_COLOR, und es gilt für jeden Befehl, den der Agent ausführt – nicht nur für die, die Sie lesen. Ausgaben, die maschinell ausgewertet werden sollen, etwa `gh --json` per Pipe an `jq`, können dabei fehlschlagen.",
     "renderingDescription": "Deaktivieren Sie die Hardwarebeschleunigung, wenn die App einen schwarzen Bildschirm oder Render-Fehler zeigt (häufig bei bestimmten AMD-GPUs oder integrierten Intel-GPUs unter Windows sowie beim proprietären NVIDIA-Treiber unter Linux). Wirkt sich nur auf die Windows- und Linux-Desktop-Versionen aus.",
     "disableHardwareAcceleration": "Hardwarebeschleunigung deaktivieren",

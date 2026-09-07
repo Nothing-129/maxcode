@@ -105,9 +105,14 @@ export function GeneralSettings() {
   // share one stored row, so saving the color toggle has to send the shell
   // back unchanged — and `selectedShellId`/`customShellPath` can't reconstruct
   // it (the custom row is cleared until the user presses Save).
-  const [storedDefaultShell, setStoredDefaultShell] = useState<string | null>(
-    null
-  )
+  //
+  // Tri-state, and the third state carries weight: `undefined` means the load
+  // never landed, which is NOT the same as `null` ("use the system shell").
+  // Sending `null` for an unknown shell would persist "system" over whatever
+  // the user had chosen, so the color toggle stays inert until this is known.
+  const [storedDefaultShell, setStoredDefaultShell] = useState<
+    string | null | undefined
+  >(undefined)
   const [colorizeCommandOutput, setColorizeCommandOutput] = useState(false)
 
   const [disableHwAccel, setDisableHwAccel] = useState(false)
@@ -223,6 +228,13 @@ export function GeneralSettings() {
   // backend rejected.
   const persistColorizeCommandOutput = useCallback(
     async (next: boolean, prev: boolean) => {
+      // The switch is disabled in this state; the guard is here too because a
+      // save that guessed at `default_shell` would overwrite a setting the
+      // user never touched, and that is not something to leave to one prop.
+      if (storedDefaultShell === undefined) {
+        setColorizeCommandOutput(prev)
+        return
+      }
       setSavingTerminal(true)
       try {
         const result = await updateSystemTerminalSettings({
@@ -408,8 +420,8 @@ export function GeneralSettings() {
             )}
           </SettingsSection>
 
-          {/* Command output coloring is opt-in: forcing ANSI on the agent process
-            also affects machine-readable output that agents pipe into tools. */}
+          {/* Command output coloring is opt-in because the environment reaches
+            both transcript output and machine-readable command pipelines. */}
           <SettingsSection
             icon={Palette}
             title={t("colorizeCommandOutput")}
@@ -419,7 +431,7 @@ export function GeneralSettings() {
               <Switch
                 id="colorize-command-output"
                 checked={colorizeCommandOutput}
-                disabled={savingTerminal}
+                disabled={savingTerminal || storedDefaultShell === undefined}
                 onCheckedChange={(next) => {
                   const prev = colorizeCommandOutput
                   setColorizeCommandOutput(next)

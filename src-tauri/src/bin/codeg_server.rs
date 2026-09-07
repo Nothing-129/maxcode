@@ -383,8 +383,9 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
         &chat_authoring_config,
     )
     .await;
-    // Keep ACP model terminal fallbacks aligned with the same default-shell
-    // preference used by the built-in terminal before accepting connections.
+    // Before accepting connections: keep ACP model terminal fallbacks aligned
+    // with the same default-shell preference the built-in terminal uses, and
+    // seed the command-color opt-in that every launch env is built from.
     let terminal_shell_config = state.connection_manager.terminal_shell_config();
     codeg_lib::commands::system_settings::apply_persisted_terminal_settings(
         &state.db.conn,
