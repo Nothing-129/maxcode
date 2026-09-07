@@ -916,6 +916,10 @@ pub fn build_router(
             post(handlers::acp::acp_antigravity_login_cancel),
         )
         .route(
+            "/acp_antigravity_sign_out",
+            post(handlers::acp::acp_antigravity_sign_out),
+        )
+        .route(
             "/acp_pi_project_trust_state",
             post(handlers::acp::acp_pi_project_trust_state),
         )

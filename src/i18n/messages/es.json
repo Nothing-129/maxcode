@@ -1005,6 +1005,13 @@
         "failed": "El inicio de sesión no se completó.",
         "startFailed": "No se pudo iniciar el acceso",
         "credentialHint": "El token se guarda aquí. Copia este archivo a otra máquina sin escritorio para dejarla también con la sesión iniciada."
+      },
+      "signOut": {
+        "title": "¿Iniciaste sesión con la cuenta equivocada?",
+        "description": "Antigravity guarda en caché la cuenta de Google con la que inició sesión y la reutiliza en silencio, así que volver a iniciar sesión no llega a otra cuenta. Cerrar sesión descarta la credencial guardada; las sesiones de Antigravity en curso terminan primero, porque de lo contrario volverían a escribir la cuenta anterior.",
+        "action": "Cerrar sesión",
+        "done": "Sesión cerrada. Vuelve a iniciar sesión para elegir otra cuenta.",
+        "failed": "No se pudo cerrar la sesión"
       }
     },
     "deepseek": {

@@ -1005,6 +1005,13 @@
         "failed": "登入未完成。",
         "startFailed": "無法開始登入",
         "credentialHint": "權杖快取在這裡。把這個檔案複製到其他無桌面機器，那台也就登入好了。"
+      },
+      "signOut": {
+        "title": "登入了錯誤的帳號？",
+        "description": "Antigravity 會快取登入時使用的 Google 帳號並靜默重複使用，所以再次登入也換不到別的帳號。登出會清除已儲存的憑證；正在執行的 Antigravity 工作階段會先被結束，否則它們會把舊帳號寫回去。",
+        "action": "登出",
+        "done": "已登出。重新登入即可選擇其他帳號。",
+        "failed": "登出失敗"
       }
     },
     "deepseek": {

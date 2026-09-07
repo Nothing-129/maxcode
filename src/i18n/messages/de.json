@@ -1005,6 +1005,13 @@
         "failed": "Die Anmeldung wurde nicht abgeschlossen.",
         "startFailed": "Anmeldung konnte nicht gestartet werden",
         "credentialHint": "Das Token liegt hier. Kopiere diese Datei auf weitere Rechner ohne Desktop, um sie ebenfalls anzumelden."
+      },
+      "signOut": {
+        "title": "Mit dem falschen Konto angemeldet?",
+        "description": "Antigravity speichert das angemeldete Google-Konto zwischen und verwendet es stillschweigend weiter, sodass eine erneute Anmeldung kein anderes Konto erreicht. Beim Abmelden werden die gespeicherten Anmeldedaten verworfen; laufende Antigravity-Sitzungen werden zuvor beendet, da sie sonst das alte Konto zurückschreiben würden.",
+        "action": "Abmelden",
+        "done": "Abgemeldet. Melde dich erneut an, um ein anderes Konto zu wählen.",
+        "failed": "Abmelden fehlgeschlagen"
       }
     },
     "deepseek": {

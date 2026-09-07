@@ -1473,6 +1473,7 @@ mod tauri_app {
                 acp_commands::acp_antigravity_login_start,
                 acp_commands::acp_antigravity_login_finish,
                 acp_commands::acp_antigravity_login_cancel,
+                acp_commands::acp_antigravity_sign_out,
                 acp_commands::acp_pi_project_trust_state,
                 acp_commands::acp_pi_set_project_trust,
                 acp_commands::acp_pi_acknowledge_project_trust,

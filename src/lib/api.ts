@@ -1037,6 +1037,32 @@ export async function acpAntigravityLoginCancel(handle: string): Promise<void> {
 }
 
 /**
+ * Clear the credential Antigravity is holding, so the next sign-in can reach a
+ * different Google account.
+ *
+ * Without it a signed-in Antigravity cannot switch accounts at all: the agent
+ * refreshes its cached token silently, so `acpAntigravityLoginStart` answers
+ * `alreadySignedIn` and never produces a consent link.
+ *
+ * Returns the settings.json sync report rather than a success flag. Signing out
+ * removes `auth.type` from that file, so the backend writes the saved method
+ * straight back — and a `skipped` report is the warning that it could not, and
+ * that every later session will fail with "Authentication required" until the
+ * user edits the file themselves.
+ */
+export async function acpAntigravitySignOut(): Promise<AntigravitySyncReport> {
+  // The backend spawns the agent and puts two requests to it: up to 60s for
+  // `initialize` (CPython inside a PAR, unpacked on first run) plus 60s for the
+  // sign-out itself. The transport defaults — 60s on web, 30s through the
+  // remote-desktop proxy — would abort while that child is still starting.
+  return getTransport().call(
+    "acp_antigravity_sign_out",
+    {},
+    { timeoutMs: 180_000 }
+  )
+}
+
+/**
  * Which repo-shipped pi resources a workspace ships, and whether any trust
  * decision already covers it. Read-only.
  */

@@ -1005,6 +1005,13 @@
         "failed": "O login não foi concluído.",
         "startFailed": "Não foi possível iniciar o login",
         "credentialHint": "O token fica em cache aqui. Copie este arquivo para outra máquina sem desktop para conectá-la também."
+      },
+      "signOut": {
+        "title": "Entrou com a conta errada?",
+        "description": "O Antigravity guarda em cache a conta Google usada para entrar e a reutiliza silenciosamente, então entrar de novo não chega a outra conta. Sair descarta a credencial armazenada; as sessões do Antigravity em andamento são encerradas antes, pois de outro modo gravariam a conta antiga de volta.",
+        "action": "Sair",
+        "done": "Sessão encerrada. Entre novamente para escolher outra conta.",
+        "failed": "Não foi possível sair"
       }
     },
     "deepseek": {

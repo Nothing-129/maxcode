@@ -1005,6 +1005,13 @@
         "failed": "La connexion n'a pas abouti.",
         "startFailed": "Impossible de démarrer la connexion",
         "credentialHint": "Le jeton est mis en cache ici. Copiez ce fichier sur une autre machine sans bureau pour la connecter aussi."
+      },
+      "signOut": {
+        "title": "Connecté avec le mauvais compte ?",
+        "description": "Antigravity met en cache le compte Google utilisé pour se connecter et le réutilise silencieusement : se reconnecter ne permet donc pas d'en atteindre un autre. La déconnexion supprime les identifiants enregistrés ; les sessions Antigravity en cours sont d'abord fermées, sans quoi elles réécriraient l'ancien compte.",
+        "action": "Se déconnecter",
+        "done": "Déconnecté. Reconnectez-vous pour choisir un autre compte.",
+        "failed": "Impossible de se déconnecter"
       }
     },
     "deepseek": {

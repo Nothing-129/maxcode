@@ -1005,6 +1005,13 @@
         "failed": "登录未完成。",
         "startFailed": "无法开始登录",
         "credentialHint": "令牌缓存在这里。把这个文件复制到其他无桌面机器，那台也就登录好了。"
+      },
+      "signOut": {
+        "title": "登录了错误的账号？",
+        "description": "Antigravity 会缓存登录时使用的 Google 账号并静默复用，所以再次登录也换不到别的账号。退出登录会清除已保存的凭据；正在运行的 Antigravity 会话会先被结束，否则它们会把旧账号写回去。",
+        "action": "退出登录",
+        "done": "已退出登录。重新登录即可选择其他账号。",
+        "failed": "退出登录失败"
       }
     },
     "deepseek": {

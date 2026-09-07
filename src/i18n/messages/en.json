@@ -1005,6 +1005,13 @@
         "failed": "Sign-in did not complete.",
         "startFailed": "Could not start the sign-in",
         "credentialHint": "The token is cached here. Copy this file to another machine with no desktop to sign that one in too."
+      },
+      "signOut": {
+        "title": "Signed in as the wrong account?",
+        "description": "Antigravity caches the Google account it signed in as and reuses it silently, so signing in again cannot reach a different one. Signing out discards the stored credential; any running Antigravity sessions end first, because they would otherwise write the old account back.",
+        "action": "Sign out",
+        "done": "Signed out. Sign in again to pick a different account.",
+        "failed": "Could not sign out"
       }
     },
     "deepseek": {

@@ -736,6 +736,69 @@ pub fn is_antigravity_auth_method(method_id: &str) -> bool {
     ANTIGRAVITY_AUTH_METHODS.contains(&method_id)
 }
 
+/// What codeg can say about the method the ACP server will authenticate with.
+///
+/// Three states, and [`Unreadable`](Self::Unreadable) is emphatically not a
+/// flavor of [`Absent`](Self::Absent). The server parses Hjson and codeg only
+/// strict JSON, so a file codeg cannot read is one the SERVER can — it names a
+/// method, codeg just cannot see which. Collapsing the two would let a caller
+/// treat "I have no idea" as "there is nothing there", which for the sign-out
+/// means aiming `logout` at a flavor with nothing to clear and reporting the
+/// `{}` it answers as a success.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AntigravityAuthType {
+    /// The file names this method, in its canonical spelling.
+    Declared(String),
+    /// No file, or a file that names no method. The server has nothing to
+    /// infer from either, and falls back to its own defaults.
+    Absent,
+    /// codeg could not read or parse it. The server still can.
+    Unreadable,
+}
+
+/// The `auth.type` the ACP server will actually authenticate with, read from
+/// the file the server reads it from.
+///
+/// Deliberately NOT the method in the stored row. The two normally agree —
+/// every launch runs [`sync_antigravity_settings_file`] — but the file is the
+/// only thing the server consults (`_infer_auth_state`), so it is also what
+/// decides which flavor of credential a sign-out actually clears.
+pub fn antigravity_effective_auth_type(
+    runtime_env: &BTreeMap<String, String>,
+) -> AntigravityAuthType {
+    let Ok(acp_dir) = antigravity_acp_dir_for_env(runtime_env) else {
+        // The directory itself cannot be named, so neither can the file.
+        return AntigravityAuthType::Unreadable;
+    };
+    let parsed = match read_antigravity_settings(&acp_dir.join("settings.json")) {
+        // `Ok(None)` is specifically "no such file", which IS positive
+        // knowledge: there is no method there to find.
+        Ok(None) => return AntigravityAuthType::Absent,
+        Ok(Some(parsed)) => parsed,
+        Err(_) => return AntigravityAuthType::Unreadable,
+    };
+    parsed
+        .get("auth")
+        .and_then(|auth| auth.get("type"))
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        // The server resolves the legacy spelling before it tests membership,
+        // so a caller matching on canonical ids would otherwise miss it.
+        .map(|value| AntigravityAuthType::Declared(
+            canonical_antigravity_auth_method(value).to_string(),
+        ))
+        .unwrap_or(AntigravityAuthType::Absent)
+}
+
+/// The pre-rebrand `vertex-ai` spelling resolved to the id codeg uses.
+fn canonical_antigravity_auth_method(method: &str) -> &str {
+    match method {
+        "vertex-ai" => "agent-platform",
+        other => other,
+    }
+}
+
 /// `<GEMINI_HOME>/antigravity-acp` for a launch carrying `runtime_env`, for
 /// callers outside this module that need to name a file the agent keeps there
 /// (its OAuth token, alongside the `settings.json` this module writes).
@@ -15838,6 +15901,94 @@ mod tests {
         std::fs::write(&path, r#"{"auth":{"type":"oauth-business"},"keep":1}"#).unwrap();
         let parsed = read_antigravity_settings(&path).unwrap().unwrap();
         assert_eq!(parsed["keep"], 1);
+    }
+
+    /// The sign-out asks this instead of reading the stored row, because the
+    /// row is not what the server infers from. Getting it wrong means aiming
+    /// `logout` at a flavor that has nothing to clear — which it answers `{}`
+    /// to, so the mistake would be reported to the user as a sign-out.
+    #[test]
+    fn antigravity_effective_auth_type_reads_the_file_the_server_reads() {
+        let dir = tempfile::tempdir().unwrap();
+        let acp_dir = dir.path().join("antigravity-acp");
+        std::fs::create_dir_all(&acp_dir).unwrap();
+        let path = acp_dir.join("settings.json");
+        let home = || {
+            BTreeMap::from([(
+                "GEMINI_HOME".to_string(),
+                dir.path().to_string_lossy().to_string(),
+            )])
+        };
+
+        let declared = |method: &str| AntigravityAuthType::Declared(method.to_string());
+
+        // No file at all: positive knowledge that there is no method to find,
+        // so the server has nothing to infer from and clears both flavors.
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            AntigravityAuthType::Absent
+        );
+
+        std::fs::write(&path, r#"{"auth":{"type":"oauth-business"}}"#).unwrap();
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            declared("oauth-business")
+        );
+
+        // The FILE wins over the row, which is the whole reason this exists:
+        // the two can disagree (a hand edit, a sync codeg was refused) and only
+        // one of them is what the agent authenticates with.
+        let mut disagreeing = antigravity_runtime("oauth-personal");
+        disagreeing.extend(home());
+        assert_eq!(
+            antigravity_effective_auth_type(&disagreeing),
+            declared("oauth-business")
+        );
+
+        // The legacy spelling resolves, as it does server-side before the
+        // membership test — otherwise a caller matching canonical ids would
+        // read `vertex-ai` as "some OAuth method" and sign out of nothing.
+        std::fs::write(&path, r#"{"auth":{"type":"vertex-ai"}}"#).unwrap();
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            declared("agent-platform")
+        );
+
+        // An `auth` block with no type, and a blank one, are both "no method" —
+        // still positive knowledge, because codeg read the file.
+        std::fs::write(&path, r#"{"auth":{"scopes":[]}}"#).unwrap();
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            AntigravityAuthType::Absent
+        );
+        std::fs::write(&path, r#"{"auth":{"type":"   "}}"#).unwrap();
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            AntigravityAuthType::Absent
+        );
+
+        // Hjson: the server reads it and codeg does not, so the method is
+        // whatever that file says. NOT `Absent` — this is the distinction the
+        // whole enum exists for. A caller that treated it as "nothing there"
+        // would sign out of a `gemini-api-key` connection, clear nothing, and
+        // be told `{}`.
+        std::fs::write(&path, "{\n  // mine\n  \"auth\": {\"type\": \"oauth-personal\"},\n}\n")
+            .unwrap();
+        assert_eq!(
+            antigravity_effective_auth_type(&home()),
+            AntigravityAuthType::Unreadable
+        );
+
+        // And a home that cannot be named at all is unknown for the same
+        // reason: there is a file somewhere, codeg just cannot say where.
+        let unnameable = BTreeMap::from([
+            ("HOME".to_string(), String::new()),
+            ("GEMINI_HOME".to_string(), String::new()),
+        ]);
+        assert_eq!(
+            antigravity_effective_auth_type(&unnameable),
+            AntigravityAuthType::Unreadable
+        );
     }
 
     #[test]
