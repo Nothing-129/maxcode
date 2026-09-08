@@ -1648,7 +1648,6 @@
     "terminalCurrentShell": "当前使用：{path}",
     "colorizeCommandOutput": "为命令输出着色",
     "colorizeCommandOutputDescription": "强制智能体运行的命令输出 ANSI 颜色，使其在会话记录中以彩色而非纯文本呈现。对新建会话生效。",
-    "colorizeCommandOutputWarning": "该选项会为智能体设置 CLICOLOR_FORCE=1，多数工具会让它优先于 NO_COLOR，并且对智能体运行的每一条命令都生效，而不仅是你会阅读的那些。开启期间，需要被解析的输出（例如 `gh --json` 通过管道传给 `jq`）可能会失败。",
     "renderingDescription": "如果应用出现黑屏或渲染异常（Windows 上常见于 AMD 显卡或部分 Intel 集成显卡，Linux 上常见于 NVIDIA 闭源驱动），可关闭硬件加速。仅 Windows 与 Linux 桌面端生效。",
     "disableHardwareAcceleration": "禁用硬件加速",
     "renderingSaveFailed": "渲染设置保存失败：{message}",

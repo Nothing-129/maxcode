@@ -444,13 +444,7 @@ export function GeneralSettings() {
                 }}
               />
             }
-          >
-            {colorizeCommandOutput && (
-              <p className="text-2xs text-amber-500">
-                {t("colorizeCommandOutputWarning")}
-              </p>
-            )}
-          </SettingsSection>
+          />
 
           {renderingSectionVisible && (
             // Titled by the option, not by the category it belongs to: the switch

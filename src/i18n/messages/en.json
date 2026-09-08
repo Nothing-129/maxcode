@@ -1648,7 +1648,6 @@
     "terminalCurrentShell": "Currently using: {path}",
     "colorizeCommandOutput": "Colorize command output",
     "colorizeCommandOutputDescription": "Force ANSI color out of the commands agents run, so their output renders in color in the transcript instead of as plain text. Takes effect on new sessions.",
-    "colorizeCommandOutputWarning": "This sets CLICOLOR_FORCE=1 for the agent, which most tools honor over NO_COLOR, and it applies to every command the agent runs — not just the ones you read. Output meant to be parsed, such as `gh --json` piped into `jq`, can break while this is on.",
     "renderingDescription": "Disable hardware acceleration if the app shows a black screen or rendering glitches (common on certain AMD GPUs or Intel integrated GPUs on Windows, and with the proprietary NVIDIA driver on Linux). Only takes effect on the Windows and Linux desktop builds.",
     "disableHardwareAcceleration": "Disable hardware acceleration",
     "renderingSaveFailed": "Failed to save rendering settings: {message}",
