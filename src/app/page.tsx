@@ -2,17 +2,18 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { isDesktop } from "@/lib/platform"
+import { isNativeDesktop } from "@/lib/platform"
+import { getCodegToken } from "@/lib/transport/web-auth"
 
 export default function Page() {
   const router = useRouter()
   useEffect(() => {
-    if (isDesktop()) {
+    if (isNativeDesktop()) {
       router.replace("/workspace")
       return
     }
     // Web mode: validate token before entering app
-    const token = localStorage.getItem("codeg_token")
+    const token = getCodegToken()
     if (!token) {
       router.replace("/login")
       return

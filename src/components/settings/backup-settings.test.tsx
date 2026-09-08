@@ -43,10 +43,14 @@ vi.mock("@/lib/api", () => ({
   uploadBackupWeb: vi.fn(async () => "u1"),
 }))
 
+let electron = false
+vi.mock("@/lib/electron", () => ({ isElectron: () => electron }))
+
 const restartApp = vi.fn()
+const relaunchApp = vi.fn()
 const waitForServerHealthy = vi.fn(async () => true)
 vi.mock("@/lib/updater", () => ({
-  relaunchApp: vi.fn(),
+  relaunchApp: () => relaunchApp(),
   restartApp: () => restartApp(),
   waitForServerHealthy: () => waitForServerHealthy(),
 }))
@@ -125,6 +129,8 @@ async function openRestoreTab() {
 beforeEach(() => {
   vi.clearAllMocks()
   progressHandler = null
+  electron = false
+  relaunchApp.mockResolvedValue(undefined)
   restartApp.mockResolvedValue(undefined)
   waitForServerHealthy.mockResolvedValue(true)
   vi.mocked(listSafetySnapshots).mockResolvedValue([])
@@ -286,6 +292,39 @@ describe("BackupSettings — restore", () => {
       screen.getByRole("button", { name: t.restore.result.restartNow })
     )
     await waitFor(() => expect(restartApp).toHaveBeenCalled())
+  })
+
+  it("relaunches Electron after showing staged results, without restarting the server directly", async () => {
+    electron = true
+    vi.mocked(stageRestoreWeb).mockResolvedValue({
+      needsRestart: true,
+      restartDelayMs: 0,
+      staged: {
+        stagingDir: "/data/.codeg-restore-staging/op1",
+        manifest: manifest(),
+        skippedConflicts: [],
+      },
+    } as never)
+    renderSettings()
+    await openRestoreTab()
+    await selectBackup({
+      encrypted: false,
+      needsPassphrase: false,
+      manifest: manifest(),
+      compatible: true,
+    })
+    fireEvent.click(screen.getByRole("button", { name: t.restore.button }))
+    fireEvent.click(
+      await screen.findByRole("button", { name: t.restore.confirmAction })
+    )
+    const restart = await screen.findByRole("button", {
+      name: t.restore.result.restartNow,
+    })
+    expect(relaunchApp).not.toHaveBeenCalled()
+    fireEvent.click(restart)
+    await waitFor(() => expect(relaunchApp).toHaveBeenCalledOnce())
+    expect(restartApp).not.toHaveBeenCalled()
+    expect(waitForServerHealthy).not.toHaveBeenCalled()
   })
 
   it("does NOT poll health and reload when the restart request fails", async () => {

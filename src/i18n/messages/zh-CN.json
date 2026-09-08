@@ -322,6 +322,7 @@
     "stepRestart": "重启",
     "updateReadyHint": "新版本已下载，重启以完成更新。",
     "restarting": "正在重启…",
+    "electronUpgradeHint": "Electron 桌面端需要通过安装包升级。请从发布页面下载 Electron 安装包，安装后重新打开 MaxCode。",
     "dockerUpgradeHint": "现在升级的是正在运行的容器。容器一旦被重建即丢失——如需保留，请拉取或构建新版本镜像后重建容器。",
     "upgradeRolledBack": "升级失败，服务器已自动回滚到上一版本。",
     "serverUnreachable": "无法连接到服务器以开始升级。请确认服务器正在运行后重试。",

@@ -19,7 +19,7 @@ Codeg（Code Generation）是一个多智能体编码工作台，它将多个智
 
 ## 技术栈
 
-- **桌面运行时**: Tauri 2（Rust 后端 + webview 前端）
+- **桌面运行时**: Electron（`electron/` 主进程 + preload，复用无 Tauri feature 的 Rust 服务）；旧 Tauri 壳暂时保留
 - **服务器运行时**: 独立 Rust 二进制（Axum HTTP + WebSocket）
 - **前端**: Next.js 16（静态导出模式）+ React 19 + TypeScript（strict）
 - **样式**: Tailwind CSS v4 + shadcn/ui（radix-maia 风格）
@@ -42,7 +42,11 @@ pnpm build                     # 静态导出构建
 ### 后端 Rust（在 `src-tauri/` 目录下执行）
 
 ```bash
-# 桌面模式（默认 feature）
+# Electron 桌面后端
+cargo check --no-default-features --features native-keyring --bin codeg-server --bin codeg-mcp
+cargo test --no-default-features --features native-keyring --bin codeg-server --lib
+
+# 旧 Tauri 桌面模式（默认 feature）
 cargo check
 cargo test --features test-utils
 cargo clippy --all-targets --features test-utils -- -D warnings
@@ -63,6 +67,18 @@ INSTA_UPDATE=auto cargo test --features test-utils     # 自动写新 .snap
 
 ### 本地桌面安装包（macOS Apple Silicon）
 
+当前桌面入口使用 Electron：
+
+```bash
+pnpm desktop:dev
+pnpm electron:build:dmg
+```
+
+产物位于 `electron/dist/`；详细流程见 `electron/README.md`。Electron 复用
+`src-tauri/target/release` 中无默认 feature 的后端和 MCP 伴生进程。
+
+以下命令只用于保留的旧 Tauri 构建：
+
 本机 host 已是 `aarch64-apple-darwin` 时，打 arm64 DMG **不要**加 `--target`，沿用 `src-tauri/target/release` 缓存：
 
 ```bash
@@ -78,9 +94,13 @@ pnpm tauri:build:dmg
 
 ### 双模式运行
 
+Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
+`codeg-server` 子进程，通过 HTTP/WebSocket 复用共享业务。`electron/preload.cjs`
+提供受限原生能力，打包配置为 `electron/electron-builder.cjs`。
+
 项目通过 Cargo feature flags 支持三种二进制：
 
-- **`codeg`**（`tauri-runtime`，默认）：完整桌面应用，包含 Tauri 窗口管理、系统通知、自动更新等
+- **`codeg`**（`tauri-runtime`，默认 feature）：保留的旧 Tauri 桌面应用
 - **`codeg-server`**（无 feature，`--no-default-features`）：独立服务器模式，仅编译 Axum HTTP API + WebSocket
 - **`codeg-mcp`**（无 feature）：per-launch stdio MCP 伴生进程，被注入到代理 CLI 的 MCP 配置中，向 LLM 暴露**异步**子智能体委托工具。
 
@@ -120,7 +140,8 @@ pnpm tauri:build:dmg
 
 ### 数据流
 
-桌面模式：前端 `invoke()` → Tauri 命令 → 业务逻辑 → 返回数据
+Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享业务；原生操作通过 preload → Electron IPC
+旧 Tauri 桌面：前端 `invoke()` → Tauri 命令 → 业务逻辑 → 返回数据
 服务器模式：前端 `fetch()` → Axum HTTP API → 同一业务逻辑 → 返回 JSON
 实时通信：后端事件 → EventEmitter（Tauri 事件 / WebSocket 广播）→ 前端
 

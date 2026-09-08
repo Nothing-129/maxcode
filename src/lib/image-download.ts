@@ -1,4 +1,5 @@
 import { isDesktop } from "@/lib/platform"
+import { getElectronBridge } from "./electron"
 
 /**
  * Save an inline base64 image to user-chosen disk location.
@@ -18,6 +19,17 @@ export async function downloadImage(opts: {
   suggestedName: string
 }): Promise<boolean> {
   const { data, mime_type, suggestedName } = opts
+
+  const electron = getElectronBridge()
+  if (electron) {
+    return !!(await electron.saveFile(
+      {
+        defaultPath: suggestedName,
+        filters: [{ name: "Image", extensions: [extensionForMime(mime_type)] }],
+      },
+      base64ToUint8Array(data)
+    ))
+  }
 
   if (isDesktop()) {
     const { save } = await import("@tauri-apps/plugin-dialog")

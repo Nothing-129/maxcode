@@ -13,6 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { openUrl } from "@/lib/platform"
+import { isElectron } from "@/lib/electron"
 import {
   appUpdateErrorMessageKey,
   normalizeAppUpdateError,
@@ -433,6 +434,12 @@ export function StatusBarUpdate() {
               className="max-h-48 overflow-auto rounded-md border bg-background/70 px-2.5 py-2 text-xs"
             />
           </div>
+        )}
+
+        {isElectron() && (
+          <p className="text-2xs leading-5 text-muted-foreground/80">
+            {t("electronUpgradeHint")}
+          </p>
         )}
 
         {/* Docker upgrades only live as long as the container does. */}

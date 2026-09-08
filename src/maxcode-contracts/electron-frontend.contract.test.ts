@@ -1,0 +1,239 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import type { ElectronBridge } from "@/lib/electron"
+import { detectEnvironment } from "@/lib/transport/detect"
+import { WebTransport } from "@/lib/transport/web-transport"
+import { getCodegToken, redirectToCodegLogin } from "@/lib/transport/web-auth"
+import {
+  closeCurrentWindow,
+  isDesktop,
+  isLocalDesktop,
+  openFileDialog,
+  openPath,
+  openUrl,
+  revealItemInDir,
+} from "@/lib/platform"
+import {
+  deliverSystemNotification,
+  getNotificationPermission,
+} from "@/lib/notification"
+import { saveTextFile } from "@/lib/save-file"
+import {
+  checkAppUpdateInfo,
+  getAppUpdateState,
+  getCurrentAppVersion,
+  getServerUpdateStatus,
+  restartApp,
+  relaunchApp,
+  rollbackServer,
+  startAppUpdate,
+  subscribeAppUpdateState,
+} from "@/lib/updater"
+
+const backend = vi.hoisted(() => ({
+  call: vi.fn(),
+  subscribe: vi.fn(),
+  remoteId: null as number | null,
+}))
+
+vi.mock("@/lib/transport", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/transport")>()),
+  getTransport: () => backend,
+  getShellTransport: () => backend,
+  getActiveRemoteConnectionId: () => backend.remoteId,
+}))
+
+let bridge: ElectronBridge
+
+beforeEach(() => {
+  vi.clearAllMocks()
+  backend.remoteId = null
+  bridge = {
+    platform: "darwin",
+    version: "0.50.0",
+    backendUrl: window.location.origin,
+    token: "fresh-launch-token",
+    openExternal: vi.fn(async () => {}),
+    openPath: vi.fn(async () => {}),
+    revealItemInDir: vi.fn(async () => {}),
+    openFileDialog: vi.fn(async () => ["/Users/me/project"]),
+    saveFile: vi.fn(async () => "/Users/me/export.txt"),
+    closeWindow: vi.fn(async () => {}),
+    relaunchApp: vi.fn(async () => {}),
+    minimizeWindow: vi.fn(async () => {}),
+    toggleMaximizeWindow: vi.fn(async () => {}),
+    isMaximized: vi.fn(async () => false),
+    notify: vi.fn(async () => true),
+    openNotificationSettings: vi.fn(async () => {}),
+  }
+  Object.defineProperty(window, "maxcodeElectron", {
+    configurable: true,
+    value: bridge,
+  })
+  localStorage.setItem("codeg_token", "stale-browser-token")
+})
+
+afterEach(() => {
+  Reflect.deleteProperty(window, "maxcodeElectron")
+  localStorage.clear()
+  vi.unstubAllGlobals()
+})
+
+describe("MaxCode contract: Electron uses the managed local server", () => {
+  it("offers native file actions while keeping Tauri IPC branches disabled", () => {
+    expect(detectEnvironment()).toBe("electron")
+    expect(isDesktop()).toBe(false)
+    expect(isLocalDesktop()).toBe(true)
+  })
+
+  it("authenticates HTTP using the current launch token without persisting it", async () => {
+    const fetch = vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ version: "0.50.0" }),
+    }))
+    vi.stubGlobal("fetch", fetch)
+    const transport = new WebTransport(bridge.backendUrl)
+    try {
+      await transport.call("health")
+      expect(fetch).toHaveBeenCalledWith(
+        `${bridge.backendUrl}/api/health`,
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            Authorization: "Bearer fresh-launch-token",
+          }),
+        })
+      )
+      expect(getCodegToken()).toBe("fresh-launch-token")
+      expect(localStorage.getItem("codeg_token")).toBe("stale-browser-token")
+      const location = window.location.href
+      redirectToCodegLogin()
+      expect(window.location.href).toBe(location)
+    } finally {
+      transport.destroy()
+    }
+  })
+
+  it("opens native paths, external URLs, directory dialogs and closes child windows", async () => {
+    await openUrl("https://example.com/releases")
+    await openPath("/Users/me/report.pdf")
+    await revealItemInDir("/Users/me/report.pdf")
+    await expect(openFileDialog({ directory: true })).resolves.toBe(
+      "/Users/me/project"
+    )
+    await expect(
+      openFileDialog({ directory: true, multiple: true })
+    ).resolves.toEqual(["/Users/me/project"])
+    await closeCurrentWindow()
+    expect(bridge.openExternal).toHaveBeenCalledWith(
+      "https://example.com/releases"
+    )
+    expect(bridge.openPath).toHaveBeenCalledWith("/Users/me/report.pdf")
+    expect(bridge.revealItemInDir).toHaveBeenCalledWith("/Users/me/report.pdf")
+    expect(bridge.closeWindow).toHaveBeenCalledOnce()
+    expect(backend.call).not.toHaveBeenCalled()
+  })
+
+  it("authenticates WebSocket events with the launch token outside the URL", () => {
+    const connect = vi.fn()
+    class Socket {
+      static OPEN = 1
+      static CONNECTING = 0
+      readyState = 0
+      constructor(url: string, protocols: string[]) {
+        connect(url, protocols)
+      }
+      close() {}
+    }
+    vi.stubGlobal("WebSocket", Socket)
+    const transport = new WebTransport(bridge.backendUrl)
+    try {
+      transport.eventStream()
+      expect(connect).toHaveBeenCalledWith(
+        `${bridge.backendUrl.replace(/^http/, "ws")}/ws/events`,
+        ["codeg-events", `codeg-token.${btoa(bridge.token).replace(/=+$/, "")}`]
+      )
+    } finally {
+      transport.destroy()
+    }
+  })
+
+  it("never reveals a remote workspace path on the local machine", async () => {
+    backend.remoteId = 7
+    expect(isLocalDesktop()).toBe(false)
+    await openPath("/remote/workspace")
+    await revealItemInDir("/remote/workspace")
+    expect(bridge.openPath).not.toHaveBeenCalled()
+    expect(bridge.revealItemInDir).not.toHaveBeenCalled()
+  })
+
+  it("keeps notification permission honest and reports native delivery failure", async () => {
+    expect(getNotificationPermission()).toBe("managed_by_os")
+    await deliverSystemNotification("MaxCode", "Ready")
+    expect(bridge.notify).toHaveBeenCalledWith("MaxCode", "Ready")
+    vi.mocked(bridge.notify).mockResolvedValue(false)
+    await expect(deliverSystemNotification("MaxCode", "Ready")).rejects.toThrow(
+      "unavailable"
+    )
+    expect(backend.call).not.toHaveBeenCalled()
+  })
+
+  it("saves UTF-8 through the native dialog and preserves cancellation and write failures", async () => {
+    const options = {
+      content: "你好 Electron",
+      suggestedName: "export.txt",
+      mimeType: "text/plain",
+      filterName: "Text",
+      ext: "txt",
+    }
+    await expect(saveTextFile(options)).resolves.toBe("saved")
+    const bytes = vi.mocked(bridge.saveFile).mock.calls[0][1]
+    expect(new TextDecoder().decode(bytes)).toBe(options.content)
+    vi.mocked(bridge.saveFile).mockResolvedValue(null)
+    await expect(saveTextFile(options)).resolves.toBe("cancelled")
+    vi.mocked(bridge.saveFile).mockRejectedValue(new Error("Disk full"))
+    await expect(saveTextFile(options)).rejects.toThrow("Disk full")
+  })
+})
+
+describe("MaxCode contract: Electron update ownership", () => {
+  it("relaunches the owning shell to apply staged backup data", async () => {
+    await relaunchApp()
+    expect(bridge.relaunchApp).toHaveBeenCalledOnce()
+    expect(backend.call).not.toHaveBeenCalled()
+  })
+
+  it("offers release information without advertising server binary replacement", async () => {
+    backend.call.mockResolvedValue({
+      currentVersion: "0.49.0",
+      update: { version: "0.51.0", body: "Release notes" },
+      selfUpdateSupported: true,
+      liveProgress: true,
+      rollbackAvailable: true,
+      runtime: "binary",
+    })
+    await expect(checkAppUpdateInfo()).resolves.toEqual({
+      currentVersion: "0.50.0",
+      update: { version: "0.51.0", body: "Release notes" },
+      selfUpdateSupported: false,
+      liveProgress: false,
+      rollbackAvailable: false,
+      runtime: "electron",
+    })
+    await expect(getCurrentAppVersion()).resolves.toBe("0.50.0")
+    await expect(getServerUpdateStatus()).resolves.toBeNull()
+  })
+
+  it("cannot install, restart or roll back the bundled server through updater APIs", async () => {
+    await expect(getAppUpdateState()).resolves.toEqual({
+      seq: 0,
+      status: "idle",
+    })
+    const unlisten = await subscribeAppUpdateState(vi.fn())
+    unlisten()
+    for (const action of [startAppUpdate, restartApp, rollbackServer]) {
+      await expect(action()).rejects.toThrow("Electron desktop release")
+    }
+    expect(backend.call).not.toHaveBeenCalled()
+    expect(backend.subscribe).not.toHaveBeenCalled()
+  })
+})

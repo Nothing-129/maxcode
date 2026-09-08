@@ -1,6 +1,9 @@
-use std::path::PathBuf;
+use std::future::IntoFuture;
+use std::io::Write;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::Arc;
+use std::time::Duration;
 
 use codeg_lib::app_state::AppState;
 use codeg_lib::web::event_bridge::{EventEmitter, WebEventBroadcaster};
@@ -21,6 +24,28 @@ fn main() -> ExitCode {
         println!("{}", env!("CARGO_PKG_VERSION"));
         return ExitCode::SUCCESS;
     }
+
+    let electron = if codeg_lib::update::runtime::is_electron() {
+        match ElectronLaunch::validate(
+            std::env::var("CODEG_HOST").ok().as_deref(),
+            std::env::var("CODEG_TOKEN").ok().as_deref(),
+            std::env::var_os("CODEG_ELECTRON_READY_FILE").map(PathBuf::from),
+        ) {
+            Ok(launch) if !args.iter().any(|arg| arg == "--supervise") => Some(launch),
+            Ok(_) => {
+                eprintln!(
+                    "[SERVER] Electron owns the backend lifecycle; --supervise is unavailable"
+                );
+                return ExitCode::from(2);
+            }
+            Err(message) => {
+                eprintln!("[SERVER] Invalid Electron launch: {message}");
+                return ExitCode::from(2);
+            }
+        }
+    } else {
+        None
+    };
 
     // `--supervise`: run as the process supervisor that owns the worker's
     // lifecycle (PID 1 in Docker). It spawns `codeg-server` without this
@@ -128,10 +153,20 @@ fn main() -> ExitCode {
         .enable_all()
         .build()
         .expect("Failed to build tokio runtime")
-        .block_on(async_main())
+        .block_on(async_main(electron))
 }
 
-async fn async_main() -> ExitCode {
+async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
+    // Register shutdown handling during startup, before channels or ACP
+    // sessions can launch children. A signal received while initializing is
+    // retained until the main loop can clean up the shared managers.
+    let electron_owned = electron.is_some();
+    let mut shutdown_requested = tokio::spawn(async move {
+        tokio::select! {
+            _ = wait_for_shutdown() => {}
+            _ = wait_for_electron_parent(electron_owned) => {}
+        }
+    });
     // Sweep stale ACP binary cache trash (rename-aside fallback artifacts).
     // Detached OS thread: cannot block startup, panics are caught and dropped,
     // errors are silenced, no subprocesses spawned.
@@ -145,7 +180,11 @@ async fn async_main() -> ExitCode {
         .ok()
         .and_then(|v| v.parse().ok())
         .unwrap_or(3080);
-    let host = std::env::var("CODEG_HOST").unwrap_or_else(|_| "0.0.0.0".to_string());
+    let host = if electron.is_some() {
+        "127.0.0.1".to_string()
+    } else {
+        std::env::var("CODEG_HOST").unwrap_or_else(|_| "0.0.0.0".to_string())
+    };
     // CODEG_DATA_DIR was already resolved and absolutized in `main()` so
     // all path resolvers across the process see the same root. Read it
     // back rather than re-deriving the default.
@@ -161,7 +200,10 @@ async fn async_main() -> ExitCode {
     // this freshly-swapped version is still unproven (re-swapping would clobber
     // the only good `.bak` and make a trial-failure rollback restore the
     // unproven version).
-    if codeg_lib::update::runtime::is_supervised() {
+    if electron.is_some() {
+        // The shell owns the bundle: never inspect or clear server upgrade
+        // markers next to the packaged backend executable.
+    } else if codeg_lib::update::runtime::is_supervised() {
         // Supervised trial: if this launch is the trial of a freshly-swapped
         // version (marker present), keep the marker until we have stayed up
         // past the trial window — at which point the upgrade is proven and the
@@ -202,12 +244,18 @@ async fn async_main() -> ExitCode {
     // persisted and reused across restarts (a self-update restart must not
     // rotate it). An empty/whitespace CODEG_TOKEN is treated as unset.
     let mut token_generated = false;
-    let token = resolve_persisted_server_token(
-        &db.conn,
-        std::env::var("CODEG_TOKEN").ok(),
-        &mut token_generated,
-    )
-    .await;
+    let token = if let Some(launch) = &electron {
+        // The shell supplies an ephemeral launch secret. Do not persist it in
+        // the user's database or fall back to a long-lived server token.
+        launch.token.clone()
+    } else {
+        resolve_persisted_server_token(
+            &db.conn,
+            std::env::var("CODEG_TOKEN").ok(),
+            &mut token_generated,
+        )
+        .await
+    };
     if token_generated {
         // Operator-facing startup notice on stderr ONLY: the access token is a
         // bearer credential and must never enter the durable log files or the
@@ -537,7 +585,7 @@ async fn async_main() -> ExitCode {
         state.clone(),
         token.clone(),
         static_dir,
-        shutdown_signal,
+        shutdown_signal.clone(),
     );
 
     // Bind
@@ -546,6 +594,7 @@ async fn async_main() -> ExitCode {
         Ok(listener) => listener,
         Err(e) => {
             tracing::error!("[SERVER] Failed to bind {}: {}", addr, e);
+            cleanup_children(&state).await;
             return ExitCode::from(1);
         }
     };
@@ -575,25 +624,212 @@ async fn async_main() -> ExitCode {
 
     // Token on stderr ONLY (bearer credential — keep it out of the log files
     // and the in-app viewer); the bind addresses are safe to log normally.
-    eprintln!("[SERVER] Token: {}", token);
+    if electron.is_none() {
+        eprintln!("[SERVER] Token: {}", token);
+    }
     tracing::info!("[SERVER] Listening on:");
     for addr in &addresses {
         tracing::info!("  {}", addr);
     }
 
-    // Start serving
-    if let Err(e) = axum::serve(listener, router).await {
+    // The shell reads only the port from a private, atomically published file.
+    // It never has to parse log lines or put a bearer token in a window URL.
+    let _ready_file = if let Some(launch) = &electron {
+        match ElectronReadyFile::publish(&launch.ready_file, actual_port) {
+            Ok(ready_file) => Some(ready_file),
+            Err(e) => {
+                tracing::error!("[SERVER] Failed to publish Electron readiness: {e}");
+                cleanup_children(&state).await;
+                return ExitCode::from(1);
+            }
+        }
+    } else {
+        None
+    };
+
+    let graceful_signal = shutdown_signal.clone();
+    let mut server = Box::pin(
+        axum::serve(listener, router)
+            .with_graceful_shutdown(async move { graceful_signal.wait().await })
+            .into_future(),
+    );
+    let result = tokio::select! {
+        result = &mut server => result,
+        _ = &mut shutdown_requested => {
+            tracing::info!("[SERVER] Shutting down");
+            shutdown_signal.trigger();
+            // WebSockets also observe this signal; cap the HTTP drain so a
+            // hung request cannot prevent ACP/terminal cleanup on desktop quit.
+            match tokio::time::timeout(Duration::from_secs(2), &mut server).await {
+                Ok(result) => result,
+                Err(_) => Ok(()),
+            }
+        }
+    };
+    shutdown_requested.abort();
+    shutdown_signal.trigger();
+    drop(server);
+    cleanup_children(&state).await;
+    if let Err(e) = result {
         tracing::error!("[SERVER] Server error: {}", e);
         return ExitCode::from(1);
     }
-    // Graceful shutdown: release any live office watch preview servers
-    // (kill_on_drop is the backstop, but this frees their ports promptly).
-    codeg_lib::office_watch::stop_all_office_watches();
     ExitCode::SUCCESS
+}
+
+struct ElectronLaunch {
+    ready_file: PathBuf,
+    token: String,
+}
+
+impl ElectronLaunch {
+    fn validate(
+        host: Option<&str>,
+        token: Option<&str>,
+        ready_file: Option<PathBuf>,
+    ) -> Result<Self, &'static str> {
+        if host.is_some_and(|host| host != "127.0.0.1") {
+            return Err("CODEG_HOST must be 127.0.0.1");
+        }
+        let token = token
+            .map(str::trim)
+            .filter(|token| !token.is_empty())
+            .ok_or("CODEG_TOKEN must be explicitly set and nonempty")?;
+        let ready_file = ready_file
+            .filter(|path| path.is_absolute() && path.file_name().is_some())
+            .ok_or("CODEG_ELECTRON_READY_FILE must be an absolute file path")?;
+        Ok(Self {
+            ready_file,
+            token: token.to_string(),
+        })
+    }
+}
+
+struct ElectronReadyFile(PathBuf);
+
+impl ElectronReadyFile {
+    fn publish(path: &Path, port: u16) -> std::io::Result<Self> {
+        let parent = path.parent().ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "ready file has no parent")
+        })?;
+        let mut file = tempfile::NamedTempFile::new_in(parent)?;
+        write!(file, "{{\"port\":{port}}}")?;
+        file.flush()?;
+        // Refuse a stale ready file instead of announcing an unrelated
+        // previous server. The shell creates a fresh private directory.
+        file.persist_noclobber(path).map_err(|error| error.error)?;
+        Ok(Self(path.to_path_buf()))
+    }
+}
+
+impl Drop for ElectronReadyFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+async fn wait_for_shutdown() {
+    let interrupt = tokio::signal::ctrl_c();
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(error) => {
+                tracing::error!("[SERVER] Cannot register SIGTERM handler: {error}");
+            }
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        result = interrupt => {
+            if let Err(error) = result {
+                tracing::error!("[SERVER] Cannot register interrupt handler: {error}");
+            }
+        }
+        _ = terminate => {}
+    }
+}
+
+async fn wait_for_electron_parent(electron_owned: bool) {
+    if !electron_owned {
+        std::future::pending::<()>().await;
+        return;
+    }
+    let (closed, receiver) = tokio::sync::oneshot::channel();
+    // Electron owns the write end of stdin. EOF means an intentional quit or
+    // a crashed shell, on every platform (including Windows, where SIGTERM
+    // cannot be caught). Use an OS thread: Tokio's blocking stdin task cannot
+    // be cancelled and would hold runtime teardown open after a Unix signal.
+    std::thread::spawn(move || {
+        let _ = std::io::copy(&mut std::io::stdin().lock(), &mut std::io::sink());
+        let _ = closed.send(());
+    });
+    let _ = receiver.await;
+}
+
+async fn cleanup_children(state: &AppState) {
+    state.web_server_state.shutdown_signal().trigger();
+    let _ = tokio::time::timeout(
+        Duration::from_secs(2),
+        state.chat_channel_manager.stop_all(),
+    )
+    .await;
+    state.terminal_manager.kill_all();
+    codeg_lib::office_watch::stop_all_office_watches();
+    // A connection being established holds a read lock while waiting for its
+    // handshake. Disconnect it while requesting the write lock; waiting for
+    // that lock first could stall quit until a hung agent's handshake expires.
+    let (_new_connections, _) = tokio::join!(
+        tokio::time::timeout(
+            Duration::from_secs(1),
+            state.connection_manager.lock_out_new_connections(),
+        ),
+        state.connection_manager.disconnect_all(),
+    );
+    // Cover a spawn that finished registering while the lock was acquired.
+    state.connection_manager.disconnect_all().await;
 }
 
 fn default_data_dir() -> PathBuf {
     dirs::data_dir()
         .map(|d| d.join("codeg"))
         .unwrap_or_else(|| PathBuf::from(".codeg-data"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn electron_launch_rejects_network_bind_and_missing_secret() {
+        let file = std::env::temp_dir().join("electron-ready.json");
+        assert!(
+            ElectronLaunch::validate(Some("0.0.0.0"), Some("secret"), Some(file.clone())).is_err()
+        );
+        assert!(ElectronLaunch::validate(None, Some(" \t"), Some(file.clone())).is_err());
+        assert!(ElectronLaunch::validate(None, None, Some(file.clone())).is_err());
+        assert!(
+            ElectronLaunch::validate(None, Some("secret"), Some(PathBuf::from("ready.json")))
+                .is_err()
+        );
+        assert!(ElectronLaunch::validate(Some("127.0.0.1"), Some("secret"), Some(file)).is_ok());
+    }
+
+    #[test]
+    fn electron_readiness_publishes_only_port_and_removes_on_shutdown() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("ready.json");
+        let ready = ElectronReadyFile::publish(&path, 40123).unwrap();
+        let value: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(value, serde_json::json!({ "port": 40123 }));
+        assert!(ElectronReadyFile::publish(&path, 40124).is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{\"port\":40123}");
+        drop(ready);
+        assert!(!path.exists());
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
+    }
 }

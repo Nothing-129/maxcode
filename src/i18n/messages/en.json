@@ -322,6 +322,7 @@
     "stepRestart": "Restart",
     "updateReadyHint": "Update downloaded — restart to apply.",
     "restarting": "Restarting...",
+    "electronUpgradeHint": "Electron updates require the desktop installer. Download the Electron package from the release page, install it, then reopen MaxCode.",
     "dockerUpgradeHint": "This upgrades the running container now. It's lost if the container is recreated — to keep it, pull or build an image at the new version and recreate.",
     "upgradeRolledBack": "Upgrade failed; the server rolled back to the previous version.",
     "serverUnreachable": "Couldn't reach the server to start the upgrade. Check that it's running and try again.",

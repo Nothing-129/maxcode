@@ -322,6 +322,7 @@
     "stepRestart": "Reinicio",
     "updateReadyHint": "Actualización descargada: reinicia para aplicarla.",
     "restarting": "Reiniciando...",
+    "electronUpgradeHint": "Las actualizaciones de Electron requieren el instalador de escritorio. Descarga el paquete de Electron desde la página de versiones, instálalo y vuelve a abrir MaxCode.",
     "dockerUpgradeHint": "Esto actualiza el contenedor en ejecución ahora. Se pierde si se recrea el contenedor: para conservarlo, descarga o crea una imagen con la nueva versión y recrea el contenedor.",
     "upgradeRolledBack": "La actualización falló; el servidor volvió a la versión anterior.",
     "serverUnreachable": "No se pudo conectar con el servidor para iniciar la actualización. Comprueba que esté en ejecución e inténtalo de nuevo.",

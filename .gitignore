@@ -53,6 +53,10 @@ docs/superpowers
 # release.yml, not git.
 src-tauri/binaries/
 
+# Electron platform-specific backend staging and packages.
+electron/.staging/
+electron/dist/
+
 # pnpm local store (pnpm 11+)
 .pnpm-store/
 

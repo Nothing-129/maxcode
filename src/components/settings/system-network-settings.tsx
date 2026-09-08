@@ -36,7 +36,7 @@ import {
   updateSystemProxySettings,
   updateSystemTitleModelSettings,
 } from "@/lib/api"
-import { isLocalDesktop, openUrl } from "@/lib/platform"
+import { isDesktop, isLocalDesktop, openUrl } from "@/lib/platform"
 import type {
   AppLocale,
   SystemTitleModelTestResult,
@@ -118,7 +118,7 @@ export function SystemNetworkSettings() {
   // Launch at login registers *this* machine's executable with the OS, so it
   // only means something for a local Tauri shell — a remote workspace window
   // routes every call to a server that has no login items to speak of.
-  const autostartVisible = isLocalDesktop()
+  const autostartVisible = isDesktop() && isLocalDesktop()
   const [autostartEnabled, setAutostartEnabled] = useState(false)
   const [savingAutostart, setSavingAutostart] = useState(false)
   // Non-null when the OS refused to report the registration (no home dir, a

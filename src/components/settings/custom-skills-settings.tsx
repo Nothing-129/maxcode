@@ -70,7 +70,7 @@ import {
   officecliListSkills,
 } from "@/lib/api"
 import { invalidateAgentSkillsCache } from "@/hooks/use-agent-skills"
-import { isLocalDesktop } from "@/lib/platform"
+import { isLocalDesktop, openFileDialog } from "@/lib/platform"
 import { piUsesCustomAgentDir } from "@/lib/pi-config"
 import {
   defaultCustomSkillTemplate,
@@ -340,8 +340,7 @@ export function CustomSkillsBody({
   const handleImportClick = useCallback(async () => {
     if (isLocalDesktop()) {
       try {
-        const { open } = await import("@tauri-apps/plugin-dialog")
-        const picked = await open({
+        const picked = await openFileDialog({
           directory: true,
           multiple: false,
           title: t("import.title"),

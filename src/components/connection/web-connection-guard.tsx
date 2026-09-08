@@ -20,6 +20,7 @@ import {
   subscribeWebConnection,
 } from "@/lib/transport/web-connection-store"
 import { redirectToCodegLogin } from "@/lib/transport/web-auth"
+import { isElectron } from "@/lib/electron"
 
 // Debounce before the "reconnecting" dialog is shown. Server restarts, brief
 // network blips, and laptop sleep/wake usually recover within a few seconds —
@@ -86,8 +87,9 @@ export function WebConnectionGuard() {
   }, [])
 
   const showReconnecting = state === "reconnecting" && graceElapsed
-  const showUnauthorized = state === "unauthorized"
-  const open = showReconnecting || showUnauthorized
+  const showUnauthorized = state === "unauthorized" && !isElectron()
+  const showDesktopUnauthorized = state === "unauthorized" && isElectron()
+  const open = showReconnecting || showUnauthorized || showDesktopUnauthorized
 
   if (!open) return null
 

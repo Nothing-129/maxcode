@@ -12,6 +12,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
 | 会话 | 回复运行时展开、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |

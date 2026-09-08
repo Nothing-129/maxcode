@@ -27,7 +27,7 @@ const noop = () => {}
 // transport swap from crashing the dialog plumbing.
 function webTransport(): WebTransport | null {
   if (typeof window === "undefined") return null
-  if (detectEnvironment() !== "web" || isRemoteDesktopMode()) return null
+  if (detectEnvironment() === "tauri" || isRemoteDesktopMode()) return null
   const transport = getShellTransport()
   if (
     typeof (transport as Partial<WebTransport>).subscribeConnection !==

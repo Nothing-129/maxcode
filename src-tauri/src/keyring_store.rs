@@ -1,4 +1,4 @@
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 const SERVICE_NAME: &str = "codeg";
 
 fn token_key(account_id: &str) -> String {
@@ -9,9 +9,9 @@ fn channel_token_key(channel_id: i32) -> String {
     format!("chat-channel:{}", channel_id)
 }
 
-// ── Tauri mode: OS keyring ──
+// ── Desktop (Tauri / Electron): OS keyring ──
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn set_token(account_id: &str, token: &str) -> Result<(), String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &token_key(account_id))
         .map_err(|e| format!("keyring init error: {e}"))?;
@@ -20,13 +20,13 @@ pub fn set_token(account_id: &str, token: &str) -> Result<(), String> {
         .map_err(|e| format!("keyring set error: {e}"))
 }
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn get_token(account_id: &str) -> Option<String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &token_key(account_id)).ok()?;
     entry.get_password().ok()
 }
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn delete_token(account_id: &str) -> Result<(), String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &token_key(account_id))
         .map_err(|e| format!("keyring init error: {e}"))?;
@@ -39,7 +39,7 @@ pub fn delete_token(account_id: &str) -> Result<(), String> {
 
 // ── Server mode: file-based token store ──
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn tokens_file_path() -> std::path::PathBuf {
     tokens_file_path_for(std::env::var("CODEG_DATA_DIR").ok().as_deref())
 }
@@ -51,7 +51,7 @@ fn tokens_file_path() -> std::path::PathBuf {
 /// don't end up looking for `tokens.json` in the user's repo. Factored
 /// out so tests can exercise path resolution without poking at process
 /// env state.
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn tokens_file_path_for(env_value: Option<&str>) -> std::path::PathBuf {
     let dir = env_value.map(std::path::PathBuf::from).unwrap_or_else(|| {
         dirs::data_dir()
@@ -61,7 +61,7 @@ fn tokens_file_path_for(env_value: Option<&str>) -> std::path::PathBuf {
     crate::git_credential::absolutize(&dir).join("tokens.json")
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn read_tokens() -> std::collections::HashMap<String, String> {
     read_tokens_at(&tokens_file_path())
 }
@@ -73,7 +73,7 @@ fn read_tokens() -> std::collections::HashMap<String, String> {
 /// code path ever handles token bytes from a world-readable file it could have
 /// fixed. Best-effort: if chmod fails the read will usually fail too, and a
 /// read-only mount is not made worse by proceeding.
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn read_tokens_at(path: &std::path::Path) -> std::collections::HashMap<String, String> {
     #[cfg(unix)]
     if path.exists() {
@@ -93,7 +93,7 @@ fn read_tokens_at(path: &std::path::Path) -> std::collections::HashMap<String, S
         .unwrap_or_default()
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn write_tokens(tokens: &std::collections::HashMap<String, String>) -> Result<(), String> {
     write_tokens_at(&tokens_file_path(), tokens)
 }
@@ -105,7 +105,7 @@ fn write_tokens(tokens: &std::collections::HashMap<String, String>) -> Result<()
 /// then atomically renamed over the store. The explicit `set_permissions`
 /// after creation pins the bits exactly even under an exotic umask (umask can
 /// only clear bits at open time; chmod is not masked).
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 fn write_tokens_at(
     path: &std::path::Path,
     tokens: &std::collections::HashMap<String, String>,
@@ -158,19 +158,19 @@ fn write_tokens_at(
     }
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn set_token(account_id: &str, token: &str) -> Result<(), String> {
     let mut tokens = read_tokens();
     tokens.insert(token_key(account_id), token.to_string());
     write_tokens(&tokens)
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn get_token(account_id: &str) -> Option<String> {
     read_tokens().get(&token_key(account_id)).cloned()
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn delete_token(account_id: &str) -> Result<(), String> {
     let mut tokens = read_tokens();
     tokens.remove(&token_key(account_id));
@@ -180,7 +180,7 @@ pub fn delete_token(account_id: &str) -> Result<(), String> {
 // ── Chat channel token helpers ──
 // Reuse the same storage mechanism (keyring or file) with a different key prefix.
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn set_channel_token(channel_id: i32, token: &str) -> Result<(), String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &channel_token_key(channel_id))
         .map_err(|e| format!("keyring init error: {e}"))?;
@@ -189,13 +189,13 @@ pub fn set_channel_token(channel_id: i32, token: &str) -> Result<(), String> {
         .map_err(|e| format!("keyring set error: {e}"))
 }
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn get_channel_token(channel_id: i32) -> Option<String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &channel_token_key(channel_id)).ok()?;
     entry.get_password().ok()
 }
 
-#[cfg(feature = "tauri-runtime")]
+#[cfg(feature = "native-keyring")]
 pub fn delete_channel_token(channel_id: i32) -> Result<(), String> {
     let entry = keyring::Entry::new(SERVICE_NAME, &channel_token_key(channel_id))
         .map_err(|e| format!("keyring init error: {e}"))?;
@@ -206,26 +206,26 @@ pub fn delete_channel_token(channel_id: i32) -> Result<(), String> {
     }
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn set_channel_token(channel_id: i32, token: &str) -> Result<(), String> {
     let mut tokens = read_tokens();
     tokens.insert(channel_token_key(channel_id), token.to_string());
     write_tokens(&tokens)
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn get_channel_token(channel_id: i32) -> Option<String> {
     read_tokens().get(&channel_token_key(channel_id)).cloned()
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
+#[cfg(not(feature = "native-keyring"))]
 pub fn delete_channel_token(channel_id: i32) -> Result<(), String> {
     let mut tokens = read_tokens();
     tokens.remove(&channel_token_key(channel_id));
     write_tokens(&tokens)
 }
 
-#[cfg(all(test, not(feature = "tauri-runtime")))]
+#[cfg(all(test, not(feature = "native-keyring")))]
 mod tests {
     use super::*;
 

@@ -1,4 +1,5 @@
 import { isDesktop } from "@/lib/platform"
+import { getElectronBridge } from "./electron"
 
 /**
  * Outcome of a save operation.
@@ -37,6 +38,18 @@ export async function saveTextFile(opts: {
   ext: string
 }): Promise<SaveFileResult> {
   const { content, suggestedName, mimeType, filterName, ext } = opts
+
+  const electron = getElectronBridge()
+  if (electron) {
+    const path = await electron.saveFile(
+      {
+        defaultPath: suggestedName,
+        filters: [{ name: filterName, extensions: [ext] }],
+      },
+      new TextEncoder().encode(content)
+    )
+    return path ? "saved" : "cancelled"
+  }
 
   if (isDesktop()) {
     const { save } = await import("@tauri-apps/plugin-dialog")

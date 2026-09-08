@@ -115,6 +115,10 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📦 安装与运行
 
+**源码运行桌面端（Electron）**：`corepack pnpm install` 后执行
+`corepack pnpm desktop:dev`。Electron 实现与打包说明见
+[electron/README.md](./electron/README.md)，安装包输出到 `electron/dist/`。
+
 **桌面端** — 从 [MaxCode Releases](https://github.com/Nothing-129/maxcode/releases) 下载 macOS、Windows 或 Linux 的安装包。使用上游 Codeg 的安装方式时，可参考其[安装文档](https://docs.codeg.app/zh/getting-started/installation)。
 
 **服务器** — 无界面运行 MaxCode，用任意浏览器访问。以下命令使用上游 Codeg 的安装脚本，Linux 或 macOS：

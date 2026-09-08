@@ -17,8 +17,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { DirectoryBrowserDialog } from "@/components/shared/directory-browser-dialog"
-import { isDesktop, openFileDialog } from "@/lib/platform"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
+import { isLocalDesktop, openFileDialog } from "@/lib/platform"
 
 interface DirectoryPathInputProps {
   value: string
@@ -58,7 +57,7 @@ export function DirectoryPathInput({
   const t = useTranslations("DirectoryBrowser")
   const [browserOpen, setBrowserOpen] = useState(false)
 
-  const nativePicker = isDesktop() && getActiveRemoteConnectionId() === null
+  const nativePicker = isLocalDesktop()
   const label = browseLabel ?? t("title")
 
   const handleBrowse = useCallback(async () => {

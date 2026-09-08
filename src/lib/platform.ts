@@ -4,6 +4,8 @@ import {
   getTransport,
 } from "./transport"
 import type { EventStream, UnsubscribeFn } from "./transport/types"
+import { getElectronBridge, isElectron } from "./electron"
+import type { ElectronOpenDialogOptions } from "./electron"
 
 /**
  * Platform-aware API wrappers for features that differ between
@@ -11,16 +13,22 @@ import type { EventStream, UnsubscribeFn } from "./transport/types"
  */
 
 export { isDesktop }
+export { isElectron }
+
+/** A native shell, independent of whether its backend uses IPC or HTTP. */
+export function isNativeDesktop(): boolean {
+  return isDesktop() || isElectron()
+}
 
 /**
- * True only for a LOCAL desktop app — a Tauri window not viewing a remote
+ * True only for a LOCAL desktop app — a native window not viewing a remote
  * workspace. This is the exact condition under which `openPath` /
  * `revealItemInDir` actually do something (they no-op otherwise), so gate any
  * "reveal in file manager" affordance on it to avoid rendering a dead button
  * for remote-desktop connections.
  */
 export function isLocalDesktop(): boolean {
-  return isDesktop() && getActiveRemoteConnectionId() === null
+  return isNativeDesktop() && getActiveRemoteConnectionId() === null
 }
 
 /**
@@ -104,6 +112,8 @@ export function getEventStream(): EventStream | null {
  * signal — don't test it for a "popup blocked" check.
  */
 export async function openUrl(url: string): Promise<void> {
+  const electron = getElectronBridge()
+  if (electron) return electron.openExternal(url)
   if (isDesktop()) {
     const { openUrl: tauriOpenUrl } = await import("@tauri-apps/plugin-opener")
     await tauriOpenUrl(url)
@@ -117,6 +127,9 @@ export async function openUrl(url: string): Promise<void> {
  * No-op in web mode.
  */
 export async function openPath(path: string): Promise<void> {
+  if (!isLocalDesktop()) return
+  const electron = getElectronBridge()
+  if (electron) return electron.openPath(path)
   if (isDesktop() && getActiveRemoteConnectionId() === null) {
     const { openPath: tauriOpenPath } =
       await import("@tauri-apps/plugin-opener")
@@ -129,6 +142,9 @@ export async function openPath(path: string): Promise<void> {
  * No-op in web mode.
  */
 export async function revealItemInDir(path: string): Promise<void> {
+  if (!isLocalDesktop()) return
+  const electron = getElectronBridge()
+  if (electron) return electron.revealItemInDir(path)
   if (isDesktop() && getActiveRemoteConnectionId() === null) {
     const { revealItemInDir: tauriReveal } =
       await import("@tauri-apps/plugin-opener")
@@ -139,12 +155,14 @@ export async function revealItemInDir(path: string): Promise<void> {
 /**
  * Open a native file/directory dialog (desktop) or fallback (web).
  */
-export async function openFileDialog(options?: {
-  directory?: boolean
-  multiple?: boolean
-  title?: string
-  defaultPath?: string
-}): Promise<string | string[] | null> {
+export async function openFileDialog(
+  options?: ElectronOpenDialogOptions
+): Promise<string | string[] | null> {
+  const electron = getElectronBridge()
+  if (electron && isLocalDesktop()) {
+    const paths = await electron.openFileDialog(options ?? {})
+    return options?.multiple ? paths : (paths?.[0] ?? null)
+  }
   if (isDesktop() && getActiveRemoteConnectionId() === null) {
     const { open } = await import("@tauri-apps/plugin-dialog")
     return open(options ?? {})
@@ -191,6 +209,8 @@ export async function getCurrentWindow() {
  * Desktop: closes Tauri window. Web: navigates back or closes tab.
  */
 export async function closeCurrentWindow(): Promise<void> {
+  const electron = getElectronBridge()
+  if (electron) return electron.closeWindow()
   if (isDesktop()) {
     const win = await getCurrentWindow()
     await win?.close()

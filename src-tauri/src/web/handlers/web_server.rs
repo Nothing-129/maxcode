@@ -145,7 +145,9 @@ fn server_self_update_supported() -> bool {
     // .exe and the standalone re-exec port rebind have not been validated on a
     // real Windows host. Only Linux/macOS are supported for now. (The desktop
     // Windows app is unaffected — it updates via tauri-plugin-updater.)
-    !cfg!(target_os = "windows") && crate::update::install::asset_basename().is_some()
+    !crate::update::runtime::is_electron()
+        && !cfg!(target_os = "windows")
+        && crate::update::install::asset_basename().is_some()
 }
 
 #[cfg(feature = "tauri-runtime")]

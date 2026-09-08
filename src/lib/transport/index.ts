@@ -61,6 +61,9 @@ export function getTransport(): Transport {
   return _remoteTransport ?? getShellTransport()
 }
 
+/** Legacy Tauri IPC capability check. Electron uses HTTP/WebSocket, so it
+ * deliberately returns false here. Native shell actions belong in platform.ts.
+ */
 export function isDesktop(): boolean {
   return detectEnvironment() === "tauri"
 }

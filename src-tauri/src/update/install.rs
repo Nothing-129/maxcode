@@ -246,6 +246,7 @@ pub async fn perform_update(
     data_dir: &Path,
     on_progress: &ProgressFn<'_>,
 ) -> Result<InstallOutcome, AppCommandError> {
+    crate::update::runtime::ensure_server_owned_update()?;
     let asset = asset_basename().ok_or_else(|| {
         AppCommandError::new(
             crate::app_error::AppErrorCode::DependencyMissing,
@@ -366,6 +367,7 @@ pub async fn perform_update(
 /// Restore the previous bundle from the `.bak` artifacts kept by
 /// [`perform_update`]. Best-effort per artifact.
 pub fn rollback() -> Result<(), AppCommandError> {
+    crate::update::runtime::ensure_server_owned_update()?;
     let targets = resolve_targets()?;
     let mut restored = false;
     restored |= restore_from_bak(&targets.server_bin)?;
@@ -385,6 +387,9 @@ pub fn rollback() -> Result<(), AppCommandError> {
 /// True when a `.bak` exists for at least one artifact (i.e. a rollback is
 /// possible). Cheap enough to call from the status endpoint.
 pub fn rollback_available() -> bool {
+    if crate::update::runtime::is_electron() {
+        return false;
+    }
     let Ok(targets) = resolve_targets() else {
         return false;
     };

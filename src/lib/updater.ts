@@ -1,5 +1,13 @@
 import { toErrorMessage } from "./app-error"
 import { getTransport, isDesktop, isRemoteDesktopMode } from "./transport"
+import { getElectronBridge, isElectron } from "./electron"
+
+function usesElectronInstaller(): boolean {
+  return isElectron() && !isRemoteDesktopMode()
+}
+
+const ELECTRON_INSTALLER_MESSAGE =
+  "Install a new Electron desktop release using its installer, then reopen MaxCode."
 
 // Drive the LOCAL Tauri app updater only for a genuine local desktop window.
 // A remote-desktop window IS a Tauri app (`isDesktop()` is true) but its
@@ -100,6 +108,8 @@ export interface AppUpdateState {
  * Tauri command, server/remote reads the HTTP handler. Call on mount to
  * recover an in-flight download the UI would otherwise have lost. */
 export function getAppUpdateState(): Promise<AppUpdateState> {
+  if (usesElectronInstaller())
+    return Promise.resolve({ seq: 0, status: "idle" })
   return getTransport().call<AppUpdateState>("app_update_state")
 }
 
@@ -109,6 +119,7 @@ export function getAppUpdateState(): Promise<AppUpdateState> {
 export function subscribeAppUpdateState(
   handler: (state: AppUpdateState) => void
 ): Promise<() => void> {
+  if (usesElectronInstaller()) return Promise.resolve(() => {})
   return getTransport().subscribe<AppUpdateState>("app_update_state", handler)
 }
 
@@ -117,6 +128,9 @@ export function subscribeAppUpdateState(
  * download runs detached in the backend, so it is not bound to this call's
  * lifetime. */
 export function startAppUpdate(): Promise<AppUpdateState> {
+  if (usesElectronInstaller()) {
+    return Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+  }
   return getTransport().call<AppUpdateState>("perform_app_update")
 }
 
@@ -124,6 +138,9 @@ export function startAppUpdate(): Promise<AppUpdateState> {
  * server triggers the supervised/re-exec restart (the caller then drives the
  * countdown + health poll using the `ReadyToRestart` snapshot's metadata). */
 export function restartApp(): Promise<void> {
+  if (usesElectronInstaller()) {
+    return Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+  }
   return getTransport().call("restart_app")
 }
 
@@ -188,6 +205,7 @@ export function appUpdateErrorMessageKey(
 }
 
 export async function getCurrentAppVersion(): Promise<string> {
+  if (usesElectronInstaller()) return getElectronBridge()!.version
   if (!usesTauriUpdater()) {
     // Read the running version from a LOCAL source, never the
     // manifest-dependent update check: the settings page loads this alongside
@@ -238,6 +256,20 @@ const MANIFEST_TIMEOUT_MS = 15_000
  * Server/remote hits `check_app_update`, which already answers in this shape.
  */
 export async function checkAppUpdateInfo(): Promise<AppUpdateCheckResult> {
+  if (usesElectronInstaller()) {
+    // The bundled server can read the common release manifest, but it must
+    // never swap/restart its binary inside the Electron application bundle.
+    const result =
+      await getTransport().call<AppUpdateCheckResult>("check_app_update")
+    return {
+      currentVersion: getElectronBridge()!.version,
+      update: result.update,
+      selfUpdateSupported: false,
+      liveProgress: false,
+      rollbackAvailable: false,
+      runtime: "electron",
+    }
+  }
   if (!usesTauriUpdater()) {
     return getTransport().call<AppUpdateCheckResult>("check_app_update")
   }
@@ -281,11 +313,15 @@ async function closeUpdateHandle(update: NonNullable<Update>): Promise<void> {
  * window (no server to query; it updates via the Tauri plugin).
  */
 export async function getServerUpdateStatus(): Promise<ServerUpdateStatus | null> {
+  if (usesElectronInstaller()) return null
   if (usesTauriUpdater()) return null
   return getTransport().call<ServerUpdateStatus>("app_update_status")
 }
 
 export async function relaunchApp(): Promise<void> {
+  // Backup restore relaunches the owning shell so the managed backend can
+  // apply staged data on its next start. This does not install an update.
+  if (usesElectronInstaller()) return getElectronBridge()!.relaunchApp()
   const { relaunch } = await import("@tauri-apps/plugin-process")
   await relaunch()
 }
@@ -294,6 +330,7 @@ export async function relaunchApp(): Promise<void> {
 
 /** Revert to the previously-installed bundle (kept as `.bak`). */
 export async function rollbackServer(): Promise<ServerUpdateActionResult> {
+  if (usesElectronInstaller()) throw new Error(ELECTRON_INSTALLER_MESSAGE)
   return getTransport().call<ServerUpdateActionResult>("rollback_app")
 }
 

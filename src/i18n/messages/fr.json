@@ -322,6 +322,7 @@
     "stepRestart": "Redémarrage",
     "updateReadyHint": "Mise à jour téléchargée — redémarrez pour l'appliquer.",
     "restarting": "Redémarrage...",
+    "electronUpgradeHint": "Les mises à jour Electron nécessitent le programme d’installation. Téléchargez le paquet Electron depuis la page des versions, installez-le, puis rouvrez MaxCode.",
     "dockerUpgradeHint": "Cela met à jour le conteneur en cours d'exécution. La mise à jour est perdue si le conteneur est recréé — pour la conserver, récupérez ou créez une image à la nouvelle version puis recréez le conteneur.",
     "upgradeRolledBack": "Échec de la mise à niveau ; le serveur est revenu à la version précédente.",
     "serverUnreachable": "Impossible de joindre le serveur pour démarrer la mise à niveau. Vérifiez qu'il fonctionne et réessayez.",

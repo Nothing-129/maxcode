@@ -19,8 +19,8 @@ pub const ENV_SUPERVISED: &str = "CODEG_SUPERVISED";
 /// worker that exited with [`EXIT_RESTART`]. The worker reports the same
 /// value to the frontend so its countdown matches reality.
 pub const ENV_RESTART_DELAY_MS: &str = "CODEG_RESTART_DELAY_MS";
-/// Deployment marker baked into the Docker image (`docker`). Only used for
-/// user-facing messaging ("permanent across recreation needs a pull").
+/// Deployment marker: `docker` for a container or `electron` when the desktop
+/// shell owns this server process and the bundled binaries.
 pub const ENV_RUNTIME: &str = "CODEG_RUNTIME";
 
 /// Default relaunch delay when `CODEG_RESTART_DELAY_MS` is unset.
@@ -65,6 +65,23 @@ pub fn capability() -> UpdateCapability {
     }
 }
 
+/// Electron owns the entire application bundle. Its backend must never swap
+/// or re-exec itself independently of the shell.
+pub fn is_electron() -> bool {
+    std::env::var(ENV_RUNTIME)
+        .map(|v| v.eq_ignore_ascii_case("electron"))
+        .unwrap_or(false)
+}
+
+pub fn ensure_server_owned_update() -> Result<(), crate::app_error::AppCommandError> {
+    if is_electron() {
+        return Err(crate::app_error::AppCommandError::invalid_input(
+            "Electron manages this application; server self-update, rollback and restart are disabled",
+        ));
+    }
+    Ok(())
+}
+
 /// Best-effort container detection. Explicit env marker first (we set it in
 /// the image), then the `/.dockerenv` sentinel as a fallback.
 pub fn is_docker() -> bool {
@@ -77,9 +94,11 @@ pub fn is_docker() -> bool {
     std::path::Path::new("/.dockerenv").exists()
 }
 
-/// `"docker"` or `"standalone"` — only drives frontend messaging.
+/// `"electron"`, `"docker"` or `"standalone"` — drives frontend messaging.
 pub fn runtime_label() -> &'static str {
-    if is_docker() {
+    if is_electron() {
+        "electron"
+    } else if is_docker() {
         "docker"
     } else {
         "standalone"

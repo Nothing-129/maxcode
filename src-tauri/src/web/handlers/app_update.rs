@@ -113,6 +113,7 @@ fn trial_seconds_value() -> u64 {
 
 #[cfg(not(feature = "tauri-runtime"))]
 fn ensure_supported() -> Result<(), AppCommandError> {
+    crate::update::runtime::ensure_server_owned_update()?;
     if cfg!(target_os = "windows") {
         return Err(AppCommandError::invalid_input(
             "In-place server self-update is not supported on Windows yet",

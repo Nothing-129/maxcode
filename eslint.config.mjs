@@ -38,6 +38,8 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     "src-tauri/target/**",
+    "electron/dist/**",
+    "electron/.staging/**",
     "src-tauri/experts/**",
     "android-webview/**/build/**",
     "public/vs/**",

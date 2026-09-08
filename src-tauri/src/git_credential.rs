@@ -953,7 +953,7 @@ mod tests {
     /// server-mode builds (`cargo test --no-default-features`) because the
     /// Tauri-mode token store hits the OS keyring, which we can't safely
     /// mutate from a test.
-    #[cfg(all(unix, not(feature = "tauri-runtime")))]
+    #[cfg(all(unix, not(feature = "native-keyring")))]
     #[test]
     fn test_credential_helper_e2e_server_mode() {
         let _guard = STATE_LOCK.lock().unwrap_or_else(|e| e.into_inner());

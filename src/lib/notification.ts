@@ -16,6 +16,7 @@
  */
 
 import { getShellTransport, isDesktop } from "./transport"
+import { getElectronBridge, isElectron } from "./electron"
 
 /**
  * What the platform can tell us about permission to post notifications.
@@ -53,7 +54,7 @@ function browserNotification(): typeof Notification | null {
  * prompts.
  */
 export function getNotificationPermission(): NotificationPermissionState {
-  if (isDesktop()) return "managed_by_os"
+  if (isDesktop() || isElectron()) return "managed_by_os"
   const ctor = browserNotification()
   if (!ctor) return "unsupported"
   const permission = ctor.permission
@@ -76,7 +77,7 @@ export function getNotificationPermission(): NotificationPermissionState {
  * A no-op on desktop, where there is nothing to request.
  */
 export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
-  if (isDesktop()) return "managed_by_os"
+  if (isDesktop() || isElectron()) return "managed_by_os"
   const ctor = browserNotification()
   if (!ctor) return "unsupported"
   try {
@@ -99,6 +100,13 @@ export async function deliverSystemNotification(
   title: string,
   body: string
 ): Promise<void> {
+  const electron = getElectronBridge()
+  if (electron) {
+    if (!(await electron.notify(title, body))) {
+      throw new Error("System notifications are unavailable on this desktop")
+    }
+    return
+  }
   if (isDesktop()) {
     // Deliberately the SHELL transport, not `getTransport()`. In a
     // remote-desktop window `getTransport()` is the remote HTTP transport, and
@@ -173,6 +181,8 @@ export async function getNotificationIdentity(): Promise<NotificationIdentity | 
  * workspace host.
  */
 export async function openSystemNotificationSettings(): Promise<void> {
+  const electron = getElectronBridge()
+  if (electron) return electron.openNotificationSettings()
   if (!isDesktop()) {
     throw new Error(
       "System notification settings are only reachable on desktop"

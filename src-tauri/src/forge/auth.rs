@@ -1151,7 +1151,7 @@ mod tests {
 
     /// Server mode only: the file-backed token store can be pointed at a temp
     /// dir. Desktop would hit the real OS keyring — never in a unit test.
-    #[cfg(not(feature = "tauri-runtime"))]
+    #[cfg(not(feature = "native-keyring"))]
     #[tokio::test]
     async fn resolution_prefers_pinned_id_then_default_and_redacts_debug() {
         let tmp = tempfile::tempdir().expect("tempdir");
@@ -1165,7 +1165,7 @@ mod tests {
         .await;
     }
 
-    #[cfg(not(feature = "tauri-runtime"))]
+    #[cfg(not(feature = "native-keyring"))]
     async fn resolution_happy_path(conn: &sea_orm::DatabaseConnection) {
         let mut default = account("acc-default", "https://github.com", None);
         default.is_default = true;

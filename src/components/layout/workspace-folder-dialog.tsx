@@ -52,9 +52,8 @@ import {
   repairFolderLink,
 } from "@/lib/api"
 import { useImeGuard } from "@/hooks/use-ime-guard"
-import { isDesktop, openFileDialog } from "@/lib/platform"
+import { isLocalDesktop, openFileDialog } from "@/lib/platform"
 import { parentFsPath } from "@/lib/path-utils"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import { toErrorMessage } from "@/lib/app-error"
 import {
   basenameOf,
@@ -130,8 +129,7 @@ export function WorkspaceFolderDialog({
   const [renameValue, setRenameValue] = useState("")
   const [busyLinkId, setBusyLinkId] = useState<number | null>(null)
 
-  const nativePickerAvailable =
-    isDesktop() && getActiveRemoteConnectionId() === null
+  const nativePickerAvailable = isLocalDesktop()
 
   const linkBrowseStart = useMemo(
     () =>

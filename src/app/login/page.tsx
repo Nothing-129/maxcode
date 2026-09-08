@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
-import { isDesktop } from "@/lib/platform"
+import { isNativeDesktop } from "@/lib/platform"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -17,7 +17,7 @@ export default function LoginPage() {
   }, [t])
 
   // Desktop users skip login entirely
-  if (isDesktop()) {
+  if (isNativeDesktop()) {
     router.replace("/workspace")
     return null
   }

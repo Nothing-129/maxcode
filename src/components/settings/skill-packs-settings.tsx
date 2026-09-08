@@ -13,8 +13,7 @@ import { ScienceBody } from "@/components/settings/science-settings"
 import { OfficeToolsBody } from "@/components/settings/office-tools-settings"
 import { CustomSkillsBody } from "@/components/settings/custom-skills-settings"
 import { expertsOpenCentralDir, openFolder } from "@/lib/api"
-import { revealItemInDir } from "@/lib/platform"
-import { getActiveRemoteConnectionId, isDesktop } from "@/lib/transport"
+import { isLocalDesktop, revealItemInDir } from "@/lib/platform"
 import { toErrorMessage } from "@/lib/app-error"
 
 type SkillPackTab = "experts" | "science" | "office" | "custom"
@@ -77,7 +76,7 @@ export function SkillPacksSettings() {
   const handleOpenCentralDir = useCallback(async () => {
     try {
       const path = await expertsOpenCentralDir()
-      if (isDesktop() && getActiveRemoteConnectionId() === null) {
+      if (isLocalDesktop()) {
         // Desktop: reveal the folder. `revealItemInDir` (not `openPath`) is
         // deliberate — the opener plugin's scope rejects `openPath` for the
         // hidden `~/.codeg/...` path.

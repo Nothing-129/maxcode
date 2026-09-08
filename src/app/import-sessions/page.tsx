@@ -7,7 +7,7 @@ import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { AppToaster } from "@/components/ui/app-toaster"
 import { ImportSessionsWindow } from "@/components/import-sessions/import-sessions-window"
 import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
-import { isDesktop } from "@/lib/platform"
+import { closeCurrentWindow, isNativeDesktop } from "@/lib/platform"
 
 const TOAST_DURATION_MS = 6000
 
@@ -17,10 +17,9 @@ function ImportSessionsPageInner() {
   const focusPath = searchParams.get("focusPath")
 
   const closeWindow = useCallback(async () => {
-    if (isDesktop()) {
+    if (isNativeDesktop()) {
       try {
-        const { getCurrentWindow } = await import("@tauri-apps/api/window")
-        await getCurrentWindow().close()
+        await closeCurrentWindow()
         return
       } catch (err) {
         console.error("[ImportSessionsPage] failed to close window:", err)

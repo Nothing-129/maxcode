@@ -3,10 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
-const getCurrentWindow = async () => {
-  const m = await import("@tauri-apps/api/window")
-  return m.getCurrentWindow()
-}
+import { closeCurrentWindow } from "@/lib/platform"
 import { Loader2 } from "lucide-react"
 import { PushWorkspace } from "@/components/layout/push-workspace"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
@@ -34,8 +31,7 @@ function PushPageInner() {
 
   const closeWindow = useCallback(async () => {
     try {
-      const win = await getCurrentWindow()
-      await win.close()
+      await closeCurrentWindow()
     } catch (err) {
       console.error("[PushPage] failed to close window:", err)
     }

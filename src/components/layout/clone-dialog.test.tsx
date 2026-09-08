@@ -14,6 +14,7 @@ const platform = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/platform", () => ({
   isDesktop: () => platform.desktop,
+  isLocalDesktop: () => platform.desktop,
   openFileDialog: platform.openFileDialog,
 }))
 vi.mock("@/lib/transport", () => ({

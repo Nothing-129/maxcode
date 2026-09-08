@@ -37,6 +37,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
 import { isDesktop } from "@/lib/platform"
+import { isElectron } from "@/lib/electron"
 import { getActiveRemoteConnectionId } from "@/lib/transport"
 import { relaunchApp, restartApp, waitForServerHealthy } from "@/lib/updater"
 import {
@@ -376,8 +377,13 @@ export function BackupSettings() {
   /** Restart after the user has read the result panel. */
   const finishRestore = useCallback(async () => {
     setStaged(null)
-    if (desktop) {
-      await relaunchApp()
+    if (desktop || isElectron()) {
+      try {
+        await relaunchApp()
+      } catch {
+        toast.error(t("restore.restartFailed"))
+        setRestoring(false)
+      }
       return
     }
     // The restore is staged but only APPLIED on the next server start. If the

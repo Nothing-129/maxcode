@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { isLocalDesktop, openPath, openUrl } from "@/lib/platform"
 import { getActiveRemoteConnectionId, isDesktop } from "@/lib/transport"
+import { isElectron } from "@/lib/electron"
 import { toErrorMessage } from "@/lib/app-error"
 import type { LinkSafetyConfig, LinkSafetyModalProps } from "streamdown"
 import { toast } from "sonner"
@@ -209,6 +210,7 @@ function getAllowedExternalProtocol(rawUrl: string): string | null {
  * `capabilities/default.json` grants to the `remote-*` windows.
  */
 function windowOpenReachesABrowser(): boolean {
+  if (isElectron()) return false
   return !isDesktop()
 }
 
@@ -222,6 +224,7 @@ function windowOpenReachesABrowser(): boolean {
  * question of whether the opener capability covers non-http(s) schemes.
  */
 function isWebOpenerEnvironment(): boolean {
+  if (isElectron()) return false
   return !isDesktop() || getActiveRemoteConnectionId() !== null
 }
 
