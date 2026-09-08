@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "Cargando la transcripción del subagente…",
         "agentSessionEmpty": "El subagente aún no ha escrito nada.",
         "agentFallbackTitle": "Iniciando subagente…",
-        "agentCodexLaunchOnly": "Lanzado. Codex no informa de más progreso sobre este subagente: su resultado llega como un mensaje en esta conversación.",
+        "agentCodexLaunchOnly": "Lanzado. Codex aún no ha informado del desenlace de este subagente: abre su sesión para seguir el trabajo.",
+        "agentSubagentDone": "Terminado",
+        "agentSubagentInterrupted": "Interrumpido",
+        "agentSubagentUnknown": "Desenlace desconocido",
         "agentStatsBash": "Comandos",
         "agentStatsRead": "Archivos leídos",
         "agentStatsSearch": "Búsquedas",
@@ -3768,7 +3771,8 @@
         "opSpawn": "Iniciando subagente",
         "opWait": "Obteniendo resultado del subagente",
         "opClose": "Cerrando subagente",
-        "opResume": "Reanudando subagente"
+        "opResume": "Reanudando subagente",
+        "opList": "Listando subagentes"
       },
       "contextCompaction": {
         "compacting": "Compactando el contexto…",

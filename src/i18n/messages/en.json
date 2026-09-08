@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "Loading the sub-agent's transcript…",
         "agentSessionEmpty": "The sub-agent hasn't written anything yet.",
         "agentFallbackTitle": "Sub-agent starting…",
-        "agentCodexLaunchOnly": "Launched. Codex reports no further progress for this sub-agent — its result arrives as a message in this conversation.",
+        "agentCodexLaunchOnly": "Launched. Codex hasn't reported how this sub-agent ended — open its session to follow the work.",
+        "agentSubagentDone": "Finished",
+        "agentSubagentInterrupted": "Interrupted",
+        "agentSubagentUnknown": "Outcome unknown",
         "agentStatsBash": "Commands",
         "agentStatsRead": "Files read",
         "agentStatsSearch": "Searches",
@@ -3768,7 +3771,8 @@
         "opSpawn": "Starting sub-agent",
         "opWait": "Fetching sub-agent result",
         "opClose": "Closing sub-agent",
-        "opResume": "Resuming sub-agent"
+        "opResume": "Resuming sub-agent",
+        "opList": "Listing sub-agents"
       },
       "contextCompaction": {
         "compacting": "Compacting context…",

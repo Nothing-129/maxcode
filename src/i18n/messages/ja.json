@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "サブエージェントの記録を読み込んでいます…",
         "agentSessionEmpty": "サブエージェントはまだ何も書き込んでいません。",
         "agentFallbackTitle": "サブエージェント起動中…",
-        "agentCodexLaunchOnly": "起動しました。Codex はこのサブエージェントの進捗をこれ以上通知しません。結果はこの会話のメッセージとして届きます。",
+        "agentCodexLaunchOnly": "起動しました。Codex はこのサブエージェントの結末をまだ報告していません。セッションを開くと作業を追えます。",
+        "agentSubagentDone": "完了",
+        "agentSubagentInterrupted": "中断",
+        "agentSubagentUnknown": "結果不明",
         "agentStatsBash": "コマンド",
         "agentStatsRead": "ファイル読取",
         "agentStatsSearch": "検索",
@@ -3768,7 +3771,8 @@
         "opSpawn": "サブエージェントを起動中",
         "opWait": "サブエージェントの結果を取得中",
         "opClose": "サブエージェントを終了中",
-        "opResume": "サブエージェントを再開中"
+        "opResume": "サブエージェントを再開中",
+        "opList": "サブエージェント一覧"
       },
       "contextCompaction": {
         "compacting": "コンテキストを圧縮しています…",

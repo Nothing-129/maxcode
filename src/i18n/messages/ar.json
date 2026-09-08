@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "جارٍ تحميل سجل الوكيل الفرعي…",
         "agentSessionEmpty": "لم يكتب الوكيل الفرعي أي شيء بعد.",
         "agentFallbackTitle": "جارٍ تشغيل الوكيل الفرعي…",
-        "agentCodexLaunchOnly": "تم التشغيل. لا يبلّغ Codex عن أي تقدّم إضافي لهذا الوكيل الفرعي — وستصل نتيجته كرسالة في هذه المحادثة.",
+        "agentCodexLaunchOnly": "تم التشغيل. لم يبلّغ Codex بعد عن نتيجة هذا الوكيل الفرعي — افتح جلسته لمتابعة العمل.",
+        "agentSubagentDone": "انتهى",
+        "agentSubagentInterrupted": "تمت مقاطعته",
+        "agentSubagentUnknown": "النتيجة غير معروفة",
         "agentStatsBash": "الأوامر",
         "agentStatsRead": "الملفات المقروءة",
         "agentStatsSearch": "عمليات البحث",
@@ -3768,7 +3771,8 @@
         "opSpawn": "بدء تشغيل الوكيل الفرعي",
         "opWait": "جلب نتيجة الوكيل الفرعي",
         "opClose": "إغلاق الوكيل الفرعي",
-        "opResume": "استئناف الوكيل الفرعي"
+        "opResume": "استئناف الوكيل الفرعي",
+        "opList": "سرد الوكلاء الفرعيين"
       },
       "contextCompaction": {
         "compacting": "جارٍ ضغط السياق…",

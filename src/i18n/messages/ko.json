@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "하위 에이전트의 기록을 불러오는 중…",
         "agentSessionEmpty": "하위 에이전트가 아직 아무것도 기록하지 않았습니다.",
         "agentFallbackTitle": "서브 에이전트 시작 중…",
-        "agentCodexLaunchOnly": "시작되었습니다. Codex는 이 하위 에이전트의 진행 상황을 더 이상 알리지 않으며, 결과는 이 대화의 메시지로 도착합니다.",
+        "agentCodexLaunchOnly": "시작되었습니다. Codex가 이 하위 에이전트의 결과를 아직 알리지 않았습니다. 세션을 열면 작업을 확인할 수 있습니다.",
+        "agentSubagentDone": "완료",
+        "agentSubagentInterrupted": "중단됨",
+        "agentSubagentUnknown": "결과 미확인",
         "agentStatsBash": "명령",
         "agentStatsRead": "파일 읽기",
         "agentStatsSearch": "검색",
@@ -3768,7 +3771,8 @@
         "opSpawn": "서브 에이전트 시작 중",
         "opWait": "서브 에이전트 결과 가져오는 중",
         "opClose": "서브 에이전트 종료 중",
-        "opResume": "서브 에이전트 재개 중"
+        "opResume": "서브 에이전트 재개 중",
+        "opList": "하위 에이전트 목록"
       },
       "contextCompaction": {
         "compacting": "컨텍스트 압축 중…",

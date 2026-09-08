@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "正在載入子智慧體的對話記錄…",
         "agentSessionEmpty": "子智慧體尚未寫入任何內容。",
         "agentFallbackTitle": "子智能體啟動中…",
-        "agentCodexLaunchOnly": "已啟動。Codex 不會再回報這個子智能體的進度——它的結果會以一則訊息出現在本工作階段中。",
+        "agentCodexLaunchOnly": "已啟動。Codex 尚未回報這個子智能體的結果——開啟它的工作階段即可追蹤進度。",
+        "agentSubagentDone": "已完成",
+        "agentSubagentInterrupted": "已中斷",
+        "agentSubagentUnknown": "結果未知",
         "agentStatsBash": "命令",
         "agentStatsRead": "讀取檔案",
         "agentStatsSearch": "搜尋",
@@ -3768,7 +3771,8 @@
         "opSpawn": "啟動子智能體",
         "opWait": "取得子智能體結果",
         "opClose": "結束子智能體",
-        "opResume": "恢復子智能體"
+        "opResume": "恢復子智能體",
+        "opList": "檢視子智能體"
       },
       "contextCompaction": {
         "compacting": "正在壓縮上下文…",

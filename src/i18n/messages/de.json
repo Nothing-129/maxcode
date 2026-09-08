@@ -3486,7 +3486,10 @@
         "agentSessionLoading": "Protokoll des Subagenten wird geladen…",
         "agentSessionEmpty": "Der Subagent hat noch nichts geschrieben.",
         "agentFallbackTitle": "Sub-Agent wird gestartet…",
-        "agentCodexLaunchOnly": "Gestartet. Codex meldet keinen weiteren Fortschritt dieses Sub-Agenten – sein Ergebnis trifft als Nachricht in dieser Unterhaltung ein.",
+        "agentCodexLaunchOnly": "Gestartet. Codex hat noch nicht gemeldet, wie dieser Sub-Agent geendet ist – öffne seine Sitzung, um die Arbeit zu verfolgen.",
+        "agentSubagentDone": "Fertig",
+        "agentSubagentInterrupted": "Unterbrochen",
+        "agentSubagentUnknown": "Ausgang unbekannt",
         "agentStatsBash": "Befehle",
         "agentStatsRead": "Dateien gelesen",
         "agentStatsSearch": "Suchen",
@@ -3768,7 +3771,8 @@
         "opSpawn": "Sub-Agent wird gestartet",
         "opWait": "Sub-Agent-Ergebnis wird abgerufen",
         "opClose": "Sub-Agent wird geschlossen",
-        "opResume": "Sub-Agent wird fortgesetzt"
+        "opResume": "Sub-Agent wird fortgesetzt",
+        "opList": "Sub-Agenten auflisten"
       },
       "contextCompaction": {
         "compacting": "Kontext wird komprimiert…",
