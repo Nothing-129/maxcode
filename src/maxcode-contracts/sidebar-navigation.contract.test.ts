@@ -3,8 +3,20 @@ import zhCN from "@/i18n/messages/zh-CN.json"
 import { source } from "./contract-source"
 
 describe("sidebar navigation scope", () => {
-  it("labels the Simplified Chinese new chat action 新对话", () => {
-    expect(zhCN.Folder.sidebar.newChat).toBe("新对话")
+  it("labels the Simplified Chinese navigation actions 新建对话 and 自动任务", () => {
+    expect(zhCN.Folder.sidebar.newChat).toBe("新建对话")
+    expect(zhCN.Folder.sidebar.automations).toBe("自动任务")
+  })
+
+  it("uses 14px labels at default zoom for both navigation actions", () => {
+    const sidebar = source("src/components/layout/sidebar.tsx")
+    const navButton = sidebar.slice(
+      sidebar.indexOf("function SidebarNavButton("),
+      sidebar.indexOf("export function Sidebar()")
+    )
+    expect(navButton).toContain(
+      "text-[0.875rem] leading-5 text-sidebar-foreground"
+    )
   })
 
   it("routes every new conversation entry through touch sidebar navigation", () => {

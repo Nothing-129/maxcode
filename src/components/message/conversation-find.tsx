@@ -202,7 +202,7 @@ export function ConversationFind({
       {!open ? (
         <button
           type="button"
-          className={`${buttonClass} bg-background/90`}
+          className={`${buttonClass} max-md:hidden bg-background/90`}
           aria-label={t("title")}
           title={t("title")}
           onClick={show}

@@ -128,7 +128,7 @@ function SidebarNavButton({
       className={cn(
         // Match navigation and history rows with a quiet, rounded rectangle.
         "group flex h-7 w-full items-center gap-2.5 rounded-lg pl-2.5 pr-2.5",
-        "text-[0.8125rem] leading-5 text-sidebar-foreground outline-none",
+        "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
         "transition-colors duration-150 hover:bg-sidebar-accent",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         active && "bg-sidebar-primary/8"

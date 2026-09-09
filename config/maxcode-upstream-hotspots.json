@@ -2,6 +2,21 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.mobile-conversation-layout",
+      "category": "product",
+      "description": "Mobile hides the conversation search trigger and reveals sent-message edit on interaction. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/message/conversation-find.tsx",
+        "src/components/message/sent-message-edit-button.tsx",
+        "src/components/chat/composer-context-usage.tsx",
+        "src/components/chat/composer-generation-stats.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-conversation-layout.contract.test.tsx"
+      ]
+    },
+    {
       "id": "composer.metric-layout",
       "category": "product",
       "description": "Composer metrics use five compact values separated by vertical bars, Chinese first-token wording, four-decimal inline USD estimates without an approximation prefix, and no usage pill background. Visible and measured performance layouts share the same renderer; hidden metrics do not leave orphan separators.",
@@ -466,7 +481,7 @@
     {
       "id": "workspace.sidebar-navigation",
       "category": "product",
-      "description": "Sidebar navigation omits Tasks and Repository dashboard regardless of saved visibility, retaining New chat (新对话 in Simplified Chinese), Automations and conversation history. Folder, Recent and Chats new-conversation actions all navigate to conversations and collapse the sidebar on mobile or coarse-pointer layouts.",
+      "description": "Sidebar navigation omits Tasks and Repository dashboard regardless of saved visibility, retaining New chat (新建对话 in Simplified Chinese), Automations (自动任务) and conversation history. Both fixed navigation actions use 14px labels at default zoom. Folder, Recent and Chats new-conversation actions all navigate to conversations and collapse the sidebar on mobile or coarse-pointer layouts.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/components/layout/sidebar.tsx",

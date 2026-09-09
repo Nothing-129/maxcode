@@ -166,6 +166,17 @@ export function canShowGenerationStats({
   return required <= available
 }
 
+/** Drop the amount before context, preserving navigation and connection controls. */
+export function chooseComposerUsageDisplayMode(
+  available: number,
+  contextWidth: number,
+  costWidth: number
+): "full" | "context" | "hidden" {
+  if (contextWidth + costWidth <= available) return "full"
+  if (contextWidth <= available) return "context"
+  return "hidden"
+}
+
 function cssPixels(value: string): number {
   const parsed = Number.parseFloat(value)
   return Number.isFinite(parsed) ? parsed : 0
@@ -264,12 +275,56 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         (child): child is HTMLElement =>
           child instanceof HTMLElement && child.dataset.generationStats == null
       )
-      const separatorWidth = controls.some((control) =>
+      let separatorWidth = controls.some((control) =>
         control.hasAttribute("data-composer-usage")
       )
         ? cssPixels(rightStyle.fontSize) +
           cssPixels(getComputedStyle(document.documentElement).fontSize) / 2
         : 0
+      const usage = controls.find((control) =>
+        control.hasAttribute("data-composer-usage")
+      )
+      const cost = usage?.querySelector<HTMLElement>(
+        "[data-composer-cost-group]"
+      )
+      if (usage && cost) {
+        // Always measure the full content so growing the row restores values.
+        usage.style.display = "inline-flex"
+        cost.style.display = "inline-flex"
+        const width = (element: HTMLElement) => {
+          const style = getComputedStyle(element)
+          return (
+            element.getBoundingClientRect().width +
+            cssPixels(style.marginLeft) +
+            cssPixels(style.marginRight)
+          )
+        }
+        const available =
+          row.clientWidth -
+          cssPixels(rowStyle.paddingLeft) -
+          cssPixels(rowStyle.paddingRight) -
+          Math.max(left.getBoundingClientRect().width, left.scrollWidth) -
+          cssPixels(rowStyle.columnGap) -
+          controls
+            .filter((control) => control !== usage)
+            .reduce((sum, control) => sum + width(control), 0) -
+          cssPixels(rightStyle.paddingRight)
+        const costWidth = width(cost)
+        const contextWidth =
+          width(usage) -
+          costWidth -
+          (labelElement.getAttribute("aria-hidden") === "false"
+            ? separatorWidth
+            : 0)
+        const mode = chooseComposerUsageDisplayMode(
+          available,
+          contextWidth,
+          costWidth
+        )
+        cost.style.display = mode === "full" ? "inline-flex" : "none"
+        usage.style.display = mode === "hidden" ? "none" : "inline-flex"
+        if (mode === "hidden") separatorWidth = 0
+      }
       const fit = (statsWidth: number) =>
         canShowGenerationStats({
           rowWidth: row.clientWidth,
@@ -320,14 +375,21 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         observer.observe(control)
       }
     }
-    return () => observer.disconnect()
+    const mutations = new MutationObserver(measure)
+    mutations.observe(row, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    })
+    return () => {
+      observer.disconnect()
+      mutations.disconnect()
+    }
   }, [fullLabel, throughputLabel])
-
-  if (!fullLabel) return null
 
   const displayedParts =
     displayMode === "throughput" ? [throughputLabel] : parts
-  const isVisible = displayMode !== "hidden"
+  const isVisible = !!fullLabel && displayMode !== "hidden"
 
   return (
     <>

@@ -24,7 +24,7 @@ export const SentMessageEditButton = memo(function SentMessageEditButton({
     <MessageAction
       tooltip={t("editMessage")}
       size="icon-xs"
-      className="self-end opacity-100 transition-opacity md:opacity-0 md:group-hover/user-msg:opacity-100 focus-visible:opacity-100"
+      className="self-end opacity-0 transition-opacity group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100"
       onClick={() => onEdit(unescapeComposerText(text))}
     >
       <Pencil size={12} />

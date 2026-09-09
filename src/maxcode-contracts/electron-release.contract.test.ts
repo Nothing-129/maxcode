@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { createRequire } from "node:module"
+import { parse } from "yaml"
 import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
@@ -25,6 +26,15 @@ const installers = (value: string) => [
 ]
 
 describe("MaxCode contract: Electron release and legacy isolation", () => {
+  it("does not cache an absent pnpm store in the draft metadata job", () => {
+    const workflow = parse(source(".github/workflows/release.yml"))
+    const setup = workflow.jobs["create-draft-release"].steps.find(
+      (step: { uses?: string }) => step.uses?.startsWith("actions/setup-node@")
+    )
+    expect(setup).toBeDefined()
+    expect(setup.with.cache).toBeUndefined()
+  })
+
   it("resolves native desktop runners, deduplicates targets and rejects unsupported targets", () => {
     expect(targets(` ${mac},${mac}, `, true)).toHaveLength(1)
     expect(targets("x86_64-apple-darwin", true)[0].runner).toBe(

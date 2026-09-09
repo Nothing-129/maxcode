@@ -80,7 +80,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "pnpm"
+          # This metadata-only job does not install dependencies or create a pnpm store.
 
       - name: Verify tag matches app version
         shell: bash
