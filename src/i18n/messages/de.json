@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "Der linke und rechte Bereich werden bereits verwendet. Schließe zuerst einen Bereich."
     },
     "folderTitleBar": {
+      "refreshInterface": "Oberfläche neu laden",
+      "frontendUpdated": "Oberfläche aktualisiert. Zum Neuladen klicken.",
       "workspaceTools": "Arbeitsbereich-Werkzeuge",
       "showSidebar": "Seitenleiste anzeigen",
       "hideSidebar": "Seitenleiste ausblenden",

@@ -1,6 +1,6 @@
 {
   "name": "maxcode-desktop",
-  "version": "0.30.8",
+  "version": "0.30.9",
   "private": true,
   "description": "MaxCode Electron desktop workspace",
   "author": "MaxCode contributors",

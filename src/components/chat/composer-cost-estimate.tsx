@@ -53,7 +53,7 @@ export function useComposerCostEstimate(
     : t("costBasis")
   const inlineValue =
     estimate?.usd != null
-      ? `${estimate.usd > 0 && estimate.usd < 0.0001 ? value : `$${estimate.usd.toFixed(4)}`}${estimate.complete ? "" : "*"}`
+      ? `$${estimate.usd.toFixed(2)}${estimate.complete ? "" : "*"}`
       : hasBuckets && !catalog && !failed
         ? "$…"
         : "$--"

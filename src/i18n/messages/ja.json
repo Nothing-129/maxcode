@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "左右の分割は使用中です。どちらかを閉じてください。"
     },
     "folderTitleBar": {
+      "refreshInterface": "画面を再読み込み",
+      "frontendUpdated": "画面が更新されました。クリックして再読み込み。",
       "workspaceTools": "ワークスペースツール",
       "showSidebar": "サイドバーを表示",
       "hideSidebar": "サイドバーを非表示",

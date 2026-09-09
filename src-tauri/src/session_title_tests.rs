@@ -527,3 +527,105 @@ async fn manual_refresh_replaces_locked_title_without_unlocking_or_changing_sett
     assert_eq!(after.title, current.title);
     assert!(after.title_locked);
 }
+
+#[tokio::test]
+async fn structured_title_survives_native_refresh_and_can_still_refine() {
+    let db = fresh_in_memory_db().await;
+    let folder = seed_folder(&db, "/tmp/structured-title-stability").await;
+    for agent in [
+        AgentType::Grok,
+        AgentType::Codex,
+        AgentType::Pi,
+        AgentType::DeepSeek,
+        AgentType::ClaudeCode,
+    ] {
+        let row = conversation_service::create(
+            &db.conn,
+            folder,
+            agent,
+            Some("0909｜未知｜未命名".into()),
+            None,
+        )
+        .await
+        .unwrap();
+        for _ in 0..3 {
+            assert!(!conversation_service::refresh_auto_title(
+                &db.conn,
+                row.id,
+                "还是不太好看，你觉得怎么设计好看，只给方案，不改".into()
+            )
+            .await
+            .unwrap());
+            let saved = conversation_service::get_by_id(&db.conn, row.id)
+                .await
+                .unwrap();
+            assert_eq!(saved.title.as_deref(), Some("0909｜未知｜未命名"));
+            assert!(!saved.title_locked);
+            assert_eq!(saved.updated_at, row.updated_at);
+        }
+        assert!(conversation_service::commit_refined_title(
+            &db.conn,
+            row.id,
+            "0909｜设计｜会话布局方案".into()
+        )
+        .await
+        .unwrap());
+        assert!(!conversation_service::refresh_auto_title(
+            &db.conn,
+            row.id,
+            "0909｜未知｜未命名".into()
+        )
+        .await
+        .unwrap());
+    }
+    let row = conversation_service::create(
+        &db.conn,
+        folder,
+        AgentType::OpenCode,
+        Some("0909｜未知｜未命名".into()),
+        None,
+    )
+    .await
+    .unwrap();
+    assert!(conversation_service::refresh_auto_title(
+        &db.conn,
+        row.id,
+        "Native OpenCode title".into()
+    )
+    .await
+    .unwrap());
+}
+
+#[tokio::test]
+async fn recovered_title_is_returned_in_live_detail() {
+    let db = fresh_in_memory_db().await;
+    let folder = seed_folder(&db, "/tmp/recovered-title-detail").await;
+    let row = conversation_service::create(
+        &db.conn,
+        folder,
+        AgentType::Grok,
+        Some("原始提问".into()),
+        None,
+    )
+    .await
+    .unwrap();
+    let manager = crate::acp::manager::ConnectionManager::new();
+    let channels = crate::chat_channel::manager::ChatChannelManager::new();
+    let emitter = EventEmitter::test_web_only(Arc::new(WebEventBroadcaster::new()));
+    for _ in 0..3 {
+        let detail = crate::commands::conversations::get_folder_conversation_with_live_core(
+            &db.conn, &manager, &channels, &emitter, row.id, None,
+        )
+        .await
+        .unwrap();
+        let saved = conversation_service::get_by_id(&db.conn, row.id)
+            .await
+            .unwrap();
+        assert_eq!(detail.summary.title, saved.title);
+        assert_eq!(
+            detail.summary.title,
+            Some(structured_title_fallback(None, row.created_at))
+        );
+        assert!(!detail.summary.title_locked);
+    }
+}

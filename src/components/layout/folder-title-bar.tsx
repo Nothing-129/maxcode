@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { MobileHeaderTarget } from "./mobile-header-slot"
+import { MobileFrontendRefresh } from "./mobile-frontend-refresh"
 import { WindowControls } from "./window-controls"
 
 /** Mobile navigation shares one canvas-colored row with the active title. */
@@ -106,6 +107,7 @@ export function FolderTitleBar() {
         buttonClassName="size-11 shrink-0 rounded-xl"
         iconClassName="size-5"
       />
+      <MobileFrontendRefresh />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

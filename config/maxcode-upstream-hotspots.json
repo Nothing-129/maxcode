@@ -2,6 +2,62 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "desktop.electron-window-state",
+      "category": "product",
+      "description": "Electron workspace persists normal window bounds and maximized/full-screen state across close, relaunch and update installation, flushes before backend shutdown, and restores bounds within a connected display without child windows overwriting them.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "electron/main.cjs",
+        "electron/window-state.cjs",
+        "electron/updater.cjs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-window-state.contract.test.ts"
+      ]
+    },
+    {
+      "id": "web.frontend-refresh",
+      "category": "product",
+      "description": "HTML and frontend build metadata revalidate on every request; hashed JS/CSS retain immutable caching. Mobile checks the served frontend build on foreground and reconnect, prompts to refresh, and offers a refresh control beside workspace settings without clearing credentials or saving drafts.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "package.json",
+        "scripts/build-frontend.mjs",
+        "next.config.ts",
+        "src/app/frontend-version.json/route.ts",
+        "src/lib/refresh-frontend.ts",
+        "src/components/layout/mobile-frontend-refresh.tsx",
+        "src/components/layout/folder-title-bar.tsx",
+        "src-tauri/src/web/frontend_cache.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/web/mod.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/frontend-refresh.contract.test.tsx"]
+    },
+    {
+      "id": "chat.viewer-sync-request-bounds",
+      "category": "product",
+      "description": "Cross-client viewer detail synchronization coalesces repeated WebSocket nudges into one active poll with a shared five-attempt backoff budget, preventing read-triggered metadata feedback from piling up HTTP requests while retaining late-update refreshes.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": ["src/stores/conversation-runtime-store.ts"],
+      "contracts": [
+        "src/maxcode-contracts/viewer-sync-request-bounds.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.structured-title-stability",
+      "category": "product",
+      "description": "Unlocked structured fallback titles cannot be downgraded by transcript, native ACP or Codex index refreshes. Compare the observed title at write time to protect concurrent recovery. Live detail returns persisted title and lock metadata after recovery while allowing later refinement.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src-tauri/src/db/service/conversation_service.rs",
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/commands/conversations.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/title-stability.contract.test.ts"]
+    },
+    {
       "id": "chat.mobile-conversation-layout",
       "category": "product",
       "description": "Mobile hides the conversation search menu entry and sent-message edit button even on interaction, and disables in-conversation search shortcuts and menu events. Desktop retains search and edit. Mobile user bubbles allow 92% width and place copy/task actions below the bubble without consuming text width; desktop keeps 82% and inline actions. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
@@ -22,7 +78,7 @@
     {
       "id": "composer.metric-layout",
       "category": "product",
-      "description": "Composer metrics use five compact values separated by vertical bars, Chinese first-token wording, four-decimal inline USD estimates without an approximation prefix, and no usage pill background. Visible and measured performance layouts share the same renderer; hidden metrics do not leave orphan separators.",
+      "description": "Composer metrics use five compact values separated by vertical bars, Chinese label-first round counts (回合2) and first-token wording, two-decimal inline USD estimates without an approximation prefix, and no usage pill background. Visible and measured performance layouts share the same renderer; hidden metrics do not leave orphan separators.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/chat/message-input.tsx",

@@ -1026,7 +1026,7 @@ checksum = "c3e64b0cc0439b12df2fa678eae89a1c56a529fd067a9115f7827f1fffd22b32"
 
 [[package]]
 name = "codeg"
-version = "0.30.8"
+version = "0.30.9"
 dependencies = [
  "aes-gcm",
  "agent-client-protocol-schema",
@@ -1097,6 +1097,7 @@ dependencies = [
  "tokio-util",
  "toml 0.8.2",
  "toml_edit 0.19.15",
+ "tower",
  "tower-http",
  "tracing",
  "tracing-appender",

@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod compression;
+pub mod frontend_cache;
 pub mod event_bridge;
 pub mod handlers;
 pub mod port_probe;

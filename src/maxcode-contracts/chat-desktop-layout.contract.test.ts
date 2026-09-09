@@ -52,7 +52,9 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
     expect(main).toContain('workspace && process.platform === "darwin"')
     expect(main).toContain('titleBarStyle: "hidden"')
     expect(main).toContain("trafficLightPosition: { x: 14, y: 13 }")
-    expect(main).toContain("new BrowserWindow(windowOptions(true))")
+    expect(main).toMatch(
+      /new BrowserWindow\(\{\s*\.\.\.windowOptions\(true\),\s*\.\.\.windowState.options\(\)/
+    )
     expect(source("electron/preload.cjs")).toContain(
       'dataset.nativeShell = "electron"'
     )

@@ -4,15 +4,24 @@ import { GenerationMetricItems } from "@/components/chat/composer-generation-sta
 import { source } from "./contract-source"
 
 describe("MaxCode: composed metric layout", () => {
+  it.each(["zh-CN", "zh-TW"])(
+    "places the Chinese round label before the count in %s",
+    (locale) => {
+      expect(source(`src/i18n/messages/${locale}.json`)).toContain(
+        '"roundCount": "回合{count}"'
+      )
+    }
+  )
+
   it("separates performance values with vertical bars and uses the same layout for measurement", () => {
     const { container } = render(
-      <GenerationMetricItems parts={["2回合", "首字4.2s", "13tok/s"]} />
+      <GenerationMetricItems parts={["回合2", "首字4.2s", "13tok/s"]} />
     )
     expect(container.querySelectorAll("[data-generation-metric]")).toHaveLength(
       3
     )
     expect(container.firstElementChild).toHaveClass("inline-flex")
-    expect(container.textContent).toBe("2回合｜首字4.2s｜13tok/s")
+    expect(container.textContent).toBe("回合2｜首字4.2s｜13tok/s")
     const stats = source("src/components/chat/composer-generation-stats.tsx")
     expect(stats).toContain("<GenerationMetricItems parts={displayedParts} />")
     expect(stats).toContain("<GenerationMetricItems parts={parts} />")

@@ -1633,6 +1633,14 @@ pub async fn get_folder_conversation_with_live_core(
         }
     }
 
+    // Recovery can persist a fallback (or finish a refinement) after the initial
+    // read. Return the same persisted metadata the sidebar upsert announces.
+    let current_summary = conversation_service::get_by_id(conn, conversation_id)
+        .await
+        .map_err(AppCommandError::from)?;
+    detail.summary.title = current_summary.title;
+    detail.summary.title_locked = current_summary.title_locked;
+
     if upserted {
         emit_conversation_upsert(emitter, conn, conversation_id).await;
     }

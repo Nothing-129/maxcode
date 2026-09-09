@@ -2,6 +2,10 @@ import type { NextConfig } from "next"
 import createNextIntlPlugin from "next-intl/plugin"
 
 const isProd = process.env.NODE_ENV === "production"
+const frontendBuildId = process.env.MAXCODE_FRONTEND_BUILD_ID || "development"
+if (isProd && frontendBuildId === "development") {
+  throw new Error("Run pnpm build to assign a frontend build ID")
+}
 const internalHost = process.env.TAURI_DEV_HOST || "localhost"
 const withNextIntl = createNextIntlPlugin({
   requestConfig: "./src/i18n/request.ts",
@@ -38,6 +42,8 @@ const assetPrefix =
 
 const nextConfig: NextConfig = {
   output: "export",
+  generateBuildId: async () => frontendBuildId,
+  env: { NEXT_PUBLIC_FRONTEND_BUILD_ID: frontendBuildId },
   images: {
     unoptimized: true,
   },

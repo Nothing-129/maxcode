@@ -215,12 +215,10 @@ pub async fn commit_manual_refreshed_title(
 /// not float the row to the top of a recency-sorted sidebar. Returns `true`
 /// when a row was written so the caller can broadcast a sidebar upsert.
 ///
-/// Implemented as a single conditional UPDATE (`... WHERE id = ? AND
-/// title_locked = false AND (title IS NULL OR title <> ?)`) so the lock/equality
-/// checks and the write are atomic: a manual rename ([`update_title`], which
-/// sets `title_locked = true`) that lands between a would-be read and the write
-/// can never be clobbered, because the lock predicate is re-evaluated at write
-/// time by the database. A non-existent row simply matches nothing (`false`).
+/// The observed title is compared again in the UPDATE so a concurrent fallback,
+/// refinement or manual rename cannot be overwritten by a stale parser result.
+/// Structured app titles remain eligible for refinement, but not for replacement
+/// by a native title or first-message heuristic.
 pub async fn refresh_auto_title(
     conn: &DatabaseConnection,
     conversation_id: i32,
@@ -231,9 +229,23 @@ pub async fn refresh_auto_title(
     if title.is_empty() {
         return Ok(false);
     }
+    let Some(current) = conversation::Entity::find_by_id(conversation_id)
+        .one(conn)
+        .await?
+    else {
+        return Ok(false);
+    };
+    if would_downgrade_structured_title(&current, title) {
+        return Ok(false);
+    }
+    let old_title = match current.title.as_deref() {
+        Some(old) => conversation::Column::Title.eq(old),
+        None => conversation::Column::Title.is_null(),
+    };
     let res = conversation::Entity::update_many()
         .col_expr(conversation::Column::Title, Expr::value(title))
         .filter(conversation::Column::Id.eq(conversation_id))
+        .filter(old_title)
         .filter(conversation::Column::TitleLocked.eq(false))
         .filter(conversation::Column::DeletedAt.is_null())
         .filter(
@@ -244,6 +256,16 @@ pub async fn refresh_auto_title(
         .exec(conn)
         .await?;
     Ok(res.rows_affected > 0)
+}
+
+fn would_downgrade_structured_title(current: &conversation::Model, title: &str) -> bool {
+    use crate::session_title::{normalize_structured_title, supports_dedicated_auto_title};
+    AgentType::from_wire(&current.agent_type).is_some_and(supports_dedicated_auto_title)
+        && current
+            .title
+            .as_deref()
+            .is_some_and(|old| normalize_structured_title(old, current.created_at).is_some())
+        && normalize_structured_title(title, current.created_at).is_none()
 }
 
 /// Locale-refined CLI title: write `title` and lock it so parser/native
@@ -426,7 +448,10 @@ async fn refresh_codex_auto_title_candidate(
     let Some(external_id) = candidate.external_id.as_deref() else {
         return Ok(false);
     };
-    if title.is_empty() || candidate.title.as_deref() == Some(title) {
+    if title.is_empty()
+        || candidate.title.as_deref() == Some(title)
+        || would_downgrade_structured_title(candidate, title)
+    {
         return Ok(false);
     }
 
@@ -2771,6 +2796,34 @@ mod tests {
         );
         let summary = get_by_id(&db.conn, row.id).await.expect("get");
         assert_eq!(summary.title.as_deref(), Some("same"));
+    }
+
+    #[tokio::test]
+    async fn codex_index_preserves_structured_fallback() {
+        let db = fresh_in_memory_db().await;
+        let folder = seed_folder(&db, "/tmp/codex-structured-title").await;
+        let row = create(
+            &db.conn,
+            folder,
+            AgentType::Codex,
+            Some("0909｜未知｜未命名".into()),
+            None,
+        )
+        .await
+        .unwrap();
+        bind_external_id(&db.conn, row.id, "structured-session", &[])
+            .await
+            .unwrap();
+        let titles = HashMap::from([(
+            "structured-session".to_string(),
+            "Original prompt".to_string(),
+        )]);
+        assert!(refresh_codex_auto_titles(&db.conn, &titles)
+            .await
+            .is_empty());
+        let saved = get_by_id(&db.conn, row.id).await.unwrap();
+        assert_eq!(saved.title, row.title);
+        assert!(!saved.title_locked);
     }
 
     #[tokio::test]

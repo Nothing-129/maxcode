@@ -1,7 +1,7 @@
 # Conversation cost estimates
 
 The composer status row shows the USD estimate beside the token/context
-indicator without opening a popover. Expanded usage details share the same
+indicator without opening a popover, rounded to two decimal places. Expanded usage details share the same
 calculation and catalog request. Both use recorded, full-transcript usage. History pagination never limits its accounting scope. Input, output,
 cache reads and cache writes are priced separately, then summed by model.
 The parsers already expose fresh input excluding cache, so no cache subtraction
@@ -35,7 +35,7 @@ cache filename is versioned so pre-pricing caches cannot hide missing fields.
 - Unknown model/cache prices remain unknown. Partial estimates show a known
   subtotal, not a complete total. Missing session-total usage is kept in an
   unknown-model bucket. Zero usage does not require a price; zero price is distinct
-  from missing price. Tiny positive amounts never display as free.
+  from missing price. Expanded details retain four-decimal precision and a lower-bound indicator for tiny positive amounts; the compact status row always uses two decimal places.
 - Where a parser has no per-turn model, its session model remains the fallback.
   Historical pricing changes are not replayed: catalog prices are current, not
   necessarily those in effect when the transcript was recorded.

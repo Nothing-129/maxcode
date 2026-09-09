@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "왼쪽과 오른쪽 분할이 모두 사용 중입니다. 하나를 먼저 닫으세요."
     },
     "folderTitleBar": {
+      "refreshInterface": "화면 새로고침",
+      "frontendUpdated": "화면이 업데이트되었습니다. 클릭하여 새로고침하세요.",
       "workspaceTools": "작업 공간 도구",
       "showSidebar": "사이드바 표시",
       "hideSidebar": "사이드바 숨기기",

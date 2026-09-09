@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "Las divisiones izquierda y derecha ya están en uso. Cierra una antes de abrir otra carpeta."
     },
     "folderTitleBar": {
+      "refreshInterface": "Actualizar interfaz",
+      "frontendUpdated": "Interfaz actualizada. Haz clic para recargar.",
       "workspaceTools": "Herramientas del espacio de trabajo",
       "showSidebar": "Mostrar barra lateral",
       "hideSidebar": "Ocultar barra lateral",

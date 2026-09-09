@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "The left and right splits are already in use. Close one before opening another folder."
     },
     "folderTitleBar": {
+      "refreshInterface": "Refresh interface",
+      "frontendUpdated": "Interface updated. Click to refresh.",
       "workspaceTools": "Workspace tools",
       "showSidebar": "Show Sidebar",
       "hideSidebar": "Hide Sidebar",

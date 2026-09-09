@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "左右分区都已占用，请先关闭一个分区。"
     },
     "folderTitleBar": {
+      "refreshInterface": "刷新界面",
+      "frontendUpdated": "界面已更新，点击刷新",
       "workspaceTools": "工作区工具",
       "showSidebar": "显示侧边栏",
       "hideSidebar": "隐藏侧边栏",
@@ -3360,7 +3362,7 @@
         "outputSpeedTooltip": "估算输出速度（正文 + 思考 + 工具参数）"
       },
       "generationStats": {
-        "roundCount": "{count}回合",
+        "roundCount": "回合{count}",
         "ttftAverage": "首字{duration}",
         "tokensPerSecond": "{throughput}tok/s"
       },

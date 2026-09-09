@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, renderHook, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 import { source } from "./contract-source"
 import {
@@ -6,7 +6,10 @@ import {
   formatConversationCost,
   resolveCostModel,
 } from "@/lib/conversation-cost"
-import { ComposerCostEstimate } from "@/components/chat/composer-cost-estimate"
+import {
+  ComposerCostEstimate,
+  useComposerCostEstimate,
+} from "@/components/chat/composer-cost-estimate"
 import type {
   ConversationBillingUsage,
   OpenCodeCatalogModel,
@@ -47,6 +50,31 @@ const bucket: ConversationBillingUsage = {
 }
 
 describe("MaxCode: conversation cost, CC Switch accounting reference", () => {
+  it.each([
+    [0.2867, "$0.29"],
+    [1.2, "$1.20"],
+    [0, "$0.00"],
+    [0.00001, "$0.00"],
+  ])("shows two decimal places inline for %s USD", async (usd, expected) => {
+    fetchCatalog.mockResolvedValueOnce([
+      { ...provider, models: [{ ...model, cost_in: usd }] },
+    ])
+    const { result } = renderHook(() =>
+      useComposerCostEstimate([
+        {
+          model: model.id,
+          usage: {
+            input_tokens: 1000000,
+            output_tokens: 0,
+            cache_creation_input_tokens: 0,
+            cache_read_input_tokens: 0,
+          },
+        },
+      ])
+    )
+    await waitFor(() => expect(result.current.inlineValue).toBe(expected))
+  })
+
   it("matches the reference's fresh-input example without subtracting cache twice", () => {
     expect(estimateConversationCost([bucket], [provider])).toEqual({
       usd: 0.010935,

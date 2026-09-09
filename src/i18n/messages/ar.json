@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "القسمان الأيسر والأيمن مستخدمان. أغلق أحدهما قبل فتح مجلد آخر."
     },
     "folderTitleBar": {
+      "refreshInterface": "تحديث الواجهة",
+      "frontendUpdated": "تم تحديث الواجهة. انقر لإعادة التحميل.",
       "workspaceTools": "أدوات مساحة العمل",
       "showSidebar": "إظهار الشريط الجانبي",
       "hideSidebar": "إخفاء الشريط الجانبي",

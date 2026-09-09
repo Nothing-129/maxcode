@@ -2990,14 +2990,17 @@ function isLatestGeneration(
 // on completion, so a trailing user turn means the reply is still mid-flush).
 const VIEWER_DETAIL_SYNC_DELAYS_MS = [0, 300, 700, 1500, 2500] as const
 
-// Active viewer-sync polls, keyed by conversationId, so a fresh nudge supersedes
-// an in-flight poll (never stacks) and `removeConversation` / store reset can
-// cancel a poll whose tab has closed.
-const viewerDetailSyncCancels = new Map<number, () => void>()
+// Active viewer-sync polls share one request and one retry budget per session.
+// Repeated nudges mark the poll dirty instead of abandoning a still-running HTTP
+// request. Closing the tab / resetting the store cancels its remaining work.
+const viewerDetailSyncCancels = new Map<
+  number,
+  { cancel: () => void; nudge: () => void }
+>()
 
 function cancelViewerDetailSync(conversationId: number): void {
   const cancel = viewerDetailSyncCancels.get(conversationId)
-  if (cancel) cancel()
+  if (cancel) cancel.cancel()
 }
 
 // Resolve the RUNTIME-session key for a `conversation://changed` nudge, which
@@ -3788,19 +3791,28 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
     const session = get().byConversationId.get(conversationId)
     if (!session || !isPureViewerSession(session)) return
 
-    // Restart, don't stack: a fresh nudge supersedes any in-flight poll.
-    cancelViewerDetailSync(conversationId)
+    const active = viewerDetailSyncCancels.get(conversationId)
+    if (active) {
+      active.nudge()
+      return
+    }
 
+    let nudged = false
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
     const cancel = (): void => {
       cancelled = true
       if (timer) clearTimeout(timer)
-      if (viewerDetailSyncCancels.get(conversationId) === cancel) {
+      if (viewerDetailSyncCancels.get(conversationId)?.cancel === cancel) {
         viewerDetailSyncCancels.delete(conversationId)
       }
     }
-    viewerDetailSyncCancels.set(conversationId, cancel)
+    viewerDetailSyncCancels.set(conversationId, {
+      cancel,
+      nudge: () => {
+        nudged = true
+      },
+    })
 
     const attempt = (n: number): void => {
       if (cancelled) return
@@ -3816,11 +3828,10 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       // `dbConversationId` asynchronously, and the runtime key alone is not
       // always fetchable (a virtual negative id). Falls back to the key.
       const fetchId = cur.dbConversationId ?? conversationId
-      // `getFolderConversation` here can itself emit a `conversation://changed`
-      // upsert (auto-title backfill), which re-enters this poll (cancel +
-      // restart). That converges — the title only changes a bounded number of
-      // times and the attempt cap bounds each run — but it's why this is the one
-      // detail fetcher that both triggers and can re-trigger itself.
+      // A detail read can itself broadcast a metadata upsert. Coalesce those
+      // nudges, and follow up after this request settles using the SAME bounded
+      // retry budget. Otherwise read → event → read can exhaust browser resources.
+      nudged = false
       const generation = bumpFetchGeneration(conversationId)
       fetchDetailWindowed(fetchId, cur.detail)
         .then((detail) => {
@@ -3831,7 +3842,7 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
             return
           }
           // The generation gate governs only the COMMIT: a concurrent panel
-          // fetch/refetch (or a superseding nudge) that bumped the counter owns
+          // fetch/refetch that bumped the counter owns
           // the detail now, so we must not clobber it with this (possibly older)
           // read — but we still evaluate convergence below and keep polling,
           // since that superseding read may have landed a pre-reply transcript.
@@ -3879,7 +3890,10 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
               preserveLive: false,
             })
           }
-          if (replyPending && n + 1 < VIEWER_DETAIL_SYNC_DELAYS_MS.length) {
+          if (
+            (replyPending || nudged) &&
+            n + 1 < VIEWER_DETAIL_SYNC_DELAYS_MS.length
+          ) {
             timer = setTimeout(
               () => attempt(n + 1),
               VIEWER_DETAIL_SYNC_DELAYS_MS[n + 1]
@@ -4229,7 +4243,7 @@ export function resetConversationRuntimeStore(): void {
   // have no concurrent fetches — but a real in-place backend switch would need a
   // backend epoch here. See `RemoteConnectionGate`.
   fetchGeneration.clear()
-  for (const cancel of viewerDetailSyncCancels.values()) cancel()
+  for (const poll of viewerDetailSyncCancels.values()) poll.cancel()
   viewerDetailSyncCancels.clear()
   timelineCache = new WeakMap()
   timelinePrefixCache = new WeakMap()

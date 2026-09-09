@@ -12,6 +12,8 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
+| 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用固定显示两位小数，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
 | 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除；保留 Tauri 支持 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
 | 分隔线 | 面板拖动分隔线默认 1px，悬停和拖动时 2px，保留宽鼠标命中范围 | `worktree-2026-09-09` | `workspace.subtle-resize-handles` |
@@ -89,3 +91,12 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 输入框底部的权限、模式、模型、推理强度等选择器统一靠左连续排列，不再将模型推到右侧（`src/maxcode-contracts/reference-chat-style.contract.test.ts`）。
 
 当前对话通过标题操作菜单或 Ctrl/Cmd+F 打开搜索，移除右上角悬浮入口，按匹配消息前后跳转，显示高亮片段并逐页搜索历史；失败时可手动重试（`chat.conversation-find`）。
+
+### 浏览器会话同步请求上限（2026-09-09）
+
+`syncViewerDetail` 将同一会话的重复 WebSocket 通知合并到正在进行的同步，
+每轮共享最多五次请求及退避等待，避免读取详情触发元信息广播后反复启动请求。
+请求期间的新通知会安排有上限的后续读取，以补齐稍后落盘的回复。
+契约：`src/maxcode-contracts/viewer-sync-request-bounds.contract.test.ts`。
+
+手机顶栏在工作区设置入口旁提供“刷新界面”，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。

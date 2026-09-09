@@ -1010,7 +1010,7 @@ fn extract_chat_completion_title(body: &serde_json::Value) -> Option<String> {
 
 /// Normalize only the two field separators, preserving slashes in the topic.
 /// The creation date is authoritative; models must not choose updatedAt/today.
-fn normalize_structured_title(raw: &str, created_at: DateTime<Utc>) -> Option<String> {
+pub(crate) fn normalize_structured_title(raw: &str, created_at: DateTime<Utc>) -> Option<String> {
     let title = clean_llm_title(raw)?;
     let mut parts = title.splitn(3, ['｜', '|', '/']);
     let date = parts.next()?.trim();

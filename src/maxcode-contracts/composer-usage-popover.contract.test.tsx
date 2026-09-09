@@ -91,13 +91,14 @@ describe("MaxCode: composer usage popover", () => {
       },
     ])
     render(<ComposerContextUsage tabId="tab-1" />)
-    expect(await screen.findByText("$0.1166")).toBeTruthy()
+    expect(await screen.findByText("$0.12")).toBeTruthy()
     expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.getByLabelText("estimatedCost: $0.1166")).toHaveAttribute(
       "data-composer-cost"
     )
     fireEvent.click(screen.getByRole("button"))
-    expect(screen.getAllByText("$0.1166")).toHaveLength(2)
+    expect(screen.getByText("$0.1166")).toBeTruthy()
+    expect(screen.getByText("$0.12")).toBeTruthy()
     expect(fetchCatalog).toHaveBeenCalledTimes(1)
   })
 

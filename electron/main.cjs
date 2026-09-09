@@ -7,12 +7,14 @@ const {
   ipcMain,
   Menu,
   Notification,
+  screen,
   session,
   shell,
 } = require("electron")
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
+const { createWindowState } = require("./window-state.cjs")
 const {
   dialogOptions,
   externalUrl,
@@ -52,6 +54,10 @@ const notifications = new Set()
 const preferencesFile = path.join(
   app.getPath("userData"),
   "renderer-preferences.json"
+)
+const windowState = createWindowState(
+  path.join(app.getPath("userData"), "window-state.json"),
+  screen
 )
 
 function trustedSender(event) {
@@ -349,8 +355,12 @@ function configureWindow(window) {
 }
 
 async function createWindow() {
-  const window = new BrowserWindow(windowOptions(true))
+  const window = new BrowserWindow({
+    ...windowOptions(true),
+    ...windowState.options(),
+  })
   mainWindow = window
+  windowState.track(window)
   configureWindow(window)
   await window.loadURL(backend.backendUrl)
   return window
@@ -358,6 +368,7 @@ async function createWindow() {
 
 async function shutdown() {
   if (shutdownPromise) return shutdownPromise
+  windowState.save(mainWindow)
   quitting = true
   startupAbort.abort()
   shutdownPromise = (async () => {

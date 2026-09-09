@@ -1793,6 +1793,7 @@ pub fn build_router(
         .merge(ws_route)
         .fallback_service(fallback)
         .layer(html_rewrite)
+        .layer(middleware::from_fn(super::frontend_cache::frontend_cache))
         .layer(cors)
         .layer(Extension(state))
         .layer(Extension(shutdown_signal))

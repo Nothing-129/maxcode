@@ -2066,6 +2066,8 @@
       "folderZoneOccupied": "As divisões esquerda e direita já estão em uso. Feche uma antes de abrir outra pasta."
     },
     "folderTitleBar": {
+      "refreshInterface": "Atualizar interface",
+      "frontendUpdated": "Interface atualizada. Clique para recarregar.",
       "workspaceTools": "Ferramentas do espaço de trabalho",
       "showSidebar": "Mostrar barra lateral",
       "hideSidebar": "Ocultar barra lateral",
