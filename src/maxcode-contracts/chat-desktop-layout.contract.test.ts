@@ -93,7 +93,10 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
       'tall ? "min-h-30" : "min-h-26"'
     )
     const editor = source("src/components/chat/composer/rich-composer.tsx")
-    expect(editor).toContain("px-4 pt-4 pb-3 text-sm leading-5")
+    expect(editor).toContain("px-4 pt-4 pb-3")
     expect(editor).not.toContain("text-base md:text-sm")
+    expect(source("src/app/globals.css")).toMatch(
+      /\.codeg-composer \.ProseMirror\s*\{[^}]*font-size: 0\.875rem/
+    )
   })
 })

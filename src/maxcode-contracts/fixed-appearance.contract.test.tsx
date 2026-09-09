@@ -77,7 +77,7 @@ describe("fixed desktop appearance", () => {
     expect(initial).toContain('"color":"neutral"')
     expect(initial).toContain('"zoom":100')
     expect(initial).toContain('"font":"system-ui"')
-    expect(initial).toContain('"size":15')
+    expect(initial).toContain('"size":14')
     fireEvent.click(button)
     act(() =>
       window.dispatchEvent(
@@ -119,11 +119,11 @@ describe("fixed desktop appearance", () => {
 
   it("also hides background, status, welcome cards and pet controls", () => {
     const settings = source("src/components/settings/appearance-settings.tsx")
+    expect(settings).not.toContain("conversationStatus.sectionTitle")
     const gate = settings.lastIndexOf("{APPEARANCE_CUSTOMIZATION_ENABLED &&")
     const optional = settings.slice(gate)
     for (const control of [
       "<WorkspaceBackgroundSection />",
-      "conversationStatus.sectionTitle",
       "welcomePanel.sectionTitle",
       "<PetManagerSection />",
     ]) {

@@ -9,6 +9,13 @@ import enMessages from "@/i18n/messages/en.json"
 import { saveConversationStatusDisplay } from "@/lib/conversation-status-prefs"
 import { __resetUiPreferencesStoreForTests } from "@/lib/ui-preferences-store"
 
+// Exercise optional status display; fixed desktop defaults have separate contracts.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))
+
 // The agent icon renders inline SVG with a <title> that would duplicate the
 // agent label text; stub it so text queries stay unambiguous.
 vi.mock("@/components/agent-icon", () => ({

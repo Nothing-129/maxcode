@@ -38,7 +38,8 @@ describe("MaxCode contract: updater and release channel", () => {
       "https://github.com/Nothing-129/maxcode/releases/latest/download/latest.json",
     ])
     const status = source("src/components/layout/status-bar-update.tsx")
-    expect(status).toContain("toast.dismiss(updateToastId(availableVersion))")
+    expect(status).not.toMatch(/\btoast[.(]/)
+    expect(status).toContain("<ArrowUp")
   })
 
   it("keeps signed server updates and explicit platform whitelists", () => {

@@ -6,12 +6,16 @@ import { LeftEdgeChrome } from "./left-edge-chrome"
 import enMessages from "@/i18n/messages/en.json"
 
 const spies = vi.hoisted(() => ({
+  isSidebarOpen: true,
   setSearchOpen: vi.fn(),
   toggleSidebar: vi.fn(),
 }))
 
 vi.mock("@/contexts/sidebar-context", () => ({
-  useSidebarContext: () => ({ isOpen: true, toggle: spies.toggleSidebar }),
+  useSidebarContext: () => ({
+    isOpen: spies.isSidebarOpen,
+    toggle: spies.toggleSidebar,
+  }),
 }))
 vi.mock("@/contexts/search-dialog-context", () => ({
   useSearchDialog: () => ({ open: false, setOpen: spies.setSearchOpen }),
@@ -40,17 +44,20 @@ function renderChrome() {
 
 describe("LeftEdgeChrome", () => {
   beforeEach(() => {
+    spies.isSidebarOpen = true
     spies.setSearchOpen.mockClear()
     spies.toggleSidebar.mockClear()
   })
 
-  it("opens the shared search dialog from the search button", () => {
+  it("opens search from the chrome when the sidebar is collapsed", () => {
+    spies.isSidebarOpen = false
     renderChrome()
     fireEvent.click(screen.getByRole("button", { name: "Search" }))
     expect(spies.setSearchOpen).toHaveBeenCalledWith(true)
   })
 
   it("advertises the search shortcut on the button's tooltip", () => {
+    spies.isSidebarOpen = false
     renderChrome()
     // isMac=false → "mod" formats as "Ctrl". The sidebar row this replaced
     // carried the hint as a visible badge; here it lives in the title.
@@ -66,8 +73,9 @@ describe("LeftEdgeChrome", () => {
     expect(
       screen.queryByRole("button", { name: "Open remote workspace" })
     ).toBeNull()
-    // Only the two intended controls remain.
-    expect(screen.getAllByRole("button")).toHaveLength(2)
+    // With the sidebar open, search is available there instead.
+    expect(screen.queryByRole("button", { name: "Search" })).toBeNull()
+    expect(screen.getAllByRole("button")).toHaveLength(1)
   })
 
   it("keeps the sidebar toggle", () => {

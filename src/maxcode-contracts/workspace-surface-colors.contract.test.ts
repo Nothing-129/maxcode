@@ -74,8 +74,7 @@ describe("MaxCode contract: Codex-matched workspace surfaces", () => {
       "border-color": "rgb(0 0 0 / 6%)",
     })
     expect(rules[`${scope} .maxcode-composer-shadow`]).toEqual({
-      "box-shadow":
-        "0 2px 8px rgb(0 0 0 / 2.5%), 0 4px 32px rgb(0 0 0 / 1.5%)",
+      "box-shadow": "0 2px 8px rgb(0 0 0 / 2.5%), 0 4px 32px rgb(0 0 0 / 1.5%)",
     })
     expect(source("src/components/chat/composer/composer-chrome.ts")).toContain(
       "maxcode-composer-shadow"

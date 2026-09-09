@@ -83,7 +83,8 @@ if (bootstrap) {
     minimizeWindow: () => ipcRenderer.invoke("maxcode:minimize-window"),
     toggleMaximizeWindow: () => ipcRenderer.invoke("maxcode:toggle-maximize"),
     isMaximized: () => ipcRenderer.invoke("maxcode:is-maximized"),
-    setBadgeCount: (count) => ipcRenderer.invoke("maxcode:set-badge-count", count),
+    setBadgeCount: (count) =>
+      ipcRenderer.invoke("maxcode:set-badge-count", count),
     notify: (title, body) => ipcRenderer.invoke("maxcode:notify", title, body),
     openNotificationSettings: () =>
       ipcRenderer.invoke("maxcode:notification-settings"),

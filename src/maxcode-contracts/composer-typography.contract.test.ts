@@ -19,7 +19,9 @@ describe("MaxCode composer typography", () => {
       /\.codeg-composer \.ProseMirror\s*\{([^}]+)\}/
     )?.[1]
 
-    expect(editor).toContain("-apple-system-body, ui-sans-serif, -apple-system")
+    expect(editor).toMatch(
+      /-apple-system-body,\s*ui-sans-serif,\s*-apple-system/
+    )
     expect(editor).not.toContain("var(--font-sans)")
     expect(editor).toContain("color: #1a1c1e")
     expect(editor).toContain("font-size: 0.875rem")
