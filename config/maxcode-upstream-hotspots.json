@@ -2,6 +2,22 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "android.fresh-frontend-entry",
+      "category": "platform",
+      "description": "Android uses a fresh HTML URL for both login and workspace bootstrap on every connection, bypassing pre-no-cache entry documents without clearing credentials or content-hashed asset caches.",
+      "origins": [
+        "worktree-2026-09-10"
+      ],
+      "paths": [
+        "android-webview/app/src/main/java/app/codeg/web/UrlNormalizer.java",
+        "android-webview/app/src/main/java/app/codeg/web/MainActivity.java",
+        "android-webview/app/src/test/java/app/codeg/web/UrlNormalizerTest.java"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/android-fresh-entry.contract.test.ts"
+      ]
+    },
+    {
       "id": "desktop.electron-window-state",
       "category": "product",
       "description": "Electron workspace persists normal window bounds and maximized/full-screen state across close, relaunch and update installation, flushes before backend shutdown, and restores bounds within a connected display without child windows overwriting them.",

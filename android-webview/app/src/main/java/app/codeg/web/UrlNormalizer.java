@@ -4,6 +4,7 @@ import java.net.IDN;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Locale;
+import java.util.UUID;
 import java.util.regex.Pattern;
 
 final class UrlNormalizer {
@@ -11,6 +12,12 @@ final class UrlNormalizer {
             Pattern.compile("^[A-Za-z][A-Za-z0-9+.-]*://");
 
     private UrlNormalizer() {}
+
+    // Bypass HTML cached by older releases before no-cache headers existed.
+    // Keep subresource URLs stable so content-hashed JS/CSS still use their cache.
+    static String freshEntry(String normalizedBaseUrl, String path) {
+        return route(normalizedBaseUrl, path) + "?_frontend_reload=" + UUID.randomUUID();
+    }
 
     static String normalize(String rawValue) {
         if (rawValue == null) {

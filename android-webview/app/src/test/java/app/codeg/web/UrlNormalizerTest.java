@@ -9,6 +9,19 @@ import org.junit.Test;
 
 public final class UrlNormalizerTest {
     @Test
+    public void freshEntriesBypassOldHtmlCacheWithoutChangingOriginOrRoute() {
+        for (String path : new String[] {"/login", "/workspace"}) {
+            String first = UrlNormalizer.freshEntry("https://example.com:3086", path);
+            String second = UrlNormalizer.freshEntry("https://example.com:3086", path);
+            java.net.URI uri = java.net.URI.create(first);
+            assertEquals(path, uri.getPath());
+            assertTrue(uri.getQuery().startsWith("_frontend_reload="));
+            assertTrue(UrlNormalizer.isSameOrigin("https://example.com:3086", first));
+            assertFalse(first.equals(second));
+        }
+    }
+
+    @Test
     public void defaultsBareLanAddressToHttp() {
         assertEquals(
                 "http://192.168.1.20:3030",

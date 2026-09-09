@@ -485,7 +485,7 @@ public final class MainActivity extends Activity {
         pageProgress.setVisibility(View.VISIBLE);
         webView.onResume();
         webView.clearHistory();
-        webView.loadUrl(UrlNormalizer.route(config.baseUrl(), "/login"));
+        webView.loadUrl(UrlNormalizer.freshEntry(config.baseUrl(), "/login"));
     }
 
     private void showSetup(
@@ -937,7 +937,7 @@ public final class MainActivity extends Activity {
 
             if (bootstrapPending) {
                 bootstrapPending = false;
-                String workspaceUrl = UrlNormalizer.route(activeConfig.baseUrl(), "/workspace");
+                String workspaceUrl = UrlNormalizer.freshEntry(activeConfig.baseUrl(), "/workspace");
                 view.evaluateJavascript(
                         WebBootstrapScript.create(activeConfig.token(), workspaceUrl),
                         null);
