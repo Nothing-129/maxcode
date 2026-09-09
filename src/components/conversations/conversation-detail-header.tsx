@@ -2,22 +2,20 @@
 
 import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
 import { RefreshCw } from "lucide-react"
+import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
 import { cn } from "@/lib/utils"
+import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
 
 import { memo, useCallback, useState } from "react"
 import {
   Check,
-  ChevronRight,
-  Circle,
   Copy,
-  EllipsisVertical,
   Info,
   Link2Off,
   Loader2,
   Pencil,
   Pin,
   PinOff,
-  Share2,
   SquarePen,
   Trash2,
 } from "lucide-react"
@@ -44,23 +42,16 @@ import {
   type ConversationShareAddressSource,
 } from "@/lib/conversation-share"
 import { formatConversationTitle } from "@/lib/conversation-title"
-import { ConversationHeaderFolderPicker } from "@/components/chat/conversation-context-bar"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { useTabActions } from "@/contexts/tab-context"
 import { getRuntimeSession } from "@/stores/conversation-runtime-store"
 import type { ConversationStatus } from "@/lib/types"
-import { STATUS_ORDER } from "@/lib/types"
-import { ConversationStatusDot } from "@/components/conversations/conversation-status-dot"
-import { useConversationStatusActions } from "@/lib/conversation-status-prefs"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
@@ -110,8 +101,8 @@ interface ConversationDetailHeaderProps {
 }
 
 /**
- * Conversation detail header (desktop only): the owning folder name + the
- * conversation title on the left; an overflow (⋯) menu on the right. A single
+ * Conversation detail header (inline on desktop, in the nav row on mobile): the owning folder name + the
+ * conversation title on the left; an overflow (⋯) menu immediately after the title. A single
  * instance renders fixed above the tile scroll area, scoped to the ACTIVE
  * conversation, so it never scrolls horizontally when many conversations are
  * tiled.
@@ -137,9 +128,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const t = useTranslations("Folder.conversationCard")
   const ime = useImeGuard()
   const tConv = useTranslations("Folder.conversation")
-  const tStatus = useTranslations("Folder.statusLabels")
   const tDetails = useTranslations("Folder.sessionDetails")
-  const allowStatusActions = useConversationStatusActions()
   const { closeTab, openNewConversationTab } = useTabActions()
   const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const updateConversationLocal = useAppWorkspaceStore(
@@ -425,39 +414,33 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     }
   }, [shareTarget])
 
-  return (
+  const header = (
     // Transparent (no surface class): the title header reads as part of the
-    // message canvas below it rather than as a frosted chrome band. With a
-    // workspace background image on, the tab strip above it is transparent too,
-    // so the whole top of the column reveals the canvas.
-    <div className="flex h-10 shrink-0 items-center gap-2 border-b border-border/50 px-3">
-      <div className="flex min-w-0 flex-1 items-center gap-1.5">
-        {/* Folder selector — replaces the old folder-name breadcrumb. Switches
-            folders for a draft; a static chip for a bound conversation. */}
-        <ConversationHeaderFolderPicker tabId={tabId} />
-        <ChevronRight
-          className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50"
-          aria-hidden
-        />
-        {/* min-w-0 flex-1: the title absorbs the remaining width and takes the
-            ellipsis, so the folder crumb on the left stays fully visible. */}
+    // message canvas below it rather than as a frosted chrome band. The supplied
+    // desktop reference uses a compact title and quiet sharing action, sharing
+    // one row with window controls. With a workspace background image on, the whole top
+    // of the column reveals the canvas.
+    <div
+      data-tauri-drag-region
+      className="flex h-14 min-w-0 shrink-0 items-center gap-1 md:h-10 md:gap-2 md:pl-[var(--conversation-header-left,0.75rem)] md:pr-[var(--conversation-header-right,0.75rem)]"
+    >
+      {/* 标题文字占据剩余宽度，超出时截断。 */}
+      <div className="flex min-w-0 flex-1 items-center gap-1">
         <span
-          className="min-w-0 flex-1 truncate text-sm text-foreground/90"
+          className="min-w-0 truncate text-sm leading-5 font-semibold text-foreground"
           title={title}
         >
           {displayTitle}
         </span>
-      </div>
-      <div className="flex shrink-0 items-center">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded text-muted-foreground/60 transition-colors hover:text-foreground"
+              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-md:size-11 [&_svg]:size-4"
               aria-label={tConv("moreActions")}
               title={tConv("moreActions")}
             >
-              <EllipsisVertical className="h-4 w-4" />
+              <DesktopChromeIcon name="more" />
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
@@ -498,31 +481,18 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {tDetails("menuLabel")}
             </DropdownMenuItem>
             <DropdownMenuItem disabled={!persisted} onSelect={handleShareOpen}>
-              <Share2 className="h-4 w-4" />
+              <DesktopChromeIcon name="share" />
               {t("shareConversation")}
             </DropdownMenuItem>
-            {allowStatusActions ? (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger disabled={!persisted}>
-                    <Circle className="h-4 w-4" />
-                    {t("status")}
-                  </DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {STATUS_ORDER.filter((s) => s !== status).map((s) => (
-                      <DropdownMenuItem
-                        key={s}
-                        onSelect={() => handleStatusChange(s)}
-                      >
-                        <ConversationStatusDot status={s} />
-                        {tStatus(s)}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-              </>
-            ) : null}
+            {status !== "completed" && (
+              <DropdownMenuItem
+                disabled={!persisted}
+                onSelect={() => handleStatusChange("completed")}
+              >
+                <Check className="h-4 w-4" />
+                {t("markCompleted")}
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
@@ -730,4 +700,6 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       )}
     </div>
   )
+
+  return <MobileHeaderSlot>{header}</MobileHeaderSlot>
 })

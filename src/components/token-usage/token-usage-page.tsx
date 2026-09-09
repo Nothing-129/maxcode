@@ -527,13 +527,7 @@ export function TokenUsagePage() {
       (facets?.folders ?? []).map((f) => ({
         value: String(f.folder_id),
         label: formatFolderLabelWithAlias(f),
-        labelNode: (
-          <FolderAliasLabel
-            name={f.name}
-            alias={f.alias}
-            bracketClassName="text-muted-foreground"
-          />
-        ),
+        labelNode: <FolderAliasLabel name={f.name} alias={f.alias} />,
         hint: f.path,
       })),
     [facets]

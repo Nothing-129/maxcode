@@ -16,12 +16,9 @@ import {
 
 const STORAGE_KEY = "workspace:left-sidebar"
 
-const DEFAULT_WIDTH = 320
-// The sidebar header is the window's top-left edge; its top-left is reserved for
-// the fixed window-chrome overlay (macOS traffic-light inset + toggle + remote)
-// and its top-right holds the view-options control, so it needs more minimum
-// room than the old 200.
-const MIN_WIDTH = 300
+const DEFAULT_WIDTH = 268
+// Compact desktop rail; saved user widths remain respected.
+const MIN_WIDTH = 240
 const MAX_WIDTH = 900
 const DEFAULT_IS_OPEN = true
 

@@ -2,7 +2,7 @@
 const fs = require("node:fs")
 const path = require("node:path")
 const os = require("node:os")
-const { spawn } = require("node:child_process")
+const { spawn, execFile } = require("node:child_process")
 const { randomBytes } = require("node:crypto")
 
 const MAX_STORAGE_BYTES = 5 * 1024 * 1024
@@ -164,6 +164,45 @@ function legacyDataDir(app, env = process.env, platform = process.platform) {
   return path.join(base, "app.codeg")
 }
 
+// Finder/LaunchServices does not inherit the terminal's PATH. Import only PATH
+// from the user's login shell, with a bounded probe and standard install dirs
+// as a fallback (notably the official Node installer at /usr/local/bin).
+async function desktopEnvironment(
+  env = process.env,
+  platform = process.platform
+) {
+  if (platform === "win32") return { ...env }
+  const shell = env.SHELL || (platform === "darwin" ? "/bin/zsh" : "/bin/sh")
+  const marker = "MAXCODE_DESKTOP_PATH="
+  const shellPath = await new Promise((resolve) => {
+    execFile(
+      shell,
+      ["-ilc", `printf '\n${marker}%s\n' "$PATH"`],
+      { env, encoding: "utf8", timeout: 5000, maxBuffer: 1024 * 1024 },
+      (error, stdout) => {
+        if (error) return resolve("")
+        const line = stdout
+          .split("\n")
+          .findLast((value) => value.startsWith(marker))
+        resolve(line ? line.slice(marker.length) : "")
+      }
+    )
+  })
+  const directories = [
+    ...shellPath.split(":"),
+    ...(env.PATH || "").split(":"),
+    ...(platform === "darwin"
+      ? ["/opt/homebrew/bin", "/opt/homebrew/sbin"]
+      : []),
+    "/usr/local/bin",
+    "/usr/bin",
+    "/bin",
+    "/usr/sbin",
+    "/sbin",
+  ].filter((directory) => path.isAbsolute(directory))
+  return { ...env, PATH: [...new Set(directories)].join(":") }
+}
+
 async function startBackend({
   executable,
   staticDir,
@@ -184,13 +223,14 @@ async function startBackend({
   let exited = false
   let failure = null
   let output = ""
+  const environment = await desktopEnvironment()
   const child = spawn(executable, [], {
     cwd: path.dirname(executable),
     detached: process.platform !== "win32",
     windowsHide: true,
     stdio: ["pipe", "pipe", "pipe"],
     env: {
-      ...process.env,
+      ...environment,
       CODEG_RUNTIME: "electron",
       CODEG_HOST: "127.0.0.1",
       CODEG_PORT: "0",
@@ -298,6 +338,7 @@ async function startBackend({
 }
 
 module.exports = {
+  desktopEnvironment,
   dialogOptions,
   externalUrl,
   isTrustedAppUrl,

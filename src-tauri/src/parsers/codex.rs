@@ -2673,12 +2673,13 @@ impl CodexParser {
                 "turn_context" => {
                     // A new API turn means any prior agent lifecycle is complete.
                     active_agent_count = 0;
-                    if model.is_none() {
-                        model = value
-                            .get("payload")
-                            .and_then(|p| p.get("model"))
-                            .and_then(|m| m.as_str())
-                            .map(|s| s.to_string());
+                    if let Some(current_model) = value
+                        .get("payload")
+                        .and_then(|p| p.get("model"))
+                        .and_then(|m| m.as_str())
+                        .filter(|m| !m.trim().is_empty())
+                    {
+                        model = Some(current_model.to_string());
                     }
                     // Approving a plan ends Plan mode: codex opens the very next
                     // turn with a non-`plan` collaboration mode and prompts
@@ -2852,7 +2853,7 @@ impl CodexParser {
                                     timestamp,
                                     usage: None,
                                     duration_ms: None,
-                                    model: None,
+                                    model: model.clone(),
                                     completed_at: Some(timestamp),
                                     agent_message_id: None,
                                 });
@@ -2882,7 +2883,7 @@ impl CodexParser {
                                     timestamp,
                                     usage: None,
                                     duration_ms: None,
-                                    model: None,
+                                    model: model.clone(),
                                     completed_at: Some(timestamp),
                                     agent_message_id: None,
                                 });
@@ -2962,7 +2963,7 @@ impl CodexParser {
                                         timestamp,
                                         usage: None,
                                         duration_ms: None,
-                                        model: None,
+                                        model: model.clone(),
                                         completed_at: Some(timestamp),
                                         agent_message_id: None,
                                     });
@@ -3021,7 +3022,7 @@ impl CodexParser {
                                     timestamp,
                                     usage: None,
                                     duration_ms: None,
-                                    model: None,
+                                    model: model.clone(),
                                     completed_at: Some(timestamp),
                                     agent_message_id: None,
                                 });
@@ -3090,7 +3091,7 @@ impl CodexParser {
                                     timestamp,
                                     usage: None,
                                     duration_ms: None,
-                                    model: None,
+                                    model: model.clone(),
                                     completed_at: Some(timestamp),
                                     agent_message_id: None,
                                 });
@@ -3221,6 +3222,7 @@ impl CodexParser {
                                         if let (Some(pending), Some(last_msg)) =
                                             (pending_round_usage.clone(), last_assistant)
                                         {
+                                            last_msg.model = model.clone();
                                             last_msg.usage = Some(match last_msg.usage {
                                                 Some(ref existing) => {
                                                     codex_usage_add(existing, &pending)
@@ -3407,7 +3409,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3470,7 +3472,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3544,7 +3546,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3654,7 +3656,7 @@ impl CodexParser {
                                         timestamp,
                                         usage: None,
                                         duration_ms: None,
-                                        model: None,
+                                        model: model.clone(),
                                         completed_at: Some(timestamp),
                                         agent_message_id: None,
                                     });
@@ -3681,7 +3683,7 @@ impl CodexParser {
                                         timestamp,
                                         usage: None,
                                         duration_ms: None,
-                                        model: None,
+                                        model: model.clone(),
                                         completed_at: Some(timestamp),
                                         agent_message_id: None,
                                     });
@@ -3730,7 +3732,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3747,7 +3749,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3866,7 +3868,7 @@ impl CodexParser {
                                         timestamp,
                                         usage: None,
                                         duration_ms: None,
-                                        model: None,
+                                        model: model.clone(),
                                         completed_at: Some(timestamp),
                                         agent_message_id: None,
                                     });
@@ -3905,7 +3907,7 @@ impl CodexParser {
                                             timestamp,
                                             usage: None,
                                             duration_ms: None,
-                                            model: None,
+                                            model: model.clone(),
                                             completed_at: Some(timestamp),
                                             agent_message_id: None,
                                         });
@@ -3977,7 +3979,7 @@ impl CodexParser {
                                                     timestamp,
                                                     usage: None,
                                                     duration_ms: None,
-                                                    model: None,
+                                                    model: model.clone(),
                                                     completed_at: Some(timestamp),
                                                     agent_message_id: None,
                                                 });
@@ -4063,7 +4065,7 @@ impl CodexParser {
                                     timestamp,
                                     usage: None,
                                     duration_ms: None,
-                                    model: None,
+                                    model: model.clone(),
                                     completed_at: Some(timestamp),
                                     agent_message_id: None,
                                 });
@@ -4229,7 +4231,7 @@ impl CodexParser {
                     timestamp: pending.timestamp,
                     usage: None,
                     duration_ms: None,
-                    model: None,
+                    model: model.clone(),
                     completed_at: Some(pending.timestamp),
                     agent_message_id: None,
                 })
@@ -4285,7 +4287,7 @@ impl CodexParser {
                         timestamp: first_timestamp.unwrap_or_else(Utc::now),
                         usage: None,
                         duration_ms: None,
-                        model: None,
+                        model: model.clone(),
                         completed_at: first_timestamp,
                         agent_message_id: None,
                     },
@@ -6699,6 +6701,43 @@ mod tests {
             .context_window_usage_percent
             .expect("context window percent present");
         assert!((pct - 30.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn billing_preserves_models_across_codex_turn_context_changes() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("billing-models.jsonl");
+        let events = vec![
+            serde_json::json!({"type":"session_meta","payload":{"id":"billing-models","cwd":"/tmp/demo"}}),
+            serde_json::json!({"type":"turn_context","payload":{"model":"gpt-model-a"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"user_message","message":"first"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"agent_message","message":"answer one"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":100,"cached_input_tokens":10,"output_tokens":10}}}}),
+            serde_json::json!({"type":"turn_context","payload":{"model":"gpt-model-b"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"user_message","message":"second"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"agent_message","message":"answer two"}}),
+            serde_json::json!({"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":300,"cached_input_tokens":30,"output_tokens":30}}}}),
+        ];
+        let text = events
+            .into_iter()
+            .enumerate()
+            .map(|(i, mut event)| {
+                event["timestamp"] = serde_json::json!(format!("2026-09-09T10:00:{i:02}Z"));
+                event.to_string()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        fs::write(&path, text).expect("fixture");
+        let detail = CodexParser::new()
+            .parse_conversation_detail(&path, "billing-models")
+            .expect("parse");
+        let billed: Vec<_> = detail.turns.iter().filter(|t| t.usage.is_some()).collect();
+        assert_eq!(billed.len(), 2);
+        assert_eq!(billed[0].model.as_deref(), Some("gpt-model-a"));
+        assert_eq!(billed[1].model.as_deref(), Some("gpt-model-b"));
+        assert_eq!(billed[0].usage.as_ref().unwrap().input_tokens, 90);
+        assert_eq!(billed[1].usage.as_ref().unwrap().input_tokens, 180);
+        assert_eq!(detail.summary.model.as_deref(), Some("gpt-model-b"));
     }
 
     #[test]

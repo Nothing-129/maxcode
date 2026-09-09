@@ -71,28 +71,25 @@ INSTA_UPDATE=auto cargo test --features test-utils     # 自动写新 .snap
 
 ```bash
 pnpm desktop:dev
-pnpm electron:build:dmg
+pnpm desktop:build:dmg
 ```
 
 产物位于 `electron/dist/`；详细流程见 `electron/README.md`。Electron 复用
 `src-tauri/target/release` 中无默认 feature 的后端和 MCP 伴生进程。
 
-以下命令只用于保留的旧 Tauri 构建：
+默认 CI 和发布流程使用 Electron。`pnpm desktop:pack` 生成解包应用，
+`pnpm desktop:smoke` 验证包内前端和后端的启动链路。
 
-本机 host 已是 `aarch64-apple-darwin` 时，打 arm64 DMG **不要**加 `--target`，沿用 `src-tauri/target/release` 缓存：
-
-```bash
-pnpm tauri:build:dmg
-# 等价于：pnpm tauri build --bundles dmg
-```
-
-产物：`src-tauri/target/release/bundle/dmg/codeg_*_aarch64.dmg`
-
-在本机再写 `--target aarch64-apple-darwin` 会改走另一套目录 `src-tauri/target/aarch64-apple-darwin/`，约 889 个 crate 全量重编（release 冷编译约 8 分钟）。只有交叉编译（例如在 arm64 上打 x86_64）才需要 `--target`。
+旧 Tauri 仅作兼容保留：`pnpm legacy:tauri:dev`、
+`pnpm legacy:tauri:build --bundles dmg`。兼容 CI 为手动触发的
+`.github/workflows/legacy-tauri.yml`，不再通过默认发布生成 Tauri 安装包。
+共享 Rust 目录与 Cargo 的旧默认 feature 暂不改名或删除；Electron 命令始终
+显式禁用默认 feature。保留项和后续删除条件见
+`docs/maintenance/desktop-runtime-migration.md`。
 
 ## 架构
 
-### 双模式运行
+### 运行模式
 
 Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
 `codeg-server` 子进程，通过 HTTP/WebSocket 复用共享业务。`electron/preload.cjs`
@@ -147,7 +144,7 @@ Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享
 
 ### 条件编译约定
 
-- `#[cfg(feature = "tauri-runtime")]` — 仅桌面模式编译（Tauri 窗口、通知、`tauri::State` 参数等）
+- `#[cfg(feature = "tauri-runtime")]` — 仅旧 Tauri 模式编译（窗口、通知、`tauri::State` 参数等）
 - `#[cfg_attr(feature = "tauri-runtime", tauri::command)]` — 函数始终可用，仅在桌面模式标记为 Tauri 命令
 - `_core` 后缀函数 — 接受普通引用参数（`&AppDatabase`、`&EventEmitter`），供 Web handlers 和 Tauri 命令共用
 

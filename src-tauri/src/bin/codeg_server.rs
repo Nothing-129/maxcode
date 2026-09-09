@@ -580,11 +580,16 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
     codeg_lib::web::handlers::files::purge_upload_staging().await;
 
     // Build router
-    let shutdown_signal = state.web_server_state.shutdown_signal();
+    // Electron's private transport must survive stopping the public listener.
+    let shutdown_signal = if electron.is_some() {
+        Arc::new(codeg_lib::web::shutdown::ShutdownSignal::new())
+    } else {
+        state.web_server_state.shutdown_signal()
+    };
     let router = codeg_lib::web::router::build_router(
         state.clone(),
         token.clone(),
-        static_dir,
+        static_dir.clone(),
         shutdown_signal.clone(),
     );
 
@@ -615,11 +620,32 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
     // Publish runtime state so the settings page (served by us) shows
     // the truth — running on `actual_port` with this token — instead of
     // the placeholder "stopped" that triggers the stale-port banner.
-    state.web_server_state.mark_externally_running(
-        advertised_host.clone(),
-        actual_port,
-        token.clone(),
-    );
+    if electron.is_none() {
+        state.web_server_state.mark_externally_running(
+            advertised_host.clone(),
+            actual_port,
+            token.clone(),
+        );
+    } else {
+        match codeg_lib::web::load_web_service_config(&state.db.conn).await {
+            Ok(config) if config.auto_start => {
+                if let Err(error) = codeg_lib::web::do_start_web_server_with_state(
+                    state.clone(),
+                    static_dir,
+                    None,
+                    None,
+                    None,
+                )
+                .await
+                {
+                    // A busy public port must not prevent the desktop from opening.
+                    tracing::warn!("[WEB] Could not auto-start public Web service: {error}");
+                }
+            }
+            Ok(_) => {}
+            Err(error) => tracing::warn!("[WEB] Could not load Web service settings: {error}"),
+        }
+    }
     let addresses = addresses_for_bind(&advertised_host, actual_port);
 
     // Token on stderr ONLY (bearer credential — keep it out of the log files
@@ -771,7 +797,11 @@ async fn wait_for_electron_parent(electron_owned: bool) {
 }
 
 async fn cleanup_children(state: &AppState) {
-    state.web_server_state.shutdown_signal().trigger();
+    if codeg_lib::update::runtime::is_electron() {
+        codeg_lib::web::do_stop_web_server(&state.web_server_state).await;
+    } else {
+        state.web_server_state.shutdown_signal().trigger();
+    }
     let _ = tokio::time::timeout(
         Duration::from_secs(2),
         state.chat_channel_manager.stop_all(),

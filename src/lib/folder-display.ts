@@ -21,17 +21,13 @@ export function resolveFolderDisplayName(
   return parent?.name ?? folder.name
 }
 
-/**
- * Plain-string folder label for `title` tooltips and other string-only contexts:
- * `alias [ name ]` (e.g. `My Project [ codeg ]`) when an alias is set, else the
- * bare `name`. The rendered (color-distinguished) equivalent is the
- * `FolderAliasLabel` component — keep the `alias [ name ]` spacing in sync.
- */
+/** Display the chosen alias alone; fall back to the directory name when unset.
+ * This only changes labels, never the filesystem path or folder identity. */
 export function formatFolderLabelWithAlias(
   folder: Pick<FolderDetail, "name" | "alias">
 ): string {
   const alias = folder.alias?.trim()
-  return alias ? `${alias} [ ${folder.name} ]` : folder.name
+  return alias || folder.name
 }
 
 /**

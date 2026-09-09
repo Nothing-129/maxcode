@@ -2,23 +2,23 @@
 const path = require("node:path")
 const fs = require("node:fs")
 const { version } = require("../package.json")
+const release = process.env.CODEG_ELECTRON_RELEASE === "1"
+const { updateFeed } = require("./update-config.cjs")
 
 module.exports = {
   appId: "app.codeg.electron",
   productName: "MaxCode",
   executableName: "maxcode",
-  extraMetadata: { version },
+  extraMetadata: {
+    version,
+    desktopUpdates: process.platform !== "darwin" || release,
+  },
   directories: {
     app: __dirname,
     output: path.join(__dirname, "dist"),
     buildResources: path.join(__dirname, "../src-tauri/icons"),
   },
-  files: [
-    "*.cjs",
-    "package.json",
-    "!electron-builder.cjs",
-    "!node_modules/**/*",
-  ],
+  files: ["*.cjs", "package.json", "!electron-builder.cjs"],
   extraResources: [
     { from: "out", to: "web", filter: ["**/*"] },
     { from: "electron/.staging/backend", to: "backend", filter: ["**/*"] },
@@ -26,7 +26,8 @@ module.exports = {
   asar: true,
   npmRebuild: false,
   artifactName: "MaxCode-Electron-${version}-${os}-${arch}.${ext}",
-  publish: null,
+  // Generates app-update.yml and per-architecture manifests; CLI still uses --publish never.
+  publish: [updateFeed()],
   beforePack: () => {
     const root = path.resolve(__dirname, "..")
     for (const input of [
@@ -45,11 +46,16 @@ module.exports = {
     }
   },
   mac: {
+    forceCodeSigning: release,
     identity: process.env.CSC_NAME || (process.env.CSC_LINK ? undefined : "-"),
     category: "public.app-category.developer-tools",
     icon: "src-tauri/icons/icon.icns",
     target: ["dmg", "zip"],
     hardenedRuntime: true,
+    binaries: [
+      "Contents/Resources/backend/codeg-server",
+      "Contents/Resources/backend/codeg-mcp",
+    ],
   },
   win: { icon: "src-tauri/icons/icon.ico", target: ["nsis"] },
   nsis: { oneClick: false, allowToChangeInstallationDirectory: true },

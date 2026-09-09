@@ -53,6 +53,10 @@ pub struct CatalogModel {
     pub cost_in: Option<f64>,
     #[serde(default)]
     pub cost_out: Option<f64>,
+    #[serde(default)]
+    pub cost_cache_read: Option<f64>,
+    #[serde(default)]
+    pub cost_cache_write: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -154,6 +158,14 @@ pub fn normalize_models_dev(raw: &str) -> Result<Vec<CatalogProvider>, AppComman
                         .get("cost")
                         .and_then(|v| v.get("output"))
                         .and_then(|v| v.as_f64()),
+                    cost_cache_read: m
+                        .get("cost")
+                        .and_then(|v| v.get("cache_read"))
+                        .and_then(|v| v.as_f64()),
+                    cost_cache_write: m
+                        .get("cost")
+                        .and_then(|v| v.get("cache_write"))
+                        .and_then(|v| v.as_f64()),
                 });
             }
         }
@@ -189,7 +201,7 @@ fn cache_path(data_dir: &Path) -> PathBuf {
     data_dir
         .join("cache")
         .join("opencode")
-        .join("models-dev.json")
+        .join("models-dev-pricing-v2.json")
 }
 
 fn read_cache(data_dir: &Path, require_fresh: bool) -> Option<Vec<CatalogProvider>> {
@@ -312,7 +324,7 @@ mod tests {
                         "reasoning": true,
                         "tool_call": true,
                         "limit": { "context": 128000, "output": 8192 },
-                        "cost": { "input": 1.5, "output": 6.0 }
+                        "cost": { "input": 1.5, "output": 6.0, "cache_read": 0.15, "cache_write": 1.875 }
                     }
                 }
             }
@@ -333,6 +345,8 @@ mod tests {
         assert_eq!(m.context, Some(128000));
         assert_eq!(m.cost_in, Some(1.5));
         assert_eq!(m.cost_out, Some(6.0));
+        assert_eq!(m.cost_cache_read, Some(0.15));
+        assert_eq!(m.cost_cache_write, Some(1.875));
     }
 
     #[test]

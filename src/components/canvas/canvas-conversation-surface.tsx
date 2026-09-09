@@ -28,6 +28,7 @@ import { getAgentLabel } from "@/lib/custom-agents"
 import {
   extractUserImagesFromDraft,
   getPromptDraftDisplayText,
+  getPromptDraftMessageText,
 } from "@/lib/prompt-draft"
 import {
   getSavedModeId,
@@ -146,7 +147,7 @@ export function draftRuntimeConversationId(contextKey: string): number {
 }
 
 function buildOptimisticUserTurn(draft: PromptDraft, fallback: string) {
-  const text = getPromptDraftDisplayText(draft, fallback)
+  const text = getPromptDraftMessageText(draft, fallback)
   const blocks: ContentBlock[] = []
   for (const image of extractUserImagesFromDraft(draft)) {
     blocks.push({
@@ -156,7 +157,7 @@ function buildOptimisticUserTurn(draft: PromptDraft, fallback: string) {
       uri: image.uri ?? null,
     })
   }
-  blocks.push({ type: "text", text })
+  if (text) blocks.push({ type: "text", text })
   return {
     id: `optimistic-${randomUUID()}`,
     role: "user",

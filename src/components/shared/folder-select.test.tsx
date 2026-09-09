@@ -32,14 +32,13 @@ function open(folders = FOLDERS, props = {}) {
 }
 
 describe("FolderSelect", () => {
-  it("keeps the real folder name visible beside the alias, over its path", async () => {
+  it("shows only the alias in the label while retaining the path detail", async () => {
     const { user } = open()
     await user.click(screen.getByRole("button"))
 
-    // `alias [ name ]` — the alias leads, but the on-disk name is still there,
-    // which is the whole point: two folders aliased alike stay distinguishable.
+    // The label uses the alias; the separate path still identifies the folder.
     const row = screen
-      .getByText("[ codeg ]")
+      .getByText("My Project")
       .closest("[data-slot=command-item]")
     expect(row?.textContent).toContain("My Project")
     expect(row?.textContent).toContain("/work/codeg")
@@ -52,7 +51,7 @@ describe("FolderSelect", () => {
     await user.click(screen.getByRole("button"))
     await user.type(screen.getByPlaceholderText("searchFolder"), "codeg")
 
-    expect(screen.getByText("[ codeg ]")).toBeTruthy()
+    expect(screen.getByText("My Project")).toBeTruthy()
     expect(screen.queryByText("other-repo")).toBeNull()
   })
 
@@ -62,13 +61,13 @@ describe("FolderSelect", () => {
     const search = screen.getByPlaceholderText("searchFolder")
 
     await user.type(search, "My Proj")
-    expect(screen.getByText("[ codeg ]")).toBeTruthy()
+    expect(screen.getByText("My Project")).toBeTruthy()
     expect(screen.queryByText("other-repo")).toBeNull()
 
     await user.clear(search)
     await user.type(search, "/work/other")
     expect(screen.getByText("other-repo")).toBeTruthy()
-    expect(screen.queryByText("[ codeg ]")).toBeNull()
+    expect(screen.queryByText("My Project")).toBeNull()
   })
 
   it("reports the picked folder's id and closes", async () => {
@@ -95,7 +94,7 @@ describe("FolderSelect", () => {
     expect(onSelectAll).toHaveBeenCalled()
   })
 
-  it("shows the selected folder as `alias [ name ]` on the trigger", async () => {
+  it("shows only the alias on the selected trigger", async () => {
     const user = userEvent.setup()
     render(
       <FolderSelect
@@ -107,10 +106,9 @@ describe("FolderSelect", () => {
     )
     const trigger = screen.getByRole("button")
     expect(trigger.textContent).toContain("My Project")
-    expect(trigger.textContent).toContain("[ codeg ]")
+    expect(trigger.textContent).not.toContain("codeg")
     // The hover hint is a tooltip, not a native `title`, and it carries the
-    // path — the one thing the trigger never shows. The folder's own name is
-    // NOT repeated there: it is the trigger's own text.
+    // original path, while the trigger shows only the display alias.
     expect(trigger).not.toHaveAttribute("title")
     await user.hover(trigger)
     const tip = await screen.findByRole("tooltip")

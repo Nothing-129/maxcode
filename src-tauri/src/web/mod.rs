@@ -584,8 +584,22 @@ pub fn addresses_for_bind(host: &str, port: u16) -> Vec<String> {
 
 // ── Core logic (shared by Tauri commands and web handlers) ──
 
-#[allow(dead_code)]
-pub(crate) async fn do_start_web_server_with_state(
+pub fn do_start_web_server_with_state(
+    app_state: Arc<AppState>,
+    static_dir: PathBuf,
+    port: Option<u16>,
+    host: Option<String>,
+    token: Option<String>,
+) -> std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<WebServerInfo, AppCommandError>> + Send>,
+> {
+    // Erase the future type: the router includes the handler that starts this listener.
+    Box::pin(start_web_server_with_state_impl(
+        app_state, static_dir, port, host, token,
+    ))
+}
+
+async fn start_web_server_with_state_impl(
     app_state: Arc<AppState>,
     static_dir: PathBuf,
     port: Option<u16>,
@@ -642,11 +656,14 @@ pub(crate) async fn do_start_web_server_with_state(
         tracing::warn!("[WEB][WARN] failed to mark listener non-inheritable: {}", e);
     }
 
+    let local_addr = listener.local_addr().ok();
+    let actual_port = local_addr.map(|a| a.port()).unwrap_or(port);
+
     // Persist only after a successful bind AND a successful strict-
     // mode check, so a misconfiguration doesn't overwrite saved state
     // and lock the desktop into a permanent "Web service won't start"
     // loop.
-    persist_web_service_config(&app_state.db.conn, &token, port).await?;
+    persist_web_service_config(&app_state.db.conn, &token, actual_port).await?;
 
     // Reset before any handler subscribes, so a leftover signal from the
     // previous cycle cannot make a new handler exit immediately.
@@ -664,8 +681,6 @@ pub(crate) async fn do_start_web_server_with_state(
         shutdown_signal.clone(),
     );
 
-    let local_addr = listener.local_addr().ok();
-    let actual_port = local_addr.map(|a| a.port()).unwrap_or(port);
     // Advertise the IP the socket is actually bound to, not the raw config.
     let advertised_host = advertise_host(local_addr, &host);
     tracing::info!("[WEB] Starting web server on {}", addr);
@@ -696,7 +711,7 @@ pub(crate) async fn do_start_web_server_with_state(
     })
 }
 
-pub(crate) async fn do_stop_web_server(state: &WebServerState) {
+pub async fn do_stop_web_server(state: &WebServerState) {
     let handle_opt = state.handle.lock().unwrap().take();
     let shutdown_tx = state.shutdown_tx.lock().unwrap().take();
 
@@ -1141,5 +1156,189 @@ mod local_address_tests {
             assert!(addr.ends_with(&format!(":{port}")), "bad port: {addr}");
             assert!(seen.insert(addr.clone()), "duplicate address: {addr}");
         }
+    }
+}
+
+#[cfg(test)]
+mod desktop_public_listener_tests {
+    use super::*;
+    use futures_util::{SinkExt, StreamExt};
+    use tokio_tungstenite::tungstenite::{client::IntoClientRequest, Message};
+
+    #[tokio::test]
+    async fn public_listener_retains_credentials_and_stops_without_stopping_private_transport() {
+        let db = crate::db::test_helpers::fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("index.html"), "phone web app").unwrap();
+        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        let private_shutdown = Arc::new(ShutdownSignal::new());
+        let private_listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let private_port = private_listener.local_addr().unwrap().port();
+        let private_router = router::build_router(
+            state.clone(),
+            "private-token".into(),
+            dir.path().to_path_buf(),
+            private_shutdown,
+        );
+        let private_task = tokio::spawn(async move {
+            axum::serve(private_listener, private_router).await.unwrap();
+        });
+        let mut ws_request = format!("ws://127.0.0.1:{private_port}/ws/events")
+            .into_client_request()
+            .unwrap();
+        ws_request
+            .headers_mut()
+            .insert("authorization", "Bearer private-token".parse().unwrap());
+        let (mut desktop_ws, _) = tokio_tungstenite::connect_async(ws_request).await.unwrap();
+        let client = reqwest::Client::new();
+        let first = do_start_web_server_with_state(
+            state.clone(),
+            dir.path().to_path_buf(),
+            Some(0),
+            None,
+            Some("phone-token".into()),
+        )
+        .await
+        .unwrap();
+        assert!(first
+            .addresses
+            .iter()
+            .any(|address| address.ends_with(&format!(":{}", first.port))));
+        let phone_url = format!("http://127.0.0.1:{}", first.port);
+        assert_eq!(
+            client
+                .get(&phone_url)
+                .send()
+                .await
+                .unwrap()
+                .text()
+                .await
+                .unwrap(),
+            "phone web app"
+        );
+        let status_url = format!("{phone_url}/api/get_web_server_status");
+        assert_eq!(
+            client.post(&status_url).send().await.unwrap().status(),
+            reqwest::StatusCode::UNAUTHORIZED
+        );
+        assert!(client
+            .post(&status_url)
+            .bearer_auth("phone-token")
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success());
+        assert_eq!(
+            client
+                .post(&status_url)
+                .bearer_auth("private-token")
+                .send()
+                .await
+                .unwrap()
+                .status(),
+            reqwest::StatusCode::UNAUTHORIZED
+        );
+        // The real desktop control endpoint stops only the public listener.
+        assert!(client
+            .post(format!(
+                "http://127.0.0.1:{private_port}/api/stop_web_server"
+            ))
+            .bearer_auth("private-token")
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success());
+        assert!(do_get_web_server_status(&state.web_server_state).is_none());
+        assert!(client.get(&phone_url).send().await.is_err());
+        assert!(client
+            .post(format!(
+                "http://127.0.0.1:{private_port}/api/get_web_server_status"
+            ))
+            .bearer_auth("private-token")
+            .send()
+            .await
+            .unwrap()
+            .status()
+            .is_success());
+        desktop_ws
+            .send(Message::Ping(vec![7].into()))
+            .await
+            .unwrap();
+        tokio::time::timeout(std::time::Duration::from_secs(3), async {
+            loop {
+                match desktop_ws.next().await {
+                    Some(Ok(Message::Pong(payload))) if payload.as_ref() == [7] => break,
+                    Some(Ok(Message::Text(_))) => continue,
+                    other => panic!("Desktop WebSocket interrupted: {other:?}"),
+                }
+            }
+        })
+        .await
+        .unwrap();
+        desktop_ws.close(None).await.unwrap();
+        let restarted = do_start_web_server_with_state(
+            state.clone(),
+            dir.path().to_path_buf(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(restarted.port, first.port);
+        assert_eq!(restarted.token, "phone-token");
+        do_stop_web_server(&state.web_server_state).await;
+        private_task.abort();
+    }
+
+    #[tokio::test]
+    async fn occupied_public_port_can_be_retried_without_losing_saved_settings() {
+        let db = crate::db::test_helpers::fresh_in_memory_db().await;
+        let dir = tempfile::tempdir().unwrap();
+        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        let occupied = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
+        let port = occupied.local_addr().unwrap().port();
+        update_web_service_config_core(
+            &state.db.conn,
+            WebServiceConfig {
+                port: Some(port),
+                token: Some("saved-phone-token".into()),
+                auto_start: true,
+                public_share_url: None,
+            },
+        )
+        .await
+        .unwrap();
+        assert!(do_start_web_server_with_state(
+            state.clone(),
+            dir.path().to_path_buf(),
+            None,
+            None,
+            None
+        )
+        .await
+        .is_err());
+        assert!(do_get_web_server_status(&state.web_server_state).is_none());
+        drop(occupied);
+        let info = do_start_web_server_with_state(
+            state.clone(),
+            dir.path().to_path_buf(),
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        assert_eq!(info.port, port);
+        assert_eq!(info.token, "saved-phone-token");
+        assert!(
+            load_web_service_config(&state.db.conn)
+                .await
+                .unwrap()
+                .auto_start
+        );
+        do_stop_web_server(&state.web_server_state).await;
     }
 }

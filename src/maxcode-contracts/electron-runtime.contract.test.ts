@@ -1,8 +1,11 @@
 // @vitest-environment node
+import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
 import {
   chmodSync,
   mkdtempSync,
+  mkdirSync,
+  symlinkSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -23,6 +26,51 @@ afterEach(() => {
 })
 
 describe("MaxCode contract: Electron owns the local desktop", () => {
+  it.skipIf(process.platform === "win32")(
+    "restores a GUI launch PATH and runs an env-node agent entrypoint",
+    async () => {
+      const directory = mkdtempSync(join(tmpdir(), "maxcode-gui-path-"))
+      directories.push(directory)
+      const shell = join(directory, "login-shell")
+      const agent = join(directory, "agent")
+      const nodeDir = join(directory, "node-bin")
+      mkdirSync(nodeDir)
+      symlinkSync(process.execPath, join(nodeDir, "node"))
+      writeFileSync(
+        shell,
+        `#!/bin/sh\nprintf 'shell startup banner\nMAXCODE_DESKTOP_PATH=%s:/usr/bin:/bin\n' '${nodeDir}'\n`
+      )
+      chmodSync(shell, 0o755)
+      writeFileSync(
+        agent,
+        "#!/usr/bin/env node\nprocess.stdout.write('agent-ready')\n"
+      )
+      chmodSync(agent, 0o755)
+      const guiEnv = { ...process.env, SHELL: shell, PATH: "/usr/bin:/bin" }
+      expect(() =>
+        execFileSync(agent, { env: guiEnv, stdio: "pipe" })
+      ).toThrow()
+      const env = await runtime.desktopEnvironment(guiEnv, "darwin")
+      expect(execFileSync(agent, { env, encoding: "utf8" })).toBe("agent-ready")
+      expect(env.PATH.split(":")[0]).toBe(nodeDir)
+      expect(env.PATH).not.toContain("shell startup banner")
+    }
+  )
+
+  it("keeps official Node install paths when the login shell fails", async () => {
+    const env = await runtime.desktopEnvironment(
+      {
+        SHELL: "/nonexistent/maxcode-shell",
+        PATH: "/usr/bin:/bin",
+        KEEP: "yes",
+      },
+      "darwin"
+    )
+    expect(env.PATH.split(":")).toContain("/usr/local/bin")
+    expect(env.PATH.split(":")).toContain("/opt/homebrew/bin")
+    expect(env.KEEP).toBe("yes")
+  })
+
   it("only trusts the exact backend origin and safe external URL schemes", () => {
     const origin = "http://127.0.0.1:43210"
     expect(runtime.isTrustedUrl(`${origin}/workspace`, origin)).toBe(true)
@@ -103,7 +151,7 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
 
   it("packages executable backend siblings outside ASAR and never publishes during a local build", () => {
     expect(packaging.asar).toBe(true)
-    expect(packaging.files).toContain("!node_modules/**/*")
+    expect(packaging.files).not.toContain("!node_modules/**/*")
     expect(packaging.directories.app).toBe(resolve("electron"))
     expect(packaging.extraResources).toEqual(
       expect.arrayContaining([
@@ -114,14 +162,25 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
         }),
       ])
     )
-    expect(packaging.publish).toBeNull()
+    expect(packaging.publish[0]).toMatchObject({
+      provider: "github",
+      owner: "Nothing-129",
+      repo: "maxcode",
+    })
+    expect(readFileSync("electron/scripts/cli.mjs", "utf8")).toContain(
+      '"never"'
+    )
+    expect(packaging.mac.binaries).toEqual([
+      "Contents/Resources/backend/codeg-server",
+      "Contents/Resources/backend/codeg-mcp",
+    ])
     expect(packaging.artifactName).toMatch(/^MaxCode-Electron-/)
     const manifest = JSON.parse(readFileSync("package.json", "utf8"))
     const appManifest = JSON.parse(
       readFileSync("electron/package.json", "utf8")
     )
     expect(appManifest.version).toBe(manifest.version)
-    expect(Object.keys(appManifest.dependencies ?? {})).toEqual([])
+    expect(appManifest.dependencies["electron-updater"]).toBe("6.8.9")
     expect(manifest.scripts["desktop:dev"]).toBe(
       "node electron/scripts/cli.mjs dev"
     )

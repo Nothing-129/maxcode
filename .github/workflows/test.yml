@@ -55,101 +55,41 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-22.04, macos-latest, windows-latest]
-        mode: [desktop, server]
+        os: [ubuntu-22.04, macos-15, windows-2022]
+        mode: [electron, server]
         include:
-          - mode: desktop
-            # `test-utils` exposes test scaffolding (AppState::new_for_test,
-            # EventEmitter::test_web_only, ConnectionManager::insert_test_connection,
-            # parser `with_base_dir`, `db::test_helpers`) for integration tests
-            # under `tests/`. Without the flag those items are physically
-            # uncompiled, so integration tests would fail to link.
-            cargo_args: "--features test-utils"
-            # Desktop clippy must lint integration tests too, so it picks up
-            # `--all-targets`. test-utils is already on, so tests compile.
-            clippy_args: "--all-targets --features test-utils"
+          - mode: electron
+            # Exercise native credentials and integration tests without the legacy shell.
+            cargo_args: "--no-default-features --features native-keyring,test-utils --all-targets"
           - mode: server
-            # Server build is feature-gated off the Tauri runtime; no
-            # need for webkit/appindicator system libs. `--lib` skips
-            # integration tests for `cargo test`, so `test-utils` is not
-            # required here.
-            cargo_args: "--no-default-features --bin codeg-server --lib"
-            # Server clippy intentionally skips `--all-targets`: integration
-            # tests are already linted in the desktop cells, and pulling
-            # them in here would force `test-utils` (a test-only feature)
-            # into the server build matrix. Lint scope here is lib + the
-            # codeg-server binary, which is exactly the cfg-gated surface
-            # that this cell exists to verify.
-            clippy_args: "--no-default-features --bin codeg-server --lib"
+            # File-store credential helper subprocess tests belong to this mode.
+            cargo_args: "--no-default-features --features test-utils --all-targets"
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
           shared-key: test-${{ matrix.os }}-${{ matrix.mode }}
-
-      - name: Install Linux desktop dependencies
-        # Only the Linux desktop build needs webkit/appindicator. Windows
-        # ships WebView2 with the OS; macOS uses WKWebView from the SDK.
-        if: matrix.os == 'ubuntu-22.04' && matrix.mode == 'desktop'
+      - name: Install Linux native keyring dependencies
+        if: runner.os == 'Linux' && matrix.mode == 'electron'
         run: |
           sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-
-      - name: Prepare Tauri frontendDist placeholder
-        # Tauri's build script validates `frontendDist` and bundled resource
-        # paths during Rust compilation. The frontend job owns the real static
-        # export; Rust desktop cells only need the path to exist for tests.
-        if: matrix.mode == 'desktop'
-        shell: bash
-        run: |
-          mkdir -p out
-          printf '<!doctype html><html><body></body></html>\n' > out/index.html
-
+          sudo apt-get install -y libdbus-1-dev libssl-dev
       - name: cargo test
-        # Windows desktop test binaries link the Tauri runtime and can fail at
-        # process load on GitHub-hosted runners before Rust tests start. Keep
-        # compile coverage here; Linux/macOS desktop and Windows server cells
-        # run the executable test suites.
         working-directory: src-tauri
-        run: cargo test ${{ matrix.cargo_args }} ${{ (matrix.os == 'windows-latest' && matrix.mode == 'desktop') && '--no-run' || '' }}
-
+        run: cargo test ${{ matrix.cargo_args }}
       - name: cargo test (vendored sacp-tokio)
-        # `vendor/sacp-tokio` is a path dependency, NOT a workspace member, so
-        # the cargo test above never reaches its unit tests — including the ones
-        # covering codeg's own patches to it (process-exit reporting, cwd
-        # handling). One Linux desktop cell is enough: the crate is plain
-        # tokio/futures with no system deps, and its process tests are
-        # `#[cfg(unix)]`.
-        if: matrix.os == 'ubuntu-22.04' && matrix.mode == 'desktop'
+        if: runner.os == 'Linux' && matrix.mode == 'electron'
         working-directory: src-tauri
         run: cargo test --manifest-path vendor/sacp-tokio/Cargo.toml --lib
-
       - name: cargo clippy
-        # Clippy on each (os, mode) cell — desktop covers tauri-only code
-        # paths plus integration tests, server covers cfg-gated server-only
-        # code. Treat warnings as errors now that the 8 pre-existing
-        # advisories are cleared.
         working-directory: src-tauri
-        run: cargo clippy ${{ matrix.clippy_args }} -- -D warnings
-
+        run: cargo clippy ${{ matrix.cargo_args }} -- -D warnings
       - name: Web handlers must route through commands/*_core
-        # Lock in the dedup from Phase 8: web/handlers/{folders,conversations}.rs
-        # must not call DB services directly. They have to delegate to a
-        # `_core` function in `commands/*.rs` so the Tauri command and HTTP
-        # entrypoints share one implementation. Run on Linux only — pure
-        # text check, no per-OS variance.
-        if: matrix.os == 'ubuntu-22.04' && matrix.mode == 'desktop'
+        if: runner.os == 'Linux' && matrix.mode == 'electron'
         working-directory: src-tauri
         run: |
           if grep -nE 'folder_service::|conversation_service::|tab_service::|import_service::' \
@@ -158,3 +98,41 @@ jobs:
             echo "::error::Web handlers must call commands/*_core, not services directly."
             exit 1
           fi
+
+  electron:
+    name: Packaged Electron on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15, windows-2022]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          shared-key: electron-${{ matrix.os }}
+      - name: Install Linux build and smoke dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdbus-1-dev libssl-dev libgtk-3-0 libnss3 libasound2 libgbm1 xvfb
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build packaged desktop
+        run: pnpm desktop:pack
+      - name: Smoke test packaged desktop (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm desktop:smoke
+      - name: Smoke test packaged desktop (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: pnpm desktop:smoke

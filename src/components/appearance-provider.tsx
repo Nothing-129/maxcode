@@ -1,6 +1,10 @@
 "use client"
 
 import {
+  APPEARANCE_CUSTOMIZATION_ENABLED,
+  isFixedAppearanceKey,
+} from "@/lib/appearance-policy"
+import {
   createContext,
   useCallback,
   useEffect,
@@ -197,6 +201,7 @@ export const AppearanceContext = createContext<AppearanceContextValue | null>(
 )
 
 function persist(key: string, value: string) {
+  if (isFixedAppearanceKey(key)) return
   try {
     localStorage.setItem(key, value)
   } catch {
@@ -205,6 +210,7 @@ function persist(key: string, value: string) {
 }
 
 function readStored(key: string): string | null {
+  if (isFixedAppearanceKey(key)) return null
   try {
     return localStorage.getItem(key)
   } catch {
@@ -219,8 +225,8 @@ function readFontSelection(
 ): FontSelection {
   if (typeof document === "undefined") return { id: def, custom: "" }
   try {
-    const id = localStorage.getItem(idKey)
-    const custom = localStorage.getItem(customKey) ?? ""
+    const id = readStored(idKey)
+    const custom = readStored(customKey) ?? ""
     return { id: isValidFontId(id) ? (id as string) : def, custom }
   } catch {
     return { id: def, custom: "" }
@@ -230,7 +236,7 @@ function readFontSelection(
 function readFontSize(key: string, def: FontSize): FontSize {
   if (typeof document === "undefined") return def
   try {
-    const n = parseInt(localStorage.getItem(key) ?? "", 10)
+    const n = parseInt(readStored(key) ?? "", 10)
     return isValidFontSize(n) ? n : def
   } catch {
     return def
@@ -240,7 +246,7 @@ function readFontSize(key: string, def: FontSize): FontSize {
 function readBool(key: string, def: boolean): boolean {
   if (typeof document === "undefined") return def
   try {
-    const v = localStorage.getItem(key)
+    const v = readStored(key)
     return v === null ? def : v === "1"
   } catch {
     return def
@@ -254,7 +260,7 @@ function readNumber(
 ): number {
   if (typeof document === "undefined") return def
   try {
-    const raw = localStorage.getItem(key)
+    const raw = readStored(key)
     if (raw === null) return def
     const n = parseFloat(raw)
     return Number.isNaN(n) ? def : clampFn(n)
@@ -266,7 +272,7 @@ function readNumber(
 function readWorkspaceBgFillMode(): WorkspaceBgFillMode {
   if (typeof document === "undefined") return DEFAULT_WORKSPACE_BG_FILL_MODE
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_WORKSPACE_BG_FILL)
+    const raw = readStored(STORAGE_KEY_WORKSPACE_BG_FILL)
     return isValidFillMode(raw) ? raw : DEFAULT_WORKSPACE_BG_FILL_MODE
   } catch {
     return DEFAULT_WORKSPACE_BG_FILL_MODE
@@ -352,7 +358,8 @@ export function AppearanceProvider({
   // 初始值从 DOM 读取（appearance-script.ts 在 hydration 前已经写好），
   // 而不是从 localStorage 读 —— 避免 SSR 与 CSR 不一致导致的双闪烁。
   const [themeColor, setThemeColorState] = useState<ThemeColor>(() => {
-    if (typeof document === "undefined") return DEFAULT_THEME_COLOR
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED || typeof document === "undefined")
+      return DEFAULT_THEME_COLOR
     const attr = document.documentElement.getAttribute(
       "data-theme"
     ) as ThemeColor | null
@@ -362,7 +369,8 @@ export function AppearanceProvider({
   })
 
   const [zoomLevel, setZoomLevelState] = useState<ZoomLevel>(() => {
-    if (typeof document === "undefined") return DEFAULT_ZOOM_LEVEL
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED || typeof document === "undefined")
+      return DEFAULT_ZOOM_LEVEL
     const px = parseFloat(document.documentElement.style.fontSize || "16")
     const level = Math.round((px / 16) * 100) as ZoomLevel
     return (ZOOM_LEVELS as readonly number[]).includes(level)
@@ -462,7 +470,7 @@ export function AppearanceProvider({
     string | null
   >(() => {
     try {
-      return localStorage.getItem(STORAGE_KEY_WORKSPACE_BG_SOURCE_URL) ?? null
+      return readStored(STORAGE_KEY_WORKSPACE_BG_SOURCE_URL) ?? null
     } catch {
       return null
     }
@@ -499,6 +507,7 @@ export function AppearanceProvider({
   )
 
   const setThemeColor = useCallback((color: ThemeColor) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setThemeColorState(color)
     document.documentElement.setAttribute("data-theme", color)
     persist(STORAGE_KEY_THEME_COLOR, color)
@@ -511,6 +520,7 @@ export function AppearanceProvider({
   const zoomLevelRef = useRef(zoomLevel)
 
   const setZoomLevel = useCallback((zoom: ZoomLevel) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     // Re-applying the current level is not free: it reaches Tauri IPC and an
     // on-disk SQLite upsert. Holding the key at either end of the range, or
     // holding reset at 100%, would otherwise write once per repeat forever.
@@ -538,6 +548,7 @@ export function AppearanceProvider({
   )
 
   const setUiFont = useCallback((id: string, custom = "") => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setUiFontState({ id, custom })
     const stack = resolveFontStack(id, custom, "sans")
     document.documentElement.style.setProperty("--font-sans", stack)
@@ -547,6 +558,7 @@ export function AppearanceProvider({
   }, [])
 
   const setEditorFont = useCallback((id: string, custom = "") => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setEditorFontState({ id, custom })
     // 编辑器字体只作用于代码编辑器（Monaco），不写任何全局 CSS 变量，
     // 不影响界面与会话消息区（它们跟随 --font-sans）。
@@ -555,38 +567,45 @@ export function AppearanceProvider({
   }, [])
 
   const setTerminalFont = useCallback((id: string, custom = "") => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setTerminalFontState({ id, custom })
     persist(STORAGE_KEY_TERMINAL_FONT, id)
     persist(STORAGE_KEY_TERMINAL_FONT_CUSTOM, custom)
   }, [])
 
   const setChatFontSize = useCallback((size: FontSize) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     if (!isValidFontSize(size)) return
     setChatFontSizeState(size)
     persist(STORAGE_KEY_CHAT_FONT_SIZE, String(size))
   }, [])
 
   const setEditorFontSize = useCallback((size: FontSize) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setEditorFontSizeState(size)
     persist(STORAGE_KEY_EDITOR_FONT_SIZE, String(size))
   }, [])
 
   const setTerminalFontSize = useCallback((size: FontSize) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setTerminalFontSizeState(size)
     persist(STORAGE_KEY_TERMINAL_FONT_SIZE, String(size))
   }, [])
 
   const setEditorLigatures = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setEditorLigaturesState(on)
     persist(STORAGE_KEY_EDITOR_LIGATURES, on ? "1" : "0")
   }, [])
 
   const setEditorWordWrap = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setEditorWordWrapState(on)
     persist(STORAGE_KEY_EDITOR_WORD_WRAP, on ? "1" : "0")
   }, [])
 
   const setTerminalLigatures = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setTerminalLigaturesState(on)
     persist(STORAGE_KEY_TERMINAL_LIGATURES, on ? "1" : "0")
   }, [])
@@ -596,29 +615,34 @@ export function AppearanceProvider({
   // 更新 state + 持久化，避免 --ws-surface-alpha 与 state 失同步（否则重启后 re-enable
   // 会沿用默认值而非用户设定值）。
   const setWorkspaceBgEnabled = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setWorkspaceBgEnabledState(on)
     persist(STORAGE_KEY_WORKSPACE_BG_ENABLED, on ? "1" : "0")
   }, [])
 
   const setWorkspaceBgMaskOpacity = useCallback((v: number) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     const clamped = clampMaskOpacity(v)
     setWorkspaceBgMaskOpacityState(clamped)
     persist(STORAGE_KEY_WORKSPACE_BG_MASK, String(clamped))
   }, [])
 
   const setWorkspaceBgImageBlur = useCallback((v: number) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     const clamped = clampImageBlur(v)
     setWorkspaceBgImageBlurState(clamped)
     persist(STORAGE_KEY_WORKSPACE_BG_BLUR, String(clamped))
   }, [])
 
   const setWorkspaceBgPanelOpacity = useCallback((v: number) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     const clamped = clampPanelOpacity(v)
     setWorkspaceBgPanelOpacityState(clamped)
     persist(STORAGE_KEY_WORKSPACE_BG_PANEL_OPACITY, String(clamped))
   }, [])
 
   const setWorkspaceBgFillMode = useCallback((mode: WorkspaceBgFillMode) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setWorkspaceBgFillModeState(mode)
     persist(STORAGE_KEY_WORKSPACE_BG_FILL, mode)
   }, [])
@@ -627,6 +651,7 @@ export function AppearanceProvider({
 
   const setCustomThemeToken = useCallback(
     (token: CustomThemeToken, value: string | null) => {
+      if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
       setCustomThemeState((prev) => {
         const mode = isDarkMode ? "dark" : "light"
         const next = { ...prev[mode] }
@@ -639,10 +664,12 @@ export function AppearanceProvider({
   )
 
   const replaceCustomTheme = useCallback((theme: CustomTheme) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setCustomThemeState(sanitizeCustomTheme(theme))
   }, [])
 
   const setCustomThemeEnabled = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setCustomThemeEnabledState(on)
     persist(STORAGE_KEY_CUSTOM_THEME_ENABLED, on ? "1" : "0")
   }, [])
@@ -650,15 +677,18 @@ export function AppearanceProvider({
   // 传进来的必须是 sanitizeCustomCss 处理过的文本：存的即是注入的，预水合脚本
   // 才能原样使用而不必在 inline 脚本里重跑一遍 CSSOM 校验。
   const setCustomCss = useCallback((css: string) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setCustomCssState(css)
   }, [])
 
   const setCustomCssEnabled = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setCustomCssEnabledState(on)
     persist(STORAGE_KEY_CUSTOM_CSS_ENABLED, on ? "1" : "0")
   }, [])
 
   const setCustomStyleSuspended = useCallback((on: boolean) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setCustomStyleSuspendedState(on)
     persist(STORAGE_KEY_CUSTOM_STYLE_SUSPENDED, on ? "1" : "0")
   }, [])
@@ -713,6 +743,7 @@ export function AppearanceProvider({
 
   const setWorkspaceBackgroundImage = useCallback(
     async (imageBase64: string) => {
+      if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
       await setWorkspaceBackground(imageBase64)
       // 本地图覆盖市场图 → 「使用中」来源标记失效。
       clearWorkspaceBgSourceUrl()
@@ -728,6 +759,7 @@ export function AppearanceProvider({
   // 共用同一套失效广播 + 重读盘，保证所有窗口一致换图。
   const downloadMarketWorkspaceBackground = useCallback(
     async (url: string, sourceUrl: string) => {
+      if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
       await downloadWorkspaceBgMarket(url, sourceUrl)
       try {
         localStorage.setItem(STORAGE_KEY_WORKSPACE_BG_SOURCE_URL, sourceUrl)
@@ -758,7 +790,7 @@ export function AppearanceProvider({
   useEffect(() => {
     syncTrafficLightPosition(zoomLevel)
     try {
-      syncAppearanceMode(localStorage.getItem("theme") ?? "system")
+      syncAppearanceMode(readStored("theme") ?? "system")
     } catch {
       // localStorage unavailable
     }
@@ -959,6 +991,7 @@ export function AppearanceProvider({
     }
 
     const onStorage = (e: StorageEvent) => {
+      if (e.key && isFixedAppearanceKey(e.key)) return
       if (e.key === STORAGE_KEY_THEME_COLOR && e.newValue) {
         const color = e.newValue as ThemeColor
         if ((THEME_COLORS as readonly string[]).includes(color)) {

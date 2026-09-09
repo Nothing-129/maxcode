@@ -377,11 +377,8 @@ export function worktreeChildrenByParent(
  * The alias half of a worktree sub-group header, in preference order: the user
  * alias, then the branch. `null` when it has neither.
  *
- * The header pairs it with the directory name through the same
- * `FolderAliasLabel` a repo header uses, so a worktree reads
- * `task/49 [ codeg-task-49 ]` — the branch is what identifies the worktree, and
- * the directory is what identifies it on disk. With neither, `FolderAliasLabel`
- * falls back to the bare directory name on its own.
+ * The header displays this label alone. With neither alias nor branch, it
+ * falls back to the directory name.
  *
  * The alias leads because worktree folders get theirs seeded with the branch
  * they were created on (`open_worktree_folder_core`), which makes it the one

@@ -102,11 +102,8 @@ const TIPS: TipDef[] = [
   { key: "workspaceBackground" },
 ]
 
-const highlightTitle = (chunks: ReactNode) => (
-  <span className="bg-gradient-to-br from-primary via-primary/85 to-chart-3 bg-clip-text text-transparent">
-    {chunks}
-  </span>
-)
+// ChatGPT 桌面端的问候语是单色纯文本，强调段不做渐变，保持与之一致。
+const highlightTitle = (chunks: ReactNode) => <>{chunks}</>
 
 const highlightTip = (chunks: ReactNode) => (
   <span className="font-medium text-primary">{chunks}</span>
@@ -116,7 +113,8 @@ export function WelcomeHero() {
   const t = useTranslations("Folder.chat.welcomePanel")
 
   return (
-    <h1 className="text-center text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+    // ChatGPT 桌面端首页问候语：~28px、常规字重、居中、纯前景色（无渐变强调）。
+    <h1 className="text-center text-[1.75rem] font-normal tracking-tight text-foreground sm:text-[2rem]">
       {t.rich("greeting", { highlight: highlightTitle })}
     </h1>
   )

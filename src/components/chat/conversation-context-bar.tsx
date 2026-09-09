@@ -152,7 +152,7 @@ export const ConversationHeaderFolderPicker = memo(
     if (!ownFolder && !isChatMode) return null
 
     // Worktree folders surface their parent (root repo) row; resolve that same
-    // folder so the header shows the repo's `alias [ name ]` (matching the
+    // folder so the header shows the repo's alias or name (matching the
     // sidebar) rather than the worktree dir's own name. Git/path ops still use
     // `ownFolder` (the worktree) unchanged.
     const pickerSelectedId =
@@ -165,7 +165,7 @@ export const ConversationHeaderFolderPicker = memo(
       ? t("chatModeLabel")
       : resolveFolderDisplayName(ownFolder!, allFolders)
     const displayFolderAlias = displayFolder?.alias ?? null
-    // The full `alias [ name ]` also goes in the tooltip for the truncated case.
+    // The full display label also goes in the tooltip for the truncated case.
     const titleFolderName = displayFolder
       ? formatFolderLabelWithAlias(displayFolder)
       : displayFolderName
@@ -453,7 +453,7 @@ interface FolderPickerProps {
    *  conversation title, alias-aware, themed while editable — the desktop
    *  conversation-header breadcrumb. */
   variant?: "chip" | "header"
-  /** Folder alias for the `"header"` variant's `alias [ name ]` label (rendered
+  /** Folder alias for the `"header"` variant's display label (rendered
    *  via {@link FolderAliasLabel}). Ignored by the chip variant. */
   alias?: string | null
 }
@@ -475,17 +475,13 @@ const FolderPicker = memo(function FolderPicker({
 }: FolderPickerProps) {
   const [open, setOpen] = useState(false)
 
-  // Header variant: no icons, `alias [ name ]` inline (matching the sidebar
+  // Header variant: no icons, alias or name inline (matching the sidebar
   // folder header), sized to the neighbouring conversation title. A new/editable
   // conversation renders in the theme color to advertise that it's switchable;
   // a bound one is a static foreground chip that reads as a breadcrumb crumb.
   const headerLabel =
     alias && alias.trim() ? (
-      <FolderAliasLabel
-        name={currentFolderName}
-        alias={alias}
-        bracketClassName={editable ? "text-primary/60" : "text-foreground"}
-      />
+      <FolderAliasLabel name={currentFolderName} alias={alias} />
     ) : (
       currentFolderName
     )
@@ -539,7 +535,7 @@ const FolderPicker = memo(function FolderPicker({
           <CommandList>
             <CommandEmpty>{labelEmpty}</CommandEmpty>
             <CommandGroup>
-              {/* Shared row (alias [ name ] over the path, alias included in the
+              {/* Shared row (alias or name over the path, alias included in the
                   search token) — the Tasks / Automations / Token-usage folder
                   controls render the very same one. */}
               {folders.map((f) => (

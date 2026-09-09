@@ -5,5 +5,8 @@
   "description": "MaxCode Electron desktop workspace",
   "author": "MaxCode contributors",
   "license": "Apache-2.0",
-  "main": "main.cjs"
+  "main": "main.cjs",
+  "dependencies": {
+    "electron-updater": "6.8.9"
+  }
 }

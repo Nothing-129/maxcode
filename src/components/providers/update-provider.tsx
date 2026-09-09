@@ -28,6 +28,7 @@ import {
   startAppUpdate,
   subscribeAppUpdateState,
   usesTauriUpdater,
+  usesElectronInstaller,
   waitForServerHealthy,
 } from "@/lib/updater"
 import {
@@ -697,7 +698,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     setIsRestarting(true)
     // Desktop relaunches the whole app — nothing to verify, the new process
     // boots into the updated build.
-    if (usesTauriUpdater()) {
+    if (usesTauriUpdater() || usesElectronInstaller()) {
       try {
         await restartApp()
         // Success: the app is relaunching; stay busy until it does.

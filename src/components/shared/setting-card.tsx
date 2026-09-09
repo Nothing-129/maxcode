@@ -25,6 +25,7 @@ export function SettingCard({
 }: React.ComponentProps<"div">) {
   return (
     <div
+      data-setting-card=""
       className={cn(
         "divide-y divide-border/60 overflow-hidden rounded-xl border border-border/70 bg-muted/40",
         className
@@ -100,7 +101,10 @@ export function SettingRow({
   className,
 }: SettingRowProps) {
   return (
-    <div className={cn("flex flex-col gap-2 p-3", className)}>
+    <div
+      data-setting-row=""
+      className={cn("flex flex-col gap-2 p-3", className)}
+    >
       {/* With an explanation under the title the control aligns to the title
           line; without one there is only that line, so the two center on each
           other instead of hanging off a taller control's top edge. */}

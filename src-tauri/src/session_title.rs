@@ -1,10 +1,10 @@
 //! Codex, Grok, Pi, DeepSeek Harness, and Claude Code sidebar titles:
-//! first-line heuristic, then an optional locale-matched refine through the
+//! structured fallback, then an optional locale-matched refine through the
 //! user's dedicated OpenAI-compatible model.
 //!
 //! Grok's own `generated_title` is English-biased and lives in a separate
 //! prompt from `~/.grok/AGENTS.md`, while Codex CLI does not automatically
-//! generate a semantic title. New chats get the first user line immediately;
+//! generate a semantic title. New chats get a creation-date unknown title;
 //! a configured lightweight HTTP model can then replace it with a short title
 //! in the app UI language. Manual rename (`title_locked`) always wins.
 
@@ -299,6 +299,12 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     if is_placeholder_title(current) {
         return true;
     }
+    if current
+        .strip_suffix("｜未知｜未命名")
+        .is_some_and(|date| date.len() == 4 && date.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return true;
+    }
     let heuristic = heuristic_title(first_message);
     if !heuristic.is_empty() && current == heuristic {
         return true;
@@ -348,6 +354,30 @@ fn created_date_mmdd(created_at: DateTime<Utc>) -> String {
         .with_timezone(&Shanghai)
         .format("%m%d")
         .to_string()
+}
+
+fn structured_title_fallback(original: Option<&str>, created_at: DateTime<Utc>) -> String {
+    original
+        .and_then(|title| normalize_structured_title(title, created_at))
+        .unwrap_or_else(|| format!("{}｜未知｜未命名", created_date_mmdd(created_at)))
+}
+
+async fn save_auto_title_fallback(
+    conn: &DatabaseConnection,
+    emitter: &EventEmitter,
+    summary: &crate::models::DbConversationSummary,
+) {
+    let fallback = structured_title_fallback(summary.title.as_deref(), summary.created_at);
+    if !summary.title_locked && summary.title.as_deref() != Some(fallback.as_str()) {
+        match conversation_service::refresh_auto_title(conn, summary.id, fallback).await {
+            Ok(true) => {
+                crate::commands::conversations::emit_conversation_upsert(emitter, conn, summary.id)
+                    .await;
+            }
+            Ok(false) => {}
+            Err(_) => tracing::error!(conversation_id = summary.id, "fallback title write failed"),
+        }
+    }
 }
 
 pub fn title_prompt(
@@ -492,8 +522,13 @@ fn title_prompt_for_message(
 ) -> String {
     let redacted = redact_title_input(message);
     let snippet: String = redacted.chars().take(LLM_SNIPPET_MAX_CHARS).collect();
-    let safe_original_title = redact_title_input(original_title);
-    title_prompt(&snippet, &safe_original_title, created_at, locale)
+    let safe_original_title =
+        redact_title_input(&structured_title_fallback(Some(original_title), created_at));
+    let prompt = title_prompt(&snippet, &safe_original_title, created_at, locale);
+    format!(
+        "{prompt}\n\nFallback exception: when the topic cannot be determined, output exactly {}. 未知 is permitted only with 未命名 for this fallback.",
+        structured_title_fallback(None, created_at)
+    )
 }
 
 pub fn clean_llm_title(raw: &str) -> Option<String> {
@@ -561,6 +596,7 @@ pub async fn recover_auto_title(
     if summary.title_locked || !supports_dedicated_auto_title(summary.agent_type) {
         return;
     }
+    save_auto_title_fallback(conn, emitter, summary).await;
     if let Some(seed) = original_title_seed(turns) {
         start_auto_title(
             summary.agent_type,
@@ -581,9 +617,28 @@ pub(crate) async fn generate_manual_title(
     summary: &crate::models::DbConversationSummary,
     turns: &[crate::models::MessageTurn],
 ) -> Result<String, crate::app_error::AppCommandError> {
+    match try_generate_manual_title(conn, summary, turns).await {
+        Ok(title) => Ok(title),
+        Err(error) => {
+            tracing::error!(conversation_id = summary.id, error_code = ?error.code, "title generation unavailable; using structured fallback");
+            Ok(structured_title_fallback(
+                summary.title.as_deref(),
+                summary.created_at,
+            ))
+        }
+    }
+}
+
+async fn try_generate_manual_title(
+    conn: &DatabaseConnection,
+    summary: &crate::models::DbConversationSummary,
+    turns: &[crate::models::MessageTurn],
+) -> Result<String, crate::app_error::AppCommandError> {
     use crate::app_error::AppCommandError;
     let seed = original_title_seed(turns).ok_or_else(|| {
-        AppCommandError::invalid_input("No user message is available to generate a title")
+        AppCommandError::invalid_input(
+            "No text is available to generate a title; for image-only messages, wait for an assistant reply",
+        )
     })?;
     let settings = crate::commands::system_settings::load_title_model_runtime_settings(conn)
         .await?
@@ -607,9 +662,10 @@ pub(crate) async fn generate_manual_title(
 
 fn original_title_seed(turns: &[crate::models::MessageTurn]) -> Option<String> {
     use crate::models::{ContentBlock, TurnRole};
-    let first = turns
+    let first_index = turns
         .iter()
-        .find(|turn| matches!(turn.role, TurnRole::User))?;
+        .position(|turn| matches!(turn.role, TurnRole::User))?;
+    let first = &turns[first_index];
     let text = first
         .blocks
         .iter()
@@ -619,12 +675,37 @@ fn original_title_seed(turns: &[crate::models::MessageTurn]) -> Option<String> {
         })
         .collect::<Vec<_>>()
         .join("\n");
-    (!text.trim().is_empty()).then_some(text)
+    if !text.trim().is_empty() {
+        return Some(text);
+    }
+    // An image-only prompt has no caption to summarize. Use only the visible
+    // assistant response in that original exchange, never a later topic or
+    // image bytes, file paths, reasoning, or tool output.
+    if !first
+        .blocks
+        .iter()
+        .any(|block| matches!(block, ContentBlock::Image { .. }))
+    {
+        return None;
+    }
+    let reply = turns[first_index + 1..]
+        .iter()
+        .take_while(|turn| !matches!(turn.role, TurnRole::User))
+        .filter(|turn| matches!(turn.role, TurnRole::Assistant))
+        .flat_map(|turn| &turn.blocks)
+        .filter_map(|block| match block {
+            ContentBlock::Text { text } if !text.trim().is_empty() => Some(text.as_str()),
+            _ => None,
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    (!reply.trim().is_empty())
+        .then(|| format!("User: [Image attachment without a caption]\nAssistant: {reply}"))
 }
 
-/// Install the local heuristic first, then run one background HTTP refine when
+/// Install the structured fallback first, then run one background HTTP refine when
 /// a dedicated title model is configured. A failed request leaves the local
-/// title in place.
+/// title in place for a later retry.
 pub async fn kickoff_auto_title(
     agent_type: AgentType,
     conn: DatabaseConnection,
@@ -654,11 +735,6 @@ async fn start_auto_title(
     if !supports_dedicated_auto_title(agent_type) {
         return;
     }
-    let heuristic = heuristic_title(&first_message);
-    if heuristic.is_empty() {
-        return;
-    }
-
     let Ok(summary) = conversation_service::get_by_id(&conn, conversation_id).await else {
         return;
     };
@@ -667,6 +743,11 @@ async fn start_auto_title(
     }
     let can_seed = can_overwrite_auto_title(summary.title.as_deref(), &first_message);
     if !original_transcript && !can_seed {
+        return;
+    }
+    save_auto_title_fallback(&conn, &emitter, &summary).await;
+    let heuristic = structured_title_fallback(summary.title.as_deref(), summary.created_at);
+    if first_message.trim().is_empty() {
         return;
     }
     // Preserve an already useful native title while recovery runs.
@@ -688,7 +769,7 @@ async fn start_auto_title(
     {
         Ok(Some(settings)) => settings,
         Ok(None) => {
-            // Keep the offline first-line behavior when the model is disabled.
+            // Keep the structured fallback when the model is disabled.
             if can_seed && !original_transcript {
                 match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic)
                     .await
@@ -759,9 +840,10 @@ async fn start_auto_title(
             }
         };
 
-        // The prompt explicitly permits returning the old title when there
-        // is insufficient context. Do not lock that fallback as a success.
-        if refined == clean_llm_title(&redact_title_input(&original_title)).unwrap_or_default() {
+        // Unknown remains eligible for recovery once useful context arrives.
+        if refined == structured_title_fallback(None, created_at)
+            || refined == clean_llm_title(&redact_title_input(&original_title)).unwrap_or_default()
+        {
             return;
         }
 
@@ -934,6 +1016,13 @@ fn normalize_structured_title(raw: &str, created_at: DateTime<Utc>) -> Option<St
     let date = parts.next()?.trim();
     let kind = parts.next()?.trim();
     let topic = parts.next()?.trim();
+    if date.len() == 4
+        && date.bytes().all(|b| b.is_ascii_digit())
+        && kind == "未知"
+        && topic == "未命名"
+    {
+        return Some(format!("{}｜未知｜未命名", created_date_mmdd(created_at)));
+    }
     if date.len() != 4
         || !date.bytes().all(|b| b.is_ascii_digit())
         || ![
@@ -1011,7 +1100,7 @@ async fn llm_title_via_api(
                         if !truncated {
                             if let Some(title) = title {
                                 if fallback.as_deref() == Some(title.as_str()) {
-                                    return Ok(title);
+                                    return Ok(structured_title_fallback(Some(&title), created_at));
                                 }
                                 if let Some(normalized) =
                                     normalize_structured_title(&title, created_at)
@@ -1256,12 +1345,12 @@ mod tests {
     fn title_prompt_redacts_the_fallback_title() {
         let prompt = title_prompt_for_message(
             "无法判断主题",
-            "登录 password=do-not-send-this",
+            "0903｜修复｜登录 password=secret",
             fixed_created_at(),
             TitleLocale::Zh,
         );
 
-        assert!(!prompt.contains("do-not-send-this"));
+        assert!(!prompt.contains("password=secret"));
         assert!(prompt.contains("登录 password: <redacted-secret>"));
     }
 

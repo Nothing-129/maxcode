@@ -71,16 +71,32 @@ export function getPromptDraftDisplayText(
   return trimmed || attachedResourcesFallback
 }
 
+/** Attachment summaries label drafts and steering notes, not image captions. */
+export function getPromptDraftMessageText(
+  draft: PromptDraft,
+  attachedResourcesFallback: string
+): string {
+  const imageOnly =
+    draft.blocks.some(
+      (block) => isImageBlock(block) || isImageResourceBlock(block)
+    ) &&
+    draft.blocks.every(
+      (block) =>
+        isImageBlock(block) ||
+        isImageResourceBlock(block) ||
+        (block.type === "text" && !block.text.trim())
+    )
+  return imageOnly
+    ? ""
+    : getPromptDraftDisplayText(draft, attachedResourcesFallback)
+}
+
 export function buildUserMessageTextPartsFromDraft(
   draft: PromptDraft,
   attachedResourcesFallback: string
 ): AdaptedContentPart[] {
-  return [
-    {
-      type: "text",
-      text: getPromptDraftDisplayText(draft, attachedResourcesFallback),
-    },
-  ]
+  const text = getPromptDraftMessageText(draft, attachedResourcesFallback)
+  return text ? [{ type: "text", text }] : []
 }
 
 export function extractUserResourcesFromDraft(

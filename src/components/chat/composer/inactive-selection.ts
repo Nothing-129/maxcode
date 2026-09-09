@@ -1,5 +1,10 @@
 import { Extension } from "@tiptap/core"
-import { Plugin, PluginKey, type EditorState } from "@tiptap/pm/state"
+import {
+  Plugin,
+  PluginKey,
+  TextSelection,
+  type EditorState,
+} from "@tiptap/pm/state"
 import { Decoration, DecorationSet } from "@tiptap/pm/view"
 
 /** CSS class painted over the selected range while the editor is unfocused. */
@@ -22,6 +27,15 @@ export function inactiveSelectionDecorations(
   focused: boolean
 ): DecorationSet | null {
   if (focused) return null
+  // Select All can include the empty paragraph's structural positions even
+  // though there are no inline characters or badges left to highlight.
+  if (
+    state.doc.childCount === 1 &&
+    state.doc.firstChild?.isTextblock &&
+    state.doc.firstChild.content.size === 0
+  ) {
+    return null
+  }
   const { from, to } = state.selection
   if (from >= to) return null
   return DecorationSet.create(state.doc, [
@@ -62,6 +76,21 @@ export const InactiveSelectionHighlight = Extension.create({
             const meta = tr.getMeta(inactiveSelectionKey)
             return typeof meta === "boolean" ? meta : focused
           },
+        },
+        appendTransaction(transactions, _oldState, state) {
+          // Tiptap's selectAll + deleteSelection can retain AllSelection over
+          // the replacement empty paragraph. Restore a caret after deletion so
+          // the browser doesn't highlight its trailing break or placeholder.
+          if (
+            transactions.some((tr) => tr.docChanged) &&
+            !state.selection.empty &&
+            state.doc.childCount === 1 &&
+            state.doc.firstChild?.isTextblock &&
+            state.doc.firstChild.content.size === 0
+          ) {
+            return state.tr.setSelection(TextSelection.create(state.doc, 1))
+          }
+          return null
         },
         props: {
           decorations(state) {

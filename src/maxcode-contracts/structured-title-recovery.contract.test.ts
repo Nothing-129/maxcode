@@ -30,10 +30,15 @@ describe("MaxCode contract: structured title recovery", () => {
       "invalid_responses_retry_but_authentication_does_not",
       "recovery_uses_original_context_and_preserves_locked_titles",
       "fallback_stays_unlocked_and_cooldown_prevents_request_storms",
+      "manual_refresh_image_only_message_sends_reply_context",
+      "structured_fallback_covers_empty_text_images_and_model_failures",
     ]) {
       expect(tests).toContain(
         `async fn ${name}`.replace("async fn structured", "fn structured")
       )
     }
+    expect(tests).toContain(
+      "fn image_only_title_uses_first_reply_without_crossing_user_turns"
+    )
   })
 })

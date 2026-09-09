@@ -117,7 +117,8 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 **源码运行桌面端（Electron）**：`corepack pnpm install` 后执行
 `corepack pnpm desktop:dev`。Electron 实现与打包说明见
-[electron/README.md](./electron/README.md)，安装包输出到 `electron/dist/`。
+[electron/README.md](./electron/README.md)，安装包输出到 `electron/dist/`。默认 CI 和桌面发布已切换到 Electron；
+旧 Tauri 用户需手动安装新桌面端，功能保留项见[迁移清单](./docs/maintenance/desktop-runtime-migration.md)。
 
 **桌面端** — 从 [MaxCode Releases](https://github.com/Nothing-129/maxcode/releases) 下载 macOS、Windows 或 Linux 的安装包。使用上游 Codeg 的安装方式时，可参考其[安装文档](https://docs.codeg.app/zh/getting-started/installation)。
 

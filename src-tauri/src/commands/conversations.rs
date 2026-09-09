@@ -1341,21 +1341,24 @@ pub async fn get_folder_conversation_core(
         .unwrap_or_default();
     inject_delegation_meta(&mut turns, &children);
 
-    Ok((
-        DbConversationDetail {
-            summary,
-            turns,
-            session_stats,
-            transcript_watermark,
-            in_flight_user_turn_id: None,
-            turns_offset: None,
-            turns_total: None,
-            assistant_turns_before_offset: None,
-            prefix_hash: None,
-            uncovered_prefix_max_ts: None,
-        },
-        parsed_title,
-    ))
+    let mut detail = DbConversationDetail {
+        billing_usage: None,
+        summary,
+        turns,
+        session_stats,
+        transcript_watermark,
+        in_flight_user_turn_id: None,
+        turns_offset: None,
+        turns_total: None,
+        user_turns_total: None,
+        assistant_turns_before_offset: None,
+        prefix_hash: None,
+        uncovered_prefix_max_ts: None,
+    };
+    detail.billing_usage = Some(crate::commands::token_usage::billing_usage_from_detail(
+        &detail,
+    ));
+    Ok((detail, parsed_title))
 }
 
 /// A normalized, comparable view of a user turn's renderable content. Used to
@@ -1538,6 +1541,13 @@ fn apply_turn_window(
     use crate::commands::turn_window;
     let offset = turn_window::resolve_window_offset(&detail.turns, req);
     let meta = turn_window::window_meta(&detail.turns, offset);
+    detail.user_turns_total = Some(
+        detail
+            .turns
+            .iter()
+            .filter(|turn| matches!(turn.role, TurnRole::User))
+            .count(),
+    );
     detail.turns.drain(..offset);
     detail.turns_offset = Some(meta.offset);
     detail.turns_total = Some(meta.total);
@@ -5863,6 +5873,7 @@ mod tests {
 
     fn windowless_detail(turns: Vec<MessageTurn>) -> DbConversationDetail {
         DbConversationDetail {
+            billing_usage: None,
             summary: DbConversationSummary {
                 id: 1,
                 folder_id: 1,
@@ -5890,6 +5901,7 @@ mod tests {
             in_flight_user_turn_id: None,
             turns_offset: None,
             turns_total: None,
+            user_turns_total: None,
             assistant_turns_before_offset: None,
             prefix_hash: None,
             uncovered_prefix_max_ts: None,
@@ -5925,6 +5937,7 @@ mod tests {
         // user turn at index 2.
         assert_eq!(detail.turns_offset, Some(2));
         assert_eq!(detail.turns_total, Some(4));
+        assert_eq!(detail.user_turns_total, Some(2));
         assert_eq!(detail.assistant_turns_before_offset, Some(1));
         assert_eq!(
             detail
@@ -5981,6 +5994,7 @@ mod tests {
         );
         assert_eq!(detail.turns_offset, Some(4));
         assert_eq!(detail.turns_total, Some(4));
+        assert_eq!(detail.user_turns_total, Some(2));
         assert!(detail.turns.is_empty());
     }
 

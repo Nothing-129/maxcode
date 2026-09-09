@@ -15,10 +15,7 @@ import {
   AtSign,
   Pencil,
   Trash2,
-  Circle,
   SquarePen,
-  Loader2,
-  XCircle,
   Pin,
   PinOff,
   CheckCircle2,
@@ -31,7 +28,6 @@ import { useImeGuard } from "@/hooks/use-ime-guard"
 import { useTabStore } from "@/contexts/tab-context"
 import { emitAttachSessionToSession } from "@/lib/session-attachment-events"
 import type { DbConversationSummary, ConversationStatus } from "@/lib/types"
-import { STATUS_ORDER } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { formatConversationTitle } from "@/lib/conversation-title"
 import {
@@ -39,9 +35,6 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
-  ContextMenuSub,
-  ContextMenuSubTrigger,
-  ContextMenuSubContent,
   ContextMenuSeparator,
 } from "@/components/ui/context-menu"
 import {
@@ -68,13 +61,8 @@ import {
 } from "@/components/ui/hover-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { ConversationStatusDot } from "./conversation-status-dot"
 import { ConversationUnreadDot } from "./conversation-unread-dot"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
-import {
-  useConversationStatusActions,
-  useConversationStatusDisplay,
-} from "@/lib/conversation-status-prefs"
 import { SessionDetailsDialog } from "./session-details-dialog"
 import { SidebarConversationHoverDetails } from "./sidebar-conversation-hover-details"
 import { AgentIcon } from "@/components/agent-icon"
@@ -102,15 +90,8 @@ export function resetConversationPointerSelectionGuardForTests() {
   recentPointerSelections.clear()
 }
 
-/**
- * Horizontal indent added per delegation-nesting level. Chosen so a child's
- * agent-icon GLYPH left edge lands exactly under its parent's title TEXT start:
- * the gap from a row's rail axis to its title is `0.875rem`, and the icon glyph
- * is centred on the axis (half-width `0.375rem`), so one level must shift the
- * child axis right by `0.875 + 0.375 = 1.25rem` for `axis(child) − 0.375 =
- * title(parent)`. The root axis (`0.875rem`) and the axis→title gap (`0.875rem`)
- * are separate constants — don't fold them into this step.
- */
+/** Restore the established indentation and leave breathing room around icons.
+ * Parent/child relationships and guide rails share this 20px depth step. */
 export const CONV_RAIL_DEPTH_STEP = "1.25rem"
 
 /**
@@ -253,8 +234,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   onDoubleClick,
   onRename,
   onDelete,
-  onStatusChange,
   onNewConversation,
+  onStatusChange,
   onTogglePin,
   depth = 0,
   railFrom = 0,
@@ -267,10 +248,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const t = useTranslations("Folder.conversationCard")
   const ime = useImeGuard()
   const tSidebar = useTranslations("Folder.sidebar")
-  const tStatus = useTranslations("Folder.statusLabels")
   const tDetails = useTranslations("Folder.sessionDetails")
-  const showStatus = useConversationStatusDisplay()
-  const allowStatusActions = useConversationStatusActions()
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -370,20 +348,13 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
     onDelete,
   ])
 
-  const status = conversation.status as ConversationStatus
-  const isRunning = status === "in_progress"
-  const isCancelled = status === "cancelled"
+  const isRunning = conversation.status === "in_progress"
   const hasUnread = useConversationUnreadStore((s) =>
     s.unreadIds.has(conversation.id)
   )
   const isPinned = conversation.pinned_at != null
-  const isCompleted = status === "completed"
-  // Delegation sub-sessions (a child of another conversation) don't get the
-  // hover quick actions: pinning a sub-agent run to the root Pinned section or
-  // hand-toggling its status doesn't fit — its lifecycle is the sub-agent's. The
-  // time / running badge then stays visible on hover (nothing swaps in for it).
   const isSubsession = conversation.parent_id != null
-  const showDoneAction = allowStatusActions && !isSubsession
+  const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions =
     !isSubsession && (Boolean(onTogglePin) || showDoneAction)
 
@@ -405,7 +376,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
           <ContextMenuTrigger asChild>
             <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
               <div
-                className="relative h-[2rem] bg-sidebar ws-transparent-bg"
+                className="relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg"
                 data-conv-key={`${conversation.agent_type}:${conversation.id}`}
                 // Per-level indent: shift the shared rail axis right by one step per
                 // depth. Root rows (depth 0) leave the var untouched so they inherit
@@ -422,11 +393,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
               >
                 <div
                   className={cn(
-                    "group relative flex h-[1.9375rem] w-full items-center",
-                    "rounded-full text-sidebar-foreground",
+                    // Compact history rows from the supplied desktop reference.
+                    "group relative flex h-full w-full items-center",
+                    "rounded-[0.625rem] text-sidebar-foreground",
                     "transition-colors duration-[120ms]",
                     isSelected
-                      ? "bg-sidebar-primary/8"
+                      ? "bg-black/[0.04] dark:bg-white/[0.06]"
                       : "hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
                   )}
                 >
@@ -437,12 +409,10 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onDoubleClick={handleDblClick}
                     className={cn(
                       "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
-                      "rounded-full",
+                      "rounded-[0.625rem]",
                       "pr-[0.25rem]"
                     )}
-                    // Rail-axis-relative left padding (was a fixed `pl-7`): at depth 0
-                    // this resolves to 0.875rem + 0.875rem = 1.75rem (= pl-7), so root
-                    // rows are pixel-identical; deeper rows inherit the shifted var.
+                    // Leave a 7px gap after the 14px icon at every depth.
                     style={{
                       paddingLeft:
                         "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
@@ -492,34 +462,13 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     >
                       <AgentIcon
                         agentType={conversation.agent_type}
-                        className="h-[0.75rem] w-[0.75rem]"
+                        className="h-[0.875rem] w-[0.875rem]"
                       />
-                      {showStatus ? (
-                        <ConversationStatusDot
-                          status={status}
-                          size="sm"
-                          className="absolute -right-0.5 -bottom-0.5 ring-2 ring-sidebar"
-                          title={
-                            STATUS_ORDER.includes(status)
-                              ? tStatus(status)
-                              : status
-                          }
-                        >
-                          {isOpenInTab ? (
-                            <span
-                              aria-hidden
-                              className="block h-[0.1875rem] w-[0.1875rem] rounded-full bg-sidebar"
-                            />
-                          ) : null}
-                        </ConversationStatusDot>
-                      ) : null}
                     </div>
 
                     <span
-                      className={cn(
-                        "relative min-w-0 flex-1 truncate text-[0.875rem] font-normal",
-                        isOpenInTab && "text-primary"
-                      )}
+                      data-open-in-tab={isOpenInTab || undefined}
+                      className="maxcode-sidebar-label relative min-w-0 flex-1 truncate text-[0.875rem] leading-[1.375rem] font-[430]"
                     >
                       {formatConversationTitle(conversation.title) ||
                         t("untitledConversation")}
@@ -593,28 +542,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     </button>
                   )}
 
-                  {/* Right slot: sizes to its content — the time / status badge
-                  normally, the two quick-action buttons (pin, done) on hover —
-                  so it never reserves more width than what is actually shown
-                  (the title reflows slightly on hover). Meta and buttons swap via
-                  `display` (group-hover:hidden / group-hover:flex), which also
-                  drops the hidden buttons out of the tab order and a11y tree. The
-                  buttons are siblings of the row button — never nested — so their
-                  clicks don't select the conversation; `tabIndex={-1}` keeps them
-                  mouse-only (the context menu Pin/Unpin + Status is the keyboard/
-                  AT-accessible path). */}
-                  {/* pr-[0.375rem] + the list's px-1.5 (0.375rem) puts the time
-                  badge / hover action buttons at a uniform 0.75rem inset from the
-                  sidebar border — the same right edge as the section-header
-                  actions, folder-header actions, and New chat / Search shortcut
-                  badges. */}
+                  {/* Timestamp/unread indicator swaps to pin and completion actions on hover. */}
                   <div className="flex h-full shrink-0 items-center pr-[0.375rem]">
                     <span
                       className={cn(
                         "flex items-center",
-                        // Roots swap the badge out for the hover actions; sub-sessions
-                        // have no actions, so keep the badge (incl. the running
-                        // spinner) visible on hover.
+                        // Keep metadata visible for rows without hover actions.
                         showHoverActions && "group-hover:hidden"
                       )}
                     >
@@ -623,10 +556,28 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           className="relative inline-flex shrink-0 items-center justify-center"
                           title={tSidebar("statusRunningBadge")}
                         >
-                          <Loader2
-                            className="h-3.5 w-3.5 animate-spin text-amber-600 dark:text-amber-400"
-                            aria-hidden
-                          />
+                          <svg
+                            data-running-spinner
+                            className="size-3 animate-spin text-[#858585] dark:text-[#a3a3a3]"
+                            viewBox="0 0 12 12"
+                            fill="none"
+                            aria-hidden="true"
+                          >
+                            <circle
+                              cx="6"
+                              cy="6"
+                              r="4.5"
+                              stroke="currentColor"
+                              strokeOpacity="0.25"
+                              strokeWidth="1.5"
+                            />
+                            <path
+                              d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5"
+                              stroke="currentColor"
+                              strokeWidth="1.5"
+                              strokeLinecap="round"
+                            />
+                          </svg>
                           <span className="sr-only">
                             {tSidebar("statusRunningBadge")}
                           </span>
@@ -635,19 +586,6 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         <ConversationUnreadDot
                           label={tSidebar("unreadBadge")}
                         />
-                      ) : isCancelled && !showStatus ? (
-                        <span
-                          className="relative inline-flex shrink-0 items-center justify-center"
-                          title={tSidebar("statusCancelledBadge")}
-                        >
-                          <XCircle
-                            className="h-3.5 w-3.5 text-destructive"
-                            aria-hidden
-                          />
-                          <span className="sr-only">
-                            {tSidebar("statusCancelledBadge")}
-                          </span>
-                        </span>
                       ) : timeLabel ? (
                         <span
                           className={cn(
@@ -702,17 +640,10 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                             tabIndex={-1}
                             onClick={(e) => {
                               e.stopPropagation()
-                              onStatusChange(
-                                conversation.id,
-                                isCompleted ? "in_progress" : "completed"
-                              )
+                              onStatusChange(conversation.id, "completed")
                             }}
-                            title={
-                              isCompleted ? t("reopen") : t("markCompleted")
-                            }
-                            aria-label={
-                              isCompleted ? t("reopen") : t("markCompleted")
-                            }
+                            title={t("markCompleted")}
+                            aria-label={t("markCompleted")}
                             className={cn(
                               "flex h-6 w-6 shrink-0 items-center justify-end rounded-[0.375rem]",
                               "cursor-pointer outline-none transition-colors duration-150",
@@ -781,30 +712,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
               <AtSign className="h-4 w-4" />
               {t("attachToCurrentSession")}
             </ContextMenuItem>
-            {allowStatusActions ? (
-              <>
-                <ContextMenuSeparator />
-                <ContextMenuSub>
-                  <ContextMenuSubTrigger>
-                    <Circle className="h-4 w-4" />
-                    {t("status")}
-                  </ContextMenuSubTrigger>
-                  <ContextMenuSubContent>
-                    {STATUS_ORDER.filter((s) => s !== conversation.status).map(
-                      (s) => (
-                        <ContextMenuItem
-                          key={s}
-                          onSelect={() => onStatusChange(conversation.id, s)}
-                        >
-                          <ConversationStatusDot status={s} />
-                          {tStatus(s)}
-                        </ContextMenuItem>
-                      )
-                    )}
-                  </ContextMenuSubContent>
-                </ContextMenuSub>
-              </>
-            ) : null}
+
             <ContextMenuSeparator />
             <ContextMenuItem
               variant="destructive"

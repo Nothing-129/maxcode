@@ -616,9 +616,7 @@ const MODEL_OPTION: SessionConfigOptionInfo = {
 const MSGS = enMessages.Folder.chat.messageInput
 
 // Cline 3.0.50's `auto_approve` — the first boolean config option any pinned
-// agent ships. Both the wide inline row and the collapsed popover are always in
-// the DOM (a container query, which jsdom does not evaluate, picks one), so a
-// single render exercises both surfaces.
+// agent ships. Wide composers expose the toggle inline; narrow ones use the settings menu.
 const AUTO_APPROVE_OPTION: SessionConfigOptionInfo = {
   id: "auto_approve",
   name: "Auto-approve tools",

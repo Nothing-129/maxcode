@@ -32,7 +32,7 @@ export type FontDef = {
 /** 自定义字体的 sentinel id（不在 FONTS 列表中） */
 export const CUSTOM_FONT_ID = "custom"
 
-/** 系统无衬线 / 等宽回退栈，所有 bundled 字体也以它收尾，CJK 由系统字体兜底。 */
+/** System UI follows the host sans-serif fonts, with explicit CJK fallbacks. */
 export const SANS_FALLBACK =
   '-apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif'
 export const MONO_FALLBACK =

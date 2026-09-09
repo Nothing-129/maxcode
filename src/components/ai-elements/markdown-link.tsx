@@ -133,7 +133,7 @@ export function MarkdownLink({
             title={filePath}
             className="inline-block max-w-full -translate-y-[1.5px] align-middle"
           >
-            <ReferenceBadge data={fileData} />
+            <ReferenceBadge data={fileData} appearance="file-link" />
           </FilePathLink>
         </FileReferenceActions>
       )
@@ -207,7 +207,7 @@ export function MarkdownLink({
             onClick={handleClick}
             className="inline-flex max-w-full -translate-y-[1.5px] cursor-pointer appearance-none items-center align-middle leading-none hover:opacity-80"
           >
-            <ReferenceBadge data={fileData} />
+            <ReferenceBadge data={fileData} appearance="file-link" />
           </button>
         </FileReferenceActions>
         {linkSafety.renderModal ? linkSafety.renderModal(modalProps) : null}

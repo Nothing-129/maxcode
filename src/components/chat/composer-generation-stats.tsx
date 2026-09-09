@@ -8,8 +8,33 @@ import {
   addGenerationStats,
   generationStatsFromLiveMessage,
 } from "@/lib/live-generation-stats"
-import type { GenerationStats } from "@/lib/types"
-import { useConversationRuntimeStore } from "@/stores/conversation-runtime-store"
+import type { DbConversationDetail, GenerationStats } from "@/lib/types"
+import {
+  selectTimelineTurns,
+  useConversationRuntimeStore,
+  type ConversationTimelineTurn,
+} from "@/stores/conversation-runtime-store"
+
+/** Count user prompts, including deduplicated local sends and unloaded history. */
+export function getConversationRoundCount(
+  detail: DbConversationDetail | null,
+  timeline: readonly ConversationTimelineTurn[]
+): number | null {
+  const loadedUsers =
+    detail?.turns.filter((turn) => turn.role === "user").length ?? 0
+  // An older server may omit the total for a partial transcript. Do not
+  // mislabel the loaded tail as the whole conversation's round count.
+  if ((detail?.turns_offset ?? 0) > 0 && detail?.user_turns_total == null) {
+    return null
+  }
+  const unseenUsers = Math.max(
+    0,
+    (detail?.user_turns_total ?? loadedUsers) - loadedUsers
+  )
+  return (
+    unseenUsers + timeline.filter(({ turn }) => turn.role === "user").length
+  )
+}
 
 /** DeepSeek Harness's compact whole-session duration formatter. */
 export function formatGenerationDuration(ms: number): string {
@@ -164,6 +189,14 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
     if (!tab || tab.kind !== "conversation") return null
     return tab.runtimeConversationId ?? tab.conversationId ?? null
   })
+  const roundCount = useConversationRuntimeStore((state) => {
+    if (runtimeConversationId == null) return 0
+    const session = state.byConversationId.get(runtimeConversationId)
+    return getConversationRoundCount(
+      session?.detail ?? null,
+      selectTimelineTurns(state, runtimeConversationId)
+    )
+  })
   const completedStats = useConversationRuntimeStore((state) =>
     runtimeConversationId != null
       ? (state.byConversationId.get(runtimeConversationId)?.sessionStats
@@ -191,6 +224,9 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
     ? getGenerationFigures(stats)
     : { averageTtft: null, throughput: null }
   const parts = [
+    roundCount != null && roundCount > 0
+      ? t("roundCount", { count: roundCount })
+      : null,
     figures.averageTtft
       ? t("ttftAverage", { duration: figures.averageTtft })
       : null,
@@ -228,6 +264,12 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         (child): child is HTMLElement =>
           child instanceof HTMLElement && child.dataset.generationStats == null
       )
+      const separatorWidth = controls.some((control) =>
+        control.hasAttribute("data-composer-usage")
+      )
+        ? cssPixels(rightStyle.fontSize) +
+          cssPixels(getComputedStyle(document.documentElement).fontSize) / 2
+        : 0
       const fit = (statsWidth: number) =>
         canShowGenerationStats({
           rowWidth: row.clientWidth,
@@ -238,11 +280,23 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
             left.scrollWidth
           ),
           outerGap: cssPixels(rowStyle.columnGap),
-          rightControlWidths: controls.map((control) =>
-            Math.max(control.getBoundingClientRect().width, control.scrollWidth)
-          ),
+          rightControlWidths: controls.map((control) => {
+            const style = getComputedStyle(control)
+            return (
+              Math.max(
+                control.getBoundingClientRect().width,
+                control.scrollWidth
+              ) +
+              cssPixels(style.marginLeft) +
+              cssPixels(style.marginRight) -
+              (control.hasAttribute("data-composer-usage") &&
+              labelElement.getAttribute("aria-hidden") === "false"
+                ? separatorWidth
+                : 0)
+            )
+          }),
           rightGap: cssPixels(rightStyle.columnGap),
-          statsWidth,
+          statsWidth: statsWidth + separatorWidth,
         })
       setDisplayMode(
         chooseGenerationStatsDisplayMode(
@@ -271,12 +325,8 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
 
   if (!fullLabel) return null
 
-  const displayedLabel =
-    displayMode === "full"
-      ? fullLabel
-      : displayMode === "throughput"
-        ? throughputLabel
-        : fullLabel
+  const displayedParts =
+    displayMode === "throughput" ? [throughputLabel] : parts
   const isVisible = displayMode !== "hidden"
 
   return (
@@ -286,13 +336,13 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         data-generation-stats="visible"
         className={
           isVisible
-            ? "inline-flex shrink-0 items-center whitespace-nowrap tabular-nums text-muted-foreground/80"
+            ? "inline-flex h-6 shrink-0 items-center whitespace-nowrap tabular-nums"
             : "pointer-events-none fixed start-[-9999px] top-0 invisible whitespace-nowrap"
         }
         title={fullLabel}
         aria-hidden={!isVisible}
       >
-        {displayedLabel}
+        <GenerationMetricItems parts={displayedParts} />
       </span>
       <span
         ref={fullMeasureRef}
@@ -300,7 +350,7 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         className="pointer-events-none fixed start-[-9999px] top-0 invisible whitespace-nowrap"
         aria-hidden="true"
       >
-        {fullLabel}
+        <GenerationMetricItems parts={parts} />
       </span>
       <span
         ref={throughputMeasureRef}
@@ -308,8 +358,30 @@ export function ComposerGenerationStats({ tabId }: { tabId: string | null }) {
         className="pointer-events-none fixed start-[-9999px] top-0 invisible whitespace-nowrap"
         aria-hidden="true"
       >
-        {throughputLabel}
+        <GenerationMetricItems parts={[throughputLabel]} />
       </span>
     </>
+  )
+}
+
+/** Identical layout for visible metrics and width measurement. */
+export function GenerationMetricItems({ parts }: { parts: string[] }) {
+  return (
+    <span className="inline-flex items-center leading-6">
+      {parts.map((part, index) => (
+        <span
+          key={index}
+          className="inline-flex items-center"
+          data-generation-metric=""
+        >
+          {index > 0 && (
+            <span aria-hidden="true" className="mx-1 opacity-40">
+              ｜
+            </span>
+          )}
+          {part}
+        </span>
+      ))}
+    </span>
   )
 }

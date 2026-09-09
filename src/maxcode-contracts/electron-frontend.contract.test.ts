@@ -40,6 +40,7 @@ vi.mock("@/lib/transport", async (importOriginal) => ({
   getTransport: () => backend,
   getShellTransport: () => backend,
   getActiveRemoteConnectionId: () => backend.remoteId,
+  isRemoteDesktopMode: () => backend.remoteId !== null,
 }))
 
 let bridge: ElectronBridge
@@ -196,6 +197,58 @@ describe("MaxCode contract: Electron uses the managed local server", () => {
 })
 
 describe("MaxCode contract: Electron update ownership", () => {
+  it("drives differential update lifecycle through the shell bridge without touching the server updater", async () => {
+    const state = {
+      seq: 8,
+      status: "ready_to_restart" as const,
+      version: "0.51.0",
+    }
+    const result = {
+      currentVersion: "0.50.0",
+      update: { version: "0.51.0", body: "Fixes" },
+      selfUpdateSupported: true,
+      liveProgress: true,
+      runtime: "electron",
+      rollbackAvailable: false,
+    }
+    const unlisten = vi.fn()
+    bridge.checkForUpdate = vi.fn(async () => result)
+    bridge.getUpdateStatus = vi.fn(async () => ({
+      ...result,
+      capability: "reexec" as const,
+      restartDelayMs: 0,
+    }))
+    bridge.getUpdateState = vi.fn(async () => state)
+    bridge.startUpdate = vi.fn(async () => state)
+    bridge.installUpdate = vi.fn(async () => {})
+    bridge.onUpdateState = vi.fn(() => unlisten)
+    expect(await checkAppUpdateInfo()).toEqual(result)
+    expect(await getAppUpdateState()).toEqual(state)
+    expect(await getServerUpdateStatus()).toMatchObject({
+      runtime: "electron",
+      selfUpdateSupported: true,
+    })
+    expect(await startAppUpdate()).toEqual(state)
+    const handler = vi.fn()
+    const stop = await subscribeAppUpdateState(handler)
+    expect(bridge.onUpdateState).toHaveBeenCalledWith(handler)
+    stop()
+    expect(unlisten).toHaveBeenCalledOnce()
+    await restartApp()
+    expect(bridge.installUpdate).toHaveBeenCalledOnce()
+    await expect(rollbackServer()).rejects.toThrow()
+    expect(backend.call).not.toHaveBeenCalled()
+    expect(backend.subscribe).not.toHaveBeenCalled()
+  })
+
+  it("continues targeting the remote server updater when a remote transport is active", async () => {
+    backend.remoteId = 9
+    bridge.checkForUpdate = vi.fn()
+    backend.call.mockResolvedValue({ currentVersion: "0.48.0", update: null })
+    await checkAppUpdateInfo()
+    expect(backend.call).toHaveBeenCalledWith("check_app_update")
+    expect(bridge.checkForUpdate).not.toHaveBeenCalled()
+  })
   it("relaunches the owning shell to apply staged backup data", async () => {
     await relaunchApp()
     expect(bridge.relaunchApp).toHaveBeenCalledOnce()

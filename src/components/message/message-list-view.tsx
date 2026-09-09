@@ -1,5 +1,9 @@
 "use client"
 
+import {
+  ConversationMessageRail,
+  buildMessageRailEntries,
+} from "./conversation-message-rail"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   isLiveTurnId,
@@ -10,6 +14,7 @@ import {
 import { isWindowedDetail } from "@/lib/turn-window"
 import { CompletedTurnContent } from "./completed-turn-content"
 import { ContextCompactionCard } from "./context-compaction-card"
+import { SentMessageEditButton } from "./sent-message-edit-button"
 import { CollapsibleUserMessage } from "./collapsible-user-message"
 import { CollapsibleSystemMessage } from "./collapsible-system-message"
 import { isContextCompactionMeta } from "@/lib/context-compaction"
@@ -69,12 +74,8 @@ import type { AgentType, ConnectionStatus, MessageTurn } from "@/lib/types"
 import { copyTextToClipboard } from "@/lib/utils"
 import { VirtualizedMessageThread } from "@/components/message/virtualized-message-thread"
 import { SelectionActionBubble } from "@/components/message/selection-action-bubble"
-import {
-  ConversationMessageNav,
-  type MessageNavEntry,
-} from "@/components/message/conversation-message-nav"
+import { ConversationFind } from "./conversation-find"
 import type { MessageScrollContextValue } from "@/components/message/message-scroll-context"
-import { extractSessionFilesGrouped } from "@/lib/session-files"
 import { unescapeComposerText } from "@/lib/composer-copy-text"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 
@@ -116,6 +117,7 @@ interface MessageListViewProps {
    * read-only surfaces (sub-agent dialog, task transcripts), which then offer
    * copy alone. MUST be referentially stable.
    */
+  onEditMessage?: (text: string) => void
   onQuoteSelection?: (text: string) => void
   /**
    * Ask a question about a text selection made in this transcript: the host
@@ -378,7 +380,6 @@ const EMPTY_DELEGATIONS: DelegationCardSource[] = []
 
 // Stable empty reference so the navigator memo / equality checks don't churn
 // when a conversation has no user messages.
-const EMPTY_NAV_ENTRIES: MessageNavEntry[] = []
 
 // A single turn's `sourceTurns` is just `[turn]`. Cache the wrapper per turn
 // object so an unchanged historical turn keeps a stable `sourceTurns` reference
@@ -825,9 +826,8 @@ export function isForkPointUnnamed(
   return forkPoint.source_turn_id == null && isLiveTurnId(forkPoint.id)
 }
 
-const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
+export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   group,
-  dimmed = false,
   showStats = true,
   previousUserIndex = null,
   previousUserAt = null,
@@ -840,9 +840,10 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   onForkFromTurn,
   forkDisabled = false,
   isThreadTail = false,
+  onEditMessage,
 }: {
   group: ResolvedMessageGroup
-  dimmed?: boolean
+  onEditMessage?: (text: string) => void
   showStats?: boolean
   previousUserIndex?: number | null
   previousUserAt?: string | null
@@ -879,19 +880,27 @@ const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   const forkPointUnnamed = isForkPointUnnamed(forkPoint, isThreadTail)
 
   return (
-    <div className={dimmed ? "opacity-70" : undefined}>
+    <div>
       <Message from={group.role}>
         {group.role === "user" && group.images.length > 0 ? (
           <UserImageAttachments images={group.images} className="self-end" />
         ) : null}
         {group.role === "user" ? (
-          <div className="group/user-msg flex w-fit ml-auto max-w-full items-start gap-1">
-            <UserMessageTaskButton parts={group.parts} />
-            <UserMessageCopyButton parts={group.parts} />
-            <MessageContent>
-              <CollapsibleUserMessage parts={group.parts} />
-            </MessageContent>
-          </div>
+          group.parts.some(
+            (part) => part.type !== "text" || part.text.trim().length > 0
+          ) ? (
+            <div className="group/user-msg flex w-fit ml-auto max-w-full items-start gap-1">
+              <UserMessageTaskButton parts={group.parts} />
+              <UserMessageCopyButton parts={group.parts} />
+              <SentMessageEditButton
+                parts={group.parts}
+                onEdit={onEditMessage}
+              />
+              <MessageContent>
+                <CollapsibleUserMessage parts={group.parts} />
+              </MessageContent>
+            </div>
+          ) : null
         ) : (
           <MessageContent>
             <CompletedTurnContent
@@ -1003,6 +1012,7 @@ export function MessageListView({
   onNewSession,
   showMessageNav = true,
   userTurnHeader = null,
+  onEditMessage,
   onQuoteSelection,
   onAskSelection,
   onSaveNoteSelection,
@@ -1301,7 +1311,7 @@ export function MessageListView({
               ) : null}
               <HistoricalMessageGroup
                 group={item.group}
-                dimmed={item.phase === "optimistic"}
+                onEditMessage={onEditMessage}
                 showStats={item.showStats}
                 previousUserIndex={item.previousUserIndex}
                 previousUserAt={item.previousUserAt}
@@ -1333,6 +1343,7 @@ export function MessageListView({
     },
     [
       userTurnHeader,
+      onEditMessage,
       fold.armed,
       fold.roundOpen,
       fold.epoch,
@@ -1392,76 +1403,20 @@ export function MessageListView({
     ? `subagents-${lastAssistantGroup.id}`
     : `subagents-history-${conversationId}`
 
-  // --- Message navigator panel ------------------------------------------------
-  // Lifted scroll handle so the panel (which lives in the overlay stack, outside
-  // the MessageScrollProvider subtree) can drive scrollToIndex.
+  // Shared scroll handle for the edge rail.
   const scrollApiRef = useRef<MessageScrollContextValue | null>(null)
-  // Collapse state is owned here (not in the panel) so the expensive per-file
-  // `navEntries` is computed only while the panel is open.
-  const [navExpanded, setNavExpanded] = useState(false)
 
   // Positioning box for the text-selection bubble. It is the transcript's outer
   // (non-scrolling) frame, so the bubble is clipped to the message area and
   // never overlaps the composer or the tab strip.
   const selectionBoxRef = useRef<HTMLDivElement | null>(null)
 
-  // Cheap user-message tally for the collapsed chip — counts user turns without
-  // parsing any file diffs.
-  const userMessageCount = useMemo(() => {
-    if (!showMessageNav) return 0
-    let count = 0
-    for (const item of threadItems) {
-      if (item.kind === "turn" && item.group.role === "user") count += 1
-    }
-    return count
-  }, [showMessageNav, threadItems])
-
-  // One entry per user message — including ones with no edits (placeholders).
-  // Computed lazily: only while the panel is expanded, since
-  // `extractSessionFilesGrouped` parses every turn's diffs. Collapsed (the
-  // default) it stays EMPTY, keeping the streaming hot path free of diff parsing.
-  //
-  // Windowed loading caveat (accepted degradation): counts, ordinals and file
-  // summaries cover only the LOADED window — paging in older history extends
-  // them. Nav targets are recomputed with the items on every prepend, so the
-  // indices themselves never go stale.
-  const navEntries = useMemo<MessageNavEntry[]>(() => {
-    if (!showMessageNav || !navExpanded) return EMPTY_NAV_ENTRIES
-    const turns = timelineTurns.map((item) => item.turn)
-    const groups = extractSessionFilesGrouped(turns, { includeEmpty: true })
-    if (groups.length === 0) return EMPTY_NAV_ENTRIES
-
-    const indexByTurnId = new Map<string, number>()
-    for (let i = 0; i < threadItems.length; i++) {
-      const item = threadItems[i]
-      if (item.kind === "turn" && item.group.role === "user") {
-        indexByTurnId.set(item.group.id, i)
-      }
-    }
-
-    const entries: MessageNavEntry[] = []
-    for (const group of groups) {
-      const threadIndex = indexByTurnId.get(group.userTurnId)
-      if (threadIndex == null) continue
-      let additions = 0
-      let deletions = 0
-      for (const file of group.files) {
-        additions += file.additions
-        deletions += file.deletions
-      }
-      entries.push({
-        threadIndex,
-        turnId: group.userTurnId,
-        ordinal: entries.length + 1,
-        label: group.userMessage,
-        additions,
-        deletions,
-        files: group.files,
-        hasChanges: group.files.length > 0,
-      })
-    }
-    return entries.length > 0 ? entries : EMPTY_NAV_ENTRIES
-  }, [showMessageNav, navExpanded, timelineTurns, threadItems])
+  const [threadOverflows, setThreadOverflows] = useState(false)
+  const [visibleThreadIndex, setVisibleThreadIndex] = useState(0)
+  const railEntries = useMemo(
+    () => (showMessageNav ? buildMessageRailEntries(threadItems) : []),
+    [showMessageNav, threadItems]
+  )
 
   const hasRenderableContent = threadItems.length > 0 || Boolean(liveMessage)
 
@@ -1546,6 +1501,18 @@ export function MessageListView({
         ref={selectionBoxRef}
         className="relative flex h-full min-h-0 flex-col"
       >
+        {showMessageNav && (
+          <ConversationFind
+            key={conversationId}
+            items={threadItems}
+            active={isActive}
+            scrollApiRef={scrollApiRef}
+            containerRef={selectionBoxRef}
+            historyOffset={isWindowedDetail(detail) ? detail.turns_offset : 0}
+            loadingHistory={loadingOlderTurns}
+            onLoadHistory={handleLoadOlder}
+          />
+        )}
         <MessageThread
           className="flex-1 min-h-0"
           resize={shouldUseSmoothResize ? "smooth" : undefined}
@@ -1557,6 +1524,8 @@ export function MessageListView({
             renderItem={renderThreadItem}
             emptyState={emptyState}
             scrollApiRef={scrollApiRef}
+            onVisibleIndexChange={setVisibleThreadIndex}
+            onOverflowChange={setThreadOverflows}
             hasOlder={hasOlderTurns}
             isLoadingOlder={loadingOlderTurns}
             onLoadOlder={handleLoadOlder}
@@ -1574,25 +1543,15 @@ export function MessageListView({
             isStreaming={connStatus === "prompting"}
           />
         )}
-        {/* Shared overlay stack pinned to the inline-start edge (top-left in LTR,
-          top-right in RTL). A flex column keeps the order stable regardless of
-          each panel's expand/collapse height: the message navigator first, then
-          the plan panel, then the sub-agent panel. Empty panels render null and
-          collapse out. Positioning lives here (not in the child overlays); the
-          chips are "bullets" — flat on the start side (flush to the pinned
-          edge), rounded on the end side — that expand toward the inline-end on
-          hover. Logical `start-0` + `items-start` keep the anchor and the bullet
-          on the same side, so the whole stack mirrors cleanly in RTL. */}
+        {showMessageNav && threadOverflows && (
+          <ConversationMessageRail
+            entries={railEntries}
+            visibleIndex={visibleThreadIndex}
+            scrollApiRef={scrollApiRef}
+          />
+        )}
+        {/* Plan and sub-agent overlays share the top edge. */}
         <div className="pointer-events-none absolute start-0 top-4 z-20 flex max-w-[min(22rem,calc(100%-2rem))] flex-col items-start gap-2">
-          {showMessageNav && userMessageCount > 0 && (
-            <ConversationMessageNav
-              count={userMessageCount}
-              expanded={navExpanded}
-              onToggle={setNavExpanded}
-              entries={navEntries}
-              scrollApiRef={scrollApiRef}
-            />
-          )}
           <AgentPlanOverlay
             key={agentPlanOverlayKey}
             message={liveMessage ?? null}

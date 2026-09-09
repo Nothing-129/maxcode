@@ -1,8 +1,12 @@
 "use client"
 
-import { PanelLeft, Search } from "lucide-react"
+import { Search } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { isDesktop } from "@/lib/platform"
+import { isNativeDesktop } from "@/lib/platform"
+import {
+  DesktopChromeIcon,
+  desktopChromeButtonClassName,
+} from "./desktop-chrome-icon"
 import { Button } from "@/components/ui/button"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
@@ -44,7 +48,7 @@ export function LeftEdgeChrome() {
   const { zoomLevel } = useZoomLevel()
   // The traffic lights only exist on the macOS desktop runtime (not web / not
   // Windows-Linux), so only reserve their inset there.
-  const showMacInset = platformIsMac && isDesktop()
+  const showMacInset = platformIsMac && isNativeDesktop()
 
   return (
     <div
@@ -58,35 +62,38 @@ export function LeftEdgeChrome() {
           style={{ width: MAC_TRAFFIC_LIGHT_INSET }}
         />
       )}
-      <div className="flex items-center gap-1 pl-3">
+      {/* Keep navigation discoverable for mouse, touch, and keyboard users. */}
+      <div className="flex items-center gap-1 rounded-full p-2 pl-3 text-muted-foreground">
         <Button
           variant="ghost"
           size="icon"
           // Ghost's own hover is `bg-muted` — identical to the strip, so it
           // reads as no hover at all. Darken past it (and lighten in dark mode)
           // so the hover is actually visible.
-          className="h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10"
+          className={desktopChromeButtonClassName}
           onClick={toggle}
           title={tTitleBar("withShortcut", {
             label: tTitleBar(isOpen ? "hideSidebar" : "showSidebar"),
             shortcut: formatShortcutLabel(shortcuts.toggle_sidebar, isMac),
           })}
         >
-          <PanelLeft className="h-3.5 w-3.5" />
+          <DesktopChromeIcon name="sidebar" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10"
-          onClick={() => setSearchOpen(true)}
-          title={tTitleBar("withShortcut", {
-            label: tTitleBar("search"),
-            shortcut: formatShortcutLabel(shortcuts.toggle_search, isMac),
-          })}
-          aria-label={tTitleBar("search")}
-        >
-          <Search aria-hidden="true" className="h-3.5 w-3.5" />
-        </Button>
+        {!isOpen && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className={desktopChromeButtonClassName}
+            onClick={() => setSearchOpen(true)}
+            title={tTitleBar("withShortcut", {
+              label: tTitleBar("search"),
+              shortcut: formatShortcutLabel(shortcuts.toggle_search, isMac),
+            })}
+            aria-label={tTitleBar("search")}
+          >
+            <Search aria-hidden="true" className="h-3.5 w-3.5" />
+          </Button>
+        )}
       </div>
       {/* Empty tail is a window-drag region. */}
       <div data-tauri-drag-region className="h-full min-w-0 flex-1" />

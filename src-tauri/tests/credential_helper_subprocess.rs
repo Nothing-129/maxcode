@@ -8,10 +8,10 @@
 //! short-circuit, real argv parsing, real stdin reading, and the exact
 //! `username=...\npassword=...\n` wire format git expects.
 //!
-//! Server-mode only: in Tauri mode the token store is the OS keyring,
-//! which we won't poke from CI.
+//! File-store server mode only: both Electron and Tauri enable native-keyring,
+//! which we won't poke from CI. The server CI matrix runs this subprocess test.
 
-#![cfg(all(unix, not(feature = "tauri-runtime")))]
+#![cfg(all(unix, not(feature = "native-keyring")))]
 
 use std::io::Write;
 use std::process::{Command, Stdio};

@@ -12,6 +12,7 @@ import {
   type Ref,
 } from "react"
 import { useTranslations } from "next-intl"
+import { FolderRunningIndicator } from "./folder-running-indicator"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
 import { Virtualizer, type VirtualizerHandle } from "virtua"
@@ -36,8 +37,6 @@ import {
   Loader2,
   MonitorCloud,
   MoreHorizontal,
-  PanelLeft,
-  PanelRight,
   Palette,
   Rocket,
   Settings,
@@ -47,6 +46,8 @@ import {
 } from "lucide-react"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
+import { collectUnreadFolders } from "@/lib/folder-unread"
+import { ConversationUnreadDot } from "./conversation-unread-dot"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
@@ -257,6 +258,7 @@ const FolderHeader = memo(function FolderHeader({
   folderAlias,
   folderPath,
   runningCount,
+  hasUnread,
   expanded,
   themeColor,
   appThemeColor,
@@ -266,7 +268,6 @@ const FolderHeader = memo(function FolderHeader({
   onToggle,
   onRemoveFromWorkspace,
   onNewConversation,
-  onOpenInSplit,
   onImport,
   onManageConversations,
   onManageLinks,
@@ -290,7 +291,7 @@ const FolderHeader = memo(function FolderHeader({
 }: {
   folderId: number
   folderName: string
-  /** User-set alias, or null. When present the header shows `alias [name]`. */
+  /** User-set alias, or null. When present the header shows only the alias. */
   folderAlias: string | null
   folderPath: string
   /**
@@ -300,6 +301,7 @@ const FolderHeader = memo(function FolderHeader({
    * a total-count chip on every row was noise (expanding shows the rows).
    */
   runningCount: number
+  hasUnread: boolean
   expanded: boolean
   themeColor: FolderThemeColor
   appThemeColor: ThemeColor
@@ -317,7 +319,6 @@ const FolderHeader = memo(function FolderHeader({
   onToggle: (folderId: number) => void
   onRemoveFromWorkspace: (folderId: number) => void
   onNewConversation: (folderId: number) => void
-  onOpenInSplit: (folderId: number, side: "left" | "right") => void
   onImport: (folderId: number) => void
   onManageConversations: (folderId: number) => void
   onManageLinks: (folderId: number) => void
@@ -366,13 +367,12 @@ const FolderHeader = memo(function FolderHeader({
    * Which glyph + label this header renders:
    * - `repo` (default): a top-level repo / plain folder / repo container — the
    *   FolderOpen/FolderClosed glyph and the repo-name alias label.
-   * - `worktree`: a git worktree sub-group — the FolderGit2 glyph and the same
-   *   `alias [ name ]` label as a repo, with the branch standing in for the
-   *   alias (see {@link worktreeHeaderAlias}).
+   * - `worktree`: a git worktree sub-group — the FolderGit2 glyph and the alias
+   *   or branch label, falling back to the directory name
+   *   (see {@link worktreeHeaderAlias}).
    * - `root`: a repo container's own-sessions sub-group — the FolderRoot glyph
-   *   and the same `alias [ name ]` label as the two above, with the container's
-   *   live branch standing in for the alias and a fixed, non-localized "root"
-   *   for the name (see {@link rootBranch}).
+   *   and the container's live branch with a fixed, non-localized "[ root ]"
+   *   marker (see {@link rootBranch}).
    */
   variant?: "repo" | "worktree" | "root"
   /** The worktree's branch name (its own `git_branch`), used as the alias when
@@ -466,13 +466,6 @@ const FolderHeader = memo(function FolderHeader({
   }
 
   const titleTint = folderTitleTintVars(themeColor)
-  // The `[ name ]` half of an aliased label is normally a DEEPER shade than the
-  // alias beside it. A tinted title has no deeper shade to reach for (the tint
-  // is already pinned to the one lightness that clears AA on this surface), so
-  // it just inherits — the brackets alone carry the alias/name split there.
-  const bracketClassName = titleTint
-    ? "text-current"
-    : "text-sidebar-foreground"
 
   return (
     <>
@@ -481,13 +474,13 @@ const FolderHeader = memo(function FolderHeader({
           <div
             aria-hidden={suppressed || undefined}
             className={cn(
-              "relative h-[2rem] rounded-full",
+              "relative h-[2rem] rounded-full py-px",
               isDragging && "opacity-50"
             )}
           >
             <div
               className={cn(
-                "group flex h-[1.9375rem] w-full items-center",
+                "group flex h-full w-full items-center",
                 "rounded-full",
                 "transition-colors duration-150",
                 "hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
@@ -530,13 +523,16 @@ const FolderHeader = memo(function FolderHeader({
                   }}
                 >
                   {variant === "worktree" ? (
-                    <FolderGit2 className="h-[0.875rem] w-[0.875rem]" />
+                    <FolderGit2 className="size-4 shrink-0" strokeWidth={1.5} />
                   ) : variant === "root" ? (
-                    <FolderRoot className="h-[0.875rem] w-[0.875rem]" />
+                    <FolderRoot className="size-4 shrink-0" strokeWidth={1.5} />
                   ) : expanded ? (
-                    <FolderOpen className="h-[0.875rem] w-[0.875rem]" />
+                    <FolderOpen className="size-4 shrink-0" strokeWidth={1.5} />
                   ) : (
-                    <FolderClosed className="h-[0.875rem] w-[0.875rem]" />
+                    <FolderClosed
+                      className="size-4 shrink-0"
+                      strokeWidth={1.5}
+                    />
                   )}
                 </span>
                 <div className="flex min-w-0 flex-1 items-center gap-[0.5rem]">
@@ -549,66 +545,32 @@ const FolderHeader = memo(function FolderHeader({
                   <span
                     style={titleTint}
                     className={cn(
-                      "min-w-0 flex-shrink truncate text-left text-[0.875rem] font-normal",
-                      titleTint
-                        ? "folder-title-tint"
-                        : "text-sidebar-foreground/75"
+                      "min-w-0 flex-shrink truncate text-left text-[0.875rem] leading-[1.375rem] font-[430]",
+                      titleTint ? "folder-title-tint" : "maxcode-sidebar-label"
                     )}
                   >
                     {variant === "worktree" ? (
-                      // Branch as the alias, directory as the name — the same
-                      // two-part label a repo header renders.
+                      // Prefer a renamed worktree label, then its branch or directory.
                       <FolderAliasLabel
                         name={folderName}
                         alias={worktreeHeaderAlias(folderAlias, worktreeBranch)}
-                        bracketClassName={bracketClassName}
                       />
                     ) : variant === "root" ? (
-                      // The container repo's own-sessions sub-group: its live
-                      // branch as the alias, a fixed "root" as the name — the
-                      // same two-part label its worktree siblings render, so the
-                      // whole subtree reads as one column of branches. "root"
-                      // stays non-localized: it stands for the repo root
-                      // regardless of UI language. With no known branch this
-                      // collapses back to the bare "root" it has always shown.
-                      <FolderAliasLabel
-                        name="root"
-                        alias={rootBranch ?? null}
-                        bracketClassName={bracketClassName}
-                      />
+                      // "root" identifies a synthetic worktree group, not an
+                      // original folder name. Keep this branch marker explicit.
+                      rootBranch?.trim() ? (
+                        `${rootBranch.trim()} [ root ]`
+                      ) : (
+                        "root"
+                      )
                     ) : (
-                      <FolderAliasLabel
-                        name={folderName}
-                        alias={folderAlias}
-                        bracketClassName={bracketClassName}
-                      />
+                      <FolderAliasLabel name={folderName} alias={folderAlias} />
                     )}
                   </span>
-                  {/* Live-activity badge: the number of RUNNING sessions in this
-                      group, and nothing at all when none are. Amber (not the
-                      primary tint the old total-count chip used) is the same
-                      "running" semantic the conversation cards spin in amber, so
-                      the two read as one signal. amber-700 (not the card's
-                      amber-600) carries the light-mode fill: at 0.625rem this is
-                      small text, and amber-600 on the tinted surface lands near
-                      3:1 — under the AA floor amber-700 (~4.7:1) clears. */}
-                  {runningCount > 0 && (
-                    <span
-                      title={t("runningCountBadge", { count: runningCount })}
-                      className={cn(
-                        "inline-flex shrink-0 items-center justify-center",
-                        "h-[0.9375rem] min-w-[1rem] rounded-[0.3125rem] px-[0.25rem]",
-                        "text-[0.625rem] font-semibold leading-none tabular-nums",
-                        "bg-amber-500/12 text-amber-700",
-                        "dark:bg-amber-400/15 dark:text-amber-300"
-                      )}
-                    >
-                      <span aria-hidden>{runningCount}</span>
-                      <span className="sr-only">
-                        {t("runningCountBadge", { count: runningCount })}
-                      </span>
-                    </span>
+                  {hasUnread && (
+                    <ConversationUnreadDot label={t("unreadBadge")} />
                   )}
+
                   {/* Disclosure chevron mirrors the section headers: hover-revealed,
                     rotates on expand. The persistent open/closed state still reads
                     from the folder icon on the left, which is why the chevron can
@@ -632,6 +594,10 @@ const FolderHeader = memo(function FolderHeader({
                     )}
                   />
                 </div>
+                <FolderRunningIndicator
+                  expanded={expanded}
+                  runningCount={runningCount}
+                />
               </button>
               {onGripPointerDown && (
                 <button
@@ -724,14 +690,6 @@ const FolderHeader = memo(function FolderHeader({
           <ContextMenuItem onSelect={() => onNewConversation(folderId)}>
             <SquarePen className="h-4 w-4" />
             {t("newConversation")}
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => onOpenInSplit(folderId, "left")}>
-            <PanelLeft className="h-4 w-4" />
-            {t("folderHeaderMenu.openInLeftSplit")}
-          </ContextMenuItem>
-          <ContextMenuItem onSelect={() => onOpenInSplit(folderId, "right")}>
-            <PanelRight className="h-4 w-4" />
-            {t("folderHeaderMenu.openInRightSplit")}
           </ContextMenuItem>
           <ContextMenuItem onSelect={() => onImport(folderId)}>
             <Download className="h-4 w-4" />
@@ -1024,6 +982,7 @@ export function SidebarConversationList({
   const folders = useAppWorkspaceStore((s) => s.folders)
   const allFolders = useAppWorkspaceStore((s) => s.allFolders)
   const conversations = useAppWorkspaceStore((s) => s.conversations)
+  const unreadIds = useConversationUnreadStore((s) => s.unreadIds)
   // Live HEAD branch per folder, for the container repos' "root" sub-group
   // labels. Safe to subscribe to from a list this hot: `applyGitHead` is
   // equality-guarded, so the Map reference only changes when a branch actually
@@ -1061,7 +1020,6 @@ export function SidebarConversationList({
     closeTabsByFolder,
     openNewConversationTab,
     openChatModeTab,
-    openFolderInSplit,
   } = useTabActions()
   const { openConversations } = useWorkbenchRoute()
 
@@ -1306,14 +1264,29 @@ export function SidebarConversationList({
     setConversationExpanded(new Set(loadConversationExpanded()))
   }, [])
 
-  const toggleSection = useCallback((section: SidebarSectionKey) => {
-    if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
-    setSectionCollapsed((prev) => {
-      const next = { ...prev, [section]: !prev[section] }
-      saveSectionCollapsed(next)
-      return next
-    })
-  }, [])
+  const toggleSection = useCallback(
+    (section: SidebarSectionKey) => {
+      if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
+      if (section === "folders" && foldersExpanded) {
+        // Reopening the section should show folder names with their sessions
+        // folded, including folders inside groups and worktree containers.
+        const next = { ...folderExpandedRef.current }
+        for (const folder of useAppWorkspaceStore.getState().folders) {
+          next[folder.id] = false
+        }
+        folderExpandedRef.current = next
+        setFolderExpanded(next)
+        saveFolderExpanded(next)
+        setFolderLimitById({})
+      }
+      setSectionCollapsed((prev) => {
+        const next = { ...prev, [section]: !prev[section] }
+        saveSectionCollapsed(next)
+        return next
+      })
+    },
+    [foldersExpanded]
+  )
 
   const toggleFolderGroup = useCallback((groupId: number) => {
     setFolderGroupExpanded((prev) => {
@@ -2321,7 +2294,16 @@ export function SidebarConversationList({
     [updateConversationLocal]
   )
 
+  const handleNewChat = useCallback(() => {
+    onNavigate?.()
+    openConversations()
+    if (!openChatModeTab()) {
+      toast.info(t("folderHeaderMenu.splitLimitReached"))
+    }
+  }, [onNavigate, openConversations, openChatModeTab, t])
+
   const handleNewConversation = useCallback(() => {
+    onNavigate?.()
     // Starting a conversation returns to the conversation workspace if a
     // workbench route (e.g. Automations) was taking over the content region.
     openConversations()
@@ -2340,6 +2322,7 @@ export function SidebarConversationList({
     }
   }, [
     activeFolder,
+    onNavigate,
     openChatModeTab,
     openNewConversationTab,
     openConversations,
@@ -2359,20 +2342,6 @@ export function SidebarConversationList({
       }
     },
     [folderIndex, onNavigate, openNewConversationTab, openConversations, t]
-  )
-
-  const handleOpenFolderInSplit = useCallback(
-    (folderId: number, side: "left" | "right") => {
-      const folder = folderIndex.get(folderId)
-      if (!folder) return
-      onNavigate?.()
-      openConversations()
-      const opened = openFolderInSplit(folderId, folder.path, side)
-      if (!opened) {
-        toast.info(t("folderHeaderMenu.splitLimitReached"))
-      }
-    },
-    [folderIndex, onNavigate, openConversations, openFolderInSplit, t]
   )
 
   // "Import local sessions" now lives in a dedicated picker window (scan →
@@ -2974,6 +2943,10 @@ export function SidebarConversationList({
     return total
   }
 
+  const unreadFolders = useMemo(
+    () => collectUnreadFolders(conversations, unreadIds, displayChildToParent),
+    [conversations, unreadIds, displayChildToParent]
+  )
   const folderHeaderElement = (
     folderId: number,
     opts: {
@@ -3025,6 +2998,7 @@ export function SidebarConversationList({
         folderName={folderEntry?.name ?? String(folderId)}
         folderAlias={folderEntry?.alias ?? null}
         folderPath={folderEntry?.path ?? ""}
+        hasUnread={!isContainer && unreadFolders.has(folderId)}
         runningCount={runningCount}
         expanded={expanded}
         themeColor={folderThemeColor(folderId)}
@@ -3037,7 +3011,6 @@ export function SidebarConversationList({
         }
         onRemoveFromWorkspace={handleRemoveFolder}
         onNewConversation={handleNewConversationForFolder}
-        onOpenInSplit={handleOpenFolderInSplit}
         onImport={handleImportForFolder}
         onManageConversations={handleManageConversations}
         onManageLinks={handleManageFolderLinks}
@@ -3089,18 +3062,12 @@ export function SidebarConversationList({
           section={row.section}
           expanded={row.expanded}
           onToggle={toggleSection}
-          // The chats section gets an always-visible New-chat button (its primary
-          // entry point, reachable even when empty). `openChatModeTab` is a stable
-          // context callback, so the memo holds. Recent gets the same
-          // affordance, but starting a conversation in the ACTIVE FOLDER — the
-          // section spans folders and chats alike, and the folder is where a
-          // "continue where I left off" list lands you.
+          // Chats and Recent both start a folderless chat through the same
+          // navigation callback, regardless of the active folder.
           onNewChat={
-            row.section === "chats"
-              ? openChatModeTab
-              : row.section === "recent"
-                ? handleNewConversation
-                : undefined
+            row.section === "chats" || row.section === "recent"
+              ? handleNewChat
+              : undefined
           }
           // The folders section gets two right-edge hover actions mirroring the
           // top-of-page NewFolderDropdown: Open Folder and Clone Repository.
@@ -3551,7 +3518,7 @@ export function SidebarConversationList({
               <ScrollArea
                 onViewportRef={handleViewportRef}
                 className={cn(
-                  "h-full min-h-0 px-1.5 pb-1.5",
+                  "h-full min-h-0 px-2 pb-1.5",
                   "[overflow-anchor:none]",
                   "[--conv-rail-axis:0.875rem]"
                 )}
@@ -3691,7 +3658,7 @@ export function SidebarConversationList({
                   ref={overlayRef}
                   className={cn(
                     "absolute left-0 right-0 top-0 z-10",
-                    "px-1.5 [--conv-rail-axis:0.875rem]"
+                    "px-2 [--conv-rail-axis:0.875rem]"
                   )}
                   style={{ willChange: "transform" }}
                 >

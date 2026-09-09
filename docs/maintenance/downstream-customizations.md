@@ -12,13 +12,29 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除；保留 Tauri 支持 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
+| 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
+| 分隔线 | 面板拖动分隔线默认 1px，悬停和拖动时 2px，保留宽鼠标命中范围 | `worktree-2026-09-09` | `workspace.subtle-resize-handles` |
+| 会话标题 | 标题旁常显三个点，点击打开会话操作菜单；重命名收进菜单，移除独立铅笔按钮 | `worktree-2026-09-09` | `conversations.title-overflow-menu` |
+| 设置 | 智能体初始顺序固定为 Codex、Grok、DeepSeek、Pi、Antigravity、Claude、Gemini、OpenClaw、OpenCode、Cline、Hermes、CodeBuddy、Kimi、Cursor、Qoder；保留已保存的手动排序 | `worktree-2026-09-08` | `settings.default-agent-order` |
+| 手机导航 | 顶部合并为单行会话标题与操作，统一 44px 触摸按钮，搜索/终端/面板/设置收进工具菜单 | `worktree-2026-09-08` | `workspace.mobile-header` |
+| 消息 | 已发消息的复制按钮旁提供修改图标，点击即停止当前回复并将原文填入、聚焦底部输入框；修改后由用户正常发送 | `worktree-2026-09-08` | `messages.edit-sent-message` |
+| 侧边栏 | “最近”栏目新建入口与“聊天”一致，始终新建不绑定当前文件夹的聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
+| 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
+| 侧边栏 | 移除待办任务与仓库面板导航入口，保留新对话（简体中文固定文案）、自动化及会话列表；文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08` | `workspace.sidebar-navigation` |
+| 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；Tauri 兼容 CI 改为手动 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
+| 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap | `worktree-2026-09-08` | `desktop.differential-updates` |
+| 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
+| 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
+| 手机布局 | 工作区统一预留底部安全区，输入框仅保留 8px 间距，避免收起键盘后重复留白 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
 | 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
-| 会话 | 回复运行时展开、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
+| 思考 | 流式思考默认单行折叠，手动展开后限高滚动，更新及完成时保留手动选择 | `worktree-2026-09-08` | `chat.compact-reasoning` |
+| 会话 | 回复运行时摘要展示、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
 | 会话 | 按文件夹/聊天范围记住智能体，按明确优先级选择新会话默认智能体 | `dc86bec0`、`16941c88` | `conversations.agent-defaults` |
 | 会话 | 未读检测、可见会话消除未读、全部已读、状态颜色和状态操作开关 | `53144985`、`06bb8457`、`c283e981`、`8d9cb933`、`1a4a3532` | `conversations.unread-and-status` |
-| 会话 | 以可撤销能力链接分享不含本地元数据路径的只读会话快照，显式公网地址优先、Web/局域网/本机地址依次回退；公开 Markdown 仅开放外部链接，正文中的本地目标保持只读 | 当前工作区 | `conversations.read-only-sharing` |
+| 会话 | 分享入口仅保留在三个点菜单内，顶部不显示独立分享按钮；以可撤销能力链接分享不含本地元数据路径的只读会话快照，显式公网地址优先、Web/局域网/本机地址依次回退；公开 Markdown 仅开放外部链接，正文中的本地目标保持只读 | 当前工作区 | `conversations.read-only-sharing` |
 | 侧边栏 | 完成会话默认隐藏、分区/工作树/分页、文件夹拖动稳定性、新建及重开文件夹排序 | `108154e4`、`bae6751c`、`9eaecc27`、`2245d322`、`7ca7b5b3`、`16941c88`、当前工作区 | `conversations.sidebar-folder-interactions` |
 | 导航 | 固定宽度可滚动标签、触控板拖动阈值、移动端导航收起、正文原生选择 | `7a445edf`、`f60fecca`、`eb9cee07`、`7ca7b5b3` | `navigation.tabs-touch-and-selection` |
 | 消息 | 普通本地路径自动变成文件引用，安装包等二进制产物可打开或在文件管理器显示 | `7ca7b5b3`、`06bb8457`、`c283e981` | `messages.local-paths-and-artifacts` |
@@ -26,8 +42,9 @@
 | Web | 断线不清凭证、健康探测退避重连、恢复订阅、仅有凭证的 401 判定会话过期 | `352bc868`、`2c859b2a` | `web.auth-and-session-recovery` |
 | Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
-| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题，失败及并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
-| 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
+| 会话侧栏 | 主动取消后不显示红色 X，正常显示时间，保留运行中与未读提示 | `worktree-2026-09-08` | `conversations.cancelled-without-error-badge` |
+| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题；失败时保留已有合规标题，否则使用创建日期加「未知｜未命名」兜底，并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
+| 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
 | 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
@@ -35,8 +52,15 @@
 | 附件 | 单文件上传与拖放上限 100 MiB，HTTP multipart 额外预留开销，图片回填支持一张满额图片 | 当前工作区 | `attachments.hundred-mib-upload` |
 | Android | 多服务器连接、安全令牌存储、健康检查、WebView 引导、OPPO 状态栏安全区和列表细节；本地附件兼容单 URI 与 ClipData 多选返回 | `bddabc51`、当前工作区 | `android.webview-client` |
 | 品牌 | MaxCode 名称、图标、文档、安装器和个人仓库链接 | `9eaecc27`、`dc86bec0`、`c7a21a24` | `branding.maxcode` |
-| 发布 | 平台白名单、签名更新产物、`latest.json` 完整性、macOS 签名公证及 MaxCode 产物名 | `dceb62ac` 等发布提交 | `release.signed-multiplatform-artifacts` |
+| 发布 | 平台白名单、Electron 安装包完整性、服务器签名更新、macOS 签名公证及 MaxCode 产物名 | `dceb62ac` 等发布提交 | `release.signed-multiplatform-artifacts` |
 | 维护 | 上游影响扫描、热点清单和独立契约 CI | 当前工作区 | `maintenance.upstream-integration-guard` |
+
+消息导航仅保留左侧横条，移除旧卡片入口（`chat.message-tick-rail`）。
+Electron 图片粘贴在浏览器数据不可用时读取原生剪贴板，并保留普通文字粘贴
+（`chat.attachment-paste-during-ime`）。
+
+Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 安装目录；
+安装包启动验证使用精简 PATH（`desktop.electron-runtime`）。
 
 ## 已退役功能
 
@@ -53,3 +77,15 @@
 
 纯前端行为由 Vitest 直接验证；Rust、Android、PWA、品牌和发布配置还通过独立
 源/配置契约检查关键接线，同时保留各自原有 Rust/Java/组件测试作为更深一层验证。
+
+智能体选择保留原来的胶囊平铺样式，位于欢迎页输入框上方；空间足够时展示全部已启用智能体（`chat.desktop-composer-layout`）。
+
+运行过程中保留所有中间说明文字，文字之间连续的思考和工具步骤合并成可展开摘要；只对展开的步骤详情限高滚动（`chat.live-progress-summary`）。
+
+手机顶栏的新对话入口收进右侧工具菜单首项，为标题腾出一个按钮的宽度；新建行为沿用当前文件夹上下文。
+
+手机侧栏底部状态区透出抽屉背景，移除独立灰色背景和顶部分隔线，与列表保持同一画布。
+
+输入框底部的权限、模式、模型、推理强度等选择器统一靠左连续排列，不再将模型推到右侧（`src/maxcode-contracts/reference-chat-style.contract.test.ts`）。
+
+当前对话支持 Ctrl/Cmd+F 右上角搜索，按匹配消息前后跳转，显示高亮片段并逐页搜索历史；失败时可手动重试（`chat.conversation-find`）。

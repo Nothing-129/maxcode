@@ -34,6 +34,7 @@
     "generateToken": "トークンを生成"
   },
   "SettingsShell": {
+    "backToApp": "アプリに戻る",
     "title": "設定",
     "preferences": "環境設定",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "スキルパック",
       "quick_messages": "クイックメッセージ",
       "logs": "実行ログ"
-    }
+    },
+    "searchSettings": "Search settings…",
+    "loading": "Loading settings…"
   },
   "AppearanceSettings": {
     "sectionTitle": "テーマ外観",
@@ -323,6 +326,7 @@
     "updateReadyHint": "アップデートをダウンロードしました。再起動して適用してください。",
     "restarting": "再起動しています…",
     "electronUpgradeHint": "Electron デスクトップ版はインストーラーで更新します。リリースページから Electron パッケージをダウンロードしてインストールし、MaxCode を開き直してください。",
+    "downloadAndRestart": "更新をダウンロードして再起動",
     "dockerUpgradeHint": "いま実行中のコンテナを更新します。コンテナを再作成すると失われます。維持するには、新しいバージョンのイメージを取得またはビルドしてコンテナを再作成してください。",
     "upgradeRolledBack": "アップグレードに失敗しました。サーバーは前のバージョンにロールバックしました。",
     "serverUnreachable": "アップグレードを開始するためにサーバーに接続できませんでした。サーバーが稼働中であることを確認して再試行してください。",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "このフォルダをワークスペースから削除しますか？",
       "removeFolderConfirmDescription": "\"{name}\" をワークスペースから削除しますか？関連するタブとターミナルが閉じられます。",
       "folderHeaderMenu": {
-        "openInLeftSplit": "左の分割で開く",
-        "openInRightSplit": "右の分割で開く",
         "splitLimitReached": "左右の分割は使用中です。どちらかを閉じてください。",
         "manageConversations": "会話の管理…",
         "manageLinks": "リンク済みフォルダー",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "左右の分割は使用中です。どちらかを閉じてください。"
     },
     "folderTitleBar": {
+      "workspaceTools": "ワークスペースツール",
       "showSidebar": "サイドバーを表示",
       "hideSidebar": "サイドバーを非表示",
       "toggleTerminal": "ターミナルを切り替え",
@@ -2113,6 +2116,12 @@
         "output": "出力",
         "cacheRead": "キャッシュ読み取り",
         "cacheWrite": "キャッシュ書き込み",
+        "cacheHitRate": "キャッシュヒット率",
+        "estimatedCost": "推定費用",
+        "estimatedPartialCost": "判明分の費用",
+        "costLoading": "計算中…",
+        "costBasis": "記録済み使用量と標準 API 料金（USD）による概算。段階料金・プラン・割引は含みません。",
+        "costIncomplete": "価格が判明している分のみ。一部のモデルやキャッシュ料金が不明です。",
         "total": "合計"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "スキル"
       },
       "messageQueue": {
+        "adjustDirection": "方向を調整",
+        "adjustDirectionHint": "現在の応答を停止し、このメッセージを次に送信",
+        "reorderItem": "ドラッグして並べ替え",
         "addToQueue": "キューに追加",
         "saveEdit": "保存",
         "cancelEdit": "編集をキャンセル",
@@ -3283,6 +3295,8 @@
         "openFailed": "ローカルファイルを開けませんでした"
       },
       "messageList": {
+        "editMessage": "メッセージを編集",
+        "editStopFailed": "返信を停止できませんでした。メッセージは入力欄で編集できます。",
         "attachedResources": "添付リソース",
         "loading": "読み込み中...",
         "loadEarlier": "以前のメッセージを読み込む",
@@ -3331,6 +3345,7 @@
         "completedAt": "完了時刻",
         "jumpToPreviousUserMessage": "前のユーザーメッセージへ",
         "processed": "処理済み",
+        "activitySteps": "{count} ステップ",
         "processedFor": "処理済み {duration}",
         "showMore": "もっと見る",
         "showLess": "折りたたむ"
@@ -3345,6 +3360,7 @@
         "outputSpeedTooltip": "推定出力速度（テキスト + 思考 + ツール引数）"
       },
       "generationStats": {
+        "roundCount": "{count} ターン",
         "ttftAverage": "初回 token 平均 {duration}",
         "tokensPerSecond": "{throughput} tok/s"
       },
@@ -3365,6 +3381,7 @@
           "inputStreaming": "保留中",
           "outputAvailable": "完了",
           "outputDenied": "拒否",
+          "retrySucceeded": "再試行成功",
           "outputError": "エラー"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "{count} 件の TODO を更新",
           "task": "{count} 件のタスクを実行",
           "other": "{count} 件のツールを使用",
-          "errorSuffix": "{count} 件失敗",
+          "recoveredSuffix": "{count} 件の再試行が成功",
+          "errorSuffix": "実行時の問題 {count} 件",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "この範囲には {commands} の出力も含まれます — 区切り行が codex により切り捨てられました。",
           "truncated": "切り詰め済み"
         }
+      },
+      "conversationFind": {
+        "title": "会話内を検索",
+        "previous": "前のメッセージ",
+        "next": "次のメッセージ",
+        "close": "検索を閉じる",
+        "loading": "過去のメッセージを検索中…",
+        "partial": "未検索の過去のメッセージがあります",
+        "retry": "履歴の読み込みを続ける",
+        "count": "一致するメッセージ: {count} 件",
+        "empty": "一致するメッセージはありません"
       },
       "messageNav": {
         "title": "メッセージナビ",

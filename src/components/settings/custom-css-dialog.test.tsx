@@ -111,3 +111,10 @@ describe("CustomCssDialog preview lifecycle", () => {
     expect(injected()).toBe("")
   })
 })
+
+// Exercise the retained customization implementation in its future enabled mode.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

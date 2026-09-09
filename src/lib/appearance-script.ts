@@ -1,3 +1,7 @@
+import {
+  APPEARANCE_CUSTOMIZATION_ENABLED,
+  FIXED_APPEARANCE_KEY_PATTERN,
+} from "./appearance-policy"
 // src/lib/appearance-script.ts
 
 import { DEFAULT_CHAT_FONT_SIZE, FONT_SIZES } from "./font-presets"
@@ -94,18 +98,22 @@ export const STORAGE_KEY_CUSTOM_STYLE_SUSPENDED = "codeg-custom-style-suspended"
 const SCRIPT = `
 (function() {
   try {
+    function readSetting(key) {
+      if (!${APPEARANCE_CUSTOMIZATION_ENABLED} && ${FIXED_APPEARANCE_KEY_PATTERN.toString()}.test(key)) return null;
+      return localStorage.getItem(key);
+    }
     var VALID_COLORS = ["neutral","zinc","slate","stone","gray","red","rose","orange","green","blue","yellow","violet"];
     var VALID_ZOOMS = [80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
 
-    var storedColor = localStorage.getItem("${STORAGE_KEY_THEME_COLOR}");
+    var storedColor = readSetting("${STORAGE_KEY_THEME_COLOR}");
     var color = VALID_COLORS.indexOf(storedColor) >= 0 ? storedColor : "neutral";
     document.documentElement.setAttribute("data-theme", color);
 
-    var storedZoom = parseInt(localStorage.getItem("${STORAGE_KEY_ZOOM_LEVEL}") || "", 10);
+    var storedZoom = parseInt(readSetting("${STORAGE_KEY_ZOOM_LEVEL}") || "", 10);
     var zoom = VALID_ZOOMS.indexOf(storedZoom) >= 0 ? storedZoom : 100;
     document.documentElement.style.fontSize = (16 * zoom / 100) + "px";
 
-    var chatSize = Number(localStorage.getItem("${STORAGE_KEY_CHAT_FONT_SIZE}"));
+    var chatSize = Number(readSetting("${STORAGE_KEY_CHAT_FONT_SIZE}"));
     if (${JSON.stringify(FONT_SIZES)}.indexOf(chatSize) < 0) chatSize = ${DEFAULT_CHAT_FONT_SIZE};
     document.documentElement.style.setProperty("--chat-font-size", (chatSize / 16) + "rem");
 
@@ -114,8 +122,8 @@ const SCRIPT = `
     // 时才应用它。无显式选择的用户（含从旧默认升级、Provider 仅缓存过 stack 的用户）
     // 跳过，落到 :root 的 --font-sans 兜底（= 当前系统字体栈），避免升级首屏闪字。
     // 无需在脚本里复制字体目录；空/超长/含越界字符同样跳过走默认。
-    var uiFontId = localStorage.getItem("${STORAGE_KEY_UI_FONT}");
-    var uiFontStack = localStorage.getItem("${STORAGE_KEY_UI_FONT_STACK}");
+    var uiFontId = readSetting("${STORAGE_KEY_UI_FONT}");
+    var uiFontStack = readSetting("${STORAGE_KEY_UI_FONT_STACK}");
     if (uiFontId && uiFontStack && uiFontStack.length < 512 && !/[;{}<>]/.test(uiFontStack)) {
       document.documentElement.style.setProperty("--font-sans", uiFontStack);
     }
@@ -123,10 +131,10 @@ const SCRIPT = `
     // Workspace 背景：预水合仅处理首帧就存在的结构性表面。启用时给 <html> 打
     // data-workspace-bg 属性并预置 --ws-surface-alpha，避免面板 opaque→translucent
     // 跳变。图片本身异步从磁盘读，不在此处理。
-    var wsbgEnabled = localStorage.getItem("${STORAGE_KEY_WORKSPACE_BG_ENABLED}");
+    var wsbgEnabled = readSetting("${STORAGE_KEY_WORKSPACE_BG_ENABLED}");
     if (wsbgEnabled === "1") {
       document.documentElement.setAttribute("data-workspace-bg", "on");
-      var wsbgAlpha = parseFloat(localStorage.getItem("${STORAGE_KEY_WORKSPACE_BG_PANEL_OPACITY}") || "");
+      var wsbgAlpha = parseFloat(readSetting("${STORAGE_KEY_WORKSPACE_BG_PANEL_OPACITY}") || "");
       if (!isNaN(wsbgAlpha) && wsbgAlpha >= 0.3 && wsbgAlpha <= 1) {
         document.documentElement.style.setProperty("--ws-surface-alpha", String(wsbgAlpha));
       }
@@ -134,7 +142,7 @@ const SCRIPT = `
 
     // 在 next-themes 水合之前同步检测暗色模式，防止白色闪屏。
     // next-themes 使用 localStorage key "theme"，attribute="class"。
-    var storedMode = localStorage.getItem("theme");
+    var storedMode = readSetting("theme");
     var isDark = storedMode === "dark" ||
         (storedMode !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     if (isDark) {
@@ -157,13 +165,13 @@ const SCRIPT = `
       safeStyle = new URLSearchParams(location.search).get("${SAFE_STYLE_QUERY_PARAM}") === "1";
     } catch (e) {}
     var styleOff = safeStyle ||
-      localStorage.getItem("${STORAGE_KEY_CUSTOM_STYLE_SUSPENDED}") === "1";
+      readSetting("${STORAGE_KEY_CUSTOM_STYLE_SUSPENDED}") === "1";
 
     // token 覆盖：写 <html> 行内样式，优先级天然高于 [data-theme="x"] 规则，
     // 所以「基底预设 + 覆盖」不需要任何新选择器。缺省开启（空覆盖无副作用）。
-    if (!styleOff && localStorage.getItem("${STORAGE_KEY_CUSTOM_THEME_ENABLED}") !== "0") {
+    if (!styleOff && readSetting("${STORAGE_KEY_CUSTOM_THEME_ENABLED}") !== "0") {
       try {
-        var rawTheme = localStorage.getItem("${STORAGE_KEY_CUSTOM_THEME}");
+        var rawTheme = readSetting("${STORAGE_KEY_CUSTOM_THEME}");
         if (rawTheme) {
           var themeCfg = JSON.parse(rawTheme) || {};
           var overrides = (isDark ? themeCfg.dark : themeCfg.light) || {};
@@ -185,9 +193,9 @@ const SCRIPT = `
     // 追加到 <head> 末尾 —— 未分层（unlayered）的作者 CSS 在级联中本就胜过
     // Tailwind 的全部分层产物，末尾位置只是为了与 globals.css 里同为未分层的
     // 规则比较时靠文档顺序取胜。缺省关闭，必须显式开启。
-    if (!styleOff && localStorage.getItem("${STORAGE_KEY_CUSTOM_CSS_ENABLED}") === "1") {
+    if (!styleOff && readSetting("${STORAGE_KEY_CUSTOM_CSS_ENABLED}") === "1") {
       try {
-        var userCss = localStorage.getItem("${STORAGE_KEY_CUSTOM_CSS}");
+        var userCss = readSetting("${STORAGE_KEY_CUSTOM_CSS}");
         if (userCss) {
           var styleEl = document.createElement("style");
           styleEl.id = "${CUSTOM_CSS_ELEMENT_ID}";

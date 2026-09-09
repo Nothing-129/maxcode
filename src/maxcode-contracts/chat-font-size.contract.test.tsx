@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextIntlClientProvider } from "next-intl"
 import { AppearanceProvider } from "@/components/appearance-provider"
 import { useChatFontSize } from "@/hooks/use-appearance"
@@ -106,3 +106,10 @@ describe("MaxCode chat font size", () => {
     }
   )
 })
+
+// Exercise the retained customization implementation in its future enabled mode.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

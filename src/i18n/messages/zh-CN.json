@@ -34,6 +34,7 @@
     "generateToken": "生成令牌"
   },
   "SettingsShell": {
+    "backToApp": "返回应用",
     "title": "设置",
     "preferences": "偏好设置",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "技能包",
       "quick_messages": "快捷消息",
       "logs": "运行日志"
-    }
+    },
+    "searchSettings": "搜索设置…",
+    "loading": "正在加载设置…"
   },
   "AppearanceSettings": {
     "sectionTitle": "主题外观",
@@ -323,6 +326,7 @@
     "updateReadyHint": "新版本已下载，重启以完成更新。",
     "restarting": "正在重启…",
     "electronUpgradeHint": "Electron 桌面端需要通过安装包升级。请从发布页面下载 Electron 安装包，安装后重新打开 MaxCode。",
+    "downloadAndRestart": "下载更新并重启",
     "dockerUpgradeHint": "现在升级的是正在运行的容器。容器一旦被重建即丢失——如需保留，请拉取或构建新版本镜像后重建容器。",
     "upgradeRolledBack": "升级失败，服务器已自动回滚到上一版本。",
     "serverUnreachable": "无法连接到服务器以开始升级。请确认服务器正在运行后重试。",
@@ -1782,7 +1786,7 @@
       "collapseAllGroups": "折叠全部分组",
       "newConversation": "新建会话",
       "newConversationShort": "新建",
-      "newChat": "新建会话",
+      "newChat": "新对话",
       "search": "搜索",
       "noConversationsFound": "未找到会话。",
       "importLocalSessions": "导入本地会话",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "从工作区移除该文件夹？",
       "removeFolderConfirmDescription": "从工作区移除 \"{name}\"？其相关 Tab 与终端将会关闭。",
       "folderHeaderMenu": {
-        "openInLeftSplit": "在左侧分区打开",
-        "openInRightSplit": "在右侧分区打开",
         "splitLimitReached": "左右分区都已占用，请先关闭一个分区。",
         "manageConversations": "会话管理…",
         "manageLinks": "关联的文件夹",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "左右分区都已占用，请先关闭一个分区。"
     },
     "folderTitleBar": {
+      "workspaceTools": "工作区工具",
       "showSidebar": "显示侧边栏",
       "hideSidebar": "隐藏侧边栏",
       "toggleTerminal": "切换终端",
@@ -2113,6 +2116,12 @@
         "output": "输出",
         "cacheRead": "缓存读取",
         "cacheWrite": "缓存写入",
+        "cacheHitRate": "缓存命中率",
+        "estimatedCost": "预估费用",
+        "estimatedPartialCost": "已知部分费用",
+        "costLoading": "计算中…",
+        "costBasis": "按已记录用量和标准 API 单价估算（USD）；未含阶梯价、套餐或折扣。",
+        "costIncomplete": "仅含可定价部分；部分模型或缓存价格缺失。",
         "total": "总计"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "技能"
       },
       "messageQueue": {
+        "adjustDirection": "调整方向",
+        "adjustDirectionHint": "暂停当前回复，立即接着执行这条消息",
+        "reorderItem": "拖动排序",
         "addToQueue": "加入队列",
         "saveEdit": "保存",
         "cancelEdit": "取消编辑",
@@ -3283,6 +3295,8 @@
         "openFailed": "打开本地文件失败"
       },
       "messageList": {
+        "editMessage": "修改",
+        "editStopFailed": "停止回复失败，消息已填入输入框，可继续修改。",
         "attachedResources": "附加资源",
         "loading": "加载中...",
         "loadEarlier": "加载更早的消息",
@@ -3326,27 +3340,29 @@
         "tokenCacheWrite": "缓存写入",
         "duration": "耗时",
         "worked": "工作已结束",
-        "workedFor": "工作了 {duration}",
+        "workedFor": "用时 {duration}",
         "working": "正在工作中...",
         "completedAt": "完成时间",
         "jumpToPreviousUserMessage": "跳转到上一条用户消息",
         "processed": "已处理",
+        "activitySteps": "{count} 个步骤",
         "processedFor": "已处理 {duration}",
         "showMore": "展开",
         "showLess": "收起"
       },
       "liveTurnStats": {
         "thinking": "思考中...",
-        "streaming": "生成中",
+        "streaming": "工作中",
         "elapsedHours": "{value} 小时",
-        "elapsedMinutes": "{value} 分钟",
+        "elapsedMinutes": "{value} 分",
         "elapsedSeconds": "{value} 秒",
         "outputSpeedAria": "估算输出速度",
         "outputSpeedTooltip": "估算输出速度（正文 + 思考 + 工具参数）"
       },
       "generationStats": {
-        "ttftAverage": "首 token 平均 {duration}",
-        "tokensPerSecond": "{throughput} tok/s"
+        "roundCount": "{count}回合",
+        "ttftAverage": "首字{duration}",
+        "tokensPerSecond": "{throughput}tok/s"
       },
       "jsonTree": {
         "viewRaw": "查看原始 JSON",
@@ -3365,6 +3381,7 @@
           "inputStreaming": "等待中",
           "outputAvailable": "已完成",
           "outputDenied": "已拒绝",
+          "retrySucceeded": "重试成功",
           "outputError": "错误"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "更新 {count} 项待办",
           "task": "执行 {count} 个任务",
           "other": "调用 {count} 个工具",
-          "errorSuffix": "{count} 个失败",
+          "recoveredSuffix": "{count} 个已重试成功",
+          "errorSuffix": "{count} 次执行异常",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "本段还包含 {commands} 的输出——它们的分隔行被 codex 截断丢弃了。",
           "truncated": "已截断"
         }
+      },
+      "conversationFind": {
+        "title": "搜索当前对话",
+        "previous": "上一条消息",
+        "next": "下一条消息",
+        "close": "关闭搜索",
+        "loading": "正在搜索历史消息…",
+        "partial": "还有历史消息尚未搜索",
+        "retry": "继续加载历史消息",
+        "count": "{count} 条匹配消息",
+        "empty": "没有匹配的消息"
       },
       "messageNav": {
         "title": "消息导航",

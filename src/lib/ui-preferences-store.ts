@@ -1,5 +1,7 @@
 "use client"
 
+import { APPEARANCE_CUSTOMIZATION_ENABLED } from "./appearance-policy"
+
 /**
  * Global pure-UI preference booleans (conversation-status dots/actions +
  * welcome quick-actions cards), persisted in the backend `app_metadata` table
@@ -34,7 +36,8 @@ import { UI_PREFERENCES_CHANGED_EVENT } from "@/lib/types"
 export const DEFAULT_UI_PREFERENCES: UiPreferences = {
   show_conversation_status: false,
   allow_conversation_status_actions: true,
-  show_welcome_quick_actions: true,
+  // Desktop defaults: no status colors or welcome mode cards.
+  show_welcome_quick_actions: false,
 }
 
 // Legacy localStorage keys (pre-backend storage). Read once for the seed
@@ -58,6 +61,7 @@ function notify(prefs: UiPreferences): void {
  *  load can't overwrite it, set the cache, and notify all mounted hooks.
  *  Shared by the optimistic local apply and the cross-window broadcast. */
 function applyPrefs(prefs: UiPreferences): void {
+  if (!APPEARANCE_CUSTOMIZATION_ENABLED) prefs = DEFAULT_UI_PREFERENCES
   saveGeneration += 1
   cached = prefs
   notify(prefs)
@@ -74,7 +78,7 @@ export function primeUiPreferences(prefs: UiPreferences): void {
  *  and the appearance provider use it to initialize without a flash when the
  *  value is already cached. */
 export function getCachedUiPreferences(): UiPreferences | null {
-  return cached
+  return APPEARANCE_CUSTOMIZATION_ENABLED ? cached : DEFAULT_UI_PREFERENCES
 }
 
 /** Explicit OFF values only — both old readers were default-on, so anything
@@ -115,6 +119,8 @@ function removeLegacyUiPreferenceKeys(): void {
  *  was in flight. Resolves `null` only when the transport is unusable (partial
  *  test mocks / startup failure) — callers fall back to defaults. */
 function ensureLoaded(): Promise<UiPreferences | null> {
+  if (!APPEARANCE_CUSTOMIZATION_ENABLED)
+    return Promise.resolve(DEFAULT_UI_PREFERENCES)
   if (inflight) return inflight
   const startGeneration = saveGeneration
   const legacy = readLegacyUiPreferences()
@@ -163,6 +169,7 @@ function ensureLoaded(): Promise<UiPreferences | null> {
  *  sidebar menu reaches every other window), and re-fetch on WS reconnect since
  *  the broadcaster drops events fired while no client is listening. */
 function ensureCrossWindowSync(): void {
+  if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
   if (crossWindowWired) return
   crossWindowWired = true
   try {
@@ -197,6 +204,7 @@ function ensureCrossWindowSync(): void {
 export async function setUiPreferences(
   patch: Partial<UiPreferences>
 ): Promise<UiPreferences> {
+  if (!APPEARANCE_CUSTOMIZATION_ENABLED) return DEFAULT_UI_PREFERENCES
   const prev = cached
   const next = { ...(prev ?? DEFAULT_UI_PREFERENCES), ...patch }
   const gen = saveGeneration

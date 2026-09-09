@@ -1,9 +1,12 @@
 "use client"
 
 import { useCallback } from "react"
-import { PanelRight, Settings, SquareTerminal } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { openSettingsWindow } from "@/lib/api"
+import {
+  DesktopChromeIcon,
+  desktopChromeButtonClassName,
+} from "./desktop-chrome-icon"
 import { Button } from "@/components/ui/button"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAuxPanelContext } from "@/contexts/aux-panel-context"
@@ -58,13 +61,14 @@ export function RightEdgeChrome() {
     >
       {/* Empty head is a window-drag region; buttons stay flush right. */}
       <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
-      <div className="flex items-center gap-1 pr-3">
+      {/* Keep navigation discoverable for mouse, touch, and keyboard users. */}
+      <div className="flex items-center gap-1 rounded-full p-2 pr-3 text-muted-foreground">
         {isConversations && (
           <>
             <Button
               variant="ghost"
               size="icon"
-              className={`h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10 ${terminalOpen ? "bg-accent" : ""}`}
+              className={`${desktopChromeButtonClassName} ${terminalOpen ? "bg-accent" : ""}`}
               onClick={() => toggleTerminal()}
               disabled={!activeFolder}
               title={tTitleBar("withShortcut", {
@@ -72,12 +76,12 @@ export function RightEdgeChrome() {
                 shortcut: formatShortcutLabel(shortcuts.toggle_terminal, isMac),
               })}
             >
-              <SquareTerminal className="h-3.5 w-3.5" />
+              <DesktopChromeIcon name="terminal" />
             </Button>
             <Button
               variant="ghost"
               size="icon"
-              className={`h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10 ${auxPanelOpen ? "bg-accent" : ""}`}
+              className={`${desktopChromeButtonClassName} ${auxPanelOpen ? "bg-accent" : ""}`}
               onClick={toggleAuxPanel}
               disabled={!activeFolder && !isChatMode}
               title={tTitleBar("withShortcut", {
@@ -88,25 +92,25 @@ export function RightEdgeChrome() {
                 ),
               })}
             >
-              <PanelRight className="h-3.5 w-3.5" />
+              <DesktopChromeIcon name="panel" />
             </Button>
           </>
         )}
         <WorkbenchRouteChromeActions
-          buttonClassName="h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10"
+          buttonClassName={desktopChromeButtonClassName}
           iconClassName="h-3.5 w-3.5"
         />
         <Button
           variant="ghost"
           size="icon"
-          className="h-6 w-6 hover:bg-foreground/10 hover:text-foreground/80 dark:hover:bg-foreground/10"
+          className={desktopChromeButtonClassName}
           onClick={handleOpenSettings}
           title={tTitleBar("withShortcut", {
             label: tTitleBar("openSettings"),
             shortcut: formatShortcutLabel(shortcuts.open_settings, isMac),
           })}
         >
-          <Settings className="h-3.5 w-3.5" />
+          <DesktopChromeIcon name="settings" />
         </Button>
       </div>
     </div>

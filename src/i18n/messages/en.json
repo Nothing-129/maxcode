@@ -34,6 +34,7 @@
     "generateToken": "Generate token"
   },
   "SettingsShell": {
+    "backToApp": "Back to app",
     "title": "Settings",
     "preferences": "Preferences",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "Skill Packs",
       "quick_messages": "Quick Messages",
       "logs": "Runtime Logs"
-    }
+    },
+    "searchSettings": "Search settings…",
+    "loading": "Loading settings…"
   },
   "AppearanceSettings": {
     "sectionTitle": "Theme Appearance",
@@ -323,6 +326,7 @@
     "updateReadyHint": "Update downloaded — restart to apply.",
     "restarting": "Restarting...",
     "electronUpgradeHint": "Electron updates require the desktop installer. Download the Electron package from the release page, install it, then reopen MaxCode.",
+    "downloadAndRestart": "Download update and restart",
     "dockerUpgradeHint": "This upgrades the running container now. It's lost if the container is recreated — to keep it, pull or build an image at the new version and recreate.",
     "upgradeRolledBack": "Upgrade failed; the server rolled back to the previous version.",
     "serverUnreachable": "Couldn't reach the server to start the upgrade. Check that it's running and try again.",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "Remove folder from workspace?",
       "removeFolderConfirmDescription": "Remove \"{name}\" from the workspace? Its tabs and terminals will close.",
       "folderHeaderMenu": {
-        "openInLeftSplit": "Open in Left Split",
-        "openInRightSplit": "Open in Right Split",
         "splitLimitReached": "The left and right splits are already in use. Close one before opening another folder.",
         "manageConversations": "Manage conversations…",
         "manageLinks": "Linked folders",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "The left and right splits are already in use. Close one before opening another folder."
     },
     "folderTitleBar": {
+      "workspaceTools": "Workspace tools",
       "showSidebar": "Show Sidebar",
       "hideSidebar": "Hide Sidebar",
       "toggleTerminal": "Toggle Terminal",
@@ -2113,6 +2116,12 @@
         "output": "Output",
         "cacheRead": "Cache Read",
         "cacheWrite": "Cache Write",
+        "cacheHitRate": "Cache hit rate",
+        "estimatedCost": "Estimated cost",
+        "estimatedPartialCost": "Known partial cost",
+        "costLoading": "Calculating…",
+        "costBasis": "Recorded usage at standard API rates (USD); excludes tiered rates, plans and discounts.",
+        "costIncomplete": "Priced portion only; some model or cache prices are unavailable.",
         "total": "Total"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "Skills"
       },
       "messageQueue": {
+        "adjustDirection": "Adjust direction",
+        "adjustDirectionHint": "Stop the current reply and send this message next",
+        "reorderItem": "Drag to reorder",
         "addToQueue": "Queue message",
         "saveEdit": "Save",
         "cancelEdit": "Cancel edit",
@@ -3283,6 +3295,8 @@
         "openFailed": "Failed to open local file"
       },
       "messageList": {
+        "editMessage": "Edit message",
+        "editStopFailed": "Could not stop the reply. The message is ready to edit in the input box.",
         "attachedResources": "Attached resources",
         "loading": "Loading...",
         "loadEarlier": "Load earlier messages",
@@ -3331,6 +3345,7 @@
         "completedAt": "Completed at",
         "jumpToPreviousUserMessage": "Jump to user message",
         "processed": "Processed",
+        "activitySteps": "{count} steps",
         "processedFor": "Processed {duration}",
         "showMore": "Show more",
         "showLess": "Show less"
@@ -3345,6 +3360,7 @@
         "outputSpeedTooltip": "Estimated output speed (text + thinking + tool arguments)"
       },
       "generationStats": {
+        "roundCount": "{count, plural, one {# round} other {# rounds}}",
         "ttftAverage": "TTFT avg {duration}",
         "tokensPerSecond": "{throughput} tok/s"
       },
@@ -3365,6 +3381,7 @@
           "inputStreaming": "Pending",
           "outputAvailable": "Completed",
           "outputDenied": "Denied",
+          "retrySucceeded": "Retry succeeded",
           "outputError": "Error"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "{count, plural, one {Updated # todo} other {Updated # todos}}",
           "task": "{count, plural, one {Ran # task} other {Ran # tasks}}",
           "other": "{count, plural, one {Used # tool} other {Used # tools}}",
-          "errorSuffix": "{count, plural, one {# failed} other {# failed}}",
+          "recoveredSuffix": "{count} retried successfully",
+          "errorSuffix": "{count, plural, one {# execution issue} other {# execution issues}}",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "Also contains the output of {commands} — codex truncated their separators away.",
           "truncated": "truncated"
         }
+      },
+      "conversationFind": {
+        "title": "Find in conversation",
+        "previous": "Previous message",
+        "next": "Next message",
+        "close": "Close search",
+        "loading": "Searching earlier messages…",
+        "partial": "Earlier messages have not been searched yet",
+        "retry": "Continue loading history",
+        "count": "{count} matching messages",
+        "empty": "No matching messages"
       },
       "messageNav": {
         "title": "Message navigation",

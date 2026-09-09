@@ -3,6 +3,17 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: read-only conversation sharing", () => {
+  it("exposes sharing only inside the conversation actions menu", () => {
+    const header = source(
+      "src/components/conversations/conversation-detail-header.tsx"
+    )
+    expect(header).not.toMatch(/<button\b[^>]*onClick=\{handleShareOpen\}/)
+    expect(header.match(/\{t\("shareConversation"\)\}/g)).toHaveLength(1)
+    expect(header).toMatch(
+      /<DropdownMenuItem\s+disabled=\{!persisted\}\s+onSelect=\{handleShareOpen\}>[\s\S]*?\{t\("shareConversation"\)\}[\s\S]*?<\/DropdownMenuItem>/
+    )
+  })
+
   it("uses a revocable capability outside the authenticated API router", () => {
     const router = source("src-tauri/src/web/router.rs")
     const publicStart = router.indexOf("let public_api = Router::new()")

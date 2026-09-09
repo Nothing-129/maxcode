@@ -1,4 +1,8 @@
 import {
+  resetConversationUnreadStore,
+  useConversationUnreadStore,
+} from "@/stores/conversation-unread-store"
+import {
   createRef,
   type ReactNode,
   type Ref,
@@ -343,6 +347,7 @@ function tree(onNavigate?: () => void) {
 // flips the loading flags off and installs the stable action spies, and each
 // describe's own beforeEach seeds its folders/conversations fixture on top.
 beforeEach(() => {
+  resetConversationUnreadStore()
   resetAppWorkspaceStore()
   useAppWorkspaceStore.setState({
     conversationsLoading: false,
@@ -352,6 +357,7 @@ beforeEach(() => {
   virtuaCtl.scrollOffset = 0
   virtuaCtl.onScroll = null
   virtuaCtl.scrollToIndex.mockClear()
+  stableTabFns.openChatModeTab.mockClear()
   stableTabFns.openNewConversationTab.mockClear()
   stableTabFns.openFolderInSplit.mockClear()
   stableWorkspaceFns.applySidebarLayout.mockClear()
@@ -973,25 +979,16 @@ describe("SidebarConversationList — folder ⋯ opens the same menu as right-cl
     expect(document.body.textContent).toContain("Manage conversations")
   })
 
-  it("opens the folder in the requested split side", () => {
+  it("omits retired split actions from the folder menu", () => {
     render(tree())
     const moreBtn = document.querySelector('[aria-label="More options"]')
     act(() => {
       fireEvent.click(moreBtn as HTMLElement)
     })
-    const rightSplit = Array.from(
-      document.querySelectorAll<HTMLElement>('[role="menuitem"]')
-    ).find((item) => item.textContent?.includes("Open in Right Split"))
-    expect(rightSplit).toBeDefined()
-
-    act(() => {
-      fireEvent.click(rightSplit!)
-    })
-    expect(stableTabFns.openFolderInSplit).toHaveBeenCalledWith(
-      1,
-      "/p/1",
-      "right"
-    )
+    expect(document.body.textContent).toContain("Manage conversations")
+    expect(document.body.textContent).not.toContain("Open in Left Split")
+    expect(document.body.textContent).not.toContain("Open in Right Split")
+    expect(stableTabFns.openFolderInSplit).not.toHaveBeenCalled()
   })
 })
 
@@ -1142,7 +1139,7 @@ describe("SidebarConversationList — worktree grouping (Show worktrees)", () =>
     expect(text).toContain("conv-21")
   })
 
-  it("labels a worktree sub-group `branch [ directory ]`", () => {
+  it("labels an aliased worktree sub-group without its directory name", () => {
     // What a worktree registered through `open_worktree_folder_core` looks like:
     // the alias was seeded with the branch it was created on. `git_branch` on the
     // folder row is never written by the folder flow, so without the alias every
@@ -1160,11 +1157,9 @@ describe("SidebarConversationList — worktree grouping (Show worktrees)", () =>
     useAppWorkspaceStore.setState({ folders: aliased, allFolders: aliased })
     render(wtTree(true))
 
-    // Same two-part label a repo header renders: what the worktree IS in front,
-    // where it lives on disk bracketed behind it.
-    expect(document.body.textContent ?? "").toContain(
-      "feature-x [ wt-feature ]"
-    )
+    const text = document.body.textContent ?? ""
+    expect(text).toContain("feature-x")
+    expect(text).not.toContain("wt-feature")
   })
 
   it("leaves a worktree with no branch or alias on its bare directory name", () => {
@@ -1671,6 +1666,38 @@ describe("SidebarConversationList — expand / collapse all", () => {
     localStorage.removeItem(FOLDER_EXPANDED_KEY)
   })
 
+  it("keeps every folder folded after the Folders section is reopened", () => {
+    const folders = [
+      folder(1, "Repo"),
+      folder(2, "Other repo"),
+      { ...folder(3, "Worktree"), parent_id: 1 },
+    ]
+    useAppWorkspaceStore.setState({
+      folders,
+      allFolders: folders,
+      conversations: [conv(11, 1), conv(21, 2), conv(31, 3)],
+    })
+    render(tree())
+    expect(
+      document.querySelectorAll("[data-conversation-id]").length
+    ).toBeGreaterThan(0)
+
+    act(() => fireEvent.click(sectionHeader(sectionFolders)!))
+    expect(expandedOf(sectionFolders)).toBe("false")
+    expect(
+      JSON.parse(localStorage.getItem(FOLDER_EXPANDED_KEY)!)
+    ).toMatchObject({
+      1: false,
+      2: false,
+      3: false,
+    })
+    act(() => fireEvent.click(sectionHeader(sectionFolders)!))
+    expect(expandedOf(sectionFolders)).toBe("true")
+    expect(document.body.textContent).toContain("Repo")
+    expect(document.body.textContent).toContain("Other repo")
+    expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(0)
+  })
+
   it("closes all four section headers, not just the folder groups", () => {
     const ref = renderList()
     for (const label of ALL_SECTIONS) expect(expandedOf(label)).toBe("true")
@@ -1825,7 +1852,34 @@ describe("SidebarConversationList — folder groups", () => {
     })
   }
 
-  it("badges the group with the running sessions of ALL its folders", () => {
+  it("keeps unread dots on the direct folder only until every session is read", () => {
+    groupWith(
+      [5],
+      [
+        conv(11, 5, { status: "completed" }),
+        conv(12, 5, { status: "completed" }),
+      ]
+    )
+    const { container, getByText } = render(tree())
+    const dot = (selector: string) =>
+      container.querySelector(`${selector} [data-unread-dot]`)
+    act(() => {
+      useConversationUnreadStore.getState().noteActivity(11)
+      useConversationUnreadStore.getState().noteActivity(12)
+    })
+    expect(dot('[data-folder-id="5"]')).not.toBeNull()
+    expect(dot('[data-folder-group-id="7"]')).toBeNull()
+    fireEvent.click(getByText("Work"))
+    expect(dot('[data-folder-group-id="7"]')).toBeNull()
+    fireEvent.click(getByText("Work"))
+    expect(dot('[data-folder-id="5"]')).not.toBeNull()
+    act(() => useConversationUnreadStore.getState().markRead(11))
+    expect(dot('[data-folder-id="5"]')).not.toBeNull()
+    act(() => useConversationUnreadStore.getState().markRead(12))
+    expect(dot('[data-folder-id="5"]')).toBeNull()
+  })
+
+  it("shows running activity only when the group is collapsed", () => {
     groupWith(
       [5, 6],
       [
@@ -1837,8 +1891,9 @@ describe("SidebarConversationList — folder groups", () => {
     const { container } = render(tree())
 
     const heading = container.querySelector('[data-folder-group-id="7"]')
-    expect(heading?.textContent).toContain("2")
-    // Same label the folder headers use, so the two badges read as one signal.
+    expect(heading?.querySelector("[data-running-spinner]")).toBeNull()
+    fireEvent.click(heading!)
+    expect(heading?.querySelector("[data-running-spinner]")).not.toBeNull()
     expect(
       heading?.querySelector('[title="2 sessions running"]')
     ).not.toBeNull()
@@ -1884,8 +1939,39 @@ describe("SidebarConversationList — folder groups", () => {
     groupWith([5], [])
     const title = render(tree()).getByText("Work")
 
-    expect(title.className).toContain("text-sidebar-foreground/75")
+    expect(title.className).toContain("maxcode-sidebar-label")
     expect(title.className).not.toContain("folder-title-tint")
     expect(title.getAttribute("style")).toBeNull()
   })
+})
+
+describe("SidebarConversationList — new conversation navigation", () => {
+  beforeEach(() => {
+    useAppWorkspaceStore.setState({
+      conversations: [conv(12, 99, { kind: "chat" })],
+    })
+  })
+
+  it.each([0, 1])(
+    "notifies sidebar navigation when new-chat section button %s opens a chat",
+    (index) => {
+      const onNavigate = vi.fn()
+      const { getAllByRole } = render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <SidebarConversationList
+            showRecent
+            showCompleted
+            sortMode="created"
+            onNavigate={onNavigate}
+          />
+        </NextIntlClientProvider>
+      )
+
+      fireEvent.click(getAllByRole("button", { name: "New chat" })[index])
+
+      expect(onNavigate).toHaveBeenCalledOnce()
+      expect(stableTabFns.openChatModeTab).toHaveBeenCalledOnce()
+      expect(stableTabFns.openNewConversationTab).not.toHaveBeenCalled()
+    }
+  )
 })

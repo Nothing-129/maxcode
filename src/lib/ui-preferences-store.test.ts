@@ -254,8 +254,16 @@ describe("one-time localStorage migration", () => {
       expect(result.current).toEqual({
         show_conversation_status: false,
         allow_conversation_status_actions: true,
-        show_welcome_quick_actions: true,
+        // ChatGPT 桌面端复刻：欢迎页模式卡片默认关闭。
+        show_welcome_quick_actions: false,
       })
     )
   })
 })
+
+// Retained preference behavior is tested with customization explicitly enabled.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

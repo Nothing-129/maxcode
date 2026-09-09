@@ -1,3 +1,5 @@
+import { getElectronBridge } from "./electron"
+
 // Clipboard helpers for extracting pasted files/images. Split out from
 // `message-input.tsx` so the platform-specific quirks (Linux/Tauri WebKitGTK)
 // can be unit-tested without mounting the whole input component.
@@ -44,6 +46,22 @@ export function clipboardHasText(dataTransfer: DataTransfer | null): boolean {
 // `navigator.clipboard.read()` still runs inside the paste user gesture;
 // awaiting other work first can drop the transient activation it requires.
 export async function imageFilesFromClipboardApi(): Promise<File[]> {
+  const bridge = getElectronBridge()
+  if (bridge?.readClipboardImage) {
+    try {
+      const dataUrl = await bridge.readClipboardImage()
+      if (!dataUrl) return []
+      const prefix = "data:image/png;base64,"
+      if (!dataUrl.startsWith(prefix)) return []
+      const bytes = Uint8Array.from(
+        atob(dataUrl.slice(prefix.length)),
+        (char) => char.charCodeAt(0)
+      )
+      return [new File([bytes], "clipboard-image-1.png", { type: "image/png" })]
+    } catch {
+      // Older or unavailable native bridges may still support browser reads.
+    }
+  }
   if (!navigator.clipboard?.read) return []
   try {
     const items = await navigator.clipboard.read()

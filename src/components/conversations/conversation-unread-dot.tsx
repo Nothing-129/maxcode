@@ -12,7 +12,7 @@ export function ConversationUnreadDot({
     <span
       data-unread-dot
       className={cn(
-        "inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-blue-500",
+        "inline-flex size-2 shrink-0 rounded-full bg-[#3b82f6]",
         className
       )}
       title={label}

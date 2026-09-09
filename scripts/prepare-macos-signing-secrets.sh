@@ -7,8 +7,7 @@ Usage:
   scripts/prepare-macos-signing-secrets.sh /path/to/DeveloperIDApplication.p12 [certificate-base64.txt]
 
 This helper converts an exported Developer ID Application .p12 certificate to
-the APPLE_CERTIFICATE GitHub secret format and generates a random
-KEYCHAIN_PASSWORD for the temporary CI keychain.
+the APPLE_CERTIFICATE GitHub secret format used as Electron Builder CSC_LINK.
 
 It does not upload secrets automatically.
 EOF
@@ -38,7 +37,6 @@ if ! command -v openssl >/dev/null 2>&1; then
 fi
 
 openssl base64 -A -in "$p12_path" -out "$out_path"
-keychain_password="$(openssl rand -hex 24)"
 
 cat <<EOF
 Wrote: $out_path
@@ -46,7 +44,6 @@ Wrote: $out_path
 Create or update the GitHub Secrets with:
 
   gh secret set APPLE_CERTIFICATE < "$out_path"
-  gh secret set KEYCHAIN_PASSWORD --body "$keychain_password"
   gh secret set APPLE_CERTIFICATE_PASSWORD --body "<password used when exporting the .p12>"
   gh secret set APPLE_ID --body "<your Apple ID email>"
   gh secret set APPLE_PASSWORD --body "<Apple app-specific password>"

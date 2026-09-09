@@ -186,6 +186,132 @@ fn turn(role: TurnRole, text: &str) -> MessageTurn {
         agent_message_id: None,
     }
 }
+fn image_only_turn() -> MessageTurn {
+    let mut user = turn(TurnRole::User, " \n ");
+    user.blocks.push(ContentBlock::Image {
+        data: "private-image-bytes".into(),
+        mime_type: "image/png".into(),
+        uri: Some("/private/screenshot.png".into()),
+    });
+    user
+}
+
+#[tokio::test]
+async fn structured_fallback_covers_empty_text_images_and_model_failures() {
+    let db = fresh_in_memory_db().await;
+    let folder = seed_folder(&db, "/tmp/title-fallback-test").await;
+    let id = seed_conversation(&db, folder, AgentType::Codex).await;
+    let mut summary = conversation_service::get_by_id(&db.conn, id).await.unwrap();
+    summary.created_at = created_at();
+    for turns in [
+        vec![],
+        vec![image_only_turn()],
+        vec![turn(TurnRole::User, "文字消息")],
+    ] {
+        assert_eq!(
+            generate_manual_title(&db.conn, &summary, &turns)
+                .await
+                .unwrap(),
+            "0903｜未知｜未命名"
+        );
+    }
+    let server = mock(vec![reply("unstructured output")], Duration::ZERO).await;
+    settings(&db.conn, &server.url).await;
+    let turns = [turn(TurnRole::User, "无法判断")];
+    assert_eq!(
+        generate_manual_title(&db.conn, &summary, &turns)
+            .await
+            .unwrap(),
+        "0903｜未知｜未命名"
+    );
+    assert_eq!(server.requests.lock().unwrap().len(), 3);
+    summary.title = Some("0909｜修复｜已有主题".into());
+    assert_eq!(
+        generate_manual_title(&db.conn, &summary, &[])
+            .await
+            .unwrap(),
+        "0903｜修复｜已有主题"
+    );
+    assert_eq!(
+        normalize_structured_title("0909｜未知｜未命名", created_at()).as_deref(),
+        Some("0903｜未知｜未命名")
+    );
+    assert!(normalize_structured_title("0909｜未知｜猜测主题", created_at()).is_none());
+    assert!(can_overwrite_auto_title(
+        Some("0903｜未知｜未命名"),
+        "新内容"
+    ));
+
+    let emitter = EventEmitter::test_web_only(Arc::new(WebEventBroadcaster::new()));
+    let summary = conversation_service::get_by_id(&db.conn, id).await.unwrap();
+    recover_auto_title(&db.conn, &emitter, &summary, &[image_only_turn()]).await;
+    let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
+    assert_eq!(
+        saved.title,
+        Some(structured_title_fallback(None, saved.created_at))
+    );
+    assert!(!saved.title_locked);
+}
+
+#[test]
+fn image_only_title_uses_first_reply_without_crossing_user_turns() {
+    let turns = [
+        image_only_turn(),
+        turn(TurnRole::Assistant, "统一客户分类和跟进状态"),
+        turn(TurnRole::User, "后续无关话题"),
+        turn(TurnRole::Assistant, "后续回复"),
+    ];
+    let seed = original_title_seed(&turns).unwrap();
+    assert!(seed.contains("Assistant: 统一客户分类和跟进状态"));
+    for excluded in ["private-image-bytes", "/private/", "后续"] {
+        assert!(!seed.contains(excluded));
+    }
+    assert!(original_title_seed(&[image_only_turn()]).is_none());
+    assert!(original_title_seed(&[
+        image_only_turn(),
+        turn(TurnRole::User, "later"),
+        turn(TurnRole::Assistant, "unrelated"),
+    ])
+    .is_none());
+    let mut captioned = image_only_turn();
+    captioned.blocks.push(ContentBlock::Text {
+        text: "图片说明".into(),
+    });
+    assert_eq!(
+        original_title_seed(&[captioned, turn(TurnRole::Assistant, "reply")])
+            .unwrap()
+            .trim(),
+        "图片说明"
+    );
+}
+
+#[tokio::test]
+async fn manual_refresh_image_only_message_sends_reply_context() {
+    let db = fresh_in_memory_db().await;
+    let folder = seed_folder(&db, "/tmp/image-title-test").await;
+    let id = seed_conversation(&db, folder, AgentType::Codex).await;
+    let summary = conversation_service::get_by_id(&db.conn, id).await.unwrap();
+    let server = mock(vec![reply("0909｜设计｜统一客户分类")], Duration::ZERO).await;
+    settings(&db.conn, &server.url).await;
+    let title = generate_manual_title(
+        &db.conn,
+        &summary,
+        &[
+            image_only_turn(),
+            turn(TurnRole::Assistant, "统一客户分类，邮箱 test@example.com"),
+        ],
+    )
+    .await
+    .unwrap();
+    assert!(title.ends_with("｜设计｜统一客户分类"));
+    let requests = server.requests.lock().unwrap();
+    assert_eq!(requests.len(), 1);
+    let request = requests[0].to_string();
+    assert!(request.contains("统一客户分类"));
+    assert!(!request.contains("test@example.com"));
+    assert!(!request.contains("private-image-bytes"));
+}
+
 async fn settings(conn: &DatabaseConnection, url: &str) {
     set_system_title_model_settings_core(
         conn,
@@ -283,7 +409,7 @@ async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
     folder: i32,
     emitter: &EventEmitter,
 ) {
-    let server = mock(vec![reply("数字一")], Duration::ZERO).await;
+    let server = mock(vec![reply("0909｜未知｜未命名")], Duration::ZERO).await;
     settings(&db.conn, &server.url).await;
     let id = seed_conversation(db, folder, AgentType::Codex).await;
     conversation_service::refresh_auto_title(&db.conn, id, "数字一".into())
@@ -295,7 +421,10 @@ async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
     wait_until_idle(id).await;
     let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
     assert!(!saved.title_locked);
-    assert_eq!(saved.title.as_deref(), Some("数字一"));
+    assert_eq!(
+        saved.title,
+        Some(structured_title_fallback(None, summary.created_at))
+    );
     recover_auto_title(&db.conn, emitter, &saved, &turns).await;
     assert_eq!(server.requests.lock().unwrap().len(), 1);
     refine_attempts()
@@ -373,9 +502,12 @@ async fn manual_refresh_replaces_locked_title_without_unlocking_or_changing_sett
     );
 
     let current = conversation_service::get_by_id(&db.conn, id).await.unwrap();
-    assert!(generate_manual_title(&db.conn, &current, &[])
-        .await
-        .is_err());
+    assert_eq!(
+        generate_manual_title(&db.conn, &current, &[])
+            .await
+            .unwrap(),
+        structured_title_fallback(None, current.created_at)
+    );
     let failed = mock(
         vec![(
             StatusCode::UNAUTHORIZED,
@@ -385,9 +517,12 @@ async fn manual_refresh_replaces_locked_title_without_unlocking_or_changing_sett
     )
     .await;
     settings(&db.conn, &failed.url).await;
-    assert!(generate_manual_title(&db.conn, &current, &turns)
-        .await
-        .is_err());
+    assert_eq!(
+        generate_manual_title(&db.conn, &current, &turns)
+            .await
+            .unwrap(),
+        structured_title_fallback(None, current.created_at)
+    );
     let after = conversation_service::get_by_id(&db.conn, id).await.unwrap();
     assert_eq!(after.title, current.title);
     assert!(after.title_locked);

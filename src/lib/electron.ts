@@ -1,3 +1,9 @@
+import type {
+  AppUpdateCheckResult,
+  AppUpdateState,
+  ServerUpdateStatus,
+} from "./updater"
+
 export interface ElectronFileFilter {
   name: string
   extensions: string[]
@@ -17,6 +23,7 @@ export interface ElectronBridge {
   readonly version: string
   readonly backendUrl: string
   readonly token: string
+  readClipboardImage?(): Promise<string | null>
   openExternal(url: string): Promise<void>
   openPath(path: string): Promise<void>
   revealItemInDir(path: string): Promise<void>
@@ -31,9 +38,16 @@ export interface ElectronBridge {
   ): Promise<string | null>
   closeWindow(): Promise<void>
   relaunchApp(): Promise<void>
+  checkForUpdate?(): Promise<AppUpdateCheckResult>
+  getUpdateStatus?(): Promise<ServerUpdateStatus>
+  getUpdateState?(): Promise<AppUpdateState>
+  startUpdate?(): Promise<AppUpdateState>
+  installUpdate?(): Promise<void>
+  onUpdateState?(handler: (state: AppUpdateState) => void): () => void
   minimizeWindow(): Promise<void>
   toggleMaximizeWindow(): Promise<void>
   isMaximized(): Promise<boolean>
+  setBadgeCount?(count?: number): Promise<void>
   notify(title: string, body: string): Promise<boolean>
   openNotificationSettings(): Promise<void>
 }

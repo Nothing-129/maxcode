@@ -99,12 +99,10 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
           : t("sectionFolders")
   // "Recent" gets the same right-edge affordance as "Chats": it is a section
   // people scan to resume work, so "start a new one" belongs at its head too.
-  // The label differs — Chats starts a folderless chat, Recent starts a
-  // conversation in the active folder — but the geometry is shared.
+  // Both sections start a folderless chat and share the same action label.
   const showNewChat =
     (section === "chats" || section === "recent") && onNewChat != null
-  const newChatLabel =
-    section === "recent" ? t("newConversation") : t("newChatAction")
+  const newChatLabel = t("newChatAction")
   // The folders section mirrors the chats section's right-edge affordance, but
   // with two buttons (Open Folder / Clone Repository) — the same "add a folder"
   // actions the top-of-page NewFolderDropdown offers.
@@ -163,7 +161,7 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
             "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
           )}
         >
-          <span className="text-[0.875rem] font-normal">{label}</span>
+          <span className="text-xs leading-5 font-normal">{label}</span>
           <ChevronRight
             aria-hidden
             className={cn(

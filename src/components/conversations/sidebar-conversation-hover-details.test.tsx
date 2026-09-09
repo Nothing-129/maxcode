@@ -132,7 +132,7 @@ describe("SidebarConversationHoverDetails", () => {
     seed({ folders: [folder({ alias: "My Project" })] })
     renderBubble(conv())
 
-    expect(fieldValue("Folder")).toBe("My Project [ codeg ]")
+    expect(fieldValue("Folder")).toBe("My Project")
   })
 
   // Paths, branches, and model ids read left-to-right in every locale; without

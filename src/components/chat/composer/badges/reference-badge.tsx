@@ -1,6 +1,7 @@
 import {
   Bot,
   Command,
+  File,
   FileText,
   Folder,
   GitCommit,
@@ -114,6 +115,7 @@ function badgeColorClass(data: ReferenceAttrs): string {
 }
 
 export interface ReferenceBadgeProps {
+  appearance?: "badge" | "file-link"
   data: ReferenceAttrs
   className?: string
 }
@@ -123,7 +125,12 @@ export interface ReferenceBadgeProps {
  * the message-transcript rendering (markdown-link → here). Purely visual — no
  * editor coupling.
  */
-export function ReferenceBadge({ data, className }: ReferenceBadgeProps) {
+export function ReferenceBadge({
+  data,
+  className,
+  appearance = "badge",
+}: ReferenceBadgeProps) {
+  const isFileLink = appearance === "file-link" && data.refType === "file"
   return (
     <span
       data-reference-badge=""
@@ -136,12 +143,18 @@ export function ReferenceBadge({ data, className }: ReferenceBadgeProps) {
       role="img"
       aria-label={`${data.refType}: ${data.label || data.id}`}
       className={cn(
-        "inline-flex max-w-[18rem] items-center gap-0.5 align-middle text-[0.85em] font-medium leading-snug",
-        badgeColorClass(data),
+        "inline-flex max-w-[18rem] items-center gap-0.5 align-middle leading-snug",
+        isFileLink
+          ? "text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+          : cn("text-[0.85em] font-medium", badgeColorClass(data)),
         className
       )}
     >
-      <ReferenceIcon data={data} />
+      {isFileLink ? (
+        <File aria-hidden="true" className={ICON_CLASS} strokeWidth={1.5} />
+      ) : (
+        <ReferenceIcon data={data} />
+      )}
       <span className="truncate">{data.label || data.id}</span>
     </span>
   )

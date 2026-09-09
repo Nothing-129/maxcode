@@ -20,6 +20,7 @@ import {
   isAsyncLaunchAckText,
   parseBackgroundTaskMarker,
 } from "@/lib/background-agent"
+import { isSearchNoMatchResult } from "@/lib/search-no-match"
 
 function formatDuration(ms: number): string {
   if (ms < 1000) return `${ms}ms`
@@ -33,17 +34,24 @@ function adaptToolCalls(
   calls: AgentToolCall[],
   parentId: string
 ): AdaptedContentPart[] {
-  return calls.map(
-    (call, i): Extract<AdaptedContentPart, { type: "tool-call" }> => ({
-      type: "tool-call",
+  return calls.map((call, i) => {
+    const isNoMatch = isSearchNoMatchResult({
+      toolName: call.tool_name,
+      input: call.input_preview,
+      output: call.output_preview,
+      isError: call.is_error,
+    })
+    const failed = call.is_error && !isNoMatch
+    return {
+      type: "tool-call" as const,
       toolCallId: `${parentId}-sub-${i}`,
       toolName: call.tool_name,
       input: call.input_preview ?? null,
-      state: call.is_error ? "output-error" : "output-available",
+      state: failed ? "output-error" : "output-available",
       output: call.output_preview ?? null,
-      errorText: call.is_error ? (call.output_preview ?? undefined) : undefined,
-    })
-  )
+      errorText: failed ? (call.output_preview ?? undefined) : undefined,
+    }
+  })
 }
 
 // A parsed JSON field is only usable here if it's a non-empty STRING. Some

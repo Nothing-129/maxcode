@@ -231,3 +231,10 @@ describe("window zoom keys", () => {
     expect(currentZoomPx()).toBe("16px")
   })
 })
+
+// Exercise the retained customization implementation in its future enabled mode.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

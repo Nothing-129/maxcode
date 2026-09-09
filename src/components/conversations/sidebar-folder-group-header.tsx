@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { FolderRunningIndicator } from "./folder-running-indicator"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import {
   FOLDER_THEME_COLOR_INHERIT,
@@ -49,8 +50,8 @@ import { SubsessionAncestorRails } from "./sidebar-conversation-card"
  * interleave in one list, so they have to read as siblings. Same `h-[2rem]`
  * outer box (virtua's fixed item size), same rounded-full hover pill, same
  * rail-axis glyph, same hover-revealed trailing `⋯` — and, past geometry, the
- * same title type (size, weight and colour) and the same running-sessions
- * badge. The one thing that sets a group apart is its glyph: Layers, not a
+ * same title type (size, weight and colour) and the same collapsed running
+ * indicator. The one thing that sets a group apart is its glyph: Layers, not a
  * folder.
  *
  * Owns its own `useTranslations` rather than receiving `t`: next-intl returns a
@@ -76,10 +77,8 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
   name: string
   /**
    * How many sessions are currently RUNNING (`in_progress`) across every folder
-   * in the group — the folder header's badge, one level up, and zero renders no
-   * badge at all. Deliberately not "how many folders it holds": that number was
-   * a different question asked in the same slot as the folder rows' live-activity
-   * badge, and the rows under an open group already answer it.
+   * in the group. A trailing spinner is shown only while collapsed and nonzero;
+   * expanded groups expose activity through their visible descendants.
    */
   runningCount: number
   expanded: boolean
@@ -129,11 +128,11 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
   const titleTint = folderTitleTintVars(themeColor)
 
   const row = (
-    <div className={cn("relative h-[2rem]", isDragging && "opacity-60")}>
+    <div className={cn("relative h-[2rem] py-px", isDragging && "opacity-60")}>
       <div
         onPointerDown={(e) => onGripPointerDown?.(groupId, e)}
         className={cn(
-          "group flex h-[1.9375rem] w-full items-center",
+          "group flex h-full w-full items-center",
           "rounded-full",
           "transition-colors duration-150",
           isDragging
@@ -178,41 +177,20 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
           </span>
           <div className="flex min-w-0 flex-1 items-center gap-[0.5rem]">
             {/* Typographically identical to a folder title — same size, same
-                      `normal` weight, same colour (`/75`, or the chosen tint) —
+                      `normal` weight, same colour (the shared label ink, or the chosen tint) —
                       so the two read as siblings in one column. What marks a
                       group as the container of the rows under it is the Layers
                       glyph and the indent beneath it, not a heavier title. */}
             <span
               style={titleTint}
               className={cn(
-                "min-w-0 flex-shrink truncate text-left text-[0.875rem] font-normal",
-                titleTint ? "folder-title-tint" : "text-sidebar-foreground/75"
+                "min-w-0 flex-shrink truncate text-left text-[0.875rem] leading-[1.375rem] font-[430]",
+                titleTint ? "folder-title-tint" : "maxcode-sidebar-label"
               )}
             >
               {name}
             </span>
-            {/* Live-activity badge, byte-identical to the folder header's: the
-                      number of RUNNING sessions anywhere in the group, amber to
-                      match the spinner on the cards, and nothing at all when
-                      none are. A collapsed group is exactly when this is the
-                      only way to see that work is under way in there. */}
-            {runningCount > 0 && (
-              <span
-                title={t("runningCountBadge", { count: runningCount })}
-                className={cn(
-                  "inline-flex shrink-0 items-center justify-center",
-                  "h-[0.9375rem] min-w-[1rem] rounded-[0.3125rem] px-[0.25rem]",
-                  "text-[0.625rem] font-semibold leading-none tabular-nums",
-                  "bg-amber-500/12 text-amber-700",
-                  "dark:bg-amber-400/15 dark:text-amber-300"
-                )}
-              >
-                <span aria-hidden>{runningCount}</span>
-                <span className="sr-only">
-                  {t("runningCountBadge", { count: runningCount })}
-                </span>
-              </span>
-            )}
+
             {/* Same hover-revealed disclosure chevron as the folder
                       header, including `group-focus-within` (focus lands on a
                       child button, not on the `group` element itself). */}
@@ -227,6 +205,10 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
               )}
             />
           </div>
+          <FolderRunningIndicator
+            expanded={expanded}
+            runningCount={runningCount}
+          />
         </button>
         {!presentation && (
           <button

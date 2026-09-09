@@ -184,7 +184,9 @@ export function TurnStats({
     return null
 
   return (
-    <div className="mt-2 -ms-[0.3125rem] flex items-center justify-start gap-1 text-xs text-muted-foreground">
+    // ChatGPT 桌面端同款：消息操作行默认隐形，悬停该条消息（group/turn，见
+    // virtualized-message-thread 的条目 wrapper）或聚焦本行时浮现；键盘可达。
+    <div className="maxcode-turn-actions mt-2 -ms-[0.3125rem] flex items-center justify-start gap-1 text-xs text-muted-foreground opacity-0 transition-opacity duration-150 group-hover/turn:opacity-100 focus-within:opacity-100">
       <TooltipProvider delayDuration={150}>
         {hasCopy && (
           <Tooltip>

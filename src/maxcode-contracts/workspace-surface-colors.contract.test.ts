@@ -3,7 +3,7 @@ import postcss from "postcss"
 
 import { source } from "./contract-source"
 
-describe("MaxCode contract: GPT-matched workspace surfaces", () => {
+describe("MaxCode contract: Codex-matched workspace surfaces", () => {
   it.each(["neutral", null])(
     "rejects competing light surface declarations for theme %s",
     (theme) => {
@@ -40,9 +40,9 @@ describe("MaxCode contract: GPT-matched workspace surfaces", () => {
     }
   )
 
-  // Sampled from the Codex desktop half of the user's 2026-09-07 comparison:
-  // dominant sidebar RGB = 252,252,252; main canvas RGB = 255,255,255.
-  it("matches the desktop reference's white canvas and near-white sidebar", () => {
+  // 2026-09-09 用户指定侧栏背景色：
+  // 主画布 #ffffff、侧栏 #fcfcfc；预设与无主题兜底必须一致。
+  it("matches the desktop reference's white canvas and gray sidebar", () => {
     const globals = source("src/app/globals.css")
 
     const neutral = globals.match(
@@ -69,11 +69,13 @@ describe("MaxCode contract: GPT-matched workspace surfaces", () => {
     })
     const scope =
       ':root:is([data-theme="neutral"], :not([data-theme])):not(.dark)'
+    // Neutral light mode must use the same softened outline and shadow.
     expect(rules[`${scope} .codeg-composer-chrome`]).toEqual({
       "border-color": "rgb(0 0 0 / 6%)",
     })
     expect(rules[`${scope} .maxcode-composer-shadow`]).toEqual({
-      "box-shadow": "0 2px 6px rgb(0 0 0 / 2%), 0 8px 32px rgb(0 0 0 / 3%)",
+      "box-shadow":
+        "0 2px 8px rgb(0 0 0 / 2.5%), 0 4px 32px rgb(0 0 0 / 1.5%)",
     })
     expect(source("src/components/chat/composer/composer-chrome.ts")).toContain(
       "maxcode-composer-shadow"

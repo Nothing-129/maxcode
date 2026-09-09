@@ -100,7 +100,11 @@ export function SelectorTooltip({
         // disabled (a Popover is non-modal, so its trigger still takes hover).
         onOpenChange={(next) => setOpen(next && canShow)}
       >
-        <TooltipTrigger asChild onFocus={(event) => event.preventDefault()}>
+        <TooltipTrigger
+          data-selector-control=""
+          asChild
+          onFocus={(event) => event.preventDefault()}
+        >
           {trigger}
         </TooltipTrigger>
         {hasHint ? (

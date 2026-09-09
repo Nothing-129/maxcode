@@ -335,6 +335,23 @@ describe("AgentSelector", () => {
     expect(selected).toHaveTextContent(getAgentLabel("cursor"))
   })
 
+  it("shows every enabled agent inline on a wide screen", async () => {
+    stubLayout({ wrapper: 1200 })
+    mockUseAcpAgents.mockReturnValue({
+      agents: [agent("claude_code"), agent("codex")],
+      fresh: true,
+      refresh: async () => {},
+    })
+    const onSelect = vi.fn()
+    const { container } = renderWithIntl(
+      <AgentSelector defaultAgentType="claude_code" onSelect={onSelect} />
+    )
+    expect(pills(container)).toHaveLength(2)
+    expect(screen.queryByLabelText("More agents (1)")).toBeNull()
+    fireEvent.click(pills(container)[1])
+    expect(onSelect).toHaveBeenCalledWith("codex")
+  })
+
   it("selects a collapsed agent from the more popover", async () => {
     stubLayout()
     mockUseAcpAgents.mockReturnValue({

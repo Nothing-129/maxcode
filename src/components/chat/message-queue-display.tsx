@@ -2,7 +2,7 @@
 
 import { useCallback, type PointerEvent } from "react"
 import { Reorder, useDragControls } from "motion/react"
-import { GripVertical, Pencil, X } from "lucide-react"
+import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
@@ -12,12 +12,13 @@ interface MessageQueueDisplayProps {
   onReorder: (items: QueuedMessage[]) => void
   onEdit: (id: string) => void
   onDelete: (id: string) => void
+  onAdjustDirection?: (id: string) => void
   editingItemId: string | null
 }
 
 interface QueueItemProps {
   item: QueuedMessage
-  index: number
+  onAdjustDirection?: (id: string) => void
   isEditing: boolean
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -25,7 +26,7 @@ interface QueueItemProps {
 
 function QueueItem({
   item,
-  index,
+  onAdjustDirection,
   isEditing,
   onEdit,
   onDelete,
@@ -49,39 +50,54 @@ function QueueItem({
       dragListener={false}
       dragControls={dragControls}
       className={cn(
-        "flex items-center gap-1 rounded-md border px-1.5 py-1 text-3xs leading-none select-none [text-box-trim:both] [text-box-edge:cap_alphabetic]",
-        "bg-muted/40 border-border/70",
+        "group flex min-h-10 items-center gap-2 px-3 py-1.5 text-sm",
+        "border-b border-border/40 last:border-b-0",
         isEditing && "border-primary/50 bg-primary/5"
       )}
     >
       <button
         type="button"
-        className="shrink-0 cursor-grab touch-none active:cursor-grabbing p-0"
+        className="shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground/60 outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+        aria-label={t("reorderItem")}
         onPointerDown={startDrag}
       >
-        <GripVertical className="h-3 w-3 text-muted-foreground/60" />
+        <ListPlus className="size-3.5" />
       </button>
-      <span className="shrink-0 font-mono text-3xs text-muted-foreground/70">
-        #{index + 1}
-      </span>
-      <span className="min-w-0 flex-1 truncate text-3xs text-foreground/80">
+      <span
+        className="min-w-0 flex-1 truncate font-medium text-foreground"
+        title={item.draft.displayText}
+      >
         {item.draft.displayText}
       </span>
+      {onAdjustDirection && (
+        <button
+          type="button"
+          onClick={() => onAdjustDirection(item.id)}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={t("adjustDirectionHint")}
+        >
+          <CornerDownRight className="size-3.5" />
+          {t("adjustDirection")}
+        </button>
+      )}
       <button
         type="button"
         onClick={() => onEdit(item.id)}
-        className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("editItem")}
+        aria-label={t("editItem")}
+        aria-pressed={isEditing}
       >
-        <Pencil className="h-2.5 w-2.5" />
+        <Pencil className="size-3.5" />
       </button>
       <button
         type="button"
         onClick={() => onDelete(item.id)}
-        className="shrink-0 rounded-sm p-0.5 hover:bg-muted-foreground/15 text-muted-foreground"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("deleteItem")}
+        aria-label={t("deleteItem")}
       >
-        <X className="h-2.5 w-2.5" />
+        <Trash2 className="size-3.5" />
       </button>
     </Reorder.Item>
   )
@@ -93,26 +109,27 @@ export function MessageQueueDisplay({
   onEdit,
   onDelete,
   editingItemId,
+  onAdjustDirection,
 }: MessageQueueDisplayProps) {
   if (queue.length === 0) return null
 
   return (
-    <div className="max-h-28 overflow-y-auto pb-1">
+    <div className="mx-3 -mb-3 max-h-40 overflow-y-auto rounded-t-2xl border border-b-0 border-border/60 bg-background/95 pb-3">
       <Reorder.Group
         as="div"
         axis="y"
         values={queue}
         onReorder={onReorder}
-        className="flex flex-col gap-0.5"
+        className="flex flex-col"
       >
-        {queue.map((item, index) => (
+        {queue.map((item) => (
           <QueueItem
             key={item.id}
             item={item}
-            index={index}
             isEditing={editingItemId === item.id}
             onEdit={onEdit}
             onDelete={onDelete}
+            onAdjustDirection={editingItemId ? undefined : onAdjustDirection}
           />
         ))}
       </Reorder.Group>

@@ -48,8 +48,22 @@ pub struct StartWebServerParams {
 
 pub async fn start_web_server(
     Extension(state): Extension<Arc<AppState>>,
-    Json(_params): Json<StartWebServerParams>,
+    Json(params): Json<StartWebServerParams>,
 ) -> Result<Json<WebServerInfo>, AppCommandError> {
+    if crate::update::runtime::is_electron() {
+        let static_dir = crate::web::find_static_dir_standalone(
+            std::env::var("CODEG_STATIC_DIR").ok().as_deref(),
+        );
+        return crate::web::do_start_web_server_with_state(
+            state,
+            static_dir,
+            params.port,
+            params.host,
+            params.token,
+        )
+        .await
+        .map(Json);
+    }
     // In web mode, the server is already running (this handler itself is served by it).
     // This endpoint is mainly useful in Tauri mode. Return current status as a noop.
     let ws = &state.web_server_state;

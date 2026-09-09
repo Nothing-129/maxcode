@@ -190,85 +190,29 @@ describe("ConversationDetailPanel new conversation layout", () => {
     expect(welcomeHeroSource).not.toContain("bg-gradient-to-r")
   })
 
-  it("uses the shared attached folder branch picker treatment for all chat inputs", () => {
-    expect(source).not.toContain("attachFolderBranchPickerToInput")
-    expect(conversationShellSource).not.toContain(
-      "attachFolderBranchPickerToInput"
-    )
-    expect(messageInputSource).not.toContain("attachFolderBranchPickerToInput")
-    expect(messageInputSource).toContain(
-      "const folderBranchPickerAttached = hasFolderBranchPicker"
-    )
-    expect(messageInputSource).not.toContain("rounded-b-none")
-
-    const pickerStart = messageInputSource.indexOf(
-      "{hasFolderBranchPicker && ("
-    )
-    // The picker row is the last thing inside the composer wrapper; the
-    // server-file dialog that follows it sits outside, so it anchors the slice.
-    const pickerEnd = messageInputSource.indexOf(
-      "{!attach.showNativePaperclip && (",
-      pickerStart
-    )
-    expect(pickerStart).toBeGreaterThan(-1)
-    expect(pickerEnd).toBeGreaterThan(pickerStart)
-
-    const pickerWrapper = messageInputSource.slice(pickerStart, pickerEnd)
-    expect(messageInputSource).toContain(
-      '"overflow-hidden rounded-2xl transition-colors"'
-    )
-    expect(messageInputSource).toContain("COMPOSER_CHROME_SHADOW_CLASS")
-    expect(messageInputSource).not.toContain("bg-muted/60")
-    expect(messageInputSource).toContain(': "contents"')
-    // Welcome + docked composers share this always-on selected chrome (soft
-    // border + shadow). No click-only focus ring. The attached folder-branch
-    // row still adds the solid surface (`bg-background` / `ws-transparent-bg`).
-    expect(messageInputSource).toContain("COMPOSER_CHROME_BOX_CLASS")
-    expect(messageInputSource).toContain("COMPOSER_CHROME_SURFACE_CLASS")
-    expect(messageInputSource).not.toContain("focus-within:border-ring")
-    expect(messageInputSource).not.toContain("focus-within:ring-[3px]")
-    expect(pickerWrapper).not.toContain("border-t border-input")
-    expect(pickerWrapper).not.toContain("bg-muted/30")
-    expect(pickerWrapper).toContain("pt-1")
-    expect(pickerWrapper).not.toContain("py-1")
-    expect(pickerWrapper).toContain("rounded-b-2xl")
-    // The row only renders while attached below the composer, so the detached
-    // `mt-1.5` else-branch is gone; it always takes the rounded-bottom box.
-    expect(pickerWrapper).not.toContain("mt-1.5")
-    // `px-2` keeps the left gutter aligned with the composer above while also
-    // padding the trailing edge where the status indicators sit.
-    expect(pickerWrapper).toContain("px-2")
-    expect(pickerWrapper).not.toContain("pl-[")
-    expect(pickerWrapper).not.toContain("pl-1.5")
-    expect(pickerWrapper).not.toMatch(/\bborder-b\b/)
-    expect(pickerWrapper).not.toMatch(/\bborder-x\b/)
-    // The context-usage circle + agent connection status moved here from the
-    // bottom status bar: they right-align at the trailing edge (justify-between)
-    // while the folder/branch pickers stay on the left.
-    expect(pickerWrapper).toContain("justify-between")
-    expect(pickerWrapper).toContain("<ComposerContextUsage")
-    expect(pickerWrapper).toContain("<ComposerConnectionStatus")
+  it("preserves the subdued folder, branch and runtime row below the composer", () => {
+    expect(messageInputSource).toContain("ConversationFolderBranchPicker")
+    expect(messageInputSource).toContain("ComposerContextUsage")
+    expect(messageInputSource).toContain("ComposerConnectionStatus")
+    expect(messageInputSource).toContain('data-composer-status-row=""')
+    expect(messageInputSource).toContain("min-h-5")
+    expect(messageInputSource).not.toContain("rounded-b-[1.75rem]")
   })
 
   it("keeps ordinary chat input constrained to the message column width", () => {
     expect(conversationShellSource).toContain(
-      'className="mx-auto w-full max-w-3xl"'
+      'className="mx-auto w-full maxcode-chat-column"'
     )
-    // Ordinary (active/historical) chat input keeps its own px-4 gutter to align
-    // with the sibling cards in conversation-shell AND a tight bottom gap (pb-1)
-    // matching the attached folder/branch row's `pt-1` top gap; only the welcome
-    // input drops the gutter via `flush` (the welcome column already provides
-    // px-4) and uses the same pb-1.
+    // Ordinary chat keeps its horizontal alignment and a small visual bottom
+    // gap. The workspace alone owns mobile safe-area padding.
+    expect(chatInputSource).toContain("px-4 pb-2 md:pb-3")
     expect(chatInputSource).toContain(
-      'cn("pt-0", flush ? "pb-1" : "px-4 pb-1")'
-    )
-    expect(chatInputSource).toContain(
-      'cn(tall ? "min-h-30" : "min-h-24", "max-h-60")'
+      'cn(tall ? "min-h-30" : "min-h-26", "max-h-60")'
     )
     expect(chatInputSource).not.toContain("containerClassName")
     expect(source).not.toContain("containerClassName")
     expect(conversationShellSource).not.toContain("containerClassName")
-    expect(source).toContain("mx-auto flex w-full max-w-3xl")
+    expect(source).toContain("mx-auto flex w-full maxcode-chat-column")
   })
 
   it("applies the same always-on composer chrome to welcome and docked inputs", () => {
@@ -359,10 +303,11 @@ describe("ConversationDetailPanel split-group render model", () => {
   // group strips instead: every strip's tail spacer is a drag region, and the
   // TOP-edge strips re-create the corner reserves (traffic lights / caption
   // buttons / chrome clusters) the unsplit row normally provides.
-  it("replaces the unsplit title-bar row with in-strip drag surfaces while split", () => {
-    // Layout: the whole h-10 conversation top bar is gated on !isConvSplit;
-    // the old always-rendered row with a split drag-region branch is gone.
-    expect(workspaceLayoutSource).toContain("{!isConvSplit && (")
+  it("shares the unsplit header row with window controls and retains split drag surfaces", () => {
+    // The unsplit header now owns chrome clearance, without an extra blank row.
+    expect(workspaceLayoutSource).not.toContain("{!isConvSplit && (")
+    expect(workspaceLayoutSource).toContain("--conversation-header-left")
+    expect(workspaceLayoutSource).toContain("--conversation-header-right")
     expect(workspaceLayoutSource).not.toContain("hasConvTabs && !isConvSplit")
 
     // Panel: TOP-edge group strips carry the corner reserves themselves.
@@ -555,7 +500,7 @@ describe("ConversationDetailPanel session-load failure surface", () => {
     const dockIdx = conversationShellSource.indexOf("{composerBanner && (")
     expect(dockIdx).toBeGreaterThan(-1)
     const dock = conversationShellSource.slice(dockIdx, dockIdx + 200)
-    expect(dock).toContain("mx-auto w-full max-w-3xl")
+    expect(dock).toContain("mx-auto w-full maxcode-chat-column")
   })
 
   it("never clears a resolved session id when the persisted detail is absent", () => {

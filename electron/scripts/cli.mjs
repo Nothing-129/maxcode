@@ -124,6 +124,23 @@ try {
       break
     case "build":
     case "pack":
+      if (process.env.CODEG_ELECTRON_RELEASE === "1") {
+        if (process.platform !== "darwin" || command !== "build") {
+          throw new Error(
+            "Signed release mode requires a macOS installer build"
+          )
+        }
+        for (const name of [
+          "CSC_LINK",
+          "CSC_KEY_PASSWORD",
+          "APPLE_ID",
+          "APPLE_APP_SPECIFIC_PASSWORD",
+          "APPLE_TEAM_ID",
+        ]) {
+          if (!process.env[name])
+            throw new Error(`Missing release credential: ${name}`)
+        }
+      }
       if (
         args.length > 0 &&
         !(

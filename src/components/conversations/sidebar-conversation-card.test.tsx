@@ -264,7 +264,7 @@ describe("SidebarConversationCard unread dot", () => {
       ...conv(1),
       status: "in_progress",
     }
-    const { getByText, queryByLabelText } = renderWithIntl(
+    const { queryByText, queryByLabelText } = renderWithIntl(
       <SidebarConversationCard
         conversation={running}
         isSelected={false}
@@ -276,7 +276,7 @@ describe("SidebarConversationCard unread dot", () => {
         onStatusChange={onStatusChange}
       />
     )
-    expect(getByText("Running")).not.toBeNull()
+    expect(queryByText("Running")).not.toBeNull()
     expect(queryByLabelText("Unread")).toBeNull()
   })
 
@@ -404,20 +404,24 @@ describe("SidebarConversationCard hover quick actions", () => {
     expect(onTogglePin).toHaveBeenCalledWith(2, false)
   })
 
-  it("marks an unfinished conversation completed via the hover done button", () => {
-    const { getByLabelText } = renderCard(conv(3)) // status: pending
+  it("completes the conversation via the title hover button", () => {
+    const { getByLabelText, queryByLabelText } = renderCard(conv(3))
     fireEvent.click(getByLabelText("Mark as completed"))
     expect(onStatusChange).toHaveBeenCalledWith(3, "completed")
+    expect(onSelect).not.toHaveBeenCalled()
+    expect(queryByLabelText("Reopen")).toBeNull()
   })
 
-  it("reopens a completed conversation via the hover done button", () => {
-    const done: DbConversationSummary = { ...conv(4), status: "completed" }
-    const { getByLabelText } = renderCard(done)
-    fireEvent.click(getByLabelText("Reopen"))
-    expect(onStatusChange).toHaveBeenCalledWith(4, "in_progress")
+  it("does not add completed text or a reopen button", () => {
+    const { queryByText, queryByLabelText } = renderCard({
+      ...conv(4),
+      status: "completed",
+    })
+    expect(queryByText("Completed")).toBeNull()
+    expect(queryByLabelText("Reopen")).toBeNull()
   })
 
-  it("omits the pin button when onTogglePin is absent but keeps the done button", () => {
+  it("keeps completion available when pinning is unavailable", () => {
     const { queryByLabelText } = renderCard(conv(5), { withPin: false })
     expect(queryByLabelText("Pin")).toBeNull()
     expect(queryByLabelText("Mark as completed")).not.toBeNull()
@@ -435,10 +439,10 @@ describe("SidebarConversationCard hover quick actions", () => {
     expect(queryByLabelText("Reopen")).toBeNull()
   })
 
-  it("hides the done button and status menu when status actions are off", () => {
+  it("keeps completion but hides the status menu despite old preferences", () => {
     void saveConversationStatusActions(false)
     const { getByText, queryByLabelText, queryByText } = renderCard(conv(7))
-    expect(queryByLabelText("Mark as completed")).toBeNull()
+    expect(queryByLabelText("Mark as completed")).not.toBeNull()
     fireEvent.contextMenu(getByText("conv-7"))
     expect(queryByText("Status")).toBeNull()
   })
@@ -449,9 +453,9 @@ describe("SidebarConversationCard status display", () => {
     localStorage.clear()
   })
 
-  it("paints a status badge on the agent icon when status display is on", () => {
+  it("omits status colors even when the saved preference is on", () => {
     void saveConversationStatusDisplay(true)
-    const { getByTitle } = renderWithIntl(
+    const { queryByTitle } = renderWithIntl(
       <SidebarConversationCard
         conversation={{ ...conv(8), status: "pending_review" }}
         isSelected={false}
@@ -463,7 +467,7 @@ describe("SidebarConversationCard status display", () => {
         onStatusChange={onStatusChange}
       />
     )
-    expect(getByTitle("Review")).toBeTruthy()
+    expect(queryByTitle("Review")).toBeNull()
   })
 
   it("omits the status badge when status display is off", () => {
@@ -684,7 +688,7 @@ describe("SidebarConversationCard sub-session chevron", () => {
   it("indents deeper rows by CONV_RAIL_DEPTH_STEP per level so the child icon aligns under the parent title", () => {
     const { container } = renderCard(conv(3), { hasChildren: false, depth: 2 })
     const outer = container.querySelector("[data-conv-key]") as HTMLElement
-    // 0.875rem root axis + depth · 1.25rem (gap 0.875 + half glyph 0.375) lands
+    // 0.875rem root axis + depth · 1rem (gap 0.875 + half glyph 0.375) lands
     // the child icon glyph's left edge under the parent title text start.
     expect(outer.style.getPropertyValue("--conv-rail-axis")).toBe(
       "calc(0.875rem + 2 * 1.25rem)"

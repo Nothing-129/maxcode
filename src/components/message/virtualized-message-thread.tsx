@@ -1,5 +1,6 @@
 "use client"
 
+import { observeThreadOverflow } from "./observe-thread-overflow"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties, ReactNode, RefObject } from "react"
 import { Virtualizer, type VirtualizerHandle } from "virtua"
@@ -26,6 +27,8 @@ const LOAD_OLDER_THRESHOLD_PX = 240
 
 interface VirtualizedMessageThreadProps<T> {
   /** Data to virtualise — each entry becomes one virtual row. */
+  onOverflowChange?: (overflowing: boolean) => void
+  onVisibleIndexChange?: (index: number) => void
   items: T[]
   /** Stable key for a given item (used as React key). */
   getItemKey: (item: T, index: number) => string
@@ -45,11 +48,11 @@ interface VirtualizedMessageThreadProps<T> {
    * at the cost of more off-screen reconciliation. @default 800
    */
   bufferSize?: number
-  /** Vertical gap between items in px. @default 16 */
+  /** Vertical gap between items in px. @default 32 */
   gap?: number
   /** Vertical padding before the first / after the last item. @default 16 */
   padding?: number
-  /** Extra className on every item's inner wrapper (the `max-w-3xl` div). */
+  /** Extra className on every item's inner wrapper (the `maxcode-chat-column` div). */
   className?: string
   /** Extra className on the MessageThreadContent shell. */
   contentClassName?: string
@@ -102,12 +105,14 @@ export function shouldShiftForPrepend(
 
 function VirtualizedMessageThreadImpl<T>({
   items,
+  onVisibleIndexChange,
+  onOverflowChange,
   getItemKey,
   renderItem,
   emptyState,
   itemSize,
   bufferSize = 800,
-  gap = 16,
+  gap = 32,
   padding = 16,
   className,
   contentClassName,
@@ -121,7 +126,15 @@ function VirtualizedMessageThreadImpl<T>({
   prependEpoch = 0,
   prependScopeKey,
 }: VirtualizedMessageThreadProps<T>) {
-  const { scrollRef } = useStickToBottomContext()
+  const { scrollRef, contentRef } = useStickToBottomContext()
+  useEffect(() => {
+    if (!onOverflowChange || !scrollRef.current || !contentRef?.current) return
+    return observeThreadOverflow(
+      scrollRef.current,
+      contentRef.current,
+      onOverflowChange
+    )
+  }, [scrollRef, contentRef, onOverflowChange])
   const virtualizerHandleRef = useRef<VirtualizerHandle>(null)
 
   // The loader row occupies virtua index 0 when present, shifting every data
@@ -203,8 +216,17 @@ function VirtualizedMessageThreadImpl<T>({
     rowOffsetRef.current = rowOffset
     loadOlderStateRef.current = { hasOlder, isLoadingOlder, onLoadOlder }
   })
+  const visibleIndexCallbackRef = useRef(onVisibleIndexChange)
+  useEffect(() => {
+    visibleIndexCallbackRef.current = onVisibleIndexChange
+  }, [onVisibleIndexChange])
   const prevScrollOffsetRef = useRef<number | null>(null)
   const handleScroll = useCallback((offset: number) => {
+    const handle = virtualizerHandleRef.current
+    if (handle)
+      visibleIndexCallbackRef.current?.(
+        Math.max(0, handle.findItemIndex(offset) - rowOffsetRef.current)
+      )
     const prev = prevScrollOffsetRef.current
     prevScrollOffsetRef.current = offset
     const s = loadOlderStateRef.current
@@ -290,7 +312,9 @@ function VirtualizedMessageThreadImpl<T>({
           >
             {hasOlder ? (
               <div key="load-older-row" style={styles.first}>
-                <div className={cn("mx-auto max-w-3xl px-4", className)}>
+                <div
+                  className={cn("mx-auto maxcode-chat-column px-4", className)}
+                >
                   <button
                     type="button"
                     onClick={isLoadingOlder ? undefined : onLoadOlder}
@@ -314,7 +338,15 @@ function VirtualizedMessageThreadImpl<T>({
                 key={getItemKey(item, index)}
                 style={itemStyle(index, items.length)}
               >
-                <div className={cn("mx-auto max-w-3xl px-4", className)}>
+                {/* group/turn：TurnStats 的悬停显隐作用域（ChatGPT 式操作行）。 */}
+                <div
+                  data-thread-tail={index === items.length - 1}
+                  data-thread-index={index}
+                  className={cn(
+                    "mx-auto maxcode-chat-column px-4 group/turn",
+                    className
+                  )}
+                >
                   {renderItem(item, index)}
                 </div>
               </div>

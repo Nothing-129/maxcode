@@ -203,6 +203,73 @@ pub(crate) fn facts_from_turns(
         .collect()
 }
 
+/// Reuse the normalized accounting facts and aggregate before history slicing.
+/// Any session-total remainder without a per-turn model stays explicitly unknown.
+pub(crate) fn billing_usage_from_detail(
+    detail: &DbConversationDetail,
+) -> Vec<crate::models::conversation::ConversationBillingUsage> {
+    use crate::models::conversation::ConversationBillingUsage;
+    use crate::models::message::TurnUsage;
+    let facts = facts_from_detail(detail, detail.summary.updated_at);
+    let mut buckets: std::collections::BTreeMap<Option<String>, TurnUsage> =
+        std::collections::BTreeMap::new();
+    for fact in facts {
+        let usage = buckets.entry(fact.model).or_default();
+        usage.input_tokens = usage.input_tokens.saturating_add(fact.input_tokens as u64);
+        usage.output_tokens = usage
+            .output_tokens
+            .saturating_add(fact.output_tokens as u64);
+        usage.cache_read_input_tokens = usage
+            .cache_read_input_tokens
+            .saturating_add(fact.cache_read_tokens as u64);
+        usage.cache_creation_input_tokens = usage
+            .cache_creation_input_tokens
+            .saturating_add(fact.cache_creation_tokens as u64);
+    }
+    if let Some(total) = detail
+        .session_stats
+        .as_ref()
+        .and_then(|s| s.total_usage.as_ref())
+    {
+        let mut accounted = TurnUsage::default();
+        for usage in buckets.values() {
+            accounted.input_tokens = accounted.input_tokens.saturating_add(usage.input_tokens);
+            accounted.output_tokens = accounted.output_tokens.saturating_add(usage.output_tokens);
+            accounted.cache_read_input_tokens = accounted
+                .cache_read_input_tokens
+                .saturating_add(usage.cache_read_input_tokens);
+            accounted.cache_creation_input_tokens = accounted
+                .cache_creation_input_tokens
+                .saturating_add(usage.cache_creation_input_tokens);
+        }
+        let unknown = TurnUsage {
+            input_tokens: total.input_tokens.saturating_sub(accounted.input_tokens),
+            output_tokens: total.output_tokens.saturating_sub(accounted.output_tokens),
+            cache_read_input_tokens: total
+                .cache_read_input_tokens
+                .saturating_sub(accounted.cache_read_input_tokens),
+            cache_creation_input_tokens: total
+                .cache_creation_input_tokens
+                .saturating_sub(accounted.cache_creation_input_tokens),
+        };
+        if unknown != TurnUsage::default() {
+            let entry = buckets.entry(None).or_default();
+            entry.input_tokens = entry.input_tokens.saturating_add(unknown.input_tokens);
+            entry.output_tokens = entry.output_tokens.saturating_add(unknown.output_tokens);
+            entry.cache_read_input_tokens = entry
+                .cache_read_input_tokens
+                .saturating_add(unknown.cache_read_input_tokens);
+            entry.cache_creation_input_tokens = entry
+                .cache_creation_input_tokens
+                .saturating_add(unknown.cache_creation_input_tokens);
+        }
+    }
+    buckets
+        .into_iter()
+        .map(|(model, usage)| ConversationBillingUsage { model, usage })
+        .collect()
+}
+
 /// `turn_key` of the whole-session fallback row. Distinct enough from any
 /// parser's turn id to be recognizable when auditing the table.
 pub(crate) const SESSION_TOTAL_TURN_KEY: &str = "__session_total__";
@@ -1320,6 +1387,7 @@ mod tests {
 
     fn detail(turns: Vec<MessageTurn>, stats: Option<SessionStats>) -> DbConversationDetail {
         DbConversationDetail {
+            billing_usage: None,
             summary: DbConversationSummary {
                 id: 1,
                 folder_id: 1,
@@ -1347,10 +1415,34 @@ mod tests {
             in_flight_user_turn_id: None,
             turns_offset: None,
             turns_total: None,
+            user_turns_total: None,
             assistant_turns_before_offset: None,
             prefix_hash: None,
             uncovered_prefix_max_ts: None,
         }
+    }
+
+    #[test]
+    fn billing_usage_keeps_models_and_unknown_remainder_separate() {
+        let a = turn("a", Some(usage(10, 5, 2, 3)), "2026-08-01T10:00:00Z");
+        let mut b = turn("b", Some(usage(20, 6, 0, 10)), "2026-08-01T10:01:00Z");
+        b.model = Some("gpt-test".into());
+        let buckets = billing_usage_from_detail(&detail(vec![a, b], Some(session_stats(40, 11))));
+        assert_eq!(buckets.len(), 3);
+        assert_eq!(buckets[0].model, None);
+        assert_eq!(buckets[0].usage.input_tokens, 10);
+        assert_eq!(buckets[1].model.as_deref(), Some("claude-opus-5"));
+        assert_eq!(buckets[1].usage, usage(10, 5, 2, 3));
+        assert_eq!(buckets[2].model.as_deref(), Some("gpt-test"));
+        assert_eq!(buckets[2].usage, usage(20, 6, 0, 10));
+    }
+
+    #[test]
+    fn billing_usage_uses_session_only_fallback_once() {
+        let buckets = billing_usage_from_detail(&detail(vec![], Some(session_stats(50, 7))));
+        assert_eq!(buckets.len(), 1);
+        assert_eq!(buckets[0].model.as_deref(), Some("hermes-model"));
+        assert_eq!(buckets[0].usage, usage(50, 7, 0, 0));
     }
 
     fn session_stats(input: u64, output: u64) -> SessionStats {

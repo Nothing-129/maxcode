@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
 import {
+  ArrowUp,
   BookOpenText,
   Check,
   ChevronUp,
@@ -14,7 +15,6 @@ import {
   Copy,
   MessageSquareText,
   Scissors,
-  Send,
   Square,
   TextSelect,
   X,
@@ -719,7 +719,6 @@ export function MessageInput({
     attachmentTabId,
     folderPickerOverride
   )
-  const folderBranchPickerAttached = hasFolderBranchPicker
   const imageAttachments = attach.imageAttachments
   const hasAttachments = attachments.length > 0
   const hasSendableContent = !composerEmpty || hasAttachments
@@ -1444,50 +1443,62 @@ export function MessageInput({
   const hasImageAttachments = imageAttachments.length > 0
   const showDragActive = attach.isDragActive && !disabled
 
+  const renderInlineConfigOption = (option: SessionConfigOptionInfo) => {
+    // On/off options flip in place — a dropdown for a binary choice is a
+    // wasted interaction.
+    if (option.kind.type === "boolean") {
+      return (
+        <InlineSessionConfigToggle
+          key={option.id}
+          option={option}
+          onLabel={t("toggleOn")}
+          offLabel={t("toggleOff")}
+          onSelect={(configId, value) =>
+            onConfigOptionChange?.(configId, value)
+          }
+        />
+      )
+    }
+    // Long model lists get the searchable + virtualized popover (a Radix
+    // menu of hundreds of items is the scroll jank); every other option —
+    // and short model lists — keep the lightweight inline dropdown.
+    const listGroups = modelPickerGroups(option)
+    if (listGroups) {
+      return (
+        <ModelOptionPicker
+          key={option.id}
+          option={option}
+          groups={listGroups}
+          onSelect={(configId, valueId) =>
+            onConfigOptionChange?.(configId, valueId)
+          }
+        />
+      )
+    }
+    return (
+      <InlineSessionConfigSelector
+        key={option.id}
+        option={option}
+        derivedGroups={deriveModelGroups(option)}
+        onSelect={(configId, valueId) =>
+          onConfigOptionChange?.(configId, valueId)
+        }
+      />
+    )
+  }
+
   const inlineSelectorItems = (
     <>
       {hasConfigOptions &&
         availableConfigOptions.map((option) => {
-          // On/off options flip in place — a dropdown for a binary choice is a
-          // wasted interaction.
-          if (option.kind.type === "boolean") {
-            return (
-              <InlineSessionConfigToggle
-                key={option.id}
-                option={option}
-                onLabel={t("toggleOn")}
-                offLabel={t("toggleOff")}
-                onSelect={(configId, value) =>
-                  onConfigOptionChange?.(configId, value)
-                }
-              />
-            )
-          }
-          // Long model lists get the searchable + virtualized popover (a Radix
-          // menu of hundreds of items is the scroll jank); every other option —
-          // and short model lists — keep the lightweight inline dropdown.
-          const listGroups = modelPickerGroups(option)
-          if (listGroups) {
-            return (
-              <ModelOptionPicker
-                key={option.id}
-                option={option}
-                groups={listGroups}
-                onSelect={(configId, valueId) =>
-                  onConfigOptionChange?.(configId, valueId)
-                }
-              />
-            )
-          }
           return (
-            <InlineSessionConfigSelector
+            <div
               key={option.id}
-              option={option}
-              derivedGroups={deriveModelGroups(option)}
-              onSelect={(configId, valueId) =>
-                onConfigOptionChange?.(configId, valueId)
-              }
-            />
+              data-composer-config={option.id}
+              className="flex min-w-0 items-end"
+            >
+              {renderInlineConfigOption(option)}
+            </div>
           )
         })}
       {showModeSelector && (
@@ -1655,45 +1666,40 @@ export function MessageInput({
     </div>
   ) : isPrompting && onCancel ? (
     onSteer && onEnqueue && hasSendableContent ? (
-      // Sessions with a working live-feedback channel surface the mid-turn
-      // actions that already exist but were keyboard-only/invisible: the
-      // primary half of the split queues the draft (what Enter has always
-      // done here), the dropdown sends it over the channel — a native push
-      // inserts into the RUNNING turn, a pull-tool session records a waiting
-      // note for the agent's next check (label keyed on `steerChannel`).
-      // Without `onSteer` this branch stays pixel-identical to the
-      // historical Stop-only form below.
-      <div className="flex items-center gap-1">
+      // Keep running actions distinct, with the same circular geometry as send.
+      <div className="flex items-center gap-1.5">
         <Button
           onClick={onCancel}
-          variant="destructive"
+          variant="default"
           size="icon"
-          className="h-8 w-8"
+          className="h-8 w-8 rounded-full"
           title={t("cancel")}
         >
-          <Square className="size-4" />
+          <Square className="size-3.5 fill-current" strokeWidth={0} />
         </Button>
-        <div className="flex items-center">
+        <div className="flex items-center gap-0.5">
           <Button
             onClick={handleSend}
             disabled={steering}
             size="icon"
-            className="h-8 w-8 rounded-r-none"
+            variant="secondary"
+            className="h-8 w-8 rounded-full"
             title={t("queueMessage")}
           >
-            <Send className="size-4" />
+            <ArrowUp className="size-4" strokeWidth={2.5} />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 disabled={steering}
                 size="icon"
-                className="h-8 w-5 rounded-l-none border-l border-primary-foreground/20"
+                variant="ghost"
+                className="h-8 w-8 rounded-full text-muted-foreground"
                 aria-label={t(
                   steerChannel === "pull" ? "steerAsNote" : "steerIntoTurn"
                 )}
               >
-                <ChevronUp className="size-4" />
+                <ChevronUp className="size-3.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" side="top">
@@ -1718,23 +1724,24 @@ export function MessageInput({
     ) : (
       <Button
         onClick={onCancel}
-        variant="destructive"
+        variant="default"
         size="icon"
-        className="h-8 w-8"
+        className="h-8 w-8 rounded-full"
         title={t("cancel")}
       >
-        <Square className="size-4" />
+        <Square className="size-3.5 fill-current" strokeWidth={0} />
       </Button>
     )
   ) : (
+    // MaxCode 发送钮：32px 正圆、白色上箭头；可用时使用标志斜杠的蓝色。
     <Button
       onClick={handleSend}
       disabled={disabled || !hasSendableContent}
       size="icon"
-      className="h-8 w-8"
+      className="h-8 w-8 rounded-full enabled:bg-[#285ee1] enabled:text-white enabled:hover:bg-[#285ee1]/90 disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground"
       title={t("send")}
     >
-      <Send className="size-4" />
+      <ArrowUp className="size-4" strokeWidth={2.5} />
     </Button>
   )
 
@@ -1826,24 +1833,8 @@ export function MessageInput({
           </div>
         </div>
       )}
-      {/* When the folder/branch row is attached below the composer, this group
-          clips both into one rounded box (`overflow-hidden rounded-2xl`); the
-          drag-active ring and the always-on shadow ride the wrapper so they
-          aren't clipped. Standalone (no row) it's layout-neutral
-          (`display:contents`). */}
-      <div
-        className={cn(
-          folderBranchPickerAttached
-            ? cn(
-                "overflow-hidden rounded-2xl transition-colors",
-                COMPOSER_CHROME_SHADOW_CLASS
-              )
-            : "contents",
-          folderBranchPickerAttached &&
-            showDragActive &&
-            "ring-1 ring-primary/40"
-        )}
-      >
+      {/* The editor owns its chrome; metadata sits below as an independent row. */}
+      <div className="contents">
         <ContextMenu onOpenChange={handleContextMenuOpenChange}>
           {/* Disabled in non-secure web (no async clipboard read) so the native
               context menu — whose Paste still works over the editor text — is
@@ -1856,21 +1847,14 @@ export function MessageInput({
                 // blank areas (padding, the dead space below a short message, the
                 // action-bar gaps) so the whole input reads as clickable-to-type;
                 // interactive controls re-assert their own cursor (see globals.css).
-                // Always-on selected chrome (soft border + shadow) — the box
-                // already looks ready to type; clicking it must not swap in a
-                // thicker focus ring. Border uses `border-foreground/15` (a
-                // touch darker than the default `border-input`, which is
-                // near-invisible at rest and vanishes over a workspace
-                // background image). Shadow sits on this box when standalone;
-                // the attached folder-branch wrapper owns the shadow so
-                // `overflow-hidden` does not clip it.
+                // Keep the border and shadow around the editor only.
                 COMPOSER_CHROME_BOX_CLASS,
                 "@container flex flex-col bg-transparent",
-                !folderBranchPickerAttached && COMPOSER_CHROME_SHADOW_CLASS,
+                COMPOSER_CHROME_SHADOW_CLASS,
                 // Opaque surface normally, but with a workspace-bg image the
                 // composer goes transparent to reveal the real image like the
                 // rest of the canvas (no frosted treatment) — the border stays.
-                folderBranchPickerAttached && COMPOSER_CHROME_SURFACE_CLASS,
+                COMPOSER_CHROME_SURFACE_CLASS,
                 // Active session, tiled across multiple sessions: a gradient
                 // flows around the border to mark which tile is active — but
                 // ONLY while the composer itself is not focused. Focusing it
@@ -1879,9 +1863,7 @@ export function MessageInput({
                 // (showActiveFlow=false) and inactive tiles keep the plain
                 // selected chrome.
                 showActiveFlow && "codeg-composer-flow",
-                !folderBranchPickerAttached &&
-                  showDragActive &&
-                  "ring-1 ring-primary/40",
+                showDragActive && "ring-1 ring-primary/40",
                 className
               )}
             >
@@ -1921,7 +1903,7 @@ export function MessageInput({
                 className="min-h-0 flex-1"
               />
               <div className="flex shrink-0 items-end justify-between gap-1 px-2 pb-2">
-                <div className="flex min-w-0 items-end gap-1">
+                <div className="flex min-w-0 flex-1 items-end gap-1">
                   <ComposerAddMenu
                     disabled={disabled}
                     attachments={attach}
@@ -1931,7 +1913,7 @@ export function MessageInput({
                     feedbackAddDisabled={feedbackAddDisabled}
                   />
                   {hasInlineSelectors && (
-                    <div className="hidden min-w-0 items-end gap-1 @[30rem]:flex">
+                    <div className="hidden min-w-0 flex-1 items-end gap-1 @[30rem]:flex">
                       {inlineSelectorItems}
                     </div>
                   )}
@@ -2088,27 +2070,19 @@ export function MessageInput({
           </ContextMenuContent>
         </ContextMenu>
         {hasFolderBranchPicker && (
-          // `px-2` mirrors the action bar so this row lines up with the composer
-          // above; the folder icon then aligns with the centered "+" icon (both
-          // add the same 1px transparent border, paired with the picker buttons'
-          // `px-1.5`). The row only renders while attached below the composer, so
-          // it always takes the rounded-bottom box treatment. Pickers sit at the
-          // left edge; generation stats, context usage, and connection status
-          // right-align together as runtime metrics at the trailing edge.
-          <div className="flex items-center justify-between gap-2 rounded-b-2xl px-2 pt-1 text-xs text-muted-foreground">
+          <div
+            data-composer-status-row=""
+            className="mt-1 flex min-h-5 items-center justify-between gap-2 px-2 text-xs text-muted-foreground/60"
+          >
             <div className="flex min-w-0 items-center gap-1">
               <ConversationFolderBranchPicker
                 tabId={attachmentTabId}
                 override={folderPickerOverride}
               />
             </div>
-            {/* `pr-px` offsets the composer chrome's 1px border: the send button
-                sits INSIDE that border while this status row sits outside it, so
-                without the 1px nudge the trailing icon hangs 1px past the button.
-                With it, the connection icon's RIGHT edge is flush (0px) with the
-                send button's right edge in the action bar above — no centring
-                slot, which would inset the narrow icon and break the alignment. */}
-            <div className="flex shrink-0 items-center gap-3 pr-px">
+            {/* Match the trailing button edge to the action bar inside the
+                composer's 1px border. All status controls share a 24px height. */}
+            <div className="flex shrink-0 items-center gap-0 pr-px text-muted-foreground/80">
               <ComposerGenerationStats tabId={attachmentTabId ?? null} />
               <ComposerContextUsage tabId={attachmentTabId ?? null} />
               <ComposerConnectionStatus tabId={attachmentTabId ?? null} />

@@ -34,6 +34,7 @@
     "generateToken": "Generar token"
   },
   "SettingsShell": {
+    "backToApp": "Volver a la aplicación",
     "title": "Configuración",
     "preferences": "Preferencias",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "Paquetes de habilidades",
       "quick_messages": "Mensajes rápidos",
       "logs": "Registros de ejecución"
-    }
+    },
+    "searchSettings": "Search settings…",
+    "loading": "Loading settings…"
   },
   "AppearanceSettings": {
     "sectionTitle": "Apariencia del tema",
@@ -323,6 +326,7 @@
     "updateReadyHint": "Actualización descargada: reinicia para aplicarla.",
     "restarting": "Reiniciando...",
     "electronUpgradeHint": "Las actualizaciones de Electron requieren el instalador de escritorio. Descarga el paquete de Electron desde la página de versiones, instálalo y vuelve a abrir MaxCode.",
+    "downloadAndRestart": "Descargar actualización y reiniciar",
     "dockerUpgradeHint": "Esto actualiza el contenedor en ejecución ahora. Se pierde si se recrea el contenedor: para conservarlo, descarga o crea una imagen con la nueva versión y recrea el contenedor.",
     "upgradeRolledBack": "La actualización falló; el servidor volvió a la versión anterior.",
     "serverUnreachable": "No se pudo conectar con el servidor para iniciar la actualización. Comprueba que esté en ejecución e inténtalo de nuevo.",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "¿Eliminar carpeta del espacio de trabajo?",
       "removeFolderConfirmDescription": "¿Eliminar \"{name}\" del espacio de trabajo? Sus pestañas y terminales se cerrarán.",
       "folderHeaderMenu": {
-        "openInLeftSplit": "Abrir en división izquierda",
-        "openInRightSplit": "Abrir en división derecha",
         "splitLimitReached": "Las divisiones izquierda y derecha ya están en uso. Cierra una antes de abrir otra carpeta.",
         "manageConversations": "Gestionar conversaciones…",
         "manageLinks": "Carpetas vinculadas",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "Las divisiones izquierda y derecha ya están en uso. Cierra una antes de abrir otra carpeta."
     },
     "folderTitleBar": {
+      "workspaceTools": "Herramientas del espacio de trabajo",
       "showSidebar": "Mostrar barra lateral",
       "hideSidebar": "Ocultar barra lateral",
       "toggleTerminal": "Alternar terminal",
@@ -2113,6 +2116,12 @@
         "output": "Salida",
         "cacheRead": "Lectura de caché",
         "cacheWrite": "Escritura de caché",
+        "cacheHitRate": "Tasa de aciertos de caché",
+        "estimatedCost": "Coste estimado",
+        "estimatedPartialCost": "Coste parcial conocido",
+        "costLoading": "Calculando…",
+        "costBasis": "Uso registrado a tarifas API estándar (USD), sin tramos, planes ni descuentos.",
+        "costIncomplete": "Solo la parte con precio; faltan tarifas de algunos modelos o de caché.",
         "total": "Total de tokens"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "Habilidades"
       },
       "messageQueue": {
+        "adjustDirection": "Cambiar dirección",
+        "adjustDirectionHint": "Detener la respuesta y enviar este mensaje a continuación",
+        "reorderItem": "Arrastrar para reordenar",
         "addToQueue": "Agregar a la cola",
         "saveEdit": "Guardar",
         "cancelEdit": "Cancelar edición",
@@ -3283,6 +3295,8 @@
         "openFailed": "Error al abrir el archivo local"
       },
       "messageList": {
+        "editMessage": "Editar mensaje",
+        "editStopFailed": "No se pudo detener la respuesta. El mensaje está listo para editar en el cuadro de texto.",
         "attachedResources": "Recursos adjuntos",
         "loading": "Cargando...",
         "loadEarlier": "Cargar mensajes anteriores",
@@ -3331,6 +3345,7 @@
         "completedAt": "Completado a las",
         "jumpToPreviousUserMessage": "Ir al mensaje del usuario",
         "processed": "Procesado",
+        "activitySteps": "{count} pasos",
         "processedFor": "Procesado en {duration}",
         "showMore": "Mostrar más",
         "showLess": "Mostrar menos"
@@ -3345,6 +3360,7 @@
         "outputSpeedTooltip": "Velocidad de salida estimada (texto + razonamiento + argumentos de herramientas)"
       },
       "generationStats": {
+        "roundCount": "{count, plural, one {# turno} other {# turnos}}",
         "ttftAverage": "Promedio del primer token {duration}",
         "tokensPerSecond": "{throughput} tok/s"
       },
@@ -3365,6 +3381,7 @@
           "inputStreaming": "Pendiente",
           "outputAvailable": "Completado",
           "outputDenied": "Denegado",
+          "retrySucceeded": "Reintento exitoso",
           "outputError": "Error de salida"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "{count, plural, one {Actualizó # tarea} other {Actualizó # tareas}}",
           "task": "{count, plural, one {Ejecutó # tarea} other {Ejecutó # tareas}}",
           "other": "{count, plural, one {Usó # herramienta} other {Usó # herramientas}}",
-          "errorSuffix": "{count, plural, one {# falló} other {# fallaron}}",
+          "recoveredSuffix": "{count} reintentos exitosos",
+          "errorSuffix": "{count} incidencias de ejecución",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "También contiene la salida de {commands}: codex truncó sus separadores.",
           "truncated": "truncado"
         }
+      },
+      "conversationFind": {
+        "title": "Buscar en la conversación",
+        "previous": "Mensaje anterior",
+        "next": "Mensaje siguiente",
+        "close": "Cerrar búsqueda",
+        "loading": "Buscando mensajes anteriores…",
+        "partial": "Quedan mensajes anteriores sin buscar",
+        "retry": "Seguir cargando el historial",
+        "count": "{count} mensajes coincidentes",
+        "empty": "No hay mensajes coincidentes"
       },
       "messageNav": {
         "title": "Navegación de mensajes",

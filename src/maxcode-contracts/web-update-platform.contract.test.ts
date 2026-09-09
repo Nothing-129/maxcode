@@ -41,12 +41,12 @@ describe("MaxCode contract: updater and release channel", () => {
     expect(status).toContain("toast.dismiss(updateToastId(availableVersion))")
   })
 
-  it("keeps signed updater artifacts and explicit platform whitelists", () => {
+  it("keeps signed server updates and explicit platform whitelists", () => {
     const workflow = source(".github/workflows/release.yml")
     expect(workflow).toContain("DESKTOP_TARGETS:")
     expect(workflow).toContain("TAURI_SIGNING_PRIVATE_KEY")
-    expect(workflow).toContain("latest.json missing")
-    expect(workflow).toContain("no updater .sig artifacts")
+    expect(workflow).toContain("Require server updater signing key")
+    expect(workflow).toContain("release.cjs validate-assets")
   })
 
   it("keeps fork branding and installers on the user's repository", () => {

@@ -32,16 +32,14 @@ describe("MaxCode contract: generation stats", () => {
     expect(storage).toContain("getActiveRemoteConnectionId")
   })
 
-  it("groups the optional figures with right-side metrics and hides them in narrow composers", () => {
+  it("shows folder, branch and runtime metrics below the composer", () => {
     const input = source("src/components/chat/message-input.tsx")
     const stats = source("src/components/chat/composer-generation-stats.tsx")
 
-    const branch = input.indexOf("<ConversationFolderBranchPicker")
-    const generation = input.indexOf("<ComposerGenerationStats")
-    const contextUsage = input.indexOf("<ComposerContextUsage")
-    expect(branch).toBeGreaterThan(-1)
-    expect(generation).toBeGreaterThan(branch)
-    expect(contextUsage).toBeGreaterThan(generation)
+    expect(input).toContain("<ConversationFolderBranchPicker")
+    expect(input).toContain("<ComposerGenerationStats")
+    expect(input).toContain("<ComposerContextUsage")
+    expect(input).toContain("<ComposerConnectionStatus")
     expect(stats).toContain("canShowGenerationStats")
     expect(stats).toContain("chooseGenerationStatsDisplayMode")
     expect(stats).toContain('data-generation-stats="measure-throughput"')

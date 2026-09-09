@@ -408,7 +408,7 @@ export interface FolderDetail {
   kind: FolderKind
   /**
    * User-supplied display alias, or null when unset. When present, the sidebar
-   * folder header and conversation header render `alias [name]`
+   * folder header and conversation header render only the alias
    * (see `formatFolderLabelWithAlias`). Display-only — never used for the
    * folder's real `path`/`id`.
    */
@@ -826,7 +826,14 @@ export type CanvasChange =
 
 export const CANVAS_CHANGED_EVENT = "canvas://changed"
 
+/** Full-transcript normalized token buckets, priced at standard API rates. */
+export interface ConversationBillingUsage {
+  model: string | null
+  usage: TurnUsage
+}
+
 export interface DbConversationDetail {
+  billing_usage?: ConversationBillingUsage[] | null
   summary: DbConversationSummary
   turns: MessageTurn[]
   session_stats?: SessionStats | null
@@ -850,6 +857,8 @@ export interface DbConversationDetail {
    */
   turns_offset?: number | null
   turns_total?: number | null
+  /** User prompts across the full transcript, before window slicing. */
+  user_turns_total?: number | null
   /** Assistant turns in `full[0..turns_offset)` (baseline globalization). */
   assistant_turns_before_offset?: number | null
   /**
@@ -2314,8 +2323,7 @@ export interface TokenUsageReport {
 
 export interface TokenUsageFolderFacet {
   folder_id: number
-  /** Compact display name: the alias when set, else the folder name. The filter
-   *  list renders `alias [ name ]` from `name` + `alias` instead. */
+  /** Compact display name: the alias when set, else the folder name. */
   label: string
   /** The folder's real (on-disk) directory name, alias or not. */
   name: string
@@ -4403,6 +4411,8 @@ export interface OpenCodeCatalogModel {
   context: number | null
   cost_in: number | null
   cost_out: number | null
+  cost_cache_read?: number | null
+  cost_cache_write?: number | null
 }
 
 /**

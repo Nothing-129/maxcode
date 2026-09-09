@@ -11,11 +11,7 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* 默认界面字体 = macOS / Windows 原生系统字体（与 DEFAULT_UI_FONT_ID = "system-ui"
-     一致，须等于 font-presets.ts 的 resolveFontStack("system-ui", "", "sans")，
-     否则首屏到水合会闪字），
-     运行时由 AppearanceProvider 覆盖 --font-sans。会话消息区等普通文本均跟随 --font-sans；
-     --font-mono 不在此自定义，由 Tailwind 默认等宽栈兜底（与代码编辑器字体相互独立）。 */
+  /* Keep the first-paint system stack in sync with SANS_FALLBACK. */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
     "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Segoe UI", sans-serif;
@@ -65,142 +61,147 @@
    ========================================================================= */
 
 /* ---------- neutral (default) ---------- */
+/* 基于 ChatGPT 桌面端设计令牌；浅色侧栏使用用户指定的 #fcfcfc（2026-09-09）。
+   亮色：主区 #ffffff、侧栏 #fcfcfc、用户气泡/软面 #f4f4f4、
+   悬停 #ececec、正文 #0d0d0d（gray-1000）、次级文本 #5d5d5d（gray-500）。 */
 [data-theme="neutral"] {
   --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.965 0.002 95);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.965 0.002 95);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.965 0.002 95);
-  --accent-foreground: oklch(0.205 0 0);
+  --foreground: #0d0d0d;
+  --card: #ffffff;
+  --card-foreground: #0d0d0d;
+  --popover: #ffffff;
+  --popover-foreground: #0d0d0d;
+  --primary: #0d0d0d;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f4;
+  --secondary-foreground: #0d0d0d;
+  --muted: #f4f4f4;
+  --muted-foreground: #5d5d5d;
+  --accent: #ececec;
+  --accent-foreground: #0d0d0d;
   --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.91 0.003 95);
-  --input: oklch(0.91 0.003 95);
-  --ring: oklch(0.708 0 0);
+  --border: #e6e6e6;
+  --input: #e6e6e6;
+  --ring: #0d0d0d;
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
   --sidebar: #fcfcfc;
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.935 0.003 95);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.91 0.003 95);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-foreground: #0d0d0d;
+  --sidebar-primary: #0d0d0d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ececec;
+  --sidebar-accent-foreground: #0d0d0d;
+  --sidebar-border: #e6e6e6;
+  --sidebar-ring: #0d0d0d;
 }
 
 /* 兜底：如果 inline 脚本失败或 data-theme 缺失，回退到 neutral light */
 :root:not([data-theme]) {
   --background: #ffffff;
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.965 0.002 95);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.965 0.002 95);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.965 0.002 95);
-  --accent-foreground: oklch(0.205 0 0);
+  --foreground: #0d0d0d;
+  --card: #ffffff;
+  --card-foreground: #0d0d0d;
+  --popover: #ffffff;
+  --popover-foreground: #0d0d0d;
+  --primary: #0d0d0d;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f4;
+  --secondary-foreground: #0d0d0d;
+  --muted: #f4f4f4;
+  --muted-foreground: #5d5d5d;
+  --accent: #ececec;
+  --accent-foreground: #0d0d0d;
   --destructive: oklch(0.58 0.22 27);
-  --border: oklch(0.91 0.003 95);
-  --input: oklch(0.91 0.003 95);
-  --ring: oklch(0.708 0 0);
+  --border: #e6e6e6;
+  --input: #e6e6e6;
+  --ring: #0d0d0d;
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
   --sidebar: #fcfcfc;
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.935 0.003 95);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.91 0.003 95);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-foreground: #0d0d0d;
+  --sidebar-primary: #0d0d0d;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #ececec;
+  --sidebar-accent-foreground: #0d0d0d;
+  --sidebar-border: #e6e6e6;
+  --sidebar-ring: #0d0d0d;
 }
 
+/* ChatGPT 桌面端暗色：主区 #212121（gray-800）、侧栏 #171717、用户气泡/软面 #303030
+   （gray-700）、悬停 #2f2f2f、正文 #ececec（gray-150）、次级 #b4b4b4、发送键白色圆钮。 */
 [data-theme="neutral"].dark {
-  --background: oklch(0.16 0.002 95);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0.002 95);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0.002 95);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.255 0.003 95);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.255 0.003 95);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.33 0.003 95);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #212121;
+  --foreground: #ececec;
+  --card: #2f2f2f;
+  --card-foreground: #ececec;
+  --popover: #2f2f2f;
+  --popover-foreground: #ececec;
+  --primary: #ffffff;
+  --primary-foreground: #0d0d0d;
+  --secondary: #303030;
+  --secondary-foreground: #ececec;
+  --muted: #303030;
+  --muted-foreground: #b4b4b4;
+  --accent: #2f2f2f;
+  --accent-foreground: #ececec;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #ffffff14;
+  --input: #ffffff29;
+  --ring: #ececec;
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.19 0.002 95);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.87 0 0);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.255 0.003 95);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #171717;
+  --sidebar-foreground: #ececec;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0d0d0d;
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: #ececec;
+  --sidebar-border: #ffffff14;
+  --sidebar-ring: #ececec;
 }
 
-/* 兜底 dark：data-theme 缺失时仍能跟随 .dark 类切换 */
+/* 兜底 dark：data-theme 缺失时仍能跟随 .dark 类切换（= ChatGPT 暗色） */
 :root:not([data-theme]).dark {
-  --background: oklch(0.16 0.002 95);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0.002 95);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0.002 95);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.87 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.255 0.003 95);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.255 0.003 95);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.33 0.003 95);
-  --accent-foreground: oklch(0.985 0 0);
+  --background: #212121;
+  --foreground: #ececec;
+  --card: #2f2f2f;
+  --card-foreground: #ececec;
+  --popover: #2f2f2f;
+  --popover-foreground: #ececec;
+  --primary: #ffffff;
+  --primary-foreground: #0d0d0d;
+  --secondary: #303030;
+  --secondary-foreground: #ececec;
+  --muted: #303030;
+  --muted-foreground: #b4b4b4;
+  --accent: #2f2f2f;
+  --accent-foreground: #ececec;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #ffffff14;
+  --input: #ffffff29;
+  --ring: #ececec;
   --chart-1: oklch(0.809 0.105 251.813);
   --chart-2: oklch(0.623 0.214 259.815);
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: oklch(0.19 0.002 95);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.87 0 0);
-  --sidebar-primary-foreground: oklch(0.205 0 0);
-  --sidebar-accent: oklch(0.255 0.003 95);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #171717;
+  --sidebar-foreground: #ececec;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #0d0d0d;
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: #ececec;
+  --sidebar-border: #ffffff14;
+  --sidebar-ring: #ececec;
 }
 
 /* ---------- zinc ---------- */
@@ -964,6 +965,12 @@
   background-color: transparent;
 }
 
+/* Footer utilities share the mobile drawer canvas, without a separate band. */
+.mobile-sidebar-drawer [data-sidebar-footer] {
+  background-color: transparent;
+  border-top-width: 0;
+}
+
 /* Android's edge-to-edge WebView reports its real status-bar/cutout height via
    this custom property. Keep the drawer surface immersive, but move its header
    controls below the system icons. Browsers and desktop builds keep the 0px
@@ -976,32 +983,32 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]):not(.light) {
-    --background: oklch(0.16 0.002 95);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0.002 95);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0.002 95);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.87 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.255 0.003 95);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.255 0.003 95);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.33 0.003 95);
-    --accent-foreground: oklch(0.985 0 0);
+    --background: #212121;
+    --foreground: #ececec;
+    --card: #2f2f2f;
+    --card-foreground: #ececec;
+    --popover: #2f2f2f;
+    --popover-foreground: #ececec;
+    --primary: #ffffff;
+    --primary-foreground: #0d0d0d;
+    --secondary: #303030;
+    --secondary-foreground: #ececec;
+    --muted: #303030;
+    --muted-foreground: #b4b4b4;
+    --accent: #2f2f2f;
+    --accent-foreground: #ececec;
     --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --sidebar: oklch(0.19 0.002 95);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.255 0.003 95);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --border: #ffffff14;
+    --input: #ffffff29;
+    --ring: #ececec;
+    --sidebar: #171717;
+    --sidebar-foreground: #ececec;
+    --sidebar-primary: #ffffff;
+    --sidebar-primary-foreground: #0d0d0d;
+    --sidebar-accent: #2a2a2a;
+    --sidebar-accent-foreground: #ececec;
+    --sidebar-border: #ffffff14;
+    --sidebar-ring: #ececec;
   }
 }
 
@@ -2170,11 +2177,12 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   border-color: rgb(0 0 0 / 6%);
 }
 
+/* Subtle composer elevation, without a second outline around the border. */
 :root:is([data-theme="neutral"], :not([data-theme])):not(.dark)
   .maxcode-composer-shadow {
   box-shadow:
-    0 2px 6px rgb(0 0 0 / 2%),
-    0 8px 32px rgb(0 0 0 / 3%);
+    0 2px 8px rgb(0 0 0 / 2.5%),
+    0 4px 32px rgb(0 0 0 / 1.5%);
 }
 
 /* Active-session composer: a gradient that flows around the input border as the
@@ -2237,7 +2245,28 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   outline: none;
   white-space: pre-wrap;
   word-break: break-word;
-  line-height: 1.55;
+  /* Screenshot comparison: regular (400) is visibly thinner than the desktop
+     reference. Keep medium weight on the editable text, including placeholders. */
+  font-family:
+    -apple-system-body,
+    ui-sans-serif,
+    -apple-system,
+    system-ui,
+    "Segoe UI",
+    "Helvetica",
+    "Apple Color Emoji",
+    "Arial",
+    sans-serif,
+    "Segoe UI Emoji",
+    "Segoe UI Symbol";
+  color: #1a1c1e;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.dark .codeg-composer .ProseMirror {
+  color: var(--foreground);
 }
 
 /* Keep the text selection visible after the editor loses focus to an overlay
@@ -2362,10 +2391,22 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 /* Placeholder painted by @tiptap/extension-placeholder on the empty doc. */
 .codeg-composer .ProseMirror p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
-  color: var(--muted-foreground);
+  color: color-mix(in srgb, var(--muted-foreground) 65%, transparent);
   float: left;
   height: 0;
   pointer-events: none;
+}
+
+/* An empty paragraph retains a trailing break after Select All → Delete.
+   Neither that break nor the placeholder should paint a selection rectangle. */
+.codeg-composer .ProseMirror p.is-editor-empty::selection,
+.codeg-composer .ProseMirror p.is-editor-empty br::selection {
+  background-color: transparent;
+}
+
+.codeg-composer .ProseMirror p.is-editor-empty:first-child::before {
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* Inline reference badges (atom node view). */
@@ -3001,10 +3042,76 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   cursor: grabbing !important;
 }
 
+/* Historical reply actions occupy the existing inter-message gutter instead
+   of adding another 32px of blank space. The last reply keeps its normal row
+   height so its actions remain inside the scroll viewport above the composer. */
+.maxcode-chat-column[data-thread-tail="false"] .maxcode-turn-actions {
+  height: 0;
+  margin-top: 0;
+  position: relative;
+  top: 0.5rem;
+  align-items: flex-start;
+}
+
 /* Chat body size is independent of interface controls and editor preferences. */
+.chat-message-shell,
 .chat-message-text {
   font-size: var(--chat-font-size, 0.875rem);
-  line-height: 1.5;
+  font-family: var(--font-sans);
+  font-weight: 430;
+  line-height: 1.625;
+  color: #1a1c1f;
+}
+.dark .chat-message-shell,
+.dark .chat-message-text {
+  color: var(--foreground);
+}
+.chat-message-text :is(strong, b) {
+  font-weight: 600;
+}
+/* Match the reference's 14px type / 22.75px line boxes. Streamdown's mb-4
+   paragraphs and inside markers otherwise add space even with compact li's. */
+.chat-message-text .chat-markdown > p {
+  margin: 0 0 0.25em;
+}
+.chat-message-text .chat-markdown > p:not(:first-child) {
+  margin-top: 0.5em;
+}
+.chat-message-text .chat-markdown > p + p {
+  margin-block: 1em;
+}
+.chat-message-text .chat-markdown > p:last-child {
+  margin-bottom: 0;
+}
+.chat-message-text :is(ul, ol) {
+  margin-block: 0;
+  padding-inline-start: 1.625em;
+  list-style-position: outside;
+}
+.chat-message-text li {
+  /* Override Streamdown py-1; margins alone leave 8px on every item. */
+  padding-block: 0;
+  padding-inline-start: 0.375em;
+  margin-block: 0;
+}
+.chat-message-text li::marker {
+  color: currentColor;
+  font-weight: 600;
+}
+.chat-message-text li > p {
+  display: block;
+  margin-block: 0;
+}
+.chat-message-text li > p + p {
+  margin-top: 1em;
+}
+.maxcode-turn-heading {
+  color: #808182;
+  border-color: rgb(26 28 31 / 7%);
+}
+.dark .maxcode-turn-heading {
+  color: var(--muted-foreground);
+  border-color: color-mix(in srgb, var(--foreground) 10%, transparent);
 }
 .chat-message-text h1 {
   font-size: 1.7142857em;
@@ -3017,4 +3124,210 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 }
 .chat-message-text [data-streamdown="code-block-body"] {
   font-size: calc(var(--chat-font-size, 0.875rem) * 13 / 14);
+}
+
+/* Supplied Codex desktop reference: one centered column shared by replies,
+   banners and composer. Gutters are included in this border-box width. */
+.maxcode-chat-column {
+  width: 100%;
+  max-width: 48rem;
+}
+
+/* Native macOS controls share the workspace header in Electron. */
+html[data-native-shell="electron"] [data-tauri-drag-region] {
+  -webkit-app-region: drag;
+}
+html[data-native-shell="electron"]
+  :is(button, a, input, textarea, [role="button"], [contenteditable="true"]) {
+  -webkit-app-region: no-drag;
+}
+
+/* A mouse-selected menu returns focus to its trigger, but must not inherit
+   the text editor's keyboard ring. Keep focus and keyboard navigation intact. */
+html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
+  --tw-ring-shadow: 0 0 #0000;
+  border-color: transparent;
+  outline: none;
+}
+
+/* Desktop settings use quiet grouped rows; workspace controls keep their style. */
+[data-settings-surface] {
+  --settings-hairline: color-mix(
+    in srgb,
+    var(--foreground) 9%,
+    var(--background)
+  );
+}
+[data-settings-surface] .settings-drag-strip {
+  background: linear-gradient(
+    to right,
+    var(--sidebar) 16.75rem,
+    var(--background) 16.75rem
+  );
+}
+[data-settings-surface] aside {
+  padding-top: 0;
+}
+[data-settings-surface] .settings-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  margin: 0 0 20px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: var(--secondary);
+  color: var(--muted-foreground);
+}
+[data-settings-surface] .settings-search:focus-within {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+[data-settings-surface] .settings-search input {
+  width: 100%;
+  min-width: 0;
+  outline: none;
+  background: transparent;
+  font-size: 13px;
+}
+[data-settings-surface]
+  .settings-content
+  [data-overlayscrollbars-viewport]
+  > div {
+  max-width: 816px;
+  margin-inline: auto;
+  padding: 24px 24px 64px;
+}
+[data-settings-surface] .settings-content h1 {
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 500;
+  margin-bottom: 32px;
+}
+[data-settings-surface] .settings-content h1 + p {
+  display: none;
+}
+[data-settings-surface] [data-settings-section] {
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  margin-top: 40px;
+}
+[data-settings-surface] [data-settings-section] > div:first-child {
+  align-items: center;
+}
+[data-settings-surface] [data-settings-section] h2,
+[data-settings-surface] [data-settings-section] h2 label {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+}
+[data-settings-surface] [data-settings-section] h2 svg,
+[data-settings-surface] [data-setting-row] label > svg {
+  display: none;
+}
+[data-settings-surface] [data-settings-section] p,
+[data-settings-surface] [data-setting-row] .text-xs {
+  font-size: 13px;
+  line-height: 18px;
+  color: var(--muted-foreground);
+}
+[data-settings-surface] [data-setting-card],
+[data-settings-surface] [data-settings-option-group] {
+  border: 1px solid var(--settings-hairline);
+  border-radius: 16px;
+  background: var(--background);
+  padding-inline: 16px;
+  overflow: hidden;
+}
+[data-settings-surface] [data-setting-row] {
+  padding: 14px 0;
+  border-color: var(--settings-hairline);
+}
+[data-settings-surface] [data-setting-row] > div:first-child {
+  align-items: center;
+}
+[data-settings-surface] [data-setting-row] label {
+  font-weight: 400;
+}
+[data-settings-surface] [data-settings-option-group] > [data-settings-section] {
+  margin: 0;
+  padding: 14px 0;
+}
+[data-settings-surface]
+  [data-settings-option-group]
+  > [data-settings-section]
+  + [data-settings-section] {
+  border-top: 1px solid var(--settings-hairline);
+}
+[data-settings-surface]
+  [data-settings-option-group]
+  > [data-settings-section]
+  > div:first-child {
+  padding: 0;
+  border: 0;
+}
+[data-settings-surface] [data-settings-option] h2,
+[data-settings-surface] [data-settings-option] h2 label {
+  font-weight: 400;
+}
+[data-settings-surface] [data-slot="switch"] {
+  width: 32px;
+  height: 20px;
+  background: var(--secondary);
+}
+[data-settings-surface] [data-slot="switch"][data-state="checked"] {
+  background: #3080ff;
+}
+[data-settings-surface] [data-slot="switch-thumb"] {
+  background: white;
+}
+[data-settings-surface] [data-slot="switch-thumb"][data-state="checked"] {
+  translate: 12px 0;
+  transform: none;
+}
+[data-settings-surface] [data-slot="select-trigger"] {
+  width: auto;
+  min-width: 100px;
+  max-width: 220px;
+  height: 28px;
+  border-radius: 9px;
+  border: 1px solid var(--settings-hairline);
+  background: var(--background);
+  box-shadow: none;
+  font-size: 13px;
+}
+@media (max-width: 767px) {
+  [data-settings-surface] .settings-drag-strip {
+    background: var(--background);
+  }
+  [data-settings-surface]
+    .settings-content
+    [data-overlayscrollbars-viewport]
+    > div {
+    padding: 20px 16px 40px;
+  }
+  [data-settings-surface] [data-settings-option] > div:first-child {
+    flex-wrap: wrap;
+  }
+}
+
+/* Screenshot-measured sidebar ink. Opening a tab must not turn its title black. */
+.maxcode-sidebar-label {
+  color: #434447;
+}
+.dark .maxcode-sidebar-label {
+  color: var(--sidebar-foreground);
+}
+
+/* Separate performance and usage only when both are visible. */
+[data-generation-stats="visible"][aria-hidden="false"]
+  ~ [data-composer-usage]::before {
+  content: "｜";
+  width: 1em;
+  flex-shrink: 0;
+  margin-inline: 0.25rem;
+  opacity: 0.4;
 }

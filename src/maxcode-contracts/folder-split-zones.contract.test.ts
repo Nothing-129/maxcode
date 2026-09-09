@@ -1,74 +1,65 @@
 import { describe, expect, it } from "vitest"
 
-import { leafIds, singleGroupLayout, splitGroup } from "@/lib/tab-group-layout"
 import { source } from "./contract-source"
 
-describe("MaxCode contract: folder-bound tab splits", () => {
-  it("supports deterministic left and right placement", () => {
-    const root = singleGroupLayout("workspace-a")
-    expect(
-      leafIds(splitGroup(root, "workspace-a", "left", "workspace-b"))
-    ).toEqual(["workspace-b", "workspace-a"])
-    expect(
-      leafIds(splitGroup(root, "workspace-a", "right", "workspace-b"))
-    ).toEqual(["workspace-a", "workspace-b"])
-  })
-
-  it("keeps the sidebar entry points and folder-aware routing wired", () => {
+/**
+ * ChatGPT 桌面端 1:1 复刻：ChatGPT 没有分屏，用户选择牺牲该功能（2026-09-08）。
+ * 本契约钉住「分屏永久禁用」的四个不变量：
+ *   1. selectIsSplit 恒为 false —— UI 永远走单窗格布局；
+ *   2. hydration 把历史持久化的多组布局归一为单组（升级不炸、不留隐形标签）；
+ *   3. splitTab / moveTabToGroup 是空操作 —— 布局无法再变成多组；
+ *   4. openFolderInSplit 退化为在当前单组正常打开（保留旧调用兼容）。
+ * 原「folder-bound tab splits」契约（左右分栏/文件夹分区）随功能一并退役。
+ */
+describe("MaxCode contract: split groups permanently disabled (ChatGPT 1:1)", () => {
+  it("folder menus do not expose retired split actions", () => {
     const sidebar = source(
       "src/components/conversations/sidebar-conversation-list.tsx"
     )
-    expect(sidebar).toContain("openInLeftSplit")
-    expect(sidebar).toContain("openInRightSplit")
-    expect(sidebar).toContain("openFolderInSplit(folderId, folder.path, side)")
-
-    const store = source("src/stores/tab-store.ts")
-    expect(store).toContain("planTargetGroupForFolder")
-    expect(store).toContain("folderBindings: st.groupFolder")
-    expect(store).toContain("OTHER_FOLDER_ZONE_ID")
-    expect(store).toContain("const anchor = leaves[leaves.length - 1]")
-    expect(store).toContain("[targetGroup]: OTHER_FOLDER_ZONE_ID")
-    expect(store).toContain("targetFolder !== moving.folderId")
-    expect(store).toContain("if (targetPlan == null) return false")
+    expect(sidebar).not.toContain("onOpenInSplit")
+    expect(sidebar).not.toContain("openFolderInSplit")
+    expect(sidebar).not.toContain("folderHeaderMenu.openInLeftSplit")
+    expect(sidebar).not.toContain("folderHeaderMenu.openInRightSplit")
   })
 
-  it("keeps each folder-bound zone to one active tab", () => {
+  it("selectIsSplit is always false", () => {
     const store = source("src/stores/tab-store.ts")
-    expect(store).toContain("function enforceFolderZoneSingleTabs()")
-    expect(store).toContain("if (st.groupFolder[groupId] == null) continue")
+    expect(store).toMatch(
+      /export function selectIsSplit\(\): boolean \{\s*\n\s*return false\s*\n\}/
+    )
+  })
+
+  it("hydration collapses any persisted multi-group layout into a single group", () => {
+    const store = source("src/stores/tab-store.ts")
+    expect(store).toContain("singleGroupLayout()")
     expect(store).toContain(
-      "const keep = active ?? selected ?? members[members.length - 1]"
-    )
-    expect(store).toContain("rawTabs: st.rawTabs.filter")
-  })
-
-  it("keeps mobile navigation single-pane when desktop folder zones are persisted", () => {
-    const panel = source(
-      "src/components/conversations/conversation-detail-panel.tsx"
-    )
-    expect(panel).toContain("const showSplitLayout = isSplit && !isMobile")
-    expect(panel).toMatch(
-      /const visible = isMobile\s*\? active\s*: canTileG \|\| tab\.id === groupSelection\[groupId\]/
-    )
-    expect(panel).toContain(
-      'isMobile\n            ? { left: 0, top: 0, width: "100%", height: "100%" }'
+      'parsed.layout.type === "group" ? parsed.layout : singleGroupLayout()'
     )
   })
 
-  it("lets seeded drafts and entire folder zones close", () => {
+  it("splitTab and moveTabToGroup are no-ops", () => {
     const store = source("src/stores/tab-store.ts")
-    expect(store).toContain("if (closingTab.conversationId == null)")
-    expect(store).toContain("set({ rawTabs: [], activeTabId: null })")
-    expect(store).toContain("closeGroup: (groupId) =>")
-    expect(store).toContain("closingIds.has(tab.id)")
+    const splitTabIdx = store.indexOf("splitTab: (tabId, direction, opts) => {")
+    const splitTab = store.slice(splitTabIdx, splitTabIdx + 400)
+    expect(splitTab).toContain("void tabId")
+    expect(splitTab).not.toContain("splitGroup(")
+
+    const moveTabIdx = store.indexOf(
+      "moveTabToGroup: (tabId, targetGroupId, opts) => {"
+    )
+    const moveTab = store.slice(moveTabIdx, moveTabIdx + 300)
+    expect(moveTab).toContain("void targetGroupId")
+    expect(moveTab).not.toContain("groupOfTab(")
   })
 
-  it("shows folder remarks and a context-menu close action", () => {
-    const strip = source("src/components/tabs/tab-bar.tsx")
-    expect(strip).toContain("groupFolder[stripGroupId]")
-    expect(strip).toContain("boundFolder?.alias?.trim()")
-    expect(strip).toContain('t("otherFolderZone")')
-    expect(strip).toContain("<ContextMenuTrigger asChild>")
-    expect(strip).toContain("closeGroup(stripGroupId)")
+  it("openFolderInSplit opens in the single group instead of splitting", () => {
+    const store = source("src/stores/tab-store.ts")
+    const fnIdx = store.indexOf(
+      "openFolderInSplit: (folderId, workingDir, side) => {"
+    )
+    const fn = store.slice(fnIdx, fnIdx + 400)
+    expect(fn).toContain("void side")
+    expect(fn).toContain("openNewConversationTab(folderId, workingDir)")
+    expect(fn).not.toContain("splitGroup(")
   })
 })

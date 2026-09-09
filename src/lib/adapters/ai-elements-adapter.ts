@@ -14,7 +14,7 @@ import {
   isDelegationStatusToolName,
 } from "@/lib/adapters/tool-kind-classifier"
 import { normalizeToolName } from "@/lib/tool-call-normalization"
-import { isCodexGrepNoMatchEnvelope } from "@/lib/codex-command-action"
+import { isSearchNoMatchResult } from "@/lib/search-no-match"
 import { isBackgroundTaskToolCall } from "@/lib/background-task"
 import { isContextCompactionMeta } from "@/lib/context-compaction"
 import { isUnsettledToolCall } from "@/lib/tool-call-lifecycle"
@@ -48,6 +48,8 @@ export type AdaptedToolCallPart = {
   type: "tool-call"
   toolCallId: string
   toolName: string
+  /** Presentation-only link to a confirmed successful retry in this turn. */
+  recoveredBy?: string
   displayTitle?: string | null
   input: string | null
   state: ToolCallState
@@ -1975,25 +1977,22 @@ function buildToolResultMap(
 }
 
 /**
- * Codex reports a ripgrep search with no matches as a failed ACP tool result:
- * exit 1 with an otherwise empty command envelope. Treat only that exact shape
- * as a successful presentation state. The ContentBlock and its raw envelope
- * stay untouched, and every other nonzero result remains an error.
- *
- * Shares `isCodexGrepNoMatchEnvelope` with the search body in
- * `content-parts-renderer`, which recognises the same envelope to render "No
- * matches" instead of a raw JSON dump. Two predicates for one fact would let
- * the card's status and its body disagree.
+ * rg/grep exit 1 when nothing matches, and most agents stamp that as a failed
+ * tool result. Presentation treats that empty miss as success; the raw
+ * envelope stays on `output` so the search body can still unwrap it. Shares
+ * `isSearchNoMatchResult` with the search body and nested agent tool calls.
  */
-function isCodexGrepNoMatchResult(
+function isGrepNoMatchResult(
   toolName: string,
+  input: string | null | undefined,
   result: ContentBlock & { type: "tool_result" }
 ): boolean {
-  if (!result.is_error || typeof result.output_preview !== "string")
-    return false
-  if (normalizeToolName(toolName) !== "grep") return false
-
-  return isCodexGrepNoMatchEnvelope(result.output_preview)
+  return isSearchNoMatchResult({
+    toolName,
+    input,
+    output: result.output_preview,
+    isError: result.is_error,
+  })
 }
 
 /**
@@ -2157,8 +2156,9 @@ export function adaptMessageTurn(
           adaptedContent.push(...imageParts)
           continue
         }
-        const isNoMatch = isCodexGrepNoMatchResult(
+        const isNoMatch = isGrepNoMatchResult(
           block.tool_name,
+          block.input_preview,
           matchedResult
         )
         adaptedContent.push({
@@ -2202,8 +2202,9 @@ export function adaptMessageTurn(
             adaptedContent.push(...imageParts)
             continue
           }
-          const isNoMatch = isCodexGrepNoMatchResult(
+          const isNoMatch = isGrepNoMatchResult(
             block.tool_name,
+            block.input_preview,
             positionalResult
           )
           adaptedContent.push({

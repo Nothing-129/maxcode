@@ -150,3 +150,10 @@ describe("CustomStyleSection", () => {
     expect(primary()).toBe("#112233")
   })
 })
+
+// Exercise the retained customization implementation in its future enabled mode.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

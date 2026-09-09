@@ -1,7 +1,9 @@
 "use client"
 
+import { InAppSettings } from "@/components/settings/in-app-settings"
 import {
   Suspense,
+  type CSSProperties,
   useMemo,
   useCallback,
   useEffect,
@@ -9,10 +11,10 @@ import {
   useState,
 } from "react"
 import type { ImperativePanelGroupHandle } from "react-resizable-panels"
+import { MobileHeaderProvider } from "@/components/layout/mobile-header-slot"
 import { FolderTitleBar } from "@/components/layout/folder-title-bar"
 import { Sidebar } from "@/components/layout/sidebar"
 import { ConversationUnreadSync } from "@/components/conversations/conversation-unread-sync"
-import { StatusBar } from "@/components/layout/status-bar"
 import { UpdateProvider } from "@/components/providers/update-provider"
 import {
   AppWorkspaceProvider,
@@ -28,7 +30,6 @@ import {
 import { DelegationProvider } from "@/contexts/delegation-context"
 import { ConversationRuntimeProvider } from "@/contexts/conversation-runtime-context"
 import { TabProvider, useTabStore, useTabActions } from "@/contexts/tab-context"
-import { selectIsSplit } from "@/stores/tab-store"
 import { SidebarProvider, useSidebarContext } from "@/contexts/sidebar-context"
 import { SearchDialogProvider } from "@/contexts/search-dialog-context"
 import { AutomationsViewProvider } from "@/contexts/automations-view-context"
@@ -59,7 +60,6 @@ import {
 import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
 import { useWorkspaceBackground, useZoomLevel } from "@/hooks/use-appearance"
 import { FILL_MODE_STYLE } from "@/lib/workspace-background"
-import { TabBar } from "@/components/tabs/tab-bar"
 import { TerminalPanel } from "@/components/terminal/terminal-panel"
 import { AuxPanel } from "@/components/layout/aux-panel"
 import { LeftEdgeChrome } from "@/components/layout/left-edge-chrome"
@@ -83,7 +83,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
-import { isDesktop } from "@/lib/platform"
+import { isDesktop, isNativeDesktop } from "@/lib/platform"
 import {
   WINDOW_CAPTION_WIDTH,
   leftChromeReserve,
@@ -317,15 +317,13 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
   const { isOpen: auxOpen } = useAuxPanelContext()
   const { isMac, isWindows, isLinux } = usePlatform()
   const { zoomLevel } = useZoomLevel()
-  const hasConvTabs = useTabStore((s) => s.tabs.length > 0)
-  const isConvSplit = useTabStore(selectIsSplit)
   const winLinuxControls = isDesktop() && (isWindows || isLinux)
   // The window chrome (toggle/search left, terminal/aux/settings right) now
   // lives in fixed corner overlays (see FolderLayoutShell) that never move on
   // panel toggles. Each edge column just reserves the overlay's width so its
   // tabs never render underneath. The reserve scales with the app zoom so it
   // tracks the rem-sized overlay buttons (which grow with zoom).
-  const leftReserve = leftChromeReserve(isMac && isDesktop(), zoomLevel)
+  const leftReserve = leftChromeReserve(isMac && isNativeDesktop(), zoomLevel)
   const rightReserve = rightChromeReserve(winLinuxControls, zoomLevel)
   // A middle column reserves the right overlay only when it (not the aux panel)
   // is the window's right edge: the file column in fusion, else conversation.
@@ -369,56 +367,14 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
                   // descendants that declare `visibility: visible` themselves).
                   filesMaximized && "conversation-tab-hidden invisible"
                 )}
+                style={
+                  {
+                    "--conversation-header-left": `${sidebarOpen ? 12 : leftReserve + 12}px`,
+                    "--conversation-header-right": `${convReservesRight ? rightReserve + 12 : 12}px`,
+                  } as CSSProperties
+                }
                 inert={filesMaximized || undefined}
               >
-                {/* Conversation column top bar (UNSPLIT only): the tab strip,
-                  plus a left reserve (only when the sidebar is collapsed, so
-                  this column owns the window's left edge) and a right reserve
-                  (only when it's the window's right edge) for the fixed corner
-                  overlays. The detail header + tiles render inside {children},
-                  directly below. `bg-muted` shades the strip like a browser tab
-                  bar (matching the bottom StatusBar) — the active tab
-                  (bg-background) reads as a white tab seated on it, with
-                  reverse bottom corners. With a workspace background image on,
-                  the strip + every tab go transparent (reveal the image); a
-                  hairline bottom border (ws-strip-line) runs under the reserves
-                  and inactive tabs while the active tab omits it and the border
-                  arches over its top (the active browser-tab-item's `::after`)
-                  instead. While SPLIT this row disappears entirely (no blank
-                  drag strip above the shells): each group shell hosts its own
-                  strip whose tail spacer is a window-drag region, and the
-                  TOP-edge strips re-create the corner reserves themselves (see
-                  SplitStripCornerReserve in conversation-detail-panel). */}
-                {!isConvSplit && (
-                  <div className="flex h-10 shrink-0 items-stretch bg-muted ws-transparent-bg">
-                    {!sidebarOpen && (
-                      <div
-                        data-tauri-drag-region
-                        className="h-full shrink-0 ws-strip-line"
-                        style={{ width: leftReserve }}
-                      />
-                    )}
-                    <div className="flex min-w-0 flex-1 items-stretch">
-                      {hasConvTabs ? (
-                        <TabBar />
-                      ) : (
-                        // No tabs → TabBar renders null; keep a drag region so
-                        // the title bar can still move the window.
-                        <div
-                          data-tauri-drag-region
-                          className="h-full min-w-0 flex-1 ws-strip-line"
-                        />
-                      )}
-                    </div>
-                    {convReservesRight && (
-                      <div
-                        data-tauri-drag-region
-                        className="h-full shrink-0 ws-strip-line"
-                        style={{ width: rightReserve }}
-                      />
-                    )}
-                  </div>
-                )}
                 {/* Pane activation lives on the CONTENT, not the top bar: clicking
                   edge chrome (terminal/settings/toggles) or grabbing a drag
                   region stays pane-neutral so it never hijacks close-tab /
@@ -1051,8 +1007,9 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
               collapse never flashes white: Sidebar `return null`s the instant
               it closes, but the panel keeps a shrinking width for the 240ms
               slide — an un-backed wrapper would show the root `bg-background`
-              (white) through that gap. */}
-          <div className="h-full min-h-0 overflow-hidden ws-surface-sidebar">
+              (white) through that gap. 真实 ChatGPT 桌面端在侧栏与主区之间有
+              一条 #e6e6e7 发丝分隔线（--sidebar-border ≈ #e6e6e6），故挂 border-r。 */}
+          <div className="h-full min-h-0 overflow-hidden ws-surface-sidebar border-r border-sidebar-border">
             <Sidebar />
           </div>
         </ResizablePanel>
@@ -1198,16 +1155,18 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
           owned by the full-width FolderTitleBar). Mounted on both platforms. */}
       <WorkspaceChromeController />
       {isMobile ? (
-        <>
+        <MobileHeaderProvider>
           {/* Mobile keeps the visible full-width bar; desktop moved its buttons
               into fixed corner overlays (LeftEdgeChrome / RightEdgeChrome). */}
           <FolderTitleBar />
           <MobileFolderWorkspaceShell>{children}</MobileFolderWorkspaceShell>
-        </>
+        </MobileHeaderProvider>
       ) : (
         <FolderWorkspaceShell>{children}</FolderWorkspaceShell>
       )}
-      <StatusBar />
+      {/* ChatGPT 桌面端没有底部状态栏：主界面到窗口底缘即止。QuickActions /
+          任务 / 命令面板 / 告警 / 更新入口随 StatusBar 一并从桌面布局移除
+          （组件保留，移动端等其他调用方不受影响）。 */}
       {/* Desktop window chrome, pinned to the window corners so it never moves —
           or re-mounts — when the side panels open/close (that re-parenting is
           what made the old in-header clusters flicker). Left = sidebar toggle +
@@ -1300,9 +1259,11 @@ function WorkspaceLayoutInner({ children }: { children: React.ReactNode }) {
                                           surface a launcher-opened folder. */}
                                     <WorkspaceOpenFolderListener />
                                     <UpdateProvider>
-                                      <FolderLayoutShell>
-                                        {children}
-                                      </FolderLayoutShell>
+                                      <InAppSettings>
+                                        <FolderLayoutShell>
+                                          {children}
+                                        </FolderLayoutShell>
+                                      </InAppSettings>
                                     </UpdateProvider>
                                   </WorkbenchRouteProvider>
                                 </TasksViewProvider>

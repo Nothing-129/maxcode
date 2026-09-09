@@ -94,10 +94,10 @@ describe("resolvePickerSelectedFolderId", () => {
 })
 
 describe("formatFolderLabelWithAlias", () => {
-  it("renders `alias [ name ]` (spaced) when an alias is set", () => {
+  it("renders only the alias when set", () => {
     expect(
       formatFolderLabelWithAlias({ name: "codeg", alias: "My Project" })
-    ).toBe("My Project [ codeg ]")
+    ).toBe("My Project")
   })
 
   it("falls back to the bare name when alias is null", () => {
@@ -115,6 +115,6 @@ describe("formatFolderLabelWithAlias", () => {
   it("trims surrounding whitespace from the alias", () => {
     expect(
       formatFolderLabelWithAlias({ name: "codeg", alias: "  Work  " })
-    ).toBe("Work [ codeg ]")
+    ).toBe("Work")
   })
 })

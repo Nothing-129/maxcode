@@ -58,7 +58,7 @@ import { useFeedbackEnabled } from "@/hooks/use-feedback-enabled"
 import { useSessionFeedback } from "@/hooks/use-session-feedback"
 import { AgentSelector } from "@/components/chat/agent-selector"
 import { ChatInput } from "@/components/chat/chat-input"
-import { WelcomeHero, WelcomeTip } from "@/components/chat/welcome-hero"
+import { WelcomeHero } from "@/components/chat/welcome-hero"
 import { QuickActions } from "@/components/chat/quick-actions"
 import type { ComposerInjectContent } from "@/components/chat/message-input"
 import { TileScrollContainer } from "@/components/conversations/tile-scroll-container"
@@ -105,6 +105,7 @@ import { useConversationDetail } from "@/hooks/use-conversation-detail"
 import {
   extractUserImagesFromDraft,
   getPromptDraftDisplayText,
+  getPromptDraftMessageText,
 } from "@/lib/prompt-draft"
 import {
   type AgentType,
@@ -190,7 +191,7 @@ function buildOptimisticUserTurnFromDraft(
   // `referenceToMarkdown`). Re-appending the resource blocks here would duplicate
   // each attached file in the optimistic bubble, so the display text is used
   // as-is — images are the only out-of-band content left to add as blocks.
-  const text = getPromptDraftDisplayText(draft, attachedResourcesFallback)
+  const text = getPromptDraftMessageText(draft, attachedResourcesFallback)
 
   const blocks: ContentBlock[] = []
   for (const image of extractUserImagesFromDraft(draft)) {
@@ -201,7 +202,7 @@ function buildOptimisticUserTurnFromDraft(
       uri: image.uri ?? null,
     })
   }
-  blocks.push({ type: "text", text })
+  if (text) blocks.push({ type: "text", text })
 
   return {
     id: `optimistic-${randomUUID()}`,
@@ -850,7 +851,7 @@ const ConversationTabView = memo(function ConversationTabView({
     // lifecycle reconnects — which, for a not-installed target, never happens.
     if (!connectionReady) return
     if (runtimeSyncState === "awaiting_persist") return
-    if (msgQueue.length === 0) return
+    if (msgQueue.length === 0 || mqEditingItemId) return
     // setTimeout (not microtask) so a COMPLETE_TURN commit settles first AND so
     // a just-bounced retry waits out the backoff window before re-sending.
     const wait = flushRetryDelayMs(Date.now(), lastFlushBounceAtRef.current)
@@ -876,7 +877,7 @@ const ConversationTabView = memo(function ConversationTabView({
     return () => clearTimeout(timer)
     // `connectionReady` subsumes connStatus, the connection's cwd and its agent,
     // so it is the only connection dependency this effect needs.
-  }, [connectionReady, runtimeSyncState, msgQueue.length])
+  }, [connectionReady, runtimeSyncState, msgQueue.length, mqEditingItemId])
 
   // Mirror the connection's liveMessage into the runtime session OUTSIDE React.
   // The connection dispatch invokes this sink synchronously whenever liveMessage
@@ -2016,6 +2017,33 @@ const ConversationTabView = memo(function ConversationTabView({
   // and the action would silently do nothing.
   const composerAvailable = !isWelcomeMode && !acpLoadError
 
+  const canEditSentMessage =
+    composerAvailable &&
+    !conn.isViewer &&
+    (connectionReady || connStatus === "prompting")
+  const tSentEdit = useTranslations("Folder.chat.messageList")
+  const handleEditSentMessage = useCallback(
+    (text: string) => {
+      if (!canEditSentMessage || !text.trim()) return
+      // Leave queue-edit mode so the corrected text uses the normal Send action.
+      mqCancelEditing()
+      setComposerInject({ text, mode: "replace" })
+      if (connStatus === "prompting") {
+        void acpActions.cancel(tabId).catch(() => {
+          toast.error(tSentEdit("editStopFailed"))
+        })
+      }
+    },
+    [
+      canEditSentMessage,
+      mqCancelEditing,
+      connStatus,
+      acpActions,
+      tabId,
+      tSentEdit,
+    ]
+  )
+
   const messageListNode = (
     <GoalControlProvider value={goalControlValue}>
       <MessageListView
@@ -2032,6 +2060,7 @@ const ConversationTabView = memo(function ConversationTabView({
         onNewSession={
           canShowDetailErrorActions ? handleOpenNewSession : undefined
         }
+        onEditMessage={canEditSentMessage ? handleEditSentMessage : undefined}
         onQuoteSelection={composerAvailable ? handleQuoteSelection : undefined}
         // Asking opens its own conversation, so it needs a folder to open it in
         // rather than a usable composer here — a transcript whose composer is
@@ -2215,12 +2244,8 @@ const ConversationTabView = memo(function ConversationTabView({
         >
           <div className="flex min-h-full flex-col">
             <div className="flex-1" />
-            <div className="mx-auto flex w-full max-w-3xl shrink-0 flex-col gap-6 px-4 py-4">
+            <div className="mx-auto flex w-full maxcode-chat-column shrink-0 flex-col gap-6 px-4 py-4">
               <WelcomeHero />
-              <QuickActions
-                onSelect={handleQuickAction}
-                agentType={selectedAgent}
-              />
               <div className="flex justify-center">
                 <AgentSelector
                   // The selector spans the row it is given (it has to measure
@@ -2296,11 +2321,12 @@ const ConversationTabView = memo(function ConversationTabView({
                 flush
                 tall
               />
+              <QuickActions
+                onSelect={handleQuickAction}
+                agentType={selectedAgent}
+              />
             </div>
             <div className="flex-1" />
-            <div className="mx-auto w-full max-w-3xl shrink-0 px-4 pb-6">
-              <WelcomeTip />
-            </div>
           </div>
         </ScrollArea>
       ) : showDraftHeader ? (

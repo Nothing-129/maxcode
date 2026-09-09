@@ -168,7 +168,7 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
           type="button"
           aria-label={t("triggerAria", { status: statusLabel })}
           title={titleText}
-          className="inline-flex shrink-0 rounded-sm transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="ml-2 inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-foreground/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
         >
           <Icon className={cn("size-3.5", className)} />
         </button>

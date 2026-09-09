@@ -1,3 +1,4 @@
+import { APPEARANCE_CUSTOMIZATION_ENABLED } from "@/lib/appearance-policy"
 // Transport-aware bindings for the pet command surface.
 // All functions go through `getTransport().call(...)` so the same code runs
 // in Tauri (`invoke`) and standalone-server (`fetch`) modes.
@@ -143,6 +144,7 @@ export async function listActivePetSessions(): Promise<PetSessionsPayload> {
 // open native windows on the user's machine). Callers should branch on
 // `isDesktop()` before invoking them.
 export async function openPetWindow(): Promise<void> {
+  if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
   return getTransport().call("open_pet_window")
 }
 

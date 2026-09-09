@@ -62,11 +62,7 @@ export const FolderOptionItem = memo(function FolderOptionItem({
       <Folder className="h-4 w-4" />
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate font-medium">
-          <FolderAliasLabel
-            name={folder.name}
-            alias={folder.alias ?? null}
-            bracketClassName="text-muted-foreground"
-          />
+          <FolderAliasLabel name={folder.name} alias={folder.alias ?? null} />
         </span>
         {folder.path ? (
           // Paths read LTR even in RTL locales, and the full value survives
@@ -216,7 +212,6 @@ export function FolderSelect({
                 <FolderAliasLabel
                   name={current.name}
                   alias={current.alias ?? null}
-                  bracketClassName="text-muted-foreground"
                 />
               ) : (
                 fallbackText

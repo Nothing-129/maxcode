@@ -34,6 +34,7 @@
     "generateToken": "產生權杖"
   },
   "SettingsShell": {
+    "backToApp": "返回應用",
     "title": "設定",
     "preferences": "偏好設定",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "技能包",
       "quick_messages": "快捷訊息",
       "logs": "執行日誌"
-    }
+    },
+    "searchSettings": "搜尋設定…",
+    "loading": "正在載入設定…"
   },
   "AppearanceSettings": {
     "sectionTitle": "主題外觀",
@@ -323,6 +326,7 @@
     "updateReadyHint": "新版本已下載，重新啟動以完成更新。",
     "restarting": "正在重新啟動…",
     "electronUpgradeHint": "Electron 桌面版需要透過安裝程式升級。請從發佈頁面下載 Electron 安裝程式，安裝後重新開啟 MaxCode。",
+    "downloadAndRestart": "下載更新並重新啟動",
     "dockerUpgradeHint": "現在升級的是正在執行的容器。容器一旦被重新建立即遺失——如需保留，請拉取或建置新版本映像後重新建立容器。",
     "upgradeRolledBack": "升級失敗，伺服器已自動回復到上一版本。",
     "serverUnreachable": "無法連線到伺服器以開始升級。請確認伺服器正在執行後重試。",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "從工作區移除此資料夾？",
       "removeFolderConfirmDescription": "從工作區移除 \"{name}\"？相關分頁與終端機將會關閉。",
       "folderHeaderMenu": {
-        "openInLeftSplit": "在左側分區開啟",
-        "openInRightSplit": "在右側分區開啟",
         "splitLimitReached": "左右分區都已使用，請先關閉一個分區。",
         "manageConversations": "會話管理…",
         "manageLinks": "已連結的資料夾",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "左右分區都已使用，請先關閉一個分區。"
     },
     "folderTitleBar": {
+      "workspaceTools": "工作區工具",
       "showSidebar": "顯示側邊欄",
       "hideSidebar": "隱藏側邊欄",
       "toggleTerminal": "切換終端",
@@ -2113,6 +2116,12 @@
         "output": "輸出",
         "cacheRead": "快取讀取",
         "cacheWrite": "快取寫入",
+        "cacheHitRate": "快取命中率",
+        "estimatedCost": "預估費用",
+        "estimatedPartialCost": "已知部分費用",
+        "costLoading": "計算中…",
+        "costBasis": "依已記錄用量及標準 API 單價估算（USD）；未含階梯價、套餐或折扣。",
+        "costIncomplete": "僅含可定價部分；部分模型或快取價格缺失。",
         "total": "總計"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "技能"
       },
       "messageQueue": {
+        "adjustDirection": "調整方向",
+        "adjustDirectionHint": "暫停目前回覆，接著執行這則訊息",
+        "reorderItem": "拖曳排序",
         "addToQueue": "加入佇列",
         "saveEdit": "儲存",
         "cancelEdit": "取消編輯",
@@ -3283,6 +3295,8 @@
         "openFailed": "開啟本地檔案失敗"
       },
       "messageList": {
+        "editMessage": "修改",
+        "editStopFailed": "停止回覆失敗，訊息已填入輸入框，可繼續修改。",
         "attachedResources": "附加資源",
         "loading": "載入中...",
         "loadEarlier": "載入更早的訊息",
@@ -3331,13 +3345,14 @@
         "completedAt": "完成時間",
         "jumpToPreviousUserMessage": "跳轉到上一條使用者訊息",
         "processed": "已處理",
+        "activitySteps": "{count} 個步驟",
         "processedFor": "已處理 {duration}",
         "showMore": "展開",
         "showLess": "收合"
       },
       "liveTurnStats": {
         "thinking": "思考中...",
-        "streaming": "生成中",
+        "streaming": "工作中",
         "elapsedHours": "{value} 小時",
         "elapsedMinutes": "{value} 分鐘",
         "elapsedSeconds": "{value} 秒",
@@ -3345,8 +3360,9 @@
         "outputSpeedTooltip": "估算輸出速度（正文 + 思考 + 工具參數）"
       },
       "generationStats": {
-        "ttftAverage": "首 token 平均 {duration}",
-        "tokensPerSecond": "{throughput} tok/s"
+        "roundCount": "{count}回合",
+        "ttftAverage": "首字{duration}",
+        "tokensPerSecond": "{throughput}tok/s"
       },
       "jsonTree": {
         "viewRaw": "檢視原始 JSON",
@@ -3365,6 +3381,7 @@
           "inputStreaming": "等待中",
           "outputAvailable": "已完成",
           "outputDenied": "已拒絕",
+          "retrySucceeded": "重試成功",
           "outputError": "錯誤"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "更新 {count} 項待辦",
           "task": "執行 {count} 個任務",
           "other": "呼叫 {count} 個工具",
-          "errorSuffix": "{count} 個失敗",
+          "recoveredSuffix": "{count} 個已重試成功",
+          "errorSuffix": "{count} 次執行異常",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "本段還包含 {commands} 的輸出——它們的分隔行已被 codex 截斷捨棄。",
           "truncated": "已截斷"
         }
+      },
+      "conversationFind": {
+        "title": "搜尋目前對話",
+        "previous": "上一則訊息",
+        "next": "下一則訊息",
+        "close": "關閉搜尋",
+        "loading": "正在搜尋歷史訊息…",
+        "partial": "還有歷史訊息尚未搜尋",
+        "retry": "繼續載入歷史訊息",
+        "count": "{count} 則符合訊息",
+        "empty": "沒有符合的訊息"
       },
       "messageNav": {
         "title": "訊息導覽",

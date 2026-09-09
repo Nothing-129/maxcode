@@ -2,6 +2,7 @@
 const {
   app,
   BrowserWindow,
+  clipboard,
   dialog,
   ipcMain,
   Menu,
@@ -44,6 +45,7 @@ let restoredStorage = false
 let starting = true
 let quitting = false
 let shutdownPromise = null
+let desktopUpdater = null
 let preferences = {}
 const notifications = new Set()
 const preferencesFile = path.join(
@@ -104,6 +106,13 @@ function installBridge() {
       return action(BrowserWindow.fromWebContents(event.sender), ...args)
     })
   }
+  handle("read-clipboard-image", () => {
+    // Keep native clipboard access behind the trusted main-frame IPC check.
+    // Mixed text/image content should retain ordinary text paste semantics.
+    if (clipboard.readText().trim()) return null
+    const image = clipboard.readImage()
+    return image.isEmpty() ? null : image.toDataURL()
+  })
   handle("open-external", (_window, url) =>
     shell.openExternal(externalUrl(url))
   )
@@ -152,12 +161,25 @@ function installBridge() {
       app.quit()
     })
   })
+  handle("update-check", () => desktopUpdater.check())
+  handle("update-status", () => desktopUpdater.status())
+  handle("update-state", () => desktopUpdater.snapshot())
+  handle("update-start", () => desktopUpdater.start())
+  handle("update-install", () => desktopUpdater.restart())
   handle("minimize-window", (window) => window.minimize())
   handle("toggle-maximize", (window) => {
     if (window.isMaximized()) window.unmaximize()
     else window.maximize()
   })
   handle("is-maximized", (window) => window.isMaximized())
+  handle("set-badge-count", (_window, count) => {
+    if (count != null && (!Number.isSafeInteger(count) || count < 0)) {
+      throw new Error("Invalid badge count")
+    }
+    if (process.platform === "darwin") {
+      app.dock.setBadge(count > 0 ? String(count) : "")
+    }
+  })
   handle("notify", (_window, title, body) => {
     if (
       typeof title !== "string" ||
@@ -264,9 +286,12 @@ function openAllowedExternal(url) {
   }
 }
 
-function windowOptions() {
+function windowOptions(workspace = false) {
   return {
     title: "MaxCode",
+    ...(workspace && process.platform === "darwin"
+      ? { titleBarStyle: "hidden", trafficLightPosition: { x: 14, y: 13 } }
+      : {}),
     width: 1440,
     height: 960,
     minWidth: 900,
@@ -323,7 +348,7 @@ function configureWindow(window) {
 }
 
 async function createWindow() {
-  const window = new BrowserWindow(windowOptions())
+  const window = new BrowserWindow(windowOptions(true))
   mainWindow = window
   configureWindow(window)
   await window.loadURL(backend.backendUrl)
@@ -374,6 +399,10 @@ async function runSmoke(window) {
     const bridge = window.maxcodeElectron
     if (!bridge || !location.pathname.startsWith('/workspace') ||
       !document.querySelector('button')) throw new Error('Workspace did not render')
+    const desktopState = await bridge.getUpdateState()
+    const desktopStatus = await bridge.getUpdateStatus()
+    if (desktopState.status !== 'idle' || desktopStatus.runtime !== 'electron' ||
+      desktopStatus.selfUpdateSupported !== false) throw new Error('Desktop updater bridge failed')
     const health = await fetch('/api/health', {
       method: 'POST', headers: { Authorization: 'Bearer ' + bridge.token }
     })
@@ -539,6 +568,40 @@ if (!app.requestSingleInstanceLock()) {
         await backend.stop()
         return
       }
+      const { autoUpdater } = require("electron-updater")
+      const { createDesktopUpdater } = require("./updater.cjs")
+      let recoveringUpdate = false
+      desktopUpdater = createDesktopUpdater({
+        updater: autoUpdater,
+        version: app.getVersion(),
+        enabled:
+          app.isPackaged &&
+          !smokeTest &&
+          (process.platform === "darwin"
+            ? require("./package.json").desktopUpdates === true
+            : process.platform === "win32" || Boolean(process.env.APPIMAGE)),
+        emit: (state) => {
+          for (const window of windows) {
+            if (
+              !window.isDestroyed() &&
+              isTrustedAppUrl(window.webContents.getURL(), backend.backendUrl)
+            ) {
+              window.webContents.send("maxcode:update-state", state)
+            }
+          }
+        },
+        beforeInstall: shutdown,
+        onInstallError: (error) => {
+          if (!quitting || recoveringUpdate) return
+          recoveringUpdate = true
+          dialog.showErrorBox(
+            "MaxCode update failed",
+            String(error.message || error)
+          )
+          app.relaunch()
+          app.exit(1)
+        },
+      })
       installBridge()
       installSessionSecurity()
       Menu.setApplicationMenu(

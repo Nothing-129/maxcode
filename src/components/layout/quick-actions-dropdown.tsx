@@ -1,5 +1,6 @@
 "use client"
 
+import { APPEARANCE_CUSTOMIZATION_ENABLED } from "@/lib/appearance-policy"
 import { useCallback, useState } from "react"
 import {
   FolderGit2,
@@ -234,7 +235,7 @@ export function QuickActionsDropdown() {
             {tSidebar("canvas")}
           </DropdownMenuItem>
 
-          {desktop && (
+          {desktop && APPEARANCE_CUSTOMIZATION_ENABLED && (
             <>
               <DropdownMenuSeparator />
               <DropdownMenuLabel>{t("groups.more")}</DropdownMenuLabel>

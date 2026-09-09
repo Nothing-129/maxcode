@@ -227,9 +227,14 @@ pub fn current_platform() -> &'static str {
 /// The fifteen built-in agents. Excludes user-registered custom agents — use
 /// [`all_acp_agents`] for the live set.
 pub fn builtin_acp_agents() -> Vec<AgentType> {
+    // Initial settings order; persisted user sort_order values take precedence.
     vec![
-        AgentType::ClaudeCode,
         AgentType::Codex,
+        AgentType::Grok,
+        AgentType::DeepSeek,
+        AgentType::Pi,
+        AgentType::Antigravity,
+        AgentType::ClaudeCode,
         AgentType::Gemini,
         AgentType::OpenClaw,
         AgentType::OpenCode,
@@ -237,12 +242,8 @@ pub fn builtin_acp_agents() -> Vec<AgentType> {
         AgentType::Hermes,
         AgentType::CodeBuddy,
         AgentType::KimiCode,
-        AgentType::Pi,
-        AgentType::Grok,
         AgentType::Cursor,
-        AgentType::DeepSeek,
         AgentType::Qoder,
-        AgentType::Antigravity,
     ]
 }
 

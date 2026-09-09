@@ -1,6 +1,7 @@
 "use client"
 
-import { CircleDot, LayoutGrid, Monitor, Moon, Sun, Type } from "lucide-react"
+import { APPEARANCE_CUSTOMIZATION_ENABLED } from "@/lib/appearance-policy"
+import { LayoutGrid, Monitor, Moon, Sun, Type } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
@@ -27,7 +28,6 @@ import {
   type ThemeColor,
   type ZoomLevel,
 } from "@/lib/theme-presets"
-import { useConversationStatusPrefs } from "@/lib/conversation-status-prefs"
 import { toErrorMessage } from "@/lib/app-error"
 import { PetManagerSection } from "./pet-manager-section"
 import { FontSettingsSection } from "./font-settings-section"
@@ -43,8 +43,6 @@ export function AppearanceSettings() {
   const { zoomLevel, setZoomLevel } = useZoomLevel()
   const { showWelcomeQuickActions, setShowWelcomeQuickActions } =
     useWelcomeQuickActions()
-  const { showStatus, allowActions, setShowStatus, setAllowActions } =
-    useConversationStatusPrefs()
 
   // 这些开关现在异步持久化到后端；失败时乐观值已回滚，这里再报个 toast。
   const announceSaveFailure = (err: unknown) => {
@@ -123,174 +121,143 @@ export function AppearanceSettings() {
           </div>
         </section>
 
-        {/* ===== Theme Color ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <span
-              className="size-4 rounded-full border"
-              style={{ backgroundColor: THEME_COLOR_PREVIEW[themeColor] }}
-              aria-hidden
-            />
-            <h2 className="text-sm font-semibold">
-              {t("themeColor.sectionTitle")}
-            </h2>
-          </div>
+        {APPEARANCE_CUSTOMIZATION_ENABLED && (
+          <>
+            {/* ===== Theme Color ===== */}
+            <section className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <span
+                  className="size-4 rounded-full border"
+                  style={{ backgroundColor: THEME_COLOR_PREVIEW[themeColor] }}
+                  aria-hidden
+                />
+                <h2 className="text-sm font-semibold">
+                  {t("themeColor.sectionTitle")}
+                </h2>
+              </div>
 
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("themeColor.sectionDescription")}
-          </p>
+              <p className="text-xs text-muted-foreground leading-5">
+                {t("themeColor.sectionDescription")}
+              </p>
 
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-            {THEME_COLORS.map((color) => {
-              const isActive = themeColor === color
-              return (
-                <button
-                  key={color}
-                  type="button"
-                  onClick={() => setThemeColor(color as ThemeColor)}
-                  aria-pressed={isActive}
-                  className={cn(
-                    "flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
-                    isActive && "border-primary ring-2 ring-primary/30"
-                  )}
+              <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+                {THEME_COLORS.map((color) => {
+                  const isActive = themeColor === color
+                  return (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setThemeColor(color as ThemeColor)}
+                      aria-pressed={isActive}
+                      className={cn(
+                        "flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors",
+                        "hover:bg-accent hover:text-accent-foreground",
+                        isActive && "border-primary ring-2 ring-primary/30"
+                      )}
+                    >
+                      <span
+                        className="size-4 shrink-0 rounded-full border"
+                        style={{ backgroundColor: THEME_COLOR_PREVIEW[color] }}
+                        aria-hidden
+                      />
+                      <span className="truncate">
+                        {t(`themeColor.options.${color}`)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              <p className="text-2xs text-muted-foreground">
+                {t("themeColor.current", {
+                  color: t(`themeColor.options.${themeColor}`),
+                })}
+              </p>
+            </section>
+
+            {/* ===== Custom style (token overrides + free-form CSS) ===== */}
+            <CustomStyleSection />
+
+            {/* ===== Zoom Level ===== */}
+            <section className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <Type className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold">
+                  {t("zoomLevel.sectionTitle")}
+                </h2>
+              </div>
+
+              <p className="text-xs text-muted-foreground leading-5">
+                {t("zoomLevel.sectionDescription")}
+              </p>
+
+              <div className="space-y-2">
+                <Select
+                  value={String(zoomLevel)}
+                  onValueChange={(value) =>
+                    setZoomLevel(parseInt(value, 10) as ZoomLevel)
+                  }
                 >
-                  <span
-                    className="size-4 shrink-0 rounded-full border"
-                    style={{ backgroundColor: THEME_COLOR_PREVIEW[color] }}
-                    aria-hidden
-                  />
-                  <span className="truncate">
-                    {t(`themeColor.options.${color}`)}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+                  <SelectTrigger className="w-56">
+                    <SelectValue placeholder={t("zoomLevel.placeholder")} />
+                  </SelectTrigger>
+                  <SelectContent align="start">
+                    {ZOOM_LEVELS.map((z) => (
+                      <SelectItem key={z} value={String(z)}>
+                        {z}%
+                        {z === DEFAULT_ZOOM_LEVEL
+                          ? ` (${t("zoomLevel.default")})`
+                          : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-2xs text-muted-foreground">
+                  {t("zoomLevel.current", { zoom: zoomLevel })}
+                </p>
+              </div>
+            </section>
 
-          <p className="text-2xs text-muted-foreground">
-            {t("themeColor.current", {
-              color: t(`themeColor.options.${themeColor}`),
-            })}
-          </p>
-        </section>
+            {/* ===== Fonts ===== */}
+            <FontSettingsSection />
+          </>
+        )}
 
-        {/* ===== Custom style (token overrides + free-form CSS) ===== */}
-        <CustomStyleSection />
+        {APPEARANCE_CUSTOMIZATION_ENABLED && (
+          <>
+            {/* ===== Workspace background ===== */}
+            <WorkspaceBackgroundSection />
 
-        {/* ===== Zoom Level ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Type className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">
-              {t("zoomLevel.sectionTitle")}
-            </h2>
-          </div>
+            {/* ===== New conversation — mode selection area ===== */}
+            <section className="rounded-xl border bg-card p-4 space-y-4">
+              <div className="flex items-center gap-2">
+                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                <h2 className="text-sm font-semibold">
+                  {t("welcomePanel.sectionTitle")}
+                </h2>
+              </div>
 
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("zoomLevel.sectionDescription")}
-          </p>
+              <p className="text-xs text-muted-foreground leading-5">
+                {t("welcomePanel.sectionDescription")}
+              </p>
 
-          <div className="space-y-2">
-            <Select
-              value={String(zoomLevel)}
-              onValueChange={(value) =>
-                setZoomLevel(parseInt(value, 10) as ZoomLevel)
-              }
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder={t("zoomLevel.placeholder")} />
-              </SelectTrigger>
-              <SelectContent align="start">
-                {ZOOM_LEVELS.map((z) => (
-                  <SelectItem key={z} value={String(z)}>
-                    {z}%
-                    {z === DEFAULT_ZOOM_LEVEL
-                      ? ` (${t("zoomLevel.default")})`
-                      : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <p className="text-2xs text-muted-foreground">
-              {t("zoomLevel.current", { zoom: zoomLevel })}
-            </p>
-          </div>
-        </section>
+              <label className="flex items-center gap-2">
+                <Switch
+                  checked={showWelcomeQuickActions}
+                  onCheckedChange={(v) => {
+                    setShowWelcomeQuickActions(v).catch(announceSaveFailure)
+                  }}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {t("welcomePanel.showQuickActions")}
+                </span>
+              </label>
+            </section>
 
-        {/* ===== Fonts ===== */}
-        <FontSettingsSection />
-
-        {/* ===== Workspace background ===== */}
-        <WorkspaceBackgroundSection />
-
-        {/* ===== Conversation status (display + actions) ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <CircleDot className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">
-              {t("conversationStatus.sectionTitle")}
-            </h2>
-          </div>
-
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("conversationStatus.sectionDescription")}
-          </p>
-
-          <div className="space-y-3">
-            <label className="flex items-center gap-2">
-              <Switch
-                checked={showStatus}
-                onCheckedChange={(v) => {
-                  setShowStatus(v).catch(announceSaveFailure)
-                }}
-              />
-              <span className="text-xs text-muted-foreground">
-                {t("conversationStatus.showStatus")}
-              </span>
-            </label>
-            <label className="flex items-center gap-2">
-              <Switch
-                checked={allowActions}
-                onCheckedChange={(v) => {
-                  setAllowActions(v).catch(announceSaveFailure)
-                }}
-              />
-              <span className="text-xs text-muted-foreground">
-                {t("conversationStatus.allowActions")}
-              </span>
-            </label>
-          </div>
-        </section>
-
-        {/* ===== New conversation — mode selection area ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">
-              {t("welcomePanel.sectionTitle")}
-            </h2>
-          </div>
-
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("welcomePanel.sectionDescription")}
-          </p>
-
-          <label className="flex items-center gap-2">
-            <Switch
-              checked={showWelcomeQuickActions}
-              onCheckedChange={(v) => {
-                setShowWelcomeQuickActions(v).catch(announceSaveFailure)
-              }}
-            />
-            <span className="text-xs text-muted-foreground">
-              {t("welcomePanel.showQuickActions")}
-            </span>
-          </label>
-        </section>
-
-        {/* ===== Desktop Pet ===== */}
-        <PetManagerSection />
+            {/* ===== Desktop Pet ===== */}
+            <PetManagerSection />
+          </>
+        )}
       </div>
     </ScrollArea>
   )

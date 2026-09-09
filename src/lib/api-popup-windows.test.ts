@@ -59,6 +59,20 @@ describe("web-mode app popup windows", () => {
     vi.restoreAllMocks()
   })
 
+  it("uses the mounted in-app settings surface without a popup or backend round trip", async () => {
+    const open = vi.spyOn(window, "open")
+    const handler = (event: Event) => event.preventDefault()
+    window.addEventListener("maxcode:open-settings", handler)
+    try {
+      await openSettingsWindow("appearance")
+      expect(open).not.toHaveBeenCalled()
+      expect(mocks.call).not.toHaveBeenCalled()
+      expect(mocks.shellCall).not.toHaveBeenCalled()
+    } finally {
+      window.removeEventListener("maxcode:open-settings", handler)
+    }
+  })
+
   it("reserves the window before the backend round trip, then navigates it", async () => {
     const popup = fakePopup()
     const open = vi.spyOn(window, "open").mockReturnValue(popup as never)

@@ -1481,7 +1481,7 @@ describe("adaptMessageTurn plan handling", () => {
   )
 })
 
-describe("adaptMessageTurn — Codex grep no-match results", () => {
+describe("adaptMessageTurn — search no-match results", () => {
   const msgText = {
     attachedResources: "Attached resources",
     toolCallFailed: "Tool failed",
@@ -1584,12 +1584,99 @@ describe("adaptMessageTurn — Codex grep no-match results", () => {
       "Search for 'definitely absent'",
       JSON.stringify({ exit_code: 2, formatted_output: "" }),
     ],
-    ["a non-Codex result", "Search for 'definitely absent'", ""],
   ])("keeps %s on the error path", (_label, toolName, output) => {
     const part = adaptSearchResult({ toolName, output })
 
     expect(part.state).toBe("output-error")
     expect(part.errorText).toBe(output || undefined)
+  })
+
+  it("normalizes a native grep miss with no envelope", () => {
+    const part = adaptSearchResult({
+      toolName: "grep",
+      output: "",
+    })
+
+    expect(part.state).toBe("output-available")
+    expect(part.errorText).toBeUndefined()
+    expect(part.output).toBe("")
+  })
+
+  it("normalizes a shell rg miss (exit 1, empty output)", () => {
+    const raw = JSON.stringify({ exit_code: 1, formatted_output: "" })
+    const adapted = adaptMessageTurn(
+      {
+        id: "bash-rg-miss",
+        role: "assistant",
+        timestamp: "2026-09-04T00:00:00.000Z",
+        blocks: [
+          {
+            type: "tool_use",
+            tool_use_id: "rg-1",
+            tool_name: "bash",
+            input_preview: JSON.stringify({
+              command: "rg -n 'SdkAppId|Callback' src",
+            }),
+          },
+          {
+            type: "tool_result",
+            tool_use_id: "rg-1",
+            output_preview: raw,
+            is_error: true,
+          },
+        ],
+      },
+      msgText,
+      false
+    )
+    const group = adapted.content[0]
+    if (group?.type !== "tool-group" || !group.items[0]) {
+      throw new Error("expected a grouped tool call")
+    }
+    const part = group.items[0]
+
+    expect(part.state).toBe("output-available")
+    expect(part.errorText).toBeUndefined()
+    expect(part.output).toBe(raw)
+  })
+
+  it("keeps a shell rg that threw a parse error on the error path", () => {
+    const traceback =
+      "json.decoder.JSONDecodeError: Expecting property name " +
+      "enclosed in double quotes: line 17 column 27 (char 557)"
+    const adapted = adaptMessageTurn(
+      {
+        id: "bash-rg-json-error",
+        role: "assistant",
+        timestamp: "2026-09-04T00:00:00.000Z",
+        blocks: [
+          {
+            type: "tool_use",
+            tool_use_id: "rg-1",
+            tool_name: "bash",
+            input_preview: JSON.stringify({
+              command: "rg -n 'SdkAppId' src",
+            }),
+          },
+          {
+            type: "tool_result",
+            tool_use_id: "rg-1",
+            output_preview: traceback,
+            is_error: true,
+          },
+        ],
+      },
+      msgText,
+      false
+    )
+    const group = adapted.content[0]
+    if (group?.type !== "tool-group" || !group.items[0]) {
+      throw new Error("expected a grouped tool call")
+    }
+    const part = group.items[0]
+
+    expect(part.state).toBe("output-error")
+    expect(part.errorText).toBe(traceback)
   })
 })
 

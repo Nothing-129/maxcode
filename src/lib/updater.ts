@@ -2,7 +2,7 @@ import { toErrorMessage } from "./app-error"
 import { getTransport, isDesktop, isRemoteDesktopMode } from "./transport"
 import { getElectronBridge, isElectron } from "./electron"
 
-function usesElectronInstaller(): boolean {
+export function usesElectronInstaller(): boolean {
   return isElectron() && !isRemoteDesktopMode()
 }
 
@@ -109,7 +109,10 @@ export interface AppUpdateState {
  * recover an in-flight download the UI would otherwise have lost. */
 export function getAppUpdateState(): Promise<AppUpdateState> {
   if (usesElectronInstaller())
-    return Promise.resolve({ seq: 0, status: "idle" })
+    return (
+      getElectronBridge()!.getUpdateState?.() ??
+      Promise.resolve({ seq: 0, status: "idle" })
+    )
   return getTransport().call<AppUpdateState>("app_update_state")
 }
 
@@ -119,7 +122,10 @@ export function getAppUpdateState(): Promise<AppUpdateState> {
 export function subscribeAppUpdateState(
   handler: (state: AppUpdateState) => void
 ): Promise<() => void> {
-  if (usesElectronInstaller()) return Promise.resolve(() => {})
+  if (usesElectronInstaller())
+    return Promise.resolve(
+      getElectronBridge()!.onUpdateState?.(handler) ?? (() => {})
+    )
   return getTransport().subscribe<AppUpdateState>("app_update_state", handler)
 }
 
@@ -129,7 +135,10 @@ export function subscribeAppUpdateState(
  * lifetime. */
 export function startAppUpdate(): Promise<AppUpdateState> {
   if (usesElectronInstaller()) {
-    return Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+    return (
+      getElectronBridge()!.startUpdate?.() ??
+      Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+    )
   }
   return getTransport().call<AppUpdateState>("perform_app_update")
 }
@@ -139,7 +148,10 @@ export function startAppUpdate(): Promise<AppUpdateState> {
  * countdown + health poll using the `ReadyToRestart` snapshot's metadata). */
 export function restartApp(): Promise<void> {
   if (usesElectronInstaller()) {
-    return Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+    return (
+      getElectronBridge()!.installUpdate?.() ??
+      Promise.reject(new Error(ELECTRON_INSTALLER_MESSAGE))
+    )
   }
   return getTransport().call("restart_app")
 }
@@ -257,6 +269,8 @@ const MANIFEST_TIMEOUT_MS = 15_000
  */
 export async function checkAppUpdateInfo(): Promise<AppUpdateCheckResult> {
   if (usesElectronInstaller()) {
+    if (getElectronBridge()!.checkForUpdate)
+      return getElectronBridge()!.checkForUpdate!()
     // The bundled server can read the common release manifest, but it must
     // never swap/restart its binary inside the Electron application bundle.
     const result =
@@ -313,7 +327,8 @@ async function closeUpdateHandle(update: NonNullable<Update>): Promise<void> {
  * window (no server to query; it updates via the Tauri plugin).
  */
 export async function getServerUpdateStatus(): Promise<ServerUpdateStatus | null> {
-  if (usesElectronInstaller()) return null
+  if (usesElectronInstaller())
+    return getElectronBridge()!.getUpdateStatus?.() ?? null
   if (usesTauriUpdater()) return null
   return getTransport().call<ServerUpdateStatus>("app_update_status")
 }

@@ -222,3 +222,10 @@ describe("QuickActionsDropdown", () => {
     expect(await screen.findByText("CLONE-DIALOG")).toBeVisible()
   })
 })
+
+// Retained preference behavior is tested with customization explicitly enabled.
+vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
+  APPEARANCE_CUSTOMIZATION_ENABLED: true,
+  isFixedAppearanceKey: () => false,
+}))

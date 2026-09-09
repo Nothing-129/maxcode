@@ -331,6 +331,15 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       editable: !disabled,
       autofocus: autoFocus ? "end" : false,
       editorProps: {
+        handleDOMEvents: {
+          paste: (_view, event) => {
+            // ProseMirror skips handlePaste during IME composition. Files
+            // still need to reach the host; leave text to the input method.
+            if (onPasteFilesRef.current?.(event) !== true) return false
+            event.preventDefault()
+            return true
+          },
+        },
         attributes: {
           class: "codeg-composer-content",
           role: "textbox",
@@ -400,9 +409,6 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           return false
         },
         handlePaste: (_view, event) => {
-          // Images/files first: the host may consume them as attachments
-          // out-of-band, in which case the editor must not also insert text.
-          if (onPasteFilesRef.current?.(event) === true) return true
           // Plain-text composer: prefer the clipboard's text/plain over an
           // external text/html fragment (a URL copied from an address bar
           // would otherwise paste as the page title), and hydrate serialized
@@ -593,7 +599,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       >
         <EditorContent
           editor={editor}
-          className="codeg-composer-scroll min-h-0 flex-1 overflow-y-auto px-3 py-2 text-base md:text-sm"
+          className="codeg-composer-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-3"
         />
         {referenceSearch && mentionState && (
           <SuggestionPopup

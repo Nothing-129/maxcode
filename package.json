@@ -9,12 +9,17 @@
     "lint": "eslint",
     "desktop:dev": "node electron/scripts/cli.mjs dev",
     "desktop:build": "node electron/scripts/cli.mjs build",
+    "desktop:pack": "node electron/scripts/cli.mjs pack",
+    "desktop:smoke": "node electron/scripts/smoke.mjs",
+    "desktop:build:dmg": "node electron/scripts/cli.mjs build --mac dmg",
     "electron:dev": "node electron/scripts/cli.mjs dev",
     "electron:start": "node electron/scripts/cli.mjs start",
     "electron:build": "node electron/scripts/cli.mjs build",
     "electron:pack": "node electron/scripts/cli.mjs pack",
     "electron:build:dmg": "node electron/scripts/cli.mjs build --mac dmg",
     "tauri": "tauri",
+    "legacy:tauri:dev": "tauri dev",
+    "legacy:tauri:build": "tauri build",
     "test": "vitest run",
     "test:maxcode": "vitest run src/maxcode-contracts",
     "test:watch": "vitest",
@@ -112,9 +117,9 @@
     "@vitejs/plugin-react": "^4.3.4",
     "@vitest/coverage-v8": "^2.1.8",
     "@vitest/ui": "^2.1.8",
-    "eslint": "^9.39.2",
     "electron": "44.2.0",
     "electron-builder": "26.15.3",
+    "eslint": "^9.39.2",
     "eslint-config-next": "^16.1.6",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
@@ -126,6 +131,7 @@
     "typescript": "~5.8.3",
     "unified": "^11.0.5",
     "unist-util-visit": "^5.0.0",
-    "vitest": "^2.1.8"
+    "vitest": "^2.1.8",
+    "yaml": "2.9.0"
   }
 }

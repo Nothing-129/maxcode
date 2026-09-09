@@ -15,6 +15,7 @@ import {
 } from "@/lib/tool-call-normalization"
 import { parseBackgroundLaunch } from "@/lib/background-task"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
+import { annotateToolRecovery } from "@/lib/tool-call-recovery"
 import { isUnsettledToolCall } from "@/lib/tool-call-lifecycle"
 import { normalizePriority, normalizeStatus } from "@/lib/plan-parse"
 import { isDelegateToAgentToolName } from "@/lib/delegation-card"
@@ -59,10 +60,8 @@ import {
 } from "./context-compaction-card"
 import { FeedbackCheckResultCard } from "./feedback-check-result-card"
 import { SearchResultsOutput } from "./search-results-output"
-import {
-  isCodexGrepNoMatchEnvelope,
-  parseCodexCommandEnvelope,
-} from "@/lib/codex-command-action"
+import { parseCodexCommandEnvelope } from "@/lib/codex-command-action"
+import { isSearchNoMatchResult } from "@/lib/search-no-match"
 import {
   CODEX_SCRIPT_TOOL_NAME,
   parseCodexScriptCard,
@@ -2253,7 +2252,7 @@ const TextPart = memo(function TextPart({
     )
   }
   return (
-    <div className='chat-message-text break-words prose prose-sm dark:prose-invert max-w-none [&_ul]:list-inside [&_ol]:list-inside [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
+    <div className='chat-message-text break-words prose prose-sm dark:prose-invert max-w-none [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
       <MessageResponse
         mode={isStreaming ? "streaming" : "static"}
         parseIncompleteMarkdown={isStreaming}
@@ -2288,6 +2287,17 @@ const ToolCallPart = memo(function ToolCallPart({
     isShellSessionTool
   const isCommandLikeTool = isCommandTool || toolNameLower === "apply_patch"
   const isSearchTool = toolNameLower === "grep" || toolNameLower === "glob"
+  const isSearchMiss = isSearchNoMatchResult({
+    toolName: part.toolName,
+    input: part.input,
+    output: part.errorText ?? part.output,
+    isError: part.state === "output-error" || !!part.errorText?.trim(),
+  })
+  const presentationState =
+    isSearchMiss && part.state === "output-error"
+      ? "output-available"
+      : part.state
+  const presentationErrorText = isSearchMiss ? undefined : part.errorText
   const isRunning =
     part.state === "input-available" || part.state === "input-streaming"
   // A `Bash(run_in_background: true)` launch — its result is just the task id +
@@ -2574,24 +2584,28 @@ const ToolCallPart = memo(function ToolCallPart({
   const searchOutput = useMemo(() => {
     if (!isSearchTool) return null
 
-    // codex appears to derive the tool status from the exit code, so an rg/grep
-    // "no matches" (exit 1, no output) can arrive as a FAILED call and land on
-    // the error channel. `adaptMessageTurn` normally takes that shape off the
-    // error channel entirely (same `isCodexGrepNoMatchEnvelope` predicate, so
-    // the card's status and this body can never disagree); this arm still
-    // catches the adapter-independent callers — an `agent_stats` child call, an
-    // export/replay part built outside the turn adapter — and renders an empty
-    // result instead of a red envelope dump. A real grep failure (exit ≥ 2, or
-    // any stderr text) keeps the error rendering, as does any non-codex error
-    // string.
+    // rg/grep "no matches" (exit 1, no output) can arrive as a FAILED call
+    // and land on the error channel. `adaptMessageTurn` normally takes that
+    // shape off the error channel entirely (same `isSearchNoMatchResult`
+    // predicate, so the card's status and this body can never disagree);
+    // this arm still catches adapter-independent callers — an `agent_stats`
+    // child call, an export/replay part built outside the turn adapter —
+    // and renders an empty result instead of a red envelope dump. A real
+    // grep failure (exit ≥ 2, or any stderr text) keeps the error rendering.
     if (typeof part.errorText === "string") {
-      if (toolNameLower !== "grep") return null
-      return isCodexGrepNoMatchEnvelope(part.errorText) ? "" : null
+      return isSearchNoMatchResult({
+        toolName: part.toolName,
+        input: part.input,
+        output: part.errorText,
+        isError: true,
+      })
+        ? ""
+        : null
     }
 
     if (typeof part.output !== "string") return null
     return parseCodexCommandEnvelope(part.output)?.output ?? part.output
-  }, [isSearchTool, toolNameLower, part.output, part.errorText])
+  }, [isSearchTool, part.toolName, part.input, part.output, part.errorText])
   const searchQuery = useMemo(() => {
     if (!isSearchTool || !part.input) return null
     const pattern = tryParseJson(part.input)?.pattern
@@ -2868,7 +2882,8 @@ const ToolCallPart = memo(function ToolCallPart({
     <Tool open={open} onOpenChange={setManualOpen}>
       <ToolHeader
         type="dynamic-tool"
-        state={part.state}
+        state={presentationState}
+        recovered={!!part.recoveredBy}
         toolName={normalizedToolName}
         title={title ?? undefined}
         titleSuffix={titleSuffix ?? undefined}
@@ -2929,8 +2944,11 @@ const ToolCallPart = memo(function ToolCallPart({
               </div>
             ) : (
               !shouldHideDuplicateResult &&
-              (part.output || part.errorText) && (
-                <ToolOutput output={part.output} errorText={part.errorText} />
+              (part.output || presentationErrorText) && (
+                <ToolOutput
+                  output={part.output}
+                  errorText={presentationErrorText}
+                />
               )
             )}
           </>
@@ -3013,7 +3031,7 @@ const ToolGroupPart = memo(function ToolGroupPart({
   const t = useTranslations("Folder.chat.contentParts.toolGroup")
   const [open, setOpen] = useState(false)
 
-  const { phrases, errorPhrase } = useMemo(() => {
+  const { phrases, errorPhrase, recoveredPhrase } = useMemo(() => {
     const counts = TOOL_KIND_ORDER.reduce(
       (acc, kind) => {
         acc[kind] = 0
@@ -3022,9 +3040,23 @@ const ToolGroupPart = memo(function ToolGroupPart({
       {} as Record<ToolKindLabel, number>
     )
     let errors = 0
+    let recovered = 0
     for (const item of part.items) {
       counts[classifyToolKind(item.toolName)] += 1
-      if (item.state === "output-error" || item.errorText) errors += 1
+      const failed = item.state === "output-error" || !!item.errorText?.trim()
+      if (failed && item.recoveredBy) recovered += 1
+      if (
+        failed &&
+        !item.recoveredBy &&
+        !isSearchNoMatchResult({
+          toolName: item.toolName,
+          input: item.input,
+          output: item.errorText ?? item.output,
+          isError: true,
+        })
+      ) {
+        errors += 1
+      }
     }
     const built: string[] = []
     for (const kind of TOOL_KIND_ORDER) {
@@ -3037,6 +3069,8 @@ const ToolGroupPart = memo(function ToolGroupPart({
     }
     return {
       phrases: built,
+      recoveredPhrase:
+        recovered > 0 ? t("recoveredSuffix", { count: recovered }) : null,
       errorPhrase: errors > 0 ? t("errorSuffix", { count: errors }) : null,
     }
   }, [part, t])
@@ -3068,8 +3102,17 @@ const ToolGroupPart = memo(function ToolGroupPart({
           ) : (
             titleText
           )}
+          {recoveredPhrase && (
+            <span>
+              {joiner}
+              {recoveredPhrase}
+            </span>
+          )}
           {errorPhrase && (
-            <span className="text-destructive">
+            <span
+              className="text-muted-foreground"
+              data-tool-execution-issues=""
+            >
               {joiner}
               {errorPhrase}
             </span>
@@ -3217,12 +3260,13 @@ interface ContentPartsRendererProps {
 }
 
 export const ContentPartsRenderer = memo(function ContentPartsRenderer({
-  parts,
+  parts: rawParts,
   role,
   isResponseComplete = false,
   durationMs,
   isStreaming = false,
 }: ContentPartsRendererProps) {
+  const parts = useMemo(() => annotateToolRecovery(rawParts), [rawParts])
   const renderPart = (part: AdaptedContentPart, keyId: string): ReactNode => {
     if (part.type === "text") {
       // An empty text part renders nothing but still earns a `space-y-4` gap

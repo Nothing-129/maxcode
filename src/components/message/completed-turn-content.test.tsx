@@ -191,7 +191,7 @@ describe("CompletedTurnContent", () => {
     ).toBeInTheDocument()
   })
 
-  it("leaves running progress expanded under a live header", () => {
+  it("keeps progress prose visible under the live header", () => {
     renderWithIntl(
       <CompletedTurnContent
         parts={freshCompletedParts()}

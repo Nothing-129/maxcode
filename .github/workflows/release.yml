@@ -19,8 +19,8 @@ env:
   # SERVER_TARGETS（服务器包 + Docker 镜像，留空则两者都跳过）可选值：
   #   x86_64-unknown-linux-gnu / aarch64-unknown-linux-gnu
   #   x86_64-apple-darwin / aarch64-apple-darwin / x86_64-pc-windows-msvc
-  # 注意：latest.json 只包含白名单内的桌面平台，未列出的平台
-  # 收不到自动更新。
+  # Electron 更新清单按平台与架构分开，发布 blockmap 以支持差分下载。
+  # 桌面使用目标架构原生 runner；Linux arm64 仅支持服务器包。
   # ------------------------------------------------------------------
   DESKTOP_TARGETS: "x86_64-apple-darwin,aarch64-apple-darwin,x86_64-pc-windows-msvc"
   SERVER_TARGETS: ""
@@ -31,6 +31,9 @@ concurrency:
 
 jobs:
   create-draft-release:
+    # Downstream releases may only write to the user's own repository.
+    if: github.repository == 'Nothing-129/maxcode'
+    needs: resolve-matrix
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -82,23 +85,25 @@ jobs:
       - name: Verify tag matches app version
         shell: bash
         run: |
-          APP_VERSION=$(node -p "require('./src-tauri/tauri.conf.json').version")
+          APP_VERSION=$(node -p "require('./package.json').version")
           if [[ "v$APP_VERSION" != "${GITHUB_REF_NAME}" ]]; then
             echo "Tag ${GITHUB_REF_NAME} does not match app version v$APP_VERSION"
             exit 1
           fi
 
-      - name: Require updater signing key
+      - name: Require server updater signing key
+        if: env.SERVER_TARGETS != ''
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
         shell: bash
         run: |
           if [ -z "${TAURI_SIGNING_PRIVATE_KEY:-}" ]; then
-            echo "FATAL: TAURI_SIGNING_PRIVATE_KEY is required so this release can serve auto-updates"
+            echo "FATAL: TAURI_SIGNING_PRIVATE_KEY is required to sign server update bundles"
             exit 1
           fi
 
-      - name: Verify updater signing key unlocks
+      - name: Verify server updater signing key unlocks
+        if: env.SERVER_TARGETS != ''
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -117,7 +122,7 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         shell: bash
         run: |
           set -euo pipefail
@@ -126,7 +131,7 @@ jobs:
             APPLE_PASSWORD \
             APPLE_CERTIFICATE \
             APPLE_CERTIFICATE_PASSWORD \
-            KEYCHAIN_PASSWORD
+            APPLE_TEAM_ID
           do
             if [ -z "${!name:-}" ]; then
               echo "FATAL: GitHub secret $name is required for signed and notarized macOS releases"
@@ -235,323 +240,91 @@ jobs:
     name: Resolve build matrix
     runs-on: ubuntu-22.04
     outputs:
-      tauri_matrix: ${{ steps.resolve.outputs.tauri_matrix }}
+      desktop_matrix: ${{ steps.resolve.outputs.desktop_matrix }}
       server_matrix: ${{ steps.resolve.outputs.server_matrix }}
-      # 白名单内桌面平台对应的 Tauri 更新器 platform key，供
-      # publish-release 校验 latest.json 完整性。
-      updater_required: ${{ steps.resolve.outputs.updater_required }}
+      docker: ${{ steps.resolve.outputs.docker }}
     steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
       - id: resolve
-        name: Expand platform whitelist into build matrices
-        shell: bash
-        run: |
-          set -euo pipefail
+        name: Expand platform whitelist into native desktop and server matrices
+        run: node electron/scripts/release.cjs matrix
 
-          # 每个目标一行：显示名 | runner | 服务器产物名 | 更新器平台 key
-          # （更新器 key 与 Rust std::env::consts 的 os-arch 命名一致）。
-          # Linux arm64 桌面版刻意不提供：jammy 多架构交叉依赖安装仍会卡在
-          # libpng16-16:arm64 版本冲突（"held broken packages"）；
-          # Linux arm64 用户由服务器包和 Docker 镜像覆盖。
-          meta_for() {
-            case "$1" in
-              x86_64-apple-darwin) echo "macOS x64|macos-latest|MaxCode-server-darwin-x64|darwin-x86_64" ;;
-              aarch64-apple-darwin) echo "macOS arm64|macos-latest|MaxCode-server-darwin-arm64|darwin-aarch64" ;;
-              x86_64-unknown-linux-gnu) echo "Linux x64|ubuntu-22.04|MaxCode-server-linux-x64|linux-x86_64" ;;
-              aarch64-unknown-linux-gnu) echo "Linux arm64|ubuntu-22.04|MaxCode-server-linux-arm64|linux-arm64" ;;
-              x86_64-pc-windows-msvc) echo "Windows x64|windows-2022|MaxCode-server-windows-x64|windows-x86_64" ;;
-              aarch64-pc-windows-msvc) echo "Windows arm64|windows-latest||windows-aarch64" ;;
-              *)
-                echo "FATAL: 未知的目标 triple: $1（可选值见 workflow 顶部白名单注释）" >&2
-                exit 1
-                ;;
-            esac
-          }
-
-          split_targets() {
-            tr ',' '\n' <<<"${1:-}" \
-              | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' \
-              | awk 'NF && !seen[$0]++'
-          }
-
-          # strategy.matrix requires an object. Use an include-only matrix so
-          # each resolved target can carry its own runner and metadata.
-          tauri_matrix='{"include":[]}'
-          updater_required=""
-          while IFS= read -r target; do
-            if [ "$target" = "aarch64-unknown-linux-gnu" ]; then
-              echo "FATAL: Linux arm64 暂不支持桌面构建（见 meta_for 注释）" >&2
-              exit 1
-            fi
-            meta="$(meta_for "$target")"
-            IFS='|' read -r name runner _artifact updater_key <<<"$meta"
-            tauri_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" \
-              '.include += [{name: $n, runner: $r, target: $t}]' <<<"$tauri_matrix")"
-            updater_required="$updater_required $updater_key"
-          done < <(split_targets "$DESKTOP_TARGETS")
-
-          server_matrix='{"include":[]}'
-          while IFS= read -r target; do
-            meta="$(meta_for "$target")"
-            IFS='|' read -r name runner artifact _updater_key <<<"$meta"
-            if [ -z "$artifact" ]; then
-              echo "FATAL: $target 没有对应的服务器产物" >&2
-              exit 1
-            fi
-            server_matrix="$(jq -c --arg n "$name" --arg r "$runner" --arg t "$target" --arg a "$artifact" \
-              '.include += [{name: $n, runner: $r, target: $t, artifact: $a}]' <<<"$server_matrix")"
-          done < <(split_targets "$SERVER_TARGETS")
-
-          {
-            echo "tauri_matrix=$tauri_matrix"
-            echo "server_matrix=$server_matrix"
-            echo "updater_required=${updater_required# }"
-          } >> "$GITHUB_OUTPUT"
-          echo "tauri_matrix=$tauri_matrix"
-          echo "server_matrix=$server_matrix"
-          echo "updater_required=${updater_required# }"
-
-  build-tauri:
+  build-electron:
     needs:
       - create-draft-release
       - resolve-matrix
-    # Job-level conditions are evaluated before matrix expansion, so an empty
-    # whitelist skips cleanly instead of producing an invalid empty matrix.
-    if: ${{ needs.resolve-matrix.outputs.tauri_matrix != '{"include":[]}' }}
-    name: Build ${{ matrix.name }}
+    if: ${{ needs.resolve-matrix.outputs.desktop_matrix != '{"include":[]}' }}
+    name: Electron ${{ matrix.name }}
     permissions:
       contents: write
     strategy:
       fail-fast: false
-      # 矩阵由 resolve-matrix 按 workflow 顶部 DESKTOP_TARGETS 白名单展开；
-      # 空列表时整个任务被跳过，publish-release 的 if 会随之拦下发布。
-      matrix: ${{ fromJSON(needs.resolve-matrix.outputs.tauri_matrix) }}
+      matrix: ${{ fromJSON(needs.resolve-matrix.outputs.desktop_matrix) }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v4
         with:
           run_install: false
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: "pnpm"
-
-      - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: ${{ matrix.target }}
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify native backend and Electron architecture
+        run: node electron/scripts/release.cjs verify-host ${{ matrix.target }}
+      - uses: swatinem/rust-cache@v2
         with:
           workspaces: "./src-tauri -> target"
-          shared-key: ${{ matrix.target }}
-
-      - name: Install Linux x64 dependencies
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
+          shared-key: electron-${{ matrix.target }}
+      - name: Install Linux build and smoke dependencies
+        if: runner.os == 'Linux'
         run: |
-          # Bound apt so a stuck mirror cannot pin the matrix (and the
-          # publish job) for the runner's 6-hour timeout. 0.25.4 hung here
-          # for the full six hours and never published the finished macOS /
-          # Windows artifacts.
           sudo timeout 180 apt-get update
-          sudo timeout 180 apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf
-
-      - name: Install frontend dependencies
+          sudo timeout 180 apt-get install -y libdbus-1-dev libssl-dev libgtk-3-0 libnss3 libasound2 libgbm1 xvfb rpm
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      # Build the `codeg-mcp` companion binary for the matrix target and
-      # stage it as a Tauri sidecar at
-      # `src-tauri/binaries/codeg-mcp-<triple>{.exe}`. `tauri-action` (below)
-      # then bundles it via the `bundle.externalBin` entry in
-      # `tauri.conf.json` — Tauri installs it next to the main executable
-      # (Contents/MacOS on macOS, install root on Linux/Windows) where the
-      # runtime `locate_codeg_mcp_binary()` finds it via `current_exe`
-      # sibling lookup. The Linux arm64 cross env vars set above also
-      # apply to this cargo invocation.
-      - name: Stage codeg-mcp sidecar for Tauri bundle
-        shell: bash
-        run: pnpm tauri:prepare-sidecars --target ${{ matrix.target }}
-
-      - name: Verify codeg-mcp sidecar landed
-        shell: bash
-        run: |
-          ext=""
-          case "${{ matrix.target }}" in
-            *windows*) ext=".exe" ;;
-          esac
-          file="src-tauri/binaries/codeg-mcp-${{ matrix.target }}${ext}"
-          if [ ! -f "$file" ]; then
-            echo "FATAL: sidecar $file missing after prepare-sidecars"
-            exit 1
-          fi
-          ls -la "$file"
-
-      - name: Prepare desktop bundle config
-        shell: bash
-        run: |
-          cat > src-tauri/ci-release.conf.json <<'EOF'
-          {
-            "bundle": {
-              "createUpdaterArtifacts": true
-            }
-          }
-          EOF
-
-      - name: Import Apple Developer certificate
-        if: contains(matrix.target, 'apple-darwin')
+      - name: Build Electron installers (macOS, signed and notarized)
+        if: runner.os == 'macOS'
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          certificate_path="$RUNNER_TEMP/developer-id-application.p12"
-          keychain_path="$RUNNER_TEMP/maxcode-signing.keychain-db"
-
-          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$certificate_path"
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
-          security default-keychain -s "$keychain_path"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$keychain_path"
-          security set-keychain-settings -t 3600 -u "$keychain_path"
-          security import "$certificate_path" \
-            -k "$keychain_path" \
-            -P "$APPLE_CERTIFICATE_PASSWORD" \
-            -T /usr/bin/codesign
-          security set-key-partition-list \
-            -S apple-tool:,apple:,codesign: \
-            -s \
-            -k "$KEYCHAIN_PASSWORD" \
-            "$keychain_path"
-          rm -f "$certificate_path"
-
-          identity="$(security find-identity -v -p codesigning "$keychain_path" \
-            | sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' \
-            | head -n 1)"
-          expected='Developer ID Application: Dalv Cloud (Beijing) Technology Co., Ltd (ZGF375V7M7)'
-          if [ "$identity" != "$expected" ]; then
-            echo "FATAL: expected Developer ID identity was not imported"
-            exit 1
-          fi
-          echo "APPLE_SIGNING_IDENTITY=$identity" >> "$GITHUB_ENV"
-
-      - name: Build and upload to draft release (Windows)
-        if: contains(matrix.target, 'windows')
-        uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          # The matrix-target sidecar is already staged and verified above.
-          # Skip the duplicate beforeBuildCommand sidecar pass so cross builds
-          # do not fall back to the runner host triple.
-          CODEG_SKIP_SIDECAR: "1"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
-          tagName: ${{ github.ref_name }}
-          releaseBody: ${{ needs.create-draft-release.outputs.release_body }}
-          releaseDraft: true
-          prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
-          tauriScript: pnpm tauri
-          # Skip MSI bundling on Windows: tauri-apps/tauri#14681 — light.exe
-          # fails when externalBin is configured. Do NOT pass --no-sign:
-          # tauri-cli treats it as skipping updater minisign too, which
-          # drops windows-* from latest.json.
-          args: >-
-            --target ${{ matrix.target }}
-            --bundles nsis
-            --config src-tauri/ci-release.conf.json
-          includeUpdaterJson: true
-          updaterJsonPreferNsis: true
-          retryAttempts: 2
-
-      - name: Build and upload to draft release (Linux x64)
-        if: matrix.target == 'x86_64-unknown-linux-gnu'
-        uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          # The matrix-target sidecar is already staged and verified above.
-          # Skip the duplicate beforeBuildCommand sidecar pass so cross builds
-          # do not fall back to the runner host triple.
-          CODEG_SKIP_SIDECAR: "1"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        with:
-          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
-          tagName: ${{ github.ref_name }}
-          releaseBody: ${{ needs.create-draft-release.outputs.release_body }}
-          releaseDraft: true
-          prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
-          tauriScript: pnpm tauri
-          args: >-
-            --target ${{ matrix.target }}
-            --config src-tauri/ci-release.conf.json
-          includeUpdaterJson: true
-          retryAttempts: 2
-
-      - name: Build, sign, notarize and upload app to draft release (macOS)
-        if: contains(matrix.target, 'apple-darwin')
-        uses: tauri-apps/tauri-action@v0.6.1
-        env:
-          # The matrix-target sidecar is already staged and verified above.
-          # Skip the duplicate beforeBuildCommand sidecar pass so cross builds
-          # do not fall back to the runner host triple.
-          CODEG_SKIP_SIDECAR: "1"
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          CSC_LINK: ${{ secrets.APPLE_CERTIFICATE }}
+          CSC_KEY_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ZGF375V7M7
-        with:
-          releaseId: ${{ needs.create-draft-release.outputs.release_id }}
-          tagName: ${{ github.ref_name }}
-          releaseBody: ${{ needs.create-draft-release.outputs.release_body }}
-          releaseDraft: true
-          prerelease: ${{ needs.create-draft-release.outputs.prerelease }}
-          tauriScript: pnpm tauri
-          args: >-
-            --target ${{ matrix.target }}
-            --config src-tauri/ci-release.conf.json
-          includeUpdaterJson: true
-          retryAttempts: 2
-
-      - name: Verify updater signatures were produced
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CODEG_ELECTRON_RELEASE: "1"
+        run: pnpm desktop:build
+      - name: Build Electron installers (Windows / Linux)
+        if: runner.os != 'macOS'
+        run: pnpm desktop:build
+      - name: Verify signed and notarized macOS application
+        if: runner.os == 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          bundle="src-tauri/target/${{ matrix.target }}/release/bundle"
-          echo "bundle contents:"
-          find "$bundle" -type f | sort
-          sigs=$(find "$bundle" -name '*.sig' -type f)
-          if [ -z "$sigs" ]; then
-            echo "FATAL: no updater .sig under $bundle"
-            exit 1
-          fi
-          echo "signed:"
-          echo "$sigs"
-
-      - name: Verify macOS app signature
-        if: contains(matrix.target, 'apple-darwin')
+          apps=(electron/dist/mac*/maxcode.app)
+          test "${#apps[@]}" -eq 1
+          codesign --verify --deep --strict --verbose=2 "${apps[0]}"
+          xcrun stapler validate "${apps[0]}"
+          spctl --assess --type execute --verbose=2 "${apps[0]}"
+      - name: Smoke test packaged application (Linux)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm desktop:smoke
+      - name: Smoke test packaged application (macOS / Windows)
+        if: runner.os != 'Linux'
+        run: pnpm desktop:smoke
+      - name: Verify installers and write checksums
+        run: node electron/scripts/release.cjs checksum ${{ matrix.target }}
+      - name: Upload installers to the draft release
         shell: bash
-        run: |
-          set -euo pipefail
-          app="src-tauri/target/${{ matrix.target }}/release/bundle/macos/MaxCode.app"
-          test -d "$app"
-          test -f "$app/Contents/_CodeSignature/CodeResources"
-          codesign --verify --deep --strict --verbose=2 "$app"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$GITHUB_REF_NAME" electron/dist/MaxCode-Electron-* electron/dist/latest-*.yml --clobber
 
   build-server:
     needs:
@@ -602,8 +375,7 @@ jobs:
           sudo apt-get update
           # libssl3 is Multi-Arch: same; align the preinstalled :amd64 copy
           # with the version libssl-dev:arm64 pins so the cross install isn't
-          # blocked by a held-back amd64 copy (same failure mode as the desktop
-          # arm64 build — see the build-tauri step for the full rationale).
+          # blocked by a held-back amd64 copy.
           sudo apt-get install -y --only-upgrade libssl3
           sudo apt-get install -y \
             gcc-aarch64-linux-gnu \
@@ -705,8 +477,8 @@ jobs:
           path: dist/${{ matrix.artifact }}
           retention-days: 1
 
-      # Sign the server bundle with the SAME minisign key the desktop
-      # updater uses (`tauri signer sign` writes `<file>.sig`). The server's
+      # Keep the existing server minisign key and signature format.
+      # `tauri signer sign` remains a signing utility; the server's
       # `update::verify` module verifies this signature against the embedded
       # public key before installing — see src-tauri/src/update/verify.rs.
       # Missing key is a hard error: every release must ship signed artifacts
@@ -771,6 +543,8 @@ jobs:
     needs:
       - create-draft-release
       - build-server
+      - resolve-matrix
+    if: needs.resolve-matrix.outputs.docker == 'true'
     name: Build Docker image
     runs-on: ubuntu-22.04
     permissions:
@@ -862,45 +636,32 @@ jobs:
     needs:
       - create-draft-release
       - resolve-matrix
-      - build-tauri
-    # Publish even if one matrix cell fails or times out (Linux apt flake
-    # on 0.25.4 cancelled the whole job after 6h and left a finished draft
-    # unpublished). A job timeout is `cancelled`, not `failure`.
-    if: ${{ always() && needs.create-draft-release.result == 'success' && needs.build-tauri.result != 'skipped' }}
+      - build-electron
+      - build-server
+      - build-docker
+    # Every selected build must pass, including signature and packaged smoke checks.
+    if: >-
+      ${{ always() && !cancelled() &&
+          needs.create-draft-release.result == 'success' &&
+          (needs.build-electron.result == 'success' || needs.build-electron.result == 'skipped') &&
+          (needs.build-server.result == 'success' || needs.build-server.result == 'skipped') &&
+          (needs.build-docker.result == 'success' || needs.build-docker.result == 'skipped') &&
+          (needs.build-electron.result == 'success' || needs.build-server.result == 'success') }}
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - name: Require updater manifest
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Require all selected installers and signed server assets
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-          UPDATER_REQUIRED: ${{ needs.resolve-matrix.outputs.updater_required }}
         run: |
           set -euo pipefail
-          # This job has no checkout; GH_REPO keeps `gh` from looking for .git.
-          assets=$(gh release view "${{ github.ref_name }}" --json assets --jq '.assets[].name')
-          printf '%s\n' "$assets"
-          echo "$assets" | grep -qx 'latest.json' || {
-            echo "FATAL: latest.json missing from the draft release"
-            exit 1
-          }
-          echo "$assets" | grep -q '\.sig$' || {
-            echo "FATAL: no updater .sig artifacts on the draft release"
-            exit 1
-          }
-          gh release download "${{ github.ref_name }}" --pattern latest.json --dir /tmp
-          python3 - <<'PY'
-          import json, os, sys
-          platforms = json.load(open("/tmp/latest.json")).get("platforms") or {}
-          print("platforms:", ", ".join(sorted(platforms)))
-          # 只要求白名单内实际构建的桌面平台（resolve-matrix 计算）
-          required = os.environ["UPDATER_REQUIRED"].split()
-          missing = [p for p in required if p not in platforms]
-          if missing:
-              print("FATAL: latest.json missing", ", ".join(missing), file=sys.stderr)
-              sys.exit(1)
-          PY
+          gh release view "$GITHUB_REF_NAME" --json assets | node electron/scripts/release.cjs validate-assets
 
       - name: Publish draft release
         uses: actions/github-script@v7

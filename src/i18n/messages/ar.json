@@ -34,6 +34,7 @@
     "generateToken": "إنشاء رمز"
   },
   "SettingsShell": {
+    "backToApp": "العودة إلى التطبيق",
     "title": "الإعدادات",
     "preferences": "التفضيلات",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "حزم المهارات",
       "quick_messages": "رسائل سريعة",
       "logs": "سجلات التشغيل"
-    }
+    },
+    "searchSettings": "Search settings…",
+    "loading": "Loading settings…"
   },
   "AppearanceSettings": {
     "sectionTitle": "مظهر السمة",
@@ -323,6 +326,7 @@
     "updateReadyHint": "تم تنزيل التحديث — أعد التشغيل لتطبيقه.",
     "restarting": "جارٍ إعادة التشغيل...",
     "electronUpgradeHint": "تتطلب تحديثات Electron برنامج تثبيت سطح المكتب. نزّل حزمة Electron من صفحة الإصدارات وثبّتها، ثم أعد فتح MaxCode.",
+    "downloadAndRestart": "تنزيل التحديث وإعادة التشغيل",
     "dockerUpgradeHint": "يؤدي هذا إلى ترقية الحاوية قيد التشغيل الآن. وتُفقد عند إعادة إنشاء الحاوية — وللاحتفاظ بها، اسحب أو ابنِ صورة بالإصدار الجديد ثم أعد إنشاء الحاوية.",
     "upgradeRolledBack": "فشلت الترقية؛ عاد الخادم إلى الإصدار السابق.",
     "serverUnreachable": "تعذّر الوصول إلى الخادم لبدء الترقية. تأكد من أنه قيد التشغيل وحاول مرة أخرى.",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "إزالة المجلد من مساحة العمل؟",
       "removeFolderConfirmDescription": "إزالة \"{name}\" من مساحة العمل؟ سيتم إغلاق علامات التبويب والمحطات المرتبطة.",
       "folderHeaderMenu": {
-        "openInLeftSplit": "فتح في القسم الأيسر",
-        "openInRightSplit": "فتح في القسم الأيمن",
         "splitLimitReached": "القسمان الأيسر والأيمن مستخدمان. أغلق أحدهما قبل فتح مجلد آخر.",
         "manageConversations": "إدارة المحادثات…",
         "manageLinks": "المجلدات المرتبطة",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "القسمان الأيسر والأيمن مستخدمان. أغلق أحدهما قبل فتح مجلد آخر."
     },
     "folderTitleBar": {
+      "workspaceTools": "أدوات مساحة العمل",
       "showSidebar": "إظهار الشريط الجانبي",
       "hideSidebar": "إخفاء الشريط الجانبي",
       "toggleTerminal": "تبديل الطرفية",
@@ -2113,6 +2116,12 @@
         "output": "إخراج",
         "cacheRead": "قراءة الكاش",
         "cacheWrite": "كتابة الكاش",
+        "cacheHitRate": "معدل إصابة ذاكرة التخزين المؤقت",
+        "estimatedCost": "التكلفة التقديرية",
+        "estimatedPartialCost": "التكلفة الجزئية المعروفة",
+        "costLoading": "جارٍ الحساب…",
+        "costBasis": "الاستخدام المسجل بأسعار API القياسية بالدولار، دون أسعار الشرائح أو الباقات أو الخصومات.",
+        "costIncomplete": "الجزء المسعّر فقط؛ بعض أسعار النماذج أو التخزين المؤقت غير متوفرة.",
         "total": "الإجمالي"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "المهارات"
       },
       "messageQueue": {
+        "adjustDirection": "تعديل الاتجاه",
+        "adjustDirectionHint": "إيقاف الرد الحالي وإرسال هذه الرسالة تاليًا",
+        "reorderItem": "اسحب لإعادة الترتيب",
         "addToQueue": "إضافة للقائمة",
         "saveEdit": "حفظ",
         "cancelEdit": "إلغاء التعديل",
@@ -3283,6 +3295,8 @@
         "openFailed": "فشل فتح الملف المحلي"
       },
       "messageList": {
+        "editMessage": "تعديل الرسالة",
+        "editStopFailed": "تعذّر إيقاف الرد. الرسالة جاهزة للتعديل في مربع الإدخال.",
         "attachedResources": "الموارد المرفقة",
         "loading": "جارٍ التحميل...",
         "loadEarlier": "تحميل الرسائل السابقة",
@@ -3331,6 +3345,7 @@
         "completedAt": "وقت الإنجاز",
         "jumpToPreviousUserMessage": "الانتقال إلى رسالة المستخدم",
         "processed": "تمت المعالجة",
+        "activitySteps": "{count} خطوات",
         "processedFor": "تمت المعالجة خلال {duration}",
         "showMore": "عرض المزيد",
         "showLess": "طي"
@@ -3345,6 +3360,7 @@
         "outputSpeedTooltip": "السرعة التقديرية للإخراج (نص + تفكير + وسائط الأدوات)"
       },
       "generationStats": {
+        "roundCount": "عدد الجولات: {count}",
         "ttftAverage": "متوسط أول token ‏{duration}",
         "tokensPerSecond": "{throughput} tok/s"
       },
@@ -3365,6 +3381,7 @@
           "inputStreaming": "قيد الانتظار",
           "outputAvailable": "مكتمل",
           "outputDenied": "مرفوض",
+          "retrySucceeded": "نجحت إعادة المحاولة",
           "outputError": "خطأ"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "{count, plural, zero {تحديث صفر مهمة} one {تحديث مهمة واحدة} two {تحديث مهمتين} few {تحديث # مهام} many {تحديث # مهمة} other {تحديث # مهمة}}",
           "task": "{count, plural, zero {تشغيل صفر مهمة} one {تشغيل مهمة واحدة} two {تشغيل مهمتين} few {تشغيل # مهام} many {تشغيل # مهمة} other {تشغيل # مهمة}}",
           "other": "{count, plural, zero {استخدام صفر أداة} one {استخدام أداة واحدة} two {استخدام أداتين} few {استخدام # أدوات} many {استخدام # أداة} other {استخدام # أداة}}",
-          "errorSuffix": "{count, plural, zero {صفر فشل} one {فشل واحد} two {فشلان} few {# فشلوا} many {# فشلاً} other {# فشل}}",
+          "recoveredSuffix": "نجحت إعادة المحاولة لـ {count}",
+          "errorSuffix": "{count} مشكلات في التنفيذ",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "يحتوي هذا المقطع أيضًا على مُخرَج {commands} — إذ اقتطع codex الفواصل الخاصة بها.",
           "truncated": "مقتطع"
         }
+      },
+      "conversationFind": {
+        "title": "البحث في المحادثة",
+        "previous": "الرسالة السابقة",
+        "next": "الرسالة التالية",
+        "close": "إغلاق البحث",
+        "loading": "جارٍ البحث في الرسائل السابقة…",
+        "partial": "لم يتم البحث في بعض الرسائل السابقة بعد",
+        "retry": "متابعة تحميل السجل",
+        "count": "{count} رسائل مطابقة",
+        "empty": "لا توجد رسائل مطابقة"
       },
       "messageNav": {
         "title": "تنقل الرسائل",

@@ -5,6 +5,13 @@ const { contextBridge, ipcRenderer } = require("electron")
 // command-line argument, cookie, or renderer localStorage.
 const bootstrap = ipcRenderer.sendSync("maxcode:bootstrap")
 if (bootstrap) {
+  window.addEventListener(
+    "DOMContentLoaded",
+    () => {
+      document.documentElement.dataset.nativeShell = "electron"
+    },
+    { once: true }
+  )
   const { storage, restoreStorage, ...config } = bootstrap
   // Chromium localStorage is keyed by origin, including the backend's ephemeral
   // port. Restore before the app's first script reads preferences and mirror
@@ -51,6 +58,8 @@ if (bootstrap) {
 
   contextBridge.exposeInMainWorld("maxcodeElectron", {
     ...config,
+    readClipboardImage: () =>
+      ipcRenderer.invoke("maxcode:read-clipboard-image"),
     openExternal: (url) => ipcRenderer.invoke("maxcode:open-external", url),
     openPath: (filePath) => ipcRenderer.invoke("maxcode:open-path", filePath),
     revealItemInDir: (filePath) =>
@@ -61,9 +70,20 @@ if (bootstrap) {
       ipcRenderer.invoke("maxcode:save-file", options, bytes),
     closeWindow: () => ipcRenderer.invoke("maxcode:close-window"),
     relaunchApp: () => ipcRenderer.invoke("maxcode:relaunch-app"),
+    checkForUpdate: () => ipcRenderer.invoke("maxcode:update-check"),
+    getUpdateStatus: () => ipcRenderer.invoke("maxcode:update-status"),
+    getUpdateState: () => ipcRenderer.invoke("maxcode:update-state"),
+    startUpdate: () => ipcRenderer.invoke("maxcode:update-start"),
+    installUpdate: () => ipcRenderer.invoke("maxcode:update-install"),
+    onUpdateState: (handler) => {
+      const listener = (_event, state) => handler(state)
+      ipcRenderer.on("maxcode:update-state", listener)
+      return () => ipcRenderer.removeListener("maxcode:update-state", listener)
+    },
     minimizeWindow: () => ipcRenderer.invoke("maxcode:minimize-window"),
     toggleMaximizeWindow: () => ipcRenderer.invoke("maxcode:toggle-maximize"),
     isMaximized: () => ipcRenderer.invoke("maxcode:is-maximized"),
+    setBadgeCount: (count) => ipcRenderer.invoke("maxcode:set-badge-count", count),
     notify: (title, body) => ipcRenderer.invoke("maxcode:notify", title, body),
     openNotificationSettings: () =>
       ipcRenderer.invoke("maxcode:notification-settings"),

@@ -117,8 +117,17 @@ pub struct ConversationDetail {
     pub transcript_watermark: Option<u64>,
 }
 
+/// Normalized usage across the full transcript, independent of history paging.
+#[derive(Debug, Clone, Serialize)]
+pub struct ConversationBillingUsage {
+    pub model: Option<String>,
+    pub usage: crate::models::message::TurnUsage,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct DbConversationDetail {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub billing_usage: Option<Vec<ConversationBillingUsage>>,
     pub summary: DbConversationSummary,
     pub turns: Vec<MessageTurn>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -145,6 +154,9 @@ pub struct DbConversationDetail {
     pub turns_offset: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub turns_total: Option<usize>,
+    /// User prompts across the full transcript, before window slicing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_turns_total: Option<usize>,
     /// Assistant turns in `full[0..turns_offset)` — lets the frontend convert
     /// its send-time history baseline between global and window coordinates.
     #[serde(skip_serializing_if = "Option::is_none")]

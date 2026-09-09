@@ -34,6 +34,7 @@
     "generateToken": "Token erstellen"
   },
   "SettingsShell": {
+    "backToApp": "Zurück zur App",
     "title": "Einstellungen",
     "preferences": "Präferenzen",
     "nav": {
@@ -54,7 +55,9 @@
       "skill_packs": "Skill-Pakete",
       "quick_messages": "Schnellnachrichten",
       "logs": "Laufzeitprotokolle"
-    }
+    },
+    "searchSettings": "Search settings…",
+    "loading": "Loading settings…"
   },
   "AppearanceSettings": {
     "sectionTitle": "Design-Erscheinungsbild",
@@ -323,6 +326,7 @@
     "updateReadyHint": "Update heruntergeladen – zum Anwenden neu starten.",
     "restarting": "Neustart...",
     "electronUpgradeHint": "Electron-Updates erfordern das Desktop-Installationsprogramm. Lade das Electron-Paket von der Release-Seite herunter, installiere es und öffne MaxCode erneut.",
+    "downloadAndRestart": "Update herunterladen und neu starten",
     "dockerUpgradeHint": "Dies aktualisiert jetzt den laufenden Container. Beim Neuerstellen des Containers geht es verloren – zum Beibehalten ein Image mit der neuen Version ziehen oder bauen und den Container neu erstellen.",
     "upgradeRolledBack": "Upgrade fehlgeschlagen; der Server wurde auf die vorherige Version zurückgesetzt.",
     "serverUnreachable": "Der Server konnte für das Upgrade nicht erreicht werden. Prüfe, ob er läuft, und versuche es erneut.",
@@ -1846,8 +1850,6 @@
       "removeFolderConfirmTitle": "Ordner aus Arbeitsbereich entfernen?",
       "removeFolderConfirmDescription": "\"{name}\" aus dem Arbeitsbereich entfernen? Zugehörige Tabs und Terminals werden geschlossen.",
       "folderHeaderMenu": {
-        "openInLeftSplit": "Links geteilt öffnen",
-        "openInRightSplit": "Rechts geteilt öffnen",
         "splitLimitReached": "Der linke und rechte Bereich werden bereits verwendet. Schließe zuerst einen Bereich.",
         "manageConversations": "Konversationen verwalten…",
         "manageLinks": "Verknüpfte Ordner",
@@ -2064,6 +2066,7 @@
       "folderZoneOccupied": "Der linke und rechte Bereich werden bereits verwendet. Schließe zuerst einen Bereich."
     },
     "folderTitleBar": {
+      "workspaceTools": "Arbeitsbereich-Werkzeuge",
       "showSidebar": "Seitenleiste anzeigen",
       "hideSidebar": "Seitenleiste ausblenden",
       "toggleTerminal": "Terminal umschalten",
@@ -2113,6 +2116,12 @@
         "output": "Ausgabe",
         "cacheRead": "Cache lesen",
         "cacheWrite": "Cache schreiben",
+        "cacheHitRate": "Cache-Trefferrate",
+        "estimatedCost": "Geschätzte Kosten",
+        "estimatedPartialCost": "Bekannte Teilkosten",
+        "costLoading": "Berechnung…",
+        "costBasis": "Erfasste Nutzung zu Standard-API-Preisen (USD), ohne Staffelpreise, Tarife oder Rabatte.",
+        "costIncomplete": "Nur bepreiste Anteile; einige Modell- oder Cache-Preise fehlen.",
         "total": "Gesamt"
       },
       "quickActions": {
@@ -3052,6 +3061,9 @@
         "mentionGroupSkill": "Fähigkeiten"
       },
       "messageQueue": {
+        "adjustDirection": "Richtung ändern",
+        "adjustDirectionHint": "Aktuelle Antwort stoppen und diese Nachricht als Nächstes senden",
+        "reorderItem": "Zum Sortieren ziehen",
         "addToQueue": "Zur Warteschlange",
         "saveEdit": "Speichern",
         "cancelEdit": "Bearbeitung abbrechen",
@@ -3283,6 +3295,8 @@
         "openFailed": "Lokale Datei konnte nicht geöffnet werden"
       },
       "messageList": {
+        "editMessage": "Nachricht bearbeiten",
+        "editStopFailed": "Die Antwort konnte nicht gestoppt werden. Die Nachricht kann im Eingabefeld bearbeitet werden.",
         "attachedResources": "Angehängte Ressourcen",
         "loading": "Lädt...",
         "loadEarlier": "Frühere Nachrichten laden",
@@ -3331,6 +3345,7 @@
         "completedAt": "Abgeschlossen um",
         "jumpToPreviousUserMessage": "Zur Benutzernachricht springen",
         "processed": "Verarbeitet",
+        "activitySteps": "{count} Schritte",
         "processedFor": "Verarbeitet in {duration}",
         "showMore": "Mehr anzeigen",
         "showLess": "Weniger anzeigen"
@@ -3345,6 +3360,7 @@
         "outputSpeedTooltip": "Geschätzte Ausgabegeschwindigkeit (Text + Denken + Werkzeugargumente)"
       },
       "generationStats": {
+        "roundCount": "{count, plural, one {# Runde} other {# Runden}}",
         "ttftAverage": "Erster Token Ø {duration}",
         "tokensPerSecond": "{throughput} tok/s"
       },
@@ -3365,6 +3381,7 @@
           "inputStreaming": "Ausstehend",
           "outputAvailable": "Abgeschlossen",
           "outputDenied": "Abgelehnt",
+          "retrySucceeded": "Wiederholung erfolgreich",
           "outputError": "Fehler"
         }
       },
@@ -3563,7 +3580,8 @@
           "todo": "{count, plural, one {# Aufgabe aktualisiert} other {# Aufgaben aktualisiert}}",
           "task": "{count, plural, one {# Aufgabe ausgeführt} other {# Aufgaben ausgeführt}}",
           "other": "{count, plural, one {# Werkzeug verwendet} other {# Werkzeuge verwendet}}",
-          "errorSuffix": "{count, plural, one {# fehlgeschlagen} other {# fehlgeschlagen}}",
+          "recoveredSuffix": "{count} erfolgreiche Wiederholungen",
+          "errorSuffix": "{count} Ausführungsprobleme",
           "joiner": " · "
         },
         "planMode": {
@@ -3591,6 +3609,17 @@
           "sharedWith": "Enthält auch die Ausgabe von {commands} – codex hat deren Trennzeichen abgeschnitten.",
           "truncated": "gekürzt"
         }
+      },
+      "conversationFind": {
+        "title": "Unterhaltung durchsuchen",
+        "previous": "Vorherige Nachricht",
+        "next": "Nächste Nachricht",
+        "close": "Suche schließen",
+        "loading": "Ältere Nachrichten werden durchsucht…",
+        "partial": "Ältere Nachrichten wurden noch nicht durchsucht",
+        "retry": "Verlauf weiter laden",
+        "count": "{count} passende Nachrichten",
+        "empty": "Keine passenden Nachrichten"
       },
       "messageNav": {
         "title": "Nachrichtennavigation",

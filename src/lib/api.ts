@@ -1,3 +1,4 @@
+import { requestInAppSettings } from "./in-app-settings"
 import {
   getActiveRemoteConnectionId,
   getShellTransport,
@@ -3079,6 +3080,7 @@ export async function openSettingsWindow(
   section?: SettingsSection,
   options?: OpenSettingsWindowOptions
 ): Promise<void> {
+  if (requestInAppSettings({ section, agentType: options?.agentType })) return
   const locale = getCurrentEffectiveAppLocale()
   if (isDesktop()) {
     return getShellTransport().call("open_settings_window", {

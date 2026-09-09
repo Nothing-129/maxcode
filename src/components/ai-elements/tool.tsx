@@ -39,6 +39,7 @@ export type ToolPart = ToolUIPart | DynamicToolUIPart
 
 export type ToolHeaderProps = {
   title?: ReactNode
+  recovered?: boolean
   titleSuffix?: ReactNode
   icon?: ReactNode
   className?: string
@@ -72,6 +73,7 @@ export const ToolHeader = ({
   className,
   title,
   titleSuffix,
+  recovered = false,
   icon,
   type,
   state,
@@ -112,7 +114,19 @@ export const ToolHeader = ({
           {title ?? derivedName}
         </span>
         {titleSuffix ? <span className="shrink-0">{titleSuffix}</span> : null}
-        <span className="shrink-0">{getStatusBadge(state, statusLabel)}</span>
+        <span className="shrink-0">
+          {recovered ? (
+            <Badge
+              className="gap-1.5 rounded-full text-xs text-muted-foreground"
+              variant="secondary"
+            >
+              <CheckCircleIcon className="size-4" />
+              {t("status.retrySucceeded")}
+            </Badge>
+          ) : (
+            getStatusBadge(state, statusLabel)
+          )}
+        </span>
       </div>
       <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
     </CollapsibleTrigger>

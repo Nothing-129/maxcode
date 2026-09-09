@@ -121,6 +121,8 @@ export function SettingsSection({
       // would lose keyboard focus the moment it was used.
       <Collapsible open={expanded} onOpenChange={onOpenChange} asChild>
         <section
+          data-settings-section=""
+          data-settings-option={control ? "" : undefined}
           className={cn("overflow-hidden rounded-xl border bg-card", className)}
         >
           {/* `relative` is the anchor the trigger stretches its hit area to,
@@ -184,6 +186,8 @@ export function SettingsSection({
 
   return (
     <section
+      data-settings-section=""
+      data-settings-option={control ? "" : undefined}
       className={cn("space-y-3 rounded-xl border bg-card p-4", className)}
     >
       {/* Same alignment rule as `SettingRow`: with an explanation the control

@@ -2,9 +2,531 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "composer.metric-layout",
+      "category": "product",
+      "description": "Composer metrics use five compact values separated by vertical bars, Chinese first-token wording, four-decimal inline USD estimates without an approximation prefix, and no usage pill background. Visible and measured performance layouts share the same renderer; hidden metrics do not leave orphan separators.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/composer-generation-stats.tsx",
+        "src/components/chat/composer-context-usage.tsx",
+        "src/components/chat/composer-connection-status.tsx",
+        "src/components/chat/composer-cost-estimate.tsx",
+        "src/app/globals.css",
+        "src/i18n/messages/zh-CN.json",
+        "src/i18n/messages/zh-TW.json"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-metric-layout.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "composer.metric-colors",
+      "category": "product",
+      "description": "Composer rounds, TTFT, throughput, context/token amount and estimated cost inherit a single muted text color from the trailing metrics group, with no per-metric color/opacity overrides or isolated usage-hover color.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/composer-generation-stats.tsx",
+        "src/components/chat/composer-context-usage.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-metric-colors.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.conversation-find",
+      "category": "product",
+      "description": "Ctrl/Cmd+F opens a top-right current-conversation search with matching-message navigation, highlighted excerpts and paginated history search with bounded retries. Only active main conversation views handle the shortcut.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/message/conversation-find.tsx",
+        "src/components/message/virtualized-message-thread.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/conversation-find.contract.test.tsx"]
+    },
+    {
+      "id": "composer.conversation-cost",
+      "category": "product",
+      "description": "Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/lib/conversation-cost.ts",
+        "src/components/chat/composer-cost-estimate.tsx",
+        "src/components/chat/composer-context-usage.tsx",
+        "src-tauri/src/acp/opencode_catalog.rs",
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/models/conversation.rs",
+        "src-tauri/src/parsers/codex.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/conversation-cost.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.collapsed-folder-running",
+      "category": "product",
+      "description": "Folders and folder groups show a trailing neutral running spinner only while collapsed and containing running sessions, with no visible numeric badge.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/conversations/folder-running-indicator.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-folder-group-header.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/folder-running.contract.test.tsx"]
+    },
+    {
+      "id": "desktop.electron-dock-badge",
+      "category": "product",
+      "description": "macOS Electron Dock badge reflects visible unread conversations and clears when read, through validated native IPC while preserving Tauri behavior.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/conversations/conversation-unread-sync.tsx",
+        "src/lib/electron.ts",
+        "electron/preload.cjs",
+        "electron/main.cjs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-dock-badge.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "composer.conversation-round-count",
+      "category": "product",
+      "description": "Show user-prompt round count immediately before TTFT, including live sends and unloaded history without counting assistant or tool steps. Retain measured compact-mode fitting.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/chat/composer-generation-stats.tsx",
+        "src/lib/types.ts",
+        "src-tauri/src/models/conversation.rs",
+        "src-tauri/src/commands/conversations.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-round-count.contract.test.ts"
+      ]
+    },
+    {
+      "id": "composer.usage-popover",
+      "category": "product",
+      "description": "Composer usage popover separates context capacity from session token totals with a prominent percentage, thin progress bar, spaced aligned definition rows and a subtle total row; cache hit rate uses cache reads divided by input plus cache reads and writes, excluding output, with -- for zero input; width fits narrow viewports.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": ["src/components/chat/composer-context-usage.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/composer-usage-popover.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "composer.empty-selection",
+      "category": "product",
+      "description": "Selecting all and deleting composer text leaves a clean placeholder and caret without native or inactive selection paint on the empty paragraph; real text selection remains visible.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/chat/composer/inactive-selection.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-empty-selection.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.image-only-message",
+      "category": "product",
+      "description": "Image-only user messages show attachments without an empty text bubble or generated attachment-summary caption; captions and non-text content retain their message body.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/message/message-list-view.tsx",
+        "src/lib/prompt-draft.ts",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/canvas/canvas-conversation-surface.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/image-only-message.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "mobile.composer-bottom-gap",
+      "category": "product",
+      "description": "The workspace owns bottom safe-area padding once; the composer uses a compact 8px phone gutter and 12px desktop gutter without duplicating the inset when the keyboard closes.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/app/workspace/layout.tsx",
+        "src/components/chat/chat-input.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-composer-bottom-gap.contract.test.ts"
+      ]
+    },
+    {
+      "id": "desktop.electron-web-service",
+      "category": "product",
+      "description": "Electron exposes a separately controlled authenticated Web listener for phone access, retaining saved port/token and auto-start without interrupting the private desktop transport.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/settings/settings-shell.tsx",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src-tauri/src/web/mod.rs",
+        "src-tauri/src/web/handlers/web_server.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-web-service.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.running-composer-actions",
+      "category": "product",
+      "description": "Running composer uses separate 32px circular stop, queue and more-action buttons, a neutral solid stop glyph and an up-arrow queue action, without split-button seams.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": ["src/components/chat/message-input.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/running-composer-actions.contract.test.ts"
+      ]
+    },
+    {
+      "id": "workspace.scroll-only-scrollbars",
+      "category": "product",
+      "description": "Shared scroll areas and the document show overlay scrollbars on scroll and hide after 800ms of inactivity, even while the pointer remains within the content.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/ui/scroll-area.tsx",
+        "src/components/overlay-scrollbars-init.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/scrollbar-visibility.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.tool-retry-recovery",
+      "category": "product",
+      "description": "Confirmed identical read-only retries soften historical error badges and remove recovered attempts from the failure summary, while retaining original errors. Unrelated successes never resolve failures. Tool-group execution issues use a neutral count rather than a red task-failure signal; expanded tool errors and session failure alerts remain intact.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/lib/tool-call-recovery.ts",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/components/message/progress-sections.tsx",
+        "src/components/ai-elements/tool.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/tool-retry-recovery.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "folders.alias-only-label",
+      "category": "product",
+      "description": "Renamed folders show only their trimmed alias in sidebar, headers, pickers and string labels; unset aliases use the original name. Paths, ids, search matching and synthetic root worktree markers remain intact.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/lib/folder-display.ts",
+        "src/components/conversations/folder-alias-label.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/shared/folder-select.tsx",
+        "src/components/chat/conversation-context-bar.tsx",
+        "src/components/token-usage/token-usage-page.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/folder-alias-only.contract.test.tsx"]
+    },
+    {
+      "id": "chat.file-link-presentation",
+      "category": "product",
+      "description": "Transcript file links match body text size with an inherited-body-weight muted blue label and a thin outline file icon; composer reference chips retain their existing presentation and all file actions are preserved.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/ai-elements/markdown-link.tsx",
+        "src/components/chat/composer/badges/reference-badge.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/file-link-style.contract.test.tsx"]
+    },
+    {
+      "id": "conversations.reference-status-indicators",
+      "category": "product",
+      "description": "Sidebar running status uses a 12px thin neutral ring with a rounded rotating arc; unread markers use an 8px solid blue dot.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/conversation-unread-dot.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/status-indicators.contract.test.tsx"]
+    },
+    {
+      "id": "workspace.subtle-resize-handles",
+      "category": "product",
+      "description": "Panel dividers remain 1px at rest and 2px on hover or drag, retaining the wider invisible pointer target.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": ["src/components/ui/resizable.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/subtle-resize-handles.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversations.title-overflow-menu",
+      "category": "product",
+      "description": "A single always-visible ellipsis immediately after the conversation title opens conversation actions; rename is available inside the menu instead of a separate pencil button.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": ["src/components/conversations/conversation-detail-header.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/title-completion-only.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.reference-style-refinement",
+      "category": "product",
+      "description": "Pale blue padded user bubbles, 14px/22.75px system chat typography with 430 body weight, 600 emphasis and #1a1c1f body color, historical reply actions within the existing turn gutter with final-row space preserved, and outside list markers with aligned wrapped text and distinct paragraph/list spacing, Chinese elapsed labels using 小时/分/秒, subtle composer chrome with all controls retained and all inline selectors grouped at the left, subdued external metadata and sidebar labels at 14px with the reference desktop 430 weight with screenshot-measured #434447 labels without open-tab black overrides and 22px line height, centered in 31px conversation rows with 1px vertical insets, 8px sidebar gutters, pale selection, restored 7px icon-label gaps and the established 20px depth step; titles and hierarchy remain unchanged.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/ai-elements/message.tsx",
+        "src/lib/font-presets.ts",
+        "src/app/globals.css",
+        "src/components/message/virtualized-message-thread.tsx",
+        "src/components/message/turn-stats.tsx",
+        "src/components/message/completed-turn-content.tsx",
+        "src/i18n/messages/zh-CN.json",
+        "src/components/chat/composer/composer-chrome.ts",
+        "src/components/chat/message-input.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/sidebar-folder-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/reference-chat-style.contract.test.ts",
+        "src/maxcode-contracts/sidebar-text-spacing.contract.test.ts",
+        "src/maxcode-contracts/sidebar-label-color.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "composer.queued-message-card",
+      "category": "product",
+      "description": "Queued messages sit above the composer with adjust-direction, edit and delete actions in that order. Adjust-direction promotes the selected message and cancels the active reply so the existing queue flush resumes it; editing restores the draft and blocks auto-flush until saved or cancelled.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/chat/message-queue-display.tsx",
+        "src/components/chat/chat-input.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/queued-message-card.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "settings.default-agent-order",
+      "category": "product",
+      "description": "Initialize built-in agents in the screenshot-defined order, with Codex first; retain saved user ordering and append custom agents after built-ins.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/db/service/agent_setting_service.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/default-agent-order.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversations.title-completion-only",
+      "category": "product",
+      "description": "Remove manual status switching and status-color settings; retain the original running spinner and unread indicators, title hover and title menu completion actions, existing completed-conversation filtering and unchanged titles.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/settings/appearance-settings.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/title-completion-only.contract.test.tsx",
+        "src/maxcode-contracts/cancelled-conversation-badge.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "conversations.folder-unread",
+      "category": "product",
+      "description": "Unread blue dots appear only on the direct display folder header, including collapsed folders, never on ancestor repository containers or folder groups, and clear after all settled unread sessions are read.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/lib/folder-unread.ts",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-folder-group-header.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/folder-unread.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.search-tools",
+      "category": "product",
+      "description": "Desktop and mobile sidebars keep search, locate-active and overflow tools visible in order. Mobile places the 44px tools beside the sidebar title in one row and closes the drawer for search; overflow retains expand/collapse, mark-all-read and list preferences.",
+      "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
+      "paths": ["src/components/layout/sidebar.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.product-wordmark",
+      "category": "product",
+      "description": "Desktop sidebar uses a compact MaxCode wordmark with a cobalt-blue slash (#285ee1 light, #82a4ff dark). Any in-progress workspace conversation activates an opaque blue-cyan-purple gradient flowing over 3.6 seconds; it fades out when all work settles and stays static cobalt under reduced motion. SVG gradient IDs are instance-local. Text and base geometry remain still, with one accessible product name and no navigation stop.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/layout/sidebar.tsx",
+        "src/components/layout/sidebar-wordmark.tsx",
+        "src/components/layout/sidebar-wordmark.module.css"
+      ],
+      "contracts": ["src/maxcode-contracts/sidebar-wordmark.contract.test.tsx"]
+    },
+    {
+      "id": "messages.edit-sent-message",
+      "category": "product",
+      "description": "An edit icon beside Copy immediately stops an active reply and replaces/focuses the normal composer with the original user text. It exits queue-edit mode and never opens a dialog or automatically sends. Read-only views hide the action.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/message/sent-message-edit-button.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/edit-sent-message.contract.test.tsx"]
+    },
+    {
+      "id": "workspace.mobile-header",
+      "category": "product",
+      "description": "Mobile shares a single canvas-colored header with the active title. New conversation and secondary workspace actions stay in the tools menu to preserve title width; desktop title placement is unchanged.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/layout/mobile-header-slot.tsx",
+        "src/i18n/messages/",
+        "src/components/layout/folder-title-bar.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/app/workspace/layout.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/mobile-header.contract.test.tsx"]
+    },
+    {
+      "id": "conversations.recent-new-chat",
+      "category": "product",
+      "description": "Recent starts a folderless chat through the same navigation action as Chats, regardless of the active folder, with a New chat label.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-section-header.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/recent-new-chat.contract.test.tsx"]
+    },
+    {
+      "id": "desktop.differential-updates",
+      "category": "platform",
+      "description": "Electron owns stable-channel update checks, differential downloads with verified full-download fallback, shared progress, and automatic restart after managed backend shutdown. Clicking the version checks for updates directly. A quiet icon beside the version starts the whole download-and-restart flow with one click, without discovery notifications or a release-details popover. Releases ship architecture-specific metadata and blockmaps on the personal repository; server update APIs never replace bundled binaries.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "electron/",
+        "package.json",
+        "pnpm-lock.yaml",
+        ".github/workflows/release.yml",
+        "src/lib/electron.ts",
+        "src/lib/updater.ts",
+        "src/components/providers/update-provider.tsx",
+        "src/components/layout/status-bar-update.tsx",
+        "src/i18n/messages/",
+        "docs/maintenance/electron-differential-updates.md"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-updater.contract.test.ts",
+        "src/maxcode-contracts/electron-differential-download.contract.test.ts",
+        "src/maxcode-contracts/electron-update-metadata.contract.test.ts",
+        "src/maxcode-contracts/electron-update-ui.contract.test.tsx",
+        "src/maxcode-contracts/electron-frontend.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversations.folders-section-collapse",
+      "category": "product",
+      "description": "Collapsing the Folders section also persists every open folder, including grouped folders and worktree children, as folded and resets folder paging; reopening shows folder names with conversation lists still folded.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/folders-section-collapse.contract.test.ts"
+      ]
+    },
+    {
+      "id": "desktop.electron-release-pipeline",
+      "category": "release",
+      "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Server minisign compatibility remains; legacy Tauri CI is manual-only.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        ".github/workflows/test.yml",
+        ".github/workflows/release.yml",
+        ".github/workflows/legacy-tauri.yml",
+        "electron/scripts/",
+        "electron/electron-builder.cjs",
+        "src-tauri/tests/credential_helper_subprocess.rs",
+        "package.json",
+        "docs/releasing/",
+        "docs/maintenance/desktop-runtime-migration.md",
+        "scripts/prepare-macos-signing-secrets.sh"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-release.contract.test.ts",
+        "src/maxcode-contracts/electron-runtime.contract.test.ts"
+      ]
+    },
+    {
+      "id": "workspace.sidebar-navigation",
+      "category": "product",
+      "description": "Sidebar navigation omits Tasks and Repository dashboard regardless of saved visibility, retaining New chat (新对话 in Simplified Chinese), Automations and conversation history. Folder, Recent and Chats new-conversation actions all navigate to conversations and collapse the sidebar on mobile or coarse-pointer layouts.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/i18n/messages/zh-CN.json"
+      ],
+      "contracts": ["src/maxcode-contracts/sidebar-navigation.contract.test.ts"]
+    },
+    {
+      "id": "chat.attachment-paste-during-ime",
+      "category": "product",
+      "description": "Image and file paste reaches the attachment handler during IME composition; Electron reads native clipboard screenshots when browser paste data is unavailable, preserving ordinary text paste.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/chat/composer/rich-composer.tsx",
+        "src/lib/clipboard-images.ts",
+        "src/lib/electron.ts",
+        "electron/main.cjs",
+        "electron/preload.cjs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-file-paste.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "conversations.cancelled-without-error-badge",
+      "category": "product",
+      "description": "Cancelled sidebar conversations show the normal timestamp instead of a red X; running and unread indicators retain priority.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/cancelled-conversation-badge.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.live-progress-summary",
+      "category": "product",
+      "description": "All intermediate prose stays visible in order; consecutive thinking and tool steps between prose blocks share a collapsed disclosure. Completed turns retain the final-answer fold.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/message/completed-turn-content.tsx",
+        "src/components/message/progress-sections.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/live-progress-summary.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.compact-reasoning",
+      "category": "product",
+      "description": "Thinking stays collapsed during streaming; readers can expand a bounded scrollable panel, and manual choices survive streaming updates and completion.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": ["src/components/ai-elements/reasoning.tsx"],
+      "contracts": ["src/maxcode-contracts/compact-reasoning.contract.test.tsx"]
+    },
+    {
       "id": "desktop.electron-runtime",
       "category": "platform",
-      "description": "Electron is the default desktop entry, hosts the shared Rust server on an authenticated private loopback port, preserves desktop preferences and data paths, provides isolated native file and notification capabilities, and owns backend shutdown and installer updates.",
+      "description": "Electron is the default desktop entry, hosts the shared Rust server on an authenticated private loopback port, preserves desktop preferences and data paths, provides isolated native file and notification capabilities, and owns backend shutdown and installer updates. Finder launches restore the login-shell PATH with standard Node install fallbacks before spawning agents.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "electron/",
@@ -100,7 +622,7 @@
     {
       "id": "conversations.manual-title-refresh",
       "category": "product",
-      "description": "Conversation context menus explicitly regenerate titles with the saved model, dedupe pending UI requests, preserve originals on failure and concurrent renames, and support Tauri/Web.",
+      "description": "Conversation context menus explicitly regenerate titles with the saved model, dedupe pending UI requests, use structured fallback on generation failure while preserving existing structured titles and concurrent renames, and support Tauri/Web.",
       "origins": ["worktree-2026-09-07"],
       "paths": [
         "src/hooks/use-refresh-conversation-title.ts",
@@ -123,7 +645,7 @@
     {
       "id": "conversations.structured-title-recovery",
       "category": "product",
-      "description": "Dedicated titles normalize MMDD｜type｜topic, reject invalid/truncated responses, recover from the first transcript turn with cooldown, preserve locked names, and log failures without credentials.",
+      "description": "Dedicated titles normalize MMDD｜type｜topic, use Shanghai creation-date MMDD｜未知｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, and log failures without credentials.",
       "origins": ["worktree-2026-09-07"],
       "paths": [
         "src-tauri/src/session_title.rs",
@@ -171,7 +693,7 @@
     {
       "id": "chat.reply-folding",
       "category": "product",
-      "description": "Live work stays expanded, completed process work folds automatically, the final answer stays visible, and an explicit reader preference wins.",
+      "description": "Live work keeps prose visible with grouped activity disclosures, completed process work folds automatically, the final answer stays visible, and an explicit reader preference wins.",
       "origins": ["108154e4", "worktree-2026-08-31"],
       "paths": [
         "src/components/message/completed-turn-content.tsx",
@@ -223,8 +745,8 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; shared thinking stays collapsed by default with the desktop interaction, an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
-      "origins": ["worktree-2026-08-31"],
+      "description": "Sharing is available only in the conversation actions menu, with no standalone header share button. Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; shared thinking stays collapsed by default with the desktop interaction, an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
+      "origins": ["worktree-2026-08-31", "worktree-2026-09-08"],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
         "src/components/ai-elements/message.tsx",
@@ -275,8 +797,13 @@
     {
       "id": "navigation.folder-bound-tab-splits",
       "category": "product",
-      "description": "Left and right conversation split zones bind to explicit workspace folders, while unmatched folders share a trailing Other zone; each bound zone is a single active tab slot, folder remarks label zones, closing a zone closes its current tab, and mobile keeps a single full-width active conversation without discarding the desktop split.",
-      "origins": ["worktree-2026-09-01", "worktree-2026-09-02"],
+      "description": "ChatGPT desktop 1:1 replica (2026-09-08): ChatGPT has no split view and the user chose to sacrifice it. Split groups are permanently disabled — selectIsSplit is always false, hydration collapses any persisted multi-group layout into a single group, splitTab/moveTabToGroup are no-ops, and openFolderInSplit opens in the single group. Folder context menus omit the retired left/right split actions and their callbacks. The former folder-bound split-zone behavior (left/right binding, Other zone, per-zone single tab) is retired with the feature.",
+      "origins": [
+        "worktree-2026-09-01",
+        "worktree-2026-09-02",
+        "chatgpt-replica-2026-09-08",
+        "codex-screenshot-2026-09-09"
+      ],
       "paths": [
         "src/lib/tab-group-layout.ts",
         "src/stores/tab-store.ts",
@@ -517,13 +1044,43 @@
       ]
     },
     {
+      "id": "appearance.sidebar-reference-icons",
+      "category": "product",
+      "description": "Sidebar icons follow the supplied ChatGPT reference: thin rounded compose, clock for automations, and 16px thin folder glyphs preserving expanded and repository states.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/layout/sidebar-navigation-icon.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-reference-icons.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "appearance.send-button-brand-color",
+      "category": "product",
+      "description": "The enabled send button uses the MaxCode wordmark slash blue #285ee1 with a white arrow and a blue hover state. Disabled sends retain muted paint and existing sendability gating.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/layout/sidebar-wordmark.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/send-button-color.contract.test.ts"]
+    },
+    {
       "id": "appearance.gpt-shell-surfaces",
       "category": "product",
-      "description": "The neutral light workspace matches the user's 2026-09-07 Codex desktop reference with a pure-white main canvas and a neutral near-white #fcfcfc sidebar and softer composer border/shadow without layout changes, including the no-theme fallback. Every matching light-mode surface declaration is checked to reject global or higher-specificity token overrides.",
-      "origins": ["worktree-2026-09-04"],
+      "description": "The neutral light workspace uses a white #ffffff canvas + #fcfcfc sidebar, explicitly chosen by the user on 2026-09-09; other visual styling is unchanged by this adjustment. Other tokens retain the ChatGPT desktop palette — #212121/#171717 dark pair, #f4f4f4/#303030 soft surfaces, #0d0d0d/#ececec text — plus the 28px composer radius, ChatGPT --elevation-composer shadow, and the no-theme fallback. Every matching light-mode surface declaration is checked to reject global or higher-specificity token overrides.",
+      "origins": [
+        "worktree-2026-09-04",
+        "chatgpt-replica-2026-09-08",
+        "codex-screenshot-2026-09-09"
+      ],
       "paths": [
         "src/app/globals.css",
-        "src/components/chat/composer/composer-chrome.ts"
+        "src/components/chat/composer/composer-chrome.ts",
+        "src/lib/font-presets.ts"
       ],
       "contracts": [
         "src/maxcode-contracts/workspace-surface-colors.contract.test.ts"
@@ -556,7 +1113,7 @@
     {
       "id": "release.signed-multiplatform-artifacts",
       "category": "release",
-      "description": "Release automation builds only explicit desktop/server targets, signs updater artifacts, validates latest.json, notarizes macOS, and publishes MaxCode-named bundles.",
+      "description": "Release automation builds only explicit desktop/server targets, validates Electron installers and checksums, retains signed server updates, notarizes macOS, and publishes MaxCode-named bundles after all selected builds pass.",
       "origins": [
         "dceb62ac",
         "fb081d78",
@@ -587,6 +1144,152 @@
       "contracts": [
         "src/maxcode-contracts/opencode-distribution.contract.test.ts"
       ]
+    },
+    {
+      "id": "chat.message-tick-rail",
+      "category": "product",
+      "description": "The old message navigator card is removed. Hidden on mobile viewports below 768px. On desktop, only when the actual transcript overflows its viewport, the conversation edge tick rail previews user questions and assistant text, follows the visible virtual row and jumps within the loaded history without parsing file diffs.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/message/conversation-message-rail.tsx",
+        "src/components/message/observe-thread-overflow.ts",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/virtualized-message-thread.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/message-rail.contract.test.tsx"]
+    },
+    {
+      "id": "chat.desktop-typography",
+      "category": "product",
+      "description": "Newly sent optimistic messages retain the same full-opacity text and bubble styling as persisted messages. System font stack, 14px sidebar labels and 12px sections, compact title typography, and 14px message shells with 430 weight, #1a1c1f text, 1.625 line height and 600 emphasis. Markdown uses outside list markers, aligned continuation lines, compact paragraph-to-list spacing and block paragraphs inside loose list items.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/lib/font-presets.ts",
+        "src/app/globals.css",
+        "src/components/ai-elements/message.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/sidebar-folder-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/sidebar-section-header.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/message/conversation-message-rail.tsx",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/desktop-typography.contract.test.ts",
+        "src/maxcode-contracts/chat-font-size.contract.test.tsx",
+        "src/maxcode-contracts/sent-message-appearance.contract.test.ts"
+      ]
+    },
+    {
+      "id": "appearance.fixed-desktop-defaults",
+      "category": "product",
+      "description": "Hide optional appearance controls; fix color/zoom/fonts to defaults, disable background/status colors/welcome cards/pets, and keep conversation status actions enabled despite saved overrides.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/lib/ui-preferences-store.ts",
+        "src/lib/pet/api.ts",
+        "src/components/layout/quick-actions-dropdown.tsx",
+        "src/lib/appearance-policy.ts",
+        "src/lib/appearance-script.ts",
+        "src/components/appearance-provider.tsx",
+        "src/components/settings/appearance-settings.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/fixed-appearance.contract.test.tsx"]
+    },
+    {
+      "id": "settings.in-window-navigation",
+      "category": "product",
+      "description": "Workspace settings open within the current window, retain the mounted conversation/draft and return via Back to app without opening a popup or backend window. Main navigation omits MCP, Skills, Skill Packs and Model Providers. Category switches retain visited pages until settings close, preserving local edits and containing lazy loading within the content pane.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/lib/in-app-settings.ts",
+        "src/lib/api.ts",
+        "src/components/settings/in-app-settings.tsx",
+        "src/components/settings/settings-shell.tsx",
+        "src/app/workspace/layout.tsx",
+        "src/i18n/messages/",
+        "src/app/globals.css",
+        "src/components/shared/settings-section.tsx",
+        "src/components/shared/setting-card.tsx",
+        "src/components/settings/general-settings.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/in-app-settings.contract.test.tsx"]
+    },
+    {
+      "id": "chat.composer-typography",
+      "category": "product",
+      "description": "Welcome and conversation composers use screenshot-verified 14px medium (500) text with 21px lines at default interface zoom, independent of transcript font size. Regular (400) is visibly too thin. The reference desktop font fallback order is preserved instead of forcing PingFang SC, with sampled #1a1c1e light text and theme foreground in dark mode. Placeholder text uses muted foreground at 65% opacity.",
+      "origins": ["worktree-2026-09-09"],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/chat/composer/rich-composer.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-typography.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.desktop-composer-layout",
+      "category": "product",
+      "description": "Screenshot-matched Codex desktop chat: 48rem centered transcript/composer column with a 104px minimum docked composer and 20px corners, narrow sidebar, one header row, original inline model/permission controls with a narrow settings menu, folder/branch controls plus runtime metrics in an independent unboxed row below the composer, and the original full agent strip above the welcome composer.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/chat/agent-selector.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/composer/rich-composer.tsx",
+        "src/components/layout/desktop-chrome-icon.tsx",
+        "src/components/layout/left-edge-chrome.tsx",
+        "src/components/layout/right-edge-chrome.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/app/globals.css",
+        "src/app/workspace/layout.tsx",
+        "src/contexts/sidebar-context.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/message/virtualized-message-thread.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/ai-elements/message.tsx",
+        "src/components/chat/composer/composer-chrome.ts",
+        "electron/main.cjs",
+        "electron/preload.cjs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-desktop-layout.contract.test.ts",
+        "src/maxcode-contracts/desktop-chrome-icons.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.selector-pointer-focus",
+      "category": "product",
+      "description": "Selector controls suppress restored keyboard rings after pointer selection while retaining focus and keyboard focus indicators; input modality tracking spans portal menus.",
+      "origins": ["worktree-2026-09-08"],
+      "paths": [
+        "src/components/input-modality-init.tsx",
+        "src/components/chat/selector-tooltip.tsx",
+        "src/app/layout.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": ["src/maxcode-contracts/selector-focus.contract.test.tsx"]
+    },
+    {
+      "id": "workspace.sidebar-footer",
+      "category": "product",
+      "description": "Sidebar footer retains conversation usage, alerts and version/update entries outside scrolling history, with the version/update entry before the alerts icon. The mobile footer uses the drawer background without a divider. The obsolete quick-actions gamepad launcher must stay removed after adopting the sidebar navigation and overflow controls.",
+      "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/layout/sidebar.tsx",
+        "src/components/layout/sidebar-footer.tsx",
+        "src/components/layout/status-bar-stats.tsx",
+        "src/components/layout/status-bar-alerts.tsx",
+        "src/components/layout/status-bar-update.tsx",
+        "src/components/layout/quick-actions-dropdown.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/sidebar-footer.contract.test.tsx"]
     }
   ],
   "retired": [

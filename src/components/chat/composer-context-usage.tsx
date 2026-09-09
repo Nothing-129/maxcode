@@ -1,6 +1,10 @@
 "use client"
 
 import { useCallback, useSyncExternalStore } from "react"
+import {
+  ComposerCostDetails,
+  useComposerCostEstimate,
+} from "./composer-cost-estimate"
 import { Coins } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useConnectionStore } from "@/contexts/acp-connections-context"
@@ -45,6 +49,13 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
       ? (s.byConversationId.get(runtimeConversationId)?.sessionStats ?? null)
       : null
   )
+  const billingUsage = useConversationRuntimeStore((s) =>
+    runtimeConversationId != null
+      ? (s.byConversationId.get(runtimeConversationId)?.detail?.billing_usage ??
+        null)
+      : null
+  )
+  const cost = useComposerCostEstimate(billingUsage)
   const usage = sessionStats?.total_usage
 
   const subscribeConn = useCallback(
@@ -101,15 +112,34 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
   const dashOffset = ICON_CIRCUMFERENCE * (1 - (contextPercent ?? 0) / 100)
 
   const rows: {
-    key: "input" | "output" | "cacheRead" | "cacheWrite" | "total"
-    value: number
+    key:
+      | "input"
+      | "output"
+      | "cacheRead"
+      | "cacheWrite"
+      | "cacheHitRate"
+      | "total"
+    value: number | null
   }[] = []
   if (hasUsage) {
+    // Normalized input excludes cache reads/writes; output is not part of
+    // the input-token cache hit rate.
+    const inputTotal =
+      usage.input_tokens +
+      usage.cache_read_input_tokens +
+      usage.cache_creation_input_tokens
     rows.push(
       { key: "input", value: usage.input_tokens },
       { key: "output", value: usage.output_tokens },
       { key: "cacheRead", value: usage.cache_read_input_tokens },
-      { key: "cacheWrite", value: usage.cache_creation_input_tokens }
+      { key: "cacheWrite", value: usage.cache_creation_input_tokens },
+      {
+        key: "cacheHitRate",
+        value:
+          inputTotal > 0
+            ? (usage.cache_read_input_tokens / inputTotal) * 100
+            : null,
+      }
     )
   }
   if (total != null) {
@@ -133,13 +163,14 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
       <PopoverTrigger asChild>
         <button
           title={triggerTitle}
-          className="flex items-center gap-1 hover:text-foreground transition-colors"
+          data-composer-usage=""
+          className="inline-flex h-6 items-center tabular-nums focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
         >
           {hasContext ? (
-            <>
+            <span className="inline-flex items-center gap-0.5">
               <svg
                 aria-label={t("contextWindowUsageAria")}
-                className="size-3.5"
+                className="size-3"
                 viewBox={`0 0 ${ICON_VIEWBOX} ${ICON_VIEWBOX}`}
               >
                 <circle
@@ -169,68 +200,99 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
                 />
               </svg>
               <span>{formatContextWindowPercent(contextPercent)}</span>
-            </>
+            </span>
           ) : (
-            <>
-              <Coins className="size-3.5" />
+            <span className="inline-flex items-center gap-0.5">
+              <Coins className="size-3" />
               <span>{formatTokenCount(total ?? 0)}</span>
-            </>
+            </span>
           )}
+          <span aria-hidden="true" className="mx-1 opacity-40">
+            ｜
+          </span>
+          <span
+            data-composer-cost=""
+            className="whitespace-nowrap"
+            aria-label={`${cost.label}: ${cost.value}`}
+            title={`${cost.label}: ${cost.value} · ${cost.note}`}
+          >
+            {cost.inlineValue}
+          </span>
         </button>
       </PopoverTrigger>
-      <PopoverContent side="top" align="end" className="w-56 gap-2 p-3 text-xs">
+      <PopoverContent
+        side="top"
+        align="end"
+        sideOffset={10}
+        className="w-64 max-w-[calc(100vw-2rem)] gap-4 rounded-2xl p-4 text-xs shadow-lg ring-foreground/5"
+      >
         {hasContext ? (
-          <div
-            className={`space-y-1 ${
-              hasUsage ? "mb-0.5 border-b border-border pb-0.5" : ""
-            }`}
-          >
-            <div className="flex items-center justify-between gap-2 text-xs font-medium whitespace-nowrap">
-              <span>{t("contextWindow")}</span>
-              <span className="tabular-nums shrink-0">
+          <section className="space-y-3" aria-label={t("contextWindow")}>
+            <div className="flex items-center justify-between gap-4">
+              <span className="font-medium text-muted-foreground">
+                {t("contextWindow")}
+              </span>
+              <span className="shrink-0 text-xl font-semibold tracking-tight tabular-nums">
                 {formatContextWindowPercent(contextPercent)}
               </span>
             </div>
-            <div className="relative h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              role="progressbar"
+              aria-label={t("contextWindowUsageAria")}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={contextPercent ?? 0}
+              className="h-1 overflow-hidden rounded-full bg-foreground/[0.06]"
+            >
               <div
-                className="absolute inset-y-0 left-0 bg-foreground/70"
+                className="h-full rounded-full bg-foreground/40"
                 style={{ width: `${contextPercent ?? 0}%` }}
               />
             </div>
-            <div className="flex items-center justify-between text-xs leading-none text-muted-foreground">
+            <div className="flex items-center justify-between gap-4 leading-5 text-muted-foreground">
               <span>{t("usedMax")}</span>
-              <span className="tabular-nums">
+              <span className="shrink-0 tabular-nums">
                 {contextUsed == null || contextMax == null
                   ? "--"
                   : `${formatTokenCount(contextUsed)} / ${formatTokenCount(contextMax)}`}
               </span>
             </div>
-          </div>
+          </section>
         ) : null}
         {hasTokenSection ? (
-          <>
-            <div className="mb-0 mt-0.5 text-xs leading-none font-medium">
+          <section
+            aria-label={t("tokenUsage")}
+            className={
+              hasContext ? "border-t border-foreground/[0.06] pt-4" : ""
+            }
+          >
+            <h3 className="mb-3 font-medium text-muted-foreground">
               {t("tokenUsage")}
-            </div>
-            <div className="space-y-0">
+            </h3>
+            <dl className="space-y-2">
               {rows.map((row) => (
                 <div
                   key={row.key}
-                  className={`flex items-center justify-between py-0.5 text-xs leading-none ${
+                  className={`flex items-center justify-between gap-4 leading-5 ${
                     row.key === "total"
-                      ? "mt-0.5 border-t border-border pt-0.5 font-medium"
+                      ? "-mx-2 rounded-lg bg-foreground/[0.04] px-2 py-1.5 font-medium"
                       : "text-muted-foreground"
                   }`}
                 >
-                  <span>{t(row.key)}</span>
-                  <span className="tabular-nums">
-                    {formatTokenCount(row.value)}
-                  </span>
+                  <dt>{t(row.key)}</dt>
+                  <dd className="shrink-0 tabular-nums text-foreground">
+                    {row.value == null
+                      ? "--"
+                      : row.key === "cacheHitRate"
+                        ? `${row.value.toFixed(1)}%`
+                        : formatTokenCount(row.value)}
+                  </dd>
                 </div>
               ))}
-            </div>
-          </>
+            </dl>
+          </section>
         ) : null}
+        <ComposerCostDetails cost={cost} />
       </PopoverContent>
     </Popover>
   )

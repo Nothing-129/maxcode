@@ -3,7 +3,9 @@
 //! Three toggles live here:
 //!   * `show_conversation_status` — colored status dots (sidebar / tabs / dialogs); default OFF
 //!   * `allow_conversation_status_actions` — whether the status can be changed; default ON
-//!   * `show_welcome_quick_actions` — the mode cards on the welcome page; default ON
+//!   * `show_welcome_quick_actions` — the mode cards on the welcome page; default OFF
+//!     (the ChatGPT-replica welcome page shows greeting + composer only; users
+//!     who want the skill/mode cards re-enable them in Settings › Appearance)
 //!
 //! Unlike their localStorage predecessors these survive an app reinstall (the
 //! DB lives in the data dir, not the webview container) and are shared by every
@@ -39,7 +41,7 @@ impl Default for UiPreferences {
         Self {
             show_conversation_status: false,
             allow_conversation_status_actions: true,
-            show_welcome_quick_actions: true,
+            show_welcome_quick_actions: false,
         }
     }
 }
@@ -159,7 +161,7 @@ mod tests {
         let loaded = load_ui_preferences(&db.conn).await.unwrap().unwrap();
         assert!(!loaded.show_conversation_status);
         assert!(loaded.allow_conversation_status_actions);
-        assert!(loaded.show_welcome_quick_actions);
+        assert!(!loaded.show_welcome_quick_actions);
     }
 
     #[tokio::test]

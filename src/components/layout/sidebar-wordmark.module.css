@@ -1,0 +1,66 @@
+.slash {
+  overflow: visible;
+}
+
+/* Keep the base stroke and letters still; only fade the decorative overlay. */
+.glow {
+  opacity: 0;
+  transition: opacity 400ms ease-out;
+  pointer-events: none;
+}
+
+.slash[data-working="true"] .glow {
+  opacity: 1;
+}
+
+.gradientStroke {
+  filter: drop-shadow(0 0 1px currentColor);
+}
+
+.blue {
+  stop-color: #285ee1;
+}
+
+.cyan {
+  stop-color: #06b6d4;
+}
+
+.purple {
+  stop-color: #a855f7;
+}
+
+.slash[data-working="true"] stop {
+  animation: gradientFlow 3.6s linear infinite;
+}
+
+.slash[data-working="true"] .cyan {
+  animation-delay: -1.2s;
+}
+
+.slash[data-working="true"] .purple {
+  animation-delay: -2.4s;
+}
+
+@keyframes gradientFlow {
+  0%,
+  100% {
+    stop-color: #285ee1;
+  }
+  33.333% {
+    stop-color: #06b6d4;
+  }
+  66.667% {
+    stop-color: #a855f7;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glow {
+    display: none;
+    transition: none;
+  }
+
+  .slash[data-working="true"] stop {
+    animation: none;
+  }
+}

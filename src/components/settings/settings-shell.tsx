@@ -8,19 +8,17 @@ import {
   type ReactNode,
 } from "react"
 import {
+  ArrowLeft,
   Bot,
-  BookOpenText,
-  Boxes,
   FileSpreadsheet,
   GitBranch,
   Globe,
   Keyboard,
   Menu,
+  Search,
   MessageSquareText,
   SendHorizontal,
   Palette,
-  PlugZap,
-  Server,
   Settings,
   SlidersHorizontal,
 } from "lucide-react"
@@ -42,10 +40,6 @@ interface SettingsNavItem {
     | "general"
     | "appearance"
     | "agents"
-    | "model_providers"
-    | "mcp"
-    | "skills"
-    | "skill_packs"
     | "quick_messages"
     | "shortcuts"
     | "version_control"
@@ -68,29 +62,9 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     icon: SlidersHorizontal,
   },
   {
-    href: "/settings/mcp",
-    labelKey: "mcp",
-    icon: PlugZap,
-  },
-  {
-    href: "/settings/skills",
-    labelKey: "skills",
-    icon: BookOpenText,
-  },
-  {
-    href: "/settings/skill-packs",
-    labelKey: "skill_packs",
-    icon: Boxes,
-  },
-  {
     href: "/settings/agents",
     labelKey: "agents",
     icon: Bot,
-  },
-  {
-    href: "/settings/model-providers",
-    labelKey: "model_providers",
-    icon: Server,
   },
   {
     href: "/settings/quick-messages",
@@ -131,6 +105,9 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
 
 interface SettingsShellProps {
   children: ReactNode
+  activePath?: string
+  onNavigate?: (href: string) => void
+  onBack?: () => void
 }
 
 function normalizePath(path: string): string {
@@ -146,22 +123,37 @@ function isWindowsRuntime(): boolean {
   return platform.includes("win") || userAgent.includes("windows")
 }
 
-export function SettingsShell({ children }: SettingsShellProps) {
+export function SettingsShell({
+  children,
+  activePath,
+  onNavigate,
+  onBack,
+}: SettingsShellProps) {
   const t = useTranslations("SettingsShell")
   const pathname = usePathname()
   const router = useRouter()
-  const normalizedPathname = normalizePath(pathname)
+  const normalizedPathname = normalizePath(activePath ?? pathname)
   const isMobile = useIsMobile()
   const [navOpen, setNavOpen] = useState(false)
+  const [query, setQuery] = useState("")
 
   useEffect(() => {
+    const previous = document.title
     document.title = `${t("title")} - MaxCode`
+    return () => {
+      document.title = previous
+    }
   }, [t])
 
   const navigateTo = useCallback(
     (href: string) => {
       if (typeof window === "undefined") return
 
+      if (onNavigate) {
+        onNavigate(href)
+        setNavOpen(false)
+        return
+      }
       const target = normalizePath(href)
       const current = normalizePath(window.location.pathname)
       if (current === target) {
@@ -184,17 +176,29 @@ export function SettingsShell({ children }: SettingsShellProps) {
       router.push(fullTarget)
       setNavOpen(false)
     },
-    [router, setNavOpen]
+    [router, setNavOpen, onNavigate]
   )
 
   const filteredNavItems = SETTINGS_NAV_ITEMS.filter(
     (item) =>
-      !(item.labelKey === "web_service" && detectEnvironment() !== "tauri")
+      !(item.labelKey === "web_service" && detectEnvironment() === "web") &&
+      t(`nav.${item.labelKey}`)
+        .toLocaleLowerCase()
+        .includes(query.trim().toLocaleLowerCase())
   )
 
   const navContent = (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="px-2 pb-2 text-2xs font-medium text-muted-foreground">
+      <label className="settings-search">
+        <Search aria-hidden="true" className="size-3.5" />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("searchSettings")}
+          aria-label={t("searchSettings")}
+        />
+      </label>
+      <div className="px-2 pb-2 text-xs text-muted-foreground">
         {t("preferences")}
       </div>
       <ScrollArea className="min-h-0 flex-1">
@@ -210,12 +214,14 @@ export function SettingsShell({ children }: SettingsShellProps) {
                 key={item.href}
                 variant={active ? "secondary" : "ghost"}
                 size="sm"
-                className={cn("w-full justify-start px-2")}
+                className={cn(
+                  "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal"
+                )}
                 type="button"
                 onClick={() => navigateTo(item.href)}
                 aria-current={active ? "page" : undefined}
               >
-                <span className="inline-flex items-center gap-1">
+                <span className="inline-flex items-center gap-2.5">
                   <Icon className="h-3.5 w-3.5" />
                   {t(translationKey)}
                 </span>
@@ -228,29 +234,54 @@ export function SettingsShell({ children }: SettingsShellProps) {
   )
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden bg-background text-foreground">
-      <AppTitleBar
-        left={
-          isMobile ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8"
-              onClick={() => setNavOpen(true)}
-            >
-              <Menu className="h-4 w-4" />
-            </Button>
-          ) : undefined
-        }
-        center={
-          <div className="text-sm font-bold tracking-tight">{t("title")}</div>
-        }
-      />
+    <div
+      data-settings-surface=""
+      className="h-screen flex flex-col overflow-hidden bg-background text-foreground"
+    >
+      {onBack ? (
+        <div
+          data-tauri-drag-region
+          className="h-10 shrink-0 settings-drag-strip"
+        />
+      ) : (
+        <AppTitleBar
+          left={
+            isMobile ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => setNavOpen(true)}
+              >
+                <Menu className="h-4 w-4" />
+              </Button>
+            ) : undefined
+          }
+          center={
+            <div className="text-sm font-bold tracking-tight">{t("title")}</div>
+          }
+        />
+      )}
 
       <div className="flex-1 min-h-0 flex">
         {/* Desktop sidebar */}
         {!isMobile && (
-          <aside className="flex min-h-0 w-56 shrink-0 flex-col border-r px-2 py-3">
+          <aside
+            className={cn(
+              "flex min-h-0 shrink-0 flex-col px-2 py-3",
+              onBack ? "w-[16.75rem] bg-sidebar" : "w-56 border-r"
+            )}
+          >
+            {onBack && (
+              <Button
+                variant="ghost"
+                className="mb-4 justify-start gap-2 px-2 text-[0.8125rem]"
+                onClick={onBack}
+              >
+                <ArrowLeft className="size-4" />
+                {t("backToApp")}
+              </Button>
+            )}
             {navContent}
           </aside>
         )}
@@ -278,8 +309,31 @@ export function SettingsShell({ children }: SettingsShellProps) {
           </Drawer>
         )}
 
-        <section className="flex-1 min-w-0 min-h-0 overflow-hidden">
-          {children}
+        <section className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden">
+          {onBack && isMobile && (
+            <div className="flex shrink-0 items-center justify-between px-2">
+              <Button variant="ghost" onClick={onBack}>
+                <ArrowLeft className="size-4" />
+                {t("backToApp")}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label={t("title")}
+                onClick={() => setNavOpen(true)}
+              >
+                <Menu className="size-4" />
+              </Button>
+            </div>
+          )}
+          <div
+            className={cn(
+              "settings-content min-h-0 w-full flex-1",
+              onBack && "pt-0"
+            )}
+          >
+            {children}
+          </div>
         </section>
       </div>
       <AppToaster position="bottom-right" closeButton duration={4000} />
