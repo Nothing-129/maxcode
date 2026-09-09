@@ -13,6 +13,7 @@
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
+| 会话费用刷新 | 回复结束后同步累计计费用量，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10` | `composer.conversation-cost` |
 | 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用固定显示两位小数，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
 | 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除；保留 Tauri 支持 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
@@ -45,7 +46,7 @@
 | Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
 | 会话侧栏 | 主动取消后不显示红色 X，正常显示时间，保留运行中与未读提示 | `worktree-2026-09-08` | `conversations.cancelled-without-error-badge` |
-| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题；失败时保留已有合规标题，否则使用创建日期加「未知｜未命名」兜底，并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
+| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题；失败时保留已有合规标题，否则使用创建日期加「其他｜未命名」兜底，并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
 | 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
@@ -63,6 +64,27 @@ Electron 图片粘贴在浏览器数据不可用时读取原生剪贴板，并�
 
 Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 安装目录；
 安装包启动验证使用精简 PATH（`desktop.electron-runtime`）。
+
+### 会话标题分类边界
+
+标题统一为 `MMDD｜类型｜主题`，类型按用户主要诉求和交付结果选择：
+
+| 类型 | 范围与边界 | 示例 |
+| --- | --- | --- |
+| 功能 | 实现或扩展新的能力、用户可见行为 | 实现登录功能 |
+| 设计 | 实现前的需求、架构、交互或视觉方案 | 只设计登录流程，不写代码 |
+| 修复 | 恢复出错或失效的行为；为完成修复而排查也归此类 | 修复登录失败 |
+| 优化 | 改善已正常工作的性能、可维护性或体验，不新增能力 | 加快登录速度、重构登录代码 |
+| 发布 | 版本、打包、部署、发布流水线、分发 | 打包并发布安装程序 |
+| 探索 | 理解现有项目、解释行为或仅定位原因，没有要求修复 | 解释认证流程、只查登录失败原因 |
+| 文档 | 以编写、更新、翻译、整理说明文档为主要交付 | 更新登录使用指南 |
+| 研究 | 技术调研、外部知识和方案比较，为决策提供依据 | 比较 OAuth 库；确定具体架构方案归设计 |
+| 其他 | 问候、感谢、闲聊及不属于上述范围的请求 | 日常问候 |
+
+简短技术问题仍按主题分类，不能因字数少直接归其他或未命名。其他也必须提炼
+具体主题；仅缺少可理解内容或生成失败且没有已有合规标题时，使用
+`MMDD｜其他｜未命名`。读取旧 `未知｜未命名` 时规范化为新兜底，保留手动锁定
+名称保护，不自动解锁。所有界面语言及自动、手动生成共用相同分类边界。
 
 ## 已退役功能
 
@@ -99,4 +121,4 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 请求期间的新通知会安排有上限的后续读取，以补齐稍后落盘的回复。
 契约：`src/maxcode-contracts/viewer-sync-request-bounds.contract.test.ts`。
 
-手机顶栏在工作区设置入口旁提供“刷新界面”，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。
+手机顶栏工具菜单内在“打开设置”之后提供“刷新界面”，不占用标题栏宽度，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。

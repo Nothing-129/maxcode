@@ -1,18 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect } from "react"
 import { RefreshCw } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { getTransport } from "@/lib/transport"
 import { refreshFrontend } from "@/lib/refresh-frontend"
-import { Button } from "@/components/ui/button"
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 
 export function MobileFrontendRefresh() {
   const isMobile = useIsMobile()
   const t = useTranslations("Folder.folderTitleBar")
-  const [available, setAvailable] = useState(false)
 
   useEffect(() => {
     if (!isMobile) return
@@ -45,7 +44,6 @@ export function MobileFrontendRefresh() {
           latest.buildId === buildId
         )
           return
-        setAvailable(true)
         if (!notified) {
           notified = true
           notification = toast(t("frontendUpdated"), {
@@ -77,20 +75,17 @@ export function MobileFrontendRefresh() {
     }
   }, [isMobile, t])
 
+  return null
+}
+
+export function MobileFrontendRefreshItem() {
+  const isMobile = useIsMobile()
+  const t = useTranslations("Folder.folderTitleBar")
   if (!isMobile) return null
   return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="relative size-11 shrink-0 rounded-xl"
-      aria-label={t("refreshInterface")}
-      title={available ? t("frontendUpdated") : t("refreshInterface")}
-      onClick={refreshFrontend}
-    >
-      <RefreshCw className="size-5" />
-      {available && (
-        <span className="absolute right-2 top-2 size-1.5 rounded-full bg-[#285ee1]" />
-      )}
-    </Button>
+    <DropdownMenuItem className="min-h-11" onSelect={refreshFrontend}>
+      <RefreshCw />
+      {t("refreshInterface")}
+    </DropdownMenuItem>
   )
 }

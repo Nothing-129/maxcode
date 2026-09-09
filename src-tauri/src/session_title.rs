@@ -17,6 +17,7 @@ use chrono::{DateTime, Utc};
 use chrono_tz::Asia::Shanghai;
 use regex::Regex;
 use sea_orm::DatabaseConnection;
+use tracing::Instrument;
 
 use crate::db::service::conversation_service;
 use crate::models::agent::AgentType;
@@ -299,9 +300,8 @@ pub fn can_overwrite_auto_title(current: Option<&str>, first_message: &str) -> b
     if is_placeholder_title(current) {
         return true;
     }
-    if current
-        .strip_suffix("｜未知｜未命名")
-        .is_some_and(|date| date.len() == 4 && date.bytes().all(|byte| byte.is_ascii_digit()))
+    if normalize_structured_title(current, Utc::now())
+        .is_some_and(|title| title.ends_with("｜其他｜未命名"))
     {
         return true;
     }
@@ -359,7 +359,7 @@ fn created_date_mmdd(created_at: DateTime<Utc>) -> String {
 fn structured_title_fallback(original: Option<&str>, created_at: DateTime<Utc>) -> String {
     original
         .and_then(|title| normalize_structured_title(title, created_at))
-        .unwrap_or_else(|| format!("{}｜未知｜未命名", created_date_mmdd(created_at)))
+        .unwrap_or_else(|| format!("{}｜其他｜未命名", created_date_mmdd(created_at)))
 }
 
 async fn save_auto_title_fallback(
@@ -393,7 +393,7 @@ pub fn title_prompt(
              Rules:\n\
              - The date is {created_date}, converted from the conversation's createdAt in Asia/Shanghai. Use it exactly; never use updatedAt.\n\
              - Use exactly this format: MMDD｜type｜topic.\n\
-             - Type must be exactly one of: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Type must be exactly one of: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - Derive the topic from the actual conversation content and do not repeat the project name.\n\
              - Keep the title short, concrete, and suitable for the sidebar.\n\
              - If the topic cannot be determined, do not guess; output the current title unchanged.\n\
@@ -406,7 +406,7 @@ pub fn title_prompt(
              规则：\n\
              - 日期固定为 {created_date}，它由对话创建时间 createdAt 按 Asia/Shanghai 转换得到；直接使用该日期，不要使用 updatedAt。\n\
              - 格式统一为：MMDD｜类型｜主题。\n\
-             - 类型只能是：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - 类型只能是：功能、设计、修复、优化、发布、探索、文档、研究、其他。\n\
              - 主题根据对话实际内容提炼，不要重复项目名称。\n\
              - 标题保持简洁、具体，适合左侧栏显示。\n\
              - 无法判断主题时不要猜，原样输出当前标题。\n\
@@ -419,7 +419,7 @@ pub fn title_prompt(
              規則：\n\
              - 日期固定為 {created_date}，它由對話建立時間 createdAt 按 Asia/Shanghai 轉換而來；直接使用該日期，不要使用 updatedAt。\n\
              - 格式統一為：MMDD｜類型｜主題。\n\
-             - 類型只能是：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - 類型只能是：功能、设计、修复、优化、发布、探索、文档、研究、其他。\n\
              - 主題依據對話實際內容提煉，不要重複專案名稱。\n\
              - 標題保持簡潔、具體，適合側邊欄顯示。\n\
              - 無法判斷主題時不要猜，原樣輸出目前標題。\n\
@@ -432,7 +432,7 @@ pub fn title_prompt(
              ルール：\n\
              - 日付は {created_date}。会話の createdAt を Asia/Shanghai に変換した値です。updatedAt は使わないでください。\n\
              - 形式は必ず MMDD｜タイプ｜トピック。\n\
-             - タイプは次のいずれかをそのまま使用：功能、设计、修复、优化、发布、探索、文档、研究。\n\
+             - タイプは次のいずれかをそのまま使用：功能、设计、修复、优化、发布、探索、文档、研究、其他。\n\
              - 実際の会話内容からトピックを抽出し、プロジェクト名を繰り返さないでください。\n\
              - 判定できない場合は推測せず、現在のタイトルをそのまま出力してください。\n\
              タイトルだけを出力し、引用符、接頭辞、説明は付けないでください。\n\n\
@@ -444,7 +444,7 @@ pub fn title_prompt(
              규칙:\n\
              - 날짜는 {created_date}이며 대화 createdAt을 Asia/Shanghai로 변환한 값입니다. updatedAt은 사용하지 마세요.\n\
              - 형식은 반드시 MMDD｜유형｜주제입니다.\n\
-             - 유형은 다음 중 하나를 그대로 사용하세요: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - 유형은 다음 중 하나를 그대로 사용하세요: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - 실제 대화 내용에서 주제를 추출하고 프로젝트 이름을 반복하지 마세요.\n\
              - 주제를 판단할 수 없으면 추측하지 말고 현재 제목을 그대로 출력하세요.\n\
              따옴표, 접두사, 설명 없이 제목만 출력하세요.\n\n\
@@ -456,7 +456,7 @@ pub fn title_prompt(
              Reglas:\n\
              - La fecha es {created_date}, convertida desde createdAt a Asia/Shanghai. Úsala exactamente y nunca uses updatedAt.\n\
              - El formato exacto es MMDD｜tipo｜tema.\n\
-             - El tipo debe ser uno de estos valores exactos: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - El tipo debe ser uno de estos valores exactos: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - Extrae el tema del contenido real y no repitas el nombre del proyecto.\n\
              - Si no se puede determinar el tema, no inventes; conserva el título actual sin cambios.\n\
              Devuelve solo el título, sin comillas, prefijos ni explicación.\n\n\
@@ -468,7 +468,7 @@ pub fn title_prompt(
              Regeln:\n\
              - Das Datum ist {created_date}, aus createdAt nach Asia/Shanghai umgerechnet. Verwende genau dieses Datum und niemals updatedAt.\n\
              - Das genaue Format ist MMDD｜Typ｜Thema.\n\
-             - Der Typ muss exakt einer dieser Werte sein: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Der Typ muss exakt einer dieser Werte sein: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - Leite das Thema aus dem tatsächlichen Gespräch ab und wiederhole den Projektnamen nicht.\n\
              - Wenn das Thema nicht bestimmbar ist, rate nicht und gib den aktuellen Titel unverändert aus.\n\
              Gib nur den Titel aus, ohne Anführungszeichen, Präfix oder Erklärung.\n\n\
@@ -480,7 +480,7 @@ pub fn title_prompt(
              Règles :\n\
              - La date est {created_date}, convertie depuis createdAt vers Asia/Shanghai. Utilise-la telle quelle et n'utilise jamais updatedAt.\n\
              - Le format exact est MMDD｜type｜sujet.\n\
-             - Le type doit être exactement l'une de ces valeurs : 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - Le type doit être exactement l'une de ces valeurs : 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - Déduis le sujet du contenu réel et ne répète pas le nom du projet.\n\
              - Si le sujet est indéterminable, ne devine pas et conserve le titre actuel sans modification.\n\
              Retourne uniquement le titre, sans guillemets, préfixe ni explication.\n\n\
@@ -492,7 +492,7 @@ pub fn title_prompt(
              Regras:\n\
              - A data é {created_date}, convertida de createdAt para Asia/Shanghai. Use-a exatamente e nunca use updatedAt.\n\
              - O formato exato é MMDD｜tipo｜tema.\n\
-             - O tipo deve ser exatamente um destes valores: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - O tipo deve ser exatamente um destes valores: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - Extraia o tema do conteúdo real e não repita o nome do projeto.\n\
              - Se não for possível determinar o tema, não adivinhe; mantenha o título atual inalterado.\n\
              Retorne apenas o título, sem aspas, prefixo ou explicação.\n\n\
@@ -504,7 +504,7 @@ pub fn title_prompt(
              القواعد:\n\
              - التاريخ هو {created_date} بعد تحويل createdAt إلى Asia/Shanghai. استخدمه كما هو ولا تستخدم updatedAt مطلقًا.\n\
              - التنسيق الدقيق هو MMDD｜النوع｜الموضوع.\n\
-             - يجب أن يكون النوع إحدى هذه القيم حرفيًا: 功能、设计、修复、优化、发布、探索、文档、研究.\n\
+             - يجب أن يكون النوع إحدى هذه القيم حرفيًا: 功能、设计、修复、优化、发布、探索、文档、研究、其他.\n\
              - استخلص الموضوع من المحتوى الفعلي ولا تكرر اسم المشروع.\n\
              - إذا تعذر تحديد الموضوع فلا تخمّن، وأخرج العنوان الحالي دون تغيير.\n\
              أخرج العنوان فقط، بلا علامات اقتباس أو بادئة أو شرح.\n\n\
@@ -513,6 +513,19 @@ pub fn title_prompt(
         ),
     }
 }
+
+// Shared by all UI languages and automatic/manual title generation.
+const TITLE_CATEGORY_GUIDANCE: &str = "Category boundaries (choose exactly one by the main requested outcome):
+- 功能: implement or extend a capability or user-visible behavior; e.g. implement login.
+- 设计: plan requirements, architecture, interactions, or visual solutions before implementation; e.g. propose a login flow without coding.
+- 修复: restore incorrect or broken behavior; e.g. fix login failing. Diagnostic steps within a requested fix still belong to 修复.
+- 优化: improve performance, maintainability, or usability of working behavior without adding a capability; e.g. speed up login or refactor it.
+- 发布: versioning, packaging, deployment, release pipelines, or distribution; e.g. build and publish an installer.
+- 探索: understand the existing project or explain/diagnose its current behavior without requesting a fix; e.g. explain the authentication flow or investigate why it fails.
+- 文档: write, update, translate, or organize documentation as the primary deliverable; e.g. update the login guide.
+- 研究: investigate technologies, external knowledge, or compare approaches to inform a decision; e.g. compare OAuth libraries. Explaining existing project code is 探索; producing a concrete design is 设计.
+- 其他: greetings, thanks, casual conversation, or requests outside the above categories; still summarize the actual topic.
+Prefer the requested deliverable over incidental steps. Implementation of new behavior is 功能; planning it is 设计. Repairing broken behavior is 修复; improving working behavior is 优化. A short technical question is classified by its subject, not automatically as 其他.";
 
 fn title_prompt_for_message(
     message: &str,
@@ -526,7 +539,7 @@ fn title_prompt_for_message(
         redact_title_input(&structured_title_fallback(Some(original_title), created_at));
     let prompt = title_prompt(&snippet, &safe_original_title, created_at, locale);
     format!(
-        "{prompt}\n\nFallback exception: when the topic cannot be determined, output exactly {}. 未知 is permitted only with 未命名 for this fallback.",
+        "{prompt}\n\n{TITLE_CATEGORY_GUIDANCE}\n\nTopic interpretation: Any understandable conversational intent is a valid topic, even without a coding task. Greetings, thanks, introductions, and short questions must receive descriptive titles; do not treat brevity or a lack of technical detail as an unknown topic. For social conversation use 类型=其他 and write the topic in the requested language. For example, 你好 has the topic 日常问候 in Chinese.\n\nFallback exception: only when the supplied content has no interpretable meaning, output exactly {}. 其他 is also a normal category with descriptive topics; use 未命名 only for this fallback.",
         structured_title_fallback(None, created_at)
     )
 }
@@ -739,10 +752,22 @@ async fn start_auto_title(
         return;
     };
     if summary.title_locked {
+        tracing::debug!(
+            conversation_id,
+            ?agent_type,
+            reason = "title_locked",
+            "title generation skipped"
+        );
         return;
     }
     let can_seed = can_overwrite_auto_title(summary.title.as_deref(), &first_message);
     if !original_transcript && !can_seed {
+        tracing::info!(
+            conversation_id,
+            ?agent_type,
+            reason = "existing_title",
+            "title generation skipped"
+        );
         return;
     }
     save_auto_title_fallback(&conn, &emitter, &summary).await;
@@ -769,6 +794,12 @@ async fn start_auto_title(
     {
         Ok(Some(settings)) => settings,
         Ok(None) => {
+            tracing::debug!(
+                conversation_id,
+                ?agent_type,
+                reason = "model_disabled",
+                "title generation skipped"
+            );
             // Keep the structured fallback when the model is disabled.
             if can_seed && !original_transcript {
                 match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic)
@@ -795,6 +826,12 @@ async fn start_auto_title(
     };
 
     if !begin_refine(conversation_id) {
+        tracing::debug!(
+            conversation_id,
+            ?agent_type,
+            reason = "active_or_cooldown",
+            "title generation skipped"
+        );
         return;
     }
 
@@ -831,6 +868,11 @@ async fn start_auto_title(
             created_at,
             locale,
         )
+        .instrument(tracing::info_span!(
+            "auto_title",
+            conversation_id,
+            ?agent_type
+        ))
         .await
         {
             Ok(title) => title,
@@ -840,7 +882,14 @@ async fn start_auto_title(
             }
         };
 
-        // Unknown remains eligible for recovery once useful context arrives.
+        tracing::info!(
+            conversation_id,
+            ?agent_type,
+            unnamed = refined == structured_title_fallback(None, created_at),
+            "title model generation completed"
+        );
+
+        // The unnamed fallback remains eligible for recovery once useful context arrives.
         if refined == structured_title_fallback(None, created_at)
             || refined == clean_llm_title(&redact_title_input(&original_title)).unwrap_or_default()
         {
@@ -1012,25 +1061,26 @@ fn extract_chat_completion_title(body: &serde_json::Value) -> Option<String> {
 /// The creation date is authoritative; models must not choose updatedAt/today.
 pub(crate) fn normalize_structured_title(raw: &str, created_at: DateTime<Utc>) -> Option<String> {
     let title = clean_llm_title(raw)?;
-    let mut parts = title.splitn(3, ['｜', '|', '/']);
+    let mut parts = title.splitn(3, ['｜', '丨', '|', '/']);
     let date = parts.next()?.trim();
     let kind = parts.next()?.trim();
     let topic = parts.next()?.trim();
+    // Accept the legacy fallback on read, but never emit its retired category.
     if date.len() == 4
         && date.bytes().all(|b| b.is_ascii_digit())
         && kind == "未知"
         && topic == "未命名"
     {
-        return Some(format!("{}｜未知｜未命名", created_date_mmdd(created_at)));
+        return Some(format!("{}｜其他｜未命名", created_date_mmdd(created_at)));
     }
     if date.len() != 4
         || !date.bytes().all(|b| b.is_ascii_digit())
         || ![
-            "功能", "设计", "修复", "优化", "发布", "探索", "文档", "研究",
+            "功能", "设计", "修复", "优化", "发布", "探索", "文档", "研究", "其他",
         ]
         .contains(&kind)
         || topic.is_empty()
-        || topic.contains(['｜', '|'])
+        || topic.contains(['｜', '丨', '|'])
     {
         return None;
     }
@@ -1087,8 +1137,13 @@ async fn llm_title_via_api(
         if let Some(api_key) = settings.api_key.as_deref() {
             request = request.bearer_auth(api_key);
         }
+        tracing::info!(attempt = attempt + 1, "title model HTTP request sending");
         match request.send().await {
             Ok(response) if response.status().is_success() => {
+                tracing::info!(
+                    status = response.status().as_u16(),
+                    "title model HTTP response received"
+                );
                 match response.json::<serde_json::Value>().await {
                     Ok(value) => {
                         let title = extract_chat_completion_title(&value);
@@ -1311,7 +1366,7 @@ mod tests {
         assert!(prompt.contains("createdAt 按 Asia/Shanghai"));
         assert!(prompt.contains("不要使用 updatedAt"));
         assert!(prompt.contains("MMDD｜类型｜主题"));
-        assert!(prompt.contains("功能、设计、修复、优化、发布、探索、文档、研究"));
+        assert!(prompt.contains("功能、设计、修复、优化、发布、探索、文档、研究、其他"));
         assert!(prompt.contains("不要重复项目名称"));
         assert!(prompt.contains("无法判断主题时不要猜，原样输出当前标题"));
         assert!(prompt.contains("当前标题：\n登录状态"));

@@ -35,7 +35,7 @@ fn structured_title_normalizes_separators_and_created_date() {
     );
     for invalid in [
         "顶部栏闪烁",
-        "0907｜其他｜顶部栏闪烁",
+        "0907｜非法类型｜顶部栏闪烁",
         "0907｜修复｜",
         "abcd｜修复｜闪烁",
         "0907｜修复｜闪烁｜多余字段",
@@ -44,6 +44,60 @@ fn structured_title_normalizes_separators_and_created_date() {
             normalize_structured_title(invalid, created_at()).is_none(),
             "{invalid}"
         );
+    }
+}
+
+#[test]
+fn other_category_accepts_topics_and_normalizes_legacy_fallbacks() {
+    for title in [
+        "0909｜其他｜未命名",
+        "0909丨其他丨未命名",
+        "0909 | 其他 | 未命名",
+        "0909｜未知｜未命名",
+    ] {
+        assert_eq!(
+            normalize_structured_title(title, created_at()).as_deref(),
+            Some("0903｜其他｜未命名")
+        );
+        assert!(can_overwrite_auto_title(Some(title), "你好"));
+    }
+    assert_eq!(
+        normalize_structured_title("0909丨其他丨日常问候", created_at()).as_deref(),
+        Some("0903｜其他｜日常问候")
+    );
+    assert!(!can_overwrite_auto_title(
+        Some("0909｜其他｜日常问候"),
+        "修复登录"
+    ));
+    assert!(normalize_structured_title("0909｜未知｜日常问候", created_at()).is_none());
+    assert!(normalize_structured_title("0909丨其他丨日常丨问候", created_at()).is_none());
+}
+
+#[test]
+fn category_boundaries_and_other_fallback_apply_to_every_locale() {
+    for locale in [
+        TitleLocale::En,
+        TitleLocale::Zh,
+        TitleLocale::ZhTw,
+        TitleLocale::Ja,
+        TitleLocale::Ko,
+        TitleLocale::Es,
+        TitleLocale::De,
+        TitleLocale::Fr,
+        TitleLocale::Pt,
+        TitleLocale::Ar,
+    ] {
+        let prompt = title_prompt_for_message("你好", "0909｜未知｜未命名", created_at(), locale);
+        assert!(prompt.contains("功能、设计、修复、优化、发布、探索、文档、研究、其他"));
+        assert!(prompt.contains(TITLE_CATEGORY_GUIDANCE));
+        assert!(prompt.contains("For social conversation use 类型=其他"));
+        assert!(prompt.contains("0903｜其他｜未命名"));
+        assert!(!prompt.contains("未知"));
+        for category in [
+            "功能", "设计", "修复", "优化", "发布", "探索", "文档", "研究", "其他",
+        ] {
+            assert!(TITLE_CATEGORY_GUIDANCE.contains(&format!("- {category}:")));
+        }
     }
 }
 
@@ -212,7 +266,7 @@ async fn structured_fallback_covers_empty_text_images_and_model_failures() {
             generate_manual_title(&db.conn, &summary, &turns)
                 .await
                 .unwrap(),
-            "0903｜未知｜未命名"
+            "0903｜其他｜未命名"
         );
     }
     let server = mock(vec![reply("unstructured output")], Duration::ZERO).await;
@@ -222,7 +276,7 @@ async fn structured_fallback_covers_empty_text_images_and_model_failures() {
         generate_manual_title(&db.conn, &summary, &turns)
             .await
             .unwrap(),
-        "0903｜未知｜未命名"
+        "0903｜其他｜未命名"
     );
     assert_eq!(server.requests.lock().unwrap().len(), 3);
     summary.title = Some("0909｜修复｜已有主题".into());
@@ -233,12 +287,12 @@ async fn structured_fallback_covers_empty_text_images_and_model_failures() {
         "0903｜修复｜已有主题"
     );
     assert_eq!(
-        normalize_structured_title("0909｜未知｜未命名", created_at()).as_deref(),
-        Some("0903｜未知｜未命名")
+        normalize_structured_title("0909｜其他｜未命名", created_at()).as_deref(),
+        Some("0903｜其他｜未命名")
     );
     assert!(normalize_structured_title("0909｜未知｜猜测主题", created_at()).is_none());
     assert!(can_overwrite_auto_title(
-        Some("0903｜未知｜未命名"),
+        Some("0903｜其他｜未命名"),
         "新内容"
     ));
 
@@ -402,6 +456,7 @@ async fn recovery_uses_original_context_and_preserves_locked_titles() {
     assert_eq!(server.requests.lock().unwrap().len(), 2);
 
     fallback_stays_unlocked_and_cooldown_prevents_request_storms(&db, folder, &emitter).await;
+    greeting_kickoff_calls_http_for_each_supported_agent(&db, folder, &emitter).await;
 }
 
 async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
@@ -409,7 +464,7 @@ async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
     folder: i32,
     emitter: &EventEmitter,
 ) {
-    let server = mock(vec![reply("0909｜未知｜未命名")], Duration::ZERO).await;
+    let server = mock(vec![reply("0909｜其他｜未命名")], Duration::ZERO).await;
     settings(&db.conn, &server.url).await;
     let id = seed_conversation(db, folder, AgentType::Codex).await;
     conversation_service::refresh_auto_title(&db.conn, id, "数字一".into())
@@ -543,7 +598,7 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
             &db.conn,
             folder,
             agent,
-            Some("0909｜未知｜未命名".into()),
+            Some("0909｜其他｜未命名".into()),
             None,
         )
         .await
@@ -559,7 +614,7 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
             let saved = conversation_service::get_by_id(&db.conn, row.id)
                 .await
                 .unwrap();
-            assert_eq!(saved.title.as_deref(), Some("0909｜未知｜未命名"));
+            assert_eq!(saved.title.as_deref(), Some("0909｜其他｜未命名"));
             assert!(!saved.title_locked);
             assert_eq!(saved.updated_at, row.updated_at);
         }
@@ -573,7 +628,7 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
         assert!(!conversation_service::refresh_auto_title(
             &db.conn,
             row.id,
-            "0909｜未知｜未命名".into()
+            "0909｜其他｜未命名".into()
         )
         .await
         .unwrap());
@@ -582,7 +637,7 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
         &db.conn,
         folder,
         AgentType::OpenCode,
-        Some("0909｜未知｜未命名".into()),
+        Some("0909｜其他｜未命名".into()),
         None,
     )
     .await
@@ -627,5 +682,54 @@ async fn recovered_title_is_returned_in_live_detail() {
             Some(structured_title_fallback(None, row.created_at))
         );
         assert!(!detail.summary.title_locked);
+    }
+}
+
+// Run in the existing sequential scenario: refine cooldown IDs are process-global.
+async fn greeting_kickoff_calls_http_for_each_supported_agent(
+    db: &crate::db::AppDatabase,
+    folder: i32,
+    emitter: &EventEmitter,
+) {
+    let server = mock(vec![reply("0910｜其他｜日常问候")], Duration::ZERO).await;
+    settings(&db.conn, &server.url).await;
+    for (index, agent) in [
+        AgentType::Codex,
+        AgentType::Pi,
+        AgentType::DeepSeek,
+        AgentType::Grok,
+        AgentType::ClaudeCode,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let id = seed_conversation(db, folder, agent).await;
+        conversation_service::seed_auto_title_if_empty(&db.conn, id, "你好".into())
+            .await
+            .unwrap();
+        kickoff_auto_title(agent, db.conn.clone(), emitter.clone(), id, "你好".into()).await;
+        wait_until_idle(id).await;
+        let requests = server.requests.lock().unwrap();
+        assert_eq!(
+            requests.len(),
+            index + 1,
+            "{agent:?} must send an HTTP request"
+        );
+        assert!(requests[index]["messages"][0]["content"]
+            .as_str()
+            .unwrap()
+            .contains("你好"));
+        let prompt = requests[index]["messages"][0]["content"].as_str().unwrap();
+        assert!(prompt.contains(
+            "Greetings, thanks, introductions, and short questions must receive descriptive titles"
+        ));
+        assert!(prompt.contains("only when the supplied content has no interpretable meaning"));
+        drop(requests);
+        let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
+        assert!(
+            saved.title.unwrap().ends_with("｜其他｜日常问候"),
+            "{agent:?}"
+        );
+        assert!(saved.title_locked);
     }
 }

@@ -34,7 +34,7 @@
     {
       "id": "web.frontend-refresh",
       "category": "product",
-      "description": "HTML and frontend build metadata revalidate on every request; hashed JS/CSS retain immutable caching. Mobile checks the served frontend build on foreground and reconnect, prompts to refresh, and offers a refresh control beside workspace settings without clearing credentials or saving drafts.",
+      "description": "HTML and frontend build metadata revalidate on every request; hashed JS/CSS retain immutable caching. Mobile checks the served frontend build on foreground and reconnect, prompts to refresh, and offers a refresh item inside the mobile tools menu after settings, with no title-row button without clearing credentials or saving drafts.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "package.json",
@@ -144,10 +144,11 @@
     {
       "id": "composer.conversation-cost",
       "category": "product",
-      "description": "Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
+      "description": "Refresh billing totals after each completed reply without switching conversations. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/lib/conversation-cost.ts",
+        "src/stores/conversation-runtime-store.ts",
         "src/components/chat/composer-cost-estimate.tsx",
         "src/components/chat/composer-context-usage.tsx",
         "src-tauri/src/acp/opencode_catalog.rs",
@@ -156,7 +157,10 @@
         "src-tauri/src/models/conversation.rs",
         "src-tauri/src/parsers/codex.rs"
       ],
-      "contracts": ["src/maxcode-contracts/conversation-cost.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/conversation-cost.contract.test.tsx",
+        "src/maxcode-contracts/conversation-cost-refresh.contract.test.tsx"
+      ]
     },
     {
       "id": "sidebar.collapsed-folder-running",
@@ -740,7 +744,7 @@
     {
       "id": "conversations.structured-title-recovery",
       "category": "product",
-      "description": "Dedicated titles normalize MMDD｜type｜topic, use Shanghai creation-date MMDD｜未知｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, and log failures without credentials.",
+      "description": "Dedicated titles normalize MMDD｜type｜topic, use Shanghai creation-date MMDD｜其他｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, use nine categories with explicit outcome-based boundaries and 其他 for social conversation, normalize legacy 未知 fallbacks to 其他, treat understandable short messages as valid title topics, verify greeting kickoff sends HTTP for every supported agent, and log HTTP attempts, responses, outcomes and skip reasons without credentials or message content.",
       "origins": ["worktree-2026-09-07"],
       "paths": [
         "src-tauri/src/session_title.rs",

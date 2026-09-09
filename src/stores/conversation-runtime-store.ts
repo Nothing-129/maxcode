@@ -10,6 +10,7 @@ import type {
   AgentExecutionStats,
   AgentTranscriptEntry,
   ContentBlock,
+  ConversationBillingUsage,
   ConversationTurnsPage,
   DbConversationDetail,
   MessageTurn,
@@ -465,6 +466,7 @@ type Action =
       conversationId: number
       turnPatches: TurnMetadataPatch[]
       sessionStats?: SessionStats | null
+      billingUsage?: ConversationBillingUsage[] | null
     }
   | {
       type: "SET_ACP_LOAD_ERROR"
@@ -2733,15 +2735,23 @@ function reducer(
         }
       }
 
-      if (!changed && !action.sessionStats) return state
+      if (!changed && !action.sessionStats && action.billingUsage == null)
+        return state
 
       const nextSessionStats = mergeIncomingSessionStats(
         current.sessionStats,
         action.sessionStats
       )
       const patchedDetail =
-        current.detail && nextSessionStats
-          ? { ...current.detail, session_stats: nextSessionStats }
+        current.detail && (nextSessionStats || action.billingUsage != null)
+          ? {
+              ...current.detail,
+              session_stats: nextSessionStats,
+              // Full-transcript totals arrive with the post-turn reparse, even
+              // when its window cannot safely be aligned to local turns.
+              billing_usage:
+                action.billingUsage ?? current.detail.billing_usage,
+            }
           : current.detail
 
       return updateSessionInState(state, action.conversationId, () => ({
@@ -4005,12 +4015,17 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
                       "assistant",
                   })
 
-            if (patches.length > 0 || parsed.session_stats) {
+            if (
+              patches.length > 0 ||
+              parsed.session_stats ||
+              parsed.billing_usage != null
+            ) {
               dispatch({
                 type: "PATCH_TURN_METADATA",
                 conversationId: runtimeId,
                 turnPatches: patches,
                 sessionStats: parsed.session_stats,
+                billingUsage: parsed.billing_usage,
               })
             }
 

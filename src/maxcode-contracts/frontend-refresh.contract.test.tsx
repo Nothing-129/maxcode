@@ -2,7 +2,14 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { NextIntlClientProvider } from "next-intl"
 import en from "@/i18n/messages/en.json"
-import { MobileFrontendRefresh } from "@/components/layout/mobile-frontend-refresh"
+import {
+  MobileFrontendRefresh,
+  MobileFrontendRefreshItem,
+} from "@/components/layout/mobile-frontend-refresh"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu"
 import { source } from "./contract-source"
 
 const f = vi.hoisted(() => ({
@@ -78,8 +85,9 @@ describe("mobile frontend refresh", () => {
     )[1]
     options.action.onClick()
     expect(f.refresh).toHaveBeenCalledOnce()
-    fireEvent.click(screen.getByRole("button", { name: "Refresh interface" }))
-    expect(f.refresh).toHaveBeenCalledTimes(2)
+    expect(
+      screen.queryByRole("button", { name: "Refresh interface" })
+    ).toBeNull()
     view.unmount()
     expect(f.unsubscribe).toHaveBeenCalledOnce()
     expect(f.toast.dismiss).toHaveBeenCalledWith("update-toast")
@@ -164,9 +172,30 @@ describe("mobile frontend refresh", () => {
     expect(target.hash).toBe("#message")
   })
 
-  it("keeps reload beside mobile tools and only navigates the current page", () => {
+  it("refreshes from the tools menu without a title-row button", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <DropdownMenu open>
+          <DropdownMenuContent>
+            <MobileFrontendRefreshItem />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </NextIntlClientProvider>
+    )
+    fireEvent.click(screen.getByRole("menuitem", { name: "Refresh interface" }))
+    expect(f.refresh).toHaveBeenCalledOnce()
+    expect(
+      screen.queryByRole("button", { name: "Refresh interface" })
+    ).toBeNull()
+  })
+
+  it("keeps the detector mounted outside the menu and refresh inside it", () => {
     expect(source("src/components/layout/folder-title-bar.tsx")).toContain(
       "<MobileFrontendRefresh />\n      <DropdownMenu>"
+    )
+    const header = source("src/components/layout/folder-title-bar.tsx")
+    expect(header).toMatch(
+      /tTitleBar\("openSettings"\)[\s\S]*?<MobileFrontendRefreshItem \/>[\s\S]*?<\/DropdownMenuContent>/
     )
     const refresh = source("src/lib/refresh-frontend.ts")
     expect(refresh).toContain("new URL(window.location.href)")
