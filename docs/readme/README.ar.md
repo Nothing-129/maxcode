@@ -1,4 +1,4 @@
-# Codeg
+# MaxCode
 
 [![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
@@ -17,9 +17,9 @@
   <strong>العربية</strong>
 </p>
 
-Codeg (Code Generation) هو مساحة عمل برمجية متعددة الوكلاء: شغّل كل وكلاء البرمجة بالذكاء الاصطناعي في مكان واحد — ودعهم يعملون معًا.
+MaxCode هو مساحة عمل برمجية متعددة الوكلاء: شغّل كل وكلاء البرمجة بالذكاء الاصطناعي في مكان واحد — ودعهم يعملون معًا.
 
-يجمع جلساتك من كل واجهات الوكلاء المدعومة في مساحة عمل واحدة قابلة للبحث، ويتيح للوكيل الرئيسي أن يفوّض إلى وكلاء فرعيين من أنواع أخرى داخل المهمة نفسها. أما العمل الذي لا تريد الجلوس لمتابعته فيذهب إلى لوحة المهام قيد الانتظار: كل مهمة في فرعها الخاص، تعمل دون إشراف، وتنتظر مراجعتك قبل أن تُدمج. ويعمل Codeg كتطبيق سطح مكتب أو خادم مستقل أو حاوية Docker، إضافةً إلى تطبيقَي iOS وAndroid الأصليين لمواصلة العمل بعيدًا عن مكتبك؛ يأتي بخمسة عشر وكيلاً مدمجًا، ويمكنك تسجيل أي وكيل آخر متوافق مع ACP بنفسك.
+يجمع جلساتك من كل واجهات الوكلاء المدعومة في مساحة عمل واحدة قابلة للبحث، ويتيح للوكيل الرئيسي أن يفوّض إلى وكلاء فرعيين من أنواع أخرى داخل المهمة نفسها. أما العمل الذي لا تريد الجلوس لمتابعته فيذهب إلى لوحة المهام قيد الانتظار: كل مهمة في فرعها الخاص، تعمل دون إشراف، وتنتظر مراجعتك قبل أن تُدمج. ويعمل MaxCode كتطبيق سطح مكتب أو خادم مستقل أو حاوية Docker، إضافةً إلى تطبيقَي iOS وAndroid الأصليين لمواصلة العمل بعيدًا عن مكتبك؛ يأتي بخمسة عشر وكيلاً مدمجًا، ويمكنك تسجيل أي وكيل آخر متوافق مع ACP بنفسك.
 
 ![مساحة العمل](../images/workspace-light.png#gh-light-mode-only)
 ![مساحة العمل](../images/workspace-dark.png#gh-dark-mode-only)
@@ -28,70 +28,28 @@ Codeg (Code Generation) هو مساحة عمل برمجية متعددة الو�
 
 **التوثيق الكامل على [docs.codeg.app](https://docs.codeg.app)** — [البداية](https://docs.codeg.app/getting-started/) · [الدليل](https://docs.codeg.app/guide/) · [المرجع](https://docs.codeg.app/reference/)
 
-## 💖 الرعاة
-
-<table>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg" target="_blank"><img src="../images/compshare.png" alt="Compshare" width="160" /></a><br/>
-      <strong><a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">Compshare (UCloud)</a></strong>
-    </td>
-    <td>شكراً لـ Compshare على رعاية هذا المشروع! Compshare هي منصة الذكاء الاصطناعي السحابية التابعة لشركة UCloud، وتقدّم باقات Plan للوكلاء بنماذج محلية بأسعار اقتصادية شهرياً أو حسب الاستخدام، بدءاً من 49 يوان/شهر. كما توفّر وصولاً مستقراً إلى النماذج الأجنبية عبر وكيل رسمي. تدعم التكامل مع Claude Code وCodex واستدعاءات API. جاهزة للمؤسسات: تزامن عالٍ، ودعم فني على مدار الساعة طوال أيام الأسبوع، وإصدار الفواتير ذاتياً. المستخدمون الذين يسجّلون عبر <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">هذا الرابط</a> يحصلون على رصيد تجريبي مجاني بقيمة 5 يوان على المنصة!</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE" target="_blank"><img src="../images/sui-xiang.jpg" alt="随想AI中转站" width="200" /></a><br/>
-      <strong><a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">随想AI中转站</a></strong>
-    </td>
-    <td>شكراً لـ 随想AI中转站 على رعاية هذا المشروع! 随想AI中转站 هي مزوّد موثوق وفعّال لخدمات ترحيل واجهات API، وتوفّر خدمات الترحيل لنماذج Claude وCodex وGemini وغيرها. تحصل الحسابات الجديدة بعد <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">التسجيل</a> على رصيد تجريبي بقيمة 0.5 يوان مقابل تسجيل الحضور اليومي؛ وتُضاف عمليات الشحن بنسبة 1:1، دون اشتراك وبالدفع حسب الاستخدام. خطوط متعددة متكرّرة، وتعافٍ من الكوارث عبر المناطق، وتبديل تلقائي عند الأعطال — لتبقى اتصالات SSE طويلة الأمد دون انقطاع.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://hezu.ink/sign-up?aff=0wVz" target="_blank"><img src="../images/hezu-ink.jpg" alt="合租巴士" width="200" /></a><br/>
-      <strong><a href="https://hezu.ink/sign-up?aff=0wVz">合租巴士</a></strong>
-    </td>
-    <td>شكراً لـ 合租巴士 على رعاية هذا المشروع! 合租巴士 هي منصة موثوقة وفعّالة لخدمات ترحيل الذكاء الاصطناعي، توفّر ترحيلاً عالي الاستقرار للنماذج الرئيسية مثل Codex وClaude Code. نسبة الشحن شفافة (1:1)، مع دعم لمعدّل Codex يبدأ من 0.08 فقط. <a href="https://hezu.ink/sign-up?aff=0wVz">انضم إلى المجموعة عبر الموقع الرسمي للحصول على رصيد تجريبي بقيمة 5 دولارات</a>.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta" target="_blank"><img src="../images/onehop.jpg" alt="OneHop" width="120" /></a><br/>
-      <strong><a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">OneHop</a></strong>
-    </td>
-    <td>شكراً لـ OneHop على رعاية هذا المشروع! يمنح OneHop مستخدمي Codeg مفتاح API واحداً متوافقاً مع OpenAI للوصول إلى مئات النماذج الرائدة، بما في ذلك GPT وClaude وGemini وDeepSeek وKimi وQwen. بدّل بين النماذج دون إدارة حسابات مزوّدين متعددة أو تعديل التعليمات البرمجية مراراً وتكراراً، وادفع فقط مقابل ما تستخدمه. <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">سجّل عبر Codeg</a> للحصول على رصيد بقيمة 1 دولار، ثم انضم إلى مجتمع OneHop وشارك في نشاط الترحيب للحصول على 5 دولارات إضافية — بما يصل إلى 6 دولارات من الرصيد التجريبي إجمالاً.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
-      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
-    </td>
-    <td>شكراً لخدمة الترحيل LQ router على رعاية هذا المشروع! LQ router هي بوابة مؤسسية لتجميع واجهات API، مصممة للمطورين المستقلين والفرق التقنية. تتيح الوصول إلى النماذج الرائدة مثل GPT وClaude وGrok وGemini، وتتوافق مع العملاء الحاليين وOpenAI SDK، وتستخدم مجموعة حسابات ديناميكية للتوجيه الذكي — نقطة دخول واحدة لجميع استدعاءات النماذج. <a href="https://console.lqapi.xyz/sign-up?aff=KPy9">سجّل عبر الموقع الرسمي واحصل على رصيد تجريبي بقيمة دولار واحد</a>.</td>
-  </tr>
-</table>
-
-> هل ترغب في أن تصبح راعياً لـ Codeg؟ [راسلنا عبر البريد الإلكتروني.](mailto:itpkcn@gmail.com)
-
 ## 🤖 الوكلاء المدعومون
 
 Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · CodeBuddy · Kimi Code · Pi · Grok · Cursor · DeepSeek Harness · Qoder · Google Antigravity
 
-يتولّى Codeg تثبيت معظمهم وتثبيت إصداراتهم وتحديثهم نيابةً عنك. راجع [الوكلاء المدعومون](https://docs.codeg.app/guide/supported-agents) للقائمة الكاملة، ومتطلبات تشغيل كل وكيل، وموضع حفظ جلساته على القرص.
+يتولّى MaxCode تثبيت معظمهم وتثبيت إصداراتهم وتحديثهم نيابةً عنك. راجع [الوكلاء المدعومون](https://docs.codeg.app/guide/supported-agents) للقائمة الكاملة، ومتطلبات تشغيل كل وكيل، وموضع حفظ جلساته على القرص.
 
-ليس في القائمة؟ أضِفه بنفسك. اختر أي وكيل من سجل ACP العام أو الصق ملف distribution JSON الخاص به، فيتولّى Codeg تثبيته والتحقّق مسبقًا من قدرته على الإقلاع، ثم يعامله كوكيل مدمج — يظهر في المُحدِّد، ويقبل التفويض بـ `@` والمهارات، وتُسجَّل محادثاته وتصبح قابلة للبحث حتى لو لم يحتفظ الوكيل نفسه بأي سجل. → [الوكلاء المخصّصون](https://docs.codeg.app/guide/custom-agents)
+ليس في القائمة؟ أضِفه بنفسك. اختر أي وكيل من سجل ACP العام أو الصق ملف distribution JSON الخاص به، فيتولّى MaxCode تثبيته والتحقّق مسبقًا من قدرته على الإقلاع، ثم يعامله كوكيل مدمج — يظهر في المُحدِّد، ويقبل التفويض بـ `@` والمهارات، وتُسجَّل محادثاته وتصبح قابلة للبحث حتى لو لم يحتفظ الوكيل نفسه بأي سجل. → [الوكلاء المخصّصون](https://docs.codeg.app/guide/custom-agents)
 
 ## 🤝 التعاون متعدد الوكلاء
 
-التعاون متعدد الوكلاء، مختصرًا في ضغطة واحدة: اكتب `@`، اختر وكيلاً، ثم أرسل. يتكفّل Codeg بالتنسيق — يشغّل كل وكيل تذكره كجلسة مستقلة، ويسلّمه المهمة، ثم يعيد بثّ عمله إلى المحادثة التي أنت فيها بالفعل. اذكر اثنين ليعملا جنبًا إلى جنب: Claude Code يكتب المسودة بينما يراجع Codex. بلا تبديل للسياق، وبلا نسخ ولصق بين الطرفيات.
+التعاون متعدد الوكلاء، مختصرًا في ضغطة واحدة: اكتب `@`، اختر وكيلاً، ثم أرسل. يتكفّل MaxCode بالتنسيق — يشغّل كل وكيل تذكره كجلسة مستقلة، ويسلّمه المهمة، ثم يعيد بثّ عمله إلى المحادثة التي أنت فيها بالفعل. اذكر اثنين ليعملا جنبًا إلى جنب: Claude Code يكتب المسودة بينما يراجع Codex. بلا تبديل للسياق، وبلا نسخ ولصق بين الطرفيات.
 
 وعندما يشغّل وكيلٌ وكلاءه الفرعيين — وهذا ما يفعله Claude Code وCodex وGrok وOpenCode — تحصل كل مهمة فرعية على بطاقة تمتلئ أثناء العمل، بدلاً من الظهور كلها مرة واحدة عند الانتهاء. افتح إحداها لتقرأ جلسة المهمة الفرعية نفسها.
 
-![تفويض مهمة إلى وكلاء فرعيين من محادثة واحدة في Codeg](../images/collaboration-light.gif#gh-light-mode-only)
-![تفويض مهمة إلى وكلاء فرعيين من محادثة واحدة في Codeg](../images/collaboration-dark.gif#gh-dark-mode-only)
+![تفويض مهمة إلى وكلاء فرعيين من محادثة واحدة في MaxCode](../images/collaboration-light.gif#gh-light-mode-only)
+![تفويض مهمة إلى وكلاء فرعيين من محادثة واحدة في MaxCode](../images/collaboration-dark.gif#gh-dark-mode-only)
 
 ## ✅ المهام قيد الانتظار
 
-ليس كل عمل يحتاج إلى متابعتك. دوّنه فحسب — عنوان ووصف والوكيل الذي سينفّذه — ويمنحه Codeg **نسخته الخاصة من الشيفرة**: شجرة عمل git بجوار مشروعك، على فرع خاص بها. تعمل عدة مهام في الوقت نفسه دون أن تمسّ إحداها الأخرى، ولا الشجرة التي تعمل فيها أنت. يمكنك جدولة مهمة لهذه الليلة، أو ترك مجلد يستهلك طابوره وحده حتى حد التزامن الذي تحدده.
+ليس كل عمل يحتاج إلى متابعتك. دوّنه فحسب — عنوان ووصف والوكيل الذي سينفّذه — ويمنحه MaxCode **نسخته الخاصة من الشيفرة**: شجرة عمل git بجوار مشروعك، على فرع خاص بها. تعمل عدة مهام في الوقت نفسه دون أن تمسّ إحداها الأخرى، ولا الشجرة التي تعمل فيها أنت. يمكنك جدولة مهمة لهذه الليلة، أو ترك مجلد يستهلك طابوره وحده حتى حد التزامن الذي تحدده.
 
-المهمة المنتهية لا تدمج نفسها. تنتقل إلى عمود المراجعة وتنتظر: اقرأ الفروقات، أو أعدها لجولة أخرى، أو اقبلها — عندها يتولّى الوكيل الدمج، فيجلب فرعك الأساسي إلى شجرة عمله ويحلّ التعارضات هناك أولًا. بعد ذلك لا يأخذ Codeg بكلام الوكيل، بل يتحقق من git بنفسه: أي دمج لا يستطيع تأكيده يعود إلى المراجعة بدلاً من الإبلاغ عن نجاح.
+المهمة المنتهية لا تدمج نفسها. تنتقل إلى عمود المراجعة وتنتظر: اقرأ الفروقات، أو أعدها لجولة أخرى، أو اقبلها — عندها يتولّى الوكيل الدمج، فيجلب فرعك الأساسي إلى شجرة عمله ويحلّ التعارضات هناك أولًا. بعد ذلك لا يأخذ MaxCode بكلام الوكيل، بل يتحقق من git بنفسه: أي دمج لا يستطيع تأكيده يعود إلى المراجعة بدلاً من الإبلاغ عن نجاح.
 
 ![لوحة المهام قيد الانتظار، والمهام تنتقل من «قيد الانتظار» إلى «قيد التنفيذ» ثم «تم»](../images/task-light.png#gh-light-mode-only)
 ![لوحة المهام قيد الانتظار، والمهام تنتقل من «قيد الانتظار» إلى «قيد التنفيذ» ثم «تم»](../images/task-dark.png#gh-dark-mode-only)
@@ -100,7 +58,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 شريط تبويبات واحد لا يكفي دائمًا. انقر بزر الفأرة الأيمن على تبويب محادثة لتقسيم العرض **يمينًا** أو **أسفل**، بأي عدد تريده: لوحان جنبًا إلى جنب، أو ثلاثة مرصوفة، أو شبكة كاملة. كل مجموعة مساحة عمل مكتملة بذاتها — تبويباتها الخاصة، ورأسها الخاص، وزر محادثة جديدة خاص بها — فيتولّى Claude Code إعادة الهيكلة في لوح بينما يراجع Codex فرقًا في اللوح المجاور.
 
-اسحب تبويبًا من مجموعة إلى أخرى وستواصل جلسته البثّ أثناء الانتقال، واسحب الفاصل بين مجموعتين لتغيير طريقة تقاسمهما المساحة. يُحفظ تخطيطك لكل مساحة عمل، بما في ذلك المسودات: أعِد فتح Codeg فيعود التقسيم كما كان، والنص الذي لم ترسله لا يزال في الصندوق.
+اسحب تبويبًا من مجموعة إلى أخرى وستواصل جلسته البثّ أثناء الانتقال، واسحب الفاصل بين مجموعتين لتغيير طريقة تقاسمهما المساحة. يُحفظ تخطيطك لكل مساحة عمل، بما في ذلك المسودات: أعِد فتح MaxCode فيعود التقسيم كما كان، والنص الذي لم ترسله لا يزال في الصندوق.
 
 ![تقسيم منطقة المحادثة إلى شبكة من مجموعات التبويبات](../images/split-light.gif#gh-light-mode-only)
 ![تقسيم منطقة المحادثة إلى شبكة من مجموعات التبويبات](../images/split-dark.gif#gh-dark-mode-only)
@@ -126,7 +84,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📱 iPhone وiPad وAndroid
 
-ابتعد عن مكتبك، لا عن عملك. يتصل تطبيقا iOS وAndroid الأصليان بنسخة Codeg التي تشغّلها أصلًا — **خدمة الويب** في تطبيق سطح المكتب، أو خادم `codeg-server` الخاص بك — ومن هناك تبدأ الجلسات، وتتابع الردود واستدعاءات الأدوات لحظة بلحظة، وتردّ على طلبات الأذونات، وتتصفّح المشاريع والفروع. لا شيء ينتقل إلى الهاتف: ملفاتك وواجهات الوكلاء ومحادثاتك تبقى على الجهاز الذي يشغّل Codeg، ويُحفَظ رمز الوصول في Keychain على iOS أو عبر Android Keystore. التطبيقان مفتوحا المصدر ([iOS](https://github.com/xintaofei/codeg-ios) و[Android](https://github.com/xintaofei/codeg-android))؛ ويتم الاقتران في ثلاث خطوات تجدها في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
+ابتعد عن مكتبك، لا عن عملك. يتصل تطبيقا iOS وAndroid الأصليان بنسخة MaxCode التي تشغّلها أصلًا — **خدمة الويب** في تطبيق سطح المكتب، أو خادم `codeg-server` الخاص بك — ومن هناك تبدأ الجلسات، وتتابع الردود واستدعاءات الأدوات لحظة بلحظة، وتردّ على طلبات الأذونات، وتتصفّح المشاريع والفروع. لا شيء ينتقل إلى الهاتف: ملفاتك وواجهات الوكلاء ومحادثاتك تبقى على الجهاز الذي يشغّل MaxCode، ويُحفَظ رمز الوصول في Keychain على iOS أو عبر Android Keystore. التطبيقان مفتوحا المصدر ([iOS](https://github.com/xintaofei/codeg-ios) و[Android](https://github.com/xintaofei/codeg-android))؛ ويتم الاقتران في ثلاث خطوات تجدها في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 | iPhone وiPad | Android |
 | :---: | :---: |
@@ -137,7 +95,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 - **[تجميع المحادثات](https://docs.codeg.app/guide/aggregation)** — استورد جلسات كل الوكلاء المدعومين إلى مساحة عمل موحّدة قابلة للبحث، وتابع أيًّا منها من حيث توقفت
 - **[التعاون متعدد الوكلاء](https://docs.codeg.app/guide/multi-agent)** — اذكر أي وكيل بـ `@` لتفويضه: وكلاء فرعيون من أنواع مختلفة يعملون كجلسات مستقلة، بالتوازي، داخل مهمة واحدة
 - **[المهام قيد الانتظار](https://docs.codeg.app/guide/tasks)** — دوّن ما ينبغي عمله ويتولّى الوكلاء الطابور مهمةً مهمة، كل مهمة في شجرة عمل خاصة بها، ولا تصل إلى فرعك إلا بعد مراجعتك
-- **[الوكلاء المخصّصون](https://docs.codeg.app/guide/custom-agents)** — سجّل أي وكيل آخر متوافق مع ACP من السجل العام أو من ملف distribution JSON؛ يتولّى Codeg تثبيته وتسجيل تاريخه، ويعامله كوكيل مدمج
+- **[الوكلاء المخصّصون](https://docs.codeg.app/guide/custom-agents)** — سجّل أي وكيل آخر متوافق مع ACP من السجل العام أو من ملف distribution JSON؛ يتولّى MaxCode تثبيته وتسجيل تاريخه، ويعامله كوكيل مدمج
 - **[مساحة العمل](https://docs.codeg.app/guide/workspace)** — حلقة هندسية كاملة بجوار الوكيل: شجرة الملفات، المحرّر والفروقات، تغييرات git، الإيداع، وطرفية مدمجة، و[عدة مجلدات مربوطة في مساحة عمل واحدة](https://docs.codeg.app/guide/workspace#work-across-several-folders)
 - **[العرض المُقسَّم](https://docs.codeg.app/guide/workspace#split-the-conversation-view-into-groups)** — قسّم منطقة المحادثة إلى أي عدد من مجموعات التبويبات، واسحب التبويبات والفواصل بينها، واستعد التخطيط — مع المسودات — بعد إعادة التشغيل
 - **[Git والـ worktrees](https://docs.codeg.app/guide/git)** — راجع التغييرات وأودعها، وأدر حسابات Git البعيدة، واعمل بالتوازي عبر تدفقات `git worktree` المدمجة
@@ -156,7 +114,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 **سطح المكتب** — نزّل المثبّت الخاص بـ macOS أو Windows أو Linux من [Releases](https://github.com/xintaofei/codeg/releases)، ثم اتبع [التثبيت](https://docs.codeg.app/getting-started/installation).
 
-**الخادم** — شغّل Codeg بلا واجهة وادخل إليه من أي متصفح. على Linux أو macOS:
+**الخادم** — شغّل MaxCode بلا واجهة وادخل إليه من أي متصفح. على Linux أو macOS:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
@@ -178,7 +136,7 @@ docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 
 **الهاتف واللوحي** — ثبّت [تطبيق iOS](https://apps.apple.com/app/codeg-client/id6785199071) أو [حزمة Android APK](https://github.com/xintaofei/codeg-android/releases/latest)، ثم وجّهه إلى **خدمة الويب** في تطبيق سطح المكتب أو إلى خادم `codeg-server` الخاص بك: العنوان والرمز، وانتهى الأمر. خطوات الاقتران في [التطبيقات المحمولة](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
-يغطي [النشر](https://docs.codeg.app/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://docs.codeg.app/getting-started/configuration). ولبناء Codeg نفسه: [التطوير](https://docs.codeg.app/reference/development) و[البنية](https://docs.codeg.app/reference/architecture).
+يغطي [النشر](https://docs.codeg.app/getting-started/deployment) استخدام Compose والملفات التنفيذية الجاهزة والبناء من المصدر والتحديث في المكان؛ وتجد متغيرات البيئة في [الإعداد](https://docs.codeg.app/getting-started/configuration). ولبناء MaxCode نفسه: [التطوير](https://docs.codeg.app/reference/development) و[البنية](https://docs.codeg.app/reference/architecture).
 
 ## 🔒 الخصوصية والأمان
 
@@ -199,10 +157,10 @@ docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 
 ## 🙏 شكر وتقدير
 
-- [Agent Client Protocol](https://agentclientprotocol.com) — الأساس الذي يمكّن Codeg من الاتصال بكل وكيل يدعمه
-- [Superpowers](https://github.com/obra/superpowers) — يُشغِّل وحدة مهارات الخبراء في Codeg
-- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — يُشغِّل سير عمل مستندات Office في Codeg
-- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — يُشغِّل مهارات البحث العلمي في Codeg (مجموعة فرعية مرخّصة بموجب MIT)
+- [Agent Client Protocol](https://agentclientprotocol.com) — الأساس الذي يمكّن MaxCode من الاتصال بكل وكيل يدعمه
+- [Superpowers](https://github.com/obra/superpowers) — يُشغِّل وحدة مهارات الخبراء في MaxCode
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — يُشغِّل سير عمل مستندات Office في MaxCode
+- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — يُشغِّل مهارات البحث العلمي في MaxCode (مجموعة فرعية مرخّصة بموجب MIT)
 
 ## 📜 الترخيص
 

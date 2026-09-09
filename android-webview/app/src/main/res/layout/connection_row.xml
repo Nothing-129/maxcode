@@ -1,61 +1,74 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:orientation="vertical">
-
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="56dp"
+        android:layout_height="wrap_content"
+        android:minHeight="88dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="8dp"
         android:gravity="center_vertical"
         android:orientation="horizontal">
-
-        <Button
+        <LinearLayout
             android:id="@+id/open_connection_button"
-            style="@style/CodegWeb.Button"
+            android:orientation="horizontal"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:background="@android:color/transparent"
-            android:ellipsize="middle"
-            android:gravity="start|center_vertical"
-            android:maxLines="1"
-            android:paddingStart="12dp"
-            android:paddingEnd="8dp"
-            android:textColor="@color/text_primary"
-            android:textSize="15sp" />
-
-        <Button
-            android:id="@+id/edit_connection_button"
-            style="@style/CodegWeb.Button"
-            android:layout_width="56dp"
+            android:minHeight="88dp"
+            android:gravity="center_vertical"
+            android:clickable="true"
+            android:focusable="true"
+            android:background="?android:attr/selectableItemBackground"
+            android:paddingTop="14dp"
+            android:paddingBottom="14dp">
+            <ImageView
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:padding="9dp"
+                android:background="@drawable/bg_device"
+                android:src="@drawable/ic_device"
+                android:contentDescription="@null"
+                android:id="@+id/connection_device_icon" />
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:orientation="vertical"
+                android:importantForAccessibility="noHideDescendants">
+                <TextView
+                    android:id="@+id/connection_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:maxLines="2"
+                    android:ellipsize="end"
+                    android:textSize="16sp"
+                    android:textColor="@color/text_primary" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="5dp"
+                    android:text="@string/tap_to_connect"
+                    android:textSize="12sp"
+                    android:textColor="@color/text_secondary" />
+            </LinearLayout>
+        </LinearLayout>
+        <ImageButton
+            android:id="@+id/connection_more_button"
+            android:layout_width="48dp"
             android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:minWidth="0dp"
-            android:padding="0dp"
-            android:text="@string/edit"
-            android:textColor="@color/accent"
-            android:textSize="13sp" />
-
-        <Button
-            android:id="@+id/delete_connection_button"
-            style="@style/CodegWeb.Button"
-            android:layout_width="56dp"
-            android:layout_height="48dp"
-            android:background="@android:color/transparent"
-            android:minWidth="0dp"
-            android:padding="0dp"
-            android:text="@string/delete"
-            android:textColor="@color/error"
-            android:textSize="13sp" />
+            android:src="@drawable/ic_more"
+            android:background="?android:attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/manage_connection" />
     </LinearLayout>
-
     <View
         android:id="@+id/connection_divider"
         android:layout_width="match_parent"
         android:layout_height="1dp"
-        android:layout_marginStart="12dp"
-        android:layout_marginEnd="12dp"
+        android:layout_marginStart="68dp"
+        android:layout_marginEnd="18dp"
         android:background="@color/divider" />
-
 </LinearLayout>

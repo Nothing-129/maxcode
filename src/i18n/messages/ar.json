@@ -758,10 +758,10 @@
     "envVars": "متغيرات البيئة",
     "adapterChannel": {
       "label": "إصدار المحوّل",
-      "description": "يستخدم التثبيت والترقية الإصدار الذي راجعه codeg واعتمده. عند اختيار الأحدث يُثبَّت أحدث إصدار npm للحزمة في حينه؛ وإذا فشل ذلك، يعود codeg إلى الإصدار المعتمد ويوضح ذلك في سجل التثبيت.",
+      "description": "يستخدم التثبيت والترقية الإصدار الذي راجعه MaxCode واعتمده. عند اختيار الأحدث يُثبَّت أحدث إصدار npm للحزمة في حينه؛ وإذا فشل ذلك، يعود MaxCode إلى الإصدار المعتمد ويوضح ذلك في سجل التثبيت.",
       "pinned": "الإصدار المعتمد (موصى به)",
       "latest": "الأحدث (غير مُراجَع)",
-      "latestWarning": "أحدث الإصدارات غير مُراجَعة وقد تعطّل هذا الوكيل في codeg، بل قد يكون الإصدار الأحدث معروفًا بأنه معطوب أحيانًا. تعرض حالة الإصدار ما تم تثبيته فعليًا."
+      "latestWarning": "أحدث الإصدارات غير مُراجَعة وقد تعطّل هذا الوكيل في MaxCode، بل قد يكون الإصدار الأحدث معروفًا بأنه معطوب أحيانًا. تعرض حالة الإصدار ما تم تثبيته فعليًا."
     },
     "hostTools": {
       "label": "دع الوكيل يتولى الملفات والأوامر بنفسه",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "تسجيل الدخول دون متصفح على هذا الجهاز",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "ينشئ مهمة قيد الانتظار في مجلد {repo}، مع سحب شجرة العمل عند رأس طلب الدمج هذا — تُبنى إيداعات الوكيل فوقه وتُدفع إلى طلب الدمج نفسه بعد قبولك.",
     "instructionPlaceholder": "تعليمات إضافية للوكيل (اختياري)…",
     "writebackLabel": "التعليق بالنتيجة على هذا العنصر",
-    "writebackHint": "عند انتهاء المهمة ينشر codeg تعليقًا على هذا العنصر: النتيجة والرابط وأرقام التغيير.",
+    "writebackHint": "عند انتهاء المهمة ينشر MaxCode تعليقًا على هذا العنصر: النتيجة والرابط وأرقام التغيير.",
     "previewToggle": "معاينة محتوى القضية الذي ستحمله المهمة",
     "previewEmpty": "(بدون وصف)",
     "duplicateBody": "توجد مهمة نشطة تعالج هذا العنصر بالفعل: {title} ({status}). إنشاء أخرى على أي حال؟",

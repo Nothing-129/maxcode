@@ -758,10 +758,10 @@
     "envVars": "환경 변수",
     "adapterChannel": {
       "label": "어댑터 버전",
-      "description": "설치와 업그레이드는 codeg가 검토해 고정한 버전을 사용합니다. 최신 버전을 선택하면 해당 패키지의 그 시점 최신 npm 릴리스를 설치하며, 최신 버전 설치에 실패하면 고정 버전으로 되돌리고 설치 로그에 남깁니다.",
+      "description": "설치와 업그레이드는 MaxCode가 검토해 고정한 버전을 사용합니다. 최신 버전을 선택하면 해당 패키지의 그 시점 최신 npm 릴리스를 설치하며, 최신 버전 설치에 실패하면 고정 버전으로 되돌리고 설치 로그에 남깁니다.",
       "pinned": "고정 버전 (권장)",
       "latest": "최신 버전 (미검토)",
-      "latestWarning": "최신 릴리스는 검토되지 않아 codeg에서 이 에이전트가 깨질 수 있으며, 간혹 알려진 문제가 있는 릴리스일 수도 있습니다. 실제 설치된 버전은 버전 상태에 표시됩니다."
+      "latestWarning": "최신 릴리스는 검토되지 않아 MaxCode에서 이 에이전트가 깨질 수 있으며, 간혹 알려진 문제가 있는 릴리스일 수도 있습니다. 실제 설치된 버전은 버전 상태에 표시됩니다."
     },
     "hostTools": {
       "label": "파일과 명령을 에이전트가 직접 처리",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "브라우저가 없는 컴퓨터에서 로그인",

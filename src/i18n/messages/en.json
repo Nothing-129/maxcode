@@ -758,10 +758,10 @@
     "envVars": "Environment Variables",
     "adapterChannel": {
       "label": "Adapter version",
-      "description": "Install and Upgrade use the version codeg has reviewed and pinned. Latest switches them to the package's newest npm release at that moment; if installing it fails, codeg falls back to the pinned version and notes it in the install log.",
+      "description": "Install and Upgrade use the version MaxCode has reviewed and pinned. Latest switches them to the package's newest npm release at that moment; if installing it fails, MaxCode falls back to the pinned version and notes it in the install log.",
       "pinned": "Pinned (recommended)",
       "latest": "Latest (unreviewed)",
-      "latestWarning": "Newest releases are unreviewed and can break this agent in codeg, and occasionally a release is known broken. Version Status shows what is actually installed."
+      "latestWarning": "Newest releases are unreviewed and can break this agent in MaxCode, and occasionally a release is known broken. Version Status shows what is actually installed."
     },
     "hostTools": {
       "label": "Let the agent handle files and commands",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "Sign in without a browser on this machine",
@@ -5564,7 +5564,7 @@
     "errors": {
       "noAccount": "No {provider} account is configured for {host}. Add one under Settings → Version Control to load this repository.",
       "unsupportedHost": "The repository panel supports GitHub, GitLab and Gitea only, and {host} is not recognized as any of them. If it is a self-hosted GitHub Enterprise, GitLab, Gitea or Forgejo instance, add an account for it under Settings → Version Control.",
-      "wrongForge": "{host} is a {provider}, not the forge codeg had it classified as. The detection has been corrected — reload to retry."
+      "wrongForge": "{host} is a {provider}, not the forge MaxCode had it classified as. The detection has been corrected — reload to retry."
     },
     "addAccount": "Add an account",
     "empty": "Nothing here",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "Creates a to-do task in {repo}'s folder, with its worktree checked out at this merge request's head — the agent's commits go on top of it and are pushed back to the same merge request once you accept.",
     "instructionPlaceholder": "Optional extra instruction for the agent…",
     "writebackLabel": "Comment the outcome back on this item",
-    "writebackHint": "When the task finishes, codeg posts one comment on this item: the outcome, the link and the diff counters.",
+    "writebackHint": "When the task finishes, MaxCode posts one comment on this item: the outcome, the link and the diff counters.",
     "previewToggle": "Preview the issue content the task will carry",
     "previewEmpty": "(no description)",
     "duplicateBody": "An active task already handles this item: {title} ({status}). Create another one anyway?",

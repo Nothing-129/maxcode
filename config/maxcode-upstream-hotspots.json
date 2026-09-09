@@ -4,9 +4,12 @@
     {
       "id": "chat.mobile-conversation-layout",
       "category": "product",
-      "description": "Mobile hides the conversation search trigger and reveals sent-message edit on interaction. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
+      "description": "Mobile hides the conversation search menu entry and sent-message edit button even on interaction, and disables in-conversation search shortcuts and menu events. Desktop retains search and edit. Mobile user bubbles allow 92% width and place copy/task actions below the bubble without consuming text width; desktop keeps 82% and inline actions. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
+        "src/components/ai-elements/message.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
         "src/components/message/conversation-find.tsx",
         "src/components/message/sent-message-edit-button.tsx",
         "src/components/chat/composer-context-usage.tsx",
@@ -52,14 +55,19 @@
     {
       "id": "chat.conversation-find",
       "category": "product",
-      "description": "Ctrl/Cmd+F opens a top-right current-conversation search with matching-message navigation, highlighted excerpts and paginated history search with bounded retries. Only active main conversation views handle the shortcut.",
+      "description": "The conversation title action menu or Ctrl/Cmd+F opens current-conversation search; there is no floating launcher. Search supports matching-message navigation, highlighted excerpts and paginated history search with bounded retries. Only active main conversation views handle the shortcut.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
+        "src/lib/conversation-find-events.ts",
+        "src/components/conversations/conversation-detail-header.tsx",
         "src/components/message/conversation-find.tsx",
         "src/components/message/virtualized-message-thread.tsx",
         "src/components/message/message-list-view.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/conversation-find.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/conversation-find.contract.test.tsx",
+        "src/maxcode-contracts/title-completion-only.contract.test.tsx"
+      ]
     },
     {
       "id": "composer.conversation-cost",
@@ -1046,7 +1054,7 @@
     {
       "id": "android.webview-client",
       "category": "platform",
-      "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, device compatibility fixes, and local attachment results returned through single URIs or multi-select ClipData.",
+      "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, device compatibility fixes, and local attachment results returned through single URIs or multi-select ClipData. Its connection chooser uses the MaxCode artwork, white light-mode surfaces, a low-emphasis text action for adding connections, overflow management with delete confirmation, and a scrollable bottom-sheet form.",
       "origins": ["bddabc51", "worktree-2026-08-31", "worktree-2026-09-07"],
       "paths": [
         "android-webview/",
@@ -1055,6 +1063,7 @@
       ],
       "contracts": [
         "src/maxcode-contracts/android-and-agents.contract.test.ts",
+        "src/maxcode-contracts/android-connection-style.contract.test.ts",
         "src/maxcode-contracts/android-file-attachments.contract.test.ts"
       ]
     },
@@ -1075,7 +1084,7 @@
     {
       "id": "appearance.send-button-brand-color",
       "category": "product",
-      "description": "The enabled send button uses the MaxCode wordmark slash blue #285ee1 with a white arrow and a blue hover state. Disabled sends retain muted paint and existing sendability gating.",
+      "description": "The enabled send button uses the MaxCode wordmark slash blue #285ee1 with a white arrow and a blue hover state. Both running stop buttons use the same blue background and hover state with a white square. Disabled sends retain muted paint and existing sendability gating.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/chat/message-input.tsx",
@@ -1104,11 +1113,14 @@
     {
       "id": "branding.maxcode",
       "category": "branding",
-      "description": "Product names, icons, documentation, installers, and release links remain on the MaxCode personal fork.",
+      "description": "Product names, localized UI prose, icons, documentation, installers, and release links remain on the MaxCode personal fork. Product readmes omit sponsor sections, referral promotions, and sponsor recruitment. Preserve upstream attribution and literal compatibility identifiers, commands, paths, and configuration keys.",
       "origins": ["9eaecc27", "dc86bec0", "c7a21a24"],
       "paths": [
         "README.md",
         "docs/readme/",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "docs/chat-channels/telegram-topic-mode.md",
         "public/icon.svg",
         "public/icon-32x32.png",
         "public/icon-128x128.png",

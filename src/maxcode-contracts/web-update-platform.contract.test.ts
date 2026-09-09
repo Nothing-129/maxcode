@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 import manifest from "@/app/manifest"
@@ -56,6 +56,47 @@ describe("MaxCode contract: updater and release channel", () => {
     expect(source("install.ps1")).toContain('$Repo = "Nothing-129/maxcode"')
     expect(sourceExists("public/icon.svg")).toBe(true)
     expect(sourceExists("src-tauri/icons/icon.icns")).toBe(true)
+  })
+
+  it("uses MaxCode in localized product prose and documentation", () => {
+    const oldProductName = /(?<![A-Za-z0-9_./-])codeg(?![A-Za-z0-9_./-])/i
+    const checkProse = (value: unknown, path: string) => {
+      if (typeof value === "string") {
+        // Real identifiers such as CODEG_LOG, ~/.codeg and codeg-mcp stay valid.
+        expect(value, path).not.toMatch(oldProductName)
+      } else if (value && typeof value === "object") {
+        for (const [key, child] of Object.entries(value)) {
+          checkProse(child, `${path}.${key}`)
+        }
+      }
+    }
+    for (const file of readdirSync(repoPath("src/i18n/messages"))) {
+      if (file.endsWith(".json")) {
+        checkProse(JSON.parse(source(`src/i18n/messages/${file}`)), file)
+      }
+    }
+    for (const file of readdirSync(repoPath("docs/readme"))) {
+      if (file.startsWith("README.") && file.endsWith(".md")) {
+        expect(source(`docs/readme/${file}`)).toMatch(/^# MaxCode\n/)
+      }
+    }
+    for (const file of ["AGENTS.md", "CLAUDE.md"]) {
+      expect(source(file)).toContain("MaxCode 是一个多智能体编码工作台")
+    }
+  })
+
+  it("keeps product readmes free of sponsor promotions", () => {
+    const readmes = [
+      "README.md",
+      ...readdirSync(repoPath("docs/readme"))
+        .filter((file) => file.startsWith("README.") && file.endsWith(".md"))
+        .map((file) => `docs/readme/${file}`),
+    ]
+    for (const path of readmes) {
+      expect(source(path), path).not.toMatch(
+        /readme_sponsor|sponsor_cta|^## 💖|compshare\.cn|sui-xiang\.com|hezu\.ink|onehop\.ai|lqapi\.xyz|mailto:itpkcn@gmail\.com/m
+      )
+    }
   })
 
   it("keeps the custom layered-terminal macOS icon", () => {

@@ -758,10 +758,10 @@
     "envVars": "Variables d'environnement",
     "adapterChannel": {
       "label": "Version de l'adaptateur",
-      "description": "Installer et Mettre à niveau utilisent la version examinée et épinglée par codeg. Avec Dernière, c'est la version npm la plus récente du paquet qui est installée ; si cette installation échoue, codeg revient à la version épinglée et l'indique dans le journal d'installation.",
+      "description": "Installer et Mettre à niveau utilisent la version examinée et épinglée par codeg. Avec Dernière, c'est la version npm la plus récente du paquet qui est installée ; si cette installation échoue, MaxCode revient à la version épinglée et l'indique dans le journal d'installation.",
       "pinned": "Épinglée (recommandée)",
       "latest": "Dernière (non examinée)",
-      "latestWarning": "Les versions les plus récentes ne sont pas examinées et peuvent casser cet agent dans codeg ; il arrive même qu'une version soit connue pour être défectueuse. Le statut de version affiche ce qui est réellement installé."
+      "latestWarning": "Les versions les plus récentes ne sont pas examinées et peuvent casser cet agent dans MaxCode ; il arrive même qu'une version soit connue pour être défectueuse. Le statut de version affiche ce qui est réellement installé."
     },
     "hostTools": {
       "label": "Laisser l'agent gérer les fichiers et les commandes",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "Se connecter sans navigateur sur cette machine",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "Crée une tâche à faire dans le dossier de {repo}, avec son worktree positionné sur le head de cette merge request : les commits de l'agent viennent par-dessus et sont poussés vers la même merge request une fois que vous acceptez.",
     "instructionPlaceholder": "Instruction supplémentaire pour l'agent (facultatif)…",
     "writebackLabel": "Commenter le résultat sur cet élément",
-    "writebackHint": "Quand la tâche se termine, codeg publie un commentaire sur cet élément : le résultat, le lien et les chiffres du diff.",
+    "writebackHint": "Quand la tâche se termine, MaxCode publie un commentaire sur cet élément : le résultat, le lien et les chiffres du diff.",
     "previewToggle": "Aperçu du contenu de l'issue porté par la tâche",
     "previewEmpty": "(aucune description)",
     "duplicateBody": "Une tâche active traite déjà cet élément : {title} ({status}). En créer une autre quand même ?",

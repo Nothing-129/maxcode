@@ -758,10 +758,10 @@
     "envVars": "Variables de entorno",
     "adapterChannel": {
       "label": "Versión del adaptador",
-      "description": "Instalar y Actualizar usan la versión que codeg ha revisado y fijado. Con Última pasan a instalar la versión de npm más reciente del paquete en ese momento; si esa instalación falla, codeg vuelve a la versión fijada y lo indica en el registro de instalación.",
+      "description": "Instalar y Actualizar usan la versión que MaxCode ha revisado y fijado. Con Última pasan a instalar la versión de npm más reciente del paquete en ese momento; si esa instalación falla, MaxCode vuelve a la versión fijada y lo indica en el registro de instalación.",
       "pinned": "Fijada (recomendada)",
       "latest": "Última (sin revisar)",
-      "latestWarning": "Las versiones más recientes no están revisadas y pueden romper este agente en codeg; en ocasiones incluso se sabe que una versión está rota. El estado de versión muestra lo que quedó instalado realmente."
+      "latestWarning": "Las versiones más recientes no están revisadas y pueden romper este agente en MaxCode; en ocasiones incluso se sabe que una versión está rota. El estado de versión muestra lo que quedó instalado realmente."
     },
     "hostTools": {
       "label": "Dejar que el agente gestione archivos y comandos",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "Inicia sesión sin navegador en esta máquina",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "Crea una tarea pendiente en la carpeta de {repo}, con su worktree en el head de este merge request: los commits del agente se apilan encima y se envían al mismo merge request cuando lo aceptas.",
     "instructionPlaceholder": "Instrucción adicional para el agente (opcional)…",
     "writebackLabel": "Comentar el resultado en este elemento",
-    "writebackHint": "Cuando la tarea termine, codeg publicará un comentario en este elemento: el resultado, el enlace y las cifras del diff.",
+    "writebackHint": "Cuando la tarea termine, MaxCode publicará un comentario en este elemento: el resultado, el enlace y las cifras del diff.",
     "previewToggle": "Vista previa del contenido del issue que llevará la tarea",
     "previewEmpty": "(sin descripción)",
     "duplicateBody": "Ya hay una tarea activa para este elemento: {title} ({status}). ¿Crear otra de todos modos?",

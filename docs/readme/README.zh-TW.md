@@ -1,4 +1,4 @@
-# Codeg
+# MaxCode
 
 [![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
@@ -17,9 +17,9 @@
   <a href="./README.ar.md">العربية</a>
 </p>
 
-Codeg（Code Generation）是一個多智慧體編碼工作台：把所有 AI 編碼智慧體收進同一個地方 —— 並讓它們協同工作。
+MaxCode 是一個多智慧體編碼工作台：把所有 AI 編碼智慧體收進同一個地方 —— 並讓它們協同工作。
 
-它將所有支援的智慧體 CLI 的工作階段聚合進一個可搜尋的工作區，讓主智慧體在同一個任務內委派給其它類型的子智慧體。不想守著做完的活，可以寫進待辦任務：每個任務待在自己的分支上無人看管地跑，做完了等你驗收才落地。Codeg 可作為桌面應用、獨立伺服器或 Docker 容器執行，還有原生 iOS 與 Android 用戶端，讓你離開電腦後也能接手正在跑的任務；內建十五個智慧體，你也可以自行註冊任何其它相容 ACP 的智慧體。
+它將所有支援的智慧體 CLI 的工作階段聚合進一個可搜尋的工作區，讓主智慧體在同一個任務內委派給其它類型的子智慧體。不想守著做完的活，可以寫進待辦任務：每個任務待在自己的分支上無人看管地跑，做完了等你驗收才落地。MaxCode 可作為桌面應用、獨立伺服器或 Docker 容器執行，還有原生 iOS 與 Android 用戶端，讓你離開電腦後也能接手正在跑的任務；內建十五個智慧體，你也可以自行註冊任何其它相容 ACP 的智慧體。
 
 ![工作區](../images/workspace-light.png#gh-light-mode-only)
 ![工作區](../images/workspace-dark.png#gh-dark-mode-only)
@@ -28,70 +28,28 @@ Codeg（Code Generation）是一個多智慧體編碼工作台：把所有 AI �
 
 **完整文件見 [docs.codeg.app](https://docs.codeg.app)** — [快速開始](https://docs.codeg.app/zh/getting-started/) · [指南](https://docs.codeg.app/zh/guide/) · [參考](https://docs.codeg.app/zh/reference/)
 
-## 💖 贊助
-
-<table>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg" target="_blank"><img src="../images/compshare.png" alt="優雲智算" width="160" /></a><br/>
-      <strong><a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">優雲智算</a></strong>
-    </td>
-    <td>感謝優雲智算贊助了本專案！優雲智算是 UCloud 旗下 AI 雲平台，主打包月、按次的高性價比國模 agent Plan 套餐，低至 49 元/月起。同時提供官轉穩定海外模型。支援接入 Claude Code、Codex 及 API 呼叫。支援企業高併發、7*24 技術支援、自助開票。透過<a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">此連結</a>註冊的使用者，可得免費 5 元平台體驗金！</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE" target="_blank"><img src="../images/sui-xiang.jpg" alt="隨想AI中轉站" width="200" /></a><br/>
-      <strong><a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">隨想AI中轉站</a></strong>
-    </td>
-    <td>感謝隨想AI中轉站對本專案的贊助！隨想AI中轉站是一家可靠高效的 API 中繼服務提供商，提供 Claude、Codex、Gemini 等的中繼服務。新帳戶<a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">註冊</a>後每日簽到就送 0.5 元測試額度，儲值額度 1:1，無需訂閱，按量付費。多線路冗餘、跨區域容災、自動故障切換，長連線 SSE 不中斷。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://hezu.ink/sign-up?aff=0wVz" target="_blank"><img src="../images/hezu-ink.jpg" alt="合租巴士" width="200" /></a><br/>
-      <strong><a href="https://hezu.ink/sign-up?aff=0wVz">合租巴士</a></strong>
-    </td>
-    <td>感謝合租巴士對本專案的贊助！合租巴士是一家可靠高效的 AI 中轉服務平台，主要提供 Codex、Claude Code 等主流模型的高穩定中轉能力，儲值比例透明（1:1），Codex 倍率補貼低至 0.08。<a href="https://hezu.ink/sign-up?aff=0wVz">官網進群送 5 美元體驗金</a>。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta" target="_blank"><img src="../images/onehop.jpg" alt="OneHop" width="120" /></a><br/>
-      <strong><a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">OneHop</a></strong>
-    </td>
-    <td>感謝 OneHop 對本專案的贊助！OneHop 讓 Codeg 使用者僅用一個 OpenAI 相容的 API 金鑰即可呼叫數百款領先模型，包括 GPT、Claude、Gemini、DeepSeek、Kimi 和 Qwen。無需管理多個供應商帳號或反覆修改程式碼即可切換模型，且按用量付費。<a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">透過 Codeg 註冊</a>即可獲得 1 美元額度，再加入 OneHop 社群並參與歡迎活動可額外獲得 5 美元——最高共計 6 美元測試額度。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
-      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
-    </td>
-    <td>感謝 LQ router 中轉站對本專案的贊助！LQ router 是面向獨立開發者與技術團隊的企業級 API 聚合閘道。接入 GPT、Claude、Grok、Gemini 等主流模型，相容現有用戶端與 OpenAI SDK，透過動態帳戶池進行智慧路由，一個入口即可完成多模型呼叫。<a href="https://console.lqapi.xyz/sign-up?aff=KPy9">官網進群贈送 1 美元體驗金</a>。</td>
-  </tr>
-</table>
-
-> 想成為 Codeg 贊助商？[歡迎透過郵件與我們聯絡。](mailto:itpkcn@gmail.com)
-
 ## 🤖 支援的 Agent
 
 Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · CodeBuddy · Kimi Code · Pi · Grok · Cursor · DeepSeek Harness · Qoder · Google Antigravity
 
-其中大部分 Codeg 都能替你安裝、鎖定版本並更新。完整名單、各自的執行環境需求以及工作階段在磁碟上的存放位置，見 [支援的智慧體](https://docs.codeg.app/zh/guide/supported-agents)。
+其中大部分 MaxCode 都能替你安裝、鎖定版本並更新。完整名單、各自的執行環境需求以及工作階段在磁碟上的存放位置，見 [支援的智慧體](https://docs.codeg.app/zh/guide/supported-agents)。
 
-名單之外的呢？自己加就行。從公開的 ACP 註冊表裡挑一個，或者貼上它的 distribution JSON，Codeg 會安裝它、預檢它能否啟動，然後像對待內建智慧體一樣對待它——出現在選擇器裡，接受 `@` 委派與技能設定；即便這個智慧體本身不留下任何歷史，它的工作階段也會被記錄下來並可搜尋。→ [自訂智慧體](https://docs.codeg.app/zh/guide/custom-agents)
+名單之外的呢？自己加就行。從公開的 ACP 註冊表裡挑一個，或者貼上它的 distribution JSON，MaxCode 會安裝它、預檢它能否啟動，然後像對待內建智慧體一樣對待它——出現在選擇器裡，接受 `@` 委派與技能設定；即便這個智慧體本身不留下任何歷史，它的工作階段也會被記錄下來並可搜尋。→ [自訂智慧體](https://docs.codeg.app/zh/guide/custom-agents)
 
 ## 🤝 多智慧體協作
 
-多智慧體協作，從此只需一個按鍵：輸入 `@`，選取智慧體，送出。剩下的排程全交給 Codeg —— 它把每個被提及的智慧體拉起為獨立工作階段，交付任務，再把工作即時匯流回你正在進行的對話。提及兩個，它們就並肩開工：Claude Code 起草，Codex 同步審查。不必來回切換脈絡，也不用在多個終端機之間複製貼上。
+多智慧體協作，從此只需一個按鍵：輸入 `@`，選取智慧體，送出。剩下的排程全交給 MaxCode —— 它把每個被提及的智慧體拉起為獨立工作階段，交付任務，再把工作即時匯流回你正在進行的對話。提及兩個，它們就並肩開工：Claude Code 起草，Codex 同步審查。不必來回切換脈絡，也不用在多個終端機之間複製貼上。
 
 如果智慧體自己派出了子智慧體——Claude Code、Codex、Grok 與 OpenCode 都會——每個子智慧體都有一張邊跑邊填的卡片，而不是等結束後一次性出現。點開就能讀它自己的那個工作階段。
 
-![在單一 Codeg 對話中將任務委派給子智慧體](../images/collaboration-light.gif#gh-light-mode-only)
-![在單一 Codeg 對話中將任務委派給子智慧體](../images/collaboration-dark.gif#gh-dark-mode-only)
+![在單一 MaxCode 對話中將任務委派給子智慧體](../images/collaboration-light.gif#gh-light-mode-only)
+![在單一 MaxCode 對話中將任務委派給子智慧體](../images/collaboration-dark.gif#gh-dark-mode-only)
 
 ## ✅ 待辦任務
 
-不是每件事都得你盯著做完。寫下來就行——標題、說明、用哪個智慧體跑——Codeg 會給它**一份獨立的程式碼副本**：專案旁邊的一個 git 工作樹，跑在自己的分支上。幾個任務同時開工也互不干擾，更不會碰你手頭那份程式碼。可以約在今晚開始，也可以讓某個資料夾自己按平行上限一件件處理下去。
+不是每件事都得你盯著做完。寫下來就行——標題、說明、用哪個智慧體跑——MaxCode 會給它**一份獨立的程式碼副本**：專案旁邊的一個 git 工作樹，跑在自己的分支上。幾個任務同時開工也互不干擾，更不會碰你手頭那份程式碼。可以約在今晚開始，也可以讓某個資料夾自己按平行上限一件件處理下去。
 
-做完的任務不會自己合併。它會移到待驗收那一欄等著你：看 diff、退回去再做一輪，或者按通過——然後由智慧體來落地，先把基礎分支併進它的工作樹、在那裡解完衝突。之後 Codeg 不聽智慧體一面之詞，而是自己去核對 git：確認不了的合併會退回待驗收，而不是報一句成功。
+做完的任務不會自己合併。它會移到待驗收那一欄等著你：看 diff、退回去再做一輪，或者按通過——然後由智慧體來落地，先把基礎分支併進它的工作樹、在那裡解完衝突。之後 MaxCode 不聽智慧體一面之詞，而是自己去核對 git：確認不了的合併會退回待驗收，而不是報一句成功。
 
 ![待辦任務看板：任務從「待辦」經「進行中」走到「完成」](../images/task-light.png#gh-light-mode-only)
 ![待辦任務看板：任務從「待辦」經「進行中」走到「完成」](../images/task-dark.png#gh-dark-mode-only)
@@ -100,14 +58,14 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 一條標籤列不總是夠用。右鍵點擊對話標籤，即可把檢視**向右**或**向下**拆分，想拆幾次就拆幾次：左右兩欄、上下三格，或者一整片網格。每個分組都是獨立的工作區——自己的標籤、自己的標題列、自己的新建對話按鈕——所以左邊這格可以讓 Claude Code 重構，右邊那格讓 Codex 審閱 diff。
 
-把標籤從一個分組拖到另一個分組，它的工作階段在搬家途中也不會中斷；拖動兩個分組之間的分隔條，就能改變它們分配空間的方式。版面配置會按工作區記住，草稿也包含在內：重新打開 Codeg，拆分原樣回來，沒送出去的文字還在輸入框裡。
+把標籤從一個分組拖到另一個分組，它的工作階段在搬家途中也不會中斷；拖動兩個分組之間的分隔條，就能改變它們分配空間的方式。版面配置會按工作區記住，草稿也包含在內：重新打開 MaxCode，拆分原樣回來，沒送出去的文字還在輸入框裡。
 
 ![把對話區拆分成標籤分組構成的網格](../images/split-light.gif#gh-light-mode-only)
 ![把對話區拆分成標籤分組構成的網格](../images/split-dark.gif#gh-dark-mode-only)
 
 ## 📄 Office 文件
 
-讓智慧體做一份簡報、一份報告或一張試算表，它交付的是真正的 `.pptx` / `.docx` / `.xlsx` —— 右側面板同時即時算繪。每一次改動都會自己落進預覽：投影片逐頁成形，表格逐步鋪開，數字落入儲存格。第 4 頁不滿意？下一則訊息說一聲就行 —— 智慧體原地修改同一個檔案，預覽隨即跟上。無需匯出，無需外部 Office 應用程式，全程不用離開 Codeg。
+讓智慧體做一份簡報、一份報告或一張試算表，它交付的是真正的 `.pptx` / `.docx` / `.xlsx` —— 右側面板同時即時算繪。每一次改動都會自己落進預覽：投影片逐頁成形，表格逐步鋪開，數字落入儲存格。第 4 頁不滿意？下一則訊息說一聲就行 —— 智慧體原地修改同一個檔案，預覽隨即跟上。無需匯出，無需外部 Office 應用程式，全程不用離開 MaxCode。
 
 ![智慧體編輯 Office 文件，旁邊是即時預覽](../images/office-light.png#gh-light-mode-only)
 ![智慧體編輯 Office 文件，旁邊是即時預覽](../images/office-dark.png#gh-dark-mode-only)
@@ -126,7 +84,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📱 iPhone、iPad 與 Android
 
-離開電腦，工作也不必停下。原生 iOS 與 Android 用戶端連接的就是你自己在跑的那個 Codeg —— 桌面應用的 **Web 服務**，或者你自己的 `codeg-server` —— 在手機上發起工作階段、看著回覆與工具呼叫即時流回、處理權限審核、瀏覽專案與分支。手機上不會多出任何東西：檔案、智慧體 CLI 與工作階段仍留在執行 Codeg 的那台機器上，存取權杖則交由 iOS Keychain 或 Android Keystore 保管。兩個用戶端皆已開源（[iOS](https://github.com/xintaofei/codeg-ios)、[Android](https://github.com/xintaofei/codeg-android)）；三個步驟即可完成配對，見 [行動應用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
+離開電腦，工作也不必停下。原生 iOS 與 Android 用戶端連接的就是你自己在跑的那個 MaxCode —— 桌面應用的 **Web 服務**，或者你自己的 `codeg-server` —— 在手機上發起工作階段、看著回覆與工具呼叫即時流回、處理權限審核、瀏覽專案與分支。手機上不會多出任何東西：檔案、智慧體 CLI 與工作階段仍留在執行 MaxCode 的那台機器上，存取權杖則交由 iOS Keychain 或 Android Keystore 保管。兩個用戶端皆已開源（[iOS](https://github.com/xintaofei/codeg-ios)、[Android](https://github.com/xintaofei/codeg-android)）；三個步驟即可完成配對，見 [行動應用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
 
 | iPhone 與 iPad | Android |
 | :---: | :---: |
@@ -137,7 +95,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 - **[對話聚合](https://docs.codeg.app/zh/guide/aggregation)** — 把所有支援的智慧體的工作階段匯入統一、可搜尋的工作區，並從上次中斷處繼續
 - **[多智慧體協作](https://docs.codeg.app/zh/guide/multi-agent)** — `@` 提及任一智慧體即可委派：不同類型的子智慧體各自作為獨立工作階段，在同一個任務內平行執行
 - **[待辦任務](https://docs.codeg.app/zh/guide/tasks)** — 把要做的事寫下來，智慧體一件件做完；每個任務在自己的工作樹裡跑，只有你驗收之後才會併進你的分支
-- **[自訂智慧體](https://docs.codeg.app/zh/guide/custom-agents)** — 從公開註冊表或 distribution JSON 註冊任何其它相容 ACP 的智慧體；Codeg 負責安裝、記錄歷史，並像內建智慧體一樣對待它
+- **[自訂智慧體](https://docs.codeg.app/zh/guide/custom-agents)** — 從公開註冊表或 distribution JSON 註冊任何其它相容 ACP 的智慧體；MaxCode 負責安裝、記錄歷史，並像內建智慧體一樣對待它
 - **[工作區](https://docs.codeg.app/zh/guide/workspace)** — 智慧體旁邊就是完整的工程閉環：檔案樹、編輯器與 diff、Git 變更、提交、內建終端機，以及[掛進同一個工作區的多個資料夾](https://docs.codeg.app/zh/guide/workspace#work-across-several-folders)
 - **[分割檢視](https://docs.codeg.app/zh/guide/workspace#split-the-conversation-view-into-groups)** — 把對話區拆成任意多個標籤分組，在分組之間拖動標籤與分隔條，重啟後版面配置（含草稿）原樣回來
 - **[Git 與 Worktree](https://docs.codeg.app/zh/guide/git)** — 檢視並提交變更、管理 Git 遠端帳號，用內建 `git worktree` 流程平行開發
@@ -156,7 +114,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 **桌面端** — 從 [Releases](https://github.com/xintaofei/codeg/releases) 下載 macOS、Windows 或 Linux 的安裝檔，再依 [安裝](https://docs.codeg.app/zh/getting-started/installation) 操作。
 
-**伺服器** — 無介面執行 Codeg，用任意瀏覽器存取。Linux 或 macOS：
+**伺服器** — 無介面執行 MaxCode，用任意瀏覽器存取。Linux 或 macOS：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
@@ -178,7 +136,7 @@ docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 
 **行動裝置** — 安裝 [iOS 應用](https://apps.apple.com/app/codeg-client/id6785199071) 或 [Android APK](https://github.com/xintaofei/codeg-android/releases/latest)，再把它指向桌面應用的 **Web 服務**或你自己的 `codeg-server`：填位址、填權杖，完成。配對步驟見 [行動應用](https://docs.codeg.app/zh/getting-started/installation#mobile-apps)。
 
-Compose、預編譯二進位檔、原始碼建置與就地升級見 [部署](https://docs.codeg.app/zh/getting-started/deployment)；環境變數見 [設定](https://docs.codeg.app/zh/getting-started/configuration)。想建置 Codeg 本身：[開發](https://docs.codeg.app/zh/reference/development) 與 [架構](https://docs.codeg.app/zh/reference/architecture)。
+Compose、預編譯二進位檔、原始碼建置與就地升級見 [部署](https://docs.codeg.app/zh/getting-started/deployment)；環境變數見 [設定](https://docs.codeg.app/zh/getting-started/configuration)。想建置 MaxCode 本身：[開發](https://docs.codeg.app/zh/reference/development) 與 [架構](https://docs.codeg.app/zh/reference/architecture)。
 
 ## 🔒 隱私與安全
 
@@ -199,10 +157,10 @@ Compose、預編譯二進位檔、原始碼建置與就地升級見 [部署](htt
 
 ## 🙏 致謝
 
-- [Agent Client Protocol](https://agentclientprotocol.com)：Codeg 得以連接所有支援的智慧體的基礎
-- [Superpowers](https://github.com/obra/superpowers)：為 Codeg 的專家技能模組提供支援
-- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI)：為 Codeg 的 Office 文件工作流程提供支援
-- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)：為 Codeg 的科學研究技能提供支援（MIT 授權子集）
+- [Agent Client Protocol](https://agentclientprotocol.com)：MaxCode 得以連接所有支援的智慧體的基礎
+- [Superpowers](https://github.com/obra/superpowers)：為 MaxCode 的專家技能模組提供支援
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI)：為 MaxCode 的 Office 文件工作流程提供支援
+- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)：為 MaxCode 的科學研究技能提供支援（MIT 授權子集）
 
 ## 📜 授權
 

@@ -101,6 +101,7 @@ vi.mock("@/components/chat/conversation-context-bar", () => ({
   ConversationHeaderFolderPicker: () => null,
 }))
 
+import { ConversationFind } from "@/components/message/conversation-find"
 import { ConversationDetailHeader } from "@/components/conversations/conversation-detail-header"
 
 type Props = ComponentProps<typeof ConversationDetailHeader>
@@ -143,6 +144,39 @@ describe("MaxCode: title completion is the only status action", () => {
     }
     await user.click(getByRole("menuitem", { name: "Rename" }))
     expect(getByRole("textbox")).toHaveValue(A.title)
+  })
+
+  it("opens search from the title menu and focuses the active runtime conversation", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const view = render(
+      withIntl(
+        <>
+          <ConversationDetailHeader {...A} runtimeConversationId={-42} />
+          <ConversationFind
+            conversationId={-42}
+            items={[]}
+            active
+            scrollApiRef={{ current: null }}
+            historyOffset={0}
+            loadingHistory={false}
+            onLoadHistory={vi.fn()}
+          />
+        </>
+      )
+    )
+    expect(view.queryByRole("search")).toBeNull()
+    await user.click(view.getByRole("button", { name: "More actions" }))
+    await user.click(
+      view.getByRole("menuitem", { name: "Find in conversation" })
+    )
+    await waitFor(() =>
+      expect(
+        view.getByRole("textbox", { name: "Find in conversation" })
+      ).toHaveFocus()
+    )
+    expect(view.queryByRole("menu")).toBeNull()
+    await user.keyboard("{Escape}")
+    expect(view.queryByRole("search")).toBeNull()
   })
 
   it("marks the conversation completed without exposing status choices", async () => {

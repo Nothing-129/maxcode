@@ -758,10 +758,10 @@
     "envVars": "Variáveis de ambiente",
     "adapterChannel": {
       "label": "Versão do adaptador",
-      "description": "Instalar e Atualizar usam a versão que o codeg revisou e fixou. Com Mais recente, passa a ser instalada a versão de npm mais nova do pacote naquele momento; se essa instalação falhar, o codeg volta para a versão fixada e registra isso no log de instalação.",
+      "description": "Instalar e Atualizar usam a versão que o MaxCode revisou e fixou. Com Mais recente, passa a ser instalada a versão de npm mais nova do pacote naquele momento; se essa instalação falhar, o MaxCode volta para a versão fixada e registra isso no log de instalação.",
       "pinned": "Fixada (recomendada)",
       "latest": "Mais recente (não revisada)",
-      "latestWarning": "As versões mais novas não são revisadas e podem quebrar este agente no codeg; às vezes uma versão é até sabidamente defeituosa. O status da versão mostra o que foi realmente instalado."
+      "latestWarning": "As versões mais novas não são revisadas e podem quebrar este agente no MaxCode; às vezes uma versão é até sabidamente defeituosa. O status da versão mostra o que foi realmente instalado."
     },
     "hostTools": {
       "label": "Deixar o agente cuidar de arquivos e comandos",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "Entrar sem navegador nesta máquina",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "Cria uma tarefa pendente na pasta de {repo}, com o worktree no head deste merge request — os commits do agente ficam por cima e são enviados ao mesmo merge request quando você aceita.",
     "instructionPlaceholder": "Instrução extra para o agente (opcional)…",
     "writebackLabel": "Comentar o resultado neste item",
-    "writebackHint": "Quando a tarefa terminar, o codeg publica um comentário neste item: o resultado, o link e os números do diff.",
+    "writebackHint": "Quando a tarefa terminar, o MaxCode publica um comentário neste item: o resultado, o link e os números do diff.",
     "previewToggle": "Prévia do conteúdo do issue que a tarefa levará",
     "previewEmpty": "(sem descrição)",
     "duplicateBody": "Já existe uma tarefa ativa para este item: {title} ({status}). Criar outra mesmo assim?",

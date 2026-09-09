@@ -1672,7 +1672,7 @@ export function MessageInput({
           onClick={onCancel}
           variant="default"
           size="icon"
-          className="h-8 w-8 rounded-full"
+          className="h-8 w-8 rounded-full bg-[#285ee1] text-white hover:bg-[#285ee1]/90"
           title={t("cancel")}
         >
           <Square className="size-3.5 fill-current" strokeWidth={0} />
@@ -1726,7 +1726,7 @@ export function MessageInput({
         onClick={onCancel}
         variant="default"
         size="icon"
-        className="h-8 w-8 rounded-full"
+        className="h-8 w-8 rounded-full bg-[#285ee1] text-white hover:bg-[#285ee1]/90"
         title={t("cancel")}
       >
         <Square className="size-3.5 fill-current" strokeWidth={0} />

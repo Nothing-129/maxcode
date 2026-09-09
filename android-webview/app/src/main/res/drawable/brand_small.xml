@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:width="34dp" android:height="34dp">
+        <bitmap android:src="@drawable/maxcode_icon" android:gravity="fill" />
+    </item>
+</layer-list>

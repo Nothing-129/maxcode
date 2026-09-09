@@ -2,6 +2,19 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode send button color", () => {
+  it("uses the send blue for both running stop buttons", () => {
+    const input = source("src/components/chat/message-input.tsx")
+    const stops = [
+      ...input.matchAll(/<Button\s+onClick=\{onCancel\}[\s\S]*?<\/Button>/g),
+    ]
+    expect(stops).toHaveLength(2)
+    for (const [stop] of stops) {
+      expect(stop).toContain("bg-[#285ee1] text-white hover:bg-[#285ee1]/90")
+      expect(stop).toContain('title={t("cancel")}')
+      expect(stop).toContain("fill-current")
+    }
+  })
+
   it("uses the wordmark blue when enabled and muted paint when disabled", () => {
     const input = source("src/components/chat/message-input.tsx")
     const send = input.slice(

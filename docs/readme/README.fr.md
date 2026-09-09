@@ -1,4 +1,4 @@
-# Codeg
+# MaxCode
 
 [![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
@@ -17,9 +17,9 @@
   <a href="./README.ar.md">العربية</a>
 </p>
 
-Codeg (Code Generation) est un espace de travail de programmation multi-agents : faites tourner tous vos agents de codage IA au même endroit — et laissez-les travailler ensemble.
+MaxCode est un espace de travail de programmation multi-agents : faites tourner tous vos agents de codage IA au même endroit — et laissez-les travailler ensemble.
 
-Il regroupe les sessions de toutes les CLI d'agents supportées dans un espace de travail unique et consultable, et permet à un agent principal de déléguer à des sous-agents d'autres types au sein d'une même tâche. Le travail que vous préférez ne pas surveiller part sur un tableau de tâches à faire : chaque tâche sur sa propre branche, exécutée sans surveillance, en attente de votre relecture avant d'atterrir. Codeg fonctionne en application de bureau, en serveur autonome ou en conteneur Docker, avec des clients natifs iOS et Android pour les moments où vous n'êtes pas à votre bureau ; quinze agents sont intégrés, et vous pouvez enregistrer vous-même n'importe quel autre agent compatible ACP.
+Il regroupe les sessions de toutes les CLI d'agents supportées dans un espace de travail unique et consultable, et permet à un agent principal de déléguer à des sous-agents d'autres types au sein d'une même tâche. Le travail que vous préférez ne pas surveiller part sur un tableau de tâches à faire : chaque tâche sur sa propre branche, exécutée sans surveillance, en attente de votre relecture avant d'atterrir. MaxCode fonctionne en application de bureau, en serveur autonome ou en conteneur Docker, avec des clients natifs iOS et Android pour les moments où vous n'êtes pas à votre bureau ; quinze agents sont intégrés, et vous pouvez enregistrer vous-même n'importe quel autre agent compatible ACP.
 
 ![Espace de travail](../images/workspace-light.png#gh-light-mode-only)
 ![Espace de travail](../images/workspace-dark.png#gh-dark-mode-only)
@@ -28,70 +28,28 @@ Il regroupe les sessions de toutes les CLI d'agents supportées dans un espace d
 
 **La documentation complète se trouve sur [docs.codeg.app](https://docs.codeg.app)** — [Démarrage](https://docs.codeg.app/getting-started/) · [Guide](https://docs.codeg.app/guide/) · [Référence](https://docs.codeg.app/reference/)
 
-## 💖 Sponsors
-
-<table>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg" target="_blank"><img src="../images/compshare.png" alt="Compshare" width="160" /></a><br/>
-      <strong><a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">Compshare (UCloud)</a></strong>
-    </td>
-    <td>Merci à Compshare pour son parrainage de ce projet ! Compshare est la plateforme cloud IA d'UCloud, proposant des forfaits Plan d'agents avec modèles nationaux en abonnement mensuel ou à l'usage, à partir de 49 ¥/mois. Elle offre également un accès stable aux modèles étrangers via relais officiel. Compatible avec Claude Code, Codex et les appels d'API. Prête pour l'entreprise : forte concurrence, assistance technique 24h/24 et 7j/7, facturation en libre-service. Les utilisateurs qui s'inscrivent via <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">ce lien</a> reçoivent 5 ¥ de crédits gratuits sur la plateforme !</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE" target="_blank"><img src="../images/sui-xiang.jpg" alt="随想AI中转站" width="200" /></a><br/>
-      <strong><a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">随想AI中转站</a></strong>
-    </td>
-    <td>Merci à 随想AI中转站 pour son parrainage de ce projet ! 随想AI中转站 est un fournisseur de relais d'API fiable et efficace, proposant des services de relais pour Claude, Codex, Gemini et plus encore. Les nouveaux comptes reçoivent 0,5 ¥ de crédit de test à chaque pointage quotidien après <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">inscription</a> ; les recharges sont créditées à 1:1, sans abonnement, avec paiement à l'usage. La redondance multi-lignes, la reprise après sinistre inter-régions et le basculement automatique garantissent des connexions SSE de longue durée sans interruption.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://hezu.ink/sign-up?aff=0wVz" target="_blank"><img src="../images/hezu-ink.jpg" alt="合租巴士" width="200" /></a><br/>
-      <strong><a href="https://hezu.ink/sign-up?aff=0wVz">合租巴士</a></strong>
-    </td>
-    <td>Merci à 合租巴士 pour son parrainage de ce projet ! 合租巴士 est une plateforme de relais d'IA fiable et efficace, offrant un relais très stable pour les principaux modèles tels que Codex et Claude Code. Le ratio de recharge est transparent (1:1), avec des subventions de taux Codex dès 0,08. <a href="https://hezu.ink/sign-up?aff=0wVz">Rejoignez le groupe depuis le site officiel pour obtenir 5 USD de crédit d'essai</a>.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta" target="_blank"><img src="../images/onehop.jpg" alt="OneHop" width="120" /></a><br/>
-      <strong><a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">OneHop</a></strong>
-    </td>
-    <td>Merci à OneHop pour son parrainage de ce projet ! OneHop offre aux utilisateurs de Codeg une seule clé API compatible avec OpenAI pour des centaines de modèles de premier plan, dont GPT, Claude, Gemini, DeepSeek, Kimi et Qwen. Changez de modèle sans gérer plusieurs comptes de fournisseurs ni modifier votre code à répétition, et ne payez que ce que vous utilisez. <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">Inscrivez-vous via Codeg</a> pour recevoir 1 USD de crédit, puis rejoignez la communauté OneHop et participez à l'activité de bienvenue pour obtenir 5 USD supplémentaires, soit jusqu'à 6 USD de crédit d'essai au total.</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
-      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
-    </td>
-    <td>Merci au service de relais LQ router pour son parrainage de ce projet ! LQ router est une passerelle d'agrégation d'API de niveau entreprise destinée aux développeurs indépendants et aux équipes techniques. Elle donne accès aux principaux modèles, notamment GPT, Claude, Grok et Gemini, reste compatible avec les clients existants et le SDK OpenAI, et s'appuie sur un pool de comptes dynamique pour un routage intelligent : un seul point d'entrée pour tous les appels de modèles. <a href="https://console.lqapi.xyz/sign-up?aff=KPy9">Inscrivez-vous sur le site officiel et recevez 1 USD de crédit d'essai</a>.</td>
-  </tr>
-</table>
-
-> Vous souhaitez devenir sponsor de Codeg ? [Contactez-nous par e-mail.](mailto:itpkcn@gmail.com)
-
 ## 🤖 Agents supportés
 
 Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · CodeBuddy · Kimi Code · Pi · Grok · Cursor · DeepSeek Harness · Qoder · Google Antigravity
 
-Codeg installe, épingle et met à jour la plupart d'entre eux pour vous. Voir [Agents supportés](https://docs.codeg.app/guide/supported-agents) pour la liste complète, les prérequis d'exécution de chacun et l'emplacement de ses sessions sur le disque.
+MaxCode installe, épingle et met à jour la plupart d'entre eux pour vous. Voir [Agents supportés](https://docs.codeg.app/guide/supported-agents) pour la liste complète, les prérequis d'exécution de chacun et l'emplacement de ses sessions sur le disque.
 
-Pas dans la liste ? Ajoutez-le vous-même. Choisissez un agent dans le registre public ACP ou collez son JSON de distribution : Codeg l'installe, vérifie qu'il démarre et le traite comme un agent intégré — il apparaît dans le sélecteur, accepte la délégation `@` et les skills, et ses conversations sont enregistrées et consultables même quand l'agent ne conserve aucun historique. → [Agents personnalisés](https://docs.codeg.app/guide/custom-agents)
+Pas dans la liste ? Ajoutez-le vous-même. Choisissez un agent dans le registre public ACP ou collez son JSON de distribution : MaxCode l'installe, vérifie qu'il démarre et le traite comme un agent intégré — il apparaît dans le sélecteur, accepte la délégation `@` et les skills, et ses conversations sont enregistrées et consultables même quand l'agent ne conserve aucun historique. → [Agents personnalisés](https://docs.codeg.app/guide/custom-agents)
 
 ## 🤝 Collaboration multi-agents
 
-La collaboration multi-agents, réduite à une seule touche : tapez `@`, choisissez un agent, envoyez. Codeg s'occupe de l'orchestration — il lance chaque agent mentionné dans sa propre session, lui confie la tâche et renvoie son travail dans le fil où vous êtes déjà. Mentionnez-en deux et ils avancent côte à côte : Claude Code rédige pendant que Codex relit. Aucun changement de contexte, aucun copier-coller entre terminaux.
+La collaboration multi-agents, réduite à une seule touche : tapez `@`, choisissez un agent, envoyez. MaxCode s'occupe de l'orchestration — il lance chaque agent mentionné dans sa propre session, lui confie la tâche et renvoie son travail dans le fil où vous êtes déjà. Mentionnez-en deux et ils avancent côte à côte : Claude Code rédige pendant que Codex relit. Aucun changement de contexte, aucun copier-coller entre terminaux.
 
 Et quand un agent lance ses propres sous-agents — Claude Code, Codex, Grok et OpenCode le font tous — chaque enfant a sa carte, qui se remplit pendant qu'il travaille au lieu d'arriver d'un bloc à la fin. Ouvrez-la pour lire la session de l'enfant lui-même.
 
-![Délégation d'une tâche à des sous-agents depuis une seule conversation Codeg](../images/collaboration-light.gif#gh-light-mode-only)
-![Délégation d'une tâche à des sous-agents depuis une seule conversation Codeg](../images/collaboration-dark.gif#gh-dark-mode-only)
+![Délégation d'une tâche à des sous-agents depuis une seule conversation MaxCode](../images/collaboration-light.gif#gh-light-mode-only)
+![Délégation d'une tâche à des sous-agents depuis une seule conversation MaxCode](../images/collaboration-dark.gif#gh-dark-mode-only)
 
 ## ✅ Tâches à faire
 
-Tout travail n'exige pas que vous le regardiez. Notez-le — un titre, une description, l'agent qui doit l'exécuter — et Codeg lui confie **sa propre copie du code** : un worktree git à côté de votre projet, sur sa propre branche. Plusieurs tournent à la fois sans se toucher, ni toucher l'arbre dans lequel vous travaillez. Programmez-en une pour ce soir, ou laissez un dossier vider sa file tout seul, dans la limite de parallélisme que vous fixez.
+Tout travail n'exige pas que vous le regardiez. Notez-le — un titre, une description, l'agent qui doit l'exécuter — et MaxCode lui confie **sa propre copie du code** : un worktree git à côté de votre projet, sur sa propre branche. Plusieurs tournent à la fois sans se toucher, ni toucher l'arbre dans lequel vous travaillez. Programmez-en une pour ce soir, ou laissez un dossier vider sa file tout seul, dans la limite de parallélisme que vous fixez.
 
-Une tâche terminée ne se fusionne pas toute seule. Elle passe dans la colonne de relecture et attend : lisez le diff, renvoyez-la pour un tour de plus, ou acceptez-la — et c'est l'agent qui la fait atterrir, en ramenant d'abord votre branche de base dans son worktree et en y résolvant les conflits. Ensuite Codeg ne le croit pas sur parole : il vérifie git lui-même, et une fusion qu'il ne peut pas confirmer retourne en relecture au lieu d'annoncer un succès.
+Une tâche terminée ne se fusionne pas toute seule. Elle passe dans la colonne de relecture et attend : lisez le diff, renvoyez-la pour un tour de plus, ou acceptez-la — et c'est l'agent qui la fait atterrir, en ramenant d'abord votre branche de base dans son worktree et en y résolvant les conflits. Ensuite MaxCode ne le croit pas sur parole : il vérifie git lui-même, et une fusion qu'il ne peut pas confirmer retourne en relecture au lieu d'annoncer un succès.
 
 ![Le tableau des tâches à faire, où les tâches passent de À faire à En cours puis à Terminé](../images/task-light.png#gh-light-mode-only)
 ![Le tableau des tâches à faire, où les tâches passent de À faire à En cours puis à Terminé](../images/task-dark.png#gh-dark-mode-only)
@@ -100,7 +58,7 @@ Une tâche terminée ne se fusionne pas toute seule. Elle passe dans la colonne 
 
 Une seule barre d'onglets ne suffit pas toujours. Faites un clic droit sur un onglet de conversation pour diviser la vue **à droite** ou **vers le bas**, autant de fois que vous voulez : deux volets côte à côte, une pile de trois, une grille. Chaque groupe est un espace de travail à part entière — ses onglets, son en-tête, son propre bouton de nouvelle conversation — Claude Code peut donc refactoriser dans un volet pendant que Codex relit un diff dans le suivant.
 
-Faites glisser un onglet d'un groupe à l'autre : sa session continue de streamer pendant le déménagement. Faites glisser la séparation entre deux groupes pour changer le partage de l'espace. Votre disposition est mémorisée par espace de travail, brouillons compris : rouvrez Codeg et la division revient, avec le texte jamais envoyé toujours dans le champ.
+Faites glisser un onglet d'un groupe à l'autre : sa session continue de streamer pendant le déménagement. Faites glisser la séparation entre deux groupes pour changer le partage de l'espace. Votre disposition est mémorisée par espace de travail, brouillons compris : rouvrez MaxCode et la division revient, avec le texte jamais envoyé toujours dans le champ.
 
 ![Division de la zone de conversation en une grille de groupes d'onglets](../images/split-light.gif#gh-light-mode-only)
 ![Division de la zone de conversation en une grille de groupes d'onglets](../images/split-dark.gif#gh-dark-mode-only)
@@ -126,7 +84,7 @@ Un seul espace de travail, tous les agents. Quel que soit celui qui travaille �
 
 ## 📱 iPhone, iPad et Android
 
-Quittez votre bureau, pas votre travail. Les clients natifs iOS et Android se connectent au Codeg que vous faites déjà tourner — le **Service web** de votre application de bureau, ou votre propre `codeg-server` — et de là vous lancez des sessions, suivez en direct les réponses et les appels d'outils, répondez aux demandes d'autorisation et parcourez projets et branches. Rien ne migre sur le téléphone : vos fichiers, les CLI des agents et les conversations restent sur la machine qui exécute Codeg, et le jeton d'accès est gardé dans le Trousseau iOS ou protégé par Android Keystore. Les deux clients sont open source ([iOS](https://github.com/xintaofei/codeg-ios), [Android](https://github.com/xintaofei/codeg-android)) ; l'appairage tient en trois étapes, détaillées dans [Applications mobiles](https://docs.codeg.app/getting-started/installation#mobile-apps).
+Quittez votre bureau, pas votre travail. Les clients natifs iOS et Android se connectent au MaxCode que vous faites déjà tourner — le **Service web** de votre application de bureau, ou votre propre `codeg-server` — et de là vous lancez des sessions, suivez en direct les réponses et les appels d'outils, répondez aux demandes d'autorisation et parcourez projets et branches. Rien ne migre sur le téléphone : vos fichiers, les CLI des agents et les conversations restent sur la machine qui exécute MaxCode, et le jeton d'accès est gardé dans le Trousseau iOS ou protégé par Android Keystore. Les deux clients sont open source ([iOS](https://github.com/xintaofei/codeg-ios), [Android](https://github.com/xintaofei/codeg-android)) ; l'appairage tient en trois étapes, détaillées dans [Applications mobiles](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
 | iPhone et iPad | Android |
 | :---: | :---: |
@@ -137,7 +95,7 @@ Quittez votre bureau, pas votre travail. Les clients natifs iOS et Android se co
 - **[Agrégation des conversations](https://docs.codeg.app/guide/aggregation)** — importez les sessions de tous les agents supportés dans un espace de travail unifié et consultable, et reprenez-les là où vous vous étiez arrêté
 - **[Collaboration multi-agents](https://docs.codeg.app/guide/multi-agent)** — mentionnez un agent avec `@` pour déléguer : les sous-agents de types différents s'exécutent chacun dans sa session, en parallèle, au sein d'une même tâche
 - **[Tâches à faire](https://docs.codeg.app/guide/tasks)** — notez ce qu'il y a à faire et les agents vident la file, chaque tâche dans son propre worktree, pour n'atterrir sur votre branche qu'après votre relecture
-- **[Agents personnalisés](https://docs.codeg.app/guide/custom-agents)** — enregistrez n'importe quel autre agent compatible ACP depuis le registre public ou son JSON de distribution ; Codeg l'installe, enregistre son historique et le traite comme un agent intégré
+- **[Agents personnalisés](https://docs.codeg.app/guide/custom-agents)** — enregistrez n'importe quel autre agent compatible ACP depuis le registre public ou son JSON de distribution ; MaxCode l'installe, enregistre son historique et le traite comme un agent intégré
 - **[L'espace de travail](https://docs.codeg.app/guide/workspace)** — toute la boucle d'ingénierie à côté de l'agent : arborescence, éditeur et diff, changements git, commit, terminal intégré et [plusieurs dossiers réunis en un seul espace de travail](https://docs.codeg.app/guide/workspace#work-across-several-folders)
 - **[Vue divisée](https://docs.codeg.app/guide/workspace#split-the-conversation-view-into-groups)** — divisez la zone de conversation en autant de groupes d'onglets que vous voulez, faites glisser onglets et séparations entre eux, et retrouvez la disposition — brouillons compris — au redémarrage
 - **[Git et worktrees](https://docs.codeg.app/guide/git)** — relisez et validez vos changements, gérez vos comptes Git distants et travaillez en parallèle grâce aux flux `git worktree` intégrés
@@ -156,7 +114,7 @@ Quittez votre bureau, pas votre travail. Les clients natifs iOS et Android se co
 
 **Bureau** — téléchargez l'installateur macOS, Windows ou Linux depuis les [Releases](https://github.com/xintaofei/codeg/releases), puis suivez l'[Installation](https://docs.codeg.app/getting-started/installation).
 
-**Serveur** — faites tourner Codeg sans interface et accédez-y depuis n'importe quel navigateur. Sous Linux ou macOS :
+**Serveur** — faites tourner MaxCode sans interface et accédez-y depuis n'importe quel navigateur. Sous Linux ou macOS :
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
@@ -178,7 +136,7 @@ docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 
 **Mobile** — installez l'[app iOS](https://apps.apple.com/app/codeg-client/id6785199071) ou l'[APK Android](https://github.com/xintaofei/codeg-android/releases/latest), puis pointez-la vers le **Service web** de votre application de bureau ou vers votre propre `codeg-server` : URL, jeton, c'est prêt. Les étapes d'appairage sont dans [Applications mobiles](https://docs.codeg.app/getting-started/installation#mobile-apps).
 
-Compose, binaires précompilés, compilation depuis les sources et mises à jour sur place sont traités dans [Déploiement](https://docs.codeg.app/getting-started/deployment) ; les variables d'environnement dans [Configuration](https://docs.codeg.app/getting-started/configuration). Pour compiler Codeg lui-même : [Développement](https://docs.codeg.app/reference/development) et [Architecture](https://docs.codeg.app/reference/architecture).
+Compose, binaires précompilés, compilation depuis les sources et mises à jour sur place sont traités dans [Déploiement](https://docs.codeg.app/getting-started/deployment) ; les variables d'environnement dans [Configuration](https://docs.codeg.app/getting-started/configuration). Pour compiler MaxCode lui-même : [Développement](https://docs.codeg.app/reference/development) et [Architecture](https://docs.codeg.app/reference/architecture).
 
 ## 🔒 Confidentialité et sécurité
 
@@ -199,10 +157,10 @@ Détails dans [Confidentialité et sécurité](https://docs.codeg.app/reference/
 
 ## 🙏 Remerciements
 
-- [Agent Client Protocol](https://agentclientprotocol.com) — le socle qui permet à Codeg de se connecter à tous les agents qu'il supporte
-- [Superpowers](https://github.com/obra/superpowers) — alimente le module de compétences d'experts de Codeg
-- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — alimente le flux de travail des documents Office de Codeg
-- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — alimente les compétences de Recherche scientifique de Codeg (sous-ensemble sous licence MIT)
+- [Agent Client Protocol](https://agentclientprotocol.com) — le socle qui permet à MaxCode de se connecter à tous les agents qu'il supporte
+- [Superpowers](https://github.com/obra/superpowers) — alimente le module de compétences d'experts de MaxCode
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — alimente le flux de travail des documents Office de MaxCode
+- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — alimente les compétences de Recherche scientifique de MaxCode (sous-ensemble sous licence MIT)
 
 ## 📜 Licence
 

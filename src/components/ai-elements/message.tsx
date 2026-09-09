@@ -54,7 +54,7 @@ export const Message = ({ className, from, ...props }: MessageProps) => (
           // reserving the full `max-w-[82%]` box — the inner bubble
           // (`MessageContent`) is already `w-fit`, so this just drops the
           // phantom full-width wrapper. Assistant keeps `w-full`.
-          "is-user ml-auto justify-end w-fit max-w-[82%]"
+          "is-user ml-auto justify-end w-fit max-w-[92%] md:max-w-[82%]"
         : "is-assistant w-full",
       className
     )}

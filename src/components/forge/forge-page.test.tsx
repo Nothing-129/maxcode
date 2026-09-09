@@ -335,7 +335,7 @@ describe("ForgePage list failures", () => {
 
     expect(
       await screen.findByText(
-        "git.corp.com is a GitLab, not the forge codeg had it classified as. The detection has been corrected — reload to retry."
+        "git.corp.com is a GitLab, not the forge MaxCode had it classified as. The detection has been corrected — reload to retry."
       )
     ).toBeInTheDocument()
   })

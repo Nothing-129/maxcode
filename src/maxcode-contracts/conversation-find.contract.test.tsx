@@ -1,13 +1,18 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
 import en from "@/i18n/messages/en.json"
+import { openConversationFind } from "@/lib/conversation-find-events"
+import { source } from "./contract-source"
 import { createRef } from "react"
 import {
   ConversationFind,
   findConversationMessages,
 } from "@/components/message/conversation-find"
 import type { ThreadRenderItem } from "@/components/message/message-list-view"
+
+vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: vi.fn(() => false) }))
 
 const items = [
   {
@@ -27,6 +32,7 @@ function setup(active = true, historyOffset = 0) {
   const scrollToIndex = vi.fn()
   const load = vi.fn()
   const props = {
+    conversationId: 42,
     items,
     active,
     scrollApiRef: { current: { scrollToIndex } },
@@ -43,6 +49,43 @@ function setup(active = true, historyOffset = 0) {
 }
 
 describe("current conversation find contract", () => {
+  it("opens from the title menu only for the active target and has no floating launcher", () => {
+    setup()
+    expect(screen.queryByRole("button")).not.toBeInTheDocument()
+    act(() => openConversationFind(43))
+    expect(screen.queryByRole("search")).not.toBeInTheDocument()
+    act(() => openConversationFind(42))
+    expect(screen.getByRole("search")).toBeInTheDocument()
+    fireEvent.keyDown(window, { key: "Escape" })
+    expect(screen.queryByRole("button")).not.toBeInTheDocument()
+    const header = source(
+      "src/components/conversations/conversation-detail-header.tsx"
+    )
+    expect(header).toContain("openConversationFind(id)")
+    expect(header).toContain('{tFind("title")}')
+  })
+
+  it("does not open or intercept find shortcuts on mobile", () => {
+    vi.mocked(useIsMobile).mockReturnValue(true)
+    try {
+      const { load, scrollToIndex } = setup(true, 100)
+      act(() => openConversationFind(42))
+      expect(fireEvent.keyDown(window, { key: "f", ctrlKey: true })).toBe(true)
+      expect(fireEvent.keyDown(window, { key: "f", metaKey: true })).toBe(true)
+      expect(screen.queryByRole("search")).not.toBeInTheDocument()
+      expect(load).not.toHaveBeenCalled()
+      expect(scrollToIndex).not.toHaveBeenCalled()
+    } finally {
+      vi.mocked(useIsMobile).mockReturnValue(false)
+    }
+  })
+
+  it("ignores menu requests in inactive conversations", () => {
+    setup(false)
+    act(() => openConversationFind(42))
+    expect(screen.queryByRole("search")).not.toBeInTheDocument()
+  })
+
   it("highlights mounted message text without changing its markup and clears on close", () => {
     const highlights = new Map<string, unknown>()
     vi.stubGlobal("CSS", { highlights })
@@ -66,6 +109,7 @@ describe("current conversation find contract", () => {
               <p>Alpha first message</p>
             </div>
             <ConversationFind
+              conversationId={42}
               items={items}
               active
               scrollApiRef={{ current: { scrollToIndex: vi.fn() } }}
@@ -144,9 +188,7 @@ describe("current conversation find contract", () => {
   })
   it("loads earlier pages once per boundary and offers explicit retries", () => {
     const { load, rerender, props } = setup(true, 100)
-    fireEvent.click(
-      screen.getByRole("button", { name: "Find in conversation" })
-    )
+    fireEvent.keyDown(window, { key: "f", ctrlKey: true })
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "alpha" },
     })

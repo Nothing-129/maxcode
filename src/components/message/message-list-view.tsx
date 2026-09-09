@@ -748,7 +748,7 @@ const UserMessageCopyButton = memo(function UserMessageCopyButton({
   return (
     <MessageAction
       tooltip={isCopied ? t("copied") : t("copyMessage")}
-      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end"
+      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-0"
       onClick={handleCopy}
       size="icon-xs"
     >
@@ -771,7 +771,7 @@ const UserMessageTaskButton = memo(function UserMessageTaskButton({
   return (
     <MessageAction
       tooltip={t("createFromMessage")}
-      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end"
+      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-7"
       onClick={createTask}
       size="icon-xs"
     >
@@ -889,7 +889,7 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           group.parts.some(
             (part) => part.type !== "text" || part.text.trim().length > 0
           ) ? (
-            <div className="group/user-msg flex w-fit ml-auto max-w-full items-start gap-1">
+            <div className="group/user-msg relative flex w-fit ml-auto max-w-full items-start gap-1 max-md:mb-6">
               <UserMessageTaskButton parts={group.parts} />
               <UserMessageCopyButton parts={group.parts} />
               <SentMessageEditButton
@@ -1503,6 +1503,7 @@ export function MessageListView({
       >
         {showMessageNav && (
           <ConversationFind
+            conversationId={conversationId}
             key={conversationId}
             items={threadItems}
             active={isActive}

@@ -45,6 +45,8 @@ import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import android.widget.PopupMenu;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.window.OnBackInvokedDispatcher;
@@ -71,6 +73,9 @@ public final class MainActivity extends Activity {
     private final ServerHealthChecker healthChecker = new ServerHealthChecker();
 
     private View setupScreen;
+    private TextView formTitle;
+    private TextView formSubtitle;
+    private View closeSetupButton;
     private View browserScreen;
     private View rootView;
     private TextView setupTitle;
@@ -147,6 +152,9 @@ public final class MainActivity extends Activity {
         addConnectionButton = findViewById(R.id.add_connection_button);
         chooserProgress = findViewById(R.id.chooser_progress);
         setupForm = findViewById(R.id.setup_form);
+        formTitle = findViewById(R.id.form_title);
+        formSubtitle = findViewById(R.id.form_subtitle);
+        closeSetupButton = findViewById(R.id.close_setup_button);
         connectionNameInput = findViewById(R.id.connection_name_input);
         serverUrlInput = findViewById(R.id.server_url_input);
         tokenInput = findViewById(R.id.token_input);
@@ -163,6 +171,7 @@ public final class MainActivity extends Activity {
     private void configureSetupScreen() {
         connectButton.setOnClickListener(view -> connect());
         cancelButton.setOnClickListener(view -> cancelSetup());
+        closeSetupButton.setOnClickListener(view -> cancelSetup());
         addConnectionButton.setOnClickListener(view -> showSetup(SetupMode.ADD, null, 0));
         tokenInput.setOnEditorActionListener((view, actionId, event) -> {
             if (actionId == EditorInfo.IME_ACTION_DONE) {
@@ -326,6 +335,7 @@ public final class MainActivity extends Activity {
         setupMode = SetupMode.SELECT;
         browserScreen.setVisibility(View.GONE);
         setupScreen.setVisibility(View.VISIBLE);
+        setupScreen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
         connectionChooser.setVisibility(View.VISIBLE);
         setupForm.setVisibility(View.GONE);
         setupTitle.setText(R.string.setup_title_select);
@@ -343,20 +353,32 @@ public final class MainActivity extends Activity {
             ConnectionConfig connection = catalog.connections().get(index);
             View row = getLayoutInflater()
                     .inflate(R.layout.connection_row, savedConnectionsList, false);
-            Button openButton = row.findViewById(R.id.open_connection_button);
-            Button editButton = row.findViewById(R.id.edit_connection_button);
-            Button deleteButton = row.findViewById(R.id.delete_connection_button);
+            View openButton = row.findViewById(R.id.open_connection_button);
+            TextView name = row.findViewById(R.id.connection_name);
+            View moreButton = row.findViewById(R.id.connection_more_button);
             View divider = row.findViewById(R.id.connection_divider);
-            openButton.setText(connection.name());
+            name.setText(connection.name());
+            openButton.setContentDescription(getString(R.string.open_connection_named, connection.name()));
+            moreButton.setContentDescription(getString(R.string.manage_connection_named, connection.name()));
             openButton.setOnClickListener(view -> selectConnection(connection));
-            editButton.setOnClickListener(
-                    view -> showSetup(SetupMode.EDIT, connection, 0));
-            deleteButton.setOnClickListener(
-                    view -> confirmDeleteConnection(connection));
+            moreButton.setOnClickListener(view -> showConnectionMenu(view, connection));
             divider.setVisibility(
                     index == catalog.connections().size() - 1 ? View.GONE : View.VISIBLE);
             savedConnectionsList.addView(row);
         }
+    }
+
+    private void showConnectionMenu(View anchor, ConnectionConfig connection) {
+        PopupMenu menu = new PopupMenu(this, anchor);
+        menu.getMenu().add(R.string.edit).setOnMenuItemClickListener(item -> {
+            showSetup(SetupMode.EDIT, connection, 0);
+            return true;
+        });
+        menu.getMenu().add(R.string.delete).setOnMenuItemClickListener(item -> {
+            confirmDeleteConnection(connection);
+            return true;
+        });
+        menu.show();
     }
 
     private void setChooserEnabled(boolean enabled) {
@@ -458,6 +480,7 @@ public final class MainActivity extends Activity {
         cancelButton.setVisibility(View.GONE);
         setImmersiveStatusBar(true);
         setupScreen.setVisibility(View.GONE);
+        setupForm.setVisibility(View.GONE);
         browserScreen.setVisibility(View.VISIBLE);
         pageProgress.setVisibility(View.VISIBLE);
         webView.onResume();
@@ -474,22 +497,28 @@ public final class MainActivity extends Activity {
         editingConnection = mode == SetupMode.EDIT ? connection : null;
         browserScreen.setVisibility(View.GONE);
         setupScreen.setVisibility(View.VISIBLE);
-        connectionChooser.setVisibility(View.GONE);
+        setupScreen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        connectionChooser.setVisibility(catalog.connections().isEmpty() ? View.GONE : View.VISIBLE);
+        renderConnections();
         setupForm.setVisibility(View.VISIBLE);
+        setupForm.bringToFront();
+        setupForm.requestFocus();
+        ScrollView formScroll = findViewById(R.id.form_scroll);
+        formScroll.scrollTo(0, 0);
         if (webView != null) webView.onPause();
 
         switch (mode) {
             case INITIAL -> {
-                setupTitle.setText(R.string.setup_title);
-                setupSubtitle.setText(R.string.setup_subtitle);
+                formTitle.setText(R.string.setup_title);
+                formSubtitle.setText(R.string.setup_subtitle);
             }
             case ADD -> {
-                setupTitle.setText(R.string.setup_title_add);
-                setupSubtitle.setText(R.string.setup_subtitle_add);
+                formTitle.setText(R.string.setup_title_add);
+                formSubtitle.setText(R.string.setup_subtitle_add);
             }
             case EDIT -> {
-                setupTitle.setText(R.string.setup_title_edit);
-                setupSubtitle.setText(R.string.setup_subtitle_edit);
+                formTitle.setText(R.string.setup_title_edit);
+                formSubtitle.setText(R.string.setup_subtitle_edit);
             }
             case SELECT -> throw new IllegalArgumentException("Use showConnectionChooser");
         }
@@ -516,6 +545,10 @@ public final class MainActivity extends Activity {
 
     private void cancelSetup() {
         if (connecting) return;
+        InputMethodManager inputMethodManager = getSystemService(InputMethodManager.class);
+        if (inputMethodManager != null) {
+            inputMethodManager.hideSoftInputFromWindow(setupForm.getWindowToken(), 0);
+        }
         if (catalog.connections().isEmpty()) {
             finish();
             return;
@@ -527,6 +560,7 @@ public final class MainActivity extends Activity {
         this.connecting = connecting;
         connectButton.setEnabled(!connecting);
         cancelButton.setEnabled(!connecting);
+        closeSetupButton.setEnabled(!connecting);
         connectionNameInput.setEnabled(!connecting);
         serverUrlInput.setEnabled(!connecting);
         tokenInput.setEnabled(!connecting);

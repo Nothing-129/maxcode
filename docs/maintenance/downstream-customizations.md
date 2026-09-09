@@ -88,4 +88,4 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 输入框底部的权限、模式、模型、推理强度等选择器统一靠左连续排列，不再将模型推到右侧（`src/maxcode-contracts/reference-chat-style.contract.test.ts`）。
 
-当前对话支持 Ctrl/Cmd+F 右上角搜索，按匹配消息前后跳转，显示高亮片段并逐页搜索历史；失败时可手动重试（`chat.conversation-find`）。
+当前对话通过标题操作菜单或 Ctrl/Cmd+F 打开搜索，移除右上角悬浮入口，按匹配消息前后跳转，显示高亮片段并逐页搜索历史；失败时可手动重试（`chat.conversation-find`）。

@@ -11,6 +11,8 @@ import {
 } from "react"
 import { ArrowDown, ArrowUp, Search, X } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useIsMobile } from "@/hooks/use-mobile"
+import { OPEN_CONVERSATION_FIND_EVENT } from "@/lib/conversation-find-events"
 import type { ThreadRenderItem } from "./message-list-view"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 import type { MessageScrollContextValue } from "./message-scroll-context"
@@ -41,14 +43,16 @@ export function findConversationMessages(
 }
 
 export function ConversationFind({
+  conversationId,
   items,
-  active,
+  active: isActive,
   scrollApiRef,
   containerRef,
   historyOffset,
   loadingHistory,
   onLoadHistory,
 }: {
+  conversationId: number
   items: ThreadRenderItem[]
   active: boolean
   scrollApiRef: RefObject<MessageScrollContextValue | null>
@@ -57,6 +61,8 @@ export function ConversationFind({
   loadingHistory: boolean
   onLoadHistory: () => void
 }) {
+  const isMobile = useIsMobile()
+  const active = isActive && !isMobile
   const t = useTranslations("Folder.chat.conversationFind")
   const highlightName = `conversation-find-${useId().replace(/[^a-zA-Z0-9-]/g, "")}`
   const [open, setOpen] = useState(false)
@@ -111,6 +117,16 @@ export function ConversationFind({
     window.addEventListener("keydown", onKey)
     return () => window.removeEventListener("keydown", onKey)
   }, [active, open, show, close])
+
+  useEffect(() => {
+    if (!active) return
+    const onOpen = (event: Event) => {
+      if ((event as CustomEvent<number>).detail === conversationId) show()
+    }
+    window.addEventListener(OPEN_CONVERSATION_FIND_EVENT, onOpen)
+    return () =>
+      window.removeEventListener(OPEN_CONVERSATION_FIND_EVENT, onOpen)
+  }, [active, conversationId, show])
 
   // Each history boundary is requested once. A failed request stays retryable,
   // rather than spinning forever against an unavailable history endpoint.
@@ -190,7 +206,7 @@ export function ConversationFind({
       matches[(selectedIndex + direction + matches.length) % matches.length].key
     )
   }
-  if (!active) return null
+  if (!active || !open) return null
   const buttonClass =
     "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-40"
   return (
@@ -199,117 +215,105 @@ export function ConversationFind({
       className="absolute right-3 top-2 z-30 max-w-[calc(100%-1.5rem)]"
     >
       <style>{`::highlight(${highlightName}) { background-color: #fde68a; color: #111827; }`}</style>
-      {!open ? (
-        <button
-          type="button"
-          className={`${buttonClass} max-md:hidden bg-background/90`}
-          aria-label={t("title")}
-          title={t("title")}
-          onClick={show}
-        >
-          <Search className="size-4" />
-        </button>
-      ) : (
-        <div
-          role="search"
-          aria-label={t("title")}
-          className="w-96 max-w-full rounded-lg border bg-background p-2 shadow-md"
-        >
-          <div className="flex items-center gap-1">
-            <Search className="size-4 shrink-0 text-muted-foreground" />
-            <input
-              ref={inputRef}
-              aria-label={t("title")}
-              placeholder={t("title")}
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value)
-                setSelectedKey(null)
-              }}
-              onKeyDown={(event) => {
-                if (event.nativeEvent.isComposing) return
-                if (event.key === "Enter") {
-                  event.preventDefault()
-                  move(event.shiftKey ? -1 : 1)
-                }
-              }}
-              className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
-            />
-            <span
-              aria-live="polite"
-              className="shrink-0 text-xs text-muted-foreground"
-            >
-              {selected ? selectedIndex + 1 : 0}/{matches.length}
-            </span>
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={!matches.length}
-              aria-label={t("previous")}
-              onClick={() => move(-1)}
-            >
-              <ArrowUp className="size-4" />
-            </button>
-            <button
-              type="button"
-              className={buttonClass}
-              disabled={!matches.length}
-              aria-label={t("next")}
-              onClick={() => move(1)}
-            >
-              <ArrowDown className="size-4" />
-            </button>
-            <button
-              type="button"
-              className={buttonClass}
-              aria-label={t("close")}
-              onClick={close}
-            >
-              <X className="size-4" />
-            </button>
-          </div>
-          {query.trim() && (
-            <p className="mt-1 text-xs text-muted-foreground" role="status">
-              {historyOffset
-                ? t(loadingHistory ? "loading" : "partial")
-                : t(matches.length ? "count" : "empty", {
-                    count: matches.length,
-                  })}
-            </p>
-          )}
-          {query.trim() && historyOffset > 0 && !loadingHistory && (
-            <button
-              type="button"
-              className="mt-1 text-xs underline"
-              onClick={onLoadHistory}
-            >
-              {t("retry")}
-            </button>
-          )}
-          {selected && (
-            <p className="mt-2 break-words text-xs text-muted-foreground">
-              {selected.offset > 50 ? "…" : ""}
-              {selected.text.slice(
-                Math.max(0, selected.offset - 50),
-                selected.offset
-              )}
-              <mark className="rounded bg-yellow-200 text-black">
-                {selected.text.slice(
-                  selected.offset,
-                  selected.offset + query.length
-                )}
-              </mark>
-              {selected.text.slice(
-                selected.offset + query.length,
-                selected.offset + query.length + 100
-              )}
-              {selected.text.length > selected.offset + query.length + 100
-                ? "…"
-                : ""}
-            </p>
-          )}
+      <div
+        role="search"
+        aria-label={t("title")}
+        className="w-96 max-w-full rounded-lg border bg-background p-2 shadow-md"
+      >
+        <div className="flex items-center gap-1">
+          <Search className="size-4 shrink-0 text-muted-foreground" />
+          <input
+            ref={inputRef}
+            aria-label={t("title")}
+            placeholder={t("title")}
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value)
+              setSelectedKey(null)
+            }}
+            onKeyDown={(event) => {
+              if (event.nativeEvent.isComposing) return
+              if (event.key === "Enter") {
+                event.preventDefault()
+                move(event.shiftKey ? -1 : 1)
+              }
+            }}
+            className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
+          />
+          <span
+            aria-live="polite"
+            className="shrink-0 text-xs text-muted-foreground"
+          >
+            {selected ? selectedIndex + 1 : 0}/{matches.length}
+          </span>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={!matches.length}
+            aria-label={t("previous")}
+            onClick={() => move(-1)}
+          >
+            <ArrowUp className="size-4" />
+          </button>
+          <button
+            type="button"
+            className={buttonClass}
+            disabled={!matches.length}
+            aria-label={t("next")}
+            onClick={() => move(1)}
+          >
+            <ArrowDown className="size-4" />
+          </button>
+          <button
+            type="button"
+            className={buttonClass}
+            aria-label={t("close")}
+            onClick={close}
+          >
+            <X className="size-4" />
+          </button>
         </div>
-      )}
+        {query.trim() && (
+          <p className="mt-1 text-xs text-muted-foreground" role="status">
+            {historyOffset
+              ? t(loadingHistory ? "loading" : "partial")
+              : t(matches.length ? "count" : "empty", {
+                  count: matches.length,
+                })}
+          </p>
+        )}
+        {query.trim() && historyOffset > 0 && !loadingHistory && (
+          <button
+            type="button"
+            className="mt-1 text-xs underline"
+            onClick={onLoadHistory}
+          >
+            {t("retry")}
+          </button>
+        )}
+        {selected && (
+          <p className="mt-2 break-words text-xs text-muted-foreground">
+            {selected.offset > 50 ? "…" : ""}
+            {selected.text.slice(
+              Math.max(0, selected.offset - 50),
+              selected.offset
+            )}
+            <mark className="rounded bg-yellow-200 text-black">
+              {selected.text.slice(
+                selected.offset,
+                selected.offset + query.length
+              )}
+            </mark>
+            {selected.text.slice(
+              selected.offset + query.length,
+              selected.offset + query.length + 100
+            )}
+            {selected.text.length > selected.offset + query.length + 100
+              ? "…"
+              : ""}
+          </p>
+        )}
+      </div>
     </div>
   )
 }

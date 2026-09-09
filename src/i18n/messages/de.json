@@ -758,10 +758,10 @@
     "envVars": "Umgebungsvariablen",
     "adapterChannel": {
       "label": "Adapter-Version",
-      "description": "Installieren und Aktualisieren verwenden die von codeg geprüfte und angepinnte Version. Mit Neueste wird stattdessen die jeweils neueste npm-Version des Pakets installiert; schlägt das fehl, fällt codeg auf die angepinnte Version zurück und vermerkt es im Installationsprotokoll.",
+      "description": "Installieren und Aktualisieren verwenden die von MaxCode geprüfte und angepinnte Version. Mit Neueste wird stattdessen die jeweils neueste npm-Version des Pakets installiert; schlägt das fehl, fällt MaxCode auf die angepinnte Version zurück und vermerkt es im Installationsprotokoll.",
       "pinned": "Angepinnt (empfohlen)",
       "latest": "Neueste (ungeprüft)",
-      "latestWarning": "Die neuesten Versionen sind ungeprüft und können diesen Agenten in codeg beschädigen; gelegentlich ist eine Version sogar bekanntermaßen defekt. Der Versionsstatus zeigt, was tatsächlich installiert ist."
+      "latestWarning": "Die neuesten Versionen sind ungeprüft und können diesen Agenten in MaxCode beschädigen; gelegentlich ist eine Version sogar bekanntermaßen defekt. Der Versionsstatus zeigt, was tatsächlich installiert ist."
     },
     "hostTools": {
       "label": "Dateien und Befehle vom Agenten selbst ausführen lassen",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "Enter an API key, or both a project and a location — sessions will fail to start without one of the two.",
       "missingEnterpriseConfig": "Gemini Enterprise needs both a project and a location.",
       "settingsFileHint": "Saved to auth.type in this file. Any other keys you put there are preserved.",
-      "syncSkipped": "Your choice was saved, but codeg could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
+      "syncSkipped": "Your choice was saved, but MaxCode could not write it to the ACP server's settings.json, so Antigravity will keep authenticating the way that file says. Set auth.type in it yourself, or move it aside and save again.",
       "save": "Save",
       "headless": {
         "title": "Ohne Browser auf diesem Rechner anmelden",
@@ -5712,7 +5712,7 @@
     "dialogDescriptionMr": "Legt in {repo}s Ordner eine To-do-Aufgabe an, deren Worktree auf dem Head dieses Merge Requests ausgecheckt ist — die Commits des Agenten kommen obendrauf und werden beim Annehmen in denselben Merge Request gepusht.",
     "instructionPlaceholder": "Optionale Zusatzanweisung für den Agenten…",
     "writebackLabel": "Ergebnis als Kommentar zurückschreiben",
-    "writebackHint": "Wenn die Aufgabe fertig ist, schreibt codeg einen Kommentar zu diesem Eintrag: Ergebnis, Link und Diff-Zahlen.",
+    "writebackHint": "Wenn die Aufgabe fertig ist, schreibt MaxCode einen Kommentar zu diesem Eintrag: Ergebnis, Link und Diff-Zahlen.",
     "previewToggle": "Issue-Inhalt der Aufgabe ansehen",
     "previewEmpty": "(keine Beschreibung)",
     "duplicateBody": "Eine aktive Aufgabe bearbeitet dieses Element bereits: {title} ({status}). Trotzdem eine weitere erstellen?",

@@ -1,4 +1,4 @@
-# Codeg
+# MaxCode
 
 [![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
@@ -17,9 +17,9 @@
   <a href="./README.ar.md">العربية</a>
 </p>
 
-Codeg（Code Generation）はマルチエージェント・コーディングワークスペースです。あらゆる AI コーディングエージェントをひとつの場所で動かし、そして協働させます。
+MaxCodeはマルチエージェント・コーディングワークスペースです。あらゆる AI コーディングエージェントをひとつの場所で動かし、そして協働させます。
 
-対応するすべてのエージェント CLI のセッションを検索可能なワークスペースへ集約し、ひとつのタスクの中でメインエージェントが別種類のサブエージェントへ委譲できます。付きっきりで見ていたくない作業は ToDo タスクに書いておけば、それぞれが専用のブランチで無人のまま進み、あなたのレビューを待ってから取り込まれます。Codeg はデスクトップアプリ・スタンドアロンサーバー・Docker コンテナのいずれとしても動作し、ネイティブの iOS / Android クライアントもあるのでデスクを離れても作業を続けられます。エージェントは 15 種を内蔵し、ACP 互換の任意のエージェントを自分で登録することもできます。
+対応するすべてのエージェント CLI のセッションを検索可能なワークスペースへ集約し、ひとつのタスクの中でメインエージェントが別種類のサブエージェントへ委譲できます。付きっきりで見ていたくない作業は ToDo タスクに書いておけば、それぞれが専用のブランチで無人のまま進み、あなたのレビューを待ってから取り込まれます。MaxCode はデスクトップアプリ・スタンドアロンサーバー・Docker コンテナのいずれとしても動作し、ネイティブの iOS / Android クライアントもあるのでデスクを離れても作業を続けられます。エージェントは 15 種を内蔵し、ACP 互換の任意のエージェントを自分で登録することもできます。
 
 ![ワークスペース](../images/workspace-light.png#gh-light-mode-only)
 ![ワークスペース](../images/workspace-dark.png#gh-dark-mode-only)
@@ -28,70 +28,28 @@ Codeg（Code Generation）はマルチエージェント・コーディングワ
 
 **完全なドキュメントは [docs.codeg.app](https://docs.codeg.app)** — [はじめに](https://docs.codeg.app/getting-started/) · [ガイド](https://docs.codeg.app/guide/) · [リファレンス](https://docs.codeg.app/reference/)
 
-## 💖 スポンサー
-
-<table>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg" target="_blank"><img src="../images/compshare.png" alt="Compshare" width="160" /></a><br/>
-      <strong><a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">Compshare（UCloud）</a></strong>
-    </td>
-    <td>本プロジェクトをスポンサードしてくださった Compshare に感謝します！Compshare は UCloud 傘下の AI クラウドプラットフォームで、月額制・従量制のコストパフォーマンスに優れた国内モデル agent Plan プランを提供しており、月額 49 元から利用可能です。安定した公式リダイレクトによる海外モデルへのアクセスも提供しています。Claude Code、Codex、API 連携に対応。企業向けの高並列対応、7×24 テクニカルサポート、セルフ請求書発行をサポートしています。<a href="https://www.compshare.cn/?ytag=GPU_YY_git_codeg">こちらのリンク</a>から登録された方には、5 元分の無料プラットフォームクレジットが進呈されます！</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE" target="_blank"><img src="../images/sui-xiang.jpg" alt="随想AI中转站" width="200" /></a><br/>
-      <strong><a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">随想AI中转站</a></strong>
-    </td>
-    <td>本プロジェクトをスポンサードしてくださった随想AI中转站に感謝します！随想AI中转站は、Claude、Codex、Gemini などの中継サービスを提供する、信頼性が高く効率的な API 中継サービスプロバイダーです。新規アカウントは<a href="https://sui-xiang.com/register?aff=JPFCRHHBE8HE">登録</a>後、毎日のチェックインで 0.5 元のテストクレジットがもらえます。チャージは 1:1 で反映され、サブスクリプション不要の従量課金制です。複数回線の冗長化、リージョン間ディザスタリカバリ、自動フェイルオーバーにより、長時間の SSE 接続も途切れません。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://hezu.ink/sign-up?aff=0wVz" target="_blank"><img src="../images/hezu-ink.jpg" alt="合租巴士" width="200" /></a><br/>
-      <strong><a href="https://hezu.ink/sign-up?aff=0wVz">合租巴士</a></strong>
-    </td>
-    <td>本プロジェクトをスポンサードしてくださった合租巴士に感謝します！合租巴士は、Codex や Claude Code などの主流モデルに高い安定性の中継機能を提供する、信頼性が高く効率的な AI 中継サービスプラットフォームです。チャージ比率は透明（1:1）で、Codex のレート補助は 0.08 から利用可能です。<a href="https://hezu.ink/sign-up?aff=0wVz">公式サイトからグループに参加すると $5 分の体験クレジットがもらえます</a>。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta" target="_blank"><img src="../images/onehop.jpg" alt="OneHop" width="120" /></a><br/>
-      <strong><a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">OneHop</a></strong>
-    </td>
-    <td>本プロジェクトをスポンサードしてくださった OneHop に感謝します！OneHop を使えば、Codeg ユーザーは OpenAI 互換の API キー 1 つで、GPT、Claude、Gemini、DeepSeek、Kimi、Qwen など数百もの主要モデルを利用できます。複数のプロバイダーアカウントを管理したり、コードを何度も書き換えたりすることなくモデルを切り替えられ、使った分だけの従量課金です。<a href="https://onehop.ai/platform/login?ref=CODEG&utm_source=github&utm_medium=readme_sponsor&utm_campaign=codeg&utm_content=sponsor_cta">Codeg 経由でサインアップ</a>すると $1 分のクレジットが付与され、さらに OneHop コミュニティに参加してウェルカムアクティビティに参加すると追加で $5 分——合計で最大 $6 分のテストクレジットを獲得できます。</td>
-  </tr>
-  <tr>
-    <td align="center" width="220">
-      <a href="https://console.lqapi.xyz/sign-up?aff=KPy9" target="_blank"><img src="../images/lq-router.png" alt="LQ router" width="160" /></a><br/>
-      <strong><a href="https://console.lqapi.xyz/sign-up?aff=KPy9">LQ router</a></strong>
-    </td>
-    <td>本プロジェクトをスポンサードしてくださった LQ router 中継サービスに感謝します！LQ router は、個人開発者と技術チーム向けのエンタープライズ級 API 統合ゲートウェイです。GPT、Claude、Grok、Gemini などの主要モデルに接続し、既存のクライアントや OpenAI SDK と互換性があります。動的アカウントプールによるインテリジェントルーティングで、1 つのエンドポイントから複数モデルを呼び出せます。<a href="https://console.lqapi.xyz/sign-up?aff=KPy9">公式サイトからグループに参加すると $1 分の体験クレジットがもらえます</a>。</td>
-  </tr>
-</table>
-
-> Codeg のスポンサーになりませんか？[メールでお問い合わせください。](mailto:itpkcn@gmail.com)
-
 ## 🤖 対応エージェント
 
 Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · CodeBuddy · Kimi Code · Pi · Grok · Cursor · DeepSeek Harness · Qoder · Google Antigravity
 
-その多くは Codeg がインストール・バージョン固定・更新まで面倒を見ます。全リスト、各エージェントの実行環境要件、セッションの保存場所は [対応エージェント](https://docs.codeg.app/guide/supported-agents) を参照してください。
+その多くは MaxCode がインストール・バージョン固定・更新まで面倒を見ます。全リスト、各エージェントの実行環境要件、セッションの保存場所は [対応エージェント](https://docs.codeg.app/guide/supported-agents) を参照してください。
 
-リストにない？自分で追加できます。公開されている ACP レジストリから選ぶか、distribution JSON を貼り付けるだけで、Codeg がインストールし、起動できるかを事前に確認し、あとは内蔵エージェントと同じように扱います — ピッカーに並び、`@` 委譲やスキルにも対応し、そのエージェント自身が履歴を残さない場合でも会話は記録され検索できます。→ [カスタムエージェント](https://docs.codeg.app/guide/custom-agents)
+リストにない？自分で追加できます。公開されている ACP レジストリから選ぶか、distribution JSON を貼り付けるだけで、MaxCode がインストールし、起動できるかを事前に確認し、あとは内蔵エージェントと同じように扱います — ピッカーに並び、`@` 委譲やスキルにも対応し、そのエージェント自身が履歴を残さない場合でも会話は記録され検索できます。→ [カスタムエージェント](https://docs.codeg.app/guide/custom-agents)
 
 ## 🤝 マルチエージェント協調
 
-マルチエージェント協調は、キーひとつで完結します。`@` を打ち、エージェントを選び、送信するだけ。あとのスケジューリングは Codeg が引き受けます — 指名されたエージェントをそれぞれ独立したセッションとして起動し、タスクを引き渡し、その作業を今いるスレッドへ流し込みます。ふたつ指名すれば並走します。Claude Code が下書きし、Codex がレビューする。コンテキストの切り替えも、ターミナル間のコピー＆ペーストも不要です。
+マルチエージェント協調は、キーひとつで完結します。`@` を打ち、エージェントを選び、送信するだけ。あとのスケジューリングは MaxCode が引き受けます — 指名されたエージェントをそれぞれ独立したセッションとして起動し、タスクを引き渡し、その作業を今いるスレッドへ流し込みます。ふたつ指名すれば並走します。Claude Code が下書きし、Codex がレビューする。コンテキストの切り替えも、ターミナル間のコピー＆ペーストも不要です。
 
 エージェントが自前のサブエージェントを立ち上げたとき — Claude Code も Codex も Grok も OpenCode もそうします — 子ごとにカードができ、終わってからまとめて出るのではなく、動いている間に中身が埋まっていきます。開けば子自身のセッションを読めます。
 
-![ひとつの Codeg 会話からサブエージェントへタスクを委譲する様子](../images/collaboration-light.gif#gh-light-mode-only)
-![ひとつの Codeg 会話からサブエージェントへタスクを委譲する様子](../images/collaboration-dark.gif#gh-dark-mode-only)
+![ひとつの MaxCode 会話からサブエージェントへタスクを委譲する様子](../images/collaboration-light.gif#gh-light-mode-only)
+![ひとつの MaxCode 会話からサブエージェントへタスクを委譲する様子](../images/collaboration-dark.gif#gh-dark-mode-only)
 
 ## ✅ ToDo タスク
 
-すべての仕事に付き添う必要はありません。書き留めるだけ — タイトル、説明、どのエージェントで走らせるか — で、Codeg がそれに**コードの専用コピー**を渡します。プロジェクトの隣に作られる git worktree で、専用のブランチの上です。同時にいくつ走っても互いに触れず、あなたが作業中のツリーにも触れません。今夜に予約することも、フォルダーに同時実行数の上限までキューを自分で消化させることもできます。
+すべての仕事に付き添う必要はありません。書き留めるだけ — タイトル、説明、どのエージェントで走らせるか — で、MaxCode がそれに**コードの専用コピー**を渡します。プロジェクトの隣に作られる git worktree で、専用のブランチの上です。同時にいくつ走っても互いに触れず、あなたが作業中のツリーにも触れません。今夜に予約することも、フォルダーに同時実行数の上限までキューを自分で消化させることもできます。
 
-終わったタスクが自分でマージすることはありません。レビュー列へ移って待ちます。diff を読み、もう一周やり直させ、あるいは受け入れる — すると取り込むのはエージェントで、まずベースブランチを自分の worktree に取り込み、そこでコンフリクトを解消します。そのあと Codeg はエージェントの言い分ではなく git を確かめます。確認できなかったマージは、成功と報告される代わりにレビューへ戻ります。
+終わったタスクが自分でマージすることはありません。レビュー列へ移って待ちます。diff を読み、もう一周やり直させ、あるいは受け入れる — すると取り込むのはエージェントで、まずベースブランチを自分の worktree に取り込み、そこでコンフリクトを解消します。そのあと MaxCode はエージェントの言い分ではなく git を確かめます。確認できなかったマージは、成功と報告される代わりにレビューへ戻ります。
 
 ![ToDo タスクのボード。タスクが「ToDo」から「進行中」を経て「完了」へ進む](../images/task-light.png#gh-light-mode-only)
 ![ToDo タスクのボード。タスクが「ToDo」から「進行中」を経て「完了」へ進む](../images/task-dark.png#gh-dark-mode-only)
@@ -100,14 +58,14 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 タブ列がひとつでは足りないときもあります。会話タブを右クリックすれば、ビューを**右**または**下**へ、何度でも分割できます — 左右に 2 つ、縦に 3 つ、あるいは格子状に。どのグループもそれ自体がひとつのワークスペースで、独自のタブ、独自のヘッダー、独自の新規会話ボタンを持ちます。片方のペインで Claude Code にリファクタリングさせ、隣のペインで Codex に diff をレビューさせる、という具合です。
 
-タブをグループ間でドラッグしても、そのセッションは移動中もストリーミングを続けます。グループの境界をドラッグすれば、スペースの分け方が変わります。レイアウトはワークスペースごとに、下書きも含めて記憶されます — Codeg を開き直せば分割はそのまま戻り、送らなかった文字も入力欄に残っています。
+タブをグループ間でドラッグしても、そのセッションは移動中もストリーミングを続けます。グループの境界をドラッグすれば、スペースの分け方が変わります。レイアウトはワークスペースごとに、下書きも含めて記憶されます — MaxCode を開き直せば分割はそのまま戻り、送らなかった文字も入力欄に残っています。
 
 ![会話エリアをタブグループの格子に分割する](../images/split-light.gif#gh-light-mode-only)
 ![会話エリアをタブグループの格子に分割する](../images/split-dark.gif#gh-dark-mode-only)
 
 ## 📄 Office ドキュメント
 
-スライドでも、レポートでも、表計算でも、頼めばエージェントは本物の `.pptx` / `.docx` / `.xlsx` を作ります — 右側のペインがそれをリアルタイムに描画しながら。編集は自動でプレビューへ反映され、スライドが埋まり、表が形になり、数値がセルに収まっていきます。4 枚目が気に入らない？次のメッセージでそう伝えるだけ — エージェントは同じファイルをその場で直し、プレビューが追いつきます。書き出しも、外部の Office アプリも、Codeg を離れる必要もありません。
+スライドでも、レポートでも、表計算でも、頼めばエージェントは本物の `.pptx` / `.docx` / `.xlsx` を作ります — 右側のペインがそれをリアルタイムに描画しながら。編集は自動でプレビューへ反映され、スライドが埋まり、表が形になり、数値がセルに収まっていきます。4 枚目が気に入らない？次のメッセージでそう伝えるだけ — エージェントは同じファイルをその場で直し、プレビューが追いつきます。書き出しも、外部の Office アプリも、MaxCode を離れる必要もありません。
 
 ![ライブプレビューを横に置いて Office ドキュメントを編集するエージェント](../images/office-light.png#gh-light-mode-only)
 ![ライブプレビューを横に置いて Office ドキュメントを編集するエージェント](../images/office-dark.png#gh-dark-mode-only)
@@ -126,7 +84,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📱 iPhone・iPad・Android
 
-デスクを離れても、作業は止まりません。ネイティブの iOS / Android クライアントは、あなたがすでに動かしている Codeg —— デスクトップアプリの **Web サービス**、あるいは自分で立てた `codeg-server` —— に接続します。そこからセッションを開始し、返信やツール呼び出しが流れ込むのを追い、権限の確認に答え、プロジェクトやブランチを見て回れます。端末側には何も移りません。ファイルもエージェント CLI も会話も Codeg を実行しているマシンに残り、アクセストークンは iOS Keychain または Android Keystore が預かります。どちらのクライアントもオープンソース（[iOS](https://github.com/xintaofei/codeg-ios)、[Android](https://github.com/xintaofei/codeg-android)）です。接続はわずか 3 ステップ、詳しくは [モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)。
+デスクを離れても、作業は止まりません。ネイティブの iOS / Android クライアントは、あなたがすでに動かしている MaxCode —— デスクトップアプリの **Web サービス**、あるいは自分で立てた `codeg-server` —— に接続します。そこからセッションを開始し、返信やツール呼び出しが流れ込むのを追い、権限の確認に答え、プロジェクトやブランチを見て回れます。端末側には何も移りません。ファイルもエージェント CLI も会話も MaxCode を実行しているマシンに残り、アクセストークンは iOS Keychain または Android Keystore が預かります。どちらのクライアントもオープンソース（[iOS](https://github.com/xintaofei/codeg-ios)、[Android](https://github.com/xintaofei/codeg-android)）です。接続はわずか 3 ステップ、詳しくは [モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)。
 
 | iPhone・iPad | Android |
 | :---: | :---: |
@@ -137,7 +95,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 - **[会話の集約](https://docs.codeg.app/guide/aggregation)** — 対応するすべてのエージェントのセッションを統一された検索可能なワークスペースへ取り込み、中断した続きから再開できます
 - **[マルチエージェント協調](https://docs.codeg.app/guide/multi-agent)** — `@` でエージェントを指名するだけで委譲。異なる種類のサブエージェントがそれぞれ独立したセッションとして、ひとつのタスク内で並行して動きます
 - **[ToDo タスク](https://docs.codeg.app/guide/tasks)** — やるべきことを書き留めればエージェントがキューを片づけていきます。各タスクは専用の worktree で走り、あなたがレビューして初めてブランチに取り込まれます
-- **[カスタムエージェント](https://docs.codeg.app/guide/custom-agents)** — 公開レジストリまたは distribution JSON から、ACP 互換の任意のエージェントを登録。Codeg がインストールと履歴の記録を引き受け、内蔵エージェントと同じように扱います
+- **[カスタムエージェント](https://docs.codeg.app/guide/custom-agents)** — 公開レジストリまたは distribution JSON から、ACP 互換の任意のエージェントを登録。MaxCode がインストールと履歴の記録を引き受け、内蔵エージェントと同じように扱います
 - **[ワークスペース](https://docs.codeg.app/guide/workspace)** — エージェントの隣に開発の一連の流れがすべて揃います：ファイルツリー、エディタと diff、Git の変更、コミット、内蔵ターミナル、そして[ひとつのワークスペースにまとめた複数のフォルダー](https://docs.codeg.app/guide/workspace#work-across-several-folders)
 - **[画面分割](https://docs.codeg.app/guide/workspace#split-the-conversation-view-into-groups)** — 会話エリアを好きな数のタブグループに分割し、タブや境界をドラッグして組み替え。再起動後もレイアウトは下書きごと復元します
 - **[Git と Worktree](https://docs.codeg.app/guide/git)** — 変更のレビューとコミット、Git リモートアカウントの管理、内蔵の `git worktree` フローによる並行開発
@@ -156,7 +114,7 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 **デスクトップ** — macOS・Windows・Linux 向けインストーラーを [Releases](https://github.com/xintaofei/codeg/releases) から入手し、[インストール](https://docs.codeg.app/getting-started/installation) の手順に従ってください。
 
-**サーバー** — Codeg をヘッドレスで動かし、任意のブラウザから利用します。Linux / macOS の場合：
+**サーバー** — MaxCode をヘッドレスで動かし、任意のブラウザから利用します。Linux / macOS の場合：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
@@ -178,7 +136,7 @@ docker run -d -p 3080:3080 -v codeg-data:/data ghcr.io/xintaofei/codeg:latest
 
 **モバイル** — [iOS アプリ](https://apps.apple.com/app/codeg-client/id6785199071) または [Android APK](https://github.com/xintaofei/codeg-android/releases/latest) をインストールし、デスクトップアプリの **Web サービス**か自分の `codeg-server` を指定するだけ：アドレスとトークンを入れれば完了です。接続手順は [モバイルアプリ](https://docs.codeg.app/getting-started/installation#mobile-apps)。
 
-Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://docs.codeg.app/getting-started/deployment) に、環境変数は [設定](https://docs.codeg.app/getting-started/configuration) にあります。Codeg 自体のビルドは [開発](https://docs.codeg.app/reference/development) と [アーキテクチャ](https://docs.codeg.app/reference/architecture) を参照。
+Compose、ビルド済みバイナリ、ソースからのビルド、その場での更新は [デプロイ](https://docs.codeg.app/getting-started/deployment) に、環境変数は [設定](https://docs.codeg.app/getting-started/configuration) にあります。MaxCode 自体のビルドは [開発](https://docs.codeg.app/reference/development) と [アーキテクチャ](https://docs.codeg.app/reference/architecture) を参照。
 
 ## 🔒 プライバシーとセキュリティ
 
@@ -199,10 +157,10 @@ Compose、ビルド済みバイナリ、ソースからのビルド、その場�
 
 ## 🙏 謝辞
 
-- [Agent Client Protocol](https://agentclientprotocol.com) — Codeg が対応するすべてのエージェントへ接続できる土台
-- [Superpowers](https://github.com/obra/superpowers) — Codeg のエキスパートスキルモジュールを支えるプロジェクト
-- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — Codeg の Office ドキュメントワークフローを支えるプロジェクト
-- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — Codeg の科学研究スキルを支えるプロジェクト（MIT ライセンスのサブセット）
+- [Agent Client Protocol](https://agentclientprotocol.com) — MaxCode が対応するすべてのエージェントへ接続できる土台
+- [Superpowers](https://github.com/obra/superpowers) — MaxCode のエキスパートスキルモジュールを支えるプロジェクト
+- [OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) — MaxCode の Office ドキュメントワークフローを支えるプロジェクト
+- [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills) — MaxCode の科学研究スキルを支えるプロジェクト（MIT ライセンスのサブセット）
 
 ## 📜 ライセンス
 

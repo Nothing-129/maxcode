@@ -1,5 +1,6 @@
 "use client"
 
+import { openConversationFind } from "@/lib/conversation-find-events"
 import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
 import { RefreshCw } from "lucide-react"
 import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
@@ -16,6 +17,7 @@ import {
   Pencil,
   Pin,
   PinOff,
+  Search,
   SquarePen,
   Trash2,
 } from "lucide-react"
@@ -126,6 +128,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const { refreshTitle, refreshing, refreshTitleLabel } =
     useRefreshConversationTitle(conversationId)
   const t = useTranslations("Folder.conversationCard")
+  const tFind = useTranslations("Folder.chat.conversationFind")
   const ime = useImeGuard()
   const tConv = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
@@ -450,6 +453,17 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
             >
               <SquarePen className="h-4 w-4" />
               {t("newConversation")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="max-md:hidden"
+              disabled={runtimeConversationId == null && conversationId == null}
+              onSelect={() => {
+                const id = runtimeConversationId ?? conversationId
+                if (id != null) openConversationFind(id)
+              }}
+            >
+              <Search className="h-4 w-4" />
+              {tFind("title")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

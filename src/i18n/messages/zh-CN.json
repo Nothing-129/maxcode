@@ -758,10 +758,10 @@
     "envVars": "环境变量",
     "adapterChannel": {
       "label": "适配器版本",
-      "description": "安装与升级默认使用 codeg 审查并固定的版本。选择最新版后会改为安装该包当时最新的 npm 版本；若最新版安装失败，codeg 会回退到固定版本，并在安装日志中说明。",
+      "description": "安装与升级默认使用 MaxCode 审查并固定的版本。选择最新版后会改为安装该包当时最新的 npm 版本；若最新版安装失败，MaxCode 会回退到固定版本，并在安装日志中说明。",
       "pinned": "固定版本（推荐）",
       "latest": "最新版（未经审查）",
-      "latestWarning": "最新版本未经审查，可能破坏该 Agent 在 codeg 中的使用，偶尔甚至是已知损坏的版本。实际安装的版本以版本状态为准。"
+      "latestWarning": "最新版本未经审查，可能破坏该 Agent 在 MaxCode 中的使用，偶尔甚至是已知损坏的版本。实际安装的版本以版本状态为准。"
     },
     "hostTools": {
       "label": "由 Agent 自行处理文件与命令",
@@ -987,7 +987,7 @@
       "missingAgentPlatformConfig": "请填写 API Key，或同时填写项目与区域 —— 二者缺一不可，否则会话无法启动。",
       "missingEnterpriseConfig": "Gemini Enterprise 需要同时填写项目与区域。",
       "settingsFileHint": "auth.type 会保存到该文件；你自己写在里面的其他键会原样保留。",
-      "syncSkipped": "你的选择已经存下来了，但 codeg 没能写进 ACP 服务端的 settings.json，所以 Antigravity 仍然按那个文件里写的方式认证。请自己在里面设置 auth.type，或者把它挪走再保存一次。",
+      "syncSkipped": "你的选择已经存下来了，但 MaxCode 没能写进 ACP 服务端的 settings.json，所以 Antigravity 仍然按那个文件里写的方式认证。请自己在里面设置 auth.type，或者把它挪走再保存一次。",
       "save": "保存",
       "headless": {
         "title": "在没有浏览器的机器上登录",
