@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { execFileSync } from "node:child_process"
 import { createRequire } from "node:module"
+import { EventEmitter } from "node:events"
+import { runInNewContext } from "node:vm"
 import {
   chmodSync,
   mkdtempSync,
@@ -12,7 +14,7 @@ import {
 } from "node:fs"
 import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 const require = createRequire(import.meta.url)
 const runtime = require("../../electron/runtime.cjs")
@@ -26,6 +28,114 @@ afterEach(() => {
 })
 
 describe("MaxCode contract: Electron owns the local desktop", () => {
+  it.each([
+    { parentOwned: true, shutdownFails: false, expectedCode: 0 },
+    { parentOwned: false, shutdownFails: false, expectedCode: 0 },
+    { parentOwned: true, shutdownFails: true, expectedCode: 1 },
+  ])(
+    "always exits smoke mode despite locked Windows profile files: %j",
+    async ({ parentOwned, shutdownFails, expectedCode }) => {
+      const main = readFileSync(resolve("electron/main.cjs"), "utf8")
+      const finishSource = main.slice(
+        main.indexOf("async function finishSmoke(code) {"),
+        main.indexOf("\nfunction fatalError")
+      )
+      const shutdown = vi.fn(async () => {
+        if (shutdownFails) throw new Error("backend stop failed")
+      })
+      const rm = vi
+        .fn()
+        .mockRejectedValue(
+          Object.assign(new Error("profile is locked"), { code: "EPERM" })
+        )
+      const exit = vi.fn()
+      const destroy = vi.fn()
+      const finish = new Function(
+        "shutdown",
+        "windows",
+        "fs",
+        "smokeDir",
+        "process",
+        "app",
+        `${finishSource}; return finishSmoke`
+      )(
+        shutdown,
+        [{ destroy }],
+        { promises: { rm } },
+        "isolated-smoke-profile",
+        {
+          env: parentOwned
+            ? { CODEG_ELECTRON_SMOKE_DIR: "isolated-smoke-profile" }
+            : {},
+          stderr: { write: vi.fn() },
+        },
+        { exit }
+      )
+      await finish(0)
+      expect(shutdown).toHaveBeenCalledOnce()
+      expect(exit).toHaveBeenCalledOnce()
+      expect(exit).toHaveBeenCalledWith(expectedCode)
+      expect(rm).toHaveBeenCalledTimes(parentOwned ? 0 : 1)
+      expect(destroy).toHaveBeenCalledTimes(shutdownFails ? 0 : 1)
+    }
+  )
+
+  it("removes the packaged smoke profile only after the child closes", async () => {
+    const script = readFileSync(
+      resolve("electron/scripts/smoke.mjs"),
+      "utf8"
+    ).replace(/^import .*\n/gm, "")
+    const child = Object.assign(new EventEmitter(), {
+      stdout: new EventEmitter(),
+      stderr: { pipe: vi.fn() },
+    })
+    const rm = vi.fn().mockResolvedValue(undefined)
+    const spawn = vi
+      .fn<
+        (
+          file: string,
+          args: string[],
+          options: { env: Record<string, string> }
+        ) => typeof child
+      >()
+      .mockReturnValue(child)
+    const fakeProcess = {
+      platform: "win32",
+      arch: "x64",
+      env: {},
+      exitCode: undefined,
+      stdout: { write: vi.fn() },
+      stderr: {},
+    }
+    runInNewContext(script, {
+      spawn,
+      existsSync: () => true,
+      mkdtempSync: () => "owned-profile",
+      fs: { rm },
+      tmpdir: () => "temp",
+      join,
+      resolve,
+      process: fakeProcess,
+      console,
+      setTimeout: vi.fn(),
+      clearTimeout: vi.fn(),
+    })
+    expect(spawn.mock.calls[0][2].env.CODEG_ELECTRON_SMOKE_DIR).toBe(
+      "owned-profile"
+    )
+    child.stdout.emit("data", Buffer.from("[electron smoke] PASS {}\n"))
+    expect(rm).not.toHaveBeenCalled()
+    child.emit("close", 0)
+    await vi.waitFor(() => expect(rm).toHaveBeenCalledOnce())
+    expect(rm).toHaveBeenCalledWith("owned-profile", {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    })
+    expect(fakeProcess.exitCode).toBeUndefined()
+  })
+
   it.skipIf(process.platform === "win32")(
     "restores a GUI launch PATH and runs an env-node agent entrypoint",
     async () => {

@@ -30,7 +30,8 @@ app.enableSandbox()
 
 const smokeTest = process.argv.includes("--smoke-test")
 const smokeDir = smokeTest
-  ? fs.mkdtempSync(path.join(os.tmpdir(), "maxcode-electron-smoke-"))
+  ? process.env.CODEG_ELECTRON_SMOKE_DIR ||
+    fs.mkdtempSync(path.join(os.tmpdir(), "maxcode-electron-smoke-"))
   : null
 if (smokeDir) {
   app.setPath("userData", path.join(smokeDir, "profile"))
@@ -368,9 +369,24 @@ async function shutdown() {
 }
 
 async function finishSmoke(code) {
-  await shutdown()
-  for (const window of windows) window.destroy()
-  await fs.promises.rm(smokeDir, { recursive: true, force: true })
+  try {
+    await shutdown()
+    for (const window of windows) window.destroy()
+  } catch (error) {
+    code = 1
+    process.stderr.write(`[electron smoke] Shutdown failed: ${error.message}\n`)
+  }
+  // Packaged smoke tests let the parent remove the profile after Electron exits.
+  // Chromium may still hold Windows profile files open while this process lives.
+  if (!process.env.CODEG_ELECTRON_SMOKE_DIR) {
+    try {
+      await fs.promises.rm(smokeDir, { recursive: true, force: true })
+    } catch (error) {
+      process.stderr.write(
+        `[electron smoke] Temporary cleanup deferred: ${error.message}\n`
+      )
+    }
+  }
   app.exit(code)
 }
 

@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process"
-import { existsSync } from "node:fs"
+import { existsSync, mkdtempSync, promises as fs } from "node:fs"
+import { tmpdir } from "node:os"
 import { join, resolve } from "node:path"
 
 // Launch the packaged application, including its bundled backend and frontend.
@@ -21,7 +22,8 @@ if (!directory || !executable)
   throw new Error("Unsupported smoke test platform")
 const path = resolve("electron/dist", directory, executable)
 if (!existsSync(path)) throw new Error(`Packaged application missing: ${path}`)
-const env = { ...process.env }
+const smokeDir = mkdtempSync(join(tmpdir(), "maxcode-electron-smoke-"))
+const env = { ...process.env, CODEG_ELECTRON_SMOKE_DIR: smokeDir }
 // Exercise the PATH supplied by Finder, not the developer terminal.
 if (process.platform === "darwin") env.PATH = "/usr/bin:/bin:/usr/sbin:/sbin"
 delete env.ELECTRON_RUN_AS_NODE
@@ -57,7 +59,18 @@ child.on("error", (error) => {
   console.error(error.message)
   process.exitCode = 1
 })
-child.on("close", (code) => {
+child.on("close", async (code) => {
   clearTimeout(timer)
   if (code !== 0 || !passed) process.exitCode = 1
+  try {
+    await fs.rm(smokeDir, {
+      recursive: true,
+      force: true,
+      maxRetries: 10,
+      retryDelay: 100,
+    })
+  } catch (error) {
+    console.error(`Smoke profile cleanup failed: ${error.message}`)
+    process.exitCode = 1
+  }
 })
