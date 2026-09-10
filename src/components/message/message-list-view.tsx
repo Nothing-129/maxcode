@@ -61,9 +61,9 @@ import {
   Loader2,
   Plus,
   RefreshCw,
-  ListTodo,
+  MessageSquarePlus,
 } from "lucide-react"
-import { useCreateTaskFromMessage } from "./use-create-task-from-message"
+import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { Button } from "@/components/ui/button"
 import { useTranslations } from "next-intl"
 import {
@@ -757,7 +757,7 @@ const UserMessageCopyButton = memo(function UserMessageCopyButton({
   )
 })
 
-const UserMessageTaskButton = memo(function UserMessageTaskButton({
+const UserMessageNewChatButton = memo(function UserMessageNewChatButton({
   parts,
 }: {
   parts: AdaptedContentPart[]
@@ -767,15 +767,15 @@ const UserMessageTaskButton = memo(function UserMessageTaskButton({
     () => unescapeComposerText(extractTextFromParts(parts)),
     [parts]
   )
-  const createTask = useCreateTaskFromMessage(getText)
+  const newChat = useNewChatFromMessage(getText)
   return (
     <MessageAction
-      tooltip={t("createFromMessage")}
+      tooltip={t("newChatFromMessage")}
       className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-7"
-      onClick={createTask}
+      onClick={newChat}
       size="icon-xs"
     >
-      <ListTodo size={12} />
+      <MessageSquarePlus size={12} />
     </MessageAction>
   )
 })
@@ -890,7 +890,7 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
             (part) => part.type !== "text" || part.text.trim().length > 0
           ) ? (
             <div className="group/user-msg relative flex w-fit ml-auto max-w-full items-start gap-1 max-md:mb-6">
-              <UserMessageTaskButton parts={group.parts} />
+              <UserMessageNewChatButton parts={group.parts} />
               <UserMessageCopyButton parts={group.parts} />
               <SentMessageEditButton
                 parts={group.parts}

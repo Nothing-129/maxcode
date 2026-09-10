@@ -2,12 +2,7 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import {
-  Check,
-  ChevronRight,
-  Loader2,
-  MessageCircleQuestionMark,
-} from "lucide-react"
+import { Check, ChevronRight, Loader2, ArrowRight, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -248,8 +243,7 @@ export function AskQuestionCard({
   const skip = () => void run({ answers: [], declined: true })
 
   const isMulti = questions.length > 1
-  // The read-only/answered view passes an empty subtitle; with no second line the
-  // header row centers the icon, title and count instead of top-aligning them.
+  // Historical answers may supply a subtitle; live cards lead with the question.
   const resolvedSubtitle = subtitle ?? t("subtitle")
   const activeIndex = questions.findIndex((q) => q.id === activeId)
   const nextId =
@@ -261,18 +255,16 @@ export function AskQuestionCard({
   // the read-only/answered view (`readOnly`). Tabs stay navigable in both.
   const locked = submitting || readOnly
 
-  // A selectable option card: the radix control state colors the card. The
-  // accent comes from our own selection state (not a radix data-attribute) so it
-  // is reliable regardless of the primitive's styling internals. The read-only
-  // view keeps the selection crisp (no opacity dim) so the answer stands out.
+  // Borderless option rows use a neutral selection surface. The parent focus
+  // ring keeps the visually hidden single-choice controls keyboard-visible.
   const cardClass = (selected: boolean) =>
     cn(
-      "flex w-full items-start gap-2.5 rounded-lg border p-2.5 font-normal transition-colors",
-      selected ? "border-primary bg-primary/10" : "border-border/60",
+      "group flex w-full items-start gap-2.5 rounded-2xl px-2 py-1.5 font-normal transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50",
+      selected && "bg-muted",
       submitting && "cursor-not-allowed opacity-60",
       readOnly && !submitting && "cursor-default",
       !submitting && !readOnly && "cursor-pointer",
-      !selected && !submitting && !readOnly && "hover:bg-muted/40"
+      !selected && !submitting && !readOnly && "hover:bg-muted"
     )
 
   const optionBody = (
@@ -284,13 +276,16 @@ export function AskQuestionCard({
       <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
         {text}
         {recommended && (
-          <Badge variant="secondary" className="text-3xs">
+          <Badge
+            variant="secondary"
+            className="rounded-md px-1.5 py-0 text-xs font-normal"
+          >
             {t("recommended")}
           </Badge>
         )}
       </span>
       {description && (
-        <span className="mt-0.5 block text-xs text-muted-foreground">
+        <span className="mt-0.5 block text-sm leading-5 text-muted-foreground">
           {description}
         </span>
       )}
@@ -387,7 +382,7 @@ export function AskQuestionCard({
           value={value}
           onValueChange={(v) => onRadioChange(q, v)}
           disabled={locked}
-          className="gap-1.5"
+          className="gap-1"
         >
           {q.options.map((opt, i) => {
             const selected = s?.chosen.includes(opt.label) ?? false
@@ -399,9 +394,24 @@ export function AskQuestionCard({
                   onClick={() => {
                     if (selected) clearChosen(q)
                   }}
-                  className="mt-0.5 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+                  className="sr-only"
                 />
+                <span
+                  aria-hidden="true"
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted text-sm tabular-nums text-muted-foreground"
+                >
+                  {i + 1}
+                </span>
                 {optionBody(text, recommended, opt.description)}
+                <ArrowRight
+                  aria-hidden="true"
+                  className={cn(
+                    "my-auto size-4 shrink-0 text-muted-foreground transition-opacity",
+                    selected
+                      ? "opacity-100"
+                      : "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100"
+                  )}
+                />
               </Label>
             )
           })}
@@ -411,9 +421,17 @@ export function AskQuestionCard({
               onClick={() => {
                 if (s?.otherActive) toggleOther(q)
               }}
-              className="mt-0.5 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
+              className="sr-only"
             />
-            <span className="text-sm font-medium">{t("other")}</span>
+            <span
+              aria-hidden="true"
+              className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted text-muted-foreground"
+            >
+              <Pencil className="size-3.5" />
+            </span>
+            <span className="py-1 text-sm font-normal text-muted-foreground">
+              {t("other")}
+            </span>
           </Label>
         </RadioGroup>
         {otherInput}
@@ -423,10 +441,12 @@ export function AskQuestionCard({
 
   const questionHeading = (q: QuestionSpec) => (
     <div className="flex items-center gap-2">
-      <Badge variant="outline" className="shrink-0 text-3xs">
-        {q.multi_select ? t("multiSelect") : t("singleSelect")}
-      </Badge>
-      <p className="text-sm text-foreground/90">{q.question}</p>
+      <p className="text-sm font-medium leading-6">{q.question}</p>
+      {q.multi_select && (
+        <Badge variant="secondary" className="shrink-0 text-3xs">
+          {t("multiSelect")}
+        </Badge>
+      )}
     </div>
   )
 
@@ -442,10 +462,7 @@ export function AskQuestionCard({
     <div
       role="group"
       aria-label={title ?? t("title")}
-      className={cn(
-        "mb-2 flex max-h-[88svh] flex-col overflow-hidden rounded-xl border border-primary/30 bg-card ws-msg-card",
-        readOnly ? "shadow-sm" : "shadow-lg"
-      )}
+      className="mb-2 flex max-h-[88svh] flex-col overflow-hidden rounded-[20px] border border-border/60 bg-card ws-msg-card"
     >
       {isMulti && (
         <Progress
@@ -456,20 +473,21 @@ export function AskQuestionCard({
         />
       )}
 
-      <div className="flex min-h-0 flex-col gap-3 p-3">
+      <div className="flex min-h-0 flex-col gap-3 p-2">
         {/* Header */}
         <div
           className={cn(
-            "flex shrink-0 gap-2.5",
+            "flex shrink-0 gap-2.5 px-2 pt-1.5 pb-0.5",
             resolvedSubtitle ? "items-start" : "items-center"
           )}
         >
-          <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted text-primary">
-            <MessageCircleQuestionMark className="size-4" />
-          </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium">{title ?? t("title")}</p>
-            {resolvedSubtitle && (
+            {!isMulti && !readOnly ? (
+              questionHeading(questions[0])
+            ) : (
+              <p className="text-sm font-medium">{title ?? t("title")}</p>
+            )}
+            {readOnly && resolvedSubtitle && (
               <p className="text-xs text-muted-foreground">
                 {resolvedSubtitle}
               </p>
@@ -524,10 +542,10 @@ export function AskQuestionCard({
             ))}
           </Tabs>
         ) : (
-          <div className="min-h-0 space-y-2.5 overflow-y-auto pr-1">
+          <div className="min-h-0 space-y-2.5 overflow-y-auto">
             {questions.map((q) => (
               <div key={q.id} className="space-y-2.5">
-                {questionHeading(q)}
+                {readOnly && questionHeading(q)}
                 {renderOptions(q)}
               </div>
             ))}
@@ -536,16 +554,17 @@ export function AskQuestionCard({
 
         {/* Footer — dropped in the read-only/answered view */}
         {!readOnly && (
-          <div className="flex shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center justify-end gap-2 px-2 pb-1">
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
+              className="h-7 rounded-full px-2.5 text-xs font-normal shadow-none"
               onClick={skip}
               disabled={submitting}
             >
               {t("skip")}
             </Button>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="flex items-center gap-2">
               {error && (
                 <span role="alert" className="text-xs text-destructive">
                   {t("submitError")}
@@ -564,6 +583,7 @@ export function AskQuestionCard({
               )}
               <Button
                 size="sm"
+                className="h-7 rounded-full px-3 text-xs font-normal shadow-none"
                 disabled={!complete || submitting}
                 onClick={submit}
               >

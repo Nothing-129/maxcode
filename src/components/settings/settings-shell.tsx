@@ -15,6 +15,7 @@ import {
   Globe,
   Keyboard,
   Menu,
+  Package,
   Search,
   MessageSquareText,
   SendHorizontal,
@@ -40,6 +41,7 @@ interface SettingsNavItem {
     | "general"
     | "appearance"
     | "agents"
+    | "skill_packs"
     | "quick_messages"
     | "shortcuts"
     | "version_control"
@@ -65,6 +67,11 @@ const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
     href: "/settings/agents",
     labelKey: "agents",
     icon: Bot,
+  },
+  {
+    href: "/settings/skill-packs",
+    labelKey: "skill_packs",
+    icon: Package,
   },
   {
     href: "/settings/quick-messages",

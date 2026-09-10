@@ -2000,10 +2000,6 @@
       "copiedField": "{field} copiado"
     },
     "conversationCard": {
-      "refreshTitle": "Regenerar título",
-      "refreshingTitle": "Regenerando título…",
-      "refreshTitleSuccess": "Título actualizado",
-      "refreshTitleFailed": "No se pudo regenerar el título: {message}",
       "folderZone": "División {name}",
       "otherFolderZone": "Otros",
       "closeFolderZone": "Cerrar división {name}",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "¿Qué te gustaría <highlight>hacer hoy</highlight>?",
+        "greetingWithFolder": "¿Qué te gustaría crear en <folder>proyecto</folder>?",
         "tips": {
           "tileTabs": "Haz clic derecho en una pestaña de conversación y elige Vista en mosaico para comparar varias sesiones lado a lado.",
           "pinTab": "Haz doble clic en una pestaña de conversación para fijarla y que una sesión nueva no la reemplace automáticamente.",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "Escanear para abrir",
     "qrcodeHint": "Escanea con tu teléfono para abrir MaxCode en el navegador",
     "addressLabel": "Dirección de acceso",
+    "publicShareSave": "Guardar",
+    "publicShareSaving": "Guardando…",
+    "publicShareSaved": "Guardado",
     "publicShareUrlLabel": "URL pública para compartir",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "Los enlaces para compartir prefieren esta dirección. Introduce la URL raíz HTTPS del proxy inverso, la redirección de puertos o el túnel; esta opción no configura el acceso público automáticamente.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "La tarea falló: {title}",
     "notifyReviewRedacted": "Hay una tarea lista para revisar",
     "notifyFailedRedacted": "Una tarea falló",
-    "createFromMessage": "Crear tarea desde el mensaje",
+    "newChatFromMessage": "Abrir en un chat nuevo",
     "detailTokens": "Tokens totales",
     "editorTitleNew": "Nueva tarea",
     "editorTitleEdit": "Editar tarea",

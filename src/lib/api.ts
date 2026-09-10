@@ -3277,12 +3277,6 @@ export async function updateConversationStatus(
   })
 }
 
-export async function refreshConversationTitle(
-  conversationId: number
-): Promise<string> {
-  return getTransport().call("refresh_conversation_title", { conversationId })
-}
-
 export async function updateConversationTitle(
   conversationId: number,
   title: string

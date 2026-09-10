@@ -110,7 +110,6 @@ describe("QuickActionsDropdown", () => {
       "Project Boot",
       "Open remote workspace",
       AUTOMATIONS_ROW,
-      "To-dos",
       FORGE_ROW,
       "Show pet",
     ]) {
@@ -169,10 +168,6 @@ describe("QuickActionsDropdown", () => {
     await reopen()
     await clickItem("Project Boot")
     expect(mocks.openProjectBootWindow).toHaveBeenCalled()
-
-    await reopen()
-    await clickItem("To-dos")
-    expect(mocks.setRoute).toHaveBeenCalledWith("tasks")
 
     await reopen()
     await clickItem(FORGE_ROW)

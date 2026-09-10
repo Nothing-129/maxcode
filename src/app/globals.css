@@ -2816,9 +2816,9 @@ div.monaco-diff-editor.side-by-side .editor.modified {
    Token 用量看板配色（.tu-viz 作用域）
 
    看板只说两种颜色的语言：--tu-accent（强调色）＝「由缓存承担的上下文」，
-   --tu-ink 及其淡阶（中性墨色）＝「真正新算的 Token」。趋势堆叠、缓存环、
+   --tu-ink 及其淡阶（新增数据色）＝「真正新算的 Token」。趋势堆叠、缓存环、
    构成条与热力图 ramp 全部由这两个锚派生，所以整页天然跟随外观预设的
-   强调色（emphasis 编码：一个彩色 + 中性灰阶，不再需要多色分类板——
+   强调色（中性主题使用蓝紫数据色，不再需要多色分类板——
    所有分档/排行图里身份都由行内文字直标承载，颜色只做量级提示）。
 
    强调色取 --primary：八个彩色预设下它就是主题色；亮色模式掺 14% 墨色，
@@ -2852,28 +2852,27 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   /* 暗色下主色本就落在中亮度带，不需要再压深 */
   --tu-accent: var(--primary);
 }
-/* 中性预设（neutral/zinc/slate/stone/gray）：--primary 是近黑/近白，看板随
-   之走全灰阶——不引入任何外来色相，和这些主题「主按钮就是黑白」的语言一致。
-   accent（=缓存）沿用上面的 primary 派生（近黑/近白）；「新算」墨阶整体下压
-   一档与 accent 拉开；seq ramp 顶部两档在灰阶下会贴在一起，重排为到 accent
-   为止的等距灰梯。公式全部混向 card/foreground，亮暗模式自动反向。
-   （:root:not([data-theme]) 是 inline 脚本失败时的兜底路径，同样中性。） */
+/* 中性主题仍保留数据色：蓝色缓存、紫色新增；仅作用于用量看板。
+   深色模式提高亮度，轨道和热力图继续从数据色与当前卡片底色派生。 */
 :root:not([data-theme]) .tu-viz,
 [data-theme="neutral"] .tu-viz,
 [data-theme="zinc"] .tu-viz,
 [data-theme="slate"] .tu-viz,
 [data-theme="stone"] .tu-viz,
 [data-theme="gray"] .tu-viz {
-  --tu-ink: color-mix(in oklab, var(--foreground) 52%, var(--card));
-  --tu-ink-2: color-mix(in oklab, var(--foreground) 33%, var(--card));
-  --tu-ink-3: color-mix(in oklab, var(--foreground) 18%, var(--card));
-  --tu-seq-1: color-mix(in oklab, var(--tu-accent) 10%, var(--card));
-  --tu-seq-2: color-mix(in oklab, var(--tu-accent) 22%, var(--card));
-  --tu-seq-3: color-mix(in oklab, var(--tu-accent) 35%, var(--card));
-  --tu-seq-4: color-mix(in oklab, var(--tu-accent) 49%, var(--card));
-  --tu-seq-5: color-mix(in oklab, var(--tu-accent) 64%, var(--card));
-  --tu-seq-6: color-mix(in oklab, var(--tu-accent) 81%, var(--card));
-  --tu-seq-7: var(--tu-accent);
+  --tu-accent: #3b82f6;
+  --tu-ink: #8b5cf6;
+  --tu-ink-2: color-mix(in oklab, var(--tu-ink) 72%, var(--card));
+  --tu-ink-3: color-mix(in oklab, var(--tu-ink) 48%, var(--card));
+}
+:root.dark:not([data-theme]) .tu-viz,
+.dark[data-theme="neutral"] .tu-viz,
+.dark[data-theme="zinc"] .tu-viz,
+.dark[data-theme="slate"] .tu-viz,
+.dark[data-theme="stone"] .tu-viz,
+.dark[data-theme="gray"] .tu-viz {
+  --tu-accent: #60a5fa;
+  --tu-ink: #a78bfa;
 }
 
 /* ─── Conversation canvas (ReactFlow) ─── */
@@ -3046,10 +3045,15 @@ div.monaco-diff-editor.side-by-side .editor.modified {
    of adding another 32px of blank space. The last reply keeps its normal row
    height so its actions remain inside the scroll viewport above the composer. */
 .maxcode-chat-column[data-thread-tail="false"] .maxcode-turn-actions {
-  height: 0;
+  /* Include the text-to-button gap in the hover target. A zero-height row
+     offset with `top` leaves a dead zone that hides actions on the way down. */
+  height: 2rem;
+  padding-top: 0.5rem;
   margin-top: 0;
+  margin-bottom: -2rem;
   position: relative;
-  top: 0.5rem;
+  /* Keep the buttons above the following virtual row's transparent padding. */
+  z-index: 1;
   align-items: flex-start;
 }
 

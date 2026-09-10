@@ -2000,10 +2000,6 @@
       "copiedField": "تم نسخ {field}"
     },
     "conversationCard": {
-      "refreshTitle": "إعادة إنشاء العنوان",
-      "refreshingTitle": "جارٍ إنشاء العنوان…",
-      "refreshTitleSuccess": "تم تحديث العنوان",
-      "refreshTitleFailed": "تعذر إنشاء العنوان: {message}",
       "folderZone": "قسم {name}",
       "otherFolderZone": "أخرى",
       "closeFolderZone": "إغلاق قسم {name}",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "ماذا تودّ أن <highlight>تفعل اليوم</highlight>؟",
+        "greetingWithFolder": "ماذا تودّ أن تبني في <folder>المشروع</folder>؟",
         "tips": {
           "tileTabs": "انقر بزر الفأرة الأيمن على تبويب محادثة واختر «عرض متجانب» لمقارنة عدة جلسات جنبًا إلى جنب.",
           "pinTab": "انقر نقرًا مزدوجًا على تبويب محادثة لتثبيته كي لا تستبدله جلسة جديدة تلقائيًا.",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "امسح للفتح",
     "qrcodeHint": "امسح بهاتفك لفتح MaxCode في المتصفح",
     "addressLabel": "عنوان الوصول",
+    "publicShareSave": "حفظ",
+    "publicShareSaving": "جارٍ الحفظ…",
+    "publicShareSaved": "تم الحفظ",
     "publicShareUrlLabel": "رابط المشاركة العام",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "تفضّل روابط المشاركة هذا العنوان. أدخل رابط HTTPS الجذري الذي يوفره الوكيل العكسي أو تحويل المنفذ أو النفق؛ لا يضبط هذا الخيار التوجيه العام تلقائيًا.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "فشلت المهمة: {title}",
     "notifyReviewRedacted": "هناك مهمة جاهزة للمراجعة",
     "notifyFailedRedacted": "فشلت إحدى المهمات",
-    "createFromMessage": "إنشاء مهمة من الرسالة",
+    "newChatFromMessage": "فتح في محادثة جديدة",
     "detailTokens": "إجمالي الرموز",
     "editorTitleNew": "مهمة جديدة",
     "editorTitleEdit": "تحرير المهمة",

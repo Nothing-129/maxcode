@@ -16,7 +16,7 @@ import { formatTokensPrecise } from "@/lib/token-usage"
  *
  * Colour comes from the `.tu-viz` scope in globals.css and speaks exactly two
  * languages: the theme accent (`--tu-accent`) means "context served from the
- * prompt cache", the neutral ink scale (`--tu-ink*`) means "freshly computed
+ * prompt cache", the fresh-token scale (`--tu-ink*`) means "freshly computed
  * tokens". Identity in every list is carried by inline text labels, so colour
  * is a magnitude cue, never the sole encoding.
  */

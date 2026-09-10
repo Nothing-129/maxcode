@@ -207,22 +207,24 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
               <span>{formatTokenCount(total ?? 0)}</span>
             </span>
           )}
-          <span
-            data-composer-cost-group=""
-            className="inline-flex items-center"
-          >
-            <span aria-hidden="true" className="mx-1 opacity-40">
-              ｜
-            </span>
+          {cost.inlineValue != null && (
             <span
-              data-composer-cost=""
-              className="whitespace-nowrap"
-              aria-label={`${cost.label}: ${cost.value}`}
-              title={`${cost.label}: ${cost.value} · ${cost.note}`}
+              data-composer-cost-group=""
+              className="inline-flex items-center"
             >
-              {cost.inlineValue}
+              <span aria-hidden="true" className="mx-1 opacity-40">
+                ｜
+              </span>
+              <span
+                data-composer-cost=""
+                className="whitespace-nowrap"
+                aria-label={`${cost.label}: ${cost.value}`}
+                title={`${cost.label}: ${cost.value} · ${cost.note}`}
+              >
+                {cost.inlineValue}
+              </span>
             </span>
-          </span>
+          )}
         </button>
       </PopoverTrigger>
       <PopoverContent

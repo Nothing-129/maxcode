@@ -2000,10 +2000,6 @@
       "copiedField": "{field} 복사됨"
     },
     "conversationCard": {
-      "refreshTitle": "제목 다시 생성",
-      "refreshingTitle": "제목 생성 중…",
-      "refreshTitleSuccess": "제목이 갱신되었습니다",
-      "refreshTitleFailed": "제목 생성 실패: {message}",
       "folderZone": "{name} 분할",
       "otherFolderZone": "기타",
       "closeFolderZone": "{name} 분할 닫기",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "오늘은 <highlight>무엇을</highlight> 해볼까요?",
+        "greetingWithFolder": "<folder>프로젝트</folder>에서 무엇을 만들까요?",
         "tips": {
           "tileTabs": "대화 탭을 우클릭하고 '바둑판 표시'를 선택하면 여러 세션을 나란히 비교할 수 있습니다",
           "pinTab": "대화 탭을 더블클릭하면 고정되어 새로 열린 세션이 자동으로 대체하지 않습니다",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "스캔하여 열기",
     "qrcodeHint": "휴대폰으로 스캔하여 브라우저에서 MaxCode를 엽니다",
     "addressLabel": "접속 주소",
+    "publicShareSave": "저장",
+    "publicShareSaving": "저장 중…",
+    "publicShareSaved": "저장됨",
     "publicShareUrlLabel": "공개 공유 URL",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "공유 링크는 이 주소를 우선 사용합니다. 리버스 프록시, 포트 포워딩 또는 터널에서 제공하는 HTTPS 루트 URL을 입력하세요. 공개 라우팅은 자동으로 구성되지 않습니다.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "작업 실패: {title}",
     "notifyReviewRedacted": "검토를 기다리는 작업이 있습니다",
     "notifyFailedRedacted": "작업이 실패했습니다",
-    "createFromMessage": "이 메시지로 작업 만들기",
+    "newChatFromMessage": "새 채팅에서 열기",
     "detailTokens": "총 토큰",
     "editorTitleNew": "새 작업",
     "editorTitleEdit": "작업 편집",

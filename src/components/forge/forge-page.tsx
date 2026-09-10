@@ -69,13 +69,11 @@ import { ForgeIssueDetailSheet } from "@/components/forge/forge-issue-detail-she
 import { ForgeIssueRowItem } from "@/components/forge/forge-issue-row"
 import { ForgeNewIssueDialog } from "@/components/forge/forge-new-issue-dialog"
 import { ForgeSettingsDialog } from "@/components/forge/forge-settings-dialog"
-import { ForgeStartDialog } from "@/components/forge/forge-start-dialog"
 import { useIsMobile } from "@/hooks/use-mobile"
 import {
   folderForgeRemote,
   forgeListIssues,
   forgeListLabels,
-  forgeSettingsGet,
   forgeTabCount,
   openSettingsWindow,
   workTaskLookupBySource,
@@ -95,7 +93,6 @@ import {
   type ForgePageSize,
 } from "@/lib/forge-list-prefs"
 import { pageCount, pageSlots } from "@/lib/forge-pagination"
-import { effectiveForgeSettings } from "@/lib/forge-settings"
 import { openUrl, subscribe } from "@/lib/platform"
 import { cn } from "@/lib/utils"
 import type {
@@ -106,7 +103,6 @@ import type {
   ForgeRemote,
   ForgeSort,
   ForgeTab,
-  ForgeSettingsStore,
   ForgeTaskLink,
 } from "@/lib/types"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -599,17 +595,9 @@ export function ForgePage() {
   const countsLoading = countsInFlight > 0
   const [error, setError] = useState<ListFailure | null>(null)
   const [links, setLinks] = useState<Map<string, ForgeTaskLink>>(new Map())
-  const [startRow, setStartRow] = useState<ForgeIssueRow | null>(null)
   /** The item the right-side detail panel is open on, or `null` for closed. */
   const [detailRow, setDetailRow] = useState<ForgeIssueRow | null>(null)
   const [newIssueOpen, setNewIssueOpen] = useState(false)
-  /** The panel's preferences, EVERY scope — what a trigger dialog OPENS with,
-   *  and nothing else this page reads. Loaded once and replaced in place when
-   *  the settings dialog saves; `null` means "not loaded yet, or the read
-   *  failed", which the trigger dialog treats as the built-in defaults rather
-   *  than as a reason to wait. Held as the whole store rather than as one
-   *  folder's resolved values so switching folders costs no round trip. */
-  const [settings, setSettings] = useState<ForgeSettingsStore | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [labelOptions, setLabelOptions] = useState<ForgeLabel[]>([])
   const [labelsTruncated, setLabelsTruncated] = useState(false)
@@ -652,7 +640,6 @@ export function ForgePage() {
     setRemote(null)
     setLoaded(null)
     setCounts({})
-    setStartRow(null)
     setDetailRow(null)
     // The new-issue dialog goes with them, and for the same reason as the
     // panel: it files against the folder it was opened over, and a folder
@@ -939,25 +926,10 @@ export function ForgePage() {
   // chrome a live button pointing at a page that no longer exists.
   useEffect(() => () => withdrawRefresh(), [withdrawRefresh])
 
-  // The chrome cluster's gear, and the preferences it edits. One read for the
-  // page's whole life: the store holds every scope, it only changes through the
-  // dialog next to this listener, and that dialog hands the stored values
-  // straight back. A failure is silent on purpose — the trigger dialog falls
-  // back to the built-in defaults, and a toast about preferences nobody asked
-  // for yet would be noise over a page that works.
   useEffect(() => {
-    let cancelled = false
-    forgeSettingsGet()
-      .then((s) => {
-        if (!cancelled) setSettings(s)
-      })
-      .catch(() => {})
     const open = () => setSettingsOpen(true)
     window.addEventListener(OPEN_FORGE_SETTINGS_EVENT, open)
-    return () => {
-      cancelled = true
-      window.removeEventListener(OPEN_FORGE_SETTINGS_EVENT, open)
-    }
+    return () => window.removeEventListener(OPEN_FORGE_SETTINGS_EVENT, open)
   }, [])
 
   // The typed text becomes a request only once typing stops. `search` is in the
@@ -1647,7 +1619,6 @@ export function ForgePage() {
                 link={linkFor(row)}
                 compact={isMobile}
                 onOpenDetail={() => setDetailRow(row)}
-                onStart={() => setStartRow(row)}
               />
             ))}
           </div>
@@ -1690,9 +1661,6 @@ export function ForgePage() {
         onOpenChange={(open) => {
           if (!open) setDetailRow(null)
         }}
-        onStart={() => {
-          if (detail != null) setStartRow(detail)
-        }}
         onRowUpdated={adoptRow}
         onCommentPosted={countComment}
       />
@@ -1721,22 +1689,6 @@ export function ForgePage() {
         />
       ) : null}
 
-      {startRow != null && readable != null && effectiveFolderId != null ? (
-        <ForgeStartDialog
-          row={startRow}
-          remote={readable}
-          folderId={effectiveFolderId}
-          // Resolved for the folder on screen: its own panel settings if it has
-          // any, else the global row (see `effectiveForgeSettings`).
-          settings={effectiveForgeSettings(settings, effectiveFolderId)}
-          onClose={() => setStartRow(null)}
-          onCreated={() => {
-            setStartRow(null)
-            void refreshLinks()
-          }}
-        />
-      ) : null}
-
       <ForgeSettingsDialog
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
@@ -1744,10 +1696,6 @@ export function ForgePage() {
         // are almost certainly there to change — with the picker inside to go
         // global or elsewhere.
         folderId={effectiveFolderId}
-        // Kept in the page rather than re-fetched: the next trigger dialog
-        // opens on what was just saved, and the read that seeded this page may
-        // have happened minutes ago.
-        onSaved={setSettings}
       />
     </div>
   )

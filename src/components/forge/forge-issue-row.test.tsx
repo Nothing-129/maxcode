@@ -1,10 +1,4 @@
-/**
- * The workbench row's three-state action. Two rules matter beyond the plain
- * rendering: the chip and the re-trigger are SIBLING controls (a button nested
- * in a button folds its text into the outer one's accessible name, and leaves
- * keyboard activation to the browser), and each does its own thing — the chip
- * navigates to the board, the re-trigger opens the dialog.
- */
+/** Issue rows retain browsing and metadata without work-task controls. */
 import { cleanup, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
@@ -90,58 +84,17 @@ beforeEach(() => {
 })
 
 describe("ForgeIssueRowItem", () => {
-  it("offers Start when no task has ever handled the item", async () => {
-    const user = userEvent.setup()
-    const onStart = mount(row(), null)
-    await user.click(screen.getByRole("button", { name: "Start" }))
-    expect(onStart).toHaveBeenCalledTimes(1)
-    expect(setRoute).not.toHaveBeenCalled()
-  })
-
-  it("shows a live status chip that goes to the board, with no re-trigger", async () => {
-    const user = userEvent.setup()
-    const onStart = mount(row(), link("running"))
-    expect(
-      screen.queryByRole("button", { name: "Start" })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "re-trigger" })
-    ).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "Running" }))
-    expect(setRoute).toHaveBeenCalledWith("tasks")
-    // A running task is not something to trigger again.
-    expect(onStart).not.toHaveBeenCalled()
-  })
-
-  it("keeps the chip and the re-trigger as separate controls on a finished task", async () => {
-    const user = userEvent.setup()
-    const onStart = mount(row(), link("done"))
-
-    // Nested, the chip's accessible name would swallow "re-trigger" and the
-    // inner control would need hand-written Enter/Space handling.
-    const chip = screen.getByRole("button", { name: "Done" })
-    const retrigger = screen.getByRole("button", { name: "re-trigger" })
-    expect(chip).not.toContainElement(retrigger)
-
-    await user.click(retrigger)
-    expect(onStart).toHaveBeenCalledTimes(1)
-    // The re-trigger opens the dialog; it does not also navigate away.
-    expect(setRoute).not.toHaveBeenCalled()
-
-    await user.click(chip)
-    expect(setRoute).toHaveBeenCalledWith("tasks")
-    expect(onStart).toHaveBeenCalledTimes(1)
-  })
-
-  it("re-triggers from the keyboard, which a plain button gives for free", async () => {
-    const user = userEvent.setup()
-    const onStart = mount(row(), link("canceled"))
-    screen.getByRole("button", { name: "re-trigger" }).focus()
-    await user.keyboard("{Enter}")
-    await user.keyboard(" ")
-    expect(onStart).toHaveBeenCalledTimes(2)
-  })
+  it.each([null, "running", "done", "canceled"] as const)(
+    "has no task actions for %s",
+    (status) => {
+      const onStart = mount(row(), status == null ? null : link(status))
+      expect(screen.queryByRole("button", { name: "Start" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "re-trigger" })).toBeNull()
+      expect(screen.queryByTitle("View task")).toBeNull()
+      expect(onStart).not.toHaveBeenCalled()
+      expect(setRoute).not.toHaveBeenCalled()
+    }
+  )
 
   it("shows the first labels and the identity line", () => {
     mount(row({ labels: ["a", "b", "c", "d", "e"].map((n) => label(n)) }), null)
@@ -206,66 +159,6 @@ describe("ForgeIssueRowItem", () => {
     cleanup()
     mount(row({ comments: 0 }), null)
     expect(screen.queryByText("0")).not.toBeInTheDocument()
-  })
-
-  /** Every action carries a glyph, so they read as one family rather than as a
-   *  button next to a stray link. All three are OUTLINE glyphs, like the state
-   *  icon at the head of the row — the one filled shape in the list pulled the
-   *  eye off the titles. The glyph is decoration: the accessible name must stay
-   *  the word. */
-  it("marks the actions with outline glyphs without renaming them", () => {
-    const { container } = render(
-      <NextIntlClientProvider locale="en" messages={enMessages}>
-        <ForgeIssueRowItem
-          row={row()}
-          link={null}
-          onOpenDetail={onOpenDetail}
-          onStart={vi.fn()}
-        />
-      </NextIntlClientProvider>
-    )
-    const start = screen.getByRole("button", { name: "Start" })
-    const startGlyph = container.querySelector<HTMLElement>(
-      ".lucide-circle-play"
-    )
-    expect(start).toContainElement(startGlyph)
-    // Outline: a `fill` would make this the only solid mark on the row.
-    expect(startGlyph).not.toHaveClass("fill-current")
-
-    cleanup()
-    mount(row(), link("done"))
-    const retrigger = screen.getByRole("button", { name: "re-trigger" })
-    expect(retrigger.querySelector(".lucide-rotate-ccw")).not.toBeNull()
-  })
-
-  /** The chip is the only thing on the row that talks about a WORK TASK rather
-   *  than about the issue, and it navigates to the to-do board — so it carries
-   *  the board's own glyph. Decoration, so the name stays the status word. */
-  it("marks a started item with the to-do glyph, keeping the status as its name", () => {
-    mount(row(), link("running"))
-    const chip = screen.getByRole("button", { name: "Running" })
-    expect(chip.querySelector(".lucide-list-todo")).not.toBeNull()
-  })
-
-  /** "Start" and the status chip occupy the SAME slot on successive rows, so a
-   *  difference in height or radius between them reads down the list as a
-   *  ragged column. Only the fill may differ — that is what separates an offer
-   *  to act from a task already under way. */
-  it("gives both row actions one shape, and lets only the fill differ", () => {
-    const geometry = ["h-7", "rounded-full", "px-3", "text-xs"]
-
-    mount(row(), null)
-    const start = screen.getByRole("button", { name: "Start" })
-    for (const cls of geometry) expect(start).toHaveClass(cls)
-    expect(start).toHaveClass("bg-secondary")
-
-    cleanup()
-    mount(row(), link("todo"))
-    const chip = screen.getByRole("button", { name: "To do" })
-    for (const cls of geometry) expect(chip).toHaveClass(cls)
-    // A live task is the accent fill; the shape is the one above.
-    expect(chip).toHaveClass("bg-primary/10")
-    expect(chip).not.toHaveClass("bg-secondary")
   })
 
   /** A triage list is scanned by label colour before it is read, so the chip

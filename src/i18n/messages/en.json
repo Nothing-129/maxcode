@@ -2000,10 +2000,6 @@
       "copiedField": "Copied {field}"
     },
     "conversationCard": {
-      "refreshTitle": "Refresh title",
-      "refreshingTitle": "Refreshing title…",
-      "refreshTitleSuccess": "Title refreshed",
-      "refreshTitleFailed": "Failed to refresh title: {message}",
       "folderZone": "{name} split",
       "otherFolderZone": "Other",
       "closeFolderZone": "Close {name} split",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "What would you like to <highlight>do today</highlight>?",
+        "greetingWithFolder": "What would you like to build in <folder>project</folder>?",
         "tips": {
           "tileTabs": "Right-click any conversation tab and choose Tile Display to see multiple sessions side by side.",
           "pinTab": "Double-click a conversation tab to pin it, so a newly opened session won't auto-replace it.",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "Scan to Open",
     "qrcodeHint": "Scan with your phone to open MaxCode in a browser",
     "addressLabel": "Access Address",
+    "publicShareSave": "Save",
+    "publicShareSaving": "Saving…",
+    "publicShareSaved": "Saved",
     "publicShareUrlLabel": "Public share URL",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "Share links prefer this address. Enter the HTTPS root URL provided by your reverse proxy, port forwarding, or tunnel; this setting does not configure public routing.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "Task failed: {title}",
     "notifyReviewRedacted": "A task is ready for review",
     "notifyFailedRedacted": "A task failed",
-    "createFromMessage": "Create task from message",
+    "newChatFromMessage": "Open in new chat",
     "detailTokens": "Total tokens",
     "editorTitleNew": "New task",
     "editorTitleEdit": "Edit task",

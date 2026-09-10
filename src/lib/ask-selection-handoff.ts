@@ -26,6 +26,8 @@ export interface AskSelectionParkedDetail {
 export interface ParkedAskPrompt {
   /** The composed prompt: quoted selection, blank line, the user's question. */
   prompt: string
+  /** Message actions prefill the composer; selection questions send by default. */
+  delivery?: "send" | "draft"
   /**
    * The state the target tab must be in before this prompt may be taken —
    * exactly what `openNewConversationTab` reported it would end up as.
@@ -83,7 +85,8 @@ export function parkAskSelectionPrompt(
  */
 export function consumeAskSelectionPrompts(
   tabId: string,
-  state: AskSelectionDrainState
+  state: AskSelectionDrainState,
+  delivery: "send" | "draft" = "send"
 ): string[] {
   const queued = parked.get(tabId)
   if (!queued) return []
@@ -92,6 +95,7 @@ export function consumeAskSelectionPrompts(
   const held: ParkedAskPrompt[] = []
   for (const entry of queued) {
     if (
+      (entry.delivery ?? "send") === delivery &&
       entry.agentType === state.agentType &&
       entry.folderId === state.folderId
     ) {

@@ -1,8 +1,5 @@
 "use client"
 
-import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
-import { RefreshCw } from "lucide-react"
-
 import { memo, useCallback, useEffect, useMemo, useRef } from "react"
 import { Reorder } from "motion/react"
 import type { PanInfo } from "motion/react"
@@ -125,8 +122,6 @@ export const TabItem = memo(function TabItem({
   onTouchSortingStart,
   onTouchSortingEnd,
 }: TabItemProps) {
-  const { refreshTitle, refreshing, refreshTitleLabel } =
-    useRefreshConversationTitle(tab.conversationId)
   const t = useTranslations("Folder.tabs")
   const showStatus = useConversationStatusDisplay()
   const itemRef = useRef<HTMLDivElement>(null)
@@ -413,17 +408,6 @@ export const TabItem = memo(function TabItem({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
-          {tab.conversationId != null && (
-            <ContextMenuItem
-              disabled={tab.conversationId == null || refreshing}
-              onSelect={() => void refreshTitle()}
-            >
-              <RefreshCw
-                className={cn("h-4 w-4", refreshing && "animate-spin")}
-              />
-              {refreshTitleLabel}
-            </ContextMenuItem>
-          )}
           <ContextMenuItem onSelect={handleClose}>{t("close")}</ContextMenuItem>
           <ContextMenuItem onSelect={handleCloseOthers}>
             {t("closeOthers")}

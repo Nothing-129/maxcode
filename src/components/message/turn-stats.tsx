@@ -7,7 +7,7 @@ import {
   CheckIcon,
   Coins,
   CopyIcon,
-  ListTodo,
+  MessageSquarePlus,
   Timer,
   Split,
 } from "lucide-react"
@@ -19,7 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useMessageScroll } from "@/components/message/message-scroll-context"
-import { useCreateTaskFromMessage } from "./use-create-task-from-message"
+import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
 import { formatTokenCount } from "@/lib/token-format"
 import { cn, copyTextToClipboard } from "@/lib/utils"
@@ -153,8 +153,8 @@ export function TurnStats({
     scroll?.scrollToIndex(previousUserIndex, { align: "start", smooth: true })
   }, [previousUserIndex, scroll])
 
-  const getTaskText = useCallback(() => copyText ?? "", [copyText])
-  const handleCreateTask = useCreateTaskFromMessage(getTaskText)
+  const getMessageText = useCallback(() => copyText ?? "", [copyText])
+  const handleNewChat = useNewChatFromMessage(getMessageText)
 
   const handleCopy = useCallback(async () => {
     if (isCopied || !hasCopy) return
@@ -214,15 +214,15 @@ export function TurnStats({
             <TooltipTrigger asChild>
               <button
                 type="button"
-                onClick={handleCreateTask}
+                onClick={handleNewChat}
                 className={iconButtonClass}
-                aria-label={tTasks("createFromMessage")}
+                aria-label={tTasks("newChatFromMessage")}
               >
-                <ListTodo aria-hidden="true" className="h-3.5 w-3.5" />
+                <MessageSquarePlus aria-hidden="true" className="h-3.5 w-3.5" />
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">
-              {tTasks("createFromMessage")}
+              {tTasks("newChatFromMessage")}
             </TooltipContent>
           </Tooltip>
         )}

@@ -2,12 +2,119 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.mobile-header-new-conversation",
+      "category": "product",
+      "description": "Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/conversations/conversation-detail-header.tsx"],
+      "contracts": ["src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"]
+    },
+    {
+      "id": "settings.public-share-layout",
+      "category": "product",
+      "description": "Public share URL stays in the Web service column in a separate section below local service controls and addresses, with spacing and a divider. Public URL edits require explicit Save with success/error feedback; other settings never persist the unsaved URL draft.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/settings/web-service-settings.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/web-service-share-layout.contract.test.ts",
+        "src/maxcode-contracts/web-service-share-save.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "token-usage.data-colors",
+      "category": "product",
+      "description": "Neutral themes retain blue cache charts and violet fresh tokens, with brighter dark-mode colors and shared palette for heatmaps and exported cards.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/app/globals.css", "src/components/token-usage/"],
+      "contracts": ["src/maxcode-contracts/token-usage-colors.contract.test.ts"]
+    },
+    {
+      "id": "chat.welcome-folder-switcher",
+      "category": "product",
+      "description": "Welcome greeting shows a clickable current project for folder drafts, scoped to the owning tab, and hides the folder in chat mode. Uses the existing searchable project switcher.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/components/chat/welcome-hero.tsx",
+        "src/components/chat/conversation-context-bar.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/welcome-folder-switcher.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.reference-question-picker",
+      "category": "product",
+      "description": "Question cards use a quiet rounded shell, direct question heading, borderless neutral option rows, numbered single-choice markers and a pencil for custom answers, preserving explicit submission and accessible selection controls.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/chat/ask-question-card.tsx"],
+      "contracts": ["src/maxcode-contracts/question-picker.contract.test.tsx"]
+    },
+    {
+      "id": "tasks.no-ui-entry-points",
+      "category": "product",
+      "description": "Work task UI is retired: no sidebar or quick-menu navigation, no registered task page/title/settings, and no Issue/PR start, retrigger or task-status navigation. Legacy task routes resolve to conversations. Message actions retain the normal new-chat draft flow.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/components/workbench/workbench-content.tsx",
+        "src/contexts/workbench-route-context.tsx",
+        "src/components/layout/quick-actions-dropdown.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/forge/forge-page.tsx",
+        "src/components/forge/forge-issue-row.tsx",
+        "src/components/forge/forge-issue-detail-sheet.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/no-task-entry-points.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "messages.action-hover-continuity",
+      "category": "product",
+      "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons, above the following virtual row, without increasing message spacing.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/message/turn-stats.tsx",
+        "src/components/message/virtualized-message-thread.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/message-action-hover.contract.test.ts"
+      ]
+    },
+    {
+      "id": "messages.new-chat-from-message",
+      "category": "product",
+      "description": "Message actions open a normal conversation and carry the original text into its unsent composer, retaining source folder and agent without creating a work task or auto-sending. Existing draft text is preserved.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/components/message/use-new-chat-from-message.ts",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/turn-stats.tsx",
+        "src/lib/ask-selection-handoff.ts",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/new-chat-from-message.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "workspace.update-action-color",
+      "category": "product",
+      "description": "The sidebar update action uses blue-600 in light mode and blue-400 in dark mode for visibility; update errors retain the destructive color.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/layout/status-bar-update.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+      ]
+    },
+    {
       "id": "android.fresh-frontend-entry",
       "category": "platform",
       "description": "Android uses a fresh HTML URL for both login and workspace bootstrap on every connection, bypassing pre-no-cache entry documents without clearing credentials or content-hashed asset caches.",
-      "origins": [
-        "worktree-2026-09-10"
-      ],
+      "origins": ["worktree-2026-09-10"],
       "paths": [
         "android-webview/app/src/main/java/app/codeg/web/UrlNormalizer.java",
         "android-webview/app/src/main/java/app/codeg/web/MainActivity.java",
@@ -144,7 +251,7 @@
     {
       "id": "composer.conversation-cost",
       "category": "product",
-      "description": "Refresh billing totals after each completed reply without switching conversations. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
+      "description": "Refresh billing totals after each completed reply without switching conversations. Hide the inline amount and its separator until a numeric estimate is available, including while loading or when pricing is unavailable. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/lib/conversation-cost.ts",
@@ -721,21 +828,14 @@
     {
       "id": "conversations.manual-title-refresh",
       "category": "product",
-      "description": "Conversation context menus explicitly regenerate titles with the saved model, dedupe pending UI requests, use structured fallback on generation failure while preserving existing structured titles and concurrent renames, and support Tauri/Web.",
-      "origins": ["worktree-2026-09-07"],
+      "description": "Conversation, sidebar and tab menus do not expose manual title refresh, and the frontend has no refresh-title request helper. Automatic title generation and manual renaming remain available.",
+      "origins": ["worktree-2026-09-07", "worktree-2026-09-10"],
       "paths": [
-        "src/hooks/use-refresh-conversation-title.ts",
         "src/components/conversations/sidebar-conversation-card.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/tabs/tab-item.tsx",
         "src/lib/api.ts",
-        "src/i18n/messages/",
-        "src-tauri/src/session_title.rs",
-        "src-tauri/src/commands/conversations.rs",
-        "src-tauri/src/db/service/conversation_service.rs",
-        "src-tauri/src/lib.rs",
-        "src-tauri/src/web/router.rs",
-        "src-tauri/src/web/handlers/conversations.rs"
+        "src/i18n/messages/"
       ],
       "contracts": [
         "src/maxcode-contracts/manual-title-refresh.contract.test.tsx"
@@ -1304,7 +1404,7 @@
     {
       "id": "settings.in-window-navigation",
       "category": "product",
-      "description": "Workspace settings open within the current window, retain the mounted conversation/draft and return via Back to app without opening a popup or backend window. Main navigation omits MCP, Skills, Skill Packs and Model Providers. Category switches retain visited pages until settings close, preserving local edits and containing lazy loading within the content pane.",
+      "description": "Workspace settings open within the current window, retain the mounted conversation/draft and return via Back to app without opening a popup or backend window. Main navigation exposes Skill Packs (including OfficeCLI installation) and omits MCP, Skills and Model Providers. Category switches retain visited pages until settings close, preserving local edits and containing lazy loading within the content pane.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/lib/in-app-settings.ts",

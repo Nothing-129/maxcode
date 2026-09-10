@@ -15,8 +15,8 @@ import {
 } from "@/lib/prompt-draft"
 import type { PromptInputBlock } from "@/lib/types"
 
-vi.mock("@/components/message/use-create-task-from-message", () => ({
-  useCreateTaskFromMessage: () => vi.fn(),
+vi.mock("@/components/message/use-new-chat-from-message", () => ({
+  useNewChatFromMessage: () => vi.fn(),
 }))
 
 const group: ResolvedMessageGroup = {

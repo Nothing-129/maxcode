@@ -2000,10 +2000,6 @@
       "copiedField": "已复制{field}"
     },
     "conversationCard": {
-      "refreshTitle": "刷新标题",
-      "refreshingTitle": "正在刷新标题…",
-      "refreshTitleSuccess": "标题已刷新",
-      "refreshTitleFailed": "刷新标题失败：{message}",
       "folderZone": "{name} 分区",
       "otherFolderZone": "其他",
       "closeFolderZone": "关闭 {name} 分区",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "今天准备<highlight>做些什么</highlight>呢？",
+        "greetingWithFolder": "你想让我们在 <folder>项目</folder> 中构建什么？",
         "tips": {
           "tileTabs": "右键点击会话标签选择「平铺显示」，可同屏对比多个会话",
           "pinTab": "双击会话标签可将其固定，避免被新打开的会话自动替换",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "扫码打开",
     "qrcodeHint": "用手机扫描，在浏览器中打开 MaxCode",
     "addressLabel": "访问地址",
+    "publicShareSave": "保存",
+    "publicShareSaving": "保存中…",
+    "publicShareSaved": "已保存",
     "publicShareUrlLabel": "公网分享地址",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "分享链接会优先使用此地址。请填写反向代理、端口映射或隧道提供的 HTTPS 根地址；这里不会自动配置公网转发。",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "任务失败：{title}",
     "notifyReviewRedacted": "有任务等待验收",
     "notifyFailedRedacted": "有任务失败",
-    "createFromMessage": "由此消息创建任务",
+    "newChatFromMessage": "在新对话中打开",
     "detailTokens": "总 token 用量",
     "editorTitleNew": "新建任务",
     "editorTitleEdit": "编辑任务",

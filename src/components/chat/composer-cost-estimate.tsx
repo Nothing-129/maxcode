@@ -12,7 +12,7 @@ import type {
   OpenCodeCatalogProvider,
 } from "@/lib/types"
 
-/** Shared by the always-visible amount and expanded cost details. */
+/** Shared by the inline amount and expanded cost details. */
 export function useComposerCostEstimate(
   buckets: ConversationBillingUsage[] | null
 ) {
@@ -54,9 +54,7 @@ export function useComposerCostEstimate(
   const inlineValue =
     estimate?.usd != null
       ? `$${estimate.usd.toFixed(2)}${estimate.complete ? "" : "*"}`
-      : hasBuckets && !catalog && !failed
-        ? "$…"
-        : "$--"
+      : null
   return { value, label, note, inlineValue }
 }
 

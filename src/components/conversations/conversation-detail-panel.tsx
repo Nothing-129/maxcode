@@ -1756,6 +1756,18 @@ const ConversationTabView = memo(function ConversationTabView({
   // the tab is self-consistently the OLD one.
   useEffect(() => {
     const drain = () => {
+      const drafts = consumeAskSelectionPrompts(
+        tabId,
+        { agentType: selectedAgent, folderId },
+        "draft"
+      )
+      if (drafts.length > 0) {
+        // Reused tabs may already hold unsent text; append without discarding it.
+        setComposerInject((pending) => ({
+          text: [pending?.text, ...drafts].filter(Boolean).join("\n\n"),
+          mode: "append",
+        }))
+      }
       const prompts = consumeAskSelectionPrompts(tabId, {
         agentType: selectedAgent,
         folderId,
@@ -2245,7 +2257,7 @@ const ConversationTabView = memo(function ConversationTabView({
           <div className="flex min-h-full flex-col">
             <div className="flex-1" />
             <div className="mx-auto flex w-full maxcode-chat-column shrink-0 flex-col gap-6 px-4 py-4">
-              <WelcomeHero />
+              <WelcomeHero tabId={tabId} />
               <div className="flex justify-center">
                 <AgentSelector
                   // The selector spans the row it is given (it has to measure

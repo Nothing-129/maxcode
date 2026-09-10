@@ -3,7 +3,7 @@
  *
  * The file column is the default and the better answer whenever it is on
  * screen. The whole point of the hook is the ONE case where it is not: a
- * full-page workbench route (the task board, the canvas) covers the workspace,
+ * full-page workbench route (the canvas, automations) covers the workspace,
  * so a tab opened there is invisible and the click reads as broken. These pin
  * down that switch — and, just as importantly, that it does not fire anywhere
  * else, because routing to a drawer when the column was visible would be a
@@ -48,7 +48,7 @@ function Host({ children }: { children: ReactNode }) {
 }
 
 /** Clicks a file badge, and (when a route is available) can leave the
- *  conversations route the way the sidebar's task/canvas buttons do. */
+ *  conversations route the way the sidebar's canvas button do. */
 function Opener() {
   const openFileTarget = useOpenFileTarget()
   return (
@@ -79,7 +79,7 @@ function DiffOpener() {
   )
 }
 
-function RouteSwitch({ to }: { to: "tasks" | "conversations" }) {
+function RouteSwitch({ to }: { to: "canvas" | "conversations" }) {
   const { setRoute } = useWorkbenchRoute()
   return (
     <button type="button" onClick={() => setRoute(to)}>
@@ -121,14 +121,14 @@ describe("useOpenFileTarget", () => {
   it("opens in the transcript's viewer once a full-page route covers the column", () => {
     render(
       <WorkbenchRouteProvider>
-        <RouteSwitch to="tasks" />
+        <RouteSwitch to="canvas" />
         <Host>
           <Opener />
         </Host>
       </WorkbenchRouteProvider>
     )
 
-    click("go tasks")
+    click("go canvas")
     click("open file")
 
     expect(mockOpenFilePreview).not.toHaveBeenCalled()
@@ -143,12 +143,12 @@ describe("useOpenFileTarget", () => {
     // is still better than swallowing the click.
     render(
       <WorkbenchRouteProvider>
-        <RouteSwitch to="tasks" />
+        <RouteSwitch to="canvas" />
         <Opener />
       </WorkbenchRouteProvider>
     )
 
-    click("go tasks")
+    click("go canvas")
     click("open file")
 
     expect(opened).toEqual([])
@@ -160,14 +160,14 @@ describe("useOpenFileTarget", () => {
     // one was left opening a tab behind the board with nothing to show for it.
     render(
       <WorkbenchRouteProvider>
-        <RouteSwitch to="tasks" />
+        <RouteSwitch to="canvas" />
         <Host>
           <DiffOpener />
         </Host>
       </WorkbenchRouteProvider>
     )
 
-    click("go tasks")
+    click("go canvas")
     click("view diff")
 
     expect(mockOpenSessionFileDiff).not.toHaveBeenCalled()

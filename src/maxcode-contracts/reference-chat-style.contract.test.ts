@@ -26,9 +26,9 @@ describe("reference chat presentation", () => {
     const historicalActions = css.match(
       /\.maxcode-chat-column\[data-thread-tail="false"\] \.maxcode-turn-actions\s*\{([^}]+)\}/
     )?.[1]
-    expect(historicalActions).toContain("height: 0")
+    expect(historicalActions).toContain("margin-bottom: -2rem")
     expect(historicalActions).toContain("margin-top: 0")
-    expect(historicalActions).toContain("top: 0.5rem")
+    expect(historicalActions).toContain("padding-top: 0.5rem")
     expect(css).not.toContain('[data-thread-tail="true"] .maxcode-turn-actions')
     const stats = source("src/components/message/turn-stats.tsx")
     expect(stats).toContain("maxcode-turn-actions mt-2")

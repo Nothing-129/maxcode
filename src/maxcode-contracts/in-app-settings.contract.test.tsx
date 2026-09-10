@@ -52,12 +52,18 @@ describe("in-window settings", () => {
     expect(css).toContain("[data-settings-surface] [data-setting-card]")
   })
 
-  it("omits the four advanced categories from the main settings navigation", () => {
+  it("exposes skill packs while keeping the other advanced categories hidden", () => {
     const shell = source("src/components/settings/settings-shell.tsx")
-    for (const path of ["mcp", "skills", "skill-packs", "model-providers"]) {
+    for (const path of ["mcp", "skills", "model-providers"]) {
       expect(shell).not.toContain(`href: "/settings/${path}"`)
     }
-    for (const path of ["general", "appearance", "agents", "shortcuts"]) {
+    for (const path of [
+      "general",
+      "appearance",
+      "agents",
+      "skill-packs",
+      "shortcuts",
+    ]) {
       expect(shell).toContain(`href: "/settings/${path}"`)
     }
   })

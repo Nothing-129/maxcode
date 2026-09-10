@@ -96,7 +96,7 @@ export function StatusBarUpdate() {
           onClick={() => void handleUpdate()}
           className={cn(
             "flex size-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
-            failed ? "text-destructive" : "text-primary"
+            failed ? "text-destructive" : "text-blue-600 dark:text-blue-400"
           )}
         >
           {busy ? (

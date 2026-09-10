@@ -2000,10 +2000,6 @@
       "copiedField": "{field} copié"
     },
     "conversationCard": {
-      "refreshTitle": "Régénérer le titre",
-      "refreshingTitle": "Génération du titre…",
-      "refreshTitleSuccess": "Titre actualisé",
-      "refreshTitleFailed": "Échec de la génération du titre : {message}",
       "folderZone": "Division {name}",
       "otherFolderZone": "Autres",
       "closeFolderZone": "Fermer la division {name}",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "Que souhaites-tu <highlight>faire aujourd'hui</highlight> ?",
+        "greetingWithFolder": "Que souhaites-tu créer dans <folder>projet</folder> ?",
         "tips": {
           "tileTabs": "Faites un clic droit sur un onglet de conversation et choisissez Affichage en mosaïque pour comparer plusieurs sessions côte à côte.",
           "pinTab": "Double-cliquez sur un onglet de conversation pour l'épingler : une nouvelle session ne le remplacera plus automatiquement.",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "Scanner pour ouvrir",
     "qrcodeHint": "Scannez avec votre téléphone pour ouvrir MaxCode dans un navigateur",
     "addressLabel": "Adresse d'accès",
+    "publicShareSave": "Enregistrer",
+    "publicShareSaving": "Enregistrement…",
+    "publicShareSaved": "Enregistré",
     "publicShareUrlLabel": "URL publique de partage",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "Les liens de partage utilisent cette adresse en priorité. Saisissez l’URL racine HTTPS fournie par votre proxy inverse, redirection de port ou tunnel ; le routage public n’est pas configuré automatiquement.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "La tâche a échoué : {title}",
     "notifyReviewRedacted": "Une tâche attend d'être relue",
     "notifyFailedRedacted": "Une tâche a échoué",
-    "createFromMessage": "Créer une tâche depuis le message",
+    "newChatFromMessage": "Ouvrir dans une nouvelle discussion",
     "detailTokens": "Total de tokens",
     "editorTitleNew": "Nouvelle tâche",
     "editorTitleEdit": "Modifier la tâche",

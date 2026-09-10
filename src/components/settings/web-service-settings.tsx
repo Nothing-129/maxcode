@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -288,6 +288,12 @@ export function WebServiceSettings() {
   const [portProbe, setPortProbe] = useState<WebServicePortProbe | null>(null)
   const [autoStart, setAutoStart] = useState(false)
   const [publicShareUrl, setPublicShareUrl] = useState("")
+  const configWriteQueue = useRef<Promise<unknown>>(Promise.resolve())
+  const savedPublicShareUrl = useRef<string | null>(null)
+  const [publicShareSaving, setPublicShareSaving] = useState(false)
+  const [publicShareFeedback, setPublicShareFeedback] = useState<
+    "saved" | "invalid" | "failed" | null
+  >(null)
   const [configLoaded, setConfigLoaded] = useState(false)
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null)
 
@@ -318,6 +324,7 @@ export function WebServiceSettings() {
       setStatus(info)
       setAutoStart(savedConfig.autoStart ?? false)
       setPublicShareUrl(savedConfig.publicShareUrl ?? "")
+      savedPublicShareUrl.current = savedConfig.publicShareUrl
       if (info) {
         setPort(String(info.port))
         setToken(info.token)
@@ -381,27 +388,25 @@ export function WebServiceSettings() {
       if (!Number.isFinite(portNum) || portNum < 1 || portNum > 65535) {
         return
       }
-      const normalizedPublicShareUrl = publicShareUrl.trim()
-        ? normalizeConversationPublicShareUrl(publicShareUrl)
-        : null
-      if (publicShareUrl.trim() && !normalizedPublicShareUrl) {
-        setError(t("publicShareUrlInvalid"))
-        return
-      }
-
       try {
-        await updateWebServiceConfig({
-          port: portNum,
-          token: token.trim() || null,
-          autoStart: nextAutoStart,
-          publicShareUrl: normalizedPublicShareUrl,
-        })
+        const write = configWriteQueue.current
+          .catch(() => {})
+          .then(() =>
+            updateWebServiceConfig({
+              port: portNum,
+              token: token.trim() || null,
+              autoStart: nextAutoStart,
+              publicShareUrl: savedPublicShareUrl.current,
+            })
+          )
+        configWriteQueue.current = write
+        await write
         setError("")
       } catch {
         setError(t("saveConfigFailed"))
       }
     },
-    [autoStart, port, publicShareUrl, t, token]
+    [autoStart, port, t, token]
   )
 
   useEffect(() => {
@@ -417,6 +422,38 @@ export function WebServiceSettings() {
 
     return () => window.clearTimeout(timeout)
   }, [configLoaded, persistWebServiceConfig, port])
+
+  async function handleSavePublicShareUrl() {
+    const normalized = publicShareUrl.trim()
+      ? normalizeConversationPublicShareUrl(publicShareUrl)
+      : null
+    if (publicShareUrl.trim() && !normalized) {
+      setPublicShareFeedback("invalid")
+      return
+    }
+    setPublicShareSaving(true)
+    setPublicShareFeedback(null)
+    try {
+      const write = configWriteQueue.current
+        .catch(() => {})
+        .then(async () => {
+          const config = await getWebServiceConfig()
+          const saved = await updateWebServiceConfig({
+            ...config,
+            publicShareUrl: normalized,
+          })
+          savedPublicShareUrl.current = saved.publicShareUrl
+          setPublicShareUrl(saved.publicShareUrl ?? "")
+        })
+      configWriteQueue.current = write
+      await write
+      setPublicShareFeedback("saved")
+    } catch {
+      setPublicShareFeedback("failed")
+    } finally {
+      setPublicShareSaving(false)
+    }
+  }
 
   const startErrorKeys: Record<string, string> = {
     "web_server.already_running": "errors.alreadyRunning",
@@ -545,25 +582,6 @@ export function WebServiceSettings() {
           />
           <p className="text-xs text-muted-foreground">{t("tokenHint")}</p>
 
-          {/* Used only to construct public capability links. The reverse
-              proxy/tunnel remains responsible for routing this origin here. */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("publicShareUrlLabel")}
-            </label>
-            <input
-              type="url"
-              value={publicShareUrl}
-              onChange={(event) => setPublicShareUrl(event.target.value)}
-              placeholder={t("publicShareUrlPlaceholder")}
-              spellCheck={false}
-              className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            />
-            <p className="text-xs text-muted-foreground">
-              {t("publicShareUrlHint")}
-            </p>
-          </div>
-
           {/* Auto-start config */}
           <div className="flex items-center gap-4">
             <label className="w-20 text-sm font-medium">{t("autoStart")}</label>
@@ -628,6 +646,63 @@ export function WebServiceSettings() {
             </div>
           )}
         </div>
+
+        {/* Used only to construct public capability links. The reverse
+            proxy/tunnel remains responsible for routing this origin here. */}
+        <section
+          aria-labelledby="public-share-url-label"
+          className="space-y-2 border-t pt-6"
+        >
+          <label
+            id="public-share-url-label"
+            htmlFor="public-share-url"
+            className="text-sm font-medium"
+          >
+            {t("publicShareUrlLabel")}
+          </label>
+          <input
+            id="public-share-url"
+            type="url"
+            value={publicShareUrl}
+            onChange={(event) => {
+              setPublicShareUrl(event.target.value)
+              setPublicShareFeedback(null)
+            }}
+            disabled={!configLoaded || publicShareSaving}
+            placeholder={t("publicShareUrlPlaceholder")}
+            spellCheck={false}
+            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <p className="text-xs text-muted-foreground">
+            {t("publicShareUrlHint")}
+          </p>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleSavePublicShareUrl}
+              disabled={!configLoaded || publicShareSaving}
+              className="inline-flex h-9 shrink-0 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            >
+              {t(publicShareSaving ? "publicShareSaving" : "publicShareSave")}
+            </button>
+            <p
+              role="status"
+              className={
+                publicShareFeedback === "saved"
+                  ? "text-xs text-muted-foreground"
+                  : "text-xs text-destructive"
+              }
+            >
+              {publicShareFeedback === "saved"
+                ? t("publicShareSaved")
+                : publicShareFeedback === "invalid"
+                  ? t("publicShareUrlInvalid")
+                  : publicShareFeedback === "failed"
+                    ? t("saveConfigFailed")
+                    : null}
+            </p>
+          </div>
+        </section>
       </div>
     </ScrollArea>
   )

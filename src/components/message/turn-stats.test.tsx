@@ -4,10 +4,10 @@ import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
 
-// The create-task action pulls workbench-route + tab-store contexts that this
+// The new-chat action pulls workbench-route + tab-store contexts that this
 // unit test doesn't mount; stub it to a no-op handler.
-vi.mock("./use-create-task-from-message", () => ({
-  useCreateTaskFromMessage: () => () => {},
+vi.mock("./use-new-chat-from-message", () => ({
+  useNewChatFromMessage: () => () => {},
 }))
 
 import { resolveTurnDurationMs, TurnStats } from "./turn-stats"

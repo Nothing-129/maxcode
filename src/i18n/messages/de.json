@@ -2000,10 +2000,6 @@
       "copiedField": "{field} kopiert"
     },
     "conversationCard": {
-      "refreshTitle": "Titel neu generieren",
-      "refreshingTitle": "Titel wird generiert…",
-      "refreshTitleSuccess": "Titel aktualisiert",
-      "refreshTitleFailed": "Titel konnte nicht generiert werden: {message}",
       "folderZone": "Bereich {name}",
       "otherFolderZone": "Andere",
       "closeFolderZone": "Bereich {name} schließen",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "Was möchtest du heute <highlight>machen</highlight>?",
+        "greetingWithFolder": "Was möchtest du in <folder>Projekt</folder> bauen?",
         "tips": {
           "tileTabs": "Klicke mit der rechten Maustaste auf einen Konversations-Tab und wähle Kachelansicht, um mehrere Sitzungen nebeneinander zu sehen.",
           "pinTab": "Doppelklicke auf einen Konversations-Tab, um ihn anzuheften – so wird er nicht von einer neuen Sitzung automatisch ersetzt.",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "Zum Öffnen scannen",
     "qrcodeHint": "Scanne mit deinem Handy, um MaxCode im Browser zu öffnen",
     "addressLabel": "Zugriffsadresse",
+    "publicShareSave": "Speichern",
+    "publicShareSaving": "Wird gespeichert…",
+    "publicShareSaved": "Gespeichert",
     "publicShareUrlLabel": "Öffentliche Freigabe-URL",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "Freigabelinks bevorzugen diese Adresse. Gib die HTTPS-Stamm-URL deines Reverse-Proxys, deiner Portweiterleitung oder deines Tunnels ein; öffentliches Routing wird nicht automatisch eingerichtet.",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "Aufgabe fehlgeschlagen: {title}",
     "notifyReviewRedacted": "Eine Aufgabe wartet auf die Abnahme",
     "notifyFailedRedacted": "Eine Aufgabe ist fehlgeschlagen",
-    "createFromMessage": "Aufgabe aus Nachricht erstellen",
+    "newChatFromMessage": "In neuem Chat öffnen",
     "detailTokens": "Token insgesamt",
     "editorTitleNew": "Neue Aufgabe",
     "editorTitleEdit": "Aufgabe bearbeiten",

@@ -2000,10 +2000,6 @@
       "copiedField": "已複製{field}"
     },
     "conversationCard": {
-      "refreshTitle": "重新產生標題",
-      "refreshingTitle": "正在重新產生標題…",
-      "refreshTitleSuccess": "標題已更新",
-      "refreshTitleFailed": "重新產生標題失敗：{message}",
       "folderZone": "{name} 分區",
       "otherFolderZone": "其他",
       "closeFolderZone": "關閉 {name} 分區",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "今天打算<highlight>做些什麼</highlight>呢？",
+        "greetingWithFolder": "你想讓我們在 <folder>專案</folder> 中建構什麼？",
         "tips": {
           "tileTabs": "右鍵點擊會話標籤選擇「平鋪顯示」，可同螢幕對比多個會話",
           "pinTab": "雙擊會話標籤可將其固定，避免被新開啟的會話自動取代",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "掃碼開啟",
     "qrcodeHint": "用手機掃描，在瀏覽器中開啟 MaxCode",
     "addressLabel": "存取位址",
+    "publicShareSave": "儲存",
+    "publicShareSaving": "儲存中…",
+    "publicShareSaved": "已儲存",
     "publicShareUrlLabel": "公網分享位址",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "分享連結會優先使用此位址。請填入反向代理、連接埠轉送或通道提供的 HTTPS 根位址；這裡不會自動設定公網轉送。",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "任務失敗：{title}",
     "notifyReviewRedacted": "有任務等待驗收",
     "notifyFailedRedacted": "有任務失敗",
-    "createFromMessage": "由此訊息建立任務",
+    "newChatFromMessage": "在新對話中開啟",
     "detailTokens": "總 token 用量",
     "editorTitleNew": "新增任務",
     "editorTitleEdit": "編輯任務",

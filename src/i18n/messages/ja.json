@@ -2000,10 +2000,6 @@
       "copiedField": "{field}をコピーしました"
     },
     "conversationCard": {
-      "refreshTitle": "タイトルを再生成",
-      "refreshingTitle": "タイトルを再生成中…",
-      "refreshTitleSuccess": "タイトルを更新しました",
-      "refreshTitleFailed": "タイトルの再生成に失敗しました：{message}",
       "folderZone": "{name} 分割",
       "otherFolderZone": "その他",
       "closeFolderZone": "{name} 分割を閉じる",
@@ -3085,6 +3081,7 @@
       },
       "welcomePanel": {
         "greeting": "今日は<highlight>何を</highlight>しましょうか？",
+        "greetingWithFolder": "<folder>プロジェクト</folder> で何を作りましょうか？",
         "tips": {
           "tileTabs": "会話タブを右クリックして「タイル表示」を選ぶと、複数のセッションを並べて比較できます",
           "pinTab": "会話タブをダブルクリックすると固定でき、新しい会話に自動で置き換えられなくなります",
@@ -3949,6 +3946,9 @@
     "qrcodeTitle": "スキャンして開く",
     "qrcodeHint": "スマートフォンでスキャンして、ブラウザで MaxCode を開きます",
     "addressLabel": "アクセスアドレス",
+    "publicShareSave": "保存",
+    "publicShareSaving": "保存中…",
+    "publicShareSaved": "保存しました",
     "publicShareUrlLabel": "公開共有 URL",
     "publicShareUrlPlaceholder": "https://maxcode.example.com",
     "publicShareUrlHint": "共有リンクではこのアドレスが優先されます。リバースプロキシ、ポート転送、またはトンネルが提供する HTTPS ルート URL を入力してください。公開転送は自動設定されません。",
@@ -5090,7 +5090,7 @@
     "notifyFailed": "タスクが失敗しました: {title}",
     "notifyReviewRedacted": "レビュー待ちのタスクがあります",
     "notifyFailedRedacted": "タスクが失敗しました",
-    "createFromMessage": "このメッセージからタスクを作成",
+    "newChatFromMessage": "新しいチャットで開く",
     "detailTokens": "合計トークン",
     "editorTitleNew": "新規タスク",
     "editorTitleEdit": "タスクを編集",

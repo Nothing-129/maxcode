@@ -50,6 +50,36 @@ const bucket: ConversationBillingUsage = {
 }
 
 describe("MaxCode: conversation cost, CC Switch accounting reference", () => {
+  it.each([null, []])(
+    "hides the inline cost without billing data: %s",
+    (buckets) => {
+      const { result } = renderHook(() => useComposerCostEstimate(buckets))
+      expect(result.current.inlineValue).toBeNull()
+    }
+  )
+
+  it("hides the inline cost while loading and when prices are missing", async () => {
+    fetchCatalog.mockResolvedValueOnce([])
+    const { result } = renderHook(() => useComposerCostEstimate([bucket]))
+    expect(result.current.inlineValue).toBeNull()
+    await waitFor(() => expect(result.current.value).toBe("--"))
+    expect(result.current.inlineValue).toBeNull()
+  })
+
+  it("hides the inline cost after a catalog failure", async () => {
+    fetchCatalog.mockRejectedValueOnce(new Error("offline"))
+    const { result } = renderHook(() => useComposerCostEstimate([bucket]))
+    await waitFor(() => expect(result.current.value).toBe("--"))
+    expect(result.current.inlineValue).toBeNull()
+  })
+
+  it("gates the entire inline cost group including its separator", () => {
+    const usage = source("src/components/chat/composer-context-usage.tsx")
+    expect(usage).toMatch(
+      /cost\.inlineValue != null && \(\s*<span\s*data-composer-cost-group/
+    )
+  })
+
   it.each([
     [0.2867, "$0.29"],
     [1.2, "$1.20"],

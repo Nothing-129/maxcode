@@ -413,42 +413,17 @@ describe("ForgeIssueDetailSheet", () => {
     expect(link).toHaveAttribute("target", "_blank")
   })
 
-  it("offers Start when no task has ever handled the item", async () => {
-    const user = userEvent.setup()
-    const { onStart } = mount(row())
-    await user.click(screen.getByRole("button", { name: "Start" }))
-    expect(onStart).toHaveBeenCalledTimes(1)
-    expect(setRoute).not.toHaveBeenCalled()
-  })
-
-  it("shows a live task's status chip, which goes to the board", async () => {
-    const user = userEvent.setup()
-    const { onStart } = mount(row(), taskLink("running"))
-    expect(
-      screen.queryByRole("button", { name: "Start" })
-    ).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole("button", { name: "re-trigger" })
-    ).not.toBeInTheDocument()
-
-    await user.click(screen.getByRole("button", { name: "Running" }))
-    expect(setRoute).toHaveBeenCalledWith("tasks")
-    expect(onStart).not.toHaveBeenCalled()
-  })
-
-  /** Same rule as the row: siblings, never nested — a control inside a button
-   *  folds its text into that button's accessible name. */
-  it("keeps the chip and the re-trigger as separate controls once settled", async () => {
-    const user = userEvent.setup()
-    const { onStart } = mount(row(), taskLink("done"))
-    const chip = screen.getByRole("button", { name: "Done" })
-    const retrigger = screen.getByRole("button", { name: "re-trigger" })
-    expect(chip).not.toContainElement(retrigger)
-
-    await user.click(retrigger)
-    expect(onStart).toHaveBeenCalledTimes(1)
-    expect(setRoute).not.toHaveBeenCalled()
-  })
+  it.each([null, "running", "done"] as const)(
+    "has no task actions for %s",
+    (status) => {
+      const { onStart } = mount(row(), status == null ? null : taskLink(status))
+      expect(screen.queryByRole("button", { name: "Start" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "re-trigger" })).toBeNull()
+      expect(screen.queryByTitle("View task")).toBeNull()
+      expect(onStart).not.toHaveBeenCalled()
+      expect(setRoute).not.toHaveBeenCalled()
+    }
+  )
 
   /** The count sits in the identity line, where it is one more fact about the
    *  item — absent, not zero, when there is no discussion. The thread below

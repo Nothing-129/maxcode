@@ -1,10 +1,7 @@
 "use client"
 
 import { openConversationFind } from "@/lib/conversation-find-events"
-import { useRefreshConversationTitle } from "@/hooks/use-refresh-conversation-title"
-import { RefreshCw } from "lucide-react"
 import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
-import { cn } from "@/lib/utils"
 import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
 
 import { memo, useCallback, useState } from "react"
@@ -104,7 +101,7 @@ interface ConversationDetailHeaderProps {
 
 /**
  * Conversation detail header (inline on desktop, in the nav row on mobile): the owning folder name + the
- * conversation title on the left; an overflow (⋯) menu immediately after the title. A single
+ * conversation title on the left; a desktop overflow menu or mobile new-chat button. A single
  * instance renders fixed above the tile scroll area, scoped to the ACTIVE
  * conversation, so it never scrolls horizontally when many conversations are
  * tiled.
@@ -125,8 +122,6 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   title,
   status,
 }: ConversationDetailHeaderProps) {
-  const { refreshTitle, refreshing, refreshTitleLabel } =
-    useRefreshConversationTitle(conversationId)
   const t = useTranslations("Folder.conversationCard")
   const tFind = useTranslations("Folder.chat.conversationFind")
   const ime = useImeGuard()
@@ -439,7 +434,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring max-md:size-11 [&_svg]:size-4"
+              className="hidden size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:flex [&_svg]:size-4"
               aria-label={tConv("moreActions")}
               title={tConv("moreActions")}
             >
@@ -466,15 +461,6 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {tFind("title")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={conversationId == null || refreshing}
-              onSelect={() => void refreshTitle()}
-            >
-              <RefreshCw
-                className={cn("h-4 w-4", refreshing && "animate-spin")}
-              />
-              {refreshTitleLabel}
-            </DropdownMenuItem>
             <DropdownMenuItem disabled={!persisted} onSelect={handleRenameOpen}>
               <Pencil className="h-4 w-4" />
               {t("rename")}
@@ -519,6 +505,17 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      <button
+        type="button"
+        className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 md:hidden"
+        aria-label={t("newConversation")}
+        title={t("newConversation")}
+        disabled={!folderPath}
+        onClick={handleNewConversation}
+      >
+        <SquarePen aria-hidden="true" className="size-4" />
+      </button>
 
       <Dialog
         open={renameTarget != null}

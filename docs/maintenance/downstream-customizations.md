@@ -12,9 +12,13 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 对话选择 | Codex 参考样式：问题直接作标题、无描边选项、圆形编号、浅灰选中态和自定义输入铅笔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
+| 消息 | 历史回复正文到操作按钮保持连续悬停区域，按钮不被下一条消息的透明间距遮挡，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
+| 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
+| 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
 | 会话费用刷新 | 回复结束后同步累计计费用量，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10` | `composer.conversation-cost` |
-| 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用固定显示两位小数，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
+| 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用有金额后才显示，并固定显示两位小数；无金额时隐藏费用及分隔符，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
 | 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除；保留 Tauri 支持 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
 | 分隔线 | 面板拖动分隔线默认 1px，悬停和拖动时 2px，保留宽鼠标命中范围 | `worktree-2026-09-09` | `workspace.subtle-resize-handles` |
@@ -46,7 +50,7 @@
 | Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
 | 会话侧栏 | 主动取消后不显示红色 X，正常显示时间，保留运行中与未读提示 | `worktree-2026-09-08` | `conversations.cancelled-without-error-badge` |
-| 会话标题 | 右键手动刷新标题，使用当前保存的模型；允许刷新锁定标题；失败时保留已有合规标题，否则使用创建日期加「其他｜未命名」兜底，并发改名不覆盖原值 | `worktree-2026-09-07` | `conversations.manual-title-refresh` |
+| 会话标题 | 移除会话、侧栏及标签菜单中的手动刷新标题入口和前端请求封装；保留自动标题与重命名 | `worktree-2026-09-10` | `conversations.manual-title-refresh` |
 | 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
@@ -122,3 +126,5 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 契约：`src/maxcode-contracts/viewer-sync-request-bounds.contract.test.ts`。
 
 手机顶栏工具菜单内在“打开设置”之后提供“刷新界面”，不占用标题栏宽度，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。
+
+手机端对话标题栏直接显示新建对话按钮，隐藏三个点菜单；沿用当前项目与智能体。契约：`mobile-header-new-conversation.contract.test.ts`。

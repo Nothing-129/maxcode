@@ -20,13 +20,11 @@ import {
   CircleCheck,
   CircleDot,
   CircleMinus,
-  CirclePlay,
   CircleX,
   ExternalLink,
   GitMerge,
   GitPullRequestClosed,
   Link2,
-  ListTodo,
   LoaderCircle,
   MessageSquare,
   RefreshCw,
@@ -42,13 +40,11 @@ import {
   ViewModeToggle,
 } from "@/components/diff/unified-diff-preview"
 import {
-  CHIP_FILL,
   ForgeLabelChip,
   ROW_ACTION,
   ROW_ACTION_GLYPH,
   stateGlyph,
 } from "@/components/forge/forge-issue-row"
-import { statusLabelKey } from "@/components/tasks/task-card"
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -84,7 +80,6 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
-import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import {
   forgeChangeDetail,
   forgeChangeFiles,
@@ -101,7 +96,6 @@ import {
 } from "@/lib/app-error"
 import { useDiffViewMode } from "@/lib/diff-view-mode-prefs"
 import { mergeForgeRowUpdate } from "@/lib/forge-row-update"
-import { chipStateForLink } from "@/lib/forge-task-chip"
 import { cn } from "@/lib/utils"
 import type {
   ForgeChangeDetail,
@@ -2325,10 +2319,8 @@ function Conversation({
  */
 export function ForgeIssueDetailSheet({
   row,
-  link,
   folderId,
   onOpenChange,
-  onStart,
   onRowUpdated,
   onCommentPosted,
 }: {
@@ -2336,7 +2328,7 @@ export function ForgeIssueDetailSheet({
    *  a list refresh re-renders the panel with the item's fresh copy. */
   row: ForgeIssueRow | null
   /** Latest task for this item, if any — the footer's action depends on it. */
-  link: ForgeTaskLink | null
+  link?: ForgeTaskLink | null
   /** Which folder's repository the item belongs to — the only coordinate the
    *  comment fetch needs that the row does not carry (the backend derives the
    *  repository from this folder's own remote). `null` while no folder is
@@ -2344,7 +2336,7 @@ export function ForgeIssueDetailSheet({
   folderId: number | null
   onOpenChange: (open: boolean) => void
   /** Opens the page's trigger dialog on this item. */
-  onStart: () => void
+  onStart?: () => void
   /**
    * This item's state changed on the FORGE, and here is the row it now serves.
    *
@@ -2368,11 +2360,9 @@ export function ForgeIssueDetailSheet({
   onCommentPosted: (item: { isPr: boolean; number: number }) => void
 }) {
   const t = useTranslations("Forge")
-  const tTasks = useTranslations("Tasks")
   // Root-scoped, like the page's: a forge failure carries a FULL dotted i18n
   // key that the namespaced translator above cannot resolve.
   const tRoot = useTranslations()
-  const { setRoute } = useWorkbenchRoute()
   /** The state change awaiting confirmation, or `null`. Boxed rather than a
    *  boolean pair: the dialog has to know WHICH way it is going, and an
    *  "open" flag beside a "direction" is two values that can disagree. */
@@ -2580,9 +2570,6 @@ export function ForgeIssueDetailSheet({
 
   if (row == null) return null
 
-  const chip = chipStateForLink(link)
-  const active = chip === "active"
-  const terminal = chip === "terminal"
   const { Icon, className: glyphClass, labelKey } = stateGlyph(row)
   const stateLabel = t(labelKey)
   /** Which way the state button points — and whether there is one at all.
@@ -2839,50 +2826,6 @@ export function ForgeIssueDetailSheet({
               {t(stateAction === "close" ? "closeItem" : "reopenItem")}
             </Button>
           ) : null}
-
-          <div className="ms-auto flex items-center gap-1.5">
-            {link == null ? (
-              <Button
-                type="button"
-                size="sm"
-                className={ROW_ACTION}
-                onClick={onStart}
-              >
-                <CirclePlay className={ROW_ACTION_GLYPH} aria-hidden />
-                {t("start")}
-              </Button>
-            ) : (
-              // Siblings, never nested — same reason as on the row: a button
-              // inside a button folds its text into the outer one's accessible
-              // name and leaves keyboard activation to the browser.
-              <>
-                {terminal ? (
-                  <button
-                    type="button"
-                    onClick={onStart}
-                    className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                  >
-                    <RotateCcw className="size-3" aria-hidden />
-                    {t("retrigger")}
-                  </button>
-                ) : null}
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => setRoute("tasks")}
-                  title={t("viewTask")}
-                  className={cn(
-                    ROW_ACTION,
-                    active ? CHIP_FILL.active : CHIP_FILL.settled
-                  )}
-                >
-                  <ListTodo className={ROW_ACTION_GLYPH} aria-hidden />
-                  {tTasks(statusLabelKey(link.status))}
-                </Button>
-              </>
-            )}
-          </div>
         </div>
       </DrawerContent>
 
