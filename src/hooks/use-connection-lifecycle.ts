@@ -11,6 +11,7 @@ import { useTaskContext } from "@/contexts/task-context"
 import { useConnection, type UseConnectionReturn } from "@/hooks/use-connection"
 import { extractAppCommandError } from "@/lib/app-error"
 import { isConnectionBusy } from "@/lib/connection-teardown"
+import { getTransport } from "@/lib/transport"
 import { TurnBusyError } from "@/lib/turn-busy"
 import { type AgentType, type PromptDraft } from "@/lib/types"
 import { getAgentLabel } from "@/lib/custom-agents"
@@ -261,6 +262,55 @@ export function useConnectionLifecycle({
       cancelled = true
     }
   }, [isActive, workingDir, agentType])
+
+  // Browser wake does not change isActive, and a focused mobile composer
+  // need not receive another focus event. Reconcile the existing session via
+  // connect (which probes before reuse), never the destructive manual restart.
+  useEffect(() => {
+    if (!isActive || !workingDir) return
+    let cancelled = false
+    let pending = false
+    const recover = () => {
+      if (cancelled || pending || document.visibilityState !== "visible") return
+      pending = true
+      touchActivity(contextKey)
+      void connConnectRef
+        .current(
+          agentType,
+          workingDir,
+          sessionIdRef.current,
+          conversationIdRef.current
+        )
+        .then(() => {
+          if (!cancelled) setLastAutoConnectError(null)
+        })
+        .catch((e: unknown) => {
+          if (!cancelled) {
+            setLastAutoConnectError({
+              contextKey,
+              agentType,
+              message: normalizeErrorMessage(e),
+            })
+          }
+        })
+        .finally(() => {
+          pending = false
+        })
+    }
+    document.addEventListener("visibilitychange", recover)
+    window.addEventListener("pageshow", recover)
+    window.addEventListener("focus", recover)
+    window.addEventListener("online", recover)
+    const unsubscribe = getTransport().onReconnect?.(recover)
+    return () => {
+      cancelled = true
+      document.removeEventListener("visibilitychange", recover)
+      window.removeEventListener("pageshow", recover)
+      window.removeEventListener("focus", recover)
+      window.removeEventListener("online", recover)
+      unsubscribe?.()
+    }
+  }, [isActive, workingDir, agentType, contextKey, touchActivity])
 
   // Manage task status for connection progress
   const taskIdRef = useRef<string | null>(null)

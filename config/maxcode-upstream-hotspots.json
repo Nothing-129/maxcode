@@ -2,6 +2,20 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.mobile-session-recovery",
+      "category": "runtime",
+      "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and expose disconnected status beside the composer heart.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/hooks/use-connection-lifecycle.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/components/chat/composer-connection-status.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-session-recovery.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.mobile-header-new-conversation",
       "category": "product",
       "description": "Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance.",

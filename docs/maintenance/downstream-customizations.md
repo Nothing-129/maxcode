@@ -12,6 +12,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 移动端 | 恢复前台及网络重连后检查并恢复当前会话，输入区直接显示掉线状态 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
 | 对话选择 | Codex 参考样式：问题直接作标题、无描边选项、圆形编号、浅灰选中态和自定义输入铅笔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
 | 消息 | 历史回复正文到操作按钮保持连续悬停区域，按钮不被下一条消息的透明间距遮挡，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
 | 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |

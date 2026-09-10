@@ -5631,17 +5631,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
         const nextWorkingDir = workingDir ?? null
         let existing = storeRef.current.connections.get(contextKey)
-        // Stale-state gate. The fast path below trusts any non-terminal status
-        // as "already connected", which is what makes a routing-less
-        // `prompting` / `connecting` entry unrecoverable — the tab keeps saying
-        // "responding" and re-opening it changes nothing, because this very
-        // return fires. Those two states are also the only ones no sweep ever
-        // re-checks, so verify them against the backend before trusting them.
-        // `connected` is deliberately not probed: the keepalive already touches
-        // it every cycle and settles it when it goes away.
+        // A mobile wake can retain any non-terminal status after the backend
+        // has reaped the idle agent. Verify before reuse, including connected;
+        // the periodic keepalive may have been suspended with the page.
         if (
           existing &&
-          (existing.status === "prompting" || existing.status === "connecting")
+          (existing.status === "connected" ||
+            existing.status === "prompting" ||
+            existing.status === "connecting")
         ) {
           const staleId = existing.connectionId
           const rekeysBefore = rekeyGenerationRef.current.get(contextKey) ?? 0

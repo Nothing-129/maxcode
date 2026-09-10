@@ -168,9 +168,17 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
           type="button"
           aria-label={t("triggerAria", { status: statusLabel })}
           title={titleText}
-          className="ml-2 inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-foreground/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+          className={cn(
+            "ml-2 inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-foreground/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+            statusKey !== "connected" && tabId && "w-auto gap-1 px-1"
+          )}
         >
           <Icon className={cn("size-3.5", className)} />
+          {statusKey !== "connected" && tabId ? (
+            <span role="status" className="text-2xs text-muted-foreground">
+              {statusLabel}
+            </span>
+          ) : null}
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="end" className="w-64 gap-2.5 p-3">

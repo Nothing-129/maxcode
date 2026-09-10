@@ -3542,6 +3542,34 @@ describe("a `prompting` state whose connection is gone can always recover", () =
     expect(h.store!.getConnection(TAB)!.connectionId).toBe("respawned-conn")
   })
 
+  it.each([true, false])(
+    "reconciles a retained connected mobile session (backend live=%s)",
+    async (live) => {
+      await seedPromptingTab()
+      const onEvent = vi.mocked(subscribe).mock.calls[0]![1] as (
+        envelope: EventEnvelope
+      ) => void
+      act(() => {
+        onEvent({
+          seq: 2,
+          connection_id: "spawned-conn",
+          type: "status_changed",
+          status: "connected",
+        } as EventEnvelope)
+      })
+      h.acpTouchConnection.mockResolvedValue(live)
+      h.acpConnect.mockResolvedValue("recovered-conn")
+      await act(async () => {
+        await h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1")
+      })
+      expect(h.acpTouchConnection).toHaveBeenCalledWith("spawned-conn")
+      expect(h.acpConnect).toHaveBeenCalledTimes(live ? 1 : 2)
+      expect(h.store!.getConnection(TAB)!.connectionId).toBe(
+        live ? "spawned-conn" : "recovered-conn"
+      )
+    }
+  )
+
   it("leaves a live turn alone", async () => {
     await seedPromptingTab()
     h.acpTouchConnection.mockResolvedValue(true)
