@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: mobile header new conversation", () => {
-  it("exposes new chat directly on mobile and keeps overflow desktop-only", () => {
+  it("exposes new chat on the header right and keeps overflow desktop-only", () => {
     const header = source(
       "src/components/conversations/conversation-detail-header.tsx"
     )
@@ -16,11 +16,13 @@ describe("MaxCode contract: mobile header new conversation", () => {
     const newChat = buttons.find((button) =>
       button.includes("onClick={handleNewConversation}")
     )!
-    expect(newChat).toContain("md:hidden")
+    expect(header).toMatch(/\{displayTitle\}\s*<\/span>\s*<DropdownMenu>/)
+    expect(newChat).not.toContain("md:hidden")
     expect(newChat).toContain("<Button")
     expect(newChat).toContain('variant="ghost"')
     expect(newChat).toContain('size="icon"')
     expect(newChat).toContain("h-11 w-8 shrink-0 rounded-xl")
+    expect(newChat).toContain("md:size-6")
     const titleBar = source("src/components/layout/folder-title-bar.tsx")
     expect(titleBar).toContain('<Ellipsis className="size-[18px]" />')
     expect(titleBar).toContain('<Menu className="size-5" strokeWidth={1.8} />')
@@ -30,8 +32,9 @@ describe("MaxCode contract: mobile header new conversation", () => {
     expect(titleBar).toMatch(
       /className="h-11 w-8 shrink-0 rounded-xl"\s+aria-label=\{tTitleBar\("workspaceTools"\)\}/
     )
-    expect(newChat).toContain('className="size-[18px]"')
-    expect(newChat).not.toContain("text-muted-foreground")
+    expect(newChat).toContain('className="size-[18px] md:size-4"')
+    expect(newChat).toContain("md:text-muted-foreground")
+    expect(newChat).not.toContain(" text-muted-foreground")
     expect(newChat).toContain('<SquarePen aria-hidden="true"')
     expect(newChat).toContain('aria-label={t("newConversation")}')
     expect(newChat).toContain("disabled={!folderPath}")

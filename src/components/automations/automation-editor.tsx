@@ -98,7 +98,7 @@ export function AutomationEditor({
     automation?.root_folder_id ?? folders[0]?.id ?? null
   )
   const [isolation, setIsolation] = useState<AutomationIsolation>(
-    automation?.isolation ?? "worktree_per_run"
+    automation?.isolation ?? "shared_in_root"
   )
   const [trigger, setTrigger] = useState<AutomationTriggerKind>(
     automation?.trigger_kind ?? "schedule"

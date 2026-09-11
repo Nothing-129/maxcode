@@ -2,10 +2,12 @@ import { fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
+  isLocalDesktop: vi.fn(() => true),
   isRemoteDesktopWindow: vi.fn(() => false),
 }))
 
 vi.mock("@/lib/platform", () => ({
+  isLocalDesktop: mocks.isLocalDesktop,
   isRemoteDesktopWindow: mocks.isRemoteDesktopWindow,
 }))
 
@@ -55,6 +57,7 @@ function item(name: string): HTMLElement {
 describe("OpenInSubContent", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.isLocalDesktop.mockReturnValue(true)
     mocks.isRemoteDesktopWindow.mockReturnValue(false)
   })
 
@@ -63,6 +66,24 @@ describe("OpenInSubContent", () => {
     expect(item("Explorer")).toBeTruthy()
     expect(item("Terminal")).toBeTruthy()
     expect(item("VS Code")).toBeTruthy()
+    expect(item("Explorer").getAttribute("data-disabled")).toBeNull()
+  })
+
+  it("keeps Explorer available on a local Electron shell", () => {
+    // Electron is a native desktop app, but `isDesktop()` is Tauri-only.
+    mocks.isLocalDesktop.mockReturnValue(true)
+    renderMenu()
+    expect(item("Explorer").getAttribute("data-disabled")).toBeNull()
+    fireEvent.click(item("Explorer"))
+    expect(handlers.onOpenExplorer).toHaveBeenCalledTimes(1)
+  })
+
+  it("disables Explorer when the window cannot reveal a local path", () => {
+    mocks.isLocalDesktop.mockReturnValue(false)
+    renderMenu()
+    expect(item("Explorer").getAttribute("data-disabled")).not.toBeNull()
+    fireEvent.click(item("Explorer"))
+    expect(handlers.onOpenExplorer).not.toHaveBeenCalled()
   })
 
   it("runs the VS Code action when the workspace host is this machine", () => {
@@ -79,7 +100,8 @@ describe("OpenInSubContent", () => {
     expect(item("VS Code").getAttribute("data-disabled")).not.toBeNull()
     fireEvent.click(item("VS Code"))
     expect(handlers.onOpenCode).not.toHaveBeenCalled()
-    // The two rows that stay useful over a remote connection are untouched.
+    // Terminal still targets the workspace host. Explorer is separately gated
+    // on `isLocalDesktop` (see the dedicated cases above).
     expect(item("Terminal").getAttribute("data-disabled")).toBeNull()
     fireEvent.click(item("Terminal"))
     expect(handlers.onOpenTerminal).toHaveBeenCalledTimes(1)

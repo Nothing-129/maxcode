@@ -10,7 +10,7 @@ import {
   useImperativeHandle,
   useState,
 } from "react"
-import { act, fireEvent, render } from "@testing-library/react"
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -94,6 +94,12 @@ const stableTask = vi.hoisted(() => ({
 }))
 const stableTerminal = vi.hoisted(() => ({
   createTerminalInDirectory: () => {},
+}))
+
+const copyMocks = vi.hoisted(() => ({
+  copyTextFromMenu: vi.fn(async () => true),
+  toastSuccess: vi.fn(),
+  toastError: vi.fn(),
 }))
 
 vi.mock("@/components/agent-icon", () => ({
@@ -217,6 +223,19 @@ vi.mock("@/hooks/use-sorted-available-agents", () => ({
 
 vi.mock("@/contexts/terminal-context", () => ({
   useTerminalContext: () => stableTerminal,
+}))
+
+vi.mock("@/lib/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/utils")>()
+  return { ...actual, copyTextFromMenu: copyMocks.copyTextFromMenu }
+})
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: copyMocks.toastSuccess,
+    error: copyMocks.toastError,
+    info: vi.fn(),
+  },
 }))
 
 vi.mock("@/contexts/task-context", () => ({
@@ -361,6 +380,10 @@ beforeEach(() => {
   stableTabFns.openNewConversationTab.mockClear()
   stableTabFns.openFolderInSplit.mockClear()
   stableWorkspaceFns.applySidebarLayout.mockClear()
+  copyMocks.copyTextFromMenu.mockClear()
+  copyMocks.copyTextFromMenu.mockResolvedValue(true)
+  copyMocks.toastSuccess.mockClear()
+  copyMocks.toastError.mockClear()
 })
 
 describe("SidebarConversationList — single status event re-render scope", () => {
@@ -977,6 +1000,23 @@ describe("SidebarConversationList — folder ⋯ opens the same menu as right-cl
 
     // The identical menu is now open — assert a label unique to the folder menu.
     expect(document.body.textContent).toContain("Manage conversations")
+    expect(document.body.textContent).toContain("Copy path")
+  })
+
+  it("copies the folder's filesystem path from the context menu", async () => {
+    render(tree())
+    const moreBtn = document.querySelector('[aria-label="More options"]')
+    expect(moreBtn).not.toBeNull()
+    act(() => {
+      fireEvent.click(moreBtn as HTMLElement)
+    })
+
+    fireEvent.click(screen.getByRole("menuitem", { name: "Copy path" }))
+    await waitFor(() => {
+      expect(copyMocks.copyTextFromMenu).toHaveBeenCalledWith("/p/1")
+    })
+    expect(copyMocks.toastSuccess).toHaveBeenCalled()
+    expect(copyMocks.toastError).not.toHaveBeenCalled()
   })
 
   it("omits retired split actions from the folder menu", () => {

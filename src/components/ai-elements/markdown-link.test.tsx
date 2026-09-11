@@ -52,8 +52,15 @@ describe("MarkdownLink", () => {
 
     const button = screen.getByRole("button")
     expect(button).toHaveAttribute("data-resource-kind", kind)
-    // The lucide icon renders an inline svg before the link text.
-    expect(button.querySelector("svg")).not.toBeNull()
+    // Files use bundled VSCode artwork; other resources keep Lucide icons.
+    if (kind === "file") {
+      expect(button.querySelector("[data-file-icon] img")).toHaveAttribute(
+        "src",
+        "/file-icons/file-type-typescript-official.svg"
+      )
+    } else {
+      expect(button.querySelector("svg")).not.toBeNull()
+    }
   })
 
   it.each([["#section"], ["src/main.rs"], ["vscode://file/repo/src/app.ts"]])(
@@ -209,13 +216,11 @@ describe("MarkdownLink", () => {
       expect(button).toHaveAttribute("data-resource-kind", "file")
       // …whose vertical-align is centered (mirrors ReferenceBadge), not baseline.
       expect(button.className).toContain("align-middle")
-      // `appearance-none` + `leading-none` strip the button's UA strut and the
-      // inherited surrounding-text line-height so it lays out like the bare
-      // badge; `-translate-y` then lifts the chip from the x-height midline onto
-      // the line's optical center (WebKit/CJK otherwise read it low). See
-      // MarkdownLink's file branch.
+      // Preserve body line-height for wrapped filenames, align the format icon
+      // with the first line and retain the existing optical offset.
       expect(button.className).toContain("appearance-none")
-      expect(button.className).toContain("leading-none")
+      expect(button.className).toContain("leading-[inherit]")
+      expect(button.className).toContain("items-start")
       expect(button.className).toContain("-translate-y-[1.5px]")
       // It reads as a file badge, matching the inline `@`-file chips.
       const badge = screen.getByRole("img", { name: "file: app.ts" })

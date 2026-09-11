@@ -2,6 +2,22 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "automations.worktree-opt-in",
+      "category": "product",
+      "description": "Blank and template-seeded automations default to shared_in_root with new-worktree-per-run unchecked; editing preserves saved isolation and users can explicitly enable worktree isolation.",
+      "origins": ["worktree-2026-09-11"],
+      "paths": ["src/components/automations/automation-editor.tsx", "src/components/automations/automation-templates.ts"],
+      "contracts": ["src/maxcode-contracts/automation-default-isolation.contract.test.ts"]
+    },
+    {
+      "id": "chat.codex-followup-controls",
+      "category": "product",
+      "description": "Standalone Codex followup directives render as suggestion controls that append prompts to the current composer without sending. Read-only and public surfaces render labels; code examples and malformed directives stay literal.",
+      "origins": ["worktree-2026-09-11"],
+      "paths": ["src/components/ai-elements/codex-followup.tsx", "src/components/ai-elements/remark-codex-followup.ts", "src/components/ai-elements/markdown-link.tsx", "src/components/ai-elements/message.tsx", "src/components/conversations/conversation-detail-panel.tsx"],
+      "contracts": ["src/maxcode-contracts/codex-followup.contract.test.tsx"]
+    },
+    {
       "id": "chat.reply-artifacts-summary",
       "category": "product",
       "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Streaming replies do not parse diffs.",
@@ -91,7 +107,7 @@
     {
       "id": "chat.mobile-header-new-conversation",
       "category": "product",
-      "description": "Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
+      "description": "Desktop conversation titles keep the overflow trigger beside the title and expose a compact new-chat button on the right of the header row. Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
       "origins": ["worktree-2026-09-10"],
       "paths": ["src/components/conversations/conversation-detail-header.tsx", "src/components/layout/folder-title-bar.tsx"],
       "contracts": ["src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"]
@@ -508,11 +524,17 @@
     {
       "id": "chat.file-link-presentation",
       "category": "product",
-      "description": "Transcript file links match body text size with an inherited-body-weight muted blue label and a thin outline file icon; composer reference chips retain their existing presentation and all file actions are preserved.",
+      "description": "Transcript file links use the full available width and wrap long filenames on desktop and mobile, with body-sized blue labels and offline VSCode Icons artwork determined from exact filenames and compound extensions, including distinct Markdown/MDX/HTML/CSS/JS/TS/React/config formats and native theme variants. Composer reference chips remain compact and all file actions are preserved.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
-        "src/components/chat/composer/badges/reference-badge.tsx"
+        "src/components/chat/composer/badges/reference-badge.tsx",
+        "src/components/chat/composer/badges/file-type-icon.tsx",
+        "src/lib/file-icon.ts",
+        "src/lib/file-icon-assets.json",
+        "config/file-icon-associations.json",
+        "scripts/generate-file-icons.mjs",
+        "public/file-icons/"
       ],
       "contracts": ["src/maxcode-contracts/file-link-style.contract.test.tsx"]
     },
@@ -540,7 +562,7 @@
     {
       "id": "conversations.title-overflow-menu",
       "category": "product",
-      "description": "A single always-visible ellipsis immediately after the conversation title opens conversation actions; rename is available inside the menu instead of a separate pencil button.",
+      "description": "A single always-visible ellipsis immediately after the conversation title opens conversation actions; rename is available inside the menu instead of a separate pencil button. Desktop also exposes a new-conversation button on the right of the header row. Mobile keeps the far-right new-chat button and hides the overflow trigger.",
       "origins": ["worktree-2026-09-09"],
       "paths": ["src/components/conversations/conversation-detail-header.tsx"],
       "contracts": [
@@ -819,6 +841,8 @@
         "src/lib/transport/web-auth.ts",
         "src/lib/transport/web-connection-store.ts",
         "src/lib/platform.ts",
+        "src/components/layout/open-in-menu.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
         "src/lib/notification.ts",
         "src/lib/updater.ts",
         "src/lib/save-file.ts",

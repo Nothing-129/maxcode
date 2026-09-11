@@ -1,7 +1,6 @@
 import {
   Bot,
   Command,
-  File,
   FileText,
   Folder,
   GitCommit,
@@ -13,6 +12,8 @@ import type { ReactNode } from "react"
 import { AgentIcon } from "@/components/agent-icon"
 import { type AgentType } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+import { FileTypeIcon } from "./file-type-icon"
 
 import type { ReferenceAttrs } from "../types"
 
@@ -143,19 +144,33 @@ export function ReferenceBadge({
       role="img"
       aria-label={`${data.refType}: ${data.label || data.id}`}
       className={cn(
-        "inline-flex max-w-[18rem] items-center gap-0.5 align-middle leading-snug",
+        "inline-flex align-middle",
         isFileLink
-          ? "text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
-          : cn("text-[0.85em] font-medium", badgeColorClass(data)),
+          ? "min-w-0 max-w-full items-start gap-1.5 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+          : cn(
+              "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
+              badgeColorClass(data)
+            ),
         className
       )}
     >
       {isFileLink ? (
-        <File aria-hidden="true" className={ICON_CLASS} strokeWidth={1.5} />
+        <FileTypeIcon
+          path={data.id}
+          isDirectory={data.meta?.fileKind === "dir"}
+        />
       ) : (
         <ReferenceIcon data={data} />
       )}
-      <span className="truncate">{data.label || data.id}</span>
+      <span
+        className={
+          isFileLink
+            ? "min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+            : "truncate"
+        }
+      >
+        {data.label || data.id}
+      </span>
     </span>
   )
 }

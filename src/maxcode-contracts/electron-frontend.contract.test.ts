@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { ElectronBridge } from "@/lib/electron"
+import { source } from "./contract-source"
 import { detectEnvironment } from "@/lib/transport/detect"
 import { WebTransport } from "@/lib/transport/web-transport"
 import { getCodegToken, redirectToCodegLogin } from "@/lib/transport/web-auth"
@@ -84,6 +85,20 @@ describe("MaxCode contract: Electron uses the managed local server", () => {
     expect(detectEnvironment()).toBe("electron")
     expect(isDesktop()).toBe(false)
     expect(isLocalDesktop()).toBe(true)
+  })
+
+  it("keeps Open-in-Finder available by gating on isLocalDesktop, not Tauri-only isDesktop", () => {
+    const menu = source("src/components/layout/open-in-menu.tsx")
+    expect(menu).toContain("isLocalDesktop")
+    expect(menu).toMatch(/explorerUnavailable = !isLocalDesktop\(\)/)
+    expect(menu).not.toMatch(/explorerDisabled=\{!isDesktop/)
+
+    const sidebar = source(
+      "src/components/conversations/sidebar-conversation-list.tsx"
+    )
+    expect(sidebar).toContain("OpenInSubContent")
+    expect(sidebar).not.toMatch(/\bisDesktop\s*\(/)
+    expect(sidebar).not.toContain("explorerDisabled={!isDesktopMode}")
   })
 
   it("authenticates HTTP using the current launch token without persisting it", async () => {

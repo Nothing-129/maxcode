@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/hover-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ConversationTitleLabel } from "./conversation-title-label"
 import { ConversationUnreadDot } from "./conversation-unread-dot"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { SessionDetailsDialog } from "./session-details-dialog"
@@ -461,13 +462,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       />
                     </div>
 
-                    <span
+                    <ConversationTitleLabel
                       data-open-in-tab={isOpenInTab || undefined}
-                      className="maxcode-sidebar-label relative min-w-0 flex-1 truncate text-[0.875rem] leading-[1.375rem] font-[430]"
-                    >
-                      {formatConversationTitle(conversation.title) ||
-                        t("untitledConversation")}
-                    </span>
+                      className="maxcode-sidebar-label relative min-w-0 flex-1 text-[0.875rem] leading-[1.375rem] font-[430]"
+                      title={conversation.title}
+                      fallback={t("untitledConversation")}
+                    />
                     {/* Re-parented out of a removed worktree: history loads fine,
                     but "continue" may need a fresh session (the agent's files
                     were keyed to the old path). */}

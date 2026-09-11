@@ -1,12 +1,13 @@
 {
   "name": "codeg",
   "private": true,
-  "version": "0.30.13",
+  "version": "0.30.14",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "node scripts/build-frontend.mjs",
     "lint": "eslint",
+    "icons:generate": "node scripts/generate-file-icons.mjs",
     "desktop:dev": "node electron/scripts/cli.mjs dev",
     "desktop:build": "node electron/scripts/cli.mjs build",
     "desktop:pack": "node electron/scripts/cli.mjs pack",
@@ -106,6 +107,7 @@
     "zustand": "^5.0.14"
   },
   "devDependencies": {
+    "@iconify-json/vscode-icons": "1.2.77",
     "@tailwindcss/postcss": "^4.1.18",
     "@tauri-apps/cli": "^2",
     "@testing-library/jest-dom": "^6.6.3",

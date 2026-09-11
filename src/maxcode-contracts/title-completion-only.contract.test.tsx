@@ -146,6 +146,19 @@ describe("MaxCode: title completion is the only status action", () => {
     expect(getByRole("textbox")).toHaveValue(A.title)
   })
 
+  it("opens a new conversation from the trailing header button", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByRole, getByText } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    const newChat = getByRole("button", { name: "New Conversation" })
+    expect(getByText(A.title).nextElementSibling).not.toBe(newChat)
+    await user.click(newChat)
+    expect(h.openNewConversationTab).toHaveBeenCalledWith(1, "/a", {
+      inheritFromActive: true,
+    })
+  })
+
   it("opens search from the title menu and focuses the active runtime conversation", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     const view = render(

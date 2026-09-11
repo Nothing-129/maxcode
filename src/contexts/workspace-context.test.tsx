@@ -14,6 +14,7 @@ import {
   resetAppWorkspaceStore,
   useAppWorkspaceStore,
 } from "@/stores/app-workspace-store"
+import { resetTabStore, useTabStore } from "@/stores/tab-store"
 
 vi.mock("next-intl", () => {
   // Return a STABLE function instance across renders, mirroring next-intl's
@@ -83,6 +84,7 @@ vi.mock("@/contexts/active-folder-context", async () => {
 
 beforeEach(() => {
   foldersMock.reset()
+  resetTabStore()
   // The provider reads workspace folders from the real zustand store: restore
   // pristine state, then seed the same default folders the active-folder mock
   // serves (partial FolderDetail shapes — the provider only reads id/path).
@@ -3250,5 +3252,237 @@ describe("unified absolute-path file tabs (outside-workspace opens)", () => {
     expect(mockedApi.readFileForEdit.mock.calls.length).toBe(
       readsAfterFreshness
     )
+  })
+})
+
+function conversationTab(id: string, conversationId: number) {
+  return {
+    id,
+    kind: "conversation" as const,
+    folderId: 1,
+    conversationId,
+    agentType: "codex" as const,
+    title: id,
+    isPinned: false,
+  }
+}
+
+function seedConversationTabs(activeId: "conv-a" | "conv-b" = "conv-a") {
+  const tabs = [conversationTab("conv-a", 1), conversationTab("conv-b", 2)]
+  useTabStore.setState({ rawTabs: tabs, activeTabId: activeId, tabs })
+}
+
+function ConversationFileScopeProbe() {
+  const {
+    mode,
+    fileTabs,
+    activeFileTabId,
+    activeFileTab,
+    openFilePreview,
+    updateActiveFileContent,
+    closeAllFileTabs,
+    closeFileTab,
+  } = useWorkspaceContext()
+  return (
+    <div>
+      <output data-testid="mode">{mode}</output>
+      <output data-testid="file-tab-count">{fileTabs.length}</output>
+      <output data-testid="file-tab-paths">
+        {fileTabs.map((tab) => tab.path).join(",")}
+      </output>
+      <output data-testid="content">{activeFileTab?.content ?? ""}</output>
+      <output data-testid="dirty">
+        {String(Boolean(activeFileTab?.isDirty))}
+      </output>
+      <button onClick={() => void openFilePreview("a.ts")}>open-a</button>
+      <button onClick={() => void openFilePreview("b.ts")}>open-b</button>
+      <button onClick={() => updateActiveFileContent("dirty-local")}>
+        edit
+      </button>
+      <button onClick={closeAllFileTabs}>close-all</button>
+      <button onClick={() => activeFileTabId && closeFileTab(activeFileTabId)}>
+        close-active
+      </button>
+    </div>
+  )
+}
+
+describe("conversation-scoped file column", () => {
+  beforeEach(() => {
+    mockedApi.readFileForEdit.mockReset()
+    mockedApi.gitIsTracked.mockReset()
+    mockedApi.gitShowFile.mockReset()
+    mockedApi.gitIsTracked.mockResolvedValue(false)
+    mockedApi.readFileForEdit.mockImplementation(
+      async (_root, rel: string) => ({
+        path: rel,
+        content: `content:${rel}`,
+        etag: "e1",
+        mtime_ms: 1,
+        readonly: false,
+        line_ending: "lf",
+      })
+    )
+  })
+
+  it("hides the file column when switching to a conversation that did not open files", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    expect(screen.getByTestId("mode")).toHaveTextContent("fusion")
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/a.ts")
+
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-b" })
+    })
+    expect(screen.getByTestId("mode")).toHaveTextContent("conversation")
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-a" })
+    })
+    expect(screen.getByTestId("mode")).toHaveTextContent("fusion")
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/a.ts")
+  })
+
+  it("keeps each conversation's open files independent", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-b" })
+    })
+    await act(async () => {
+      screen.getByText("open-b").click()
+    })
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/b.ts")
+
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-a" })
+    })
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/a.ts")
+  })
+
+  it("shares the unsaved buffer when both conversations open the same file", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    await act(async () => {
+      screen.getByText("edit").click()
+    })
+    expect(screen.getByTestId("dirty")).toHaveTextContent("true")
+    expect(screen.getByTestId("content")).toHaveTextContent("dirty-local")
+
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-b" })
+    })
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("1")
+    expect(screen.getByTestId("content")).toHaveTextContent("dirty-local")
+    expect(screen.getByTestId("dirty")).toHaveTextContent("true")
+  })
+
+  it("closeAllFileTabs only closes the active conversation's files", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-b" })
+    })
+    await act(async () => {
+      screen.getByText("open-b").click()
+    })
+    await act(async () => {
+      screen.getByText("close-all").click()
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+    expect(screen.getByTestId("mode")).toHaveTextContent("conversation")
+
+    await act(async () => {
+      useTabStore.setState({ activeTabId: "conv-a" })
+    })
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/a.ts")
+  })
+
+  it("drops a closed conversation's clean unique files", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+
+    const remaining = [conversationTab("conv-b", 2)]
+    await act(async () => {
+      useTabStore.setState({
+        rawTabs: remaining,
+        activeTabId: "conv-b",
+        tabs: remaining,
+      })
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+    expect(screen.getByTestId("mode")).toHaveTextContent("conversation")
+  })
+
+  it("adopts a closed conversation's dirty unique files onto the live tab", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    await act(async () => {
+      screen.getByText("edit").click()
+    })
+
+    const remaining = [conversationTab("conv-b", 2)]
+    await act(async () => {
+      useTabStore.setState({
+        rawTabs: remaining,
+        activeTabId: "conv-b",
+        tabs: remaining,
+      })
+    })
+    expect(screen.getByTestId("file-tab-paths")).toHaveTextContent("/repo/a.ts")
+    expect(screen.getByTestId("dirty")).toHaveTextContent("true")
+    expect(screen.getByTestId("content")).toHaveTextContent("dirty-local")
   })
 })

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest"
 
-import { formatConversationTitle } from "./conversation-title"
+import {
+  formatConversationTitle,
+  parseStructuredConversationTitle,
+} from "./conversation-title"
 
 describe("formatConversationTitle", () => {
   it("returns an empty string for nullish titles", () => {
@@ -147,5 +150,42 @@ describe("formatConversationTitle", () => {
     expect(formatConversationTitle(`${prefix} [a](file:///a)`)).toBe(
       `${prefix} a`
     )
+  })
+})
+
+describe("parseStructuredConversationTitle", () => {
+  it("splits a stored auto-title into date, kind, and topic", () => {
+    expect(parseStructuredConversationTitle("0911｜探索｜项目分析")).toEqual({
+      date: "0911",
+      kind: "探索",
+      topic: "项目分析",
+    })
+  })
+
+  it("accepts ASCII pipes, extra spaces, and a slash inside the topic", () => {
+    expect(parseStructuredConversationTitle("0903 | 优化 | CI/CD")).toEqual({
+      date: "0903",
+      kind: "优化",
+      topic: "CI/CD",
+    })
+  })
+
+  it("accepts the automation kind", () => {
+    expect(
+      parseStructuredConversationTitle("0904｜自动｜今天未完成核查")
+    ).toEqual({
+      date: "0904",
+      kind: "自动",
+      topic: "今天未完成核查",
+    })
+  })
+
+  it("rejects prose, slash-only dates, and extra pipes in the topic", () => {
+    expect(parseStructuredConversationTitle("检查文字粗细差异")).toBeNull()
+    expect(parseStructuredConversationTitle("2024/01/01 meeting")).toBeNull()
+    expect(
+      parseStructuredConversationTitle("0911｜探索｜项目｜分析")
+    ).toBeNull()
+    expect(parseStructuredConversationTitle("abcd｜探索｜项目分析")).toBeNull()
   })
 })

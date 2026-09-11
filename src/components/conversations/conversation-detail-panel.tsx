@@ -1,5 +1,6 @@
 "use client"
 
+import { CodexFollowupContext } from "@/components/ai-elements/codex-followup"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   AlertCircle,
@@ -1695,6 +1696,10 @@ const ConversationTabView = memo(function ConversationTabView({
     setComposerInject(null)
   }, [])
 
+  const handleFollowupSelection = useCallback((prompt: string) => {
+    setComposerInject({ text: prompt, mode: "append" })
+  }, [])
+
   // Quote a transcript selection into the composer. A fresh object every time so
   // quoting the same passage twice still re-fires the composer's inject effect.
   const handleQuoteSelection = useCallback((selected: string) => {
@@ -2069,45 +2074,51 @@ const ConversationTabView = memo(function ConversationTabView({
 
   const messageListNode = (
     <GoalControlProvider value={goalControlValue}>
-      <MessageListView
-        conversationId={effectiveConversationId}
-        agentType={selectedAgent}
-        connStatus={connStatus}
-        isActive={isActive}
-        sendSignal={sendSignal}
-        detailLoading={detailLoading}
-        detailError={detailError}
-        acpLoadError={acpLoadError}
-        hideEmptyState={!hasPersistedConversation || hasSentMessage}
-        onReload={canShowDetailErrorActions ? handleReloadDetail : undefined}
-        onNewSession={
-          canShowDetailErrorActions ? handleOpenNewSession : undefined
-        }
-        onEditMessage={canEditSentMessage ? handleEditSentMessage : undefined}
-        onQuoteSelection={composerAvailable ? handleQuoteSelection : undefined}
-        // Asking opens its own conversation, so it needs a folder to open it in
-        // rather than a usable composer here — a transcript whose composer is
-        // blocked (session/load failure) can still spawn the question elsewhere.
-        onAskSelection={canAskSelection ? handleAskSelection : undefined}
-        // Fork carries no draft, so — unlike a send — a non-empty queue is
-        // not at risk of being jumped and needs no guard here. A turn in
-        // flight is still rejected, by the backend, which is the only place
-        // that can see it without racing.
-        //
-        // "prompting" belongs on this side of the gate (same shape as the
-        // goal-control gate above): this answers "can this surface fork at
-        // all", and a turn in flight is a passing "not right now" that the
-        // view greys the button out for. Dropping the handler instead made
-        // every reply's fork icon disappear for the length of each reply.
-        // `handleForkFromTurn` re-checks liveness at click time.
-        onForkFromTurn={
-          (connStatus === "connected" || connStatus === "prompting") &&
-          hasPersistedConversation &&
-          conn.supportsFork
-            ? handleForkFromTurn
-            : undefined
-        }
-      />
+      <CodexFollowupContext.Provider
+        value={composerAvailable ? handleFollowupSelection : undefined}
+      >
+        <MessageListView
+          conversationId={effectiveConversationId}
+          agentType={selectedAgent}
+          connStatus={connStatus}
+          isActive={isActive}
+          sendSignal={sendSignal}
+          detailLoading={detailLoading}
+          detailError={detailError}
+          acpLoadError={acpLoadError}
+          hideEmptyState={!hasPersistedConversation || hasSentMessage}
+          onReload={canShowDetailErrorActions ? handleReloadDetail : undefined}
+          onNewSession={
+            canShowDetailErrorActions ? handleOpenNewSession : undefined
+          }
+          onEditMessage={canEditSentMessage ? handleEditSentMessage : undefined}
+          onQuoteSelection={
+            composerAvailable ? handleQuoteSelection : undefined
+          }
+          // Asking opens its own conversation, so it needs a folder to open it in
+          // rather than a usable composer here — a transcript whose composer is
+          // blocked (session/load failure) can still spawn the question elsewhere.
+          onAskSelection={canAskSelection ? handleAskSelection : undefined}
+          // Fork carries no draft, so — unlike a send — a non-empty queue is
+          // not at risk of being jumped and needs no guard here. A turn in
+          // flight is still rejected, by the backend, which is the only place
+          // that can see it without racing.
+          //
+          // "prompting" belongs on this side of the gate (same shape as the
+          // goal-control gate above): this answers "can this surface fork at
+          // all", and a turn in flight is a passing "not right now" that the
+          // view greys the button out for. Dropping the handler instead made
+          // every reply's fork icon disappear for the length of each reply.
+          // `handleForkFromTurn` re-checks liveness at click time.
+          onForkFromTurn={
+            (connStatus === "connected" || connStatus === "prompting") &&
+            hasPersistedConversation &&
+            conn.supportsFork
+              ? handleForkFromTurn
+              : undefined
+          }
+        />
+      </CodexFollowupContext.Provider>
     </GoalControlProvider>
   )
 

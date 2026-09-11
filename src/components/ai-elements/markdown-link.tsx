@@ -23,6 +23,8 @@ import {
   useStreamdownLinkSafety,
 } from "./link-safety"
 
+import { CodexFollowup, decodeCodexFollowup } from "./codex-followup"
+
 const RESOURCE_KIND_ICON: Record<ResourceKind, LucideIcon> = {
   file: FileText,
   web: Globe,
@@ -205,7 +207,7 @@ export function MarkdownLink({
             data-resource-kind="file"
             title={displayPath}
             onClick={handleClick}
-            className="inline-flex max-w-full -translate-y-[1.5px] cursor-pointer appearance-none items-center align-middle leading-none hover:opacity-80"
+            className="inline-flex max-w-full -translate-y-[1.5px] cursor-pointer appearance-none items-start align-middle text-left leading-[inherit] hover:opacity-80"
           >
             <ReferenceBadge data={fileData} appearance="file-link" />
           </button>
@@ -293,14 +295,36 @@ export function PublicMarkdownLink(props: MarkdownLinkProps) {
   )
 }
 
+function FollowupMarkdownLink(props: MarkdownLinkProps) {
+  const prompt = decodeCodexFollowup(props.href)
+  return prompt === null ? (
+    <MarkdownLink {...props} />
+  ) : (
+    <CodexFollowup prompt={prompt} readOnly={false}>
+      {props.children}
+    </CodexFollowup>
+  )
+}
+
+function PublicFollowupMarkdownLink(props: MarkdownLinkProps) {
+  const prompt = decodeCodexFollowup(props.href)
+  return prompt === null ? (
+    <PublicMarkdownLink {...props} />
+  ) : (
+    <CodexFollowup prompt={prompt} readOnly>
+      {props.children}
+    </CodexFollowup>
+  )
+}
+
 // react-markdown's `Components` map carries a string index signature that forces
 // every element override to accept `Record<string, unknown>` props, which is
 // incompatible with MarkdownLink's precise anchor props. The cast bridges that
 // gap — MarkdownLink receives exactly the props react-markdown passes for `a`.
 export const markdownLinkComponents: Components = {
-  a: MarkdownLink as Components["a"],
+  a: FollowupMarkdownLink as Components["a"],
 }
 
 export const publicMarkdownLinkComponents: Components = {
-  a: PublicMarkdownLink as Components["a"],
+  a: PublicFollowupMarkdownLink as Components["a"],
 }

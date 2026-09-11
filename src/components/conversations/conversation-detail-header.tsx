@@ -101,7 +101,8 @@ interface ConversationDetailHeaderProps {
 
 /**
  * Conversation detail header (inline on desktop, in the nav row on mobile): the owning folder name + the
- * conversation title on the left; a desktop overflow menu or mobile new-chat button. A single
+ * conversation title on the left with a desktop overflow menu, and a new-chat
+ * button on the right. A single
  * instance renders fixed above the tile scroll area, scoped to the ACTIVE
  * conversation, so it never scrolls horizontally when many conversations are
  * tiled.
@@ -510,13 +511,13 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-11 w-8 shrink-0 rounded-xl md:hidden"
+        className="h-11 w-8 shrink-0 rounded-xl md:size-6 md:rounded-md md:text-muted-foreground md:hover:bg-accent md:hover:text-foreground"
         aria-label={t("newConversation")}
         title={t("newConversation")}
         disabled={!folderPath}
         onClick={handleNewConversation}
       >
-        <SquarePen aria-hidden="true" className="size-[18px]" />
+        <SquarePen aria-hidden="true" className="size-[18px] md:size-4" />
       </Button>
 
       <Dialog

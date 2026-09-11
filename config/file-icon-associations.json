@@ -1,0 +1,352 @@
+[
+  {
+    "icon": "file-type-markdown",
+    "extensions": ["md", "markdown"],
+    "names": []
+  },
+  {
+    "icon": "file-type-mdx",
+    "extensions": ["mdx"],
+    "names": []
+  },
+  {
+    "icon": "file-type-html",
+    "extensions": ["html", "htm", "xhtml"],
+    "names": []
+  },
+  {
+    "icon": "file-type-css",
+    "extensions": ["css"],
+    "names": []
+  },
+  {
+    "icon": "file-type-sass",
+    "extensions": ["scss", "sass"],
+    "names": []
+  },
+  {
+    "icon": "file-type-less",
+    "extensions": ["less"],
+    "names": []
+  },
+  {
+    "icon": "file-type-js-official",
+    "extensions": ["js", "mjs", "cjs"],
+    "names": []
+  },
+  {
+    "icon": "file-type-typescript-official",
+    "extensions": ["ts", "mts", "cts"],
+    "names": []
+  },
+  {
+    "icon": "file-type-typescriptdef-official",
+    "extensions": ["d.ts", "d.mts", "d.cts"],
+    "names": []
+  },
+  {
+    "icon": "file-type-reactjs",
+    "extensions": ["jsx"],
+    "names": []
+  },
+  {
+    "icon": "file-type-reactts",
+    "extensions": ["tsx"],
+    "names": []
+  },
+  {
+    "icon": "file-type-vue",
+    "extensions": ["vue"],
+    "names": []
+  },
+  {
+    "icon": "file-type-svelte",
+    "extensions": ["svelte"],
+    "names": []
+  },
+  {
+    "icon": "file-type-json",
+    "extensions": ["json", "jsonl", "ndjson"],
+    "names": []
+  },
+  {
+    "icon": "file-type-json5",
+    "extensions": ["json5"],
+    "names": []
+  },
+  {
+    "icon": "file-type-yaml",
+    "extensions": ["yaml", "yml"],
+    "names": []
+  },
+  {
+    "icon": "file-type-toml",
+    "extensions": ["toml"],
+    "names": []
+  },
+  {
+    "icon": "file-type-xml",
+    "extensions": ["xml", "xsl", "xsd"],
+    "names": []
+  },
+  {
+    "icon": "file-type-python",
+    "extensions": ["py", "pyi", "pyw"],
+    "names": []
+  },
+  {
+    "icon": "file-type-rust",
+    "extensions": ["rs"],
+    "names": []
+  },
+  {
+    "icon": "file-type-go",
+    "extensions": ["go"],
+    "names": []
+  },
+  {
+    "icon": "file-type-java",
+    "extensions": ["java", "jar", "class"],
+    "names": []
+  },
+  {
+    "icon": "file-type-c",
+    "extensions": ["c", "h"],
+    "names": []
+  },
+  {
+    "icon": "file-type-cpp",
+    "extensions": ["cpp", "cc", "cxx", "hpp", "hxx"],
+    "names": []
+  },
+  {
+    "icon": "file-type-csharp",
+    "extensions": ["cs", "csx"],
+    "names": []
+  },
+  {
+    "icon": "file-type-swift",
+    "extensions": ["swift"],
+    "names": []
+  },
+  {
+    "icon": "file-type-kotlin",
+    "extensions": ["kt", "kts"],
+    "names": []
+  },
+  {
+    "icon": "file-type-php",
+    "extensions": ["php"],
+    "names": []
+  },
+  {
+    "icon": "file-type-ruby",
+    "extensions": ["rb", "erb"],
+    "names": []
+  },
+  {
+    "icon": "file-type-shell",
+    "extensions": ["sh", "bash", "zsh", "fish"],
+    "names": []
+  },
+  {
+    "icon": "file-type-powershell",
+    "extensions": ["ps1", "psm1", "psd1"],
+    "names": []
+  },
+  {
+    "icon": "file-type-sql",
+    "extensions": ["sql"],
+    "names": []
+  },
+  {
+    "icon": "file-type-sqlite",
+    "extensions": ["sqlite", "sqlite3", "db"],
+    "names": []
+  },
+  {
+    "icon": "file-type-excel",
+    "extensions": [
+      "xlsx",
+      "xls",
+      "xlsm",
+      "xlsb",
+      "csv",
+      "tsv",
+      "ods",
+      "numbers"
+    ],
+    "names": []
+  },
+  {
+    "icon": "file-type-word",
+    "extensions": ["docx", "doc", "docm", "odt", "rtf", "pages"],
+    "names": []
+  },
+  {
+    "icon": "file-type-powerpoint",
+    "extensions": ["pptx", "ppt", "pptm", "odp", "key"],
+    "names": []
+  },
+  {
+    "icon": "file-type-pdf2",
+    "extensions": ["pdf"],
+    "names": []
+  },
+  {
+    "icon": "file-type-image",
+    "extensions": [
+      "png",
+      "jpg",
+      "jpeg",
+      "gif",
+      "webp",
+      "heic",
+      "avif",
+      "bmp",
+      "ico",
+      "tiff",
+      "tif"
+    ],
+    "names": []
+  },
+  {
+    "icon": "file-type-svg",
+    "extensions": ["svg"],
+    "names": []
+  },
+  {
+    "icon": "file-type-photoshop",
+    "extensions": ["psd", "psb"],
+    "names": []
+  },
+  {
+    "icon": "file-type-zip",
+    "extensions": [
+      "zip",
+      "rar",
+      "7z",
+      "tar",
+      "gz",
+      "bz2",
+      "xz",
+      "tgz",
+      "zst",
+      "tar.gz",
+      "tar.bz2",
+      "tar.xz"
+    ],
+    "names": []
+  },
+  {
+    "icon": "file-type-audio",
+    "extensions": ["mp3", "wav", "m4a", "flac", "aac", "ogg", "opus", "aiff"],
+    "names": []
+  },
+  {
+    "icon": "file-type-video",
+    "extensions": ["mp4", "mov", "webm", "mkv", "avi", "m4v"],
+    "names": []
+  },
+  {
+    "icon": "file-type-font",
+    "extensions": ["ttf", "otf", "woff", "woff2"],
+    "names": []
+  },
+  {
+    "icon": "file-type-text",
+    "extensions": ["txt"],
+    "names": []
+  },
+  {
+    "icon": "file-type-log",
+    "extensions": ["log"],
+    "names": []
+  },
+  {
+    "icon": "file-type-binary",
+    "extensions": [
+      "dmg",
+      "pkg",
+      "exe",
+      "msi",
+      "apk",
+      "app",
+      "deb",
+      "rpm",
+      "iso",
+      "bin"
+    ],
+    "names": []
+  },
+  {
+    "icon": "file-type-config",
+    "extensions": ["ini", "conf", "cfg"],
+    "names": []
+  },
+  {
+    "icon": "file-type-npm",
+    "extensions": [],
+    "names": [
+      "package.json",
+      "package-lock.json",
+      "npm-shrinkwrap.json",
+      ".npmrc"
+    ]
+  },
+  {
+    "icon": "file-type-pnpm",
+    "extensions": [],
+    "names": ["pnpm-lock.yaml", "pnpm-workspace.yaml", ".pnpmfile.cjs"]
+  },
+  {
+    "icon": "file-type-docker",
+    "extensions": ["dockerfile"],
+    "names": [
+      "Dockerfile",
+      "Containerfile",
+      "docker-compose.yml",
+      "docker-compose.yaml",
+      "compose.yml",
+      "compose.yaml",
+      ".dockerignore"
+    ]
+  },
+  {
+    "icon": "file-type-git",
+    "extensions": [],
+    "names": [".gitignore", ".gitattributes", ".gitmodules"]
+  },
+  {
+    "icon": "file-type-dotenv",
+    "extensions": ["env"],
+    "names": [
+      ".env",
+      ".env.local",
+      ".env.development",
+      ".env.production",
+      ".env.test",
+      ".env.example"
+    ]
+  },
+  {
+    "icon": "file-type-license",
+    "extensions": [],
+    "names": ["LICENSE", "LICENSE.txt", "LICENSE.md", "COPYING"]
+  },
+  {
+    "icon": "file-type-next",
+    "extensions": [],
+    "names": ["next.config.js", "next.config.mjs", "next.config.ts"]
+  },
+  {
+    "icon": "file-type-vite",
+    "extensions": [],
+    "names": ["vite.config.js", "vite.config.mjs", "vite.config.ts"]
+  },
+  {
+    "icon": "file-type-vitest",
+    "extensions": [],
+    "names": ["vitest.config.js", "vitest.config.mjs", "vitest.config.ts"]
+  }
+]

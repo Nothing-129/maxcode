@@ -22,6 +22,7 @@ import {
   ChevronDown,
   ChevronRight,
   ChevronsUp,
+  Copy,
   Download,
   ExternalLink,
   FolderClosed,
@@ -69,7 +70,7 @@ import {
   deleteConversation,
   listChildConversations,
 } from "@/lib/api"
-import { isDesktop, revealItemInDir } from "@/lib/platform"
+import { revealItemInDir } from "@/lib/platform"
 import type {
   AgentType,
   ConversationStatus,
@@ -181,7 +182,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { cn } from "@/lib/utils"
+import { cn, copyTextFromMenu } from "@/lib/utils"
 import { FolderAliasLabel } from "./folder-alias-label"
 import { toErrorMessage } from "@/lib/app-error"
 
@@ -408,10 +409,6 @@ const FolderHeader = memo(function FolderHeader({
           if (platform.includes("win")) return tFileTree("openInExplorer")
           return tFileTree("openInFileManager")
         })()
-  // `revealItemInDir` only works inside Tauri; in web mode it is a no-op,
-  // so disable the entry there to avoid silent failures.
-  const isDesktopMode = isDesktop()
-
   // Alias dialog: controlled Dialog rendered as a sibling of the ContextMenu so
   // it survives the menu closing on select (mirrors the conversation card's
   // rename dialog). Seeded from the current alias on open.
@@ -704,12 +701,23 @@ const FolderHeader = memo(function FolderHeader({
               explorerLabel={systemExplorerLabel}
               terminalLabel={tFileTree("openInTerminal")}
               codeLabel={tFileTree("openInCode")}
-              explorerDisabled={!isDesktopMode}
               onOpenExplorer={() => onOpenInSystemExplorer(folderId)}
               onOpenTerminal={() => onOpenInTerminal(folderId)}
               onOpenCode={() => onOpenInCode(folderId)}
             />
           </ContextMenuSub>
+          <ContextMenuItem
+            disabled={!folderPath}
+            onSelect={() => {
+              void copyTextFromMenu(folderPath).then((ok) => {
+                if (ok) toast.success(tFileTree("toasts.pathCopied"))
+                else toast.error(tFileTree("toasts.copyPathFailed"))
+              })
+            }}
+          >
+            <Copy className="h-4 w-4" />
+            {tFileTree("copyPath")}
+          </ContextMenuItem>
           <ContextMenuSeparator />
           <ContextMenuItem onSelect={() => onManageConversations(folderId)}>
             <ListChecks className="h-4 w-4" />

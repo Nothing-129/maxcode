@@ -59,6 +59,7 @@ import {
   type WorkspaceExternalConflict,
 } from "@/hooks/use-open-file-tabs-watch"
 import { useOfficeAutoPreview } from "@/lib/office-preview-prefs"
+import { useTabStore } from "@/stores/tab-store"
 
 export type WorkspaceMode = "conversation" | "fusion"
 export type WorkspacePane = "conversation" | "files"
@@ -199,6 +200,8 @@ interface WorkspaceViewValue {
 }
 
 interface WorkspaceFileTabsValue {
+  // The active conversation tab's open files, in strip order. Buffers for
+  // other conversations stay in the provider but are not listed here.
   fileTabs: FileWorkspaceTab[]
   activeFileTabId: string | null
   activeFileTab: FileWorkspaceTab | null
@@ -274,6 +277,105 @@ function fileName(path: string): string {
 
 function isDirtyFileTab(tab: FileWorkspaceTab): boolean {
   return tab.kind === "file" && Boolean(tab.isDirty)
+}
+
+// File-column membership is per conversation tab: opening a path from a
+// transcript (or the tree, while that conversation is focused) attaches the
+// tab to THAT conversation, and switching conversations shows that
+// conversation's files — or none. Buffers stay unique by path so two
+// conversations that both have foo.ts open share the unsaved buffer.
+// When no conversation tab is active (empty workspace, unit tests) membership
+// lives on this sentinel so existing window-level callers keep working.
+const WINDOW_FILE_SCOPE = "__window__"
+
+type ConversationFileScope = {
+  tabIds: string[]
+  activeFileTabId: string | null
+  filesMaximized: boolean
+}
+
+type FileScopes = Record<string, ConversationFileScope>
+
+const EMPTY_FILE_SCOPE: ConversationFileScope = {
+  tabIds: [],
+  activeFileTabId: null,
+  filesMaximized: false,
+}
+
+const EMPTY_FILE_TABS: FileWorkspaceTab[] = []
+
+function currentFileScopeKey(): string {
+  return useTabStore.getState().activeTabId ?? WINDOW_FILE_SCOPE
+}
+
+function referencedFileTabIds(scopes: FileScopes): Set<string> {
+  const ids = new Set<string>()
+  for (const scope of Object.values(scopes)) {
+    for (const id of scope.tabIds) ids.add(id)
+  }
+  return ids
+}
+
+function attachFileTabToScope(
+  scopes: FileScopes,
+  scopeKey: string,
+  tabId: string
+): FileScopes {
+  const scope = scopes[scopeKey] ?? EMPTY_FILE_SCOPE
+  const tabIds = scope.tabIds.includes(tabId)
+    ? scope.tabIds
+    : [...scope.tabIds, tabId]
+  if (tabIds === scope.tabIds && scope.activeFileTabId === tabId) {
+    return scopes
+  }
+  return {
+    ...scopes,
+    [scopeKey]: {
+      ...scope,
+      tabIds,
+      activeFileTabId: tabId,
+    },
+  }
+}
+
+function detachFileTabFromScope(
+  scopes: FileScopes,
+  scopeKey: string,
+  tabId: string
+): FileScopes {
+  const scope = scopes[scopeKey]
+  if (!scope?.tabIds.includes(tabId)) return scopes
+  const index = scope.tabIds.indexOf(tabId)
+  const tabIds = scope.tabIds.filter((id) => id !== tabId)
+  if (tabIds.length === 0) {
+    const next = { ...scopes }
+    delete next[scopeKey]
+    return next
+  }
+  const activeFileTabId =
+    scope.activeFileTabId === tabId
+      ? (tabIds[Math.min(index, tabIds.length - 1)] ?? null)
+      : scope.activeFileTabId
+  return {
+    ...scopes,
+    [scopeKey]: {
+      ...scope,
+      tabIds,
+      activeFileTabId,
+    },
+  }
+}
+
+function fileTabReferencedOutsideScope(
+  scopes: FileScopes,
+  scopeKey: string,
+  tabId: string
+): boolean {
+  for (const [key, scope] of Object.entries(scopes)) {
+    if (key === scopeKey) continue
+    if (scope.tabIds.includes(tabId)) return true
+  }
+  return false
 }
 
 // Share one string instance when the git base equals the working copy —
@@ -367,7 +469,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [activePane, setActivePaneState] =
     useState<WorkspacePane>("conversation")
   const [fileTabs, setFileTabs] = useState<FileWorkspaceTab[]>([])
-  const [activeFileTabId, setActiveFileTabId] = useState<string | null>(null)
+  const [fileScopes, setFileScopes] = useState<FileScopes>({})
   const [pendingFileReveal, setPendingFileReveal] = useState<{
     requestId: number
     path: string
@@ -376,7 +478,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const [previewFileTabIds, setPreviewFileTabIds] = useState<Set<string>>(
     new Set()
   )
-  const [filesMaximized, setFilesMaximized] = useState(false)
+  // Which conversation tab the file column currently belongs to. `null` is
+  // the window sentinel (no conversation tab focused).
+  const activeConversationTabId = useTabStore((s) => s.activeTabId)
   // FIFO queue of unresolved disk-vs-buffer divergences (head is shown by
   // the always-mounted conflict dialog). Isolated state: never flows into
   // the fileTabs slice, so idle cost is zero.
@@ -392,6 +496,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     new Map()
   )
   const fileTabsRef = useRef<FileWorkspaceTab[]>([])
+  const fileScopesRef = useRef<FileScopes>({})
   // Latest-state mirrors for the stable action callbacks. Actions live in a
   // context value that must NOT change identity when tabs/folder change, so
   // they read these refs instead of capturing render-scoped state. The refs
@@ -425,8 +530,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   }, [fileTabs])
 
   useEffect(() => {
-    activeFileTabIdRef.current = activeFileTabId
-  }, [activeFileTabId])
+    fileScopesRef.current = fileScopes
+  }, [fileScopes])
 
   useEffect(() => {
     activeFolderRef.current = activeFolder
@@ -532,22 +637,122 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     []
   )
 
-  const mode: WorkspaceMode = fileTabs.length > 0 ? "fusion" : "conversation"
-  const effectiveFilesMaximized = mode === "fusion" && filesMaximized
+  const patchFileScopes = useCallback(
+    (updater: (prev: FileScopes) => FileScopes): FileScopes => {
+      const prev = fileScopesRef.current
+      const next = updater(prev)
+      if (next === prev) return prev
+      fileScopesRef.current = next
+      setFileScopes(next)
+      return next
+    },
+    []
+  )
 
-  // Reset maximize state once the file workspace is empty so reopening a file
-  // later starts from the normal split instead of a stale maximized layout.
-  useEffect(() => {
-    if (fileTabs.length === 0 && filesMaximized) {
-      /* eslint-disable react-hooks/set-state-in-effect */
-      setFilesMaximized(false)
-      /* eslint-enable react-hooks/set-state-in-effect */
+  const fileScopeKey = activeConversationTabId ?? WINDOW_FILE_SCOPE
+  const currentFileScope = fileScopes[fileScopeKey] ?? EMPTY_FILE_SCOPE
+  const visibleFileTabs = useMemo(() => {
+    if (currentFileScope.tabIds.length === 0) return EMPTY_FILE_TABS
+    const byId = new Map(fileTabs.map((tab) => [tab.id, tab]))
+    const next: FileWorkspaceTab[] = []
+    for (const id of currentFileScope.tabIds) {
+      const tab = byId.get(id)
+      if (tab) next.push(tab)
     }
-  }, [fileTabs.length, filesMaximized])
+    return next.length === 0 ? EMPTY_FILE_TABS : next
+  }, [fileTabs, currentFileScope.tabIds])
+  const activeFileTabId =
+    currentFileScope.activeFileTabId != null &&
+    visibleFileTabs.some((tab) => tab.id === currentFileScope.activeFileTabId)
+      ? currentFileScope.activeFileTabId
+      : (visibleFileTabs[0]?.id ?? null)
+
+  useEffect(() => {
+    activeFileTabIdRef.current = activeFileTabId
+  }, [activeFileTabId])
+
+  const mode: WorkspaceMode =
+    visibleFileTabs.length > 0 ? "fusion" : "conversation"
+  const effectiveFilesMaximized =
+    mode === "fusion" && currentFileScope.filesMaximized
+
+  // Drop membership for conversation tabs that no longer exist. Unique clean
+  // buffers close; unique dirty buffers are adopted by the live conversation
+  // so unsaved edits never vanish with the tab.
+  useEffect(() => {
+    return useTabStore.subscribe((state, prevState) => {
+      if (state.rawTabs === prevState.rawTabs) return
+      const openIds = new Set(state.rawTabs.map((tab) => tab.id))
+      const scopes = fileScopesRef.current
+      let nextScopes: FileScopes | null = null
+      for (const key of Object.keys(scopes)) {
+        if (key === WINDOW_FILE_SCOPE) continue
+        if (openIds.has(key)) continue
+        if (!nextScopes) nextScopes = { ...scopes }
+        delete nextScopes[key]
+      }
+      if (!nextScopes) return
+
+      const referenced = referencedFileTabIds(nextScopes)
+      const destKey = state.activeTabId ?? WINDOW_FILE_SCOPE
+      const dirtyOrphans: string[] = []
+      const cleanOrphans: string[] = []
+      for (const tab of fileTabsRef.current) {
+        if (referenced.has(tab.id)) continue
+        if (isDirtyFileTab(tab)) dirtyOrphans.push(tab.id)
+        else cleanOrphans.push(tab.id)
+      }
+
+      if (dirtyOrphans.length > 0) {
+        const dest = nextScopes[destKey] ?? EMPTY_FILE_SCOPE
+        const tabIds = [...dest.tabIds]
+        for (const id of dirtyOrphans) {
+          if (!tabIds.includes(id)) tabIds.push(id)
+        }
+        nextScopes[destKey] = {
+          ...dest,
+          tabIds,
+          activeFileTabId: dest.activeFileTabId ?? tabIds[0] ?? null,
+        }
+      }
+
+      fileScopesRef.current = nextScopes
+      setFileScopes(nextScopes)
+
+      if (cleanOrphans.length === 0) return
+      const drop = new Set(cleanOrphans)
+      setFileTabs((prev) => {
+        const next = prev.filter((tab) => {
+          if (!drop.has(tab.id)) return true
+          const closed = snapshotFileTab(tab)
+          if (closed) pushClosedTab(closed)
+          inFlightLoadsRef.current.delete(tab.id)
+          return false
+        })
+        return next.length === prev.length ? prev : next
+      })
+      setPreviewFileTabIds((prev) => {
+        let changed = false
+        const updated = new Set(prev)
+        for (const id of drop) {
+          if (updated.delete(id)) changed = true
+        }
+        return changed ? updated : prev
+      })
+    })
+  }, [])
 
   const toggleFilesMaximized = useCallback(() => {
-    setFilesMaximized((prev) => !prev)
-  }, [])
+    patchFileScopes((prev) => {
+      const key = currentFileScopeKey()
+      const scope = prev[key]
+      if (!scope || scope.tabIds.length === 0) return prev
+      return {
+        ...prev,
+        [key]: { ...scope, filesMaximized: !scope.filesMaximized },
+      }
+    })
+  }, [patchFileScopes])
 
   const setActivePane = useCallback((nextPane: WorkspacePane) => {
     setActivePaneState((prev) => (prev === nextPane ? prev : nextPane))
@@ -560,8 +765,13 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     // Releasing the files overlay so a session opened from the sidebar (or any
     // other path that activates the conversation pane) becomes visible instead
     // of staying hidden behind a maximized files pane.
-    setFilesMaximized(false)
-  }, [])
+    patchFileScopes((prev) => {
+      const key = currentFileScopeKey()
+      const scope = prev[key]
+      if (!scope?.filesMaximized) return prev
+      return { ...prev, [key]: { ...scope, filesMaximized: false } }
+    })
+  }, [patchFileScopes])
 
   const activateFilePane = useCallback(() => {
     setActivePaneState((prev) => (prev === "files" ? prev : "files"))
@@ -574,13 +784,15 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   // Git-scoped diff tabs keep their folderId but are snapshots; a gone
   // folder surfaces as a load error on the next refresh, not a wipe.
 
-  // Pure activation — no content mutation.
+  // Attach (or focus) a buffer on the active conversation's file column.
   const activateTab = useCallback(
     (tabId: string) => {
-      setActiveFileTabId(tabId)
+      patchFileScopes((prev) =>
+        attachFileTabToScope(prev, currentFileScopeKey(), tabId)
+      )
       activateFilePane()
     },
-    [activateFilePane]
+    [activateFilePane, patchFileScopes]
   )
 
   // Insert a freshly created (loading, empty) tab. Caller has verified no tab
@@ -591,7 +803,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         if (prev.some((tab) => tab.id === nextTab.id)) return prev
         return [...prev, nextTab]
       })
-      setActiveFileTabId(nextTab.id)
+      patchFileScopes((prev) =>
+        attachFileTabToScope(prev, currentFileScopeKey(), nextTab.id)
+      )
       activateFilePane()
       // Open HTML/Markdown file tabs in the rendered preview by default rather
       // than the source editor. Only runs on first seed: reloads go through
@@ -611,7 +825,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         })
       }
     },
-    [activateFilePane]
+    [activateFilePane, patchFileScopes]
   )
 
   // Mark an existing tab as refreshing. Preserves content / originalContent /
@@ -670,10 +884,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         updated[idx] = nextTab
         return updated
       })
-      setActiveFileTabId(nextTab.id)
+      patchFileScopes((prev) =>
+        attachFileTabToScope(prev, currentFileScopeKey(), nextTab.id)
+      )
       activateFilePane()
     },
-    [activateFilePane]
+    [activateFilePane, patchFileScopes]
   )
 
   // Orchestrates the "I want to start (or restart) a load for this tab" flow.
@@ -2176,117 +2392,186 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       if (activeId && activeId !== tabId) {
         void saveFileTab(activeId)
       }
-      setActiveFileTabId(tabId)
+      patchFileScopes((prev) => {
+        const key = currentFileScopeKey()
+        const scope = prev[key]
+        if (!scope || !scope.tabIds.includes(tabId)) return prev
+        if (scope.activeFileTabId === tabId) return prev
+        return { ...prev, [key]: { ...scope, activeFileTabId: tabId } }
+      })
       activateFilePane()
     },
-    [activateFilePane, saveFileTab]
+    [activateFilePane, patchFileScopes, saveFileTab]
   )
+
+  const destroyUnreferencedFileTabs = useCallback((tabIds: string[]) => {
+    if (tabIds.length === 0) return
+    const destroy = new Set(tabIds)
+    setFileTabs((prev) => {
+      const next = prev.filter((tab) => {
+        if (!destroy.has(tab.id)) return true
+        const closed = snapshotFileTab(tab)
+        if (closed) pushClosedTab(closed)
+        inFlightLoadsRef.current.delete(tab.id)
+        return false
+      })
+      return next.length === prev.length ? prev : next
+    })
+    setPreviewFileTabIds((prev) => {
+      let changed = false
+      const updated = new Set(prev)
+      for (const id of destroy) {
+        if (updated.delete(id)) changed = true
+      }
+      return changed ? updated : prev
+    })
+  }, [])
 
   const closeFileTab = useCallback(
     (tabId: string) => {
-      setFileTabs((prev) => {
-        const idx = prev.findIndex((tab) => tab.id === tabId)
-        if (idx < 0) return prev
+      const key = currentFileScopeKey()
+      const scopes = fileScopesRef.current
+      const scope = scopes[key]
+      if (!scope?.tabIds.includes(tabId)) return
 
-        const tab = prev[idx]
-        if (isDirtyFileTab(tab)) {
-          const confirmed = window.confirm(
-            t("confirmCloseDirtyTab", { title: tab.title })
-          )
-          if (!confirmed) return prev
-        }
+      const stillReferenced = fileTabReferencedOutsideScope(scopes, key, tabId)
+      const tab = fileTabsRef.current.find(
+        (candidate) => candidate.id === tabId
+      )
+      if (!stillReferenced && tab && isDirtyFileTab(tab)) {
+        const confirmed = window.confirm(
+          t("confirmCloseDirtyTab", { title: tab.title })
+        )
+        if (!confirmed) return
+      }
 
-        // `pushClosedTab` keys on the tab id and moves an existing entry to the
-        // top, so recording from inside this updater survives React invoking it
-        // more than once (StrictMode, or a discarded render replayed).
-        const closed = snapshotFileTab(tab)
-        if (closed) pushClosedTab(closed)
+      const wasActive = scope.activeFileTabId === tabId
+      const nextScopes = patchFileScopes((prev) =>
+        detachFileTabFromScope(prev, key, tabId)
+      )
+      if (!stillReferenced) {
+        destroyUnreferencedFileTabs([tabId])
+      }
 
-        const next = prev.filter((candidate) => candidate.id !== tabId)
-
-        setActiveFileTabId((current) => {
-          if (current !== tabId) return current
-          if (next.length === 0) {
-            activateConversationPane()
-            return null
-          }
-          const nextIdx = Math.min(idx, next.length - 1)
-          // Closing the active file tab (via its X) keeps the user in the file
-          // column, so focus the files pane — mirroring the conversation
-          // closeTab. The section pointer-capture used to do this; the tab strip
-          // now sits outside the pane-activation wrapper, so do it explicitly.
-          activateFilePane()
-          return next[nextIdx].id
-        })
-
-        setPreviewFileTabIds((prev) => {
-          if (!prev.has(tabId)) return prev
-          const updated = new Set(prev)
-          updated.delete(tabId)
-          return updated
-        })
-
-        // Drop any in-flight marker so reopening this path does not get
-        // deduped against a now-orphaned fetch.
-        inFlightLoadsRef.current.delete(tabId)
-
-        return next
-      })
+      const nextScope = nextScopes[key]
+      if (!nextScope || nextScope.tabIds.length === 0) {
+        activateConversationPane()
+      } else if (wasActive) {
+        // Closing the active file tab (via its X) keeps the user in the file
+        // column, so focus the files pane — mirroring the conversation
+        // closeTab. The section pointer-capture used to do this; the tab strip
+        // now sits outside the pane-activation wrapper, so do it explicitly.
+        activateFilePane()
+      }
     },
-    [activateConversationPane, activateFilePane, t]
+    [
+      activateConversationPane,
+      activateFilePane,
+      destroyUnreferencedFileTabs,
+      patchFileScopes,
+      t,
+    ]
   )
 
   const closeOtherFileTabs = useCallback(
     (tabId: string) => {
-      setFileTabs((prev) => {
-        const remaining = prev.filter((tab) => tab.id === tabId)
-        if (remaining.length === 0) return prev
+      const key = currentFileScopeKey()
+      const scopes = fileScopesRef.current
+      const scope = scopes[key]
+      if (!scope?.tabIds.includes(tabId)) return
 
-        const closingTabs = prev.filter((tab) => tab.id !== tabId)
-        if (closingTabs.some(isDirtyFileTab)) {
-          const confirmed = window.confirm(t("confirmCloseOtherDirtyTabs"))
-          if (!confirmed) return prev
+      const closingIds = scope.tabIds.filter((id) => id !== tabId)
+      if (closingIds.length === 0) return
+
+      const destroyIds = closingIds.filter(
+        (id) => !fileTabReferencedOutsideScope(scopes, key, id)
+      )
+      if (
+        destroyIds.some((id) => {
+          const tab = fileTabsRef.current.find(
+            (candidate) => candidate.id === id
+          )
+          return tab != null && isDirtyFileTab(tab)
+        })
+      ) {
+        const confirmed = window.confirm(t("confirmCloseOtherDirtyTabs"))
+        if (!confirmed) return
+      }
+
+      patchFileScopes((prev) => {
+        const current = prev[key]
+        if (!current) return prev
+        return {
+          ...prev,
+          [key]: {
+            tabIds: [tabId],
+            activeFileTabId: tabId,
+            filesMaximized: current.filesMaximized,
+          },
         }
-
-        for (const closing of closingTabs) {
-          // `pushClosedTab` is idempotent per tab id, which is what makes this
-          // safe inside an updater React may invoke more than once.
-          const closed = snapshotFileTab(closing)
-          if (closed) pushClosedTab(closed)
-          inFlightLoadsRef.current.delete(closing.id)
-        }
-
-        setActiveFileTabId(tabId)
-        activateFilePane()
-        return remaining
       })
+      destroyUnreferencedFileTabs(destroyIds)
+      activateFilePane()
     },
-    [activateFilePane, t]
+    [activateFilePane, destroyUnreferencedFileTabs, patchFileScopes, t]
   )
 
   const closeAllFileTabs = useCallback(() => {
-    setFileTabs((prev) => {
-      if (prev.some(isDirtyFileTab)) {
-        const confirmed = window.confirm(t("confirmCloseAllDirtyTabs"))
-        if (!confirmed) return prev
-      }
+    const key = currentFileScopeKey()
+    const scopes = fileScopesRef.current
+    const scope = scopes[key]
+    if (!scope || scope.tabIds.length === 0) return
 
-      for (const tab of prev) {
-        const closed = snapshotFileTab(tab)
-        if (closed) pushClosedTab(closed)
-      }
+    const destroyIds = scope.tabIds.filter(
+      (id) => !fileTabReferencedOutsideScope(scopes, key, id)
+    )
+    if (
+      destroyIds.some((id) => {
+        const tab = fileTabsRef.current.find((candidate) => candidate.id === id)
+        return tab != null && isDirtyFileTab(tab)
+      })
+    ) {
+      const confirmed = window.confirm(t("confirmCloseAllDirtyTabs"))
+      if (!confirmed) return
+    }
 
-      inFlightLoadsRef.current.clear()
-      setActiveFileTabId(null)
-      setPreviewFileTabIds(new Set())
-      activateConversationPane()
-      return []
+    patchFileScopes((prev) => {
+      if (!(key in prev)) return prev
+      const next = { ...prev }
+      delete next[key]
+      return next
     })
-  }, [activateConversationPane, t])
+    destroyUnreferencedFileTabs(destroyIds)
+    activateConversationPane()
+  }, [
+    activateConversationPane,
+    destroyUnreferencedFileTabs,
+    patchFileScopes,
+    t,
+  ])
 
-  const reorderFileTabs = useCallback((tabs: FileWorkspaceTab[]) => {
-    setFileTabs(tabs)
-  }, [])
+  const reorderFileTabs = useCallback(
+    (tabs: FileWorkspaceTab[]) => {
+      patchFileScopes((prev) => {
+        const key = currentFileScopeKey()
+        const scope = prev[key]
+        if (!scope) return prev
+        const allowed = new Set(scope.tabIds)
+        const tabIds = tabs.map((tab) => tab.id).filter((id) => allowed.has(id))
+        for (const id of scope.tabIds) {
+          if (!tabIds.includes(id)) tabIds.push(id)
+        }
+        if (
+          tabIds.length === scope.tabIds.length &&
+          tabIds.every((id, index) => id === scope.tabIds[index])
+        ) {
+          return prev
+        }
+        return { ...prev, [key]: { ...scope, tabIds } }
+      })
+    },
+    [patchFileScopes]
+  )
 
   const activeFileTab = useMemo(
     () => fileTabs.find((tab) => tab.id === activeFileTabId) ?? null,
@@ -2487,7 +2772,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
 
   const fileTabsValue = useMemo<WorkspaceFileTabsValue>(
     () => ({
-      fileTabs,
+      fileTabs: visibleFileTabs,
       activeFileTabId,
       activeFileTab,
       activeFilePath,
@@ -2495,7 +2780,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       pendingFileReveal,
     }),
     [
-      fileTabs,
+      visibleFileTabs,
       activeFileTabId,
       activeFileTab,
       activeFilePath,

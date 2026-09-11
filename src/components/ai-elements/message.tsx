@@ -35,6 +35,7 @@ import {
 import { maskLiteralSpans } from "./markdown-mask"
 import { mermaidComponents } from "./mermaid-block"
 import { rehypePluginsAllowingCodeg } from "./rehype-allow-codeg"
+import { remarkCodexFollowup } from "./remark-codex-followup"
 import { remarkAutolinkLocalPaths } from "./remark-autolink-local-paths"
 import { remarkTrimCjkAutolinkTail } from "./remark-cjk-autolink-tail"
 import { remarkRewriteFileUriLinks } from "./remark-file-uri-links"
@@ -467,6 +468,7 @@ function containerPrefixEnd(
 
 const remarkPlugins = [
   ...Object.values(defaultRemarkPlugins),
+  remarkCodexFollowup,
   // Before remarkRewriteFileUriLinks, which reshapes a drive path's url.
   remarkRestoreWindowsPaths,
   remarkRewriteFileUriLinks,

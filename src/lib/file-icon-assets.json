@@ -1,0 +1,238 @@
+{
+  "default-file": {
+    "light": "default-file",
+    "dark": "default-file"
+  },
+  "default-folder": {
+    "light": "default-folder",
+    "dark": "default-folder"
+  },
+  "file-type-markdown": {
+    "light": "file-type-markdown",
+    "dark": "file-type-markdown"
+  },
+  "file-type-mdx": {
+    "light": "file-type-light-mdx",
+    "dark": "file-type-mdx"
+  },
+  "file-type-html": {
+    "light": "file-type-html",
+    "dark": "file-type-html"
+  },
+  "file-type-css": {
+    "light": "file-type-css",
+    "dark": "file-type-css"
+  },
+  "file-type-sass": {
+    "light": "file-type-sass",
+    "dark": "file-type-sass"
+  },
+  "file-type-less": {
+    "light": "file-type-less",
+    "dark": "file-type-less"
+  },
+  "file-type-js-official": {
+    "light": "file-type-js-official",
+    "dark": "file-type-js-official"
+  },
+  "file-type-typescript-official": {
+    "light": "file-type-typescript-official",
+    "dark": "file-type-typescript-official"
+  },
+  "file-type-typescriptdef-official": {
+    "light": "file-type-typescriptdef-official",
+    "dark": "file-type-typescriptdef-official"
+  },
+  "file-type-reactjs": {
+    "light": "file-type-reactjs",
+    "dark": "file-type-reactjs"
+  },
+  "file-type-reactts": {
+    "light": "file-type-reactts",
+    "dark": "file-type-reactts"
+  },
+  "file-type-vue": {
+    "light": "file-type-vue",
+    "dark": "file-type-vue"
+  },
+  "file-type-svelte": {
+    "light": "file-type-svelte",
+    "dark": "file-type-svelte"
+  },
+  "file-type-json": {
+    "light": "file-type-light-json",
+    "dark": "file-type-json"
+  },
+  "file-type-json5": {
+    "light": "file-type-light-json5",
+    "dark": "file-type-json5"
+  },
+  "file-type-yaml": {
+    "light": "file-type-light-yaml",
+    "dark": "file-type-yaml"
+  },
+  "file-type-toml": {
+    "light": "file-type-light-toml",
+    "dark": "file-type-toml"
+  },
+  "file-type-xml": {
+    "light": "file-type-xml",
+    "dark": "file-type-xml"
+  },
+  "file-type-python": {
+    "light": "file-type-python",
+    "dark": "file-type-python"
+  },
+  "file-type-rust": {
+    "light": "file-type-light-rust",
+    "dark": "file-type-rust"
+  },
+  "file-type-go": {
+    "light": "file-type-go",
+    "dark": "file-type-go"
+  },
+  "file-type-java": {
+    "light": "file-type-java",
+    "dark": "file-type-java"
+  },
+  "file-type-c": {
+    "light": "file-type-c",
+    "dark": "file-type-c"
+  },
+  "file-type-cpp": {
+    "light": "file-type-cpp",
+    "dark": "file-type-cpp"
+  },
+  "file-type-csharp": {
+    "light": "file-type-csharp",
+    "dark": "file-type-csharp"
+  },
+  "file-type-swift": {
+    "light": "file-type-swift",
+    "dark": "file-type-swift"
+  },
+  "file-type-kotlin": {
+    "light": "file-type-kotlin",
+    "dark": "file-type-kotlin"
+  },
+  "file-type-php": {
+    "light": "file-type-php",
+    "dark": "file-type-php"
+  },
+  "file-type-ruby": {
+    "light": "file-type-ruby",
+    "dark": "file-type-ruby"
+  },
+  "file-type-shell": {
+    "light": "file-type-shell",
+    "dark": "file-type-shell"
+  },
+  "file-type-powershell": {
+    "light": "file-type-powershell",
+    "dark": "file-type-powershell"
+  },
+  "file-type-sql": {
+    "light": "file-type-sql",
+    "dark": "file-type-sql"
+  },
+  "file-type-sqlite": {
+    "light": "file-type-sqlite",
+    "dark": "file-type-sqlite"
+  },
+  "file-type-excel": {
+    "light": "file-type-excel",
+    "dark": "file-type-excel"
+  },
+  "file-type-word": {
+    "light": "file-type-word",
+    "dark": "file-type-word"
+  },
+  "file-type-powerpoint": {
+    "light": "file-type-powerpoint",
+    "dark": "file-type-powerpoint"
+  },
+  "file-type-pdf2": {
+    "light": "file-type-pdf2",
+    "dark": "file-type-pdf2"
+  },
+  "file-type-image": {
+    "light": "file-type-image",
+    "dark": "file-type-image"
+  },
+  "file-type-svg": {
+    "light": "file-type-svg",
+    "dark": "file-type-svg"
+  },
+  "file-type-photoshop": {
+    "light": "file-type-photoshop",
+    "dark": "file-type-photoshop"
+  },
+  "file-type-zip": {
+    "light": "file-type-zip",
+    "dark": "file-type-zip"
+  },
+  "file-type-audio": {
+    "light": "file-type-audio",
+    "dark": "file-type-audio"
+  },
+  "file-type-video": {
+    "light": "file-type-video",
+    "dark": "file-type-video"
+  },
+  "file-type-font": {
+    "light": "file-type-light-font",
+    "dark": "file-type-font"
+  },
+  "file-type-text": {
+    "light": "file-type-text",
+    "dark": "file-type-text"
+  },
+  "file-type-log": {
+    "light": "file-type-log",
+    "dark": "file-type-log"
+  },
+  "file-type-binary": {
+    "light": "file-type-binary",
+    "dark": "file-type-binary"
+  },
+  "file-type-config": {
+    "light": "file-type-light-config",
+    "dark": "file-type-config"
+  },
+  "file-type-npm": {
+    "light": "file-type-npm",
+    "dark": "file-type-npm"
+  },
+  "file-type-pnpm": {
+    "light": "file-type-light-pnpm",
+    "dark": "file-type-pnpm"
+  },
+  "file-type-docker": {
+    "light": "file-type-docker",
+    "dark": "file-type-docker"
+  },
+  "file-type-git": {
+    "light": "file-type-git",
+    "dark": "file-type-git"
+  },
+  "file-type-dotenv": {
+    "light": "file-type-dotenv",
+    "dark": "file-type-dotenv"
+  },
+  "file-type-license": {
+    "light": "file-type-license",
+    "dark": "file-type-license"
+  },
+  "file-type-next": {
+    "light": "file-type-light-next",
+    "dark": "file-type-next"
+  },
+  "file-type-vite": {
+    "light": "file-type-light-vite",
+    "dark": "file-type-vite"
+  },
+  "file-type-vitest": {
+    "light": "file-type-light-vitest",
+    "dark": "file-type-vitest"
+  }
+}

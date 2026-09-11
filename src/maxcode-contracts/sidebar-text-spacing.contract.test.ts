@@ -26,7 +26,14 @@ describe("sidebar text and spacing", () => {
     expect(card).toContain("bg-black/[0.04] dark:bg-white/[0.06]")
     expect(card).toContain("calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)")
     expect(card).toContain("formatConversationTitle(conversation.title)")
+    expect(card).toContain("ConversationTitleLabel")
     expect(card).toContain('CONV_RAIL_DEPTH_STEP = "1.25rem"')
+    const titleLabel = source(
+      "src/components/conversations/conversation-title-label.tsx"
+    )
+    expect(titleLabel).toContain("w-[4ch]")
+    expect(titleLabel).toContain("tabular-nums")
+    expect(titleLabel).toContain("parseStructuredConversationTitle")
     const list = source(
       "src/components/conversations/sidebar-conversation-list.tsx"
     )

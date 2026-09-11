@@ -19,7 +19,9 @@ interface OpenFileTargetOptions {
  *
  * The default answer is the workspace file column — that is what
  * `openFilePreview` / `openSessionFileDiff` have always done, and where the
- * file stays open afterwards. But the column is only on screen on the
+ * file stays open afterwards (membership is the conversation tab that was
+ * focused at open: switching conversations hides it and brings it back).
+ * But the column is only on screen on the
  * conversations route: a full-page workbench route (the task board, the
  * infinite canvas, automations, forge) covers the whole workspace, and a
  * transcript is perfectly readable from inside one — the task detail sheet's
