@@ -5597,7 +5597,7 @@ pub(crate) async fn acp_fetch_kimi_models_core(
 
 /// Resolve pi's coding-agent dir: `PI_CODING_AGENT_DIR` if set (trimmed,
 /// non-empty), else `~/.pi/agent` (mirrors `codex_home_dir`/`resolve_kimi_*`).
-fn pi_agent_dir() -> PathBuf {
+pub(crate) fn pi_agent_dir() -> PathBuf {
     match std::env::var("PI_CODING_AGENT_DIR")
         .ok()
         .map(|raw| raw.trim().to_string())

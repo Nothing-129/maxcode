@@ -3,6 +3,7 @@
 //! This module provides [`AcpAgent`], a convenient wrapper around [`sacp::schema::McpServer`]
 //! that can be parsed from either a command string or JSON configuration.
 
+use std::future::Future;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -376,8 +377,9 @@ impl AcpAgent {
     /// Register a callback invoked once with the OS process id (pid) of the
     /// spawned agent process, right after it launches.
     ///
-    /// The child is otherwise owned entirely by [`connect_to`]'s internal
-    /// `ChildGuard`, which kills the whole process tree on drop. But that drop
+    /// The child is otherwise owned entirely by
+    /// [`sacp::ConnectTo::connect_to`]'s internal `ChildGuard`, which kills the
+    /// whole process tree on drop. But that drop
     /// only runs when the driving future completes — during a host-process
     /// shutdown the driver may be torn down before it can, leaking the agent
     /// (and its own child processes) as orphans. Exposing the pid lets the host
@@ -655,36 +657,63 @@ fn append_limited_utf8(output: &mut String, chunk: &str, limit: usize) -> bool {
 /// Waits for a child process and returns an error if it exits with non-zero status.
 ///
 /// The error message includes any stderr output collected by the background task.
-/// When dropped, the child process is killed.
-async fn monitor_child(
+/// Dropping the returned future drops a [`ChildGuard`], which signals the
+/// child's process tree and — given a runtime to reap on — keeps owning the
+/// child until it is really gone. Neither half is unconditional: see
+/// [`AcpAgent::on_exit`] for why the kill is only a signal, and
+/// `ChildGuard::drop` for why a drop outside a runtime stays silent.
+///
+/// That much has to survive a drop landing *before the first poll*, which is
+/// why this is deliberately NOT an `async fn`: an `async fn` body does not run
+/// until it is first polled, so the guard below would not exist yet and the
+/// captured raw `Child` would be dropped on its own instead. Tokio never kills
+/// on that path and reaps the child out of sight (at once if it has already
+/// exited, via the orphan queue otherwise), so a live agent survives as an
+/// orphan, `exit_callback` never fires, and the host is left publishing a pid
+/// the OS may since have reassigned. The test
+/// `dropping_an_unpolled_child_monitor_still_reaps_and_reports_exit` is what
+/// catches a change back to `async fn`.
+///
+/// `+ Send` is stated rather than left to auto-trait leakage because
+/// `sacp::ConnectTo::connect_to` promises a `Send` future and holds this one
+/// across an await: without the bound, a non-`Send` capture added here would be
+/// reported against that impl rather than against this function.
+fn monitor_child(
     child: Child,
     stderr_rx: tokio::sync::oneshot::Receiver<String>,
     exit_callback: Option<Arc<dyn Fn() + Send + Sync + 'static>>,
-) -> Result<(), sacp::Error> {
-    let mut guard = ChildGuard {
+) -> impl Future<Output = Result<(), sacp::Error>> + Send {
+    // Construct the guard before returning the future. `connect_to` races this
+    // future against the protocol driver; when that driver wins before the
+    // child monitor's first poll, dropping the future must still drop a guard
+    // that owns the child and starts the detached reap.
+    let guard = ChildGuard {
         child: Some(child),
         exit_callback,
     };
 
-    // Wait for the child to exit
-    let status = guard
-        .wait()
-        .await
-        .map_err(|e| sacp::util::internal_error(format!("Failed to wait for process: {}", e)))?;
+    async move {
+        let mut guard = guard;
 
-    if status.success() {
-        Ok(())
-    } else {
-        // Get stderr content if available
-        let stderr = stderr_rx.await.unwrap_or_default();
+        // Wait for the child to exit
+        let status = guard.wait().await.map_err(|e| {
+            sacp::util::internal_error(format!("Failed to wait for process: {}", e))
+        })?;
 
-        let message = if stderr.is_empty() {
-            format!("Process exited with {}", status)
+        if status.success() {
+            Ok(())
         } else {
-            format!("Process exited with {}: {}", status, stderr)
-        };
+            // Get stderr content if available
+            let stderr = stderr_rx.await.unwrap_or_default();
 
-        Err(sacp::util::internal_error(message))
+            let message = if stderr.is_empty() {
+                format!("Process exited with {}", status)
+            } else {
+                format!("Process exited with {}: {}", status, stderr)
+            };
+
+            Err(sacp::util::internal_error(message))
+        }
     }
 }
 
@@ -735,11 +764,8 @@ impl<Counterpart: AcpAgentCounterpartRole> sacp::ConnectTo<Counterpart> for AcpA
                     }
                     // Always collect for error reporting
                     if !collected.is_empty() {
-                        truncated |= append_limited_utf8(
-                            &mut collected,
-                            "\n",
-                            MAX_STDERR_CAPTURE_BYTES,
-                        );
+                        truncated |=
+                            append_limited_utf8(&mut collected, "\n", MAX_STDERR_CAPTURE_BYTES);
                     }
                     truncated |=
                         append_limited_utf8(&mut collected, &line, MAX_STDERR_CAPTURE_BYTES);
@@ -1061,8 +1087,9 @@ mod tests {
     /// keeps a Windows process handle open, which is exactly what stops the OS
     /// from reusing the pid there.
     #[cfg(unix)]
-    fn counting_callback(calls: &Arc<std::sync::atomic::AtomicUsize>) -> Arc<dyn Fn() + Send + Sync>
-    {
+    fn counting_callback(
+        calls: &Arc<std::sync::atomic::AtomicUsize>,
+    ) -> Arc<dyn Fn() + Send + Sync> {
         let calls = Arc::clone(calls);
         Arc::new(move || {
             calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
@@ -1097,6 +1124,52 @@ mod tests {
             drop(guard);
         });
         // Exactly once, even though `drop` also runs its own notify path.
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+    }
+
+    /// Regression for the select race in `connect_to`: the protocol side may
+    /// finish before the child-monitor future receives its first poll. The
+    /// monitor must already own a `ChildGuard`, otherwise dropping that
+    /// unpolled future bypasses kill/reap and never fires `on_exit`.
+    #[cfg(unix)]
+    #[test]
+    fn dropping_an_unpolled_child_monitor_still_reaps_and_reports_exit() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let calls = Arc::new(AtomicUsize::new(0));
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("tokio runtime");
+        rt.block_on(async {
+            let mut command = tokio::process::Command::new("/bin/sh");
+            command.args(["-c", "sleep 30"]);
+            command.stderr(std::process::Stdio::piped());
+            let mut child = command.spawn().expect("spawn sh");
+            let stderr = child.stderr.take().expect("stderr");
+            let (stderr_tx, stderr_rx) = tokio::sync::oneshot::channel();
+            tokio::spawn(async move {
+                use tokio::io::AsyncReadExt;
+                let mut stderr = stderr;
+                let mut bytes = Vec::new();
+                let _ = stderr.read_to_end(&mut bytes).await;
+                let _ = stderr_tx.send(String::from_utf8_lossy(&bytes).into_owned());
+            });
+
+            let monitor = monitor_child(child, stderr_rx, Some(counting_callback(&calls)));
+            // Deliberately never poll it.
+            drop(monitor);
+
+            let mut reported = false;
+            for _ in 0..200 {
+                if calls.load(Ordering::SeqCst) == 1 {
+                    reported = true;
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(20)).await;
+            }
+            assert!(reported, "unpolled monitor bypassed the reap callback");
+        });
         assert_eq!(calls.load(Ordering::SeqCst), 1);
     }
 
@@ -1371,12 +1444,14 @@ mod tests {
 
     #[test]
     fn unc_batch_command_rejects_line_breaks() {
-        assert!(make_unc_batch_command_line(
-            r"\\wsl.localhost\Ubuntu\home\user\repo",
-            std::path::Path::new("hermes.cmd"),
-            &["line\nbreak".into()],
-        )
-        .is_err());
+        assert!(
+            make_unc_batch_command_line(
+                r"\\wsl.localhost\Ubuntu\home\user\repo",
+                std::path::Path::new("hermes.cmd"),
+                &["line\nbreak".into()],
+            )
+            .is_err()
+        );
     }
 
     #[cfg(unix)]
@@ -1392,8 +1467,7 @@ mod tests {
             .with_current_dir(&dir);
         let rt = tokio::runtime::Runtime::new().expect("tokio runtime");
         let out = rt.block_on(async {
-            let (_stdin, mut stdout, _stderr, mut child) =
-                agent.spawn_process().expect("spawn");
+            let (_stdin, mut stdout, _stderr, mut child) = agent.spawn_process().expect("spawn");
             let mut out = String::new();
             stdout.read_to_string(&mut out).await.expect("read stdout");
             let _ = child.wait().await;

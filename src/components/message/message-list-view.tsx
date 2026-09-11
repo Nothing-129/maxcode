@@ -18,6 +18,7 @@ import { SentMessageEditButton } from "./sent-message-edit-button"
 import { CollapsibleUserMessage } from "./collapsible-user-message"
 import { CollapsibleSystemMessage } from "./collapsible-system-message"
 import { isContextCompactionMeta } from "@/lib/context-compaction"
+import { dedupeCompactionItems } from "@/lib/dedupe-compaction-items"
 import {
   createMessageTurnAdapter,
   groupGoalRuns,
@@ -204,6 +205,9 @@ export type ThreadRenderItem =
       // chrome-less centered divider in the correct between-turns position.
       key: string
       kind: "compaction"
+      phase?: "persisted" | "optimistic" | "streaming"
+      // Promoted local replies have persisted phase but still originate in ACP.
+      source?: "history" | "live"
       meta: Record<string, unknown> | null
     }
 
@@ -1141,7 +1145,16 @@ export function MessageListView({
       // the preceding assistant reply by `mergeConsecutiveAssistantTurns`.
       const compactionMeta = compactionOnlyMeta(group)
       if (compactionMeta !== null) {
-        return { key, kind: "compaction" as const, meta: compactionMeta }
+        return {
+          key,
+          kind: "compaction" as const,
+          phase,
+          source:
+            phase !== "persisted" || timelineTurns[i].key.startsWith("local-")
+              ? ("live" as const)
+              : ("history" as const),
+          meta: compactionMeta,
+        }
       }
       return {
         key,
@@ -1167,7 +1180,10 @@ export function MessageListView({
 
     // Collapse consecutive assistant turn render items into a single rendered
     // turn, so tool-groups straddling a turn boundary fold into one collapsible.
-    const items = mergeConsecutiveAssistantTurns(rawItems, mergedRunCache)
+    const items = mergeConsecutiveAssistantTurns(
+      dedupeCompactionItems(rawItems),
+      mergedRunCache
+    )
 
     // Compute showStats, isRoleTransition, and previousUserIndex for each turn.
     // previousUserIndex points at the closest preceding user turn (used by the

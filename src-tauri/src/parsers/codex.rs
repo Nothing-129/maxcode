@@ -1367,6 +1367,235 @@ fn unwrap_code_mode_script(
     )
 }
 
+#[derive(Debug)]
+struct CompletedMcpCall {
+    id: String,
+    server: String,
+    tool: String,
+    input_preview: Option<String>,
+    output_preview: Option<String>,
+    is_error: bool,
+}
+
+/// How much of a serialized MCP result stands in for a call that answered in
+/// blocks with no text of its own. Matches `pi`'s cap on the same shape: enough
+/// to show what came back, not enough for a base64 blob to swamp the card.
+const MCP_RESULT_FALLBACK_CAP: usize = 4000;
+
+/// A sink that accepts `budget` bytes and then refuses, so a serializer writing
+/// into it stops instead of running to the end of its input.
+struct BudgetedSink {
+    buf: Vec<u8>,
+    budget: usize,
+}
+
+impl std::io::Write for BudgetedSink {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        let room = self.budget.saturating_sub(self.buf.len());
+        if room == 0 {
+            return Err(std::io::Error::other("preview budget reached"));
+        }
+        let take = room.min(data.len());
+        self.buf.extend_from_slice(&data[..take]);
+        Ok(take)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// `value` serialized into a `max_chars` preview without ever building an
+/// UNBOUNDED serialization. A value that fits is still written out whole —
+/// into a buffer that cannot grow past the budget.
+///
+/// `serde_json::to_string` materializes all of it first — for an image-only
+/// MCP result that is the entire base64 blob, allocated and then walked twice
+/// more by `truncate_str`, to keep a few thousand characters of it. This
+/// produces exactly the same string while the buffer stays at
+/// `4 * max_chars + 1` bytes. UTF-8 spends at most 4 bytes per character, so
+/// that many always cover `max_chars` of them — and the `+ 1` is what makes it
+/// STRICTLY more, which is the whole proof: a full buffer therefore always
+/// decodes to more than `max_chars` characters, so it is always truncated, so
+/// the partial character a byte cut leaves behind is always among the ones
+/// dropped. At `4 * max_chars` alone the strictness would rest on JSON always
+/// opening with an ASCII byte and so never letting a full buffer land on
+/// exactly `max_chars` — which holds for every `max_chars` but zero, and even
+/// then is a fact about the format rather than about this function. The `+ 1`
+/// is what makes it a property of the arithmetic.
+///
+/// What it bounds is the MEMORY, which is the part that can fail. Time is only
+/// mostly bounded: `serde_json` walks a string looking for escapes before
+/// offering any of it to the writer, so one oversized string is still read
+/// through once — a pass over bytes already resident, not a second copy of
+/// them. Stopping even that would mean replacing the serializer.
+///
+/// `None` for a value that serializes to nothing at all.
+fn serialize_preview(value: &serde_json::Value, max_chars: usize) -> Option<String> {
+    let mut sink = BudgetedSink {
+        buf: Vec::new(),
+        budget: max_chars.saturating_mul(4).saturating_add(1),
+    };
+    // A value that fits reports `Ok`; one that does not aborts with the sink's
+    // own error. Both leave `buf` holding the prefix, and `serde_json` cannot
+    // fail on a `Value` for any other reason.
+    let _ = serde_json::to_writer(&mut sink, value);
+    let text = String::from_utf8_lossy(&sink.buf);
+    (!text.is_empty()).then(|| truncate_str(&text, max_chars))
+}
+
+fn completed_mcp_call(payload: &serde_json::Value) -> Option<CompletedMcpCall> {
+    let item = payload.get("item")?;
+    if item.get("type").and_then(|v| v.as_str()) != Some("McpToolCall") {
+        return None;
+    }
+    let result = item.get("result").filter(|value| !value.is_null());
+    let stated_error = item.get("error").filter(|value| is_stated_error(value));
+    // Text first, then the structured twin. The last two are for the shapes
+    // that carry neither — a transport failure that answered with `error` and
+    // no result, or a `content` array holding only blocks this reader cannot
+    // render (an image, a resource). The semantic path DISCARDS the wrapper's
+    // own printed output, so a `None` here is not a quiet degradation, it is a
+    // card that says nothing at all where the script card used to show the
+    // run's text.
+    //
+    // Only the LAST one is truncated, and only for what the card SHOWS — it is
+    // the shape that can be a base64 blob, and a card must not be flooded with
+    // one. Nothing may decide an OUTCOME from a cut string: the heuristic below
+    // re-parses a preview that opens with `{` or `[` and looks for a failed
+    // `status` inside it (`infer_output_text_is_error`), and truncating valid
+    // JSON makes that parse fail silently, settling a call that reported
+    // failure GREEN. So the cut branch also hands back the value it cut, and
+    // the outcome is read from that instead.
+    let output_preview = result
+        .and_then(|result| result.get("content"))
+        .and_then(crate::parsers::pi::tool_result_content_text)
+        .or_else(|| {
+            result
+                .and_then(|result| result.get("structuredContent"))
+                .and_then(|value| serde_json::to_string(value).ok())
+        })
+        .or_else(|| value_to_preview(stated_error));
+    // `content` rather than the whole envelope. A call that returned NOTHING
+    // still says nothing — `{"content":[]}` is not worth rendering.
+    let blocks = output_preview
+        .is_none()
+        .then(|| result?.get("content"))
+        .flatten()
+        .filter(|content| content.as_array().is_some_and(|blocks| !blocks.is_empty()));
+    let output_preview = output_preview
+        .or_else(|| blocks.and_then(|content| serialize_preview(content, MCP_RESULT_FALLBACK_CAP)));
+    // The record STATES its outcome — `result.isError`, the item's own terminal
+    // `status`, and an `error` when the call never reached the server. Believe
+    // them. `infer_tool_call_output_is_error` reads tea leaves out of the
+    // output text because a script card has no such field; run against an
+    // authoritative record it can only invent failures, and a tool that
+    // legitimately PRINTS `exit code: 1` or answers with a line opening
+    // `Error:` returned perfectly well. Kept as the fallback for a record that
+    // states nothing. Stated failure outranks stated success, so a record
+    // contradicting itself settles as the error it reported.
+    let stated_is_error = result
+        .and_then(|result| result.get("isError"))
+        .and_then(serde_json::Value::as_bool);
+    let claimed_failed = stated_is_error == Some(true)
+        || stated_error.is_some()
+        || item
+            .get("status")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(is_failed_status);
+    let claimed_ok = stated_is_error == Some(false)
+        || item.get("status").and_then(serde_json::Value::as_str) == Some("completed");
+    Some(CompletedMcpCall {
+        id: item.get("id")?.as_str()?.to_string(),
+        server: item.get("server")?.as_str()?.to_string(),
+        tool: item.get("tool")?.as_str()?.to_string(),
+        input_preview: value_to_preview(item.get("arguments")),
+        is_error: claimed_failed
+            || (!claimed_ok
+                && (infer_tool_call_output_is_error(item, result, output_preview.as_deref())
+                    || blocks_report_failure(blocks))),
+        output_preview,
+    })
+}
+
+/// Whether any block in a result's `content` array REPORTS a failure.
+///
+/// The blocks are what the preview above was cut out of, and the cut string
+/// no longer re-parses, so the outcome has to be read here or not at all —
+/// truncation may cost a card characters, never a call its verdict.
+///
+/// A block's own report, deliberately, and no descent. A full
+/// `infer_output_value_is_error` walk follows `data`, which in a tool-output
+/// envelope is a nested result but on an MCP block is the PAYLOAD — the base64
+/// the cap above refuses to copy, and which `infer_output_text_is_error` would
+/// lowercase into a second copy of itself anyway. A payload that happens to
+/// read like an error is still just bytes. Depth 4 is how that is said to a
+/// walker whose own limit is 4: it reads the outcome fields it recognizes and
+/// then every descent refuses. Only OBJECT blocks are asked, because only they
+/// can carry such a field — MCP `content` holds typed blocks, and a bare
+/// string among them is not a shape this can read a verdict out of.
+///
+/// Still not free in the worst case: a recognized field can itself be huge
+/// (`{"stderr": "<megabytes of spaces>"}` costs a `trim`). That is a pass over
+/// one already-resident string, not a copy of it, and unlike `data` it is a
+/// field a block would have to have gone out of its way to carry.
+fn blocks_report_failure(blocks: Option<&serde_json::Value>) -> bool {
+    blocks
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|blocks| {
+            blocks
+                .iter()
+                .filter(|block| block.is_object())
+                .any(|block| infer_output_value_is_error(block, 4))
+        })
+}
+
+fn unwrap_completed_mcp_calls(
+    script: &CodeModeScript,
+    completed: Vec<CompletedMcpCall>,
+) -> Option<(Vec<ContentBlock>, Vec<ContentBlock>)> {
+    if script.tool_names.len() != completed.len() || script.tool_names.is_empty() {
+        return None;
+    }
+    let names_match = script
+        .tool_names
+        .iter()
+        .zip(&completed)
+        .all(|(tool_name, item)| {
+            let server = item.server.replace('-', "_");
+            tool_name == &format!("mcp__{server}__{}", item.tool)
+        });
+    if !names_match {
+        return None;
+    }
+    let mut uses = Vec::with_capacity(completed.len());
+    let mut results = Vec::with_capacity(completed.len());
+    for (index, item) in completed.into_iter().enumerate() {
+        uses.push(ContentBlock::ToolUse {
+            tool_use_id: Some(item.id.clone()),
+            tool_name: script.tool_names[index].clone(),
+            input_preview: item.input_preview,
+            // Read off the item's OWN outcome, never hardcoded: a code-mode
+            // script whose MCP call failed still prints `Script completed`
+            // (measured: a `delegate_to_agent` refused for `depth_limit`
+            // settles the script fine), so claiming `completed` here would
+            // contradict the very result block written next to it. This is a
+            // per-call terminal record — not `ScriptStatus`, which
+            // `ContentBlock::ToolUse::status` documents as unsafe to copy.
+            status: Some(if item.is_error { "failed" } else { "completed" }.into()),
+            meta: None,
+        });
+        results.push(ContentBlock::ToolResult {
+            tool_use_id: Some(item.id),
+            output_preview: item.output_preview,
+            is_error: item.is_error,
+            agent_stats: None,
+            images: Vec::new(),
+        });
+    }
+    Some((uses, results))
+}
+
 /// What the renderer needs to know about a call recovered from a code-mode
 /// script, as facts rather than prose: the backend states them, the frontend
 /// words them in the reader's language.
@@ -1806,6 +2035,18 @@ fn infer_output_text_is_error(text: &str) -> bool {
         .is_some_and(|prefix| prefix.eq_ignore_ascii_case("error:"))
 }
 
+/// Whether an `error` field STATES an error rather than merely existing.
+/// `null`, `false` and a blank string are how a record says "no error", and a
+/// reader that took their presence for failure would fail every clean call
+/// that carries the key.
+fn is_stated_error(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Null | serde_json::Value::Bool(false) => false,
+        serde_json::Value::String(text) => !text.trim().is_empty(),
+        _ => true,
+    }
+}
+
 fn infer_output_value_is_error(value: &serde_json::Value, depth: usize) -> bool {
     if depth > 4 {
         return false;
@@ -1851,13 +2092,8 @@ fn infer_output_value_is_error(value: &serde_json::Value, depth: usize) -> bool 
                 }
             }
 
-            if let Some(error) = map.get("error") {
-                match error {
-                    serde_json::Value::Null => {}
-                    serde_json::Value::Bool(false) => {}
-                    serde_json::Value::String(s) if s.trim().is_empty() => {}
-                    _ => return true,
-                }
+            if map.get("error").is_some_and(is_stated_error) {
+                return true;
             }
 
             for key in ["output", "result", "details", "data"] {
@@ -1892,13 +2128,8 @@ fn infer_tool_call_output_is_error(
         }
     }
 
-    if let Some(error) = payload.get("error") {
-        match error {
-            serde_json::Value::Null => {}
-            serde_json::Value::Bool(false) => {}
-            serde_json::Value::String(s) if s.trim().is_empty() => {}
-            _ => return true,
-        }
+    if payload.get("error").is_some_and(is_stated_error) {
+        return true;
     }
 
     if let Some(output) = output_value {
@@ -2546,6 +2777,11 @@ impl CodexParser {
         // that message's blocks once it knows how many `text()` chunks came
         // back. See `parsers/codex_code_mode.rs`.
         let mut pending_exec_scripts: HashMap<String, (usize, CodeModeScript)> = HashMap::new();
+        // App-server persists each MCP call executed inside a code-mode script
+        // as a semantic `item_completed.McpToolCall`. Keep those authoritative
+        // ids/results with the sole open script; its output can then replace the
+        // wrapper even when several results were printed as one JSON chunk.
+        let mut completed_mcp_by_exec: HashMap<String, Vec<CompletedMcpCall>> = HashMap::new();
         // `exec_command` call_id → the command it ran, and the background shell
         // sessions that command's output announced (`session id → command`).
         // A later `wait` / `write_stdin` carries only the session id, so this is
@@ -2992,6 +3228,33 @@ impl CodexParser {
                                 }
                             }
                             "item_completed" => {
+                                if let Some(call) = completed_mcp_call(payload) {
+                                    let exec_id = if deferred_scripts.is_empty()
+                                        && pending_exec_scripts.len() == 1
+                                    {
+                                        pending_exec_scripts
+                                            .keys()
+                                            .next()
+                                            .expect("one pending exec")
+                                            .clone()
+                                    } else if pending_exec_scripts.is_empty() {
+                                        let mut deferred_exec_ids = deferred_scripts
+                                            .values()
+                                            .map(|script| script.call_id.as_str());
+                                        let Some(exec_id) = deferred_exec_ids.next() else {
+                                            continue;
+                                        };
+                                        if deferred_exec_ids.all(|id| id == exec_id) {
+                                            exec_id.to_string()
+                                        } else {
+                                            continue;
+                                        }
+                                    } else {
+                                        continue;
+                                    };
+                                    completed_mcp_by_exec.entry(exec_id).or_default().push(call);
+                                    continue;
+                                }
                                 // Plan mode's finished plan document. This is the
                                 // ONLY place a plan turn speaks on the canonical
                                 // event channel — codex publishes the plan here
@@ -3596,14 +3859,24 @@ impl CodexParser {
                                             .collect(),
                                         note: collected.note,
                                     };
-                                    let (uses, results) = unwrap_code_mode_script(
-                                        &deferred.call_id,
-                                        &deferred.script,
-                                        &parsed,
-                                        payload,
-                                        &mut shell_sessions,
-                                        &mut poll_origins,
-                                    );
+                                    let semantic = (parsed.status == ScriptStatus::Completed)
+                                        .then(|| completed_mcp_by_exec.remove(&deferred.call_id))
+                                        .flatten();
+                                    let (uses, results) = semantic
+                                        .and_then(|calls| {
+                                            unwrap_completed_mcp_calls(&deferred.script, calls)
+                                        })
+                                        .map(|(uses, results)| (Some(uses), results))
+                                        .unwrap_or_else(|| {
+                                            unwrap_code_mode_script(
+                                                &deferred.call_id,
+                                                &deferred.script,
+                                                &parsed,
+                                                payload,
+                                                &mut shell_sessions,
+                                                &mut poll_origins,
+                                            )
+                                        });
                                     if let Some(uses) = uses {
                                         messages[deferred.use_index].content = uses;
                                     }
@@ -3624,14 +3897,24 @@ impl CodexParser {
                                 } else if let Some((message_index, script)) = pending_script {
                                     let call_id = tool_use_id.unwrap_or_default();
                                     let parsed = split_code_mode_output(payload.get("output"));
-                                    let (uses, results) = unwrap_code_mode_script(
-                                        &call_id,
-                                        &script,
-                                        &parsed,
-                                        payload,
-                                        &mut shell_sessions,
-                                        &mut poll_origins,
-                                    );
+                                    let semantic = (parsed.status == ScriptStatus::Completed)
+                                        .then(|| completed_mcp_by_exec.remove(&call_id))
+                                        .flatten();
+                                    let (uses, results) = semantic
+                                        .and_then(|calls| {
+                                            unwrap_completed_mcp_calls(&script, calls)
+                                        })
+                                        .map(|(uses, results)| (Some(uses), results))
+                                        .unwrap_or_else(|| {
+                                            unwrap_code_mode_script(
+                                                &call_id,
+                                                &script,
+                                                &parsed,
+                                                payload,
+                                                &mut shell_sessions,
+                                                &mut poll_origins,
+                                            )
+                                        });
                                     if let Some(uses) = uses {
                                         messages[message_index].content = uses;
                                     }
@@ -5770,6 +6053,7 @@ mod tests {
     use std::collections::HashMap;
 
     use super::codex_parent_thread_id;
+    use super::completed_mcp_call;
     use super::extract_codex_title_candidate;
     use super::extract_context_window_used_tokens_from_token_count_info;
     use super::extract_response_item_user_image_blocks;
@@ -5781,15 +6065,19 @@ mod tests {
     use super::parse_codex_subagent_stats;
     use super::redact_encrypted_args;
     use super::resolve_codex_home_dir_from;
+    use super::serialize_preview;
     use super::should_skip_duplicate_user_message;
     use super::strip_blocked_resource_mentions;
+    use super::truncate_str;
     use super::AgentParser;
+    use super::BudgetedSink;
     use super::CodexParser;
     use super::CODEX_PLAN_APPROVAL_PROMPT;
     use super::CODEX_PLAN_APPROVED_OUTPUT;
     use super::CODEX_SCRIPT_TOOL_NAME;
     use super::CODEX_SUBAGENT_LAUNCH_KEY;
     use super::COLLAB_OP_KEY;
+    use super::MCP_RESULT_FALLBACK_CAP;
     use crate::models::{
         ContentBlock, MessageRole, MessageTurn, SessionStats, TurnRole, TurnUsage, UnifiedMessage,
     };
@@ -9663,6 +9951,27 @@ mod tests {
             .collect()
     }
 
+    /// `(tool_use_id, status)` per ToolUse block. Separate from `tool_uses`
+    /// because only the semantic MCP cards carry a status at all — codex
+    /// leaves it `None` everywhere else (see `ContentBlock::ToolUse::status`).
+    fn tool_use_statuses(
+        detail: &crate::models::ConversationDetail,
+    ) -> Vec<(String, Option<String>)> {
+        detail
+            .turns
+            .iter()
+            .flat_map(|t| t.blocks.iter())
+            .filter_map(|b| match b {
+                ContentBlock::ToolUse {
+                    tool_use_id,
+                    status,
+                    ..
+                } => Some((tool_use_id.clone().unwrap_or_default(), status.clone())),
+                _ => None,
+            })
+            .collect()
+    }
+
     fn tool_results(
         detail: &crate::models::ConversationDetail,
     ) -> Vec<(String, Option<String>, bool)> {
@@ -9747,6 +10056,809 @@ mod tests {
         );
 
         let _ = fs::remove_file(path);
+    }
+
+    #[test]
+    fn completed_mcp_items_split_a_two_call_one_chunk_script() {
+        let script = concat!(
+            "const wd=\"/tmp\";const taskA=\"A\";const taskB=\"B\";",
+            "const [a,b]=await Promise.all([",
+            "tools.mcp__codeg_mcp__delegate_to_agent({agent_type:\"codex\",working_dir:wd,task:taskA}),",
+            "tools.mcp__codeg_mcp__delegate_to_agent({agent_type:\"codex\",working_dir:wd,task:taskB})",
+            "]);text(JSON.stringify({a,b}));"
+        );
+        assert!(
+            crate::parsers::codex_code_mode::parse_code_mode_script(script)
+                .calls
+                .is_none(),
+            "the real variable-argument shape cannot be statically evaluated"
+        );
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!([
+                {"type":"input_text","text":"Script completed\nWall time 0.2 seconds\nOutput:\n"},
+                {"type":"input_text","text":"{\"a\":{},\"b\":{}}"},
+            ]),
+        );
+        for (offset, (id, task_id, task)) in [("exec-b", "task-b", "B"), ("exec-a", "task-a", "A")]
+            .into_iter()
+            .enumerate()
+        {
+            lines.insert(
+                2 + offset,
+                rollout_line(
+                    "2026-07-20T08:40:01Z",
+                    "event_msg",
+                    serde_json::json!({
+                        "type": "item_completed",
+                        "item": {
+                            "type": "McpToolCall",
+                            "id": id,
+                            "server": "codeg-mcp",
+                            "tool": "delegate_to_agent",
+                            "arguments": {"agent_type":"codex", "task":task},
+                            "status": "completed",
+                            "result": {
+                                "content": [{"type":"text", "text":format!(
+                                    "Delegation successful. task_id={task_id}."
+                                )}],
+                                "structuredContent": {"task_id":task_id, "status":"running"},
+                                "isError": false
+                            }
+                        }
+                    }),
+                ),
+            );
+        }
+
+        let detail = parse_lines(&lines, "code-mode-semantic-mcp");
+        let uses = tool_uses(&detail);
+        assert_eq!(
+            uses.iter()
+                .map(|(id, name, _)| (id.as_str(), name.as_str()))
+                .collect::<Vec<_>>(),
+            vec![
+                ("exec-b", "mcp__codeg_mcp__delegate_to_agent"),
+                ("exec-a", "mcp__codeg_mcp__delegate_to_agent"),
+            ],
+            "semantic items replace the outer script with real MCP cards"
+        );
+        assert_eq!(
+            uses[0].2.as_deref(),
+            Some(r#"{"agent_type":"codex","task":"B"}"#)
+        );
+        assert_eq!(
+            uses[1].2.as_deref(),
+            Some(r#"{"agent_type":"codex","task":"A"}"#)
+        );
+        assert_eq!(
+            tool_results(&detail)
+                .into_iter()
+                .map(|(id, output, _)| (id, output))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    "exec-b".into(),
+                    Some("Delegation successful. task_id=task-b.".into())
+                ),
+                (
+                    "exec-a".into(),
+                    Some("Delegation successful. task_id=task-a.".into())
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn maxcode_semantic_mcp_preserves_billing_timing_and_context_filtering() {
+        let mut lines = code_mode_rollout(
+            "const r=await tools.mcp__demo__run({cmd});text(r);",
+            serde_json::json!("Script completed\nWall time 1.0 seconds\nOutput:\nfinished"),
+        );
+        lines.splice(0..0, [
+            rollout_line("2026-07-20T08:39:57Z", "session_meta", serde_json::json!({
+                "id": "maxcode-semantic", "cwd": "/tmp/demo",
+            })),
+            rollout_line("2026-07-20T08:39:58Z", "turn_context", serde_json::json!({
+                "model": "gpt-model-a",
+            })),
+            rollout_line("2026-07-20T08:39:59Z", "response_item", serde_json::json!({
+                "type": "message", "role": "user",
+                "content": [{"type": "input_text", "text": "<recommended_plugins>\n- Airtable\n</recommended_plugins>"}],
+            })),
+        ]);
+        lines.extend([
+            rollout_line(
+                "2026-07-20T08:40:03Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "agent_message", "message": "answer one",
+                }),
+            ),
+            rollout_line(
+                "2026-07-20T08:40:04Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "token_count", "info": {"total_token_usage": {
+                        "input_tokens": 100, "cached_input_tokens": 10, "output_tokens": 10,
+                    }},
+                }),
+            ),
+            rollout_line(
+                "2026-07-20T08:40:05Z",
+                "turn_context",
+                serde_json::json!({
+                    "model": "gpt-model-b",
+                }),
+            ),
+            rollout_line(
+                "2026-07-20T08:40:06Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "user_message", "message": "second",
+                }),
+            ),
+            rollout_line(
+                "2026-07-20T08:40:07Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "agent_message", "message": "answer two",
+                }),
+            ),
+            rollout_line(
+                "2026-07-20T08:40:08Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "token_count", "info": {"total_token_usage": {
+                        "input_tokens": 300, "cached_input_tokens": 30, "output_tokens": 30,
+                    }},
+                }),
+            ),
+        ]);
+        let baseline = parse_lines(&lines, "maxcode-semantic-baseline");
+        lines.insert(5, rollout_line("2026-07-20T08:40:01Z", "event_msg", serde_json::json!({
+            "type": "item_completed", "item": {
+                "type": "McpToolCall", "id": "semantic-call", "server": "demo", "tool": "run",
+                "arguments": {"cmd": "pnpm build"}, "status": "completed",
+                "result": {"content": [{"type": "text", "text": "finished"}], "isError": false},
+            },
+        })));
+        let recovered = parse_lines(&lines, "maxcode-semantic-recovered");
+        assert_eq!(tool_uses(&recovered)[0].0, "semantic-call");
+        let metadata =
+            |detail: &crate::models::ConversationDetail| {
+                detail.turns.iter().map(|turn| serde_json::json!({
+                "model": turn.model, "usage": turn.usage, "duration_ms": turn.duration_ms,
+                "role": turn.role,
+            })).collect::<Vec<_>>()
+            };
+        assert_eq!(
+            metadata(&recovered),
+            metadata(&baseline),
+            "tool recovery must not change turn accounting"
+        );
+        let billed: Vec<_> = recovered
+            .turns
+            .iter()
+            .filter(|turn| turn.usage.is_some())
+            .collect();
+        assert_eq!(billed.len(), 2);
+        assert_eq!(billed[0].model.as_deref(), Some("gpt-model-a"));
+        assert_eq!(billed[1].model.as_deref(), Some("gpt-model-b"));
+        assert_eq!(billed[0].usage.as_ref().unwrap().input_tokens, 90);
+        assert_eq!(billed[1].usage.as_ref().unwrap().input_tokens, 180);
+        assert!(recovered
+            .turns
+            .iter()
+            .any(|turn| turn.duration_ms.is_some()));
+        assert_eq!(recovered.summary.title.as_deref(), Some("go"));
+        assert!(recovered.turns.iter().flat_map(|turn| &turn.blocks).all(|block| {
+            !matches!(block, ContentBlock::Text { text } if text.contains("recommended_plugins"))
+        }));
+    }
+
+    #[test]
+    fn maxcode_semantic_mcp_keeps_existing_native_spawn_identity() {
+        let mut lines = code_mode_rollout(
+            "const r=await tools.mcp__demo__run({cmd});text(r);",
+            serde_json::json!("Script completed\nWall time 1.0 seconds\nOutput:\nfinished"),
+        );
+        lines.splice(2..2, [
+            rollout_line("2026-07-20T08:40:01Z", "response_item", serde_json::json!({
+                "type": "function_call", "call_id": "native-spawn", "name": "spawn_agent",
+                "namespace": "collaboration", "arguments": serde_json::json!({
+                    "task_name": "build", "message": "build the project",
+                }).to_string(),
+            })),
+            rollout_line("2026-07-20T08:40:01Z", "event_msg", serde_json::json!({
+                "type": "sub_agent_activity", "event_id": "native-spawn",
+                "agent_thread_id": "native-child", "agent_path": "/root/build", "kind": "started",
+            })),
+            rollout_line("2026-07-20T08:40:01Z", "response_item", serde_json::json!({
+                "type": "function_call_output", "call_id": "native-spawn",
+                "output": serde_json::json!({"task_name": "/root/build"}).to_string(),
+            })),
+        ]);
+        let baseline = parse_lines(&lines, "maxcode-native-baseline");
+        lines.insert(3, rollout_line("2026-07-20T08:40:01Z", "event_msg", serde_json::json!({
+            "type": "item_completed", "item": {
+                "type": "McpToolCall", "id": "semantic-call", "server": "demo", "tool": "run",
+                "arguments": {"cmd": "pnpm build"}, "status": "completed",
+                "result": {"content": [{"type": "text", "text": "finished"}], "isError": false},
+            },
+        })));
+        let recovered = parse_lines(&lines, "maxcode-native-recovered");
+        let native = |detail: &crate::models::ConversationDetail| {
+            tool_uses(detail)
+                .into_iter()
+                .find(|(id, _, _)| id == "native-spawn")
+                .unwrap()
+        };
+        assert_eq!(native(&recovered), native(&baseline));
+        let (_, name, input) = native(&recovered);
+        assert_eq!(name, "Agent");
+        let input: serde_json::Value = serde_json::from_str(input.as_deref().unwrap()).unwrap();
+        assert_eq!(input["agent_id"], "native-child");
+        assert_eq!(input[CODEX_SUBAGENT_LAUNCH_KEY], true);
+        assert!(tool_uses(&recovered)
+            .iter()
+            .any(|(id, name, _)| id == "semantic-call" && name == "mcp__demo__run"));
+    }
+
+    #[test]
+    fn a_deferred_scripts_late_mcp_item_cannot_bind_to_the_next_script() {
+        let script = "const r=await tools.mcp__codeg_mcp__delegate_to_agent({agent_type:\"codex\",task:\"A\"});text(JSON.stringify(r));";
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!("Script running with cell ID 34\nWall time 30.0 seconds\nOutput:\n"),
+        );
+        lines.push(rollout_line(
+            "2026-07-20T08:40:03Z",
+            "response_item",
+            serde_json::json!({
+                "type":"custom_tool_call", "name":"exec", "call_id":"call_b",
+                "input":script.replace("task:\"A\"", "task:\"B\"")
+            }),
+        ));
+        lines.push(rollout_line(
+            "2026-07-20T08:40:04Z",
+            "event_msg",
+            serde_json::json!({
+                "type":"item_completed",
+                "item": {
+                    "type":"McpToolCall", "id":"exec-from-a", "server":"codeg-mcp",
+                    "tool":"delegate_to_agent", "arguments":{"task":"A"},
+                    "status":"completed", "result":{"content":[], "isError":false}
+                }
+            }),
+        ));
+        lines.push(rollout_line(
+            "2026-07-20T08:40:05Z",
+            "response_item",
+            serde_json::json!({
+                "type":"custom_tool_call_output", "call_id":"call_b",
+                "output":"Script completed\nWall time 0.1 seconds\nOutput:\nB"
+            }),
+        ));
+
+        let ids: Vec<String> = tool_uses(&parse_lines(&lines, "deferred-mcp-boundary"))
+            .into_iter()
+            .map(|(id, _, _)| id)
+            .collect();
+        assert_eq!(ids, ["call_1", "call_b"]);
+    }
+
+    /// A refused MCP call still lets the SCRIPT finish, so the wrapper's own
+    /// `Script completed` says nothing about the call inside it. The card has to
+    /// settle on the semantic item's outcome or it contradicts the result block
+    /// written beside it. Shape taken verbatim from a real rollout: codeg-mcp
+    /// refuses a `delegate_to_agent` past the delegation depth limit.
+    #[test]
+    fn a_failed_semantic_mcp_item_settles_its_card_as_failed() {
+        let script = concat!(
+            "const dir=\"/tmp/w\";",
+            "const res=await tools.mcp__codeg_mcp__delegate_to_agent({agent_type:\"codex\",working_dir:dir,task:t});",
+            "text(res.content[0].text);"
+        );
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!([
+                {"type":"input_text","text":"Script completed\nWall time 0.0 seconds\nOutput:\n"},
+                {"type":"input_text","text":"depth limit exceeded (2 >= 2)"},
+            ]),
+        );
+        lines.insert(
+            2,
+            rollout_line(
+                "2026-07-20T08:40:01Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "item_completed",
+                    "item": {
+                        "type": "McpToolCall",
+                        "id": "exec-depth-limit",
+                        "server": "codeg-mcp",
+                        "tool": "delegate_to_agent",
+                        "arguments": {"agent_type":"codex", "working_dir":"/tmp/w"},
+                        "status": "failed",
+                        "result": {
+                            "content": [{"type":"text", "text":"depth limit exceeded (2 >= 2)"}],
+                            "structuredContent": {"error_code":"depth_limit", "status":"failed"},
+                            "isError": true
+                        }
+                    }
+                }),
+            ),
+        );
+
+        let detail = parse_lines(&lines, "semantic-mcp-failed");
+        assert_eq!(
+            tool_use_statuses(&detail),
+            vec![("exec-depth-limit".to_string(), Some("failed".to_string()))],
+            "the card must report the call's own outcome, not the wrapper's"
+        );
+        assert_eq!(
+            tool_results(&detail),
+            vec![(
+                "exec-depth-limit".to_string(),
+                Some("depth limit exceeded (2 >= 2)".to_string()),
+                true,
+            )]
+        );
+    }
+
+    /// A tool whose SUCCESSFUL answer merely reads like a failure — it wraps a
+    /// command and prints its exit code, or opens with `Error:` — must not be
+    /// painted as a failed call. The record says `isError: false` outright, and
+    /// an authoritative field beats the text heuristic that exists only because
+    /// a script card has none.
+    #[test]
+    fn an_explicit_success_survives_output_text_that_reads_like_an_error() {
+        let script = concat!(
+            "const cmd=\"pnpm build\";",
+            "const r=await tools.mcp__shell_srv__run({cmd});",
+            "text(r.content[0].text);"
+        );
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!([
+                {"type":"input_text","text":"Script completed\nWall time 0.2 seconds\nOutput:\n"},
+                {"type":"input_text","text":"Error: 2 problems\nexit code: 1"},
+            ]),
+        );
+        lines.insert(
+            2,
+            rollout_line(
+                "2026-07-20T08:40:01Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "item_completed",
+                    "item": {
+                        "type": "McpToolCall",
+                        "id": "exec-lint",
+                        "server": "shell-srv",
+                        "tool": "run",
+                        "arguments": {"cmd":"pnpm build"},
+                        "status": "completed",
+                        "result": {
+                            "content": [{"type":"text", "text":"Error: 2 problems\nexit code: 1"}],
+                            "isError": false
+                        }
+                    }
+                }),
+            ),
+        );
+
+        let detail = parse_lines(&lines, "semantic-mcp-noisy-success");
+        assert_eq!(
+            tool_use_statuses(&detail),
+            vec![("exec-lint".to_string(), Some("completed".to_string()))]
+        );
+        assert_eq!(
+            tool_results(&detail),
+            vec![(
+                "exec-lint".to_string(),
+                Some("Error: 2 problems\nexit code: 1".to_string()),
+                false,
+            )],
+            "the record's own isError is the outcome, not what the output reads like"
+        );
+    }
+
+    /// The semantic path throws the wrapper's printed output away, so a result
+    /// that carries no text of its own must still be given something to say —
+    /// otherwise a completed call reloads as a card with an empty body where
+    /// the script card used to show the run.
+    #[test]
+    fn a_textless_semantic_result_still_says_something() {
+        let script =
+            "const shot=await tools.mcp__shot_srv__capture({url:target});text(\"captured\");";
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!([
+                {"type":"input_text","text":"Script completed\nWall time 0.4 seconds\nOutput:\n"},
+                {"type":"input_text","text":"captured"},
+            ]),
+        );
+        lines.insert(
+            2,
+            rollout_line(
+                "2026-07-20T08:40:01Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "item_completed",
+                    "item": {
+                        "type": "McpToolCall",
+                        "id": "exec-shot",
+                        "server": "shot-srv",
+                        "tool": "capture",
+                        "arguments": {"url":"https://example.test"},
+                        "status": "completed",
+                        "result": {
+                            "content": [{"type":"image", "data":"iVBORw0KGgo=", "mimeType":"image/png"}],
+                            "isError": false
+                        }
+                    }
+                }),
+            ),
+        );
+
+        let detail = parse_lines(&lines, "semantic-mcp-textless");
+        let results = tool_results(&detail);
+        assert_eq!(results.len(), 1, "one card: {results:?}");
+        let (id, output, is_error) = &results[0];
+        assert_eq!(id, "exec-shot");
+        assert!(!is_error, "an image-only answer is not a failure");
+        assert!(
+            output.as_deref().is_some_and(|text| text.contains("image")),
+            "a textless result must still carry its content: {output:?}"
+        );
+    }
+
+    /// The guard that keeps every correlation honest: a script that mixes an
+    /// MCP call with a shell call publishes only ONE semantic item, so the
+    /// items cannot be zipped onto the call sites. Real shape — a status poll
+    /// racing a `write_stdin` — from a rollout on disk. The script card (or its
+    /// static decomposition) has to keep the turn rather than let the lone item
+    /// claim a site it may not own.
+    #[test]
+    fn a_script_mixing_mcp_and_shell_calls_keeps_its_static_reading() {
+        let lines_with_item = |item: bool| {
+            let mut lines = code_mode_rollout(
+                concat!(
+                    "const rs = await Promise.all([\n",
+                    "  tools.mcp__codeg_mcp__get_delegation_status({task_ids:[\"t1\"],wait_ms:30000}),\n",
+                    "  tools.write_stdin({session_id:480,chars:\"y\\n\"}),\n",
+                    "]);\ntext(JSON.stringify(rs));"
+                ),
+                serde_json::json!([
+                    {"type":"input_text","text":"Script completed\nWall time 30.0 seconds\nOutput:\n"},
+                    {"type":"input_text","text":"[{\"tasks\":[]},{}]"},
+                ]),
+            );
+            if item {
+                lines.insert(
+                    2,
+                    rollout_line(
+                        "2026-07-20T08:40:01Z",
+                        "event_msg",
+                        serde_json::json!({
+                            "type": "item_completed",
+                            "item": {
+                                "type": "McpToolCall",
+                                "id": "exec-poll",
+                                "server": "codeg-mcp",
+                                "tool": "get_delegation_status",
+                                "arguments": {"task_ids":["t1"], "wall_ms":30000},
+                                "status": "completed",
+                                "result": {"content":[{"type":"text","text":"{\"tasks\":[]}"}], "isError":false}
+                            }
+                        }),
+                    ),
+                );
+            }
+            let detail = parse_lines(
+                &lines,
+                if item {
+                    "mixed-with-item"
+                } else {
+                    "mixed-baseline"
+                },
+            );
+            (tool_uses(&detail), tool_results(&detail))
+        };
+
+        let with_item = lines_with_item(true);
+        assert!(
+            !with_item.0.iter().any(|(id, _, _)| id == "exec-poll"),
+            "one item cannot cover two call sites: {with_item:?}"
+        );
+        assert_eq!(
+            with_item,
+            lines_with_item(false),
+            "an uncorrelatable item must leave the script's own reading untouched"
+        );
+    }
+
+    /// A script that threw keeps its own card even when its one MCP call did
+    /// publish a semantic item. The wrapper's `Script error:` text is the whole
+    /// story of that turn — which line threw, and after which call — and the
+    /// semantic path DISCARDS it. The count gate cannot stand in for this: a
+    /// script can throw after its last call answered, leaving exactly as many
+    /// items as call sites.
+    #[test]
+    fn a_thrown_script_keeps_its_own_card_over_a_matching_semantic_item() {
+        let script = concat!(
+            "const r=await tools.mcp__codeg_mcp__task_progress({message:m});",
+            "text(r.content[0].text.toUpperCase());"
+        );
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!([
+                {"type":"input_text","text":"Script failed\nWall time 0.1 seconds\nOutput:\n"},
+                {"type":"input_text","text":"Script error:\nTypeError: Cannot read properties of undefined"},
+            ]),
+        );
+        lines.insert(
+            2,
+            rollout_line(
+                "2026-07-20T08:40:01Z",
+                "event_msg",
+                serde_json::json!({
+                    "type": "item_completed",
+                    "item": {
+                        "type": "McpToolCall",
+                        "id": "exec-progress",
+                        "server": "codeg-mcp",
+                        "tool": "task_progress",
+                        "arguments": {"message":"halfway"},
+                        "status": "completed",
+                        "result": {"content":[{"type":"text","text":"recorded"}], "isError":false},
+                    },
+                }),
+            ),
+        );
+
+        let detail = parse_lines(&lines, "semantic-mcp-thrown-script");
+        assert!(
+            !tool_uses(&detail)
+                .iter()
+                .any(|(id, _, _)| id == "exec-progress"),
+            "a thrown script must not be replaced by the call that did answer"
+        );
+        let results = tool_results(&detail);
+        assert_eq!(results.len(), 1, "one card: {results:?}");
+        assert!(results[0].2, "a thrown script still renders as an error");
+        assert!(
+            results[0]
+                .1
+                .as_deref()
+                .is_some_and(|text| text.contains("TypeError")),
+            "the thrown script's own error must survive: {:?}",
+            results[0].1
+        );
+    }
+
+    /// The sink is what makes a preview bounded: it has to STOP the writer, not
+    /// grow to fit it. Without the refusal, `serde_json` would keep handing it
+    /// the rest of a base64 blob.
+    #[test]
+    fn a_budgeted_sink_stops_at_its_budget() {
+        use std::io::Write;
+        let mut sink = BudgetedSink {
+            buf: Vec::new(),
+            budget: 8,
+        };
+        assert!(
+            sink.write_all(&[b'x'; 5]).is_ok(),
+            "room for the first write"
+        );
+        assert!(
+            sink.write_all(&[b'x'; 100]).is_err(),
+            "a write past the budget must fail so serialization aborts"
+        );
+        assert_eq!(sink.buf.len(), 8, "and never buffer more than the budget");
+    }
+
+    /// Reading a value through a budget must be INDISTINGUISHABLE from
+    /// serializing the whole thing and cutting it — otherwise the bound is a
+    /// behavior change wearing a performance fix's clothes. The cases that can
+    /// tell them apart: a value that fits, one landing exactly on the cap, one
+    /// far past it, and one whose characters are multi-byte, where the byte cut
+    /// lands mid-character and decoding leaves a replacement char behind.
+    #[test]
+    fn a_budgeted_preview_reads_exactly_like_an_unbounded_one() {
+        for (name, value) in [
+            (
+                "a small object",
+                serde_json::json!({"a": 1, "b": [true, null]}),
+            ),
+            ("empty", serde_json::json!({})),
+            ("exactly the cap", serde_json::json!("x".repeat(3998))),
+            ("one past the cap", serde_json::json!("x".repeat(3999))),
+            (
+                "a base64 blob",
+                serde_json::json!([{"type":"image","mimeType":"image/png","data":"A".repeat(500_000)}]),
+            ),
+            ("multi-byte text", serde_json::json!("汉".repeat(6000))),
+        ] {
+            let whole = serde_json::to_string(&value).expect("serialize");
+            assert_eq!(
+                serialize_preview(&value, MCP_RESULT_FALLBACK_CAP),
+                Some(truncate_str(&whole, MCP_RESULT_FALLBACK_CAP)),
+                "{name}"
+            );
+        }
+    }
+
+    /// The marker search reads a block's own outcome fields and stops there.
+    /// Walking on into `data` would read the PAYLOAD — the base64 the cap
+    /// refuses to copy, which the text heuristic would then lowercase into a
+    /// second copy of itself. This pins the VERDICT that follows from that (a
+    /// payload reading like an error is still just bytes); what it cannot see
+    /// is the cost, so the reasoning lives on `blocks_report_failure`.
+    ///
+    /// (Under the cap nothing is cut, so the ordinary preview path parses the
+    /// whole thing exactly as it always has — that is not this arm's business.)
+    #[test]
+    fn an_oversized_block_payload_is_never_read_as_an_outcome() {
+        let call = completed_mcp_call(&serde_json::json!({
+            "item": {
+                "type": "McpToolCall", "id": "i", "server": "s", "tool": "t",
+                "result": {
+                    "content": [{
+                        "type": "image",
+                        "mimeType": "image/png",
+                        "data": format!("error: {}", "A".repeat(MCP_RESULT_FALLBACK_CAP * 2)),
+                    }],
+                },
+            }
+        }))
+        .expect("well-formed item");
+        assert!(
+            call.output_preview
+                .as_deref()
+                .is_some_and(|text| text.ends_with("...")),
+            "the payload is past the cap, so the preview is cut"
+        );
+        assert!(!call.is_error, "a payload is bytes, not a verdict");
+    }
+
+    /// The block fallback IS truncated, so its outcome must not be read back
+    /// out of the cut string — the blocks themselves decide. Same failure as
+    /// the structured case: parse a truncated document and you get nothing,
+    /// and nothing reads as success.
+    #[test]
+    fn a_long_block_failure_survives_its_own_truncation() {
+        let call = completed_mcp_call(&serde_json::json!({
+            "item": {
+                "type": "McpToolCall", "id": "i", "server": "s", "tool": "t",
+                "result": {
+                    "content": [{
+                        "type": "resource",
+                        "padding": "p".repeat(MCP_RESULT_FALLBACK_CAP * 2),
+                        "status": "failed",
+                    }],
+                },
+            }
+        }))
+        .expect("well-formed item");
+        assert!(
+            call.output_preview
+                .as_deref()
+                .is_some_and(|text| text.ends_with("...")),
+            "the card's copy is still cut: {:?}",
+            call.output_preview.as_deref().map(str::len)
+        );
+        assert!(
+            call.is_error,
+            "a failure reported inside the blocks survives the cut"
+        );
+    }
+
+    /// Why the structured answer is the one preview that is NOT truncated: it
+    /// is read twice. The card shows it, and the error heuristic re-parses it
+    /// — a preview opening with `{` is parsed back into JSON and searched for
+    /// a failed `status`. Cut that JSON and the parse fails silently, and a
+    /// call that reported failure settles GREEN. The padding is what makes the
+    /// record longer than any cap worth applying, and it sorts before `status`
+    /// so a cut would take the status with it.
+    #[test]
+    fn a_long_structured_failure_is_not_cut_into_a_success() {
+        let call = completed_mcp_call(&serde_json::json!({
+            "item": {
+                "type": "McpToolCall", "id": "i", "server": "s", "tool": "t",
+                "result": {
+                    "content": [],
+                    "structuredContent": {
+                        "padding": "p".repeat(MCP_RESULT_FALLBACK_CAP * 2),
+                        "status": "failed",
+                    },
+                },
+            }
+        }))
+        .expect("well-formed item");
+        assert!(
+            call.output_preview
+                .as_deref()
+                .is_some_and(|text| serde_json::from_str::<serde_json::Value>(text).is_ok()),
+            "a structured answer must reach the heuristic still parseable"
+        );
+        assert!(
+            call.is_error,
+            "a record that states nothing but reports a failed structured status is a failure"
+        );
+    }
+
+    /// The outcome precedence, stated once against the fields themselves rather
+    /// than through four rollouts: a stated failure outranks a stated success,
+    /// a stated success outranks output text that merely reads like a failure,
+    /// and the text heuristic still decides a record that states nothing.
+    #[test]
+    fn a_semantic_records_stated_outcome_outranks_its_output_text() {
+        let is_error = |status: Option<&str>, result: serde_json::Value| {
+            let mut item = serde_json::json!({
+                "type": "McpToolCall", "id": "i", "server": "s", "tool": "t",
+            });
+            if let Some(status) = status {
+                item["status"] = status.into();
+            }
+            if !result.is_null() {
+                item["result"] = result;
+            }
+            completed_mcp_call(&serde_json::json!({ "item": item }))
+                .expect("well-formed item")
+                .is_error
+        };
+        // Output a successful tool can legitimately return: a wrapped command's
+        // own complaint. `infer_output_text_is_error` reads it as a failure.
+        let noisy = serde_json::json!({
+            "content": [{"type":"text", "text":"Error: 2 problems\nexit code: 1"}]
+        });
+        let flagged = |flag: bool| {
+            let mut result = noisy.clone();
+            result["isError"] = flag.into();
+            result
+        };
+
+        assert!(
+            is_error(None, noisy.clone()),
+            "a record that states nothing leaves the text to decide"
+        );
+        assert!(
+            !is_error(Some("completed"), noisy.clone()),
+            "a stated success outranks output that merely reads like a failure"
+        );
+        assert!(
+            !is_error(None, flagged(false)),
+            "isError alone is enough to state that success"
+        );
+        assert!(
+            is_error(Some("completed"), flagged(true)),
+            "a stated failure outranks a stated success"
+        );
+        assert!(
+            is_error(Some("failed"), flagged(false)),
+            "and does so whichever field states it"
+        );
+        assert!(
+            !is_error(
+                Some("completed"),
+                serde_json::json!({"content":[{"type":"text","text":"fine"}], "isError":false}),
+            ),
+            "quiet output with nothing wrong stays clean"
+        );
+        assert!(
+            completed_mcp_call(&serde_json::json!({
+                "item": {
+                    "type":"McpToolCall", "id":"i", "server":"s", "tool":"t",
+                    "status":"completed", "error":"connection refused", "result": null,
+                }
+            }))
+            .expect("well-formed item")
+            .is_error,
+            "a transport error is stated too, even beside a completed status"
+        );
     }
 
     #[test]
@@ -10753,6 +11865,75 @@ mod tests {
             }),
         ));
         lines
+    }
+
+    #[test]
+    fn a_deferred_script_completed_mcp_item_replaces_its_wrapper_card() {
+        let script = concat!(
+            "const task=\"t1\";",
+            "const r=await tools.mcp__codeg_mcp__get_delegation_status({task_ids:[task],wait_ms:60000});",
+            "text(JSON.stringify(r));"
+        );
+        let mut lines = code_mode_rollout(
+            script,
+            serde_json::json!("Script running with cell ID 34\nWall time 11.0 seconds\nOutput:\n"),
+        );
+        lines.push(rollout_line(
+            "2026-07-20T08:40:03Z",
+            "event_msg",
+            serde_json::json!({
+                "type": "item_completed",
+                "item": {
+                    "type": "McpToolCall",
+                    "id": "mcp-deferred-status",
+                    "server": "codeg-mcp",
+                    "tool": "get_delegation_status",
+                    "arguments": {"task_ids":["t1"], "wait_ms":60000},
+                    "result": {
+                        "content": [{"type":"text", "text":"status: running"}],
+                        "isError": false,
+                    },
+                },
+            }),
+        ));
+        lines.push(rollout_line(
+            "2026-07-20T08:40:04Z",
+            "response_item",
+            serde_json::json!({
+                "type": "function_call",
+                "name": "wait",
+                "call_id": "wait-deferred",
+                "arguments": "{\"cell_id\":\"34\",\"yield_time_ms\":60000}",
+            }),
+        ));
+        lines.push(rollout_line(
+            "2026-07-20T08:41:04Z",
+            "response_item",
+            serde_json::json!({
+                "type": "function_call_output",
+                "call_id": "wait-deferred",
+                "output": "Script completed\nWall time 60.0 seconds\nOutput:\n{}",
+            }),
+        ));
+
+        let detail = parse_lines(&lines, "deferred-semantic-mcp");
+        assert_eq!(
+            tool_uses(&detail),
+            vec![(
+                "mcp-deferred-status".into(),
+                "mcp__codeg_mcp__get_delegation_status".into(),
+                Some(r#"{"task_ids":["t1"],"wait_ms":60000}"#.into()),
+            )],
+            "the completed semantic item replaces the parked script card"
+        );
+        assert_eq!(
+            tool_results(&detail),
+            vec![(
+                "mcp-deferred-status".into(),
+                Some("status: running".into()),
+                false,
+            )]
+        );
     }
 
     #[test]

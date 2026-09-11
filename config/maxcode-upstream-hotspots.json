@@ -1568,6 +1568,99 @@
         "src/components/layout/quick-actions-dropdown.tsx"
       ],
       "contracts": ["src/maxcode-contracts/sidebar-footer.contract.test.tsx"]
+    },
+    {
+      "id": "history.codex-semantic-mcp",
+      "category": "runtime",
+      "description": "Restore Codex code-mode MCP history through existing tool blocks and conservative call correlation, preserving MaxCode model billing, elapsed time, native subagent identity and injected-context filtering without replacing the message layout.",
+      "origins": [
+        "a04fe077",
+        "1edca458",
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/codex_code_mode.rs",
+        "src-tauri/src/models/message.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-codex-semantic.contract.test.ts"
+      ]
+    },
+    {
+      "id": "history.import-worktree-grouping",
+      "category": "runtime",
+      "description": "Import linked worktree sessions under existing or same-batch repositories using current sidebar grouping, retaining cwd, title, model and selection-only restoration while refusing cyclic, dangling and nested parents.",
+      "origins": [
+        "6e4001c5",
+        "42dc4465",
+        "a69013fb",
+        "c50ae2d9",
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/git_repo.rs",
+        "src/components/conversations/sidebar-conversation-grouping.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-worktree-import.contract.test.ts"
+      ]
+    },
+    {
+      "id": "history.claude-compaction-compatible",
+      "category": "runtime",
+      "description": "Claude 0.75.1 histories restore compaction prompts, boundaries, summaries and current context usage; exact fork fallbacks and live system summaries survive. Dedupe live/history copies without replacing MaxCode reply grouping, folding or divider layout.",
+      "origins": [
+        "14168211",
+        "5f22a3e1",
+        "ad7af8c4",
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/acp/fork.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src/stores/conversation-runtime-store.ts",
+        "src/lib/dedupe-compaction-items.ts",
+        "src/lib/context-compaction.ts",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-claude-compaction.contract.test.ts"
+      ]
+    },
+    {
+      "id": "agents.functional-upstream-runtime",
+      "category": "runtime",
+      "description": "Selected upstream fixes preserve existing UI: pi history and tool classification, Cline block parsing, eager child cleanup, Antigravity dual-stream sign-in including stdout EOF, and pi MCP extension discovery/editing without ACP forwarding or losing extension-specific fields.",
+      "origins": [
+        "bd98dfc4",
+        "c80b2161",
+        "145ef078",
+        "25ed5864",
+        "d9e5b145",
+        "9005ded2",
+        "6f88b29a",
+        "4311c01a",
+        "266953a1",
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/parsers/pi.rs",
+        "src-tauri/src/parsers/cline.rs",
+        "src-tauri/vendor/sacp-tokio/src/acp_agent.rs",
+        "src-tauri/src/acp/antigravity_login.rs",
+        "src-tauri/src/commands/mcp.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src/components/settings/mcp-settings.tsx",
+        "src/lib/types.ts",
+        "src/lib/adapters/tool-kind-classifier.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-runtime-functional.contract.test.ts"
+      ]
     }
   ],
   "retired": [

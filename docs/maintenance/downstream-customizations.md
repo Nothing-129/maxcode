@@ -139,3 +139,15 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 - 来源：`worktree-2026-09-11`；热点：`chat.reply-artifacts-summary`。
 - 新增、修改、删除统一汇总，默认显示三行相对路径与增删统计，可展开剩余文件；审核包含全部文件差异，保留打开文件和定位操作。
 - 契约：`src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx`。
+
+## 2026-09-11 功能移植补充
+
+在 `main` 的隔离集成分支选择吸收上游 v0.30.7 之前的功能修复，评审见
+[upstream-functional-20260911.md](./upstream-functional-20260911.md)。未整体合并上游历史。
+
+| 领域 | 功能及保留项 | 保护项 |
+| --- | --- | --- |
+| Codex 历史 | 恢复 MCP 工具身份与结果；保留现有卡片、费用、耗时和上下文过滤 | `history.codex-semantic-mcp` |
+| 工作树导入 | 同批导入也归属仓库，拒绝循环/悬空/多层父节点，保留当前侧栏分组 | `history.import-worktree-grouping` |
+| Claude | 0.75.1 分叉定位、压缩历史和实时摘要；沿用现有分隔线及回复折叠 | `history.claude-compaction-compatible` |
+| 运行时 | Pi 历史、Cline 解析、进程回收、Antigravity 登录、Pi MCP 扩展配置；保留扩展字段与现有界面 | `agents.functional-upstream-runtime` |
