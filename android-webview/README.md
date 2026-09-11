@@ -25,6 +25,8 @@
 
 - 键盘弹出时应用随 IME inset 调整可视高度（Android 11+；edge-to-edge 下 manifest 的
   `adjustResize` 不再生效，必须在代码里消费键盘 inset），输入框不再被键盘遮挡。
+- 底部导航栏和键盘安全区统一由原生布局预留；APP 注入样式取消新旧网页工作区
+  重复的底部安全区，避免输入框下方出现大块空白。浏览器直接访问不受影响。
 - 连接前使用 Bearer Token 请求 `/api/health`，验证地址和 Token。
 - 选择已保存的连接后直接打开；如果凭据发生变化，可在启动选择页编辑并重新验证。
 - 验证成功后，在服务器同源的 `localStorage` 写入 `codeg_token`，然后打开
@@ -76,6 +78,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 项目没有运行时三方依赖，也不打包浏览器内核。加入 MaxCode 的高分辨率品牌图标后，
 当前 Debug APK 约 207 KB，R8 后的未签名 Release APK 约 185 KB；实际签名包会略大。
+
+## 已发布 APK 的覆盖升级签名
+
+当前 GitHub Android 下载包沿用 `app.codeg.web.debug` 包名。发布升级包必须同时
+保持包名和原签名，并递增 `versionCode`，不能改用 `app.codeg.web` 的 Release 包。
+已发布 0.3.9 和 0.3.10 的签名证书 SHA-256 均为：
+
+```text
+e661f8a488ad380f62c6ee4272836c4350e720bfd2673a8001421412a1f82a05
+```
+
+**不要直接发布默认 `assembleDebug` 的产物**：本机 `~/.android/debug.keystore`
+已是另一把密钥。0.3.10 构建使用临时 Gradle init script 显式把 debug signing config
+指向留存的 `~/.android/debug.keystore.backup-e661f8a4`，未替换全局密钥。
+后续打包须继续显式指定经核验的旧密钥；缺失时停止发布，不得自动生成或更换签名。
+上传前用 `apksigner verify --print-certs` 比对上一版和新包的证书指纹，并用
+`aapt dump badging` 核对包名与递增的版本号。此处证书指纹不是 APK 文件 SHA-256；
+每版 APK 文件的校验值会变化。
 
 ## Release 签名
 

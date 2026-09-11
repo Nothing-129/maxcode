@@ -138,6 +138,7 @@ import {
 } from "@/components/settings/opencode-connect-dialog"
 import { OpenCodePermissionsSection } from "@/components/settings/opencode-permissions-section"
 import { AgentDiagnosticsDialog } from "@/components/settings/agent-diagnostics-dialog"
+import { AgentUpdateCheck } from "@/components/settings/agent-update-check"
 import {
   buildConnectedModelOptions,
   buildConnectedProviders,
@@ -4115,10 +4116,10 @@ export function buildVersionCheck(
 
   // A latest-channel agent's installed version normally sits AT or AHEAD of
   // the pin, so the compare-to-pin branch above never offers an upgrade again
-  // — and codeg cannot know whether npm has something newer, because nothing
-  // polls in the background (by design). Keep the Upgrade action available:
-  // it resolves the `latest` dist-tag on demand, and "Already latest" would
-  // claim a comparison that was never made.
+  // — this pin-only card cannot establish npm freshness. Online release
+  // checks live separately in AgentUpdateCheck. Keep the channel's Upgrade
+  // action available: it resolves the `latest` dist-tag on demand, without
+  // silently turning the default pin into the online version.
   if (latestChannel) {
     return {
       check_id: "version_status",
@@ -4148,9 +4149,13 @@ export function buildVersionCheck(
     check_id: "version_status",
     label: acpText("version.statusLabel", "Version Status"),
     status: "pass",
-    message: acpText("version.latest", "{versionText}. Already latest.", {
-      versionText,
-    }),
+    message: acpText(
+      "version.latest",
+      "{versionText}. At or above the built-in recommended version.",
+      {
+        versionText,
+      }
+    ),
     fixes: withCustomInstall([
       {
         label: acpText("actions.uninstall", "Uninstall"),
@@ -7913,6 +7918,14 @@ export function AcpAgentSettings() {
               />
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AgentUpdateCheck
+                  agent={selectedAgent}
+                  busy={busyBinaryAction[selectedAgent.agent_type]}
+                  onInstallVersion={(version) => {
+                    setCustomVersionInput(version)
+                    setCustomInstallAgent(selectedAgent)
+                  }}
+                />
                 <div className="space-y-2">
                   {selectedCurrent?.error && (
                     <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400 flex items-start gap-2">

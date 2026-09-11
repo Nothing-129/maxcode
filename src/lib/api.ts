@@ -503,6 +503,18 @@ export async function acpGetAgentStatus(
   return getTransport().call("acp_get_agent_status", { agentType })
 }
 
+export interface AgentUpdateRelease {
+  latestVersion: string | null
+  source: "npm" | "acp" | "unsupported"
+}
+
+/** Read-only query of the release source, not the built-in install pin. */
+export async function acpCheckAgentUpdate(
+  agentType: AgentType
+): Promise<AgentUpdateRelease> {
+  return getTransport().call("acp_check_agent_update", { agentType })
+}
+
 // Run environment diagnostics for an agent (or a base env report when omitted).
 export async function acpEnvDiagnostics(
   agentType?: AgentType

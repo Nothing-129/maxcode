@@ -14,6 +14,7 @@ import {
   OPEN_IN_APP_SETTINGS_EVENT,
   type InAppSettingsRequest,
 } from "@/lib/in-app-settings"
+import { OverlayHostHiddenProvider } from "@/components/ui/overlay-host-hidden"
 import { SettingsShell } from "./settings-shell"
 
 const pages = {
@@ -85,16 +86,20 @@ export function InAppSettings({ children }: { children: ReactNode }) {
   }, [navigate])
   return (
     <>
-      <div
-        className="h-full min-h-0"
-        hidden={section !== null}
-        inert={section !== null}
-      >
-        {children}
-      </div>
-      {section && (
+      <OverlayHostHiddenProvider hidden={section !== null}>
         <div
-          className="fixed inset-0 z-[100] bg-background"
+          className="h-full min-h-0"
+          hidden={section !== null}
+          inert={section !== null}
+        >
+          {children}
+        </div>
+      </OverlayHostHiddenProvider>
+      {section && (
+        // Stay below body-portalled menus/dialogs (z-50). Preserved workspace
+        // drawers are hidden by the provider above, not by covering all portals.
+        <div
+          className="fixed inset-0 z-40 bg-background"
           data-in-app-settings=""
         >
           <SettingsShell

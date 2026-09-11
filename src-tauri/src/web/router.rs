@@ -86,6 +86,14 @@ pub fn build_router(
             post(handlers::feedback::submit_session_feedback),
         )
         .route(
+            "/get_conversation_reads",
+            post(handlers::conversation_read::get_conversation_reads),
+        )
+        .route(
+            "/mark_conversations_read",
+            post(handlers::conversation_read::mark_conversations_read),
+        )
+        .route(
             "/get_ui_preferences",
             post(handlers::ui_preferences::get_ui_preferences),
         )
@@ -758,6 +766,10 @@ pub fn build_router(
         .route(
             "/acp_list_enabled_agents",
             post(handlers::acp::acp_list_enabled_agents),
+        )
+        .route(
+            "/acp_check_agent_update",
+            post(handlers::acp::acp_check_agent_update),
         )
         .route(
             "/acp_env_diagnostics",

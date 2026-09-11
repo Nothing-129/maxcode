@@ -172,6 +172,22 @@ describe("sidebar tools beside search", () => {
     ).toBeNull()
   })
 
+  it("right-aligns desktop tools in the top row after a draggable flexible spacer", () => {
+    const { container } = renderSidebar()
+    const header = container.querySelector("aside")!.firstElementChild!
+    const tools = screen
+      .getByRole("button", { name: "Search" })
+      .closest("[data-sidebar-tools]")!
+    expect(tools.parentElement).toBe(header)
+    expect(tools.previousElementSibling).toHaveAttribute(
+      "data-tauri-drag-region"
+    )
+    expect(tools.previousElementSibling).toHaveClass("flex-1")
+    expect(header.firstElementChild).toHaveStyle({ width: "80px" })
+    expect(tools.nextElementSibling).toBeNull()
+    expect(document.querySelectorAll("[data-sidebar-tools]")).toHaveLength(1)
+  })
+
   it("keeps all three tools touchable on mobile and closes the drawer for search", () => {
     mockState.isMobile = true
     spies.setSearchOpen.mockClear()

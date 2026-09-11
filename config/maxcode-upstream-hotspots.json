@@ -2,6 +2,45 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "settings.agent-online-updates",
+      "category": "product",
+      "description": "Agent settings check online releases on selection, cache per agent for ten minutes, and allow forced refresh. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. Explicit npm version installs require confirmation; reviewed pins and running sessions remain unchanged.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/settings/agent-update-check.tsx", "src/components/settings/acp-agent-settings.tsx", "src/lib/agent-update-status.ts", "src/lib/api.ts", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/mod.rs", "src-tauri/src/web/handlers/acp.rs", "src-tauri/src/web/router.rs", "src-tauri/src/lib.rs", "src/i18n/messages/"],
+      "contracts": ["src/maxcode-contracts/agent-online-updates.contract.test.tsx"]
+    },
+    {
+      "id": "settings.agent-diagnostics-overlay",
+      "category": "product",
+      "description": "Agent diagnostics portal stays above in-window settings, immediately shows loading, and exposes probe errors, retry results and dismissal.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/components/settings/in-app-settings.tsx", "src/components/settings/acp-agent-settings.tsx", "src/components/settings/agent-diagnostics-dialog.tsx", "src/components/ui/dialog.tsx"],
+      "contracts": ["src/maxcode-contracts/agent-diagnostics-overlay.contract.test.tsx"]
+    },
+    {
+      "id": "conversations.cross-device-read",
+      "category": "runtime",
+      "description": "Read receipts persist on the backend, broadcast across desktop and mobile, and reconcile on reconnect/wake without reapplying seen receipts to new unread activity.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": ["src/lib/conversation-read-sync.ts", "src/stores/conversation-unread-store.ts", "src/components/conversations/conversation-unread-sync.tsx", "src-tauri/src/commands/conversation_read.rs", "src-tauri/src/web/handlers/conversation_read.rs", "src-tauri/src/web/router.rs", "src-tauri/src/lib.rs"],
+      "contracts": ["src/maxcode-contracts/conversation-read-sync.contract.test.ts"]
+    },
+    {
+      "id": "settings.mobile-category-navigation",
+      "category": "product",
+      "description": "The mobile top-right settings menu opens above the in-window settings surface, switches categories without losing drafts, and dismisses on outside press or Escape. Settings stay below shared z-50 portals; preserved workspace drawers are hidden and inert until returning. Standalone settings retain remote context and desktop keeps sidebar navigation.",
+      "origins": ["worktree-2026-09-10"],
+      "paths": [
+        "src/components/settings/in-app-settings.tsx",
+        "src/components/settings/settings-shell.tsx",
+        "src/components/ui/drawer.tsx",
+        "src/components/ui/overlay-host-hidden.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-settings-navigation.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.mobile-session-recovery",
       "category": "runtime",
       "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and expose disconnected status beside the composer heart.",
@@ -16,11 +55,21 @@
       ]
     },
     {
+      "id": "chat.pi-startup-banner-suppressed",
+      "category": "product",
+      "description": "pi-acp's session-start banner (pi version / Context / Skills) is dropped from pi's live transcript. pi-acp emits it on the prose channel right after session/new but never writes it to pi's session JSONL, so rendering it live made it flash on screen and vanish once the turn settled; the live view must match what the persisted transcript will contain.",
+      "origins": ["worktree-2026-09-11"],
+      "paths": ["src-tauri/src/acp/connection.rs"],
+      "contracts": [
+        "src/maxcode-contracts/pi-startup-banner-suppressed.contract.test.ts"
+      ]
+    },
+    {
       "id": "chat.mobile-header-new-conversation",
       "category": "product",
-      "description": "Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance.",
+      "description": "Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
       "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/conversations/conversation-detail-header.tsx"],
+      "paths": ["src/components/conversations/conversation-detail-header.tsx", "src/components/layout/folder-title-bar.tsx"],
       "contracts": ["src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"]
     },
     {
@@ -41,21 +90,6 @@
       "origins": ["worktree-2026-09-10"],
       "paths": ["src/app/globals.css", "src/components/token-usage/"],
       "contracts": ["src/maxcode-contracts/token-usage-colors.contract.test.ts"]
-    },
-    {
-      "id": "chat.welcome-folder-switcher",
-      "category": "product",
-      "description": "Welcome greeting shows a clickable current project for folder drafts, scoped to the owning tab, and hides the folder in chat mode. Uses the existing searchable project switcher.",
-      "origins": ["worktree-2026-09-10"],
-      "paths": [
-        "src/components/chat/welcome-hero.tsx",
-        "src/components/chat/conversation-context-bar.tsx",
-        "src/components/conversations/conversation-detail-panel.tsx",
-        "src/i18n/messages/"
-      ],
-      "contracts": [
-        "src/maxcode-contracts/welcome-folder-switcher.contract.test.tsx"
-      ]
     },
     {
       "id": "chat.reference-question-picker",
@@ -86,7 +120,7 @@
     {
       "id": "messages.action-hover-continuity",
       "category": "product",
-      "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons, above the following virtual row, without increasing message spacing.",
+      "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons without increasing message spacing. The actual Virtua item stacking context is raised on column hover or keyboard focus, with hover above retained focus, so the following item's transparent padding cannot intercept buttons. Open portalled tooltips keep their owning actions visible and raised when their arrows overlap a trigger edge.",
       "origins": ["worktree-2026-09-10"],
       "paths": [
         "src/app/globals.css",
@@ -94,7 +128,7 @@
         "src/components/message/virtualized-message-thread.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/message-action-hover.contract.test.ts"
+        "src/maxcode-contracts/message-action-hover.contract.test.tsx"
       ]
     },
     {
@@ -366,11 +400,14 @@
     {
       "id": "mobile.composer-bottom-gap",
       "category": "product",
-      "description": "The workspace owns bottom safe-area padding once; the composer uses a compact 8px phone gutter and 12px desktop gutter without duplicating the inset when the keyboard closes.",
+      "description": "Browsers reserve bottom safe-area padding once at the workspace; Android native layout owns navigation-bar/IME avoidance and injects zero bottom padding into current/legacy page shells on all devices. The composer keeps an 8px phone gutter and 12px desktop gutter without duplicate insets.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/app/workspace/layout.tsx",
-        "src/components/chat/chat-input.tsx"
+        "src/components/chat/chat-input.tsx",
+        "android-webview/app/src/main/java/app/codeg/web/MainActivity.java",
+        "android-webview/app/src/main/java/app/codeg/web/WebBootstrapScript.java",
+        "android-webview/app/src/test/java/app/codeg/web/WebBootstrapScriptTest.java"
       ],
       "contracts": [
         "src/maxcode-contracts/mobile-composer-bottom-gap.contract.test.ts"
@@ -571,7 +608,7 @@
     {
       "id": "sidebar.search-tools",
       "category": "product",
-      "description": "Desktop and mobile sidebars keep search, locate-active and overflow tools visible in order. Mobile places the 44px tools beside the sidebar title in one row and closes the drawer for search; overflow retains expand/collapse, mark-all-read and list preferences.",
+      "description": "Desktop and mobile sidebars keep search, locate-active and overflow tools visible in order. Desktop right-aligns the tools in the top header, rather than beside the wordmark, with a flexible draggable spacer after the reserved sidebar-toggle chrome. Mobile places the 44px tools beside the sidebar title in one row and closes the drawer for search; overflow retains expand/collapse, mark-all-read and list preferences.",
       "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
       "paths": ["src/components/layout/sidebar.tsx"],
       "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]

@@ -23,6 +23,14 @@ pub struct AgentTypeParams {
     pub agent_type: AgentType,
 }
 
+pub async fn acp_check_agent_update(
+    Json(params): Json<AgentTypeParams>,
+) -> Result<Json<crate::commands::agent_updates::AgentUpdateRelease>, AppCommandError> {
+    crate::commands::agent_updates::acp_check_agent_update(params.agent_type)
+        .await
+        .map(Json)
+}
+
 pub async fn acp_get_agent_status(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<AgentTypeParams>,

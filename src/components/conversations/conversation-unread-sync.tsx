@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useLayoutEffect, useMemo } from "react"
+import { startConversationReadSync } from "@/lib/conversation-read-sync"
 import { useIsMac } from "@/hooks/use-is-mac"
 import { collectViewedConversationIds } from "@/lib/conversation-unread"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
@@ -17,6 +18,7 @@ import { useTabStore } from "@/stores/tab-store"
  * store; this component only tracks which threads are on screen.
  */
 export function ConversationUnreadSync() {
+  useEffect(() => startConversationReadSync(), [])
   const { isConversations } = useWorkbenchRoute()
   const isMac = useIsMac()
   const unreadIds = useConversationUnreadStore((s) => s.unreadIds)

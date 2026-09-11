@@ -3052,9 +3052,31 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   margin-top: 0;
   margin-bottom: -2rem;
   position: relative;
-  /* Keep the buttons above the following virtual row's transparent padding. */
+  /* Layer actions within their turn; sibling virtual items are handled below. */
   z-index: 1;
   align-items: flex-start;
+}
+
+/* Tooltips are portalled outside the turn. Their arrow can overlap a trigger
+   edge, so keep actions visible while the pointer crosses into the tooltip.
+   Radix marks the trigger as either `delayed-open` or `instant-open`. */
+.maxcode-turn-actions:has([data-slot="tooltip-trigger"][data-state$="-open"]) {
+  opacity: 1;
+}
+
+/* Virtua's layout containment makes EACH item a stacking context: raising
+   only the buttons cannot escape it. Raise the owning item while interacting,
+   without changing its measured height or disabling layout containment.
+   Hover wins over focus left in a later reply. Scope hover to the column, not
+   the item's transparent padding, which overlaps the previous action row. */
+.maxcode-thread-item:focus-within {
+  z-index: 1;
+}
+.maxcode-thread-item:has(
+  .maxcode-turn-actions [data-slot="tooltip-trigger"][data-state$="-open"]
+),
+.maxcode-thread-item:has(.maxcode-chat-column:hover) {
+  z-index: 2;
 }
 
 /* Chat body size is independent of interface controls and editor preferences. */

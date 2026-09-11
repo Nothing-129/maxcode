@@ -1,3 +1,7 @@
+vi.mock("@/lib/conversation-read-sync", () => ({
+  startConversationReadSync: () => () => {},
+  publishConversationRead: () => {},
+}))
 import { act, render, waitFor } from "@testing-library/react"
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"

@@ -1,0 +1,122 @@
+diff --git a/android-webview/README.md b/android-webview/README.md
+index 35540ade..8ba6c8a5 100644
+--- a/android-webview/README.md
++++ b/android-webview/README.md
+@@ -25,6 +25,8 @@
+ 
+ - 键盘弹出时应用随 IME inset 调整可视高度（Android 11+；edge-to-edge 下 manifest 的
+   `adjustResize` 不再生效，必须在代码里消费键盘 inset），输入框不再被键盘遮挡。
++- 底部导航栏和键盘安全区统一由原生布局预留；APP 注入样式取消新旧网页工作区
++  重复的底部安全区，避免输入框下方出现大块空白。浏览器直接访问不受影响。
+ - 连接前使用 Bearer Token 请求 `/api/health`，验证地址和 Token。
+ - 选择已保存的连接后直接打开；如果凭据发生变化，可在启动选择页编辑并重新验证。
+ - 验证成功后，在服务器同源的 `localStorage` 写入 `codeg_token`，然后打开
+@@ -77,6 +79,24 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
+ 项目没有运行时三方依赖，也不打包浏览器内核。加入 MaxCode 的高分辨率品牌图标后，
+ 当前 Debug APK 约 207 KB，R8 后的未签名 Release APK 约 185 KB；实际签名包会略大。
+ 
++## 已发布 APK 的覆盖升级签名
++
++当前 GitHub Android 下载包沿用 `app.codeg.web.debug` 包名。发布升级包必须同时
++保持包名和原签名，并递增 `versionCode`，不能改用 `app.codeg.web` 的 Release 包。
++已发布 0.3.9 和 0.3.10 的签名证书 SHA-256 均为：
++
++```text
++e661f8a488ad380f62c6ee4272836c4350e720bfd2673a8001421412a1f82a05
++```
++
++**不要直接发布默认 `assembleDebug` 的产物**：本机 `~/.android/debug.keystore`
++已是另一把密钥。0.3.10 构建使用临时 Gradle init script 显式把 debug signing config
++指向留存的 `~/.android/debug.keystore.backup-e661f8a4`，未替换全局密钥。
++后续打包须继续显式指定经核验的旧密钥；缺失时停止发布，不得自动生成或更换签名。
++上传前用 `apksigner verify --print-certs` 比对上一版和新包的证书指纹，并用
++`aapt dump badging` 核对包名与递增的版本号。此处证书指纹不是 APK 文件 SHA-256；
++每版 APK 文件的校验值会变化。
++
+ ## Release 签名
+ 
+ 复制 `keystore.properties.example` 为本机的 `keystore.properties`，填写发布密钥信息：
+diff --git a/android-webview/app/build.gradle.kts b/android-webview/app/build.gradle.kts
+index 5f51dd1d..ab81c333 100644
+--- a/android-webview/app/build.gradle.kts
++++ b/android-webview/app/build.gradle.kts
+@@ -19,8 +19,8 @@ android {
+         applicationId = "app.codeg.web"
+         minSdk = 26
+         targetSdk = 35
+-        versionCode = 21
+-        versionName = "0.3.9"
++        versionCode = 22
++        versionName = "0.3.10"
+     }
+ 
+     signingConfigs {
+diff --git a/android-webview/app/src/main/java/app/codeg/web/WebBootstrapScript.java b/android-webview/app/src/main/java/app/codeg/web/WebBootstrapScript.java
+index adc89917..198262df 100644
+--- a/android-webview/app/src/main/java/app/codeg/web/WebBootstrapScript.java
++++ b/android-webview/app/src/main/java/app/codeg/web/WebBootstrapScript.java
+@@ -24,12 +24,18 @@ final class WebBootstrapScript {
+             int insetCssPixels,
+             boolean protectPageShells) {
+         int safeInset = Math.max(0, insetCssPixels);
+-        String pageSafeAreaCss = protectPageShells
+-                ? "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
++        // MainActivity already removes navigation-bar / IME space from the
++        // WebView's bounds. Some WebViews still report a bottom CSS safe area;
++        // applying it again in the page shell leaves a second blank gutter.
++        // Only the top inset is conditional on the Oppo workaround.
++        String pageSafeAreaCss =
++                "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
+                         + "div.h-screen.flex.flex-col.overflow-hidden.bg-background."
+-                        + "text-foreground{box-sizing:border-box;"
+-                        + "padding-top:var(--maxcode-android-status-bar-inset)!important;}"
+-                : "";
++                        + "text-foreground{box-sizing:border-box;padding-bottom:0!important;"
++                        + (protectPageShells
++                                ? "padding-top:var(--maxcode-android-status-bar-inset)!important;"
++                                : "")
++                        + "}";
+         return "(function(){var d=document.documentElement;"
+                 + "d.style.setProperty('--maxcode-android-status-bar-inset','"
+                 + safeInset
+diff --git a/android-webview/app/src/test/java/app/codeg/web/WebBootstrapScriptTest.java b/android-webview/app/src/test/java/app/codeg/web/WebBootstrapScriptTest.java
+index 917b37c5..f2e0af78 100644
+--- a/android-webview/app/src/test/java/app/codeg/web/WebBootstrapScriptTest.java
++++ b/android-webview/app/src/test/java/app/codeg/web/WebBootstrapScriptTest.java
+@@ -26,11 +26,12 @@ public final class WebBootstrapScriptTest {
+     }
+ 
+     @Test
+-    public void defaultAndroidSafeAreaOnlyOffsetsTheMobileSidebar() {
++    public void defaultAndroidTopSafeAreaOnlyOffsetsTheMobileSidebar() {
+         String script = WebBootstrapScript.setAndroidStatusBarInset(27, false);
+ 
+         assertTrue(script.contains("mobile-sidebar-drawer"));
+-        assertFalse(script.contains("div.fixed.inset-0"));
++        assertTrue(script.contains("padding-bottom:0!important;}"));
++        assertFalse(script.contains("padding-bottom:0!important;padding-top:"));
+         assertTrue(script.contains("27px"));
+         assertFalse(script.contains("body{"));
+     }
+@@ -44,6 +45,21 @@ public final class WebBootstrapScriptTest {
+         assertTrue(script.contains("box-sizing:border-box"));
+     }
+ 
++    @Test
++    public void nativeBottomSafeAreaIsNotRepeatedByEitherPageShell() {
++        for (boolean protectPageShells : new boolean[] {false, true}) {
++            // Keyboard height never enters CSS: native layout owns both the
++            // open-keyboard and closed-keyboard bottom inset.
++            String script = WebBootstrapScript.setAndroidStatusBarInset(27, protectPageShells);
++
++            assertTrue(script.contains(
++                    "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
++                            + "div.h-screen.flex.flex-col.overflow-hidden.bg-background.text-foreground"
++                            + "{box-sizing:border-box;padding-bottom:0!important;"));
++            assertFalse(script.contains("padding-bottom:env("));
++        }
++    }
++
+     @Test
+     public void androidAppWindowsNavigateTheCurrentWebView() {
+         String script = WebBootstrapScript.setAndroidStatusBarInset(24, false);

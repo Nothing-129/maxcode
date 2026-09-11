@@ -21,7 +21,7 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
     const panel = source(
       "src/components/conversations/conversation-detail-panel.tsx"
     )
-    const welcome = panel.slice(panel.indexOf("<WelcomeHero tabId={tabId} />"))
+    const welcome = panel.slice(panel.indexOf("<WelcomeHero />"))
     expect(welcome.indexOf("<AgentSelector")).toBeLessThan(
       welcome.indexOf("<ChatInput")
     )

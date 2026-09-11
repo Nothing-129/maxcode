@@ -12,9 +12,12 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
+| 手机设置 | 右上角分类菜单显示在设置页之上，可切换分类、点击空白或 Escape 关闭；保留设置及工作区草稿，隐藏后台工作区抽屉并在返回时恢复 | `worktree-2026-09-10` | `settings.mobile-category-navigation` |
 | 移动端 | 恢复前台及网络重连后检查并恢复当前会话，输入区直接显示掉线状态 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
+| 会话 | Pi 启动横幅（pi 版本 / Context / Skills）不进入对话：实时流直接丢弃，与完成后的持久化转写保持一致，不再先显示后消失 | `worktree-2026-09-11` | `chat.pi-startup-banner-suppressed` |
 | 对话选择 | Codex 参考样式：问题直接作标题、无描边选项、圆形编号、浅灰选中态和自定义输入铅笔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
-| 消息 | 历史回复正文到操作按钮保持连续悬停区域，按钮不被下一条消息的透明间距遮挡，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
+| 消息 | 历史回复正文到操作按钮保持连续悬停区域，悬停/键盘聚焦时抬高实际虚拟行层级（悬停优先），按钮不被下一条消息的透明间距遮挡，提示气泡打开时保持操作区可见及层级，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
 | 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
 | 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
@@ -34,7 +37,7 @@
 | 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
 | 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
-| 手机布局 | 工作区统一预留底部安全区，输入框仅保留 8px 间距，避免收起键盘后重复留白 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
+| 手机布局 | 浏览器由工作区预留底部安全区；Android APP 由原生层避让导航栏/键盘，注入样式取消新旧网页外壳的重复底部安全区（所有机型），输入框仅保留 8px 间距 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
 | 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
@@ -54,6 +57,7 @@
 | 会话标题 | 移除会话、侧栏及标签菜单中的手动刷新标题入口和前端请求封装；保留自动标题与重命名 | `worktree-2026-09-10` | `conversations.manual-title-refresh` |
 | 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
+| 智能体 | 设置页选中智能体时联网检测发布版本，npm 查询实际 ACP 包，其余受支持智能体查询 ACP 注册表；缓存 10 分钟并支持强制检查，失败和未知版本不误报最新，npm 新版经确认后按指定版本安装，不更改默认通道或自动升级 | `worktree-2026-09-10` | `settings.agent-online-updates` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
 | 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |
@@ -128,4 +132,4 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 手机顶栏工具菜单内在“打开设置”之后提供“刷新界面”，不占用标题栏宽度，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。
 
-手机端对话标题栏直接显示新建对话按钮，隐藏三个点菜单；沿用当前项目与智能体。契约：`mobile-header-new-conversation.contract.test.ts`。
+手机端对话标题栏直接显示带框铅笔图标的新建对话按钮，隐藏标题旁的会话操作菜单；沿用当前项目与智能体。最右侧工作区操作菜单使用横向三个点图标。新建按钮与导航按钮统一使用 ghost 样式和 rounded-xl 圆角，操作图标为 18px，左侧菜单图标为视觉补偿放大至 20px、线宽设为 1.8；左侧侧边栏、右侧新建和设置三个按钮统一使用 32px 宽、44px 高的点击区域，缩小图标之间的留白。契约：`mobile-header-new-conversation.contract.test.ts`。

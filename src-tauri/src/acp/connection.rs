@@ -10732,6 +10732,7 @@ enum PiChunkRoute {
 /// | L834  `prompt()` queue                    | `Queued message (position N).` | — |
 /// | L1222 `agent_settled` queue               | `Starting queued message. (N remaining)` | — |
 /// | L860  `cancel()` queue                    | `Cleared queued prompts.` | — |
+/// | L822  `sendStartupInfoIfPending`          | the startup banner (`pi v…` / `## Context` / `## Skills` / …) | — |
 ///
 /// The notify marker is read FIRST and wins outright, because that text is
 /// arbitrary extension content — a pi extension can notify anything, including
@@ -10745,17 +10746,30 @@ enum PiChunkRoute {
 /// model to emit one of these exact sentences as an entire standalone delta, and
 /// would cost one dropped delta — not a corrupted message.
 ///
-/// Two families deliberately stay `Prose`, and must:
+/// One family deliberately stays `Prose`, and must:
 ///
 /// - **Slash-command replies** (pi-acp L2080+: `/compact`, `/session`, `/name`,
-///   `/export`, `/follow-up`, `/steering`, `/changelog`) and the startup prelude
-///   (`sendStartupInfoIfPending`). The user ASKED for those; they ride the same
-///   channel and match no rule here, which is exactly the point of matching
-///   whole literals rather than sniffing for "status-looking" text.
+///   `/export`, `/follow-up`, `/steering`, `/changelog`). The user ASKED for
+///   those; they ride the same channel and match no rule here, which is exactly
+///   the point of matching whole literals rather than sniffing for
+///   "status-looking" text.
 /// - **`Pi <method> UI request is not supported in ACP yet; cancelling it.`**
 ///   (L1257). pi asked the user for input and pi-acp auto-cancelled it — a rare,
 ///   actionable failure with no better home today. Dropping it would hide the
 ///   reason a turn went sideways, which is worse than the noise this fixes.
+///
+/// The startup banner (L822 `sendStartupInfoIfPending`, built by L2850
+/// `buildStartupInfo`) USED to be in that prose family, but is now dropped via
+/// [`pi_is_startup_prelude`]. Unlike slash-command replies it is not something
+/// the user asked for, and unlike every other announcement it is also the only
+/// one that permanently diverges from the transcript: pi-acp emits it as a
+/// plain `agent_message_chunk` right after `session/new` but never writes it to
+/// pi's session JSONL, so the live view showed the banner and the persisted
+/// transcript (parsed from that JSONL) silently lost it once the turn settled —
+/// the banner visible while working, gone when finished. Dropping it keeps the
+/// live stream identical to what the transcript will actually contain. The
+/// `quietStartup` pi setting suppresses the banner at the source; this rule
+/// covers every install that has not set it.
 ///
 /// Used by BOTH the renderer (`emit_conversation_update`) and the empty-turn
 /// probe (`is_agent_output_update`), so the two can never disagree about whether
@@ -10816,7 +10830,7 @@ fn pi_message_chunk_route(
                     max: Some(max),
                     delay_ms: Some(delay_ms),
                 }
-            } else if pi_is_queue_announcement(text) {
+            } else if pi_is_startup_prelude(text) || pi_is_queue_announcement(text) {
                 PiChunkRoute::Drop
             } else {
                 PiChunkRoute::Prose
@@ -10864,6 +10878,34 @@ fn pi_is_queue_announcement(text: &str) -> bool {
                 .and_then(|rest| rest.strip_suffix(" remaining)"))
         });
     counted.is_some_and(|count| !count.is_empty() && count.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// pi-acp's session-start banner (`buildStartupInfo`, emitted once by
+/// `sendStartupInfoIfPending` right after `session/new`): the pi version on its
+/// own line, a thematic break, then the `## Context` / `## Skills` / `##
+/// Prompts` / `## Extensions` sections. The banner always arrives as ONE whole
+/// `agent_message_chunk`, so matching the shape of the trimmed chunk is enough
+/// — see [`pi_message_chunk_route`] for why it is dropped rather than rendered.
+///
+/// The opening is matched strictly: `pi v` followed by a DIGIT, then a line that
+/// is exactly `---`. Two guards fall on the safe side deliberately:
+///
+/// - In markdown, a paragraph line directly above `---` is a setext heading, so
+///   prose like `pi versions\n---` is achievable model output. Requiring the
+///   digit (pi's `--version` output is semver) keeps it as prose.
+/// - When `pi --version` fails the banner starts directly with `## Context` /
+///   `## Skills` and no longer matches. Leaving that rare variant visible is
+///   preferable to a matcher a doc-writing model could trip on its own.
+fn pi_is_startup_prelude(text: &str) -> bool {
+    let mut lines = text.trim_start().lines();
+    let Some(first) = lines.next() else {
+        return false;
+    };
+    let Some(version) = first.trim().strip_prefix("pi v") else {
+        return false;
+    };
+    version.starts_with(|c: char| c.is_ascii_digit())
+        && lines.next().map(str::trim) == Some("---")
 }
 
 /// Grok wraps every MCP tool invocation in a generic `use_tool` envelope whose
@@ -20233,6 +20275,74 @@ mod tests {
         }
     }
 
+    /// The session-start banner (`buildStartupInfo` → `sendStartupInfoIfPending`)
+    /// is dropped: it never lands in pi's session JSONL, so rendering it live
+    /// made it flash on screen and vanish the moment the persisted transcript
+    /// loaded — visible while working, gone when finished. All three shapes (full
+    /// banner, version line only, banner + trailing update notice) are one whole
+    /// chunk in practice, so the shape match sees exactly these.
+    #[test]
+    fn pi_startup_prelude_is_dropped_in_every_shape() {
+        let route = |text: &str| pi_message_chunk_route(AgentType::Pi, text, None);
+
+        // The full banner as pi-acp 0.0.33 builds it on this machine.
+        assert_eq!(
+            route(
+                concat!(
+                    "pi v0.84.3\n",
+                    "---\n",
+                    "\n",
+                    "## Context\n",
+                    "- /Users/demo/maxcode/AGENTS.md\n",
+                    "\n",
+                    "## Skills\n",
+                    "- /Users/demo/.agents/skills/dingtalk-doc/SKILL.md\n",
+                    "- /Users/demo/.agents/skills/dingtalk-mail/SKILL.md\n",
+                )
+            ),
+            PiChunkRoute::Drop,
+            "the Context/Skills banner is the case users actually see"
+        );
+        // Version line only (no context files, no skills).
+        assert_eq!(route("pi v0.84.3\n---\n"), PiChunkRoute::Drop);
+        // Banner with pi-acp's trailing update notice.
+        assert_eq!(
+            route(
+                concat!(
+                    "pi v0.84.3\n",
+                    "---\n",
+                    "\n",
+                    "---\n",
+                    "New version available: v0.85.0 (installed v0.84.3). \
+                     Run: `npm i -g @earendil-works/pi-coding-agent`"
+                )
+            ),
+            PiChunkRoute::Drop
+        );
+
+        // Near-misses that must stay prose: the shape match needs BOTH the
+        // version opening and the thematic break, and only ever matches a whole
+        // chunk.
+        for text in [
+            // A model discussing pi itself.
+            "pi v0.84.3 is the latest release.",
+            // Markdown that merely opens with a similar line.
+            "pi versions\n---\n\nHistory of releases.",
+            // Banner variant when `pi --version` failed: no version line.
+            // Deliberately kept (see `pi_is_startup_prelude`) — too easy for a
+            // doc-writing model to emit alone.
+            "## Context\n- /Users/demo/maxcode/AGENTS.md\n",
+            // Embedded banner text inside a larger reply is still prose.
+            "Here is the banner:\npi v0.84.3\n---\n",
+        ] {
+            assert_eq!(
+                route(text),
+                PiChunkRoute::Prose,
+                "{text:?} must not be treated as the startup banner"
+            );
+        }
+    }
+
     /// The notify marker is authoritative and level-independent: an extension's
     /// message is arbitrary text, so nothing but `_meta` can identify it. This is
     /// the exact frame from the issue screenshot.
@@ -20260,8 +20370,8 @@ mod tests {
     }
 
     /// The far more dangerous direction: text that must survive. pi-acp's
-    /// slash-command replies and prelude ride the SAME channel, and the model
-    /// itself can say anything.
+    /// slash-command replies ride the SAME channel, and the model itself can say
+    /// anything.
     #[test]
     fn pi_chunk_route_leaves_real_prose_and_command_replies_alone() {
         for text in [

@@ -7,9 +7,9 @@ describe("MaxCode contract: mobile header new conversation", () => {
     const header = source(
       "src/components/conversations/conversation-detail-header.tsx"
     )
-    const buttons = [...header.matchAll(/<button\b[\s\S]*?<\/button>/g)].map(
-      (match) => match[0]
-    )
+    const buttons = [
+      ...header.matchAll(/<(?:button|Button)\b[\s\S]*?<\/(?:button|Button)>/g),
+    ].map((match) => match[0])
     const more = buttons.find((button) => button.includes('name="more"'))!
     expect(more).toContain('className="hidden ')
     expect(more).toContain("md:flex")
@@ -17,6 +17,21 @@ describe("MaxCode contract: mobile header new conversation", () => {
       button.includes("onClick={handleNewConversation}")
     )!
     expect(newChat).toContain("md:hidden")
+    expect(newChat).toContain("<Button")
+    expect(newChat).toContain('variant="ghost"')
+    expect(newChat).toContain('size="icon"')
+    expect(newChat).toContain("h-11 w-8 shrink-0 rounded-xl")
+    const titleBar = source("src/components/layout/folder-title-bar.tsx")
+    expect(titleBar).toContain('<Ellipsis className="size-[18px]" />')
+    expect(titleBar).toContain('<Menu className="size-5" strokeWidth={1.8} />')
+    expect(titleBar).toMatch(
+      /className="h-11 w-8 shrink-0 rounded-xl"\s+onClick=\{toggle\}/
+    )
+    expect(titleBar).toMatch(
+      /className="h-11 w-8 shrink-0 rounded-xl"\s+aria-label=\{tTitleBar\("workspaceTools"\)\}/
+    )
+    expect(newChat).toContain('className="size-[18px]"')
+    expect(newChat).not.toContain("text-muted-foreground")
     expect(newChat).toContain('<SquarePen aria-hidden="true"')
     expect(newChat).toContain('aria-label={t("newConversation")}')
     expect(newChat).toContain("disabled={!folderPath}")

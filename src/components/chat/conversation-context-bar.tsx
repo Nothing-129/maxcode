@@ -110,13 +110,11 @@ ConversationContextBar.displayName = "ConversationContextBar"
 
 interface ConversationHeaderFolderPickerProps {
   tabId?: string | null
-  welcome?: boolean
 }
 
 export const ConversationHeaderFolderPicker = memo(
   function ConversationHeaderFolderPicker({
     tabId,
-    welcome = false,
   }: ConversationHeaderFolderPickerProps) {
     const t = useTranslations("Folder.conversationContextBar")
     const tabs = useTabStore((s) => s.tabs)
@@ -151,7 +149,6 @@ export const ConversationHeaderFolderPicker = memo(
     // bound to a hidden chat folder. The chip still shows so the user can
     // switch back to a real folder while drafting.
     const isChatMode = ownTab.isChat === true || ownFolder?.kind === "chat"
-    if (welcome && isChatMode) return null
     if (!ownFolder && !isChatMode) return null
 
     // Worktree folders surface their parent (root repo) row; resolve that same
@@ -173,17 +170,16 @@ export const ConversationHeaderFolderPicker = memo(
       ? formatFolderLabelWithAlias(displayFolder)
       : displayFolderName
 
-    // Keep the header breadcrumb static; the welcome title reuses this
-    // selector as an inline link for switching an unsent draft.
+    // The header shows a static breadcrumb; switching lives below the composer.
     return (
       <FolderPicker
-        variant={welcome ? "welcome" : "header"}
+        variant="header"
         folders={topLevelFolders}
         currentFolderId={pickerSelectedId}
         currentFolderName={displayFolderName}
         alias={displayFolderAlias}
         title={`${t("folderTitle")}: ${titleFolderName}`}
-        editable={welcome && ownTab.conversationId == null}
+        editable={false}
         onSelect={async (folderId) => {
           const target = folders.find((f) => f.id === folderId)
           if (!target) return
@@ -453,7 +449,7 @@ interface FolderPickerProps {
    *  compact below-input row (mobile). `"header"` = bare text sized to the
    *  conversation title, alias-aware, themed while editable — the desktop
    *  conversation-header breadcrumb. */
-  variant?: "chip" | "header" | "welcome"
+  variant?: "chip" | "header"
   /** Folder alias for the `"header"` variant's display label (rendered
    *  via {@link FolderAliasLabel}). Ignored by the chip variant. */
   alias?: string | null
@@ -488,18 +484,14 @@ const FolderPicker = memo(function FolderPicker({
     )
 
   const trigger =
-    variant === "header" || variant === "welcome" ? (
+    variant === "header" ? (
       <button
         type="button"
         title={title}
         className={cn(
           "flex shrink-0 items-center rounded-sm text-sm outline-none transition-colors",
-          variant === "welcome" &&
-            "inline-flex max-w-full align-baseline text-[length:inherit] text-muted-foreground underline decoration-dotted underline-offset-4 [&>span]:truncate",
           editable
-            ? variant === "welcome"
-              ? "cursor-pointer hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
-              : "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            ? "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/50"
             : "cursor-default text-muted-foreground"
         )}
       >

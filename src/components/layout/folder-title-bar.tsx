@@ -3,7 +3,7 @@
 import { useCallback } from "react"
 import {
   Menu,
-  SlidersHorizontal,
+  Ellipsis,
   PanelRight,
   Search,
   Settings,
@@ -98,11 +98,11 @@ export function FolderTitleBar() {
       <Button
         variant="ghost"
         size="icon"
-        className="size-11 shrink-0 rounded-xl"
+        className="h-11 w-8 shrink-0 rounded-xl"
         onClick={toggle}
         aria-label={tTitleBar(sidebarOpen ? "hideSidebar" : "showSidebar")}
       >
-        <Menu className="size-5" />
+        <Menu className="size-5" strokeWidth={1.8} />
       </Button>
       <MobileHeaderTarget hidden={!isConversations} />
       {!isConversations && <div className="min-w-0 flex-1" />}
@@ -116,10 +116,10 @@ export function FolderTitleBar() {
           <Button
             variant="ghost"
             size="icon"
-            className="size-11 shrink-0 rounded-xl"
+            className="h-11 w-8 shrink-0 rounded-xl"
             aria-label={tTitleBar("workspaceTools")}
           >
-            <SlidersHorizontal className="size-5" />
+            <Ellipsis className="size-[18px]" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-52">

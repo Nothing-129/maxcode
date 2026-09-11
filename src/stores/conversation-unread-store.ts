@@ -1,3 +1,4 @@
+import { publishConversationRead } from "@/lib/conversation-read-sync"
 import { create } from "zustand"
 import { registerBackendScopedStoreReset } from "@/stores/backend-scoped-store-reset"
 import {
@@ -19,6 +20,7 @@ export interface ConversationUnreadState {
   viewedIds: ReadonlySet<number>
   visibleIds: ReadonlySet<number>
   noteActivity: (conversationId: number) => void
+  applyRemoteRead: (conversationId: number) => void
   markRead: (conversationId: number) => void
   markAllRead: () => void
   setViewed: (conversationIds: Iterable<number>) => void
@@ -39,7 +41,10 @@ export const useConversationUnreadStore = create<ConversationUnreadState>(
     noteActivity: (conversationId) => {
       if (conversationId <= 0) return
       const { viewedIds, unreadIds } = get()
-      if (viewedIds.has(conversationId)) return
+      if (viewedIds.has(conversationId)) {
+        publishConversationRead([conversationId])
+        return
+      }
       if (unreadIds.has(conversationId)) return
       const next = new Set(unreadIds)
       next.add(conversationId)
@@ -48,6 +53,12 @@ export const useConversationUnreadStore = create<ConversationUnreadState>(
     },
 
     markRead: (conversationId) => {
+      if (conversationId <= 0) return
+      publishConversationRead([conversationId])
+      get().applyRemoteRead(conversationId)
+    },
+
+    applyRemoteRead: (conversationId) => {
       if (conversationId <= 0) return
       const { unreadIds } = get()
       if (!unreadIds.has(conversationId)) return
@@ -59,6 +70,7 @@ export const useConversationUnreadStore = create<ConversationUnreadState>(
 
     markAllRead: () => {
       if (get().unreadIds.size === 0) return
+      publishConversationRead([...get().unreadIds])
       const unreadIds = new Set<number>()
       persistUnread(unreadIds)
       set({ unreadIds })
@@ -70,6 +82,9 @@ export const useConversationUnreadStore = create<ConversationUnreadState>(
         if (id > 0) viewedIds.add(id)
       }
       const { viewedIds: prevViewed, unreadIds } = get()
+      publishConversationRead(
+        [...viewedIds].filter((id) => !prevViewed.has(id))
+      )
       const viewedUnchanged = sameIdSet(prevViewed, viewedIds)
       let nextUnread = unreadIds
       if (viewedIds.size > 0 && unreadIds.size > 0) {

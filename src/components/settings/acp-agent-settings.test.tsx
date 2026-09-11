@@ -866,9 +866,8 @@ describe("buildVersionCheck", () => {
     expect(check?.fixes.some((fix) => fix.kind === "uninstall_npx")).toBe(true)
   })
 
-  // The pinned default's pass state is byte-for-byte what it was before the
-  // channel existed.
-  it("leaves the pinned default's pass state unchanged", () => {
+  // The pin remains the default install target, but is not an online check.
+  it("labels the pinned default honestly without offering a forced upgrade", () => {
     const check = buildVersionCheck(
       makeAgent({
         agent_type: "gemini" as AgentType,
@@ -878,7 +877,7 @@ describe("buildVersionCheck", () => {
       })
     )
     expect(check?.status).toBe("pass")
-    expect(check?.message).toContain("Already latest")
+    expect(check?.message).toContain("built-in recommended version")
     expect(check?.fixes.some((fix) => fix.kind === "upgrade_npx")).toBe(false)
   })
 
@@ -910,7 +909,7 @@ describe("buildVersionCheck", () => {
         env: { CODEG_ADAPTER_CHANNEL: "latest" },
       })
     )
-    expect(check?.message).toContain("Already latest")
+    expect(check?.message).toContain("built-in recommended version")
     expect(check?.fixes.some((fix) => fix.kind === "upgrade_binary")).toBe(
       false
     )

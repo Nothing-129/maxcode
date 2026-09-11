@@ -26,11 +26,12 @@ public final class WebBootstrapScriptTest {
     }
 
     @Test
-    public void defaultAndroidSafeAreaOnlyOffsetsTheMobileSidebar() {
+    public void defaultAndroidTopSafeAreaOnlyOffsetsTheMobileSidebar() {
         String script = WebBootstrapScript.setAndroidStatusBarInset(27, false);
 
         assertTrue(script.contains("mobile-sidebar-drawer"));
-        assertFalse(script.contains("div.fixed.inset-0"));
+        assertTrue(script.contains("padding-bottom:0!important;}"));
+        assertFalse(script.contains("padding-bottom:0!important;padding-top:"));
         assertTrue(script.contains("27px"));
         assertFalse(script.contains("body{"));
     }
@@ -42,6 +43,21 @@ public final class WebBootstrapScriptTest {
         assertTrue(script.contains("div.fixed.inset-0"));
         assertTrue(script.contains("div.h-screen"));
         assertTrue(script.contains("box-sizing:border-box"));
+    }
+
+    @Test
+    public void nativeBottomSafeAreaIsNotRepeatedByEitherPageShell() {
+        for (boolean protectPageShells : new boolean[] {false, true}) {
+            // Keyboard height never enters CSS: native layout owns both the
+            // open-keyboard and closed-keyboard bottom inset.
+            String script = WebBootstrapScript.setAndroidStatusBarInset(27, protectPageShells);
+
+            assertTrue(script.contains(
+                    "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
+                            + "div.h-screen.flex.flex-col.overflow-hidden.bg-background.text-foreground"
+                            + "{box-sizing:border-box;padding-bottom:0!important;"));
+            assertFalse(script.contains("padding-bottom:env("));
+        }
     }
 
     @Test

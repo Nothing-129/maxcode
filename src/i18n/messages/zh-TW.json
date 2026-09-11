@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}。本地版本無法識別，可嘗試升級覆蓋安裝。",
       "upgradeAvailable": "{versionText}。發現可升級版本。",
       "remoteUnavailable": "{versionText}。遠端版本暫不可用。",
-      "latest": "{versionText}。已是最新版本。",
+      "latest": "{versionText}。已達到或高於內建建議版本。",
       "latestChannel": "{versionText}。已啟用最新版通道；升級會安裝最新版本。"
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "今天打算<highlight>做些什麼</highlight>呢？",
-        "greetingWithFolder": "你想讓我們在 <folder>專案</folder> 中建構什麼？",
         "tips": {
           "tileTabs": "右鍵點擊會話標籤選擇「平鋪顯示」，可同螢幕對比多個會話",
           "pinTab": "雙擊會話標籤可將其固定，避免被新開啟的會話自動取代",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "描述與系統提示詞",
     "fieldDescription": "描述",
     "baseInstructions": "系統提示詞（base_instructions）"
+  },
+  "AgentUpdateSettings": {
+    "title": "線上更新檢查",
+    "check": "檢查更新",
+    "checking": "正在查詢發佈來源…",
+    "failed": "檢查失敗：{error}",
+    "unavailable": "沒有可用的線上版本資訊，無法確認是否最新。",
+    "release": "線上最新版本：{version}（來源：{source}）",
+    "available": "發現新版本。",
+    "current": "本機版本不低於發佈來源的最新版本。",
+    "unknown": "本機未安裝或版本無法比較，請核對版本後再安裝。",
+    "note": "僅檢查，不自動升級。轉接器版本不等於原生 CLI 版本；線上新版本可能未經相容性驗證，預設安裝仍使用原有通道。",
+    "install": "安裝 {version}…"
   },
   "DiagnosticsSettings": {
     "title": "環境診斷",

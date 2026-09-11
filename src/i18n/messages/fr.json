@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. La version locale n’est pas comparable ; essayez une mise à niveau pour écraser l’installation.",
       "upgradeAvailable": "{versionText}. Mise à niveau disponible.",
       "remoteUnavailable": "{versionText}. La version distante est actuellement indisponible.",
-      "latest": "{versionText}. Déjà à jour.",
+      "latest": "{versionText}. Au moins aussi récente que la version recommandée intégrée.",
       "latestChannel": "{versionText}. Le canal Dernière est actif ; Mettre à niveau installe la version la plus récente."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "Que souhaites-tu <highlight>faire aujourd'hui</highlight> ?",
-        "greetingWithFolder": "Que souhaites-tu créer dans <folder>projet</folder> ?",
         "tips": {
           "tileTabs": "Faites un clic droit sur un onglet de conversation et choisissez Affichage en mosaïque pour comparer plusieurs sessions côte à côte.",
           "pinTab": "Double-cliquez sur un onglet de conversation pour l'épingler : une nouvelle session ne le remplacera plus automatiquement.",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "Description et prompt système",
     "fieldDescription": "Description",
     "baseInstructions": "Invite système (base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "Vérification des mises à jour en ligne",
+    "check": "Rechercher des mises à jour",
+    "checking": "Vérification de la source de publication…",
+    "failed": "Échec de la vérification : {error}",
+    "unavailable": "Aucune information de version en ligne disponible ; impossible de confirmer la dernière version.",
+    "release": "Dernière version publiée : {version} (source : {source})",
+    "available": "Une mise à jour est disponible.",
+    "current": "La version installée est au moins aussi récente que la dernière version publiée.",
+    "unknown": "Non installé ou version locale non comparable. Vérifiez la version avant l’installation.",
+    "note": "Vérification seule, sans mise à niveau automatique. Les versions des adaptateurs diffèrent de celles des CLI natives. Les nouvelles versions peuvent ne pas être validées ; les installations par défaut suivent le canal existant.",
+    "install": "Installer {version}…"
   },
   "DiagnosticsSettings": {
     "title": "Diagnostic de l'environnement",

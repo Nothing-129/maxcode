@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}。ローカルバージョンは比較できません。上書きインストールのためアップグレードを試してください。",
       "upgradeAvailable": "{versionText}。アップグレード可能です。",
       "remoteUnavailable": "{versionText}。現在リモートバージョンは取得できません。",
-      "latest": "{versionText}。すでに最新です。",
+      "latest": "{versionText}。組み込みの推奨バージョン以上です。",
       "latestChannel": "{versionText}。最新版チャンネルが有効です。アップグレードで最新リリースをインストールします。"
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "今日は<highlight>何を</highlight>しましょうか？",
-        "greetingWithFolder": "<folder>プロジェクト</folder> で何を作りましょうか？",
         "tips": {
           "tileTabs": "会話タブを右クリックして「タイル表示」を選ぶと、複数のセッションを並べて比較できます",
           "pinTab": "会話タブをダブルクリックすると固定でき、新しい会話に自動で置き換えられなくなります",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "説明とシステムプロンプト",
     "fieldDescription": "説明",
     "baseInstructions": "システムプロンプト（base_instructions）"
+  },
+  "AgentUpdateSettings": {
+    "title": "オンライン更新確認",
+    "check": "更新を確認",
+    "checking": "配信元を確認中…",
+    "failed": "確認に失敗しました：{error}",
+    "unavailable": "オンラインのバージョン情報がないため、最新かどうか確認できません。",
+    "release": "最新公開バージョン：{version}（配信元：{source}）",
+    "available": "更新があります。",
+    "current": "インストール済みバージョンは最新公開バージョン以上です。",
+    "unknown": "未インストール、またはローカルバージョンを比較できません。インストール前に確認してください。",
+    "note": "確認のみで、自動更新は行いません。アダプターとネイティブ CLI のバージョンは異なります。新しいリリースは互換性未検証の場合があります。既定のインストールは従来のチャネルに従います。",
+    "install": "{version} をインストール…"
   },
   "DiagnosticsSettings": {
     "title": "環境診断",

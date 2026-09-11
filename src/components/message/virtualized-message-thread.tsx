@@ -3,7 +3,11 @@
 import { observeThreadOverflow } from "./observe-thread-overflow"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { CSSProperties, ReactNode, RefObject } from "react"
-import { Virtualizer, type VirtualizerHandle } from "virtua"
+import {
+  Virtualizer,
+  type CustomItemComponentProps,
+  type VirtualizerHandle,
+} from "virtua"
 import { useStickToBottomContext } from "use-stick-to-bottom"
 import { Loader2 } from "lucide-react"
 import {
@@ -101,6 +105,17 @@ export function shouldShiftForPrepend(
   next: { scope: string | number | undefined; epoch: number }
 ): boolean {
   return prev.scope === next.scope && next.epoch !== prev.epoch
+}
+
+// Virtua's `contain: layout style` creates a stacking context per item. The
+// hover/focus layer must live on THIS wrapper, not just on the action buttons
+// inside it, so the following item's padding cannot cover the action row.
+function MessageThreadItem({ ref, style, children }: CustomItemComponentProps) {
+  return (
+    <div ref={ref} style={style} className="maxcode-thread-item">
+      {children}
+    </div>
+  )
 }
 
 function VirtualizedMessageThreadImpl<T>({
@@ -304,6 +319,7 @@ function VirtualizedMessageThreadImpl<T>({
         ) : (
           <Virtualizer
             ref={virtualizerHandleRef}
+            item={MessageThreadItem}
             scrollRef={scrollRef as unknown as RefObject<HTMLElement | null>}
             itemSize={itemSize}
             bufferSize={bufferSize}

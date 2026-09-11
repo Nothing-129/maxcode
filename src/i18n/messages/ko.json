@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. 로컬 버전을 비교할 수 없습니다. 덮어쓰기 설치를 위해 업그레이드를 시도하세요.",
       "upgradeAvailable": "{versionText}. 업그레이드가 가능합니다.",
       "remoteUnavailable": "{versionText}. 현재 원격 버전을 사용할 수 없습니다.",
-      "latest": "{versionText}. 이미 최신입니다.",
+      "latest": "{versionText}. 내장 권장 버전 이상입니다.",
       "latestChannel": "{versionText}. 최신 버전 채널이 켜져 있습니다. 업그레이드하면 최신 릴리스를 설치합니다."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "오늘은 <highlight>무엇을</highlight> 해볼까요?",
-        "greetingWithFolder": "<folder>프로젝트</folder>에서 무엇을 만들까요?",
         "tips": {
           "tileTabs": "대화 탭을 우클릭하고 '바둑판 표시'를 선택하면 여러 세션을 나란히 비교할 수 있습니다",
           "pinTab": "대화 탭을 더블클릭하면 고정되어 새로 열린 세션이 자동으로 대체하지 않습니다",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "설명 및 시스템 프롬프트",
     "fieldDescription": "설명",
     "baseInstructions": "시스템 프롬프트(base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "온라인 업데이트 확인",
+    "check": "업데이트 확인",
+    "checking": "배포 소스 확인 중…",
+    "failed": "확인 실패: {error}",
+    "unavailable": "온라인 버전 정보가 없어 최신 여부를 확인할 수 없습니다.",
+    "release": "최신 배포 버전: {version} (소스: {source})",
+    "available": "업데이트가 있습니다.",
+    "current": "설치된 버전이 최신 배포 버전 이상입니다.",
+    "unknown": "설치되지 않았거나 로컬 버전을 비교할 수 없습니다. 설치 전에 버전을 확인하세요.",
+    "note": "확인만 하며 자동으로 업그레이드하지 않습니다. 어댑터와 네이티브 CLI의 버전은 다릅니다. 새 릴리스는 호환성이 검증되지 않았을 수 있으며 기본 설치는 기존 채널을 따릅니다.",
+    "install": "{version} 설치…"
   },
   "DiagnosticsSettings": {
     "title": "환경 진단",

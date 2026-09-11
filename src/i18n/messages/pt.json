@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. A versão local não é comparável; tente atualizar para sobrescrever a instalação.",
       "upgradeAvailable": "{versionText}. Atualização disponível.",
       "remoteUnavailable": "{versionText}. A versão remota está indisponível no momento.",
-      "latest": "{versionText}. Já está na versão mais recente.",
+      "latest": "{versionText}. Igual ou superior à versão recomendada integrada.",
       "latestChannel": "{versionText}. Canal de versão mais recente ativo; Atualizar instala a versão mais nova."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "O que você gostaria de <highlight>fazer hoje</highlight>?",
-        "greetingWithFolder": "O que você gostaria de criar em <folder>projeto</folder>?",
         "tips": {
           "tileTabs": "Clique com o botão direito em uma aba de conversa e escolha Exibir em mosaico para ver várias sessões lado a lado.",
           "pinTab": "Clique duas vezes em uma aba de conversa para fixá-la, evitando que uma nova sessão a substitua automaticamente.",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "Descrição e prompt do sistema",
     "fieldDescription": "Descrição",
     "baseInstructions": "Prompt do sistema (base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "Verificação de atualizações online",
+    "check": "Verificar atualizações",
+    "checking": "Consultando a fonte de publicação…",
+    "failed": "Falha na verificação: {error}",
+    "unavailable": "Não há informações de versão online; não é possível confirmar a versão mais recente.",
+    "release": "Versão publicada mais recente: {version} (fonte: {source})",
+    "available": "Há uma atualização disponível.",
+    "current": "A versão instalada é igual ou superior à mais recente publicada.",
+    "unknown": "Não instalado ou versão local não comparável. Verifique a versão antes de instalar.",
+    "note": "Apenas verificação, sem atualizações automáticas. As versões dos adaptadores diferem das CLI nativas. Novas versões podem não estar validadas; as instalações padrão seguem o canal existente.",
+    "install": "Instalar {version}…"
   },
   "DiagnosticsSettings": {
     "title": "Diagnóstico do ambiente",

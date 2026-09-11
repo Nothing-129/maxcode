@@ -10,10 +10,6 @@ import {
   type ShortcutSettings,
 } from "@/lib/keyboard-shortcuts"
 
-import { useTabStore } from "@/contexts/tab-context"
-import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
-import { ConversationHeaderFolderPicker } from "./conversation-context-bar"
-
 type TipKey =
   | "tileTabs"
   | "pinTab"
@@ -113,24 +109,13 @@ const highlightTip = (chunks: ReactNode) => (
   <span className="font-medium text-primary">{chunks}</span>
 )
 
-export function WelcomeHero({ tabId }: { tabId: string }) {
+export function WelcomeHero() {
   const t = useTranslations("Folder.chat.welcomePanel")
-  const tab = useTabStore((s) => s.tabs.find((tab) => tab.id === tabId))
-  const folder = useAppWorkspaceStore((s) =>
-    s.allFolders.find((folder) => folder.id === tab?.folderId)
-  )
-  const showFolder = folder && folder.kind !== "chat" && !tab?.isChat
 
   return (
     // ChatGPT 桌面端首页问候语：~28px、常规字重、居中、纯前景色（无渐变强调）。
     <h1 className="text-center text-[1.75rem] font-normal tracking-tight text-foreground sm:text-[2rem]">
-      {showFolder
-        ? t.rich("greetingWithFolder", {
-            folder: () => (
-              <ConversationHeaderFolderPicker tabId={tabId} welcome />
-            ),
-          })
-        : t.rich("greeting", { highlight: highlightTitle })}
+      {t.rich("greeting", { highlight: highlightTitle })}
     </h1>
   )
 }

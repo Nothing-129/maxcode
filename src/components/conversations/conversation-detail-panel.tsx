@@ -2257,7 +2257,7 @@ const ConversationTabView = memo(function ConversationTabView({
           <div className="flex min-h-full flex-col">
             <div className="flex-1" />
             <div className="mx-auto flex w-full maxcode-chat-column shrink-0 flex-col gap-6 px-4 py-4">
-              <WelcomeHero tabId={tabId} />
+              <WelcomeHero />
               <div className="flex justify-center">
                 <AgentSelector
                   // The selector spans the row it is given (it has to measure

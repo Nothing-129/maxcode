@@ -24,12 +24,18 @@ final class WebBootstrapScript {
             int insetCssPixels,
             boolean protectPageShells) {
         int safeInset = Math.max(0, insetCssPixels);
-        String pageSafeAreaCss = protectPageShells
-                ? "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
+        // MainActivity already removes navigation-bar / IME space from the
+        // WebView's bounds. Some WebViews still report a bottom CSS safe area;
+        // applying it again in the page shell leaves a second blank gutter.
+        // Only the top inset is conditional on the Oppo workaround.
+        String pageSafeAreaCss =
+                "div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,"
                         + "div.h-screen.flex.flex-col.overflow-hidden.bg-background."
-                        + "text-foreground{box-sizing:border-box;"
-                        + "padding-top:var(--maxcode-android-status-bar-inset)!important;}"
-                : "";
+                        + "text-foreground{box-sizing:border-box;padding-bottom:0!important;"
+                        + (protectPageShells
+                                ? "padding-top:var(--maxcode-android-status-bar-inset)!important;"
+                                : "")
+                        + "}";
         return "(function(){var d=document.documentElement;"
                 + "d.style.setProperty('--maxcode-android-status-bar-inset','"
                 + safeInset

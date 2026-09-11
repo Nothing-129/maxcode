@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. Local version is not comparable; try upgrade to overwrite install.",
       "upgradeAvailable": "{versionText}. Upgrade available.",
       "remoteUnavailable": "{versionText}. Remote version is currently unavailable.",
-      "latest": "{versionText}. Already latest.",
+      "latest": "{versionText}. At or above the built-in recommended version.",
       "latestChannel": "{versionText}. Latest channel is on; Upgrade installs the newest release."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "What would you like to <highlight>do today</highlight>?",
-        "greetingWithFolder": "What would you like to build in <folder>project</folder>?",
         "tips": {
           "tileTabs": "Right-click any conversation tab and choose Tile Display to see multiple sessions side by side.",
           "pinTab": "Double-click a conversation tab to pin it, so a newly opened session won't auto-replace it.",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "Description & system prompt",
     "fieldDescription": "Description",
     "baseInstructions": "System prompt (base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "Online update check",
+    "check": "Check for updates",
+    "checking": "Checking the release source…",
+    "failed": "Check failed: {error}",
+    "unavailable": "No online version information is available; latest status is unknown.",
+    "release": "Latest published version: {version} (source: {source})",
+    "available": "An update is available.",
+    "current": "The installed version is at or above the latest published version.",
+    "unknown": "Not installed or the local version cannot be compared. Verify the version before installing.",
+    "note": "Read-only check; no automatic upgrades. Adapter versions differ from native CLI versions. New releases may be unreviewed; default installs still follow the existing channel.",
+    "install": "Install {version}…"
   },
   "DiagnosticsSettings": {
     "title": "Environment diagnostics",

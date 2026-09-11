@@ -1,4 +1,5 @@
 pub mod acp;
+pub mod agent_updates;
 #[cfg(feature = "tauri-runtime")]
 pub mod app_update;
 pub mod automation;
@@ -47,3 +48,5 @@ pub mod version_control;
 pub mod windows;
 pub mod work_task;
 pub mod workspace_state;
+
+pub mod conversation_read;

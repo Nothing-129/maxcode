@@ -494,10 +494,9 @@ export function Sidebar() {
             style={{ width: leftReserve }}
           />
         )}
-        {/* Draggable filler between the two clusters — the header is the
-            window's top edge, so its empty space must move the window. */}
+        {/* Push the tools to the right and keep empty space draggable. */}
         <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
-        {isMobile && sidebarTools}
+        {sidebarTools}
       </div>
 
       {/* Fixed actions above the scrollable list. `shrink-0` keeps them pinned —
@@ -512,7 +511,6 @@ export function Sidebar() {
         {!isMobile && (
           <div className="mb-3 flex h-8 items-center justify-between px-2 text-base font-semibold text-sidebar-foreground">
             <SidebarWordmark />
-            {sidebarTools}
           </div>
         )}
         <SidebarNavButton

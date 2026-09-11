@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. Lokale Version ist nicht vergleichbar; zum Überschreiben bitte Upgrade versuchen.",
       "upgradeAvailable": "{versionText}. Upgrade verfügbar.",
       "remoteUnavailable": "{versionText}. Remote-Version ist derzeit nicht verfügbar.",
-      "latest": "{versionText}. Bereits aktuell.",
+      "latest": "{versionText}. Entspricht mindestens der integrierten empfohlenen Version.",
       "latestChannel": "{versionText}. Neueste-Kanal ist aktiv; Aktualisieren installiert die neueste Version."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "Was möchtest du heute <highlight>machen</highlight>?",
-        "greetingWithFolder": "Was möchtest du in <folder>Projekt</folder> bauen?",
         "tips": {
           "tileTabs": "Klicke mit der rechten Maustaste auf einen Konversations-Tab und wähle Kachelansicht, um mehrere Sitzungen nebeneinander zu sehen.",
           "pinTab": "Doppelklicke auf einen Konversations-Tab, um ihn anzuheften – so wird er nicht von einer neuen Sitzung automatisch ersetzt.",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "Beschreibung & System-Prompt",
     "fieldDescription": "Beschreibung",
     "baseInstructions": "System-Prompt (base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "Online-Updateprüfung",
+    "check": "Nach Updates suchen",
+    "checking": "Veröffentlichungsquelle wird geprüft…",
+    "failed": "Prüfung fehlgeschlagen: {error}",
+    "unavailable": "Keine Online-Versionsinformationen verfügbar. Der aktuelle Stand ist unbekannt.",
+    "release": "Neueste veröffentlichte Version: {version} (Quelle: {source})",
+    "available": "Ein Update ist verfügbar.",
+    "current": "Die installierte Version entspricht mindestens der neuesten veröffentlichten Version.",
+    "unknown": "Nicht installiert oder lokale Version nicht vergleichbar. Version vor der Installation prüfen.",
+    "note": "Nur Prüfung, keine automatischen Upgrades. Adapter- und native CLI-Versionen unterscheiden sich. Neue Versionen sind möglicherweise ungeprüft; Standardinstallationen folgen weiterhin dem bisherigen Kanal.",
+    "install": "{version} installieren…"
   },
   "DiagnosticsSettings": {
     "title": "Umgebungsdiagnose",

@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}. La versión local no es comparable; intenta actualizar para sobrescribir la instalación.",
       "upgradeAvailable": "{versionText}. Hay actualización disponible.",
       "remoteUnavailable": "{versionText}. La versión remota no está disponible por ahora.",
-      "latest": "{versionText}. Ya está en la última versión.",
+      "latest": "{versionText}. Igual o posterior a la versión recomendada integrada.",
       "latestChannel": "{versionText}. Canal de última versión activado; Actualizar instala la versión más reciente."
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "¿Qué te gustaría <highlight>hacer hoy</highlight>?",
-        "greetingWithFolder": "¿Qué te gustaría crear en <folder>proyecto</folder>?",
         "tips": {
           "tileTabs": "Haz clic derecho en una pestaña de conversación y elige Vista en mosaico para comparar varias sesiones lado a lado.",
           "pinTab": "Haz doble clic en una pestaña de conversación para fijarla y que una sesión nueva no la reemplace automáticamente.",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "Descripción y prompt del sistema",
     "fieldDescription": "Descripción",
     "baseInstructions": "Prompt del sistema (base_instructions)"
+  },
+  "AgentUpdateSettings": {
+    "title": "Comprobación de actualizaciones en línea",
+    "check": "Buscar actualizaciones",
+    "checking": "Consultando la fuente de publicación…",
+    "failed": "Error al comprobar: {error}",
+    "unavailable": "No hay información de versión en línea; no se puede confirmar la última versión.",
+    "release": "Última versión publicada: {version} (fuente: {source})",
+    "available": "Hay una actualización disponible.",
+    "current": "La versión instalada es igual o posterior a la última publicada.",
+    "unknown": "No está instalado o la versión local no es comparable. Compruebe la versión antes de instalar.",
+    "note": "Solo comprobación, sin actualizaciones automáticas. Las versiones del adaptador difieren de las CLI nativas. Las nuevas versiones pueden no estar verificadas; las instalaciones predeterminadas siguen el canal existente.",
+    "install": "Instalar {version}…"
   },
   "DiagnosticsSettings": {
     "title": "Diagnóstico del entorno",

@@ -1470,7 +1470,7 @@
       "localUnrecognized": "{versionText}。本地版本无法识别，可尝试升级覆盖安装。",
       "upgradeAvailable": "{versionText}。发现可升级版本。",
       "remoteUnavailable": "{versionText}。远程版本暂不可用。",
-      "latest": "{versionText}。已是最新版本。",
+      "latest": "{versionText}。已达到或高于内置推荐版本。",
       "latestChannel": "{versionText}。已启用最新版通道；升级会安装最新版本。"
     },
     "adapter": {
@@ -3081,7 +3081,6 @@
       },
       "welcomePanel": {
         "greeting": "今天准备<highlight>做些什么</highlight>呢？",
-        "greetingWithFolder": "你想让我们在 <folder>项目</folder> 中构建什么？",
         "tips": {
           "tileTabs": "右键点击会话标签选择「平铺显示」，可同屏对比多个会话",
           "pinTab": "双击会话标签可将其固定，避免被新打开的会话自动替换",
@@ -5397,6 +5396,19 @@
     "groupInstructions": "描述与系统提示词",
     "fieldDescription": "描述",
     "baseInstructions": "系统提示词（base_instructions）"
+  },
+  "AgentUpdateSettings": {
+    "title": "在线更新检测",
+    "check": "检查更新",
+    "checking": "正在查询发布源…",
+    "failed": "检查失败：{error}",
+    "unavailable": "没有可用的在线版本信息，无法确认是否最新。",
+    "release": "在线最新版本：{version}（来源：{source}）",
+    "available": "发现新版本。",
+    "current": "本机版本不低于发布源的最新版本。",
+    "unknown": "本机未安装或版本无法比较，请核对版本后再安装。",
+    "note": "仅检测，不自动升级。适配器版本不等于原生 CLI 版本；在线新版本可能未经兼容性验证，默认安装仍使用原有通道。",
+    "install": "安装 {version}…"
   },
   "DiagnosticsSettings": {
     "title": "环境诊断",

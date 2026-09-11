@@ -506,16 +506,18 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         </DropdownMenu>
       </div>
 
-      <button
+      <Button
         type="button"
-        className="flex size-11 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 md:hidden"
+        variant="ghost"
+        size="icon"
+        className="h-11 w-8 shrink-0 rounded-xl md:hidden"
         aria-label={t("newConversation")}
         title={t("newConversation")}
         disabled={!folderPath}
         onClick={handleNewConversation}
       >
-        <SquarePen aria-hidden="true" className="size-4" />
-      </button>
+        <SquarePen aria-hidden="true" className="size-[18px]" />
+      </Button>
 
       <Dialog
         open={renameTarget != null}
