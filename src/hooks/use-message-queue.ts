@@ -43,7 +43,13 @@ export interface UseMessageQueueReturn {
    */
   requeueFront: (draft: PromptDraft, modeId: string | null) => void
   dequeue: () => QueuedMessage | undefined
-  remove: (id: string) => void
+  /**
+   * Drop an item by id. Returns the removed item, or `undefined` if it was
+   * already gone (a concurrent auto-flush dequeued it). Callers that pull the
+   * draft into the composer must use this return value — a stale `queue.find`
+   * can resurrect a message that is already on the wire.
+   */
+  remove: (id: string) => QueuedMessage | undefined
   reorder: (items: QueuedMessage[]) => void
   updateItem: (id: string, draft: PromptDraft) => void
   /**
@@ -113,11 +119,15 @@ export function useMessageQueue(): UseMessageQueueReturn {
   }, [commit])
 
   const remove = useCallback(
-    (id: string) => {
+    (id: string): QueuedMessage | undefined => {
+      const current = queueRef.current
+      const item = current.find((queued) => queued.id === id)
+      if (!item) return undefined
       if (editingItemId === id) {
         setEditingItemId(null)
       }
-      commit(queueRef.current.filter((item) => item.id !== id))
+      commit(current.filter((queued) => queued.id !== id))
+      return item
     },
     [commit, editingItemId]
   )

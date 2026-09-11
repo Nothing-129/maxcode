@@ -255,12 +255,15 @@ export function AskQuestionCard({
   // the read-only/answered view (`readOnly`). Tabs stay navigable in both.
   const locked = submitting || readOnly
 
-  // Borderless option rows use a neutral selection surface. The parent focus
+  // Distinct option surfaces and a stronger selected outline establish hierarchy.
+  // The parent focus
   // ring keeps the visually hidden single-choice controls keyboard-visible.
   const cardClass = (selected: boolean) =>
     cn(
-      "group flex w-full items-start gap-2.5 rounded-2xl px-2 py-1.5 font-normal transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50",
-      selected && "bg-muted",
+      "group flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 font-normal transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50",
+      selected
+        ? "border-foreground/35 bg-foreground/10"
+        : "border-border/50 bg-muted/70",
       submitting && "cursor-not-allowed opacity-60",
       readOnly && !submitting && "cursor-default",
       !submitting && !readOnly && "cursor-pointer",
@@ -273,7 +276,7 @@ export function AskQuestionCard({
     description?: string
   ) => (
     <span className="min-w-0 flex-1">
-      <span className="flex flex-wrap items-center gap-1.5 text-sm font-medium">
+      <span className="flex flex-wrap items-center gap-1.5 text-sm leading-5 font-medium text-foreground">
         {text}
         {recommended && (
           <Badge
@@ -285,7 +288,7 @@ export function AskQuestionCard({
         )}
       </span>
       {description && (
-        <span className="mt-0.5 block text-sm leading-5 text-muted-foreground">
+        <span className="mt-1 block text-xs leading-5 text-foreground/65">
           {description}
         </span>
       )}
@@ -382,7 +385,7 @@ export function AskQuestionCard({
           value={value}
           onValueChange={(v) => onRadioChange(q, v)}
           disabled={locked}
-          className="gap-1"
+          className="gap-2"
         >
           {q.options.map((opt, i) => {
             const selected = s?.chosen.includes(opt.label) ?? false
@@ -398,7 +401,12 @@ export function AskQuestionCard({
                 />
                 <span
                   aria-hidden="true"
-                  className="flex size-7 shrink-0 items-center justify-center rounded-full border border-border/70 bg-muted text-sm tabular-nums text-muted-foreground"
+                  className={cn(
+                    "flex size-7 shrink-0 items-center justify-center rounded-full border text-sm tabular-nums",
+                    selected
+                      ? "border-foreground bg-foreground text-background"
+                      : "border-border bg-card text-foreground/70"
+                  )}
                 >
                   {i + 1}
                 </span>
@@ -441,7 +449,9 @@ export function AskQuestionCard({
 
   const questionHeading = (q: QuestionSpec) => (
     <div className="flex items-center gap-2">
-      <p className="text-sm font-medium leading-6">{q.question}</p>
+      <p className="text-[15px] font-semibold leading-6 text-foreground">
+        {q.question}
+      </p>
       {q.multi_select && (
         <Badge variant="secondary" className="shrink-0 text-3xs">
           {t("multiSelect")}
@@ -462,7 +472,7 @@ export function AskQuestionCard({
     <div
       role="group"
       aria-label={title ?? t("title")}
-      className="mb-2 flex max-h-[88svh] flex-col overflow-hidden rounded-[20px] border border-border/60 bg-card ws-msg-card"
+      className="mb-2 flex max-h-[88svh] flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-sm ws-msg-card"
     >
       {isMulti && (
         <Progress
@@ -473,11 +483,11 @@ export function AskQuestionCard({
         />
       )}
 
-      <div className="flex min-h-0 flex-col gap-3 p-2">
+      <div className="flex min-h-0 flex-col gap-3 p-3">
         {/* Header */}
         <div
           className={cn(
-            "flex shrink-0 gap-2.5 px-2 pt-1.5 pb-0.5",
+            "flex shrink-0 gap-2.5 px-1 pt-0.5 pb-1",
             resolvedSubtitle ? "items-start" : "items-center"
           )}
         >
@@ -554,7 +564,7 @@ export function AskQuestionCard({
 
         {/* Footer — dropped in the read-only/answered view */}
         {!readOnly && (
-          <div className="flex shrink-0 items-center justify-end gap-2 px-2 pb-1">
+          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/60 px-1 pt-3">
             <Button
               variant="outline"
               size="sm"

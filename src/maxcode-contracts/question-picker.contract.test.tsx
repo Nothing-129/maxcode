@@ -34,7 +34,7 @@ describe("MaxCode reference question picker", () => {
       </NextIntlClientProvider>
     )
     const shell = screen.getByRole("group")
-    expect(shell).toHaveClass("rounded-[20px]", "border-border/60")
+    expect(shell).toHaveClass("rounded-[20px]", "border-border", "shadow-sm")
     expect(shell).not.toHaveClass("shadow-lg", "border-primary/30")
     expect(screen.getAllByText("Which approach?")).toHaveLength(1)
     expect(
@@ -42,11 +42,16 @@ describe("MaxCode reference question picker", () => {
     ).toBeNull()
     const first = screen.getAllByRole("radio")[0]
     const row = first.closest("label")!
-    expect(row).not.toHaveClass("border")
+    expect(row).toHaveClass("border", "bg-muted/70", "min-h-12", "items-center")
+    expect(screen.getByText("Which approach?")).toHaveClass("font-semibold")
     expect(row.querySelector('[aria-hidden="true"]')).toHaveTextContent("1")
     fireEvent.click(first)
     expect(first).toHaveAttribute("aria-checked", "true")
-    expect(row).toHaveClass("bg-muted")
+    expect(row).toHaveClass("bg-foreground/10", "border-foreground/35")
+    expect(row.querySelector('[aria-hidden="true"]')).toHaveClass(
+      "bg-foreground",
+      "text-background"
+    )
     expect(onAnswer).not.toHaveBeenCalled()
     expect(container.querySelector("svg.lucide-pencil")).toBeInTheDocument()
     fireEvent.click(

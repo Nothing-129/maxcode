@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useState, useSyncExternalStore } from "react"
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react"
 import { getAgentLabel } from "@/lib/custom-agents"
 import {
   HeartHandshake,
@@ -35,7 +35,7 @@ type ConnStatusKey = "connected" | "connecting" | "error" | "disconnected"
 // colour override, so it inherits the row's default `text-muted-foreground`
 // (matching the sibling context-usage circle) — the common resting state
 // shouldn't stand out. Only the transient/abnormal states stay colour-coded:
-// connecting amber, error red, disconnected dimmed.
+// connecting amber, error and disconnected red.
 const STATUS_ICON: Record<
   ConnStatusKey,
   { Icon: LucideIcon; className: string }
@@ -43,7 +43,7 @@ const STATUS_ICON: Record<
   connected: { Icon: HeartHandshake, className: "" },
   connecting: { Icon: HeartPulse, className: "text-amber-500 animate-pulse" },
   error: { Icon: HeartCrack, className: "text-red-500" },
-  disconnected: { Icon: HeartOff, className: "text-muted-foreground/60" },
+  disconnected: { Icon: HeartOff, className: "text-red-500" },
 }
 
 function toConnStatus(status: string | null): ConnStatusKey {
@@ -114,6 +114,22 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   )
 
   const statusKey = toConnStatus(conn?.status ?? null)
+  // Switching/resuming can briefly pass through any non-connected state.
+  // Delay inline status changes; the popover and accessible label stay truthful.
+  const [alarm, setAlarm] = useState({ tabId, statusKey, confirmed: false })
+  const sameStatus = alarm.tabId === tabId && alarm.statusKey === statusKey
+  if (!sameStatus) {
+    setAlarm({ tabId, statusKey, confirmed: false })
+  }
+  const settling = statusKey !== "connected" && !(sameStatus && alarm.confirmed)
+  useEffect(() => {
+    if (!tabId || statusKey === "connected") return
+    const timer = setTimeout(() => {
+      setAlarm({ tabId, statusKey, confirmed: true })
+    }, 1_500)
+    return () => clearTimeout(timer)
+  }, [tabId, statusKey])
+
   const statusLabel = t(statusKey)
   const agentType = conn?.agentType ?? null
   const agentLabel = agentType ? getAgentLabel(agentType) : null
@@ -124,6 +140,10 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
       : t("tooltip", { agent: agentLabel, status: statusLabel })
 
   const { Icon, className } = STATUS_ICON[statusKey]
+
+  const InlineIcon = settling ? HeartPulse : Icon
+  const inlineClassName = settling ? "text-muted-foreground" : className
+  const showInlineLabel = statusKey !== "connected" && tabId && !settling
 
   // Only resolved while the popover is open: a closed trigger has no use for it,
   // and this reads a provider ref rather than subscribed state.
@@ -170,12 +190,20 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
           title={titleText}
           className={cn(
             "ml-2 inline-flex size-6 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-foreground/[0.05] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-            statusKey !== "connected" && tabId && "w-auto gap-1 px-1"
+            showInlineLabel && "w-auto gap-1 px-1"
           )}
         >
-          <Icon className={cn("size-3.5", className)} />
-          {statusKey !== "connected" && tabId ? (
-            <span role="status" className="text-2xs text-muted-foreground">
+          <InlineIcon className={cn("size-3.5", inlineClassName)} />
+          {showInlineLabel ? (
+            <span
+              role="status"
+              className={cn(
+                "text-2xs",
+                statusKey === "disconnected"
+                  ? "text-red-500"
+                  : "text-muted-foreground"
+              )}
+            >
               {statusLabel}
             </span>
           ) : null}

@@ -102,6 +102,24 @@ describe("useMessageQueue bounce FIFO ordering", () => {
     expect(texts(result.current.queue)).toEqual(["A", "B"])
   })
 
+  it("remove returns the live item and is a no-op when it is already gone", () => {
+    const { result } = renderHook(() => useMessageQueue())
+    act(() => result.current.enqueue(draft("A"), null))
+    act(() => result.current.enqueue(draft("B"), null))
+    const [a] = result.current.queue
+    let taken: ReturnType<typeof result.current.remove>
+    act(() => {
+      taken = result.current.remove(a.id)
+    })
+    expect(taken?.draft.displayText).toBe("A")
+    expect(texts(result.current.queue)).toEqual(["B"])
+    act(() => {
+      taken = result.current.remove(a.id)
+    })
+    expect(taken).toBeUndefined()
+    expect(texts(result.current.queue)).toEqual(["B"])
+  })
+
   it("reorders the AUTHORITATIVE items, not the caller's stale objects", () => {
     const { result } = renderHook(() => useMessageQueue())
     act(() => result.current.enqueue(draft("A"), null))

@@ -3628,6 +3628,10 @@
         "noDiffDataAvailable": "{filePath} の差分データがありません"
       },
       "replyArtifacts": {
+        "editedFiles": "{count} 個のファイルを編集",
+        "review": "レビュー",
+        "showMore": "さらに {count} 個表示",
+        "showLess": "折りたたむ",
         "title": "変更されたファイル",
         "fileCount": "{count, plural, one {# 個のファイル} other {# 個のファイル}}",
         "newFilesTitle": "新規ファイル",

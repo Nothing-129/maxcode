@@ -14,9 +14,9 @@
 | --- | --- | --- | --- |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
 | 手机设置 | 右上角分类菜单显示在设置页之上，可切换分类、点击空白或 Escape 关闭；保留设置及工作区草稿，隐藏后台工作区抽屉并在返回时恢复 | `worktree-2026-09-10` | `settings.mobile-category-navigation` |
-| 移动端 | 恢复前台及网络重连后检查并恢复当前会话，输入区直接显示掉线状态 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
+| 移动端 | 恢复前台及网络重连后检查并恢复当前会话，连接中、未连接、连接错误均持续 1.5 秒才显示；状态或会话变化重新计时，已连接立即恢复，持续掉线保留红色提示 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
 | 会话 | Pi 启动横幅（pi 版本 / Context / Skills）不进入对话：实时流直接丢弃，与完成后的持久化转写保持一致，不再先显示后消失 | `worktree-2026-09-11` | `chat.pi-startup-banner-suppressed` |
-| 对话选择 | Codex 参考样式：问题直接作标题、无描边选项、圆形编号、浅灰选中态和自定义输入铅笔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
+| 对话选择 | Codex 参考样式：加重问题标题、浅灰选项底色与细边框、选中加深描边及反色编号、底部操作分隔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
 | 消息 | 历史回复正文到操作按钮保持连续悬停区域，悬停/键盘聚焦时抬高实际虚拟行层级（悬停优先），按钮不被下一条消息的透明间距遮挡，提示气泡打开时保持操作区可见及层级，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
 | 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
 | 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
@@ -133,3 +133,9 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 手机顶栏工具菜单内在“打开设置”之后提供“刷新界面”，不占用标题栏宽度，只重载当前地址，不清除登录或连接配置，也不额外保存未发送内容。每次前端构建生成独立编号并导出 `/frontend-version.json`；手机在回到前台、恢复页面或 WebSocket 重连时读取它，发现与当前页面不同则提示点击刷新。HTML、版本文件与 service worker 脚本使用 `Cache-Control: no-cache`，带内容哈希的 Next.js JS/CSS 保留一年 immutable 缓存（`web.frontend-refresh`）。
 
 手机端对话标题栏直接显示带框铅笔图标的新建对话按钮，隐藏标题旁的会话操作菜单；沿用当前项目与智能体。最右侧工作区操作菜单使用横向三个点图标。新建按钮与导航按钮统一使用 ghost 样式和 rounded-xl 圆角，操作图标为 18px，左侧菜单图标为视觉补偿放大至 20px、线宽设为 1.8；左侧侧边栏、右侧新建和设置三个按钮统一使用 32px 宽、44px 高的点击区域，缩小图标之间的留白。契约：`mobile-header-new-conversation.contract.test.ts`。
+
+### 回复文件变更汇总卡片
+
+- 来源：`worktree-2026-09-11`；热点：`chat.reply-artifacts-summary`。
+- 新增、修改、删除统一汇总，默认显示三行相对路径与增删统计，可展开剩余文件；审核包含全部文件差异，保留打开文件和定位操作。
+- 契约：`src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx`。

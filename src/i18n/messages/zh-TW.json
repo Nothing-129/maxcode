@@ -3628,6 +3628,10 @@
         "noDiffDataAvailable": "找不到 {filePath} 的差異資料"
       },
       "replyArtifacts": {
+        "editedFiles": "已編輯 {count} 個檔案",
+        "review": "審核",
+        "showMore": "再顯示 {count} 個檔案",
+        "showLess": "收起",
         "title": "變更檔案",
         "fileCount": "{count} 個檔案",
         "newFilesTitle": "新增檔案",

@@ -2,6 +2,29 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.reply-artifacts-summary",
+      "category": "product",
+      "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Streaming replies do not parse diffs.",
+      "origins": [
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src/components/message/reply-artifacts.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "history.deepseek-versioned-logs",
+      "category": "runtime",
+      "description": "DeepSeek history loads v3 compressed and plaintext artifacts before legacy logs, retaining complete frames during concurrent writes. Persisted conversations must not appear empty after the harness changes its log filename.",
+      "origins": ["worktree-2026-09-11"],
+      "paths": ["src-tauri/src/parsers/deepseek.rs"],
+      "contracts": ["src/maxcode-contracts/deepseek-versioned-history.contract.test.ts"]
+    },
+    {
       "id": "settings.agent-online-updates",
       "category": "product",
       "description": "Agent settings check online releases on selection, cache per agent for ten minutes, and allow forced refresh. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. Explicit npm version installs require confirmation; reviewed pins and running sessions remain unchanged.",
@@ -43,7 +66,7 @@
     {
       "id": "chat.mobile-session-recovery",
       "category": "runtime",
-      "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and expose disconnected status beside the composer heart.",
+      "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and delay connecting, disconnected and error inline indicators until the same state persists for 1.5 seconds; reset the delay on state or tab changes, restore connected immediately, and retain red persistent disconnection indicators.",
       "origins": ["worktree-2026-09-10"],
       "paths": [
         "src/hooks/use-connection-lifecycle.ts",
@@ -51,7 +74,8 @@
         "src/components/chat/composer-connection-status.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-session-recovery.contract.test.tsx"
+        "src/maxcode-contracts/mobile-session-recovery.contract.test.tsx",
+        "src/maxcode-contracts/connection-status-grace.contract.test.tsx"
       ]
     },
     {
@@ -94,7 +118,7 @@
     {
       "id": "chat.reference-question-picker",
       "category": "product",
-      "description": "Question cards use a quiet rounded shell, direct question heading, borderless neutral option rows, numbered single-choice markers and a pencil for custom answers, preserving explicit submission and accessible selection controls.",
+      "description": "Question cards use a rounded shell with a subtle shadow, prominent question heading, readable gray option surfaces with fine borders, stronger selected outlines and inverted numbered markers, and a divided action footer. Preserve explicit submission and accessible selection controls.",
       "origins": ["worktree-2026-09-10"],
       "paths": ["src/components/chat/ask-question-card.tsx"],
       "contracts": ["src/maxcode-contracts/question-picker.contract.test.tsx"]
@@ -551,7 +575,7 @@
     {
       "id": "composer.queued-message-card",
       "category": "product",
-      "description": "Queued messages sit above the composer with adjust-direction, edit and delete actions in that order. Adjust-direction promotes the selected message and cancels the active reply so the existing queue flush resumes it; editing restores the draft and blocks auto-flush until saved or cancelled.",
+      "description": "Queued messages sit above the composer with adjust-direction, edit and delete actions in that order. Adjust-direction promotes the selected message and cancels the active reply so the existing queue flush resumes it; editing removes the item from the queue and restores its draft into the composer for a normal send.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/chat/message-queue-display.tsx",
@@ -616,7 +640,7 @@
     {
       "id": "sidebar.product-wordmark",
       "category": "product",
-      "description": "Desktop sidebar uses a compact MaxCode wordmark with a cobalt-blue slash (#285ee1 light, #82a4ff dark). Any in-progress workspace conversation activates an opaque blue-cyan-purple gradient flowing over 3.6 seconds; it fades out when all work settles and stays static cobalt under reduced motion. SVG gradient IDs are instance-local. Text and base geometry remain still, with one accessible product name and no navigation stop.",
+      "description": "Desktop sidebar uses an enlarged MaxCode wordmark (28px slash, 24px Max and 22px Code) with a 4.2px round-capped cobalt-blue slash (#285ee1 light, #82a4ff dark), shared by its base and animated overlay. Any in-progress workspace conversation activates a blue-cyan-purple gradient flowing over 3.6 seconds and a 1.8-second slash-only breathing cycle (scaleY 0.82 to 1.08, opacity 0.5 to 1), without glow or traveling highlights; it fades out when all work settles and stays static cobalt under reduced motion. SVG gradient IDs are instance-local. Text remains still, with one accessible product name and no navigation stop.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/components/layout/sidebar.tsx",

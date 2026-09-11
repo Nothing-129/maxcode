@@ -161,6 +161,11 @@ export interface ComposerInjectContent {
    *   which is only ever the *start* of what the user is about to write.
    */
   mode?: "replace" | "append"
+  /**
+   * Full queued-message (or equivalent) blocks. On a replace, these hydrate
+   * inline badges and attachments instead of `text`. Ignored for append.
+   */
+  blocks?: PromptInputBlock[]
 }
 
 interface MessageInputProps {
@@ -637,12 +642,14 @@ export function MessageInput({
           handle.focus()
           handle.insertTextAtCursor(`${gap}${payload.text}\n\n`)
         } else {
-          handle.setText(payload.text)
-          // Prepend the skill as the leading invocation badge, so the sent
-          // message opens with `${prefix}${id}`.
-          if (payload.skill) {
-            const editor = handle.getEditor()
-            if (editor) {
+          const editor = handle.getEditor()
+          if (payload.blocks && payload.blocks.length > 0 && editor) {
+            hydrateFromBlocks(editor, payload.blocks)
+          } else {
+            handle.setText(payload.text)
+            // Prepend the skill as the leading invocation badge, so the sent
+            // message opens with `${prefix}${id}`.
+            if (payload.skill && editor) {
               applyExpertReference(editor, {
                 refType: "skill",
                 id: payload.skill.id,
@@ -659,7 +666,13 @@ export function MessageInput({
       onInjectConsumed?.()
     })
     return () => cancelAnimationFrame(raf)
-  }, [injectContent, composerReady, skillPrefix, onInjectConsumed])
+  }, [
+    injectContent,
+    composerReady,
+    skillPrefix,
+    onInjectConsumed,
+    hydrateFromBlocks,
+  ])
 
   // A skill / expert badge freezes its invocation prefix (`$` for Codex, `/`
   // elsewhere) at insert time. On the welcome page users routinely click a

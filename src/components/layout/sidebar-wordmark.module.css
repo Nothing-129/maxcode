@@ -1,11 +1,12 @@
 .slash {
   overflow: visible;
+  transform-origin: center;
 }
 
-/* Keep the base stroke and letters still; only fade the decorative overlay. */
+/* Only the slash breathes; the wordmark letters stay still. */
 .glow {
   opacity: 0;
-  transition: opacity 400ms ease-out;
+  transition: opacity 300ms ease;
   pointer-events: none;
 }
 
@@ -13,8 +14,20 @@
   opacity: 1;
 }
 
-.gradientStroke {
-  filter: drop-shadow(0 0 1px currentColor);
+.slash[data-working="true"] {
+  animation: blueBreath 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+@keyframes blueBreath {
+  0%,
+  100% {
+    transform: scaleY(0.82);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1.08);
+    opacity: 1;
+  }
 }
 
 .blue {
@@ -60,6 +73,7 @@
     transition: none;
   }
 
+  .slash[data-working="true"],
   .slash[data-working="true"] stop {
     animation: none;
   }

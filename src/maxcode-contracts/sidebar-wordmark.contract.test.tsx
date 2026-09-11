@@ -56,13 +56,34 @@ describe("MaxCode contract: sidebar wordmark", () => {
   it("keeps reduced-motion users static and fades only the slash overlay", () => {
     const css = source("src/components/layout/sidebar-wordmark.module.css")
     expect(css).toContain("gradientFlow 3.6s linear infinite")
-    expect(css).toContain("transition: opacity 400ms ease-out")
+    expect(css).toContain(
+      "blueBreath 1.8s cubic-bezier(0.45, 0, 0.55, 1) infinite"
+    )
+    expect(css).toContain("transition: opacity 300ms ease")
     const reducedMotion = css.slice(
       css.indexOf("@media (prefers-reduced-motion: reduce)")
     )
     expect(reducedMotion).toContain("display: none")
     expect(reducedMotion).toContain("transition: none")
     expect(reducedMotion).toContain("animation: none")
+    expect(reducedMotion).toContain('.slash[data-working="true"],')
+  })
+
+  it("enlarges the wordmark and keeps the breathing gradient free of glow or light bands", () => {
+    setStatuses("in_progress")
+    const { container } = render(<SidebarWordmark />)
+    const slash = container.querySelector("svg")!
+    expect(slash.classList.contains("h-7")).toBe(true)
+    expect(slash.classList.contains("w-3.5")).toBe(true)
+    expect(screen.getByText("Max").classList.contains("text-[24px]")).toBe(true)
+    expect(screen.getByText("Code").classList.contains("text-[22px]")).toBe(
+      true
+    )
+    expect(container.querySelector("path[stroke-dasharray]")).toBeNull()
+    const css = source("src/components/layout/sidebar-wordmark.module.css")
+    expect(css).not.toContain("drop-shadow")
+    expect(css).toContain("transform: scaleY(0.82)")
+    expect(css).toContain("transform: scaleY(1.08)")
   })
 
   it("gives each wordmark its own three-color gradient without changing the base stroke", () => {
@@ -74,6 +95,10 @@ describe("MaxCode contract: sidebar wordmark", () => {
     )
     const ids = new Set<string>()
     for (const svg of container.querySelectorAll("svg")) {
+      for (const path of svg.querySelectorAll("path")) {
+        expect(path.getAttribute("stroke-width")).toBe("4.2")
+        expect(path.getAttribute("stroke-linecap")).toBe("round")
+      }
       const gradient = svg.querySelector("linearGradient")!
       ids.add(gradient.id)
       expect(gradient.querySelectorAll("stop")).toHaveLength(3)

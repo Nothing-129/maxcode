@@ -100,7 +100,7 @@ pub(crate) fn resolve_deepseek_attachments_root() -> PathBuf {
 /// $DSH_HOME/sessions/               (default ~/.dsh/sessions; whole root
 /// └── <munged cwd>/                  relocatable via DEEPSEEK_ACP_SESSIONS_ROOT)
 ///     └── <session uuid>/
-///         └── session.jsonl.zstd    # or session.jsonl when compression=none
+///         └── session.v3.jsonl.zstd # legacy: session.jsonl.zstd; plaintext: .jsonl
 /// ```
 ///
 /// The `.zstd` file is a sequence of complete Zstandard frames (one appended
@@ -355,15 +355,24 @@ struct SessionParse {
     generation_stats: GenerationStats,
 }
 
-/// Read a session's log text: the Zstandard file when present, else the
-/// plaintext `session.jsonl` written by a `compression: "none"` deployment.
+/// Prefer the current v3 artifact over a retained legacy log. Within each
+/// format, read Zstandard first, then compression:none plaintext. Do not fall
+/// back to stale history when a present compressed artifact has a partial tail.
 fn read_session_log_text(session_dir: &Path) -> Option<String> {
-    let zstd_path = session_dir.join("session.jsonl.zstd");
-    match fs::read(&zstd_path) {
-        Ok(bytes) => decode_zstd_frames_prefix(&bytes),
-        Err(_) => fs::read_to_string(session_dir.join("session.jsonl")).ok(),
+    for name in ["session.v3.jsonl", "session.jsonl"] {
+        if let Ok(bytes) = fs::read(session_dir.join(format!("{name}.zstd"))) {
+            return decode_zstd_frames_prefix(&bytes);
+        }
+        if let Ok(text) = fs::read_to_string(session_dir.join(name)) {
+            return Some(text);
+        }
     }
+    None
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/deepseek-versioned-history.contract.rs"]
+mod versioned_history_contract;
 
 /// Decode every complete Zstandard frame, KEEPING the prefix when the stream
 /// errors partway. The writer appends one frame per batch, so a concurrent

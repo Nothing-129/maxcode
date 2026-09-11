@@ -640,7 +640,6 @@ const ConversationTabView = memo(function ConversationTabView({
     reorder: mqReorder,
     updateItem: mqUpdateItem,
     editingItemId: mqEditingItemId,
-    startEditing: mqStartEditing,
     cancelEditing: mqCancelEditing,
   } = messageQueue
   const connStatusRef = useRef(connStatus)
@@ -1655,9 +1654,21 @@ const ConversationTabView = memo(function ConversationTabView({
 
   const handleQueueEdit = useCallback(
     (id: string) => {
-      mqStartEditing(id)
+      // Pull the item out of the queue into the composer. Leaving it in the
+      // list while its text is already in the input duplicates the same draft
+      // and makes the waiting-to-send bar meaningless. `remove` is atomic
+      // against the live queue so a same-tick auto-flush cannot both send the
+      // item and restore it here.
+      const item = mqRemove(id)
+      if (!item) return
+      mqCancelEditing()
+      setComposerInject({
+        text: item.draft.displayText,
+        blocks: item.draft.blocks,
+        mode: "replace",
+      })
     },
-    [mqStartEditing]
+    [mqCancelEditing, mqRemove]
   )
 
   const handleQueueCancelEdit = useCallback(() => {

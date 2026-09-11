@@ -377,6 +377,28 @@ describe("MessageInput injectContent", () => {
       expect(serializeDocToText(editor.state.doc)).toBe("quick action prompt")
     )
   })
+
+  it("replaces from queued-message blocks instead of plain text", async () => {
+    const onInjectConsumed = vi.fn()
+    const { view, editor } = await mount({ onInjectConsumed })
+    act(() => {
+      editor.commands.setContent("draft to be replaced")
+    })
+    view.rerender(
+      tree({
+        onInjectConsumed,
+        injectContent: {
+          text: "queued text",
+          blocks: [{ type: "text", text: "queued text" }],
+          mode: "replace",
+        },
+      })
+    )
+    await waitFor(() =>
+      expect(serializeDocToText(editor.state.doc)).toBe("queued text")
+    )
+    expect(onInjectConsumed).toHaveBeenCalled()
+  })
 })
 
 // The sidebar's "add to session" drops a session mention — the same reference the

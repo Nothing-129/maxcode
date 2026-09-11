@@ -95,26 +95,30 @@ describe("MaxCode: queued messages above the composer", () => {
     ).toBeNull()
   })
 
-  it("holds automatic delivery during editing and restores the full draft with focus", () => {
+  it("pulls the edited item out of the queue into the composer", () => {
     const panel = readFileSync(
       "src/components/conversations/conversation-detail-panel.tsx",
       "utf8"
     )
-    expect(panel).toContain(
-      "if (msgQueue.length === 0 || mqEditingItemId) return"
+    const handler = panel.slice(
+      panel.indexOf("const handleQueueEdit"),
+      panel.indexOf("const handleQueueCancelEdit")
     )
-    expect(panel).toContain(
-      "[connectionReady, runtimeSyncState, msgQueue.length, mqEditingItemId]"
-    )
+    expect(handler).toContain("const item = mqRemove(id)")
+    expect(handler).toContain("if (!item) return")
+    expect(handler).toContain("mqCancelEditing()")
+    expect(handler).toContain("item.draft.blocks")
+    expect(handler).toContain('mode: "replace"')
+    expect(handler).not.toContain("mqStartEditing")
     const composer = readFileSync(
       "src/components/chat/message-input.tsx",
       "utf8"
     )
-    const hydration = composer.slice(
-      composer.indexOf("// Re-hydrate when"),
-      composer.indexOf("if (!injectContent")
+    const inject = composer.slice(
+      composer.indexOf("if (!injectContent || !composerReady) return"),
+      composer.indexOf("A skill / expert badge")
     )
-    expect(hydration).toContain("hydrateFromBlocks(editor, editingDraftBlocks)")
-    expect(hydration).toContain("editorRef.current?.focus()")
+    expect(inject).toContain("hydrateFromBlocks(editor, payload.blocks)")
+    expect(inject).toContain("handle.focus()")
   })
 })

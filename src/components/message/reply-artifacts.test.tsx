@@ -49,12 +49,6 @@ function renderCard(files: FileChangeStat[]) {
   return render(<ReplyArtifacts sourceTurns={sourceTurns} isResponseComplete />)
 }
 
-// The "Files changed" section is collapsed by default — expand it so the
-// per-file action buttons mount.
-function expandChanged() {
-  fireEvent.click(screen.getByText("title"))
-}
-
 describe("ReplyArtifacts — view diff action", () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -70,7 +64,6 @@ describe("ReplyArtifacts — view diff action", () => {
         diff: MODIFIED_DIFF,
       },
     ])
-    expandChanged()
 
     fireEvent.click(screen.getByRole("button", { name: "viewDiff" }))
 
@@ -90,7 +83,6 @@ describe("ReplyArtifacts — view diff action", () => {
     renderCard([
       { id: "f2", path: "src/b.ts", additions: 0, deletions: 0, diff: null },
     ])
-    expandChanged()
 
     fireEvent.click(screen.getByRole("button", { name: "viewDiff" }))
 
@@ -112,7 +104,6 @@ describe("ReplyArtifacts — view diff action", () => {
         diff: MODIFIED_DIFF,
       },
     ])
-    expandChanged()
 
     const viewDiffBtn = screen.getByRole("button", { name: "viewDiff" })
     const revealBtn = screen.getByRole("button", { name: "revealInFolder" })
@@ -123,7 +114,7 @@ describe("ReplyArtifacts — view diff action", () => {
     ).toBeTruthy()
   })
 
-  it("does not offer View Diff for a removed file (nothing to open)", () => {
+  it("opens removed file diffs without offering a filesystem action", () => {
     renderCard([
       {
         id: "f3",
@@ -133,12 +124,15 @@ describe("ReplyArtifacts — view diff action", () => {
         diff: DELETION_DIFF,
       },
     ])
-    expandChanged()
 
-    expect(
-      screen.queryByRole("button", { name: "viewDiff" })
-    ).not.toBeInTheDocument()
-    // The removed file still renders its static destructive badge.
-    expect(screen.getByText("remove")).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "viewDiff" }))
+    expect(mockOpenDiff).toHaveBeenCalledWith(
+      "src/gone.ts",
+      DELETION_DIFF,
+      "reply-turn-1",
+      { folderId: undefined }
+    )
+    expect(screen.queryByRole("button", { name: "revealInFolder" })).toBeNull()
+    expect(screen.getByText("gone.ts")).toHaveClass("line-through")
   })
 })

@@ -3628,6 +3628,10 @@
         "noDiffDataAvailable": "No diff data available for {filePath}"
       },
       "replyArtifacts": {
+        "editedFiles": "Edited {count} files",
+        "review": "Review",
+        "showMore": "Show {count} more files",
+        "showLess": "Show less",
         "title": "Files changed",
         "fileCount": "{count, plural, one {# file} other {# files}}",
         "newFilesTitle": "New files",

@@ -135,5 +135,9 @@ describe("mobile session recovery", () => {
     expect(status.slice(0, status.indexOf("<PopoverContent"))).toContain(
       'role="status"'
     )
+    expect(status).toContain(
+      'disconnected: { Icon: HeartOff, className: "text-red-500" }'
+    )
+    expect(status).toMatch(/statusKey === "disconnected"\s*\? "text-red-500"/)
   })
 })

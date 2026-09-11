@@ -3628,6 +3628,10 @@
         "noDiffDataAvailable": "{filePath}에 대한 diff 데이터가 없습니다"
       },
       "replyArtifacts": {
+        "editedFiles": "파일 {count}개 편집됨",
+        "review": "검토",
+        "showMore": "파일 {count}개 더 보기",
+        "showLess": "접기",
         "title": "변경된 파일",
         "fileCount": "{count, plural, one {#개 파일} other {#개 파일}}",
         "newFilesTitle": "새 파일",
