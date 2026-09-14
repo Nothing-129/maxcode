@@ -12,6 +12,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 智能体自动更新 | 全部已启用且已安装的内置及自定义智能体强制后台更新，支持 npm、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14` | `settings.agent-auto-updates` |
 | 智能体安装 | npm 安装、升级、重试、在线版本查询及自定义包查询统一使用 npm.aifalao.net，安装日志显示源 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
 | 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |

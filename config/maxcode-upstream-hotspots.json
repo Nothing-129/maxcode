@@ -1715,6 +1715,22 @@
       "contracts": [
         "src/maxcode-contracts/upstream-runtime-functional.contract.test.ts"
       ]
+    },
+    {
+      "id": "chat.query-bearing-mcp-names",
+      "category": "runtime",
+      "description": "MCP tool calls whose payload includes query keep their explicit name. Only wire-identified web search, including Codex action titles and webSearch types, classify as websearch; generic kind search stays local grep. Existing tool cards are reused.",
+      "origins": [
+        "fc8cad0c",
+        "a47c68a9",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src/lib/tool-call-normalization.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/query-bearing-mcp-tool-names.contract.test.ts"
+      ]
     }
   ],
   "retired": [
