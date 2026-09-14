@@ -1,0 +1,4 @@
+// Personal team settings survive project regeneration and stay outside Git.
+CODE_SIGN_STYLE = Automatic
+PRODUCT_BUNDLE_IDENTIFIER = app.maxcode.ios
+#include? "Signing.local.xcconfig"

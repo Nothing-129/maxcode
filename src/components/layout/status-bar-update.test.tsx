@@ -105,13 +105,14 @@ describe("StatusBarUpdate — direct update action", () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it("puts an icon after the version and downloads on the first click without notifications or details", async () => {
+  it("puts a filled circular icon after the version and downloads on the first click without notifications or details", async () => {
     renderWith({ available: RELEASE })
     const button = screen.getByRole("button", {
       name: "Download update and restart",
     })
     expect(button.previousElementSibling).toHaveTextContent("v0.21.7")
     expect(button.textContent).toBe("")
+    expect(button).toHaveClass("rounded-full", "bg-blue-600", "text-white")
     expect(startUpdate).not.toHaveBeenCalled()
     expect(toastInfo).not.toHaveBeenCalled()
     fireEvent.click(button)

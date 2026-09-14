@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::acp::{registry, remote_registry};
+use crate::acp::{registry, remote_registry, AGENT_NPM_REGISTRY};
 use crate::app_error::AppCommandError;
 use crate::models::agent::AgentType;
 
@@ -16,7 +16,7 @@ pub struct AgentUpdateRelease {
 
 // Only package identities are accepted, never arbitrary URLs, git specs or
 // commands from a custom definition. No shell/npm process is needed to check.
-fn npm_package_name(spec: &str) -> Option<&str> {
+pub(crate) fn npm_package_name(spec: &str) -> Option<&str> {
     let name = match spec.rfind('@') {
         Some(index) if index > 0 => &spec[..index],
         _ => spec,
@@ -37,6 +37,31 @@ fn npm_package_name(spec: &str) -> Option<&str> {
     valid.then_some(name)
 }
 
+/// Only simple PyPI package requirements have an unambiguous release source.
+/// Return the package identity and preserve extras for installation.
+pub(crate) fn python_package(spec: &str) -> Option<(&str, &str)> {
+    let requirement = spec.split_once("==").map_or(spec, |(name, _)| name).trim();
+    let name = requirement.split('[').next()?;
+    let valid = |s: &str| {
+        !s.is_empty()
+            && s.bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    };
+    if !valid(name) {
+        return None;
+    }
+    if requirement != name {
+        let extras = requirement
+            .strip_prefix(name)?
+            .strip_prefix('[')?
+            .strip_suffix(']')?;
+        if !extras.split(',').all(valid) {
+            return None;
+        }
+    }
+    Some((name, requirement))
+}
+
 #[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_check_agent_update(
     agent_type: AgentType,
@@ -49,7 +74,7 @@ pub async fn acp_check_agent_update(
                 source: "unsupported",
             });
         };
-        let mut url = reqwest::Url::parse("https://registry.npmjs.org/").expect("static npm URL");
+        let mut url = reqwest::Url::parse(AGENT_NPM_REGISTRY).expect("static npm URL");
         url.path_segments_mut()
             .expect("npm URL base")
             .push(name)
@@ -79,7 +104,38 @@ pub async fn acp_check_agent_update(
         });
     }
 
-    // Manual binary/Python definitions have no verified relationship with a
+    if let registry::AgentDistribution::Uvx { package, .. } = meta.distribution {
+        let Some((name, _)) = python_package(package) else {
+            return Ok(AgentUpdateRelease {
+                latest_version: None,
+                source: "unsupported",
+            });
+        };
+        let response = reqwest::Client::builder()
+            .timeout(Duration::from_secs(15))
+            .build()
+            .map_err(|e| AppCommandError::network(e.to_string()))?
+            .get(format!("https://pypi.org/pypi/{name}/json"))
+            .send()
+            .await
+            .map_err(|e| AppCommandError::network(e.to_string()))?
+            .error_for_status()
+            .map_err(|e| AppCommandError::network(e.to_string()))?;
+        let payload: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| AppCommandError::network(e.to_string()))?;
+        return Ok(AgentUpdateRelease {
+            latest_version: payload
+                .pointer("/info/version")
+                .and_then(|v| v.as_str())
+                .filter(|v| !v.is_empty())
+                .map(str::to_owned),
+            source: "pypi",
+        });
+    }
+
+    // Manual binary definitions have no verified relationship with a
     // public registry id. Do not compare unrelated products sharing a name.
     if agent_type
         .custom_id()
@@ -127,6 +183,27 @@ mod tests {
             "@scope/agent/extra",
         ] {
             assert_eq!(npm_package_name(spec), None, "{spec}");
+        }
+    }
+
+    #[test]
+    fn python_release_queries_preserve_extras_and_reject_ambiguous_sources() {
+        assert_eq!(
+            python_package("fast-agent[acp]==1.2.3"),
+            Some(("fast-agent", "fast-agent[acp]"))
+        );
+        assert_eq!(
+            python_package("fast-agent"),
+            Some(("fast-agent", "fast-agent"))
+        );
+        for spec in [
+            "git+https://host/repo",
+            "./agent",
+            "agent>=1",
+            "agent @ https://host/pkg",
+            "agent;python_version>3",
+        ] {
+            assert!(python_package(spec).is_none());
         }
     }
 

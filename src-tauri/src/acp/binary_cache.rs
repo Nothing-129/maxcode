@@ -387,6 +387,9 @@ pub fn detect_installed_version(
     agent_type: AgentType,
     cmd_name: &str,
 ) -> Result<Option<String>, AcpError> {
+    if let Some((_, version)) = crate::commands::agent_auto_updates::active_for_agent(agent_type) {
+        return Ok(Some(version));
+    }
     installed_version_for_agent(agent_type, cmd_name)
 }
 
@@ -404,6 +407,9 @@ pub fn find_best_cached_binary_for_agent(
     agent_type: AgentType,
     cmd_name: &str,
 ) -> Result<Option<(PathBuf, String)>, AcpError> {
+    if let Some(active) = crate::commands::agent_auto_updates::active_for_agent(agent_type) {
+        return Ok(Some(active));
+    }
     let agent_id = agent_cache_key(agent_type);
     let mut versions = installed_version_labels(&agent_id, cmd_name)?;
     if versions.is_empty() {
@@ -530,6 +536,44 @@ async fn ensure_binary_with_progress(
     }
 
     let dir = binary_dir(agent_id, version)?;
+    install_binary_archive_into(
+        agent_id,
+        &dir,
+        archive_url,
+        cmd_name,
+        expected_sha256,
+        on_progress,
+    )
+    .await
+}
+
+/// Stage into a caller-owned directory, outside the discoverable version cache.
+pub(crate) async fn stage_binary_for_agent(
+    agent: AgentType,
+    dir: &Path,
+    archive_url: &str,
+    cmd_name: &str,
+    expected_sha256: Option<&str>,
+) -> Result<PathBuf, AcpError> {
+    install_binary_archive_into(
+        &agent_cache_key(agent),
+        dir,
+        archive_url,
+        cmd_name,
+        expected_sha256,
+        |_| {},
+    )
+    .await
+}
+
+async fn install_binary_archive_into(
+    agent_id: &str,
+    dir: &Path,
+    archive_url: &str,
+    cmd_name: &str,
+    expected_sha256: Option<&str>,
+    on_progress: impl Fn(&str),
+) -> Result<PathBuf, AcpError> {
     let bin_name = if cfg!(target_os = "windows") {
         format!("{cmd_name}.exe")
     } else {

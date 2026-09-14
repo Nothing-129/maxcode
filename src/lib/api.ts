@@ -505,7 +505,7 @@ export async function acpGetAgentStatus(
 
 export interface AgentUpdateRelease {
   latestVersion: string | null
-  source: "npm" | "acp" | "unsupported"
+  source: "npm" | "pypi" | "acp" | "unsupported"
 }
 
 /** Read-only query of the release source, not the built-in install pin. */
@@ -5803,4 +5803,24 @@ export async function forgeSettingsSet(
   settings: ForgePanelSettings | null
 ): Promise<ForgeSettingsStore> {
   return getTransport().call("forge_settings_set", { folderId, settings })
+}
+
+export interface AgentAutoUpdateStatus {
+  phase:
+    | "idle"
+    | "checking"
+    | "downloading"
+    | "waiting"
+    | "current"
+    | "updated"
+    | "error"
+    | "unavailable"
+  version: string | null
+  error: string | null
+}
+
+export function acpAgentAutoUpdateStatus(
+  agentType: AgentType
+): Promise<AgentAutoUpdateStatus> {
+  return getTransport().call("acp_agent_auto_update_status", { agentType })
 }

@@ -30,9 +30,9 @@ describe("MaxCode contract: resilient web installation", () => {
 describe("MaxCode contract: updater and release channel", () => {
   it("highlights the update action in blue in both themes", () => {
     const status = source("src/components/layout/status-bar-update.tsx")
-    expect(status).toContain(
-      'failed ? "text-destructive" : "text-blue-600 dark:text-blue-400"'
-    )
+    expect(status).toContain("rounded-full")
+    expect(status).toContain("bg-blue-600")
+    expect(status).toContain("dark:bg-blue-500")
   })
 
   it("uses the personal MaxCode release feed and removes overlapping update toasts", () => {
@@ -46,7 +46,7 @@ describe("MaxCode contract: updater and release channel", () => {
     ])
     const status = source("src/components/layout/status-bar-update.tsx")
     expect(status).not.toMatch(/\btoast[.(]/)
-    expect(status).toContain("<ArrowUp")
+    expect(status).toContain("<ArrowDown")
   })
 
   it("keeps signed server updates and explicit platform whitelists", () => {

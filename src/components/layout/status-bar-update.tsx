@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState } from "react"
-import { ArrowUp, CircleAlert, LoaderCircle } from "lucide-react"
+import { ArrowDown, CircleAlert, LoaderCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { openUrl } from "@/lib/platform"
@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
 
-/** A quiet version label with a single update action immediately to its right. */
+/** Version label with a filled circular update icon immediately to its right. */
 export function StatusBarUpdate() {
   const t = useTranslations("SystemSettings")
   const update = useAppUpdate()
@@ -95,19 +95,29 @@ export function StatusBarUpdate() {
           disabled={busy}
           onClick={() => void handleUpdate()}
           className={cn(
-            "flex size-6 shrink-0 items-center justify-center rounded transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
-            failed ? "text-destructive" : "text-blue-600 dark:text-blue-400"
+            "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+            failed
+              ? "bg-destructive text-white hover:bg-destructive/90"
+              : "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400"
           )}
         >
           {busy ? (
             <LoaderCircle
               aria-hidden="true"
-              className="size-3.5 animate-spin motion-reduce:animate-none"
+              className="size-3 animate-spin motion-reduce:animate-none"
             />
           ) : failed ? (
-            <CircleAlert aria-hidden="true" className="size-3.5" />
+            <CircleAlert
+              aria-hidden="true"
+              className="size-3"
+              strokeWidth={2.5}
+            />
           ) : (
-            <ArrowUp aria-hidden="true" className="size-3.5" />
+            <ArrowDown
+              aria-hidden="true"
+              className="size-3"
+              strokeWidth={2.5}
+            />
           )}
         </button>
       )}

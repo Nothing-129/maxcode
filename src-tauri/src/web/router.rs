@@ -772,6 +772,10 @@ pub fn build_router(
             post(handlers::acp::acp_check_agent_update),
         )
         .route(
+            "/acp_agent_auto_update_status",
+            post(handlers::acp::acp_agent_auto_update_status),
+        )
+        .route(
             "/acp_env_diagnostics",
             post(handlers::acp::acp_env_diagnostics),
         )

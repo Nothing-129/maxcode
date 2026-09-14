@@ -5411,8 +5411,20 @@
     "available": "发现新版本。",
     "current": "本机版本不低于发布源的最新版本。",
     "unknown": "本机未安装或版本无法比较，请核对版本后再安装。",
-    "note": "仅检测，不自动升级。适配器版本不等于原生 CLI 版本；在线新版本可能未经兼容性验证，默认安装仍使用原有通道。",
-    "install": "安装 {version}…"
+    "note": "此卡片检测发布版本；智能体开启后自动更新。适配器版本可能不同于 CLI 版本。",
+    "install": "安装 {version}…",
+    "autoLabel": "自动更新",
+    "autoDescription": "所有已开启且已安装的智能体都会自动更新，无需单独开启。每 6 小时检测一次，验证成功后在没有运行会话时切换新版。",
+    "autoPhase": {
+      "idle": "等待后台检查",
+      "checking": "正在检查新版",
+      "downloading": "正在下载并验证新版",
+      "waiting": "新版已准备好，等待会话结束",
+      "current": "当前无需升级",
+      "updated": "已自动更新",
+      "error": "更新失败，稍后重试",
+      "unavailable": "无法获取或比较更新版本"
+    }
   },
   "DiagnosticsSettings": {
     "title": "环境诊断",

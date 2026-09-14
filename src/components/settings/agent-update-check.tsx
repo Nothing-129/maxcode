@@ -8,7 +8,7 @@ import { acpCheckAgentUpdate, type AgentUpdateRelease } from "@/lib/api"
 import { compareAgentVersions } from "@/lib/agent-update-status"
 import type { AcpAgentInfo, AgentType } from "@/lib/types"
 
-const CACHE_MS = 10 * 60 * 1000
+const CACHE_MS = 6 * 60 * 60 * 1000
 
 type CheckState = {
   agentType: AgentType
@@ -17,72 +17,126 @@ type CheckState = {
   error?: string
 }
 
-export function AgentUpdateCheck({
-  agent,
-  onInstallVersion,
-  busy = false,
-}: {
-  agent: AcpAgentInfo
-  onInstallVersion: (version: string) => void
-  busy?: boolean
-}) {
-  const t = useTranslations("AgentUpdateSettings")
-  const [state, setState] = useState<CheckState>()
-  // Instance-local: never reuse another remote workspace's release information.
-  // Cache promises as well as results to deduplicate StrictMode/switching agents.
+/** Page-local cache: list badges and details observe the same release checks. */
+export function useAgentUpdates(agents: AcpAgentInfo[] = []) {
+  const [states, setStates] = useState<Partial<Record<AgentType, CheckState>>>(
+    {}
+  )
   const cache = useRef(
     new Map<
       AgentType,
       {
         expires: number
-        promise: Promise<AgentUpdateRelease>
+        promise: Promise<void>
       }
     >()
   )
-  const sequence = useRef(0)
-  const agentType = agent.agent_type
-  const check = useCallback(
-    async (force = false) => {
-      const request = ++sequence.current
-      let entry = cache.current.get(agentType)
-      if (force || !entry || entry.expires <= Date.now()) {
-        entry = {
-          expires: Date.now() + CACHE_MS,
-          promise: acpCheckAgentUpdate(agentType),
-        }
-        cache.current.set(agentType, entry)
-      }
+  const check = useCallback((agentType: AgentType, force = false) => {
+    const cached = cache.current.get(agentType)
+    if (!force && cached && cached.expires > Date.now()) return cached.promise
+    const entry = { expires: Date.now() + CACHE_MS, promise: Promise.resolve() }
+    cache.current.set(agentType, entry)
+    // Defer notifications so automatic checks do not synchronously set effect state.
+    entry.promise = Promise.resolve().then(async () => {
+      if (cache.current.get(agentType) !== entry) return
+      setStates((prev) => ({
+        ...prev,
+        [agentType]: { agentType, loading: true },
+      }))
       try {
-        const release = await entry.promise
-        if (request === sequence.current)
-          setState({ agentType, loading: false, release })
-      } catch (error) {
+        const release = await acpCheckAgentUpdate(agentType)
         if (cache.current.get(agentType) === entry)
-          cache.current.delete(agentType)
-        if (request === sequence.current) {
-          setState({
+          setStates((prev) => ({
+            ...prev,
+            [agentType]: { agentType, loading: false, release },
+          }))
+      } catch (error) {
+        if (cache.current.get(agentType) !== entry) return
+        cache.current.delete(agentType)
+        setStates((prev) => ({
+          ...prev,
+          [agentType]: {
             agentType,
             loading: false,
             error: error instanceof Error ? error.message : String(error),
-          })
-        }
+          },
+        }))
       }
-    },
-    [agentType]
-  )
-
-  const cancel = useCallback(() => {
-    sequence.current++
+    })
+    return entry.promise
   }, [])
+  const enabledTypes = agents
+    .filter((agent) => agent.enabled)
+    .map((agent) => agent.agent_type)
+    .sort()
+    .join(",")
   useEffect(() => {
-    // check only commits state after awaiting the network/cached promise.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void check()
-    return cancel
-  }, [check, cancel])
+    if (!enabledTypes) return
+    const checkEnabled = () => {
+      for (const type of enabledTypes.split(",").filter(Boolean))
+        void check(type as AgentType)
+    }
+    checkEnabled()
+    const timer = setInterval(checkEnabled, CACHE_MS)
+    return () => clearInterval(timer)
+  }, [enabledTypes, check])
+  return { states, check }
+}
 
-  const current = state?.agentType === agentType ? state : undefined
-  const loading = !current || current.loading
+export function AgentUpdateBadge({
+  agent,
+  updates,
+}: {
+  agent: AcpAgentInfo
+  updates: ReturnType<typeof useAgentUpdates>
+}) {
+  const t = useTranslations("AgentUpdateSettings")
+  const state = updates.states[agent.agent_type]
+  const latest = state?.release?.latestVersion
+  if (
+    !agent.enabled ||
+    state?.loading ||
+    !latest ||
+    compareAgentVersions(
+      agent.installed_version,
+      latest,
+      agent.agent_type === "openclaw"
+    ) !== -1
+  )
+    return null
+  return (
+    <span
+      title={`${t("available")} ${latest}`}
+      aria-label={`${t("available")} ${latest}`}
+      className="text-amber-600 dark:text-amber-400 shrink-0"
+      data-agent-update-available={agent.agent_type}
+    >
+      <RefreshCw className="h-3.5 w-3.5" />
+    </span>
+  )
+}
+
+export function AgentUpdateCheck({
+  agent,
+  onInstallVersion,
+  busy = false,
+  updates: sharedUpdates,
+}: {
+  agent: AcpAgentInfo
+  onInstallVersion: (version: string) => void
+  busy?: boolean
+  updates?: ReturnType<typeof useAgentUpdates>
+}) {
+  const t = useTranslations("AgentUpdateSettings")
+  const localUpdates = useAgentUpdates(sharedUpdates ? [] : [agent])
+  const updates = sharedUpdates ?? localUpdates
+  const agentType = agent.agent_type
+  const { check } = updates
+  useEffect(() => {
+    if (agent.enabled) void check(agentType)
+  }, [check, agentType, agent.enabled])
+  const current = updates.states[agentType]
+  const loading = current?.loading ?? agent.enabled
   const release = current?.release
   const latest = release?.latestVersion
   const comparison = latest
@@ -104,8 +158,7 @@ export function AgentUpdateCheck({
           size="xs"
           disabled={loading}
           onClick={() => {
-            setState({ agentType, loading: true })
-            void check(true)
+            void check(agentType, true)
           }}
         >
           <RefreshCw
@@ -126,6 +179,8 @@ export function AgentUpdateCheck({
           t("checking")
         ) : current?.error ? (
           t("failed", { error: current.error })
+        ) : !current ? (
+          t("check")
         ) : !latest ? (
           t("unavailable")
         ) : (
@@ -133,7 +188,12 @@ export function AgentUpdateCheck({
             <p>
               {t("release", {
                 version: latest,
-                source: release.source === "npm" ? "npm" : "ACP Registry",
+                source:
+                  release.source === "npm"
+                    ? "npm"
+                    : release.source === "pypi"
+                      ? "PyPI"
+                      : "ACP Registry",
               })}
             </p>
             <p>

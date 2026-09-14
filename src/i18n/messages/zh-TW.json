@@ -5411,8 +5411,20 @@
     "available": "發現新版本。",
     "current": "本機版本不低於發佈來源的最新版本。",
     "unknown": "本機未安裝或版本無法比較，請核對版本後再安裝。",
-    "note": "僅檢查，不自動升級。轉接器版本不等於原生 CLI 版本；線上新版本可能未經相容性驗證，預設安裝仍使用原有通道。",
-    "install": "安裝 {version}…"
+    "note": "此卡片檢查發布版本；智慧體啟用後自動更新。配接器版本可能不同於 CLI 版本。",
+    "install": "安裝 {version}…",
+    "autoLabel": "自動更新",
+    "autoDescription": "所有已啟用且已安裝的智慧體都會自動更新，無需另外開啟。每 6 小時檢查一次，驗證成功後在沒有執行中工作階段時切換新版。",
+    "autoPhase": {
+      "idle": "等待背景檢查",
+      "checking": "正在檢查新版",
+      "downloading": "正在下載並驗證新版",
+      "waiting": "新版已備妥，等待工作階段結束",
+      "current": "目前無需升級",
+      "updated": "已自動更新",
+      "error": "更新失敗，稍後重試",
+      "unavailable": "無法取得或比較更新版本"
+    }
   },
   "DiagnosticsSettings": {
     "title": "環境診斷",

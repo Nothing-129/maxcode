@@ -1,8 +1,20 @@
 import { readFileSync } from "node:fs"
-import { act, render, screen, waitFor } from "@testing-library/react"
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { AgentUpdateCheck } from "@/components/settings/agent-update-check"
+import {
+  AgentUpdateCheck,
+  AgentUpdateBadge,
+  useAgentUpdates,
+} from "@/components/settings/agent-update-check"
 import { acpCheckAgentUpdate, type AgentUpdateRelease } from "@/lib/api"
 import { compareAgentVersions } from "@/lib/agent-update-status"
 import type { AcpAgentInfo } from "@/lib/types"
@@ -10,8 +22,9 @@ import en from "@/i18n/messages/en.json"
 
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, values?: Record<string, string>) => {
-    let text =
-      en.AgentUpdateSettings[key as keyof typeof en.AgentUpdateSettings] ?? key
+    const message =
+      en.AgentUpdateSettings[key as keyof typeof en.AgentUpdateSettings]
+    let text = typeof message === "string" ? message : key
     for (const [name, value] of Object.entries(values ?? {}))
       text = text.replace(`{${name}}`, value)
     return text
@@ -21,6 +34,7 @@ vi.mock("@/lib/api", () => ({ acpCheckAgentUpdate: vi.fn() }))
 
 const agent = {
   agent_type: "codex",
+  enabled: true,
   installed_version: "1.7.0",
   registry_version: "1.7.0",
   supports_custom_version: true,
@@ -28,16 +42,82 @@ const agent = {
 const latest: AgentUpdateRelease = { latestVersion: "1.10.0", source: "npm" }
 
 afterEach(() => {
+  cleanup()
+  vi.useRealTimers()
   vi.restoreAllMocks()
   vi.resetAllMocks()
 })
 
 describe("online agent update contract", () => {
+  it("checks enabled agents before selection and shares sidebar results with details", async () => {
+    const enabled = { ...agent, enabled: true }
+    const other = { ...enabled, agent_type: "grok" } as AcpAgentInfo
+    const disabled = {
+      ...agent,
+      agent_type: "pi",
+      enabled: false,
+    } as AcpAgentInfo
+    function Page({ selected = false, installed = "1.7.0" }) {
+      const agents = [
+        { ...enabled, installed_version: installed },
+        other,
+        disabled,
+      ]
+      const updates = useAgentUpdates(agents)
+      return (
+        <>
+          {agents.map((item) => (
+            <AgentUpdateBadge
+              key={item.agent_type}
+              agent={item}
+              updates={updates}
+            />
+          ))}
+          {selected && (
+            <AgentUpdateCheck
+              agent={agents[0]}
+              updates={updates}
+              onInstallVersion={vi.fn()}
+            />
+          )}
+        </>
+      )
+    }
+    vi.mocked(acpCheckAgentUpdate).mockImplementation(async (type) => {
+      if (type === "grok") throw new Error("offline")
+      return latest
+    })
+    const { rerender, container } = render(<Page />)
+    await waitFor(() =>
+      expect(
+        container.querySelector('[data-agent-update-available="codex"]')
+      ).not.toBeNull()
+    )
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(2)
+    expect(acpCheckAgentUpdate).not.toHaveBeenCalledWith("pi")
+    expect(
+      container.querySelector('[data-agent-update-available="grok"]')
+    ).toBeNull()
+    rerender(<Page selected />)
+    await screen.findByText("An update is available.")
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(2)
+    rerender(<Page selected installed="1.10.0" />)
+    expect(
+      container.querySelector('[data-agent-update-available="codex"]')
+    ).toBeNull()
+    await userEvent.click(
+      screen.getByRole("button", { name: "Check for updates" })
+    )
+    await waitFor(() => expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(3))
+  })
+
   it("checks automatically even at the built-in pin and requires explicit install confirmation", async () => {
     vi.mocked(acpCheckAgentUpdate).mockResolvedValue(latest)
     const onInstall = vi.fn()
     render(<AgentUpdateCheck agent={agent} onInstallVersion={onInstall} />)
-    expect(acpCheckAgentUpdate).toHaveBeenCalledWith("codex")
+    await waitFor(() =>
+      expect(acpCheckAgentUpdate).toHaveBeenCalledWith("codex")
+    )
     expect(await screen.findByText("An update is available.")).toBeVisible()
     expect(screen.getByText(/Latest published version: 1.10.0/)).toBeVisible()
     expect(onInstall).not.toHaveBeenCalled()
@@ -68,6 +148,7 @@ describe("online agent update contract", () => {
     expect(
       screen.getByRole("button", { name: "Check for updates" })
     ).toBeDisabled()
+    await waitFor(() => expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(1))
     await act(async () => reject(new Error("offline")))
     expect(screen.getByText("Check failed: offline")).toBeVisible()
     expect(screen.queryByText(en.AgentUpdateSettings.current)).toBeNull()
@@ -113,7 +194,53 @@ describe("online agent update contract", () => {
     expect(screen.queryByRole("button", { name: "Install 1.10.0…" })).toBeNull()
   })
 
-  it("expires cached releases after ten minutes on returning to an agent", async () => {
+  it("automatically checks every six hours and stops when disabled", async () => {
+    vi.useFakeTimers()
+    vi.mocked(acpCheckAgentUpdate).mockResolvedValue(latest)
+    const view = renderHook(
+      ({ enabled }) => useAgentUpdates([{ ...agent, enabled }]),
+      {
+        initialProps: { enabled: true },
+      }
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000 - 1)
+    })
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(1)
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1)
+    })
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(2)
+    view.rerender({ enabled: false })
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000)
+    })
+    expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not automatically check a disabled selection but permits a manual check", async () => {
+    vi.mocked(acpCheckAgentUpdate).mockResolvedValue(latest)
+    render(
+      <AgentUpdateCheck
+        agent={{ ...agent, enabled: false }}
+        onInstallVersion={vi.fn()}
+      />
+    )
+    await act(async () => {
+      await Promise.resolve()
+    })
+    expect(acpCheckAgentUpdate).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole("button", { name: en.AgentUpdateSettings.check })
+    )
+    await waitFor(() => expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(1))
+  })
+
+  it("expires cached releases after six hours on returning to an agent", async () => {
     const clock = vi.spyOn(Date, "now").mockReturnValue(1_000_000)
     vi.mocked(acpCheckAgentUpdate).mockResolvedValue(latest)
     const onInstall = vi.fn()
@@ -128,7 +255,7 @@ describe("online agent update contract", () => {
       />
     )
     await screen.findByText("An update is available.")
-    clock.mockReturnValue(1_000_000 + 10 * 60 * 1000)
+    clock.mockReturnValue(1_000_000 + 6 * 60 * 60 * 1000)
     rerender(<AgentUpdateCheck agent={agent} onInstallVersion={onInstall} />)
     await screen.findByText("An update is available.")
     expect(acpCheckAgentUpdate).toHaveBeenCalledTimes(3)
@@ -207,7 +334,7 @@ describe("online agent update contract", () => {
       "post(handlers::acp::acp_check_agent_update)"
     )
     const backend = source("src-tauri/src/commands/agent_updates.rs")
-    expect(backend).toContain("https://registry.npmjs.org/")
+    expect(backend).toContain("reqwest::Url::parse(AGENT_NPM_REGISTRY)")
     expect(backend).toContain("remote_registry::fetch_supported_agents()")
     expect(backend).toContain("Duration::from_secs(15)")
     expect(backend).not.toContain("Command::new")

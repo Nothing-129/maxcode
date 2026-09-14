@@ -80,7 +80,7 @@ mod tauri_app {
         workspace_state as workspace_state_commands,
     };
     use crate::terminal::manager::TerminalManager;
-    use crate::{db, git_credential, network, paths, process, web};
+    use crate::{commands, db, git_credential, network, paths, process, web};
     use tauri::Manager;
 
     static APP_QUITTING: AtomicBool = AtomicBool::new(false);
@@ -901,6 +901,14 @@ mod tauri_app {
                     Err(err) => tracing::error!("[WEB] failed to load auto-start config: {err}"),
                 }
 
+                tauri::async_runtime::spawn(crate::commands::agent_auto_updates::run(
+                    db::AppDatabase {
+                        conn: app.state::<db::AppDatabase>().conn.clone(),
+                    },
+                    app.state::<ConnectionManager>().clone_ref(),
+                    crate::web::event_bridge::EventEmitter::Tauri(app.handle().clone()),
+                ));
+
                 // Spawn the idle sweep so connections abandoned without an
                 // explicit disconnect (e.g. window/tab closed without
                 // teardown, panic survivors) are reaped. Override the
@@ -1439,6 +1447,7 @@ mod tauri_app {
                 acp_commands::acp_get_agent_status,
                 acp_commands::acp_env_diagnostics,
                 commands::agent_updates::acp_check_agent_update,
+                commands::agent_auto_updates::acp_agent_auto_update_status,
                 acp_commands::acp_clear_binary_cache,
                 acp_commands::acp_download_agent_binary,
                 acp_commands::acp_install_uv_tool,

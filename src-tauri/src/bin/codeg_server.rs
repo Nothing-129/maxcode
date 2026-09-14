@@ -507,6 +507,14 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
         pet_state_handle,
     ));
 
+    tokio::spawn(codeg_lib::commands::agent_auto_updates::run(
+        codeg_lib::db::AppDatabase {
+            conn: state.db.conn.clone(),
+        },
+        state.connection_manager.clone_ref(),
+        state.emitter.clone(),
+    ));
+
     // Spawn the idle sweep so connections abandoned without an explicit
     // disconnect (e.g. browser tab closed, panic survivors) are reaped.
     // Override the 60-second default via `CODEG_ACP_IDLE_TIMEOUT_SECS`

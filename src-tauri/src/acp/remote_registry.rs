@@ -23,6 +23,7 @@ pub struct RegistryAgent {
 pub struct RegistryBinaryRelease {
     pub version: String,
     pub archive_url: String,
+    pub sha256: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -120,6 +121,7 @@ pub async fn fetch_binary_release(
     Ok(Some(RegistryBinaryRelease {
         version: item.version.unwrap_or_default(),
         archive_url: platform_item.archive.clone(),
+        sha256: platform_item.sha256.clone(),
     }))
 }
 

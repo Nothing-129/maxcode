@@ -406,9 +406,10 @@ fn build_data_url(content_type: &str, bytes: &[u8]) -> String {
 /// which leaves [`derive_command_name`] as the fallback.
 pub async fn resolve_npm_bin(package_spec: &str) -> Option<String> {
     let (name, version) = split_npm_spec(package_spec);
+    let registry = crate::acp::AGENT_NPM_REGISTRY;
     let url = match version {
-        Some(v) => format!("https://registry.npmjs.org/{name}/{v}"),
-        None => format!("https://registry.npmjs.org/{name}/latest"),
+        Some(v) => format!("{registry}/{name}/{v}"),
+        None => format!("{registry}/{name}/latest"),
     };
     let response = reqwest::Client::new().get(&url).send().await.ok()?;
     if !response.status().is_success() {

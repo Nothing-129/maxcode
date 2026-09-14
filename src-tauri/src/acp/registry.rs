@@ -1339,7 +1339,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // Both concerns are handled by codeg's shared `npm install -g` path
             // (`install_npm_global_package_streaming` in commands/acp.rs), which
             // always passes `--include=optional` (pulls the platform binary) and
-            // `--registry=https://registry.npmjs.org` (bypasses lagging mirrors)
+            // `--registry=https://npm.aifalao.net` (MaxCode agent mirror)
             // for every npx agent — so no per-agent launch env is needed here.
             // (It couldn't live here anyway: the launch env is serialized as
             // leading `KEY=value` argv and sacp's `parse_env_var` only accepts

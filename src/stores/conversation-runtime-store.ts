@@ -161,6 +161,8 @@ export interface ConversationRuntimeSession {
 
   // DB data (cold open only)
   detail: DbConversationDetail | null
+  // Full-transcript billing also exists before a new chat loads DB detail.
+  billingUsage?: ConversationBillingUsage[] | null
   detailLoading: boolean
   detailError: string | null
 
@@ -2053,6 +2055,7 @@ function reducer(
       const nextSession: ConversationRuntimeSession = {
         ...current,
         detail: action.detail,
+        billingUsage: action.detail.billing_usage ?? current.billingUsage,
         detailLoading: false,
         detailError: null,
         externalId: nextExternalId ?? current.externalId,
@@ -2659,6 +2662,7 @@ function reducer(
         ...from,
         conversationId: action.toConversationId,
         detail: to.detail ?? from.detail,
+        billingUsage: to.billingUsage ?? from.billingUsage,
         detailLoading: to.detailLoading || from.detailLoading,
         detailError: to.detailError ?? from.detailError,
         localTurns: [...from.localTurns, ...to.localTurns],
@@ -2758,6 +2762,7 @@ function reducer(
         ...current,
         localTurns: changed ? patchedTurns : current.localTurns,
         detail: patchedDetail,
+        billingUsage: action.billingUsage ?? current.billingUsage,
         sessionStats: nextSessionStats,
       }))
     }

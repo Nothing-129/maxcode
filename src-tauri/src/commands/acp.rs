@@ -23,6 +23,7 @@ use crate::acp::types::{
 };
 #[cfg(feature = "tauri-runtime")]
 use crate::acp::types::{ConnectionInfo, ForkResultInfo, PromptInputBlock};
+use crate::acp::AGENT_NPM_REGISTRY;
 use crate::db::service::agent_setting_service;
 use crate::db::service::model_provider_service;
 use crate::db::AppDatabase;
@@ -333,8 +334,12 @@ pub(crate) fn resolve_uvx_command() -> Option<PathBuf> {
 /// paths all use this so they agree on readiness. Note: the prepared-version
 /// marker is deliberately NOT consulted here — it records what was fetched (for
 /// the installed-version badge), not whether the launcher is currently present.
-fn uvx_agent_launchable(system_cmd: Option<(&'static str, &'static [&'static str])>) -> bool {
-    resolve_uvx_command().is_some()
+fn uvx_agent_launchable(
+    agent_type: AgentType,
+    system_cmd: Option<(&'static str, &'static [&'static str])>,
+) -> bool {
+    super::agent_auto_updates::active_for_agent(agent_type).is_some()
+        || resolve_uvx_command().is_some()
         || system_cmd
             .map(|(c, _)| resolve_command_on_path(c).is_some())
             .unwrap_or(false)
@@ -360,6 +365,9 @@ async fn uvx_displayed_version(
     cmd: &str,
     system_cmd: Option<(&'static str, &'static [&'static str])>,
 ) -> Option<String> {
+    if let Some((_, version)) = super::agent_auto_updates::active_for_agent(agent_type) {
+        return Some(version);
+    }
     let mut version = binary_cache::uvx_prepared_version(agent_type);
     if version.is_none() {
         let bin = resolve_command_on_path(cmd)
@@ -382,6 +390,11 @@ async fn npx_displayed_version(
     recorded_version: Option<String>,
 ) -> Option<String> {
     let bin = resolved?;
+    if let Some((path, version)) = super::agent_auto_updates::active_for_agent(agent_type) {
+        if &path == bin {
+            return Some(version);
+        }
+    }
     if npm_package_requires_scripts(package) {
         return system_probed_version(agent_type, bin, None).await;
     }
@@ -451,7 +464,17 @@ async fn prewarm_uvx_agent(
     Ok(())
 }
 
+pub(crate) async fn resolve_agent_npx_command(agent: AgentType, cmd: &str) -> Option<PathBuf> {
+    if let Some((path, _)) = super::agent_auto_updates::active_for_agent(agent) {
+        return Some(path);
+    }
+    resolve_npx_command(cmd).await
+}
+
 pub(crate) async fn resolve_npx_command(cmd: &str) -> Option<PathBuf> {
+    if let Some(path) = super::agent_auto_updates::active_command(cmd) {
+        return Some(path);
+    }
     if let Some(path) = resolve_command_on_path(cmd) {
         return Some(path);
     }
@@ -468,12 +491,17 @@ struct NpxCommandResolver {
 }
 
 impl NpxCommandResolver {
-    async fn resolve_for_list(&mut self, cmd: &str) -> Option<PathBuf> {
+    async fn resolve_for_list(&mut self, agent_type: AgentType, cmd: &str) -> Option<PathBuf> {
+        if let Some((path, _)) = super::agent_auto_updates::active_for_agent(agent_type) {
+            return Some(path);
+        }
         if let Some(cached) = self.per_cmd_cache.get(cmd) {
             return cached.clone();
         }
 
-        let resolved = if let Some(path) = resolve_command_on_path(cmd) {
+        let resolved = if let Some(path) = super::agent_auto_updates::active_command(cmd) {
+            Some(path)
+        } else if let Some(path) = resolve_command_on_path(cmd) {
             Some(path)
         } else if let Some(path) = resolve_npx_command_from_user_prefix(cmd) {
             Some(path)
@@ -607,7 +635,7 @@ pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), 
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
         registry::AgentDistribution::Npx { cmd, package, .. } => {
-            let resolved = resolve_npx_command(cmd).await;
+            let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let runtime_ready = match resolved.as_ref() {
                 Some(bin) if npm_package_requires_scripts(package) => {
                     system_probed_version(agent_type, bin, None).await.is_some()
@@ -657,7 +685,7 @@ pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), 
             // install, so this holds post-prepare) or the agent's own CLI is on
             // PATH. Kept consistent with the Settings status/list paths via the
             // shared helper, so connect and the UI never disagree on readiness.
-            if uvx_agent_launchable(system_cmd) {
+            if uvx_agent_launchable(agent_type, system_cmd) {
                 Ok(())
             } else {
                 Err(AcpError::SdkNotInstalled(format!(
@@ -679,6 +707,9 @@ pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), 
 /// `pub(crate)` so env diagnostics can report the installed version it sees
 /// (which covers both prefixes, unlike the connect-gate `resolve_npx_command`).
 pub(crate) async fn detect_npm_global_version(package_name: &str) -> Option<String> {
+    if let Some(version) = super::agent_auto_updates::active_version(package_name) {
+        return Some(version);
+    }
     let npm_path = which::which("npm").ok()?;
 
     // Try the default global prefix first.
@@ -728,10 +759,13 @@ async fn npm_list_version(
 }
 
 async fn detect_local_version(agent_type: AgentType) -> Option<String> {
+    if let Some((_, version)) = super::agent_auto_updates::active_for_agent(agent_type) {
+        return Some(version);
+    }
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
         registry::AgentDistribution::Npx { cmd, package, .. } => {
-            let resolved = resolve_npx_command(cmd).await?;
+            let resolved = resolve_agent_npx_command(agent_type, cmd).await?;
             if npm_package_requires_scripts(package) {
                 return system_probed_version(agent_type, &resolved, None).await;
             }
@@ -1150,7 +1184,7 @@ async fn collect_agent_diag(
             diag.cmd = cmd.to_string();
             diag.distribution = "uvx";
             diag.package = Some(package.to_string());
-            diag.launchable = uvx_agent_launchable(system_cmd).then(|| {
+            diag.launchable = uvx_agent_launchable(agent_type, system_cmd).then(|| {
                 resolve_uvx_command()
                     .map(|p| p.to_string_lossy().to_string())
                     .unwrap_or_else(|| format!("{cmd} (system CLI on PATH)"))
@@ -2270,10 +2304,6 @@ async fn probe_binary_version(bin: &std::path::Path) -> Option<String> {
         .map(str::to_string)
 }
 
-/// Official npm registry URL – used to bypass local mirror configurations that
-/// may not have synced niche packages like `@agentclientprotocol/*`.
-const NPM_OFFICIAL_REGISTRY: &str = "https://registry.npmjs.org";
-
 /// Force npm to install platform-specific `optionalDependencies`. Several agents
 /// ship their native CLI as a per-platform optional package — e.g.
 /// `@agentclientprotocol/claude-agent-acp` pulls in `@anthropic-ai/claude-agent-sdk`,
@@ -2488,14 +2518,14 @@ async fn install_npm_global_package_streaming_inner(
     task_id: &str,
     emitter: &EventEmitter,
 ) -> Result<(), AcpError> {
-    let registry_arg = format!("--registry={NPM_OFFICIAL_REGISTRY}");
+    let registry_arg = format!("--registry={AGENT_NPM_REGISTRY}");
     let run_scripts = npm_package_requires_scripts(package);
 
     emit_agent_install_event(
         emitter,
         task_id,
         AgentInstallEventKind::Log,
-        format!("$ npm install -g {NPM_INCLUDE_OPTIONAL} {package}"),
+        format!("$ npm install -g {NPM_INCLUDE_OPTIONAL} {registry_arg} {package}"),
     );
 
     let mut args = vec![
@@ -10677,7 +10707,7 @@ pub(crate) async fn acp_get_agent_status_core(
 
     let (available, installed_version) = match &meta.distribution {
         registry::AgentDistribution::Npx { cmd, package, .. } => {
-            let resolved = resolve_npx_command(cmd).await;
+            let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let version = npx_displayed_version(
                 agent_type,
                 resolved.as_ref(),
@@ -10718,7 +10748,7 @@ pub(crate) async fn acp_get_agent_status_core(
             // install, …) is a real install (shared helper, launch-order
             // parity with `detect_local_version`).
             let version = uvx_displayed_version(agent_type, cmd, *system_cmd).await;
-            (uvx_agent_launchable(*system_cmd), version)
+            (uvx_agent_launchable(agent_type, *system_cmd), version)
         }
     };
 
@@ -10779,7 +10809,7 @@ async fn acp_list_agents_with_disabled(
                 // Keep the list path bounded: each list request probes npm
                 // global prefix at most once, then reuses the result across
                 // all NPX agents in the loop.
-                let resolved = npx_resolver.resolve_for_list(cmd).await;
+                let resolved = npx_resolver.resolve_for_list(agent_type, cmd).await;
                 let version = npx_displayed_version(
                     agent_type,
                     resolved.as_ref(),
@@ -10820,7 +10850,11 @@ async fn acp_list_agents_with_disabled(
             } => {
                 // Mirror the status path (shared helper, launch-order parity).
                 let version = uvx_displayed_version(agent_type, cmd, *system_cmd).await;
-                (uvx_agent_launchable(*system_cmd), "uvx", version)
+                (
+                    uvx_agent_launchable(agent_type, *system_cmd),
+                    "uvx",
+                    version,
+                )
             }
         };
 
@@ -12052,6 +12086,8 @@ pub(crate) async fn acp_download_agent_binary_core(
     task_id: String,
     emitter: &EventEmitter,
 ) -> Result<(), AcpError> {
+    let _install = super::agent_auto_updates::INSTALL_LOCK.lock().await;
+    super::agent_auto_updates::INSTALL_REVISION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     emit_agent_install_event(emitter, &task_id, AgentInstallEventKind::Started, "");
 
     let meta = registry::get_agent_meta(agent_type);
@@ -12146,6 +12182,7 @@ pub(crate) async fn acp_download_agent_binary_core(
                 },
             )
             .await?;
+            super::agent_auto_updates::clear_active(agent_type).map_err(AcpError::protocol)?;
             emit_acp_agents_updated(emitter, "binary_downloaded", Some(agent_type));
             Ok(())
         }
@@ -12321,6 +12358,8 @@ pub(crate) async fn acp_prepare_npx_agent_core(
     db: &AppDatabase,
     emitter: &EventEmitter,
 ) -> Result<String, AcpError> {
+    let _install = super::agent_auto_updates::INSTALL_LOCK.lock().await;
+    super::agent_auto_updates::INSTALL_REVISION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     emit_agent_install_event(emitter, &task_id, AgentInstallEventKind::Started, "");
 
     let meta = registry::get_agent_meta(agent_type);
@@ -12429,6 +12468,9 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                     }
                 };
 
+            // A successful explicit install resumes the ordinary global resolution.
+            super::agent_auto_updates::clear_active(agent_type).map_err(AcpError::protocol)?;
+
             // For a bootstrap/native package, npm metadata existing does NOT
             // mean the agent can run: a skipped postinstall or missing native
             // optional dependency can leave a shim that exits immediately.
@@ -12445,7 +12487,7 @@ pub(crate) async fn acp_prepare_npx_agent_core(
                     AgentInstallEventKind::Log,
                     format!("Verifying the {} runtime...", meta.name),
                 );
-                let runtime_ok = match resolve_npx_command(cmd).await {
+                let runtime_ok = match resolve_agent_npx_command(agent_type, cmd).await {
                     Some(bin) => system_probed_version(agent_type, &bin, None)
                         .await
                         .is_some(),
@@ -12517,6 +12559,7 @@ pub(crate) async fn acp_prepare_npx_agent_core(
             // the package spec, so `version_override` does not apply here.
             prewarm_uvx_agent(meta.name, package, cmd, python, &task_id, emitter).await?;
 
+            super::agent_auto_updates::clear_active(agent_type).map_err(AcpError::protocol)?;
             let resolved = version.to_string();
             binary_cache::mark_uvx_agent_prepared(agent_type, &resolved)?;
             agent_setting_service::set_installed_version(
@@ -12599,6 +12642,8 @@ pub(crate) async fn acp_uninstall_agent_core(
     db: &AppDatabase,
     emitter: &EventEmitter,
 ) -> Result<(), AcpError> {
+    let _install = super::agent_auto_updates::INSTALL_LOCK.lock().await;
+    super::agent_auto_updates::INSTALL_REVISION.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
     emit_agent_install_event(emitter, &task_id, AgentInstallEventKind::Started, "");
 
     let meta = registry::get_agent_meta(agent_type);
@@ -12622,6 +12667,7 @@ pub(crate) async fn acp_uninstall_agent_core(
             }
         }
 
+        super::agent_auto_updates::clear_active(agent_type).map_err(AcpError::protocol)?;
         agent_setting_service::set_installed_version(&db.conn, agent_type, None)
             .await
             .map_err(|e| AcpError::protocol(e.to_string()))?;

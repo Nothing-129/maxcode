@@ -93,7 +93,7 @@ describe("composer cost refresh after a reply", () => {
   it("updates the mounted amount from billing-only metadata without replacing the reply", async () => {
     const { result, unmount } = renderHook(() => {
       const buckets = useConversationRuntimeStore(
-        (s) => s.byConversationId.get(CID)?.detail?.billing_usage ?? null
+        (s) => s.byConversationId.get(CID)?.billingUsage ?? null
       )
       return useComposerCostEstimate(buckets)
     })
@@ -108,6 +108,46 @@ describe("composer cost refresh after a reply", () => {
     expect(session().localTurns).toBe(localTurns)
     expect(session().detail!.turns).toBe(history)
     expect(mockGet).toHaveBeenCalledTimes(2)
+    unmount()
+  })
+
+  it("refreshes consecutive replies in a new draft without loading history", async () => {
+    const draftId = -77
+    useConversationRuntimeStore.setState({
+      byConversationId: new Map([
+        [
+          draftId,
+          {
+            ...session(),
+            conversationId: draftId,
+            detail: null,
+            billingUsage: null,
+          },
+        ],
+      ]),
+    })
+    const { result, unmount } = renderHook(() => {
+      const buckets = useConversationRuntimeStore(
+        (s) => s.byConversationId.get(draftId)?.billingUsage ?? null
+      )
+      return useComposerCostEstimate(buckets)
+    })
+    await act(() => vi.advanceTimersByTimeAsync(0))
+    expect(result.current.inlineValue).toBeNull()
+    for (const [tokens, price] of [
+      [20000, "$0.06"],
+      [30000, "$0.09"],
+    ] as const) {
+      mockGet.mockResolvedValue({ ...detail, billing_usage: bucket(tokens) })
+      const cancel = actions().syncTurnMetadata(CID, draftId)
+      await act(() => vi.advanceTimersByTimeAsync(1500))
+      expect(result.current.inlineValue).toBe(price)
+      expect(
+        useConversationRuntimeStore.getState().byConversationId.get(draftId)
+          ?.detail
+      ).toBeNull()
+      cancel()
+    }
     unmount()
   })
 

@@ -5411,8 +5411,20 @@
     "available": "An update is available.",
     "current": "The installed version is at or above the latest published version.",
     "unknown": "Not installed or the local version cannot be compared. Verify the version before installing.",
-    "note": "Read-only check; no automatic upgrades. Adapter versions differ from native CLI versions. New releases may be unreviewed; default installs still follow the existing channel.",
-    "install": "Install {version}…"
+    "note": "This card checks releases. Enabled agents update automatically. Adapter and CLI versions may differ.",
+    "install": "Install {version}…",
+    "autoLabel": "Automatic updates",
+    "autoDescription": "All enabled, installed agents update automatically, without a separate switch. Check every 6 hours, verify the new installation, then activate when no sessions are running.",
+    "autoPhase": {
+      "idle": "Waiting for background check",
+      "checking": "Checking for updates",
+      "downloading": "Downloading and verifying",
+      "waiting": "Update ready; waiting for sessions to end",
+      "current": "No update needed",
+      "updated": "Automatically updated",
+      "error": "Update failed; will retry",
+      "unavailable": "Update source or comparable version unavailable"
+    }
   },
   "DiagnosticsSettings": {
     "title": "Environment diagnostics",

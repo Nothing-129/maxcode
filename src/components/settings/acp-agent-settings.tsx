@@ -1,5 +1,6 @@
 "use client"
 
+import { AgentAutoUpdate } from "./agent-auto-update"
 import {
   useCallback,
   useEffect,
@@ -138,7 +139,11 @@ import {
 } from "@/components/settings/opencode-connect-dialog"
 import { OpenCodePermissionsSection } from "@/components/settings/opencode-permissions-section"
 import { AgentDiagnosticsDialog } from "@/components/settings/agent-diagnostics-dialog"
-import { AgentUpdateCheck } from "@/components/settings/agent-update-check"
+import {
+  AgentUpdateCheck,
+  AgentUpdateBadge,
+  useAgentUpdates,
+} from "@/components/settings/agent-update-check"
 import {
   buildConnectedModelOptions,
   buildConnectedProviders,
@@ -4274,6 +4279,7 @@ export function AcpAgentSettings() {
   acpTranslator = (key, values) => rawTranslator(key, values)
   const searchParams = useSearchParams()
   const [agents, setAgents] = useState<AcpAgentInfo[]>([])
+  const agentUpdates = useAgentUpdates(agents)
   const [loadingAgents, setLoadingAgents] = useState(true)
   const [addCustomOpen, setAddCustomOpen] = useState(false)
   // Registry id of the custom agent being edited; non-null renders the edit
@@ -7761,6 +7767,10 @@ export function AcpAgentSettings() {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
+                        <AgentUpdateBadge
+                          agent={agent}
+                          updates={agentUpdates}
+                        />
                         <Badge
                           variant="outline"
                           className={cn(
@@ -7918,8 +7928,13 @@ export function AcpAgentSettings() {
               />
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <AgentAutoUpdate
+                  key={selectedAgent.agent_type}
+                  agent={selectedAgent}
+                />
                 <AgentUpdateCheck
                   agent={selectedAgent}
+                  updates={agentUpdates}
                   busy={busyBinaryAction[selectedAgent.agent_type]}
                   onInstallVersion={(version) => {
                     setCustomVersionInput(version)

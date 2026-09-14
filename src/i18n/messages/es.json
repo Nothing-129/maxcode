@@ -5411,8 +5411,20 @@
     "available": "Hay una actualización disponible.",
     "current": "La versión instalada es igual o posterior a la última publicada.",
     "unknown": "No está instalado o la versión local no es comparable. Compruebe la versión antes de instalar.",
-    "note": "Solo comprobación, sin actualizaciones automáticas. Las versiones del adaptador difieren de las CLI nativas. Las nuevas versiones pueden no estar verificadas; las instalaciones predeterminadas siguen el canal existente.",
-    "install": "Instalar {version}…"
+    "note": "Esta tarjeta comprueba versiones publicadas. Los agentes habilitados se actualizan automáticamente. Las versiones del adaptador y de la CLI pueden diferir.",
+    "install": "Instalar {version}…",
+    "autoLabel": "Actualizaciones automáticas",
+    "autoDescription": "Todos los agentes habilitados e instalados se actualizan automáticamente, sin interruptor independiente. Comprueba cada 6 horas, verifica y activa cuando no hay sesiones en curso.",
+    "autoPhase": {
+      "idle": "Esperando comprobación",
+      "checking": "Buscando actualizaciones",
+      "downloading": "Descargando y verificando",
+      "waiting": "Actualización lista; esperando el fin de las sesiones",
+      "current": "No se necesita actualizar",
+      "updated": "Actualizado automáticamente",
+      "error": "Error; se reintentará",
+      "unavailable": "Fuente de actualización o versión comparable no disponible"
+    }
   },
   "DiagnosticsSettings": {
     "title": "Diagnóstico del entorno",

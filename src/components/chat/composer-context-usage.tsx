@@ -51,7 +51,8 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
   )
   const billingUsage = useConversationRuntimeStore((s) =>
     runtimeConversationId != null
-      ? (s.byConversationId.get(runtimeConversationId)?.detail?.billing_usage ??
+      ? (s.byConversationId.get(runtimeConversationId)?.billingUsage ??
+        s.byConversationId.get(runtimeConversationId)?.detail?.billing_usage ??
         null)
       : null
   )

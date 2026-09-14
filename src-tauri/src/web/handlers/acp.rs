@@ -1474,3 +1474,11 @@ mod tests {
         assert!(!text.contains("codex"));
     }
 }
+
+pub async fn acp_agent_auto_update_status(
+    Json(params): Json<AgentTypeParams>,
+) -> Json<crate::commands::agent_auto_updates::AutoUpdateStatus> {
+    Json(crate::commands::agent_auto_updates::status(
+        params.agent_type,
+    ))
+}

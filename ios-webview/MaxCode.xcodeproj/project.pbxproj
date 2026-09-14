@@ -1,0 +1,267 @@
+// !$*UTF8*$!
+{
+	archiveVersion = "1";
+	classes = {
+
+	};
+	objectVersion = "56";
+	objects = {
+		3ECE8EB79BB80FAD7C7B6F4B = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/AppDelegate.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		69AB52E2BEB63812F2454FFC = {
+			isa = "PBXBuildFile";
+			fileRef = "3ECE8EB79BB80FAD7C7B6F4B";
+		};
+		DCF17063F4CAEB7738348CAA = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/ConnectionEditorViewController.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		3A2EF704F608B8843EECC798 = {
+			isa = "PBXBuildFile";
+			fileRef = "DCF17063F4CAEB7738348CAA";
+		};
+		267865567822990484D9EF41 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/ConnectionStore.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		FBD182134B02CC6B3051F3D8 = {
+			isa = "PBXBuildFile";
+			fileRef = "267865567822990484D9EF41";
+		};
+		D9BB6C77FDC859916388D92B = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/ConnectionsViewController.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		8A83A049FAA4E91C7AC4AC50 = {
+			isa = "PBXBuildFile";
+			fileRef = "D9BB6C77FDC859916388D92B";
+		};
+		219DC77D9EAA435C9AB7029F = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/Core/Connection.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		A9B7C3744CA16F943202A6BE = {
+			isa = "PBXBuildFile";
+			fileRef = "219DC77D9EAA435C9AB7029F";
+		};
+		FE65578186584C9BBD7B5545 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/Core/ServerHealthChecker.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		AE911F0EA4877A5400C3EBCB = {
+			isa = "PBXBuildFile";
+			fileRef = "FE65578186584C9BBD7B5545";
+		};
+		D59E4D47F6C10CF93284D2D7 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/Core/WebScripts.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		45CE38165B4C5699742F8D05 = {
+			isa = "PBXBuildFile";
+			fileRef = "D59E4D47F6C10CF93284D2D7";
+		};
+		D408B253AD50C65E1A947F38 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "sourcecode.swift";
+			path = "MaxCode/WorkspaceViewController.swift";
+			sourceTree = "SOURCE_ROOT";
+		};
+		6B20311D9EA0562432B7C118 = {
+			isa = "PBXBuildFile";
+			fileRef = "D408B253AD50C65E1A947F38";
+		};
+		8BF729FFE074CAEE622C0292 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "folder.assetcatalog";
+			path = "MaxCode/Assets.xcassets";
+			sourceTree = "SOURCE_ROOT";
+		};
+		9CEEC13202AFBF12EE3ABB99 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.plist.xml";
+			path = "MaxCode/Info.plist";
+			sourceTree = "SOURCE_ROOT";
+		};
+		A4CC6BC01A927E2A78FD3BEC = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.xml";
+			path = "MaxCode/PrivacyInfo.xcprivacy";
+			sourceTree = "SOURCE_ROOT";
+		};
+		BDEFC259426BD086D1126108 = {
+			isa = "PBXFileReference";
+			lastKnownFileType = "text.xcconfig";
+			path = "Signing.xcconfig";
+			sourceTree = "SOURCE_ROOT";
+		};
+		A8792157CB4F27FB949C035F = {
+			isa = "PBXFileReference";
+			explicitFileType = "wrapper.application";
+			path = "MaxCode.app";
+			sourceTree = "BUILT_PRODUCTS_DIR";
+		};
+		0A3E27B8CA818264D75C8D81 = {
+			isa = "PBXGroup";
+			children = ("A8792157CB4F27FB949C035F");
+			name = "Products";
+			sourceTree = "<group>";
+		};
+		4813494D137E1631BBA301D5 = {
+			isa = "PBXGroup";
+			children = ("3ECE8EB79BB80FAD7C7B6F4B", "DCF17063F4CAEB7738348CAA", "267865567822990484D9EF41", "D9BB6C77FDC859916388D92B", "219DC77D9EAA435C9AB7029F", "FE65578186584C9BBD7B5545", "D59E4D47F6C10CF93284D2D7", "D408B253AD50C65E1A947F38", "8BF729FFE074CAEE622C0292", "9CEEC13202AFBF12EE3ABB99", "A4CC6BC01A927E2A78FD3BEC", "BDEFC259426BD086D1126108", "0A3E27B8CA818264D75C8D81");
+			sourceTree = "<group>";
+		};
+		878A52FC5FF6A57D50B7B870 = {
+			isa = "PBXSourcesBuildPhase";
+			buildActionMask = "2147483647";
+			files = ("69AB52E2BEB63812F2454FFC", "3A2EF704F608B8843EECC798", "FBD182134B02CC6B3051F3D8", "8A83A049FAA4E91C7AC4AC50", "A9B7C3744CA16F943202A6BE", "AE911F0EA4877A5400C3EBCB", "45CE38165B4C5699742F8D05", "6B20311D9EA0562432B7C118");
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		045076B9F7BC8D61C802CB48 = {
+			isa = "PBXBuildFile";
+			fileRef = "8BF729FFE074CAEE622C0292";
+		};
+		815B09DABA0665DF9CDBDD23 = {
+			isa = "PBXBuildFile";
+			fileRef = "A4CC6BC01A927E2A78FD3BEC";
+		};
+		41D311A605520FC7B8B9A980 = {
+			isa = "PBXResourcesBuildPhase";
+			buildActionMask = "2147483647";
+			files = ("045076B9F7BC8D61C802CB48", "815B09DABA0665DF9CDBDD23");
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		E2AA269EB967A8853A258BFA = {
+			isa = "PBXFrameworksBuildPhase";
+			buildActionMask = "2147483647";
+			files = ();
+			runOnlyForDeploymentPostprocessing = "0";
+		};
+		2B23A31EEC75B029432F2445 = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			buildSettings = {
+				CLANG_ENABLE_MODULES = "YES";
+				CLANG_ENABLE_OBJC_ARC = "YES";
+				IPHONEOS_DEPLOYMENT_TARGET = "16.0";
+				SDKROOT = "iphoneos";
+				SWIFT_VERSION = "5.0";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				DEBUG_INFORMATION_FORMAT = "dwarf";
+				ENABLE_TESTABILITY = "YES";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG";
+				SWIFT_COMPILATION_MODE = "singlefile";
+			};
+		};
+		AA9B1D3BE1353EBD76471D11 = {
+			isa = "XCBuildConfiguration";
+			name = "Debug";
+			baseConfigurationReference = "BDEFC259426BD086D1126108";
+			buildSettings = {
+				PRODUCT_NAME = "MaxCode";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = "NO";
+				INFOPLIST_FILE = "MaxCode/Info.plist";
+				GENERATE_INFOPLIST_FILE = "NO";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				CURRENT_PROJECT_VERSION = "1";
+				MARKETING_VERSION = "0.1.0";
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+			};
+		};
+		07CA1E69F6068DEA30A4DA6B = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			buildSettings = {
+				CLANG_ENABLE_MODULES = "YES";
+				CLANG_ENABLE_OBJC_ARC = "YES";
+				IPHONEOS_DEPLOYMENT_TARGET = "16.0";
+				SDKROOT = "iphoneos";
+				SWIFT_VERSION = "5.0";
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_TESTABILITY = "NO";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_COMPILATION_MODE = "wholemodule";
+			};
+		};
+		1E2E67F111F111E446D58E6C = {
+			isa = "XCBuildConfiguration";
+			name = "Release";
+			baseConfigurationReference = "BDEFC259426BD086D1126108";
+			buildSettings = {
+				PRODUCT_NAME = "MaxCode";
+				TARGETED_DEVICE_FAMILY = "1,2";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = "NO";
+				INFOPLIST_FILE = "MaxCode/Info.plist";
+				GENERATE_INFOPLIST_FILE = "NO";
+				ASSETCATALOG_COMPILER_APPICON_NAME = "AppIcon";
+				CURRENT_PROJECT_VERSION = "1";
+				MARKETING_VERSION = "0.1.0";
+				LD_RUNPATH_SEARCH_PATHS = ("$(inherited)", "@executable_path/Frameworks");
+			};
+		};
+		F905B102B4F13BD6617D8EB3 = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("2B23A31EEC75B029432F2445", "07CA1E69F6068DEA30A4DA6B");
+			defaultConfigurationIsVisible = "0";
+			defaultConfigurationName = "Release";
+		};
+		900621C63942CF97857E701F = {
+			isa = "XCConfigurationList";
+			buildConfigurations = ("AA9B1D3BE1353EBD76471D11", "1E2E67F111F111E446D58E6C");
+			defaultConfigurationIsVisible = "0";
+			defaultConfigurationName = "Release";
+		};
+		A172CEDCAE47474B615C54D5 = {
+			isa = "PBXNativeTarget";
+			name = "MaxCode";
+			productName = "MaxCode";
+			productType = "com.apple.product-type.application";
+			productReference = "A8792157CB4F27FB949C035F";
+			buildConfigurationList = "900621C63942CF97857E701F";
+			buildPhases = ("878A52FC5FF6A57D50B7B870", "E2AA269EB967A8853A258BFA", "41D311A605520FC7B8B9A980");
+			buildRules = ();
+			dependencies = ();
+		};
+		244210E48437B6556980A702 = {
+			isa = "PBXProject";
+			attributes = {
+				LastUpgradeCheck = "1600";
+				TargetAttributes = {
+					A172CEDCAE47474B615C54D5 = {
+						CreatedOnToolsVersion = "16.0";
+					};
+				};
+			};
+			buildConfigurationList = "F905B102B4F13BD6617D8EB3";
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = "zh-Hans";
+			knownRegions = ("zh-Hans", "en", "Base");
+			mainGroup = "4813494D137E1631BBA301D5";
+			productRefGroup = "0A3E27B8CA818264D75C8D81";
+			projectDirPath = "";
+			projectRoot = "";
+			targets = ("A172CEDCAE47474B615C54D5");
+		};
+	};
+	rootObject = "244210E48437B6556980A702";
+}

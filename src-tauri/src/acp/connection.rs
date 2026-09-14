@@ -1666,7 +1666,8 @@ async fn build_agent(
             for (k, v) in &merged_env {
                 parts.push(format!("{k}={v}"));
             }
-            let resolved_command = crate::commands::acp::resolve_npx_command(cmd).await;
+            let resolved_command =
+                crate::commands::acp::resolve_agent_npx_command(agent_type, cmd).await;
             if agent_type == AgentType::Pi {
                 if let Some(path) = resolved_command.as_deref() {
                     ensure_pi_acp_max_support(path)?;
@@ -1919,7 +1920,12 @@ async fn build_agent(
             for (k, v) in &merged_env {
                 parts.push(format!("{k}={v}"));
             }
-            if let Some(uvx_path) = crate::commands::acp::resolve_uvx_command() {
+            if let Some((managed, _)) =
+                crate::commands::agent_auto_updates::active_for_agent(agent_type)
+            {
+                parts.push(managed.to_string_lossy().to_string());
+                parts.extend(args.iter().map(|arg| (*arg).to_owned()));
+            } else if let Some(uvx_path) = crate::commands::acp::resolve_uvx_command() {
                 // Primary: `uvx [--python <ver>] --from <pinned package> <entry
                 // script>`. uvx fetches + caches the pinned package on first use;
                 // the `--python` pin keeps it on an interpreter the agent
@@ -10904,8 +10910,7 @@ fn pi_is_startup_prelude(text: &str) -> bool {
     let Some(version) = first.trim().strip_prefix("pi v") else {
         return false;
     };
-    version.starts_with(|c: char| c.is_ascii_digit())
-        && lines.next().map(str::trim) == Some("---")
+    version.starts_with(|c: char| c.is_ascii_digit()) && lines.next().map(str::trim) == Some("---")
 }
 
 /// Grok wraps every MCP tool invocation in a generic `use_tool` envelope whose
@@ -17581,8 +17586,8 @@ mod tests {
             // A future kind, and a future sibling field, must both still parse.
             serde_json::json!({"authStatus": {"kind": "something_new"}, "extra": 1}),
         ] {
-            let notif: AuthStatusUpdateNotification =
-                serde_json::from_value(payload.clone()).unwrap_or_else(|e| {
+            let notif: AuthStatusUpdateNotification = serde_json::from_value(payload.clone())
+                .unwrap_or_else(|e| {
                     panic!("must not reject {payload}: {e}");
                 });
             assert!(notif.auth_status.is_object());
@@ -20287,19 +20292,17 @@ mod tests {
 
         // The full banner as pi-acp 0.0.33 builds it on this machine.
         assert_eq!(
-            route(
-                concat!(
-                    "pi v0.84.3\n",
-                    "---\n",
-                    "\n",
-                    "## Context\n",
-                    "- /Users/demo/maxcode/AGENTS.md\n",
-                    "\n",
-                    "## Skills\n",
-                    "- /Users/demo/.agents/skills/dingtalk-doc/SKILL.md\n",
-                    "- /Users/demo/.agents/skills/dingtalk-mail/SKILL.md\n",
-                )
-            ),
+            route(concat!(
+                "pi v0.84.3\n",
+                "---\n",
+                "\n",
+                "## Context\n",
+                "- /Users/demo/maxcode/AGENTS.md\n",
+                "\n",
+                "## Skills\n",
+                "- /Users/demo/.agents/skills/dingtalk-doc/SKILL.md\n",
+                "- /Users/demo/.agents/skills/dingtalk-mail/SKILL.md\n",
+            )),
             PiChunkRoute::Drop,
             "the Context/Skills banner is the case users actually see"
         );
@@ -20307,16 +20310,14 @@ mod tests {
         assert_eq!(route("pi v0.84.3\n---\n"), PiChunkRoute::Drop);
         // Banner with pi-acp's trailing update notice.
         assert_eq!(
-            route(
-                concat!(
-                    "pi v0.84.3\n",
-                    "---\n",
-                    "\n",
-                    "---\n",
-                    "New version available: v0.85.0 (installed v0.84.3). \
+            route(concat!(
+                "pi v0.84.3\n",
+                "---\n",
+                "\n",
+                "---\n",
+                "New version available: v0.85.0 (installed v0.84.3). \
                      Run: `npm i -g @earendil-works/pi-coding-agent`"
-                )
-            ),
+            )),
             PiChunkRoute::Drop
         );
 

@@ -2,6 +2,36 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "ios.webview-client",
+      "category": "product",
+      "description": "Independent iPhone/iPad WKWebView shell with native connection management, atomic device-only Keychain storage, authenticated non-redirecting health checks, origin-scoped token bootstrap, isolated in-memory web sessions, fresh entry URLs, native keyboard/safe-area layout and foreground/network recovery.",
+      "origins": [
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "ios-webview/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/ios-webview-client.contract.test.ts"
+      ]
+    },
+    {
+      "id": "settings.agent-auto-updates",
+      "category": "runtime",
+      "description": "All enabled installed built-in and custom agents update automatically via npm, binary archives or isolated Python tools from the npm mirror after startup and every six hours. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status UI, manual install serialization and retry backoff are preserved.",
+      "origins": ["worktree-2026-09-14"],
+      "paths": ["src-tauri/src/commands/agent_auto_updates.rs", "src-tauri/src/acp/binary_cache.rs", "src-tauri/src/acp/connection.rs", "src-tauri/src/acp/remote_registry.rs", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/acp.rs", "src-tauri/src/commands/mod.rs", "src-tauri/src/bin/codeg_server.rs", "src-tauri/src/lib.rs", "src-tauri/src/web/handlers/acp.rs", "src-tauri/src/web/router.rs", "src/components/settings/agent-auto-update.tsx", "src/components/settings/acp-agent-settings.tsx", "src/lib/api.ts", "src/i18n/messages/"],
+      "contracts": ["src/maxcode-contracts/agent-auto-updates.contract.test.tsx"]
+    },
+    {
+      "id": "settings.agent-npm-mirror",
+      "category": "runtime",
+      "description": "Agent npm installs, upgrades, retries, online update checks and custom package metadata use the aifalao registry. Install logs show the selected registry.",
+      "origins": ["worktree-2026-09-14"],
+      "paths": ["src-tauri/src/acp/mod.rs", "src-tauri/src/acp/registry.rs", "src-tauri/src/commands/acp.rs", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/custom_agents.rs"],
+      "contracts": ["src/maxcode-contracts/agent-npm-mirror.contract.test.ts"]
+    },
+    {
       "id": "automations.worktree-opt-in",
       "category": "product",
       "description": "Blank and template-seeded automations default to shared_in_root with new-worktree-per-run unchecked; editing preserves saved isolation and users can explicitly enable worktree isolation.",
@@ -43,7 +73,7 @@
     {
       "id": "settings.agent-online-updates",
       "category": "product",
-      "description": "Agent settings check online releases on selection, cache per agent for ten minutes, and allow forced refresh. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. Explicit npm version installs require confirmation; reviewed pins and running sessions remain unchanged.",
+      "description": "Agent settings check all enabled agents on page entry, share release results with sidebar update badges and selected details, check enabled agents every six hours while mounted, cache per agent for six hours, skip disabled selections, and allow forced refresh. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. Explicit npm version installs require confirmation; reviewed pins and running sessions remain unchanged.",
       "origins": ["worktree-2026-09-10"],
       "paths": ["src/components/settings/agent-update-check.tsx", "src/components/settings/acp-agent-settings.tsx", "src/lib/agent-update-status.ts", "src/lib/api.ts", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/mod.rs", "src-tauri/src/web/handlers/acp.rs", "src-tauri/src/web/router.rs", "src-tauri/src/lib.rs", "src/i18n/messages/"],
       "contracts": ["src/maxcode-contracts/agent-online-updates.contract.test.tsx"]
@@ -339,7 +369,7 @@
     {
       "id": "composer.conversation-cost",
       "category": "product",
-      "description": "Refresh billing totals after each completed reply without switching conversations. Hide the inline amount and its separator until a numeric estimate is available, including while loading or when pricing is unavailable. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
+      "description": "Refresh billing totals after each completed reply without switching conversations, including new draft sessions with no loaded DB detail. Hide the inline amount and its separator until a numeric estimate is available, including while loading or when pricing is unavailable. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/lib/conversation-cost.ts",

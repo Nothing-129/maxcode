@@ -146,6 +146,7 @@ describe("computeTurnMetadataPatches", () => {
       localTurns,
       parsedAssistantTurns,
       persistedAssistantCount: 0,
+      parseEndsWithAssistant: true,
     })
 
     expect(patches.map((patch) => patch.duration_ms)).toEqual([

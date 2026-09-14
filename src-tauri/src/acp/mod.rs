@@ -1,3 +1,6 @@
+/// Registry used by MaxCode agent installs and package metadata queries.
+pub const AGENT_NPM_REGISTRY: &str = "https://npm.aifalao.net";
+
 pub mod agent_mentions;
 pub mod antigravity_login;
 pub mod background_watch;

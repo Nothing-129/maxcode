@@ -53,6 +53,7 @@ describe("sidebar title ink", () => {
             onDoubleClick={vi.fn()}
             onRename={vi.fn(async () => {})}
             onDelete={vi.fn(async () => {})}
+            onStatusChange={vi.fn(async () => {})}
           />
         </NextIntlClientProvider>
       )
