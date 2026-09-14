@@ -3056,7 +3056,10 @@
         "mentionGroupAgent": "Agentes",
         "mentionGroupSession": "Sesiones",
         "mentionGroupCommit": "Commits",
-        "mentionGroupSkill": "Habilidades"
+        "mentionGroupSkill": "Habilidades",
+        "openLink": "Abrir enlace",
+        "openFile": "Abrir archivo",
+        "sendEmail": "Enviar correo"
       },
       "messageQueue": {
         "adjustDirection": "Cambiar dirección",
@@ -3290,7 +3293,10 @@
         "copyAbsolutePath": "Copiar ruta absoluta",
         "pathCopied": "Ruta copiada",
         "copyPathFailed": "No se pudo copiar la ruta",
-        "openFailed": "Error al abrir el archivo local"
+        "openFailed": "Error al abrir el archivo local",
+        "download": "Descargar archivo",
+        "downloadSaved": "{name} descargado",
+        "downloadFailed": "No se pudo descargar {name}"
       },
       "messageList": {
         "editMessage": "Editar mensaje",
@@ -5858,5 +5864,46 @@
     "confirmDeleteConfirm": "Eliminar",
     "canvasActions": "Acciones del lienzo",
     "mergeIntoNewRegion": "Nueva región"
+  },
+  "DeepSeekModelEditor": {
+    "title": "Lista de modelos",
+    "description": "Los modelos entre los que puede cambiar una sesión de DeepSeek. Se guardan en el documento de ajustes del harness, que el agente lee al iniciarse: al guardar, se aplica a las sesiones iniciadas después.",
+    "inheritedBadge": "Valores del agente",
+    "inheritedHint": "Todavía no hay ninguna lista guardada, así que estos son los modelos integrados del agente. Guardarla los fija, y las versiones posteriores del agente ya no los cambiarán por su cuenta. Archivo:",
+    "storedHint": "Guardada en el documento de ajustes del harness. Las claves fuera de esta lista —y los comentarios que las rodean— no se tocan. Archivo:",
+    "unreadable": "Este documento de ajustes no se puede editar desde aquí sin arriesgar lo que ya contiene. Edítalo a mano.",
+    "invalidStored": "El agente rechaza esta lista guardada, así que las sesiones funcionan con sus modelos integrados hasta que se corrija:",
+    "loading": "Leyendo el documento de ajustes…",
+    "loadFailed": "No se pudo leer el documento de ajustes.",
+    "empty": "Sin modelos. Añade uno o guarda para volver a la lista integrada del agente.",
+    "addModel": "Añadir modelo",
+    "remove": "Quitar modelo",
+    "advanced": "Más",
+    "save": "Guardar lista de modelos",
+    "saving": "Guardando…",
+    "restoreDefaults": "Usar los valores del agente",
+    "fieldId": "Id del modelo",
+    "fieldName": "Nombre visible",
+    "fieldContextWindow": "Ventana de contexto",
+    "fieldDescription": "Descripción",
+    "fieldMaxTokens": "Tokens de salida máx.",
+    "fieldAcceptsImages": "Acepta imágenes",
+    "fieldImagePixelBudget": "Límite de píxeles",
+    "imageBudgetPixels": "Número de píxeles",
+    "imageBudgetLow": "Detalle bajo (512×512)",
+    "fieldImageMaxBytes": "Límite de bytes",
+    "placeholderId": "deepseek-flash",
+    "placeholderName": "Se muestra en el selector",
+    "placeholderInherit": "Valor del agente",
+    "errorMissingId": "Cada modelo necesita un id.",
+    "errorDuplicateId": "Dos modelos comparten el id “{id}”.",
+    "errorBadContextWindow": "La ventana de contexto de “{id}” debe ser un número entero mayor que cero.",
+    "errorBadMaxTokens": "Los tokens de salida máximos de “{id}” deben ser un número entero mayor que cero.",
+    "errorBadImageLimit": "Los límites de imagen de “{id}” deben ser números enteros mayores que cero.",
+    "warnSingleModel": "Con un solo modelo, el agente deja de ofrecer selector de modelo.",
+    "warnLaunchModelMissing": "Las sesiones nuevas empiezan con “{model}”, que no está en esta lista. Añádelo o define {variable} en las variables de entorno de arriba.",
+    "toastSaved": "Lista de modelos guardada",
+    "toastRestored": "Usando la lista de modelos integrada del agente",
+    "toastSaveFailed": "No se pudo guardar la lista de modelos"
   }
 }

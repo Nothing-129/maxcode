@@ -118,8 +118,11 @@ pub(crate) fn resolve_deepseek_attachments_root() -> PathBuf {
 /// - `assistant/message` — the ASSEMBLED assistant message for one step
 ///   (`content[]` of `text` / `reasoning` / `tool-call {id, name, arguments}`
 ///   blocks) plus that step's `usage` (`inputTokens` / `outputTokens` /
-///   `cacheReadTokens` / `reasoningTokens`). The raw stream duplicates it as
-///   `assistant/chunk` / `*-chunks` rows, which are skipped.
+///   `cacheReadTokens` / `reasoningTokens`). Through 0.8.0 the raw stream
+///   duplicated it as `assistant/chunk` / `*-chunks` ROWS; 0.9.0 stopped
+///   persisting those and moved the compacted stream into this event's own
+///   `stream` field. Either way only `message.content` is shown. MaxCode still
+///   reads `assistant/chunk` for first-token timing on older logs.
 /// - `tool/result` — the paired result (`message.content[0]` is a
 ///   `tool-result` with `toolCallId` / `content[]` / `isError`).
 /// - `turn/start` / `turn/end` — authoritative turn boundaries; `turn/end`
@@ -690,6 +693,8 @@ fn parse_session_events(text: &str, attachments: Option<&Path>) -> SessionParse 
         // Raw stream chunks duplicate `assistant/message` content, but their
         // first non-empty delta is the authoritative first-token boundary used
         // by DeepSeek Harness's own whole-session stats projection.
+        // 0.9.0 stopped writing these rows; the arm stays for logs written
+        // before that upgrade.
         if event_type == "assistant/chunk" {
             let data = value.get("data");
             if let Some(open) = open_generation_step.as_mut() {

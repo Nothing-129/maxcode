@@ -2079,6 +2079,7 @@ const ConversationTabView = memo(function ConversationTabView({
       >
         <MessageListView
           conversationId={effectiveConversationId}
+          imageRoot={workingDirForConnection ?? null}
           agentType={selectedAgent}
           connStatus={connStatus}
           isActive={isActive}

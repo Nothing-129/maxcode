@@ -13,6 +13,7 @@ pub mod conversation_share;
 pub mod conversations;
 pub mod custom_agents;
 pub mod custom_skills;
+pub mod deepseek_settings;
 pub mod delegation;
 pub mod experts;
 pub mod feedback;

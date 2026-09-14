@@ -1569,6 +1569,17 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             //   crate 没有 `deny_unknown_fields`，未知字段被 serde 丢掉。分叉点取
             //   自解析出来的日志而不是 live 转写，所以也没有开它的理由。
             //
+            // 0.9.0 唯一需要跟着改的是**模型目录**，落在设置面板那条线上
+            // （`commands::deepseek_settings`），不在协议层：
+            //
+            // * 没配 `llm-deepseek.models` 时继承 `deepseek-flash`（收图）
+            //   与 `deepseek-v4-pro`，不是适配器 schema 里已下线的 flash id。
+            // * `imageDetail` 被撤销成硬报错，改用 `imagePixelBudget` 的
+            //   `"low"`（512×512）。`systemPromptUpdate: "in-history"` 必须
+            //   随条目往返，漏写会静默换投递方式。
+            // * `assistant/chunk` / `*-chunks` 不再逐条落库；解析器里的跳过
+            //   和 MaxCode 的首 token 计时仍保留，因为旧日志还有那些行。
+            //
             // Keep `version` and `package` moving together: `version` is what
             // the agents list shows as the upgrade target beside the installed
             // version, so a drift leaves the Upgrade button installing one
@@ -1578,8 +1589,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // sandbox override handling and partial-enforcement wording on
             // Windows.
             distribution: AgentDistribution::Npx {
-                version: "0.8.0",
-                package: "deepseek-acp@0.8.0",
+                version: "0.9.0",
+                package: "deepseek-acp@0.9.0",
                 cmd: "deepseek-acp",
                 args: &[],
                 env: &[],
@@ -2065,8 +2076,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::DeepSeek,
-            "0.8.0",
-            "deepseek-acp@0.8.0",
+            "0.9.0",
+            "deepseek-acp@0.9.0",
             Some("22.0.0"),
         );
         assert_npx_version(

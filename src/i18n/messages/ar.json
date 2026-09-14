@@ -3056,7 +3056,10 @@
         "mentionGroupAgent": "الوكلاء",
         "mentionGroupSession": "الجلسات",
         "mentionGroupCommit": "عمليات الإيداع",
-        "mentionGroupSkill": "المهارات"
+        "mentionGroupSkill": "المهارات",
+        "openLink": "فتح الرابط",
+        "openFile": "فتح الملف",
+        "sendEmail": "إرسال بريد"
       },
       "messageQueue": {
         "adjustDirection": "تعديل الاتجاه",
@@ -3290,7 +3293,10 @@
         "copyAbsolutePath": "نسخ المسار المطلق",
         "pathCopied": "تم نسخ المسار",
         "copyPathFailed": "فشل نسخ المسار",
-        "openFailed": "فشل فتح الملف المحلي"
+        "openFailed": "فشل فتح الملف المحلي",
+        "download": "تنزيل ملف",
+        "downloadSaved": "تم تنزيل {name}",
+        "downloadFailed": "فشل تنزيل {name}"
       },
       "messageList": {
         "editMessage": "تعديل الرسالة",
@@ -5858,5 +5864,46 @@
     "confirmDeleteConfirm": "حذف",
     "canvasActions": "إجراءات اللوحة",
     "mergeIntoNewRegion": "منطقة جديدة"
+  },
+  "DeepSeekModelEditor": {
+    "title": "قائمة النماذج",
+    "description": "النماذج التي يمكن لجلسة DeepSeek التبديل بينها. تُحفظ في مستند إعدادات الـ harness الذي يقرأه الوكيل عند الإقلاع — ويسري الحفظ على الجلسات التي تبدأ بعده.",
+    "inheritedBadge": "افتراضيات الوكيل",
+    "inheritedHint": "لا توجد قائمة محفوظة بعد، لذا هذه هي نماذج الوكيل المدمجة. الحفظ يثبّتها، ولن تغيّرها إصدارات الوكيل اللاحقة من تلقاء نفسها. الملف:",
+    "storedHint": "محفوظة في مستند إعدادات الـ harness. تبقى المفاتيح خارج هذه القائمة — والتعليقات المحيطة بها — كما هي. الملف:",
+    "unreadable": "لا يمكن تحرير مستند الإعدادات هذا من هنا دون المخاطرة بما يحتويه. حرّره يدويًا.",
+    "invalidStored": "يرفض الوكيل هذه القائمة المحفوظة، لذا تعمل الجلسات بنماذجه المدمجة إلى أن تُصلَح:",
+    "loading": "جارٍ قراءة مستند الإعدادات…",
+    "loadFailed": "تعذّرت قراءة مستند الإعدادات.",
+    "empty": "لا توجد نماذج. أضف واحدًا، أو احفظ للعودة إلى قائمة الوكيل المدمجة.",
+    "addModel": "إضافة نموذج",
+    "remove": "إزالة النموذج",
+    "advanced": "المزيد",
+    "save": "حفظ قائمة النماذج",
+    "saving": "جارٍ الحفظ…",
+    "restoreDefaults": "استخدام افتراضيات الوكيل",
+    "fieldId": "معرّف النموذج",
+    "fieldName": "الاسم المعروض",
+    "fieldContextWindow": "نافذة السياق",
+    "fieldDescription": "الوصف",
+    "fieldMaxTokens": "أقصى رموز للمخرجات",
+    "fieldAcceptsImages": "يقبل الصور",
+    "fieldImagePixelBudget": "حد وحدات البكسل",
+    "imageBudgetPixels": "عدد البكسل",
+    "imageBudgetLow": "تفاصيل منخفضة (512×512)",
+    "fieldImageMaxBytes": "حد البايتات",
+    "placeholderId": "deepseek-flash",
+    "placeholderName": "يظهر في المُحدِّد",
+    "placeholderInherit": "افتراضي الوكيل",
+    "errorMissingId": "كل نموذج يحتاج إلى معرّف.",
+    "errorDuplicateId": "نموذجان يحملان المعرّف “{id}”.",
+    "errorBadContextWindow": "يجب أن تكون نافذة سياق “{id}” عددًا صحيحًا أكبر من صفر.",
+    "errorBadMaxTokens": "يجب أن يكون أقصى رموز مخرجات “{id}” عددًا صحيحًا أكبر من صفر.",
+    "errorBadImageLimit": "يجب أن تكون حدود صور “{id}” أعدادًا صحيحة أكبر من صفر.",
+    "warnSingleModel": "مع نموذج واحد فقط، يتوقف الوكيل عن عرض مُحدِّد النماذج أصلًا.",
+    "warnLaunchModelMissing": "تبدأ الجلسات الجديدة على “{model}” وهو غير موجود في هذه القائمة. أضِفه، أو اضبط {variable} في متغيّرات البيئة أعلاه.",
+    "toastSaved": "تم حفظ قائمة النماذج",
+    "toastRestored": "يجري استخدام قائمة نماذج الوكيل المدمجة",
+    "toastSaveFailed": "تعذّر حفظ قائمة النماذج"
   }
 }

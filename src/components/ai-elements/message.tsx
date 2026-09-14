@@ -40,6 +40,8 @@ import { remarkAutolinkLocalPaths } from "./remark-autolink-local-paths"
 import { remarkTrimCjkAutolinkTail } from "./remark-cjk-autolink-tail"
 import { remarkRewriteFileUriLinks } from "./remark-file-uri-links"
 import { remarkRestoreWindowsPaths } from "./remark-windows-paths"
+import { remarkLocalImages } from "./remark-local-images"
+import { markdownLocalImageComponents } from "./markdown-local-image"
 import { MATH_FENCE_PAD, useStreamdownPlugins } from "./streamdown-plugins"
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -471,6 +473,7 @@ const remarkPlugins = [
   remarkCodexFollowup,
   // Before remarkRewriteFileUriLinks, which reshapes a drive path's url.
   remarkRestoreWindowsPaths,
+  remarkLocalImages,
   remarkRewriteFileUriLinks,
   remarkAutolinkLocalPaths,
   remarkTrimCjkAutolinkTail,
@@ -561,6 +564,7 @@ function MessageResponseImpl({
         ...(linkMode === "public"
           ? publicMarkdownLinkComponents
           : markdownLinkComponents),
+        ...markdownLocalImageComponents,
         ...mermaidComponents,
       }}
     >

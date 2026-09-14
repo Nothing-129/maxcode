@@ -4864,3 +4864,50 @@ export function isCodexCompatEntry(
     Object.is(key in overrides ? overrides[key] : base[key], value)
   )
 }
+
+/** One DeepSeek Harness catalog entry (`llm-deepseek.models[]`). */
+export interface DeepSeekCatalogModel {
+  id: string
+  name?: string
+  description?: string
+  /** Combined request/response capacity, in tokens. */
+  contextWindow?: number
+  /** Per-request output cap, in tokens. */
+  maxTokens?: number
+  /** Accepted request modalities; absent means text-only, and sending an image
+   *  to a model without `image` here is refused by the agent. */
+  inputModalities?: ("text" | "image")[]
+  /** Total-pixel budget for one request preview, or `"low"` for the agent's
+   *  named low-detail tier (512×512). Vision entries only. */
+  imagePixelBudget?: number | "low"
+  /** Encoded-byte cap for one request preview. Vision entries only. */
+  imageMaxBytes?: number
+  /** How the system prompt is delivered to this route; the agent accepts only
+   *  `"in-history"`, and its own default entry declares it.
+   *
+   *  The editor has no control for this — it carries the value through
+   *  untouched. Dropping it does not fail: it silently moves that model to the
+   *  other delivery mode, which is why it must survive a round trip. */
+  systemPromptUpdate?: "in-history"
+}
+
+/** What the settings panel reads about the stored catalog. */
+export interface DeepSeekModelCatalog {
+  /** Resolved `settings.yaml` path (shown so the file can be found by hand). */
+  path: string
+  /** Whether that document exists at all. */
+  exists: boolean
+  /** Whether it declares `llm-deepseek.models`. `false` means `models` below is
+   *  the agent's built-in list, inherited rather than stored. */
+  configured: boolean
+  /** The effective catalog: what is stored, else the built-in defaults. */
+  models: DeepSeekCatalogModel[]
+  /** Why the stored document could not be read. Set only when the file exists
+   *  and is unusable — editing is refused rather than overwriting it blind. */
+  error: string | null
+  /** Why the stored list is one the agent refuses (duplicate ids, a
+   *  non-positive context window, image limits on a text-only entry…). The
+   *  document was understood, so the rows stay editable — but until they are
+   *  fixed, sessions run on the agent's built-in catalog instead. */
+  invalid: string | null
+}

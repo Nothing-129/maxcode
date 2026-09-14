@@ -473,3 +473,33 @@ async fn get_folder_conversation_accepts_turn_window_params() {
     assert!(body["prefix_hash"].is_string());
     assert!(body["prefix_hash_before_index"].is_string());
 }
+
+#[tokio::test]
+async fn deepseek_model_catalog_is_readable_and_shaped_for_the_panel() {
+    let (server, _data, _static) = build_test_server().await;
+    let resp = server
+        .post("/api/acp_load_deepseek_model_catalog")
+        .add_header("authorization", format!("Bearer {TEST_TOKEN}"))
+        .json(&json!({}))
+        .await;
+    assert_eq!(resp.status_code(), 200);
+    let body: Value = resp.json();
+    assert!(body["path"].is_string(), "got {body}");
+    assert!(body["exists"].is_boolean(), "got {body}");
+    assert!(body["configured"].is_boolean(), "got {body}");
+    assert!(body["models"].is_array(), "got {body}");
+    assert!(
+        body["error"].is_string() || body["error"].is_null(),
+        "got {body}"
+    );
+}
+
+#[tokio::test]
+async fn deepseek_model_catalog_requires_a_token() {
+    let (server, _data, _static) = build_test_server().await;
+    let resp = server
+        .post("/api/acp_load_deepseek_model_catalog")
+        .json(&json!({}))
+        .await;
+    assert_eq!(resp.status_code(), 401);
+}

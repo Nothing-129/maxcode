@@ -1731,6 +1731,84 @@
       "contracts": [
         "src/maxcode-contracts/query-bearing-mcp-tool-names.contract.test.ts"
       ]
+    },
+    {
+      "id": "chat.local-markdown-images",
+      "category": "product",
+      "description": "Assistant Markdown local image paths render inline in the current transcript via a workspace-confined reader. Existing file-link badges, autolinked paths and public-share link policy stay in place.",
+      "origins": [
+        "402d8b09",
+        "049ef608",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src/lib/markdown-local-image.ts",
+        "src/components/ai-elements/remark-local-images.ts",
+        "src/components/ai-elements/markdown-local-image.tsx",
+        "src/components/ai-elements/message.tsx",
+        "src/components/ai-elements/rehype-allow-codeg.ts",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/local-markdown-images.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.composer-token-action",
+      "category": "product",
+      "description": "Right-clicking the composer selects the token under the pointer so Cut/Copy work, and adds an Open link/file/email row that uses the existing opener allow-list. Existing paste-as-plain-text and quick-message items stay.",
+      "origins": [
+        "06a2a503",
+        "0ebad4aa",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src/lib/text-token-at.ts",
+        "src/components/chat/composer/token-selection.ts",
+        "src/components/chat/composer/composer-token-action.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/components/ai-elements/link-safety.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-token-action.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.file-badge-download",
+      "category": "product",
+      "description": "File badges in the transcript offer Download where the workspace file API is available, without removing MaxCode reveal, open-with-default-app, or copy-path rows.",
+      "origins": [
+        "f39ff3e2",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src/components/message/file-reference-actions.tsx",
+        "src/lib/api.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/file-badge-download.contract.test.ts"
+      ]
+    },
+    {
+      "id": "settings.deepseek-model-catalog",
+      "category": "product",
+      "description": "DeepSeek settings keep the existing API key/URL panel and add a harness model-list editor for deepseek-acp 0.9.0. v3 history recovery and first-token timing from assistant/chunk remain.",
+      "origins": [
+        "5a20a569",
+        "193046cb",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src-tauri/src/commands/deepseek_settings.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src/components/settings/deepseek-model-list-editor.tsx",
+        "src/components/settings/deepseek-config-panel.tsx",
+        "src/components/settings/acp-agent-settings.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/deepseek-model-catalog.contract.test.ts"
+      ]
     }
   ],
   "retired": [
