@@ -17,6 +17,11 @@
 | 输入框右键 | 右键先选中指针下的词，剪切/复制可用；链接/邮箱/本地路径多一行打开，沿用现有打开器白名单 | `06a2a503`、`0ebad4aa`、`worktree-2026-09-14` | `chat.composer-token-action` |
 | 文件徽章 | 网页/远程工作区的文件名右键可下载；本机桌面仍用打开/显示/复制路径 | `f39ff3e2`、`worktree-2026-09-14` | `chat.file-badge-download` |
 | DeepSeek 模型目录 | 设置页保留 Key/URL 面板，并编辑 Harness 模型列表；适配器 0.9.0。v3 历史与首 token 计时保留 | `5a20a569`、`193046cb`、`worktree-2026-09-14` | `settings.deepseek-model-catalog` |
+| 图片 Diff | PNG/JPEG/WebP/GIF/BMP/ICO 等二进制图片在工作区、提交、推送和恢复暂存评审中显示有界的前后对比；缺失、过大与读取失败分别呈现，非预览桌面产物仍交给系统应用 | `504fc279`、`worktree-2026-09-15` | `workspace.binary-image-diffs` |
+| 命令颜色 | Agent 命令默认不强制 ANSI；用户可在通用设置显式开启完整颜色环境，保存时不覆盖默认 Shell，Agent 自定义环境仍优先 | `1d4d0074` 至 `c9e25be7`、`worktree-2026-09-15` | `settings.command-color-opt-in` |
+| Antigravity 账号 | OAuth 登录可安全退出并切换 Google 账号；退出前阻断新连接并停止存活进程，调用 ACP logout 后恢复认证方式，同时保留 stdout/stderr 双流登录链接识别 | `7861d6ed`、`de096bb4`、`worktree-2026-09-15` | `agents.antigravity-sign-out` |
+| Codex 子智能体 | 原生子智能体胶囊显示真实结束状态和最终报告，可打开子会话；`list_agents` 还原为协作胶囊，保留 MaxCode 费用、耗时、上下文过滤与既有会话查看器 | `34b0f7fb`、`worktree-2026-09-15` | `chat.codex-native-subagent-results` |
+| 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
 | 智能体自动更新 | 全部已启用且已安装的内置及自定义智能体强制后台更新，支持 npm、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14` | `settings.agent-auto-updates` |
 | 智能体安装 | npm 安装、升级、重试、在线版本查询及自定义包查询统一使用 npm.aifalao.net，安装日志显示源 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
 | 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
@@ -68,7 +73,7 @@
 | 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | 设置页选中智能体时联网检测发布版本，npm 查询实际 ACP 包，其余受支持智能体查询 ACP 注册表；缓存 10 分钟并支持强制检查，失败和未知版本不误报最新，npm 新版经确认后按指定版本安装，不更改默认通道或自动升级 | `worktree-2026-09-10` | `settings.agent-online-updates` |
-| 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；本次暂留 1.18.25，待取得新版可靠校验值再升级 | `1bf8a772`、`worktree-2026-09-07` | `agents.opencode-verified-distribution` |
+| 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；1.18.30 的六个摘要直接从官方 GitHub Release 资产流式计算，不能采用上游空摘要 | `1bf8a772`、`25882257`、`worktree-2026-09-07`、`worktree-2026-09-15` | `agents.opencode-verified-distribution` |
 | 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |
 | 附件 | 单文件上传与拖放上限 100 MiB，HTTP multipart 额外预留开销，图片回填支持一张满额图片 | 当前工作区 | `attachments.hundred-mib-upload` |

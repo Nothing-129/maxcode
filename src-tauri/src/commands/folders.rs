@@ -2749,7 +2749,9 @@ pub async fn git_show_file_base64(
         .map_err(AppCommandError::io)?;
 
     let oid = if oid_output.status.success() {
-        String::from_utf8_lossy(&oid_output.stdout).trim().to_string()
+        String::from_utf8_lossy(&oid_output.stdout)
+            .trim()
+            .to_string()
     } else {
         String::new()
     };
@@ -2796,7 +2798,9 @@ pub async fn git_show_file_base64(
         .map_err(|_| {
             AppCommandError::external_command(
                 "git cat-file returned an unreadable object size",
-                String::from_utf8_lossy(&size_output.stdout).trim().to_string(),
+                String::from_utf8_lossy(&size_output.stdout)
+                    .trim()
+                    .to_string(),
             )
         })?;
 

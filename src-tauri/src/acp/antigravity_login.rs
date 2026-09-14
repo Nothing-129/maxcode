@@ -584,9 +584,10 @@ async fn spawn_agent(
         .await
         .map_err(|e| AcpError::SpawnFailed(e.to_string()))?;
 
-    let stdin = child.stdin.take().ok_or_else(|| {
-        AcpError::SpawnFailed("the Antigravity process has no stdin".to_string())
-    })?;
+    let stdin = child
+        .stdin
+        .take()
+        .ok_or_else(|| AcpError::SpawnFailed("the Antigravity process has no stdin".to_string()))?;
     let stdout = child.stdout.take().ok_or_else(|| {
         AcpError::SpawnFailed("the Antigravity process has no stdout".to_string())
     })?;
@@ -939,15 +940,10 @@ async fn request_logout(agent: &mut AgentChild) -> Result<(), AcpError> {
         "params": {},
     });
     write_frame(&mut agent.stdin, &logout).await?;
-    await_response(
-        &mut agent.responses,
-        ID_LOGOUT,
-        LOGOUT_WAIT,
-        &agent.stderr,
-    )
-    .await
-    .map(|_| ())
-    .map_err(|reason| AcpError::protocol(format!("Antigravity refused to sign out: {reason}")))
+    await_response(&mut agent.responses, ID_LOGOUT, LOGOUT_WAIT, &agent.stderr)
+        .await
+        .map(|_| ())
+        .map_err(|reason| AcpError::protocol(format!("Antigravity refused to sign out: {reason}")))
 }
 
 /// Whether the agent's `initialize` answer offers the ACP `logout` method.
@@ -1638,10 +1634,7 @@ mod tests {
         );
 
         release_finishing(attempt_b).await;
-        assert!(matches!(
-            pending_slot().lock().await.state,
-            SlotState::Idle
-        ));
+        assert!(matches!(pending_slot().lock().await.state, SlotState::Idle));
 
         // A sign-out takes the same exclusive state, and takes it in ONE lock
         // acquisition. It is about to erase the credential from the moment it
@@ -1663,10 +1656,7 @@ mod tests {
             "a sign-in during a sign-out must be refused"
         );
         release_finishing(sign_out).await;
-        assert!(matches!(
-            pending_slot().lock().await.state,
-            SlotState::Idle
-        ));
+        assert!(matches!(pending_slot().lock().await.state, SlotState::Idle));
     }
 
     /// The protocol requires the check ("Clients MUST NOT call `logout` unless

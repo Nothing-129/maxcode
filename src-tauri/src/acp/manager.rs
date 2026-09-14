@@ -2739,7 +2739,8 @@ impl ConnectionManager {
         }
         tracing::info!(
             "[ACP] disconnect by agent type agent={:?} count={}",
-            agent_type, disconnected
+            agent_type,
+            disconnected
         );
 
         // Every child that could still be running as this agent: the ones just

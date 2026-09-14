@@ -1470,8 +1470,13 @@
     {
       "id": "agents.opencode-verified-distribution",
       "category": "runtime",
-      "description": "OpenCode installs only pinned release assets with a SHA256 for every supported platform; an upstream version bump must not remove verification.",
-      "origins": ["1bf8a772", "worktree-2026-09-07"],
+      "description": "OpenCode 1.18.30 installs only pinned official release assets with a SHA256 for every supported platform; an upstream version bump must not remove verification. When upstream publishes no digests, MaxCode computes all six directly from the official assets before adopting the release.",
+      "origins": [
+        "1bf8a772",
+        "25882257",
+        "worktree-2026-09-07",
+        "worktree-2026-09-15"
+      ],
       "paths": ["src-tauri/src/acp/registry.rs"],
       "contracts": [
         "src/maxcode-contracts/opencode-distribution.contract.test.ts"
@@ -1808,6 +1813,113 @@
       ],
       "contracts": [
         "src/maxcode-contracts/deepseek-model-catalog.contract.test.ts"
+      ]
+    },
+    {
+      "id": "workspace.binary-image-diffs",
+      "category": "product",
+      "description": "Raster image changes stay visible in workspace, commit, push and unstash reviews as bounded before/after images. Missing sides remain distinct from failed reads, Git blobs are pinned before sizing, and MaxCode still opens non-previewable desktop artifacts with the system application.",
+      "origins": ["504fc279", "worktree-2026-09-15"],
+      "paths": [
+        "src-tauri/src/commands/folders.rs",
+        "src-tauri/src/web/handlers/git.rs",
+        "src-tauri/src/web/router.rs",
+        "src/lib/image-diff.ts",
+        "src/components/diff/image-diff-view.tsx",
+        "src/components/diff/unified-diff-preview.tsx",
+        "src/components/files/file-workspace-panel.tsx",
+        "src/components/layout/commit-dialog.tsx",
+        "src/components/layout/push-workspace.tsx",
+        "src/components/layout/unstash-dialog.tsx",
+        "src/contexts/workspace-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/image-diff.contract.test.ts"
+      ]
+    },
+    {
+      "id": "settings.command-color-opt-in",
+      "category": "runtime",
+      "description": "Agent-run commands do not receive forced ANSI color by default. General settings can opt future launches into the complete cross-tool color environment without overwriting the selected terminal shell, and per-agent environment values retain precedence.",
+      "origins": [
+        "1d4d0074",
+        "883f1964",
+        "52e30cfa",
+        "5bb2a279",
+        "c9e25be7",
+        "worktree-2026-09-15"
+      ],
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/commands/system_settings.rs",
+        "src-tauri/src/models/system.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src/components/settings/general-settings.tsx",
+        "src/lib/types.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/command-color-opt-in.contract.test.ts"
+      ]
+    },
+    {
+      "id": "agents.antigravity-sign-out",
+      "category": "runtime",
+      "description": "Antigravity OAuth users can sign out and choose another Google account. Sign-out serializes against sign-in, quiesces live and draining Antigravity processes before ACP logout, restores the saved auth method, and preserves MaxCode dual-stream login-link discovery.",
+      "origins": [
+        "7861d6ed",
+        "de096bb4",
+        "worktree-2026-09-15"
+      ],
+      "paths": [
+        "src-tauri/src/acp/antigravity_login.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/web/handlers/acp.rs",
+        "src-tauri/src/web/router.rs",
+        "src/components/settings/antigravity-config-panel.tsx",
+        "src/lib/api.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/antigravity-sign-out.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.codex-native-subagent-results",
+      "category": "product",
+      "description": "Codex native subagent launch capsules retain the child id, terminal outcome and final report across live updates and history, expose the child rollout through MaxCode's existing session viewer, and turn list_agents rosters into collaboration capsules without replacing billing or injected-context rules.",
+      "origins": ["34b0f7fb", "worktree-2026-09-15"],
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src/lib/collab-tool.ts",
+        "src/components/message/agent-capsule.tsx",
+        "src/components/message/agent-tool-call.tsx",
+        "src/components/message/collab-agent-card.tsx",
+        "src/components/message/subagent-session-button.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-native-subagent-results.contract.test.ts"
+      ]
+    },
+    {
+      "id": "agents.reviewed-version-catalog",
+      "category": "runtime",
+      "description": "Built-in agent install and automatic-update targets use the reviewed September catalog: Gemini 0.59.0, OpenClaw 2026.9.3, OpenCode 1.18.30, Hermes 0.21.1, CodeBuddy 2.149.0, Kimi 0.42.0, Grok 1.0.25 and Qoder 1.1.49, while unchanged compatible pins remain stable.",
+      "origins": [
+        "8c461154",
+        "1055edc4",
+        "e588125b",
+        "25882257",
+        "worktree-2026-09-15"
+      ],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/mcp.rs",
+        "src-tauri/src/parsers/qoder.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-version-catalog.contract.test.ts"
       ]
     }
   ],

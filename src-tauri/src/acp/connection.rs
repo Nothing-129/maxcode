@@ -785,9 +785,9 @@ pub fn antigravity_effective_auth_type(
         .filter(|value| !value.is_empty())
         // The server resolves the legacy spelling before it tests membership,
         // so a caller matching on canonical ids would otherwise miss it.
-        .map(|value| AntigravityAuthType::Declared(
-            canonical_antigravity_auth_method(value).to_string(),
-        ))
+        .map(|value| {
+            AntigravityAuthType::Declared(canonical_antigravity_auth_method(value).to_string())
+        })
         .unwrap_or(AntigravityAuthType::Absent)
 }
 
@@ -13395,19 +13395,20 @@ async fn emit_conversation_update(
             // terminal marker is folded back onto that capsule; the rest stay
             // dropped. See `classify_codex_subagent_activity`.
             let mut codex_subagent_thread = None;
-            let codex_subagent = match classify_codex_subagent_activity(agent_type, tc.meta.as_ref())
-            {
-                CodexSubagentActivity::None => None,
-                CodexSubagentActivity::Started { thread_id, input } => {
-                    codex_subagent_thread = thread_id;
-                    Some(input)
-                }
-                CodexSubagentActivity::Terminal { thread_id, kind } => {
-                    settle_codex_subagent_launch(state, emitter, cb_state, &thread_id, &kind).await;
-                    return;
-                }
-                CodexSubagentActivity::Other => return,
-            };
+            let codex_subagent =
+                match classify_codex_subagent_activity(agent_type, tc.meta.as_ref()) {
+                    CodexSubagentActivity::None => None,
+                    CodexSubagentActivity::Started { thread_id, input } => {
+                        codex_subagent_thread = thread_id;
+                        Some(input)
+                    }
+                    CodexSubagentActivity::Terminal { thread_id, kind } => {
+                        settle_codex_subagent_launch(state, emitter, cb_state, &thread_id, &kind)
+                            .await;
+                        return;
+                    }
+                    CodexSubagentActivity::Other => return,
+                };
             let tool_call_id = tc.tool_call_id.to_string();
             // Remember which capsule owns this child, so its eventual
             // `completed` / `interrupted` (announced under a synthetic id of its
@@ -16172,8 +16173,11 @@ mod tests {
         // whole enum exists for. A caller that treated it as "nothing there"
         // would sign out of a `gemini-api-key` connection, clear nothing, and
         // be told `{}`.
-        std::fs::write(&path, "{\n  // mine\n  \"auth\": {\"type\": \"oauth-personal\"},\n}\n")
-            .unwrap();
+        std::fs::write(
+            &path,
+            "{\n  // mine\n  \"auth\": {\"type\": \"oauth-personal\"},\n}\n",
+        )
+        .unwrap();
         assert_eq!(
             antigravity_effective_auth_type(&home()),
             AntigravityAuthType::Unreadable

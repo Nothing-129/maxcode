@@ -3860,8 +3860,7 @@ impl CodexParser {
                                     codex_inter_agent_final_answer(payload)
                                 {
                                     if let Some(thread_id) = agent_path_to_thread_id.get(author) {
-                                        agent_fallback_results
-                                            .insert(thread_id.clone(), body);
+                                        agent_fallback_results.insert(thread_id.clone(), body);
                                     }
                                 }
                             }
@@ -4327,12 +4326,14 @@ impl CodexParser {
                                     // spawn capsule's own result on the strength
                                     // of a `list_agents` the model happened to
                                     // call would lose the report entirely.
-                                    let capsule = parse_codex_json_output(payload).and_then(
-                                        |output_obj| {
+                                    let capsule =
+                                        parse_codex_json_output(payload).and_then(|output_obj| {
                                             if is_list {
                                                 return build_collab_list_input(&output_obj);
                                             }
-                                            match output_obj.get("status").and_then(|s| s.as_object())
+                                            match output_obj
+                                                .get("status")
+                                                .and_then(|s| s.as_object())
                                             {
                                                 Some(status) => {
                                                     // Mark returned agents so the spawn
@@ -4353,8 +4354,7 @@ impl CodexParser {
                                                 }
                                                 None => native_team_wait_input(&output_obj),
                                             }
-                                        },
-                                    );
+                                        });
                                     if let Some((collab_input, is_error)) = capsule {
                                         messages.push(UnifiedMessage {
                                             id: format!("tool-{}", messages.len()),
@@ -6422,10 +6422,9 @@ mod tests {
     use super::redact_encrypted_args;
     use super::resolve_codex_home_dir_from;
     use super::serialize_preview;
-    use super::trim_subagent_replay_prefix;
-    use super::CODEX_SUBAGENT_STATE_KEY;
     use super::should_skip_duplicate_user_message;
     use super::strip_blocked_resource_mentions;
+    use super::trim_subagent_replay_prefix;
     use super::truncate_str;
     use super::AgentParser;
     use super::BudgetedSink;
@@ -6434,6 +6433,7 @@ mod tests {
     use super::CODEX_PLAN_APPROVED_OUTPUT;
     use super::CODEX_SCRIPT_TOOL_NAME;
     use super::CODEX_SUBAGENT_LAUNCH_KEY;
+    use super::CODEX_SUBAGENT_STATE_KEY;
     use super::COLLAB_OP_KEY;
     use super::MCP_RESULT_FALLBACK_CAP;
     use crate::models::{
@@ -9993,7 +9993,10 @@ mod tests {
         // stream showed vanished on reload and nothing could resolve the
         // child's own rollout.
         let sealed = format!("gAAAAAB{}", "qgWsi0g7gOInVU3UTzqL".repeat(30));
-        let path = write_temp_rollout("nativeteam0153", &native_team_0153_lines("MESSAGE", &sealed));
+        let path = write_temp_rollout(
+            "nativeteam0153",
+            &native_team_0153_lines("MESSAGE", &sealed),
+        );
         let detail = CodexParser::new()
             .parse_conversation_detail(&path, "parent")
             .expect("parse ok");
@@ -10149,7 +10152,10 @@ mod tests {
             })
             .expect("roster renders as a collab capsule, not a generic tool card");
         let parsed: serde_json::Value = serde_json::from_str(input).expect("collab input is JSON");
-        assert_eq!(parsed.get(COLLAB_OP_KEY).and_then(|v| v.as_str()), Some("list"));
+        assert_eq!(
+            parsed.get(COLLAB_OP_KEY).and_then(|v| v.as_str()),
+            Some("list")
+        );
         let states = parsed
             .get("agentsStates")
             .and_then(|v| v.as_object())
