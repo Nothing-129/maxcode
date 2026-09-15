@@ -120,6 +120,21 @@ describe("useMessageQueue bounce FIFO ordering", () => {
     expect(texts(result.current.queue)).toEqual(["B"])
   })
 
+  it("peekSendable skips flushBlocked items and updateItem unblocks them", () => {
+    const { result } = renderHook(() => useMessageQueue())
+    act(() => result.current.enqueue(draft("A"), null))
+    act(() => result.current.enqueue(draft("B"), null))
+    expect(result.current.peekSendable()?.draft.displayText).toBe("A")
+
+    act(() => result.current.requeueFront(draft("blocked"), null, { flushBlocked: true }))
+    expect(result.current.peekSendable()?.draft.displayText).toBe("A")
+    expect(texts(result.current.queue)).toEqual(["blocked", "A", "B"])
+
+    const blockedId = result.current.queue[0].id
+    act(() => result.current.updateItem(blockedId, draft("unblocked")))
+    expect(result.current.peekSendable()?.draft.displayText).toBe("unblocked")
+  })
+
   it("reorders the AUTHORITATIVE items, not the caller's stale objects", () => {
     const { result } = renderHook(() => useMessageQueue())
     act(() => result.current.enqueue(draft("A"), null))

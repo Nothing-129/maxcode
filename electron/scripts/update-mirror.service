@@ -1,0 +1,14 @@
+[Unit]
+Description=MaxCode GitHub update mirror
+After=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 %h/maxcode-update-mirror/server.py
+Restart=on-failure
+RestartSec=3
+Environment=MAXCODE_MIRROR_BIND=192.168.10.222
+Environment=MAXCODE_MIRROR_PORT=17896
+Environment=MAXCODE_MIRROR_PROXY=http://172.17.0.1:17897
+
+[Install]
+WantedBy=default.target

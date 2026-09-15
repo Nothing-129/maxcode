@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { cleanup, render, screen, waitFor } from "@testing-library/react"
+import { cleanup, renderHook, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { NextIntlClientProvider } from "next-intl"
-import messages from "@/i18n/messages/en.json"
 import type { AcpAgentInfo } from "@/lib/types"
-import { AgentAutoUpdate } from "@/components/settings/agent-auto-update"
+import { useAgentAutoUpdateStatus } from "@/components/settings/agent-auto-update"
+import { buildVersionCheck } from "@/components/settings/acp-agent-settings"
 
 const api = vi.hoisted(() => ({ status: vi.fn() }))
 vi.mock("@/lib/api", () => ({ acpAgentAutoUpdateStatus: api.status }))
@@ -16,13 +15,6 @@ afterEach(() => {
 const source = (path: string) =>
   readFileSync(resolve(process.cwd(), path), "utf8")
 const agent = { agent_type: "codex", enabled: true, env: {} } as AcpAgentInfo
-function mount(info = agent) {
-  return render(
-    <NextIntlClientProvider locale="en" messages={messages}>
-      <AgentAutoUpdate agent={info} />
-    </NextIntlClientProvider>
-  )
-}
 
 describe("MaxCode automatic agent updates", () => {
   it.each([
@@ -38,40 +30,59 @@ describe("MaxCode automatic agent updates", () => {
       version: "1.10.1",
       error: null,
     })
-    mount({
-      ...agent,
-      agent_type: agentType,
-      env: { MAXCODE_AGENT_AUTO_UPDATE: "false" },
-    } as AcpAgentInfo)
-    await waitFor(() =>
-      expect(screen.getByRole("status").textContent).toContain(
-        "waiting for sessions"
-      )
+    const view = renderHook(() =>
+      useAgentAutoUpdateStatus({
+        ...agent,
+        agent_type: agentType,
+        env: { MAXCODE_AGENT_AUTO_UPDATE: "false" },
+      } as AcpAgentInfo)
     )
-    expect(screen.queryByRole("switch")).toBeNull()
+    await waitFor(() => expect(view.result.current?.phase).toBe("waiting"))
+    expect(view.result.current?.version).toBe("1.10.1")
+    const check = buildVersionCheck(
+      {
+        ...agent,
+        agent_type: agentType as AcpAgentInfo["agent_type"],
+        distribution_type: "npx",
+        available: true,
+        installed_version: "1.7.0",
+        registry_version: "1.7.0",
+        custom_source: null,
+        env: {},
+      } as AcpAgentInfo,
+      true,
+      {
+        autoUpdate: { phase: "waiting", version: "1.10.1", error: null },
+      }
+    )
+    expect(check?.message).toContain("waiting for sessions")
+    expect(check?.message).toContain("1.10.1")
     const worker = source("src-tauri/src/commands/agent_auto_updates.rs")
     expect(worker).toContain(
       "setting.enabled && setting.installed_version.is_some()"
     )
     expect(worker).not.toContain("AUTO_UPDATE_ENV")
     expect(worker).not.toContain("build_runtime_env_from_setting")
+    const settings = source("src/components/settings/acp-agent-settings.tsx")
+    expect(settings).toContain("useAgentAutoUpdateStatus")
+    expect(settings).not.toContain("<AgentAutoUpdate")
+    expect(settings).not.toContain("data-agent-auto-update")
   })
   it("reports backend failures and does not poll disabled agents", async () => {
     api.status.mockRejectedValue(new Error("server unavailable"))
-    const view = mount()
-    await waitFor(() =>
-      expect(screen.getByRole("alert").textContent).toContain(
-        "server unavailable"
-      )
-    )
+    const view = renderHook(() => useAgentAutoUpdateStatus(agent))
+    await waitFor(() => expect(view.result.current?.phase).toBe("error"))
+    expect(view.result.current?.error).toContain("server unavailable")
     view.unmount()
     api.status.mockClear()
-    mount({
-      ...agent,
-      agent_type: "claude_code",
-      enabled: false,
-    } as AcpAgentInfo)
-    expect(screen.queryByRole("switch")).toBeNull()
+    const disabled = renderHook(() =>
+      useAgentAutoUpdateStatus({
+        ...agent,
+        agent_type: "claude_code",
+        enabled: false,
+      } as AcpAgentInfo)
+    )
+    expect(disabled.result.current).toBeNull()
     expect(api.status).not.toHaveBeenCalled()
   })
   it("runs in both backends and isolates downloads from activation and manual actions", () => {

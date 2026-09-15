@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "Saved — leave blank to keep it",
     "titleModelApiKeyOptional": "Optional for local services",
+    "titleModelGroqApiKeyPlaceholder": "Paste your Groq API Key",
+    "titleModelGroqSignup": "No API Key? Create a free Groq account and get one.",
     "titleModelRequestParams": "Request parameters",
     "titleModelRequestParamsHint": "Appended to the request JSON as key/value pairs. false, numbers, objects, and arrays are sent as JSON; other values are strings. Do not enter secrets here.",
     "titleModelAddRequestParam": "Add parameter",
@@ -802,6 +804,7 @@
       "dragSortAgent": "Drag to reorder {name}",
       "refreshCheck": "Refresh check",
       "refreshCheckAgent": "Refresh check {name}",
+      "checkUpdates": "Check for updates",
       "clickEnable": "Click to enable {name}",
       "clickDisable": "Click to disable {name}",
       "install": "Install",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}. Upgrade available.",
       "remoteUnavailable": "{versionText}. Remote version is currently unavailable.",
       "latest": "{versionText}. At or above the built-in recommended version.",
-      "latestChannel": "{versionText}. Latest channel is on; Upgrade installs the newest release."
+      "latestChannel": "{versionText}. Latest channel is on; Upgrade installs the newest release.",
+      "onlineChecking": "Checking the release source…",
+      "onlineFailed": "Online check failed: {error}",
+      "onlineUnavailable": "No online version information is available.",
+      "onlineRelease": "Latest published: {version} ({source})",
+      "onlineUnknown": "Local version cannot be compared.",
+      "onlineNewer": "Upgrade available.",
+      "autoPhase": {
+        "idle": "Waiting for background check",
+        "checking": "Checking for updates",
+        "downloading": "Downloading and verifying",
+        "waiting": "Update ready; waiting for sessions to end",
+        "current": "No update needed",
+        "updated": "Automatically updated",
+        "error": "Update failed; will retry",
+        "unavailable": "Update source or comparable version unavailable"
+      }
     },
     "adapter": {
       "label": "ACP adapter",
@@ -5441,7 +5460,7 @@
     "current": "The installed version is at or above the latest published version.",
     "unknown": "Not installed or the local version cannot be compared. Verify the version before installing.",
     "note": "This card checks releases. Enabled agents update automatically. Adapter and CLI versions may differ.",
-    "install": "Install {version}…",
+    "install": "Install {version}",
     "autoLabel": "Automatic updates",
     "autoDescription": "All enabled, installed agents update automatically, without a separate switch. Check every 6 hours, verify the new installation, then activate when no sessions are running.",
     "autoPhase": {

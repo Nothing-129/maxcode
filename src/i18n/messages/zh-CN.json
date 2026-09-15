@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "已保存，留空则保持不变",
     "titleModelApiKeyOptional": "本地服务可不填",
+    "titleModelGroqApiKeyPlaceholder": "粘贴你的 Groq API Key",
+    "titleModelGroqSignup": "没有 API Key？前往 Groq 注册免费账号并创建密钥。",
     "titleModelRequestParams": "请求参数",
     "titleModelRequestParamsHint": "以键值对附加到请求 JSON。false、数字、对象和数组会按 JSON 发送，其他内容作为字符串；请勿填写密钥等敏感信息。",
     "titleModelAddRequestParam": "添加参数",
@@ -802,6 +804,7 @@
       "dragSortAgent": "拖拽排序 {name}",
       "refreshCheck": "刷新检测",
       "refreshCheckAgent": "刷新检测 {name}",
+      "checkUpdates": "检查更新",
       "clickEnable": "点击启用 {name}",
       "clickDisable": "点击禁用 {name}",
       "install": "安装",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}。发现可升级版本。",
       "remoteUnavailable": "{versionText}。远程版本暂不可用。",
       "latest": "{versionText}。已达到或高于内置推荐版本。",
-      "latestChannel": "{versionText}。已启用最新版通道；升级会安装最新版本。"
+      "latestChannel": "{versionText}。已启用最新版通道；升级会安装最新版本。",
+      "onlineChecking": "正在查询发布源…",
+      "onlineFailed": "在线检查失败：{error}",
+      "onlineUnavailable": "没有可用的在线版本信息。",
+      "onlineRelease": "在线最新版本：{version}（来源：{source}）",
+      "onlineUnknown": "本机版本无法比较。",
+      "onlineNewer": "发现可升级版本。",
+      "autoPhase": {
+        "idle": "等待后台检查",
+        "checking": "正在检查新版",
+        "downloading": "正在下载并验证新版",
+        "waiting": "新版已准备好，等待会话结束",
+        "current": "当前无需升级",
+        "updated": "已自动更新",
+        "error": "更新失败，稍后重试",
+        "unavailable": "无法获取或比较更新版本"
+      }
     },
     "adapter": {
       "label": "ACP 适配器",
@@ -5441,7 +5460,7 @@
     "current": "本机版本不低于发布源的最新版本。",
     "unknown": "本机未安装或版本无法比较，请核对版本后再安装。",
     "note": "此卡片检测发布版本；智能体开启后自动更新。适配器版本可能不同于 CLI 版本。",
-    "install": "安装 {version}…",
+    "install": "安装 {version}",
     "autoLabel": "自动更新",
     "autoDescription": "所有已开启且已安装的智能体都会自动更新，无需单独开启。每 6 小时检测一次，验证成功后在没有运行会话时切换新版。",
     "autoPhase": {

@@ -18,7 +18,32 @@ enum WebScripts {
         """
     }
 
-    // UIKit already places the viewport inside the safe area and above the keyboard.
+    // Keep a fixed page scale even when React replaces the server's viewport tag.
+    static let viewport = """
+    (() => {
+      const content = 'width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=contain';
+      const enforce = () => {
+        if (!document.head) return;
+        let metas = Array.from(document.querySelectorAll('meta[name="viewport"]'));
+        if (!metas.length) {
+          const meta = document.createElement('meta');
+          meta.name = 'viewport';
+          document.head.appendChild(meta);
+          metas = [meta];
+        }
+        for (const meta of metas) {
+          if (meta.content !== content) meta.content = content;
+        }
+      };
+      new MutationObserver(enforce).observe(document, {
+        childList: true, subtree: true, attributes: true, attributeFilter: ['name', 'content']
+      });
+      enforce();
+    })();
+    """
+
+    // UIKit owns the safe area and keyboard avoidance. Contain keeps WebKit from
+    // adding cover-mode unsafe-area space inside this already inset viewport.
     static let layout = """
     (() => {
       const style = document.createElement('style');
@@ -27,6 +52,12 @@ enum WebScripts {
         div.fixed.inset-0.flex.flex-col.overflow-hidden.bg-background.text-foreground,
         div.h-screen.flex.flex-col.overflow-hidden.bg-background.text-foreground {
           padding: 0 !important;
+        }
+        /* Apply before focus, including editors mounted later by React.
+           A readable input font also avoids focus-driven viewport changes. */
+        input, textarea, select,
+        [contenteditable="true"], [contenteditable=""], [contenteditable="plaintext-only"] {
+          font-size: max(16px, 1em) !important;
         }`;
       (document.head || document.documentElement).appendChild(style);
       const originalOpen = window.open;

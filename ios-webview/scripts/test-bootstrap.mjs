@@ -65,3 +65,38 @@ assert.deepEqual(events, ["online", "visibilitychange"])
 console.log(
   "Passed bootstrap origin isolation, token escaping, popup and wake tests"
 )
+
+// Enforce the actual Swift-generated policy before and after SPA head updates.
+let changed
+const metas = []
+const document = {
+  head: null,
+  querySelectorAll: () => metas,
+  createElement: () => ({}),
+}
+runInNewContext(fixture.viewport, {
+  document,
+  MutationObserver: class {
+    constructor(callback) {
+      changed = callback
+    }
+    observe() {}
+  },
+})
+assert.equal(metas.length, 0)
+document.head = { appendChild: (meta) => metas.push(meta) }
+changed()
+assert.equal(metas.length, 1)
+assert.match(
+  metas[0].content,
+  /initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no/
+)
+assert.match(metas[0].content, /viewport-fit=contain/)
+const fixedViewport = metas[0].content
+metas[0].content = "width=device-width, initial-scale=2"
+metas.push({ name: "viewport", content: "user-scalable=yes" })
+changed()
+assert.ok(metas.every((meta) => meta.content === fixedViewport))
+changed()
+assert.equal(metas.length, 2)
+console.log("Passed fixed viewport creation and SPA replacement tests")

@@ -20,8 +20,8 @@ vi.mock("next/navigation", () => ({
 
 // Stub the three heavy bodies so this exercises only the hub's own concern
 // (shared header + fixed toolbar + tabs + URL mirroring), not their async
-// data-loading. The Experts stub registers a refresh spy so we can assert the
-// toolbar's Refresh button drives whichever pack is active.
+// data-loading. The default (Office) stub registers a refresh spy so we can
+// assert the toolbar's Refresh button drives whichever pack is active.
 vi.mock("@/components/settings/experts-settings", () => ({
   ExpertsBody: ({
     onRegisterRefresh,
@@ -38,7 +38,16 @@ vi.mock("@/components/settings/science-settings", () => ({
   ScienceBody: () => <div data-testid="science-body" />,
 }))
 vi.mock("@/components/settings/office-tools-settings", () => ({
-  OfficeToolsBody: () => <div data-testid="office-body" />,
+  OfficeToolsBody: ({
+    onRegisterRefresh,
+  }: {
+    onRegisterRefresh?: (fn: () => void) => void
+  }) => {
+    useEffect(() => {
+      onRegisterRefresh?.(registeredRefresh)
+    }, [onRegisterRefresh])
+    return <div data-testid="office-body" />
+  },
 }))
 vi.mock("@/components/settings/custom-skills-settings", () => ({
   CustomSkillsBody: () => <div data-testid="custom-body" />,
@@ -81,10 +90,10 @@ describe("SkillPacksSettings", () => {
     expect(screen.getByRole("button", { name: "Refresh" })).toBeInTheDocument()
   })
 
-  it("defaults to the Experts tab", () => {
+  it("defaults to the Office Tools tab", () => {
     renderHub()
-    expect(screen.getByTestId("experts-body")).toBeInTheDocument()
-    expect(screen.queryByTestId("science-body")).not.toBeInTheDocument()
+    expect(screen.getByTestId("office-body")).toBeInTheDocument()
+    expect(screen.queryByTestId("experts-body")).not.toBeInTheDocument()
   })
 
   it("switches tab and mirrors the choice to the URL, preserving other params", async () => {
@@ -103,10 +112,10 @@ describe("SkillPacksSettings", () => {
   })
 
   it("honors an initial ?tab= deep-link", () => {
-    currentSearch = "tab=office"
+    currentSearch = "tab=experts"
     renderHub()
-    expect(screen.getByTestId("office-body")).toBeInTheDocument()
-    expect(screen.queryByTestId("experts-body")).not.toBeInTheDocument()
+    expect(screen.getByTestId("experts-body")).toBeInTheDocument()
+    expect(screen.queryByTestId("office-body")).not.toBeInTheDocument()
   })
 
   it("switches to the Custom tab and mirrors it to the URL", async () => {

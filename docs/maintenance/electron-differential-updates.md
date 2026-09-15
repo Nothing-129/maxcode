@@ -7,6 +7,12 @@ Electron 运行时、前端、Rust 服务和 MCP。服务器自己的原地更�
 ## 用户流程
 
 现有版本入口定期检查个人仓库 `Nothing-129/maxcode` 的最新稳定版。
+检查前会并行探测 GitHub 与 Cloudflare Tunnel 备用源的清单耗时。
+GitHub 超过 800ms 且慢于备用源、或探测失败时，直接改走
+`https://maxcode-update.aifalao.net`；GitHub 仍作为失败后的回退。
+该镜像只转发 MaxCode 的清单、安装包和 blockmap，
+通过 222 上的 Mihomo 拉取 GitHub。客户端使用公网 HTTPS 域名，不依赖局域网连通性。
+发布仍只上传到 GitHub，镜像不作为 publish 目标。
 点击版本号可直接手动检查更新，检查期间显示加载状态。
 发现新版本时，在版本号右侧显示实心圆形更新图标，不发送通知，也不打开更新详情弹层。
 用户点击图标后开始下载，优先复用缓存中的旧安装包，仅传输发生变化的数据块。
@@ -47,6 +53,20 @@ GitHub Actions 显式上传且仅允许个人仓库发布。
 SHA-512 和 blockmap 格式；发布前要求所有选中平台的清单与差分文件齐全。
 保留历史发布的 ZIP/EXE 与 blockmap，客户端可从旧版本 tag 获取旧块信息。
 旧 Tauri 用户及此前没有更新器的 Electron 用户需手动安装一次包含更新器的新版本。
+
+## Cloudflare Tunnel 备用源部署
+
+隧道名使用 `maxcode-update`，Public Hostname 为 `maxcode-update.aifalao.net`，
+服务类型为 HTTP，origin 为 `http://192.168.10.222:17896`。
+222 上的 `maxcode-update-mirror.service` 保留现有监听地址和 Mihomo 代理。
+`cloudflare/cloudflared:latest` 容器须使用 `network_mode: host`，
+避免 Docker bridge 到该监听地址超时。配置容器自动重启。
+Tunnel token 仅存放在 222 本地权限为 `0600` 的 env 文件中，
+通过容器环境变量 `TUNNEL_TOKEN` 传入，不写入仓库或文档。
+
+generic provider 从域名根路径读取 `latest-<arch>[-mac|-linux].yml`；
+旧版本 blockmap 从 `/download/v<当前运行版本>/<file>.blockmap` 获取。
+镜像将这些路径映射到个人 GitHub Releases；非更新资产路径返回 404。
 
 ## 验证
 

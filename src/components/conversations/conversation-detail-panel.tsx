@@ -636,7 +636,7 @@ const ConversationTabView = memo(function ConversationTabView({
     enqueue: mqEnqueue,
     requeueFront: mqRequeueFront,
     getQueueLength: mqGetQueueLength,
-    dequeue: mqDequeue,
+    peekSendable: mqPeekSendable,
     remove: mqRemove,
     reorder: mqReorder,
     updateItem: mqUpdateItem,
@@ -811,15 +811,17 @@ const ConversationTabView = memo(function ConversationTabView({
   // Auto-send queued messages when agent finishes responding.
   // Refs are synced via useEffect; the auto-send effect is declared
   // AFTER completeTurn so React runs it second.
-  const autoSendQueueRef = useRef<() => QueuedMessage | undefined>(mqDequeue)
+  const autoSendQueueRef = useRef<() => QueuedMessage | undefined>(
+    mqPeekSendable
+  )
   useEffect(() => {
-    autoSendQueueRef.current = mqDequeue
-  }, [mqDequeue])
+    autoSendQueueRef.current = mqPeekSendable
+  }, [mqPeekSendable])
   const handleSendRef = useRef<
     (
       draft: PromptDraft,
       modeId?: string | null,
-      opts?: { fromQueueFlush?: boolean }
+      opts?: { fromQueueFlush?: boolean; queueItemId?: string }
     ) => void
   >(() => {})
   // Timestamp of the last send that bounced with TurnBusyError. The flush below
@@ -827,6 +829,7 @@ const ConversationTabView = memo(function ConversationTabView({
   // another turn while this client believes it is idle) don't spin one failed
   // send per round-trip.
   const lastFlushBounceAtRef = useRef(0)
+  const sendableQueueHeadId = msgQueue.find((item) => !item.flushBlocked)?.id
 
   // Flush queued messages whenever the agent is idle. This is the queue's send
   // engine, covering BOTH:
@@ -836,22 +839,23 @@ const ConversationTabView = memo(function ConversationTabView({
   //     prompting→connected transition already passed — which an edge-triggered
   //     flush would strand until the next turn.
   // Gated on syncState !== "awaiting_persist" so exactly one item flushes at a
-  // time: dequeuing + sending appends an optimistic turn → awaiting_persist,
-  // which blocks re-entry until that send settles (the turn completes, or it
-  // bounces and rolls back to idle to retry the next item). A bounce backoff
-  // rate-limits retries against a still-busy backend.
+  // time: taking the item off the queue + sending appends an optimistic turn →
+  // awaiting_persist, which blocks re-entry until that send settles (the turn
+  // completes, or it bounces and rolls back to idle to retry the next item). A
+  // bounce backoff rate-limits retries against a still-busy backend.
   useEffect(() => {
     // The SAME readiness predicate `handleSend` gates on — deliberately the one
-    // variable, not a re-spelling of it. This effect DEQUEUES before handing the
-    // message over, so any gate weaker than the send's own check takes a message
-    // off the queue and then watches `handleSend` silently drop it. Bare
-    // "connected" is two such weakenings: a just-bound chat conversation can
-    // read a stale "connected" for the PREVIOUS cwd, and a draft whose agent was
-    // switched keeps the OLD agent's connection live at the same cwd until the
+    // variable, not a re-spelling of it. handleSend only removes the queue item
+    // after those gates pass, so a weaker flush gate cannot take a message off
+    // the queue and then watch the send silently drop it. Bare "connected" is
+    // two such weakenings: a just-bound chat conversation can read a stale
+    // "connected" for the PREVIOUS cwd, and a draft whose agent was switched
+    // keeps the OLD agent's connection live at the same cwd until the
     // lifecycle reconnects — which, for a not-installed target, never happens.
     if (!connectionReady) return
     if (runtimeSyncState === "awaiting_persist") return
     if (msgQueue.length === 0 || mqEditingItemId) return
+    if (!sendableQueueHeadId) return
     // setTimeout (not microtask) so a COMPLETE_TURN commit settles first AND so
     // a just-bounced retry waits out the backoff window before re-sending.
     const wait = flushRetryDelayMs(Date.now(), lastFlushBounceAtRef.current)
@@ -859,7 +863,7 @@ const ConversationTabView = memo(function ConversationTabView({
       if (!connectionReadyRef.current) return
       const next = autoSendQueueRef.current()
       if (next) {
-        // Mark this as the queue auto-flush: it sends the dequeued head now and,
+        // Mark this as the queue auto-flush: it sends the sendable head now and,
         // on a bounce, returns it to the FRONT (vs a direct send → tail).
         //
         // `adoptSendTimeMode` items were queued before this tab could know its
@@ -870,14 +874,20 @@ const ConversationTabView = memo(function ConversationTabView({
         handleSendRef.current(
           next.draft,
           next.adoptSendTimeMode ? selectedModeIdRef.current : next.modeId,
-          { fromQueueFlush: true }
+          { fromQueueFlush: true, queueItemId: next.id }
         )
       }
     }, wait)
     return () => clearTimeout(timer)
     // `connectionReady` subsumes connStatus, the connection's cwd and its agent,
     // so it is the only connection dependency this effect needs.
-  }, [connectionReady, runtimeSyncState, msgQueue.length, mqEditingItemId])
+  }, [
+    connectionReady,
+    runtimeSyncState,
+    msgQueue.length,
+    mqEditingItemId,
+    sendableQueueHeadId,
+  ])
 
   // Mirror the connection's liveMessage into the runtime session OUTSIDE React.
   // The connection dispatch invokes this sink synchronously whenever liveMessage
@@ -1031,7 +1041,7 @@ const ConversationTabView = memo(function ConversationTabView({
       // input send (no flag) must NOT jump ahead of already-queued items: when
       // a queue exists it tail-enqueues instead of sending, and on a bounce it
       // re-queues at the TAIL.
-      opts?: { fromQueueFlush?: boolean }
+      opts?: { fromQueueFlush?: boolean; queueItemId?: string }
     ) => {
       // Capture the tab's chat-draft state + eager scratch dir synchronously,
       // before any await. A folderless chat draft is NOT special-cased here:
@@ -1078,6 +1088,15 @@ const ConversationTabView = memo(function ConversationTabView({
         return
       }
 
+      // Take the item off the queue only now that every gate above has passed.
+      // Doing this in the flush timer used to drop image-bearing drafts: the
+      // send then failed (hydration / 413) or bailed, and the composer had
+      // already been cleared at enqueue time.
+      if (opts?.queueItemId) {
+        const removed = mqRemove(opts.queueItemId)
+        if (!removed) return
+      }
+
       const optimisticTurn = buildOptimisticUserTurnFromDraft(
         draft,
         sharedT("attachedResources")
@@ -1114,10 +1133,19 @@ const ConversationTabView = memo(function ConversationTabView({
       // optimistic user turn so the failed prompt isn't displayed as though
       // it were sent — and, via REMOVE_OPTIMISTIC_TURN's settle-to-idle, the
       // conversation drops out of `awaiting_persist` so queue auto-flush
-      // isn't blocked forever. The draft is NOT re-queued (unlike the busy
-      // bounce): a deterministic failure would retry — and toast — forever.
+      // isn't blocked forever. A flush-origin draft is put back at the front
+      // with `flushBlocked` so it stays visible above the composer (the user
+      // can edit to retry) instead of vanishing, without retrying — and
+      // toasting — forever. A direct send is not re-queued: the composer
+      // still holds nothing, but repeating a deterministic failure in a loop
+      // is worse; the toast is the recovery signal.
       const onSendFailed = () => {
         removeOptimisticTurn(effectiveConversationId, optimisticTurn.id)
+        if (fromQueueFlush) {
+          mqRequeueFront(draft, selectedModeIdArg ?? null, {
+            flushBlocked: true,
+          })
+        }
       }
 
       // Pin the tab if it was a temporary preview (single-click opened)
@@ -1279,6 +1307,7 @@ const ConversationTabView = memo(function ConversationTabView({
       mqEnqueue,
       mqRequeueFront,
       mqGetQueueLength,
+      mqRemove,
       bindConversationTab,
       canAutoConnect,
       connectionReady,
@@ -1301,10 +1330,10 @@ const ConversationTabView = memo(function ConversationTabView({
     ]
   )
 
-  // Sync handleSend ref for auto-send effect (declared before handleSend)
-  useEffect(() => {
-    handleSendRef.current = handleSend
-  }, [handleSend])
+  // Keep the auto-send timer on the latest handleSend. Assigned during render
+  // (not an effect) so a flush timeout scheduled in this commit cannot close
+  // over a stale handleSend from when the connection was not yet ready.
+  handleSendRef.current = handleSend
 
   // "Fork from here": fork at a rendered assistant turn, sending nothing. The
   // ONLY fork entry point — the composer's fork-and-send was removed once this

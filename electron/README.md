@@ -61,7 +61,7 @@ corepack pnpm desktop:pack
 corepack pnpm desktop:build:dmg
 ```
 
-产物位于 `electron/dist/`，文件名以 `MaxCode-Electron-` 开头。macOS 默认生成
+产物位于 `electron/dist/`，文件名以 `MaxCode-` 开头，不包含运行时名称。macOS 默认生成
 DMG 和 ZIP，Windows 生成 NSIS 安装包，Linux 生成 AppImage 和 DEB。
 每个平台应在对应系统和架构上构建；脚本默认复用 `src-tauri/target/release`
 缓存，不额外传入 `--target`。打包不会上传或发布任何文件。

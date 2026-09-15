@@ -1,6 +1,5 @@
 "use client"
 
-import { AgentAutoUpdate } from "./agent-auto-update"
 import {
   useCallback,
   useEffect,
@@ -110,7 +109,10 @@ import {
   codexRequestDeviceCode,
   listModelProviders,
   opencodeProviderCatalog,
+  type AgentAutoUpdateStatus,
+  type AgentUpdateRelease,
 } from "@/lib/api"
+import { compareAgentVersions } from "@/lib/agent-update-status"
 import type {
   AcpAgentInfo,
   AdapterInfo,
@@ -139,8 +141,8 @@ import {
 } from "@/components/settings/opencode-connect-dialog"
 import { OpenCodePermissionsSection } from "@/components/settings/opencode-permissions-section"
 import { AgentDiagnosticsDialog } from "@/components/settings/agent-diagnostics-dialog"
+import { useAgentAutoUpdateStatus } from "@/components/settings/agent-auto-update"
 import {
-  AgentUpdateCheck,
   AgentUpdateBadge,
   useAgentUpdates,
 } from "@/components/settings/agent-update-check"
@@ -307,11 +309,21 @@ type UiFixAction =
         | "uninstall_npx"
         | "install_opencode_plugins"
         | "custom_install"
+        | "check_update"
       payload: string
       // When true, the fix renders as a greyed-out button (e.g. the uvx
       // agent-install action while the uv runtime isn't ready yet).
       disabled?: boolean
     }
+
+export type AgentVersionExtras = {
+  online?: {
+    loading?: boolean
+    release?: AgentUpdateRelease
+    error?: string
+  } | null
+  autoUpdate?: AgentAutoUpdateStatus | null
+}
 
 interface UiCheckItem {
   check_id: string
@@ -3808,6 +3820,182 @@ function isValidCustomVersion(value: string): boolean {
   return /^[0-9][0-9A-Za-z.\-+]*$/.test(normalized) && normalized.includes(".")
 }
 
+const AUTO_UPDATE_PHASE_FALLBACK: Record<
+  AgentAutoUpdateStatus["phase"],
+  string
+> = {
+  idle: "Waiting for background check",
+  checking: "Checking for updates",
+  downloading: "Downloading and verifying",
+  waiting: "Update ready; waiting for sessions to end",
+  current: "No update needed",
+  updated: "Automatically updated",
+  error: "Update failed; will retry",
+  unavailable: "Update source or comparable version unavailable",
+}
+
+function releaseSourceLabel(source: AgentUpdateRelease["source"]): string {
+  if (source === "npm") return "npm"
+  if (source === "pypi") return "PyPI"
+  if (source === "acp") return "ACP Registry"
+  return source
+}
+
+/** Install this published npm version from Version Status Upgrade, or null. */
+export function publishedUpgradeVersion(
+  agent: AcpAgentInfo,
+  release?: AgentUpdateRelease | null
+): string | null {
+  const latest = release?.latestVersion
+  if (
+    release?.source !== "npm" ||
+    !latest ||
+    !agent.supports_custom_version ||
+    !isValidCustomVersion(latest)
+  ) {
+    return null
+  }
+  if (
+    compareAgentVersions(
+      agent.installed_version,
+      latest,
+      agent.agent_type === "openclaw"
+    ) !== -1
+  ) {
+    return null
+  }
+  return latest
+}
+
+function applyVersionExtras(
+  agent: AcpAgentInfo,
+  check: UiCheckItem,
+  extras?: AgentVersionExtras
+): UiCheckItem {
+  if (!extras || !agent.installed_version) return check
+  // Platform-unsupported binaries have no actions; don't add a check button.
+  if (check.status === "fail" && check.fixes.length === 0) return check
+
+  const notes: string[] = []
+  const online = extras.online
+  const latest = online?.release?.latestVersion
+  const source = online?.release?.source
+  const comparison =
+    latest && source
+      ? compareAgentVersions(
+          agent.installed_version,
+          latest,
+          agent.agent_type === "openclaw"
+        )
+      : null
+  const onlineNewer = comparison === -1
+
+  if (online?.loading) {
+    notes.push(
+      acpText("version.onlineChecking", "Checking the release source…")
+    )
+  } else if (online?.error) {
+    notes.push(
+      acpText("version.onlineFailed", "Online check failed: {error}", {
+        error: online.error,
+      })
+    )
+  } else if (online && !latest) {
+    notes.push(
+      acpText(
+        "version.onlineUnavailable",
+        "No online version information is available."
+      )
+    )
+  } else if (latest && source) {
+    notes.push(
+      acpText(
+        "version.onlineRelease",
+        "Latest published: {version} ({source})",
+        {
+          version: latest,
+          source: releaseSourceLabel(source),
+        }
+      )
+    )
+    if (comparison === null) {
+      notes.push(
+        acpText("version.onlineUnknown", "Local version cannot be compared.")
+      )
+    } else if (onlineNewer && check.status === "pass") {
+      notes.push(acpText("version.onlineNewer", "Upgrade available."))
+    }
+  }
+
+  const auto = extras.autoUpdate
+  if (
+    agent.enabled &&
+    auto &&
+    auto.phase !== "idle" &&
+    auto.phase !== "current"
+  ) {
+    const phaseText = acpText(
+      `version.autoPhase.${auto.phase}`,
+      AUTO_UPDATE_PHASE_FALLBACK[auto.phase]
+    )
+    notes.push(auto.version ? `${phaseText} · ${auto.version}` : phaseText)
+    if (auto.error) notes.push(auto.error)
+  }
+
+  let { status, message, fixes } = check
+  if (onlineNewer) {
+    status = "warn"
+    const hasUpgrade = fixes.some(
+      (fix) => fix.kind === "upgrade_npx" || fix.kind === "upgrade_binary"
+    )
+    if (!hasUpgrade) {
+      const upgradeFix: UiFixAction = {
+        label: acpText("actions.upgrade", "Upgrade"),
+        kind:
+          agent.distribution_type === "binary"
+            ? "upgrade_binary"
+            : "upgrade_npx",
+        payload: agent.agent_type,
+      }
+      const uninstallIndex = fixes.findIndex(
+        (fix) => fix.kind === "uninstall_npx" || fix.kind === "uninstall_binary"
+      )
+      fixes =
+        uninstallIndex >= 0
+          ? [
+              ...fixes.slice(0, uninstallIndex),
+              upgradeFix,
+              ...fixes.slice(uninstallIndex),
+            ]
+          : [upgradeFix, ...fixes]
+    }
+  } else if (
+    auto &&
+    (auto.phase === "downloading" ||
+      auto.phase === "waiting" ||
+      auto.phase === "error")
+  ) {
+    if (status === "pass") status = "warn"
+  }
+
+  if (notes.length > 0) message = `${message} ${notes.join(" ")}`
+
+  const alreadyHasCheck = fixes.some((fix) => fix.kind === "check_update")
+  if (!alreadyHasCheck) {
+    fixes = [
+      {
+        label: acpText("actions.checkUpdates", "Check for updates"),
+        kind: "check_update",
+        payload: agent.agent_type,
+        disabled: Boolean(online?.loading),
+      },
+      ...fixes,
+    ]
+  }
+
+  return { ...check, status, message, fixes }
+}
+
 /**
  * The explainer card for agents whose codeg entry is a third-party ACP
  * *adapter* rather than the vendor's own CLI — Claude Code and Codex.
@@ -3890,7 +4078,7 @@ export function buildAcpAdapterCheck(
 // need uv installed before their package can be prepared, so when uv isn't
 // ready every managed install/upgrade action is surfaced disabled and the
 // user is pointed at the separate "Install uv" preflight action.
-export function buildVersionCheck(
+function buildPinnedVersionCheck(
   agent: AcpAgentInfo,
   uvReady: boolean = true
 ): UiCheckItem | null {
@@ -4121,11 +4309,11 @@ export function buildVersionCheck(
   }
 
   // A latest-channel agent's installed version normally sits AT or AHEAD of
-  // the pin, so the compare-to-pin branch above never offers an upgrade again
-  // — this pin-only card cannot establish npm freshness. Online release
-  // checks live separately in AgentUpdateCheck. Keep the channel's Upgrade
-  // action available: it resolves the `latest` dist-tag on demand, without
-  // silently turning the default pin into the online version.
+  // the pin, so the compare-to-pin branch above never offers an upgrade again.
+  // Online freshness is merged into this same Version Status category (not a
+  // separate card). Keep the channel's Upgrade action available: it resolves
+  // the `latest` dist-tag on demand, without silently turning the default pin
+  // into the online version.
   if (latestChannel) {
     return {
       check_id: "version_status",
@@ -4172,9 +4360,19 @@ export function buildVersionCheck(
   }
 }
 
+export function buildVersionCheck(
+  agent: AcpAgentInfo,
+  uvReady: boolean = true,
+  extras?: AgentVersionExtras
+): UiCheckItem | null {
+  const check = buildPinnedVersionCheck(agent, uvReady)
+  return check ? applyVersionExtras(agent, check, extras) : null
+}
+
 export function getAgentChecks(
   agent: AcpAgentInfo,
-  current?: AgentCheckState
+  current?: AgentCheckState,
+  extras?: AgentVersionExtras
 ): UiCheckItem[] {
   // For uvx agents, only treat uv as not-ready when the preflight result is
   // present AND its uv check isn't passing. With no result yet (or an errored
@@ -4187,7 +4385,7 @@ export function getAgentChecks(
   )
   const uvReady =
     agent.distribution_type !== "uvx" || !uvCheck || uvCheck.status === "pass"
-  const versionCheck = buildVersionCheck(agent, uvReady)
+  const versionCheck = buildVersionCheck(agent, uvReady, extras)
   const remoteChecks: UiCheckItem[] = (current?.result?.checks ?? []).map(
     (check) => ({
       ...check,
@@ -4410,6 +4608,9 @@ export function AcpAgentSettings() {
       sortedAgents.find((agent) => agent.agent_type === selectedAgentType) ??
       null,
     [selectedAgentType, sortedAgents]
+  )
+  const selectedAutoUpdate = useAgentAutoUpdateStatus(
+    selectedAgent?.enabled ? selectedAgent : null
   )
   const agentTypesKey = useMemo(
     () =>
@@ -5220,7 +5421,25 @@ export function AcpAgentSettings() {
     [runPreflight, t, installStream.start]
   )
 
+  const installAgentVersion = useCallback(
+    (agent: AcpAgentInfo, version: string) => {
+      if (!isValidCustomVersion(version)) return
+      const run =
+        agent.distribution_type === "binary"
+          ? runBinaryAction(agent, "upgrade", "custom_install", version)
+          : runNpxAction(agent, "upgrade", version)
+      run.catch((err) => {
+        console.error("[Settings] custom install failed:", err)
+      })
+    },
+    [runBinaryAction, runNpxAction]
+  )
+
   const handleFixAction = async (agent: AcpAgentInfo, action: UiFixAction) => {
+    if (action.kind === "check_update") {
+      await agentUpdates.check(agent.agent_type, true)
+      return
+    }
     if (
       busyBinaryAction[agent.agent_type] ||
       busyActionRef.current.has(agent.agent_type)
@@ -5235,16 +5454,24 @@ export function AcpAgentSettings() {
       await runBinaryAction(agent, "download")
       return
     }
-    if (action.kind === "upgrade_binary") {
-      await runBinaryAction(agent, "upgrade")
+    if (action.kind === "upgrade_binary" || action.kind === "upgrade_npx") {
+      const published = publishedUpgradeVersion(
+        agent,
+        agentUpdates.states[agent.agent_type]?.release
+      )
+      if (published) {
+        installAgentVersion(agent, published)
+        return
+      }
+      if (action.kind === "upgrade_binary") {
+        await runBinaryAction(agent, "upgrade")
+        return
+      }
+      await runNpxAction(agent, "upgrade")
       return
     }
     if (action.kind === "install_npx") {
       await runNpxAction(agent, "install")
-      return
-    }
-    if (action.kind === "upgrade_npx") {
-      await runNpxAction(agent, "upgrade")
       return
     }
     if (action.kind === "uninstall_binary" || action.kind === "uninstall_npx") {
@@ -5298,20 +5525,13 @@ export function AcpAgentSettings() {
 
   const confirmCustomInstall = useCallback(() => {
     if (!customInstallAgent) return
-    const agent = customInstallAgent
     const version = customVersionInput.trim()
     if (!isValidCustomVersion(version)) return
     // Close immediately; progress streams into the detail panel log, and any
     // failure is surfaced via toast inside the run* actions.
-    const run =
-      agent.distribution_type === "binary"
-        ? runBinaryAction(agent, "upgrade", "custom_install", version)
-        : runNpxAction(agent, "upgrade", version)
-    run.catch((err) => {
-      console.error("[Settings] custom install failed:", err)
-    })
+    installAgentVersion(customInstallAgent, version)
     setCustomInstallAgent(null)
-  }, [customInstallAgent, customVersionInput, runBinaryAction, runNpxAction])
+  }, [customInstallAgent, customVersionInput, installAgentVersion])
 
   const persistReorder = useCallback(
     async (order: AgentType[]) => {
@@ -5424,8 +5644,13 @@ export function AcpAgentSettings() {
                         })
                       }}
                     >
-                      {runningActionKind[agent.agent_type] === fix.kind ? (
+                      {runningActionKind[agent.agent_type] === fix.kind ||
+                      (fix.kind === "check_update" &&
+                        "disabled" in fix &&
+                        fix.disabled) ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : fix.kind === "check_update" ? (
+                        <RefreshCw className="h-3 w-3" />
                       ) : fix.kind === "download_binary" ||
                         fix.kind === "install_npx" ||
                         fix.kind === "install_uv" ? (
@@ -5603,15 +5828,34 @@ export function AcpAgentSettings() {
 
   const selectedChecks = useMemo(() => {
     if (!selectedAgent || !locale) return []
-    return getAgentChecks(selectedAgent, selectedCurrent)
-  }, [locale, selectedAgent, selectedCurrent])
+    return getAgentChecks(selectedAgent, selectedCurrent, {
+      online: agentUpdates.states[selectedAgent.agent_type],
+      autoUpdate: selectedAutoUpdate,
+    })
+  }, [
+    locale,
+    selectedAgent,
+    selectedCurrent,
+    agentUpdates.states,
+    selectedAutoUpdate,
+  ])
 
+  const checkStatusRef = useRef<Record<string, CheckStatus>>({})
   useEffect(() => {
     if (!selectedAgent || selectedChecks.length === 0) return
     setExpandedChecks((prev) => {
       let next = prev
       for (const check of selectedChecks) {
         const key = `${selectedAgent.agent_type}:${check.check_id}`
+        const previousStatus = checkStatusRef.current[key]
+        checkStatusRef.current[key] = check.status
+        // Online freshness arrives after the pin check, so Version Status
+        // can go pass → warn. Expand that transition; leave later collapses.
+        if (check.status !== "pass" && previousStatus === "pass") {
+          if (next === prev) next = { ...prev }
+          next[key] = true
+          continue
+        }
         if (typeof next[key] !== "undefined") continue
         if (next === prev) next = { ...prev }
         next[key] = check.status !== "pass"
@@ -7685,7 +7929,9 @@ export function AcpAgentSettings() {
               const current = checkState[agent.agent_type]
               const isChecking = Boolean(checking[agent.agent_type])
               const draft = drafts[agent.agent_type] ?? buildAgentDraft(agent)
-              const allChecks = getAgentChecks(agent, current)
+              const allChecks = getAgentChecks(agent, current, {
+                online: agentUpdates.states[agent.agent_type],
+              })
               const summary = summarizeChecks(allChecks)
               const displaySummary: CheckStatus | "unchecked" | "checking" =
                 isChecking ? "checking" : summary
@@ -7929,19 +8175,6 @@ export function AcpAgentSettings() {
               />
 
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                <AgentAutoUpdate
-                  key={selectedAgent.agent_type}
-                  agent={selectedAgent}
-                />
-                <AgentUpdateCheck
-                  agent={selectedAgent}
-                  updates={agentUpdates}
-                  busy={busyBinaryAction[selectedAgent.agent_type]}
-                  onInstallVersion={(version) => {
-                    setCustomVersionInput(version)
-                    setCustomInstallAgent(selectedAgent)
-                  }}
-                />
                 <div className="space-y-2">
                   {selectedCurrent?.error && (
                     <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400 flex items-start gap-2">

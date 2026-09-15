@@ -391,9 +391,9 @@ describe("ConversationDetailPanel send-path hardening", () => {
   })
 
   it("gates the queue auto-flush on the SAME readiness predicate as the send", () => {
-    // The flush DEQUEUES before handing the message to handleSend, so a gate
-    // weaker than handleSend's own check takes the message off the queue and
-    // then loses it when the send bails. The two drifted once already: the agent
+    // handleSend only removes the queue item after its own gates pass, so a
+    // flush gate weaker than those used to take the message off the queue and
+    // then lose it when the send bailed. The two drifted once already: the agent
     // term was added to `connectionReady` while the flush kept its own inlined
     // connStatus+cwd pair, so a draft whose agent had just been switched — its
     // old connection still live at the same cwd — silently ate the message.
@@ -414,6 +414,34 @@ describe("ConversationDetailPanel send-path hardening", () => {
     // the shared variable.
     expect(flushEffect).not.toContain("connStatus")
     expect(flushEffect).not.toContain("connectedWorkingDir")
+  })
+
+  it("does not take a queued draft off the queue until send gates pass", () => {
+    // Image-bearing queued drafts were dequeued, then dropped when hydration
+    // failed or handleSend bailed — the composer had already been cleared at
+    // enqueue time, so the pending message vanished after the turn completed.
+    const start = source.indexOf("const handleSend = useCallback(")
+    const end = source.indexOf(
+      "const optimisticTurn = buildOptimisticUserTurnFromDraft(",
+      start
+    )
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const gates = source.slice(start, end)
+    expect(gates).toContain("if (opts?.queueItemId)")
+    expect(gates).toContain("mqRemove(opts.queueItemId)")
+    expect(gates).toContain("if (!connectionReady) return")
+    const removeIdx = gates.indexOf("mqRemove(opts.queueItemId)")
+    const readyIdx = gates.indexOf("if (!connectionReady) return")
+    expect(removeIdx).toBeGreaterThan(readyIdx)
+  })
+
+  it("parks a failed queue-flush draft instead of dropping it", () => {
+    const start = source.indexOf("const onSendFailed = () => {")
+    const block = source.slice(start, start + 600)
+    expect(block).toContain("fromQueueFlush")
+    expect(block).toContain("flushBlocked: true")
+    expect(block).toContain("mqRequeueFront(")
   })
 
   it("disables the welcome composer while connected-but-not-ready", () => {

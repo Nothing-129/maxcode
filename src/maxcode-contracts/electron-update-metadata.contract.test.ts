@@ -27,8 +27,8 @@ describe("MaxCode contract: differential update release metadata", () => {
         "latest-arm64-mac.yml",
         "latest-x64-mac.yml",
         "latest-x64.yml",
-        "MaxCode-Electron-1.2.3-mac-arm64.zip.blockmap",
-        "MaxCode-Electron-1.2.3-win-x64.exe.blockmap",
+        "MaxCode-1.2.3-mac-arm64.zip.blockmap",
+        "MaxCode-1.2.3-win-x64.exe.blockmap",
       ])
     )
   })

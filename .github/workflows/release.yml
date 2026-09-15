@@ -257,7 +257,7 @@ jobs:
       - create-draft-release
       - resolve-matrix
     if: ${{ needs.resolve-matrix.outputs.desktop_matrix != '{"include":[]}' }}
-    name: Electron ${{ matrix.name }}
+    name: MaxCode ${{ matrix.name }}
     permissions:
       contents: write
     strategy:
@@ -324,7 +324,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: gh release upload "$GITHUB_REF_NAME" electron/dist/MaxCode-Electron-* electron/dist/latest-*.yml --clobber
+        run: gh release upload "$GITHUB_REF_NAME" electron/dist/MaxCode-* electron/dist/latest-*.yml --clobber
 
   build-server:
     needs:

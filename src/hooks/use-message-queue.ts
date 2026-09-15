@@ -27,6 +27,13 @@ export interface QueuedMessage {
    * user's saved mode.
    */
   adoptSendTimeMode?: boolean
+  /**
+   * Auto-flush skips this item. Set when a queue-flush send failed for a
+   * deterministic reason (image hydration, 413) so the draft stays visible
+   * above the composer instead of vanishing, without retrying — and toasting
+   * — forever. Cleared when the user edits the item (the retry path).
+   */
+  flushBlocked?: boolean
 }
 
 export interface UseMessageQueueReturn {
@@ -40,8 +47,21 @@ export interface UseMessageQueueReturn {
    * Put a draft back at the FRONT of the queue. Used when an auto-flushed item
    * was dequeued, sent, and bounced (TurnBusyError): it must return to the head
    * so it retries before items that were already behind it (FIFO preserved).
+   * `flushBlocked` parks a deterministic failure (hydration / 413) so auto-flush
+   * skips it; the user can edit to retry.
    */
-  requeueFront: (draft: PromptDraft, modeId: string | null) => void
+  requeueFront: (
+    draft: PromptDraft,
+    modeId: string | null,
+    opts?: { flushBlocked?: boolean }
+  ) => void
+  /**
+   * The next item auto-flush should send: the first entry that is not
+   * {@link QueuedMessage.flushBlocked}. Does not mutate the queue — handleSend
+   * removes by id only after its own gates pass, so a rejected send cannot
+   * silently drop the draft.
+   */
+  peekSendable: () => QueuedMessage | undefined
   dequeue: () => QueuedMessage | undefined
   /**
    * Drop an item by id. Returns the removed item, or `undefined` if it was
@@ -105,11 +125,27 @@ export function useMessageQueue(): UseMessageQueueReturn {
   )
 
   const requeueFront = useCallback(
-    (draft: PromptDraft, modeId: string | null) => {
-      commit([{ id: randomUUID(), draft, modeId }, ...queueRef.current])
+    (
+      draft: PromptDraft,
+      modeId: string | null,
+      opts?: { flushBlocked?: boolean }
+    ) => {
+      commit([
+        {
+          id: randomUUID(),
+          draft,
+          modeId,
+          ...(opts?.flushBlocked ? { flushBlocked: true } : {}),
+        },
+        ...queueRef.current,
+      ])
     },
     [commit]
   )
+
+  const peekSendable = useCallback((): QueuedMessage | undefined => {
+    return queueRef.current.find((item) => !item.flushBlocked)
+  }, [])
 
   const dequeue = useCallback((): QueuedMessage | undefined => {
     const current = queueRef.current
@@ -162,7 +198,9 @@ export function useMessageQueue(): UseMessageQueueReturn {
     (id: string, draft: PromptDraft) => {
       commit(
         queueRef.current.map((item) =>
-          item.id === id ? { ...item, draft } : item
+          item.id === id
+            ? { ...item, draft, flushBlocked: undefined }
+            : item
         )
       )
       setEditingItemId(null)
@@ -184,6 +222,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
     queue,
     enqueue,
     requeueFront,
+    peekSendable,
     dequeue,
     remove,
     reorder,

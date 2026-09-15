@@ -639,6 +639,144 @@ describe("ConversationRuntimeProvider removeOptimisticTurn (bounce rollback)", (
 })
 
 /**
+ * A follow-up send that races COMPLETE_TURN (queued auto-flush, or a send at
+ * the prompting→connected edge — both more likely when the next draft carries
+ * images) must stay in-flight. Promoting it into the turn that just finished
+ * then letting a settled detail refetch wipe localTurns is how the pending
+ * message vanished after the agent stopped.
+ */
+describe("ConversationRuntimeProvider completeTurn preserves a racing follow-up send", () => {
+  const runtimeHolder: {
+    current: ReturnType<typeof useConversationRuntime> | undefined
+  } = { current: undefined }
+
+  function RuntimeCapture() {
+    const runtime = useConversationRuntime()
+    useEffect(() => {
+      runtimeHolder.current = runtime
+    })
+    return null
+  }
+
+  function userTurn(id: string, timestamp: string): MessageTurn {
+    return {
+      id,
+      role: "user",
+      blocks: [{ type: "text", text: id }],
+      timestamp,
+    }
+  }
+
+  const LIVE: LiveMessage = {
+    id: "lm-followup",
+    role: "assistant",
+    content: [{ type: "text", text: "done" }],
+    startedAt: Date.parse("2026-05-28T00:00:10.000Z"),
+  }
+
+  beforeEach(() => {
+    runtimeHolder.current = undefined
+  })
+
+  it("keeps a later optimistic prompt in-flight instead of promoting it", () => {
+    renderProvider(<RuntimeCapture />)
+    const api = () => runtimeHolder.current!
+
+    act(() => {
+      api().appendOptimisticTurn(
+        7,
+        userTurn("prompt-1", "2026-05-28T00:00:00.000Z"),
+        "prompt-1"
+      )
+    })
+    act(() => {
+      api().appendOptimisticTurn(
+        7,
+        {
+          id: "prompt-2",
+          role: "user",
+          blocks: [
+            {
+              type: "image",
+              data: "aa==",
+              mime_type: "image/png",
+            },
+            { type: "text", text: "look at this" },
+          ],
+          timestamp: "2026-05-28T00:00:20.000Z",
+        },
+        "prompt-2"
+      )
+    })
+    act(() => {
+      api().completeTurn(7, LIVE)
+    })
+
+    const session = api().getSession(7)
+    expect(session?.optimisticTurns.map((t) => t.id)).toEqual(["prompt-2"])
+    expect(session?.syncState).toBe("awaiting_persist")
+    expect(session?.activeTurnToken).toBe("prompt-2")
+    expect(session?.localTurns.some((t) => t.id === "prompt-1")).toBe(true)
+    expect(session?.localTurns.some((t) => t.id === "prompt-2")).toBe(false)
+    expect(session?.liveMessage).toBeNull()
+  })
+
+  it("ignores a late COMPLETE_TURN once the follow-up send is already in flight", () => {
+    renderProvider(<RuntimeCapture />)
+    const api = () => runtimeHolder.current!
+
+    act(() => {
+      api().appendOptimisticTurn(
+        9,
+        userTurn("prompt-1", "2026-05-28T00:00:00.000Z"),
+        "prompt-1"
+      )
+    })
+    act(() => {
+      api().completeTurn(9, LIVE)
+    })
+    act(() => {
+      api().appendOptimisticTurn(
+        9,
+        userTurn("prompt-2", "2026-05-28T00:00:20.000Z"),
+        "prompt-2"
+      )
+    })
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    act(() => {
+      api().completeTurn(9)
+    })
+    warn.mockRestore()
+
+    const session = api().getSession(9)
+    expect(session?.optimisticTurns.map((t) => t.id)).toEqual(["prompt-2"])
+    expect(session?.syncState).toBe("awaiting_persist")
+    expect(session?.localTurns.some((t) => t.id === "prompt-2")).toBe(false)
+  })
+
+  it("still promotes a lone prompt that started this turn", () => {
+    renderProvider(<RuntimeCapture />)
+    const api = () => runtimeHolder.current!
+
+    act(() => {
+      api().appendOptimisticTurn(
+        8,
+        userTurn("prompt-1", "2026-05-28T00:00:00.000Z"),
+        "prompt-1"
+      )
+    })
+    act(() => {
+      api().completeTurn(8, LIVE)
+    })
+
+    const session = api().getSession(8)
+    expect(session?.optimisticTurns).toEqual([])
+    expect(session?.syncState).toBe("idle")
+    expect(session?.localTurns.some((t) => t.id === "prompt-1")).toBe(true)
+  })
+})
+
+/**
  * Delegation-child viewer projection in `getTimelineTurns`. When the sub-agent
  * dialog marks a session `liveOwnsActiveTurn` and supplies the kickoff task:
  *   - the persisted copy of the reply is stripped while a live/local reply

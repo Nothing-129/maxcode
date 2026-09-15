@@ -67,6 +67,7 @@ vi.mock("@/components/i18n-provider", () => ({
 
 import { SystemNetworkSettings } from "./system-network-settings"
 import enMessages from "@/i18n/messages/en.json"
+import { openUrl } from "@/lib/platform"
 import {
   getSystemAutostartSettings,
   getSystemProxySettings,
@@ -82,6 +83,7 @@ const mockSetTitleModel = vi.mocked(updateSystemTitleModelSettings)
 const mockTestTitleModel = vi.mocked(testSystemTitleModelSettings)
 const mockGetAutostart = vi.mocked(getSystemAutostartSettings)
 const mockSetAutostart = vi.mocked(updateSystemAutostartSettings)
+const mockOpenUrl = vi.mocked(openUrl)
 
 function renderWithIntl() {
   return render(
@@ -99,14 +101,15 @@ beforeEach(() => {
   mockTestTitleModel.mockReset()
   mockGetAutostart.mockReset()
   mockSetAutostart.mockReset()
+  mockOpenUrl.mockReset()
   desktopShell = false
   remoteWorkspace = false
   mockGetTitleModel.mockResolvedValue({
-    enabled: false,
-    base_url: "",
-    model: "",
+    enabled: true,
+    base_url: "https://api.groq.com/openai/v1",
+    model: "qwen/qwen3.8-27b",
     api_key_configured: false,
-    request_params: [],
+    request_params: [{ key: "reasoning_effort", value: "none" }],
   })
 })
 
@@ -201,6 +204,66 @@ describe("SystemNetworkSettings — launch at login", () => {
 describe("SystemNetworkSettings — conversation title model", () => {
   beforeEach(() => {
     mockGetProxy.mockResolvedValue({ enabled: false, proxy_url: null })
+  })
+
+  it("lets an unconfigured user paste only a free Groq key and save", async () => {
+    mockSetTitleModel.mockResolvedValue({
+      enabled: true,
+      base_url: "https://api.groq.com/openai/v1",
+      model: "qwen/qwen3.8-27b",
+      api_key_configured: true,
+      request_params: [{ key: "reasoning_effort", value: "none" }],
+    })
+
+    renderWithIntl()
+
+    const section = (
+      await screen.findByRole("heading", {
+        name: "Conversation Title Model",
+      })
+    ).closest("section")
+    expect(section).not.toBeNull()
+    expect(
+      within(section!).getByLabelText("Use a dedicated title model")
+    ).toBeChecked()
+    expect(
+      within(section!).getByDisplayValue("https://api.groq.com/openai/v1")
+    ).toBeInTheDocument()
+    expect(
+      within(section!).getByDisplayValue("qwen/qwen3.8-27b")
+    ).toBeInTheDocument()
+    expect(
+      within(section!).getByPlaceholderText("Paste your Groq API Key")
+    ).toBeInTheDocument()
+    expect(
+      within(section!).getByLabelText("Request parameter 1 key")
+    ).toHaveValue("reasoning_effort")
+    expect(
+      within(section!).getByLabelText("Request parameter 1 value")
+    ).toHaveValue("none")
+
+    const signup = within(section!).getByRole("link", {
+      name: /free Groq account/i,
+    })
+    expect(signup).toHaveAttribute("href", "https://console.groq.com/keys")
+    fireEvent.click(signup)
+    expect(mockOpenUrl).toHaveBeenCalledWith("https://console.groq.com/keys")
+
+    fireEvent.change(within(section!).getByLabelText("API Key"), {
+      target: { value: "user-groq-key" },
+    })
+    fireEvent.click(within(section!).getByRole("button", { name: "Save" }))
+
+    await waitFor(() =>
+      expect(mockSetTitleModel).toHaveBeenCalledWith({
+        enabled: true,
+        base_url: "https://api.groq.com/openai/v1",
+        model: "qwen/qwen3.8-27b",
+        api_key: "user-groq-key",
+        clear_api_key: false,
+        request_params: [{ key: "reasoning_effort", value: "none" }],
+      })
+    )
   })
 
   it("loads a secret-free view and saves an OpenAI-compatible model", async () => {

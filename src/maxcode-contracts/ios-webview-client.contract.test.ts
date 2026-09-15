@@ -4,6 +4,112 @@ import { source, sourceExists } from "./contract-source"
 const root = "ios-webview/MaxCode/"
 
 describe("MaxCode iOS shell contract", () => {
+  it("keeps the native connection chooser aligned with Android", () => {
+    const androidStrings = source(
+      "android-webview/app/src/main/res/values-zh-rCN/strings.xml"
+    )
+    const chooser = source(root + "ConnectionsViewController.swift")
+    for (const key of [
+      "setup_title_select",
+      "setup_subtitle_select",
+      "saved_connections_label",
+      "tap_to_connect",
+      "saved_hint",
+    ]) {
+      const text = androidStrings.match(
+        new RegExp(`<string name="${key}">([^<]+)</string>`)
+      )?.[1]
+      expect(text, key).toBeTruthy()
+      expect(chooser, key).toContain(text!)
+    }
+    const colors = source("android-webview/app/src/main/res/values/colors.xml")
+    const theme = source(root + "ShellStyle.swift")
+    for (const key of [
+      "surface",
+      "text_primary",
+      "text_secondary",
+      "divider",
+      "surface_subtle",
+    ]) {
+      const hex = colors.match(
+        new RegExp(`<color name="${key}">#([A-F0-9]{6})</color>`)
+      )?.[1]
+      expect(hex, key).toBeTruthy()
+      expect(theme, key).toContain(`0x${hex}`)
+    }
+    expect(chooser).toContain('UIAction(title: "编辑"')
+    expect(chooser).toContain('UIAction(title: "删除"')
+    expect(source(root + "AppDelegate.swift")).toContain(
+      "prefersLargeTitles = false"
+    )
+  })
+
+  it("opens the chooser on cold launch and keeps native workspace controls hidden", () => {
+    const app = source(root + "AppDelegate.swift")
+    expect(app).toContain("rootViewController: ConnectionsViewController()")
+    expect(app).toContain("setNavigationBarHidden(true, animated: false)")
+    expect(app).not.toContain("WorkspaceViewController(")
+    const chooser = source(root + "ConnectionsViewController.swift")
+    expect(chooser).not.toContain("setNavigationBarHidden(false")
+    const workspace = source(root + "WorkspaceViewController.swift")
+    expect(workspace).not.toContain("UIBarButtonItem")
+    expect(workspace).not.toContain("右上角刷新")
+    expect(workspace).toContain("errorPanel.isHidden = true")
+    expect(workspace).toContain('retry.setTitle("重新加载"')
+    expect(workspace).toContain("popToRootViewController(animated: true)")
+  })
+
+  it("prevents focus zoom for native-shell form controls and rich editors", () => {
+    const scripts = source(root + "Core/WebScripts.swift")
+    expect(scripts).toContain("input, textarea, select,")
+    expect(scripts).toContain('[contenteditable="true"]')
+    expect(scripts).toContain('[contenteditable="plaintext-only"]')
+    expect(scripts).toContain("font-size: max(16px, 1em) !important")
+    expect(scripts).toContain("user-scalable=no")
+    expect(scripts).toContain("minimum-scale=1, maximum-scale=1")
+  })
+
+  it("locks the shell to portrait and disables viewport scaling", () => {
+    const plist = source(root + "Info.plist")
+    expect(
+      plist.match(/<string>UIInterfaceOrientationPortrait<\/string>/g)
+    ).toHaveLength(2)
+    expect(plist).not.toContain("UIInterfaceOrientationLandscape")
+    expect(plist).not.toContain("UIInterfaceOrientationPortraitUpsideDown")
+    expect(source(root + "AppDelegate.swift")).toContain(
+      "supportedInterfaceOrientationsFor"
+    )
+    const workspace = source(root + "WorkspaceViewController.swift")
+    expect(workspace).toContain("config.ignoresViewportScaleLimits = false")
+    expect(workspace).toContain("pinchGestureRecognizer?.isEnabled = false")
+    expect(workspace).toContain(
+      "source: WebScripts.viewport, injectionTime: .atDocumentStart"
+    )
+  })
+
+  it("reserves the bottom safe area once in the native container", () => {
+    const scripts = source(root + "Core/WebScripts.swift")
+    expect(scripts).toContain("viewport-fit=contain")
+    expect(scripts).not.toContain("viewport-fit=cover")
+    const native = source(root + "WorkspaceViewController.swift")
+    expect(native).toContain("webView.scrollView.isScrollEnabled = false")
+    expect(native).toContain(
+      "scrollView.setContentOffset(.zero, animated: false)"
+    )
+    expect(source(root + "WorkspaceViewController.swift")).toContain(
+      "UIResponder.keyboardWillHideNotification"
+    )
+    expect(source(root + "WorkspaceViewController.swift")).toContain(
+      "keyboardBottom.isActive = false"
+    )
+    expect(source(root + "WorkspaceViewController.swift")).toContain(
+      "restingBottom = webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)"
+    )
+    expect(source(root + "WorkspaceViewController.swift")).toContain(
+      "webView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)"
+    )
+  })
+
   it("keeps personal automatic signing across project regeneration", () => {
     const project = source("ios-webview/MaxCode.xcodeproj/project.pbxproj")
     expect(project).toContain("Signing.xcconfig")
@@ -86,7 +192,9 @@ describe("MaxCode iOS shell contract", () => {
     expect(workspace).toContain("view.safeAreaLayoutGuide.topAnchor")
     expect(workspace).toContain("UIApplication.didBecomeActiveNotification")
     expect(workspace).toContain("monitor.pathUpdateHandler")
-    expect(workspace).toContain("webView.goBack()")
+    expect(workspace).toContain(
+      "webView.allowsBackForwardNavigationGestures = true"
+    )
     expect(workspace).toContain("webView.load(navigationAction.request)")
     expect(workspace).toContain("UIApplication.shared.open(url)")
     expect(workspace).toContain("runJavaScriptConfirmPanelWithMessage")

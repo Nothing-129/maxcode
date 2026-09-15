@@ -62,10 +62,10 @@ export function shouldQueueDirectSend(
  * The agent check covers the same hazard on the other axis: switching a draft's
  * agent leaves the OLD agent's connection live — at the same cwd — until the
  * lifecycle's reconnect lands, and for a not-installed target it never lands at
- * all. All three terms belong together because the queue auto-flush DEQUEUES
- * before handing the message to the send path: if the flush gate were weaker
- * than the send's own check, the message would be taken off the queue and then
- * silently dropped.
+ * all. All three terms belong together because a weaker flush gate used to
+ * DEQUEUE before handing the message to the send path: the send then bailed
+ * and the draft vanished. handleSend now removes the queue item only after
+ * those same gates pass, so a mismatched flush cannot silently drop it.
  *
  * Nullish cwds are normalized so `null`/`undefined` compare equal (both mean "no
  * cwd yet"). A nullish `connectedAgentType` means no agent has been recorded for

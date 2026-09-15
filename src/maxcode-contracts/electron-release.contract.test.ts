@@ -26,6 +26,17 @@ const installers = (value: string) => [
 ]
 
 describe("MaxCode contract: Electron release and legacy isolation", () => {
+  it("uses runtime-neutral release job names and upload patterns", () => {
+    const workflow = parse(source(".github/workflows/release.yml"))
+    const desktop = workflow.jobs["build-electron"]
+    expect(desktop.name).toBe("MaxCode ${{ matrix.name }}")
+    const upload = desktop.steps.find((step: { run?: string }) =>
+      step.run?.startsWith("gh release upload")
+    )
+    expect(upload.run).toContain("electron/dist/MaxCode-*")
+    expect(upload.run).not.toContain("MaxCode-Electron-")
+  })
+
   it("does not cache an absent pnpm store in the draft metadata job", () => {
     const workflow = parse(source(".github/workflows/release.yml"))
     const setup = workflow.jobs["create-draft-release"].steps.find(
@@ -67,15 +78,15 @@ describe("MaxCode contract: Electron release and legacy isolation", () => {
 
   it("requires both macOS packages and format-specific Linux architecture names", () => {
     expect(desktopAssets(mac, version)).toEqual([
-      `MaxCode-Electron-${version}-mac-arm64.dmg`,
-      `MaxCode-Electron-${version}-mac-arm64.zip`,
+      `MaxCode-${version}-mac-arm64.dmg`,
+      `MaxCode-${version}-mac-arm64.zip`,
     ])
     expect(desktopAssets(linux, version)).toEqual([
-      `MaxCode-Electron-${version}-linux-x86_64.AppImage`,
-      `MaxCode-Electron-${version}-linux-amd64.deb`,
+      `MaxCode-${version}-linux-x86_64.AppImage`,
+      `MaxCode-${version}-linux-amd64.deb`,
     ])
     expect(desktopAssets(windows, version)).toEqual([
-      `MaxCode-Electron-${version}-win-x64.exe`,
+      `MaxCode-${version}-win-x64.exe`,
     ])
   })
 

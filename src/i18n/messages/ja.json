@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "保存済み — 空欄で保持",
     "titleModelApiKeyOptional": "ローカルサービスでは省略可",
+    "titleModelGroqApiKeyPlaceholder": "Groq API Key を貼り付けてください",
+    "titleModelGroqSignup": "API Key がありませんか？Groq の無料アカウントを作成して取得できます。",
     "titleModelRequestParams": "リクエストパラメータ",
     "titleModelRequestParamsHint": "キーと値の組としてリクエスト JSON に追加します。false、数値、オブジェクト、配列は JSON として、それ以外は文字列として送信されます。秘密情報は入力しないでください。",
     "titleModelAddRequestParam": "パラメータを追加",
@@ -802,6 +804,7 @@
       "dragSortAgent": "{name} をドラッグして並べ替え",
       "refreshCheck": "再チェック",
       "refreshCheckAgent": "{name} を再チェック",
+      "checkUpdates": "更新を確認",
       "clickEnable": "{name} を有効化",
       "clickDisable": "{name} を無効化",
       "install": "インストール",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}。アップグレード可能です。",
       "remoteUnavailable": "{versionText}。現在リモートバージョンは取得できません。",
       "latest": "{versionText}。組み込みの推奨バージョン以上です。",
-      "latestChannel": "{versionText}。最新版チャンネルが有効です。アップグレードで最新リリースをインストールします。"
+      "latestChannel": "{versionText}。最新版チャンネルが有効です。アップグレードで最新リリースをインストールします。",
+      "onlineChecking": "配信元を確認中…",
+      "onlineFailed": "オンライン確認に失敗しました：{error}",
+      "onlineUnavailable": "オンラインのバージョン情報がありません。",
+      "onlineRelease": "最新公開バージョン：{version}（配信元：{source}）",
+      "onlineUnknown": "ローカルバージョンを比較できません。",
+      "onlineNewer": "アップグレードできます。",
+      "autoPhase": {
+        "idle": "確認を待機中",
+        "checking": "更新を確認中",
+        "downloading": "ダウンロードして検証中",
+        "waiting": "更新準備完了。セッション終了を待機中",
+        "current": "更新は不要です",
+        "updated": "自動更新しました",
+        "error": "更新失敗。後で再試行します",
+        "unavailable": "更新元または比較可能なバージョンがありません"
+      }
     },
     "adapter": {
       "label": "ACP アダプター",
@@ -5441,7 +5460,7 @@
     "current": "インストール済みバージョンは最新公開バージョン以上です。",
     "unknown": "未インストール、またはローカルバージョンを比較できません。インストール前に確認してください。",
     "note": "このカードはリリースを確認します。有効なエージェントは自動更新されます。アダプターと CLI のバージョンは異なる場合があります。",
-    "install": "{version} をインストール…",
+    "install": "{version} をインストール",
     "autoLabel": "自動更新",
     "autoDescription": "有効でインストール済みのすべてのエージェントは自動更新されます。個別のスイッチはありません。6 時間ごとに確認し、検証後、実行中のセッションがない時に切り替えます。",
     "autoPhase": {

@@ -151,7 +151,7 @@ private enum CoreTestRunner {
             // Exercise script escaping even for characters rejected/trimmed by the form.
             connection.token = token
             let fixture = ["script": WebScripts.bootstrap(connection), "token": token,
-                           "layout": WebScripts.layout, "wake": WebScripts.wake]
+                           "layout": WebScripts.layout, "wake": WebScripts.wake, "viewport": WebScripts.viewport]
             print(String(decoding: try JSONEncoder().encode(fixture), as: UTF8.self))
             return
         }

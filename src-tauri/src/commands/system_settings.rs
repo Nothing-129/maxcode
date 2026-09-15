@@ -30,6 +30,10 @@ pub(crate) const SYSTEM_TITLE_MODEL_SETTINGS_KEY: &str = "system_title_model_set
 pub(crate) const LANGUAGE_SETTINGS_UPDATED_EVENT: &str = "app://language-settings-updated";
 pub(crate) const TERMINAL_SETTINGS_UPDATED_EVENT: &str = "app://terminal-settings-updated";
 
+const DEFAULT_TITLE_MODEL_BASE_URL: &str = "https://api.groq.com/openai/v1";
+const DEFAULT_TITLE_MODEL_NAME: &str = "qwen/qwen3.8-27b";
+const DEFAULT_TITLE_MODEL_REASONING_EFFORT: &str = "none";
+
 pub(crate) const TERMINAL_SHELL_OPTION_SYSTEM: &str = "system";
 pub(crate) const TERMINAL_SHELL_OPTION_CUSTOM: &str = "custom";
 
@@ -132,23 +136,38 @@ fn normalize_title_model_base_url(raw: &str) -> Result<String, AppCommandError> 
 
 async fn load_stored_title_model_settings(
     conn: &DatabaseConnection,
-) -> Result<StoredTitleModelSettings, AppCommandError> {
+) -> Result<Option<StoredTitleModelSettings>, AppCommandError> {
     let raw = app_metadata_service::get_value(conn, SYSTEM_TITLE_MODEL_SETTINGS_KEY)
         .await
         .map_err(AppCommandError::from)?;
     let Some(raw) = raw else {
-        return Ok(StoredTitleModelSettings::default());
+        return Ok(None);
     };
-    serde_json::from_str(&raw).map_err(|e| {
+    serde_json::from_str(&raw).map(Some).map_err(|e| {
         AppCommandError::configuration_invalid("Failed to parse stored title model settings")
             .with_detail(e.to_string())
     })
 }
 
+fn default_system_title_model_settings() -> SystemTitleModelSettings {
+    SystemTitleModelSettings {
+        enabled: true,
+        base_url: DEFAULT_TITLE_MODEL_BASE_URL.to_string(),
+        model: DEFAULT_TITLE_MODEL_NAME.to_string(),
+        api_key_configured: false,
+        request_params: vec![TitleModelRequestParam {
+            key: "reasoning_effort".to_string(),
+            value: DEFAULT_TITLE_MODEL_REASONING_EFFORT.to_string(),
+        }],
+    }
+}
+
 pub(crate) async fn load_system_title_model_settings(
     conn: &DatabaseConnection,
 ) -> Result<SystemTitleModelSettings, AppCommandError> {
-    let stored = load_stored_title_model_settings(conn).await?;
+    let Some(stored) = load_stored_title_model_settings(conn).await? else {
+        return Ok(default_system_title_model_settings());
+    };
     let request_params = normalize_title_model_request_params(stored.request_params)?;
     Ok(SystemTitleModelSettings {
         enabled: stored.enabled,
@@ -162,7 +181,9 @@ pub(crate) async fn load_system_title_model_settings(
 pub(crate) async fn load_title_model_runtime_settings(
     conn: &DatabaseConnection,
 ) -> Result<Option<TitleModelRuntimeSettings>, AppCommandError> {
-    let stored = load_stored_title_model_settings(conn).await?;
+    let Some(stored) = load_stored_title_model_settings(conn).await? else {
+        return Ok(None);
+    };
     if !stored.enabled {
         return Ok(None);
     }
@@ -186,7 +207,9 @@ pub(crate) async fn set_system_title_model_settings_core(
     conn: &DatabaseConnection,
     settings: SystemTitleModelSettingsUpdate,
 ) -> Result<SystemTitleModelSettings, AppCommandError> {
-    let existing = load_stored_title_model_settings(conn).await?;
+    let existing = load_stored_title_model_settings(conn)
+        .await?
+        .unwrap_or_default();
     let base_url = settings.base_url.trim().trim_end_matches('/').to_string();
     let model = settings.model.trim().to_string();
     let request_params = normalize_title_model_request_params(settings.request_params)?;
@@ -243,7 +266,9 @@ pub(crate) async fn test_system_title_model_settings_core(
     conn: &DatabaseConnection,
     settings: SystemTitleModelSettingsUpdate,
 ) -> Result<SystemTitleModelTestResult, AppCommandError> {
-    let existing = load_stored_title_model_settings(conn).await?;
+    let existing = load_stored_title_model_settings(conn)
+        .await?
+        .unwrap_or_default();
     let base_url = normalize_title_model_base_url(&settings.base_url)?;
     let model = settings.model.trim();
     if model.is_empty() {
@@ -1223,6 +1248,60 @@ mod tests {
         assert_eq!(
             restarted_config.snapshot().await.as_deref(),
             Some("pwsh.exe")
+        );
+    }
+
+    #[tokio::test]
+    async fn unconfigured_title_model_prefills_the_free_groq_setup_without_running_it() {
+        let db = fresh_in_memory_db().await;
+
+        let defaults = load_system_title_model_settings(&db.conn)
+            .await
+            .expect("load title model defaults");
+        assert!(defaults.enabled);
+        assert_eq!(defaults.base_url, DEFAULT_TITLE_MODEL_BASE_URL);
+        assert_eq!(defaults.model, DEFAULT_TITLE_MODEL_NAME);
+        assert!(!defaults.api_key_configured);
+        assert_eq!(
+            defaults.request_params,
+            vec![TitleModelRequestParam {
+                key: "reasoning_effort".to_string(),
+                value: DEFAULT_TITLE_MODEL_REASONING_EFFORT.to_string(),
+            }]
+        );
+        assert!(
+            load_title_model_runtime_settings(&db.conn)
+                .await
+                .expect("load absent title model runtime")
+                .is_none(),
+            "the suggested configuration must stay inactive until the user saves a key"
+        );
+
+        let saved = set_system_title_model_settings_core(
+            &db.conn,
+            SystemTitleModelSettingsUpdate {
+                enabled: defaults.enabled,
+                base_url: defaults.base_url,
+                model: defaults.model,
+                api_key: Some("user-groq-key".to_string()),
+                clear_api_key: false,
+                request_params: defaults.request_params,
+            },
+        )
+        .await
+        .expect("save default title model with only a key added");
+        assert!(saved.api_key_configured);
+
+        let runtime = load_title_model_runtime_settings(&db.conn)
+            .await
+            .expect("load saved title model runtime")
+            .expect("saved default is enabled");
+        assert_eq!(runtime.base_url, DEFAULT_TITLE_MODEL_BASE_URL);
+        assert_eq!(runtime.model, DEFAULT_TITLE_MODEL_NAME);
+        assert_eq!(runtime.api_key.as_deref(), Some("user-groq-key"));
+        assert_eq!(
+            runtime.request_params.get("reasoning_effort"),
+            Some(&serde_json::json!(DEFAULT_TITLE_MODEL_REASONING_EFFORT))
         );
     }
 

@@ -1,5 +1,71 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-const { UPDATE_REPOSITORY, updateFeed } = require("./update-config.cjs")
+const http = require("node:http")
+const https = require("node:https")
+const {
+  SOURCE_PROBE_TIMEOUT_MS,
+  orderUpdateSources,
+  sourceProbeUrls,
+  updateSources,
+} = require("./update-config.cjs")
+
+function probeUrl(url, timeoutMs = SOURCE_PROBE_TIMEOUT_MS) {
+  return new Promise((resolve) => {
+    const started = Date.now()
+    let settled = false
+    const pending = new Set()
+    const finish = (value) => {
+      if (settled) return
+      settled = true
+      clearTimeout(timer)
+      for (const req of pending) req.destroy()
+      pending.clear()
+      resolve(value)
+    }
+    const timer = setTimeout(() => finish(null), timeoutMs)
+    const visit = (target, hops) => {
+      if (settled) return
+      if (hops > 5) return finish(null)
+      let parsed
+      try {
+        parsed = new URL(target)
+      } catch {
+        return finish(null)
+      }
+      const lib = parsed.protocol === "http:" ? http : https
+      const req = lib.get(
+        parsed,
+        {
+          timeout: timeoutMs,
+          headers: { "User-Agent": "MaxCode-Updater" },
+        },
+        (res) => {
+          pending.delete(req)
+          if (settled) {
+            res.resume()
+            return
+          }
+          const loc = res.headers.location
+          if (res.statusCode >= 300 && res.statusCode < 400 && loc) {
+            res.resume()
+            visit(new URL(loc, parsed).href, hops + 1)
+            return
+          }
+          res.resume()
+          if (res.statusCode >= 200 && res.statusCode < 300)
+            finish(Date.now() - started)
+          else finish(null)
+        }
+      )
+      pending.add(req)
+      req.on("timeout", () => finish(null))
+      req.on("error", () => {
+        pending.delete(req)
+        if (!settled && pending.size === 0) finish(null)
+      })
+    }
+    visit(url, 0)
+  })
+}
 
 // One owner for every window. No renderer-supplied feed, version or file path.
 function createDesktopUpdater({
@@ -10,6 +76,8 @@ function createDesktopUpdater({
   beforeInstall,
   onInstallError,
   arch = process.arch,
+  platform = process.platform,
+  probe = probeUrl,
 }) {
   let state = { seq: 0, status: "idle" }
   let available = null
@@ -36,18 +104,48 @@ function createDesktopUpdater({
     rollbackAvailable: false,
     runtime: "electron",
   })
+  const sources = updateSources(arch, version)
+  let ranked = null
+  let rankedAt = 0
+  const applySource = (source) => {
+    updater.setFeedURL(source.feed)
+    updater.previousBlockmapBaseUrlOverride = source.blockmap
+  }
+  const sourcesForAttempt = async () => {
+    if (ranked && Date.now() - rankedAt < 60_000) return ranked
+    const urls = sourceProbeUrls(arch, platform)
+    const [github, mirror] = await Promise.all([
+      probe(urls.github, SOURCE_PROBE_TIMEOUT_MS),
+      probe(urls.mirror, SOURCE_PROBE_TIMEOUT_MS),
+    ])
+    ranked = orderUpdateSources(sources, { github, mirror })
+    rankedAt = Date.now()
+    return ranked
+  }
+  const trySources = async (operation) => {
+    let lastError
+    for (const source of await sourcesForAttempt()) {
+      applySource(source)
+      try {
+        return await operation()
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError
+  }
 
   updater.autoDownload = false
   updater.autoInstallOnAppQuit = false
   updater.allowPrerelease = false
   updater.allowDowngrade = false
   updater.disableDifferentialDownload = false
-  updater.setFeedURL(updateFeed(arch))
-  // GitHub's latest release cannot serve the previous version's blockmap.
-  updater.previousBlockmapBaseUrlOverride = `${UPDATE_REPOSITORY}/releases/download/v${version}/`
+  applySource(sources[0])
   updater.on("error", (error) => {
-    if (downloading || restarting) failure(error)
-    if (restarting) onInstallError?.(error)
+    if (restarting) {
+      failure(error)
+      onInstallError?.(error)
+    }
   })
   updater.on("update-available", (update) => {
     available = {
@@ -78,11 +176,9 @@ function createDesktopUpdater({
 
   function checkRaw() {
     if (!checking) {
-      checking = Promise.resolve()
-        .then(() => updater.checkForUpdates())
-        .finally(() => {
-          checking = null
-        })
+      checking = trySources(() => updater.checkForUpdates()).finally(() => {
+        checking = null
+      })
     }
     return checking
   }
@@ -116,13 +212,30 @@ function createDesktopUpdater({
       })
       downloading = Promise.resolve()
         .then(async () => {
-          await checkRaw()
-          if (!available) {
-            transition({ status: "idle" })
-            return
+          if (checking) {
+            try {
+              await checking
+            } catch {
+              // Check already failed; the download loop retries every source.
+            }
           }
-          transition({ ...state, version: available.version })
-          await updater.downloadUpdate()
+          let lastError
+          for (const source of await sourcesForAttempt()) {
+            applySource(source)
+            try {
+              await updater.checkForUpdates()
+              if (!available) {
+                transition({ status: "idle" })
+                return
+              }
+              transition({ ...state, version: available.version })
+              await updater.downloadUpdate()
+              return
+            } catch (error) {
+              lastError = error
+            }
+          }
+          throw lastError
         })
         .catch(failure)
         .finally(() => {
@@ -156,4 +269,4 @@ function createDesktopUpdater({
   }
 }
 
-module.exports = { createDesktopUpdater }
+module.exports = { createDesktopUpdater, probeUrl }

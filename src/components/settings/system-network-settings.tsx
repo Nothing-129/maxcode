@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { useAppI18n } from "@/components/i18n-provider"
 import { BackupSettings } from "@/components/settings/backup-settings"
 import { SettingsSection } from "@/components/shared/settings-section"
+import { BrowserLink } from "@/components/ui/browser-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -61,6 +62,7 @@ function GithubMarkIcon({ className }: { className?: string }) {
 }
 
 const PROXY_EXAMPLE = "http://127.0.0.1:7890"
+const GROQ_API_KEYS_URL = "https://console.groq.com/keys"
 const APP_LANGUAGE_VALUES = APP_LOCALES
 
 type LanguageSelectValue = "system" | AppLocale
@@ -134,6 +136,11 @@ export function SystemNetworkSettings() {
       languageSettings.mode === "system" ? "system" : languageSettings.language
     )
   }, [languageSettings])
+
+  const usesGroqTitleModel = titleModelBaseUrl
+    .trim()
+    .toLowerCase()
+    .startsWith("https://api.groq.com/")
 
   const languageLabels = useMemo(
     () => ({
@@ -551,7 +558,7 @@ export function SystemNetworkSettings() {
                   setTitleModelError(null)
                   setTitleModelTestResult(null)
                 }}
-                placeholder="qwen/qwen3.6-27b"
+                placeholder="qwen/qwen3.8-27b"
                 disabled={savingTitleModel || testingTitleModel}
               />
             </div>
@@ -577,10 +584,22 @@ export function SystemNetworkSettings() {
                 placeholder={
                   titleModelApiKeyConfigured && !clearTitleModelApiKey
                     ? t("titleModelApiKeySaved")
-                    : t("titleModelApiKeyOptional")
+                    : usesGroqTitleModel
+                      ? t("titleModelGroqApiKeyPlaceholder")
+                      : t("titleModelApiKeyOptional")
                 }
                 disabled={savingTitleModel || testingTitleModel}
               />
+              {usesGroqTitleModel && (
+                <p className="text-2xs text-muted-foreground">
+                  <BrowserLink
+                    href={GROQ_API_KEYS_URL}
+                    className="text-primary underline underline-offset-4 hover:text-primary/80"
+                  >
+                    {t("titleModelGroqSignup")}
+                  </BrowserLink>
+                </p>
+              )}
               {titleModelApiKeyConfigured && (
                 <Button
                   type="button"

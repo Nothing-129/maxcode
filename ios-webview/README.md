@@ -11,8 +11,8 @@
    服务未配置 Token 时可留空。地址不要包含 `/workspace`、账号或查询参数。
 3. 点击「验证并保存」，返回列表后点击连接名称进入工作区。
 4. 点击连接右侧信息按钮或左滑可编辑，左滑删除需要确认。
-5. 工作区左上角「连接」返回服务器列表；右上角箭头返回上一网页，刷新按钮
-   重新打开工作区。也支持系统侧滑返回网页。
+5. 工作区不显示原生顶部操作栏，支持侧滑前后导航网页；完全退出应用后重新
+   打开，回到连接选择页。加载失败时可在错误提示下重试或选择连接。
 
 首次访问局域网时请允许系统的本地网络权限。拒绝后需在系统设置里重新开启。
 
@@ -62,7 +62,7 @@ open ios-webview/MaxCode.xcodeproj
 xcodebuild -project ios-webview/MaxCode.xcodeproj \
   -scheme MaxCode -configuration Debug \
   -destination 'generic/platform=iOS Simulator' \
-  -derivedDataPath ios-webview/build CODE_SIGNING_ALLOWED=NO build
+  -derivedDataPath ios-webview/build build
 ```
 
 真机安装时，在 Xcode 的「Signing & Capabilities」选择自己的 Team，
@@ -106,7 +106,7 @@ pnpm upstream:guard
 
 在具备 Xcode 的机器上还应完成上面的模拟器构建，并手工验证：新增/编辑/取消/
 删除、错误 Token、局域网权限、HTTPS 错误证书、外链与同源弹窗、单图与多图上传、
-输入框和键盘、横屏/iPad、前后台及断网恢复、同源不同账号切换。
+输入框和键盘、iPad 竖屏、前后台及断网恢复、同源不同账号切换。
 
 ## 当前限制
 
@@ -114,5 +114,44 @@ pnpm upstream:guard
 - 文件下载（包括 `blob:`）暂未接入原生保存；请使用电脑端保存文件。
 - iOS 在后台或锁屏后可能暂停 WebView，没有后台 WebSocket 常驻保证或原生任务通知。
 - 原生连接页当前为简体中文；工作区语言沿用服务器前端设置。
-- 本机已于 2026-09-14 通过 App Store 安装 Xcode 26.6；首次启动停在许可协议
-  确认阶段，尚未完成组件初始化、模拟器、真机和签名安装验证。
+- 本机已于 2026-09-14 完成 Xcode 26.6 / iOS 26.5 SDK 初始化；Release 归档、
+  模拟器构建及开发签名 IPA 导出均成功，导出应用通过 `codesign --verify --deep --strict`。
+  本地产物为 `output/ios-0.1.0/MaxCode-iOS-0.1.0.ipa`，不提交仓库。
+- 开发签名使用本机公司团队，当前描述文件包含 3 台设备；该包用于已登记设备的开发
+  测试，不是 TestFlight 或 App Store 分发包。尚未完成真机安装与实际服务器端到端验证。
+- iPhone 17 Pro / iOS 26.5 模拟器已验证首页、新增连接、健康请求、Keychain 保存、
+  WebView Token 注入、同源新窗口导航、网页确认框和文本输入；使用本机受控测试服务。
+  模拟器构建应保留 Xcode 默认临时签名，禁用签名会造成 Keychain 返回 `-34018`。
+- 首次安装运行组件曾遇到系统磁盘镜像挂载异常；重启 macOS 后恢复。
+
+### 原生界面一致性
+
+连接页沿用 Android 壳的品牌栏、标题文案、细边框卡片、设备图标底色、更多菜单、
+独立添加按钮和底部安全存储提示；新增/编辑使用底部面板，颜色随系统切换深浅主题。
+样式集中于 `MaxCode/ShellStyle.swift`，契约测试将主要文案与浅色主题色同 Android
+资源比较，后续调整两端时需一起更新。2026-09-14 已在模拟器检查深浅色首页、
+新增表单和管理菜单；更新包为 `output/ios-0.1.0/MaxCode-iOS-0.1.0-aligned.ipa`。
+
+工作区隐藏原生导航操作栏，网页从系统顶部安全区开始显示；网页前后导航仍支持
+WebView 手势。加载失败或网页进程被系统回收时才显示重新加载/选择连接入口。
+每次冷启动固定进入连接选择页，不自动恢复上次工作区；仅切到后台再回来仍保留
+当前页面。2026-09-14 已通过模拟器进入工作区、终止应用进程、重新启动的验证。
+最新签名包：`output/ios-0.1.0/MaxCode-iOS-0.1.0-clean.ipa`。
+
+### 固定方向与缩放
+
+按产品要求，iPhone/iPad 仅声明正向竖屏，应用代理同样返回竖屏方向；iPad 声明
+全屏兼容模式。工作区视口固定为 1 倍，禁用双指页面缩放、双击放大和输入聚焦放大。
+原生 WKWebView 遵守视口缩放限制并禁用 pinch 手势；文档开始阶段注入并维护 viewport，
+防止服务端或 React 替换 meta 标签后恢复缩放。可编辑区域使用至少 16px 字号。
+已验证 iPhone 模拟器旋转时保持竖屏，自动测试覆盖 viewport 新建和动态替换。
+最新包：`output/ios-0.1.0/MaxCode-iOS-0.1.0-portrait.ipa`。
+
+底部安全区由 UIKit 单独负责。注入视口使用 `viewport-fit=contain`，避免 WebKit
+在已内缩的容器内再次预留底部安全区；保留原生键盘避让。2026-09-14 已在实际
+工作区检查键盘弹出和收起，消除约 34pt 重复留白。最新包：
+`output/ios-0.1.0/MaxCode-iOS-0.1.0-insets.ipa`。
+
+键盘隐藏时显式切换到底部安全区约束，避免 `UIKeyboardLayoutGuide` 残留键盘附件
+高度。工作区原生外层滚动固定在原点，消息列表等网页内部滚动由网页处理，防止
+WebKit 聚焦时整体上移。已在实际工作区验证软键盘弹出与收起后底部位置一致。

@@ -146,7 +146,7 @@ export function ReferenceBadge({
       className={cn(
         "inline-flex align-middle",
         isFileLink
-          ? "min-w-0 max-w-full items-start gap-1.5 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+          ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
           : cn(
               "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
               badgeColorClass(data)

@@ -1982,6 +1982,53 @@ function applyBackgroundSettlementToTurns(
   return { turns: changed ? nextTurns : turns, matched, changed }
 }
 
+/**
+ * Split optimistic user turns at COMPLETE_TURN so a follow-up send that raced
+ * this completion (queued auto-flush, or a send at the prompting→connected
+ * edge — both more likely when the next draft carries images and takes longer
+ * to submit) is not promoted into the turn that just finished.
+ *
+ * Promoting it would:
+ *   1. drop it from `optimisticTurns` and set `syncState` idle, then
+ *   2. let a settled detail refetch wipe `localTurns`,
+ * which looks like the pending message vanished instead of auto-sending.
+ *
+ * The follow-up is the turn named by `activeTurnToken` when another optimistic
+ * turn is also present, or a lone optimistic turn stamped after the live
+ * stream started.
+ */
+export function partitionOptimisticTurnsOnComplete(
+  optimisticTurns: MessageTurn[],
+  activeTurnToken: string | null,
+  liveStartedAt: number | null
+): { promote: MessageTurn[]; keep: MessageTurn[] } {
+  if (optimisticTurns.length === 0) {
+    return { promote: [], keep: [] }
+  }
+
+  if (optimisticTurns.length > 1 && activeTurnToken) {
+    const keep = optimisticTurns.filter((turn) => turn.id === activeTurnToken)
+    const promote = optimisticTurns.filter((turn) => turn.id !== activeTurnToken)
+    if (keep.length > 0 && promote.length > 0) {
+      return { promote, keep }
+    }
+  }
+
+  if (
+    optimisticTurns.length === 1 &&
+    activeTurnToken != null &&
+    optimisticTurns[0]!.id === activeTurnToken &&
+    liveStartedAt != null
+  ) {
+    const ts = Date.parse(optimisticTurns[0]!.timestamp)
+    if (Number.isFinite(ts) && ts > liveStartedAt) {
+      return { promote: [], keep: optimisticTurns }
+    }
+  }
+
+  return { promote: optimisticTurns, keep: [] }
+}
+
 function reducer(
   state: ConversationRuntimeState,
   action: Action
@@ -2227,6 +2274,29 @@ function reducer(
           ? action.liveMessage
           : current.liveMessage
 
+      // A follow-up send already replaced the drained turn's optimistic state
+      // (queued auto-flush / edge send after COMPLETE_TURN nulled liveMessage).
+      // Promoting those turns would treat the next prompt as part of the turn
+      // that just finished; a settled detail refetch then wipes it.
+      //
+      // Only when the caller OMITTED liveMessage (`undefined`) and the session
+      // has none either. An explicit `null` is a deliberate "no stream, still
+      // promote" (error-without-tokens, tests). Prompting always creates a
+      // liveMessage, so the first COMPLETE_TURN of a real turn does not hit
+      // this.
+      if (
+        action.liveMessage === undefined &&
+        current.liveMessage === null &&
+        current.syncState === "awaiting_persist" &&
+        current.optimisticTurns.length > 0
+      ) {
+        console.warn(
+          "[conversation-runtime] COMPLETE_TURN ignored: follow-up send already in flight",
+          { conversationId: action.conversationId }
+        )
+        return state
+      }
+
       // Convert liveMessage to completed MessageTurns (split into rounds).
       // No agent transcripts on promotion: they are transient live-only data
       // (see the option's doc) — parented blocks are still routed out of the
@@ -2255,17 +2325,27 @@ function reducer(
           }
         : current.sessionStats
 
-      // Promote: optimisticTurns + streamingTurns → localTurns. Dedup by turn
-      // id (keep the latest copy) so a re-promotion of an already-promoted turn
-      // doesn't leave two same-id turns in `localTurns`. This happens when the
-      // background `turn_complete` listener races the panel's own promotion
-      // after the same liveMessage was re-bridged: the first COMPLETE_TURN puts
-      // a snapshot into localTurns, the live turn re-streams under the same id,
-      // and a second COMPLETE_TURN would append it again. Identical ids mean the
-      // same underlying turn, so the later (most complete) copy supersedes.
+      // Promote: optimisticTurns that belong to THIS turn + streamingTurns →
+      // localTurns. A follow-up send that raced this completion stays in
+      // optimisticTurns (and keeps awaiting_persist) so a settled detail
+      // refetch cannot wipe it — see partitionOptimisticTurnsOnComplete.
+      const { promote: optimisticToPromote, keep: optimisticToKeep } =
+        partitionOptimisticTurnsOnComplete(
+          current.optimisticTurns,
+          current.activeTurnToken,
+          sourceLiveMessage?.startedAt ?? null
+        )
+      // Dedup by turn id (keep the latest copy) so a re-promotion of an
+      // already-promoted turn doesn't leave two same-id turns in `localTurns`.
+      // This happens when the background `turn_complete` listener races the
+      // panel's own promotion after the same liveMessage was re-bridged: the
+      // first COMPLETE_TURN puts a snapshot into localTurns, the live turn
+      // re-streams under the same id, and a second COMPLETE_TURN would append
+      // it again. Identical ids mean the same underlying turn, so the later
+      // (most complete) copy supersedes.
       const promotedRaw = [
         ...current.localTurns,
-        ...current.optimisticTurns,
+        ...optimisticToPromote,
         ...streamingTurns,
       ]
       const promotedLastIndexById = new Map<string, number>()
@@ -2308,10 +2388,16 @@ function reducer(
       return updateSessionInState(state, action.conversationId, () => ({
         ...current,
         localTurns: promoted,
-        optimisticTurns: [],
+        optimisticTurns: optimisticToKeep,
         liveMessage: null,
-        syncState: "idle",
-        activeTurnToken: null,
+        // A kept follow-up send is still in flight — stay awaiting_persist so
+        // a settled detail refetch preserves it. Otherwise the completing turn
+        // has drained and we go idle.
+        syncState: optimisticToKeep.length > 0 ? "awaiting_persist" : "idle",
+        activeTurnToken:
+          optimisticToKeep.length > 0
+            ? (current.activeTurnToken ?? optimisticToKeep[0]!.id)
+            : null,
         // Capture WHO drove this turn before `syncState` collapses to `idle`:
         // an owner send is `awaiting_persist`, a viewer's watched turn is not.
         // `isPureViewerSession` uses this to keep an owner's possibly-unflushed

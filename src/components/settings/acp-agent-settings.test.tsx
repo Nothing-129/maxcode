@@ -12,6 +12,7 @@ import {
   buildMergeConfigPayload,
   buildAcpAdapterCheck,
   buildVersionCheck,
+  publishedUpgradeVersion,
   configTextForClaudeSave,
   extractCodexImportantValues,
   getAgentChecks,
@@ -913,6 +914,53 @@ describe("buildVersionCheck", () => {
     expect(check?.fixes.some((fix) => fix.kind === "upgrade_binary")).toBe(
       false
     )
+  })
+
+  it("folds an online npm release into Version Status instead of a separate card", () => {
+    const agent = makeAgent({
+      agent_type: "gemini" as AgentType,
+      distribution_type: "npx",
+      registry_version: "0.57.0",
+      installed_version: "0.57.0",
+      supports_custom_version: true,
+    })
+    const check = buildVersionCheck(agent, true, {
+      online: {
+        loading: false,
+        release: { latestVersion: "0.60.0", source: "npm" },
+      },
+    })
+    expect(check?.status).toBe("warn")
+    expect(check?.message).toContain("Latest published: {version} ({source})")
+    expect(check?.fixes.some((fix) => fix.kind === "check_update")).toBe(true)
+    expect(check?.fixes.some((fix) => fix.kind === "upgrade_npx")).toBe(true)
+    expect(
+      publishedUpgradeVersion(agent, {
+        latestVersion: "0.60.0",
+        source: "npm",
+      })
+    ).toBe("0.60.0")
+  })
+
+  it("appends automatic update progress to Version Status", () => {
+    const check = buildVersionCheck(
+      makeAgent({
+        distribution_type: "npx",
+        registry_version: "0.57.0",
+        installed_version: "0.57.0",
+      }),
+      true,
+      {
+        autoUpdate: {
+          phase: "downloading",
+          version: "0.60.0",
+          error: null,
+        },
+      }
+    )
+    expect(check?.status).toBe("warn")
+    expect(check?.message).toContain("Downloading and verifying")
+    expect(check?.message).toContain("0.60.0")
   })
 })
 

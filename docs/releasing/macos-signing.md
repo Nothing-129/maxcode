@@ -65,7 +65,7 @@ corepack pnpm desktop:build
 `CODEG_ELECTRON_RELEASE=1` requires all credentials and code signing. Build on the
 target OS and architecture; do not pass Cargo `--target` or set `CARGO_BUILD_TARGET`.
 The backend reuses `src-tauri/target/release`. Installers are written to
-`electron/dist/MaxCode-Electron-<version>-mac-<arch>.dmg` and `.zip`.
+`electron/dist/MaxCode-<version>-mac-<arch>.dmg` and `.zip`.
 Local builds never upload or publish.
 
 Verify an Apple Silicon application and run its packaged smoke test:

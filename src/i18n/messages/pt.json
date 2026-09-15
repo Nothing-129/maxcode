@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "Salva — deixe em branco para manter",
     "titleModelApiKeyOptional": "Opcional para serviços locais",
+    "titleModelGroqApiKeyPlaceholder": "Cole sua API Key da Groq",
+    "titleModelGroqSignup": "Ainda não tem uma API Key? Crie uma conta Groq gratuita e obtenha uma.",
     "titleModelRequestParams": "Parâmetros da solicitação",
     "titleModelRequestParamsHint": "Adicionados ao JSON da solicitação como pares chave/valor. false, números, objetos e arrays são enviados como JSON; os demais valores como texto. Não insira segredos.",
     "titleModelAddRequestParam": "Adicionar parâmetro",
@@ -802,6 +804,7 @@
       "dragSortAgent": "Arraste para reordenar {name}",
       "refreshCheck": "Atualizar verificação",
       "refreshCheckAgent": "Atualizar verificação de {name}",
+      "checkUpdates": "Verificar atualizações",
       "clickEnable": "Clique para habilitar {name}",
       "clickDisable": "Clique para desabilitar {name}",
       "install": "Instalar",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}. Atualização disponível.",
       "remoteUnavailable": "{versionText}. A versão remota está indisponível no momento.",
       "latest": "{versionText}. Igual ou superior à versão recomendada integrada.",
-      "latestChannel": "{versionText}. Canal de versão mais recente ativo; Atualizar instala a versão mais nova."
+      "latestChannel": "{versionText}. Canal de versão mais recente ativo; Atualizar instala a versão mais nova.",
+      "onlineChecking": "Consultando a fonte de publicação…",
+      "onlineFailed": "Falha na verificação online: {error}",
+      "onlineUnavailable": "Não há informações de versão online.",
+      "onlineRelease": "Versão publicada mais recente: {version} ({source})",
+      "onlineUnknown": "A versão local não é comparável.",
+      "onlineNewer": "Há uma atualização disponível.",
+      "autoPhase": {
+        "idle": "A aguardar verificação",
+        "checking": "A procurar atualizações",
+        "downloading": "A transferir e verificar",
+        "waiting": "Atualização pronta; a aguardar o fim das sessões",
+        "current": "Não é necessário atualizar",
+        "updated": "Atualizado automaticamente",
+        "error": "Falha; será repetida",
+        "unavailable": "Fonte de atualização ou versão comparável indisponível"
+      }
     },
     "adapter": {
       "label": "Adaptador ACP",
@@ -5441,7 +5460,7 @@
     "current": "A versão instalada é igual ou superior à mais recente publicada.",
     "unknown": "Não instalado ou versão local não comparável. Verifique a versão antes de instalar.",
     "note": "Este cartão verifica versões publicadas. Os agentes ativados são atualizados automaticamente. As versões do adaptador e da CLI podem diferir.",
-    "install": "Instalar {version}…",
+    "install": "Instalar {version}",
     "autoLabel": "Atualizações automáticas",
     "autoDescription": "Todos os agentes ativados e instalados são atualizados automaticamente, sem interruptor separado. Verifica a cada 6 horas, valida e ativa quando não há sessões em execução.",
     "autoPhase": {

@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { RefreshCw } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { acpCheckAgentUpdate, type AgentUpdateRelease } from "@/lib/api"
 import { compareAgentVersions } from "@/lib/agent-update-status"
 import type { AcpAgentInfo, AgentType } from "@/lib/types"
@@ -113,117 +112,5 @@ export function AgentUpdateBadge({
     >
       <RefreshCw className="h-3.5 w-3.5" />
     </span>
-  )
-}
-
-export function AgentUpdateCheck({
-  agent,
-  onInstallVersion,
-  busy = false,
-  updates: sharedUpdates,
-}: {
-  agent: AcpAgentInfo
-  onInstallVersion: (version: string) => void
-  busy?: boolean
-  updates?: ReturnType<typeof useAgentUpdates>
-}) {
-  const t = useTranslations("AgentUpdateSettings")
-  const localUpdates = useAgentUpdates(sharedUpdates ? [] : [agent])
-  const updates = sharedUpdates ?? localUpdates
-  const agentType = agent.agent_type
-  const { check } = updates
-  useEffect(() => {
-    if (agent.enabled) void check(agentType)
-  }, [check, agentType, agent.enabled])
-  const current = updates.states[agentType]
-  const loading = current?.loading ?? agent.enabled
-  const release = current?.release
-  const latest = release?.latestVersion
-  const comparison = latest
-    ? compareAgentVersions(
-        agent.installed_version,
-        latest,
-        agentType === "openclaw"
-      )
-    : null
-  const updateAvailable = comparison !== null && comparison < 0
-
-  return (
-    <div className="space-y-2 rounded-md border p-3" data-agent-update-check="">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-xs font-medium">{t("title")}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="xs"
-          disabled={loading}
-          onClick={() => {
-            void check(agentType, true)
-          }}
-        >
-          <RefreshCw
-            className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"}
-          />
-          {t("check")}
-        </Button>
-      </div>
-      <div
-        role="status"
-        className={
-          current?.error || updateAvailable
-            ? "text-xs text-amber-600 dark:text-amber-400"
-            : "text-xs text-muted-foreground"
-        }
-      >
-        {loading ? (
-          t("checking")
-        ) : current?.error ? (
-          t("failed", { error: current.error })
-        ) : !current ? (
-          t("check")
-        ) : !latest ? (
-          t("unavailable")
-        ) : (
-          <>
-            <p>
-              {t("release", {
-                version: latest,
-                source:
-                  release.source === "npm"
-                    ? "npm"
-                    : release.source === "pypi"
-                      ? "PyPI"
-                      : "ACP Registry",
-              })}
-            </p>
-            <p>
-              {t(
-                comparison === null
-                  ? "unknown"
-                  : updateAvailable
-                    ? "available"
-                    : "current"
-              )}
-            </p>
-          </>
-        )}
-      </div>
-      <p className="text-2xs text-muted-foreground">{t("note")}</p>
-      {!loading &&
-        updateAvailable &&
-        latest &&
-        release?.source === "npm" &&
-        agent.supports_custom_version && (
-          <Button
-            type="button"
-            variant="outline"
-            size="xs"
-            disabled={busy}
-            onClick={() => onInstallVersion(latest)}
-          >
-            {t("install", { version: latest })}
-          </Button>
-        )}
-    </div>
   )
 }

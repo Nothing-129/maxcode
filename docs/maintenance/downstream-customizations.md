@@ -30,6 +30,7 @@
 | 移动端 | 恢复前台及网络重连后检查并恢复当前会话，连接中、未连接、连接错误均持续 1.5 秒才显示；状态或会话变化重新计时，已连接立即恢复，持续掉线保留红色提示 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
 | 会话 | Pi 启动横幅（pi 版本 / Context / Skills）不进入对话：实时流直接丢弃，与完成后的持久化转写保持一致，不再先显示后消失 | `worktree-2026-09-11` | `chat.pi-startup-banner-suppressed` |
 | 对话选择 | Codex 参考样式：加重问题标题、浅灰选项底色与细边框、选中加深描边及反色编号、底部操作分隔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
+| 消息超链接 | 可点击的 Markdown 超链接显示小手光标，流式生成中未完成的链接保持不可点击样式 | `worktree-2026-09-15` | `chat.markdown-link-cursor` |
 | 消息文件链接 | 文件名按容器宽度完整换行，兼容手机；按真实路径、特殊文件名和复合扩展名匹配 VSCode Icons 原生彩色图标，离线资源支持明暗主题，保留紧凑输入框徽标 | `worktree-2026-09-11` | `chat.file-link-presentation` |
 | 消息 | Codex 后续建议标记渲染为按钮，点击追加到当前输入框；只读页面显示标签，代码示例保持原文 | `worktree-2026-09-11` | `chat.codex-followup-controls` |
 | 消息 | 历史回复正文到操作按钮保持连续悬停区域，悬停/键盘聚焦时抬高实际虚拟行层级（悬停优先），按钮不被下一条消息的透明间距遮挡，提示气泡打开时保持操作区可见及层级，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
@@ -49,7 +50,7 @@
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
 | 侧边栏 | 移除待办任务与仓库面板导航入口，保留新对话（简体中文固定文案）、自动化及会话列表；文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08` | `workspace.sidebar-navigation` |
 | 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；Tauri 兼容 CI 改为手动 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
-| 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap | `worktree-2026-09-08` | `desktop.differential-updates` |
+| 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap；GitHub 过慢或不可达时走 maxcode-update.aifalao.net | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
 | 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
 | 手机布局 | 浏览器由工作区预留底部安全区；Android APP 由原生层避让导航栏/键盘，注入样式取消新旧网页外壳的重复底部安全区（所有机型），输入框仅保留 8px 间距 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
@@ -72,13 +73,13 @@
 | 会话标题 | 移除会话、侧栏及标签菜单中的手动刷新标题入口和前端请求封装；保留自动标题与重命名 | `worktree-2026-09-10` | `conversations.manual-title-refresh` |
 | 会话标题 | 标准化 MMDD｜类型｜主题，重试无效响应；打开会话时按首条用户消息补生成，纯图片消息使用首轮助手文字回复，不跨后续用户轮次、不发送图片载荷；5 分钟冷却、保护锁定名称，失败日志不含凭证 | `worktree-2026-09-07` | `conversations.structured-title-recovery` |
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
-| 智能体 | 设置页选中智能体时联网检测发布版本，npm 查询实际 ACP 包，其余受支持智能体查询 ACP 注册表；缓存 10 分钟并支持强制检查，失败和未知版本不误报最新，npm 新版经确认后按指定版本安装，不更改默认通道或自动升级 | `worktree-2026-09-10` | `settings.agent-online-updates` |
+| 智能体 | 设置页对已开启智能体联网检测发布版本，结果写入侧栏徽标和详情里的「版本状态」分类（不另设更新卡片）；npm 查询实际 ACP 包，其余受支持智能体查询 ACP 注册表；缓存 6 小时并支持在版本状态中强制检查，失败和未知版本不误报最新，npm 新版在版本状态中点升级即按该版本安装，自定义版本仍走输入对话框 | `worktree-2026-09-10` | `settings.agent-online-updates` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；1.18.30 的六个摘要直接从官方 GitHub Release 资产流式计算，不能采用上游空摘要 | `1bf8a772`、`25882257`、`worktree-2026-09-07`、`worktree-2026-09-15` | `agents.opencode-verified-distribution` |
 | 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |
 | 附件 | 单文件上传与拖放上限 100 MiB，HTTP multipart 额外预留开销，图片回填支持一张满额图片 | 当前工作区 | `attachments.hundred-mib-upload` |
 | Android | 多服务器连接、安全令牌存储、健康检查、WebView 引导、OPPO 状态栏安全区和列表细节；本地附件兼容单 URI 与 ClipData 多选返回 | `bddabc51`、当前工作区 | `android.webview-client` |
-| iOS | 独立 WKWebView 壳：原生多连接、设备专属 Keychain、健康检查、同源 Token 注入、内存会话隔离、键盘安全区和前后台恢复 | `worktree-2026-09-14` | `ios.webview-client` |
+| iOS | 独立 WKWebView 壳：与安卓一致的连接页布局/文案/主题、无原生顶栏工作区、固定竖屏/1倍视口、键盘隐藏后恢复底部安全区、冷启动连接选择、原生多连接、设备专属 Keychain、健康检查、同源 Token 注入、内存会话隔离、键盘安全区和前后台恢复 | `worktree-2026-09-14` | `ios.webview-client` |
 | 品牌 | MaxCode 名称、图标、文档、安装器和个人仓库链接 | `9eaecc27`、`dc86bec0`、`c7a21a24` | `branding.maxcode` |
 | 发布 | 平台白名单、Electron 安装包完整性、服务器签名更新、macOS 签名公证及 MaxCode 产物名 | `dceb62ac` 等发布提交 | `release.signed-multiplatform-artifacts` |
 | 维护 | 上游影响扫描、热点清单和独立契约 CI | 当前工作区 | `maintenance.upstream-integration-guard` |

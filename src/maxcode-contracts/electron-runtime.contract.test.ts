@@ -272,11 +272,17 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
         }),
       ])
     )
-    expect(packaging.publish[0]).toMatchObject({
-      provider: "github",
-      owner: "Nothing-129",
-      repo: "maxcode",
-    })
+    expect(packaging.publish).toEqual([
+      {
+        provider: "github",
+        owner: "Nothing-129",
+        repo: "maxcode",
+        channel: expect.stringMatching(/^latest-(x64|arm64)$/),
+      },
+    ])
+    expect(packaging.mac.extendInfo.NSLocalNetworkUsageDescription).toContain(
+      "local update mirror"
+    )
     expect(readFileSync("electron/scripts/cli.mjs", "utf8")).toContain(
       '"never"'
     )
@@ -284,7 +290,9 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
       "Contents/Resources/backend/codeg-server",
       "Contents/Resources/backend/codeg-mcp",
     ])
-    expect(packaging.artifactName).toMatch(/^MaxCode-Electron-/)
+    expect(packaging.artifactName).toBe(
+      "MaxCode-${version}-${os}-${arch}.${ext}"
+    )
     const manifest = JSON.parse(readFileSync("package.json", "utf8"))
     const appManifest = JSON.parse(
       readFileSync("electron/package.json", "utf8")

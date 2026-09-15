@@ -2,13 +2,16 @@ import UIKit
 import WebKit
 import Network
 
-final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKUIDelegate {
+final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKUIDelegate, UIScrollViewDelegate {
     private let connection: Connection
     private var webView: WKWebView!
     private let progress = UIProgressView(progressViewStyle: .bar)
     private let errorLabel = UILabel()
+    private let errorPanel = UIStackView()
     private var progressObservation: NSKeyValueObservation?
     private let monitor = NWPathMonitor()
+    private var keyboardBottom: NSLayoutConstraint!
+    private var restingBottom: NSLayoutConstraint!
 
     init(connection: Connection) {
         self.connection = connection
@@ -21,17 +24,13 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
         title = connection.name
         navigationItem.largeTitleDisplayMode = .never
         view.backgroundColor = .systemBackground
-        let refresh = UIBarButtonItem(barButtonSystemItem: .refresh, target: self, action: #selector(refreshPage))
-        refresh.accessibilityLabel = "刷新工作区"
-        let back = UIBarButtonItem(image: UIImage(systemName: "chevron.backward"), style: .plain,
-                                  target: self, action: #selector(backPage))
-        back.accessibilityLabel = "返回上一网页"
-        navigationItem.rightBarButtonItems = [refresh, back]
-
         let config = WKWebViewConfiguration()
         // A new in-memory store per connection prevents cookies, drafts and tokens
         // leaking between two accounts that use the same server origin.
         config.websiteDataStore = .nonPersistent()
+        config.ignoresViewportScaleLimits = false
+        config.userContentController.addUserScript(WKUserScript(
+            source: WebScripts.viewport, injectionTime: .atDocumentStart, forMainFrameOnly: true))
         config.applicationNameForUserAgent = "MaxCodeiOS/0.1.0"
         config.preferences.javaScriptCanOpenWindowsAutomatically = true
         config.userContentController.addUserScript(WKUserScript(
@@ -43,6 +42,12 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
         webView.uiDelegate = self
         webView.allowsBackForwardNavigationGestures = true
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        // Workspace panels scroll inside the web document. Keep the outer native
+        // viewport anchored so WebKit focus scrolling cannot move the whole app.
+        webView.scrollView.isScrollEnabled = false
+        webView.scrollView.bounces = false
+        webView.scrollView.delegate = self
+        webView.scrollView.pinchGestureRecognizer?.isEnabled = false
         webView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(webView)
 
@@ -52,20 +57,38 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
         errorLabel.textAlignment = .center
         errorLabel.font = .preferredFont(forTextStyle: .body)
         errorLabel.backgroundColor = .systemBackground
-        errorLabel.isHidden = true
-        errorLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(errorLabel)
+        errorPanel.axis = .vertical
+        errorPanel.spacing = 16
+        errorPanel.backgroundColor = .systemBackground
+        errorPanel.isHidden = true
+        errorPanel.translatesAutoresizingMaskIntoConstraints = false
+        errorPanel.addArrangedSubview(errorLabel)
+        let retry = UIButton(type: .system)
+        retry.setTitle("重新加载", for: .normal)
+        retry.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        retry.addTarget(self, action: #selector(refreshPage), for: .touchUpInside)
+        errorPanel.addArrangedSubview(retry)
+        let choose = UIButton(type: .system)
+        choose.setTitle("选择连接", for: .normal)
+        choose.heightAnchor.constraint(greaterThanOrEqualToConstant: 44).isActive = true
+        choose.addAction(UIAction { [weak self] _ in
+            self?.navigationController?.popToRootViewController(animated: true)
+        }, for: .touchUpInside)
+        errorPanel.addArrangedSubview(choose)
+        view.addSubview(errorPanel)
+        keyboardBottom = webView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor)
+        restingBottom = webView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
+        restingBottom.isActive = true
         NSLayoutConstraint.activate([
             webView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             webView.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
             webView.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            webView.bottomAnchor.constraint(equalTo: view.keyboardLayoutGuide.topAnchor),
             progress.topAnchor.constraint(equalTo: webView.topAnchor),
             progress.leadingAnchor.constraint(equalTo: webView.leadingAnchor),
             progress.trailingAnchor.constraint(equalTo: webView.trailingAnchor),
-            errorLabel.centerYAnchor.constraint(equalTo: webView.centerYAnchor),
-            errorLabel.leadingAnchor.constraint(equalTo: webView.leadingAnchor, constant: 24),
-            errorLabel.trailingAnchor.constraint(equalTo: webView.trailingAnchor, constant: -24)
+            errorPanel.centerYAnchor.constraint(equalTo: webView.centerYAnchor),
+            errorPanel.leadingAnchor.constraint(equalTo: webView.leadingAnchor, constant: 24),
+            errorPanel.trailingAnchor.constraint(equalTo: webView.trailingAnchor, constant: -24)
         ])
         progressObservation = webView.observe(\.estimatedProgress, options: [.new]) { [weak self] web, _ in
             self?.progress.progress = Float(web.estimatedProgress)
@@ -77,8 +100,31 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
             guard path.status == .satisfied else { return }
             DispatchQueue.main.async { self?.wake() }
         }
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow),
+            name: UIResponder.keyboardWillShowNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide),
+            name: UIResponder.keyboardWillHideNotification, object: nil)
         monitor.start(queue: DispatchQueue(label: "app.maxcode.ios.network"))
         refreshPage()
+    }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        if scrollView.contentOffset != .zero {
+            scrollView.setContentOffset(.zero, animated: false)
+        }
+    }
+
+    @objc private func keyboardWillShow() {
+        guard isViewLoaded, view.window != nil else { return }
+        restingBottom.isActive = false
+        keyboardBottom.isActive = true
+    }
+
+    @objc private func keyboardWillHide() {
+        // The keyboard guide can retain an accessory-height reservation after
+        // dismissal. Restore the explicit safe-area boundary when it is hidden.
+        keyboardBottom.isActive = false
+        restingBottom.isActive = true
     }
 
     deinit {
@@ -87,13 +133,9 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
     }
 
     @objc private func refreshPage() {
-        errorLabel.isHidden = true
+        errorPanel.isHidden = true
         webView.load(URLRequest(url: ServerURL.freshWorkspace(connection.baseURL),
                                cachePolicy: .reloadIgnoringLocalCacheData))
-    }
-
-    @objc private func backPage() {
-        if webView.canGoBack { webView.goBack() }
     }
 
     @objc private func wake() {
@@ -141,13 +183,12 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
     }
 
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
-        errorLabel.isHidden = true
+        errorPanel.isHidden = true
         progress.isHidden = false
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
         progress.isHidden = true
-        navigationItem.rightBarButtonItems?.last?.isEnabled = webView.canGoBack
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
@@ -159,16 +200,16 @@ final class WorkspaceViewController: UIViewController, WKNavigationDelegate, WKU
     }
 
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
-        errorLabel.text = "页面已被系统释放。点击右上角刷新重新打开工作区。"
-        errorLabel.isHidden = false
+        errorLabel.text = "页面已被系统释放，请重新加载工作区。"
+        errorPanel.isHidden = false
         progress.isHidden = true
     }
 
     private func showNavigationError(_ error: Error) {
         guard (error as NSError).code != NSURLErrorCancelled else { return }
         progress.isHidden = true
-        errorLabel.text = "\(error.localizedDescription)\n\n点击右上角刷新重试，或返回连接列表编辑地址。"
-        errorLabel.isHidden = false
+        errorLabel.text = "\(error.localizedDescription)\n\n请重新加载，或选择连接以检查服务器地址。"
+        errorPanel.isHidden = false
     }
 
     private func showMessage(_ message: String) {

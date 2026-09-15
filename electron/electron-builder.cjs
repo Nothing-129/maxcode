@@ -25,7 +25,7 @@ module.exports = {
   ],
   asar: true,
   npmRebuild: false,
-  artifactName: "MaxCode-Electron-${version}-${os}-${arch}.${ext}",
+  artifactName: "MaxCode-${version}-${os}-${arch}.${ext}",
   // Generates app-update.yml and per-architecture manifests; CLI still uses --publish never.
   publish: [updateFeed()],
   beforePack: () => {
@@ -52,6 +52,10 @@ module.exports = {
     icon: "src-tauri/icons/icon.icns",
     target: ["dmg", "zip"],
     hardenedRuntime: true,
+    extendInfo: {
+      NSLocalNetworkUsageDescription:
+        "MaxCode checks a local update mirror when GitHub is unreachable.",
+    },
     binaries: [
       "Contents/Resources/backend/codeg-server",
       "Contents/Resources/backend/codeg-mcp",

@@ -13,17 +13,17 @@ export function FileTypeIcon({
     <span
       aria-hidden="true"
       data-file-icon={icon}
-      className="mt-[0.1em] inline-flex size-5 shrink-0"
+      className="mt-[0.12em] inline-flex size-4 shrink-0"
     >
       {/* Local, pre-sized SVG assets need no Next image optimization. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={sources.light}
         alt=""
-        width={20}
-        height={20}
+        width={16}
+        height={16}
         className={
-          sources.light === sources.dark ? "size-5" : "size-5 dark:hidden"
+          sources.light === sources.dark ? "size-4" : "size-4 dark:hidden"
         }
       />
       {sources.light !== sources.dark && (
@@ -31,9 +31,9 @@ export function FileTypeIcon({
         <img
           src={sources.dark}
           alt=""
-          width={20}
-          height={20}
-          className="hidden size-5 dark:block"
+          width={16}
+          height={16}
+          className="hidden size-4 dark:block"
         />
       )}
     </span>

@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "저장됨 — 비워 두면 유지",
     "titleModelApiKeyOptional": "로컬 서비스에서는 선택 사항",
+    "titleModelGroqApiKeyPlaceholder": "Groq API Key를 붙여넣으세요",
+    "titleModelGroqSignup": "API Key가 없나요? Groq 무료 계정을 만들고 발급받으세요.",
     "titleModelRequestParams": "요청 매개변수",
     "titleModelRequestParamsHint": "키/값 쌍으로 요청 JSON에 추가됩니다. false, 숫자, 객체와 배열은 JSON으로, 나머지는 문자열로 전송됩니다. 비밀 정보는 입력하지 마세요.",
     "titleModelAddRequestParam": "매개변수 추가",
@@ -802,6 +804,7 @@
       "dragSortAgent": "{name} 순서 변경",
       "refreshCheck": "다시 확인",
       "refreshCheckAgent": "{name} 다시 확인",
+      "checkUpdates": "업데이트 확인",
       "clickEnable": "{name} 활성화",
       "clickDisable": "{name} 비활성화",
       "install": "설치",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}. 업그레이드가 가능합니다.",
       "remoteUnavailable": "{versionText}. 현재 원격 버전을 사용할 수 없습니다.",
       "latest": "{versionText}. 내장 권장 버전 이상입니다.",
-      "latestChannel": "{versionText}. 최신 버전 채널이 켜져 있습니다. 업그레이드하면 최신 릴리스를 설치합니다."
+      "latestChannel": "{versionText}. 최신 버전 채널이 켜져 있습니다. 업그레이드하면 최신 릴리스를 설치합니다.",
+      "onlineChecking": "배포 소스 확인 중…",
+      "onlineFailed": "온라인 확인 실패: {error}",
+      "onlineUnavailable": "온라인 버전 정보가 없습니다.",
+      "onlineRelease": "최신 배포 버전: {version} (소스: {source})",
+      "onlineUnknown": "로컬 버전을 비교할 수 없습니다.",
+      "onlineNewer": "업그레이드할 수 있습니다.",
+      "autoPhase": {
+        "idle": "확인 대기 중",
+        "checking": "업데이트 확인 중",
+        "downloading": "다운로드 및 검증 중",
+        "waiting": "업데이트 준비 완료, 세션 종료 대기 중",
+        "current": "업데이트 필요 없음",
+        "updated": "자동 업데이트 완료",
+        "error": "업데이트 실패, 나중에 재시도",
+        "unavailable": "업데이트 소스 또는 비교 가능한 버전 없음"
+      }
     },
     "adapter": {
       "label": "ACP 어댑터",
@@ -5441,7 +5460,7 @@
     "current": "설치된 버전이 최신 배포 버전 이상입니다.",
     "unknown": "설치되지 않았거나 로컬 버전을 비교할 수 없습니다. 설치 전에 버전을 확인하세요.",
     "note": "이 카드는 릴리스를 확인합니다. 활성화된 에이전트는 자동 업데이트됩니다. 어댑터와 CLI 버전은 다를 수 있습니다.",
-    "install": "{version} 설치…",
+    "install": "{version} 설치",
     "autoLabel": "자동 업데이트",
     "autoDescription": "활성화된 설치 완료 에이전트는 모두 자동 업데이트됩니다. 별도 스위치는 없습니다. 6시간마다 확인하고 검증한 뒤 실행 중인 세션이 없을 때 적용합니다.",
     "autoPhase": {

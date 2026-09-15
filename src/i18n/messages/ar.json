@@ -262,6 +262,8 @@
     "titleModelApiKey": "API Key",
     "titleModelApiKeySaved": "محفوظ — اتركه فارغًا للإبقاء عليه",
     "titleModelApiKeyOptional": "اختياري للخدمات المحلية",
+    "titleModelGroqApiKeyPlaceholder": "ألصق Groq API Key الخاص بك",
+    "titleModelGroqSignup": "ليس لديك API Key؟ أنشئ حساب Groq مجانيًا واحصل على مفتاح.",
     "titleModelRequestParams": "معلمات الطلب",
     "titleModelRequestParamsHint": "تُضاف إلى JSON الطلب كأزواج مفتاح/قيمة. تُرسل false والأرقام والكائنات والمصفوفات بصيغة JSON، والقيم الأخرى كنص. لا تُدخل أسرارًا هنا.",
     "titleModelAddRequestParam": "إضافة معلمة",
@@ -802,6 +804,7 @@
       "dragSortAgent": "اسحب لإعادة ترتيب {name}",
       "refreshCheck": "تحديث الفحص",
       "refreshCheckAgent": "تحديث فحص {name}",
+      "checkUpdates": "التحقق من التحديثات",
       "clickEnable": "انقر لتفعيل {name}",
       "clickDisable": "انقر لتعطيل {name}",
       "install": "تثبيت",
@@ -1478,7 +1481,23 @@
       "upgradeAvailable": "{versionText}. تتوفر ترقية.",
       "remoteUnavailable": "{versionText}. الإصدار البعيد غير متاح حاليًا.",
       "latest": "{versionText}. يساوي الإصدار الموصى به المضمّن أو يتجاوزه.",
-      "latestChannel": "{versionText}. قناة الأحدث مفعّلة؛ الترقية تثبّت أحدث إصدار."
+      "latestChannel": "{versionText}. قناة الأحدث مفعّلة؛ الترقية تثبّت أحدث إصدار.",
+      "onlineChecking": "جارٍ التحقق من مصدر الإصدار…",
+      "onlineFailed": "فشل التحقق عبر الإنترنت: {error}",
+      "onlineUnavailable": "لا تتوفر معلومات إصدار عبر الإنترنت.",
+      "onlineRelease": "أحدث إصدار منشور: {version} ({source})",
+      "onlineUnknown": "لا يمكن مقارنة الإصدار المحلي.",
+      "onlineNewer": "تتوفر ترقية.",
+      "autoPhase": {
+        "idle": "بانتظار التحقق",
+        "checking": "جارٍ البحث عن تحديثات",
+        "downloading": "جارٍ التنزيل والتحقق",
+        "waiting": "التحديث جاهز؛ بانتظار انتهاء الجلسات",
+        "current": "لا حاجة إلى تحديث",
+        "updated": "تم التحديث تلقائيًا",
+        "error": "فشل التحديث؛ ستُعاد المحاولة",
+        "unavailable": "مصدر التحديث أو إصدار قابل للمقارنة غير متاح"
+      }
     },
     "adapter": {
       "label": "محوّل ACP",
@@ -5441,7 +5460,7 @@
     "current": "الإصدار المثبت يساوي أحدث إصدار منشور أو يتجاوزه.",
     "unknown": "غير مثبت أو لا يمكن مقارنة الإصدار المحلي. تحقق من الإصدار قبل التثبيت.",
     "note": "تتحقق هذه البطاقة من الإصدارات المنشورة. تُحدّث الوكلاء المفعّلة تلقائيًا. قد تختلف إصدارات المحوّل وCLI.",
-    "install": "تثبيت {version}…",
+    "install": "تثبيت {version}",
     "autoLabel": "التحديثات التلقائية",
     "autoDescription": "تُحدّث جميع الوكلاء المفعّلة والمثبتة تلقائيًا دون مفتاح منفصل. يتم التحقق كل 6 ساعات ثم التفعيل بعد التحقق من التثبيت وعند عدم وجود جلسات قيد التشغيل.",
     "autoPhase": {

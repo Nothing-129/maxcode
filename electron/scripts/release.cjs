@@ -74,7 +74,7 @@ function desktopAssets(value, version) {
         arch === "x64"
           ? { deb: "amd64", AppImage: "x86_64" }[ext] || arch
           : arch
-      return `MaxCode-Electron-${version}-${os}-${artifactArch}.${ext}`
+      return `MaxCode-${version}-${os}-${artifactArch}.${ext}`
     })
   })
 }

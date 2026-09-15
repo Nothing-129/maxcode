@@ -5,30 +5,48 @@
       "id": "ios.webview-client",
       "category": "product",
       "description": "Independent iPhone/iPad WKWebView shell with native connection management, atomic device-only Keychain storage, authenticated non-redirecting health checks, origin-scoped token bootstrap, isolated in-memory web sessions, fresh entry URLs, native keyboard/safe-area layout and foreground/network recovery.",
-      "origins": [
-        "worktree-2026-09-14"
-      ],
-      "paths": [
-        "ios-webview/"
-      ],
-      "contracts": [
-        "src/maxcode-contracts/ios-webview-client.contract.test.ts"
-      ]
+      "origins": ["worktree-2026-09-14"],
+      "paths": ["ios-webview/"],
+      "contracts": ["src/maxcode-contracts/ios-webview-client.contract.test.ts"]
     },
     {
       "id": "settings.agent-auto-updates",
       "category": "runtime",
-      "description": "All enabled installed built-in and custom agents update automatically via npm, binary archives or isolated Python tools from the npm mirror after startup and every six hours. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status UI, manual install serialization and retry backoff are preserved.",
+      "description": "All enabled installed built-in and custom agents update automatically via npm, binary archives or isolated Python tools from the npm mirror after startup and every six hours. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status is shown in the Version Status category, and manual install serialization and retry backoff are preserved.",
       "origins": ["worktree-2026-09-14"],
-      "paths": ["src-tauri/src/commands/agent_auto_updates.rs", "src-tauri/src/acp/binary_cache.rs", "src-tauri/src/acp/connection.rs", "src-tauri/src/acp/remote_registry.rs", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/acp.rs", "src-tauri/src/commands/mod.rs", "src-tauri/src/bin/codeg_server.rs", "src-tauri/src/lib.rs", "src-tauri/src/web/handlers/acp.rs", "src-tauri/src/web/router.rs", "src/components/settings/agent-auto-update.tsx", "src/components/settings/acp-agent-settings.tsx", "src/lib/api.ts", "src/i18n/messages/"],
-      "contracts": ["src/maxcode-contracts/agent-auto-updates.contract.test.tsx"]
+      "paths": [
+        "src-tauri/src/commands/agent_auto_updates.rs",
+        "src-tauri/src/acp/binary_cache.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/remote_registry.rs",
+        "src-tauri/src/commands/agent_updates.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/mod.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/web/handlers/acp.rs",
+        "src-tauri/src/web/router.rs",
+        "src/components/settings/agent-auto-update.tsx",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/lib/api.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-auto-updates.contract.test.tsx"
+      ]
     },
     {
       "id": "settings.agent-npm-mirror",
       "category": "runtime",
       "description": "Agent npm installs, upgrades, retries, online update checks and custom package metadata use the aifalao registry. Install logs show the selected registry.",
       "origins": ["worktree-2026-09-14"],
-      "paths": ["src-tauri/src/acp/mod.rs", "src-tauri/src/acp/registry.rs", "src-tauri/src/commands/acp.rs", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/custom_agents.rs"],
+      "paths": [
+        "src-tauri/src/acp/mod.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/agent_updates.rs",
+        "src-tauri/src/commands/custom_agents.rs"
+      ],
       "contracts": ["src/maxcode-contracts/agent-npm-mirror.contract.test.ts"]
     },
     {
@@ -36,24 +54,33 @@
       "category": "product",
       "description": "Blank and template-seeded automations default to shared_in_root with new-worktree-per-run unchecked; editing preserves saved isolation and users can explicitly enable worktree isolation.",
       "origins": ["worktree-2026-09-11"],
-      "paths": ["src/components/automations/automation-editor.tsx", "src/components/automations/automation-templates.ts"],
-      "contracts": ["src/maxcode-contracts/automation-default-isolation.contract.test.ts"]
+      "paths": [
+        "src/components/automations/automation-editor.tsx",
+        "src/components/automations/automation-templates.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-default-isolation.contract.test.ts"
+      ]
     },
     {
       "id": "chat.codex-followup-controls",
       "category": "product",
       "description": "Standalone Codex followup directives render as suggestion controls that append prompts to the current composer without sending. Read-only and public surfaces render labels; code examples and malformed directives stay literal.",
       "origins": ["worktree-2026-09-11"],
-      "paths": ["src/components/ai-elements/codex-followup.tsx", "src/components/ai-elements/remark-codex-followup.ts", "src/components/ai-elements/markdown-link.tsx", "src/components/ai-elements/message.tsx", "src/components/conversations/conversation-detail-panel.tsx"],
+      "paths": [
+        "src/components/ai-elements/codex-followup.tsx",
+        "src/components/ai-elements/remark-codex-followup.ts",
+        "src/components/ai-elements/markdown-link.tsx",
+        "src/components/ai-elements/message.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx"
+      ],
       "contracts": ["src/maxcode-contracts/codex-followup.contract.test.tsx"]
     },
     {
       "id": "chat.reply-artifacts-summary",
       "category": "product",
       "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Streaming replies do not parse diffs.",
-      "origins": [
-        "worktree-2026-09-11"
-      ],
+      "origins": ["worktree-2026-09-11"],
       "paths": [
         "src/components/message/reply-artifacts.tsx",
         "src/i18n/messages/"
@@ -68,31 +95,63 @@
       "description": "DeepSeek history loads v3 compressed and plaintext artifacts before legacy logs, retaining complete frames during concurrent writes. Persisted conversations must not appear empty after the harness changes its log filename.",
       "origins": ["worktree-2026-09-11"],
       "paths": ["src-tauri/src/parsers/deepseek.rs"],
-      "contracts": ["src/maxcode-contracts/deepseek-versioned-history.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/deepseek-versioned-history.contract.test.ts"
+      ]
     },
     {
       "id": "settings.agent-online-updates",
       "category": "product",
-      "description": "Agent settings check all enabled agents on page entry, share release results with sidebar update badges and selected details, check enabled agents every six hours while mounted, cache per agent for six hours, skip disabled selections, and allow forced refresh. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. Explicit npm version installs require confirmation; reviewed pins and running sessions remain unchanged.",
+      "description": "Agent settings check all enabled agents on page entry, share release results with sidebar update badges and the Version Status category (no separate update card), check enabled agents every six hours while mounted, cache per agent for six hours, skip disabled selections, and allow forced refresh from Version Status. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. An available npm update is installed immediately by Version Status Upgrade; typed custom-version installs still use the version dialog. Reviewed pins and running sessions remain unchanged.",
       "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/settings/agent-update-check.tsx", "src/components/settings/acp-agent-settings.tsx", "src/lib/agent-update-status.ts", "src/lib/api.ts", "src-tauri/src/commands/agent_updates.rs", "src-tauri/src/commands/mod.rs", "src-tauri/src/web/handlers/acp.rs", "src-tauri/src/web/router.rs", "src-tauri/src/lib.rs", "src/i18n/messages/"],
-      "contracts": ["src/maxcode-contracts/agent-online-updates.contract.test.tsx"]
+      "paths": [
+        "src/components/settings/agent-update-check.tsx",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/lib/agent-update-status.ts",
+        "src/lib/api.ts",
+        "src-tauri/src/commands/agent_updates.rs",
+        "src-tauri/src/commands/mod.rs",
+        "src-tauri/src/web/handlers/acp.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/lib.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-online-updates.contract.test.tsx"
+      ]
     },
     {
       "id": "settings.agent-diagnostics-overlay",
       "category": "product",
       "description": "Agent diagnostics portal stays above in-window settings, immediately shows loading, and exposes probe errors, retry results and dismissal.",
       "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/settings/in-app-settings.tsx", "src/components/settings/acp-agent-settings.tsx", "src/components/settings/agent-diagnostics-dialog.tsx", "src/components/ui/dialog.tsx"],
-      "contracts": ["src/maxcode-contracts/agent-diagnostics-overlay.contract.test.tsx"]
+      "paths": [
+        "src/components/settings/in-app-settings.tsx",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/components/settings/agent-diagnostics-dialog.tsx",
+        "src/components/ui/dialog.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-diagnostics-overlay.contract.test.tsx"
+      ]
     },
     {
       "id": "conversations.cross-device-read",
       "category": "runtime",
       "description": "Read receipts persist on the backend, broadcast across desktop and mobile, and reconcile on reconnect/wake without reapplying seen receipts to new unread activity.",
       "origins": ["worktree-2026-09-10"],
-      "paths": ["src/lib/conversation-read-sync.ts", "src/stores/conversation-unread-store.ts", "src/components/conversations/conversation-unread-sync.tsx", "src-tauri/src/commands/conversation_read.rs", "src-tauri/src/web/handlers/conversation_read.rs", "src-tauri/src/web/router.rs", "src-tauri/src/lib.rs"],
-      "contracts": ["src/maxcode-contracts/conversation-read-sync.contract.test.ts"]
+      "paths": [
+        "src/lib/conversation-read-sync.ts",
+        "src/stores/conversation-unread-store.ts",
+        "src/components/conversations/conversation-unread-sync.tsx",
+        "src-tauri/src/commands/conversation_read.rs",
+        "src-tauri/src/web/handlers/conversation_read.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/lib.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-read-sync.contract.test.ts"
+      ]
     },
     {
       "id": "settings.mobile-category-navigation",
@@ -139,8 +198,13 @@
       "category": "product",
       "description": "Desktop conversation titles keep the overflow trigger beside the title and expose a compact new-chat button on the right of the header row. Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
       "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/conversations/conversation-detail-header.tsx", "src/components/layout/folder-title-bar.tsx"],
-      "contracts": ["src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"]
+      "paths": [
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/layout/folder-title-bar.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"
+      ]
     },
     {
       "id": "settings.public-share-layout",
@@ -552,6 +616,16 @@
       "contracts": ["src/maxcode-contracts/folder-alias-only.contract.test.tsx"]
     },
     {
+      "id": "chat.markdown-link-cursor",
+      "category": "product",
+      "description": "Clickable Markdown links show a pointer cursor; incomplete streaming links remain inert.",
+      "origins": ["worktree-2026-09-15"],
+      "paths": ["src/components/ai-elements/markdown-link.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/markdown-link-cursor.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.file-link-presentation",
       "category": "product",
       "description": "Transcript file links use the full available width and wrap long filenames on desktop and mobile, with body-sized blue labels and offline VSCode Icons artwork determined from exact filenames and compound extensions, including distinct Markdown/MDX/HTML/CSS/JS/TS/React/config formats and native theme variants. Composer reference chips remain compact and all file actions are preserved.",
@@ -742,7 +816,7 @@
     {
       "id": "desktop.differential-updates",
       "category": "platform",
-      "description": "Electron owns stable-channel update checks, differential downloads with verified full-download fallback, shared progress, and automatic restart after managed backend shutdown. Clicking the version checks for updates directly. A quiet icon beside the version starts the whole download-and-restart flow with one click, without discovery notifications or a release-details popover. Releases ship architecture-specific metadata and blockmaps on the personal repository; server update APIs never replace bundled binaries.",
+      "description": "Electron owns stable-channel update checks, differential downloads with verified full-download fallback, shared progress, and automatic restart after managed backend shutdown. Clicking the version checks for updates directly. A quiet icon beside the version starts the whole download-and-restart flow with one click, without discovery notifications or a release-details popover. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "electron/",
@@ -1445,7 +1519,7 @@
     {
       "id": "release.signed-multiplatform-artifacts",
       "category": "release",
-      "description": "Release automation builds only explicit desktop/server targets, validates Electron installers and checksums, retains signed server updates, notarizes macOS, and publishes MaxCode-named bundles after all selected builds pass.",
+      "description": "Release automation builds only explicit desktop/server targets, validates Electron installers and checksums, retains signed server updates, notarizes macOS, and publishes MaxCode-named bundles after all selected builds pass. Desktop installer names use MaxCode-<version>-<os>-<arch> without Electron; release job labels, upload globs, checksums and updater metadata follow the same runtime-neutral naming.",
       "origins": [
         "dceb62ac",
         "fb081d78",
@@ -1464,7 +1538,9 @@
         "install.ps1"
       ],
       "contracts": [
-        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+        "src/maxcode-contracts/web-update-platform.contract.test.ts",
+        "src/maxcode-contracts/electron-release.contract.test.ts",
+        "src/maxcode-contracts/electron-update-metadata.contract.test.ts"
       ]
     },
     {
@@ -1632,11 +1708,7 @@
       "id": "history.codex-semantic-mcp",
       "category": "runtime",
       "description": "Restore Codex code-mode MCP history through existing tool blocks and conservative call correlation, preserving MaxCode model billing, elapsed time, native subagent identity and injected-context filtering without replacing the message layout.",
-      "origins": [
-        "a04fe077",
-        "1edca458",
-        "worktree-2026-09-11"
-      ],
+      "origins": ["a04fe077", "1edca458", "worktree-2026-09-11"],
       "paths": [
         "src-tauri/src/parsers/codex.rs",
         "src-tauri/src/parsers/codex_code_mode.rs",
@@ -1670,12 +1742,7 @@
       "id": "history.claude-compaction-compatible",
       "category": "runtime",
       "description": "Claude 0.75.1 histories restore compaction prompts, boundaries, summaries and current context usage; exact fork fallbacks and live system summaries survive. Dedupe live/history copies without replacing MaxCode reply grouping, folding or divider layout.",
-      "origins": [
-        "14168211",
-        "5f22a3e1",
-        "ad7af8c4",
-        "worktree-2026-09-11"
-      ],
+      "origins": ["14168211", "5f22a3e1", "ad7af8c4", "worktree-2026-09-11"],
       "paths": [
         "src-tauri/src/parsers/claude.rs",
         "src-tauri/src/acp/fork.rs",
@@ -1725,14 +1792,8 @@
       "id": "chat.query-bearing-mcp-names",
       "category": "runtime",
       "description": "MCP tool calls whose payload includes query keep their explicit name. Only wire-identified web search, including Codex action titles and webSearch types, classify as websearch; generic kind search stays local grep. Existing tool cards are reused.",
-      "origins": [
-        "fc8cad0c",
-        "a47c68a9",
-        "worktree-2026-09-14"
-      ],
-      "paths": [
-        "src/lib/tool-call-normalization.ts"
-      ],
+      "origins": ["fc8cad0c", "a47c68a9", "worktree-2026-09-14"],
+      "paths": ["src/lib/tool-call-normalization.ts"],
       "contracts": [
         "src/maxcode-contracts/query-bearing-mcp-tool-names.contract.test.ts"
       ]
@@ -1741,11 +1802,7 @@
       "id": "chat.local-markdown-images",
       "category": "product",
       "description": "Assistant Markdown local image paths render inline in the current transcript via a workspace-confined reader. Existing file-link badges, autolinked paths and public-share link policy stay in place.",
-      "origins": [
-        "402d8b09",
-        "049ef608",
-        "worktree-2026-09-14"
-      ],
+      "origins": ["402d8b09", "049ef608", "worktree-2026-09-14"],
       "paths": [
         "src/lib/markdown-local-image.ts",
         "src/components/ai-elements/remark-local-images.ts",
@@ -1762,11 +1819,7 @@
       "id": "chat.composer-token-action",
       "category": "product",
       "description": "Right-clicking the composer selects the token under the pointer so Cut/Copy work, and adds an Open link/file/email row that uses the existing opener allow-list. Existing paste-as-plain-text and quick-message items stay.",
-      "origins": [
-        "06a2a503",
-        "0ebad4aa",
-        "worktree-2026-09-14"
-      ],
+      "origins": ["06a2a503", "0ebad4aa", "worktree-2026-09-14"],
       "paths": [
         "src/lib/text-token-at.ts",
         "src/components/chat/composer/token-selection.ts",
@@ -1782,10 +1835,7 @@
       "id": "chat.file-badge-download",
       "category": "product",
       "description": "File badges in the transcript offer Download where the workspace file API is available, without removing MaxCode reveal, open-with-default-app, or copy-path rows.",
-      "origins": [
-        "f39ff3e2",
-        "worktree-2026-09-14"
-      ],
+      "origins": ["f39ff3e2", "worktree-2026-09-14"],
       "paths": [
         "src/components/message/file-reference-actions.tsx",
         "src/lib/api.ts"
@@ -1798,11 +1848,7 @@
       "id": "settings.deepseek-model-catalog",
       "category": "product",
       "description": "DeepSeek settings keep the existing API key/URL panel and add a harness model-list editor for deepseek-acp 0.9.0. v3 history recovery and first-token timing from assistant/chunk remain.",
-      "origins": [
-        "5a20a569",
-        "193046cb",
-        "worktree-2026-09-14"
-      ],
+      "origins": ["5a20a569", "193046cb", "worktree-2026-09-14"],
       "paths": [
         "src-tauri/src/commands/deepseek_settings.rs",
         "src-tauri/src/acp/registry.rs",
@@ -1833,9 +1879,7 @@
         "src/components/layout/unstash-dialog.tsx",
         "src/contexts/workspace-context.tsx"
       ],
-      "contracts": [
-        "src/maxcode-contracts/image-diff.contract.test.ts"
-      ]
+      "contracts": ["src/maxcode-contracts/image-diff.contract.test.ts"]
     },
     {
       "id": "settings.command-color-opt-in",
@@ -1865,11 +1909,7 @@
       "id": "agents.antigravity-sign-out",
       "category": "runtime",
       "description": "Antigravity OAuth users can sign out and choose another Google account. Sign-out serializes against sign-in, quiesces live and draining Antigravity processes before ACP logout, restores the saved auth method, and preserves MaxCode dual-stream login-link discovery.",
-      "origins": [
-        "7861d6ed",
-        "de096bb4",
-        "worktree-2026-09-15"
-      ],
+      "origins": ["7861d6ed", "de096bb4", "worktree-2026-09-15"],
       "paths": [
         "src-tauri/src/acp/antigravity_login.rs",
         "src-tauri/src/acp/manager.rs",
@@ -1920,6 +1960,20 @@
       ],
       "contracts": [
         "src/maxcode-contracts/agent-version-catalog.contract.test.ts"
+      ]
+    },
+    {
+      "id": "settings.default-title-model",
+      "category": "product",
+      "description": "Users without saved title-model settings see the reviewed free Groq configuration prefilled and enabled, with the API key intentionally blank, the default reasoning parameter retained, and a desktop-safe signup/key link. The suggestion remains runtime-inactive until the user saves it with their own key; existing saved settings are never overwritten.",
+      "origins": ["worktree-2026-09-15"],
+      "paths": [
+        "src-tauri/src/commands/system_settings.rs",
+        "src/components/settings/system-network-settings.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/title-model-default.contract.test.ts"
       ]
     }
   ],

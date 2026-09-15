@@ -26,17 +26,23 @@ describe("transcript file link style", () => {
       "font-[inherit]",
       "text-[#2456a6]",
       "max-w-full",
-      "items-start"
+      "items-start",
+      "gap-1"
     )
     expect(getByRole("img")).not.toHaveClass("max-w-[18rem]")
     expect(container.querySelector("[data-file-icon]")).toHaveAttribute(
       "data-file-icon",
       "file-type-binary"
     )
+    expect(container.querySelector("[data-file-icon]")).toHaveClass("size-4")
+    expect(container.querySelector("[data-file-icon]")).not.toHaveClass("size-5")
     expect(container.querySelector("img")).toHaveAttribute(
       "src",
       "/file-icons/file-type-binary.svg"
     )
+    expect(container.querySelector("img")).toHaveClass("size-4")
+    expect(container.querySelector("img")).toHaveAttribute("width", "16")
+    expect(container.querySelector("img")).toHaveAttribute("height", "16")
   })
   it("wraps long filenames on mobile without truncation", () => {
     const label = "正式库_指定签单人已签单线索_" + "abcdef".repeat(30) + ".xlsx"

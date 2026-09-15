@@ -19,9 +19,15 @@ import { toErrorMessage } from "@/lib/app-error"
 type SkillPackTab = "experts" | "science" | "office" | "custom"
 
 function normalizeTab(raw: string | null): SkillPackTab {
-  return raw === "science" || raw === "office" || raw === "custom"
-    ? raw
-    : "experts"
+  if (
+    raw === "experts" ||
+    raw === "science" ||
+    raw === "office" ||
+    raw === "custom"
+  ) {
+    return raw
+  }
+  return "office"
 }
 
 // The Tabs primitive's built-in active styling uses a bare `data-active:`

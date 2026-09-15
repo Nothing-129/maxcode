@@ -66,8 +66,10 @@ export interface UseConnectionLifecycleReturn {
        * optimistic state it created for this send — roll back the optimistic
        * user turn so the conversation doesn't stay `awaiting_persist` (which
        * would block queue auto-flush) and doesn't display the failed prompt
-       * as though it were sent. The draft is deliberately NOT re-queued: a
-       * deterministic failure would otherwise retry forever.
+       * as though it were sent. A flush-origin draft is re-queued with
+       * `flushBlocked` (visible, no retry storm); a direct send is not
+       * re-queued, because a deterministic failure would otherwise retry
+       * forever.
        */
       onSendFailed?: (error: unknown) => void
     }

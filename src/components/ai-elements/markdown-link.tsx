@@ -228,6 +228,7 @@ export function MarkdownLink({
         onClick={handleClick}
         className={cn(
           "wrap-anywhere appearance-none text-left font-medium text-primary underline",
+          !isIncomplete && "cursor-pointer",
           className
         )}
       >
