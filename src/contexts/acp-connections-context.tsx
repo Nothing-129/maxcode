@@ -1396,6 +1396,63 @@ function isSettledToolStatus(status: string | null | undefined): boolean {
  *  of them) keeps a stable reference through `connRenderEqual`. */
 const EMPTY_STEERED_MESSAGE_IDS: string[] = []
 
+/**
+ * UI-only connecting entry used BEFORE `CONNECTION_CREATED`. `connect()` waits
+ * on preflight, discovery, and `acpConnect` (spawn takes seconds) before it
+ * has a backend id; without this placeholder `getConnection` returns nothing
+ * and the composer treats that as "disconnected". Empty `connectionId` is
+ * intentional — send/cancel/teardown read the real map, not this overlay, and
+ * a falsy id keeps snapshot/feedback fetches from hitting the backend.
+ */
+function createConnectingPlaceholder(
+  contextKey: string,
+  agentType: AgentType,
+  workingDir: string | null
+): ConnectionState {
+  return {
+    connectionId: "",
+    contextKey,
+    agentType,
+    workingDir,
+    status: "connecting",
+    promptCapabilities: {
+      image: false,
+      audio: false,
+      embedded_context: false,
+    },
+    supportsFork: false,
+    selectorsReady: false,
+    sessionId: null,
+    modes: null,
+    configOptions: null,
+    availableCommands: null,
+    usage: null,
+    liveMessage: null,
+    pendingPermission: null,
+    pendingUserMessage: null,
+    steeredMessageIds: EMPTY_STEERED_MESSAGE_IDS,
+    pendingQuestion: null,
+    pendingAskQuestion: null,
+    pendingPlanApproval: null,
+    claudeApiRetry: null,
+    sessionFailures: [],
+    asyncTasks: [],
+    error: null,
+    loadError: null,
+    loadErrorCommand: null,
+    lastAppliedSeq: 0,
+    isDelegationChild: false,
+    parentToolUseId: null,
+    parentConnectionId: null,
+    isViewer: false,
+    configStale: false,
+    configStaleKind: null,
+    configStaleDismissed: false,
+    backgroundOutstanding: 0,
+    outOfTurnToolCalls: null,
+  }
+}
+
 /** Last time an out-of-turn drop was logged — module-level sampling clock. */
 let lastOutOfTurnDropLogAt = 0
 
@@ -3123,6 +3180,23 @@ export interface AcpActionsValue {
     sessionId: string | null
   } | null
   /**
+   * Show this key as `connecting` before `connect()` has written a store entry
+   * (preflight / discovery / spawn, or waiting on a historical session id).
+   * No-op when a live entry already exists. The overlay is what keeps the
+   * composer from reading a missing entry as "disconnected".
+   */
+  markConnectPending(
+    contextKey: string,
+    agentType: AgentType,
+    workingDir?: string | null
+  ): void
+  /**
+   * Drop the connecting overlay unless `connect()` is already in flight for
+   * this key (that call's `finally` owns the clear). Used by surfaces that
+   * anticipated a connect which then didn't start.
+   */
+  clearConnectPending(contextKey: string): void
+  /**
    * Dismiss the "restart to apply" banner for the current drift WITHOUT
    * restarting (client-local; the underlying `configStale` is untouched). A
    * subsequent settings change re-shows it. Wired to the banner's X button.
@@ -3361,6 +3435,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // Guard against concurrent connect() calls
   const connectingKeysRef = useRef(new Set<string>())
+  // UI overlay: connecting placeholders keyed by contextKey. `connect()` (and
+  // surfaces waiting on a historical session id) write here so `getConnection`
+  // can report `connecting` before CONNECTION_CREATED. Internal connect /
+  // disconnect / send paths read `storeRef.current.connections` and never see
+  // these, so a hung spawn cannot be mistaken for a live backend id.
+  const pendingConnectsRef = useRef(new Map<string, ConnectionState>())
   const pendingConnectRequestsRef = useRef(new Map<string, ConnectRequest>())
   // Last params `connect()` was called with, per contextKey — kept AFTER the
   // connection is gone (teardown removes the store entry entirely, so a
@@ -3529,6 +3609,50 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     for (const cb of storeRef.current.activeKeyListeners) cb()
   }, [])
 
+  const dropConnectPending = useCallback(
+    (contextKey: string) => {
+      if (!pendingConnectsRef.current.delete(contextKey)) return
+      notifyKeyListeners(contextKey)
+    },
+    [notifyKeyListeners]
+  )
+
+  const markConnectPending = useCallback(
+    (contextKey: string, agentType: AgentType, workingDir?: string | null) => {
+      // A live entry already answers `getConnection`; overlaying it would
+      // only matter after CONNECTION_REMOVED, and connect()'s finally drops
+      // the placeholder anyway.
+      if (storeRef.current.connections.has(contextKey)) return
+      const nextWorkingDir = workingDir ?? null
+      const existing = pendingConnectsRef.current.get(contextKey)
+      if (
+        existing &&
+        existing.agentType === agentType &&
+        existing.workingDir === nextWorkingDir
+      ) {
+        return
+      }
+      pendingConnectsRef.current.set(
+        contextKey,
+        createConnectingPlaceholder(contextKey, agentType, nextWorkingDir)
+      )
+      notifyKeyListeners(contextKey)
+    },
+    [notifyKeyListeners]
+  )
+
+  const clearConnectPending = useCallback(
+    (contextKey: string) => {
+      // `connect()` is already showing connecting and its `finally` will drop
+      // the overlay. Clearing here would flash "disconnected" in the gap
+      // between "about to connect" (historical session id just arrived) and
+      // `connect()` actually starting.
+      if (connectingKeysRef.current.has(contextKey)) return
+      dropConnectPending(contextKey)
+    },
+    [dropConnectPending]
+  )
+
   // ── Dispatch (replaces useReducer dispatch) ──
 
   const dispatch = useCallback(
@@ -3606,7 +3730,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const storeApi = useMemo<ConnectionStoreApi>(() => {
     return {
       getConnection(key: string) {
-        return storeRef.current.connections.get(key)
+        return (
+          storeRef.current.connections.get(key) ??
+          pendingConnectsRef.current.get(key)
+        )
       },
       getActiveKey() {
         return storeRef.current.activeKey
@@ -5580,6 +5707,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         return
       }
       connectingKeysRef.current.add(contextKey)
+      // Publish `connecting` immediately. CONNECTION_CREATED only runs after
+      // preflight, discovery, and `acpConnect` (spawn takes seconds); without
+      // this overlay the composer reads a missing entry as "disconnected".
+      markConnectPending(contextKey, agentType, workingDir ?? null)
 
       // Declared outside the try so the catch below can still tell whether this
       // agent is an ACP adapter when picking its "not installed" wording.
@@ -6045,6 +6176,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // so this is the one place that consumes it.
         const wasAbandoned = abandonedKeysRef.current.has(contextKey)
         connectingKeysRef.current.delete(contextKey)
+        // Drop the overlay even if CONNECTION_CREATED already replaced it in
+        // `getConnection` — a failed/abandoned connect has no map entry, and
+        // leaving the placeholder would stick the composer on "connecting".
+        dropConnectPending(contextKey)
         abandonedKeysRef.current.delete(contextKey)
         const settledWaiters = connectSettledWaitersRef.current.get(contextKey)
         if (settledWaiters) {
@@ -6085,9 +6220,11 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       connectAsViewer,
       consumeBufferedEvents,
       dispatch,
+      dropConnectPending,
       isConnectionLiveOnBackend,
       isConnectionReferencedLocally,
       localOwnerKeyOf,
+      markConnectPending,
       markConnectionGone,
       releaseConnectionRoute,
       resolveConnectBlockState,
@@ -6116,6 +6253,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       }
       const conn = storeRef.current.connections.get(contextKey)
       if (!conn) {
+        dropConnectPending(contextKey)
         return true
       }
       // Before either branch drops the entry: an explicit teardown is also how
@@ -6134,6 +6272,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         pendingUnmappedEventsRef.current.delete(conn.connectionId)
         lastActivityRef.current.delete(contextKey)
         dispatch({ type: "CONNECTION_REMOVED", contextKey })
+        dropConnectPending(contextKey)
         return true
       }
       // A failed backend teardown must not strand the local entry: propagating
@@ -6160,11 +6299,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       lastActivityRef.current.delete(contextKey)
       pendingUnmappedEventsRef.current.delete(conn.connectionId)
       dispatch({ type: "CONNECTION_REMOVED", contextKey })
+      // CONNECTION_REMOVED unmasks the overlay; drop it so a just-closed tab
+      // doesn't snap back to "connecting".
+      dropConnectPending(contextKey)
       return tornDown
     },
     [
       captureIdentityBeforeRemoval,
       dispatch,
+      dropConnectPending,
       releaseConnectionRoute,
       teardownAttachSubscription,
     ]
@@ -6378,6 +6521,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     // resurrect the previous backend's session under a recycled key.
     lastConnectParamsRef.current.clear()
     rekeyGenerationRef.current.clear()
+    pendingConnectsRef.current.clear()
     await Promise.all(promises)
     dispatch({ type: "REMOVE_ALL" })
   }, [dispatch, teardownAttachSubscription])
@@ -6730,6 +6874,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       reapplyConfig,
       reconnect,
       getReconnectInfo,
+      markConnectPending,
+      clearConnectPending,
       dismissConfigStale,
       dismissSessionFailures: dismissSessionFailuresAction,
     }),
@@ -6757,6 +6903,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       reapplyConfig,
       reconnect,
       getReconnectInfo,
+      markConnectPending,
+      clearConnectPending,
       dismissConfigStale,
       dismissSessionFailuresAction,
     ]

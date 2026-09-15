@@ -371,6 +371,8 @@ export function CanvasConversationSurface({
     // Without a cwd there is nothing to connect to yet (a chat draft before its
     // scratch dir lands); auto-connect would fire with an undefined dir.
     isActive: isActive && workingDir != null && !awaitingHistoricalSessionId,
+    anticipateConnect:
+      isActive && workingDir != null && awaitingHistoricalSessionId,
     workingDir,
     sessionId:
       dbConversationId != null && agentType !== "cline"

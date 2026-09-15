@@ -38,6 +38,13 @@ interface UseConnectionLifecycleOptions {
    *  unmounts. The provider retains the ACP connection under the bounded warm
    *  pool; viewers never receive this flag. */
   preserveIdleOwnerOnUnmount?: boolean
+  /**
+   * The surface is about to auto-connect but `isActive` is still false (a
+   * persisted conversation waiting on its stored session id). Marks the
+   * composer as `connecting` so opening an old chat doesn't flash "disconnected"
+   * while detail is loading.
+   */
+  anticipateConnect?: boolean
 }
 
 export interface UseConnectionLifecycleReturn {
@@ -128,9 +135,15 @@ export function useConnectionLifecycle({
   conversationId,
   isTransientUnmount,
   preserveIdleOwnerOnUnmount,
+  anticipateConnect = false,
 }: UseConnectionLifecycleOptions): UseConnectionLifecycleReturn {
   const t = useTranslations("Folder.chat.connectionLifecycle")
-  const { setActiveKey, touchActivity } = useAcpActions()
+  const {
+    setActiveKey,
+    touchActivity,
+    markConnectPending,
+    clearConnectPending,
+  } = useAcpActions()
   const { addTask, updateTask, removeTask } = useTaskContext()
   const conn = useConnection(contextKey)
 
@@ -223,6 +236,27 @@ export function useConnectionLifecycle({
       touchActivity(contextKey)
     }
   }, [isActive, contextKey, setActiveKey, touchActivity])
+
+  // Historical conversations gate auto-connect on the stored session id.
+  // Until that arrives, `isActive` is false and connect() hasn't started, so
+  // mark the composer connecting instead of letting a missing store entry
+  // read as "disconnected". Cleanup is deferred a tick so the auto-connect
+  // effect below can take over (connect() adds the key synchronously before
+  // its first await) without flashing disconnected in between.
+  useEffect(() => {
+    if (!anticipateConnect) return
+    markConnectPending(contextKey, agentType, workingDir ?? null)
+    return () => {
+      queueMicrotask(() => clearConnectPending(contextKey))
+    }
+  }, [
+    anticipateConnect,
+    contextKey,
+    agentType,
+    workingDir,
+    markConnectPending,
+    clearConnectPending,
+  ])
 
   // Auto-connect when tab becomes active and workingDir is available.
   // Depends on isActive + workingDir + agentType so that connections wait

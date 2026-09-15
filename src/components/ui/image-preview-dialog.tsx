@@ -64,7 +64,7 @@ function ImagePreviewDialog({
           <DialogPrimitive.Title className="sr-only">
             {alt}
           </DialogPrimitive.Title>
-          <div className="absolute right-4 top-4 z-10 flex items-center gap-2">
+          <div className="absolute z-10 flex items-center gap-2 right-[max(1rem,env(safe-area-inset-right))] top-[max(1rem,env(safe-area-inset-top))]">
             {onCopy && (
               <button
                 type="button"

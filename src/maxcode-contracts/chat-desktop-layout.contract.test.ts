@@ -41,7 +41,11 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
       expect(source(file)).toContain("maxcode-chat-column")
       expect(source(file)).not.toContain("max-w-3xl")
     }
-    expect(source("src/app/globals.css")).toContain("max-width: 48rem;")
+    // 列宽默认 48rem；自 chat.column-width-drag 起由 --chat-column-max 承载
+    // （用户可拖、缺省 48rem），单一居中列的几何约束不变。
+    expect(source("src/app/globals.css")).toContain(
+      "max-width: var(--chat-column-max, 48rem);"
+    )
     expect(source("src/contexts/sidebar-context.tsx")).toContain(
       "const DEFAULT_WIDTH = 268"
     )

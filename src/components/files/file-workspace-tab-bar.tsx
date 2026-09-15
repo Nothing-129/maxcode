@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Reorder } from "motion/react"
 import { FileText, GitCompare, Maximize2, Minimize2, X } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { toast } from "sonner"
 import {
   useWorkspaceActions,
   useWorkspaceFileTabs,
@@ -12,7 +13,11 @@ import {
 import type { FileWorkspaceTab } from "@/contexts/workspace-context"
 import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
 import { useLongPressDrag } from "@/hooks/use-long-press-drag"
+import { openInCode } from "@/lib/api"
+import { toErrorMessage } from "@/lib/app-error"
+import { isRemoteDesktopWindow } from "@/lib/platform"
 import { cn, handleMiddleClickClose } from "@/lib/utils"
+import { VSCodeIcon } from "@/components/vscode-icon"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -61,6 +66,17 @@ export function FileWorkspaceTabBar() {
   const handleTouchSortingEnd = useCallback(
     () => setTouchSortingTabId(null),
     []
+  )
+
+  const handleOpenInCode = useCallback(
+    (path: string) => {
+      void openInCode(path).catch((error) => {
+        toast.error(t("openInCodeFailed"), {
+          description: toErrorMessage(error),
+        })
+      })
+    },
+    [t]
   )
 
   const activeFileIndex = fileTabs.findIndex(
@@ -120,12 +136,14 @@ export function FileWorkspaceTabBar() {
           closeText={t("close")}
           closeOthersText={t("closeOthers")}
           closeAllText={t("closeAll")}
+          openInCodeText={t("openInCode")}
           isCoarsePointer={isCoarsePointer}
           isTouchSorting={touchSortingTabId === tab.id}
           onSwitch={switchFileTab}
           onClose={closeFileTab}
           onCloseOthers={closeOtherFileTabs}
           onCloseAll={closeAllFileTabs}
+          onOpenInCode={handleOpenInCode}
           onTouchSortingStart={setTouchSortingTabId}
           onTouchSortingEnd={handleTouchSortingEnd}
         />
@@ -190,12 +208,14 @@ interface FileWorkspaceTabItemProps {
   closeText: string
   closeOthersText: string
   closeAllText: string
+  openInCodeText: string
   isCoarsePointer: boolean
   isTouchSorting: boolean
   onSwitch: (tabId: string) => void
   onClose: (tabId: string) => void
   onCloseOthers: (tabId: string) => void
   onCloseAll: () => void
+  onOpenInCode: (path: string) => void
   onTouchSortingStart: (tabId: string) => void
   onTouchSortingEnd: () => void
 }
@@ -209,22 +229,31 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
   closeText,
   closeOthersText,
   closeAllText,
+  openInCodeText,
   isCoarsePointer,
   isTouchSorting,
   onSwitch,
   onClose,
   onCloseOthers,
   onCloseAll,
+  onOpenInCode,
   onTouchSortingStart,
   onTouchSortingEnd,
 }: FileWorkspaceTabItemProps) {
   const isDiff = tab.kind === "diff" || tab.kind === "rich-diff"
   const isDirty = tab.kind === "file" && Boolean(tab.isDirty)
+  const openInCodePath = tab.path
+  const canOpenInCode = Boolean(openInCodePath) && !isRemoteDesktopWindow()
 
   const handleLongPressStart = useCallback(
     () => onTouchSortingStart(tab.id),
     [onTouchSortingStart, tab.id]
   )
+
+  const handleOpenInCode = useCallback(() => {
+    if (!openInCodePath) return
+    onOpenInCode(openInCodePath)
+  }, [onOpenInCode, openInCodePath])
 
   const { dragControls, gestureHandlers } = useLongPressDrag({
     enabled: isCoarsePointer,
@@ -375,6 +404,18 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          {openInCodePath ? (
+            <>
+              <ContextMenuItem
+                disabled={!canOpenInCode}
+                onSelect={handleOpenInCode}
+              >
+                <VSCodeIcon />
+                {openInCodeText}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          ) : null}
           <ContextMenuItem onSelect={() => onClose(tab.id)}>
             {closeText}
           </ContextMenuItem>

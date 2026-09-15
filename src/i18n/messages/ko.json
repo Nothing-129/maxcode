@@ -2204,6 +2204,8 @@
       "close": "닫기",
       "closeOthers": "다른 항목 닫기",
       "closeAll": "모두 닫기",
+      "openInCode": "VS Code에서 열기",
+      "openInCodeFailed": "VS Code에서 열지 못했습니다",
       "preview": "미리보기",
       "editSource": "소스 편집",
       "maximize": "최대화",
@@ -3839,6 +3841,10 @@
       "proposedPlan": {
         "title": "제안된 계획",
         "planning": "계획 중…"
+      },
+      "columnResize": {
+        "label": "드래그하여 대화 너비 조절",
+        "reset": "더블 클릭으로 초기화"
       }
     },
     "diffPreview": {

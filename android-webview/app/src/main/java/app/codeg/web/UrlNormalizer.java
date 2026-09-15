@@ -38,16 +38,10 @@ final class UrlNormalizer {
             if (!"http".equals(scheme) && !"https".equals(scheme)) {
                 throw new IllegalArgumentException("Only HTTP and HTTPS are supported");
             }
-            if (uri.getRawUserInfo() != null
-                    || uri.getRawQuery() != null
-                    || uri.getRawFragment() != null) {
-                throw new IllegalArgumentException("Credentials, query, and fragment are not allowed");
+            if (uri.getRawUserInfo() != null) {
+                throw new IllegalArgumentException("Embedded credentials are not supported");
             }
-
             String rawPath = uri.getRawPath();
-            if (rawPath != null && !rawPath.isEmpty() && !"/".equals(rawPath)) {
-                throw new IllegalArgumentException("The MaxCode server must be at the URL root");
-            }
 
             String host = uri.getHost();
             if (host == null || host.trim().isEmpty()) {
@@ -64,7 +58,14 @@ final class UrlNormalizer {
                 port = -1;
             }
 
-            return new URI(scheme, null, host, port, null, null, null).toASCIIString();
+            String origin = new URI(scheme, null, host, port, null, null, null).toASCIIString();
+            String path = rawPath == null ? "" : rawPath;
+            if ("/".equals(path) && uri.getRawQuery() == null && uri.getRawFragment() == null) {
+                path = "";
+            }
+            return origin + path
+                    + (uri.getRawQuery() == null ? "" : "?" + uri.getRawQuery())
+                    + (uri.getRawFragment() == null ? "" : "#" + uri.getRawFragment());
         } catch (URISyntaxException | IllegalArgumentException error) {
             throw new IllegalArgumentException("Invalid MaxCode server URL", error);
         }
@@ -74,7 +75,7 @@ final class UrlNormalizer {
         if (absolutePath == null || !absolutePath.startsWith("/")) {
             throw new IllegalArgumentException("Route must start with /");
         }
-        return normalize(normalizedBaseUrl) + absolutePath;
+        return origin(normalizedBaseUrl) + absolutePath;
     }
 
     static boolean isSameOrigin(String normalizedBaseUrl, String candidateUrl) {
@@ -93,7 +94,13 @@ final class UrlNormalizer {
     }
 
     static String origin(String normalizedBaseUrl) {
-        return normalize(normalizedBaseUrl);
+        URI uri = URI.create(normalize(normalizedBaseUrl));
+        return uri.getScheme() + "://" + uri.getRawAuthority();
+    }
+
+    static boolean shouldBootstrap(ConnectionConfig config) {
+        return !config.token().isEmpty()
+                && normalize(config.baseUrl()).equals(origin(config.baseUrl()));
     }
 
     private static int effectivePort(URI uri) {

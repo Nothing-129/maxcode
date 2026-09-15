@@ -1446,6 +1446,91 @@ describe("AcpConnectionsProvider disconnect teardown confirmation", () => {
   })
 })
 
+// `connect()` waits on preflight, discovery, and spawn before CONNECTION_CREATED.
+// The composer reads `getConnection`; a missing entry is "disconnected". Publish
+// `connecting` immediately so opening an existing conversation doesn't show
+// "未连接" while the agent is actually coming up.
+describe("AcpConnectionsProvider connecting placeholder", () => {
+  it("reports connecting before acpConnect returns", async () => {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    let resolveConnect: (v: string) => void = () => {}
+    h.acpConnect.mockImplementation(
+      () =>
+        new Promise<string>((res) => {
+          resolveConnect = res
+        })
+    )
+    await mountProvider()
+
+    let connectPromise: Promise<void> | undefined
+    await act(async () => {
+      connectPromise = h.actions!.connect(
+        TAB,
+        "claude_code",
+        "/tmp/x",
+        "sess-1",
+        42
+      )
+    })
+
+    const pending = h.store!.getConnection(TAB)
+    expect(pending?.status).toBe("connecting")
+    expect(pending?.connectionId).toBe("")
+    expect(pending?.agentType).toBe("claude_code")
+
+    await act(async () => {
+      resolveConnect("spawned-conn")
+      await connectPromise
+    })
+
+    expect(h.store!.getConnection(TAB)?.connectionId).toBe("spawned-conn")
+    expect(h.store!.getConnection(TAB)?.status).toBe("connecting")
+  })
+
+  it("drops the placeholder when preflight fails", async () => {
+    h.acpGetAgentStatus.mockRejectedValue(new Error("offline"))
+    await mountProvider()
+
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x").catch(() => {})
+    })
+
+    expect(h.store!.getConnection(TAB)).toBeUndefined()
+  })
+
+  it("lets markConnectPending show connecting before connect() starts", async () => {
+    await mountProvider()
+
+    act(() => {
+      h.actions!.markConnectPending(TAB, "claude_code", "/tmp/x")
+    })
+
+    expect(h.store!.getConnection(TAB)?.status).toBe("connecting")
+    expect(h.store!.getConnection(TAB)?.connectionId).toBe("")
+
+    act(() => {
+      h.actions!.clearConnectPending(TAB)
+    })
+    expect(h.store!.getConnection(TAB)).toBeUndefined()
+  })
+
+  it("does not let clearConnectPending hide an in-flight connect", async () => {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    h.acpConnect.mockImplementation(() => new Promise<string>(() => {}))
+    await mountProvider()
+
+    await act(async () => {
+      void h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1", 42)
+    })
+    expect(h.store!.getConnection(TAB)?.status).toBe("connecting")
+
+    act(() => {
+      h.actions!.clearConnectPending(TAB)
+    })
+    expect(h.store!.getConnection(TAB)?.status).toBe("connecting")
+  })
+})
+
 // The backend dedups connections by (agent, cwd, session), so a connect can
 // hand back a connection this client already holds under another contextKey.
 describe("AcpConnectionsProvider abandoned connect tears down only what it created", () => {

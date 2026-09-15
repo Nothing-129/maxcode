@@ -50,12 +50,21 @@ public final class UrlNormalizerTest {
         assertThrows(
                 IllegalArgumentException.class,
                 () -> UrlNormalizer.normalize("https://user:pass@example.com"));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> UrlNormalizer.normalize("https://example.com/codeg"));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> UrlNormalizer.normalize("https://example.com?token=nope"));
+    }
+
+    @Test
+    public void preservesDeepLinksWithoutProbingOrRewritingParameters() {
+        String url = "https://zcode.z.ai/remote/v4?sid=test%2Fvalue&next=%23chat#section";
+        assertEquals(url, UrlNormalizer.normalize(url));
+        assertEquals("https://zcode.z.ai", UrlNormalizer.origin(url));
+        assertFalse(UrlNormalizer.shouldBootstrap(new ConnectionConfig(url, "")));
+        assertFalse(UrlNormalizer.shouldBootstrap(new ConnectionConfig(url, "optional")));
+        assertFalse(UrlNormalizer.shouldBootstrap(new ConnectionConfig("https://example.com", "")));
+        assertTrue(UrlNormalizer.shouldBootstrap(new ConnectionConfig("https://example.com", "token")));
+        assertEquals("https://example.com/?a=1#b",
+                UrlNormalizer.normalize("https://example.com/?a=1#b"));
+        assertEquals("http://offline.invalid/path?q=1",
+                UrlNormalizer.normalize("offline.invalid/path?q=1"));
     }
 
     @Test

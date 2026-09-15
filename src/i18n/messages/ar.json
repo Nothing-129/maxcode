@@ -2204,6 +2204,8 @@
       "close": "إغلاق",
       "closeOthers": "إغلاق البقية",
       "closeAll": "إغلاق الكل",
+      "openInCode": "فتح في VS Code",
+      "openInCodeFailed": "فشل الفتح في VS Code",
       "preview": "معاينة",
       "editSource": "تحرير المصدر",
       "maximize": "تكبير",
@@ -3839,6 +3841,10 @@
       "proposedPlan": {
         "title": "الخطة المقترحة",
         "planning": "جارٍ التخطيط…"
+      },
+      "columnResize": {
+        "label": "اسحب لتغيير عرض المحادثة",
+        "reset": "انقر مرتين لإعادة التعيين"
       }
     },
     "diffPreview": {

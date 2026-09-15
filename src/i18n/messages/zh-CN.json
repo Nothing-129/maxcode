@@ -2204,6 +2204,8 @@
       "close": "关闭",
       "closeOthers": "关闭其它",
       "closeAll": "关闭所有",
+      "openInCode": "在 VS Code 中打开",
+      "openInCodeFailed": "无法在 VS Code 中打开",
       "preview": "预览",
       "editSource": "编辑源码",
       "maximize": "最大化",
@@ -3839,6 +3841,10 @@
       "proposedPlan": {
         "title": "计划提案",
         "planning": "规划中…"
+      },
+      "columnResize": {
+        "label": "拖动调整对话宽度",
+        "reset": "双击恢复默认"
       }
     },
     "diffPreview": {

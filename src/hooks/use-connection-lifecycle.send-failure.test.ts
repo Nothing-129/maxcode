@@ -38,7 +38,12 @@ vi.mock("next-intl", () => ({
 const sendPrompt = vi.fn()
 
 vi.mock("@/contexts/acp-connections-context", () => ({
-  useAcpActions: () => ({ setActiveKey: vi.fn(), touchActivity: vi.fn() }),
+  useAcpActions: () => ({
+    setActiveKey: vi.fn(),
+    touchActivity: vi.fn(),
+    markConnectPending: vi.fn(),
+    clearConnectPending: vi.fn(),
+  }),
 }))
 
 vi.mock("@/contexts/task-context", () => ({

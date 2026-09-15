@@ -70,7 +70,6 @@ public final class MainActivity extends Activity {
     }
 
     private final ExecutorService ioExecutor = Executors.newSingleThreadExecutor();
-    private final ServerHealthChecker healthChecker = new ServerHealthChecker();
 
     private View setupScreen;
     private TextView formTitle;
@@ -251,11 +250,6 @@ public final class MainActivity extends Activity {
             serverUrlInput.requestFocus();
             return;
         }
-        if (token.isEmpty()) {
-            showError(R.string.error_token_required);
-            tokenInput.requestFocus();
-            return;
-        }
         if (token.indexOf('\r') >= 0 || token.indexOf('\n') >= 0) {
             showError(R.string.error_token_format);
             tokenInput.requestFocus();
@@ -276,26 +270,21 @@ public final class MainActivity extends Activity {
                 : new ConnectionConfig(name, baseUrl, token);
         setConnecting(true);
         ioExecutor.execute(() -> {
-            ServerHealthChecker.Result result = healthChecker.check(config);
             ConnectionCatalog updatedCatalog = null;
-            if (result.kind() == ServerHealthChecker.Kind.OK) {
-                try {
-                    updatedCatalog = configStore.upsertAndActivate(config);
-                } catch (GeneralSecurityException error) {
-                    // The UI reports a secure-storage error below.
-                }
+            try {
+                updatedCatalog = configStore.upsertAndActivate(config);
+            } catch (GeneralSecurityException error) {
+                // Saving is local only; unreachable URLs can still be added.
             }
             ConnectionCatalog finalUpdatedCatalog = updatedCatalog;
-            runOnUiThread(() -> handleConnectResult(result, finalUpdatedCatalog));
+            runOnUiThread(() -> handleConnectResult(finalUpdatedCatalog));
         });
     }
 
-    private void handleConnectResult(
-            ServerHealthChecker.Result result,
-            ConnectionCatalog updatedCatalog) {
+    private void handleConnectResult(ConnectionCatalog updatedCatalog) {
         if (destroyed) return;
         setConnecting(false);
-        if (result.kind() == ServerHealthChecker.Kind.OK && updatedCatalog != null) {
+        if (updatedCatalog != null) {
             catalog = updatedCatalog;
             ConnectionConfig saved = updatedCatalog.active();
             if (saved == null) {
@@ -305,19 +294,7 @@ public final class MainActivity extends Activity {
             startBrowser(saved);
             return;
         }
-        if (result.kind() == ServerHealthChecker.Kind.OK) {
-            showError(R.string.error_secure_store);
-            return;
-        }
-        switch (result.kind()) {
-            case UNAUTHORIZED -> showError(R.string.error_unauthorized);
-            case REDIRECT -> showError(R.string.error_redirect);
-            case HTTP_ERROR -> showError(
-                    getString(R.string.error_http_status, result.statusCode()));
-            case TLS_ERROR -> showError(R.string.error_tls);
-            case NETWORK_ERROR -> showError(R.string.error_network);
-            case OK -> throw new IllegalStateException("Handled above");
-        }
+        showError(R.string.error_secure_store);
     }
 
     private void showConnectionChooser() {
@@ -472,20 +449,24 @@ public final class MainActivity extends Activity {
         activeConfig = config;
         editingConnection = null;
         setupMode = SetupMode.SELECT;
-        bootstrapPending = true;
-        clearHistoryAfterWorkspace = true;
+        bootstrapPending = UrlNormalizer.shouldBootstrap(config);
+        clearHistoryAfterWorkspace = bootstrapPending;
         mainFrameFailed = false;
 
         tokenInput.setText("");
         cancelButton.setVisibility(View.GONE);
-        setImmersiveStatusBar(true);
+        // Only the MaxCode bootstrap flow has matching web safe-area styles.
+        // Generic pages must stay below the native status bar / display cutout.
+        setImmersiveStatusBar(UrlNormalizer.shouldBootstrap(config));
         setupScreen.setVisibility(View.GONE);
         setupForm.setVisibility(View.GONE);
         browserScreen.setVisibility(View.VISIBLE);
         pageProgress.setVisibility(View.VISIBLE);
         webView.onResume();
         webView.clearHistory();
-        webView.loadUrl(UrlNormalizer.freshEntry(config.baseUrl(), "/login"));
+        webView.loadUrl(bootstrapPending
+                ? UrlNormalizer.freshEntry(config.baseUrl(), "/login")
+                : config.baseUrl());
     }
 
     private void showSetup(

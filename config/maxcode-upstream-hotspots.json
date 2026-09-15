@@ -2,6 +2,14 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "android.direct-web-links",
+      "category": "product",
+      "description": "Android saves links locally without health or token validation; token is optional, deep-link paths/query/fragment are preserved and opened directly. Legacy MaxCode bootstrap is limited to roots with nonempty tokens. Generic pages reserve native status-bar/cutout and keyboard insets instead of using immersive MaxCode CSS.",
+      "origins": ["worktree-2026-09-15"],
+      "paths": ["android-webview/"],
+      "contracts": ["src/maxcode-contracts/android-direct-links.contract.test.ts"]
+    },
+    {
       "id": "ios.webview-client",
       "category": "product",
       "description": "Independent iPhone/iPad WKWebView shell with native connection management, atomic device-only Keychain storage, authenticated non-redirecting health checks, origin-scoped token bootstrap, isolated in-memory web sessions, fresh entry URLs, native keyboard/safe-area layout and foreground/network recovery.",
@@ -171,7 +179,7 @@
     {
       "id": "chat.mobile-session-recovery",
       "category": "runtime",
-      "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and delay connecting, disconnected and error inline indicators until the same state persists for 1.5 seconds; reset the delay on state or tab changes, restore connected immediately, and retain red persistent disconnection indicators.",
+      "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and delay connecting, disconnected and error inline indicators until the same state persists for 3 seconds; reset the delay on state or tab changes, restore connected immediately, and retain red persistent disconnection indicators. In-flight connect (preflight, discovery, spawn) and waiting on a historical session id report connecting rather than a missing entry as disconnected.",
       "origins": ["worktree-2026-09-10"],
       "paths": [
         "src/hooks/use-connection-lifecycle.ts",
@@ -614,6 +622,25 @@
         "src/components/token-usage/token-usage-page.tsx"
       ],
       "contracts": ["src/maxcode-contracts/folder-alias-only.contract.test.tsx"]
+    },
+    {
+      "id": "chat.column-width-drag",
+      "category": "product",
+      "description": "The centered conversation content column width is user-draggable from an edge handle that stays invisible until hovered, resizes live with symmetric centered growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
+      "origins": ["worktree-2026-09-15"],
+      "paths": [
+        "src/lib/chat-column-width.ts",
+        "src/lib/appearance-script.ts",
+        "src/components/appearance-provider.tsx",
+        "src/hooks/use-appearance.ts",
+        "src/components/chat/chat-column-resize-handle.tsx",
+        "src/app/workspace/layout.tsx",
+        "src/app/globals.css",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-column-width.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.markdown-link-cursor",

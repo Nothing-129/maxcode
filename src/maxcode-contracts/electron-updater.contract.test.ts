@@ -37,6 +37,7 @@ function fixture(
   const events: Array<{ seq: number; status: string }> = []
   const order: string[] = []
   const updater = Object.assign(new EventEmitter(), {
+    previousBlockmapBaseUrlOverride: null as string | null,
     setFeedURL: vi.fn(),
     checkForUpdates: vi.fn(async () => {
       updater.emit("update-available", {
@@ -253,17 +254,17 @@ describe("MaxCode contract: Electron Cloudflare Tunnel update mirror", () => {
     const sources = updateSources("arm64", "0.30.6")
     expect(
       orderUpdateSources(sources, { github: 1200, mirror: 180 }).map(
-        (source) => source.feed.provider
+        (source: { feed: { provider: string } }) => source.feed.provider
       )
     ).toEqual(["generic", "github"])
     expect(
       orderUpdateSources(sources, { github: 120, mirror: 80 }).map(
-        (source) => source.feed.provider
+        (source: { feed: { provider: string } }) => source.feed.provider
       )
     ).toEqual(["github", "generic"])
     expect(
       orderUpdateSources(sources, { github: null, mirror: 90 }).map(
-        (source) => source.feed.provider
+        (source: { feed: { provider: string } }) => source.feed.provider
       )
     ).toEqual(["generic", "github"])
   })

@@ -30,6 +30,10 @@ import { cn } from "@/lib/utils"
 // and anything unknown falls back to "disconnected".
 type ConnStatusKey = "connected" | "connecting" | "error" | "disconnected"
 
+/** How long connecting / disconnected / error must persist before the inline
+ *  label and colour show. Connected is restored immediately. */
+const CONNECTION_STATUS_GRACE_MS = 3_000
+
 // Heart icons per connection state (HeartCrack stands in for the requested
 // HeartX, which lucide does not ship). The steady "connected" state carries no
 // colour override, so it inherits the row's default `text-muted-foreground`
@@ -126,7 +130,7 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
     if (!tabId || statusKey === "connected") return
     const timer = setTimeout(() => {
       setAlarm({ tabId, statusKey, confirmed: true })
-    }, 1_500)
+    }, CONNECTION_STATUS_GRACE_MS)
     return () => clearTimeout(timer)
   }, [tabId, statusKey])
 

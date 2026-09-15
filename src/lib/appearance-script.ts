@@ -5,6 +5,11 @@ import {
 // src/lib/appearance-script.ts
 
 import { DEFAULT_CHAT_FONT_SIZE, FONT_SIZES } from "./font-presets"
+import {
+  DEFAULT_CHAT_COLUMN_WIDTH_REM,
+  MAX_CHAT_COLUMN_WIDTH_REM,
+  MIN_CHAT_COLUMN_WIDTH_REM,
+} from "./chat-column-width"
 
 import {
   CUSTOM_CSS_ELEMENT_ID,
@@ -28,6 +33,9 @@ export const STORAGE_KEY_ZOOM_LEVEL = "codeg-zoom-level"
 // 预水合写入 --font-sans；编辑器/终端字体只走各自的 Monaco/xterm 选项，水合后才挂载，
 // 无需预水合，也不写任何全局 CSS 变量。*_FONT 存 id、*_CUSTOM 存自定义族名供回显。
 export const STORAGE_KEY_CHAT_FONT_SIZE = "codeg-chat-font-size"
+// 会话内容列宽度（rem）。与聊天字号一样作用于首帧就渲染的消息列，需要预水合，
+// 否则加载时列会先按默认 48rem 排版再跳到用户宽度。
+export const STORAGE_KEY_CHAT_COLUMN_WIDTH = "codeg-chat-column-width"
 export const STORAGE_KEY_UI_FONT = "codeg-ui-font"
 export const STORAGE_KEY_UI_FONT_CUSTOM = "codeg-ui-font-custom"
 export const STORAGE_KEY_UI_FONT_STACK = "codeg-ui-font-stack"
@@ -116,6 +124,14 @@ const SCRIPT = `
     var chatSize = Number(readSetting("${STORAGE_KEY_CHAT_FONT_SIZE}"));
     if (${JSON.stringify(FONT_SIZES)}.indexOf(chatSize) < 0) chatSize = ${DEFAULT_CHAT_FONT_SIZE};
     document.documentElement.style.setProperty("--chat-font-size", (chatSize / 16) + "rem");
+
+    // 会话内容列宽度（rem）：越界 / 非法值落回默认，不写变量也行（CSS 兜底 48rem），
+    // 但统一写上，保证 documentElement 上始终有一个确定值供抓手定位复用。
+    var chatColWidth = parseFloat(readSetting("${STORAGE_KEY_CHAT_COLUMN_WIDTH}") || "");
+    if (isNaN(chatColWidth) || chatColWidth < ${MIN_CHAT_COLUMN_WIDTH_REM} || chatColWidth > ${MAX_CHAT_COLUMN_WIDTH_REM}) {
+      chatColWidth = ${DEFAULT_CHAT_COLUMN_WIDTH_REM};
+    }
+    document.documentElement.style.setProperty("--chat-column-max", chatColWidth + "rem");
 
     // 界面字体：预水合写入 --font-sans（普通组件与会话消息区都跟随它）。
     // stack 只是「显式选择」的缓存，不是偏好本身：仅当存在显式 id（codeg-ui-font）

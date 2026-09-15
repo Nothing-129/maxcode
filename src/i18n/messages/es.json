@@ -2204,6 +2204,8 @@
       "close": "Cerrar",
       "closeOthers": "Cerrar otros",
       "closeAll": "Cerrar todo",
+      "openInCode": "Abrir en VS Code",
+      "openInCodeFailed": "No se pudo abrir en VS Code",
       "preview": "Vista previa",
       "editSource": "Editar fuente",
       "maximize": "Maximizar",
@@ -3839,6 +3841,10 @@
       "proposedPlan": {
         "title": "Plan propuesto",
         "planning": "Planificando…"
+      },
+      "columnResize": {
+        "label": "Arrastra para ajustar el ancho de la conversación",
+        "reset": "Doble clic para restablecer"
       }
     },
     "diffPreview": {

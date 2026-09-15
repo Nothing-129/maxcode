@@ -186,3 +186,9 @@ export function useChatFontSize() {
   const { chatFontSize, setChatFontSize } = useAppearance()
   return { chatFontSize, setChatFontSize }
 }
+
+/** 会话内容列宽度（rem）：拖宽抓手读写；驱动 --chat-column-max。 */
+export function useChatColumnWidth() {
+  const { chatColumnWidth, setChatColumnWidth } = useAppearance()
+  return { chatColumnWidth, setChatColumnWidth }
+}

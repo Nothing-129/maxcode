@@ -612,6 +612,10 @@ const ConversationTabView = memo(function ConversationTabView({
     contextKey: tabId,
     agentType: selectedAgent,
     isActive: isActive && canAutoConnect,
+    anticipateConnect:
+      isActive &&
+      awaitingHistoricalSessionId &&
+      workingDirForConnection != null,
     workingDir: workingDirForConnection,
     sessionId:
       dbConversationId != null && selectedAgent !== "cline"
@@ -811,9 +815,8 @@ const ConversationTabView = memo(function ConversationTabView({
   // Auto-send queued messages when agent finishes responding.
   // Refs are synced via useEffect; the auto-send effect is declared
   // AFTER completeTurn so React runs it second.
-  const autoSendQueueRef = useRef<() => QueuedMessage | undefined>(
-    mqPeekSendable
-  )
+  const autoSendQueueRef =
+    useRef<() => QueuedMessage | undefined>(mqPeekSendable)
   useEffect(() => {
     autoSendQueueRef.current = mqPeekSendable
   }, [mqPeekSendable])

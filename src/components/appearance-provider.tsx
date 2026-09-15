@@ -35,6 +35,11 @@ import {
 } from "@/lib/font-presets"
 import { setUiPreferences, useUiPreferences } from "@/lib/ui-preferences-store"
 import {
+  clampChatColumnWidth,
+  DEFAULT_CHAT_COLUMN_WIDTH_REM,
+  isValidChatColumnWidth,
+} from "@/lib/chat-column-width"
+import {
   STORAGE_KEY_THEME_COLOR,
   STORAGE_KEY_ZOOM_LEVEL,
   STORAGE_KEY_UI_FONT,
@@ -43,6 +48,7 @@ import {
   STORAGE_KEY_EDITOR_FONT,
   STORAGE_KEY_EDITOR_FONT_CUSTOM,
   STORAGE_KEY_CHAT_FONT_SIZE,
+  STORAGE_KEY_CHAT_COLUMN_WIDTH,
   STORAGE_KEY_EDITOR_FONT_SIZE,
   STORAGE_KEY_EDITOR_LIGATURES,
   STORAGE_KEY_EDITOR_WORD_WRAP,
@@ -135,6 +141,9 @@ type AppearanceContextValue = {
   setTerminalFont: (id: string, custom?: string) => void
   chatFontSize: FontSize
   setChatFontSize: (size: FontSize) => void
+  /** 会话内容列宽度（rem），驱动 --chat-column-max；拖拽高频更新走防抖写盘。 */
+  chatColumnWidth: number
+  setChatColumnWidth: (rem: number) => void
   editorFontSize: FontSize
   setEditorFontSize: (size: FontSize) => void
   terminalFontSize: FontSize
@@ -416,6 +425,21 @@ export function AppearanceProvider({
     )
   }, [chatFontSize])
 
+  // 会话内容列宽度（rem）。存储值越界（手改 / 旧格式）落回默认，与 inline 脚本的
+  // 校验口径一致；DOM 上的 --chat-column-max 同样由 effect 统一跟随 state。
+  const [chatColumnWidth, setChatColumnWidthState] = useState<number>(() => {
+    const raw = readStored(STORAGE_KEY_CHAT_COLUMN_WIDTH)
+    if (raw === null) return DEFAULT_CHAT_COLUMN_WIDTH_REM
+    const n = parseFloat(raw)
+    return isValidChatColumnWidth(n) ? n : DEFAULT_CHAT_COLUMN_WIDTH_REM
+  })
+  useEffect(() => {
+    document.documentElement.style.setProperty(
+      "--chat-column-max",
+      `${chatColumnWidth}rem`
+    )
+  }, [chatColumnWidth])
+
   const [editorFontSize, setEditorFontSizeState] = useState<FontSize>(() =>
     readFontSize(STORAGE_KEY_EDITOR_FONT_SIZE, DEFAULT_EDITOR_FONT_SIZE)
   )
@@ -580,6 +604,12 @@ export function AppearanceProvider({
     persist(STORAGE_KEY_CHAT_FONT_SIZE, String(size))
   }, [])
 
+  // 抓手拖拽每帧都会调这里；持久化交给下方 useDebouncedPersist，setter 只管生效。
+  const setChatColumnWidth = useCallback((rem: number) => {
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
+    setChatColumnWidthState(clampChatColumnWidth(rem))
+  }, [])
+
   const setEditorFontSize = useCallback((size: FontSize) => {
     if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setEditorFontSizeState(size)
@@ -706,6 +736,12 @@ export function AppearanceProvider({
   const resetCustomCssBaseline = useDebouncedPersist(
     STORAGE_KEY_CUSTOM_CSS,
     customCss,
+    400
+  )
+  // 列宽拖拽与色板同理是高频变更，防抖写盘；pagehide 兜底见 useDebouncedPersist。
+  const resetChatColumnWidthBaseline = useDebouncedPersist(
+    STORAGE_KEY_CHAT_COLUMN_WIDTH,
+    String(chatColumnWidth),
     400
   )
 
@@ -1013,6 +1049,16 @@ export function AppearanceProvider({
       if (e.key && FONT_KEYS.has(e.key)) {
         rehydrateFonts()
       }
+      // 会话内容列宽度跨窗口同步；重置防抖基线，避免把刚收到的值再写回去。
+      if (e.key === STORAGE_KEY_CHAT_COLUMN_WIDTH) {
+        const raw = readStored(STORAGE_KEY_CHAT_COLUMN_WIDTH)
+        const parsed = raw === null ? NaN : parseFloat(raw)
+        const next = isValidChatColumnWidth(parsed)
+          ? parsed
+          : DEFAULT_CHAT_COLUMN_WIDTH_REM
+        setChatColumnWidthState(next)
+        resetChatColumnWidthBaseline(String(next))
+      }
       // Workspace 背景配置跨标签页同步。enabled/panel-opacity 需同步 DOM
       // （属性 + CSS 变量），mask/blur/fill 仅同步 state（React 层消费）。
       // enabled/panel-opacity 只更新 state；DOM（属性 + --ws-surface-alpha）由上方
@@ -1103,6 +1149,7 @@ export function AppearanceProvider({
     reloadWorkspaceBackgroundImage,
     resetCustomThemeBaseline,
     resetCustomCssBaseline,
+    resetChatColumnWidthBaseline,
   ])
 
   return (
@@ -1122,6 +1169,8 @@ export function AppearanceProvider({
         setTerminalFont,
         chatFontSize,
         setChatFontSize,
+        chatColumnWidth,
+        setChatColumnWidth,
         editorFontSize,
         setEditorFontSize,
         terminalFontSize,

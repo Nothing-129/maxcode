@@ -7,6 +7,8 @@ const f = vi.hoisted(() => ({
   disconnect: vi.fn(async () => {}),
   touchActivity: vi.fn(),
   setActiveKey: vi.fn(),
+  markConnectPending: vi.fn(),
+  clearConnectPending: vi.fn(),
   task: vi.fn(),
   unsubscribe: vi.fn(),
   reconnect: undefined as (() => void) | undefined,
@@ -120,6 +122,26 @@ describe("mobile session recovery", () => {
     expect(f.connect).not.toHaveBeenCalled()
   })
 
+  it("marks connecting while waiting on a historical session id", () => {
+    renderHook(() =>
+      useConnectionLifecycle({
+        contextKey: "mobile-tab",
+        agentType: "claude_code",
+        isActive: false,
+        anticipateConnect: true,
+        workingDir: "/repo",
+        sessionId: undefined,
+        conversationId: 42,
+      })
+    )
+    expect(f.markConnectPending).toHaveBeenCalledWith(
+      "mobile-tab",
+      "claude_code",
+      "/repo"
+    )
+    expect(f.connect).not.toHaveBeenCalled()
+  })
+
   it("checks connected entries before reuse and exposes status outside the popover", () => {
     const provider = readFileSync(
       "src/contexts/acp-connections-context.tsx",
@@ -128,6 +150,12 @@ describe("mobile session recovery", () => {
     expect(provider).toMatch(
       /existing.status === "connected" \|\|\s*existing.status === "prompting" \|\|\s*existing.status === "connecting"/
     )
+    // In-flight connect is visible as connecting before CONNECTION_CREATED:
+    // a missing store entry used to read as "disconnected" for the whole
+    // preflight + spawn window.
+    expect(provider).toContain("pendingConnectsRef")
+    expect(provider).toContain("markConnectPending(contextKey, agentType")
+    expect(provider).toContain("createConnectingPlaceholder")
     const status = readFileSync(
       "src/components/chat/composer-connection-status.tsx",
       "utf8"
@@ -139,5 +167,17 @@ describe("mobile session recovery", () => {
       'disconnected: { Icon: HeartOff, className: "text-red-500" }'
     )
     expect(status).toMatch(/statusKey === "disconnected"\s*\? "text-red-500"/)
+    expect(
+      readFileSync(
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "utf8"
+      )
+    ).toContain("anticipateConnect:")
+    expect(
+      readFileSync(
+        "src/components/canvas/canvas-conversation-surface.tsx",
+        "utf8"
+      )
+    ).toContain("anticipateConnect:")
   })
 })

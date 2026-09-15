@@ -3153,10 +3153,22 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 }
 
 /* Supplied Codex desktop reference: one centered column shared by replies,
-   banners and composer. Gutters are included in this border-box width. */
+   banners and composer. Gutters are included in this border-box width.
+   --chat-column-max 由用户拖宽抓手维护（appearance-provider 预水合 + 运行时），
+   单位 rem，随窗口缩放等比伸缩；缺省 48rem 即参考端默认。 */
 .maxcode-chat-column {
   width: 100%;
-  max-width: 48rem;
+  max-width: var(--chat-column-max, 48rem);
+}
+
+/* 手机端不参与列宽偏好（也无抓手）：列始终铺满会话区。断点必须与
+   use-mobile.ts 的 MOBILE_BREAKPOINT 一致，移动端外壳渲染时约束恰好解除。
+   没有这条，用户在桌面端拖到 40rem（640px）后，640–767px 宽的手机会被
+   钳在 640px 而非满宽。 */
+@media (max-width: 767px) {
+  .maxcode-chat-column {
+    max-width: 100%;
+  }
 }
 
 /* Native macOS controls share the workspace header in Electron. */
