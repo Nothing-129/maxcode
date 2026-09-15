@@ -734,6 +734,11 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
     }
 }
 
+#[cfg_attr(feature = "tauri-runtime", tauri::command)]
+pub fn acp_agent_auto_update_status(agent_type: AgentType) -> AutoUpdateStatus {
+    status(agent_type)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -907,6 +912,7 @@ chmod +x "$prefix/bin/claude-agent-acp"
 
     #[cfg(unix)]
     #[tokio::test]
+    #[allow(clippy::await_holding_lock)]
     async fn stages_custom_python_agent_in_private_tool_directories() {
         let _guard = crate::acp::custom_registry::hydrate_test_guard();
         let def: crate::acp::custom_registry::CustomAgentDef = serde_json::from_value(serde_json::json!({
@@ -1015,9 +1021,4 @@ chmod +x "$UV_TOOL_BIN_DIR/python-agent"
         assert_eq!(marker.version, "1.0.1");
         assert!(old.is_dir());
     }
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub fn acp_agent_auto_update_status(agent_type: AgentType) -> AutoUpdateStatus {
-    status(agent_type)
 }

@@ -1460,6 +1460,14 @@ pub async fn acp_current_platform() -> Json<String> {
     Json(custom_agent_commands::acp_current_platform_core())
 }
 
+pub async fn acp_agent_auto_update_status(
+    Json(params): Json<AgentTypeParams>,
+) -> Json<crate::commands::agent_auto_updates::AutoUpdateStatus> {
+    Json(crate::commands::agent_auto_updates::status(
+        params.agent_type,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1509,12 +1517,4 @@ mod tests {
         assert!(text.contains(r#"{"agentType":"antigravity"}"#));
         assert!(!text.contains("codex"));
     }
-}
-
-pub async fn acp_agent_auto_update_status(
-    Json(params): Json<AgentTypeParams>,
-) -> Json<crate::commands::agent_auto_updates::AutoUpdateStatus> {
-    Json(crate::commands::agent_auto_updates::status(
-        params.agent_type,
-    ))
 }

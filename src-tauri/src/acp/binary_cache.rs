@@ -581,7 +581,7 @@ async fn install_binary_archive_into(
     };
 
     // Download and extract
-    std::fs::create_dir_all(&dir)
+    std::fs::create_dir_all(dir)
         .map_err(|e| AcpError::DownloadFailed(format!("failed to create cache dir: {e}")))?;
 
     let tmp_dir = dir.join(".tmp");
@@ -621,7 +621,7 @@ async fn install_binary_archive_into(
         }
 
         if let Some(entry) = dir_entry_for_agent_id(agent_id) {
-            return install_extracted_tree(&extract_dir, &dir, entry, &on_progress);
+            return install_extracted_tree(&extract_dir, dir, entry, &on_progress);
         }
 
         // Find the binary in extracted files and move to final location.
@@ -650,7 +650,7 @@ async fn install_binary_archive_into(
     let _ = std::fs::remove_dir_all(&tmp_dir);
     if result.is_err() {
         // Avoid leaving empty version/platform directories on failed downloads.
-        let _ = std::fs::remove_dir_all(&dir);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     result

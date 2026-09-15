@@ -709,22 +709,25 @@ async fn greeting_kickoff_calls_http_for_each_supported_agent(
             .unwrap();
         kickoff_auto_title(agent, db.conn.clone(), emitter.clone(), id, "你好".into()).await;
         wait_until_idle(id).await;
-        let requests = server.requests.lock().unwrap();
-        assert_eq!(
-            requests.len(),
-            index + 1,
-            "{agent:?} must send an HTTP request"
-        );
-        assert!(requests[index]["messages"][0]["content"]
-            .as_str()
-            .unwrap()
-            .contains("你好"));
-        let prompt = requests[index]["messages"][0]["content"].as_str().unwrap();
-        assert!(prompt.contains(
-            "Greetings, thanks, introductions, and short questions must receive descriptive titles"
-        ));
-        assert!(prompt.contains("only when the supplied content has no interpretable meaning"));
-        drop(requests);
+        {
+            let requests = server.requests.lock().unwrap();
+            assert_eq!(
+                requests.len(),
+                index + 1,
+                "{agent:?} must send an HTTP request"
+            );
+            assert!(requests[index]["messages"][0]["content"]
+                .as_str()
+                .unwrap()
+                .contains("你好"));
+            let prompt = requests[index]["messages"][0]["content"].as_str().unwrap();
+            assert!(prompt.contains(
+                "Greetings, thanks, introductions, and short questions must receive descriptive titles"
+            ));
+            assert!(
+                prompt.contains("only when the supplied content has no interpretable meaning")
+            );
+        }
         let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
         assert!(
             saved.title.unwrap().ends_with("｜其他｜日常问候"),
