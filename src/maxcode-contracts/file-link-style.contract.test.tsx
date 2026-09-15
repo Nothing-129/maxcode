@@ -35,7 +35,9 @@ describe("transcript file link style", () => {
       "file-type-binary"
     )
     expect(container.querySelector("[data-file-icon]")).toHaveClass("size-4")
-    expect(container.querySelector("[data-file-icon]")).not.toHaveClass("size-5")
+    expect(container.querySelector("[data-file-icon]")).not.toHaveClass(
+      "size-5"
+    )
     expect(container.querySelector("img")).toHaveAttribute(
       "src",
       "/file-icons/file-type-binary.svg"

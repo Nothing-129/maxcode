@@ -2008,7 +2008,9 @@ export function partitionOptimisticTurnsOnComplete(
 
   if (optimisticTurns.length > 1 && activeTurnToken) {
     const keep = optimisticTurns.filter((turn) => turn.id === activeTurnToken)
-    const promote = optimisticTurns.filter((turn) => turn.id !== activeTurnToken)
+    const promote = optimisticTurns.filter(
+      (turn) => turn.id !== activeTurnToken
+    )
     if (keep.length > 0 && promote.length > 0) {
       return { promote, keep }
     }

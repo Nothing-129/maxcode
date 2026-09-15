@@ -5687,6 +5687,11 @@ mod tests {
         // path-only ordering passes this regression test by accident.
         let repo = root.join("z-main");
         std::fs::rename(&original_repo, &repo).expect("move main repo");
+        // Canonicalize like the fixture does so the ordering assertion below
+        // compares matching path forms on Windows (verbatim vs plain prefix).
+        let repo = crate::paths::simplify_verbatim_path(
+            &std::fs::canonicalize(&repo).expect("canon repo"),
+        );
         std::fs::write(
             worktree.join(".git"),
             format!("gitdir: {}\n", repo.join(".git/worktrees/wt").display()),

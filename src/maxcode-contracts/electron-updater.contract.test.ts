@@ -297,7 +297,9 @@ describe("MaxCode contract: Electron Cloudflare Tunnel update mirror", () => {
       "https://github.com/Nothing-129/maxcode/releases/latest/download/latest-arm64-mac.yml"
     )
     expect(
-      mapped("/download/v0.30.15/MaxCode-Electron-0.30.15-mac-arm64.zip.blockmap")
+      mapped(
+        "/download/v0.30.15/MaxCode-Electron-0.30.15-mac-arm64.zip.blockmap"
+      )
     ).toBe(
       "https://github.com/Nothing-129/maxcode/releases/download/v0.30.15/MaxCode-Electron-0.30.15-mac-arm64.zip.blockmap"
     )

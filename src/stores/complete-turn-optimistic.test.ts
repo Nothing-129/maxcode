@@ -24,11 +24,7 @@ describe("partitionOptimisticTurnsOnComplete", () => {
 
   it("keeps the active follow-up and promotes the prompt that started this turn", () => {
     expect(
-      partitionOptimisticTurnsOnComplete(
-        [before, after],
-        "prompt-2",
-        startedAt
-      )
+      partitionOptimisticTurnsOnComplete([before, after], "prompt-2", startedAt)
     ).toEqual({ promote: [before], keep: [after] })
   })
 

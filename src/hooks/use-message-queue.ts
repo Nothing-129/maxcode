@@ -198,9 +198,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
     (id: string, draft: PromptDraft) => {
       commit(
         queueRef.current.map((item) =>
-          item.id === id
-            ? { ...item, draft, flushBlocked: undefined }
-            : item
+          item.id === id ? { ...item, draft, flushBlocked: undefined } : item
         )
       )
       setEditingItemId(null)

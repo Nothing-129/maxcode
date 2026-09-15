@@ -7,7 +7,9 @@
       "description": "Android saves links locally without health or token validation; token is optional, deep-link paths/query/fragment are preserved and opened directly. Legacy MaxCode bootstrap is limited to roots with nonempty tokens. Generic pages reserve native status-bar/cutout and keyboard insets instead of using immersive MaxCode CSS.",
       "origins": ["worktree-2026-09-15"],
       "paths": ["android-webview/"],
-      "contracts": ["src/maxcode-contracts/android-direct-links.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/android-direct-links.contract.test.ts"
+      ]
     },
     {
       "id": "ios.webview-client",
@@ -638,9 +640,7 @@
         "src/app/globals.css",
         "src/i18n/messages/"
       ],
-      "contracts": [
-        "src/maxcode-contracts/chat-column-width.contract.test.tsx"
-      ]
+      "contracts": ["src/maxcode-contracts/chat-column-width.contract.test.tsx"]
     },
     {
       "id": "chat.markdown-link-cursor",

@@ -43,7 +43,7 @@
 这允许 URLSession 健康检查与 WKWebView 使用 HTTP，但不会绕过 HTTPS 证书校验。
 HTTP 请仅用于可信网络，公网部署使用有效证书的 HTTPS。
 相关平台行为参见 Apple 的 [ATS 配置说明](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CocoaKeys.html)、
-[内存网页数据存储](https://developer.apple.com/documentation/webkit/wkwebsitedatastore/nonpersistent())
+[内存网页数据存储](<https://developer.apple.com/documentation/webkit/wkwebsitedatastore/nonpersistent()>)
 及 [主框架脚本限制](https://developer.apple.com/documentation/webkit/wkuserscript/isformainframeonly)。
 
 ## 打开与构建

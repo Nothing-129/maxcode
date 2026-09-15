@@ -126,7 +126,11 @@ describe("useMessageQueue bounce FIFO ordering", () => {
     act(() => result.current.enqueue(draft("B"), null))
     expect(result.current.peekSendable()?.draft.displayText).toBe("A")
 
-    act(() => result.current.requeueFront(draft("blocked"), null, { flushBlocked: true }))
+    act(() =>
+      result.current.requeueFront(draft("blocked"), null, {
+        flushBlocked: true,
+      })
+    )
     expect(result.current.peekSendable()?.draft.displayText).toBe("A")
     expect(texts(result.current.queue)).toEqual(["blocked", "A", "B"])
 

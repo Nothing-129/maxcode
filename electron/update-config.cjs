@@ -25,7 +25,8 @@ function mirrorFeed(arch = process.arch) {
 }
 
 function updateSources(arch = process.arch, version) {
-  if (!version) throw new Error("Update source list requires the running version")
+  if (!version)
+    throw new Error("Update source list requires the running version")
   return [
     {
       feed: updateFeed(arch),
