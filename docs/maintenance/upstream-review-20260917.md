@@ -2,13 +2,13 @@
 
 本次刷新 `upstream/main` 后，最新提交仍为 `e4c389637a89`（2026-09-16）。
 比较对象为 MaxCode `52ab279940dc` 加当前工作区，包含尚未提交的 Electron/Tauri 迁移。
-这里只评审，不合并上游。登记版本指源码内置安装目标，不代表本机实际运行版本；
+已在 `integrate/upstream-six-agents-20260917` 按功能移植以下建议项；可选项仍暂缓。登记版本指源码内置安装目标，不代表本机实际运行版本；
 MaxCode 的自动更新可能已经安装更新的适配器，因此协议适配仍需单独补齐。
 
 维护范围：Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity。
 其他智能体实现和历史数据保留，设置和新会话目录隐藏，后台自动更新跳过。
 
-## 建议吸收
+## 本次集成范围（建议项已落实，可选项暂缓）
 
 | 优先级 | 范围 | 上游提交 | 收益及移植要求 |
 | --- | --- | --- | --- |
@@ -39,3 +39,25 @@ Pi 当前 pi-acp 0.0.33，最近这一轮没有尚待吸收的专属上游改动
 
 正式集成仍从 main 建临时分支，执行 upstream:impact，对重叠提交逐项评审，
 新增或更新独立契约。不能直接套用整个混合提交或恢复已隐藏的智能体目录。
+
+## 集成评审结果
+
+- 原工作区迁移和六种智能体限制先保存为独立本地基线 `ae5484d65a17`。
+- 采用逐提交差异移植，未把 upstream/main 的全部历史标记为已合并；今后仍能审查尚未吸收的共用改动。
+- 推荐模型接入现有内联、搜索及折叠选择器；没有替换输入框布局。
+- 连接提示复用现有 pending placeholder、提前连接、空闲 owner 保留和移动端 3 秒提示延迟；没有再维护第二份 pending 状态。
+- DeepSeek 保留 MaxCode 的代际优先规则：新代际明文可覆盖旧代际压缩日志；同代际压缩优先。上游编码优先规则会违反既有历史恢复契约，因此未采用。保留增量压缩帧恢复和生成时延统计。
+- 临时目录隔离保留 Codex/Claude/Pi 官方 CLI 独立更新注入，只接入共享 Rust 服务启动和回收。未引入 OpenCode 的安装路径、插件迁移或任何 Tauri 注册。
+- Grok 仅取 1.0.30 版本变更；其余八种代理版本不变。
+- 修正现有 Electron Dock 测试的登录项依赖，以及 JSON 错误脱敏后 Response 测试替身，保留原行为断言。
+
+## 验证结果
+
+- `pnpm upstream:impact`：返回预期的重叠评审状态 2；按上述提交与下游契约完成逐项评审。
+- `pnpm upstream:guard`：133 个文件、655 项契约通过。
+- `pnpm test`：588 个文件、7,125 项测试通过。
+- `pnpm eslint .`、`pnpm build`：通过。
+- Electron 后端及 MCP：`cargo check --no-default-features --features native-keyring --bin codeg-server --bin codeg-mcp` 通过。
+- `env -u CODEG_RUNTIME cargo test --no-default-features --features native-keyring --bin codeg-server --lib`：共享库 3,758 项、服务器 2 项通过，1 项既有忽略项。清除测试进程继承的 Electron 运行标记，避免服务器更新测试按设计被拒绝；公开监听器测试禁用系统 HTTP 代理，直接验证本地监听器关闭。
+- `cargo clippy --no-default-features --bin codeg-server --bin codeg-mcp --lib -- -D warnings`：通过。
+- 未安装或运行真实代理升级，未生成发布安装包，未推送远端。

@@ -59,6 +59,7 @@ it("delivers preload badge requests to the trusted macOS Dock handler", async ()
       handle: (name: string, handler: (event: unknown) => void) =>
         handlers.set(name, handler),
     },
+    createLoginItem: () => ({ get: vi.fn(), set: vi.fn() }),
     trustedSender: () => trusted,
     BrowserWindow: { fromWebContents: () => ({}) },
     process: { platform: "darwin" },

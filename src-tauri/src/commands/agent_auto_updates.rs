@@ -568,7 +568,7 @@ async fn prepare_vendor_runtime(
         install.env("NODE_USE_ENV_PROXY", "1");
     }
     run_tool_install(install, &runtime).await?;
-    verify_staged(agent, &runtime, &executable(&runtime, cmd), &version).await?;
+    verify_staged(agent, &runtime, &executable(&runtime, cmd), version).await?;
     Ok(())
 }
 

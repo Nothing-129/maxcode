@@ -13,6 +13,8 @@ import { TurnBusyError, isTurnInProgressRejection } from "./turn-busy"
 import type { FolderThemeColor } from "./theme-presets"
 import type { FollowUpIntent } from "./task-follow-up"
 import type {
+  LeakedTempReclaim,
+  LeakedTempScan,
   AgentType,
   AgentDelegationDefaults,
   AgentOptionsSnapshot,
@@ -515,6 +517,21 @@ export async function acpEnvDiagnostics(
 
 export async function acpClearBinaryCache(agentType: AgentType): Promise<void> {
   return getTransport().call("acp_clear_binary_cache", { agentType })
+}
+
+/** Read-only scan of the system temp dir for pre-isolation launch leftovers. */
+export async function acpScanLeakedTemp(): Promise<LeakedTempScan> {
+  return getTransport().call("acp_scan_leaked_temp", {})
+}
+
+/**
+ * Delete leaked temp artifacts. The backend re-validates every path
+ * immediately before deleting — this list is never trusted as-is.
+ */
+export async function acpReclaimLeakedTemp(
+  paths: string[]
+): Promise<LeakedTempReclaim> {
+  return getTransport().call("acp_reclaim_leaked_temp", { paths })
 }
 
 export async function acpDownloadAgentBinary(

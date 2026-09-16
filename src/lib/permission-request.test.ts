@@ -200,4 +200,40 @@ describe("parsePermissionToolCall — request-level _meta.permission", () => {
       }).reason
     ).toBeNull()
   })
+
+  it("reads claude's defaultToNo hint under the same version gate", () => {
+    // claude-agent-acp ≥0.77.0 forwards the CLI's "must not be approvable by
+    // a stray keystroke" hint on the request-level block.
+    expect(
+      parsePermissionToolCall({
+        toolCallId: "t1",
+        _meta: {
+          permission: { version: 1, title: "Run command?", defaultToNo: true },
+        },
+      }).defaultToNo
+    ).toBe(true)
+  })
+
+  it("treats anything but a real defaultToNo:true as absent", () => {
+    // This flag only ever makes the card SAFER, so an unreadable shape has to
+    // fall back to the ordinary presentation — never claim a hint it did not
+    // understand, and never let a missing hint read as "dangerous".
+    const cases: unknown[] = [
+      { toolCallId: "t1" },
+      { toolCallId: "t1", _meta: { permission: { version: 1 } } },
+      // Truthy but not boolean.
+      {
+        toolCallId: "t1",
+        _meta: { permission: { version: 1, defaultToNo: "true" } },
+      },
+      // A revision this build cannot read.
+      {
+        toolCallId: "t1",
+        _meta: { permission: { version: 2, defaultToNo: true } },
+      },
+    ]
+    for (const toolCall of cases) {
+      expect(parsePermissionToolCall(toolCall).defaultToNo).toBe(false)
+    }
+  })
 })

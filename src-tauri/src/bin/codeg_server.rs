@@ -172,7 +172,9 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
     // errors are silenced, no subprocesses spawned.
     std::thread::spawn(|| {
         let _ = std::panic::catch_unwind(|| {
+            codeg_lib::acp::binary_cache::migrate_legacy_root();
             codeg_lib::sweep_acp_binary_trash();
+            codeg_lib::sweep_acp_scratch_dirs();
         });
     });
 
@@ -527,6 +529,12 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
             std::time::Duration::from_secs(codeg_lib::SWEEP_INTERVAL_SECS),
         ));
     }
+
+    // Reclaim scratch directories lost track of mid-session. Deliberately NOT
+    // gated on `idle_timeout_from_env` like the sweep above: setting
+    // `CODEG_ACP_IDLE_TIMEOUT_SECS=0` disables idle disconnects, not disk
+    // reclamation.
+    tokio::spawn(codeg_lib::scratch_sweep_task());
 
     // Office watch preview servers: reap dead children + ref0 stragglers.
     if let Some(idle_timeout) = codeg_lib::office_watch::idle_timeout_from_env() {

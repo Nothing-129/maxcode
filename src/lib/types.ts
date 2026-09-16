@@ -1454,6 +1454,12 @@ export interface SessionConfigOptionInfo {
   description?: string | null
   category?: string | null
   kind: SessionConfigKindInfo
+  /** The value the AGENT recommends (JetBrains AIR `recommendedValue`; codex-acp
+   *  1.11.0+ names its default model and the current model's default reasoning
+   *  effort). A hint only — `current_value` still says what is selected, and a
+   *  recommendation matching no option simply marks nothing. Absent for agents
+   *  that publish none, and on payloads predating the field. */
+  recommended_value?: string | null
 }
 
 export interface AgentOptionsSnapshot {
@@ -2527,6 +2533,11 @@ export type AcpEvent =
       option_name: string
       requested: string
       actual: string
+      /** The same two as RAW value ids — what `agent-label-vocabulary` keys on.
+       *  Optional so a client stays compatible with a server that predates
+       *  them. */
+      requested_value?: string
+      actual_value?: string
     }
   | {
       type: "selectors_ready"
@@ -4378,6 +4389,30 @@ export interface PreflightResult {
 }
 
 // ─── OpenCode Plugins ───
+
+// ─── Leaked temp reclamation ───
+
+/** One reclaimable artifact left by an agent launch from before temp isolation. */
+export interface LeakedTempEntry {
+  path: string
+  bytes: number
+  age_hours: number
+  is_dir: boolean
+}
+
+export interface LeakedTempScan {
+  root: string
+  entries: LeakedTempEntry[]
+  total_bytes: number
+  /** Matched the leak shape but is still in use, or too recent to touch. */
+  skipped: number
+}
+
+export interface LeakedTempReclaim {
+  removed: number
+  freed_bytes: number
+  failed: string[]
+}
 
 export type PluginStatus = "installed" | "missing"
 

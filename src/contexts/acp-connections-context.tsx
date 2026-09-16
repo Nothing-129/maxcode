@@ -96,6 +96,10 @@ import {
 import { contentBlocksFromUserMessage } from "@/lib/user-message-blocks"
 import { getAgentLabel } from "@/lib/custom-agents"
 import {
+  localizeConfigOptionLabel,
+  localizeConfigValueLabel,
+} from "@/lib/agent-label-vocabulary"
+import {
   CONNECTION_IDLE_TIMEOUT_MS,
   CONNECTION_KEEPALIVE_INTERVAL_MS,
   IDLE_WARM_CONNECTION_TTL_MS,
@@ -1264,7 +1268,12 @@ function sameConfigOptions(
       left.id !== right.id ||
       left.name !== right.name ||
       left.description !== right.description ||
-      left.category !== right.category
+      left.category !== right.category ||
+      // Rendered (the "recommended" badge), so it has to be compared or a
+      // push that changes ONLY the recommendation is swallowed and the badge
+      // goes stale. codex publishes `reasoning_effort`'s recommendation as the
+      // CURRENT model's default, so it moves on its own schedule.
+      (left.recommended_value ?? null) !== (right.recommended_value ?? null)
     ) {
       return false
     }
@@ -2972,6 +2981,29 @@ function connectionsReducer(
 
 // ── Ref-based store (replaces useReducer + Context) ──
 
+/**
+ * A `connect()` that has started but has not yet produced a store entry.
+ *
+ * The whole establishment leg — agent spawn, ACP `initialize`, then
+ * `session/resume|load|new` — happens inside ONE `await acpConnect(...)`, and
+ * `CONNECTION_CREATED` (the action that first writes `status: "connecting"`)
+ * only runs after it resolves. For a historical conversation that await is the
+ * SLOW part (seconds to a minute; see the agent-side resume cost), so without
+ * this the UI spent the entire wait reading `status === null` — indistinguishable
+ * from "nothing is happening": no composer placeholder, no loading cue, no
+ * status-bar task, a "disconnected" heart.
+ *
+ * Kept OUT of `ConnectionsMap` deliberately: there is no connection yet (no id,
+ * no session, nothing to route events to), and every reducer/sweep that walks
+ * that map would have to learn about a half-entry. It is a separate, reactive
+ * side table read only by `useConnection` (which reports it as `connecting`)
+ * and the composer's status chip.
+ */
+export interface ConnectPendingInfo {
+  agentType: AgentType
+  workingDir: string | null
+}
+
 interface InternalStore {
   connections: ConnectionsMap
   activeKey: string | null
@@ -2983,6 +3015,10 @@ interface InternalStore {
 
 export interface ConnectionStoreApi {
   getConnection(key: string): ConnectionState | undefined
+  /** The in-flight `connect()` for this key, or undefined when none is. The
+   *  returned object is reference-stable for the lifetime of that connect, so
+   *  it is safe as a `useSyncExternalStore` snapshot. */
+  getConnectPending(key: string): ConnectPendingInfo | undefined
   getActiveKey(): string | null
   subscribeKey(key: string, cb: () => void): () => void
   subscribeActiveKey(cb: () => void): () => void
@@ -3309,6 +3345,9 @@ function isAlertedError(error: unknown): error is AlertedError {
 
 export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const t = useTranslations("Folder.chat.acpConnections")
+  // Separate namespace: the agent-supplied vocabulary this provider has to
+  // re-label lives under its own catalogue (see `lib/agent-label-vocabulary`).
+  const vocabularyT = useTranslations("AgentVocabulary")
   const tChat = useTranslations("Folder.chat")
   const { pushAlert } = useAlertContext()
   const { activeFolder: folder } = useActiveFolder()
@@ -3735,6 +3774,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           pendingConnectsRef.current.get(key)
         )
       },
+      getConnectPending(key: string) {
+        return pendingConnectsRef.current.get(key)
+      },
       getActiveKey() {
         return storeRef.current.activeKey
       },
@@ -4013,18 +4055,44 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const reportConfigOptionVerdict = useCallback(
     (
       agentType: AgentType | undefined,
-      rejection: { option_name: string; requested: string; actual: string }
+      rejection: {
+        config_id: string
+        option_name: string
+        requested: string
+        actual: string
+        requested_value?: string
+        actual_value?: string
+      }
     ) => {
+      // The composer's dropdown is localised, so this notice has to name the
+      // same things the user was looking at — otherwise an English selector
+      // produces a Chinese "your pick was adjusted" toast. The event carries
+      // the raw ids beside the labels precisely so this lookup is possible;
+      // the labels remain the fallback for any id we do not own.
+      const option = localizeConfigOptionLabel(
+        agentType,
+        rejection.config_id,
+        rejection.option_name,
+        vocabularyT
+      )
+      const value = (id: string | undefined, fallback: string) =>
+        localizeConfigValueLabel(
+          agentType,
+          rejection.config_id,
+          id,
+          fallback,
+          vocabularyT
+        )
       toast.warning(
         t("configOptionAdjusted", {
           agent: agentType ? getAgentLabel(agentType) : "",
-          option: rejection.option_name,
-          requested: rejection.requested,
-          actual: rejection.actual,
+          option,
+          requested: value(rejection.requested_value, rejection.requested),
+          actual: value(rejection.actual_value, rejection.actual),
         })
       )
     },
-    [t]
+    [t, vocabularyT]
   )
 
   const handleMappedEvent = useCallback(

@@ -900,7 +900,8 @@ mod desktop_public_listener_tests {
             .headers_mut()
             .insert("authorization", "Bearer private-token".parse().unwrap());
         let (mut desktop_ws, _) = tokio_tungstenite::connect_async(ws_request).await.unwrap();
-        let client = reqwest::Client::new();
+        // Local transport assertions must not pass through inherited HTTP proxies.
+        let client = reqwest::Client::builder().no_proxy().build().unwrap();
         let first = do_start_web_server_with_state(
             state.clone(),
             dir.path().to_path_buf(),

@@ -62,3 +62,17 @@ fn v3_history_survives_an_incomplete_appended_frame() {
     let parsed = parse_session_log(root.path(), None).unwrap();
     assert_eq!(parsed.turns.len(), 2);
 }
+
+#[test]
+fn newest_generation_preserves_downstream_encoding_migration() {
+    let root = tempfile::tempdir().unwrap();
+    fs::write(
+        root.path().join("session.v3.jsonl.zstd"),
+        zstd::stream::encode_all(&b"old compressed history"[..], 0).unwrap(),
+    )
+    .unwrap();
+    fs::write(root.path().join("session.v12.jsonl"), transcript()).unwrap();
+    fs::write(root.path().join("session.v099.jsonl"), "uncommitted naming").unwrap();
+    let parsed = parse_session_log(root.path(), None).unwrap();
+    assert_eq!(parsed.turns.len(), 2);
+}

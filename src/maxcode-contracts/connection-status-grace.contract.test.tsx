@@ -5,6 +5,7 @@ const f = vi.hoisted(() => ({
   conn: undefined as { status: string } | undefined,
   store: {
     subscribeKey: () => () => {},
+    getConnectPending: () => undefined,
     getConnection: (): { status: string } | undefined => f.conn,
   },
 }))

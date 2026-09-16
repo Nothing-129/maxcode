@@ -29,9 +29,29 @@ interface UseConnectionLifecycleOptions {
    */
   conversationId?: number
   /**
-   * Read at unmount-cleanup time: true when the view is being REPARENTED, not
-   * closed. A transient unmount must not disconnect — the remounted instance
-   * reuses the same live connection under the same contextKey.
+   * True while the CALLER is deliberately holding auto-connect back until it
+   * has resolved something the connection needs — today a historical
+   * conversation's `external_id`, which must be known before connecting or the
+   * backend falls back to `session/new` and orphans the history.
+   *
+   * It exists because `isActive` cannot say this: callers pass
+   * `isActive && canConnectYet`, which collapses "this tab is in the
+   * background" (nothing should happen) with "this tab is opening and is
+   * waiting on its own fetch" (something IS happening, it just has nothing to
+   * show yet). Without the distinction that wait — the first, silent leg of
+   * opening an old conversation — produced no loading state and no status-bar
+   * task, so the window read as a dead composer.
+   *
+   * Callers should AND it with their own active flag: a background tab must not
+   * put a row in the (global) status bar.
+   */
+  preparing?: boolean
+  /**
+   * Read at unmount-cleanup time: true when the component is unmounting
+   * because the view is being REPARENTED (its tab moved between split groups /
+   * an unsplit merged it), not closed. A transient unmount must not
+   * disconnect — the remounted instance re-attaches to the same live
+   * connection under the same contextKey.
    */
   isTransientUnmount?: () => boolean
   /** True for the handoff render before a hidden idle LOCAL owner's heavy UI
@@ -133,6 +153,7 @@ export function useConnectionLifecycle({
   workingDir,
   sessionId,
   conversationId,
+  preparing = false,
   isTransientUnmount,
   preserveIdleOwnerOnUnmount,
   anticipateConnect = false,
@@ -176,14 +197,15 @@ export function useConnectionLifecycle({
   // seconds of spawn), and that's exactly when the composer used to wait.
   const hasCachedSelectors =
     connHasCachedSelectors || getCachedSelectors(agentType) !== null
-  const modeLoading =
-    !hasCachedSelectors &&
-    (status === "connecting" ||
-      (isInteractiveStatus && !effectiveSelectorsReady))
-  const configOptionsLoading =
-    !hasCachedSelectors &&
-    (status === "connecting" ||
-      (isInteractiveStatus && !effectiveSelectorsReady))
+  // `preparing` is the leg BEFORE `connecting`, when the caller is still
+  // resolving what to connect to; the selectors are just as unknown there, and
+  // leaving it out is what made an opening conversation show a bare composer.
+  const selectorsPending =
+    preparing ||
+    status === "connecting" ||
+    (isInteractiveStatus && !effectiveSelectorsReady)
+  const modeLoading = !hasCachedSelectors && selectorsPending
+  const configOptionsLoading = !hasCachedSelectors && selectorsPending
   // Gate for send button: block until the backend session is fully
   // initialized (selectorsReady from the real backend event, not cache).
   const selectorsLoading = isInteractiveStatus && !selectorsReady
@@ -349,40 +371,52 @@ export function useConnectionLifecycle({
   }, [isActive, workingDir, agentType, contextKey, touchActivity])
 
   // Manage task status for connection progress
+  // Status-bar task for the two legs that precede a usable session:
+  //   "preparing"  — the caller is resolving what to connect to (see `preparing`)
+  //   "connecting" — `connect()` is in flight: agent spawn, ACP `initialize`,
+  //                  then `session/resume|load|new`
+  // (The third leg, session init after `connected`, has its own task below.)
+  // A task's label is fixed when it is added, so a leg change retires the old
+  // row and mints a new one rather than leaving stale wording on screen.
   const taskIdRef = useRef<string | null>(null)
+  const taskPhaseRef = useRef<"preparing" | "connecting" | null>(null)
   useEffect(() => {
-    if (status === "connecting") {
-      if (!taskIdRef.current) {
-        const id = `acp-connect-${Date.now()}`
-        taskIdRef.current = id
-        const agent = getAgentLabel(agentType)
-        addTask(
-          id,
-          t("tasks.connectingTitle", { agent }),
-          t("tasks.connectingDescription")
-        )
-      }
-      updateTask(taskIdRef.current, { status: "running" })
-    } else if (status === "connected" || status === "prompting") {
-      if (taskIdRef.current) {
-        updateTask(taskIdRef.current, { status: "completed" })
-        taskIdRef.current = null
-      }
-    } else if (status === "error") {
-      if (taskIdRef.current) {
-        updateTask(taskIdRef.current, {
+    const phase =
+      status === "connecting" ? "connecting" : preparing ? "preparing" : null
+    if (phase !== null && phase === taskPhaseRef.current) return
+    taskPhaseRef.current = phase
+    if (taskIdRef.current) {
+      const finished = taskIdRef.current
+      taskIdRef.current = null
+      if (
+        phase === null &&
+        (status === "connected" || status === "prompting")
+      ) {
+        updateTask(finished, { status: "completed" })
+      } else if (phase === null && status === "error") {
+        updateTask(finished, {
           status: "failed",
           error: t("errors.connectionFailed"),
         })
-        taskIdRef.current = null
-      }
-    } else if (status === "disconnected" || status === null) {
-      if (taskIdRef.current) {
-        removeTask(taskIdRef.current)
-        taskIdRef.current = null
+      } else {
+        removeTask(finished)
       }
     }
-  }, [status, addTask, updateTask, removeTask, agentType, t])
+    if (phase === null) return
+    const id = `acp-${phase}-${Date.now()}`
+    taskIdRef.current = id
+    const agent = getAgentLabel(agentType)
+    addTask(
+      id,
+      phase === "connecting"
+        ? t("tasks.connectingTitle", { agent })
+        : t("tasks.preparingTitle", { agent }),
+      phase === "connecting"
+        ? t("tasks.connectingDescription")
+        : t("tasks.preparingDescription")
+    )
+    updateTask(id, { status: "running" })
+  }, [status, preparing, addTask, updateTask, removeTask, agentType, t])
 
   const clearSelectorTask = useCallback(() => {
     if (selectorTaskIdRef.current) {

@@ -623,6 +623,7 @@ const ConversationTabView = memo(function ConversationTabView({
     // Drives cross-client viewer discovery: when another client is already
     // live on this conversation, attach to its connection instead of spawning.
     conversationId: dbConversationId ?? undefined,
+    preparing: isActive && awaitingHistoricalSessionId,
     // A cross-group move / unsplit reparents this view (React remounts it), so
     // neither owner nor viewer should detach. Separately, the lazy wrapper uses
     // a one-render handoff before an idle local owner sheds this heavy UI.

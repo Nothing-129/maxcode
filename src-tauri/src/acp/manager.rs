@@ -8324,6 +8324,7 @@ mod tests {
                 options: vec![],
                 groups: vec![],
             }),
+            recommended_value: None,
         }]
     }
 

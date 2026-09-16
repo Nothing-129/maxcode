@@ -98,7 +98,7 @@ describe("MaxCode contract: Electron uses the managed local server", () => {
     const fetch = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ version: "0.50.0" }),
+      text: async () => JSON.stringify({ version: "0.50.0" }),
     }))
     vi.stubGlobal("fetch", fetch)
     const transport = new WebTransport(bridge.backendUrl)

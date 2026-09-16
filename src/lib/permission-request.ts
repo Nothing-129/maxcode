@@ -42,6 +42,17 @@ export interface ParsedPermissionToolCall {
    * approval. Null for every agent that sends no such block.
    */
   reason: string | null
+  /**
+   * `_meta.permission.defaultToNo` (claude-agent-acp ≥0.77.0, from the CLI's
+   * SDK 0.3.268+ hint): this ask "must not be approvable by a stray
+   * keystroke". The adapter already orders the reject options first; the
+   * dialog additionally hands them the emphasis, so the one accent-coloured
+   * button on the card is the decline rather than an approve.
+   *
+   * False for every agent that sends no such hint — the absence of the flag
+   * must never read as "this ask is dangerous".
+   */
+  defaultToNo: boolean
   normalizedKind: string
   command: string | null
   cwd: string | null
@@ -804,10 +815,20 @@ export function parsePermissionToolCall(
     pickValue(metaObj, ["permission"])
   )
 
+  // Same block, same `version: 1` gate as `reason` above. Strictly `true`: the
+  // extension documents the field as the literal `true` when present, and a
+  // truthy-coerced string or number would be a reshaped block this build does
+  // not understand.
+  const defaultToNo = parsePermissionMetaFlag(
+    pickValue(metaObj, ["permission"]),
+    "defaultToNo"
+  )
+
   return {
     title,
     description,
     reason,
+    defaultToNo,
     normalizedKind,
     command,
     cwd,
@@ -900,6 +921,21 @@ function parsePermissionMetaDescription(permission: unknown): string | null {
   if (!record || record.version !== 1) return null
   const description = pickString(record, ["description"])
   return description ? description.slice(0, MAX_PERMISSION_CHANGE_CHARS) : null
+}
+
+/**
+ * Read a boolean flag out of the same request-level `_meta.permission` block
+ * {@link parsePermissionMetaDescription} reads, under the same `version: 1`
+ * gate.
+ *
+ * Only a real `true` counts. These flags gate a SAFER presentation, so the
+ * failure direction matters: an unrecognised shape has to fall back to the
+ * ordinary card, never to a card that claims a hint it did not understand.
+ */
+function parsePermissionMetaFlag(permission: unknown, key: string): boolean {
+  const record = asObject(permission)
+  if (!record || record.version !== 1) return false
+  return record[key] === true
 }
 
 /**

@@ -444,6 +444,19 @@ pub struct SessionState {
     /// opt-in), rerouting subsequent notes to the MCP pull path.
     pub native_steering_available: bool,
 
+    /// Which generation of codex-acp's `request_user_input` bridge this
+    /// connection is talking to — 1.12.0 swapped the question and the tab
+    /// header between a form property's `title` and `description`, and nothing
+    /// on the wire distinguishes the two. Pinned ONCE at initialize from the
+    /// RUNNING adapter's `agentInfo.version`
+    /// (`connection.rs::codex_user_input_shape`), because launch may resolve an
+    /// older PATH install or a user's custom pinned version rather than the
+    /// registry's. `None` for every non-codex agent, and for a codex adapter
+    /// that reported no `agentInfo`; the elicitation parser then dates the form
+    /// from its own markers. Backend-internal routing only: not part of the
+    /// client snapshot.
+    pub codex_user_input_shape: Option<crate::acp::question::CodexUserInputShape>,
+
     /// Which `session_info_update` meta key carries goal snapshots for this
     /// connection: `true` ⇒ the provider-neutral `_meta.goal` (adapter
     /// advertised the goal extension at initialize — claude-agent-acp 0.66+,
@@ -659,6 +672,7 @@ impl SessionState {
             delegation_enabled: false,
             feedback_tool_available: false,
             native_steering_available: false,
+            codex_user_input_shape: None,
             neutral_goal_channel: false,
             goal_control_method: crate::acp::codex_goal::LEGACY_GOAL_CONTROL_METHOD.to_string(),
             goal_actions: None,
@@ -4048,6 +4062,7 @@ mod tests {
                     options: vec![],
                     groups: vec![],
                 }),
+                recommended_value: None,
             }],
         });
         s.apply_event(&AcpEvent::UsageUpdate {

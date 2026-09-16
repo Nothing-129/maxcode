@@ -398,6 +398,7 @@ function TaskEditorBody({
           editorClassName="max-h-[14rem] min-h-[6rem]"
           bottomBarExtra={
             <AgentConfigSection
+              agentType={agentOptions.snapshotAgentType}
               snapshot={agentOptions.snapshot}
               loading={agentOptions.loading}
               error={agentOptions.error}

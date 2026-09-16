@@ -116,8 +116,22 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
     getConnSnapshot,
     getConnSnapshot
   )
+  // A `connect()` in flight has no store entry yet — the backend call that
+  // creates one only returns once the agent has spawned and resumed the
+  // session. Without this the whole (often multi-second) establishment showed
+  // the dimmed "disconnected" heart, which is the opposite of what's happening.
+  const getPendingSnapshot = useCallback(
+    () => (tabId ? store.getConnectPending(tabId) : undefined),
+    [store, tabId]
+  )
+  const connectPending = useSyncExternalStore(
+    subscribeConn,
+    getPendingSnapshot,
+    getPendingSnapshot
+  )
+  const status = conn?.status ?? (connectPending ? "connecting" : null)
 
-  const statusKey = toConnStatus(conn?.status ?? null)
+  const statusKey = toConnStatus(status)
   // Switching/resuming can briefly pass through any non-connected state.
   // Delay inline status changes; the popover and accessible label stay truthful.
   const [alarm, setAlarm] = useState({ tabId, statusKey, confirmed: false })
@@ -135,7 +149,7 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   }, [tabId, statusKey])
 
   const statusLabel = t(statusKey)
-  const agentType = conn?.agentType ?? null
+  const agentType = conn?.agentType ?? connectPending?.agentType ?? null
   const agentLabel = agentType ? getAgentLabel(agentType) : null
   const titleText = !agentLabel
     ? statusLabel
@@ -158,8 +172,12 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   const detailAgentLabel = detailAgentType
     ? getAgentLabel(detailAgentType)
     : null
-  const detailStatusKey = toDetailStatus(conn?.status ?? null)
-  const workingDir = conn?.workingDir ?? reconnectInfo?.workingDir ?? null
+  const detailStatusKey = toDetailStatus(status)
+  const workingDir =
+    conn?.workingDir ??
+    connectPending?.workingDir ??
+    reconnectInfo?.workingDir ??
+    null
   const sessionId = conn?.sessionId ?? reconnectInfo?.sessionId ?? null
   // A reconnect on a busy OWNER kills the agent CLI mid-turn; a viewer's only
   // detaches and re-attaches, leaving the owner's agent alone — so only the

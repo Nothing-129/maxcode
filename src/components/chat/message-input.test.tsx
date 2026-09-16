@@ -697,6 +697,63 @@ describe("MessageInput boolean config options", () => {
   })
 })
 
+describe("MessageInput selector loading placeholder", () => {
+  afterEach(() => cleanup())
+
+  it("shows a visible placeholder in the selector row while the session comes up", async () => {
+    // Opening a historical conversation spends seconds with no selectors known.
+    // The cue has to be in the row itself — the cog popover's loading text is
+    // only reachable by a user who already suspects something is loading.
+    const { container } = renderInput({
+      configOptionsLoading: true,
+      configOptions: [],
+    })
+    await waitFor(() =>
+      expect(container.querySelector('[role="textbox"]')).not.toBeNull()
+    )
+    expect(
+      screen.getByRole("status", { name: MSGS.loadingSettings })
+    ).toBeInTheDocument()
+  })
+
+  it("drops the placeholder as soon as the real options arrive", async () => {
+    const view = renderInput({
+      configOptionsLoading: true,
+      configOptions: [],
+    })
+    await waitFor(() =>
+      expect(view.container.querySelector('[role="textbox"]')).not.toBeNull()
+    )
+    expect(screen.queryByRole("status")).not.toBeNull()
+
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageInput
+          onSend={vi.fn()}
+          promptCapabilities={CAPS}
+          configOptionsLoading={false}
+          configOptions={[MODEL_OPTION]}
+        />
+      </NextIntlClientProvider>
+    )
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(screen.getByRole("button", { name: /Model/ })).toBeInTheDocument()
+  })
+
+  it("renders no selector affordance at all when nothing is loading or known", async () => {
+    // The pre-fix steady state: an agent with neither modes nor config options
+    // must not grow a placeholder that never resolves.
+    const { container } = renderInput({ configOptions: [], modes: [] })
+    await waitFor(() =>
+      expect(container.querySelector('[role="textbox"]')).not.toBeNull()
+    )
+    expect(screen.queryByRole("status")).toBeNull()
+    expect(
+      screen.queryByRole("button", { name: MSGS.agentSettings })
+    ).toBeNull()
+  })
+})
+
 describe("MessageInput collapsed selectors popover", () => {
   afterEach(() => cleanup())
 
@@ -1013,6 +1070,197 @@ describe("MessageInput slash menu while the agent connects", () => {
       )
     })
     await waitFor(() => expect(screen.queryByTestId("slash-menu")).toBeNull())
+  })
+})
+
+describe("MessageInput slash badges", () => {
+  afterEach(() => {
+    cleanup()
+    composerHandle.current = null
+  })
+
+  const COMMANDS = [{ name: "compact", description: "Compact the thread" }]
+
+  async function mount(
+    props: Partial<React.ComponentProps<typeof MessageInput>> = {}
+  ) {
+    renderInput({ availableCommands: COMMANDS, ...props })
+    await waitFor(
+      () => expect(composerHandle.current?.getEditor()).toBeTruthy(),
+      { timeout: 5000 }
+    )
+    const handle = composerHandle.current
+    const editor = handle?.getEditor()
+    if (!handle || !editor) throw new Error("composer editor not mounted")
+    return { handle, editor }
+  }
+
+  function press(editor: Editor, key: string) {
+    act(() => {
+      ;(editor.view.dom as HTMLElement).dispatchEvent(
+        new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true })
+      )
+    })
+  }
+
+  for (const key of ["Enter", "Tab"]) {
+    it(`still badges the command picked from the menu with ${key}`, async () => {
+      const { handle, editor } = await mount()
+      act(() => {
+        editor.commands.insertContent("/comp")
+      })
+      await screen.findByTestId("slash-menu")
+      press(editor, key)
+      await waitFor(() =>
+        expect(JSON.stringify(handle.getJSON())).toContain('"type":"reference"')
+      )
+      // The badge still brings its trailing space, so the next word is typed
+      // clear of it.
+      expect(handle.getText()).toBe("/compact ")
+    })
+  }
+
+  it("badges the command clicked in the menu", async () => {
+    const { handle, editor } = await mount()
+    act(() => {
+      editor.commands.insertContent("/comp")
+    })
+    const menu = await screen.findByTestId("slash-menu")
+    fireEvent.mouseDown(within(menu).getByText("/compact"))
+    await waitFor(() =>
+      expect(JSON.stringify(handle.getJSON())).toContain('"type":"reference"')
+    )
+    expect(handle.getText()).toBe("/compact ")
+  })
+
+  it("leaves a seeded slash word the agent never advertised as plain text", async () => {
+    const { handle } = await mount()
+    act(() => {
+      handle.setText("/notacommand on /tmp/x and and/or")
+    })
+    expect(JSON.stringify(handle.getJSON())).not.toContain('"type":"reference"')
+    expect(handle.getText()).toBe("/notacommand on /tmp/x and and/or")
+  })
+
+  it("badges a seeded token that IS one of the agent's commands", async () => {
+    const { handle } = await mount()
+    act(() => {
+      handle.setText("/compact the thread")
+    })
+    expect(JSON.stringify(handle.getJSON())).toContain('"refType":"skill"')
+    // Same bytes on the wire either way — only the composer's rendering differs.
+    expect(handle.getText()).toBe("/compact the thread")
+  })
+
+  it("leaves a seeded command alone for an agent that has none", async () => {
+    const { handle } = await mount({ availableCommands: [] })
+    act(() => {
+      handle.setText("/compact the thread")
+    })
+    expect(JSON.stringify(handle.getJSON())).not.toContain('"type":"reference"')
+    expect(handle.getText()).toBe("/compact the thread")
+  })
+})
+
+// The queue-edit / draft restore claims its one-shot guard synchronously but
+// mutates the editor in a rAF whose cleanup cancels that frame. Anything in the
+// effect's dependency array that changes identity in between therefore cancels
+// the restore and then bails on the already-claimed guard — nothing is ever
+// restored. The advertised-command list is exactly such a value: it lands with
+// the ACP connection, and the Set built from it is fresh every time.
+describe("MessageInput queue-edit restore vs. a late command list", () => {
+  afterEach(() => {
+    cleanup()
+    composerHandle.current = null
+    vi.unstubAllGlobals()
+  })
+
+  /** Hold every rAF callback so the test decides when the frame runs. */
+  function captureFrames(): { flush: () => void } {
+    const frames: (FrameRequestCallback | null)[] = []
+    vi.stubGlobal("requestAnimationFrame", (cb: FrameRequestCallback) =>
+      frames.push(cb)
+    )
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => {
+      frames[id - 1] = null
+    })
+    return {
+      flush: () => {
+        act(() => {
+          // Indexed, not iterated: a callback may queue another frame.
+          for (let i = 0; i < frames.length; i++) {
+            const cb = frames[i]
+            frames[i] = null
+            cb?.(0)
+          }
+        })
+      },
+    }
+  }
+
+  /** The identity the ACP connection replaces once it advertises. */
+  const NO_COMMANDS: React.ComponentProps<
+    typeof MessageInput
+  >["availableCommands"] = []
+
+  function renderAgain(
+    view: ReturnType<typeof renderInput>,
+    props: Partial<React.ComponentProps<typeof MessageInput>>
+  ) {
+    view.rerender(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageInput onSend={vi.fn()} promptCapabilities={CAPS} {...props} />
+      </NextIntlClientProvider>
+    )
+  }
+
+  it("restores the queued message when the commands land before its frame", async () => {
+    const { flush } = captureFrames()
+    const editing = {
+      isEditingQueueItem: true,
+      editingItemId: "q1",
+      editingDraftBlocks: [{ type: "text" as const, text: "queued prose" }],
+    }
+    const view = renderInput({ availableCommands: NO_COMMANDS, ...editing })
+    await waitFor(
+      () => expect(composerHandle.current?.getEditor()).toBeTruthy(),
+      { timeout: 5000 }
+    )
+    // The connection comes up: a brand-new command list, and so a brand-new
+    // `knownInvocations` Set, while the restore's frame is still pending.
+    renderAgain(view, {
+      availableCommands: [{ name: "compact", description: "Compact" }],
+      ...editing,
+    })
+    flush()
+    expect(composerHandle.current?.getText()).toBe("queued prose")
+  })
+
+  // The "re-edit a DIFFERENT queued item" restore is a second effect with its
+  // own one-shot guard (the last hydrated item id), so it needs its own case.
+  it("restores the next queued item picked while its frame is pending", async () => {
+    const { flush } = captureFrames()
+    const view = renderInput({ availableCommands: NO_COMMANDS })
+    await waitFor(
+      () => expect(composerHandle.current?.getEditor()).toBeTruthy(),
+      { timeout: 5000 }
+    )
+    flush()
+
+    // The user clicks "edit" on a queued message…
+    const editing = {
+      isEditingQueueItem: true,
+      editingItemId: "q2",
+      editingDraftBlocks: [{ type: "text" as const, text: "the next one" }],
+    }
+    renderAgain(view, { availableCommands: NO_COMMANDS, ...editing })
+    // …and the command list lands before that restore's frame runs.
+    renderAgain(view, {
+      availableCommands: [{ name: "compact", description: "Compact" }],
+      ...editing,
+    })
+    flush()
+    expect(composerHandle.current?.getText()).toBe("the next one")
   })
 })
 

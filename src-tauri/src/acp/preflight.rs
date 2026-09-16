@@ -51,7 +51,7 @@ pub struct CheckItem {
 /// `None` on [`PreflightResult`] for every non-adapter agent.
 #[derive(Debug, Clone, Serialize)]
 pub struct AdapterInfo {
-    /// npm spec codeg installs, e.g. "@agentclientprotocol/claude-agent-acp@0.75.1".
+    /// npm spec codeg installs, e.g. "@agentclientprotocol/claude-agent-acp@0.78.0".
     pub adapter_package: String,
     /// Command the launch gate resolves, e.g. "claude-agent-acp".
     pub adapter_cmd: String,
@@ -725,7 +725,7 @@ mod adapter_tests {
         );
         assert_eq!(
             info.adapter_package,
-            "@agentclientprotocol/claude-agent-acp@0.75.1"
+            "@agentclientprotocol/claude-agent-acp@0.78.0"
         );
         assert_eq!(info.adapter_cmd, "claude-agent-acp");
         assert!(!info.adapter_installed);
@@ -744,7 +744,7 @@ mod adapter_tests {
         let info = info_for(AgentType::Codex, None, true);
         assert_eq!(
             info.adapter_package,
-            "@agentclientprotocol/codex-acp@1.10.0"
+            "@agentclientprotocol/codex-acp@1.12.0"
         );
         assert_eq!(info.adapter_cmd, "codex-acp");
         assert!(info.adapter_installed);

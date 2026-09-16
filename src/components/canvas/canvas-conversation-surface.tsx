@@ -373,6 +373,7 @@ export function CanvasConversationSurface({
     isActive: isActive && workingDir != null && !awaitingHistoricalSessionId,
     anticipateConnect:
       isActive && workingDir != null && awaitingHistoricalSessionId,
+    preparing: isActive && workingDir != null && awaitingHistoricalSessionId,
     workingDir,
     sessionId:
       dbConversationId != null && agentType !== "cline"

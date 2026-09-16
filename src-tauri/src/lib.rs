@@ -9,6 +9,7 @@
 
 pub mod acp;
 pub mod acp_transcript;
+pub use acp::scratch_dir::scratch_sweep_task;
 pub use acp::{
     idle_sweep_task, idle_timeout_from_env, lifecycle_subscriber_task, SWEEP_INTERVAL_SECS,
 };
@@ -52,4 +53,10 @@ pub mod workspace_transfer;
 /// not panic, errors are silently dropped.
 pub fn sweep_acp_binary_trash() {
     crate::acp::binary_cache::sweep_trash();
+}
+
+/// Sweep only owned scratch directories whose processes are confirmed dead.
+pub fn sweep_acp_scratch_dirs() {
+    crate::acp::scratch_dir::sweep_foreign_orphans();
+    crate::acp::scratch_dir::sweep_own_orphans();
 }

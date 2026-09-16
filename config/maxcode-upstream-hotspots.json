@@ -2,6 +2,47 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.six-agent-upstream-20260917",
+      "category": "runtime",
+      "description": "Selected September upstream integration for the six maintained agents: Codex 1.12/Claude 0.78 recommendations and peer/version-aware questions, explicit default-to-no permission styling, Grok 1.0.30, DeepSeek generation-first history with downstream timing preserved, advertised slash commands and reliable draft hydration, opening-state hints over existing warm-owner/mobile grace lifecycle, isolated launch temp directories and persistent cache migration. Keep official CLI independent updates, six-agent catalog and Electron-only startup; excluded agents and Tauri stay out.",
+      "origins": [
+        "39506eb5",
+        "bd9b6038",
+        "d74eec45",
+        "b84e76c6",
+        "50fff85f",
+        "51ded76b",
+        "86b4bb7a",
+        "e4c38963",
+        "594024db",
+        "91907061",
+        "f4f34180",
+        "worktree-2026-09-17"
+      ],
+      "paths": [
+        "src-tauri/src/acp/",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/web/handlers/acp.rs",
+        "src-tauri/src/web/router.rs",
+        "src/components/chat/",
+        "src/components/settings/antigravity-config-panel.tsx",
+        "src/contexts/acp-connections-context.tsx",
+        "src/hooks/use-connection.ts",
+        "src/hooks/use-connection-lifecycle.ts",
+        "src/lib/agent-label-vocabulary.ts",
+        "src/lib/json-parse-error.ts",
+        "src/lib/transport/web-transport.ts",
+        "src/lib/types.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/six-agent-upstream.contract.test.tsx"
+      ]
+    },
+    {
       "id": "agents.maintained-catalog",
       "category": "product",
       "description": "Only Claude Code, Codex, Grok, Pi, DeepSeek and Google Antigravity appear in settings and agent pickers or receive background updates. Filter old UI caches and hide custom registration; retain all historical types, parsers and adapter implementations. Upstream reviews exclude other agents specific changes.",
@@ -2036,7 +2077,7 @@
     {
       "id": "agents.reviewed-version-catalog",
       "category": "runtime",
-      "description": "Built-in agent install and automatic-update targets use the reviewed September catalog: Gemini 0.59.0, OpenClaw 2026.9.3, OpenCode 1.18.30, Hermes 0.21.1, CodeBuddy 2.149.0, Kimi 0.42.0, Grok 1.0.25 and Qoder 1.1.49, while unchanged compatible pins remain stable.",
+      "description": "Built-in agent install and automatic-update targets use the reviewed September catalog: Gemini 0.59.0, OpenClaw 2026.9.3, OpenCode 1.18.30, Hermes 0.21.1, CodeBuddy 2.149.0, Kimi 0.42.0, Grok 1.0.30 and Qoder 1.1.49, while unchanged compatible pins remain stable.",
       "origins": [
         "8c461154",
         "1055edc4",

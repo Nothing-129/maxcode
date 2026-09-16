@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   ArrowUp,
   BookOpenText,
@@ -102,6 +103,7 @@ import {
 } from "@/lib/model-config-groups"
 import { useAgentSkills } from "@/hooks/use-agent-skills"
 import { useScrollbarSafeDismiss } from "@/hooks/use-scrollbar-safe-dismiss"
+import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
 import {
   clearMessageInputDraftV2,
   loadMessageInputDraftV2,
@@ -126,6 +128,7 @@ import {
   restampSkillPrefixes,
 } from "@/components/chat/composer/composer-commands"
 import {
+  buildKnownInvocations,
   commandInvocationToken,
   commandToReference,
   skillToReference,
@@ -301,6 +304,30 @@ function SelectorLoadingChip({ label }: { label: string }) {
   )
 }
 
+/**
+ * Stand-in for the model / mode / config chips while the session is still being
+ * established. It holds the row open at the real chips' height (`h-6`, matching
+ * `Button size="xs"`) so nothing jumps when they arrive, and — unlike the
+ * loading row inside the collapsed cog popover, which only a user who opens the
+ * popover ever sees — it is visible where the chips themselves will be. Opening
+ * a historical conversation spends seconds in exactly this state, and showing
+ * nothing there made a live, still-connecting composer look like a dead one.
+ */
+function SelectorLoadingPlaceholder({ label }: { label: string }) {
+  return (
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+      title={label}
+      className="flex h-6 shrink-0 items-center gap-1.5 px-1"
+    >
+      <Skeleton className="h-3 w-16 rounded-sm" />
+      <Skeleton className="h-3 w-10 rounded-sm" />
+    </div>
+  )
+}
+
 // Groups for the searchable + virtualized model picker, or `null` when the
 // option should keep the lightweight selectors. Only the MODEL option, and only
 // when its list is long enough to jank, qualifies. Falls back to a single
@@ -373,6 +400,27 @@ export function MessageInput({
   // only ever saw global skills in the `$` autocomplete.
   const availableSkills = useAgentSkills(skillAgentType, defaultPath ?? null)
   const skillPrefix = agentType === "codex" ? "$" : "/"
+  // Exactly what the `/`·`$` menu below can offer. Seeding or pasting text turns
+  // a bare `/cmd`·`$skill` token into a badge only when it is on this list, so
+  // prose the agent has no command for stays prose.
+  const knownInvocations = useMemo(
+    () =>
+      buildKnownInvocations(availableCommands, availableSkills, skillPrefix),
+    [availableCommands, availableSkills, skillPrefix]
+  )
+  // The hydration effects below read the list through this ref inside their
+  // deferred frame, never from their dependency array. `buildKnownInvocations`
+  // mints a fresh Set whenever the agent re-advertises (and on every render for
+  // a host that passes `availableCommands={conn.availableCommands ?? []}`), and
+  // those effects claim a one-shot guard synchronously but do the restore in a
+  // rAF whose cleanup cancels it: a new identity landing in that gap would
+  // cancel the frame and then bail on the already-claimed guard, dropping the
+  // draft entirely. Reading it late is also the more accurate answer — it is
+  // whatever the agent advertises at the moment the content is actually seeded.
+  const knownInvocationsRef = useRef(knownInvocations)
+  useEffect(() => {
+    knownInvocationsRef.current = knownInvocations
+  }, [knownInvocations])
   const { shortcuts } = useShortcutSettings()
   const effectiveDraftStorageKey = draftStorageKey ?? null
   const resolvedPlaceholder = placeholder ?? t("askAnything")
@@ -538,7 +586,11 @@ export function MessageInput({
         const editor = ed.getEditor()
         if (editingDraftBlocks && editingDraftBlocks.length > 0 && editor) {
           // Full fidelity: restore inline badges + images from the blocks.
-          hydrateFromBlocks(editor, editingDraftBlocks)
+          hydrateFromBlocks(
+            editor,
+            editingDraftBlocks,
+            knownInvocationsRef.current
+          )
         } else if (editingDraftText != null) {
           ed.setText(editingDraftText)
         }
@@ -599,7 +651,11 @@ export function MessageInput({
       const raf = requestAnimationFrame(() => {
         const editor = editorRef.current?.getEditor()
         if (editingDraftBlocks && editingDraftBlocks.length > 0 && editor) {
-          hydrateFromBlocks(editor, editingDraftBlocks)
+          hydrateFromBlocks(
+            editor,
+            editingDraftBlocks,
+            knownInvocationsRef.current
+          )
         } else if (editingDraftText != null) {
           editorRef.current?.setText(editingDraftText)
         }
@@ -711,10 +767,20 @@ export function MessageInput({
     setComposerReady(true)
   }, [])
 
-  const availableModes = useMemo(() => modes ?? [], [modes])
+  // Localised HERE, once, rather than at each selector: the composer renders
+  // this data through three independent paths (the searchable model picker,
+  // the inline dropdowns, and the collapsed panel's own projection), and a
+  // per-selector fix leaves whichever one the reader is not looking at in the
+  // agent's own language. Non-DeepSeek agents get their arrays back unchanged,
+  // identity included, so the memos below do not churn.
+  const vocabulary = useAgentVocabulary(agentType)
+  const availableModes = useMemo(
+    () => vocabulary.modes(modes ?? []),
+    [modes, vocabulary]
+  )
   const availableConfigOptions = useMemo(
-    () => configOptions ?? [],
-    [configOptions]
+    () => vocabulary.configOptions(configOptions ?? []),
+    [configOptions, vocabulary]
   )
   const hasConfigOptions = availableConfigOptions.length > 0
   const hasModes = availableModes.length > 0
@@ -733,9 +799,14 @@ export function MessageInput({
     hasModes && Boolean(effectiveModeId) && !hasConfigOptions
   const showModeLoading = modeLoading && !hasConfigOptions && !showModeSelector
   const showConfigLoading = configOptionsLoading && !hasConfigOptions
+  const showSelectorsLoading = showConfigLoading || showModeLoading
   const hasAnySelector =
-    showConfigLoading || hasConfigOptions || showModeLoading || showModeSelector
-  const hasInlineSelectors = hasConfigOptions || showModeSelector
+    hasConfigOptions || showModeSelector || showSelectorsLoading
+  // The loading placeholder takes the inline slot too, not just the collapsed
+  // popover's row: at composer widths the chips would occupy, "still loading"
+  // has to be visible without opening anything.
+  const hasInlineSelectors =
+    hasConfigOptions || showModeSelector || showSelectorsLoading
   const hasFolderBranchPicker = useConversationFolderBranchPickerVisible(
     attachmentTabId,
     folderPickerOverride
@@ -1533,6 +1604,7 @@ export function MessageInput({
         key={option.id}
         option={option}
         derivedGroups={deriveModelGroups(option)}
+        recommendedLabel={t("recommendedBadge")}
         onSelect={(configId, valueId) =>
           onConfigOptionChange?.(configId, valueId)
         }
@@ -1542,6 +1614,11 @@ export function MessageInput({
 
   const inlineSelectorItems = (
     <>
+      {showSelectorsLoading && (
+        <SelectorLoadingPlaceholder
+          label={showConfigLoading ? t("loadingSettings") : t("loadingMode")}
+        />
+      )}
       {hasConfigOptions &&
         availableConfigOptions.map((option) => {
           return (
@@ -1649,6 +1726,7 @@ export function MessageInput({
           currentValue: kind.current_value,
           currentLabel: current?.name ?? kind.current_value,
           groups,
+          recommendedValue: option.recommended_value,
           onSelect: (value) => onConfigOptionChange?.(option.id, value),
           ...(searchable && {
             search: {
@@ -1939,6 +2017,7 @@ export function MessageInput({
                 // the same box the `/` menu hangs off (this container), so the
                 // two read as one affordance.
                 mentionAnchorRef={containerRef}
+                knownInvocations={knownInvocations}
                 onChange={handleComposerChange}
                 onReady={handleComposerReady}
                 onSubmit={handleSend}
@@ -2026,6 +2105,7 @@ export function MessageInput({
                             <SessionSelectorsPanel
                               settings={collapsedSettings}
                               settingsLabel={t("agentSettings")}
+                              recommendedLabel={t("recommendedBadge")}
                               onAfterSelect={() =>
                                 setCollapsedSelectorsOpen(false)
                               }
