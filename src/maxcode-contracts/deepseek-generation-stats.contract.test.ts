@@ -29,7 +29,7 @@ describe("MaxCode contract: generation stats", () => {
     expect(runtime).toContain("observedGenerationStats")
     expect(runtime).toContain("mergeIncomingSessionStats")
     expect(runtime).toContain("saveGenerationStats")
-    expect(storage).toContain("getActiveRemoteConnectionId")
+    expect(storage).toContain("`${KEY_PREFIX}:local:${conversationId}`")
   })
 
   it("shows folder, branch and runtime metrics below the composer", () => {

@@ -14,9 +14,6 @@ use serde::Serialize;
 use tokio::sync::Semaphore;
 use walkdir::WalkDir;
 
-#[cfg(feature = "tauri-runtime")]
-use tauri::Manager;
-
 use crate::app_error::AppCommandError;
 use crate::db::error::DbError;
 use crate::db::service::{folder_group_service, folder_service};
@@ -580,7 +577,7 @@ async fn estimate_push_commit_count(path: &str, branch: Option<&str>) -> usize {
 }
 
 // ---------------------------------------------------------------------------
-// Shared core functions (used by both Tauri commands and web handlers)
+// Shared business logic for Electron and server HTTP handlers
 // ---------------------------------------------------------------------------
 
 pub async fn get_folder_core(db: &AppDatabase, folder_id: i32) -> Result<FolderDetail, DbError> {
@@ -1053,210 +1050,6 @@ pub async fn update_folder_default_agent_core(
     Ok(detail)
 }
 
-// ---------------------------------------------------------------------------
-// Tauri command wrappers (thin shims over _core)
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_folder(
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-) -> Result<FolderDetail, DbError> {
-    get_folder_core(&db, folder_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn load_folder_history(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<FolderHistoryEntry>, AppCommandError> {
-    load_folder_history_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn add_folder_to_history(
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-) -> Result<FolderHistoryEntry, DbError> {
-    add_folder_to_history_core(&db, path).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn remove_folder_from_history(
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-) -> Result<(), AppCommandError> {
-    remove_folder_from_history_core(&db, path).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_open_folder_details(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<FolderDetail>, AppCommandError> {
-    list_open_folder_details_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_all_folder_details(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<FolderDetail>, AppCommandError> {
-    list_all_folder_details_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn open_folder(
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-) -> Result<FolderDetail, AppCommandError> {
-    open_folder_core(&db, path).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn open_worktree_folder(
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-    source_folder_id: i32,
-) -> Result<FolderDetail, AppCommandError> {
-    open_worktree_folder_core(&db, path, source_folder_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn open_folder_in_workspace(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-) -> Result<FolderDetail, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
-    open_folder_in_workspace_core(&emitter, &db, path).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn open_folder_by_id(
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-) -> Result<FolderDetail, AppCommandError> {
-    open_folder_by_id_core(&db, folder_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn remove_folder_from_workspace(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-) -> Result<(), AppCommandError> {
-    remove_folder_from_workspace_core(&EventEmitter::Tauri(app), &db, folder_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_folder_groups(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<FolderGroupDetail>, AppCommandError> {
-    list_folder_groups_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn create_folder_group(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    name: String,
-    color: Option<String>,
-) -> Result<FolderGroupDetail, AppCommandError> {
-    create_folder_group_core(&EventEmitter::Tauri(app), &db, name, color).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_folder_group(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    group_id: i32,
-    name: Option<String>,
-    color: Option<String>,
-) -> Result<FolderGroupDetail, AppCommandError> {
-    update_folder_group_core(&EventEmitter::Tauri(app), &db, group_id, name, color).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn delete_folder_group(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    group_id: i32,
-) -> Result<(), AppCommandError> {
-    delete_folder_group_core(&EventEmitter::Tauri(app), &db, group_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn apply_sidebar_layout(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    entries: Vec<SidebarLayoutEntry>,
-) -> Result<(), AppCommandError> {
-    apply_sidebar_layout_core(&EventEmitter::Tauri(app), &db, entries).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_folder_group(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-    group_id: Option<i32>,
-) -> Result<(), AppCommandError> {
-    set_folder_group_core(&EventEmitter::Tauri(app), &db, folder_id, group_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_folder_color(
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-    color: String,
-) -> Result<FolderDetail, AppCommandError> {
-    update_folder_color_core(&db, folder_id, color).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_folder_alias(
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-    alias: Option<String>,
-) -> Result<FolderDetail, AppCommandError> {
-    update_folder_alias_core(&db, folder_id, alias).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_folder_default_agent(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-    default_agent_type: Option<crate::models::agent::AgentType>,
-) -> Result<FolderDetail, AppCommandError> {
-    update_folder_default_agent_core(
-        &EventEmitter::Tauri(app),
-        &db,
-        folder_id,
-        default_agent_type,
-    )
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn create_folder_directory(path: String) -> Result<(), AppCommandError> {
     std::fs::create_dir_all(&path).map_err(AppCommandError::io)
 }
@@ -1292,25 +1085,6 @@ pub(crate) async fn clone_repository_core(
         return Err(classify_git_clone_error(stderr.trim()));
     }
     Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn clone_repository(
-    url: String,
-    target_dir: String,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<(), AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    clone_repository_core(&url, &target_dir, credentials.as_ref(), &db, &data_dir).await
 }
 
 fn classify_git_clone_error(stderr: &str) -> AppCommandError {
@@ -1448,17 +1222,14 @@ pub(crate) async fn resolve_git_head(path: &str) -> Result<GitHeadInfo, AppComma
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_git_head(path: String) -> Result<GitHeadInfo, AppCommandError> {
     resolve_git_head(&path).await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_git_branch(path: String) -> Result<Option<String>, AppCommandError> {
     Ok(resolve_git_head(&path).await?.branch)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_init(path: String) -> Result<(), AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["init"])
@@ -1603,28 +1374,9 @@ pub(crate) async fn git_pull_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_pull(
-    path: String,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<GitPullResult, AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    git_pull_core(&path, credentials.as_ref(), &db, &data_dir).await
-}
-
 /// Start a merge with the upstream branch (used by merge workspace after pull conflict detection).
 /// This recreates the conflict state so that :1:, :2:, :3: stage entries are available.
 /// If `upstream_commit` is provided, merge against that specific commit instead of `@{u}`.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_start_pull_merge(
     path: String,
     upstream_commit: Option<String>,
@@ -1650,7 +1402,6 @@ pub async fn git_start_pull_merge(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_has_merge_head(path: String) -> Result<bool, AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["rev-parse", "--verify", "MERGE_HEAD"])
@@ -1677,24 +1428,6 @@ pub(crate) async fn git_fetch_core(
         return Err(classify_remote_git_error("fetch --all", &output.stderr));
     }
     Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_fetch(
-    path: String,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    git_fetch_core(&path, credentials.as_ref(), &db, &data_dir).await
 }
 
 /// Read a single git config value, or `None` when unset/empty.
@@ -1864,35 +1597,6 @@ pub(crate) async fn git_update_branch_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_update_branch(
-    path: String,
-    branch: String,
-    is_remote: bool,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<GitPullResult, AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    git_update_branch_core(
-        &path,
-        &branch,
-        is_remote,
-        credentials.as_ref(),
-        &db,
-        &data_dir,
-    )
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_push_info(
     path: String,
     branch: Option<String>,
@@ -2088,47 +1792,6 @@ pub(crate) async fn git_push_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn git_push(
-    app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-    path: String,
-    remote: Option<String>,
-    branch: Option<String>,
-    credentials: Option<GitCredentials>,
-    folder_id: Option<i32>,
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<GitPushResult, AppCommandError> {
-    let folder_id = folder_id.or_else(|| {
-        window
-            .label()
-            .strip_prefix("push-")
-            .and_then(|value| value.parse::<i32>().ok())
-    });
-    let data_dir = app.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    let emitter = EventEmitter::Tauri(app.clone());
-    git_push_core(
-        &data_dir,
-        &emitter,
-        folder_id,
-        &path,
-        remote.as_deref(),
-        branch.as_deref(),
-        credentials.as_ref(),
-        &db,
-    )
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_new_branch(
     path: String,
     branch_name: String,
@@ -2155,7 +1818,6 @@ pub async fn git_new_branch(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_worktree_add(
     path: String,
     branch_name: String,
@@ -2213,7 +1875,6 @@ pub async fn git_worktree_add(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_checkout(path: String, branch_name: String) -> Result<(), AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["checkout", &branch_name])
@@ -2248,7 +1909,6 @@ pub async fn git_is_clean(path: String) -> Result<bool, AppCommandError> {
     Ok(output.stdout.iter().all(|b| b.is_ascii_whitespace()))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_reset(path: String, commit: String, mode: String) -> Result<(), AppCommandError> {
     let mode = mode.trim().to_lowercase();
     let mode_flag = match mode.as_str() {
@@ -2274,7 +1934,6 @@ pub async fn git_reset(path: String, commit: String, mode: String) -> Result<(),
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_list_branches(path: String) -> Result<Vec<String>, AppCommandError> {
     ensure_git_repo(&path)?;
 
@@ -2297,7 +1956,6 @@ pub async fn git_list_branches(path: String) -> Result<Vec<String>, AppCommandEr
     Ok(branches)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_push(
     path: String,
     message: Option<String>,
@@ -2326,7 +1984,6 @@ pub async fn git_stash_push(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_pop(
     path: String,
     stash_ref: Option<String>,
@@ -2350,7 +2007,6 @@ pub async fn git_stash_pop(
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_list(path: String) -> Result<Vec<GitStashEntry>, AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["stash", "list", "--format=%gd||%gs||%ci"])
@@ -2411,7 +2067,6 @@ pub async fn git_stash_list(path: String) -> Result<Vec<GitStashEntry>, AppComma
     Ok(entries)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_apply(path: String, stash_ref: String) -> Result<String, AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["stash", "apply", &stash_ref])
@@ -2426,7 +2081,6 @@ pub async fn git_stash_apply(path: String, stash_ref: String) -> Result<String, 
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_drop(path: String, stash_ref: String) -> Result<String, AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["stash", "drop", &stash_ref])
@@ -2441,7 +2095,6 @@ pub async fn git_stash_drop(path: String, stash_ref: String) -> Result<String, A
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_clear(path: String) -> Result<String, AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["stash", "clear"])
@@ -2456,7 +2109,6 @@ pub async fn git_stash_clear(path: String) -> Result<String, AppCommandError> {
     Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_stash_show(
     path: String,
     stash_ref: String,
@@ -2488,7 +2140,6 @@ pub async fn git_stash_show(
     Ok(entries)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_status(
     path: String,
     show_all_untracked: Option<bool>,
@@ -2527,7 +2178,6 @@ pub async fn git_status(
     Ok(entries)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_is_tracked(path: String, file: String) -> Result<bool, AppCommandError> {
     let literal_file = to_git_literal_pathspec(&file);
     let output = crate::process::tokio_command("git")
@@ -2541,7 +2191,6 @@ pub async fn git_is_tracked(path: String, file: String) -> Result<bool, AppComma
     Ok(output.status.success())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_diff(path: String, file: Option<String>) -> Result<String, AppCommandError> {
     ensure_git_repo(&path)?;
 
@@ -2578,7 +2227,6 @@ pub async fn git_diff(path: String, file: Option<String>) -> Result<String, AppC
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_diff_with_branch(
     path: String,
     branch: String,
@@ -2622,7 +2270,6 @@ pub async fn git_diff_with_branch(
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_show_diff(
     path: String,
     commit: String,
@@ -2656,7 +2303,6 @@ pub async fn git_show_diff(
     Ok(String::from_utf8_lossy(&output.stdout).to_string())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_show_file(
     path: String,
     file: String,
@@ -2712,7 +2358,6 @@ pub struct GitBlobBase64 {
     pub too_large: bool,
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_show_file_base64(
     path: String,
     file: String,
@@ -2926,28 +2571,6 @@ pub(crate) async fn git_commit_core(
     Ok(GitCommitResult { committed_files })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_commit(
-    app: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-    message: String,
-    files: Vec<String>,
-    folder_id: Option<i32>,
-) -> Result<GitCommitResult, AppCommandError> {
-    let folder_id = folder_id.or_else(|| {
-        window
-            .label()
-            .strip_prefix("commit-")
-            .and_then(|value| value.parse::<i32>().ok())
-    });
-    let emitter = EventEmitter::Tauri(app.clone());
-    git_commit_core(&emitter, folder_id, &db.conn, &path, &message, &files).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_rollback_file(path: String, file: String) -> Result<(), AppCommandError> {
     let target = file.trim();
     if target.is_empty() {
@@ -3010,7 +2633,6 @@ pub async fn git_rollback_file(path: String, file: String) -> Result<(), AppComm
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_add_files(path: String, files: Vec<String>) -> Result<(), AppCommandError> {
     if files.is_empty() {
         return Ok(());
@@ -3033,7 +2655,6 @@ pub async fn git_add_files(path: String, files: Vec<String>) -> Result<(), AppCo
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_list_all_branches(path: String) -> Result<GitBranchList, AppCommandError> {
     ensure_git_repo(&path)?;
 
@@ -3202,16 +2823,6 @@ async fn folder_at_path(
         let canon = std::fs::canonicalize(&f.path).unwrap_or_else(|_| PathBuf::from(&f.path));
         canon == path
     }))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn resolve_worktree_folder(
-    db: tauri::State<'_, AppDatabase>,
-    repo_path: String,
-    branch: String,
-) -> Result<WorktreeResolution, AppCommandError> {
-    resolve_worktree_folder_core(&db, repo_path, branch).await
 }
 
 /// Remove the git worktree that has `branch_name` checked out, optionally
@@ -3521,30 +3132,6 @@ async fn converge_removed_worktree_folder(
     moved
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_remove_worktree(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    path: String,
-    branch_name: String,
-    source_folder_id: i32,
-    delete_branch: bool,
-    force: bool,
-) -> Result<GitWorktreeRemoval, AppCommandError> {
-    git_remove_worktree_core(
-        &EventEmitter::Tauri(app),
-        &db,
-        path,
-        branch_name,
-        source_folder_id,
-        delete_branch,
-        force,
-    )
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_list_remotes(path: String) -> Result<Vec<GitRemote>, AppCommandError> {
     ensure_git_repo(&path)?;
 
@@ -3600,26 +3187,6 @@ pub(crate) async fn git_fetch_remote_core(
     Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_fetch_remote(
-    path: String,
-    name: String,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    git_fetch_remote_core(&path, &name, credentials.as_ref(), &db, &data_dir).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_add_remote(
     path: String,
     name: String,
@@ -3638,7 +3205,6 @@ pub async fn git_add_remote(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_remove_remote(path: String, name: String) -> Result<(), AppCommandError> {
     let output = crate::process::tokio_command("git")
         .args(["remote", "remove", &name])
@@ -3653,7 +3219,6 @@ pub async fn git_remove_remote(path: String, name: String) -> Result<(), AppComm
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_set_remote_url(
     path: String,
     name: String,
@@ -3672,7 +3237,6 @@ pub async fn git_set_remote_url(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_merge(
     path: String,
     branch_name: String,
@@ -3722,7 +3286,6 @@ pub async fn git_merge(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_rebase(
     path: String,
     branch_name: String,
@@ -3755,7 +3318,6 @@ pub async fn git_rebase(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_delete_branch(
     path: String,
     branch_name: String,
@@ -3797,40 +3359,10 @@ pub(crate) async fn git_delete_remote_branch_core(
     Ok(String::from_utf8_lossy(&output.stderr).trim().to_string())
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn git_delete_remote_branch(
-    path: String,
-    remote: String,
-    branch: String,
-    credentials: Option<GitCredentials>,
-    db: tauri::State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<String, AppCommandError> {
-    let data_dir = app_handle.path().app_data_dir().map_err(|e| {
-        AppCommandError::external_command("Failed to resolve app data dir", e.to_string())
-    })?;
-    // Resolve through the effective data dir so a custom
-    // `CODEG_DATA_DIR` reaches the git credential helper invoked by
-    // this subprocess.
-    let data_dir = crate::paths::resolve_effective_data_dir(&data_dir);
-    git_delete_remote_branch_core(
-        &path,
-        &remote,
-        &branch,
-        credentials.as_ref(),
-        &db,
-        &data_dir,
-    )
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_list_conflicts(path: String) -> Result<Vec<String>, AppCommandError> {
     detect_conflicts(&path).await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_conflict_file_versions(
     path: String,
     file: String,
@@ -3873,7 +3405,6 @@ pub async fn git_conflict_file_versions(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_resolve_conflict(
     path: String,
     file: String,
@@ -3900,7 +3431,6 @@ pub async fn git_resolve_conflict(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_abort_operation(path: String, operation: String) -> Result<(), AppCommandError> {
     let args = match operation.as_str() {
         "merge" | "pull" => vec!["merge", "--abort"],
@@ -3928,7 +3458,6 @@ pub async fn git_abort_operation(path: String, operation: String) -> Result<(), 
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_continue_operation(
     path: String,
     operation: String,
@@ -4482,7 +4011,6 @@ fn entry_presents_as_dir(file_type: &std::fs::FileType, path: &Path) -> bool {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_home_directory() -> Result<String, AppCommandError> {
     dirs::home_dir()
         .map(|p| p.to_string_lossy().to_string())
@@ -4497,7 +4025,6 @@ pub struct DirectoryEntry {
     pub has_children: bool,
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn list_directory_entries(path: String) -> Result<Vec<DirectoryEntry>, AppCommandError> {
     let root = PathBuf::from(&path);
     if !root.is_dir() {
@@ -4571,7 +4098,6 @@ pub struct DirectoryItem {
 /// List immediate children of `path`, returning both directories and files.
 /// Mirrors `list_directory_entries` but does not filter out files, used by the
 /// "attach server file" picker.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn list_directory_with_files(
     path: String,
 ) -> Result<Vec<DirectoryItem>, AppCommandError> {
@@ -4687,7 +4213,6 @@ fn prefix_tree_paths(nodes: &mut [FileTreeNode], prefix: &str) {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_file_tree(
     path: String,
     max_depth: Option<usize>,
@@ -4948,7 +4473,6 @@ fn build_file_tree(
 /// depth cap is needed: deep files stay reachable while the heavy trees are
 /// never descended and the payload stays small. Gitignore handling that used to
 /// run client-side now happens here at native speed in a single pass.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn list_workspace_files(
     path: String,
 ) -> Result<Vec<WorkspaceFileEntry>, AppCommandError> {
@@ -5090,7 +4614,6 @@ fn list_files_under(root: &Path, prefix: &str) -> Vec<WorkspaceFileEntry> {
     entries
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn read_file_base64(
     path: String,
     max_bytes: Option<usize>,
@@ -5167,7 +4690,6 @@ fn open_no_follow(path: &Path) -> std::io::Result<std::fs::File> {
 /// never read outside the workspace. Used by the HTML preview to inline local
 /// sub-resources without exposing the unconfined `read_file_base64` to crafted
 /// markup (e.g. a symlink pointing at `/etc/passwd`).
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn read_workspace_file_base64(
     root_path: String,
     path: String,
@@ -5231,7 +4753,6 @@ pub async fn read_workspace_file_base64(
     .await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn read_file_preview(
     root_path: String,
     path: String,
@@ -5261,7 +4782,6 @@ pub async fn read_file_preview(
     .await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn read_file_for_edit(
     root_path: String,
     path: String,
@@ -5302,7 +4822,6 @@ pub async fn read_file_for_edit(
     .await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn save_file_content(
     root_path: String,
     path: String,
@@ -5402,7 +4921,6 @@ fn build_local_copy_file_name(original_name: &str, attempt: usize) -> String {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn save_file_copy(
     root_path: String,
     path: String,
@@ -5493,7 +5011,6 @@ pub async fn save_file_copy(
     .await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn rename_file_tree_entry(
     root_path: String,
     path: String,
@@ -5542,7 +5059,6 @@ pub async fn rename_file_tree_entry(
 /// keeping its name. `source_path` and `dest_dir` are both workspace-relative
 /// (forward slashes); `dest_dir` is `""` for the workspace root. Returns the new
 /// workspace-relative path of the moved entry.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn move_file_tree_entry(
     root_path: String,
     source_path: String,
@@ -5634,7 +5150,6 @@ pub async fn move_file_tree_entry(
     Ok(rel)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn delete_file_tree_entry(
     root_path: String,
     path: String,
@@ -5690,7 +5205,6 @@ pub async fn delete_file_tree_entry(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn create_file_tree_entry(
     root_path: String,
     path: String,
@@ -5755,7 +5269,6 @@ pub async fn create_file_tree_entry(
 // A Tauri command deserializes each named arg from JS, so the query knobs stay
 // flat positional params rather than a bundled options struct.
 #[allow(clippy::too_many_arguments)]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_log(
     path: String,
     limit: Option<u32>,
@@ -5924,7 +5437,6 @@ pub async fn git_log(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_commit_branches(
     path: String,
     commit: String,
@@ -5990,7 +5502,6 @@ fn git_author_match_pattern(name: &str) -> String {
 /// The configured commit author name (`git config user.name`) so the author
 /// filter can offer a pinned "me" quick-select. Best-effort: absent/blank →
 /// None. Cheap (no history walk), unlike a full repo author scan.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_current_user(path: String) -> Result<Option<String>, AppCommandError> {
     ensure_git_repo(&path)?;
 
@@ -6053,7 +5564,6 @@ fn filter_shortlog_authors(stdout: &str, query: &str, limit: usize) -> Vec<Strin
 /// upfront author scan (removed for perf), this runs only while the user is
 /// actively typing in the filter box (debounced client-side), so the history walk
 /// is paid on demand.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_search_authors(
     path: String,
     query: String,
@@ -6092,7 +5602,6 @@ pub async fn git_search_authors(
 /// File changes for a single commit, loaded on demand when a commit row is
 /// expanded (git_log with with_files=false omits these to keep the list fast).
 /// Same `--raw`/`--numstat` shape as git_log so the same parsing applies.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn git_commit_files(
     path: String,
     commit: String,

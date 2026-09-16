@@ -2,7 +2,7 @@
 import { createRequire } from "node:module"
 import { parse } from "yaml"
 import { describe, expect, it } from "vitest"
-import { source } from "./contract-source"
+import { source, sourceExists } from "./contract-source"
 
 const require = createRequire(import.meta.url)
 const {
@@ -25,7 +25,7 @@ const installers = (value: string) => [
   ]),
 ]
 
-describe("MaxCode contract: Electron release and legacy isolation", () => {
+describe("MaxCode contract: Electron release and retired shell isolation", () => {
   it("uses runtime-neutral release job names and upload patterns", () => {
     const workflow = parse(source(".github/workflows/release.yml"))
     const desktop = workflow.jobs["build-electron"]
@@ -151,7 +151,7 @@ describe("MaxCode contract: Electron release and legacy isolation", () => {
     expect(workflow).toContain("needs.build-electron.result == 'success'")
     expect(workflow).toContain("pnpm desktop:smoke")
     expect(workflow).toContain("release.cjs validate-assets")
-    expect(workflow).toContain("pnpm tauri signer sign")
+    expect(workflow).toContain("pnpm server:sign")
     expect(workflow).not.toContain("tauri-apps/tauri-action")
     expect(workflow).not.toContain("build-tauri:")
     expect(workflow).toContain(
@@ -169,9 +169,6 @@ describe("MaxCode contract: Electron release and legacy isolation", () => {
     expect(ci).toContain("pnpm desktop:pack")
     expect(ci).toContain("pnpm desktop:smoke")
     expect(ci).not.toContain("libwebkit2gtk")
-    const legacy = source(".github/workflows/legacy-tauri.yml")
-    expect(legacy).toContain("workflow_dispatch:")
-    expect(legacy).not.toContain("  push:")
-    expect(legacy).not.toContain("  pull_request:")
+    expect(sourceExists(".github/workflows/legacy-tauri.yml")).toBe(false)
   })
 })

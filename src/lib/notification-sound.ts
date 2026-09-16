@@ -8,8 +8,8 @@
  * per event in Settings → General (`notification-sound-settings.tsx`).
  *
  * Tones are synthesized with the Web Audio API instead of shipping audio
- * files: no binary assets, no asset-path/CSP differences between the Tauri
- * webview, the static web build and a remote-workspace window, and each cue
+ * files: no binary assets, no asset-path/CSP differences between the Electron
+ * window and the static web build, and each cue
  * stays a few hundred bytes of oscillator envelope.
  */
 

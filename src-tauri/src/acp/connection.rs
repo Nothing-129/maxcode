@@ -1331,6 +1331,11 @@ fn pi_launch_preflight(runtime_env: &BTreeMap<String, String>) -> Option<String>
         .map(|s| s.trim())
         .filter(|s| !s.is_empty());
     let command = custom.unwrap_or("pi");
+    if custom.is_none()
+        && crate::commands::agent_auto_updates::managed_runtime(AgentType::Pi).is_some()
+    {
+        return None;
+    }
     if crate::commands::acp::resolve_pi_command_path(command).is_some() {
         return None;
     }
@@ -1815,6 +1820,19 @@ async fn build_agent(
                 }
             }
             let mut merged_env = merge_agent_env(env, runtime_env);
+            if let Some((key, path)) = crate::commands::agent_auto_updates::managed_runtime(agent_type)
+            {
+                if !merged_env
+                    .iter()
+                    .any(|(name, value)| name == key && !value.trim().is_empty())
+                    && std::env::var(key)
+                        .ok()
+                        .is_none_or(|value| value.trim().is_empty())
+                {
+                    merged_env.retain(|(name, _)| name != key);
+                    merged_env.push((key.to_owned(), path.to_string_lossy().into_owned()));
+                }
+            }
             // Resolve the config-derived preset HERE (like Grok's
             // `grok_launch_permission_mode` below) so the policy helper stays a
             // pure function over the env list.

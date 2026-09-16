@@ -47,8 +47,7 @@ pub use system::{
     SystemTitleModelSettingsUpdate, SystemTitleModelTestResult, TerminalShellOption,
     TitleModelRequestParam,
 };
-#[cfg(feature = "tauri-runtime")]
-pub use system::{SystemAutostartSettings, SystemRenderingSettings};
+
 pub use token_usage::{
     TokenUsageBreakdownItem, TokenUsageBucket, TokenUsageConversationItem, TokenUsageFacets,
     TokenUsageFilter, TokenUsageFolderFacet, TokenUsageHeatCell, TokenUsagePoint, TokenUsageReport,

@@ -98,8 +98,7 @@ pub fn default_chat_channel_manager() -> ChatChannelManager {
 }
 
 /// Build the delegation broker + token registry + per-process UDS socket
-/// path. Shared between codeg-server bootstrap and the Tauri `setup` block
-/// so both modes apply identical depth limit + timeout defaults.
+/// path during codeg-server bootstrap for both Electron and server deployments.
 ///
 /// The listener task is _not_ spawned here — callers spawn it after they
 /// own an `Arc<AppState>` (or the relevant pieces) so the listener can
@@ -204,7 +203,7 @@ pub fn build_delegation_stack(
 impl AppState {
     /// Test-only constructor: build an `AppState` wired to an in-memory
     /// database and a `WebOnly` event emitter. Suitable for axum-test driven
-    /// HTTP integration tests where no Tauri runtime is available.
+    /// HTTP integration tests without a running desktop shell.
     ///
     /// `data_dir` is a temp directory; handlers that touch it must use
     /// `tempfile::tempdir()` and pass the resulting path in.

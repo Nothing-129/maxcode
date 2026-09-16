@@ -1,7 +1,7 @@
 pub mod auth;
 pub mod compression;
-pub mod frontend_cache;
 pub mod event_bridge;
+pub mod frontend_cache;
 pub mod handlers;
 pub mod port_probe;
 pub mod router;
@@ -75,7 +75,7 @@ impl WebServerState {
         self.shutdown_signal.clone()
     }
 
-    /// Mark the server as running from outside the Tauri command path.
+    /// Mark the server as running from its externally owned main loop.
     /// `codeg-server` calls `axum::serve` directly without going through
     /// `start_web_server`, so without this the `running` flag stays
     /// `false` and `get_web_server_status` lies to web-mode browsers.
@@ -382,33 +382,6 @@ fn classify_bind_error(err: std::io::Error) -> AppCommandError {
     AppCommandError::new(code, key).with_detail(err.to_string())
 }
 
-#[cfg(feature = "tauri-runtime")]
-pub(crate) fn find_static_dir_tauri(app: &tauri::AppHandle) -> PathBuf {
-    use tauri::Manager;
-    // 1. Production: bundle.resources copies out/ → web/ inside the resource directory.
-    let resource = app.path().resource_dir().ok();
-    if let Some(ref dir) = resource {
-        let web = dir.join("web");
-        if web.join("index.html").exists() {
-            tracing::info!(
-                "[WEB] Serving static files from resource/web: {}",
-                web.display()
-            );
-            return web;
-        }
-        // Fallback: files at resource root.
-        if dir.join("index.html").exists() {
-            tracing::info!(
-                "[WEB] Serving static files from resource dir: {}",
-                dir.display()
-            );
-            return dir.clone();
-        }
-    }
-
-    find_static_dir_fallback()
-}
-
 pub(crate) fn find_static_dir_fallback() -> PathBuf {
     // Dev mode: "out/" is at the project root, which is one level above src-tauri/.
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -583,7 +556,7 @@ pub fn addresses_for_bind(host: &str, port: u16) -> Vec<String> {
     get_local_addresses(port)
 }
 
-// ── Core logic (shared by Tauri commands and web handlers) ──
+// ── Shared business logic ──
 
 pub fn do_start_web_server_with_state(
     app_state: Arc<AppState>,
@@ -776,270 +749,6 @@ pub(crate) async fn do_probe_web_service_port(
     let port = resolve_web_service_port(conn, override_port).await?;
     let state = port_probe::probe_port(port).await;
     Ok(WebServicePortProbe { port, state })
-}
-
-// ── Tauri commands (thin wrappers) ──
-
-#[cfg(feature = "tauri-runtime")]
-pub(crate) async fn do_start_web_server_tauri(
-    app: tauri::AppHandle,
-    state: &WebServerState,
-    port: Option<u16>,
-    host: Option<String>,
-    token: Option<String>,
-) -> Result<WebServerInfo, AppCommandError> {
-    // In Tauri mode, we still need to start via the legacy path because
-    // the full AppState isn't easily available from tauri::State here.
-    // The embedded web server uses Tauri's resource directory for static files.
-    use tauri::Manager;
-
-    let ws = state;
-
-    // Atomically claim the running flag; concurrent starts see AlreadyExists.
-    ws.running
-        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-        .map_err(|_| AppCommandError::new(AppErrorCode::AlreadyExists, ERR_ALREADY_RUNNING))?;
-    let mut guard = RunningGuard {
-        running: &ws.running,
-        armed: true,
-    };
-
-    let db = app.state::<crate::db::AppDatabase>();
-    let port_val = resolve_web_service_port(&db.conn, port).await?;
-    let host_val = host.unwrap_or_else(|| "0.0.0.0".to_string());
-    let token = resolve_web_service_token(&db.conn, token).await?;
-
-    // Same strict-mode validation as `do_start_web_server_with_state`:
-    // run before any I/O so a misconfiguration cleanly fails the toggle
-    // instead of taking the desktop down.
-    handlers::files::log_upload_quota_config_at_startup();
-    if let Err(err) = handlers::files::validate_upload_quota_config() {
-        return Err(AppCommandError::new(
-            AppErrorCode::InvalidInput,
-            "Upload quota configuration is invalid",
-        )
-        .with_detail(err.to_string()));
-    }
-
-    let addr: SocketAddr =
-        format!("{}:{}", host_val, port_val)
-            .parse()
-            .map_err(|e: std::net::AddrParseError| {
-                AppCommandError::new(AppErrorCode::InvalidInput, ERR_INVALID_ADDRESS)
-                    .with_detail(e.to_string())
-            })?;
-
-    let listener = tokio::net::TcpListener::bind(addr)
-        .await
-        .map_err(classify_bind_error)?;
-
-    // See do_start_web_server_with_state for rationale.
-    if let Err(e) = socket_inherit::mark_listener_non_inheritable(&listener) {
-        tracing::warn!("[WEB][WARN] failed to mark listener non-inheritable: {}", e);
-    }
-
-    // Persist only after a successful bind AND strict-mode validation,
-    // so a misconfiguration doesn't lock the desktop into a permanent
-    // "Web service won't start" loop.
-    persist_web_service_config(&db.conn, &token, port_val).await?;
-
-    let static_dir = find_static_dir_tauri(&app);
-
-    // Build AppState for the router
-    let app_state = Arc::new(AppState {
-        db: crate::db::AppDatabase {
-            conn: app.state::<crate::db::AppDatabase>().conn.clone(),
-        },
-        connection_manager: (*app.state::<crate::acp::manager::ConnectionManager>()).clone_ref(),
-        terminal_manager: (*app.state::<crate::terminal::manager::TerminalManager>()).clone_ref(),
-        event_broadcaster: app
-            .state::<Arc<crate::web::event_bridge::WebEventBroadcaster>>()
-            .inner()
-            .clone(),
-        // Reuse the same bus the Tauri webview & subscribers read from.
-        acp_event_bus: app
-            .state::<Arc<crate::acp::InternalEventBus>>()
-            .inner()
-            .clone(),
-        emitter: crate::web::event_bridge::EventEmitter::Tauri(app.clone()),
-        // Resolve through the effective data dir so a custom
-        // `CODEG_DATA_DIR` reaches the credential helper and any HTTP
-        // handler that reads `state.data_dir`.
-        data_dir: crate::paths::resolve_effective_data_dir(
-            &app.path().app_data_dir().unwrap_or_default(),
-        ),
-        web_server_state: WebServerState::new(), // placeholder; not used by handlers
-        // Reuse the manager Tauri registered and started, NOT a fresh one: a
-        // fresh `ChatChannelManager` has an empty channel registry, so every
-        // handler that renames a bound chat thread (`update_conversation_title`,
-        // the import/scan/list title refreshes) would fail with `NotFound` and
-        // silently never retry — the DB has already converged by then. Falls
-        // back to a standalone manager only if the state is somehow absent.
-        chat_channel_manager: app
-            .try_state::<crate::chat_channel::manager::ChatChannelManager>()
-            .map(|state| state.inner().clone_ref())
-            .unwrap_or_else(crate::app_state::default_chat_channel_manager),
-        workspace_transfer: app
-            .try_state::<Arc<crate::workspace_transfer::WorkspaceTransferManager>>()
-            .map(|state| state.inner().clone())
-            .unwrap_or_else(|| {
-                Arc::new(crate::workspace_transfer::WorkspaceTransferManager::new_from_env())
-            }),
-        // Reuse the same handle the Tauri-mode subscriber writes to so HTTP
-        // and webview readers see the identical snapshot.
-        pet_state: app
-            .state::<crate::pet_state_mapper::PetStateHandle>()
-            .inner()
-            .clone(),
-        // Reuse the live broker / token registry / socket path from the
-        // Tauri-managed state so HTTP-side delegation commands target the
-        // same listener the desktop process is already running.
-        delegation_broker: app
-            .state::<Arc<crate::acp::delegation::broker::DelegationBroker>>()
-            .inner()
-            .clone(),
-        delegation_tokens: app
-            .state::<Arc<crate::acp::delegation::listener::TokenRegistry>>()
-            .inner()
-            .clone(),
-        delegation_socket_path: app
-            .state::<crate::commands::delegation::DelegationSocketPath>()
-            .0
-            .clone(),
-        // Reuse the same live-feedback config handle the desktop MCP injection
-        // reads, so HTTP-side feedback settings target the identical flag.
-        feedback_config: app
-            .state::<crate::acp::feedback::FeedbackRuntimeConfig>()
-            .inner()
-            .clone(),
-        // Reuse the same ask-user-question config handle the desktop MCP
-        // injection reads, so HTTP-side question settings target the same flag.
-        question_config: app
-            .state::<crate::acp::question::QuestionRuntimeConfig>()
-            .inner()
-            .clone(),
-        // Reuse the same get-session-info config handle the desktop MCP injection
-        // reads, so HTTP-side session-info settings target the same flag.
-        session_info_config: app
-            .state::<crate::acp::session_info::SessionInfoRuntimeConfig>()
-            .inner()
-            .clone(),
-        // Reuse the same chat-authoring config handle desktop MCP injection and
-        // the authoring write path read, so HTTP-side saves target the same flags.
-        chat_authoring_config: app
-            .state::<crate::acp::chat_authoring::ChatAuthoringRuntimeConfig>()
-            .inner()
-            .clone(),
-        system_op_lock: crate::app_state::default_system_op_lock(),
-        // Reuse the same handle the desktop `app_update` commands write to so
-        // HTTP and webview readers see the identical update snapshot.
-        update_state: app
-            .state::<crate::update::AppUpdateStateHandle>()
-            .inner()
-            .clone(),
-    });
-
-    // See do_start_web_server_with_state for rationale on the reset.
-    ws.shutdown_signal.reset();
-    let shutdown_signal = ws.shutdown_signal.clone();
-
-    // Sweep abandoned upload staging files. See the matching call in
-    // `do_start_web_server_with_state` for rationale. Quota log/validate
-    // already ran earlier in this function before the bind.
-    handlers::files::purge_upload_staging().await;
-
-    let router = router::build_router(
-        app_state,
-        token.clone(),
-        static_dir,
-        shutdown_signal.clone(),
-    );
-
-    let local_addr = listener.local_addr().ok();
-    let actual_port = local_addr.map(|a| a.port()).unwrap_or(port_val);
-    // Advertise the IP the socket is actually bound to, not the raw config.
-    let advertised_host = advertise_host(local_addr, &host_val);
-    tracing::info!("[WEB] Starting web server on {}", addr);
-
-    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
-    let handle = tokio::spawn(async move {
-        let serve = axum::serve(listener, router).with_graceful_shutdown(async move {
-            let _ = shutdown_rx.await;
-        });
-        if let Err(e) = serve.await {
-            tracing::error!("[WEB] Server error: {}", e);
-        }
-    });
-
-    *ws.handle.lock().unwrap() = Some(handle);
-    *ws.shutdown_tx.lock().unwrap() = Some(shutdown_tx);
-    ws.port.store(actual_port, Ordering::Relaxed);
-    *ws.token.lock().unwrap() = token.clone();
-    *ws.host.lock().unwrap() = advertised_host.clone();
-    // running already true from compare_exchange; disarm guard so it doesn't flip back.
-    guard.disarm();
-
-    let addresses = addresses_for_bind(&advertised_host, actual_port);
-    Ok(WebServerInfo {
-        port: actual_port,
-        token,
-        addresses,
-    })
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn start_web_server(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, WebServerState>,
-    port: Option<u16>,
-    host: Option<String>,
-    token: Option<String>,
-) -> Result<WebServerInfo, AppCommandError> {
-    do_start_web_server_tauri(app, &state, port, host, token).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn stop_web_server(
-    state: tauri::State<'_, WebServerState>,
-) -> Result<(), AppCommandError> {
-    do_stop_web_server(&state).await;
-    Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn get_web_server_status(
-    state: tauri::State<'_, WebServerState>,
-) -> Result<Option<WebServerInfo>, AppCommandError> {
-    Ok(do_get_web_server_status(&state))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn get_web_service_config(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<WebServiceConfig, AppCommandError> {
-    load_web_service_config(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn update_web_service_config(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-    config: WebServiceConfig,
-) -> Result<WebServiceConfig, AppCommandError> {
-    update_web_service_config_core(&db.conn, config).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn probe_web_service_port(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-    port: Option<u16>,
-) -> Result<WebServicePortProbe, AppCommandError> {
-    do_probe_web_service_port(&db.conn, port).await
 }
 
 #[cfg(test)]

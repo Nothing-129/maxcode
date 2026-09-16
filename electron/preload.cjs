@@ -69,6 +69,8 @@ if (bootstrap) {
     saveFile: (options, bytes) =>
       ipcRenderer.invoke("maxcode:save-file", options, bytes),
     closeWindow: () => ipcRenderer.invoke("maxcode:close-window"),
+    getLoginItem: () => ipcRenderer.invoke("maxcode:login-item-get"),
+    setLoginItem: (enabled) => ipcRenderer.invoke("maxcode:login-item-set", enabled),
     relaunchApp: () => ipcRenderer.invoke("maxcode:relaunch-app"),
     checkForUpdate: () => ipcRenderer.invoke("maxcode:update-check"),
     getUpdateStatus: () => ipcRenderer.invoke("maxcode:update-status"),

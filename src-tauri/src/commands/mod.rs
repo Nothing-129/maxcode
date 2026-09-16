@@ -1,8 +1,7 @@
 pub mod acp;
 pub mod agent_auto_updates;
 pub mod agent_updates;
-#[cfg(feature = "tauri-runtime")]
-pub mod app_update;
+
 pub mod automation;
 pub mod background;
 pub mod backup;
@@ -17,8 +16,7 @@ pub mod deepseek_settings;
 pub mod delegation;
 pub mod experts;
 pub mod feedback;
-#[cfg(feature = "tauri-runtime")]
-pub mod file_io;
+
 pub mod folder_commands;
 pub mod folder_links;
 pub mod folders;
@@ -26,18 +24,14 @@ pub mod forge;
 pub mod logging;
 pub mod mcp;
 pub mod model_provider;
-#[cfg(feature = "tauri-runtime")]
-pub mod notification;
+
 pub mod office_tools;
 pub mod open_in;
 pub mod pet;
 pub mod project_boot;
 pub mod question;
 pub mod quick_messages;
-#[cfg(feature = "tauri-runtime")]
-pub mod remote_proxy;
-#[cfg(feature = "tauri-runtime")]
-pub mod remote_workspace;
+
 pub mod science;
 pub mod session_info;
 pub mod system_settings;
@@ -46,8 +40,7 @@ pub mod token_usage;
 pub mod turn_window;
 pub mod ui_preferences;
 pub mod version_control;
-#[cfg(feature = "tauri-runtime")]
-pub mod windows;
+
 pub mod work_task;
 pub mod workspace_state;
 

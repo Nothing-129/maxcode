@@ -3,9 +3,8 @@
  *
  * Terminal input must reach the PTY in exactly the order it was typed. The
  * transport `call()` channel underneath `terminalWrite` gives NO cross-call
- * ordering guarantee: Tauri v2 dispatches concurrent `invoke`s on a thread
- * pool (whichever finishes first resolves first), and the web/remote paths are
- * independent HTTP POSTs (unordered, connection-pool-limited). Firing one
+ * ordering guarantee: requests are independent HTTP POSTs
+ * (unordered, connection-pool-limited). Firing one
  * fire-and-forget call per keystroke therefore scrambles fast input.
  *
  * This queue restores ordering the way VS Code / xterm.js do it — a single

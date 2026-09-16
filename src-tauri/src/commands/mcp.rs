@@ -209,12 +209,10 @@ pub struct McpMarketplaceServerDetail {
     pub spec: Value,
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_scan_local() -> LocalMcpScan {
     scan_local_servers()
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_list_marketplaces() -> Result<Vec<McpMarketplaceProvider>, AppCommandError> {
     Ok(vec![
         McpMarketplaceProvider {
@@ -231,7 +229,6 @@ pub async fn mcp_list_marketplaces() -> Result<Vec<McpMarketplaceProvider>, AppC
     ])
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_search_marketplace(
     provider_id: String,
     query: Option<String>,
@@ -249,7 +246,6 @@ pub async fn mcp_search_marketplace(
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_get_marketplace_server_detail(
     provider_id: String,
     server_id: String,
@@ -371,7 +367,6 @@ pub async fn mcp_get_marketplace_server_detail(
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_install_from_marketplace(
     provider_id: String,
     server_id: String,
@@ -440,7 +435,6 @@ pub async fn mcp_install_from_marketplace(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_upsert_local_server(
     server_id: String,
     spec: Value,
@@ -492,7 +486,6 @@ pub async fn mcp_upsert_local_server(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_set_server_apps(
     server_id: String,
     apps: Vec<McpAppType>,
@@ -542,7 +535,6 @@ pub async fn mcp_set_server_apps(
     Ok(find_local_server(&server_id))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn mcp_remove_server(
     server_id: String,
     apps: Option<Vec<McpAppType>>,

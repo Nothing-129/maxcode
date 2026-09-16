@@ -127,7 +127,7 @@ export function svgToPngBase64(
  * Goes through the shared save helpers rather than a bare `<a download>` (what
  * Streamdown's own toolbar does): on desktop that means a real system Save As
  * dialog and a Rust-side write, which is the only path that actually works in
- * the Tauri webview.
+ * the desktop window.
  */
 export async function saveDiagram(opts: {
   format: DiagramFormat

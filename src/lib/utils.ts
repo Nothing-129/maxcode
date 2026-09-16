@@ -117,8 +117,7 @@ export function copyTextFromMenu(text: string): Promise<boolean> {
  * notably Streamdown's code-block copy button (`data-streamdown="code-block"`)
  * and its link-safety dialog — then silently fail. Backing `writeText` with the
  * legacy `execCommand` path makes those copies work. Idempotent, and a no-op
- * when the native async Clipboard API is present (secure contexts, desktop
- * Tauri) or when run off the client. Call once on client startup.
+ * when the native async Clipboard API is present (secure contexts, Electron desktop) or when run off the client. Call once on client startup.
  */
 export function installClipboardFallback(): void {
   if (typeof navigator === "undefined" || typeof document === "undefined") {

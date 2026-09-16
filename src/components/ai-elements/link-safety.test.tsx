@@ -12,8 +12,7 @@ const mocks = vi.hoisted(() => ({
   openUrl: vi.fn(),
   openFilePreview: vi.fn(),
   toastError: vi.fn(),
-  isDesktop: vi.fn(() => false),
-  getActiveRemoteConnectionId: vi.fn<() => string | null>(() => null),
+  isElectron: vi.fn(() => false),
   activeFolderPath: "/repo",
 }))
 
@@ -31,9 +30,8 @@ vi.mock("@/lib/platform", () => ({
   openUrl: mocks.openUrl,
 }))
 
-vi.mock("@/lib/transport", () => ({
-  isDesktop: mocks.isDesktop,
-  getActiveRemoteConnectionId: mocks.getActiveRemoteConnectionId,
+vi.mock("@/lib/electron", () => ({
+  isElectron: mocks.isElectron,
 }))
 
 vi.mock("@/contexts/active-folder-context", () => ({
@@ -84,10 +82,8 @@ describe("link safety direct opening", () => {
     mocks.openUrl.mockReset()
     mocks.openFilePreview.mockReset()
     mocks.toastError.mockReset()
-    mocks.isDesktop.mockReset()
-    mocks.isDesktop.mockReturnValue(false)
-    mocks.getActiveRemoteConnectionId.mockReset()
-    mocks.getActiveRemoteConnectionId.mockReturnValue(null)
+    mocks.isElectron.mockReset()
+    mocks.isElectron.mockReturnValue(false)
     mocks.openFilePreview.mockResolvedValue(undefined)
     mocks.activeFolderPath = "/repo"
     vi.spyOn(window, "open").mockReturnValue(null)
@@ -263,7 +259,7 @@ describe("link safety direct opening", () => {
     // The Tauri opener capability only allows http(s) URLs; a raw "//host"
     // would resolve against the webview's own scheme. The dispatch must
     // canonicalize.
-    mocks.isDesktop.mockReturnValue(true)
+    mocks.isElectron.mockReturnValue(true)
     mocks.openUrl.mockResolvedValue(undefined)
 
     render(<LinkSafetyHarness url="//cdn.example.com/app.js" />)
@@ -281,7 +277,7 @@ describe("link safety direct opening", () => {
   })
 
   it("routes desktop external links through the platform opener instead of streamdown", async () => {
-    mocks.isDesktop.mockReturnValue(true)
+    mocks.isElectron.mockReturnValue(true)
     mocks.openUrl.mockResolvedValue(undefined)
 
     render(<LinkSafetyHarness url="https://example.com/docs" />)
@@ -295,50 +291,8 @@ describe("link safety direct opening", () => {
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument()
   })
 
-  it("routes remote-workspace external links through the opener too", async () => {
-    // A remote-desktop window is a Tauri webview bound to a remote server. It
-    // has no local filesystem, but `window.open` is just as dead there as in a
-    // local window — handing the link to streamdown would open nothing at all.
-    mocks.isDesktop.mockReturnValue(true)
-    mocks.getActiveRemoteConnectionId.mockReturnValue("conn-7")
-    mocks.openUrl.mockResolvedValue(undefined)
-
-    render(<LinkSafetyHarness url="https://example.com/docs" />)
-
-    fireEvent.click(screen.getByRole("button", { name: "Trigger link" }))
-
-    await waitFor(() => {
-      expect(mocks.openUrl).toHaveBeenCalledWith("https://example.com/docs")
-    })
-    expect(window.open).not.toHaveBeenCalled()
-  })
-
-  it("still hands remote-workspace mailto: links to the synthetic anchor", async () => {
-    // The OS-handler branch deliberately keeps treating a remote window as a
-    // web opener: an anchor reaches the mail client from inside a webview, and
-    // it sidesteps whether the opener capability covers non-http(s) schemes.
-    mocks.isDesktop.mockReturnValue(true)
-    mocks.getActiveRemoteConnectionId.mockReturnValue("conn-7")
-    const clickedHrefs: string[] = []
-    const clickSpy = vi
-      .spyOn(HTMLElement.prototype, "click")
-      .mockImplementation(function (this: HTMLElement) {
-        if (this instanceof HTMLAnchorElement) clickedHrefs.push(this.href)
-      })
-
-    render(<LinkSafetyHarness url="mailto:hi@example.com" />)
-
-    fireEvent.click(screen.getByRole("button", { name: "Trigger link" }))
-
-    await waitFor(() => {
-      expect(clickedHrefs).toContain("mailto:hi@example.com")
-    })
-    expect(mocks.openUrl).not.toHaveBeenCalled()
-    clickSpy.mockRestore()
-  })
-
   it("opens mailto: links via a synthetic anchor click in the browser to avoid an about:blank tab", async () => {
-    mocks.isDesktop.mockReturnValue(false)
+    mocks.isElectron.mockReturnValue(false)
     const clickedHrefs: string[] = []
     const clickSpy = vi
       .spyOn(HTMLElement.prototype, "click")
@@ -360,7 +314,7 @@ describe("link safety direct opening", () => {
   })
 
   it("opens mailto: links via the platform opener on desktop", async () => {
-    mocks.isDesktop.mockReturnValue(true)
+    mocks.isElectron.mockReturnValue(true)
     mocks.openUrl.mockResolvedValue(undefined)
 
     render(<LinkSafetyHarness url="mailto:hi@example.com" />)

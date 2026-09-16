@@ -3,7 +3,7 @@
  * rejection across transports.
  *
  * The ACP command-error *code* channel isn't surfaced for these commands:
- * `AcpError` serializes to its Display string on Tauri, and the web path wraps
+ * `AcpError` serializes to its Display string as a legacy transport error, and the web path wraps
  * the same string as `AppCommandError.message` (plus a stable `code`). So we
  * recognize the rejection by a backend-controlled marker (substring of the
  * Display string) or, on the web path, the stable error code. Kept in its own
@@ -35,7 +35,7 @@ const TURN_IN_PROGRESS_CODE = "turn_in_progress"
 
 /**
  * True when `err` is the backend's turn-in-progress rejection, in any of the
- * shapes the transports produce: a bare string (Tauri), an object with a
+ * shapes the transports produce: a bare string, an object with a
  * `message` carrying the marker (web), or an object with the stable `code`
  * (web). Anything else is a genuine error and returns false.
  */
@@ -58,7 +58,7 @@ const NO_ACTIVE_TURN_MARKER = "no active turn"
 
 /**
  * True when `err` is the backend's "no active turn for feedback" rejection, in
- * any transport shape: a bare string (Tauri `AcpError` Display), or an object
+ * any transport shape: a bare `AcpError` Display string, or an object
  * with a `message` carrying the marker (web `AppCommandError`). The web path
  * maps this to a 4xx, so it is an expected, recoverable signal — not a fault.
  */

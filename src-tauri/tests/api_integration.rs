@@ -12,8 +12,7 @@
 //!   the expected JSON shape. `list_folders` is NOT one of them — it parses
 //!   the real home directory and ignores the test DB entirely.
 //!
-//! Not covered: WebSocket attach (separate concern), endpoints that touch the
-//! Tauri webview (those are gated behind `tauri-runtime`).
+//! WebSocket attach is covered separately by the WebSocket integration tests.
 
 use std::sync::Arc;
 

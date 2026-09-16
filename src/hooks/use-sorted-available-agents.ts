@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo } from "react"
 import { useAcpAgents } from "@/hooks/use-acp-agents"
-import { AGENT_DISPLAY_ORDER, type AgentType } from "@/lib/types"
+import type { AgentType } from "@/lib/types"
+import { MAINTAINED_AGENT_TYPES } from "@/lib/maintained-agents"
 
 const STORAGE_KEY = "workspace:sorted-available-agents"
 
@@ -11,7 +12,7 @@ const STORAGE_KEY = "workspace:sorted-available-agents"
 // should not leak unknown strings into `tab.agentType` — they'd survive all
 // the way to ACP connect, which would fail with a confusing error far from
 // the source. Gate the seed read on this set.
-const VALID_AGENT_TYPES = new Set<string>(AGENT_DISPLAY_ORDER)
+const VALID_AGENT_TYPES = new Set<string>(MAINTAINED_AGENT_TYPES)
 
 function readSeed(): AgentType[] {
   if (typeof window === "undefined") return []

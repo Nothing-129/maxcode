@@ -57,7 +57,6 @@ import {
   useWorkspaceActions,
   useWorkspaceView,
 } from "@/contexts/workspace-context"
-import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
 import { useWorkspaceBackground, useZoomLevel } from "@/hooks/use-appearance"
 import { FILL_MODE_STYLE } from "@/lib/workspace-background"
 import { TerminalPanel } from "@/components/terminal/terminal-panel"
@@ -65,16 +64,12 @@ import { AuxPanel } from "@/components/layout/aux-panel"
 import { LeftEdgeChrome } from "@/components/layout/left-edge-chrome"
 import { RightEdgeChrome } from "@/components/layout/right-edge-chrome"
 import { WorkspaceChromeController } from "@/components/layout/workspace-chrome-controller"
-import { WindowControls } from "@/components/layout/window-controls"
 import { FileWorkspaceTabBar } from "@/components/files/file-workspace-tab-bar"
 import { FileWorkspaceHeader } from "@/components/files/file-workspace-header"
 import { FileWorkspacePanel } from "@/components/files/file-workspace-panel"
 import { ExternalConflictDialog } from "@/components/files/external-conflict-dialog"
 import { AppToaster } from "@/components/ui/app-toaster"
-import {
-  DeepLinkBootstrap,
-  PetFocusBridge,
-} from "@/components/workspace/deep-link-bootstrap"
+import { DeepLinkBootstrap } from "@/components/workspace/deep-link-bootstrap"
 import { WorkspaceOpenFolderListener } from "@/components/workspace/workspace-open-folder-listener"
 import { HeavyPluginsWarmup } from "@/components/ai-elements/heavy-plugins-warmup"
 import {
@@ -83,12 +78,8 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
-import { isDesktop, isNativeDesktop } from "@/lib/platform"
-import {
-  WINDOW_CAPTION_WIDTH,
-  leftChromeReserve,
-  rightChromeReserve,
-} from "@/lib/window-chrome"
+import { isNativeDesktop } from "@/lib/platform"
+import { leftChromeReserve, rightChromeReserve } from "@/lib/window-chrome"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePlatform } from "@/hooks/use-platform"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
@@ -315,16 +306,15 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
   const hasRouteStrip = useHasWorkbenchRouteStrip()
   const { isOpen: sidebarOpen } = useSidebarContext()
   const { isOpen: auxOpen } = useAuxPanelContext()
-  const { isMac, isWindows, isLinux } = usePlatform()
+  const { isMac } = usePlatform()
   const { zoomLevel } = useZoomLevel()
-  const winLinuxControls = isDesktop() && (isWindows || isLinux)
   // The window chrome (toggle/search left, terminal/aux/settings right) now
   // lives in fixed corner overlays (see FolderLayoutShell) that never move on
   // panel toggles. Each edge column just reserves the overlay's width so its
   // tabs never render underneath. The reserve scales with the app zoom so it
   // tracks the rem-sized overlay buttons (which grow with zoom).
   const leftReserve = leftChromeReserve(isMac && isNativeDesktop(), zoomLevel)
-  const rightReserve = rightChromeReserve(winLinuxControls, zoomLevel)
+  const rightReserve = rightChromeReserve(false, zoomLevel)
   // A middle column reserves the right overlay only when it (not the aux panel)
   // is the window's right edge: the file column in fusion, else conversation.
   const convReservesRight = !auxOpen && mode === "conversation"
@@ -457,7 +447,7 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
               <div className="flex h-10 shrink-0 items-stretch bg-muted ws-transparent-bg">
                 {fileReservesLeft && (
                   <div
-                    data-tauri-drag-region
+                    data-drag-region
                     className="h-full shrink-0 ws-strip-line"
                     style={{ width: leftReserve }}
                   />
@@ -467,7 +457,7 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
                 </div>
                 {fileReservesRight && (
                   <div
-                    data-tauri-drag-region
+                    data-drag-region
                     className="h-full shrink-0 ws-strip-line"
                     style={{ width: rightReserve }}
                   />
@@ -508,13 +498,13 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
           >
             {!sidebarOpen && (
               <div
-                data-tauri-drag-region
+                data-drag-region
                 className="h-full shrink-0"
                 style={{ width: leftReserve }}
               />
             )}
             <WorkbenchRouteStrip />
-            <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+            <div data-drag-region className="h-full min-w-0 flex-1" />
           </div>
           <div className="min-h-0 flex-1">
             <WorkbenchRoutePage />
@@ -1108,8 +1098,6 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
 
 function FolderLayoutShell({ children }: { children: React.ReactNode }) {
   const isMobile = useIsMobile()
-  const { isWindows, isLinux } = usePlatform()
-  const winLinuxControls = isDesktop() && (isWindows || isLinux)
   const {
     workspaceBgEnabled,
     workspaceBgImageUrl,
@@ -1179,14 +1167,8 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
           <div className="absolute left-0 top-0 z-50 h-10">
             <LeftEdgeChrome />
           </div>
-          <div
-            className="absolute top-0 z-50 h-10"
-            style={{ right: winLinuxControls ? WINDOW_CAPTION_WIDTH : 0 }}
-          >
-            <RightEdgeChrome />
-          </div>
           <div className="absolute right-0 top-0 z-50 h-10">
-            <WindowControls />
+            <RightEdgeChrome />
           </div>
         </>
       )}
@@ -1241,7 +1223,6 @@ function WorkspaceLayoutInner({ children }: { children: React.ReactNode }) {
                       <TabKeysSync />
                       <HeavyPluginsWarmup />
                       <DeepLinkBootstrap />
-                      <PetFocusBridge />
                       {/* Always mounted: external-change conflicts must be
                             resolvable even with the aux file tree closed. */}
                       <ExternalConflictDialog />
@@ -1291,9 +1272,9 @@ export default function WorkspaceLayout({
 }) {
   return (
     <Suspense>
-      <RemoteConnectionGate>
+      <>
         <WorkspaceLayoutInner>{children}</WorkspaceLayoutInner>
-      </RemoteConnectionGate>
+      </>
     </Suspense>
   )
 }

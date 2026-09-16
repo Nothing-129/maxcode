@@ -4,7 +4,6 @@ import type { ReactNode } from "react"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { isLocalDesktop, openPath, openUrl } from "@/lib/platform"
-import { getActiveRemoteConnectionId, isDesktop } from "@/lib/transport"
 import { isElectron } from "@/lib/electron"
 import { toErrorMessage } from "@/lib/app-error"
 import type { LinkSafetyConfig, LinkSafetyModalProps } from "streamdown"
@@ -169,10 +168,8 @@ function parseExternalUrl(rawUrl: string): URL | null {
   if (!trimmed) return null
 
   if (trimmed.startsWith("//")) {
-    // Protocol-relative: pin to https rather than the page protocol — a
-    // Tauri webview's own scheme (tauri://localhost) would otherwise
-    // classify these as an unsupported protocol, and the desktop opener
-    // capability only allows concrete http(s) URLs.
+    // Protocol-relative: normalize to a concrete HTTPS URL so links opened
+    // outside the app do not inherit the local backend's HTTP scheme.
     try {
       return new URL(`https:${trimmed}`)
     } catch {
@@ -216,34 +213,14 @@ export function canOpenLinkOrFile(rawUrl: string): boolean {
   )
 }
 
-/**
- * True when `window.open` actually opens something — i.e. a real browser.
- *
- * NOT the same question as `isWebOpenerEnvironment` below. A Tauri window bound
- * to a remote codeg-server is still a TAURI WEBVIEW, and a webview that
- * registers no new-window handler opens nothing at all for `window.open` (wry
- * answers with nil on macOS, `SetHandled(true)` on Windows). Lumping remote
- * windows in with web mode here left every http(s) link in a remote workspace
- * silently dead; they must take the opener-plugin path instead, which
- * `capabilities/default.json` grants to the `remote-*` windows.
- */
+/** Native clients hand external URLs to the system browser. */
 function windowOpenReachesABrowser(): boolean {
-  if (isElectron()) return false
-  return !isDesktop()
+  return !isElectron()
 }
 
-/**
- * True when a `mailto:`/`tel:` URL should be handed to the OS through a
- * synthetic anchor rather than the Tauri opener plugin — pure web, or a Tauri
- * window bound to a remote codeg-server.
- *
- * The remote arm stays deliberately: unlike `window.open`, a synthetic anchor
- * DOES reach the OS handler from inside a webview, and it sidesteps the
- * question of whether the opener capability covers non-http(s) schemes.
- */
+/** Browsers use an anchor for mailto/tel; Electron uses its native bridge. */
 function isWebOpenerEnvironment(): boolean {
-  if (isElectron()) return false
-  return !isDesktop() || getActiveRemoteConnectionId() !== null
+  return !isElectron()
 }
 
 function shouldLetStreamdownOpenExternalUrl(rawUrl: string): boolean {
@@ -293,7 +270,7 @@ export function openExternalTab(url: string): void {
 /**
  * Route a link click through the link-safety config. `decline` runs whenever
  * the config wants its modal hook instead (local files, mailto/tel, and every
- * link on local desktop, which routes to the Tauri opener).
+ * link on Electron desktop, which routes through its native bridge).
  *
  * A synchronous verdict — the only kind `useStreamdownLinkSafety` returns —
  * opens the tab inside the CALLER'S OWN CALL STACK. That is the whole point of

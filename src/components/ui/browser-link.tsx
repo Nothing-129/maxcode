@@ -7,29 +7,17 @@ import { openUrl } from "@/lib/platform"
 /**
  * A link to somewhere outside the app — the ONLY way to write one.
  *
- * A bare `<a target="_blank">` is a trap: it works in the browser (web mode,
- * `next dev`) and is DEAD in the desktop app. `target="_blank"` asks the
- * webview for a new window, and codeg registers no `on_new_window` handler, so
- * wry answers the request with nil on macOS and cancels it outright on Windows
- * (`args.SetHandled(true)`). Either way the click does nothing at all — no
- * navigation, no error, no clue. An eslint rule bans the attribute outside this
- * file so the trap cannot be re-laid.
+ * Route clicks through `openUrl`: Electron opens the system browser through
+ * its preload bridge, and browsers use `window.open`. The retired Tauri shell
+ * required this wrapper because it had no native new-window handler. The
+ * shared wrapper still gives external links consistent handling across clients.
  *
- * So the click is routed through `openUrl` instead: the Tauri opener plugin on
- * desktop (system browser), `window.open` on web. `href`/`target`/`rel` stay on
- * the element because they are what make it a LINK rather than a clickable
- * span — "copy link address", the status-bar preview and assistive tech all
- * read the DOM, not the handler.
+ * `href`/`target`/`rel` remain on the element for "copy link address", status-bar
+ * previews, assistive technology, and browser-native auxiliary clicks.
  *
- * KNOWN LIMIT: middle-click fires `auxclick`, not `click`, so it still takes
- * the native path — a background tab in web mode, and nothing on desktop.
- *
- * `preventDefault` is not optional: on web, letting the native `_blank` through
- * would open the tab twice, once for the browser and once for `openUrl`.
- *
- * Modified clicks (⌘/ctrl/shift) go through `openUrl` too. Letting them fall
- * through to the native default would restore the dead click on desktop, and
- * one predictable outcome beats a shortcut that works on one runtime only.
+ * `preventDefault` avoids opening a second tab through the anchor's default
+ * action. Modified clicks (⌘/ctrl/shift) also use `openUrl` so the destination
+ * stays under the platform wrapper's control.
  *
  * An `onClick` of your own runs FIRST — pass one to `stopPropagation` inside a
  * clickable card. Call `preventDefault` in it to keep the link from opening at

@@ -768,9 +768,7 @@ export function GitChangesTab() {
   // Pull / fetch / push / stash for the toolbar's "more" menu, sharing the
   // branch selector's task tracking, credential retry and conflict dialog.
   // A pull or stash rewrites the working tree, so resync the change list
-  // directly instead of waiting on the file watcher (and, in server mode, on a
-  // `folder://git-branch-changed` that is never delivered — it goes out over
-  // the Tauri bridge only).
+  // directly instead of waiting on the file watcher or a backend event.
   const gitActions = useGitQuickActions({
     folderId: folder?.id ?? null,
     folderPath: folder?.path ?? null,

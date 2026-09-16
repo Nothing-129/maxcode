@@ -214,8 +214,7 @@ fn acquire_engine_ownership(data_dir: &Path) -> Ownership {
 
 /// Long-running engine driver: boot recovery, then a single select loop over the
 /// completion event stream + the reconcile interval. Spawn once per process in
-/// each boot path (`lib.rs` setup via `tauri::async_runtime::spawn`, and
-/// `bin/codeg_server.rs` via `tokio::spawn`).
+/// `bin/codeg_server.rs` via `tokio::spawn`.
 pub async fn run_automation_engine(engine: Arc<AutomationEngine>) {
     // Boot recovery: a fresh process has no live connections, so any run still
     // `running` in the DB is an interruption — fail it (never re-fire here). This

@@ -53,24 +53,6 @@ pub async fn save(
     Ok(saved)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn get_conversation_reads(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<Vec<ReadReceipt>, AppCommandError> {
-    load(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn mark_conversations_read(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, crate::db::AppDatabase>,
-    ids: Vec<i64>,
-) -> Result<Vec<ReadReceipt>, AppCommandError> {
-    save(&db.conn, &EventEmitter::Tauri(app), ids).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

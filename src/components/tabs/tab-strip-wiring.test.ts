@@ -84,7 +84,6 @@ describe("file tab open in VS Code", () => {
   it("offers the existing openInCode host action from the tab menu", () => {
     expect(fileTabBar).toContain('openInCodeText={t("openInCode")}')
     expect(fileTabBar).toMatch(/openInCode\(path\)/)
-    expect(fileTabBar).toContain("isRemoteDesktopWindow")
     expect(fileTabBar).toContain("openInCodeFailed")
     expect(fileTabBar).toContain("VSCodeIcon")
   })

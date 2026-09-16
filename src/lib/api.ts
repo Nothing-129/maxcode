@@ -1,12 +1,6 @@
+import { filterMaintainedAgents } from "@/lib/maintained-agents"
 import { requestInAppSettings } from "./in-app-settings"
-import {
-  getActiveRemoteConnectionId,
-  getShellTransport,
-  getTransport,
-  isDesktop,
-  isRemoteDesktopMode,
-  notifyRemoteDesktopUnauthorized,
-} from "./transport"
+import { getTransport } from "./transport"
 import { getCodegToken } from "./transport/web-auth"
 import { notifyWebUnauthorized } from "./transport/web-connection-store"
 import { getCurrentEffectiveAppLocale } from "./i18n"
@@ -148,8 +142,6 @@ import type {
   SystemTitleModelSettings,
   SystemTitleModelSettingsUpdate,
   SystemTitleModelTestResult,
-  SystemRenderingSettings,
-  SystemAutostartSettings,
   SystemTerminalSettings,
   LogSettings,
   LogSettingsView,
@@ -249,11 +241,7 @@ export async function acpConnect(
  * strip, a couple of screenshots of base64 in the `/acp_prompt` JSON body
  * would blow axum's 2 MiB `DefaultBodyLimit` and 413 the send.
  *
- * `shouldStrip` is false on a local desktop workspace (Tauri IPC has no body
- * limit and there is no uploads dir to hydrate from), so those blocks pass
- * through byte-identical. Under `shouldStrip`, a `file://` uri on an image
- * block can only have come from an upload — every web/remote attach path
- * routes through `/upload_attachment` first — so uri presence is the marker.
+ * Uploaded file URIs identify payloads the server can hydrate from disk.
  * Pure; exported for tests.
  */
 export function stripUploadedImagePayloads(
@@ -294,12 +282,8 @@ export async function acpPrompt(
   try {
     await getTransport().call("acp_prompt", {
       connectionId,
-      // Strip in every mode where the prompt leaves through an HTTP body:
-      // pure web (`!isDesktop`) and desktop-attached-to-remote-workspace.
-      blocks: stripUploadedImagePayloads(
-        blocks,
-        !isDesktop() || getActiveRemoteConnectionId() !== null
-      ),
+      // Uploaded bytes already live on the server; keep the HTTP body small.
+      blocks: stripUploadedImagePayloads(blocks, true),
       folderId,
       conversationId,
       clientMessageId,
@@ -492,12 +476,16 @@ export async function acpFindConnectionForConversation(
 }
 
 export async function acpListAgents(): Promise<AcpAgentInfo[]> {
-  return getTransport().call("acp_list_agents")
+  return filterMaintainedAgents(
+    await getTransport().call<AcpAgentInfo[]>("acp_list_agents")
+  )
 }
 
 /** Chat-facing registry query. Excludes disabled agents and their probes. */
 export async function acpListEnabledAgents(): Promise<AcpAgentInfo[]> {
-  return getTransport().call("acp_list_enabled_agents")
+  return filterMaintainedAgents(
+    await getTransport().call<AcpAgentInfo[]>("acp_list_enabled_agents")
+  )
 }
 
 export async function acpGetAgentStatus(
@@ -998,8 +986,8 @@ export async function acpAntigravityLoginStart(
 ): Promise<AntigravityLoginStart> {
   // The backend spawns the agent and waits for it: up to 60s for `initialize`
   // (CPython inside a PAR, unpacked on first run) plus 90s for the printed
-  // link. The transport defaults — 60s on web, 30s through the remote-desktop
-  // proxy — would abort with "Request timed out" while that child is still
+  // link. The default 60s transport timeout would abort with
+  // "Request timed out" while that child is still
   // starting, so the ceiling has to clear the backend's own with a margin.
   return getTransport().call(
     "acp_antigravity_login_start",
@@ -1053,8 +1041,8 @@ export async function acpAntigravityLoginCancel(handle: string): Promise<void> {
 export async function acpAntigravitySignOut(): Promise<AntigravitySyncReport> {
   // The backend spawns the agent and puts two requests to it: up to 60s for
   // `initialize` (CPython inside a PAR, unpacked on first run) plus 60s for the
-  // sign-out itself. The transport defaults — 60s on web, 30s through the
-  // remote-desktop proxy — would abort while that child is still starting.
+  // sign-out itself. The default 60s transport timeout would abort while
+  // that child is still starting.
   return getTransport().call(
     "acp_antigravity_sign_out",
     {},
@@ -1126,22 +1114,6 @@ export async function acpInstallPiBinary(taskId: string): Promise<void> {
 /** Uninstall the global `pi` binary. Streams on `app://agent-install` too. */
 export async function acpUninstallPiBinary(taskId: string): Promise<void> {
   return getTransport().call("acp_uninstall_pi_binary", { taskId })
-}
-
-/**
- * Launch Hermes's interactive setup in the OS terminal (desktop only). `kind`
- * picks the flow; the backend constructs the exact command from the registry
- * recipe (no arbitrary shell text crosses the boundary).
- */
-export async function acpOpenHermesSetupTerminal(
-  kind: "setup" | "model"
-): Promise<void> {
-  return getTransport().call("acp_open_hermes_setup_terminal", { kind })
-}
-
-/** Ensure ~/.hermes exists and reveal it in the system file manager (desktop). */
-export async function acpRevealHermesHome(): Promise<void> {
-  return getTransport().call("acp_reveal_hermes_home", {})
 }
 
 export async function acpReorderAgents(agentTypes: AgentType[]): Promise<void> {
@@ -1847,26 +1819,6 @@ export async function getAvailableTerminalShells(): Promise<AvailableTerminalShe
 
 export async function probeTerminalShellPath(path: string): Promise<boolean> {
   return getTransport().call("probe_terminal_shell_path", { path })
-}
-
-export async function getSystemRenderingSettings(): Promise<SystemRenderingSettings> {
-  return getTransport().call("get_system_rendering_settings")
-}
-
-export async function updateSystemRenderingSettings(
-  settings: SystemRenderingSettings
-): Promise<SystemRenderingSettings> {
-  return getTransport().call("update_system_rendering_settings", { settings })
-}
-
-export async function getSystemAutostartSettings(): Promise<SystemAutostartSettings> {
-  return getTransport().call("get_system_autostart_settings")
-}
-
-export async function updateSystemAutostartSettings(
-  settings: SystemAutostartSettings
-): Promise<SystemAutostartSettings> {
-  return getTransport().call("update_system_autostart_settings", { settings })
 }
 
 // --- Logging ---
@@ -2628,15 +2580,7 @@ export async function openMergeWindow(
   upstreamCommit?: string | null
 ): Promise<void> {
   const locale = getCurrentEffectiveAppLocale()
-  if (isDesktop()) {
-    return getShellTransport().call("open_merge_window", {
-      folderId,
-      operation,
-      upstreamCommit: upstreamCommit ?? null,
-      locale,
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+
   return openAppWindow(`merge-${folderId}`, () =>
     getTransport().call<{ path: string }>("open_merge_window", {
       folderId,
@@ -2649,13 +2593,7 @@ export async function openMergeWindow(
 
 export async function openStashWindow(folderId: number): Promise<void> {
   const locale = getCurrentEffectiveAppLocale()
-  if (isDesktop()) {
-    return getShellTransport().call("open_stash_window", {
-      folderId,
-      locale,
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+
   return openAppWindow(`stash-${folderId}`, () =>
     getTransport().call<{ path: string }>("open_stash_window", {
       folderId,
@@ -2670,14 +2608,7 @@ export async function openPushWindow(
   branch?: string | null
 ): Promise<void> {
   const locale = getCurrentEffectiveAppLocale()
-  if (isDesktop()) {
-    return getShellTransport().call("open_push_window", {
-      folderId,
-      locale,
-      remoteConnectionId: getActiveRemoteConnectionId(),
-      branch: branch ?? null,
-    })
-  }
+
   // Reusing the window NAME navigates an already-open push window to the new
   // URL, so the preselected branch applies there too (the desktop path gets the
   // same effect from the `push://retarget-branch` event).
@@ -3125,13 +3056,7 @@ export async function resolveWorktreeFolder(
 
 export async function openCommitWindow(folderId: number): Promise<void> {
   const locale = getCurrentEffectiveAppLocale()
-  if (isDesktop()) {
-    return getShellTransport().call("open_commit_window", {
-      folderId,
-      locale,
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+
   return openAppWindow(`commit-${folderId}`, () =>
     getTransport().call<{ path: string }>("open_commit_window", {
       folderId,
@@ -3162,14 +3087,7 @@ export async function openSettingsWindow(
 ): Promise<void> {
   if (requestInAppSettings({ section, agentType: options?.agentType })) return
   const locale = getCurrentEffectiveAppLocale()
-  if (isDesktop()) {
-    return getShellTransport().call("open_settings_window", {
-      section: section ?? null,
-      agentType: options?.agentType ?? null,
-      locale,
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+
   // Web mode: open in new window
   return openAppWindow(`settings-${section ?? "general"}`, () =>
     getTransport().call<{ path: string }>("open_settings_window", {
@@ -3190,13 +3108,7 @@ export async function openImportSessionsWindow(
   options?: OpenImportSessionsWindowOptions
 ): Promise<void> {
   const focusPath = options?.focusPath ?? null
-  if (isDesktop()) {
-    return getShellTransport().call("open_import_sessions_window", {
-      focusPath,
-      locale: getCurrentEffectiveAppLocale(),
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+
   return openAppWindow("import-sessions", () =>
     getTransport().call<{ path: string }>("open_import_sessions_window", {
       focusPath,
@@ -3204,14 +3116,7 @@ export async function openImportSessionsWindow(
   )
 }
 
-export async function openProjectBootWindow(source?: string): Promise<void> {
-  if (isDesktop()) {
-    return getShellTransport().call("open_project_boot_window", {
-      source,
-      locale: getCurrentEffectiveAppLocale(),
-      remoteConnectionId: getActiveRemoteConnectionId(),
-    })
-  }
+export async function openProjectBootWindow(): Promise<void> {
   if (typeof window !== "undefined") {
     window.open("/project-boot", "project-boot")
   }
@@ -3220,10 +3125,8 @@ export async function openProjectBootWindow(source?: string): Promise<void> {
 // Cross-window handoff for the project launcher, which lives in its own
 // window/tab and can't reach the workspace's React state directly. The
 // backend upserts the folder and emits `folder://open-in-workspace` carrying
-// the FolderDetail through the shared EventEmitter; the transport layer routes
-// that to the right workspace window in every runtime (local Tauri bus, the
-// server's WebSocket broadcaster for web, and the remote server's broadcaster
-// for remote desktop), so only windows talking to this backend react. The
+// the FolderDetail through the shared EventEmitter; the WebSocket transport routes
+// that to windows talking to this backend. The
 // workspace subscribes via WorkspaceOpenFolderListener.
 export const FOLDER_OPEN_IN_WORKSPACE_EVENT = "folder://open-in-workspace"
 
@@ -3592,10 +3495,7 @@ function stripUploadedTaskBlocks(
   blocks: PromptInputBlock[] | null | undefined
 ): PromptInputBlock[] {
   if (!blocks || blocks.length === 0) return []
-  return stripUploadedImagePayloads(
-    blocks,
-    !isDesktop() || getActiveRemoteConnectionId() !== null
-  )
+  return stripUploadedImagePayloads(blocks, true)
 }
 
 export async function workTaskCreate(draft: WorkTaskDraft): Promise<WorkTask> {
@@ -3888,33 +3788,16 @@ export async function listDirectoryWithFiles(
 }
 
 // Hard ceiling for a single attachment, kept in lockstep with the server's
-// `UPLOAD_MAX_BYTES` (`web/handlers/files.rs`, mirrored in
-// `commands/remote_proxy.rs`). Sized to match the desktop drag-drop image
+// `UPLOAD_MAX_BYTES` (`web/handlers/files.rs`). Sized to match the drag-drop image
 // limit (`DRAG_DROP_IMAGE_MAX_BYTES`) so the same screenshot attaches in
 // every mode; oversize is rejected up front with a visible toast.
 export const UPLOAD_MAX_BYTES = 100 * 1024 * 1024
-
-// `btoa` only accepts a binary string, and `String.fromCharCode(...bytes)`
-// hits the call-stack limit somewhere around a few hundred KB. Chunk the
-// buffer so a 2 MB upload encodes without blowing the stack.
-function arrayBufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let binary = ""
-  const chunkSize = 0x8000
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    const slice = bytes.subarray(i, i + chunkSize) as unknown as number[]
-    binary += String.fromCharCode.apply(null, slice)
-  }
-  return btoa(binary)
-}
 
 // i18n_key values the Rust upload layer stamps via `with_i18n` and that
 // the frontend branches on. MUST stay in lockstep with the Rust
 // constants `UPLOAD_I18N_KEY_TOO_LARGE` / `UPLOAD_I18N_KEY_NOT_A_FILE`
 // in `src-tauri/src/app_error.rs`. If either side renames the literal,
-// the Rust unit test
-// `commands::remote_proxy::tests::upload_i18n_keys_have_expected_values`
-// fails — that's the CI tripwire keeping the two languages aligned.
+// upload errors would no longer map to the corresponding translated message.
 export const UPLOAD_I18N_KEY_TOO_LARGE = "errors.upload.tooLarge"
 export const UPLOAD_I18N_KEY_NOT_A_FILE = "errors.upload.notAFile"
 export const UPLOAD_I18N_KEY_QUOTA_EXCEEDED = "errors.upload.quotaExceeded"
@@ -3958,43 +3841,19 @@ export function isEmptyAttachmentError(err: unknown): boolean {
 
 // Upload a single attachment to the server.
 //
-// Web mode: streams the file via multipart/form-data to the same origin the
-// page was served from. Desktop + remote workspace: routes through the Rust
-// `remote_upload_attachment` command, because the webview's `fetch` can't
-// hit a plain `http://` remote (mixed-content rules block secure-context
-// requests). Returns the server-side absolute path so the caller can attach
-// it as a `file://` ResourceLink — identical shape on both transports.
+// Streams multipart bytes to the page's backend and returns the server-side
+// path for a file:// resource link.
 export async function uploadAttachment(
   file: File,
   sessionId?: string | null
 ): Promise<UploadAttachmentResult> {
   if (file.size === 0) {
-    // Skip empty files at the entry — both the web and remote-desktop
-    // transports would otherwise dutifully POST a zero-byte multipart part
+    // Skip empty files before sending a zero-byte multipart part
     // (the server records it under `~/.codeg/uploads/<bucket>/...`), and
     // we'd attach a ResourceLink to an empty file. Throw the sentinel and
     // let the pool's catch block log + continue.
     throw new EmptyAttachmentError(file.name)
   }
-  const remoteId = getActiveRemoteConnectionId()
-  if (isDesktop() && remoteId !== null) {
-    const buf = await file.arrayBuffer()
-    // `getShellTransport()` resolves to the local Tauri transport even when
-    // a `RemoteDesktopTransport` is configured — we deliberately want the
-    // local IPC here, not the proxy, because `remote_upload_attachment`
-    // lives on this desktop binary.
-    return getShellTransport().call<UploadAttachmentResult>(
-      "remote_upload_attachment",
-      {
-        connectionId: remoteId,
-        fileName: file.name,
-        mimeType: file.type || null,
-        sessionId: sessionId ?? null,
-        dataBase64: arrayBufferToBase64(buf),
-      }
-    )
-  }
-
   const token = getCodegToken()
   const form = new FormData()
   form.append("file", file, file.name)
@@ -4019,52 +3878,7 @@ export async function uploadAttachment(
   return res.json()
 }
 
-// Upload a file picked from the desktop machine's filesystem to the remote
-// codeg-server bound to the current window. The Tauri-native drag-drop event
-// hands us OS paths (not `File` objects), so we read the bytes via Rust,
-// then reuse the same `remote_upload_attachment` channel. Only callable from
-// a window that has a remote workspace attached; non-remote callers should
-// continue to use `appendResourceAttachments` with the local path directly.
-export async function uploadLocalPathToRemote(
-  path: string,
-  sessionId?: string | null
-): Promise<UploadAttachmentResult> {
-  const remoteId = getActiveRemoteConnectionId()
-  if (remoteId === null) {
-    throw new Error(
-      "uploadLocalPathToRemote requires an active remote workspace"
-    )
-  }
-  const shell = getShellTransport()
-  const file = await shell.call<{
-    fileName: string
-    mimeType: string | null
-    size: number
-    dataBase64: string
-  }>("read_local_file_for_upload", { path })
-  if (file.size === 0) {
-    // Mirror the `uploadAttachment` empty-file guard. The Rust side
-    // already read the bytes, so we've paid the cost — drop on the
-    // floor here rather than send a zero-byte multipart upstream.
-    throw new EmptyAttachmentError(file.fileName)
-  }
-  return shell.call<UploadAttachmentResult>("remote_upload_attachment", {
-    connectionId: remoteId,
-    fileName: file.fileName,
-    mimeType: file.mimeType,
-    sessionId: sessionId ?? null,
-    dataBase64: file.dataBase64,
-  })
-}
-
-// ─── Workspace file upload / download ───
-//
-// Issue #179: in server mode the user has no native file dialog, so the
-// file-tree context menu offers explicit upload + download actions
-// against these endpoints. The local desktop build (no remote) uses OS
-// dialogs instead, so these helpers throw there. A remote-desktop
-// window is a Tauri runtime but its file ops must target the remote
-// host — it goes through the `remote_*_workspace_*` proxy commands.
+// Workspace file uploads and downloads use the same server endpoints in all clients.
 
 export interface UploadWorkspaceFileResult {
   path: string
@@ -4072,22 +3886,9 @@ export interface UploadWorkspaceFileResult {
   size: number
 }
 
-/**
- * Returns true when the current window can drive these helpers. Both
- * pure-web mode and remote-desktop mode qualify; only a local-desktop
- * Tauri window (no remote binding) is rejected, because it has its own
- * native file dialogs and these helpers would just be the wrong tool.
- */
+/** The shared server exposes file transfer endpoints for every client. */
 export function isWorkspaceFileApiAvailable(): boolean {
-  return !isDesktop() || isRemoteDesktopMode()
-}
-
-function assertWorkspaceFileApiAvailable(action: string): void {
-  if (!isWorkspaceFileApiAvailable()) {
-    throw new Error(
-      `${action} is not available in local desktop mode; use the OS file dialogs instead.`
-    )
-  }
+  return true
 }
 
 async function workspaceFileFetch(
@@ -4138,13 +3939,7 @@ export interface UploadWorkspaceFileArgs {
 }
 
 /**
- * Upload one workspace file. Two transports:
- *
- *   - **Web** — `XMLHttpRequest` direct to `/api/upload_workspace_file`,
- *     so we get byte-level upload progress and `AbortSignal` honoring.
- *   - **Remote desktop** — uses `uploadWorkspaceLocalPathsToRemote` with
- *     native file paths. Browser `File` objects are intentionally rejected
- *     there because Tauri IPC is not a streaming binary transport.
+ * Upload a workspace file with byte progress and AbortSignal cancellation.
  *
  * Empty files are allowed: a workspace legitimately contains zero-byte
  * placeholders (`.gitkeep`, `__init__.py`). The chat-attachment uploader
@@ -4154,14 +3949,6 @@ export interface UploadWorkspaceFileArgs {
 export async function uploadWorkspaceFile(
   args: UploadWorkspaceFileArgs
 ): Promise<UploadWorkspaceFileResult> {
-  assertWorkspaceFileApiAvailable("uploadWorkspaceFile")
-
-  if (isRemoteDesktopMode()) {
-    throw new Error(
-      "uploadWorkspaceFile requires browser File input; use uploadWorkspaceLocalPathsToRemote in remote desktop mode"
-    )
-  }
-
   return new Promise<UploadWorkspaceFileResult>((resolve, reject) => {
     const token = getCodegToken()
     const xhr = new XMLHttpRequest()
@@ -4235,84 +4022,6 @@ export async function uploadWorkspaceFile(
   })
 }
 
-export interface RemoteWorkspaceUploadPathEntry {
-  localPath: string
-  relativePath?: string | null
-}
-
-export interface RemoteWorkspaceUploadPathsResult {
-  transferId: string
-  files: UploadWorkspaceFileResult[]
-  bytes: number
-}
-
-export async function uploadWorkspaceLocalPathsToRemote(args: {
-  rootPath: string
-  targetPath: string
-  entries: RemoteWorkspaceUploadPathEntry[]
-}): Promise<RemoteWorkspaceUploadPathsResult> {
-  const connectionId = getActiveRemoteConnectionId()
-  if (connectionId === null) {
-    throw new Error(
-      "uploadWorkspaceLocalPathsToRemote: no active remote connection"
-    )
-  }
-  try {
-    return await getShellTransport().call<RemoteWorkspaceUploadPathsResult>(
-      "remote_upload_workspace_paths",
-      {
-        connectionId,
-        rootPath: args.rootPath,
-        targetPath: args.targetPath,
-        entries: args.entries,
-      }
-    )
-  } catch (err) {
-    if (isRemoteAuthenticationFailed(err)) {
-      notifyRemoteDesktopUnauthorized()
-    }
-    throw err
-  }
-}
-
-export interface WorkspaceTransferProgress {
-  transferId: string
-  direction: "upload" | "download"
-  loaded: number
-  total: number | null
-  state: "running" | "done" | "cancelled" | "error"
-  path?: string | null
-  error?: string | null
-}
-
-export async function listenWorkspaceTransferProgress(
-  handler: (event: WorkspaceTransferProgress) => void
-): Promise<() => void> {
-  if (!isDesktop()) return () => {}
-  const { listen } = await import("@tauri-apps/api/event")
-  return listen<WorkspaceTransferProgress>(
-    "workspace://transfer-progress",
-    (event) => handler(event.payload)
-  )
-}
-
-export async function cancelWorkspaceTransfer(
-  transferId: string
-): Promise<boolean> {
-  return getShellTransport().call<boolean>("remote_cancel_workspace_transfer", {
-    transferId,
-  })
-}
-
-function isRemoteAuthenticationFailed(err: unknown): boolean {
-  return (
-    typeof err === "object" &&
-    err !== null &&
-    "code" in err &&
-    (err as { code?: unknown }).code === "authentication_failed"
-  )
-}
-
 export function isUploadAbortError(err: unknown): boolean {
   return err instanceof DOMException && err.name === "AbortError"
 }
@@ -4349,11 +4058,7 @@ async function createWorkspaceDownloadTicket(args: {
   return res.json()
 }
 
-/**
- * Sentinel return from a remote-desktop download path when the user
- * cancels the Tauri save dialog. Web mode never returns this — the
- * browser owns the download manager and there's no per-call cancel.
- */
+/** Shared result marker for consumers that display transfer outcomes. */
 export const WORKSPACE_DOWNLOAD_CANCELLED = "cancelled" as const
 
 export type WorkspaceDownloadResult =
@@ -4366,17 +4071,6 @@ export async function downloadWorkspaceFile(
   path: string,
   fileName: string
 ): Promise<WorkspaceDownloadResult> {
-  assertWorkspaceFileApiAvailable("downloadWorkspaceFile")
-
-  if (isRemoteDesktopMode()) {
-    return downloadWorkspaceViaRemoteProxy({
-      endpoint: "remote_download_workspace_file",
-      rootPath,
-      path,
-      suggestedName: fileName,
-    })
-  }
-
   const ticket = await createWorkspaceDownloadTicket({
     rootPath,
     path,
@@ -4391,17 +4085,6 @@ export async function downloadWorkspaceDir(
   path: string,
   dirName: string
 ): Promise<WorkspaceDownloadResult> {
-  assertWorkspaceFileApiAvailable("downloadWorkspaceDir")
-
-  if (isRemoteDesktopMode()) {
-    return downloadWorkspaceViaRemoteProxy({
-      endpoint: "remote_download_workspace_dir",
-      rootPath,
-      path,
-      suggestedName: `${dirName}.zip`,
-    })
-  }
-
   const ticket = await createWorkspaceDownloadTicket({
     rootPath,
     path,
@@ -4409,49 +4092,6 @@ export async function downloadWorkspaceDir(
   })
   openBrowserDownloadUrl(ticket.url, ticket.filename || `${dirName}.zip`)
   return { status: "started" }
-}
-
-async function downloadWorkspaceViaRemoteProxy(opts: {
-  endpoint: "remote_download_workspace_file" | "remote_download_workspace_dir"
-  rootPath: string
-  path: string
-  suggestedName: string
-}): Promise<WorkspaceDownloadResult> {
-  const connectionId = getActiveRemoteConnectionId()
-  if (connectionId === null) {
-    throw new Error(
-      "downloadWorkspaceFile (remote): no active remote connection"
-    )
-  }
-  const { save } = await import("@tauri-apps/plugin-dialog")
-  const savePath = await save({ defaultPath: opts.suggestedName })
-  if (!savePath) {
-    return { status: WORKSPACE_DOWNLOAD_CANCELLED }
-  }
-  const { invoke } = await import("@tauri-apps/api/core")
-  let result: { transferId: string; bytes: number }
-  try {
-    result = await invoke<{ transferId: string; bytes: number }>(
-      opts.endpoint,
-      {
-        connectionId,
-        rootPath: opts.rootPath,
-        path: opts.path,
-        savePath,
-      }
-    )
-  } catch (err) {
-    if (isRemoteAuthenticationFailed(err)) {
-      notifyRemoteDesktopUnauthorized()
-    }
-    throw err
-  }
-  return {
-    status: "done",
-    savedPath: savePath,
-    bytes: result.bytes,
-    transferId: result.transferId,
-  }
 }
 
 // File tree and git log commands
@@ -5041,10 +4681,7 @@ export async function submitSessionFeedback(
     text,
     blocks:
       blocks && blocks.length > 0
-        ? stripUploadedImagePayloads(
-            blocks,
-            !isDesktop() || getActiveRemoteConnectionId() !== null
-          )
+        ? stripUploadedImagePayloads(blocks, true)
         : null,
   })
 }
@@ -5267,7 +4904,7 @@ export interface BackupExportOptions {
 
 /**
  * Subscribe to backup/restore progress. Works in both runtimes: the backend
- * emits through the unified event bridge (Tauri webview + WS broadcaster).
+ * emits through the WebSocket broadcaster.
  */
 export async function listenBackupProgress(
   handler: (event: BackupProgress) => void
@@ -5277,28 +4914,6 @@ export async function listenBackupProgress(
 
 export async function cancelBackup(opId: string): Promise<boolean> {
   return getTransport().call<boolean>("backup_cancel", { opId })
-}
-
-/** Desktop export: native save dialog → write the archive to the chosen path. */
-export async function exportBackupDesktop(
-  opts: BackupExportOptions
-): Promise<BackupManifest | null> {
-  const { save } = await import("@tauri-apps/plugin-dialog")
-  const encrypted = !!opts.passphrase
-  const ext = encrypted ? "codegbak" : "codeg.zip"
-  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-")
-  const destPath = await save({
-    defaultPath: `codeg-backup-${stamp}.${ext}`,
-    filters: [{ name: "MaxCode backup", extensions: [ext] }],
-  })
-  if (!destPath) return null
-  return getTransport().call<BackupManifest>("backup_create", {
-    options: {
-      includeExternalTranscripts: opts.includeExternalTranscripts,
-      passphrase: opts.passphrase ?? null,
-    },
-    destPath,
-  })
 }
 
 // Backup create/inspect/stage can legitimately run far longer than the
@@ -5392,18 +5007,6 @@ export interface PreparedBackupSource {
   preview: BackupPreview
 }
 
-/** Restore step 1 (desktop: by path) — decrypt once, preview, get a handle. */
-export async function prepareBackupSourceDesktop(
-  srcPath: string,
-  passphrase?: string | null
-): Promise<PreparedBackupSource> {
-  return getTransport().call<PreparedBackupSource>(
-    "backup_prepare_source",
-    { srcPath, passphrase: passphrase ?? null },
-    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
-  )
-}
-
 /** Restore step 1 (web: by upload id). */
 export async function prepareBackupSourceWeb(
   uploadId: string,
@@ -5423,21 +5026,6 @@ export async function prepareBackupSourceWeb(
  */
 export async function releaseBackupSource(sourceId: string): Promise<boolean> {
   return getTransport().call<boolean>("backup_release_source", { sourceId })
-}
-
-/** Stage a restore (desktop). Applied on next app start. */
-export async function stageRestoreDesktop(args: {
-  sourceId: string
-  externalMode?: ExternalRestoreMode | null
-}): Promise<StagedRestore> {
-  return getTransport().call<StagedRestore>(
-    "backup_restore_stage",
-    {
-      sourceId: args.sourceId,
-      externalMode: args.externalMode ?? null,
-    },
-    { timeoutMs: BACKUP_LONG_CALL_TIMEOUT_MS }
-  )
 }
 
 export interface StageRestoreWebResult {
@@ -5885,6 +5473,8 @@ export interface AgentAutoUpdateStatus {
     | "unavailable"
   version: string | null
   error: string | null
+  runtimeVersion?: string | null
+  runtimeLatestVersion?: string | null
 }
 
 export function acpAgentAutoUpdateStatus(

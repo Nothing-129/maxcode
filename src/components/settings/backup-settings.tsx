@@ -36,9 +36,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import { isDesktop } from "@/lib/platform"
 import { isElectron } from "@/lib/electron"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import { relaunchApp, restartApp, waitForServerHealthy } from "@/lib/updater"
 import {
   toLocalizedErrorMessage,
@@ -48,16 +46,13 @@ import {
   backupActiveAgents,
   cancelBackup,
   discardPendingRestore,
-  exportBackupDesktop,
   exportBackupWeb,
   listSafetySnapshots,
   listenBackupProgress,
-  prepareBackupSourceDesktop,
   prepareBackupSourceWeb,
   releaseBackupSource,
   rollbackToSnapshot,
   scanExternalConflicts,
-  stageRestoreDesktop,
   stageRestoreWeb,
   uploadBackupWeb,
   type BackupPreview,
@@ -70,9 +65,7 @@ import {
 } from "@/lib/api"
 
 /** Where the archive came from, kept so a passphrase retry can re-prepare it. */
-type RestoreOrigin =
-  | { kind: "desktop"; path: string }
-  | { kind: "web"; uploadId: string }
+type RestoreOrigin = { kind: "web"; uploadId: string }
 
 type RestoreSource = {
   origin: RestoreOrigin
@@ -120,14 +113,6 @@ export function BackupSettings() {
       toLocalizedErrorMessage(err, tRoot as unknown as AppErrorTranslator),
     [tRoot]
   )
-  // A remote-desktop window is a Tauri shell whose transport points at a remote
-  // server: native dialogs + local Tauri commands would not line up with that
-  // server's ticket/upload web API, so backup is managed on the server itself.
-  const remote = isDesktop() && getActiveRemoteConnectionId() !== null
-  // "desktop" path = local Tauri only (native dialogs + Tauri commands). Both
-  // standalone web and remote-desktop use the web flow / are gated below.
-  const desktop = isDesktop() && getActiveRemoteConnectionId() === null
-
   // ── Export ──
   const [includeExternal, setIncludeExternal] = useState(false)
   const [passphrase, setPassphrase] = useState("")
@@ -222,24 +207,16 @@ export function BackupSettings() {
         includeExternalTranscripts: includeExternal,
         passphrase: passphrase || null,
       }
-      if (desktop) {
-        const manifest = await exportBackupDesktop(opts)
-        if (manifest) {
-          setDegraded(manifest.degradedSqlite ?? [])
-          toast.success(t("export.success"))
-        }
-      } else {
-        const result = await exportBackupWeb(opts)
-        setDegraded(result.degradedSqlite ?? [])
-        toast.success(t("export.started"))
-      }
+      const result = await exportBackupWeb(opts)
+      setDegraded(result.degradedSqlite ?? [])
+      toast.success(t("export.started"))
     } catch (err) {
       toast.error(localize(err))
     } finally {
       setExporting(false)
       setProgress(null)
     }
-  }, [desktop, includeExternal, passphrase, passphraseMismatch, t, localize])
+  }, [includeExternal, passphrase, passphraseMismatch, t, localize])
 
   /** Decrypt once and keep the handle for the conflict scan and for staging. */
   const runPrepare = useCallback(
@@ -247,10 +224,10 @@ export function BackupSettings() {
       setInspecting(true)
       releasePrepared(source.sourceId)
       try {
-        const prepared =
-          source.origin.kind === "desktop"
-            ? await prepareBackupSourceDesktop(source.origin.path, pass)
-            : await prepareBackupSourceWeb(source.origin.uploadId, pass)
+        const prepared = await prepareBackupSourceWeb(
+          source.origin.uploadId,
+          pass
+        )
         setPreview(prepared.preview)
         setRestoreSource({ ...source, sourceId: prepared.sourceId ?? null })
       } catch (err) {
@@ -263,28 +240,6 @@ export function BackupSettings() {
     },
     [localize, releasePrepared]
   )
-
-  const handlePickDesktop = useCallback(async () => {
-    const { open } = await import("@tauri-apps/plugin-dialog")
-    const picked = await open({
-      multiple: false,
-      filters: [{ name: "MaxCode backup", extensions: ["codegbak", "zip"] }],
-    })
-    if (typeof picked !== "string") return
-    releasePrepared(restoreSource?.sourceId)
-    const name = picked.split(/[\\/]/).pop() ?? picked
-    const source: RestoreSource = {
-      origin: { kind: "desktop", path: picked },
-      name,
-      sourceId: null,
-    }
-    setRestoreSource(source)
-    setPreview(null)
-    setStaged(null)
-    setRestorePassphrase("")
-    resetExternalState()
-    await runPrepare(source, null)
-  }, [runPrepare, resetExternalState, releasePrepared, restoreSource])
 
   const handlePickWeb = useCallback(
     async (file: File) => {
@@ -377,7 +332,7 @@ export function BackupSettings() {
   /** Restart after the user has read the result panel. */
   const finishRestore = useCallback(async () => {
     setStaged(null)
-    if (desktop || isElectron()) {
+    if (isElectron()) {
       try {
         await relaunchApp()
       } catch {
@@ -408,7 +363,7 @@ export function BackupSettings() {
       toast.error(t("restore.restartTimeout"))
       setRestoring(false)
     }
-  }, [desktop, t])
+  }, [t])
 
   const performRestore = useCallback(async () => {
     if (!restoreSource?.sourceId) return
@@ -417,18 +372,12 @@ export function BackupSettings() {
     setProgress(null)
     try {
       const externalMode = buildExternalMode()
-      const result =
-        restoreSource.origin.kind === "desktop"
-          ? await stageRestoreDesktop({
-              sourceId: restoreSource.sourceId,
-              externalMode,
-            })
-          : (
-              await stageRestoreWeb({
-                sourceId: restoreSource.sourceId,
-                externalMode,
-              })
-            ).staged
+      const result = (
+        await stageRestoreWeb({
+          sourceId: restoreSource.sourceId,
+          externalMode,
+        })
+      ).staged
       // Both runtimes now show what actually happened before restarting; the
       // desktop path used to relaunch immediately and drop the whole report.
       setStaged(result)
@@ -468,21 +417,6 @@ export function BackupSettings() {
 
   // Embedded as a card inside the System settings page; the page owns the
   // outer scroll + padding, so this renders a self-contained section.
-  if (remote) {
-    return (
-      <section className="rounded-xl border bg-card p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <DatabaseBackup className="h-4 w-4" />
-          <h2 className="text-sm font-semibold">{t("title")}</h2>
-        </div>
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
-        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-500">
-          {t("remoteUnsupported")}
-        </div>
-      </section>
-    )
-  }
-
   return (
     <>
       <section className="rounded-xl border bg-card p-4 space-y-4">
@@ -609,8 +543,7 @@ export function BackupSettings() {
                 variant="outline"
                 disabled={busy || inspecting || uploading}
                 onClick={() => {
-                  if (desktop) void handlePickDesktop()
-                  else fileInputRef.current?.click()
+                  fileInputRef.current?.click()
                 }}
               >
                 {(inspecting || uploading) && (
@@ -623,19 +556,17 @@ export function BackupSettings() {
                   {restoreSource.name}
                 </span>
               )}
-              {!desktop && (
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".codegbak,.zip,application/zip"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0]
-                    if (file) void handlePickWeb(file)
-                    e.target.value = ""
-                  }}
-                />
-              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".codegbak,.zip,application/zip"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void handlePickWeb(file)
+                  e.target.value = ""
+                }}
+              />
             </div>
 
             {pendingBlocked && (
@@ -802,15 +733,7 @@ export function BackupSettings() {
             {preview?.manifest && (
               <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-2xs text-red-400">
                 <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                <span>
-                  {t("restore.replaceWarning")}
-                  {/* Keyring note applies to local desktop only: GitHub/chat
-                      tokens live in the OS keychain and are NOT in the backup,
-                      so they need re-entry after a desktop restore. In
-                      server/web mode those tokens are in tokens.json, which IS
-                      backed up. */}
-                  {desktop ? ` ${t("restore.keyringNote")}` : ""}
-                </span>
+                <span>{t("restore.replaceWarning")}</span>
               </div>
             )}
 

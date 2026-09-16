@@ -11,18 +11,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 const badgeWindow = vi.hoisted(() => ({
   setBadgeCount: vi.fn(async () => undefined),
 }))
-const getCurrentWindowMock = vi.fn(async () => null)
 const isLocalDesktopMock = vi.fn(() => true)
 
 vi.mock("@/hooks/use-is-mac", () => ({
   useIsMac: () => true,
 }))
 vi.mock("@/lib/platform", () => ({
-  getCurrentWindow: (...args: []) => getCurrentWindowMock(...args),
   isLocalDesktop: (...args: []) => isLocalDesktopMock(...args),
-}))
-vi.mock("@/lib/transport", () => ({
-  getActiveRemoteConnectionId: () => null,
 }))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({ isConversations: false }),
@@ -139,7 +134,6 @@ describe("MaxCode contract: Electron macOS Dock unread badge", () => {
     await waitFor(() =>
       expect(badgeWindow.setBadgeCount).toHaveBeenLastCalledWith(2)
     )
-    expect(getCurrentWindowMock).not.toHaveBeenCalled()
 
     act(() => {
       useConversationUnreadStore.getState().markRead(7)
@@ -172,7 +166,6 @@ describe("MaxCode contract: Electron macOS Dock unread badge", () => {
       useConversationUnreadStore.getState().noteActivity(7)
     })
 
-    expect(getCurrentWindowMock).not.toHaveBeenCalled()
     expect(badgeWindow.setBadgeCount).not.toHaveBeenCalled()
   })
 })

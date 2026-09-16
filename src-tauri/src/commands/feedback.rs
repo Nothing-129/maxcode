@@ -87,69 +87,6 @@ pub async fn set_feedback_settings_core(
     Ok(desired)
 }
 
-// -------- Tauri commands -----------------------------------------------------
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_feedback_settings(
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<FeedbackSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        Ok(load_feedback_settings(&db.conn).await)
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_feedback_settings(
-    #[cfg(feature = "tauri-runtime")] app: tauri::AppHandle,
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-    #[cfg(feature = "tauri-runtime")] config: tauri::State<'_, FeedbackRuntimeConfig>,
-    settings: FeedbackSettings,
-) -> Result<FeedbackSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        // Tauri's `app.emit` fans out to every window, so the feedback bar in an
-        // open conversation window converges even though this save originates in
-        // the separate settings window.
-        let emitter = EventEmitter::Tauri(app);
-        set_feedback_settings_core(&db.conn, &config, &emitter, settings).await
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        let _ = settings;
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
-/// Submit a live-feedback note to a running connection. Tauri-only wrapper; the
-/// web handler mirrors this. Returns the stored note so the caller can render it
-/// optimistically (it also arrives via the `FeedbackSubmitted` event).
-///
-/// `blocks` (optional) is the full prompt-block draft when the note carries
-/// image attachments; `text` stays the recorded/display form. Only the native
-/// `_session/steering` channel can deliver blocks — the manager rejects them
-/// on the pull path so an attachment is never silently dropped.
-///
-/// The gate lives in `ConnectionManager::submit_feedback`, keyed on the
-/// connection's actual `check_user_feedback` capability (not the possibly
-/// later-toggled global setting). Rejections the frontend recognizes:
-/// `FeedbackDisabled` (this session has no feedback tool), `NoActiveTurn` (turn
-/// ended → fall back to an ordinary prompt), `InvalidFeedback` (empty/oversized).
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn submit_session_feedback(
-    connection_id: String,
-    text: String,
-    blocks: Option<Vec<crate::acp::types::PromptInputBlock>>,
-    manager: tauri::State<'_, crate::acp::manager::ConnectionManager>,
-) -> Result<crate::acp::feedback::FeedbackItem, crate::acp::error::AcpError> {
-    manager.submit_feedback(&connection_id, text, blocks).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

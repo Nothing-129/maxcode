@@ -10,7 +10,6 @@ import {
   Lock,
   MessageSquarePlus,
   MessageSquareText,
-  Paperclip,
   Plus,
   Search,
   Sparkles,
@@ -49,10 +48,7 @@ export interface ComposerAddMenuProps {
    *  (a surface whose target can't receive files). */
   attachments?: Pick<
     ComposerAttachments,
-    | "showNativePaperclip"
-    | "handlePickFiles"
-    | "handleUploadLocalFiles"
-    | "setServerFilePickerOpen"
+    "handleUploadLocalFiles" | "setServerFilePickerOpen"
   > | null
   shortcuts: ComposerShortcuts
   /** The agent's own `/` commands (from a live session or a transient probe). */
@@ -137,43 +133,27 @@ export function ComposerAddMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent side="top" align="start" className="min-w-56 w-auto">
         {attachments ? (
-          attachments.showNativePaperclip ? (
+          <>
             <DropdownMenuItem
               onClick={() => {
-                attachments.handlePickFiles().catch((error) => {
+                attachments.handleUploadLocalFiles().catch((error) => {
                   console.error(
-                    "[ComposerAddMenu] pick files from menu failed:",
+                    "[ComposerAddMenu] upload local files failed:",
                     error
                   )
                 })
               }}
             >
-              <Paperclip className="size-4" />
-              {t("attachFiles")}
+              <Upload className="size-4" />
+              {t("attachLocalUpload")}
             </DropdownMenuItem>
-          ) : (
-            <>
-              <DropdownMenuItem
-                onClick={() => {
-                  attachments.handleUploadLocalFiles().catch((error) => {
-                    console.error(
-                      "[ComposerAddMenu] upload local files failed:",
-                      error
-                    )
-                  })
-                }}
-              >
-                <Upload className="size-4" />
-                {t("attachLocalUpload")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => attachments.setServerFilePickerOpen(true)}
-              >
-                <FolderSearch className="size-4" />
-                {t("attachServerFile")}
-              </DropdownMenuItem>
-            </>
-          )
+            <DropdownMenuItem
+              onClick={() => attachments.setServerFilePickerOpen(true)}
+            >
+              <FolderSearch className="size-4" />
+              {t("attachServerFile")}
+            </DropdownMenuItem>
+          </>
         ) : null}
         <DropdownMenuSub>
           <DropdownMenuSubTrigger>

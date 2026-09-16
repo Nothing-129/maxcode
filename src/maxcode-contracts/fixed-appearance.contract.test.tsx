@@ -8,7 +8,6 @@ import {
   loadConversationStatusActions,
   loadConversationStatusDisplay,
 } from "@/lib/conversation-status-prefs"
-import { openPetWindow } from "@/lib/pet/api"
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it } from "vitest"
 import { AppearanceProvider } from "@/components/appearance-provider"
@@ -114,7 +113,6 @@ describe("fixed desktop appearance", () => {
     expect(
       await setUiPreferences({ allow_conversation_status_actions: false })
     ).toEqual(DEFAULT_UI_PREFERENCES)
-    await expect(openPetWindow()).resolves.toBeUndefined()
   })
 
   it("also hides background, status, welcome cards and pet controls", () => {
@@ -125,15 +123,12 @@ describe("fixed desktop appearance", () => {
     for (const control of [
       "<WorkspaceBackgroundSection />",
       "welcomePanel.sectionTitle",
-      "<PetManagerSection />",
     ]) {
       expect(optional).toContain(control)
     }
-    expect(
-      source("src/components/layout/quick-actions-dropdown.tsx")
-    ).toContain("desktop && APPEARANCE_CUSTOMIZATION_ENABLED &&")
-    expect(
-      source("src/components/layout/quick-actions-dropdown.tsx")
-    ).toContain("{desktop && (\n        <RemoteWorkspaceManageDialog")
+    expect(settings).not.toContain("PetManagerSection")
+    const actions = source("src/components/layout/quick-actions-dropdown.tsx")
+    expect(actions).not.toContain("openPetWindow")
+    expect(actions).not.toContain("RemoteWorkspaceManageDialog")
   })
 })

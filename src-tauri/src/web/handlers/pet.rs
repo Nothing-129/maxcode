@@ -1,6 +1,4 @@
-//! Axum handlers mirroring `commands::pet`. The window management commands
-//! (open/close) are not exposed here — they are pure Tauri operations and
-//! have no equivalent in standalone-server mode.
+//! Axum handlers for shared pet assets, settings, and session data.
 
 use std::sync::Arc;
 

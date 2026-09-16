@@ -29,7 +29,6 @@ import {
   type ZoomLevel,
 } from "@/lib/theme-presets"
 import { toErrorMessage } from "@/lib/app-error"
-import { PetManagerSection } from "./pet-manager-section"
 import { FontSettingsSection } from "./font-settings-section"
 import { WorkspaceBackgroundSection } from "./workspace-background-section"
 import { CustomStyleSection } from "./custom-style-section"
@@ -78,14 +77,6 @@ export function AppearanceSettings() {
               value={theme ?? "system"}
               onValueChange={(value) => {
                 setTheme(value as ThemeMode)
-                if (
-                  typeof window !== "undefined" &&
-                  "__TAURI_INTERNALS__" in window
-                ) {
-                  import("@/lib/tauri").then((t) =>
-                    t.updateAppearanceMode(value).catch(() => {})
-                  )
-                }
               }}
             >
               <SelectTrigger className="w-56">
@@ -253,9 +244,6 @@ export function AppearanceSettings() {
                 </span>
               </label>
             </section>
-
-            {/* ===== Desktop Pet ===== */}
-            <PetManagerSection />
           </>
         )}
       </div>

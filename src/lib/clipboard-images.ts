@@ -1,7 +1,7 @@
 import { getElectronBridge } from "./electron"
 
 // Clipboard helpers for extracting pasted files/images. Split out from
-// `message-input.tsx` so the platform-specific quirks (Linux/Tauri WebKitGTK)
+// `message-input.tsx` so the platform-specific quirks (Linux browsers)
 // can be unit-tested without mounting the whole input component.
 
 // Extract pasted files from a clipboard event. On macOS/Windows pasted images
@@ -31,7 +31,7 @@ export function clipboardHasText(dataTransfer: DataTransfer | null): boolean {
   return dataTransfer.getData("text/plain").trim().length > 0
 }
 
-// Linux/Tauri (WebKitGTK) screenshot tools (e.g. WeChat) write an image to the
+// Linux screenshot tools (e.g. WeChat) write an image to the
 // system clipboard in a form the synchronous DataTransfer API can't read:
 // `clipboardData.files` is empty and `DataTransferItem.getAsFile()` returns
 // null. The async Clipboard API can still read the raw image blobs, so callers

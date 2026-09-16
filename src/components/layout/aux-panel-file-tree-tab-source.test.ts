@@ -284,32 +284,21 @@ describe("aux file tree derives its selection from the absolute tab path", () =>
   })
 })
 
-describe("aux file tree highlights the desktop drop target from native DRAG_OVER", () => {
-  const auxTreeSource = readFileSync(
-    resolve(process.cwd(), "src/components/layout/aux-panel-file-tree-tab.tsx"),
-    "utf8"
-  )
-
-  it("derives the drop highlight from the drag hit-test, OR-ed into each row", () => {
-    // WebKit swallows the target-side DOM dragover during a native desktop
-    // drag, so the directory drop highlight can't come from onDragOver — it
-    // must be hit-tested into desktopDropDir and OR-ed into each row's
-    // dropActive (folder rows by path, root by "").
-    expect(auxTreeSource).toMatch(/setDesktopDropDir\(/)
-    expect(auxTreeSource).toMatch(
-      /dropActive=\{dropActive \|\| desktopDropDir === node\.path\}/
-    )
-    expect(auxTreeSource).toMatch(/useContext\(DesktopDropDirContext\) === ""/)
+describe("aux file tree keeps DOM drag and drop on Electron and browsers", () => {
+  it("highlights eligible directories from DOM dragover", () => {
+    expect(auxSource).toMatch(/onDragOver: \(event\) =>/)
+    expect(auxSource).toMatch(/dnd\.canDropInto\(/)
+    expect(auxSource).toMatch(/setDropActive\(true\)/)
+    expect(auxSource).toMatch(/dropActive=\{dropActive\}/)
   })
 
-  it("drives the highlight from the source-side DOM drag event (clientX/Y)", () => {
-    // The primary driver: `drag` is source-side (NOT suppressed by WebKit like
-    // the target-side dragover) and reports the cursor already in CSS px, so it
-    // hit-tests elementFromPoint(clientX, clientY) with no coordinate scaling.
-    expect(auxTreeSource).toMatch(
-      /onDrag[:=].*dnd\.onEntryDrag\(event\.clientX, event\.clientY\)/
+  it("commits DOM drops and clears the source when dragging ends", () => {
+    expect(auxSource).toMatch(/onDrop: \(event\) =>/)
+    expect(auxSource).toMatch(/dnd\.onDropInto\(/)
+    expect(auxSource).toMatch(
+      /const onEntryDragEnd = useCallback\(\(\) => \{\s*dragSourceRef\.current = null/
     )
-    expect(auxTreeSource).toMatch(/elementFromPoint\(clientX, clientY\)/)
+    expect(auxSource).not.toMatch(/TauriEvent|DesktopDropDirContext/)
   })
 })
 

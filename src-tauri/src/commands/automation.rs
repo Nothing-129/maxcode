@@ -1,8 +1,5 @@
-//! Automation CRUD commands. The `*_core` fns are mode-agnostic (plain
-//! references, no `tauri::State`) and emit [`AUTOMATION_CHANGED_EVENT`] so both
-//! the Tauri command wrappers and the Axum handlers share one code path. The
-//! `#[tauri::command]` wrappers are desktop-only and build an
-//! `EventEmitter::Tauri` from the `AppHandle`.
+//! Automation CRUD business logic shared by Electron and server HTTP handlers.
+//! Mutations emit [`AUTOMATION_CHANGED_EVENT`] for all connected clients.
 
 use chrono::{DateTime, Utc};
 
@@ -103,92 +100,6 @@ pub fn automation_compute_next_run_core(
     automation_service::compute_next_run(cron, timezone, Utc::now())
 }
 
-// ── Tauri command wrappers (desktop only) ───────────────────────────────────
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_list(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<AutomationInfo>, DbError> {
-    automation_list_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_get(
-    db: tauri::State<'_, AppDatabase>,
-    id: i32,
-) -> Result<AutomationInfo, DbError> {
-    automation_get_core(&db, id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_runs(
-    db: tauri::State<'_, AppDatabase>,
-    automation_id: i32,
-    limit: u64,
-) -> Result<Vec<AutomationRunInfo>, DbError> {
-    automation_runs_core(&db, automation_id, limit).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_create(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    draft: AutomationDraft,
-) -> Result<AutomationInfo, DbError> {
-    automation_create_core(&EventEmitter::Tauri(app), &db, draft).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_update(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    id: i32,
-    draft: AutomationDraft,
-) -> Result<AutomationInfo, DbError> {
-    automation_update_core(&EventEmitter::Tauri(app), &db, id, draft).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_set_enabled(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    id: i32,
-    enabled: bool,
-) -> Result<AutomationInfo, DbError> {
-    automation_set_enabled_core(&EventEmitter::Tauri(app), &db, id, enabled).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_delete(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    id: i32,
-) -> Result<(), DbError> {
-    automation_delete_core(&EventEmitter::Tauri(app), &db, id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_mark_seen(db: tauri::State<'_, AppDatabase>) -> Result<(), DbError> {
-    automation_mark_seen_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_compute_next_run(
-    cron: String,
-    timezone: String,
-) -> Result<Option<DateTime<Utc>>, DbError> {
-    automation_compute_next_run_core(&cron, &timezone)
-}
-
 // ── engine-dispatched ops (manual run / cancel) ─────────────────────────────
 
 /// Manual "Run now" — fire immediately, bypassing the schedule. Returns the new
@@ -207,16 +118,4 @@ pub async fn automation_cancel_run_core(run_id: i32) -> Result<(), DbError> {
     let engine = crate::automation::engine()
         .ok_or_else(|| DbError::Validation("automation engine not running".to_string()))?;
     engine.cancel_run(run_id).await.map_err(DbError::Validation)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_run_now(automation_id: i32) -> Result<i32, DbError> {
-    automation_run_now_core(automation_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn automation_cancel_run(run_id: i32) -> Result<(), DbError> {
-    automation_cancel_run_core(run_id).await
 }

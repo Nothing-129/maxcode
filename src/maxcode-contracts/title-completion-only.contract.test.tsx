@@ -65,8 +65,6 @@ vi.mock("@/lib/api", () => ({
 }))
 vi.mock("@/lib/transport", () => ({
   getServerBaseUrl: () => "http://localhost:3000",
-  isDesktop: () => false,
-  isRemoteDesktopMode: () => false,
 }))
 vi.mock("@/contexts/tab-context", () => ({
   useTabActions: () => ({

@@ -8,18 +8,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 const badgeWindow = vi.hoisted(() => ({
   setBadgeCount: vi.fn(async () => undefined),
 }))
-const getCurrentWindowMock = vi.fn(async () => badgeWindow)
+const getElectronBridgeMock = vi.fn(() => badgeWindow)
 const isLocalDesktopMock = vi.fn(() => true)
 
 vi.mock("@/hooks/use-is-mac", () => ({
   useIsMac: () => true,
 }))
 vi.mock("@/lib/platform", () => ({
-  getCurrentWindow: (...args: []) => getCurrentWindowMock(...args),
   isLocalDesktop: (...args: []) => isLocalDesktopMock(...args),
 }))
-vi.mock("@/lib/transport", () => ({
-  getActiveRemoteConnectionId: () => null,
+vi.mock("@/lib/electron", () => ({
+  getElectronBridge: () => getElectronBridgeMock(),
 }))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({ isConversations: false }),
@@ -100,7 +99,7 @@ describe("ConversationUnreadSync", () => {
       useConversationUnreadStore.getState().noteActivity(7)
     })
 
-    expect(getCurrentWindowMock).not.toHaveBeenCalled()
+    expect(getElectronBridgeMock).not.toHaveBeenCalled()
     expect(badgeWindow.setBadgeCount).not.toHaveBeenCalled()
   })
 })

@@ -242,10 +242,6 @@
     "loading": "載入中...",
     "sectionTitle": "系統管理",
     "sectionDescription": "管理應用升級、開機自動啟動、網路代理與語言偏好。",
-    "autostartTitle": "開機自動啟動",
-    "autostartDescription": "登入這台電腦後自動啟動，不必每次手動開啟。",
-    "autostartSaveFailed": "開機自動啟動設定儲存失敗：{message}",
-    "autostartUnavailable": "無法讀取本機的開機自動啟動狀態：{message}",
     "proxyTitle": "網路代理",
     "proxyDescription": "啟用後，後續網路請求將優先走該代理（包含 ACP 對話、Agent 安裝、Git 遠端操作等）。",
     "loadFailed": "載入失敗：{message}",
@@ -1486,6 +1482,7 @@
       "onlineChecking": "正在查詢發佈來源…",
       "onlineFailed": "線上檢查失敗：{error}",
       "onlineUnavailable": "沒有可用的線上版本資訊。",
+      "officialRuntime": "CLI 本體：{installed}；官方最新：{latest}",
       "onlineRelease": "線上最新版本：{version}（來源：{source}）",
       "onlineUnknown": "本機版本無法比較。",
       "onlineNewer": "發現可升級版本。",
@@ -1655,9 +1652,16 @@
     "skillPacksLoading": "正在載入技能包…"
   },
   "GeneralSettings": {
+    "loginItem": {
+      "title": "開機啟動",
+      "description": "登入電腦後自動開啟 MaxCode。",
+      "needsApproval": "請在系統的登入項目或啟動應用程式中允許 MaxCode，完成啟用。",
+      "loadFailed": "無法讀取開機啟動設定，請重新聚焦此視窗重試。",
+      "saveFailed": "儲存開機啟動設定失敗，請檢查系統的登入項目或啟動應用程式設定。"
+    },
     "loading": "載入中...",
     "sectionTitle": "一般",
-    "sectionDescription": "集中管理預設終端機、渲染加速、通知與提示音以及多智能體協同等通用偏好。",
+    "sectionDescription": "集中管理預設終端機、通知與提示音以及多智能體協同等通用偏好。",
     "terminalTitle": "預設終端",
     "terminalDescription": "選擇從終端列或檔案樹開啟新終端分頁時使用的 Shell。智慧代理請求 MaxCode 代為執行整條命令列時也會使用它。",
     "terminalSystemDefault": "系統預設",
@@ -1675,12 +1679,6 @@
     "terminalCurrentShell": "目前使用：{path}",
     "colorizeCommandOutput": "為命令輸出著色",
     "colorizeCommandOutputDescription": "強制智慧代理執行的命令輸出 ANSI 色彩，使其在對話記錄中以彩色而非純文字呈現。對新建工作階段生效。",
-    "renderingDescription": "若應用出現黑屏或渲染異常（Windows 上常見於 AMD 顯示卡或部分 Intel 內顯，Linux 上常見於 NVIDIA 閉源驅動），可關閉硬體加速。僅 Windows 與 Linux 桌面端生效。",
-    "disableHardwareAcceleration": "停用硬體加速",
-    "renderingSaveFailed": "渲染設定儲存失敗：{message}",
-    "restartRequired": "已儲存，需重新啟動應用程式才會生效。",
-    "restartNow": "立即重新啟動",
-    "restartFailed": "重新啟動失敗：{message}",
     "loadFailed": "載入失敗：{message}"
   },
   "LoginPage": {
@@ -2157,8 +2155,7 @@
           "workspace": "工作區",
           "navigation": "選單導覽",
           "more": "更多"
-        },
-        "showPet": "顯示寵物"
+        }
       }
     },
     "auxPanel": {
@@ -4465,166 +4462,6 @@
       "saved": "已儲存快捷訊息",
       "deleted": "已刪除快捷訊息"
     }
-  },
-  "Pet": {
-    "badge": {
-      "running": "{count} 個執行中",
-      "waiting": "{count} 個待核准",
-      "error": "{count} 個發生錯誤"
-    },
-    "panel": {
-      "title": "活動工作階段",
-      "empty": "沒有活動工作階段",
-      "emptyHint": "正在執行或需要你處理的工作階段會顯示在這裡。",
-      "statusRunning": "執行中",
-      "statusWaiting": "等待中",
-      "statusError": "發生錯誤",
-      "subAgentOf": "子智慧代理"
-    },
-    "menu": {
-      "scale": "縮放",
-      "openManager": "管理寵物",
-      "close": "關閉"
-    },
-    "loadError": "載入寵物失敗",
-    "missingPetIdParam": "未選中任何寵物",
-    "summonButton": "寵物",
-    "manager": {
-      "title": "桌面寵物",
-      "description": "懸浮在桌面上的夥伴,使用與 Codex 相容的精靈圖。",
-      "addPet": "新增寵物",
-      "importFromCodex": "從 Codex 匯入",
-      "noPets": "暫無寵物。可以新增一隻,或從 Codex 匯入。",
-      "setActive": "設為使用中",
-      "active": "使用中",
-      "edit": "編輯",
-      "delete": "刪除",
-      "deleteConfirm": "確認刪除寵物「{name}」嗎？會從磁碟上一併移除。",
-      "summon": "召喚寵物視窗",
-      "openCodexHelp": "Codex 寵物需位於 ~/.codex/pets/ 目錄下,但未找到。",
-      "specRequirement": "精靈圖寬度必須為 1536 像素，高度需為 208 像素的整數倍（如 1872 或 2288），並為帶透明通道的 PNG 或 WebP。",
-      "form": {
-        "id": "寵物 ID",
-        "idHelp": "僅允許小寫字母、數字、'-' 和 '_',最多 64 字元。",
-        "displayName": "顯示名稱",
-        "description": "描述 (選填)",
-        "spritesheet": "精靈圖",
-        "chooseFile": "選擇檔案",
-        "replaceFile": "替換精靈圖",
-        "saveCreate": "新增寵物",
-        "saveUpdate": "儲存變更",
-        "cancel": "取消"
-      },
-      "errors": {
-        "missingId": "寵物 ID 不能為空",
-        "missingName": "顯示名稱不能為空",
-        "missingSpritesheet": "必須選擇一個精靈圖",
-        "addFailed": "新增寵物失敗",
-        "updateFailed": "更新寵物失敗",
-        "deleteFailed": "刪除寵物失敗",
-        "loadFailed": "載入寵物列表失敗",
-        "setActiveFailed": "設定活躍寵物失敗",
-        "summonFailed": "召喚寵物視窗失敗"
-      }
-    },
-    "import": {
-      "title": "從 Codex 匯入",
-      "subtitle": "在 ~/.codex/pets/ 下找到以下可匯入的寵物。",
-      "selectAll": "全選",
-      "alreadyImported": "已匯入",
-      "renameOnConflict": "衝突時自動加上 -imported 後綴",
-      "import": "匯入所選",
-      "noneFound": "未找到可匯入的 Codex 寵物。",
-      "imported": "匯入完成",
-      "failed": "匯入失敗",
-      "close": "關閉"
-    },
-    "marketplace": {
-      "openMarketplace": "寵物市集",
-      "title": "寵物市集",
-      "search": "搜尋寵物",
-      "kindFilter": {
-        "all": "全部",
-        "object": "物品",
-        "animal": "動物",
-        "person": "人物",
-        "creature": "生物"
-      },
-      "sortFilter": {
-        "latest": "最新",
-        "popular": "熱門",
-        "views": "最多瀏覽"
-      },
-      "refresh": "重新整理",
-      "install": "安裝",
-      "installing": "安裝中",
-      "reinstall": "重新安裝",
-      "reinstallConfirm": "確認覆蓋本機寵物 \"{name}\" 嗎？現有資料將被取代。",
-      "cancel": "取消",
-      "stats": {
-        "views": "瀏覽",
-        "downloads": "下載",
-        "likes": "讚"
-      },
-      "actions": {
-        "idle": "待機",
-        "running_right": "右跑",
-        "running_left": "左跑",
-        "waving": "揮手",
-        "jumping": "跳躍",
-        "failed": "失敗",
-        "waiting": "等待",
-        "running": "執行",
-        "review": "審閱"
-      },
-      "page": "第 {page} / {total} 頁",
-      "prev": "上一頁",
-      "next": "下一頁",
-      "empty": "沒有符合的寵物。",
-      "successInstalled": "已安裝 \"{name}\"",
-      "errors": {
-        "loadFailed": "載入市集失敗",
-        "installFailed": "安裝失敗",
-        "alreadyInstalled": "該寵物已存在"
-      }
-    }
-  },
-  "RemoteWorkspace": {
-    "openRemoteWorkspace": "Open remote workspace",
-    "manage": "Manage remote workspace",
-    "manageTitle": "Remote Workspace connections",
-    "empty": "No remote connections",
-    "searchPlaceholder": "Search remote workspaces",
-    "orderFailed": "Failed to save remote workspace order",
-    "dragSort": "Drag to sort",
-    "dragSortConnection": "Drag to sort {name}",
-    "newConnection": "New connection",
-    "loading": "Loading",
-    "loadingConnection": "Loading remote connection",
-    "name": "Name",
-    "baseUrl": "Service URL",
-    "token": "Access token",
-    "customHeaders": "自訂請求標頭",
-    "customHeaderName": "標頭名稱",
-    "customHeaderValue": "標頭值",
-    "addCustomHeader": "新增標頭",
-    "removeCustomHeader": "移除標頭",
-    "save": "Save",
-    "delete": "Delete",
-    "confirmDelete": {
-      "title": "Delete remote connection?",
-      "message": "This will remove \"{name}\" from this device. This action cannot be undone.",
-      "cancel": "Cancel",
-      "confirm": "Delete"
-    },
-    "saved": "Remote connection saved.",
-    "deleted": "Remote connection deleted.",
-    "loadFailed": "Failed to load remote connections",
-    "saveFailed": "Failed to save remote connection",
-    "deleteFailed": "Failed to delete remote connection",
-    "openFailed": "Failed to open remote workspace",
-    "connectionLoadFailed": "Failed to load remote connection: {message}",
-    "connectionExpired": "Remote connection \"{name}\" is expired. Update its token and reload this window."
   },
   "ServerFileBrowser": {
     "title": "選擇伺服器檔案",

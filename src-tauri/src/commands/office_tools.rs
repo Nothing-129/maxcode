@@ -435,7 +435,6 @@ async fn probe_officecli(binary: &Path) -> OfficecliProbe {
 
 // ─── Commands: detect ──────────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_detect() -> OfficecliInfo {
     match resolve_officecli() {
         Some(path) => {
@@ -499,18 +498,6 @@ fn emit_officecli_install_event(
             payload: payload.into(),
         },
     );
-}
-
-/// Tauri command: run the OfficeCLI installer, streaming progress as
-/// `app://officecli-install` events tagged with `task_id`. The work lives in
-/// `officecli_install_core` so the web handler can share it with its own emitter.
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn officecli_install(
-    task_id: String,
-    app: tauri::AppHandle,
-) -> Result<OfficecliInfo, OfficeToolsError> {
-    officecli_install_core(task_id, &EventEmitter::Tauri(app)).await
 }
 
 /// Run the vendor's official installer script (mirror-first, GitHub fallback),
@@ -892,7 +879,6 @@ fn officecli_install_command(os: InstallOs) -> OfficecliInstallCommand {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_uninstall() -> Result<OfficecliInfo, OfficeToolsError> {
     let _guard = mutation_lock().lock().await;
 
@@ -974,14 +960,12 @@ pub async fn officecli_uninstall() -> Result<OfficecliInfo, OfficeToolsError> {
 
 // ─── Commands: skill listing ───────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_list_skills() -> Vec<OfficecliSkill> {
     skill_defs().iter().map(skill_def_to_metadata).collect()
 }
 
 // ─── Commands: skill sync ──────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_sync_skills() -> Result<SkillSyncReport, OfficeToolsError> {
     let _guard = mutation_lock().lock().await;
     let binary = resolve_officecli().ok_or(OfficeToolsError::NotInstalled)?;
@@ -1151,7 +1135,6 @@ fn link_one_locked(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_link_to_agent(
     skill_id: String,
     agent_type: AgentType,
@@ -1160,7 +1143,6 @@ pub async fn officecli_skill_link_to_agent(
     link_one_locked(&skill_id, agent_type)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_unlink_from_agent(
     skill_id: String,
     agent_type: AgentType,
@@ -1209,7 +1191,6 @@ fn unlink_one_locked(skill_id: &str, agent_type: AgentType) -> Result<(), Office
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_get_install_status(
     skill_id: String,
 ) -> Result<Vec<ExpertInstallStatus>, OfficeToolsError> {
@@ -1243,7 +1224,6 @@ pub async fn officecli_skill_get_install_status(
 
 /// Apply a batch of enable/disable operations under a single lock acquisition.
 /// Mirrors `experts_apply_links`; an un-synced skill simply fails its own op.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_apply_links(
     ops: Vec<LinkOp>,
 ) -> Result<Vec<LinkOpResult>, OfficeToolsError> {
@@ -1284,7 +1264,6 @@ pub async fn officecli_skill_apply_links(
 }
 
 /// One-shot snapshot of every (skill, agent) link state for the matrix UI.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_list_all_install_statuses(
 ) -> Result<Vec<ExpertInstallStatus>, OfficeToolsError> {
     let agents = supported_agents();
@@ -1312,7 +1291,6 @@ pub async fn officecli_skill_list_all_install_statuses(
     Ok(out)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_skill_read_content(skill_id: String) -> Result<String, OfficeToolsError> {
     let skill_id = validate_skill_id(&skill_id).map_err(|e| OfficeToolsError::Io(e.to_string()))?;
     let _ = find_skill_def(&skill_id)
@@ -1347,7 +1325,6 @@ pub(crate) fn is_office_path(path: &Path) -> bool {
 ///
 /// `path` is relative to `root_path`; the resolved target is canonicalized and
 /// confined to the workspace root, mirroring `read_workspace_file_base64`.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn officecli_render_html(
     root_path: String,
     path: String,
@@ -1413,7 +1390,6 @@ pub async fn officecli_render_html(
 /// driven by officecli's own SSE refresh, so it no longer races the agent's
 /// edits for the file on disk (the bug the one-shot `view html` path caused on
 /// Windows). See `crate::office_watch`.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn start_office_watch(
     root_path: String,
     path: String,
@@ -1425,7 +1401,6 @@ pub async fn start_office_watch(
 
 /// Release one reference to the watch preview for an office file; kills the
 /// server when the last viewer goes away.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn stop_office_watch(root_path: String, path: String) -> Result<(), AppCommandError> {
     crate::office_watch::stop_office_watch_core(root_path, path)
         .await

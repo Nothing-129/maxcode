@@ -1,5 +1,7 @@
 "use client"
 
+import { ALLOW_CUSTOM_AGENT_REGISTRATION } from "@/lib/maintained-agents"
+
 import {
   useCallback,
   useEffect,
@@ -36,8 +38,7 @@ import {
   Wrench,
 } from "lucide-react"
 import { parse as parseTomlDocument } from "smol-toml"
-import { isDesktop, openUrl } from "@/lib/platform"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
+import { openUrl } from "@/lib/platform"
 import { toast } from "sonner"
 import {
   customAgentId,
@@ -103,8 +104,6 @@ import {
   acpUpdateAgentConfig,
   acpUpdateAgentEnv,
   acpUpdateHermesConfig,
-  acpRevealHermesHome,
-  acpOpenHermesSetupTerminal,
   codexPollDeviceCode,
   codexRequestDeviceCode,
   listModelProviders,
@@ -3928,6 +3927,18 @@ function applyVersionExtras(
   }
 
   const auto = extras.autoUpdate
+  if (agent.enabled && auto?.runtimeLatestVersion) {
+    notes.push(
+      acpText(
+        "version.officialRuntime",
+        "Native CLI: {installed}; latest official: {latest}",
+        {
+          installed: auto.runtimeVersion ?? "—",
+          latest: auto.runtimeLatestVersion,
+        }
+      )
+    )
+  }
   if (
     agent.enabled &&
     auto &&
@@ -5308,8 +5319,8 @@ export function AcpAgentSettings() {
    * they just cannot be resumed. Deleting them is a separate, explicit action.
    *
    * Confirmation happens in the `removeConfirmAgent` AlertDialog, never via
-   * `window.confirm`: the Tauri webview does not reliably block on the native
-   * prompt, so the deletion used to run before the user answered.
+   * `window.confirm`: the retired Tauri webview did not reliably block on the
+   * native prompt, so deletion could run before the user answered.
    */
   const handleRemoveCustomAgent = useCallback(
     async (agent: AcpAgentInfo) => {
@@ -5742,8 +5753,6 @@ export function AcpAgentSettings() {
       ? (HERMES_PROVIDERS.find((p) => p.id === selectedDraft.hermesProvider) ??
         null)
       : null
-  const hermesCanUseNativeSetup =
-    isDesktop() && getActiveRemoteConnectionId() === null
   const selectedOpenCodeConfig = useMemo(() => {
     if (selectedAgentKind !== "open_code" || !locale) return null
     return extractOpenCodeConfigValues(
@@ -6681,38 +6690,6 @@ export function AcpAgentSettings() {
     },
     [selectedAgent, selectedDraft, refreshAgents, t]
   )
-
-  // Hermes's interactive setup (`--setup` / `hermes model`) needs a real TTY +
-  // browser, so launch it in an external OS terminal on local desktop (the
-  // backend builds the exact command). Fall back to copying the displayed
-  // command (web / remote, or if the launch fails).
-  const runHermesSetupCommand = useCallback(
-    async (kind: "setup" | "model", displayCommand: string) => {
-      const native = isDesktop() && getActiveRemoteConnectionId() === null
-      if (native) {
-        try {
-          await acpOpenHermesSetupTerminal(kind)
-          return
-        } catch (err) {
-          console.error("[Settings] open hermes setup terminal failed:", err)
-        }
-      }
-      if (displayCommand) {
-        const ok = await copyTextToClipboard(displayCommand)
-        if (ok) toast.success(t("hermes.commandCopied"))
-      }
-    },
-    [t]
-  )
-
-  const handleRevealHermesHome = useCallback(async () => {
-    try {
-      await acpRevealHermesHome()
-    } catch (err) {
-      console.error("[Settings] reveal hermes home failed:", err)
-      toast.error(toErrorMessage(err))
-    }
-  }, [])
 
   const handleClineFieldChange = useCallback(
     (
@@ -7876,22 +7853,26 @@ export function AcpAgentSettings() {
             {t("description")}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="h-8 text-xs shrink-0"
-          onClick={() => setAddCustomOpen(true)}
-        >
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          {t("addCustomAgent")}
-        </Button>
+        {ALLOW_CUSTOM_AGENT_REGISTRATION && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 text-xs shrink-0"
+            onClick={() => setAddCustomOpen(true)}
+          >
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            {t("addCustomAgent")}
+          </Button>
+        )}
       </div>
 
-      <AddCustomAgentDialog
-        open={addCustomOpen}
-        onOpenChange={setAddCustomOpen}
-        onAdded={() => void refreshAgents()}
-      />
+      {ALLOW_CUSTOM_AGENT_REGISTRATION && (
+        <AddCustomAgentDialog
+          open={addCustomOpen}
+          onOpenChange={setAddCustomOpen}
+          onAdded={() => void refreshAgents()}
+        />
+      )}
 
       {/* Keyed by the id so switching agents never leaks a previous form. */}
       {editCustomAgentId !== null && (
@@ -10748,42 +10729,6 @@ supports_websockets = true`}
                           {t("hermes.setupHint")}
                         </p>
                       </div>
-                      {hermesCanUseNativeSetup && (
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              runHermesSetupCommand(
-                                "setup",
-                                selectedDraft.hermesSetupCommand
-                              )
-                            }
-                          >
-                            <Wrench className="h-3.5 w-3.5" />
-                            {t("hermes.runSetup")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() =>
-                              runHermesSetupCommand(
-                                "model",
-                                selectedDraft.hermesModelCommand
-                              )
-                            }
-                          >
-                            {t("hermes.configureModel")}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={handleRevealHermesHome}
-                          >
-                            {t("hermes.openConfigFolder")}
-                          </Button>
-                        </div>
-                      )}
                       {selectedDraft.hermesSetupCommand && (
                         <div className="flex items-center gap-2">
                           <code className="flex-1 overflow-x-auto rounded bg-muted px-2 py-1 text-2xs font-mono whitespace-nowrap">

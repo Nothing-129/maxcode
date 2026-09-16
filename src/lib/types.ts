@@ -72,29 +72,6 @@ export interface AppCommandError {
   i18n_params?: Record<string, string> | null
 }
 
-export interface RemoteWorkspaceHeader {
-  name: string
-  value: string
-}
-
-export interface RemoteWorkspaceConnection {
-  id: number
-  name: string
-  base_url: string
-  token: string
-  headers: RemoteWorkspaceHeader[]
-  sort_order: number
-  created_at: string
-  updated_at: string
-}
-
-export interface RemoteWorkspaceConnectionInput {
-  name: string
-  baseUrl: string
-  token: string
-  headers: RemoteWorkspaceHeader[]
-}
-
 export interface ConversationSummary {
   id: string
   agent_type: AgentType
@@ -3750,17 +3727,6 @@ export interface TerminalShellOption {
 export interface AvailableTerminalShells {
   options: TerminalShellOption[]
   resolved_shell: string
-}
-
-export interface SystemRenderingSettings {
-  disable_hardware_acceleration: boolean
-}
-
-/** "Launch at login". The OS registration is the source of truth, so an update
- * returns the state the system actually settled on — which can differ from what
- * was requested (e.g. Windows Task Manager vetoing the Run entry). */
-export interface SystemAutostartSettings {
-  enabled: boolean
 }
 
 // --- Logging ---

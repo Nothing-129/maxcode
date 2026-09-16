@@ -60,7 +60,7 @@ export function RightEdgeChrome() {
       style={{ width: rightChromeClusterWidth(zoomLevel) }}
     >
       {/* Empty head is a window-drag region; buttons stay flush right. */}
-      <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+      <div data-drag-region className="h-full min-w-0 flex-1" />
       {/* Keep navigation discoverable for mouse, touch, and keyboard users. */}
       <div className="flex items-center gap-1 rounded-full p-2 pr-3 text-muted-foreground">
         {isConversations && (

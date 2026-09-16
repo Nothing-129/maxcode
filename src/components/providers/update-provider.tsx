@@ -18,7 +18,6 @@ import {
   checkAppUpdateInfo,
   confirmRollbackVersion,
   getAppUpdateState,
-  getCurrentAppVersion,
   getRunningServerVersion,
   getServerUpdateStatus,
   normalizeAppUpdateError,
@@ -27,7 +26,6 @@ import {
   rollbackServer,
   startAppUpdate,
   subscribeAppUpdateState,
-  usesTauriUpdater,
   usesElectronInstaller,
   waitForServerHealthy,
 } from "@/lib/updater"
@@ -119,8 +117,8 @@ export interface UpdateContextValue {
   liveProgress: boolean
   runtime: string | undefined
   rollbackAvailable: boolean
-  /** This client can actually drive an in-place install — desktop (Tauri
-   * plugin) or a server speaking the live-progress protocol. When false the UI
+  /** This client can drive an in-place install through the Electron bridge
+   * or a server speaking the live-progress protocol. When false the UI
    * offers a "view release" link instead. */
   canInstallInPlace: boolean
   /** Version the user dismissed the badge for, if any. */
@@ -314,10 +312,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   // live event (or vice-versa). seq is per-process and resets to 0 in a new
   // process; on a reconnect the high-water is reset so the new process's
   // snapshot is accepted (see `resync`). The effective transport is fixed for
-  // this provider's lifetime: a window is born remote (URL `remoteConnectionId`,
-  // preserved across settings navigation) or local and stays so; switching to a
-  // different backend goes through `RemoteConnectionGate`'s loading state, which
-  // unmounts and remounts this provider. So arming once at mount is correct.
+  // this provider's lifetime, so arming once at mount is sufficient.
   const latestSeqRef = useRef(0)
   // Bumped on every reconnect reset, so a snapshot fetch started before the
   // reset cannot apply after it.
@@ -529,29 +524,24 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
   const runRefresh = useCallback(async () => {
     let running: string | null = null
     try {
-      if (usesTauriUpdater()) {
-        const version = await getCurrentAppVersion()
-        running = version === "unknown" ? null : version
-      } else {
-        try {
-          const status = await getServerUpdateStatus()
-          if (status) {
-            running = status.currentVersion
-            if (mountedRef.current) {
-              setSelfUpdateSupported(status.selfUpdateSupported)
-              setLiveProgress(status.liveProgress ?? false)
-              setRuntime(status.runtime)
-              setRollbackAvailable(status.rollbackAvailable)
-            }
+      try {
+        const status = await getServerUpdateStatus()
+        if (status) {
+          running = status.currentVersion
+          if (mountedRef.current) {
+            setSelfUpdateSupported(status.selfUpdateSupported)
+            setLiveProgress(status.liveProgress ?? false)
+            setRuntime(status.runtime)
+            setRollbackAvailable(status.rollbackAvailable)
           }
-        } catch (err) {
-          // A newer client talking to an older server 404s here. That must fall
-          // through to /health (present on every build) rather than abort the
-          // whole refresh — same fail-open contract as getCurrentAppVersion().
-          console.error("[Update] status route unavailable:", err)
         }
-        if (!running) running = await getRunningServerVersion()
+      } catch (err) {
+        // A newer client talking to an older server 404s here. That must fall
+        // through to /health (present on every build) rather than abort the
+        // whole refresh — same fail-open contract as getCurrentAppVersion().
+        console.error("[Update] status route unavailable:", err)
       }
+      if (!running) running = await getRunningServerVersion()
     } catch (err) {
       // Never fatal: this only enriches what the UI can show.
       console.error("[Update] local status refresh failed:", err)
@@ -698,7 +688,7 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     setIsRestarting(true)
     // Desktop relaunches the whole app — nothing to verify, the new process
     // boots into the updated build.
-    if (usesTauriUpdater() || usesElectronInstaller()) {
+    if (usesElectronInstaller()) {
       try {
         await restartApp()
         // Success: the app is relaunching; stay busy until it does.
@@ -896,11 +886,9 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     restartCountdown !== null ||
     state.status === "restarting"
 
-  // Desktop always drives the Tauri updater; a server only when it speaks the
-  // detached live-progress protocol (older ones would block on the legacy
-  // endpoint), so anything else falls back to a "view release" link.
-  const canInstallInPlace =
-    usesTauriUpdater() || (selfUpdateSupported && liveProgress)
+  // Install only when the Electron bridge or server reports support for the
+  // detached live-progress protocol; otherwise offer the release link.
+  const canInstallInPlace = selfUpdateSupported && liveProgress
 
   const value = useMemo<UpdateContextValue>(
     () => ({

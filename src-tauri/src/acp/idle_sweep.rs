@@ -36,10 +36,8 @@ pub fn idle_timeout_from_env() -> Option<Duration> {
 }
 
 /// Long-running task that calls `ConnectionManager::sweep_idle` on a
-/// fixed interval. The caller spawns the returned future onto whichever
-/// runtime they manage (`tokio::spawn` from inside an async context,
-/// `tauri::async_runtime::spawn` from a Tauri `setup` callback that runs
-/// outside the runtime).
+/// fixed interval. The caller spawns the returned future onto its Tokio
+/// runtime with `tokio::spawn`.
 ///
 /// Never exits on its own — the caller drops the spawned handle when
 /// shutting down (process exit cleans up everything).

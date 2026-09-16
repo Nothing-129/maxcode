@@ -2,6 +2,72 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.maintained-catalog",
+      "category": "product",
+      "description": "Only Claude Code, Codex, Grok, Pi, DeepSeek and Google Antigravity appear in settings and agent pickers or receive background updates. Filter old UI caches and hide custom registration; retain all historical types, parsers and adapter implementations. Upstream reviews exclude other agents specific changes.",
+      "origins": ["worktree-2026-09-17"],
+      "paths": [
+        "src/lib/maintained-agents.ts",
+        "src/lib/resolve-default-agent.ts",
+        "src/lib/api.ts",
+        "src/lib/enabled-acp-agents-storage.ts",
+        "src/hooks/use-sorted-available-agents.ts",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/agent_auto_updates.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/maintained-agents.contract.test.ts"]
+    },
+    {
+      "id": "chat.unified-code-card",
+      "category": "product",
+      "description": "Chat code fences use one rounded neutral surface without a header/body divider, with compact language labels and action icons. Dark mode and workspace backgrounds preserve the unified surface while syntax colors, line numbers and copy/download actions remain available.",
+      "origins": ["worktree-2026-09-16"],
+      "paths": ["src/app/globals.css"],
+      "contracts": ["src/maxcode-contracts/chat-code-card.contract.test.ts"]
+    },
+    {
+      "id": "desktop.launch-at-login",
+      "category": "platform",
+      "description": "Packaged macOS and Windows Electron apps expose an opt-in launch-at-login switch in General settings. Trusted IPC uses native login items, validates booleans, reads back OS state and reports approval or save failures. Focus refreshes external system changes. Browser, Linux and development builds cannot register startup entries.",
+      "origins": ["worktree-2026-09-16"],
+      "paths": [
+        "electron/login-item.cjs",
+        "electron/main.cjs",
+        "electron/preload.cjs",
+        "src/lib/electron.ts",
+        "src/components/settings/login-item-settings.tsx",
+        "src/components/settings/general-settings.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-login-item.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "desktop.tauri-retirement",
+      "category": "platform",
+      "description": "Electron is the only desktop shell; both Electron and browser clients use the shared HTTP/WebSocket backend. Tauri runtime dependencies, native IPC, transparent pet windows, native remote-workspace connection management and legacy launch-at-login implementation stay retired. Shared Rust server/MCP, system keyring, existing data, icons, mobile access and server minisign signatures remain compatible; the Tauri CLI is retained only as the server signing utility.",
+      "origins": ["worktree-2026-09-16"],
+      "paths": [
+        "package.json",
+        "pnpm-lock.yaml",
+        "src-tauri/Cargo.toml",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/web/event_bridge.rs",
+        "src/lib/platform.ts",
+        "src/lib/transport/",
+        "src/components/settings/system-network-settings.tsx",
+        "src/components/settings/appearance-settings.tsx",
+        "src/components/layout/quick-actions-dropdown.tsx",
+        ".github/workflows/release.yml",
+        "electron/",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/tauri-retirement.contract.test.ts"]
+    },
+    {
       "id": "android.direct-web-links",
       "category": "product",
       "description": "Android saves links locally without health or token validation; token is optional, deep-link paths/query/fragment are preserved and opened directly. Legacy MaxCode bootstrap is limited to roots with nonempty tokens. Generic pages reserve native status-bar/cutout and keyboard insets instead of using immersive MaxCode CSS.",
@@ -22,7 +88,7 @@
     {
       "id": "settings.agent-auto-updates",
       "category": "runtime",
-      "description": "All enabled installed built-in and custom agents update automatically via npm, binary archives or isolated Python tools from the npm mirror after startup and every six hours. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status is shown in the Version Status category, and manual install serialization and retry backoff are preserved.",
+      "description": "Enabled installed agents in the six-agent MaxCode maintenance scope update automatically via official npm releases, binary archives or isolated Python tools after startup and every six hours. Codex, Claude Code and Pi track and verify official vendor CLI versions independently of adapter versions and launch the isolated runtime via adapter-supported environment variables. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status is shown in the Version Status category, and manual install serialization and retry backoff are preserved.",
       "origins": ["worktree-2026-09-14"],
       "paths": [
         "src-tauri/src/commands/agent_auto_updates.rs",
@@ -42,13 +108,14 @@
         "src/i18n/messages/"
       ],
       "contracts": [
-        "src/maxcode-contracts/agent-auto-updates.contract.test.tsx"
+        "src/maxcode-contracts/agent-auto-updates.contract.test.tsx",
+        "src/maxcode-contracts/agent-official-runtimes.contract.test.ts"
       ]
     },
     {
       "id": "settings.agent-npm-mirror",
       "category": "runtime",
-      "description": "Agent npm installs, upgrades, retries, online update checks and custom package metadata use the aifalao registry. Install logs show the selected registry.",
+      "description": "Manual agent npm installs, upgrades, retries and custom package metadata use the aifalao registry. Online checks and automatic installs use the official npm registry. Install logs show the selected registry.",
       "origins": ["worktree-2026-09-14"],
       "paths": [
         "src-tauri/src/acp/mod.rs",
@@ -476,7 +543,7 @@
     {
       "id": "desktop.electron-dock-badge",
       "category": "product",
-      "description": "macOS Electron Dock badge reflects visible unread conversations and clears when read, through validated native IPC while preserving Tauri behavior.",
+      "description": "macOS Electron Dock badge reflects visible unread conversations and clears when read, through validated native IPC.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/conversations/conversation-unread-sync.tsx",
@@ -879,12 +946,11 @@
     {
       "id": "desktop.electron-release-pipeline",
       "category": "release",
-      "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Server minisign compatibility remains; legacy Tauri CI is manual-only.",
+      "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Server minisign compatibility remains; legacy Tauri shell and CI are retired.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         ".github/workflows/test.yml",
         ".github/workflows/release.yml",
-        ".github/workflows/legacy-tauri.yml",
         "electron/scripts/",
         "electron/electron-builder.cjs",
         "src-tauri/tests/credential_helper_subprocess.rs",
@@ -1022,7 +1088,6 @@
         "src/components/chat/composer/use-composer-attachments.ts",
         "src-tauri/src/web/handlers/files.rs",
         "src-tauri/src/web/router.rs",
-        "src-tauri/src/commands/remote_proxy.rs",
         "src-tauri/src/acp/prompt_hydration.rs"
       ],
       "contracts": [
@@ -1273,7 +1338,7 @@
         "src/components/ai-elements/message.tsx",
         "src/components/message/file-reference-actions.tsx",
         "src/lib/language-detect.ts",
-        "src-tauri/capabilities/default.json"
+        "electron/preload.cjs"
       ],
       "contracts": ["src/maxcode-contracts/local-paths.contract.test.ts"]
     },
@@ -1336,7 +1401,7 @@
     {
       "id": "web.pwa-installation",
       "category": "platform",
-      "description": "Web deployments expose an installable standalone PWA while Tauri avoids service-worker registration.",
+      "description": "Web deployments expose an installable standalone PWA while Electron avoids service-worker registration.",
       "origins": ["cbd85449", "bddabc51"],
       "paths": [
         "src/app/manifest.ts",
@@ -1361,8 +1426,8 @@
         "src/components/layout/status-bar-update.tsx",
         "src/components/providers/update-provider.tsx",
         "src/lib/update-check-storage.ts",
-        "src-tauri/src/commands/app_update.rs",
-        "src-tauri/tauri.conf.json"
+        "src-tauri/src/web/handlers/app_update.rs",
+        "electron/electron-builder.cjs"
       ],
       "contracts": [
         "src/maxcode-contracts/web-update-platform.contract.test.ts"
@@ -1532,13 +1597,13 @@
         "public/icon-32x32.png",
         "public/icon-128x128.png",
         "src-tauri/icons/",
-        "src-tauri/tauri.conf.json",
+        "electron/electron-builder.cjs",
         "install.sh",
         "install.ps1",
         "src/contexts/acp-connections-context.tsx",
         "src/contexts/tasks-view-context.tsx",
         "src/i18n/messages/",
-        "src-tauri/src/commands/notification.rs"
+        "electron/main.cjs"
       ],
       "contracts": [
         "src/maxcode-contracts/web-update-platform.contract.test.ts"
@@ -1560,7 +1625,7 @@
       ],
       "paths": [
         ".github/workflows/release.yml",
-        "src-tauri/tauri.conf.json",
+        "electron/electron-builder.cjs",
         "src-tauri/src/update/",
         "install.sh",
         "install.ps1"
@@ -1630,12 +1695,11 @@
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/lib/ui-preferences-store.ts",
-        "src/lib/pet/api.ts",
+        "src/components/settings/appearance-settings.tsx",
         "src/components/layout/quick-actions-dropdown.tsx",
         "src/lib/appearance-policy.ts",
         "src/lib/appearance-script.ts",
-        "src/components/appearance-provider.tsx",
-        "src/components/settings/appearance-settings.tsx"
+        "src/components/appearance-provider.tsx"
       ],
       "contracts": ["src/maxcode-contracts/fixed-appearance.contract.test.tsx"]
     },
@@ -2013,6 +2077,14 @@
       "description": "The Teambition task-board integration was added and then intentionally removed before this inventory was established.",
       "origins": ["16f8bbbb", "worktree-2026-08-31"],
       "reason": "The current product no longer exposes the route, settings, frontend components, API, or backend handlers; it must not be resurrected during an upstream merge."
+    },
+    {
+      "id": "desktop.legacy-tauri-shell",
+      "category": "platform",
+      "status": "retired",
+      "description": "Legacy Tauri desktop shell, transparent desktop pet windows, native remote-workspace connection manager and launch-at-login settings.",
+      "origins": ["worktree-2026-09-16"],
+      "reason": "Explicitly discontinued after adopting Electron. Do not restore runtime plugins, IPC paths, legacy build/CI entries or these UI surfaces during upstream integration. Keep shared Rust business logic, historical data and the compatible server signing utility."
     }
   ]
 }

@@ -242,10 +242,6 @@
     "loading": "جارٍ التحميل...",
     "sectionTitle": "إدارة النظام",
     "sectionDescription": "إدارة تحديثات التطبيق والتشغيل عند تسجيل الدخول ووكيل الشبكة وتفضيلات اللغة.",
-    "autostartTitle": "التشغيل عند تسجيل الدخول",
-    "autostartDescription": "يبدأ التشغيل تلقائيًا بعد تسجيل الدخول إلى هذا الجهاز.",
-    "autostartSaveFailed": "فشل حفظ إعدادات التشغيل عند تسجيل الدخول: {message}",
-    "autostartUnavailable": "تعذّر قراءة إدخال بدء التشغيل على هذا الجهاز: {message}",
     "proxyTitle": "وكيل الشبكة",
     "proxyDescription": "عند التفعيل، ستُفضَّل إعدادات هذا الوكيل في طلبات الشبكة اللاحقة (بما في ذلك دردشة ACP وتثبيت الوكلاء وعمليات Git البعيدة).",
     "loadFailed": "فشل التحميل: {message}",
@@ -1486,6 +1482,7 @@
       "onlineChecking": "جارٍ التحقق من مصدر الإصدار…",
       "onlineFailed": "فشل التحقق عبر الإنترنت: {error}",
       "onlineUnavailable": "لا تتوفر معلومات إصدار عبر الإنترنت.",
+      "officialRuntime": "CLI الأصلي: {installed}؛ أحدث إصدار رسمي: {latest}",
       "onlineRelease": "أحدث إصدار منشور: {version} ({source})",
       "onlineUnknown": "لا يمكن مقارنة الإصدار المحلي.",
       "onlineNewer": "تتوفر ترقية.",
@@ -1655,9 +1652,16 @@
     "skillPacksLoading": "جارٍ تحميل حزم المهارات…"
   },
   "GeneralSettings": {
+    "loginItem": {
+      "title": "التشغيل عند تسجيل الدخول",
+      "description": "فتح MaxCode تلقائيًا عند تسجيل الدخول إلى الكمبيوتر.",
+      "needsApproval": "اسمح لتطبيق MaxCode في عناصر تسجيل الدخول أو تطبيقات بدء التشغيل في النظام.",
+      "loadFailed": "تعذرت قراءة إعداد بدء التشغيل. عُد إلى هذه النافذة لإعادة المحاولة.",
+      "saveFailed": "تعذر حفظ إعداد بدء التشغيل. تحقق من عناصر تسجيل الدخول أو تطبيقات بدء التشغيل في النظام."
+    },
     "loading": "جارٍ التحميل...",
     "sectionTitle": "عام",
-    "sectionDescription": "تفضيلات موحّدة للطرفية الافتراضية وتسريع العرض والإشعارات وتفويض الوكلاء المتعدّدين.",
+    "sectionDescription": "تفضيلات موحّدة للطرفية الافتراضية والإشعارات وتفويض الوكلاء المتعدّدين.",
     "terminalTitle": "الطرفية الافتراضية",
     "terminalDescription": "اختر الصدفة المستخدمة عند فتح علامات تبويب طرفية جديدة من شريط الطرفية أو شجرة الملفات. تستخدمها الوكلاء أيضًا عندما تطلب من MaxCode تنفيذ سطر أوامر كامل نيابةً عنها.",
     "terminalSystemDefault": "افتراضي النظام",
@@ -1675,12 +1679,6 @@
     "terminalCurrentShell": "قيد الاستخدام: {path}",
     "colorizeCommandOutput": "تلوين مُخرجات الأوامر",
     "colorizeCommandOutputDescription": "فرض ألوان ANSI على الأوامر التي تنفّذها الوكلاء، بحيث تظهر مخرجاتها ملوّنة في السجل بدلاً من نص عادي. يسري على الجلسات الجديدة.",
-    "renderingDescription": "أوقف تشغيل تسريع الأجهزة إذا ظهرت شاشة سوداء أو أخطاء في العرض (شائع على بعض كروت AMD أو كروت Intel المدمجة على ويندوز، وعلى تعريف NVIDIA المغلق على لينكس). يسري على إصدارات سطح المكتب لويندوز ولينكس فقط.",
-    "disableHardwareAcceleration": "تعطيل تسريع الأجهزة",
-    "renderingSaveFailed": "فشل حفظ إعدادات العرض: {message}",
-    "restartRequired": "تم الحفظ. أعد تشغيل التطبيق ليصبح التغيير نافذًا.",
-    "restartNow": "إعادة التشغيل الآن",
-    "restartFailed": "فشل إعادة التشغيل: {message}",
     "loadFailed": "فشل التحميل: {message}"
   },
   "LoginPage": {
@@ -2157,8 +2155,7 @@
           "workspace": "مساحة العمل",
           "navigation": "التنقل",
           "more": "المزيد"
-        },
-        "showPet": "إظهار الحيوان الأليف"
+        }
       }
     },
     "auxPanel": {
@@ -4465,166 +4462,6 @@
       "saved": "تم حفظ الرسالة السريعة",
       "deleted": "تم حذف الرسالة السريعة"
     }
-  },
-  "Pet": {
-    "badge": {
-      "running": "{count} قيد التشغيل",
-      "waiting": "{count} في انتظار الموافقة",
-      "error": "{count} بها خطأ"
-    },
-    "panel": {
-      "title": "الجلسات النشطة",
-      "empty": "لا توجد جلسات نشطة",
-      "emptyHint": "تظهر هنا الوكلاء قيد التشغيل وتلك التي تحتاج إليك.",
-      "statusRunning": "قيد التشغيل",
-      "statusWaiting": "في الانتظار",
-      "statusError": "خطأ",
-      "subAgentOf": "وكيل فرعي لـ"
-    },
-    "menu": {
-      "scale": "الحجم",
-      "openManager": "إدارة الحيوانات الأليفة",
-      "close": "إغلاق"
-    },
-    "loadError": "فشل تحميل الحيوان الأليف",
-    "missingPetIdParam": "لم يتم اختيار حيوان أليف",
-    "summonButton": "حيوان أليف",
-    "manager": {
-      "title": "حيوانات سطح المكتب",
-      "description": "رفقاء عائمون لسطح المكتب باستخدام صفائح سبرايت متوافقة مع Codex.",
-      "addPet": "إضافة حيوان",
-      "importFromCodex": "استيراد من Codex",
-      "noPets": "لا يوجد حيوان أليف. أضف واحدًا أو استورد من Codex.",
-      "setActive": "تفعيل",
-      "active": "نشط",
-      "edit": "تعديل",
-      "delete": "حذف",
-      "deleteConfirm": "حذف الحيوان «{name}»؟ سيُحذف من القرص.",
-      "summon": "استدعاء نافذة الحيوان",
-      "openCodexHelp": "يجب أن توجد حيوانات Codex داخل ~/.codex/pets/. لم يُعثر على شيء.",
-      "specRequirement": "يجب أن يكون السبرايت بعرض 1536 بكسل وارتفاع من مضاعفات 208 بكسل (مثل 1872 أو 2288)، بصيغة PNG أو WebP مع شفافية.",
-      "form": {
-        "id": "معرف الحيوان",
-        "idHelp": "حروف صغيرة، أرقام، '-' و '_' فقط. حد أقصى 64 حرفًا.",
-        "displayName": "اسم العرض",
-        "description": "الوصف (اختياري)",
-        "spritesheet": "صفيحة السبرايت",
-        "chooseFile": "اختر ملفًا",
-        "replaceFile": "استبدال السبرايت",
-        "saveCreate": "إضافة الحيوان",
-        "saveUpdate": "حفظ التغييرات",
-        "cancel": "إلغاء"
-      },
-      "errors": {
-        "missingId": "المعرف مطلوب",
-        "missingName": "الاسم مطلوب",
-        "missingSpritesheet": "السبرايت مطلوب",
-        "addFailed": "فشل الإضافة",
-        "updateFailed": "فشل التحديث",
-        "deleteFailed": "فشل الحذف",
-        "loadFailed": "فشل تحميل قائمة الحيوانات",
-        "setActiveFailed": "فشل تعيين الحيوان النشط",
-        "summonFailed": "فشل فتح نافذة الحيوان"
-      }
-    },
-    "import": {
-      "title": "استيراد من Codex",
-      "subtitle": "الحيوانات الأليفة المتاحة ضمن ~/.codex/pets/.",
-      "selectAll": "تحديد الكل",
-      "alreadyImported": "تم استيراده مسبقًا",
-      "renameOnConflict": "تسمية المتعارضين بإلحاق -imported",
-      "import": "استيراد المحدد",
-      "noneFound": "لا توجد حيوانات Codex قابلة للاستيراد.",
-      "imported": "تم الاستيراد بنجاح",
-      "failed": "فشل الاستيراد",
-      "close": "إغلاق"
-    },
-    "marketplace": {
-      "openMarketplace": "متجر الحيوانات الأليفة",
-      "title": "متجر الحيوانات الأليفة",
-      "search": "ابحث عن حيوان أليف",
-      "kindFilter": {
-        "all": "الكل",
-        "object": "كائن",
-        "animal": "حيوان",
-        "person": "شخصية",
-        "creature": "مخلوق"
-      },
-      "sortFilter": {
-        "latest": "الأحدث",
-        "popular": "الأكثر شيوعاً",
-        "views": "الأكثر مشاهدة"
-      },
-      "refresh": "تحديث",
-      "install": "تثبيت",
-      "installing": "جاري التثبيت",
-      "reinstall": "إعادة التثبيت",
-      "reinstallConfirm": "هل تريد استبدال الحيوان الأليف المحلي \"{name}\"؟ ستُستبدل البيانات الحالية.",
-      "cancel": "إلغاء",
-      "stats": {
-        "views": "المشاهدات",
-        "downloads": "التنزيلات",
-        "likes": "الإعجابات"
-      },
-      "actions": {
-        "idle": "خامل",
-        "running_right": "ركض يمين",
-        "running_left": "ركض يسار",
-        "waving": "تلويح",
-        "jumping": "قفز",
-        "failed": "فشل",
-        "waiting": "انتظار",
-        "running": "ركض",
-        "review": "مراجعة"
-      },
-      "page": "صفحة {page} من {total}",
-      "prev": "السابق",
-      "next": "التالي",
-      "empty": "لا يوجد حيوان أليف مطابق.",
-      "successInstalled": "تم تثبيت \"{name}\"",
-      "errors": {
-        "loadFailed": "تعذّر تحميل المتجر",
-        "installFailed": "فشل التثبيت",
-        "alreadyInstalled": "هذا الحيوان موجود بالفعل"
-      }
-    }
-  },
-  "RemoteWorkspace": {
-    "openRemoteWorkspace": "Open remote workspace",
-    "manage": "Manage remote workspace",
-    "manageTitle": "Remote Workspace connections",
-    "empty": "No remote connections",
-    "searchPlaceholder": "Search remote workspaces",
-    "orderFailed": "Failed to save remote workspace order",
-    "dragSort": "Drag to sort",
-    "dragSortConnection": "Drag to sort {name}",
-    "newConnection": "New connection",
-    "loading": "Loading",
-    "loadingConnection": "Loading remote connection",
-    "name": "Name",
-    "baseUrl": "Service URL",
-    "token": "Access token",
-    "customHeaders": "ترويسات مخصصة",
-    "customHeaderName": "اسم الترويسة",
-    "customHeaderValue": "قيمة الترويسة",
-    "addCustomHeader": "إضافة ترويسة",
-    "removeCustomHeader": "إزالة ترويسة",
-    "save": "Save",
-    "delete": "Delete",
-    "confirmDelete": {
-      "title": "Delete remote connection?",
-      "message": "This will remove \"{name}\" from this device. This action cannot be undone.",
-      "cancel": "Cancel",
-      "confirm": "Delete"
-    },
-    "saved": "Remote connection saved.",
-    "deleted": "Remote connection deleted.",
-    "loadFailed": "Failed to load remote connections",
-    "saveFailed": "Failed to save remote connection",
-    "deleteFailed": "Failed to delete remote connection",
-    "openFailed": "Failed to open remote workspace",
-    "connectionLoadFailed": "Failed to load remote connection: {message}",
-    "connectionExpired": "Remote connection \"{name}\" is expired. Update its token and reload this window."
   },
   "ServerFileBrowser": {
     "title": "اختر ملفًا من الخادم",

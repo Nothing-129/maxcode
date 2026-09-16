@@ -10,7 +10,6 @@ import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { AppToaster } from "@/components/ui/app-toaster"
 import { getFolder } from "@/lib/api"
 import type { FolderDetail } from "@/lib/types"
-import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
 
 const TOAST_DURATION_MS = 6000
 
@@ -130,9 +129,9 @@ function PushPageInner() {
 export default function PushPage() {
   return (
     <Suspense>
-      <RemoteConnectionGate>
+      <>
         <PushPageInner />
-      </RemoteConnectionGate>
+      </>
     </Suspense>
   )
 }

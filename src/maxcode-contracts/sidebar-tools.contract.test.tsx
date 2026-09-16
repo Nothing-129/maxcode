@@ -132,7 +132,6 @@ vi.mock("@/contexts/search-dialog-context", () => ({
   useSearchDialog: () => ({ setOpen: spies.setSearchOpen }),
 }))
 vi.mock("@/lib/platform", () => ({
-  isDesktop: () => false,
   isNativeDesktop: () => false,
   subscribe: vi.fn(async () => () => {}),
   onTransportReconnect: vi.fn(() => null),
@@ -179,9 +178,7 @@ describe("sidebar tools beside search", () => {
       .getByRole("button", { name: "Search" })
       .closest("[data-sidebar-tools]")!
     expect(tools.parentElement).toBe(header)
-    expect(tools.previousElementSibling).toHaveAttribute(
-      "data-tauri-drag-region"
-    )
+    expect(tools.previousElementSibling).toHaveAttribute("data-drag-region")
     expect(tools.previousElementSibling).toHaveClass("flex-1")
     expect(header.firstElementChild).toHaveStyle({ width: "80px" })
     expect(tools.nextElementSibling).toBeNull()

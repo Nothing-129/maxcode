@@ -25,9 +25,7 @@ import {
   createConversationShare,
   deleteConversation,
   getWebServiceConfig,
-  getWebServerStatus,
   revokeConversationShare,
-  startWebServer,
   updateWebServiceConfig,
   updateConversationPinned,
   updateConversationStatus,
@@ -74,11 +72,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { copyTextToClipboard } from "@/lib/utils"
-import {
-  getServerBaseUrl,
-  isDesktop,
-  isRemoteDesktopMode,
-} from "@/lib/transport"
+import { getServerBaseUrl } from "@/lib/transport"
 import {
   resolveActiveSessionDetails,
   type ActiveSessionDetails,
@@ -291,19 +285,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       setShareLoading(true)
       try {
         const share = await createConversationShare(target.id)
-        let runtimeUrl: string | null = null
-        let addresses: string[] = []
-        if (isRemoteDesktopMode() || !isDesktop()) {
-          runtimeUrl = getServerBaseUrl()
-        } else {
-          const status =
-            (await getWebServerStatus()) ?? (await startWebServer())
-          addresses = status.addresses
-        }
+        const runtimeUrl = getServerBaseUrl()
         const resolved = resolveConversationShareAddress({
           publicShareUrl,
           runtimeUrl,
-          addresses,
         })
         if (!resolved) throw new Error("Share server address is unavailable")
         setShareAddressSource(resolved.source)
@@ -335,8 +320,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       try {
         const config = await getWebServiceConfig()
         setShareConfig(config)
-        const runtimeUrl =
-          isRemoteDesktopMode() || !isDesktop() ? getServerBaseUrl() : null
+        const runtimeUrl = getServerBaseUrl()
         const resolved = resolveConversationShareAddress({
           publicShareUrl: config.publicShareUrl,
           runtimeUrl,
@@ -420,7 +404,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     // one row with window controls. With a workspace background image on, the whole top
     // of the column reveals the canvas.
     <div
-      data-tauri-drag-region
+      data-drag-region
       className="flex h-14 min-w-0 shrink-0 items-center gap-1 md:h-10 md:gap-2 md:pl-[var(--conversation-header-left,0.75rem)] md:pr-[var(--conversation-header-right,0.75rem)]"
     >
       {/* 标题文字占据剩余宽度，超出时截断。 */}

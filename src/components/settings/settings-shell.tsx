@@ -168,10 +168,7 @@ export function SettingsShell({
         return
       }
 
-      // Preserve current query string so the active remote workspace context
-      // (`?remoteConnectionId=N`) carries over to sub-pages — without this,
-      // navigating from /settings/appearance to /settings/mcp drops the
-      // remote id and the next page falls back to the local Tauri backend.
+      // Preserve query parameters when navigating between settings pages.
       const search = window.location.search
       const fullTarget = search ? `${target}${search}` : target
 
@@ -246,10 +243,7 @@ export function SettingsShell({
       className="h-screen flex flex-col overflow-hidden bg-background text-foreground"
     >
       {onBack ? (
-        <div
-          data-tauri-drag-region
-          className="h-10 shrink-0 settings-drag-strip"
-        />
+        <div data-drag-region className="h-10 shrink-0 settings-drag-strip" />
       ) : (
         <AppTitleBar
           left={

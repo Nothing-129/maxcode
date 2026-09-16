@@ -58,7 +58,7 @@ const ASCII_PUNCTUATION = "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
  * prefix (`\\`), or an explicit relative path (`.\`, `..\`).
  *
  * Preceding-character constraints are checked in code rather than with a
- * lookbehind, which older WebKit (the macOS Tauri webview before Safari 16.4)
+ * lookbehind, which older WebKit (before Safari 16.4)
  * rejects at parse time — a syntax error there would take down the module.
  */
 const PATH_ANCHOR = /[A-Za-z]:[\\/]|\\{2}|\.{1,2}\\/g

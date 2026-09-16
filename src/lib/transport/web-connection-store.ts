@@ -3,16 +3,9 @@
 // no hooks) so the single global `<WebConnectionGuard>` can subscribe without
 // threading the transport singleton through the tree.
 //
-// Every accessor is guarded three ways:
-//   1. SSR / static-export prerender (`window` undefined) → stable "connected"
-//      so the dialog never renders server-side and hydration stays clean.
-//   2. Non-web runtime (Tauri desktop) → no-op; desktop has no browser WS.
-//   3. Remote-desktop windows → no-op; those use their own full-screen
-//      "connection expired" gate (see remote-connection-context.tsx) and must
-//      not stack a second dialog.
+// SSR uses a stable connected snapshot to keep prerender and hydration aligned.
 
-import { detectEnvironment } from "./detect"
-import { getShellTransport, isRemoteDesktopMode } from "./index"
+import { getTransport } from "./index"
 import type { WebConnState, WebTransport } from "./web-transport"
 
 // Module-level constant so `getServerSnapshot` returns a STABLE reference on
@@ -22,13 +15,12 @@ const CONNECTED: WebConnState = "connected"
 const noop = () => {}
 
 // Resolve the active WebTransport, or null when the reconnect dialog must stay
-// dormant (SSR, desktop, remote-desktop). The shape check is belt-and-braces:
+// dormant during SSR. The shape check is belt-and-braces:
 // the env guard already guarantees a WebTransport, but it keeps a future
 // transport swap from crashing the dialog plumbing.
 function webTransport(): WebTransport | null {
   if (typeof window === "undefined") return null
-  if (detectEnvironment() === "tauri" || isRemoteDesktopMode()) return null
-  const transport = getShellTransport()
+  const transport = getTransport()
   if (
     typeof (transport as Partial<WebTransport>).subscribeConnection !==
     "function"

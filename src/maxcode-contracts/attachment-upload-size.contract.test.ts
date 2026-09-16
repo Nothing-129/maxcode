@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest"
 
-import { DRAG_DROP_IMAGE_MAX_BYTES } from "@/components/chat/composer/attachment-files"
+import { UPLOAD_MAX_BYTES } from "@/lib/api"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: 100 MiB attachments", () => {
   it("keeps picker, desktop drag/drop, server and remote uploads at 100 MiB", () => {
-    expect(DRAG_DROP_IMAGE_MAX_BYTES).toBe(104_857_600)
+    expect(UPLOAD_MAX_BYTES).toBe(104_857_600)
     expect(source("src/lib/api.ts")).toContain(
       "UPLOAD_MAX_BYTES = 100 * 1024 * 1024"
     )
-    for (const path of [
-      "src-tauri/src/web/handlers/files.rs",
-      "src-tauri/src/commands/remote_proxy.rs",
-    ]) {
+    for (const path of ["src-tauri/src/web/handlers/files.rs"]) {
       expect(source(path)).toContain(
         "UPLOAD_MAX_BYTES: u64 = 100 * 1024 * 1024"
       )

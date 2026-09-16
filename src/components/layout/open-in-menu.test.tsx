@@ -3,12 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   isLocalDesktop: vi.fn(() => true),
-  isRemoteDesktopWindow: vi.fn(() => false),
 }))
 
 vi.mock("@/lib/platform", () => ({
   isLocalDesktop: mocks.isLocalDesktop,
-  isRemoteDesktopWindow: mocks.isRemoteDesktopWindow,
 }))
 
 import {
@@ -58,7 +56,6 @@ describe("OpenInSubContent", () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.isLocalDesktop.mockReturnValue(true)
-    mocks.isRemoteDesktopWindow.mockReturnValue(false)
   })
 
   it("offers Explorer, Terminal and VS Code", () => {
@@ -90,21 +87,6 @@ describe("OpenInSubContent", () => {
     renderMenu()
     fireEvent.click(item("VS Code"))
     expect(handlers.onOpenCode).toHaveBeenCalledTimes(1)
-  })
-
-  it("disables VS Code in a remote-desktop window", () => {
-    // `open_in_code` runs on the host that owns the path, so on a remote
-    // workspace the editor would open over there and read as a no-op here.
-    mocks.isRemoteDesktopWindow.mockReturnValue(true)
-    renderMenu()
-    expect(item("VS Code").getAttribute("data-disabled")).not.toBeNull()
-    fireEvent.click(item("VS Code"))
-    expect(handlers.onOpenCode).not.toHaveBeenCalled()
-    // Terminal still targets the workspace host. Explorer is separately gated
-    // on `isLocalDesktop` (see the dedicated cases above).
-    expect(item("Terminal").getAttribute("data-disabled")).toBeNull()
-    fireEvent.click(item("Terminal"))
-    expect(handlers.onOpenTerminal).toHaveBeenCalledTimes(1)
   })
 
   it("passes the caller's explorer gate through", () => {

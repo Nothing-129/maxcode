@@ -242,10 +242,6 @@
     "loading": "読み込み中...",
     "sectionTitle": "システム管理",
     "sectionDescription": "アプリ更新、ログイン時の起動、ネットワークプロキシ、言語設定を管理します。",
-    "autostartTitle": "ログイン時に起動",
-    "autostartDescription": "このコンピューターにサインインすると自動的に起動します。",
-    "autostartSaveFailed": "ログイン時に起動する設定の保存に失敗しました: {message}",
-    "autostartUnavailable": "このコンピューターのスタートアップ登録状態を読み取れませんでした: {message}",
     "proxyTitle": "ネットワークプロキシ",
     "proxyDescription": "有効にすると、以降のネットワークリクエストはこのプロキシを優先して使用します（ACP チャット、エージェントのインストール、Git リモート操作を含む）。",
     "loadFailed": "読み込みに失敗しました: {message}",
@@ -1486,6 +1482,7 @@
       "onlineChecking": "配信元を確認中…",
       "onlineFailed": "オンライン確認に失敗しました：{error}",
       "onlineUnavailable": "オンラインのバージョン情報がありません。",
+      "officialRuntime": "CLI 本体：{installed}；公式最新：{latest}",
       "onlineRelease": "最新公開バージョン：{version}（配信元：{source}）",
       "onlineUnknown": "ローカルバージョンを比較できません。",
       "onlineNewer": "アップグレードできます。",
@@ -1655,9 +1652,16 @@
     "skillPacksLoading": "スキルパックを読み込み中…"
   },
   "GeneralSettings": {
+    "loginItem": {
+      "title": "ログイン時に起動",
+      "description": "コンピューターへのログイン時に MaxCode を自動的に開きます。",
+      "needsApproval": "システムのログイン項目またはスタートアップアプリで MaxCode を許可してください。",
+      "loadFailed": "起動設定を読み込めませんでした。このウィンドウを再度選択して再試行してください。",
+      "saveFailed": "起動設定を保存できませんでした。システムのログイン項目またはスタートアップアプリを確認してください。"
+    },
     "loading": "読み込み中...",
     "sectionTitle": "一般",
-    "sectionDescription": "デフォルトターミナル、レンダリング高速化、通知と通知音、マルチエージェント委譲などの共通設定をここで一括管理します。",
+    "sectionDescription": "デフォルトターミナル、通知と通知音、マルチエージェント委譲などの共通設定をここで一括管理します。",
     "terminalTitle": "デフォルトターミナル",
     "terminalDescription": "ターミナルバーやファイルツリーから新しいターミナルタブを開くときに使用するシェルを選択します。エージェントが MaxCode にコマンドライン全体の実行を依頼するときにも使われます。",
     "terminalSystemDefault": "システムデフォルト",
@@ -1675,12 +1679,6 @@
     "terminalCurrentShell": "現在使用中: {path}",
     "colorizeCommandOutput": "コマンド出力に色を付ける",
     "colorizeCommandOutputDescription": "エージェントが実行するコマンドに ANSI カラーを強制し、その出力をトランスクリプト上でプレーンテキストではなくカラーで表示します。新しいセッションから有効になります。",
-    "renderingDescription": "アプリで黒画面や描画不具合が発生する場合（Windows では一部の AMD GPU や Intel 内蔵 GPU、Linux では NVIDIA プロプライエタリドライバーで報告あり）、ハードウェアアクセラレーションを無効化してください。Windows と Linux のデスクトップ版のみ有効です。",
-    "disableHardwareAcceleration": "ハードウェアアクセラレーションを無効化",
-    "renderingSaveFailed": "レンダリング設定の保存に失敗しました: {message}",
-    "restartRequired": "保存しました。再起動後に反映されます。",
-    "restartNow": "今すぐ再起動",
-    "restartFailed": "再起動に失敗しました: {message}",
     "loadFailed": "読み込みに失敗しました: {message}"
   },
   "LoginPage": {
@@ -2157,8 +2155,7 @@
           "workspace": "ワークスペース",
           "navigation": "ナビゲーション",
           "more": "その他"
-        },
-        "showPet": "ペットを表示"
+        }
       }
     },
     "auxPanel": {
@@ -4465,166 +4462,6 @@
       "saved": "クイックメッセージを保存しました",
       "deleted": "クイックメッセージを削除しました"
     }
-  },
-  "Pet": {
-    "badge": {
-      "running": "実行中 {count} 件",
-      "waiting": "承認待ち {count} 件",
-      "error": "エラー {count} 件"
-    },
-    "panel": {
-      "title": "アクティブなセッション",
-      "empty": "アクティブなセッションはありません",
-      "emptyHint": "実行中、または対応が必要なセッションがここに表示されます。",
-      "statusRunning": "実行中",
-      "statusWaiting": "待機中",
-      "statusError": "エラー",
-      "subAgentOf": "サブエージェント"
-    },
-    "menu": {
-      "scale": "拡大率",
-      "openManager": "ペット管理",
-      "close": "閉じる"
-    },
-    "loadError": "ペットの読み込みに失敗",
-    "missingPetIdParam": "ペットが選択されていません",
-    "summonButton": "ペット",
-    "manager": {
-      "title": "デスクトップペット",
-      "description": "Codex 互換のスプライトシートで動く、デスクトップ常駐のお供。",
-      "addPet": "ペットを追加",
-      "importFromCodex": "Codex から取り込む",
-      "noPets": "ペットがありません。追加するか、Codex から取り込んでください。",
-      "setActive": "アクティブにする",
-      "active": "アクティブ",
-      "edit": "編集",
-      "delete": "削除",
-      "deleteConfirm": "ペット「{name}」を削除しますか?ディスクからも削除されます。",
-      "summon": "ペットウィンドウを呼び出す",
-      "openCodexHelp": "Codex ペットは ~/.codex/pets/ 配下に配置する必要があります。見つかりません。",
-      "specRequirement": "スプライトシートは幅 1536 ピクセル、高さは 208 ピクセルの倍数（例: 1872 または 2288）で、透過 PNG / WebP 形式である必要があります。",
-      "form": {
-        "id": "ペット ID",
-        "idHelp": "英小文字、数字、'-'、'_' のみ。最大 64 文字。",
-        "displayName": "表示名",
-        "description": "説明 (任意)",
-        "spritesheet": "スプライトシート",
-        "chooseFile": "ファイルを選択",
-        "replaceFile": "スプライトを差し替え",
-        "saveCreate": "ペットを追加",
-        "saveUpdate": "変更を保存",
-        "cancel": "キャンセル"
-      },
-      "errors": {
-        "missingId": "ペット ID は必須です",
-        "missingName": "表示名は必須です",
-        "missingSpritesheet": "スプライトシートは必須です",
-        "addFailed": "ペットの追加に失敗しました",
-        "updateFailed": "ペットの更新に失敗しました",
-        "deleteFailed": "ペットの削除に失敗しました",
-        "loadFailed": "ペット一覧の取得に失敗しました",
-        "setActiveFailed": "アクティブなペットの設定に失敗しました",
-        "summonFailed": "ペットウィンドウの召喚に失敗しました"
-      }
-    },
-    "import": {
-      "title": "Codex から取り込む",
-      "subtitle": "~/.codex/pets/ 配下に見つかったペット一覧。",
-      "selectAll": "すべて選択",
-      "alreadyImported": "取り込み済み",
-      "renameOnConflict": "ID が重複した場合は -imported を付与",
-      "import": "選択したものを取り込む",
-      "noneFound": "取り込み可能な Codex ペットが見つかりません。",
-      "imported": "取り込みに成功",
-      "failed": "取り込みに失敗",
-      "close": "閉じる"
-    },
-    "marketplace": {
-      "openMarketplace": "ペットマーケット",
-      "title": "ペットマーケット",
-      "search": "ペットを検索",
-      "kindFilter": {
-        "all": "すべて",
-        "object": "オブジェクト",
-        "animal": "動物",
-        "person": "人物",
-        "creature": "生き物"
-      },
-      "sortFilter": {
-        "latest": "新着",
-        "popular": "人気",
-        "views": "閲覧数順"
-      },
-      "refresh": "更新",
-      "install": "インストール",
-      "installing": "インストール中",
-      "reinstall": "再インストール",
-      "reinstallConfirm": "ローカルのペット \"{name}\" を上書きしますか？既存のデータは置き換えられます。",
-      "cancel": "キャンセル",
-      "stats": {
-        "views": "閲覧",
-        "downloads": "ダウンロード",
-        "likes": "いいね"
-      },
-      "actions": {
-        "idle": "待機",
-        "running_right": "右走り",
-        "running_left": "左走り",
-        "waving": "手振り",
-        "jumping": "ジャンプ",
-        "failed": "失敗",
-        "waiting": "待ち",
-        "running": "実行",
-        "review": "レビュー"
-      },
-      "page": "{page} / {total} ページ",
-      "prev": "前へ",
-      "next": "次へ",
-      "empty": "条件に一致するペットがありません。",
-      "successInstalled": "\"{name}\" をインストールしました",
-      "errors": {
-        "loadFailed": "マーケットの読み込みに失敗しました",
-        "installFailed": "インストールに失敗しました",
-        "alreadyInstalled": "そのペットは既に存在します"
-      }
-    }
-  },
-  "RemoteWorkspace": {
-    "openRemoteWorkspace": "Open remote workspace",
-    "manage": "Manage remote workspace",
-    "manageTitle": "Remote Workspace connections",
-    "empty": "No remote connections",
-    "searchPlaceholder": "Search remote workspaces",
-    "orderFailed": "Failed to save remote workspace order",
-    "dragSort": "Drag to sort",
-    "dragSortConnection": "Drag to sort {name}",
-    "newConnection": "New connection",
-    "loading": "Loading",
-    "loadingConnection": "Loading remote connection",
-    "name": "Name",
-    "baseUrl": "Service URL",
-    "token": "Access token",
-    "customHeaders": "カスタムヘッダー",
-    "customHeaderName": "ヘッダー名",
-    "customHeaderValue": "ヘッダーの値",
-    "addCustomHeader": "ヘッダーを追加",
-    "removeCustomHeader": "ヘッダーを削除",
-    "save": "Save",
-    "delete": "Delete",
-    "confirmDelete": {
-      "title": "Delete remote connection?",
-      "message": "This will remove \"{name}\" from this device. This action cannot be undone.",
-      "cancel": "Cancel",
-      "confirm": "Delete"
-    },
-    "saved": "Remote connection saved.",
-    "deleted": "Remote connection deleted.",
-    "loadFailed": "Failed to load remote connections",
-    "saveFailed": "Failed to save remote connection",
-    "deleteFailed": "Failed to delete remote connection",
-    "openFailed": "Failed to open remote workspace",
-    "connectionLoadFailed": "Failed to load remote connection: {message}",
-    "connectionExpired": "Remote connection \"{name}\" is expired. Update its token and reload this window."
   },
   "ServerFileBrowser": {
     "title": "サーバーファイルを選択",

@@ -1,7 +1,7 @@
 //! In-place self-update for the standalone server / Docker runtime.
 //!
-//! Desktop (Tauri) builds never drive this — they update through
-//! `tauri-plugin-updater`. Here the running worker downloads the signed
+//! Electron updates through its desktop shell. Here the standalone worker
+//! downloads the signed
 //! release bundle for its platform, verifies it, swaps `codeg-server` +
 //! `codeg-mcp` + `web/` on disk (keeping `.bak`), and then restarts:
 //!

@@ -169,8 +169,8 @@ export function MarkdownLink({
   //    span never gets from Tailwind's preflight — `appearance: button` (a UA
   //    inline strut) and `font: inherit`, which resets its `line-height` to the
   //    message body's inherited value (the `text-sm` wrapper, ~20px) instead of
-  //    the badge's own tighter `leading-snug`. In WebKit (the macOS Tauri
-  //    webview) that taller, UA-strutted inline box pulls the badge low.
+  //    the badge's own tighter `leading-snug`. In WebKit that taller,
+  //    UA-strutted inline box pulls the badge low.
   //    `appearance-none` + `leading-none` strip both so the button lays out like
   //    the bare badge.
   // 2. Lift onto the line's optical center. `align-middle` centers the chip on

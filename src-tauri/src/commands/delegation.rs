@@ -1,4 +1,4 @@
-//! Delegation settings persistence + Tauri/HTTP command surface.
+//! Delegation settings persistence and HTTP business logic.
 //!
 //! These knobs survive across restarts:
 //!   * `delegation.enabled` — feature kill switch (default false)
@@ -17,8 +17,7 @@
 //! `notifications/cancelled` instead).
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
-#[cfg(any(test, feature = "tauri-runtime"))]
+#[cfg(test)]
 use std::sync::Arc;
 
 use sea_orm::DatabaseConnection;
@@ -50,11 +49,6 @@ pub const DEFAULT_COMPLETED_CACHE_MB: u32 = 512;
 fn default_completed_cache_max_mb() -> u32 {
     DEFAULT_COMPLETED_CACHE_MB
 }
-
-/// Newtype so the Tauri managed-state lookup can distinguish the delegation
-/// UDS path from other `PathBuf`s in the state graph.
-#[derive(Clone)]
-pub struct DelegationSocketPath(pub PathBuf);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DelegationSettings {
@@ -195,40 +189,6 @@ pub async fn set_delegation_settings_core(
         .set_config(clamped.clone().into_broker_config())
         .await;
     Ok(clamped)
-}
-
-// -------- Tauri commands -----------------------------------------------------
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_delegation_settings(
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<DelegationSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        Ok(load_delegation_settings(&db.conn).await)
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        // Server mode reaches this via the web handler, not this command.
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_delegation_settings(
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-    #[cfg(feature = "tauri-runtime")] broker: tauri::State<'_, Arc<DelegationBroker>>,
-    settings: DelegationSettings,
-) -> Result<DelegationSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        set_delegation_settings_core(&db.conn, broker.inner(), settings).await
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        let _ = settings;
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
 }
 
 #[cfg(test)]

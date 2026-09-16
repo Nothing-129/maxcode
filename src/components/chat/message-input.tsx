@@ -396,11 +396,9 @@ export function MessageInput({
   // wherever a prompt is written.
   const attach = useComposerAttachments({
     editorRef,
-    containerRef,
     disabled,
     promptCapabilities,
     attachmentTabId,
-    defaultPath,
     logLabel: "MessageInput",
   })
   const {
@@ -1804,11 +1802,7 @@ export function MessageInput({
     <div
       ref={containerRef}
       className="relative"
-      // Marks this composer as a file-tree drop zone. On desktop Tauri's webview
-      // swallows the HTML5 `drop`, so a dragged entry is committed from Tauri's
-      // native drag-drop event by hit-testing the drop point; this attribute
-      // lets that hit-test route the drop to this session's input (see the tree
-      // tab's desktop commit). Absent when there's no tab to attach to.
+      // Identifies the session that receives a file-tree drop.
       data-tree-drop-composer={attachmentTabId ?? undefined}
       onKeyDown={handleContainerKeyDown}
       {...attach.containerDragProps}
@@ -2152,14 +2146,12 @@ export function MessageInput({
           </div>
         )}
       </div>
-      {!attach.showNativePaperclip && (
-        <ServerFileBrowserDialog
-          open={attach.serverFilePickerOpen}
-          onOpenChange={attach.setServerFilePickerOpen}
-          onSelect={attach.handleServerFilesSelected}
-          initialPath={defaultPath ?? undefined}
-        />
-      )}
+      <ServerFileBrowserDialog
+        open={attach.serverFilePickerOpen}
+        onOpenChange={attach.setServerFilePickerOpen}
+        onSelect={attach.handleServerFilesSelected}
+        initialPath={defaultPath ?? undefined}
+      />
     </div>
   )
 }

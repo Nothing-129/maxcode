@@ -24,8 +24,6 @@ vi.mock("@/lib/api", () => ({
   updateSystemTitleModelSettings: vi.fn(),
   testSystemTitleModelSettings: vi.fn(),
   updateSystemLanguageSettings: vi.fn(),
-  getSystemAutostartSettings: vi.fn(),
-  updateSystemAutostartSettings: vi.fn(),
   listenBackupProgress: vi.fn(async () => () => {}),
   listSafetySnapshots: vi.fn(async () => []),
   exportBackupDesktop: vi.fn(),
@@ -47,15 +45,7 @@ vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn(), message: vi.fn() },
 }))
 
-// Launch at login only applies to the local desktop shell. Keep desktop and
-// remote-workspace state separate so the remote-desktop regression is covered.
-let desktopShell = false
-let remoteWorkspace = false
-vi.mock("@/lib/platform", () => ({
-  openUrl: vi.fn(),
-  isDesktop: () => desktopShell,
-  isLocalDesktop: () => desktopShell && !remoteWorkspace,
-}))
+vi.mock("@/lib/platform", () => ({ openUrl: vi.fn() }))
 
 vi.mock("@/components/i18n-provider", () => ({
   useAppI18n: () => ({
@@ -69,20 +59,16 @@ import { SystemNetworkSettings } from "./system-network-settings"
 import enMessages from "@/i18n/messages/en.json"
 import { openUrl } from "@/lib/platform"
 import {
-  getSystemAutostartSettings,
   getSystemProxySettings,
   getSystemTitleModelSettings,
   testSystemTitleModelSettings,
   updateSystemTitleModelSettings,
-  updateSystemAutostartSettings,
 } from "@/lib/api"
 
 const mockGetProxy = vi.mocked(getSystemProxySettings)
 const mockGetTitleModel = vi.mocked(getSystemTitleModelSettings)
 const mockSetTitleModel = vi.mocked(updateSystemTitleModelSettings)
 const mockTestTitleModel = vi.mocked(testSystemTitleModelSettings)
-const mockGetAutostart = vi.mocked(getSystemAutostartSettings)
-const mockSetAutostart = vi.mocked(updateSystemAutostartSettings)
 const mockOpenUrl = vi.mocked(openUrl)
 
 function renderWithIntl() {
@@ -99,11 +85,7 @@ beforeEach(() => {
   mockGetTitleModel.mockReset()
   mockSetTitleModel.mockReset()
   mockTestTitleModel.mockReset()
-  mockGetAutostart.mockReset()
-  mockSetAutostart.mockReset()
   mockOpenUrl.mockReset()
-  desktopShell = false
-  remoteWorkspace = false
   mockGetTitleModel.mockResolvedValue({
     enabled: true,
     base_url: "https://api.groq.com/openai/v1",
@@ -131,74 +113,11 @@ it("loads system settings without exposing or checking for updates", async () =>
   expect(transportCall).not.toHaveBeenCalled()
 })
 
-describe("SystemNetworkSettings — launch at login", () => {
-  beforeEach(() => {
-    mockGetProxy.mockResolvedValue({ enabled: false, proxy_url: null })
-  })
-
-  it("hides the section on a web build", async () => {
-    mockGetAutostart.mockResolvedValue({ enabled: false })
-
-    renderWithIntl()
-
-    await screen.findByRole("heading", { name: "Network Proxy" })
-    expect(screen.queryByLabelText("Launch at login")).not.toBeInTheDocument()
-    expect(mockGetAutostart).not.toHaveBeenCalled()
-  })
-
-  it("hides the section in a remote-workspace window", async () => {
-    desktopShell = true
-    remoteWorkspace = true
-    mockGetAutostart.mockResolvedValue({ enabled: false })
-
-    renderWithIntl()
-
-    await screen.findByRole("heading", { name: "Network Proxy" })
-    expect(screen.queryByLabelText("Launch at login")).not.toBeInTheDocument()
-    expect(mockGetAutostart).not.toHaveBeenCalled()
-  })
-
-  it("follows the OS's answer rather than the optimistic value", async () => {
-    desktopShell = true
-    mockGetAutostart.mockResolvedValue({ enabled: false })
-    mockSetAutostart.mockResolvedValue({ enabled: false })
-
-    renderWithIntl()
-
-    const autostart = await screen.findByLabelText("Launch at login")
-    expect(autostart).toHaveAttribute("role", "switch")
-    expect(autostart).toHaveAttribute("data-state", "unchecked")
-
-    fireEvent.click(autostart)
-    await waitFor(() => expect(autostart).not.toBeDisabled())
-    expect(mockSetAutostart).toHaveBeenCalledWith({ enabled: true })
-    expect(autostart).toHaveAttribute("data-state", "unchecked")
-
-    mockSetAutostart.mockResolvedValue({ enabled: true })
-    fireEvent.click(autostart)
-    await waitFor(() =>
-      expect(autostart).toHaveAttribute("data-state", "checked")
-    )
-  })
-
-  it("keeps the rest of the page alive when the OS won't report login items", async () => {
-    desktopShell = true
-    mockGetProxy.mockResolvedValue({
-      enabled: true,
-      proxy_url: "http://proxy.local:8080",
-    })
-    mockGetAutostart.mockRejectedValue(new Error("registry locked"))
-
-    renderWithIntl()
-
-    const autostart = await screen.findByLabelText("Launch at login")
-    expect(autostart).toBeDisabled()
-    expect(screen.getByText(/registry locked/)).toBeInTheDocument()
-    expect(
-      screen.getByDisplayValue("http://proxy.local:8080")
-    ).toBeInTheDocument()
-    expect(screen.queryByText(/Load failed/)).not.toBeInTheDocument()
-  })
+it("keeps network settings available without the retired launch-at-login switch", async () => {
+  mockGetProxy.mockResolvedValue({ enabled: false, proxy_url: null })
+  renderWithIntl()
+  await screen.findByRole("heading", { name: "Network Proxy" })
+  expect(screen.queryByLabelText("Launch at login")).not.toBeInTheDocument()
 })
 
 describe("SystemNetworkSettings — conversation title model", () => {

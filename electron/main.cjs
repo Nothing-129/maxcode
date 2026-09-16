@@ -14,6 +14,7 @@ const {
 const fs = require("node:fs")
 const os = require("node:os")
 const path = require("node:path")
+const { createLoginItem } = require("./login-item.cjs")
 const { createWindowState } = require("./window-state.cjs")
 const {
   dialogOptions,
@@ -168,6 +169,9 @@ function installBridge() {
       app.quit()
     })
   })
+  const loginItem = createLoginItem(app)
+  handle("login-item-get", () => loginItem.get())
+  handle("login-item-set", (_window, enabled) => loginItem.set(enabled))
   handle("update-check", () => desktopUpdater.check())
   handle("update-status", () => desktopUpdater.status())
   handle("update-state", () => desktopUpdater.snapshot())

@@ -229,9 +229,8 @@ export type FileTreeFolderProps = HTMLAttributes<HTMLDivElement> & {
   /**
    * Marks this folder's header row as a directory drop zone for file-tree DnD,
    * tagging it with `data-tree-drop-dir` set to this value (the destination
-   * path relative to the workspace root; `""` for the root row). The desktop
-   * drop path hit-tests the drop coordinates against these markers because
-   * Tauri's webview swallows the HTML5 `drop` event. Omit on non-DnD trees.
+   * path relative to the workspace root; `""` for the root row). These markers
+   * let drop-zone helpers identify the destination. Omit on non-DnD trees.
    */
   dropTargetDir?: string
   /**

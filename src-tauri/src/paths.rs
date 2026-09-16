@@ -173,31 +173,17 @@ pub fn codeg_acp_transcripts_root() -> PathBuf {
 /// do `paths::*` resolve their roots against."
 ///
 /// Resolution:
-/// 1. If `CODEG_DATA_DIR` is set and non-empty, return its absolutized
-///    form. Honors the operator's choice even on desktop, where a
-///    pre-set env var should override Tauri's identifier-derived path.
-/// 2. Otherwise return the absolutized form of `tauri_fallback` —
-///    typically `app.path().app_data_dir()` on desktop or the
-///    server's default data dir.
+/// 1. If `CODEG_DATA_DIR` is set and non-empty, return its absolutized form.
+/// 2. Otherwise return the absolutized default data directory supplied by
+///    the server bootstrap (Electron supplies its existing app data path).
 ///
-/// Always returns an absolute path (`absolutize` re-bases against the
-/// process CWD if needed). Callers should treat the result as
-/// authoritative and not re-read `CODEG_DATA_DIR` themselves; the
-/// startup code in `lib.rs` / `bin/codeg_server.rs` writes the
-/// resolved value back to the env so subprocess inheritance works,
-/// but the in-process source of truth is this function.
-///
-/// This exists because Tauri's `app.path().app_data_dir()` does **not**
-/// consult `CODEG_DATA_DIR` — it returns the identifier-derived path
-/// unconditionally. Call sites that pass `app_data_dir()` straight
-/// into git credential helpers, ACP, terminal sessions, etc. would
-/// otherwise generate scripts pointing at an empty DB when the
-/// operator pre-set `CODEG_DATA_DIR` to a custom location.
-pub fn resolve_effective_data_dir(tauri_fallback: &Path) -> PathBuf {
+/// Callers share this resolved path instead of re-reading environment variables
+/// so credentials, sessions, and subprocesses always use the same database.
+pub fn resolve_effective_data_dir(default_data_dir: &Path) -> PathBuf {
     if let Some(custom) = std::env::var_os("CODEG_DATA_DIR").filter(|s| !s.is_empty()) {
         return crate::git_credential::absolutize(Path::new(&custom));
     }
-    crate::git_credential::absolutize(tauri_fallback)
+    crate::git_credential::absolutize(default_data_dir)
 }
 
 /// Drop the Windows extended-length ("verbatim") prefix from a path, so the

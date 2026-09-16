@@ -48,7 +48,7 @@ export const CONNECTION_NOT_FOUND_CODE = "connection_not_found"
  * the next connect can re-attach to the very process it believed it replaced.
  *
  * The message fallback mirrors the variant's `#[error("connection not found:
- * {0}")]` text: a synchronous Tauri command rejection flattens to a bare
+ * {0}")]` text: a legacy command rejection flattens to a bare
  * message string and does not expose the error `code` (the same reason
  * `connect()` matches on the literal "is not installed").
  */

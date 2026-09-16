@@ -1,14 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import {
-  Cpu,
-  FolderCog,
-  Loader2,
-  Palette,
-  RefreshCw,
-  SquareTerminal,
-} from "lucide-react"
+import { FolderCog, Loader2, Palette, SquareTerminal } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 
@@ -30,22 +23,18 @@ import {
 import { Switch } from "@/components/ui/switch"
 import {
   getAvailableTerminalShells,
-  getSystemRenderingSettings,
   getSystemTerminalSettings,
   probeTerminalShellPath,
-  updateSystemRenderingSettings,
   updateSystemTerminalSettings,
 } from "@/lib/api"
-import { isDesktop } from "@/lib/platform"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import type { AvailableTerminalShells, TerminalShellOption } from "@/lib/types"
-import { usePlatform } from "@/hooks/use-platform"
-import { relaunchApp } from "@/lib/updater"
 import { toErrorMessage } from "@/lib/app-error"
 import { DesktopNotificationSettingsSection } from "@/components/settings/desktop-notification-settings"
 import { NotificationSoundSettingsSection } from "@/components/settings/notification-sound-settings"
 import { DelegationSettingsSection } from "@/components/settings/delegation-settings"
 import { AgentToolsSettingsSection } from "@/components/settings/agent-tools-settings"
+
+import { LoginItemSettingsSection } from "./login-item-settings"
 
 const TERMINAL_SHELL_OPTION_SYSTEM = "system"
 const TERMINAL_SHELL_OPTION_CUSTOM = "custom"
@@ -65,31 +54,11 @@ function resolveSelectedShellId(
   return matched?.id ?? TERMINAL_SHELL_OPTION_CUSTOM
 }
 
-// Captured the first time the rendering section loads: represents the value
-// the running webview process was launched with. Survives settings-shell
-// remounts so the "Restart now" banner doesn't vanish if the user navigates
-// away and back without restarting.
-let processStartDisableHwAccel: boolean | null = null
-
 export function GeneralSettings() {
   const t = useTranslations("GeneralSettings")
   // Backend-driven shell label keys are dynamic strings, so widen `t`
   // for that single call site rather than casting at every use.
   const tDynamic = t as unknown as (key: string) => string
-  const { isWindows, isLinux } = usePlatform()
-
-  // Rendering settings are a local Tauri preference (preferences.json). They
-  // are only meaningful when the active transport is the local Tauri shell —
-  // remote workspace windows route every API call to a remote web server,
-  // which deliberately does not expose this endpoint.
-  const renderingSettingsLoadable =
-    isDesktop() && getActiveRemoteConnectionId() === null
-  // Windows (WebView2) and Linux (WebKitGTK) each expose an env knob the
-  // backend can flip at startup. macOS (WKWebView) exposes none, so showing a
-  // switch that cannot do anything there would be a lie.
-  const renderingSectionVisible =
-    renderingSettingsLoadable && (isWindows || isLinux)
-
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
 
@@ -115,28 +84,15 @@ export function GeneralSettings() {
   >(undefined)
   const [colorizeCommandOutput, setColorizeCommandOutput] = useState(false)
 
-  const [disableHwAccel, setDisableHwAccel] = useState(false)
-  const [savingRendering, setSavingRendering] = useState(false)
-  const [persistedDisableHwAccel, setPersistedDisableHwAccel] = useState(false)
-  const [processStartLoaded, setProcessStartLoaded] = useState(
-    processStartDisableHwAccel !== null
-  )
-  const renderingDirty =
-    processStartLoaded && persistedDisableHwAccel !== processStartDisableHwAccel
-
   const loadSettings = useCallback(async () => {
     setLoading(true)
     setLoadError(null)
 
     try {
-      const [terminalSettings, terminalShells, renderingSettings] =
-        await Promise.all([
-          getSystemTerminalSettings(),
-          getAvailableTerminalShells(),
-          renderingSettingsLoadable
-            ? getSystemRenderingSettings()
-            : Promise.resolve(null),
-        ])
+      const [terminalSettings, terminalShells] = await Promise.all([
+        getSystemTerminalSettings(),
+        getAvailableTerminalShells(),
+      ])
 
       setAvailableShells(terminalShells)
       setStoredDefaultShell(terminalSettings.default_shell)
@@ -157,16 +113,6 @@ export function GeneralSettings() {
         setCustomShellPath("")
         setCustomPathExists(null)
       }
-
-      if (renderingSettings) {
-        const value = renderingSettings.disable_hardware_acceleration
-        setDisableHwAccel(value)
-        setPersistedDisableHwAccel(value)
-        if (processStartDisableHwAccel === null) {
-          processStartDisableHwAccel = value
-          setProcessStartLoaded(true)
-        }
-      }
     } catch (err) {
       const message = toErrorMessage(err)
       setLoadError(message)
@@ -174,7 +120,7 @@ export function GeneralSettings() {
     } finally {
       setLoading(false)
     }
-  }, [renderingSettingsLoadable])
+  }, [])
 
   useEffect(() => {
     loadSettings().catch((err) => {
@@ -279,35 +225,6 @@ export function GeneralSettings() {
     void persistTerminalShell(trimmed)
   }, [customShellPath, persistTerminalShell])
 
-  const saveRenderingSettings = useCallback(
-    async (next: boolean, prev: boolean) => {
-      setSavingRendering(true)
-      try {
-        const result = await updateSystemRenderingSettings({
-          disable_hardware_acceleration: next,
-        })
-        setDisableHwAccel(result.disable_hardware_acceleration)
-        setPersistedDisableHwAccel(result.disable_hardware_acceleration)
-      } catch (err) {
-        setDisableHwAccel(prev)
-        const message = toErrorMessage(err)
-        toast.error(t("renderingSaveFailed", { message }))
-      } finally {
-        setSavingRendering(false)
-      }
-    },
-    [t]
-  )
-
-  const restartNow = useCallback(async () => {
-    try {
-      await relaunchApp()
-    } catch (err) {
-      const message = toErrorMessage(err)
-      toast.error(t("restartFailed", { message }))
-    }
-  }, [t])
-
   if (loading) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground gap-2">
@@ -334,6 +251,7 @@ export function GeneralSettings() {
         )}
 
         <div data-settings-option-group="">
+          <LoginItemSettingsSection />
           {/* The section is the picker: heading, purpose and control on one line,
             with what the shell currently resolves to under them. A card holding
             a single row would only say the heading back one line lower. */}
@@ -445,48 +363,6 @@ export function GeneralSettings() {
               />
             }
           />
-
-          {renderingSectionVisible && (
-            // Titled by the option, not by the category it belongs to: the switch
-            // turns acceleration *off*, so labelling it "Rendering" would read as
-            // the opposite of what it does.
-            <SettingsSection
-              icon={Cpu}
-              title={t("disableHardwareAcceleration")}
-              description={t("renderingDescription")}
-              htmlFor="disable-hardware-acceleration"
-              control={
-                <Switch
-                  id="disable-hardware-acceleration"
-                  checked={disableHwAccel}
-                  disabled={savingRendering}
-                  onCheckedChange={(next) => {
-                    const prev = disableHwAccel
-                    setDisableHwAccel(next)
-                    void saveRenderingSettings(next, prev)
-                  }}
-                />
-              }
-            >
-              {renderingDirty && (
-                <div className="flex items-center justify-between gap-3 rounded-lg border border-border/70 bg-muted/40 px-3 py-2 text-xs">
-                  <span className="min-w-0 text-muted-foreground">
-                    {t("restartRequired")}
-                  </span>
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="shrink-0"
-                    onClick={() => void restartNow()}
-                    disabled={savingRendering}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5" />
-                    {t("restartNow")}
-                  </Button>
-                </div>
-              )}
-            </SettingsSection>
-          )}
 
           {/* The two halves of "how Codeg gets my attention", adjacent on
             purpose: one leaves the window, one does not. */}

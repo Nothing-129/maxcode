@@ -6,7 +6,6 @@ import { WebTransport } from "@/lib/transport/web-transport"
 import { getCodegToken, redirectToCodegLogin } from "@/lib/transport/web-auth"
 import {
   closeCurrentWindow,
-  isDesktop,
   isLocalDesktop,
   openFileDialog,
   openPath,
@@ -33,22 +32,17 @@ import {
 const backend = vi.hoisted(() => ({
   call: vi.fn(),
   subscribe: vi.fn(),
-  remoteId: null as number | null,
 }))
 
 vi.mock("@/lib/transport", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/transport")>()),
   getTransport: () => backend,
-  getShellTransport: () => backend,
-  getActiveRemoteConnectionId: () => backend.remoteId,
-  isRemoteDesktopMode: () => backend.remoteId !== null,
 }))
 
 let bridge: ElectronBridge
 
 beforeEach(() => {
   vi.clearAllMocks()
-  backend.remoteId = null
   bridge = {
     platform: "darwin",
     version: "0.50.0",
@@ -81,13 +75,12 @@ afterEach(() => {
 })
 
 describe("MaxCode contract: Electron uses the managed local server", () => {
-  it("offers native file actions while keeping Tauri IPC branches disabled", () => {
+  it("offers native file actions through the Electron bridge", () => {
     expect(detectEnvironment()).toBe("electron")
-    expect(isDesktop()).toBe(false)
     expect(isLocalDesktop()).toBe(true)
   })
 
-  it("keeps Open-in-Finder available by gating on isLocalDesktop, not Tauri-only isDesktop", () => {
+  it("keeps Open-in-Finder available in the local desktop", () => {
     const menu = source("src/components/layout/open-in-menu.tsx")
     expect(menu).toContain("isLocalDesktop")
     expect(menu).toMatch(/explorerUnavailable = !isLocalDesktop\(\)/)
@@ -173,8 +166,8 @@ describe("MaxCode contract: Electron uses the managed local server", () => {
     }
   })
 
-  it("never reveals a remote workspace path on the local machine", async () => {
-    backend.remoteId = 7
+  it("never reveals browser workspace paths on the local machine", async () => {
+    Reflect.deleteProperty(window, "maxcodeElectron")
     expect(isLocalDesktop()).toBe(false)
     await openPath("/remote/workspace")
     await revealItemInDir("/remote/workspace")
@@ -256,8 +249,8 @@ describe("MaxCode contract: Electron update ownership", () => {
     expect(backend.subscribe).not.toHaveBeenCalled()
   })
 
-  it("continues targeting the remote server updater when a remote transport is active", async () => {
-    backend.remoteId = 9
+  it("continues targeting the server updater in the browser", async () => {
+    Reflect.deleteProperty(window, "maxcodeElectron")
     bridge.checkForUpdate = vi.fn()
     backend.call.mockResolvedValue({ currentVersion: "0.48.0", update: null })
     await checkAppUpdateInfo()

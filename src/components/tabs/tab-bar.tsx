@@ -494,7 +494,7 @@ export function TabBar({ groupId }: TabBarProps) {
             group's slice of the window-drag surface — for the top row it IS
             the title bar, and lower rows offer the same grab area, mirroring
             the unsplit strip. */}
-        <div data-tauri-drag-region className="h-full min-w-10 flex-1" />
+        <div data-drag-region className="h-full min-w-10 flex-1" />
       </div>
     </div>
   )

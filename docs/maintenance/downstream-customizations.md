@@ -8,10 +8,19 @@
 `769610c626f1`，下游 `HEAD` 为 `d2ac1390c974`，相差 81 个下游提交、425 个已提交
 差异文件，另将当时工作区中的新增功能一并纳入。审计时没有尚未合并的上游提交。
 
+## 智能体维护范围
+
+自 2026-09-17 起仅维护 Claude Code、Codex、Grok、Pi、DeepSeek 和 Google Antigravity。
+其他智能体保留历史数据、解析器和适配代码，但不出现在设置或新会话目录中，
+不执行后台自动更新，也不吸收其专属上游变更。新增自定义智能体入口隐藏。
+下方早期版本目录记录仅作为历史来源，不代表当前维护范围。
+
 ## 活跃功能
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 智能体维护范围 | 设置、选择器、旧缓存与自动更新仅保留六种，隐藏自定义新增入口 | `worktree-2026-09-17` | `agents.maintained-catalog` |
+| 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 消息图片 | 回复里的本地 Markdown 图片在当前会话工作目录内联显示，文件链接徽章与自动路径链接保持不变 | `402d8b09`、`049ef608`、`worktree-2026-09-14` | `chat.local-markdown-images` |
 | 输入框右键 | 右键先选中指针下的词，剪切/复制可用；链接/邮箱/本地路径多一行打开，沿用现有打开器白名单 | `06a2a503`、`0ebad4aa`、`worktree-2026-09-14` | `chat.composer-token-action` |
@@ -22,8 +31,8 @@
 | Antigravity 账号 | OAuth 登录可安全退出并切换 Google 账号；退出前阻断新连接并停止存活进程，调用 ACP logout 后恢复认证方式，同时保留 stdout/stderr 双流登录链接识别 | `7861d6ed`、`de096bb4`、`worktree-2026-09-15` | `agents.antigravity-sign-out` |
 | Codex 子智能体 | 原生子智能体胶囊显示真实结束状态和最终报告，可打开子会话；`list_agents` 还原为协作胶囊，保留 MaxCode 费用、耗时、上下文过滤与既有会话查看器 | `34b0f7fb`、`worktree-2026-09-15` | `chat.codex-native-subagent-results` |
 | 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
-| 智能体自动更新 | 全部已启用且已安装的内置及自定义智能体强制后台更新，支持 npm、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14` | `settings.agent-auto-updates` |
-| 智能体安装 | npm 安装、升级、重试、在线版本查询及自定义包查询统一使用 npm.aifalao.net，安装日志显示源 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
+| 智能体自动更新 | 维护范围内已启用且已安装的六种智能体强制后台更新，支持 npm、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14` | `settings.agent-auto-updates` |
+| 智能体安装 | 手动 npm 安装、升级、重试及自定义包查询使用 npm.aifalao.net；在线版本检测与自动安装使用官方 registry.npmjs.org，适配器与 CLI 独立检测 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
 | 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
 | 手机设置 | 右上角分类菜单显示在设置页之上，可切换分类、点击空白或 Escape 关闭；保留设置及工作区草稿，隐藏后台工作区抽屉并在返回时恢复 | `worktree-2026-09-10` | `settings.mobile-category-navigation` |
@@ -40,7 +49,7 @@
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
 | 会话费用刷新 | 回复结束后同步累计计费用量，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10` | `composer.conversation-cost` |
 | 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用有金额后才显示，并固定显示两位小数；无金额时隐藏费用及分隔符，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
-| 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除；保留 Tauri 支持 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
+| 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
 | 分隔线 | 面板拖动分隔线默认 1px，悬停和拖动时 2px，保留宽鼠标命中范围 | `worktree-2026-09-09` | `workspace.subtle-resize-handles` |
 | 会话标题 | 标题旁常显三个点，点击打开会话操作菜单；重命名收进菜单，移除独立铅笔按钮 | `worktree-2026-09-09` | `conversations.title-overflow-menu` |
@@ -50,7 +59,7 @@
 | 侧边栏 | “最近”栏目新建入口与“聊天”一致，始终新建不绑定当前文件夹的聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
 | 侧边栏 | 移除待办任务与仓库面板导航入口，保留新对话（简体中文固定文案）、自动化及会话列表；文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08` | `workspace.sidebar-navigation` |
-| 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；Tauri 兼容 CI 改为手动 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
+| 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；旧 Tauri 壳与兼容 CI 已退役 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
 | 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap；GitHub 过慢或不可达时走 maxcode-update.aifalao.net | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
 | 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
@@ -68,7 +77,7 @@
 | 消息 | 普通本地路径自动变成文件引用，安装包等二进制产物可打开或在文件管理器显示 | `7ca7b5b3`、`06bb8457`、`c283e981` | `messages.local-paths-and-artifacts` |
 | 消息 | 系统字体默认值及代理未提供耗时时的“提示到完成”耗时推导 | `d61af64a` | `messages.system-font-and-duration` |
 | Web | 断线不清凭证、健康探测退避重连、恢复订阅、仅有凭证的 401 判定会话过期 | `352bc868`、`2c859b2a` | `web.auth-and-session-recovery` |
-| Web | 服务器/Docker 可安装 PWA，Tauri 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
+| Web | 服务器/Docker 可安装 PWA，Electron 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
 | 会话侧栏 | 主动取消后不显示红色 X，正常显示时间，保留运行中与未读提示 | `worktree-2026-09-08` | `conversations.cancelled-without-error-badge` |
 | 会话标题 | 移除会话、侧栏及标签菜单中的手动刷新标题入口和前端请求封装；保留自动标题与重命名 | `worktree-2026-09-10` | `conversations.manual-title-refresh` |
@@ -117,6 +126,7 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 | 功能 | 来源 | 处理 |
 | --- | --- | --- |
+| 旧 Tauri 桌面壳及未迁移功能 | `worktree-2026-09-16` | 删除旧壳、透明桌宠浮窗、原生远程工作区连接管理及旧开机启动实现；Electron 开机启动另行通过原生登录项 API 实现。保留共享 Rust、历史数据和服务器签名工具。上游合并不得恢复。保护项：`desktop.tauri-retirement`。 |
 | Teambition 任务看板 | `16f8bbbb`、当前工作区删除 | 路由、组件、设置、API、Rust handler 和翻译均已删除。它不再作为活跃功能保护；上游合并不得把它意外恢复。 |
 
 ## 与上游比较的结论

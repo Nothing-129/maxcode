@@ -65,7 +65,8 @@ pub async fn start_web_server(
         .map(Json);
     }
     // In web mode, the server is already running (this handler itself is served by it).
-    // This endpoint is mainly useful in Tauri mode. Return current status as a noop.
+    // Electron starts its optional LAN listener above; standalone mode returns
+    // the current status without starting another listener.
     let ws = &state.web_server_state;
     if ws.running.load(std::sync::atomic::Ordering::Relaxed) {
         if let Some(info) = do_get_web_server_status(ws) {
@@ -125,7 +126,7 @@ pub struct AppUpdateCheckResult {
     pub update: Option<AppUpdateInfo>,
     /// Whether *this* process can apply the update in place. True for the
     /// standalone server build on a supported platform; false on desktop
-    /// (which updates via Tauri's own updater) and on unknown platforms.
+    /// (which updates via its Electron shell) and on unknown platforms.
     /// When false the frontend falls back to a "view release" link.
     pub self_update_supported: bool,
     /// How a self-update would restart: `"supervised"` (our `--supervise`
@@ -146,14 +147,6 @@ pub struct AppUpdateCheckResult {
     pub live_progress: bool,
 }
 
-#[cfg(feature = "tauri-runtime")]
-fn server_self_update_supported() -> bool {
-    // Desktop builds self-update through `tauri-plugin-updater`; the embedded
-    // web server must never swap the desktop binary with a server tarball.
-    false
-}
-
-#[cfg(not(feature = "tauri-runtime"))]
 fn server_self_update_supported() -> bool {
     // Windows server self-update is intentionally disabled: swapping a running
     // .exe and the standalone re-exec port rebind have not been validated on a
@@ -164,12 +157,6 @@ fn server_self_update_supported() -> bool {
         && crate::update::install::asset_basename().is_some()
 }
 
-#[cfg(feature = "tauri-runtime")]
-fn server_rollback_available() -> bool {
-    false
-}
-
-#[cfg(not(feature = "tauri-runtime"))]
 fn server_rollback_available() -> bool {
     crate::update::install::rollback_available()
 }

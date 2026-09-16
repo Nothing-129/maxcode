@@ -4,7 +4,7 @@ import type { MetadataRoute } from "next"
 export const dynamic = "force-static"
 
 // PWA manifest, consumed by browsers in server / Docker / remote-desktop web
-// mode (Tauri desktop ignores it). Keep the pre-rounded transparent icon for
+// mode (Electron desktop ignores it). Keep the pre-rounded transparent icon for
 // generic launchers, and provide a separate white-backed maskable icon whose
 // logo stays inside Android's safe zone. `?v=` busts launcher icon caches.
 export default function manifest(): MetadataRoute.Manifest {

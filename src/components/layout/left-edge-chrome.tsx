@@ -57,7 +57,7 @@ export function LeftEdgeChrome() {
     >
       {showMacInset && (
         <div
-          data-tauri-drag-region
+          data-drag-region
           className="h-full shrink-0"
           style={{ width: MAC_TRAFFIC_LIGHT_INSET }}
         />
@@ -96,7 +96,7 @@ export function LeftEdgeChrome() {
         )}
       </div>
       {/* Empty tail is a window-drag region. */}
-      <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+      <div data-drag-region className="h-full min-w-0 flex-1" />
     </div>
   )
 }

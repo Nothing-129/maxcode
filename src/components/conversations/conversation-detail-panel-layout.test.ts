@@ -48,9 +48,7 @@ describe("ConversationDetailPanel mobile context menu", () => {
     )
 
     expect(panelSource).toContain("const isMobile = useIsMobile()")
-    expect(panelSource).toContain(
-      "const isMobileWeb = isMobile && !isDesktop()"
-    )
+    expect(panelSource).toContain("const isMobileWeb = isMobile")
     expect(panelSource).toContain("disabled={isMobileWeb}")
     expect(panelSource).toMatch(
       /style=\{\s*isMobileWeb \? \{ WebkitTouchCallout: "default" \} : undefined\s*\}/
@@ -323,9 +321,9 @@ describe("ConversationDetailPanel split-group render model", () => {
     // Tab bar: the tail spacer is a window-drag region on EVERY strip (group
     // strips are the window's top edge while split), not just the unsplit one.
     expect(tabBarSource).toContain(
-      '<div data-tauri-drag-region className="h-full min-w-10 flex-1" />'
+      '<div data-drag-region className="h-full min-w-10 flex-1" />'
     )
-    expect(tabBarSource).not.toContain("data-tauri-drag-region={groupId")
+    expect(tabBarSource).not.toContain("data-drag-region={groupId")
   })
 })
 

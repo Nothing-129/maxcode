@@ -25,8 +25,8 @@
      em 而非 rem：**根元素上的 rem 在 WebKit 里不解析为根字号，而是解析为 font-size
      的初始值 16px**。缩放是 AppearanceProvider 往 <html> 上写 font-size 实现的，
      于是 `1.5rem` 在这里被永久钉死在 24px —— 不是失效竞态，300% 冷启动同样是 24px。
-     Chromium 按规范解析为 1.5×根字号，所以这个 bug 只在桌面端（Tauri = WKWebView）
-     出现，浏览器里跑 server 模式看不到。根元素上的 em 就是它自己的 font-size，两个
+     这个问题曾出现在旧 Tauri 桌面端的 WKWebView 中；Electron 使用 Chromium，
+     仍保留此修复以兼容 WebKit 浏览器。根元素上的 em 就是它自己的 font-size，两个
      引擎都实时解析：100% 下算出 24px（与旧写法逐像素相同），300% 下 72px。
 
      `calc(1.5 * 1rem)` 和 `var(--lh)`（值为 1.5rem）在 WebKit 上同样被钉死，换写法
@@ -1589,7 +1589,7 @@
    Streamdown's pan/zoom container applies `transform: scale()` with an inline
    `will-change: transform` AND a 150ms `transition-transform`. Either one pins
    the element to a composited layer rasterized once at 1x, which the GPU then
-   upscales — in WKWebView (Tauri) that blurs the whole SVG, shapes and labels
+   upscales — in WKWebView (the retired Tauri shell) that blurs the whole SVG, shapes and labels
    alike. The transition is the worse half during a drag: every pointermove
    restarts it, so the layer never leaves the compositor and the diagram smears
    as it moves. Dropping both makes the browser repaint the vectors at the real
@@ -3148,7 +3148,46 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .chat-message-text h3 {
   font-size: 1.2857143em;
 }
-.chat-message-text [data-streamdown="code-block-body"] {
+/* Chat code cards share one opaque surface, including over workspace images.
+   Keep Shiki foreground colors; only replace its separate body background. */
+.chat-message-text [data-streamdown="code-block"] {
+  background-color: #f5f5f5;
+  border: 1px solid rgb(0 0 0 / 5%);
+  border-radius: 1.25rem;
+}
+.dark .chat-message-text [data-streamdown="code-block"] {
+  background-color: #242424;
+  border-color: rgb(255 255 255 / 8%);
+}
+.chat-message-text [data-streamdown="code-block-header"] {
+  background-color: transparent;
+  border: 0;
+  padding: 0.625rem 1.25rem 0.375rem;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+.chat-message-text [data-streamdown="code-block-header"] > span {
+  margin-left: 0;
+  font-family: var(--font-sans);
+}
+.chat-message-text [data-streamdown="code-block-header"] button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+}
+.chat-message-text [data-streamdown="code-block-header"] button svg {
+  width: 0.75rem;
+  height: 0.75rem;
+  stroke-width: 1.5;
+}
+.chat-message-text
+  [data-streamdown="code-block"]
+  [data-streamdown="code-block-body"] {
+  background-color: transparent !important;
+  border: 0;
+  padding: 0.375rem 1.25rem 0.875rem;
   font-size: calc(var(--chat-font-size, 0.875rem) * 13 / 14);
 }
 
@@ -3184,7 +3223,7 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 }
 
 /* Native macOS controls share the workspace header in Electron. */
-html[data-native-shell="electron"] [data-tauri-drag-region] {
+html[data-native-shell="electron"] [data-drag-region] {
   -webkit-app-region: drag;
 }
 html[data-native-shell="electron"]

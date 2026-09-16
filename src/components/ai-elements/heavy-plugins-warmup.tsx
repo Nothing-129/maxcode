@@ -17,7 +17,7 @@ import { prefetchHeavyPlugins } from "./streamdown-plugins"
  *      code is on screen also avoids the re-highlight burst a mid-render engine
  *      resolution would cause.
  *   2. Idle fallback — for the rarer read-without-interacting case.
- *      requestIdleCallback is absent in WKWebView (macOS Tauri), so fall back to
+ *      requestIdleCallback is absent in some WebKit clients, so fall back to
  *      a short timeout there.
  *
  * Only `code` is prefetched: it's by far the most common heavy engine in

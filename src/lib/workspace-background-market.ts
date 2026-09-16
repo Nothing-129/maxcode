@@ -1,6 +1,6 @@
 // Transport-aware bindings for the wallpaper market (wallhaven.cc) commands.
 // Same dual-mode pattern as src/lib/workspace-background.ts: everything goes
-// through getTransport().call(...) so one code path serves Tauri (invoke) and
+// through getTransport().call(...) so one code path serves Electron and
 // standalone-server (fetch) modes.
 
 import { getTransport } from "@/lib/transport"

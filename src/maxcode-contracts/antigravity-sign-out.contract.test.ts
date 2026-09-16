@@ -3,15 +3,12 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: Antigravity can leave a cached Google account safely", () => {
-  it("exposes sign-out through both transports and the existing settings panel", () => {
+  it("exposes sign-out through the shared HTTP transport and the existing settings panel", () => {
     expect(source("src/lib/api.ts")).toContain(
       "export async function acpAntigravitySignOut"
     )
     expect(source("src-tauri/src/web/router.rs")).toContain(
       '"/acp_antigravity_sign_out"'
-    )
-    expect(source("src-tauri/src/lib.rs")).toContain(
-      "acp_commands::acp_antigravity_sign_out"
     )
     const panel = source("src/components/settings/antigravity-config-panel.tsx")
     expect(panel).toContain("function SignOut(")

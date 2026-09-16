@@ -25,9 +25,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call: mocks.call }),
   getShellTransport: () => ({ call: vi.fn() }),
-  isDesktop: () => false,
-  isRemoteDesktopMode: () => false,
-  getActiveRemoteConnectionId: () => null,
   notifyRemoteDesktopUnauthorized: vi.fn(),
 }))
 

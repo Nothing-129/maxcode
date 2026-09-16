@@ -7,8 +7,8 @@
  *
  * - `isComposing` — the standard flag, set while a composition is in flight.
  *   Chromium and Gecko report it on the candidate-confirming key.
- * - `keyCode === 229` — the legacy sentinel. WebKit (Safari, and the WKWebView
- *   the desktop app renders in) fires `compositionend` *before* the confirming
+ * - `keyCode === 229` — the legacy sentinel. WebKit (Safari and WKWebView)
+ *   fires `compositionend` *before* the confirming
  *   `keydown`, so `isComposing` is already false by then and 229 is the only
  *   trace the event still carries. This is the signal the plain form controls
  *   were missing.

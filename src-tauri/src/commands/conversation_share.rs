@@ -4,8 +4,7 @@ use serde::{Deserialize, Serialize};
 use crate::app_error::AppCommandError;
 use crate::commands::conversations::get_folder_conversation_core;
 use crate::db::service::conversation_share_service;
-#[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+
 use crate::models::{AgentType, MessageTurn, SessionStats};
 
 const SHARE_SNAPSHOT_VERSION: u8 = 1;
@@ -90,22 +89,4 @@ pub async fn get_shared_conversation_core(
         AppCommandError::database_error("Shared conversation snapshot is invalid")
             .with_detail(err.to_string())
     })
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn create_conversation_share(
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-) -> Result<ConversationShareInfo, AppCommandError> {
-    create_conversation_share_core(&db.conn, conversation_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn revoke_conversation_share(
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-) -> Result<(), AppCommandError> {
-    revoke_conversation_share_core(&db.conn, conversation_id).await
 }

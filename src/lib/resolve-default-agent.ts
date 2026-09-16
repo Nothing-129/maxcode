@@ -1,4 +1,8 @@
-import { AGENT_DISPLAY_ORDER, type AgentType } from "@/lib/types"
+import type { AgentType } from "@/lib/types"
+import {
+  isMaintainedAgent,
+  MAINTAINED_AGENT_TYPES,
+} from "@/lib/maintained-agents"
 
 export interface ResolveDefaultAgentInput {
   /**
@@ -48,7 +52,7 @@ export interface ResolveDefaultAgentResult {
  *   3. `inherit` — "new conversation" launched from inside an existing
  *      conversation should produce another conversation with the same agent.
  *   4. `sortedTypes[0]` — first entry of the user-managed drag-sorted list.
- *   5. `AGENT_DISPLAY_ORDER[0]` — final fallback when even the sorted list
+ *   5. `MAINTAINED_AGENT_TYPES[0]` — final fallback when even the sorted list
  *      isn't available yet (cold start).
  *
  * The result is marked `provisional: true` for cases 3 and 4 when `fresh`
@@ -60,17 +64,18 @@ export function resolveDefaultAgent(
   input: ResolveDefaultAgentInput
 ): ResolveDefaultAgentResult {
   const { lastSelected, folderDefault, inherit, sortedTypes, fresh } = input
-  if (lastSelected) {
+  if (lastSelected && isMaintainedAgent(lastSelected)) {
     return { agentType: lastSelected, provisional: false }
   }
-  if (folderDefault) {
+  if (folderDefault && isMaintainedAgent(folderDefault)) {
     return { agentType: folderDefault, provisional: false }
   }
-  if (inherit) {
+  if (inherit && isMaintainedAgent(inherit)) {
     return { agentType: inherit, provisional: false }
   }
-  if (sortedTypes.length > 0) {
-    return { agentType: sortedTypes[0], provisional: !fresh }
+  const firstMaintained = sortedTypes.find(isMaintainedAgent)
+  if (firstMaintained) {
+    return { agentType: firstMaintained, provisional: !fresh }
   }
-  return { agentType: AGENT_DISPLAY_ORDER[0], provisional: !fresh }
+  return { agentType: MAINTAINED_AGENT_TYPES[0], provisional: !fresh }
 }

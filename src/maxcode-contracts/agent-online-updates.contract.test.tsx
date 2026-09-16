@@ -307,14 +307,11 @@ describe("online agent update contract", () => {
     expect(source("src/lib/api.ts")).toContain(
       'call("acp_check_agent_update", { agentType })'
     )
-    expect(source("src-tauri/src/lib.rs")).toContain(
-      "commands::agent_updates::acp_check_agent_update,"
-    )
     expect(source("src-tauri/src/web/router.rs")).toContain(
       "post(handlers::acp::acp_check_agent_update)"
     )
     const backend = source("src-tauri/src/commands/agent_updates.rs")
-    expect(backend).toContain("reqwest::Url::parse(AGENT_NPM_REGISTRY)")
+    expect(backend).toContain("reqwest::Url::parse(OFFICIAL_NPM_REGISTRY)")
     expect(backend).toContain("remote_registry::fetch_supported_agents()")
     expect(backend).toContain("Duration::from_secs(15)")
     expect(backend).not.toContain("Command::new")

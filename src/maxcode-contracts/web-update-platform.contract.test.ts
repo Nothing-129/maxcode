@@ -36,14 +36,11 @@ describe("MaxCode contract: updater and release channel", () => {
   })
 
   it("uses the personal MaxCode release feed and removes overlapping update toasts", () => {
-    const config = JSON.parse(source("src-tauri/tauri.conf.json")) as {
-      productName: string
-      plugins: { updater: { endpoints: string[] } }
-    }
-    expect(config.productName).toBe("MaxCode")
-    expect(config.plugins.updater.endpoints).toEqual([
-      "https://github.com/Nothing-129/maxcode/releases/latest/download/latest.json",
-    ])
+    const config = source("electron/electron-builder.cjs")
+    expect(config).toContain('productName: "MaxCode"')
+    const feed = source("electron/update-config.cjs")
+    expect(feed).toContain('owner: "Nothing-129"')
+    expect(feed).toContain('repo: "maxcode"')
     const status = source("src/components/layout/status-bar-update.tsx")
     expect(status).not.toMatch(/\btoast[.(]/)
     expect(status).toContain("<ArrowDown")
@@ -137,8 +134,6 @@ describe("MaxCode contract: updater and release channel", () => {
       const messages = source(`src/i18n/messages/${locale}.json`)
       expect(messages).toContain('"testTitle": "MaxCode"')
     }
-    expect(source("src-tauri/src/commands/notification.rs")).toContain(
-      "let requested = app.config().identifier.clone()"
-    )
+    expect(source("electron/main.cjs")).toContain("new Notification(")
   })
 })

@@ -255,6 +255,19 @@ pub fn all_acp_agents() -> Vec<AgentType> {
     agents
 }
 
+/// Product catalog policy only; retain all adapters and historical parsers.
+pub fn is_maintained_agent(agent: AgentType) -> bool {
+    matches!(
+        agent,
+        AgentType::Codex
+            | AgentType::Grok
+            | AgentType::DeepSeek
+            | AgentType::Pi
+            | AgentType::Antigravity
+            | AgentType::ClaudeCode
+    )
+}
+
 pub fn registry_id_for(agent_type: AgentType) -> &'static str {
     match agent_type {
         AgentType::ClaudeCode => "claude-acp",
@@ -2249,5 +2262,26 @@ mod tests {
                 "unexpected supports_mcp for {agent_type:?}"
             );
         }
+    }
+    #[test]
+    fn maxcode_maintained_catalog_preserves_legacy_types() {
+        let maintained: Vec<_> = builtin_acp_agents()
+            .into_iter()
+            .filter(|agent| is_maintained_agent(*agent))
+            .collect();
+        assert_eq!(
+            maintained,
+            vec![
+                AgentType::Codex,
+                AgentType::Grok,
+                AgentType::DeepSeek,
+                AgentType::Pi,
+                AgentType::Antigravity,
+                AgentType::ClaudeCode,
+            ]
+        );
+        assert!(!is_maintained_agent(AgentType::custom("legacy").unwrap()));
+        assert_eq!(builtin_acp_agents().len(), 15);
+        assert_eq!(get_agent_meta(AgentType::Gemini).name, "Gemini CLI");
     }
 }

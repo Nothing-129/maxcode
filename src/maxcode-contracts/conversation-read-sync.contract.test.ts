@@ -8,7 +8,6 @@ const wire = vi.hoisted(() => ({
   reconnect: null as null | (() => void),
 }))
 vi.mock("@/lib/transport", () => ({
-  getActiveRemoteConnectionId: () => null,
   getTransport: () => ({ call: wire.call }),
 }))
 vi.mock("@/lib/platform", () => ({

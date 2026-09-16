@@ -242,10 +242,6 @@
     "loading": "Chargement...",
     "sectionTitle": "Gestion du système",
     "sectionDescription": "Gérez les mises à jour de l’app, le lancement à l’ouverture de session, le proxy réseau et les préférences de langue.",
-    "autostartTitle": "Lancer à l’ouverture de session",
-    "autostartDescription": "Démarre automatiquement après votre connexion à cet ordinateur.",
-    "autostartSaveFailed": "Échec de l’enregistrement des paramètres de lancement au démarrage : {message}",
-    "autostartUnavailable": "Impossible de lire l’entrée de démarrage de cet ordinateur : {message}",
     "proxyTitle": "Proxy réseau",
     "proxyDescription": "Lorsqu’il est activé, les requêtes réseau suivantes utilisent ce proxy en priorité (y compris le chat ACP, l’installation d’agents et les opérations Git distantes).",
     "loadFailed": "Échec du chargement : {message}",
@@ -1486,6 +1482,7 @@
       "onlineChecking": "Vérification de la source de publication…",
       "onlineFailed": "Échec de la vérification en ligne : {error}",
       "onlineUnavailable": "Aucune information de version en ligne.",
+      "officialRuntime": "CLI native : {installed} ; dernière officielle : {latest}",
       "onlineRelease": "Dernière version publiée : {version} ({source})",
       "onlineUnknown": "La version locale n’est pas comparable.",
       "onlineNewer": "Une mise à jour est disponible.",
@@ -1655,9 +1652,16 @@
     "skillPacksLoading": "Chargement des packs de compétences…"
   },
   "GeneralSettings": {
+    "loginItem": {
+      "title": "Lancer à la connexion",
+      "description": "Ouvrir automatiquement MaxCode à la connexion à votre ordinateur.",
+      "needsApproval": "Autorisez MaxCode dans les éléments de connexion ou les applications de démarrage du système.",
+      "loadFailed": "Impossible de lire le réglage de démarrage. Revenez à cette fenêtre pour réessayer.",
+      "saveFailed": "Impossible d’enregistrer le réglage. Vérifiez les éléments de connexion ou les applications de démarrage."
+    },
     "loading": "Chargement...",
     "sectionTitle": "Général",
-    "sectionDescription": "Préférences centralisées pour le terminal par défaut, l’accélération du rendu, les notifications et la délégation multi-agents.",
+    "sectionDescription": "Préférences centralisées pour le terminal par défaut, les notifications et la délégation multi-agents.",
     "terminalTitle": "Terminal par défaut",
     "terminalDescription": "Choisissez le shell utilisé à l'ouverture de nouveaux onglets de terminal depuis la barre de terminal ou l'arborescence des fichiers. Les agents l'utilisent aussi lorsqu'ils demandent à MaxCode d'exécuter une ligne de commande complète.",
     "terminalSystemDefault": "Par défaut système",
@@ -1675,12 +1679,6 @@
     "terminalCurrentShell": "Actuellement utilisé : {path}",
     "colorizeCommandOutput": "Coloriser la sortie des commandes",
     "colorizeCommandOutputDescription": "Force la couleur ANSI dans les commandes exécutées par les agents, afin que leur sortie s'affiche en couleur dans la transcription plutôt qu'en texte brut. S'applique aux nouvelles sessions.",
-    "renderingDescription": "Désactivez l’accélération matérielle si l’application affiche un écran noir ou des défauts de rendu (fréquent sur certaines GPU AMD ou GPU Intel intégrées sous Windows, et avec le pilote propriétaire NVIDIA sous Linux). N’a d’effet que sur les versions de bureau Windows et Linux.",
-    "disableHardwareAcceleration": "Désactiver l’accélération matérielle",
-    "renderingSaveFailed": "Échec de l’enregistrement des paramètres de rendu : {message}",
-    "restartRequired": "Enregistré. Redémarrez l’application pour appliquer la modification.",
-    "restartNow": "Redémarrer maintenant",
-    "restartFailed": "Échec du redémarrage : {message}",
     "loadFailed": "Échec du chargement : {message}"
   },
   "LoginPage": {
@@ -2157,8 +2155,7 @@
           "workspace": "Espace de travail",
           "navigation": "Navigation",
           "more": "Plus"
-        },
-        "showPet": "Afficher la mascotte"
+        }
       }
     },
     "auxPanel": {
@@ -4465,166 +4462,6 @@
       "saved": "Message rapide enregistré",
       "deleted": "Message rapide supprimé"
     }
-  },
-  "Pet": {
-    "badge": {
-      "running": "{count} en cours",
-      "waiting": "{count} en attente d'approbation",
-      "error": "{count} en erreur"
-    },
-    "panel": {
-      "title": "Sessions actives",
-      "empty": "Aucune session active",
-      "emptyHint": "Les agents en cours et ceux qui vous attendent apparaissent ici.",
-      "statusRunning": "En cours",
-      "statusWaiting": "En attente",
-      "statusError": "Erreur",
-      "subAgentOf": "Sous-agent de"
-    },
-    "menu": {
-      "scale": "Échelle",
-      "openManager": "Gérer les mascottes",
-      "close": "Fermer"
-    },
-    "loadError": "Échec du chargement de la mascotte",
-    "missingPetIdParam": "Aucune mascotte sélectionnée",
-    "summonButton": "Mascotte",
-    "manager": {
-      "title": "Mascottes",
-      "description": "Compagnons flottants de bureau avec des sprites compatibles Codex.",
-      "addPet": "Ajouter une mascotte",
-      "importFromCodex": "Importer depuis Codex",
-      "noPets": "Aucune mascotte. Ajoutez-en ou importez depuis Codex.",
-      "setActive": "Activer",
-      "active": "Active",
-      "edit": "Modifier",
-      "delete": "Supprimer",
-      "deleteConfirm": "Supprimer la mascotte « {name} » ? Elle sera retirée du disque.",
-      "summon": "Invoquer la fenêtre de la mascotte",
-      "openCodexHelp": "Les mascottes Codex doivent être dans ~/.codex/pets/. Aucune trouvée.",
-      "specRequirement": "Le sprite doit faire 1536px de large avec une hauteur multiple de 208px (par ex. 1872 ou 2288), en PNG/WebP avec transparence.",
-      "form": {
-        "id": "ID mascotte",
-        "idHelp": "Lettres minuscules, chiffres, '-' et '_'. Max 64 caractères.",
-        "displayName": "Nom affiché",
-        "description": "Description (facultative)",
-        "spritesheet": "Sprite",
-        "chooseFile": "Choisir un fichier",
-        "replaceFile": "Remplacer le sprite",
-        "saveCreate": "Ajouter la mascotte",
-        "saveUpdate": "Enregistrer",
-        "cancel": "Annuler"
-      },
-      "errors": {
-        "missingId": "ID requis",
-        "missingName": "Nom requis",
-        "missingSpritesheet": "Sprite requis",
-        "addFailed": "Ajout impossible",
-        "updateFailed": "Mise à jour impossible",
-        "deleteFailed": "Suppression impossible",
-        "loadFailed": "Chargement impossible",
-        "setActiveFailed": "Activation impossible",
-        "summonFailed": "Ouverture de la fenêtre impossible"
-      }
-    },
-    "import": {
-      "title": "Importer depuis Codex",
-      "subtitle": "Mascottes disponibles sous ~/.codex/pets/.",
-      "selectAll": "Tout sélectionner",
-      "alreadyImported": "Déjà importée",
-      "renameOnConflict": "Renommer en -imported en cas de conflit",
-      "import": "Importer la sélection",
-      "noneFound": "Aucune mascotte Codex importable.",
-      "imported": "Import réussi",
-      "failed": "Import échoué",
-      "close": "Fermer"
-    },
-    "marketplace": {
-      "openMarketplace": "Marketplace de mascottes",
-      "title": "Marketplace de mascottes",
-      "search": "Rechercher des mascottes",
-      "kindFilter": {
-        "all": "Toutes",
-        "object": "Objet",
-        "animal": "Animal",
-        "person": "Personne",
-        "creature": "Créature"
-      },
-      "sortFilter": {
-        "latest": "Récents",
-        "popular": "Populaires",
-        "views": "Vues"
-      },
-      "refresh": "Actualiser",
-      "install": "Installer",
-      "installing": "Installation",
-      "reinstall": "Réinstaller",
-      "reinstallConfirm": "Remplacer la mascotte locale « {name} » ? Les données existantes seront écrasées.",
-      "cancel": "Annuler",
-      "stats": {
-        "views": "Vues",
-        "downloads": "Téléchargements",
-        "likes": "J’aime"
-      },
-      "actions": {
-        "idle": "Repos",
-        "running_right": "Course dr.",
-        "running_left": "Course g.",
-        "waving": "Salut",
-        "jumping": "Saut",
-        "failed": "Échec",
-        "waiting": "Attente",
-        "running": "Course",
-        "review": "Revue"
-      },
-      "page": "Page {page} sur {total}",
-      "prev": "Précédent",
-      "next": "Suivant",
-      "empty": "Aucune mascotte ne correspond.",
-      "successInstalled": "« {name} » installée",
-      "errors": {
-        "loadFailed": "Impossible de charger le marketplace",
-        "installFailed": "Échec de l’installation",
-        "alreadyInstalled": "La mascotte existe déjà localement"
-      }
-    }
-  },
-  "RemoteWorkspace": {
-    "openRemoteWorkspace": "Ouvrir l’espace de travail distant",
-    "manage": "Gérer l’espace de travail distant",
-    "manageTitle": "Connexions à l’espace de travail distant",
-    "empty": "Aucune connexion distante",
-    "searchPlaceholder": "Rechercher un espace de travail distant",
-    "orderFailed": "Échec de l’enregistrement de l’ordre des espaces de travail distants",
-    "dragSort": "Glisser pour trier",
-    "dragSortConnection": "Glisser pour trier {name}",
-    "newConnection": "Nouvelle connexion",
-    "loading": "Chargement",
-    "loadingConnection": "Chargement de la connexion distante",
-    "name": "Nom",
-    "baseUrl": "URL du service",
-    "token": "Jeton d’accès",
-    "customHeaders": "En-têtes personnalisés",
-    "customHeaderName": "Nom de l'en-tête",
-    "customHeaderValue": "Valeur de l'en-tête",
-    "addCustomHeader": "Ajouter un en-tête",
-    "removeCustomHeader": "Supprimer l'en-tête",
-    "save": "Enregistrer",
-    "delete": "Supprimer",
-    "confirmDelete": {
-      "title": "Supprimer la connexion distante ?",
-      "message": "Cela retirera « {name} » de cet appareil. Cette action est irréversible.",
-      "cancel": "Annuler",
-      "confirm": "Supprimer"
-    },
-    "saved": "Connexion distante enregistrée.",
-    "deleted": "Connexion distante supprimée.",
-    "loadFailed": "Échec du chargement des connexions distantes",
-    "saveFailed": "Échec de l’enregistrement de la connexion distante",
-    "deleteFailed": "Échec de la suppression de la connexion distante",
-    "openFailed": "Échec de l’ouverture de l’espace de travail distant",
-    "connectionLoadFailed": "Échec du chargement de la connexion distante : {message}",
-    "connectionExpired": "La connexion distante « {name} » a expiré. Mettez son jeton à jour, puis rechargez cette fenêtre."
   },
   "ServerFileBrowser": {
     "title": "Sélectionner un fichier serveur",

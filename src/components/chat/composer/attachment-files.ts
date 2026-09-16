@@ -42,9 +42,6 @@ const MIME_BY_EXT: Record<string, string> = {
   svg: "image/svg+xml",
 }
 
-/** Ceiling on the bytes a dropped local image may inline for its thumbnail. */
-export const DRAG_DROP_IMAGE_MAX_BYTES = 100 * 1024 * 1024
-
 export function fileNameFromPath(path: string): string {
   return path.split(/[/\\]/).pop() || path
 }
@@ -57,62 +54,6 @@ export function mimeTypeFromPath(path: string): string | null {
 export function hasDragFiles(dataTransfer: DataTransfer | null): boolean {
   if (!dataTransfer?.types) return false
   return Array.from(dataTransfer.types).includes("Files")
-}
-
-/**
- * Whether an OS drag position (Tauri reports window coordinates, sometimes in
- * physical pixels) lands on `element` **and** `element` is what the user would
- * actually hit there.
- *
- * Two guards, both needed because a Tauri drag-drop event is delivered to every
- * listener in the window:
- *
- * - Hidden/detached hosts are rejected outright. Inactive conversation tabs stay
- *   mounted at `absolute inset-0` with `visibility: hidden`, so their bounding
- *   rect overlaps the active tab's — without this, one OS drop would fan out
- *   across every open conversation.
- * - The topmost element at the point must be inside the host. A composer sitting
- *   behind a modal (the to-do task editor dialog, the detail drawer) still has
- *   its full rect at the same coordinates; `elementFromPoint` is what tells the
- *   two apart, so the drop lands only in the composer the user can see.
- */
-export function pointWithinElement(
-  position: { x: number; y: number },
-  element: HTMLElement
-): boolean {
-  const doc = element.ownerDocument
-  const style = doc?.defaultView?.getComputedStyle(element)
-  if (style) {
-    if (
-      style.visibility === "hidden" ||
-      style.display === "none" ||
-      style.pointerEvents === "none"
-    ) {
-      return false
-    }
-  }
-  const rect = element.getBoundingClientRect()
-  if (rect.width === 0 || rect.height === 0) return false
-  const dpr = window.devicePixelRatio || 1
-  const candidates = [
-    { x: position.x, y: position.y },
-    { x: position.x / dpr, y: position.y / dpr },
-  ]
-  return candidates.some((point) => {
-    if (
-      point.x < rect.left ||
-      point.x > rect.right ||
-      point.y < rect.top ||
-      point.y > rect.bottom
-    ) {
-      return false
-    }
-    // `elementFromPoint` is unavailable in some test DOMs — fall back to the
-    // rect result there rather than dropping the event on the floor.
-    if (typeof doc?.elementFromPoint !== "function") return true
-    const top = doc.elementFromPoint(point.x, point.y)
-    return top !== null && element.contains(top)
-  })
 }
 
 export function blobToBase64(blob: Blob): Promise<string> {

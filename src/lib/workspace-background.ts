@@ -2,8 +2,8 @@
 //
 // The image bytes live on disk under `~/.codeg/backgrounds/` (backend
 // `crate::backgrounds`), read/written through `getTransport().call(...)` so the
-// same code runs in Tauri (`invoke`) and standalone-server (`fetch`) modes —
-// mirroring `src/lib/pet/api.ts`. The lightweight display config (enabled,
+// same code runs in Electron and browser clients —
+// The lightweight display config (enabled,
 // mask, blur, fill, panel opacity) lives in localStorage via the appearance
 // provider; only the image itself round-trips through here.
 
@@ -210,7 +210,7 @@ export function revokeBackgroundObjectUrl(
   }
 }
 
-// ─── Transport bindings (dual-mode, mirrors src/lib/pet/api.ts) ───
+// ─── Transport bindings ───
 
 /** Returns the stored background asset, or `null` when none is set. */
 export async function readWorkspaceBackground(): Promise<BackgroundAsset | null> {

@@ -1,23 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
-const shellCall = vi.fn<(command: string, args?: unknown) => Promise<unknown>>(
-  async () => undefined
-)
-const remoteCall = vi.fn(async () => undefined)
+const notify = vi.fn(async () => true)
+const openSettings = vi.fn(async () => {})
 const desktop = vi.fn(() => true)
 
-vi.mock("./transport", () => ({
-  getShellTransport: () => ({ call: shellCall }),
-  // Present so a mistaken `getTransport()` in the module under test is a
-  // failed assertion here rather than a silent notification sent to whichever
-  // machine the remote workspace lives on.
-  getTransport: () => ({ call: remoteCall }),
-  isDesktop: () => desktop(),
+vi.mock("./electron", () => ({
+  isElectron: () => desktop(),
+  getElectronBridge: () =>
+    desktop() ? { notify, openNotificationSettings: openSettings } : null,
 }))
 
 import {
   deliverSystemNotification,
-  getNotificationIdentity,
   getNotificationPermission,
   openSystemNotificationSettings,
   requestNotificationPermission,
@@ -60,8 +54,8 @@ function removeNotification() {
 }
 
 beforeEach(() => {
-  shellCall.mockClear()
-  remoteCall.mockClear()
+  notify.mockReset().mockResolvedValue(true)
+  openSettings.mockClear()
   desktop.mockReturnValue(true)
   removeNotification()
 })
@@ -72,10 +66,6 @@ afterEach(() => {
 
 describe("getNotificationPermission", () => {
   it("reports the desktop as OS-managed rather than inventing a state", () => {
-    // Neither notification backend exposes one: the Tauri plugin hard-codes
-    // `Granted` on desktop and mac-notification-sys has no permission API at
-    // all. Claiming "granted" here would tell a user with Codeg switched off
-    // in System Settings that everything is fine.
     expect(getNotificationPermission()).toBe("managed_by_os")
   })
 
@@ -123,25 +113,15 @@ describe("requestNotificationPermission", () => {
 })
 
 describe("deliverSystemNotification", () => {
-  it("posts through the LOCAL shell transport, never the remote one", async () => {
-    // Regression: this used `getTransport()`, which in a remote-desktop window
-    // is the remote HTTP transport — and `send_notification` is a
-    // `tauri-runtime`-only command the `codeg-server` binary never registers.
-    // Every notification in those windows failed on the far end and was
-    // swallowed by the caller's `.catch()`.
+  it("posts through the Electron preload bridge", async () => {
     await deliverSystemNotification("t", "b")
-
-    expect(shellCall).toHaveBeenCalledWith("send_notification", {
-      title: "t",
-      body: "b",
-    })
-    expect(remoteCall).not.toHaveBeenCalled()
+    expect(notify).toHaveBeenCalledWith("t", "b")
   })
 
-  it("propagates a backend failure instead of swallowing it", async () => {
-    shellCall.mockRejectedValueOnce(new Error("could not deliver"))
+  it("propagates a failed native delivery", async () => {
+    notify.mockResolvedValueOnce(false)
     await expect(deliverSystemNotification("t", "b")).rejects.toThrow(
-      "could not deliver"
+      "unavailable"
     )
   })
 
@@ -177,65 +157,15 @@ describe("deliverSystemNotification", () => {
   })
 })
 
-describe("getNotificationIdentity", () => {
-  it("reads the delivering identity over the LOCAL shell transport", async () => {
-    // Same reasoning as delivery: in a remote-desktop window `getTransport()`
-    // points at a host that never registers this command, and the identity we
-    // want to report is the one on the screen in front of the user.
-    shellCall.mockResolvedValueOnce({
-      bundleId: "app.codeg",
-      requestedBundleId: "app.codeg",
-      degraded: false,
-    })
-
-    await expect(getNotificationIdentity()).resolves.toEqual({
-      bundleId: "app.codeg",
-      requestedBundleId: "app.codeg",
-      degraded: false,
-    })
-    expect(shellCall).toHaveBeenCalledWith("notification_identity")
-    expect(remoteCall).not.toHaveBeenCalled()
-  })
-
-  it("reports a degraded identity verbatim", async () => {
-    // The case this whole surface exists for: notifications posted under an
-    // app the user never configured, while codeg's own switches govern
-    // nothing.
-    shellCall.mockResolvedValueOnce({
-      bundleId: "com.apple.Terminal",
-      requestedBundleId: "app.codeg",
-      degraded: true,
-    })
-
-    await expect(getNotificationIdentity()).resolves.toMatchObject({
-      bundleId: "com.apple.Terminal",
-      degraded: true,
-    })
-  })
-
-  it("has nothing to report in a browser", async () => {
-    desktop.mockReturnValue(false)
-    await expect(getNotificationIdentity()).resolves.toBeNull()
-    expect(shellCall).not.toHaveBeenCalled()
-  })
-
-  it("passes through a desktop that declines to name an identity", async () => {
-    // Windows and Linux: the backend answers `null` rather than claiming an
-    // identity it cannot actually verify.
-    shellCall.mockResolvedValueOnce(null)
-    await expect(getNotificationIdentity()).resolves.toBeNull()
-  })
-})
-
 describe("openSystemNotificationSettings", () => {
   it("calls the local command on desktop", async () => {
     await openSystemNotificationSettings()
-    expect(shellCall).toHaveBeenCalledWith("open_system_notification_settings")
+    expect(openSettings).toHaveBeenCalledTimes(1)
   })
 
   it("refuses in a browser, where no page may open the permission UI", async () => {
     desktop.mockReturnValue(false)
     await expect(openSystemNotificationSettings()).rejects.toThrow(/desktop/i)
-    expect(shellCall).not.toHaveBeenCalled()
+    expect(openSettings).not.toHaveBeenCalled()
   })
 })

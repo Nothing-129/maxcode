@@ -73,9 +73,8 @@ import { useAuxPanelContext } from "@/contexts/aux-panel-context"
 import { useWorkspaceView } from "@/contexts/workspace-context"
 import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { usePlatform } from "@/hooks/use-platform"
 import { useZoomLevel } from "@/hooks/use-appearance"
-import { isDesktop, onTransportReconnect } from "@/lib/platform"
+import { onTransportReconnect } from "@/lib/platform"
 import { leftChromeReserve, rightChromeReserve } from "@/lib/window-chrome"
 import {
   acpFork,
@@ -2532,21 +2531,20 @@ function SplitStripCornerReserve({ side }: { side: "left" | "right" }) {
   const { isOpen: sidebarOpen } = useSidebarContext()
   const { isOpen: auxOpen } = useAuxPanelContext()
   const { mode } = useWorkspaceView()
-  const { isMac, isWindows, isLinux } = usePlatform()
   const { zoomLevel } = useZoomLevel()
   if (isMobile) return null
   const width =
     side === "left"
       ? sidebarOpen
         ? 0
-        : leftChromeReserve(isMac && isDesktop(), zoomLevel)
+        : leftChromeReserve(false, zoomLevel)
       : !auxOpen && mode === "conversation"
-        ? rightChromeReserve(isDesktop() && (isWindows || isLinux), zoomLevel)
+        ? rightChromeReserve(false, zoomLevel)
         : 0
   if (width <= 0) return null
   return (
     <div
-      data-tauri-drag-region
+      data-drag-region
       className="h-full shrink-0 ws-strip-line"
       style={{ width }}
     />
@@ -2557,7 +2555,7 @@ export function ConversationDetailPanel() {
   const t = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
   const isMobile = useIsMobile()
-  const isMobileWeb = isMobile && !isDesktop()
+  const isMobileWeb = isMobile
   const {
     completeTurn: runtimeCompleteTurn,
     removeConversation: runtimeRemoveConversation,
@@ -2611,7 +2609,7 @@ export function ConversationDetailPanel() {
 
   // Background turn_complete handler: for conversations not open in tabs.
   // Subscribes via the context's primary `acp://event` listener (single
-  // physical Tauri/WebSocket subscription, plus seq dedup from Phase 3b).
+  // physical WebSocket subscription, plus seq dedup from Phase 3b).
   // `useAcpEvent` stabilizes handler identity internally, so the callback
   // can read closure values directly — no caller-side refs needed.
   useAcpEvent(

@@ -8,7 +8,7 @@
  * sub-session inline. Both wire events (`delegation_started` /
  * `delegation_completed`) are emitted on the *parent*'s connection stream by
  * the broker, so this context subscribes via the provider's `useAcpEvent`
- * fanout — which is fed by the Tauri firehose AND the per-connection attach
+ * fanout — which is fed by the legacy event channel AND the per-connection attach
  * streams, so it behaves identically in desktop and web/server runtimes. It
  * filters the two delegation variants and exposes a tool-use-id-keyed lookup
  * so ToolCallBlock can resolve the binding by the field it already has in hand.
@@ -210,7 +210,7 @@ export function DelegationProvider({ children }: { children: ReactNode }) {
   )
 
   // Single subscription via the provider's fanout. `useAcpEvent` fires for
-  // every mapped envelope on both the Tauri firehose and the per-connection
+  // every mapped envelope on both the legacy event channel and the per-connection
   // attach streams, so the parent-stream delegation events reach us in both
   // desktop and web/server runtimes; non-delegation types are ignored above.
   useAcpEvent(handleEnvelope)

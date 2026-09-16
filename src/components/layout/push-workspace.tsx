@@ -304,7 +304,7 @@ export function PushWorkspace({
   // The branch every query below is scoped to. Seeded from the URL, but the
   // window is reused per folder — a second per-branch push raises this same
   // window, so `push://retarget-branch` moves it (see the effect below).
-  const [targetBranch, setTargetBranch] = useState<string | null>(initialBranch)
+  const [targetBranch] = useState<string | null>(initialBranch)
   // Bumped per commit-list load so a superseded response can't land (see
   // `loadCommits`).
   const commitsGenRef = useRef(0)
@@ -390,56 +390,6 @@ export function PushWorkspace({
       cancelled = true
     }
   }, [folderPath, targetBranch])
-
-  // A per-branch push raises the folder's existing push window instead of
-  // opening a second one, so the backend tells the live window which branch it
-  // should now be pointed at.
-  //
-  // Read off the Tauri channel directly, NOT through `subscribe()`: window
-  // management always runs in the LOCAL backend, while on a remote connection
-  // this window's transport is bound to the REMOTE server's event stream and
-  // would never see this event. Outside Tauri the import just fails and this
-  // no-ops — web mode reuses the window by name, which navigates it to the new
-  // URL and re-reads `?branch=` instead.
-  //
-  // Scoped to THIS window rather than the global `listen()`: the backend
-  // addresses the event with `emit_to(<label>)`, but Tauri delivers to any
-  // JS listener registered with the default `Any` target regardless of that
-  // address (see `match_any_or_filter`). Registering against this window's own
-  // label is what makes the address actually bind — otherwise a push window for
-  // the same folder id on a DIFFERENT connection (ids are scoped per
-  // connection) would retarget itself too. The folder_id check below stays as a
-  // second line of defence.
-  useEffect(() => {
-    if (folderId == null) return
-    let unlisten: (() => void) | null = null
-    let cancelled = false
-    import("@tauri-apps/api/webviewWindow")
-      .then(({ getCurrentWebviewWindow }) =>
-        getCurrentWebviewWindow().listen<{
-          folder_id: number
-          // null = the plain "push" entry, i.e. back to the checked-out branch.
-          branch: string | null
-        }>("push://retarget-branch", (event) => {
-          if (cancelled || event.payload.folder_id !== folderId) return
-          setTargetBranch(event.payload.branch ?? null)
-        })
-      )
-      .then((fn) => {
-        if (cancelled) {
-          fn()
-          return
-        }
-        unlisten = fn
-      })
-      .catch(() => {
-        // Not in Tauri — see above.
-      })
-    return () => {
-      cancelled = true
-      unlisten?.()
-    }
-  }, [folderId])
 
   // Deduplicate remotes (git remote -v returns fetch + push entries)
   const uniqueRemotes = useMemo(() => {

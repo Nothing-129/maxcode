@@ -11,7 +11,7 @@ use crate::models::model_provider::ModelProviderInfo;
 use crate::web::event_bridge::EventEmitter;
 
 // ---------------------------------------------------------------------------
-// Shared core functions (used by both Tauri commands and web handlers)
+// Shared business logic for Electron and server HTTP handlers
 // ---------------------------------------------------------------------------
 
 fn validate_agent_type(agent_type: &str) -> Result<(), AppCommandError> {
@@ -327,76 +327,6 @@ pub async fn delete_model_provider_core(db: &AppDatabase, id: i32) -> Result<(),
         .await
         .map_err(AppCommandError::from)?;
     Ok(())
-}
-
-// ---------------------------------------------------------------------------
-// Tauri commands
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn list_model_providers(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<ModelProviderInfo>, AppCommandError> {
-    list_model_providers_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn create_model_provider(
-    db: tauri::State<'_, AppDatabase>,
-    name: String,
-    api_url: String,
-    api_key: String,
-    agent_type: String,
-    model: Option<String>,
-) -> Result<ModelProviderInfo, AppCommandError> {
-    create_model_provider_core(&db, name, api_url, api_key, agent_type, model).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-#[allow(clippy::too_many_arguments)]
-pub async fn update_model_provider(
-    db: tauri::State<'_, AppDatabase>,
-    manager: tauri::State<'_, ConnectionManager>,
-    id: i32,
-    name: Option<String>,
-    api_url: Option<String>,
-    api_key: Option<String>,
-    agent_type: Option<String>,
-    model: Option<String>,
-    app: tauri::AppHandle,
-) -> Result<UpdateModelProviderResult, AppCommandError> {
-    use tauri::Manager;
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let emitter = EventEmitter::Tauri(app);
-    update_model_provider_and_refresh(
-        &db,
-        &manager,
-        &app_data_dir,
-        id,
-        name,
-        api_url,
-        api_key,
-        agent_type,
-        model,
-        &emitter,
-    )
-    .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn delete_model_provider(
-    db: tauri::State<'_, AppDatabase>,
-    id: i32,
-) -> Result<(), AppCommandError> {
-    delete_model_provider_core(&db, id).await
 }
 
 #[cfg(test)]

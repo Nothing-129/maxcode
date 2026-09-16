@@ -1,8 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
-
-vi.mock("@/lib/transport", () => ({
-  getActiveRemoteConnectionId: () => null,
-}))
+import { beforeEach, describe, expect, it } from "vitest"
 
 import {
   clearUnreadConversationIds,

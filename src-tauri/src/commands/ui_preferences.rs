@@ -87,42 +87,6 @@ pub async fn set_ui_preferences_core(
     Ok(desired)
 }
 
-// -------- Tauri commands -----------------------------------------------------
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_ui_preferences(
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<Option<UiPreferences>, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        load_ui_preferences(&db.conn).await
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_ui_preferences(
-    #[cfg(feature = "tauri-runtime")] app: tauri::AppHandle,
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-    settings: UiPreferences,
-) -> Result<UiPreferences, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        // `app.emit` fans out to every window, so a save from the settings
-        // window (or the sidebar menu in the main window) converges everywhere.
-        let emitter = EventEmitter::Tauri(app);
-        set_ui_preferences_core(&db.conn, &emitter, settings).await
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        let _ = settings;
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,20 +6,8 @@ use crate::db::error::DbError;
 
 // ─── Shared i18n keys ─────────────────────────────────────────────────
 //
-// The wire-format strings that backend errors stamp via `with_i18n` and
-// the frontend branches on via `extractAppCommandError(err).i18n_key`.
-// They live here — not in any individual command module — because the
-// same key can be emitted from multiple Rust sites (e.g.
-// `errors.upload.tooLarge` comes from `commands/remote_proxy.rs` AND
-// from `web/handlers/files.rs`) and consumed by a single TS branch.
-//
-// **MUST stay in lockstep with the TypeScript constants** in
-// `src/lib/api.ts` (`UPLOAD_I18N_KEY_TOO_LARGE` /
-// `UPLOAD_I18N_KEY_NOT_A_FILE`). The unit test in
-// `commands/remote_proxy.rs::tests::upload_i18n_keys_have_expected_values`
-// asserts the literal values on the Rust side so an accidental rename
-// becomes a loud CI failure rather than a silent demotion to the
-// generic "upload failed" toast.
+// Wire-format error keys used by HTTP handlers and frontend error messages.
+// Keep these in lockstep with the TypeScript constants in `src/lib/api.ts`.
 
 /// Error key emitted when an upload payload exceeds `UPLOAD_MAX_BYTES`,
 /// at any of three layers (local pre-read, base64 pre-decode, post-decode).
@@ -30,10 +18,7 @@ pub const UPLOAD_I18N_KEY_TOO_LARGE: &str = "errors.upload.tooLarge";
 /// that resolves to a directory, FIFO, device node, or other non-regular
 /// file. No params.
 ///
-/// Only `commands/remote_proxy.rs` emits this today (the command is gated
-/// on `feature = "tauri-runtime"`), so the server-only build won't see a
-/// use site. The constant still has to exist there because it is part of
-/// the wire-format contract the frontend depends on, hence `allow(dead_code)`.
+/// Retained for the frontend wire-format contract and older upload clients.
 #[allow(dead_code)]
 pub const UPLOAD_I18N_KEY_NOT_A_FILE: &str = "errors.upload.notAFile";
 

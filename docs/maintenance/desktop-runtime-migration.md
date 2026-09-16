@@ -1,63 +1,48 @@
-# 桌面运行时清理清单
+# 桌面运行时迁移与退役记录
 
-当前默认桌面技术栈是 Electron + 无 Tauri feature 的 Rust 后端。
-本轮完成入口、CI、发布与文档迁移；旧 Tauri 壳保留为兼容实现，尚未退役。
+桌面技术栈统一为 Electron + 共享 Rust 后端。2026-09-16 明确停止支持旧
+Tauri 壳及其尚未迁移的三个功能：透明桌宠浮窗、原生远程工作区连接管理、
+旧开机启动实现。开机启动现已通过 Electron 原生登录项 API 重新实现，
+位于「设置 → 通用」，支持已打包的 macOS/Windows 应用；不自动启用。
+后续上游合并不得恢复退役入口或 Tauri 运行时依赖。
 
-## 已完成
+## 已清理
 
-- `desktop:dev`、`desktop:build`、`desktop:build:dmg`、`desktop:pack` 和
-  `desktop:smoke` 统一使用 Electron。原有 `electron:*` 别名继续兼容。
-- 默认 CI 覆盖 Electron 原生 keyring、Rust 集成测试、MCP，以及三平台打包后
-  的真实应用启动；不再安装 WebKit 或编译 Tauri 壳。
-- 发布按原生架构构建 Electron，验证安装包、SHA-256、macOS 签名及公证。
-  选中平台失败时保留草稿，不发布不完整版本；只允许写入个人 MaxCode 仓库。
-- 旧 Tauri 构建入口标为 `legacy:tauri:*`，兼容 CI 移入仅手动触发的
-  `legacy-tauri.yml`。默认发布不再生成 Tauri 安装包和 `latest.json`。
-- 服务器发布仍保留原 minisign 密钥、`.sig` 格式和校验逻辑。`tauri` CLI
-  仍被服务器签名使用，不能随旧桌面发布一起删除。
+- 旧桌面二进制、Tauri feature、插件、命令包装、窗口事件与构建钩子。
+- 前端 Tauri transport、原生远程代理及对应窗口/更新/通知分支。
+- 三个退役功能的前端入口、专属界面和旧桌面实现。
+- Tauri 配置、capabilities、sidecar 准备脚本、legacy 命令和兼容 CI。
 
-Electron 自动更新已接入稳定版差分下载及完整包回退，见
-[差分更新说明](electron-differential-updates.md)。旧 Tauri 更新器仅为兼容壳保留。
+`desktop:dev`、`desktop:build`、`desktop:build:dmg`、`desktop:pack` 和
+`desktop:smoke` 继续使用 Electron。业务请求统一使用 HTTP/WebSocket，原生
+文件选择、通知、窗口控制、剪贴板与更新继续通过 Electron preload 提供。
 
-## 暂时保留及原因
+## 保留项
 
-| 内容 | 原因与后续处理 |
+| 内容 | 原因 |
 | --- | --- |
-| `src-tauri/src/`、Cargo、数据库、解析器、MCP | Electron 与服务器共用的业务核心，长期保留 |
-| `src-tauri/icons/` | Electron 安装包仍引用；需要整理时迁移引用后再移动 |
-| `src-tauri/` 目录名 | 保持上游路径一致，避免制造大面积合并冲突 |
-| `tauri-runtime`、旧入口、capabilities、Tauri 插件 | 兼容壳仍可构建，待功能去留确定后一起删除 |
-| 前端 Tauri transport、事件及窗口分支 | 与兼容壳成套保留，不能只卸载 npm 包 |
-| Cargo 默认 `tauri-runtime` feature | 兼容上游裸 Cargo 命令；所有正式 Electron / server 命令显式传 `--no-default-features` |
-| `tauri:before-*`、sidecar 准备脚本 | 旧 Tauri 配置仍引用，只由兼容构建调用 |
+| `src-tauri/src/`、Cargo、数据库、解析器、MCP | Electron 与服务器共用的业务核心 |
+| `src-tauri/icons/` | Electron 安装包继续引用的品牌图标 |
+| `src-tauri/` 目录名 | 保持上游路径一致，减少合并冲突；不代表依赖 Tauri |
+| `native-keyring` | Electron 继续访问原系统钥匙串凭据 |
+| `@tauri-apps/cli` | 仅用 `pnpm server:sign` 签署服务器更新，保持原 minisign 密钥和 `.sig` 格式 |
+| 历史数据库结构与迁移 | 保持已有数据和备份兼容，不因源码清理删除用户数据 |
 
-## 尚未迁移的功能
+Cargo 默认 feature 为空，只保留 `codeg-server` 和 `codeg-mcp` 两个二进制。
+Electron 构建显式启用 `native-keyring`；服务器/Docker 沿用原构建方式。
 
-这些能力继续留在兼容实现中，Electron 中对应入口保持关闭：
+## 保持的用户行为
 
-| 功能 | 后续迁移要求 |
-| --- | --- |
-| 透明桌宠浮窗 | Electron 透明窗口、拖拽、置顶及跨窗口事件契约 |
-| 原生远程工作区连接管理 | 连接配置、远程 transport、窗口与认证生命周期契约 |
-| 开机启动设置 | Electron 原生登录项能力及设置持久化契约 |
+- Electron 与服务器的会话、智能体、终端、Git、文件、备份和更新功能继续保留。
+- 浏览器访问远程服务器、手机 Web 服务与 Android/iOS 客户端不依赖已退役的原生
+  远程工作区窗口，继续正常使用。
+- Electron 更新继续使用差分下载及完整包回退，见
+  [差分更新说明](electron-differential-updates.md)。服务器更新继续校验既有签名。
+- Electron 继续使用旧 `app.codeg` 数据目录和原生 keyring；源码清理不删除
+  数据库和凭据，不卸载本机应用，也不清空共享 Rust 构建缓存。
+- 旧 Tauri 用户仍需手动安装 Electron；不提供旧 Tauri `latest.json` 更新清单。
+  旧 WebView localStorage 不自动迁移，Electron 窗口偏好独立持久化。
 
-本轮不将上述功能视为已弃用。逐项迁移并验证，或明确决定停止支持后，才能
-删除对应旧实现；新行为须在 `src/maxcode-contracts/` 添加契约并登记热点。
-
-## 用户数据和旧版本升级
-
-新 Electron 发布不提供 Tauri 自动更新清单，旧用户需手动下载安装。
-Electron 继续使用旧 `app.codeg` 数据目录及原生 keyring，不删除数据库和凭据。
-旧 Tauri WebView 的 localStorage 不自动迁移；Electron 的窗口偏好独立持久化。
-清理源码不包含删除本机应用数据、卸载旧应用或清空共享 Rust 构建缓存。
-
-## 下一阶段删除顺序
-
-1. 完成上表功能迁移或确定其退役范围，补齐契约测试。
-2. 删除前端 Tauri transport 与原生能力分支，再卸载无引用 npm 插件。
-3. 删除旧壳入口、Tauri 命令包装和配置，保留 `_core` 共享业务及 HTTP 入口。
-4. 清理 Cargo Tauri feature、插件与构建钩子；替换服务器签名工具后再移除 CLI。
-5. 删除手动兼容 CI 和 legacy 脚本，运行前端、Rust、打包和启动验证。
-
-原生 runner 标签依据 [GitHub runner 文档](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)，
-目标映射与完整产物检查集中在 `electron/scripts/release.cjs`。
+退役契约位于 `src/maxcode-contracts/tauri-retirement.contract.test.ts`，并登记到
+`config/maxcode-upstream-hotspots.json`。清理后应运行前端检查/测试/构建、两种
+Rust feature 组合的测试，以及 Electron 打包和启动验证。

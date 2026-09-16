@@ -1,33 +1,20 @@
 import { toErrorMessage } from "./app-error"
-import { getTransport, isDesktop, isRemoteDesktopMode } from "./transport"
+import { getTransport } from "./transport"
 import { getElectronBridge, isElectron } from "./electron"
 
 export function usesElectronInstaller(): boolean {
-  return isElectron() && !isRemoteDesktopMode()
+  return isElectron()
 }
 
 const ELECTRON_INSTALLER_MESSAGE =
   "Install a new Electron desktop release using its installer, then reopen MaxCode."
 
-// Drive the LOCAL Tauri app updater only for a genuine local desktop window.
-// A remote-desktop window IS a Tauri app (`isDesktop()` is true) but its
-// backend is a remote codeg-server, so update checks/actions must target that
-// server through the transport — otherwise the operator would check and update
-// their own local app instead of the server they are managing.
-export function usesTauriUpdater(): boolean {
-  return isDesktop() && !isRemoteDesktopMode()
-}
-
-// All updater imports are dynamic to avoid crashing in non-Tauri browsers.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type Update = any
-
 export type ServerUpdateCapability = "supervised" | "reexec"
 
 /** The three release fields the UI actually renders. Deliberately plain data:
  * the download is driven by the BACKEND (`perform_app_update` re-checks on its
- * own — see `src-tauri/src/commands/app_update.rs`), so no caller needs to hold
- * on to Tauri's `Update` resource handle. */
+ * own — see `src-tauri/src/web/handlers/app_update.rs`), so no caller needs to hold
+ * on to an updater resource handle. */
 export interface AppUpdateInfo {
   version: string
   body: string
@@ -70,7 +57,7 @@ export interface ServerUpdateStatus {
 
 // ─── Unified, backend-owned update lifecycle ───────────────────────────────
 //
-// The backend (desktop tauri-plugin-updater OR server in-place swap) is the
+// The backend (Electron updater or server in-place swap) is the
 // single source of truth for an in-flight/completed update. The UI subscribes
 // to `app_update_state` and re-syncs from a snapshot on mount, so progress
 // survives navigating between settings pages, closing the page, or a reload.
@@ -105,7 +92,7 @@ export interface AppUpdateState {
 }
 
 /** Snapshot of the current update state. Works in every mode: desktop reads a
- * Tauri command, server/remote reads the HTTP handler. Call on mount to
+ * native bridge, browsers read the HTTP handler. Call on mount to
  * recover an in-flight download the UI would otherwise have lost. */
 export function getAppUpdateState(): Promise<AppUpdateState> {
   if (usesElectronInstaller())
@@ -218,55 +205,17 @@ export function appUpdateErrorMessageKey(
 
 export async function getCurrentAppVersion(): Promise<string> {
   if (usesElectronInstaller()) return getElectronBridge()!.version
-  if (!usesTauriUpdater()) {
-    // Read the running version from a LOCAL source, never the
-    // manifest-dependent update check: the settings page loads this alongside
-    // unrelated local state (proxy settings). This must fail OPEN — neither a
-    // release-source outage nor an older server missing /app_update_status
-    // (a newer desktop talking to an older remote server) may fail the load.
-    try {
-      const status = await getServerUpdateStatus()
-      if (status?.currentVersion) return status.currentVersion
-    } catch {
-      // Older server without the status route, or a transient failure — fall
-      // through to /health (present on every server build), never to the
-      // manifest check.
-    }
-    return (await getRunningServerVersion()) ?? "unknown"
-  }
+  // Read the local server version without depending on the release source.
   try {
-    const { getVersion } = await import("@tauri-apps/api/app")
-    return await getVersion()
+    const status = await getServerUpdateStatus()
+    if (status?.currentVersion) return status.currentVersion
   } catch {
-    return "unknown"
+    // Older servers may not expose the update-status route.
   }
+  return (await getRunningServerVersion()) ?? "unknown"
 }
 
-/**
- * Bound on the manifest fetch. `tauri-plugin-updater` defaults to NO timeout,
- * so a black-holed network (dropped packets, captive portal, no RST) would
- * leave `check()` pending forever — and with it the caller's in-flight guard,
- * killing update checks for the rest of the session. Matches the standalone
- * server's own manifest budget (8s connect + 15s total in
- * `src-tauri/src/update/version.rs`), so every runtime fails in about the same
- * time. The server and remote-desktop paths are already bounded by their
- * transports (60s / 30s).
- */
-const MANIFEST_TIMEOUT_MS = 15_000
-
-/**
- * Ask the release source whether a newer version exists, normalized to plain
- * data across both runtimes.
- *
- * Desktop goes through `tauri-plugin-updater`, whose `check()` resolves to a
- * resource-backed `Update` handle. We copy the three fields we render and
- * release the handle immediately — nothing downstream needs it (the actual
- * download runs in Rust via `perform_app_update`, which re-checks itself), so
- * holding it would only leak an entry in Tauri's resource table on every
- * periodic check.
- *
- * Server/remote hits `check_app_update`, which already answers in this shape.
- */
+/** Check the release source through the Electron updater or server API. */
 export async function checkAppUpdateInfo(): Promise<AppUpdateCheckResult> {
   if (usesElectronInstaller()) {
     if (getElectronBridge()!.checkForUpdate)
@@ -284,52 +233,18 @@ export async function checkAppUpdateInfo(): Promise<AppUpdateCheckResult> {
       runtime: "electron",
     }
   }
-  if (!usesTauriUpdater()) {
-    return getTransport().call<AppUpdateCheckResult>("check_app_update")
-  }
-  const { getVersion } = await import("@tauri-apps/api/app")
-  const { check } = await import("@tauri-apps/plugin-updater")
-  const [currentVersion, update] = await Promise.all([
-    getVersion(),
-    check({ timeout: MANIFEST_TIMEOUT_MS }),
-  ])
-  if (!update) return { currentVersion, update: null }
-  try {
-    return {
-      currentVersion,
-      update: {
-        version: update.version,
-        body: update.body ?? "",
-        date: update.date ?? null,
-      },
-    }
-  } finally {
-    // Best-effort: a failed close costs one resource-table slot, never the
-    // check result the caller is waiting on.
-    try {
-      await closeUpdateHandle(update)
-    } catch (err) {
-      console.error("[Update] release updater resource failed:", err)
-    }
-  }
-}
-
-async function closeUpdateHandle(update: NonNullable<Update>): Promise<void> {
-  if (typeof update?.close !== "function") return
-  await update.close()
+  return getTransport().call<AppUpdateCheckResult>("check_app_update")
 }
 
 /**
  * Local-only self-update status (capability + rollback availability) that does
  * NOT contact the release source. Drives the manual rollback affordance so it
  * stays reachable when the update manifest is unreachable (proxy/outage/air-gap)
- * — `rollback_app` is entirely local. Returns null for a genuine local desktop
- * window (no server to query; it updates via the Tauri plugin).
+ * — `rollback_app` is entirely local. Electron supplies its native status.
  */
 export async function getServerUpdateStatus(): Promise<ServerUpdateStatus | null> {
   if (usesElectronInstaller())
     return getElectronBridge()!.getUpdateStatus?.() ?? null
-  if (usesTauriUpdater()) return null
   return getTransport().call<ServerUpdateStatus>("app_update_status")
 }
 
@@ -337,8 +252,7 @@ export async function relaunchApp(): Promise<void> {
   // Backup restore relaunches the owning shell so the managed backend can
   // apply staged data on its next start. This does not install an update.
   if (usesElectronInstaller()) return getElectronBridge()!.relaunchApp()
-  const { relaunch } = await import("@tauri-apps/plugin-process")
-  await relaunch()
+  await getTransport().call("restart_app")
 }
 
 // ─── Server / Docker in-place self-update ──────────────────────────────────

@@ -47,7 +47,6 @@ async fn detect_one(name: &str) -> PackageManagerInfo {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn detect_package_manager(name: String) -> PackageManagerInfo {
     detect_one(&name).await
 }
@@ -131,7 +130,6 @@ mod tests {
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn create_shadcn_project(
     project_name: String,
     template: String,
@@ -340,7 +338,6 @@ fn hyperframes_skill_installed(skill_agent: &str) -> bool {
 /// Detect, per agent, whether the HyperFrames skill is already installed
 /// globally. Backs the launcher's "Installed" badges; consistent with the
 /// Settings → Skills view by construction (same resolution path).
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn detect_hyperframes_skills() -> Vec<HyperframesSkillAgent> {
     HYPERFRAMES_SKILL_AGENTS
         .iter()
@@ -381,7 +378,6 @@ pub async fn detect_hyperframes_skills() -> Vec<HyperframesSkillAgent> {
 /// wrapper: the `skills` CLI shells out to `git clone`, and Git's clone-hook
 /// protection can otherwise abort it when a global `git lfs` post-checkout hook
 /// is registered. The source repo is hardcoded, so opting out is safe here.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn install_hyperframes_skills(agents: Vec<String>) -> Result<(), AppCommandError> {
     let selected: Vec<&str> = agents
         .iter()
@@ -487,7 +483,6 @@ pub async fn install_hyperframes_skills(agents: Vec<String>) -> Result<(), AppCo
 /// agent coding skills — it only prints a `npx skills add heygen-com/hyperframes`
 /// hint and returns. So `--skip-skills` would be a no-op here and is left off;
 /// authoring skills, if wanted, must be installed as a separate step.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn create_hyperframes_project(
     project_name: String,
     example: String,

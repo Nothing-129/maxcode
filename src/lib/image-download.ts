@@ -1,11 +1,10 @@
-import { isDesktop } from "@/lib/platform"
 import { getElectronBridge } from "./electron"
 
 /**
  * Save an inline base64 image to user-chosen disk location.
  *
- * Desktop (Tauri): pops the system "Save As" dialog, then writes the
- * decoded bytes to the chosen path via the `save_binary_file` command.
+ * Desktop (Electron): pops the system "Save As" dialog, then writes the
+ * decoded bytes to the chosen path through the native preload bridge.
  * Web (browser): triggers a Blob download via an `<a download>` link;
  * the browser uses its own download manager / location.
  *
@@ -29,21 +28,6 @@ export async function downloadImage(opts: {
       },
       base64ToUint8Array(data)
     ))
-  }
-
-  if (isDesktop()) {
-    const { save } = await import("@tauri-apps/plugin-dialog")
-    const { invoke } = await import("@tauri-apps/api/core")
-
-    const ext = extensionForMime(mime_type)
-    const path = await save({
-      defaultPath: suggestedName,
-      filters: [{ name: "Image", extensions: [ext] }],
-    })
-    if (!path) return false
-
-    await invoke("save_binary_file", { path, dataBase64: data })
-    return true
   }
 
   const bytes = base64ToUint8Array(data)

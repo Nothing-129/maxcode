@@ -1,14 +1,11 @@
 "use client"
 
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import type { GenerationStats } from "@/lib/types"
 
 const KEY_PREFIX = "codeg.generationStats"
 
 function storageKey(conversationId: number): string {
-  const remoteId = getActiveRemoteConnectionId()
-  const scope = remoteId ? `remote-${remoteId}` : "local"
-  return `${KEY_PREFIX}:${scope}:${conversationId}`
+  return `${KEY_PREFIX}:local:${conversationId}`
 }
 
 function isNonNegativeFinite(value: unknown): value is number {

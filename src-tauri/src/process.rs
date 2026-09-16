@@ -211,7 +211,6 @@ where
 /// * Call **once** at startup, **before** any multi-threaded work begins.
 ///   `std::env::set_var` is not thread-safe (`unsafe` in Rust edition 2024);
 ///   calling it while other threads may read `PATH` is a data race.
-/// * In the Tauri desktop binary: call from `run()` before `tauri::Builder`.
 /// * In the standalone server binary: call from `main()` before building the
 ///   tokio runtime (do **not** use `#[tokio::main]` which spawns threads first).
 /// * In Docker / systemd services: typically a no-op — `which("node")`
@@ -386,7 +385,7 @@ pub(crate) fn node_bin_dir_candidates(home: Option<&std::path::Path>) -> Vec<Pat
     // ── fnm ──────────────────────────────────────────────────────────────
     // FNM_MULTISHELL_PATH is set by `eval "$(fnm env)"` in the user's
     // shell RC. It points to a temporary directory that only exists during
-    // an active shell session. In a GUI app (Tauri) this is typically
+    // an active shell session. In a GUI app (Electron) this is typically
     // NOT set because the process inherits from the window manager, not a
     // shell. It mainly helps the *server binary* launched from a terminal.
     if let Ok(fnm_multishell_path) = std::env::var("FNM_MULTISHELL_PATH") {

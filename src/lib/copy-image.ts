@@ -2,7 +2,7 @@
  * Copy an inline base64 image to the system clipboard as a real image
  * (so Paste in another app inserts pixels, not a path).
  *
- * Chrome / Edge / Tauri webview accept `image/png` on `ClipboardItem`.
+ * Chromium browsers and Electron accept `image/png` on `ClipboardItem`.
  * JPEG / webp / gif are rewritten to PNG via a canvas so the write is
  * not rejected. Environments without `clipboard.write` throw a typed
  * error the UI can surface — see {@link canCopyImageToClipboard}, which
@@ -44,7 +44,7 @@ export async function copyImageToClipboard(opts: {
   const bytes = base64ToUint8Array(opts.data)
   const sourceType = normalizeImageMime(opts.mime_type)
 
-  // WebKit — the webview the desktop app runs on — only honours a clipboard
+  // WebKit browsers only honour a clipboard
   // write issued inside the user gesture, and a rasterized JPEG takes an image
   // decode plus `canvas.toBlob` to produce. Awaiting that first spends the
   // transient activation and the write then fails with NotAllowedError, so

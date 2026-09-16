@@ -177,9 +177,7 @@ export function TaskMessageComposer({
 
   const attach = useComposerAttachments({
     editorRef,
-    containerRef,
     promptCapabilities,
-    defaultPath: folderPath,
     logLabel: "TaskComposer",
   })
   const shortcuts = useComposerShortcuts({
@@ -358,14 +356,12 @@ export function TaskMessageComposer({
           {t("dropFilesToAttach")}
         </div>
       ) : null}
-      {!attach.showNativePaperclip && (
-        <ServerFileBrowserDialog
-          open={attach.serverFilePickerOpen}
-          onOpenChange={attach.setServerFilePickerOpen}
-          onSelect={attach.handleServerFilesSelected}
-          initialPath={folderPath ?? undefined}
-        />
-      )}
+      <ServerFileBrowserDialog
+        open={attach.serverFilePickerOpen}
+        onOpenChange={attach.setServerFilePickerOpen}
+        onSelect={attach.handleServerFilesSelected}
+        initialPath={folderPath ?? undefined}
+      />
     </div>
   )
 }

@@ -280,7 +280,6 @@ fn collect_custom_ids() -> Result<Vec<String>, CustomSkillsError> {
 
 // ─── Commands: list / status / read ─────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_list() -> Result<Vec<CustomSkillItem>, CustomSkillsError> {
     let mut out: Vec<CustomSkillItem> = collect_custom_ids()?.into_iter().map(build_item).collect();
     out.sort_by(|a, b| {
@@ -294,7 +293,6 @@ pub async fn custom_list() -> Result<Vec<CustomSkillItem>, CustomSkillsError> {
 
 /// One-shot snapshot of every (custom skill, agent) link state — lets the matrix
 /// render the whole grid from a single round-trip.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_list_all_install_statuses(
 ) -> Result<Vec<ExpertInstallStatus>, CustomSkillsError> {
     let ids = collect_custom_ids()?;
@@ -323,7 +321,6 @@ pub async fn custom_list_all_install_statuses(
     Ok(out)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_read_skill(id: String) -> Result<String, CustomSkillsError> {
     let id = validate_skill_id(&id).map_err(|e| CustomSkillsError::Metadata(e.to_string()))?;
     let path = skill_md_path(&id);
@@ -434,7 +431,6 @@ fn unlink_one_locked(id: &str, agent_type: AgentType) -> Result<(), CustomSkills
 /// independently: a failing op records `ok: false` and the batch continues. The
 /// frontend re-fetches the authoritative snapshot afterward (shared agent dirs
 /// make per-op state non-local — see the experts/science shared-dir note).
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, CustomSkillsError> {
     let _guard = mutation_lock().lock().await;
     let mut out = Vec::with_capacity(ops.len());
@@ -471,7 +467,6 @@ pub async fn custom_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, C
 
 // ─── Commands: authoring (create / save / duplicate / import / delete) ───
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_create_skill(
     id: String,
     content: String,
@@ -487,7 +482,6 @@ pub async fn custom_create_skill(
     Ok(build_item(id))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_save_skill(
     id: String,
     content: String,
@@ -508,7 +502,6 @@ pub async fn custom_save_skill(
     Ok(build_item(id))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_duplicate_skill(
     source_id: String,
     new_id: String,
@@ -533,7 +526,6 @@ pub async fn custom_duplicate_skill(
 /// directory containing `SKILL.md` (copied whole) or a standalone `.md` file
 /// (wrapped as `<id>/SKILL.md`). The id is `id` when given, else derived from
 /// the folder/file name.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_import_skill(
     source_path: String,
     id: Option<String>,
@@ -586,7 +578,6 @@ pub async fn custom_import_skill(
 /// multi-select). A skill that is already in the store — e.g. a linked
 /// expert/science/office skill, or one imported earlier — is reported as
 /// `skipped`, not an error, so re-running is idempotent.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_import_from_agent(
     agent_type: AgentType,
     ids: Vec<String>,
@@ -692,7 +683,6 @@ fn copy_markdown_as_skill(src: &Path, dst: &Path) -> Result<(), CustomSkillsErro
 /// Batch-delete custom skills. For each id: first unlink from **every** agent
 /// (symlink-safe — foreign links are left in place), then remove the real
 /// central directory. Locks once; per-skill failures are reported, not fatal.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn custom_delete_skills(
     ids: Vec<String>,
 ) -> Result<Vec<CustomDeleteResult>, CustomSkillsError> {

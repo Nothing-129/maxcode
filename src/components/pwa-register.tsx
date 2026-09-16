@@ -5,8 +5,8 @@ import { detectEnvironment } from "@/lib/transport/detect"
 
 /**
  * Registers the PWA service worker in web mode only (standalone server,
- * Docker deploy, remote-desktop access). The Tauri desktop runtime loads
- * pages from a custom scheme where service workers don't apply.
+ * Docker deploy, and remote browser access). Electron manages its packaged
+ * frontend without a service worker.
  */
 export function PwaRegister() {
   useEffect(() => {

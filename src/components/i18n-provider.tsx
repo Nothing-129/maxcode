@@ -23,7 +23,6 @@ import {
   type IntlLocale,
 } from "@/lib/i18n"
 import { getSystemLanguageSettings } from "@/lib/api"
-import { disposeTauriListener } from "@/lib/tauri-listener"
 import { AppBootLoading } from "@/components/layout/app-boot-loading"
 import type { AppLocale, SystemLanguageSettings } from "@/lib/types"
 
@@ -35,7 +34,6 @@ interface AppI18nContextValue {
 }
 
 const AppI18nContext = createContext<AppI18nContextValue | null>(null)
-const LANGUAGE_SETTINGS_UPDATED_EVENT = "app://language-settings-updated"
 
 function subscribeSystemLocale(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {}
@@ -148,34 +146,8 @@ export function AppI18nProvider({
 
     window.addEventListener("storage", onStorage)
 
-    let unlisten: (() => void) | null = null
-    let cancelled = false
-
-    void import("@tauri-apps/api/event")
-      .then(({ listen }) =>
-        listen<SystemLanguageSettings>(
-          LANGUAGE_SETTINGS_UPDATED_EVENT,
-          (event) => {
-            if (cancelled) return
-            setLanguageSettings(event.payload)
-          }
-        )
-      )
-      .then((dispose) => {
-        if (cancelled) {
-          disposeTauriListener(dispose, "I18nProvider.languageSettings")
-          return
-        }
-        unlisten = dispose
-      })
-      .catch(() => {
-        // Ignore when running in non-tauri environment.
-      })
-
     return () => {
-      cancelled = true
       window.removeEventListener("storage", onStorage)
-      disposeTauriListener(unlisten, "I18nProvider.languageSettings")
     }
   }, [setLanguageSettings])
 
@@ -210,21 +182,6 @@ export function AppI18nProvider({
     if (!languageSettingsLoaded) return
     persistLanguageCookies(languageSettings, appLocale)
   }, [appLocale, languageSettings, languageSettingsLoaded])
-
-  // Push the resolved locale to the system tray menu (Tauri only). The
-  // tray was built once at app startup with whatever was persisted then,
-  // so without this it would stay stale after a language change.
-  useEffect(() => {
-    if (typeof window === "undefined") return
-    if (!("__TAURI_INTERNALS__" in window)) return
-    void import("@/lib/tauri")
-      .then((t) => t.setTrayLocale(appLocale))
-      .catch(() => {
-        // Tray refresh is best-effort: the tray may not be installed
-        // (Linux without a status-bar host), and a stale label is a
-        // smaller problem than crashing the i18n provider.
-      })
-  }, [appLocale])
 
   useEffect(() => {
     if (appLocale === messagesLocale) {

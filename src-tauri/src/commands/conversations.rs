@@ -1,14 +1,10 @@
 use std::collections::{HashMap, HashSet};
 
-#[cfg(feature = "tauri-runtime")]
-use tauri::Manager;
-
 use crate::app_error::AppCommandError;
 use crate::db::entities::conversation;
 use crate::db::entities::folder::FolderKind;
 use crate::db::service::{conversation_service, folder_service, import_service, tab_service};
-#[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+
 use crate::models::*;
 // Concrete parser type only for `load_thread_name_index`, which is codex's own
 // index reader and not part of the `AgentParser` trait. Every history read goes
@@ -100,36 +96,6 @@ async fn list_all_conversations_core_with_codex_titles(
     .map_err(AppCommandError::from)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_all_conversations(
-    app: tauri::AppHandle,
-    folder_ids: Option<Vec<i32>>,
-    agent_type: Option<AgentType>,
-    search: Option<String>,
-    sort_by: Option<String>,
-    status: Option<String>,
-    include_children: Option<bool>,
-) -> Result<Vec<DbConversationSummary>, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app.clone());
-    let db = app.state::<AppDatabase>();
-    let chat_channel_manager = app.state::<crate::chat_channel::manager::ChatChannelManager>();
-    list_all_conversations_core(
-        &db.conn,
-        &emitter,
-        &chat_channel_manager,
-        ListAllConversationsOptions {
-            folder_ids,
-            agent_type,
-            search,
-            sort_by,
-            status,
-            include_children: include_children.unwrap_or(false),
-        },
-    )
-    .await
-}
-
 pub async fn list_child_conversations_core(
     conn: &sea_orm::DatabaseConnection,
     parent_conversation_id: i32,
@@ -137,15 +103,6 @@ pub async fn list_child_conversations_core(
     conversation_service::list_children(conn, parent_conversation_id)
         .await
         .map_err(AppCommandError::from)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_child_conversations(
-    db: tauri::State<'_, AppDatabase>,
-    parent_conversation_id: i32,
-) -> Result<Vec<DbConversationSummary>, AppCommandError> {
-    list_child_conversations_core(&db.conn, parent_conversation_id).await
 }
 
 pub async fn list_opened_tabs_core(
@@ -157,14 +114,6 @@ pub async fn list_opened_tabs_core(
         .await
         .map_err(AppCommandError::from)?;
     Ok(OpenedTabsSnapshot { items, version })
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_opened_tabs(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<OpenedTabsSnapshot, AppCommandError> {
-    list_opened_tabs_core(&db.conn).await
 }
 
 /// Persist the open-tab set with compare-and-set on the workspace tab version,
@@ -192,25 +141,6 @@ pub async fn save_opened_tabs_core(
         version: outcome.version,
         tabs: outcome.tabs,
     })
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn save_opened_tabs(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    items: Vec<OpenedTab>,
-    expected_version: i64,
-    origin: String,
-) -> Result<SaveTabsOutcome, AppCommandError> {
-    save_opened_tabs_core(
-        &db.conn,
-        &EventEmitter::Tauri(app),
-        items,
-        expected_version,
-        origin,
-    )
-    .await
 }
 
 /// Synchronous implementation shared by list_conversations, list_folders, and get_stats.
@@ -308,7 +238,6 @@ fn list_conversations_sync(
     all_conversations
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn list_conversations(
     agent_type: Option<AgentType>,
     search: Option<String>,
@@ -325,7 +254,6 @@ pub async fn list_conversations(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_conversation(
     agent_type: AgentType,
     conversation_id: String,
@@ -342,7 +270,6 @@ pub async fn get_conversation(
     })?
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn list_folders() -> Result<Vec<FolderInfo>, AppCommandError> {
     tokio::task::spawn_blocking(move || -> Result<Vec<FolderInfo>, AppCommandError> {
         let all_conversations = list_conversations_sync(None, None, None, None);
@@ -354,7 +281,6 @@ pub async fn list_folders() -> Result<Vec<FolderInfo>, AppCommandError> {
     })?
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_stats() -> Result<AgentStats, AppCommandError> {
     tokio::task::spawn_blocking(move || -> Result<AgentStats, AppCommandError> {
         let all_conversations = list_conversations_sync(None, None, None, None);
@@ -367,7 +293,6 @@ pub async fn get_stats() -> Result<AgentStats, AppCommandError> {
     })?
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_sidebar_data() -> Result<SidebarData, AppCommandError> {
     tokio::task::spawn_blocking(move || -> Result<SidebarData, AppCommandError> {
         let all_conversations = list_conversations_sync(None, None, None, None);
@@ -451,23 +376,6 @@ pub async fn import_local_conversations_core(
     drop(notify_conversation_title_updates(conn, emitter, chat_channel_manager, updated_ids).await);
 
     Ok(result)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn import_local_conversations(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
-    folder_id: i32,
-) -> Result<ImportResult, AppCommandError> {
-    import_local_conversations_core(
-        &db.conn,
-        &EventEmitter::Tauri(app),
-        &chat_channel_manager,
-        folder_id,
-    )
-    .await
 }
 
 /// Serializes concurrent batch imports: `(external_id, agent_type)` has no DB
@@ -767,16 +675,6 @@ async fn scan_importable_sessions_from_summaries(
 
     let folder_rows = load_folder_rows(conn).await?;
     Ok(build_scan_result(summaries, &imported_index, &folder_rows))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn scan_importable_sessions(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
-) -> Result<ScanResult, AppCommandError> {
-    scan_importable_sessions_core(&db.conn, &EventEmitter::Tauri(app), &chat_channel_manager).await
 }
 
 /// Batch-import the selected sessions, creating (or reopening) each target
@@ -1087,16 +985,6 @@ pub async fn import_selected_sessions_core(
 
     let summaries = import_service::collect_local_summaries(|_, _, _, _| {}).await;
     import_selected_from_summaries(conn, emitter, summaries, selections).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn import_selected_sessions(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    selections: Vec<SelectedSessionKey>,
-) -> Result<ImportSelectedResult, AppCommandError> {
-    import_selected_sessions_core(&db.conn, &EventEmitter::Tauri(app), selections).await
 }
 
 /// Build the `meta["codeg.delegation"]` value for a delegation child loaded
@@ -1850,40 +1738,6 @@ pub async fn get_folder_conversation_turns_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_folder_conversation(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    manager: tauri::State<'_, crate::acp::manager::ConnectionManager>,
-    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
-    conversation_id: i32,
-    tail_turns: Option<usize>,
-    from_index: Option<usize>,
-) -> Result<DbConversationDetail, AppCommandError> {
-    let window = resolve_turn_window_req(tail_turns, from_index)?;
-    get_folder_conversation_with_live_core(
-        &db.conn,
-        &manager,
-        &chat_channel_manager,
-        &EventEmitter::Tauri(app),
-        conversation_id,
-        window,
-    )
-    .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_folder_conversation_turns(
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-    before_index: usize,
-    limit: usize,
-) -> Result<ConversationTurnsPage, AppCommandError> {
-    get_folder_conversation_turns_core(&db.conn, conversation_id, before_index, limit).await
-}
-
 /// Emit a `conversation://changed` Upsert for `conversation_id` so every
 /// client's sidebar inserts-or-replaces the row in real time. Re-fetches the
 /// fresh summary via `get_by_id`, which filters out soft-deleted rows — so an
@@ -2142,20 +1996,6 @@ pub async fn create_conversation_core(
     Ok(model.id)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn create_conversation(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    folder_id: i32,
-    agent_type: AgentType,
-    title: Option<String>,
-) -> Result<i32, AppCommandError> {
-    let id = create_conversation_core(&db.conn, folder_id, agent_type, title).await?;
-    emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, id).await;
-    Ok(id)
-}
-
 /// Result of [`create_chat_conversation_core`]: the new conversation id plus the
 /// hidden chat folder backing it, so the frontend can drop the folder straight
 /// into `allFolders` (resolving cwd / active-folder) without a refetch.
@@ -2395,52 +2235,6 @@ pub async fn create_chat_conversation_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn create_chat_conversation(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    agent_type: AgentType,
-    title: Option<String>,
-    existing_dir: Option<String>,
-) -> Result<CreateChatConversationResult, AppCommandError> {
-    use tauri::Manager;
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let result = create_chat_conversation_core(
-        &db.conn,
-        &data_dir,
-        agent_type,
-        title,
-        existing_dir.as_deref(),
-    )
-    .await?;
-    emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, result.conversation_id).await;
-    Ok(result)
-}
-
-/// Eagerly create a chat-mode scratch directory (no DB rows) and return its
-/// path, so the frontend can connect ACP at a real cwd the instant the user
-/// selects "no-folder mode" — before any first prompt. The hidden folder +
-/// conversation are still created lazily on first send (reusing this dir).
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn create_chat_dir(
-    app: tauri::AppHandle,
-) -> Result<CreateChatDirResult, AppCommandError> {
-    use tauri::Manager;
-    let data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let path = create_chat_dir_core(&data_dir)?;
-    Ok(CreateChatDirResult { path })
-}
-
 async fn detect_git_branch(path: &str) -> Option<String> {
     let output = crate::process::tokio_command("git")
         .args(["rev-parse", "--abbrev-ref", "HEAD"])
@@ -2474,19 +2268,6 @@ pub async fn update_conversation_status_core(
         .map_err(AppCommandError::from)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_conversation_status(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-    status: String,
-) -> Result<(), AppCommandError> {
-    update_conversation_status_core(&db.conn, conversation_id, status).await?;
-    emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, conversation_id).await;
-    Ok(())
-}
-
 pub async fn refresh_conversation_title_core(
     conn: &sea_orm::DatabaseConnection,
     emitter: &EventEmitter,
@@ -2501,22 +2282,6 @@ pub async fn refresh_conversation_title_core(
         ));
     }
     emit_conversation_upsert(emitter, conn, conversation_id).await;
-    Ok(title)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn refresh_conversation_title(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
-    conversation_id: i32,
-) -> Result<String, AppCommandError> {
-    let title =
-        refresh_conversation_title_core(&db.conn, &EventEmitter::Tauri(app), conversation_id)
-            .await?;
-    sync_conversation_title_to_channels_core(&db.conn, &chat_channel_manager, conversation_id)
-        .await;
     Ok(title)
 }
 
@@ -2548,22 +2313,6 @@ pub async fn sync_conversation_title_to_channels_core(
     }
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_conversation_title(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    chat_channel_manager: tauri::State<'_, crate::chat_channel::manager::ChatChannelManager>,
-    conversation_id: i32,
-    title: String,
-) -> Result<(), AppCommandError> {
-    update_conversation_title_core(&db.conn, conversation_id, title).await?;
-    emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, conversation_id).await;
-    sync_conversation_title_to_channels_core(&db.conn, &chat_channel_manager, conversation_id)
-        .await;
-    Ok(())
-}
-
 pub async fn update_conversation_pinned_core(
     conn: &sea_orm::DatabaseConnection,
     conversation_id: i32,
@@ -2572,19 +2321,6 @@ pub async fn update_conversation_pinned_core(
     conversation_service::update_pin(conn, conversation_id, pinned)
         .await
         .map_err(AppCommandError::from)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_conversation_pinned(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-    pinned: bool,
-) -> Result<(), AppCommandError> {
-    update_conversation_pinned_core(&db.conn, conversation_id, pinned).await?;
-    emit_conversation_upsert(&EventEmitter::Tauri(app), &db.conn, conversation_id).await;
-    Ok(())
 }
 
 pub async fn delete_conversation_core(
@@ -2677,17 +2413,6 @@ pub async fn delete_conversation_with_cleanup_core(
         cleanup_chat_folder_for_deleted_conversation(conn, folder_id).await;
     }
     Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn delete_conversation(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    conversation_id: i32,
-) -> Result<(), AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
-    delete_conversation_with_cleanup_core(&emitter, &db.conn, conversation_id).await
 }
 
 fn compute_stats(all_conversations: &[ConversationSummary]) -> AgentStats {

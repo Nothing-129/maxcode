@@ -1,9 +1,8 @@
 //! Conversation canvas: persisted regions / pinned cards / notes, shared by
 //! every window and client of one workspace backend.
 //!
-//! The `*_core` fns are mode-agnostic (plain references, no `tauri::State`) and
-//! emit `CANVAS_CHANGED_EVENT` after commit so both the Tauri command wrappers
-//! and the Axum handlers share one code path. Ordering protocol: every
+//! The `*_core` functions serve Electron and server HTTP handlers and emit
+//! `CANVAS_CHANGED_EVENT` after commit. Ordering protocol: every
 //! committed mutation is exactly one event carrying a dense server revision
 //! (see `canvas_service`); clients apply events in revision order, treat a gap
 //! as "refetch the snapshot", and never advance their revision from a command
@@ -567,100 +566,6 @@ pub(crate) async fn cleanup_canvas_for_deleted_conversation(
             "[canvas] prune failed after deleting conversation {conversation_id}: {e}"
         ),
     }
-}
-
-// ---------------------------------------------------------------------------
-// Tauri command wrappers
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_list_nodes(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<CanvasSnapshot, AppCommandError> {
-    canvas_list_nodes_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_create_node(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    input: CreateCanvasNode,
-) -> Result<CanvasMutation<CanvasNode>, AppCommandError> {
-    canvas_create_node_core(&EventEmitter::Tauri(app), &db, input).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_group_into_region(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    input: GroupIntoRegionInput,
-) -> Result<CanvasMutation<GroupIntoRegionResult>, AppCommandError> {
-    canvas_group_into_region_core(&EventEmitter::Tauri(app), &db, input).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_update_node(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    node_id: i32,
-    patch: CanvasNodePatchInput,
-) -> Result<CanvasMutation<CanvasNode>, AppCommandError> {
-    canvas_update_node_core(&EventEmitter::Tauri(app), &db, node_id, patch).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_move_nodes(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    moves: Vec<CanvasNodeMovePayload>,
-) -> Result<CanvasMutation<Vec<CanvasNodeMovePayload>>, AppCommandError> {
-    canvas_move_nodes_core(&EventEmitter::Tauri(app), &db, moves).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_detach_member(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    region_id: i32,
-    conversation_id: i32,
-    x: f64,
-    y: f64,
-) -> Result<CanvasMutation<CanvasNode>, AppCommandError> {
-    canvas_detach_member_core(
-        &EventEmitter::Tauri(app),
-        &db,
-        region_id,
-        conversation_id,
-        x,
-        y,
-    )
-    .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_delete_node(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    node_id: i32,
-) -> Result<CanvasMutation<()>, AppCommandError> {
-    canvas_delete_node_core(&EventEmitter::Tauri(app), &db, node_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn canvas_delete_nodes(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    node_ids: Vec<i32>,
-) -> Result<CanvasMutation<Vec<i32>>, AppCommandError> {
-    canvas_delete_nodes_core(&EventEmitter::Tauri(app), &db, node_ids).await
 }
 
 #[cfg(test)]

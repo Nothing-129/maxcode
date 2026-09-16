@@ -15,7 +15,6 @@ import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
 import { useLongPressDrag } from "@/hooks/use-long-press-drag"
 import { openInCode } from "@/lib/api"
 import { toErrorMessage } from "@/lib/app-error"
-import { isRemoteDesktopWindow } from "@/lib/platform"
 import { cn, handleMiddleClickClose } from "@/lib/utils"
 import { VSCodeIcon } from "@/components/vscode-icon"
 import {
@@ -168,7 +167,7 @@ export function FileWorkspaceTabBar() {
         {/* Drag spacer, floored at `min-w-10` (40px): even when many tabs overflow
             and squeeze this region, a grabbable window-drag gap always remains
             between the last tab and the maximize button. */}
-        <div data-tauri-drag-region className="h-full min-w-10 flex-1" />
+        <div data-drag-region className="h-full min-w-10 flex-1" />
         {mode === "fusion" && (
           <button
             type="button"
@@ -243,7 +242,7 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
   const isDiff = tab.kind === "diff" || tab.kind === "rich-diff"
   const isDirty = tab.kind === "file" && Boolean(tab.isDirty)
   const openInCodePath = tab.path
-  const canOpenInCode = Boolean(openInCodePath) && !isRemoteDesktopWindow()
+  const canOpenInCode = Boolean(openInCodePath)
 
   const handleLongPressStart = useCallback(
     () => onTouchSortingStart(tab.id),

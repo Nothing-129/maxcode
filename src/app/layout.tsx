@@ -14,7 +14,6 @@ import { InputModalityInit } from "@/components/input-modality-init"
 import { ClipboardFallbackInit } from "@/components/clipboard-fallback-init"
 import { PwaRegister } from "@/components/pwa-register"
 import { WebConnectionGuard } from "@/components/connection/web-connection-guard"
-import { WindowResizeGrips } from "@/components/layout/window-resize-grips"
 
 export const viewport: Viewport = {
   width: "device-width",
@@ -81,7 +80,6 @@ export default async function RootLayout({
                 <InputModalityInit />
                 <PwaRegister />
                 <WebConnectionGuard />
-                <WindowResizeGrips />
                 {children}
               </AppearanceProvider>
             </ThemeProvider>

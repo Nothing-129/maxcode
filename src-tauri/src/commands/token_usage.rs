@@ -1214,44 +1214,6 @@ async fn record_fact_schema_version(
         .map_err(AppCommandError::from)
 }
 
-// ─── Tauri commands ─────────────────────────────────────────────────────
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn token_usage_report(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-    filter: TokenUsageFilter,
-) -> Result<TokenUsageReport, AppCommandError> {
-    token_usage_report_core(&db.conn, filter).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn token_usage_facets(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<TokenUsageFacets, AppCommandError> {
-    token_usage_facets_core(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn token_usage_status(
-    db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<TokenUsageSyncStatus, AppCommandError> {
-    token_usage_status_core(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn token_usage_sync(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, crate::db::AppDatabase>,
-    mode: Option<TokenUsageSyncMode>,
-) -> Result<TokenUsageSyncResult, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
-    token_usage_sync_core(&db.conn, &emitter, mode.unwrap_or_default()).await
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

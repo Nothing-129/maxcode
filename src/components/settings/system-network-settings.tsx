@@ -1,20 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import {
-  Languages,
-  Loader2,
-  Plus,
-  Power,
-  Sparkles,
-  Trash2,
-  Wifi,
-} from "lucide-react"
+import { Languages, Loader2, Plus, Sparkles, Trash2, Wifi } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useAppI18n } from "@/components/i18n-provider"
 import { BackupSettings } from "@/components/settings/backup-settings"
-import { SettingsSection } from "@/components/shared/settings-section"
 import { BrowserLink } from "@/components/ui/browser-link"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,16 +19,14 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import {
-  getSystemAutostartSettings,
   getSystemProxySettings,
   getSystemTitleModelSettings,
   testSystemTitleModelSettings,
-  updateSystemAutostartSettings,
   updateSystemLanguageSettings,
   updateSystemProxySettings,
   updateSystemTitleModelSettings,
 } from "@/lib/api"
-import { isDesktop, isLocalDesktop, openUrl } from "@/lib/platform"
+import { openUrl } from "@/lib/platform"
 import type {
   AppLocale,
   SystemTitleModelTestResult,
@@ -117,16 +106,6 @@ export function SystemNetworkSettings() {
     useState<SystemTitleModelTestResult | null>(null)
   const [titleModelError, setTitleModelError] = useState<string | null>(null)
 
-  // Launch at login registers *this* machine's executable with the OS, so it
-  // only means something for a local Tauri shell — a remote workspace window
-  // routes every call to a server that has no login items to speak of.
-  const autostartVisible = isDesktop() && isLocalDesktop()
-  const [autostartEnabled, setAutostartEnabled] = useState(false)
-  const [savingAutostart, setSavingAutostart] = useState(false)
-  // Non-null when the OS refused to report the registration (no home dir, a
-  // locked-down registry, …). The row stays on screen but inert, which beats
-  // hiding a setting the user came looking for.
-  const [autostartError, setAutostartError] = useState<string | null>(null)
   const [appLanguage, setAppLanguage] = useState<LanguageSelectValue>(
     languageSettings.mode === "system" ? "system" : languageSettings.language
   )
@@ -163,20 +142,9 @@ export function SystemNetworkSettings() {
     setLoadError(null)
 
     try {
-      const [proxySettings, titleSettings, autostart] = await Promise.all([
+      const [proxySettings, titleSettings] = await Promise.all([
         getSystemProxySettings(),
         getSystemTitleModelSettings(),
-        // Kept out of the shared rejection path: a machine that cannot report
-        // its login items must not blank out the proxy and language cards.
-        autostartVisible
-          ? getSystemAutostartSettings().then(
-              (settings) => ({ settings, error: null }),
-              (err) => {
-                console.error("[Settings] load autostart settings failed:", err)
-                return { settings: null, error: toErrorMessage(err) }
-              }
-            )
-          : Promise.resolve(null),
       ])
 
       setEnabled(proxySettings.enabled)
@@ -193,11 +161,6 @@ export function SystemNetworkSettings() {
       setTitleModelApiKey("")
       setClearTitleModelApiKey(false)
       setTitleModelTestResult(null)
-
-      if (autostart) {
-        setAutostartEnabled(autostart.settings?.enabled ?? false)
-        setAutostartError(autostart.error)
-      }
     } catch (err) {
       const message = toErrorMessage(err)
       setLoadError(message)
@@ -205,7 +168,7 @@ export function SystemNetworkSettings() {
     } finally {
       setLoading(false)
     }
-  }, [autostartVisible])
+  }, [])
 
   useEffect(() => {
     loadSettings().catch((err) => {
@@ -230,27 +193,6 @@ export function SystemNetworkSettings() {
         toast.error(t("saveFailed", { message }))
       } finally {
         setSaving(false)
-      }
-    },
-    [t]
-  )
-
-  const saveAutostartSettings = useCallback(
-    async (next: boolean, prev: boolean) => {
-      setSavingAutostart(true)
-      try {
-        // The backend answers with what the OS settled on, not with the
-        // request — Windows can veto a Run entry through Task Manager, so the
-        // switch has to follow the reply rather than the optimistic value.
-        const result = await updateSystemAutostartSettings({ enabled: next })
-        setAutostartEnabled(result.enabled)
-        setAutostartError(null)
-      } catch (err) {
-        setAutostartEnabled(prev)
-        const message = toErrorMessage(err)
-        toast.error(t("autostartSaveFailed", { message }))
-      } finally {
-        setSavingAutostart(false)
       }
     },
     [t]
@@ -393,36 +335,6 @@ export function SystemNetworkSettings() {
             {t("sectionDescription")}
           </p>
         </section>
-
-        {/* Titled by the option itself: the section *is* the one switch, so a
-            card holding a single row would only say the heading back one line
-            lower. */}
-        {autostartVisible && (
-          <SettingsSection
-            icon={Power}
-            title={t("autostartTitle")}
-            description={t("autostartDescription")}
-            htmlFor="launch-at-login"
-            control={
-              <Switch
-                id="launch-at-login"
-                checked={autostartEnabled}
-                disabled={savingAutostart || autostartError !== null}
-                onCheckedChange={(next) => {
-                  const prev = autostartEnabled
-                  setAutostartEnabled(next)
-                  void saveAutostartSettings(next, prev)
-                }}
-              />
-            }
-          >
-            {autostartError !== null && (
-              <p className="text-2xs text-amber-500">
-                {t("autostartUnavailable", { message: autostartError })}
-              </p>
-            )}
-          </SettingsSection>
-        )}
 
         <section className="rounded-xl border bg-card p-4 space-y-4">
           <div className="flex items-center gap-2">

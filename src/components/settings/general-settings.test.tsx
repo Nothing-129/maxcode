@@ -123,21 +123,11 @@ describe("GeneralSettings", () => {
     expect(shell).toBeInTheDocument()
     expect(screen.getByText("Currently using: /bin/zsh")).toBeInTheDocument()
 
-    // Rendering section: checkbox → Switch.
-    const hwAccel = screen.getByLabelText("Disable hardware acceleration")
-    expect(hwAccel).toHaveAttribute("role", "switch")
-    expect(hwAccel).toHaveAttribute("data-state", "unchecked")
-    fireEvent.click(hwAccel)
-    await waitFor(() =>
-      expect(hwAccel).toHaveAttribute("data-state", "checked")
-    )
-
     // Every child section mounted. A section that is one option is titled by
     // that option, so these double as the labels asserted above.
     for (const heading of [
       "Default Terminal",
       "Colorize command output",
-      "Disable hardware acceleration",
       "Desktop notifications",
       "Notification sounds",
       "Multi-Agent Collaboration",
@@ -259,14 +249,14 @@ describe("GeneralSettings", () => {
   // The switch only means something where the backend has an env knob to flip
   // at startup: `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` on Windows,
   // `WEBKIT_DISABLE_*` on Linux. WKWebView has neither.
-  it("offers the rendering toggle on Linux too", async () => {
+  it("does not expose the retired webview rendering preference on Linux", async () => {
     platform.current = "linux"
     renderSettings()
 
     await screen.findByLabelText("Default Terminal")
     expect(
-      screen.getByLabelText("Disable hardware acceleration")
-    ).toBeInTheDocument()
+      screen.queryByLabelText("Disable hardware acceleration")
+    ).not.toBeInTheDocument()
   })
 
   it("hides the rendering toggle on macOS", async () => {

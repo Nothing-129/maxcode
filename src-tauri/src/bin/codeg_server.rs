@@ -498,7 +498,7 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
 
     // Spawn the desktop pet state mapper so server-mode browsers viewing
     // /pet receive `pet://state` and `pet://oneshot` over the WebSocket
-    // bridge, just like the Tauri webview does in desktop mode. ACP events
+    // bridge, shared by Electron and browser clients. ACP events
     // come through the typed bus; folder/app side-channels stay on the
     // JSON broadcaster.
     tokio::spawn(codeg_lib::pet_state_mapper::pet_state_subscriber_task(

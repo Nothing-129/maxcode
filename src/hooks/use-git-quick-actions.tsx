@@ -20,15 +20,6 @@ import { toErrorMessage } from "@/lib/app-error"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import type { GitConflictInfo } from "@/lib/types"
 
-const emitEvent = async (event: string, payload?: unknown) => {
-  try {
-    const { emit } = await import("@tauri-apps/api/event")
-    await emit(event, payload)
-  } catch {
-    /* not in Tauri */
-  }
-}
-
 /** The repo a dialog acts on, captured when the dialog is raised. */
 interface GitDialogTarget {
   id: number
@@ -162,7 +153,6 @@ export function useGitQuickActions({
         const successDescription = getSuccessDescription?.(result)
         updateTask(taskId, { status: "completed" })
         refresh()
-        void emitEvent("folder://git-branch-changed", { folder_id: folderId })
         if (successDescription !== false) {
           toast.success(
             t("toasts.taskCompleted", { label }),
@@ -180,7 +170,7 @@ export function useGitQuickActions({
         setRunning(false)
       }
     },
-    [addTask, folderId, pushAlert, refresh, removeTask, t, updateTask]
+    [addTask, pushAlert, refresh, removeTask, t, updateTask]
   )
 
   const reportConflict = useCallback(

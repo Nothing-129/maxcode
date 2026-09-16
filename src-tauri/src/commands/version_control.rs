@@ -1,19 +1,13 @@
 use serde::Deserialize;
-#[cfg(feature = "tauri-runtime")]
-use tauri::State;
 
 use crate::app_error::AppCommandError;
 use crate::db::service::app_metadata_service;
-#[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+
 use crate::models::GitDetectResult;
-#[cfg(feature = "tauri-runtime")]
-use crate::models::GitHubAccountsSettings;
+
 use crate::models::{GitHubTokenValidation, GitSettings};
 
 const GIT_SETTINGS_KEY: &str = "git_settings";
-#[cfg(feature = "tauri-runtime")]
-const GITHUB_ACCOUNTS_KEY: &str = "github_accounts";
 
 // ---------------------------------------------------------------------------
 // Git detection
@@ -104,13 +98,6 @@ pub(crate) async fn detect_git_core(
     }
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn detect_git(db: State<'_, AppDatabase>) -> Result<GitDetectResult, AppCommandError> {
-    detect_git_core(&db.conn).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn test_git_path(path: String) -> Result<GitDetectResult, AppCommandError> {
     let trimmed = path.trim();
     if trimmed.is_empty() {
@@ -139,93 +126,23 @@ async fn load_git_settings(
     }
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_git_settings(db: State<'_, AppDatabase>) -> Result<GitSettings, AppCommandError> {
-    load_git_settings(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_git_settings(
-    settings: GitSettings,
-    db: State<'_, AppDatabase>,
-) -> Result<GitSettings, AppCommandError> {
-    let serialized = serde_json::to_string(&settings).map_err(|e| {
-        AppCommandError::invalid_input("Failed to serialize git settings")
-            .with_detail(e.to_string())
-    })?;
-
-    app_metadata_service::upsert_value(&db.conn, GIT_SETTINGS_KEY, &serialized)
-        .await
-        .map_err(AppCommandError::from)?;
-
-    Ok(settings)
-}
-
 // ---------------------------------------------------------------------------
 // GitHub accounts
 // ---------------------------------------------------------------------------
-
-#[cfg(feature = "tauri-runtime")]
-async fn load_github_accounts(
-    conn: &sea_orm::DatabaseConnection,
-) -> Result<GitHubAccountsSettings, AppCommandError> {
-    let raw = app_metadata_service::get_value(conn, GITHUB_ACCOUNTS_KEY)
-        .await
-        .map_err(AppCommandError::from)?;
-
-    match raw {
-        Some(raw) => serde_json::from_str::<GitHubAccountsSettings>(&raw).map_err(|e| {
-            AppCommandError::configuration_invalid("Failed to parse stored GitHub accounts")
-                .with_detail(e.to_string())
-        }),
-        None => Ok(GitHubAccountsSettings::default()),
-    }
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_github_accounts(
-    db: State<'_, AppDatabase>,
-) -> Result<GitHubAccountsSettings, AppCommandError> {
-    load_github_accounts(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn update_github_accounts(
-    settings: GitHubAccountsSettings,
-    db: State<'_, AppDatabase>,
-) -> Result<GitHubAccountsSettings, AppCommandError> {
-    let serialized = serde_json::to_string(&settings).map_err(|e| {
-        AppCommandError::invalid_input("Failed to serialize GitHub accounts")
-            .with_detail(e.to_string())
-    })?;
-
-    app_metadata_service::upsert_value(&db.conn, GITHUB_ACCOUNTS_KEY, &serialized)
-        .await
-        .map_err(AppCommandError::from)?;
-
-    Ok(settings)
-}
 
 // ---------------------------------------------------------------------------
 // Keyring token management
 // ---------------------------------------------------------------------------
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn save_account_token(account_id: String, token: String) -> Result<(), AppCommandError> {
     crate::keyring_store::set_token(&account_id, &token)
         .map_err(|e| AppCommandError::io_error("Failed to save token to keyring").with_detail(e))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn get_account_token(account_id: String) -> Result<Option<String>, AppCommandError> {
     Ok(crate::keyring_store::get_token(&account_id))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn delete_account_token(account_id: String) -> Result<(), AppCommandError> {
     crate::keyring_store::delete_token(&account_id).map_err(|e| {
         AppCommandError::io_error("Failed to delete token from keyring").with_detail(e)
@@ -242,7 +159,6 @@ struct GitHubUserResponse {
     avatar_url: Option<String>,
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn validate_github_token(
     server_url: String,
     token: String,
@@ -339,7 +255,6 @@ struct GitLabUserResponse {
 /// endpoint; unlike GitHub, they are not a response header). That call is
 /// best-effort: it needs the token to be a PAT and the instance to be recent
 /// enough, and an empty scope list is only ever used for an advisory warning.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn validate_gitlab_token(
     server_url: String,
     token: String,
@@ -438,7 +353,6 @@ pub async fn validate_gitlab_token(
 /// password and refuses the very token being checked. An empty list is
 /// already what a GitHub fine-grained token produces, and nothing gates on it
 /// (see `ResolvedAuth::scopes`) — it is shown, not enforced.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn validate_gitea_token(
     server_url: String,
     token: String,

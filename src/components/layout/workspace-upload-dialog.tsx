@@ -35,34 +35,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn, randomUUID } from "@/lib/utils"
-import {
-  cancelWorkspaceTransfer,
-  isUploadAbortError,
-  listenWorkspaceTransferProgress,
-  uploadWorkspaceFile,
-  uploadWorkspaceLocalPathsToRemote,
-} from "@/lib/api"
+import { isUploadAbortError, uploadWorkspaceFile } from "@/lib/api"
 import { toErrorMessage } from "@/lib/app-error"
 import { joinFsPath } from "@/lib/path-utils"
-import { isRemoteDesktopMode } from "@/lib/transport"
 
 type QueueStatus = "pending" | "uploading" | "success" | "error" | "cancelled"
 
-type QueueSource =
-  | {
-      kind: "browserFile"
-      file: File
-      relativePath: string
-      displayName: string
-      total: number
-    }
-  | {
-      kind: "localPath"
-      localPath: string
-      relativePath: string
-      displayName: string
-      total: number
-    }
+type QueueSource = {
+  kind: "browserFile"
+  file: File
+  relativePath: string
+  displayName: string
+  total: number
+}
 
 interface QueueItem {
   id: string
@@ -105,11 +90,6 @@ function formatBytes(bytes: number): string {
   if (mb < 1024) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`
   const gb = mb / 1024
   return `${gb.toFixed(gb < 10 ? 1 : 0)} GB`
-}
-
-function baseName(path: string): string {
-  const normalized = path.replace(/\\/g, "/").replace(/\/+$/, "")
-  return normalized.split("/").filter(Boolean).pop() || path
 }
 
 // `FileSystemDirectoryEntry.createReader()` returns at most ~100 entries
@@ -164,7 +144,6 @@ export function WorkspaceUploadDialog({
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const folderInputRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
-  const activeTransferIdRef = useRef<string | null>(null)
   // Set while a pump loop is running so we never start two in parallel —
   // the same effect would otherwise re-fire on every setItems call.
   const pumpRunningRef = useRef(false)
@@ -192,7 +171,6 @@ export function WorkspaceUploadDialog({
   // session. We don't watch the prop after that — overwriting an
   // in-progress edit would feel like the dialog fighting the user.
   const [editableTargetPath, setEditableTargetPath] = useState(targetPath)
-  const remoteDesktop = isRemoteDesktopMode()
   useEffect(() => {
     if (open) {
       setEditableTargetPath(targetPath)
@@ -246,46 +224,6 @@ export function WorkspaceUploadDialog({
       abortRef.current?.abort()
     }
   }, [])
-
-  useEffect(() => {
-    if (!remoteDesktop) return
-    let disposed = false
-    let cleanup: (() => void) | null = null
-    void listenWorkspaceTransferProgress((event) => {
-      if (event.direction !== "upload") return
-      activeTransferIdRef.current = event.transferId
-      setItems((prev) => {
-        const active = prev.find((it) => it.status === "uploading")
-        if (!active) return prev
-        return prev.map((it) =>
-          it.id === active.id
-            ? {
-                ...it,
-                loaded: event.loaded,
-                total: event.total ?? it.total,
-                status:
-                  event.state === "cancelled"
-                    ? "cancelled"
-                    : event.state === "error"
-                      ? "error"
-                      : it.status,
-                error: event.error ?? it.error,
-              }
-            : it
-        )
-      })
-    }).then((unlisten) => {
-      if (disposed) {
-        unlisten()
-      } else {
-        cleanup = unlisten
-      }
-    })
-    return () => {
-      disposed = true
-      cleanup?.()
-    }
-  }, [remoteDesktop])
 
   // Drop the queue once the dialog is closed and idle, so reopening
   // doesn't show stale results from a previous session. Also drain the
@@ -352,7 +290,6 @@ export function WorkspaceUploadDialog({
           )
           if (!next) break
 
-          activeTransferIdRef.current = null
           setItems((prev) =>
             prev.map((it) =>
               it.id === next.id
@@ -362,46 +299,26 @@ export function WorkspaceUploadDialog({
           )
 
           try {
-            if (next.source.kind === "browserFile") {
-              await uploadWorkspaceFile({
-                rootPath,
-                targetPath: sessionTargetPath,
-                file: next.source.file,
-                relativePath: next.source.relativePath || null,
-                signal: controller.signal,
-                onProgress: (loaded, total) => {
-                  setItems((prev) =>
-                    prev.map((it) =>
-                      it.id === next.id
-                        ? {
-                            ...it,
-                            loaded,
-                            total: total || it.total,
-                          }
-                        : it
-                    )
+            await uploadWorkspaceFile({
+              rootPath,
+              targetPath: sessionTargetPath,
+              file: next.source.file,
+              relativePath: next.source.relativePath || null,
+              signal: controller.signal,
+              onProgress: (loaded, total) => {
+                setItems((prev) =>
+                  prev.map((it) =>
+                    it.id === next.id
+                      ? {
+                          ...it,
+                          loaded,
+                          total: total || it.total,
+                        }
+                      : it
                   )
-                },
-              })
-            } else {
-              const result = await uploadWorkspaceLocalPathsToRemote({
-                rootPath,
-                targetPath: sessionTargetPath,
-                entries: [
-                  {
-                    localPath: next.source.localPath,
-                    relativePath: next.source.relativePath || null,
-                  },
-                ],
-              })
-              activeTransferIdRef.current = result.transferId
-              const loaded = result.bytes || next.total
-              setItems((prev) =>
-                prev.map((it) =>
-                  it.id === next.id ? { ...it, loaded, total: loaded } : it
                 )
-              )
-            }
+              },
+            })
             didUpload = true
             setItems((prev) =>
               prev.map((it) =>
@@ -455,7 +372,7 @@ export function WorkspaceUploadDialog({
         // the set is no longer load-bearing and would otherwise grow
         // monotonically across a long-lived dialog session.
         removedIdsRef.current = new Set()
-        activeTransferIdRef.current = null
+
         pumpRunningRef.current = false
         setPumpActive(false)
         // Skip the tree refresh when nothing actually landed on disk —
@@ -514,27 +431,6 @@ export function WorkspaceUploadDialog({
     []
   )
 
-  const enqueueLocalPaths = useCallback(
-    (paths: { localPath: string; relativePath: string }[]) => {
-      if (paths.length === 0) return
-      const queueItems: QueueItem[] = paths.map((entry) => ({
-        id: randomUUID(),
-        source: {
-          kind: "localPath",
-          localPath: entry.localPath,
-          relativePath: entry.relativePath,
-          displayName: entry.relativePath || baseName(entry.localPath),
-          total: 0,
-        },
-        status: "pending",
-        loaded: 0,
-        total: 0,
-      }))
-      setItems((prev) => [...prev, ...queueItems])
-    },
-    []
-  )
-
   const handleFileInputChange = useCallback(
     (event: ChangeEvent<HTMLInputElement>) => {
       const target = event.target
@@ -572,7 +468,6 @@ export function WorkspaceUploadDialog({
     async (event: DragEvent<HTMLDivElement>) => {
       event.preventDefault()
       setIsDragOver(false)
-      if (remoteDesktop) return
       const dt = event.dataTransfer
       if (!dt) return
 
@@ -620,20 +515,16 @@ export function WorkspaceUploadDialog({
         )
       }
     },
-    [enqueueFiles, remoteDesktop, t]
+    [enqueueFiles, t]
   )
 
-  const handleDragOver = useCallback(
-    (event: DragEvent<HTMLDivElement>) => {
-      event.preventDefault()
-      if (remoteDesktop) return
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = "copy"
-      }
-      setIsDragOver(true)
-    },
-    [remoteDesktop]
-  )
+  const handleDragOver = useCallback((event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = "copy"
+    }
+    setIsDragOver(true)
+  }, [])
 
   const handleDragLeave = useCallback((event: DragEvent<HTMLDivElement>) => {
     // `dragleave` fires when entering child elements too; only mark as
@@ -645,48 +536,12 @@ export function WorkspaceUploadDialog({
   }, [])
 
   const handleSelectFiles = useCallback(() => {
-    if (!remoteDesktop) {
-      fileInputRef.current?.click()
-      return
-    }
-    void (async () => {
-      const { open } = await import("@tauri-apps/plugin-dialog")
-      const selected = await open({ multiple: true, directory: false })
-      const paths = Array.isArray(selected)
-        ? selected
-        : selected
-          ? [selected]
-          : []
-      enqueueLocalPaths(
-        paths.map((path) => ({
-          localPath: path,
-          relativePath: "",
-        }))
-      )
-    })()
-  }, [enqueueLocalPaths, remoteDesktop])
+    fileInputRef.current?.click()
+  }, [])
 
   const handleSelectFolder = useCallback(() => {
-    if (!remoteDesktop) {
-      folderInputRef.current?.click()
-      return
-    }
-    void (async () => {
-      const { open } = await import("@tauri-apps/plugin-dialog")
-      const selected = await open({ multiple: false, directory: true })
-      const paths = Array.isArray(selected)
-        ? selected
-        : selected
-          ? [selected]
-          : []
-      enqueueLocalPaths(
-        paths.map((path) => ({
-          localPath: path,
-          relativePath: baseName(path),
-        }))
-      )
-    })()
-  }, [enqueueLocalPaths, remoteDesktop])
+    folderInputRef.current?.click()
+  }, [])
 
   // Make the drop zone behave like a button for keyboard users — Enter
   // or Space opens the same file picker as the visible button below.
@@ -708,10 +563,6 @@ export function WorkspaceUploadDialog({
 
   const handleCancelUpload = useCallback(() => {
     abortRef.current?.abort()
-    const transferId = activeTransferIdRef.current
-    if (transferId) {
-      void cancelWorkspaceTransfer(transferId).catch(() => {})
-    }
   }, [])
 
   const handleRemoveItem = useCallback((id: string) => {
@@ -758,7 +609,7 @@ export function WorkspaceUploadDialog({
   const absoluteTargetPath = normalizedTargetForDisplay
     ? joinFsPath(rootPath, normalizedTargetForDisplay)
     : rootPath
-  const canSelectFolder = remoteDesktop || folderUploadSupported
+  const canSelectFolder = folderUploadSupported
 
   const renderStatusIcon = (status: QueueStatus) => {
     switch (status) {
@@ -1067,7 +918,7 @@ export function WorkspaceUploadDialog({
           className="hidden"
           onChange={handleFileInputChange}
         />
-        {!remoteDesktop && folderUploadSupported && (
+        {folderUploadSupported && (
           <input
             ref={folderInputRef}
             type="file"

@@ -121,12 +121,8 @@ export type FileTreeDropZone =
 
 /**
  * Resolve the drop zone under `element` by walking up to the nearest marked
- * ancestor. Used by the desktop drop path, where Tauri's webview consumes the
- * HTML5 `drop` event before WebKit dispatches it to the DOM (its native
- * drag-drop handler always reports the drop as handled), so a drag is committed
- * from Tauri's own drag-drop event by hit-testing the drop coordinates rather
- * than from a `drop` handler that never runs. Returns null when the point isn't
- * over a directory row, the workspace-root row, or a composer.
+ * ancestor. Returns null when the point is outside a directory row, the
+ * workspace-root row, or a composer.
  */
 export function resolveFileTreeDropZone(
   element: Element | null

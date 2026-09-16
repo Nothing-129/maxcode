@@ -12,9 +12,6 @@ const { backendCall, notify } = vi.hoisted(() => ({
 }))
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call: backendCall, onReconnect: () => () => {} }),
-  isDesktop: () => false,
-  isRemoteDesktopMode: () => false,
-  getActiveRemoteConnectionId: () => null,
 }))
 vi.mock("sonner", () => ({
   toast: { info: notify, success: notify, error: notify },

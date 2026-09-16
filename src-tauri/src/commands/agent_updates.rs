@@ -3,9 +3,39 @@ use std::time::Duration;
 
 use serde::Serialize;
 
-use crate::acp::{registry, remote_registry, AGENT_NPM_REGISTRY};
+use crate::acp::{registry, remote_registry};
 use crate::app_error::AppCommandError;
 use crate::models::agent::AgentType;
+
+/// Published versions must come from the authoritative registry, not a mirror.
+pub(crate) const OFFICIAL_NPM_REGISTRY: &str = "https://registry.npmjs.org";
+
+pub(crate) async fn official_npm_version(name: &str) -> Result<String, AppCommandError> {
+    let mut url = reqwest::Url::parse(OFFICIAL_NPM_REGISTRY).expect("static npm URL");
+    url.path_segments_mut()
+        .expect("npm URL base")
+        .push(name)
+        .push("latest");
+    let payload: serde_json::Value = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| AppCommandError::network(e.to_string()))?
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| AppCommandError::network(format!("official npm check failed: {e}")))?
+        .error_for_status()
+        .map_err(|e| AppCommandError::network(format!("official npm check failed: {e}")))?
+        .json()
+        .await
+        .map_err(|e| AppCommandError::network(format!("invalid official npm release: {e}")))?;
+    payload
+        .get("version")
+        .and_then(|v| v.as_str())
+        .filter(|v| !v.trim().is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| AppCommandError::network("official npm release has no version"))
+}
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -62,7 +92,6 @@ pub(crate) fn python_package(spec: &str) -> Option<(&str, &str)> {
     Some((name, requirement))
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_check_agent_update(
     agent_type: AgentType,
 ) -> Result<AgentUpdateRelease, AppCommandError> {
@@ -74,30 +103,7 @@ pub async fn acp_check_agent_update(
                 source: "unsupported",
             });
         };
-        let mut url = reqwest::Url::parse(AGENT_NPM_REGISTRY).expect("static npm URL");
-        url.path_segments_mut()
-            .expect("npm URL base")
-            .push(name)
-            .push("latest");
-        let response = reqwest::Client::builder()
-            .timeout(Duration::from_secs(15))
-            .build()
-            .map_err(|e| AppCommandError::network(e.to_string()))?
-            .get(url)
-            .send()
-            .await
-            .map_err(|e| AppCommandError::network(format!("npm update check failed: {e}")))?
-            .error_for_status()
-            .map_err(|e| AppCommandError::network(format!("npm update check failed: {e}")))?;
-        let payload: serde_json::Value = response
-            .json()
-            .await
-            .map_err(|e| AppCommandError::network(format!("invalid npm release: {e}")))?;
-        let version = payload
-            .get("version")
-            .and_then(|v| v.as_str())
-            .filter(|v| !v.trim().is_empty())
-            .ok_or_else(|| AppCommandError::network("npm release has no version"))?;
+        let version = official_npm_version(name).await?;
         return Ok(AgentUpdateRelease {
             latest_version: Some(version.to_owned()),
             source: "npm",

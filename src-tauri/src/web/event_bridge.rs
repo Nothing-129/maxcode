@@ -42,7 +42,7 @@ impl WebEventBroadcaster {
     }
 
     /// Serialize `payload` once and broadcast. Returns the serialized
-    /// `Value` so Tauri callers can reuse it without serializing twice.
+    /// `Value` so callers can reuse it without serializing twice.
     pub fn send(&self, channel: &str, payload: &impl Serialize) -> Option<Arc<serde_json::Value>> {
         let value = Arc::new(serde_json::to_value(payload).ok()?);
         if self.sender.receiver_count() > 0 {
@@ -72,24 +72,14 @@ impl WebEventBroadcaster {
 
 /// Abstraction over event emission targets.
 ///
-/// Three concerns layered together:
-/// - **Tauri webview** (`Tauri` variant): events delivered to the desktop
-///   webview via `app.emit`. Looked-up state (`Arc<WebEventBroadcaster>`,
-///   `Arc<InternalEventBus>`) goes through `app.try_state`, registered in
-///   `lib.rs::run` setup.
-/// - **WS clients** (`WebOnly` variant): standalone server mode. Carries
-///   the broadcaster directly because there's no AppHandle to look it up
-///   from.
-/// - **In-process consumers** (lifecycle / pet / chat-channel): receive
-///   typed `Arc<EventEnvelope>` from `InternalEventBus`. Both `Tauri` and
-///   `WebOnly` resolve to the same bus (via `acp_event_bus()`).
+/// WebSocket clients receive serialized events through the broadcaster, while
+/// in-process lifecycle, pet, and chat-channel consumers receive typed
+/// `Arc<EventEnvelope>` values through `InternalEventBus`.
 ///
 /// `Noop` drops everything — used for legacy non-streaming call paths and
 /// in tests that don't observe events.
 #[derive(Clone)]
 pub enum EventEmitter {
-    #[cfg(feature = "tauri-runtime")]
-    Tauri(tauri::AppHandle),
     /// Standalone server runtime. Carries the broadcaster (transport-bound
     /// JSON delivery to WS clients on non-ACP channels) and the internal
     /// bus (typed envelope delivery to in-process subscribers).
@@ -104,26 +94,15 @@ pub enum EventEmitter {
 
 impl EventEmitter {
     /// Convenience constructor for the standalone server runtime path.
-    /// Mirrors how `Tauri` resolves the same two pieces of state via
-    /// `app.try_state`.
     pub fn web_only(broadcaster: Arc<WebEventBroadcaster>, bus: Arc<InternalEventBus>) -> Self {
         EventEmitter::WebOnly { broadcaster, bus }
     }
 
     /// Resolve the `InternalEventBus` for ACP-typed event delivery.
     ///
-    /// In Tauri mode, looks up `Arc<InternalEventBus>` registered with
-    /// `app.manage` during setup. Returns `None` if the bus isn't
-    /// registered (only happens in degraded test setups) — the caller
-    /// treats this as "no in-process consumers wired".
+    /// Returns `None` for the silent emitter used when no consumers are wired.
     pub fn acp_event_bus(&self) -> Option<Arc<InternalEventBus>> {
         match self {
-            #[cfg(feature = "tauri-runtime")]
-            EventEmitter::Tauri(app) => {
-                use tauri::Manager;
-                app.try_state::<Arc<InternalEventBus>>()
-                    .map(|s| Arc::clone(&s))
-            }
             EventEmitter::WebOnly { bus, .. } => Some(Arc::clone(bus)),
             EventEmitter::Noop => None,
         }
@@ -189,9 +168,8 @@ pub const UI_PREFERENCES_CHANGED_EVENT: &str = "ui-preferences://changed";
 /// conversation's connection still see it appear / update / disappear / change
 /// state.
 ///
-/// Delivered via [`emit_event`], so in desktop mode a single emit reaches both
-/// the Tauri webview (`app.emit`) and every WebSocket browser
-/// (`WebEventBroadcaster`); in standalone server mode it reaches all browsers.
+/// Delivered via [`emit_event`] to all Electron and browser clients connected
+/// to this backend through [`WebEventBroadcaster`].
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum ConversationChange {
@@ -216,8 +194,8 @@ pub enum ConversationChange {
 }
 
 /// Global side-channel for cross-client folder list sync. Mirrors
-/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches the Tauri
-/// webview and every WebSocket client. A folder created headlessly (e.g. the
+/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches every
+/// connected WebSocket client. A folder created headlessly (e.g. the
 /// automation engine minting a per-run worktree) is otherwise invisible to every
 /// client until the next full `fetchFolders` — so without this broadcast a
 /// conversation produced in that worktree can't be placed in the sidebar
@@ -318,8 +296,8 @@ pub struct ConversationsBulkChanged {
 }
 
 /// Global side-channel for cross-client open-tab sync. Mirrors
-/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches the Tauri
-/// webview and every WebSocket client.
+/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches every
+/// connected WebSocket client.
 pub const TABS_CHANGED_EVENT: &str = "tabs://changed";
 
 /// Payload for the [`TABS_CHANGED_EVENT`] side-channel. Carries the full
@@ -341,8 +319,8 @@ pub struct TabsChanged {
 }
 
 /// Global side-channel for cross-client automation list + run sync. Mirrors
-/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches the Tauri
-/// webview and every WebSocket client. The scheduler runs headless (no window),
+/// [`CONVERSATION_CHANGED_EVENT`]: a single [`emit_event`] reaches every
+/// connected WebSocket client. The scheduler runs headless (no window),
 /// so this broadcast is the only way an open automations view learns a run
 /// started or settled.
 pub const AUTOMATION_CHANGED_EVENT: &str = "automation://changed";
@@ -400,23 +378,9 @@ pub enum WorkTaskChange {
 pub const TOKEN_USAGE_SYNC_PROGRESS_EVENT: &str = "token-usage-sync://progress";
 
 /// Unified event emission: serializes the payload exactly once and dispatches
-/// the shared `Arc<Value>` to both the Tauri webview and the web broadcaster.
+/// the shared `Arc<Value>` to the web broadcaster.
 pub fn emit_event(emitter: &EventEmitter, event: &str, payload: impl Serialize) {
     match emitter {
-        #[cfg(feature = "tauri-runtime")]
-        EventEmitter::Tauri(app) => {
-            use tauri::{Emitter, Manager};
-            let Ok(value) = serde_json::to_value(&payload) else {
-                return;
-            };
-            let shared = Arc::new(value);
-            // `&Value` is Copy, so Tauri's `Clone` bound is satisfied without
-            // copying the payload — Tauri serializes through the reference.
-            let _ = app.emit(event, shared.as_ref());
-            if let Some(web) = app.try_state::<Arc<WebEventBroadcaster>>() {
-                web.send_value(event, shared);
-            }
-        }
         EventEmitter::WebOnly { broadcaster, .. } => {
             let _ = broadcaster.send(event, &payload);
         }
@@ -432,14 +396,13 @@ pub fn emit_event(emitter: &EventEmitter, event: &str, payload: impl Serialize) 
 /// 3. `event_seq += 1`
 /// 4. 用新 seq 构造 `EventEnvelope`，推入 ring buffer，记录淘汰计数
 /// 5. 释放写锁
-/// 6. 分发到三条路径：
+/// 6. 分发到两条路径：
 ///    - 每连接 `ConnectionEventStream`（WS attach 协议主路径）
 ///    - 进程内 `InternalEventBus`（lifecycle / pet / chat-channel 订阅者）
-///    - Tauri 模式下额外 `app.emit("acp://event", ...)` 给 webview
 ///
 /// 不再向 `WebEventBroadcaster` 上的 `acp://event` 频道广播——所有 ACP
 /// 事件消费者要么走 per-connection stream（WS 客户端），要么走
-/// InternalEventBus（进程内订阅者），要么走 Tauri `app.emit`（桌面 webview）。
+/// InternalEventBus（进程内订阅者）。
 /// 删除该全局广播是 Phase 5 架构清理的核心：它消除了 WS 客户端 receiver-side
 /// 去重 (`attachManagedConnectionIdsRef`) 的必要性。
 pub async fn emit_with_state(
@@ -494,21 +457,6 @@ where
     // no JSON parse on the receiver side. Plus surface ring-buffer pressure
     // and bus emit-rate via metrics so operators can see when things drift.
     match emitter {
-        #[cfg(feature = "tauri-runtime")]
-        EventEmitter::Tauri(app) => {
-            use tauri::{Emitter, Manager};
-            // Tauri webview listener is the desktop frontend's only ACP path
-            // (it subscribes via `app.listen`, not the WS attach protocol).
-            let _ = app.emit("acp://event", envelope_arc.as_ref());
-            if let Some(bus) = app.try_state::<Arc<InternalEventBus>>() {
-                bus.send(Arc::clone(&envelope_arc));
-                if evicted > 0 {
-                    bus.metrics()
-                        .ring_buffer_evict_count
-                        .fetch_add(evicted as u64, Ordering::Relaxed);
-                }
-            }
-        }
         EventEmitter::WebOnly { bus, .. } => {
             bus.send(Arc::clone(&envelope_arc));
             if evicted > 0 {

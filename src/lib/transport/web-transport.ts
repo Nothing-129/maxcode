@@ -245,10 +245,6 @@ export class WebTransport implements Transport {
     }
   }
 
-  isDesktop(): boolean {
-    return false
-  }
-
   onReconnect(callback: () => void): UnsubscribeFn {
     this.reconnectCallbacks.add(callback)
     return () => {

@@ -6,7 +6,6 @@ import { useTranslations } from "next-intl"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { AppToaster } from "@/components/ui/app-toaster"
 import { ImportSessionsWindow } from "@/components/import-sessions/import-sessions-window"
-import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
 import { closeCurrentWindow, isNativeDesktop } from "@/lib/platform"
 
 const TOAST_DURATION_MS = 6000
@@ -59,9 +58,9 @@ function ImportSessionsPageInner() {
 export default function ImportSessionsPage() {
   return (
     <Suspense>
-      <RemoteConnectionGate>
+      <>
         <ImportSessionsPageInner />
-      </RemoteConnectionGate>
+      </>
     </Suspense>
   )
 }

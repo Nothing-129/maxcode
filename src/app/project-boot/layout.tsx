@@ -1,5 +1,4 @@
 import { Suspense } from "react"
-import { RemoteConnectionGate } from "@/contexts/remote-connection-context"
 
 export default function ProjectBootLayout({
   children,
@@ -8,7 +7,7 @@ export default function ProjectBootLayout({
 }) {
   return (
     <Suspense>
-      <RemoteConnectionGate>{children}</RemoteConnectionGate>
+      <>{children}</>
     </Suspense>
   )
 }

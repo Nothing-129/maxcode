@@ -12,15 +12,6 @@ import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useTaskContext } from "@/contexts/task-context"
 import type { FolderDetail, WorktreeResolution } from "@/lib/types"
 
-const emitEvent = async (event: string, payload?: unknown) => {
-  try {
-    const { emit } = await import("@tauri-apps/api/event")
-    await emit(event, payload)
-  } catch {
-    /* not in Tauri */
-  }
-}
-
 export interface SwitchToBranchArgs {
   /** The folder the selector belongs to (top bar: active folder; below input:
    * the draft conversation's folder). May itself be a worktree. */
@@ -177,9 +168,6 @@ export function useSwitchToBranch(): (
             updateTask(taskId, { status: "completed" })
             setBranch(root.id, branchName)
             await refreshFolder(root.id)
-            void emitEvent("folder://git-branch-changed", {
-              folder_id: root.id,
-            })
             toast.success(t("toasts.taskCompleted", { label }))
           } catch (err) {
             const msg = toErrorMessage(err)

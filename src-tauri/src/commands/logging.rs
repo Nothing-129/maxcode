@@ -1,7 +1,7 @@
 //! Commands backing the Settings → Logs viewer.
 //!
-//! `*_core` functions hold the logic and are shared by the Tauri command
-//! wrappers (desktop) and the Axum handlers (`web/handlers/logging.rs`). The
+//! `*_core` functions serve Electron and server Axum handlers
+//! (`web/handlers/logging.rs`). The
 //! live viewer reads the in-memory ring buffer ([`get_recent_logs_core`]) and
 //! live-tails `logs://appended`; on-disk files are listed
 //! ([`list_log_files_core`]) and read for forensics/download
@@ -9,13 +9,10 @@
 
 use sea_orm::DatabaseConnection;
 use serde::Serialize;
-#[cfg(feature = "tauri-runtime")]
-use tauri::State;
 
 use crate::app_error::AppCommandError;
 use crate::db::service::app_metadata_service;
-#[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+
 use crate::logging::hub::{level_rank, log_hub, LogRecord};
 use crate::logging::{
     LogLevel, LogSettings, TargetDirective, LOGGING_LEVEL_KEY, LOG_SETTINGS_CHANGED_EVENT,
@@ -50,7 +47,7 @@ pub struct LogSettingsView {
 }
 
 // ---------------------------------------------------------------------------
-// Core logic (shared by Tauri commands and web handlers)
+// Shared business logic for Electron and server HTTP handlers
 // ---------------------------------------------------------------------------
 
 /// Load the persisted level (defaulting to [`LogLevel::Info`]) plus whether an
@@ -249,51 +246,6 @@ pub fn read_log_file_core(name: &str, max_bytes: Option<usize>) -> Result<String
         AppCommandError::io_error("Failed to read log file").with_detail(e.to_string())
     })?;
     Ok(String::from_utf8_lossy(&buf).into_owned())
-}
-
-// ---------------------------------------------------------------------------
-// Tauri command wrappers (desktop only)
-// ---------------------------------------------------------------------------
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_log_settings(
-    db: State<'_, AppDatabase>,
-) -> Result<LogSettingsView, AppCommandError> {
-    get_log_settings_core(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_log_settings(
-    settings: LogSettings,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<LogSettings, AppCommandError> {
-    let emitter = EventEmitter::Tauri(app);
-    set_log_settings_core(&db.conn, settings, &emitter).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_recent_logs(
-    limit: usize,
-    min_level: Option<LogLevel>,
-    search: Option<String>,
-) -> Result<Vec<LogRecord>, AppCommandError> {
-    Ok(get_recent_logs_core(limit, min_level, search.as_deref()))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn list_log_files() -> Result<Vec<LogFileInfo>, AppCommandError> {
-    Ok(list_log_files_core())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn open_logs_dir() -> Result<String, AppCommandError> {
-    open_logs_dir_core()
 }
 
 #[cfg(test)]

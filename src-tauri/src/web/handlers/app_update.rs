@@ -3,8 +3,8 @@
 //! (`restart_app`), and revert (`rollback_app`).
 //!
 //! All three are gated behind the process-wide `system_op_lock` so a second
-//! click can't race a download already in flight. On desktop (Tauri) builds
-//! they hard-error — desktop updates through `tauri-plugin-updater`.
+//! click can't race a download already in flight. Electron-owned backends
+//! reject in-place updates because their desktop shell owns the installation.
 
 use std::sync::Arc;
 
@@ -65,34 +65,8 @@ pub async fn rollback_app(
     rollback_impl(state).await.map(Json)
 }
 
-// ─── desktop build: not supported ────────────────────────────────────────
+// ─── Server-owned update operations ─────────────────────────────────────
 
-#[cfg(feature = "tauri-runtime")]
-async fn perform_impl(_state: Arc<AppState>) -> Result<AppUpdateState, AppCommandError> {
-    // The embedded server in a desktop build must never swap the desktop
-    // binary with a server tarball; the desktop app updates through its own
-    // `app_update` Tauri commands (tauri-plugin-updater).
-    Err(not_supported())
-}
-
-#[cfg(feature = "tauri-runtime")]
-fn restart_impl(_state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandError> {
-    Err(not_supported())
-}
-
-#[cfg(feature = "tauri-runtime")]
-async fn rollback_impl(_state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandError> {
-    Err(not_supported())
-}
-
-#[cfg(feature = "tauri-runtime")]
-fn not_supported() -> AppCommandError {
-    AppCommandError::invalid_input("In-place update is only available in server mode")
-}
-
-// ─── server build: the real thing ────────────────────────────────────────
-
-#[cfg(not(feature = "tauri-runtime"))]
 fn busy() -> AppCommandError {
     AppCommandError::already_exists("An update operation is already in progress")
 }
@@ -103,7 +77,6 @@ fn busy() -> AppCommandError {
 /// The probation window the frontend should wait out before declaring success,
 /// in seconds — only meaningful under the supervisor (which performs the
 /// auto-rollback). Re-exec mode has no supervisor, hence no trial.
-#[cfg(not(feature = "tauri-runtime"))]
 fn trial_seconds_value() -> u64 {
     match crate::update::runtime::capability() {
         UpdateCapability::Supervised => crate::update::runtime::upgrade_trial_secs(),
@@ -111,7 +84,6 @@ fn trial_seconds_value() -> u64 {
     }
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
 fn ensure_supported() -> Result<(), AppCommandError> {
     crate::update::runtime::ensure_server_owned_update()?;
     if cfg!(target_os = "windows") {
@@ -122,7 +94,6 @@ fn ensure_supported() -> Result<(), AppCommandError> {
     Ok(())
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
 async fn perform_impl(state: Arc<AppState>) -> Result<AppUpdateState, AppCommandError> {
     use crate::update::install::UpdatePhase;
     use crate::update::state as update_state;
@@ -201,13 +172,11 @@ async fn perform_impl(state: Arc<AppState>) -> Result<AppUpdateState, AppCommand
 /// acquire the still-held lock, and bounce a genuinely-staged update to `Error`
 /// (losing it). Dropping first makes the lock free the instant the state
 /// becomes claimable.
-#[cfg(not(feature = "tauri-runtime"))]
 fn publish_after_releasing<F: FnOnce()>(guard: tokio::sync::OwnedMutexGuard<()>, publish: F) {
     drop(guard);
     publish();
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
 fn restart_impl(state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandError> {
     ensure_supported()?;
     // Atomically claim the relaunch (flips the shared snapshot to `Restarting`)
@@ -257,7 +226,6 @@ fn restart_impl(state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandEr
     })
 }
 
-#[cfg(not(feature = "tauri-runtime"))]
 async fn rollback_impl(state: Arc<AppState>) -> Result<UpdateActionResult, AppCommandError> {
     ensure_supported()?;
     // Atomically claim the rollback (flips to `Restarting`) only from a settled
@@ -305,10 +273,9 @@ async fn rollback_impl(state: Arc<AppState>) -> Result<UpdateActionResult, AppCo
     })
 }
 
-// `ensure_supported` rejects Windows, and the desktop build's `perform_impl` is
-// the not-supported stub — so this concurrency test only applies to a server
-// build on a supported platform.
-#[cfg(all(test, not(feature = "tauri-runtime"), not(target_os = "windows")))]
+// `ensure_supported` rejects Windows, so exercise the update concurrency
+// contract on supported server platforms.
+#[cfg(all(test, not(target_os = "windows")))]
 mod tests {
     use super::*;
     use crate::update::state as update_state;

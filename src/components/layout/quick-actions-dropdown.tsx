@@ -1,6 +1,5 @@
 "use client"
 
-import { APPEARANCE_CUSTOMIZATION_ENABLED } from "@/lib/appearance-policy"
 import { useCallback, useState } from "react"
 import {
   FolderGit2,
@@ -8,14 +7,10 @@ import {
   GamepadDirectional,
   LayoutTemplate,
   Map as MapIcon,
-  MonitorCloud,
-  PawPrint,
   Rocket,
-  Settings,
   Zap,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -23,19 +18,12 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAutomationsView } from "@/contexts/automations-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
-import { useRemoteWorkspaceConnections } from "@/hooks/use-remote-workspace-connections"
 import { openProjectBootWindow } from "@/lib/api"
-import { toErrorMessage } from "@/lib/app-error"
-import { openPetWindow } from "@/lib/pet/api"
 import { CloneDialog } from "./clone-dialog"
-import { RemoteWorkspaceManageDialog } from "./remote-workspace-manage-dialog"
 import { WorkspaceFolderDialog } from "./workspace-folder-dialog"
 
 /**
@@ -47,8 +35,8 @@ import { WorkspaceFolderDialog } from "./workspace-folder-dialog"
  * those homes are scattered and several of them disappear with the sidebar
  * collapsed. The status bar never unmounts, so this menu is the one always-on
  * path to all of them. Items are grouped by what they act on rather than by
- * where they used to live: workspace (open/clone/boot/remote), navigation
- * (every full-page workbench route), and the desktop pet. Search and the
+ * where they used to live: workspace (open/clone/boot), navigation
+ * (every full-page workbench route). Search and the
  * per-folder session actions (manage / import) are the deliberate omissions —
  * search has a permanent button in the window's top-left chrome, and the
  * session actions are folder-scoped, so they live where a folder is: "Manage
@@ -64,42 +52,17 @@ export function QuickActionsDropdown() {
   const t = useTranslations("Folder.statusBar.quickActions")
   const tFolderDropdown = useTranslations("Folder.folderNameDropdown")
   const tSidebar = useTranslations("Folder.sidebar")
-  const tRemote = useTranslations("RemoteWorkspace")
-  const tPet = useTranslations("Pet.manager")
 
   const { unseenFailures } = useAutomationsView()
   const { setRoute } = useWorkbenchRoute()
 
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)
   const [cloneOpen, setCloneOpen] = useState(false)
-  const [remoteManageOpen, setRemoteManageOpen] = useState(false)
-
-  // Remote connections are only reachable on the desktop runtime (a web client
-  // can't spawn another window bound to a different server), so the whole
-  // submenu — and the pet entry below it — self-hide elsewhere.
-  const {
-    desktop,
-    connections: remoteConnections,
-    refresh: refreshRemote,
-    open: handleOpenRemote,
-  } = useRemoteWorkspaceConnections()
-
   const handleProjectBoot = useCallback(() => {
     openProjectBootWindow().catch((err) => {
       console.error("[QuickActionsDropdown] failed to open project boot:", err)
     })
   }, [])
-
-  // Summoning fails when no pet has been made active yet (the backend refuses
-  // rather than opening an empty window), so surface that instead of a silent
-  // no-op — the fix lives in Settings › Appearance › Pets.
-  const handleShowPet = useCallback(() => {
-    openPetWindow().catch((err) => {
-      toast.error(tPet("errors.summonFailed"), {
-        description: toErrorMessage(err),
-      })
-    })
-  }, [tPet])
 
   return (
     <>
@@ -145,50 +108,6 @@ export function QuickActionsDropdown() {
             <Rocket />
             {tFolderDropdown("projectBoot")}
           </DropdownMenuItem>
-          {desktop && (
-            <DropdownMenuSub
-              onOpenChange={(open) => open && void refreshRemote()}
-            >
-              <DropdownMenuSubTrigger>
-                <MonitorCloud />
-                {tRemote("openRemoteWorkspace")}
-              </DropdownMenuSubTrigger>
-              {/* The shared sub-content clips (`overflow-hidden`, no max
-                  height) where the root content scrolls, so a long connection
-                  list would strand its tail — including the manage row —
-                  offscreen. Borrow the root's scroll behaviour. */}
-              <DropdownMenuSubContent className="max-h-(--radix-dropdown-menu-content-available-height) w-72 overflow-x-hidden overflow-y-auto">
-                {remoteConnections.length === 0 ? (
-                  <div className="px-3 py-2 text-sm text-muted-foreground">
-                    {tRemote("empty")}
-                  </div>
-                ) : (
-                  remoteConnections.map((connection) => (
-                    <DropdownMenuItem
-                      key={connection.id}
-                      onSelect={() => handleOpenRemote(connection.id)}
-                    >
-                      <MonitorCloud />
-                      <span className="min-w-0">
-                        <span className="block truncate">
-                          {connection.name}
-                        </span>
-                        <span className="block truncate text-xs text-muted-foreground">
-                          {connection.base_url}
-                        </span>
-                      </span>
-                    </DropdownMenuItem>
-                  ))
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setRemoteManageOpen(true)}>
-                  <Settings />
-                  {tRemote("manage")}
-                </DropdownMenuItem>
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          )}
-
           {/* No Search row: it now has a permanent button in the window's
               top-left chrome (`LeftEdgeChrome`, and `FolderTitleBar` on mobile),
               which is visible without opening anything. This menu exists for
@@ -222,17 +141,6 @@ export function QuickActionsDropdown() {
             <MapIcon />
             {tSidebar("canvas")}
           </DropdownMenuItem>
-
-          {desktop && APPEARANCE_CUSTOMIZATION_ENABLED && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel>{t("groups.more")}</DropdownMenuLabel>
-              <DropdownMenuItem onSelect={handleShowPet}>
-                <PawPrint />
-                {t("showPet")}
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -241,15 +149,6 @@ export function QuickActionsDropdown() {
         onOpenChange={setFolderDialogOpen}
       />
       <CloneDialog open={cloneOpen} onOpenChange={setCloneOpen} />
-      {/* Mounted only where its submenu exists, so web builds don't carry a
-          dialog nothing can ever open. */}
-      {desktop && (
-        <RemoteWorkspaceManageDialog
-          open={remoteManageOpen}
-          onOpenChange={setRemoteManageOpen}
-          onChanged={refreshRemote}
-        />
-      )}
     </>
   )
 }

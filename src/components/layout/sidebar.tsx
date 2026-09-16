@@ -489,13 +489,13 @@ export function Sidebar() {
           // Reserve exactly the fixed left overlay's width so the view controls
           // clear it; the empty reserved space is a window-drag region.
           <div
-            data-tauri-drag-region
+            data-drag-region
             className="h-full shrink-0"
             style={{ width: leftReserve }}
           />
         )}
         {/* Push the tools to the right and keep empty space draggable. */}
-        <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+        <div data-drag-region className="h-full min-w-0 flex-1" />
         {sidebarTools}
       </div>
 

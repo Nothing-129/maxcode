@@ -49,7 +49,7 @@ export function inactiveSelectionDecorations(
  * When focus moves to an overlay that preserves the selection — most visibly the
  * composer's custom right-click menu, whose radix content takes focus — browsers
  * stop painting the active selection: Chromium/Firefox dim it to a faint
- * "inactive" colour, and WebKit (the macOS desktop webview) drops it entirely,
+ * "inactive" colour, and WebKit browsers drop it entirely,
  * so a CSS `::selection` rule has nothing left to restyle. This extension paints
  * the selection itself instead: while the editor is blurred it decorates the
  * current `state.selection` (which survives blur — it only changes via

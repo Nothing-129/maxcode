@@ -27,7 +27,6 @@ pub async fn open_in_code_core(path: String) -> Result<(), AppCommandError> {
     spawn_vscode(&launch, &target)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn open_in_code(path: String) -> Result<(), AppCommandError> {
     open_in_code_core(path).await
 }

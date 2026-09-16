@@ -1,8 +1,9 @@
 //! Background updates for every enabled, installed registered agent.
 //! Every install has an immutable prefix. Only a validated prefix is published;
 //! failed downloads and existing processes keep their previous files.
+use super::agent_updates::{official_npm_version, OFFICIAL_NPM_REGISTRY};
 use crate::{
-    acp::{manager::ConnectionManager, registry, AGENT_NPM_REGISTRY},
+    acp::{manager::ConnectionManager, registry},
     db::{service::agent_setting_service, AppDatabase},
     models::agent::AgentType,
     web::event_bridge::EventEmitter,
@@ -31,6 +32,8 @@ pub struct AutoUpdateStatus {
     pub phase: String,
     pub version: Option<String>,
     pub error: Option<String>,
+    pub runtime_version: Option<String>,
+    pub runtime_latest_version: Option<String>,
 }
 
 pub fn status(agent: AgentType) -> AutoUpdateStatus {
@@ -45,12 +48,18 @@ pub fn status(agent: AgentType) -> AutoUpdateStatus {
         })
 }
 fn report(agent: AgentType, phase: &str, version: Option<&str>, error: Option<String>) {
-    STATUS.lock().unwrap().insert(
+    let mut statuses = STATUS.lock().unwrap();
+    let runtime_latest_version = statuses
+        .get(&agent.to_string())
+        .and_then(|s| s.runtime_latest_version.clone());
+    statuses.insert(
         agent.to_string(),
         AutoUpdateStatus {
             phase: phase.into(),
             version: version.map(str::to_owned),
             error,
+            runtime_version: read_active(agent).and_then(|i| i.runtime_version),
+            runtime_latest_version,
         },
     );
 }
@@ -91,6 +100,40 @@ struct Installed {
     entry: Option<String>,
     #[serde(default)]
     identity: Option<String>,
+    #[serde(default)]
+    runtime_version: Option<String>,
+}
+
+/// The adapter and the vendor executable have independent release schedules.
+fn vendor_runtime(agent: AgentType) -> Option<(&'static str, &'static str, &'static str)> {
+    match agent {
+        AgentType::Codex => Some(("@openai/codex", "codex", "CODEX_PATH")),
+        AgentType::ClaudeCode => Some((
+            "@anthropic-ai/claude-code",
+            "claude",
+            "CLAUDE_CODE_EXECUTABLE",
+        )),
+        AgentType::Pi => Some(("@earendil-works/pi-coding-agent", "pi", "PI_ACP_PI_COMMAND")),
+        _ => None,
+    }
+}
+
+pub(crate) fn managed_runtime(agent: AgentType) -> Option<(&'static str, PathBuf)> {
+    let (_, cmd, env) = vendor_runtime(agent)?;
+    let installed = read_active(agent)?;
+    installed.runtime_version.as_ref()?;
+    let bin = executable(&root(agent)?.join(installed.directory).join("runtime"), cmd);
+    bin.is_file().then_some((env, bin))
+}
+
+fn runtime_is_current(agent: AgentType, latest: Option<&str>) -> bool {
+    latest.is_none_or(|latest| {
+        read_active(agent)
+            .and_then(|i| i.runtime_version)
+            .as_deref()
+            == Some(latest)
+            && managed_runtime(agent).is_some()
+    })
 }
 fn install_identity(agent: AgentType) -> String {
     match registry::get_agent_meta(agent).distribution {
@@ -352,6 +395,7 @@ fn staged_record(
     Ok(Installed {
         directory,
         identity: Some(install_identity(agent)),
+        runtime_version: None,
         version: version.into(),
         entry: Some(
             bin.strip_prefix(prefix)
@@ -497,6 +541,37 @@ async fn prepare_python_with_uv(
     result
 }
 
+async fn prepare_vendor_runtime(
+    agent: AgentType,
+    prefix: &Path,
+    npm: &Path,
+    version: &str,
+) -> Result<(), String> {
+    let (package, cmd, _) = vendor_runtime(agent).ok_or("No vendor runtime")?;
+    let runtime = prefix.join("runtime");
+    std::fs::create_dir_all(&runtime).map_err(|e| e.to_string())?;
+    let mut install = crate::process::tokio_command(npm);
+    install
+        .args([
+            "install",
+            "-g",
+            "--include=optional",
+            "--no-audit",
+            "--no-fund",
+            "--fetch-timeout=60000",
+            "--fetch-retries=1",
+        ])
+        .arg(format!("--registry={OFFICIAL_NPM_REGISTRY}"))
+        .arg(format!("--prefix={}", runtime.display()))
+        .arg(format!("{package}@{version}"));
+    if std::env::var_os("NODE_USE_ENV_PROXY").is_none() {
+        install.env("NODE_USE_ENV_PROXY", "1");
+    }
+    run_tool_install(install, &runtime).await?;
+    verify_staged(agent, &runtime, &executable(&runtime, cmd), &version).await?;
+    Ok(())
+}
+
 async fn prepare_at(
     agent: AgentType,
     version: &str,
@@ -510,11 +585,12 @@ async fn prepare_at(
     };
     let package =
         super::agent_updates::npm_package_name(package).ok_or("No npm package release source")?;
-    let installed = Installed {
+    let mut installed = Installed {
         directory: uuid::Uuid::new_v4().to_string(),
         version: version.into(),
         entry: None,
         identity: Some(install_identity(agent)),
+        runtime_version: None,
     };
     let prefix = root.join(&installed.directory);
     std::fs::create_dir_all(&prefix).map_err(|e| e.to_string())?;
@@ -532,7 +608,7 @@ async fn prepare_at(
             "--fetch-timeout=60000",
             "--fetch-retries=1",
         ])
-        .arg(format!("--registry={AGENT_NPM_REGISTRY}"))
+        .arg(format!("--registry={OFFICIAL_NPM_REGISTRY}"))
         .arg(format!("--prefix={}", prefix.display()))
         .arg(format!("{package}@{version}"))
         .stdout(log.try_clone().map_err(|e| e.to_string())?)
@@ -585,6 +661,16 @@ async fn prepare_at(
                 return Err("Staged Codex CLI dependency failed verification".into());
             }
         }
+        if let Some((package, _, _)) = vendor_runtime(agent) {
+            let version = official_npm_version(package)
+                .await
+                .map_err(|e| e.to_string())?;
+            if !valid_version(&version) {
+                return Err("Invalid official runtime version".into());
+            }
+            prepare_vendor_runtime(agent, &prefix, npm, &version).await?;
+            installed.runtime_version = Some(version);
+        }
         Ok(installed)
     }
     .await;
@@ -605,11 +691,30 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
     let mut pending: HashMap<String, (Installed, u64)> = HashMap::new();
     loop {
         for agent in registry::all_acp_agents() {
+            if !registry::is_maintained_agent(agent) {
+                continue;
+            }
             let key = agent.to_string();
             if !enabled(&db, agent).await {
                 pending.remove(&key);
                 report(agent, "idle", None, None);
                 continue;
+            }
+            if let Some((_, _, env)) = vendor_runtime(agent) {
+                let setting = agent_setting_service::get_by_agent_type(&db.conn, agent)
+                    .await
+                    .ok()
+                    .flatten();
+                let custom = setting
+                    .and_then(|s| s.env_json)
+                    .and_then(|s| serde_json::from_str::<HashMap<String, String>>(&s).ok())
+                    .and_then(|s| s.get(env).cloned())
+                    .or_else(|| std::env::var(env).ok());
+                if custom.is_some_and(|v| !v.trim().is_empty()) {
+                    pending.remove(&key);
+                    report(agent, "unavailable", None, Some(format!("Custom {env} runtime: official version cannot be managed automatically")));
+                    continue;
+                }
             }
             if !pending.contains_key(&key)
                 && due.get(&key).is_none_or(|when| Instant::now() >= *when)
@@ -633,6 +738,22 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
                     due.insert(key.clone(), Instant::now() + CHECK_INTERVAL);
                     continue;
                 };
+                let runtime_latest = if let Some((package, _, _)) = vendor_runtime(agent) {
+                    match official_npm_version(package).await {
+                        Ok(version) => {
+                            if let Some(status) = STATUS.lock().unwrap().get_mut(&key) {
+                                status.runtime_latest_version = Some(version.clone());
+                            }
+                            Some(version)
+                        }
+                        Err(error) => {
+                            report(agent, "error", None, Some(error.to_string()));
+                            continue;
+                        }
+                    }
+                } else {
+                    None
+                };
                 let local = super::acp::acp_get_agent_status_core(agent, &db)
                     .await
                     .ok()
@@ -649,13 +770,18 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
                     );
                     continue;
                 };
-                if !needs_update {
+                if !needs_update && runtime_is_current(agent, runtime_latest.as_deref()) {
                     due.insert(key.clone(), Instant::now() + CHECK_INTERVAL);
                     report(agent, "current", local.as_deref(), None);
                     continue;
                 }
                 let Ok(_install) = INSTALL_LOCK.try_lock() else {
                     continue;
+                };
+                let version = if needs_update {
+                    version
+                } else {
+                    local.unwrap()
                 };
                 report(agent, "downloading", Some(&version), None);
                 match prepare(agent, &version).await {
@@ -704,6 +830,7 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
             if !local
                 .as_deref()
                 .is_some_and(|v| release_is_newer(agent, v, &installed.version) == Some(true))
+                && runtime_is_current(agent, installed.runtime_version.as_deref())
             {
                 pending.remove(&key);
                 continue;
@@ -734,7 +861,6 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
     }
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub fn acp_agent_auto_update_status(agent_type: AgentType) -> AutoUpdateStatus {
     status(agent_type)
 }
@@ -742,6 +868,67 @@ pub fn acp_agent_auto_update_status(agent_type: AgentType) -> AutoUpdateStatus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn vendor_runtime_install_uses_official_exact_version_and_rejects_wrong_binary() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let npm = root.path().join("npm");
+        std::fs::write(
+            &npm,
+            r#"#!/bin/sh
+set -eu
+case "$*" in *--registry=https://registry.npmjs.org*) ;; *) exit 9 ;; esac
+case "$*" in *@openai/codex@0.154.0*) ;; *) exit 8 ;; esac
+for arg in "$@"; do
+  case "$arg" in --prefix=*) prefix="${arg#--prefix=}" ;; esac
+done
+mkdir -p "$prefix/bin"
+printf '#!/bin/sh\necho codex-cli 0.154.0\n' > "$prefix/bin/codex"
+chmod +x "$prefix/bin/codex"
+"#,
+        )
+        .unwrap();
+        std::fs::set_permissions(&npm, std::fs::Permissions::from_mode(0o755)).unwrap();
+        prepare_vendor_runtime(AgentType::Codex, root.path(), &npm, "0.154.0")
+            .await
+            .unwrap();
+        let runtime = root.path().join("runtime");
+        assert!(runtime.join("bin/codex").is_file());
+        assert!(!root.path().join("active.json").exists());
+        assert!(verify_staged(
+            AgentType::Codex,
+            &runtime,
+            &runtime.join("bin/codex"),
+            "0.155.0"
+        )
+        .await
+        .is_err());
+    }
+
+    #[test]
+    fn adapters_track_the_vendor_cli_package_independently() {
+        assert_eq!(
+            vendor_runtime(AgentType::Codex),
+            Some(("@openai/codex", "codex", "CODEX_PATH"))
+        );
+        assert_eq!(
+            vendor_runtime(AgentType::ClaudeCode),
+            Some((
+                "@anthropic-ai/claude-code",
+                "claude",
+                "CLAUDE_CODE_EXECUTABLE"
+            ))
+        );
+        assert_eq!(
+            vendor_runtime(AgentType::Pi),
+            Some(("@earendil-works/pi-coding-agent", "pi", "PI_ACP_PI_COMMAND"))
+        );
+        assert!(vendor_runtime(AgentType::Grok).is_none());
+        let previous: Installed =
+            serde_json::from_str(r#"{"directory":"legacy","version":"1.12.0"}"#).unwrap();
+        assert!(previous.runtime_version.is_none());
+    }
     #[test]
     fn updates_only_newer_stable_versions() {
         assert!(newer("1.0.13", "1.0.30"));
@@ -771,6 +958,7 @@ mod tests {
             version: "1.0.0".into(),
             entry: None,
             identity: None,
+            runtime_version: None,
         };
         publish(root.path(), &active).unwrap();
         let before = std::fs::read(root.path().join("active.json")).unwrap();
@@ -895,17 +1083,17 @@ for arg in "$@"; do
   case "$arg" in --prefix=*) prefix="${arg#--prefix=}" ;; esac
 done
 mkdir -p "$prefix/bin"
-printf '#!/bin/sh\nprintf "1.2.3\\n"\n' > "$prefix/bin/claude-agent-acp"
-chmod +x "$prefix/bin/claude-agent-acp"
+printf '#!/bin/sh\nprintf "1.2.3\\n"\n' > "$prefix/bin/gemini"
+chmod +x "$prefix/bin/gemini"
 "#,
         );
-        let installed = prepare_at(AgentType::ClaudeCode, "1.2.3", root.path(), &npm)
+        let installed = prepare_at(AgentType::Gemini, "1.2.3", root.path(), &npm)
             .await
             .unwrap();
         assert!(root
             .path()
             .join(installed.directory)
-            .join("bin/claude-agent-acp")
+            .join("bin/gemini")
             .is_file());
         assert!(!root.path().join("active.json").exists());
     }
@@ -1011,6 +1199,7 @@ chmod +x "$UV_TOOL_BIN_DIR/python-agent"
                     version: version.into(),
                     entry: None,
                     identity: None,
+                    runtime_version: None,
                 },
             )
             .unwrap();

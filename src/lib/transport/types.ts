@@ -2,15 +2,6 @@ import type { EventEnvelope, LiveSessionSnapshot } from "@/lib/types"
 
 export type UnsubscribeFn = () => void
 
-export interface RemoteTransportConfig {
-  id: number
-  name: string
-  baseUrl: string
-  token: string
-  windowInstanceId: string
-  onUnauthorized?: () => void
-}
-
 /**
  * Reasons the server may end an attach subscription unilaterally.
  * Mirrors `DetachReason` in `src-tauri/src/web/ws_attach.rs`.
@@ -77,9 +68,7 @@ export interface EventStream {
 
 export interface CallOptions {
   /**
-   * Override the transport's default request timeout. Tauri ignores
-   * this (its invoke() has no timeout); WebTransport uses it instead
-   * of `WEB_CALL_TIMEOUT_MS` for this single call.
+   * Override the transport's default request timeout instead of `WEB_CALL_TIMEOUT_MS` for this single call.
    *
    * Use only when a command has a backend-side deadline (e.g. a
    * 60 s probe) that the default 60 s transport timeout would race
@@ -91,7 +80,7 @@ export interface CallOptions {
 
 export interface Transport {
   /**
-   * Invoke a backend command (replaces Tauri's invoke()).
+   * Invoke a backend command.
    */
   call<T>(
     command: string,
@@ -100,18 +89,13 @@ export interface Transport {
   ): Promise<T>
 
   /**
-   * Subscribe to a backend event stream (replaces Tauri's listen()).
+   * Subscribe to a backend event stream.
    * Returns an unsubscribe function.
    */
   subscribe<T>(
     event: string,
     handler: (payload: T) => void
   ): Promise<UnsubscribeFn>
-
-  /**
-   * Whether the app is running in a desktop Tauri environment.
-   */
-  isDesktop(): boolean
 
   /**
    * Register a callback invoked after a WebSocket-based transport reconnects
@@ -122,8 +106,7 @@ export interface Transport {
    * `__ready__` is lost. Re-fetching backend snapshots is the recovery path.
    *
    * Not fired on the initial connect (consumers handle that separately).
-   * Returns an unsubscribe function. Optional — IPC-only transports (e.g.
-   * Tauri) leave this undefined.
+   * Returns an unsubscribe function.
    */
   onReconnect?(callback: () => void): UnsubscribeFn
 

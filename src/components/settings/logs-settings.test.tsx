@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 vi.mock("@/lib/api", () => ({
   getLogSettings: vi.fn(),
   getRecentLogs: vi.fn(),
-  listLogFiles: vi.fn(),
+  listLogFiles: vi.fn(async () => []),
   openLogsDir: vi.fn(),
   readLogFile: vi.fn(),
   setLogSettings: vi.fn(),

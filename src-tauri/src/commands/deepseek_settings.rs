@@ -1199,27 +1199,6 @@ fn verify_patch(
 // Commands
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Read the DeepSeek Harness model catalog for the settings panel. Desktop
-/// command; the web handler calls [`load_deepseek_model_catalog_core`]
-/// directly. Reads the filesystem only — no DB/state needed.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_load_deepseek_model_catalog() -> Result<DeepSeekModelCatalog, AcpError> {
-    Ok(load_deepseek_model_catalog_core())
-}
-
-/// Store (or clear) the DeepSeek Harness model catalog. Desktop command; the
-/// web handler calls [`update_deepseek_model_catalog_core`] directly.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_update_deepseek_model_catalog(
-    models: Option<Vec<DeepSeekCatalogModel>>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    update_deepseek_model_catalog_core(models, &emitter)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

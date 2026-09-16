@@ -1,5 +1,6 @@
 "use client"
 
+import { filterMaintainedAgents } from "@/lib/maintained-agents"
 import type { AcpAgentInfo } from "@/lib/types"
 
 const STORAGE_KEY = "codeg:enabled-acp-agents:v1"
@@ -72,7 +73,7 @@ export function loadEnabledAcpAgentsCache(): AcpAgentInfo[] {
     const raw = window.localStorage.getItem(STORAGE_KEY)
     const parsed: unknown = raw ? JSON.parse(raw) : null
     if (!Array.isArray(parsed) || !parsed.every(isCachedAgent)) return []
-    return parsed.map(toAgentInfo)
+    return filterMaintainedAgents(parsed.map(toAgentInfo))
   } catch {
     return []
   }

@@ -112,7 +112,7 @@ jobs:
           set -euo pipefail
           pnpm install --frozen-lockfile
           echo probe > /tmp/updater-sign-probe
-          pnpm tauri signer sign /tmp/updater-sign-probe
+          pnpm server:sign /tmp/updater-sign-probe
           test -f /tmp/updater-sign-probe.sig
 
       - name: Require Apple release credentials
@@ -411,8 +411,7 @@ jobs:
         # `codeg-mcp` is the stdio MCP companion the runtime injects per
         # session (see acp/delegation/companion.rs). Built with the same
         # `--no-default-features --target` flags as the server so it shares
-        # the cross-compile env (Linux arm64) without dragging in tauri
-        # runtime deps.
+        # the cross-compile env (Linux arm64).
         run: |
           cargo build --release --bin codeg-server --no-default-features --target ${{ matrix.target }}
           cargo build --release --bin codeg-mcp --no-default-features --target ${{ matrix.target }}
@@ -494,7 +493,7 @@ jobs:
             echo "FATAL: TAURI_SIGNING_PRIVATE_KEY is required to sign ${{ matrix.artifact }}"
             exit 1
           fi
-          pnpm tauri signer sign "dist/${{ matrix.artifact }}.tar.gz"
+          pnpm server:sign "dist/${{ matrix.artifact }}.tar.gz"
           test -f "dist/${{ matrix.artifact }}.tar.gz.sig"
           ( cd dist && shasum -a 256 "${{ matrix.artifact }}.tar.gz" > "${{ matrix.artifact }}.tar.gz.sha256" )
 
@@ -508,7 +507,7 @@ jobs:
           if (-not $env:TAURI_SIGNING_PRIVATE_KEY) {
             throw "TAURI_SIGNING_PRIVATE_KEY is required to sign ${{ matrix.artifact }}"
           }
-          pnpm tauri signer sign "dist/${{ matrix.artifact }}.zip"
+          pnpm server:sign "dist/${{ matrix.artifact }}.zip"
           if (-not (Test-Path "dist/${{ matrix.artifact }}.zip.sig")) {
             throw "signature not produced for ${{ matrix.artifact }}.zip"
           }

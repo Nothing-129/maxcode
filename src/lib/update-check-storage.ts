@@ -1,6 +1,5 @@
 "use client"
 
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import type { AppUpdateInfo } from "@/lib/updater"
 
 /**
@@ -20,9 +19,8 @@ import type { AppUpdateInfo } from "@/lib/updater"
  *     cached offer restored in another window or after a relaunch does not
  *     announce itself again.
  *
- * Keys are scoped per backend: a remote-desktop window is the same browser
- * origin as the local app but reports a *different* server's version, so an
- * unscoped cache would show one backend's answer in the other's window.
+ * Browser storage is isolated by backend origin. The existing local keys
+ * stay unchanged so cached availability survives the desktop-shell cleanup.
  *
  * Every accessor is SSR- and private-mode-safe: a throwing/absent
  * `localStorage` degrades to "nothing remembered", never an exception.
@@ -40,21 +38,15 @@ export interface CachedUpdateCheck {
   info: AppUpdateInfo | null
 }
 
-function scoped(key: string): string {
-  const remoteId = getActiveRemoteConnectionId()
-  return remoteId ? `${key}:remote-${remoteId}` : key
-}
-
-/** The key `writeLastCheck` writes to, for `storage`-event listeners. Scoped for
- * the same reason as {@link dismissedVersionStorageKey}. */
+/** The key `writeLastCheck` writes to, for `storage`-event listeners. */
 export function lastCheckStorageKey(): string {
-  return scoped(LAST_CHECK_KEY)
+  return LAST_CHECK_KEY
 }
 
 export function readLastCheck(): CachedUpdateCheck | null {
   if (typeof window === "undefined") return null
   try {
-    const raw = localStorage.getItem(scoped(LAST_CHECK_KEY))
+    const raw = localStorage.getItem(LAST_CHECK_KEY)
     if (!raw) return null
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return null
@@ -89,7 +81,7 @@ export function readLastCheck(): CachedUpdateCheck | null {
 export function writeLastCheck(value: CachedUpdateCheck): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(scoped(LAST_CHECK_KEY), JSON.stringify(value))
+    localStorage.setItem(LAST_CHECK_KEY, JSON.stringify(value))
   } catch {
     /* ignore */
   }
@@ -102,7 +94,7 @@ export function writeLastCheck(value: CachedUpdateCheck): void {
 export function clearLastCheck(): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.removeItem(scoped(LAST_CHECK_KEY))
+    localStorage.removeItem(LAST_CHECK_KEY)
   } catch {
     /* ignore */
   }
@@ -112,18 +104,17 @@ export function clearLastCheck(): void {
  * The key `writeDismissedVersion` writes to, for `storage`-event listeners.
  * Exposed because a dismissal is the one piece of update state a sibling window
  * changes WITHOUT touching the check cache, so listeners need to recognise it
- * on its own. Scoping matters here: a remote-desktop window is the same origin
- * as the local app, and must not react to the other backend's dismissals.
+ * on its own.
  */
 export function dismissedVersionStorageKey(): string {
-  return scoped(DISMISSED_VERSION_KEY)
+  return DISMISSED_VERSION_KEY
 }
 
 /** The version the user dismissed the badge for, if any. */
 export function readDismissedVersion(): string | null {
   if (typeof window === "undefined") return null
   try {
-    return localStorage.getItem(scoped(DISMISSED_VERSION_KEY)) || null
+    return localStorage.getItem(DISMISSED_VERSION_KEY) || null
   } catch {
     return null
   }
@@ -133,7 +124,7 @@ export function readDismissedVersion(): string | null {
 export function writeDismissedVersion(version: string | null): void {
   if (typeof window === "undefined") return
   try {
-    const key = scoped(DISMISSED_VERSION_KEY)
+    const key = DISMISSED_VERSION_KEY
     if (version) localStorage.setItem(key, version)
     else localStorage.removeItem(key)
   } catch {
@@ -145,7 +136,7 @@ export function writeDismissedVersion(version: string | null): void {
 export function readNotifiedVersion(): string | null {
   if (typeof window === "undefined") return null
   try {
-    return localStorage.getItem(scoped(NOTIFIED_VERSION_KEY)) || null
+    return localStorage.getItem(NOTIFIED_VERSION_KEY) || null
   } catch {
     return null
   }
@@ -155,7 +146,7 @@ export function readNotifiedVersion(): string | null {
 export function writeNotifiedVersion(version: string): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(scoped(NOTIFIED_VERSION_KEY), version)
+    localStorage.setItem(NOTIFIED_VERSION_KEY, version)
   } catch {
     /* ignore */
   }

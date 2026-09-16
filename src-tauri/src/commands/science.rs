@@ -558,7 +558,6 @@ fn extract_bundle_dir(
 
 // ─── Commands: list / status ────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_list() -> Result<Vec<ScienceListItem>, ScienceError> {
     let meta_list = bundled_metadata().to_vec();
     let manifest = load_manifest();
@@ -581,7 +580,6 @@ pub async fn science_list() -> Result<Vec<ScienceListItem>, ScienceError> {
     Ok(out)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_get_install_status(
     skill_id: String,
 ) -> Result<Vec<ExpertInstallStatus>, ScienceError> {
@@ -709,7 +707,6 @@ fn link_one_locked(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_link_to_agent(
     skill_id: String,
     agent_type: AgentType,
@@ -718,7 +715,6 @@ pub async fn science_link_to_agent(
     link_one_locked(&skill_id, agent_type)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_unlink_from_agent(
     skill_id: String,
     agent_type: AgentType,
@@ -776,7 +772,6 @@ fn unlink_one_locked(skill_id: &str, agent_type: AgentType) -> Result<(), Scienc
 /// batch continues. The frontend re-fetches the authoritative snapshot via
 /// `science_list_all_install_statuses` afterward (shared agent dirs make per-op
 /// state non-local — see the office/experts shared-dir note).
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, ScienceError> {
     let _guard = mutation_lock().lock().await;
     let mut out = Vec::with_capacity(ops.len());
@@ -813,7 +808,6 @@ pub async fn science_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, 
 
 /// One-shot snapshot of every (science skill, agent) link state — lets the
 /// matrix UI render the whole grid from a single round-trip.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_list_all_install_statuses() -> Result<Vec<ExpertInstallStatus>, ScienceError> {
     let agents = supported_agents();
     let mut out = Vec::with_capacity(bundled_metadata().len() * agents.len());
@@ -842,7 +836,6 @@ pub async fn science_list_all_install_statuses() -> Result<Vec<ExpertInstallStat
 
 // ─── Commands: read / open ──────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_read_content(skill_id: String) -> Result<String, ScienceError> {
     let skill_id =
         validate_skill_id(&skill_id).map_err(|e| ScienceError::Metadata(e.to_string()))?;
@@ -864,7 +857,6 @@ pub async fn science_read_content(skill_id: String) -> Result<String, ScienceErr
     Ok(content)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn science_open_central_dir() -> Result<String, ScienceError> {
     let dir = central_experts_dir();
     fs::create_dir_all(&dir)?;

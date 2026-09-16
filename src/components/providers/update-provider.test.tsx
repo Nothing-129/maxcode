@@ -76,6 +76,20 @@ vi.mock("@/lib/transport", () => ({
   getActiveRemoteConnectionId: () => null,
 }))
 
+const installUpdate = vi.fn(() => new Promise<void>(() => {}))
+vi.mock("@/lib/electron", () => ({
+  isElectron: () => desktopMode,
+  getElectronBridge: () =>
+    desktopMode
+      ? {
+          version: "0.21.7",
+          getUpdateState: async () => snapshot,
+          onUpdateState: () => () => {},
+          installUpdate,
+        }
+      : null,
+}))
+
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import { UpdateProvider, useAppUpdate } from "./update-provider"
@@ -110,6 +124,7 @@ beforeEach(() => {
   callImpl = null
   snapshot = { seq: 0, status: "idle" }
   desktopMode = false
+  installUpdate.mockClear()
   checkResult = () => ({
     currentVersion: "0.21.7",
     update: null,
@@ -260,10 +275,7 @@ describe("UpdateProvider", () => {
 
     render(makeTree())
 
-    await waitFor(() => expect(call).toHaveBeenCalledWith("restart_app"))
-    expect(
-      call.mock.calls.filter(([endpoint]) => endpoint === "restart_app")
-    ).toHaveLength(1)
+    await waitFor(() => expect(installUpdate).toHaveBeenCalledTimes(1))
   })
 })
 

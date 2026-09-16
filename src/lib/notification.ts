@@ -7,27 +7,19 @@
  * Everything here is the thin, honest wrapper over two very different
  * substrates:
  *
- *   - Tauri desktop: a backend command. There is no queryable permission (see
- *     `getNotificationPermission`), so the only truth available is whether a
- *     delivery succeeded — which is why `deliverSystemNotification` throws
- *     instead of swallowing, and why the settings panel offers a test send.
+ *   - Electron: its native notification bridge reports delivery failures.
  *   - Browser: the `Notification` API, whose permission is real, three-valued,
  *     and only requestable from inside a user gesture.
  */
 
-import { getShellTransport, isDesktop } from "./transport"
 import { getElectronBridge, isElectron } from "./electron"
 
 /**
  * What the platform can tell us about permission to post notifications.
  *
- * `managed_by_os` is not a euphemism for "granted". On desktop the app has no
- * way to ask: `tauri-plugin-notification`'s desktop backend hard-codes
- * `PermissionState::Granted` for both `permission_state()` and
- * `request_permission()`, and `mac-notification-sys` exposes no authorization
- * API at all. Reporting "granted" there would be inventing a fact — the user
- * may well have Codeg switched off in System Settings and we cannot see it.
- * So the desktop UI states who owns the decision and offers a test send.
+ * `managed_by_os` means notification access is controlled by the operating
+ * system. The desktop bridge cannot query that permission, so settings offer
+ * a test notification instead of claiming delivery is granted.
  *
  * `unsupported` covers the browser case that bites real deployments: a
  * `codeg-server` reached over plain `http://` on a LAN address is not a secure
@@ -54,7 +46,7 @@ function browserNotification(): typeof Notification | null {
  * prompts.
  */
 export function getNotificationPermission(): NotificationPermissionState {
-  if (isDesktop() || isElectron()) return "managed_by_os"
+  if (isElectron()) return "managed_by_os"
   const ctor = browserNotification()
   if (!ctor) return "unsupported"
   const permission = ctor.permission
@@ -77,7 +69,7 @@ export function getNotificationPermission(): NotificationPermissionState {
  * A no-op on desktop, where there is nothing to request.
  */
 export async function requestNotificationPermission(): Promise<NotificationPermissionState> {
-  if (isDesktop() || isElectron()) return "managed_by_os"
+  if (isElectron()) return "managed_by_os"
   const ctor = browserNotification()
   if (!ctor) return "unsupported"
   try {
@@ -107,17 +99,6 @@ export async function deliverSystemNotification(
     }
     return
   }
-  if (isDesktop()) {
-    // Deliberately the SHELL transport, not `getTransport()`. In a
-    // remote-desktop window `getTransport()` is the remote HTTP transport, and
-    // `send_notification` is a `tauri-runtime`-only command that the
-    // `codeg-server` binary never registers — so every notification in those
-    // windows was being posted to a machine the user isn't sitting at, failed,
-    // and got swallowed by the caller's `.catch()`. A notification belongs to
-    // the screen in front of the user, which is always the local shell.
-    await getShellTransport().call("send_notification", { title, body })
-    return
-  }
 
   const ctor = browserNotification()
   if (!ctor) throw new Error("Notifications are not available in this context")
@@ -131,44 +112,6 @@ export async function deliverSystemNotification(
 }
 
 /**
- * Which app the OS files our notifications under.
- *
- * On macOS this is not a formality. `NSUserNotification` has no concept of an
- * unbundled process, so the backend claims a bundle id and the OS attributes
- * the notification — and its permission, icon and System Settings page — to
- * THAT app. When `bundleId` differs from `requestedBundleId` the switches the
- * user can see under "codeg" govern nothing.
- */
-export interface NotificationIdentity {
-  /** Bundle id notifications are actually delivered under. */
-  bundleId: string
-  /** Bundle id we asked for — this app's own identifier. */
-  requestedBundleId: string
-  /** Delivery fell back to another app's identity. */
-  degraded: boolean
-}
-
-/**
- * Read the delivering identity, or `null` where there is nothing trustworthy
- * to report — a browser (it posts as itself), and every desktop platform but
- * macOS (only macOS impersonates another app to deliver; see the Rust
- * `resolve_notification_identity` for why Windows is excluded rather than
- * guessed at).
- *
- * The first call is what establishes the identity, so this is a write as much
- * as a read; see the Rust `notification_identity` for why calling it from a
- * settings panel is safe.
- */
-export async function getNotificationIdentity(): Promise<NotificationIdentity | null> {
-  if (!isDesktop()) return null
-  // Same shell-transport reasoning as delivery: the notification, and the
-  // identity it is filed under, belong to the machine in front of the user.
-  return await getShellTransport().call<NotificationIdentity | null>(
-    "notification_identity"
-  )
-}
-
-/**
  * Open the OS pane that owns notification permission for this app.
  *
  * Desktop only — a browser's per-site permission lives in the browser's own UI,
@@ -176,17 +119,10 @@ export async function getNotificationIdentity(): Promise<NotificationIdentity | 
  * such pane (some Linux setups), so the caller can say so rather than leave the
  * user staring at a button that did nothing.
  *
- * Routed through the shell transport for the same reason delivery is: the
- * settings the user wants are on the machine in front of them, not on a remote
- * workspace host.
+ * The Electron preload bridge opens the OS settings on the local machine.
  */
 export async function openSystemNotificationSettings(): Promise<void> {
   const electron = getElectronBridge()
   if (electron) return electron.openNotificationSettings()
-  if (!isDesktop()) {
-    throw new Error(
-      "System notification settings are only reachable on desktop"
-    )
-  }
-  await getShellTransport().call("open_system_notification_settings")
+  throw new Error("System notification settings are only reachable on desktop")
 }

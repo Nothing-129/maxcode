@@ -17,6 +17,31 @@ const source = (path: string) =>
 const agent = { agent_type: "codex", enabled: true, env: {} } as AcpAgentInfo
 
 describe("MaxCode automatic agent updates", () => {
+  it("shows the official CLI separately when the adapter version is unchanged", () => {
+    const check = buildVersionCheck(
+      {
+        ...agent,
+        distribution_type: "npx",
+        available: true,
+        installed_version: "1.12.0",
+        registry_version: "1.12.0",
+        custom_source: null,
+      } as AcpAgentInfo,
+      true,
+      {
+        autoUpdate: {
+          phase: "waiting",
+          version: "1.12.0",
+          runtimeVersion: "0.154.0",
+          runtimeLatestVersion: "0.155.0",
+          error: null,
+        },
+      }
+    )
+    expect(check?.message).toContain("Native CLI: {installed}")
+    expect(check?.message).toContain("latest official: {latest}")
+    expect(check?.message).toContain("waiting for sessions")
+  })
   it.each([
     "codex",
     "grok",
@@ -91,7 +116,7 @@ describe("MaxCode automatic agent updates", () => {
     expect(worker).toContain("prepare_binary(agent, version, &root)")
     expect(worker).toContain("prepare_python(agent, version, &root)")
     expect(worker).toContain("Duration::from_secs(6 * 60 * 60)")
-    expect(worker).toContain("--registry={AGENT_NPM_REGISTRY}")
+    expect(worker).toContain("--registry={OFFICIAL_NPM_REGISTRY}")
     expect(worker).toContain("--prefix={}")
     expect(worker).toContain(
       'cmd.env("GROK_HOME", prefix.join("grok-runtime"))'
@@ -106,7 +131,6 @@ describe("MaxCode automatic agent updates", () => {
     expect(source("src-tauri/src/bin/codeg_server.rs")).toContain(
       "agent_auto_updates::run("
     )
-    expect(source("src-tauri/src/lib.rs")).toContain("agent_auto_updates::run(")
     const acp = source("src-tauri/src/commands/acp.rs")
     expect(acp).toContain("agent_auto_updates::active_command(cmd)")
     expect(acp).toContain("agent_auto_updates::INSTALL_LOCK.lock().await")

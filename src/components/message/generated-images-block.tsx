@@ -61,7 +61,7 @@ interface GeneratedImagesBlockProps {
  * `tool-group` collapsible.
  *
  * Download is platform-aware:
- *   - desktop: native "Save As" via Tauri command
+ *   - desktop: native "Save As" via the Electron bridge
  *   - web: blob `<a download>`
  */
 export const GeneratedImagesBlock = memo(function GeneratedImagesBlock({

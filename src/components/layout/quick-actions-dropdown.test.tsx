@@ -7,32 +7,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // stubbed: the test's job is to prove each row reaches the right door (and that
 // the desktop-only rows disappear off the desktop), not to re-test the doors.
 const mocks = vi.hoisted(() => {
-  const connections = [
-    { id: 11, name: "prod-box", base_url: "https://prod.example" },
-    { id: 12, name: "lab-box", base_url: "https://lab.example" },
-  ]
   return {
-    connections,
     openProjectBootWindow: vi.fn(() => Promise.resolve()),
-    openPetWindow: vi.fn(() => Promise.resolve()),
-    openRemoteWorkspace: vi.fn(() => Promise.resolve()),
-    listRemoteWorkspaceConnections: vi.fn(() => Promise.resolve(connections)),
     setRoute: vi.fn(),
   }
 })
 
-let desktop = true
-vi.mock("@/lib/platform", () => ({ isDesktop: () => desktop }))
-
 vi.mock("@/lib/api", () => ({
   openProjectBootWindow: mocks.openProjectBootWindow,
-}))
-
-vi.mock("@/lib/pet/api", () => ({ openPetWindow: mocks.openPetWindow }))
-
-vi.mock("@/lib/remote-workspace", () => ({
-  listRemoteWorkspaceConnections: mocks.listRemoteWorkspaceConnections,
-  openRemoteWorkspace: mocks.openRemoteWorkspace,
 }))
 
 vi.mock("@/contexts/automations-view-context", () => ({
@@ -60,11 +42,6 @@ vi.mock("./workspace-folder-dialog", () => ({
   WorkspaceFolderDialog: ({ open }: { open: boolean }) =>
     open ? <div>FOLDER-DIALOG</div> : null,
 }))
-vi.mock("./remote-workspace-manage-dialog", () => ({
-  RemoteWorkspaceManageDialog: ({ open }: { open: boolean }) =>
-    open ? <div>REMOTE-MANAGE-DIALOG</div> : null,
-}))
-
 import { QuickActionsDropdown } from "./quick-actions-dropdown"
 import enMessages from "@/i18n/messages/en.json"
 
@@ -93,25 +70,22 @@ const AUTOMATIONS_ROW = /^Automations/
 const FORGE_ROW = "Repository panel"
 
 beforeEach(() => {
-  desktop = true
   vi.clearAllMocks()
 })
 
 describe("QuickActionsDropdown", () => {
-  it("groups all eight actions under their headings on desktop", async () => {
+  it("groups workspace and navigation actions under their headings", async () => {
     await mountAndOpen()
 
-    for (const group of ["Workspace", "Navigation", "More"]) {
+    for (const group of ["Workspace", "Navigation"]) {
       expect(await screen.findByText(group)).toBeVisible()
     }
     for (const label of [
       "Open Folder",
       "Clone Repository",
       "Project Boot",
-      "Open remote workspace",
       AUTOMATIONS_ROW,
       FORGE_ROW,
-      "Show pet",
     ]) {
       expect(await screen.findByRole("menuitem", { name: label })).toBeVisible()
     }
@@ -139,8 +113,7 @@ describe("QuickActionsDropdown", () => {
     ).toBeNull()
   })
 
-  it("drops the desktop-only rows in web mode", async () => {
-    desktop = false
+  it("does not expose retired desktop features", async () => {
     await mountAndOpen()
 
     // The remaining six still render, so this is a targeted removal rather
@@ -172,39 +145,6 @@ describe("QuickActionsDropdown", () => {
     await reopen()
     await clickItem(FORGE_ROW)
     expect(mocks.setRoute).toHaveBeenCalledWith("forge")
-
-    await reopen()
-    await clickItem("Show pet")
-    expect(mocks.openPetWindow).toHaveBeenCalled()
-  })
-
-  it("loads the remote connections only when its submenu opens", async () => {
-    await mountAndOpen()
-    // Opening the root menu must not fetch — the list is submenu-scoped.
-    expect(mocks.listRemoteWorkspaceConnections).not.toHaveBeenCalled()
-
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Open remote workspace" })
-    )
-    expect(await screen.findByText("prod-box")).toBeVisible()
-    expect(screen.getByText("https://lab.example")).toBeVisible()
-    expect(mocks.listRemoteWorkspaceConnections).toHaveBeenCalledTimes(1)
-  })
-
-  it("opens the picked remote workspace and its manage dialog", async () => {
-    await mountAndOpen()
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Open remote workspace" })
-    )
-    await userEvent.click(await screen.findByText("lab-box"))
-    expect(mocks.openRemoteWorkspace).toHaveBeenCalledWith(12)
-
-    await reopen()
-    await userEvent.click(
-      await screen.findByRole("menuitem", { name: "Open remote workspace" })
-    )
-    await clickItem("Manage remote workspace")
-    expect(await screen.findByText("REMOTE-MANAGE-DIALOG")).toBeVisible()
   })
 
   it("opens the folder and clone dialogs from their rows", async () => {

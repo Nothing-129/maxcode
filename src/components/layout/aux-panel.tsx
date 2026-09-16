@@ -16,9 +16,7 @@ import {
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useIsActiveChatMode } from "@/hooks/use-is-active-chat-mode"
 import { useIsMobile } from "@/hooks/use-mobile"
-import { usePlatform } from "@/hooks/use-platform"
 import { useZoomLevel } from "@/hooks/use-appearance"
-import { isDesktop } from "@/lib/platform"
 import { rightChromeReserve } from "@/lib/window-chrome"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -126,7 +124,6 @@ export function AuxPanel() {
   const { activeFolderId } = useActiveFolder()
   const isChatMode = useIsActiveChatMode()
   const isMobile = useIsMobile()
-  const { isWindows, isLinux } = usePlatform()
   const { zoomLevel } = useZoomLevel()
   const [mountedTabs, setMountedTabs] = useState<Set<AuxPanelTab>>(
     () => new Set(LAZY_TABS.filter((tab) => tab === activeTab))
@@ -188,8 +185,7 @@ export function AuxPanel() {
   // segmented control has to fit LEFT of all that — otherwise collapse it into
   // a dropdown. Only relevant to the desktop layout (mobile is a full-width
   // Drawer), and only when there's more than the lone Session Details tab.
-  const winLinuxControls = isDesktop() && (isWindows || isLinux)
-  const rightReserve = rightChromeReserve(winLinuxControls, zoomLevel)
+  const rightReserve = rightChromeReserve(false, zoomLevel)
   const collapsed =
     !isMobile &&
     showFolderTabs &&
@@ -302,7 +298,7 @@ export function AuxPanel() {
             {renderTabTriggers(false)}
             {/* Trailing drag region lets the empty part of the tab row move
                 the window. */}
-            <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+            <div data-drag-region className="h-full min-w-0 flex-1" />
           </TabsList>
         ) : (
           // Desktop: a compact segmented control pinned top-LEFT of the h-10
@@ -350,7 +346,7 @@ export function AuxPanel() {
             </TabsList>
             {/* Empty row remainder (under the floating overlay) stays a
                 window-drag region. */}
-            <div data-tauri-drag-region className="h-full min-w-0 flex-1" />
+            <div data-drag-region className="h-full min-w-0 flex-1" />
           </div>
         )}
 

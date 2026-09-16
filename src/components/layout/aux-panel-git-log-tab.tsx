@@ -264,15 +264,6 @@ function saveSelection(folderPath: string, selection: GitLogSelection): void {
   }
 }
 
-const emitEvent = async (event: string, payload?: unknown) => {
-  try {
-    const { emit } = await import("@tauri-apps/api/event")
-    await emit(event, payload)
-  } catch {
-    // not in Tauri
-  }
-}
-
 function formatRelativeTime(
   dateStr: string,
   t: (
@@ -1871,11 +1862,6 @@ export function GitLogTab() {
       await gitReset(folder.path, resetTarget.fullHash, resetMode)
       await refreshBranches()
       await fetchLog({ inline: true })
-      if (folder.id) {
-        void emitEvent("folder://git-branch-changed", {
-          folder_id: folder.id,
-        })
-      }
       toast.success(t("toasts.resetSuccess"), {
         description: t("toasts.resetSuccessDescription", {
           branch: currentBranch,
@@ -1896,7 +1882,6 @@ export function GitLogTab() {
     currentBranch,
     fetchLog,
     folder?.path,
-    folder?.id,
     isResetAllowed,
     refreshBranches,
     resetMode,
@@ -1925,7 +1910,7 @@ export function GitLogTab() {
   // the subscription effect below can depend only on `folder` — NOT on fetchLog /
   // refreshBranches / refreshCurrentUser, whose identities change on every branch
   // or author switch. Without this, each filter change would tear down and
-  // re-register all three Tauri listeners (and widen the async-subscribe leak
+  // re-register all three backend event listeners (and widen the async-subscribe leak
   // window below); with it, the listeners persist across filter changes and
   // always call the latest fetchLog (current branch/author).
   const onGitEventRef = useRef<() => void>(() => {})
@@ -1987,8 +1972,8 @@ export function GitLogTab() {
   // Refresh branches & log on branch change, commit, or push. Keyed on the
   // numeric folder id (not the folder object) so a same-id object replacement
   // from the active-folder context can't churn the subscriptions or open a brief
-  // window where a git event is missed. subscribe() is async (a Tauri IPC round
-  // trip), so this effect can be cleaned up before a subscription resolves: the
+  // window where a git event is missed. subscribe() is async, so this effect
+  // can be cleaned up before a subscription resolves: the
   // `cancelled` flag both silences a callback that fires after cleanup and makes
   // a listener that RESOLVES after cleanup detach itself immediately, instead of
   // leaking a zombie whose unlisten fn would land in an array the cleanup already
@@ -1999,9 +1984,9 @@ export function GitLogTab() {
   // selector's machinery. `onCompleted` runs the same handler as the git event
   // subscription below — branches AND log, since "fetch remote branches" exists
   // precisely to surface refs the branch selector doesn't know yet. It can't
-  // rely on that subscription: `folder://git-branch-changed` is emitted through
-  // the Tauri bridge, so it never arrives in server/web mode. On desktop both
-  // fire; `fetchLog` supersedes by generation, so the extra pass is harmless.
+  // rely on a branch-change event for every operation: completion callbacks
+  // refresh this view immediately. If a backend event also arrives, `fetchLog`
+  // supersedes by generation, so the extra pass is harmless.
   const gitActions = useGitQuickActions({
     folderId,
     folderPath: folder?.path ?? null,

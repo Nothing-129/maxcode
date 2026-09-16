@@ -15,7 +15,7 @@ import type { FolderDetail } from "@/lib/types"
  * draft conversation tab so it lands focused.
  *
  * Routing is handled by the transport: `subscribe()` binds to this window's
- * own backend (the local Tauri bus, or the server's WebSocket for web/remote),
+ * own backend through the shared WebSocket transport,
  * so only windows talking to the backend that opened the folder react — no
  * manual connection filtering needed. The detail rides on the event, so no
  * extra round-trip is required to apply it.

@@ -22,11 +22,7 @@ pub struct AppDatabase {
 }
 
 pub(crate) fn database_file_name() -> &'static str {
-    if cfg!(all(debug_assertions, feature = "tauri-runtime")) {
-        "codeg-dev.db"
-    } else {
-        "codeg.db"
-    }
+    "codeg.db"
 }
 
 pub async fn init_database(

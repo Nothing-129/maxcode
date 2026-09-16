@@ -3111,9 +3111,9 @@ export interface AcpActionsValue {
    * this is a frontend-only attach. Idempotent on connectionId.
    *
    * Routing:
-   *   * Tauri: registers the connectionId in the global event router
+   *   * Legacy event protocol: registers the connectionId in the global event router
    *     and drains any envelopes that arrived before registration.
-   *   * Web/remote: opens a per-connection WS attach so the snapshot +
+   *   * Snapshot protocol: opens a per-connection WS attach so the snapshot +
    *     replay + live events arrive on a dedicated stream.
    */
   attachDelegationChild(args: {
@@ -3226,7 +3226,7 @@ export function useAcpActions(): AcpActionsValue {
 // ── Event subscriber context ──
 //
 // JS-level fanout of `acp://event` envelopes. The provider owns the single
-// physical Tauri/WebSocket subscription; consumers register callbacks here
+// physical WebSocket subscription; consumers register callbacks here
 // instead of opening a second listener. See `useAcpEvent` below.
 
 type EventSubscriberHandler = (envelope: EventEnvelope) => void
@@ -3390,7 +3390,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // contextKey → active EventStream subscription handle. Populated only for
   // connections established via the Subscribe-with-Snapshot attach
-  // protocol (web + remote-desktop). Used to (a) detach on disconnect /
+  // protocol (Electron and browser). Used to (a) detach on disconnect /
   // tab close, and (b) re-attach with the current cursor when a connection
   // is rekeyed (orphan rescue) so handlers reference the new contextKey.
   const attachSubscriptionsRef = useRef(
@@ -4926,8 +4926,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // (or any future unstable dep added to the callback) would otherwise churn
   // both the global `acp://event` subscription below and every
   // `setupAttachSubscription` consumer that hangs off `applyMappedEnvelope`.
-  // Tauri's `listen` / `unlisten` are both async IPC, so re-running that
-  // effect briefly leaves two listeners registered and every envelope is
+  // Event subscription changes are asynchronous, so re-running that
+  // effect can briefly leave two listeners registered and every envelope is
   // delivered twice. Duplicate delivery is already idempotent — the
   // `lastAppliedSeq` guard below runs before the synchronous `EVENT_APPLIED`
   // dispatch — but the subscription should simply never churn in the first
@@ -5138,7 +5138,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // server-side forwarder task exits, and clear the local handle.
   // Idempotent — safe to call from disconnect, idle sweep, REKEY, and
   // REMOVE_ALL paths without checking whether a sub exists. No-op for
-  // legacy (Tauri) connections that never went through
+  // legacy protocol connections that never went through
   // `setupAttachSubscription`.
   const teardownAttachSubscription = useCallback((contextKey: string) => {
     const sub = attachSubscriptionsRef.current.get(contextKey)
@@ -5156,13 +5156,13 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     let unlisten: (() => void) | null = null
 
-    // Web / remote-desktop transports: the backend no longer fans ACP
+    // Snapshot-capable transports: the backend no longer fans ACP
     // events through the WS firehose (Phase 5 dropped the `acp://event`
     // channel; per-connection attach streams are the sole delivery path).
     // Skip the legacy listener entirely — keeping it would register a
     // dead WebSocket subscription and waste a slot on every reconnect.
     // `waitForListenerReady` becomes an immediate no-op since the path
-    // it was guarding (Tauri's app.emit handshake) doesn't exist here.
+    // it was guarding (the legacy listener handshake) does not exist here.
     if (getEventStream() !== null) {
       listenerReadyRef.current = true
       resolveListenerReadyWaiters()
@@ -5172,8 +5172,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     listenerReadyRef.current = false
 
     subscribe<EventEnvelope>("acp://event", (envelope) => {
-      // Tauri webview path: the desktop frontend receives ACP events here
-      // via `app.emit("acp://event", ...)`. Web / remote-desktop transports
+      // Legacy event protocol receives the global ACP channel here.
+      // Snapshot-capable transports
       // skipped this useEffect above and route ACP events solely via the
       // per-connection attach streams.
       const routes = reverseMapRef.current.get(envelope.connection_id)
@@ -5985,9 +5985,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Wait for the legacy global listener to register so Tauri's drain
+        // Wait for the legacy global listener to register so its drain
         // path picks up any events emitted between acpConnect returning
-        // and reverseMap.set below. Web/remote use attach which doesn't
+        // and reverseMap.set below. Snapshot-capable clients use attach which does not
         // need this gate, but the wait is a fast no-op once the initial
         // subscribe resolves.
         await waitForListenerReady()
@@ -6069,7 +6069,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // Done — the EventStream handles snapshot, replay, live events,
           // and reconnect entirely in-band over the same WS.
         } else {
-          // Legacy path (Tauri desktop, RemoteDesktop): same flow as
+          // Legacy protocol path: same flow as
           // before Phase 3. Awaits snapshot HTTP first, then registers
           // reverseMap, then drains any envelopes that arrived on the
           // global listener while the snapshot was in flight.
@@ -6108,10 +6108,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               patch: snapshotPatch,
             })
             surfaceSnapshotErrorDetailsRef.current(contextKey, snapshotPatch)
-            // Recover delegation bindings from the snapshot here too. On
-            // Tauri the firehose also delivers the events (so this is an
-            // idempotent no-op), but it keeps RemoteDesktop and the legacy
-            // path symmetric with the attach path above.
+            // Recover delegation bindings from the snapshot here too.
+            // The legacy event channel may also deliver these events;
+            // sequence deduplication keeps this idempotent.
             seedDelegationsFromSnapshot(
               snapshotPatch.connectionId,
               snapshotPatch.activeDelegations,
@@ -6150,7 +6149,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // format strings — this branch matches on them as a stable
           // identifier, since `AcpError::Serialize` flattens to a bare
           // message string and does not expose the error `code` for
-          // synchronous Tauri command rejections.
+          // synchronous command rejections.
           if (message.includes("is not installed")) {
             pushAlertRef.current(
               "error",
@@ -6760,7 +6759,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         return
       }
 
-      // Tauri desktop: the global acp://event listener routes by
+      // Legacy protocol: the global acp://event listener routes by
       // reverseMap. Register the identity mapping and drain any
       // envelopes that arrived between the child's spawn and now.
       // ADDS a route rather than replacing one: the work-task transcript viewer

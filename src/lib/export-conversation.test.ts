@@ -1,15 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-// Hoisted mocks must be declared before importing the module under test —
-// these mocks gate the desktop-vs-web dispatch behaviour we're locking down.
-vi.mock("@/lib/platform", () => ({
-  isDesktop: vi.fn(),
-}))
-vi.mock("@tauri-apps/plugin-dialog", () => ({
-  save: vi.fn(),
-}))
-vi.mock("@tauri-apps/api/core", () => ({
-  invoke: vi.fn(),
+const mocks = vi.hoisted(() => ({ desktop: false, saveFile: vi.fn() }))
+vi.mock("./electron", () => ({
+  getElectronBridge: () =>
+    mocks.desktop ? { saveFile: mocks.saveFile } : null,
 }))
 
 import {
@@ -18,18 +12,10 @@ import {
   type ExportConversationData,
   type ExportLabels,
 } from "./export-conversation"
-import { isDesktop } from "@/lib/platform"
-import { save } from "@tauri-apps/plugin-dialog"
-import { invoke } from "@tauri-apps/api/core"
-
-const mockIsDesktop = vi.mocked(isDesktop)
-const mockSave = vi.mocked(save)
-const mockInvoke = vi.mocked(invoke)
-
 // jsdom doesn't ship `URL.createObjectURL` / `revokeObjectURL`. Both are
 // only reachable from the web-mode Blob path; stubbing them lets that
 // branch execute end-to-end so the test can assert it ran without
-// hitting the desktop Tauri plugins.
+// hitting the desktop native bridge.
 if (typeof URL.createObjectURL !== "function") {
   Object.defineProperty(URL, "createObjectURL", {
     configurable: true,
@@ -108,7 +94,8 @@ function makeData(): ExportConversationData {
 }
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.resetAllMocks()
+  mocks.desktop = false
 })
 
 // ---------------------------------------------------------------------------
@@ -118,13 +105,13 @@ beforeEach(() => {
 // TCC layer, but the front-end couldn't observe the failure and reported
 // success. These tests lock the new contract:
 //
-//   - desktop happy path     → opens save dialog, invokes save_text_file,
+//   - desktop happy path     → opens save dialog, invokes the native bridge,
 //                              returns "saved"
 //   - desktop cancellation   → returns "cancelled", does NOT invoke
 //   - desktop write failure  → propagates as an exception (caller renders
 //                              an error toast instead of a false success)
 //   - web fallback           → uses the legacy Blob path, returns "saved",
-//                              never imports the Tauri plugins
+//                              never imports the native bridge
 //
 // If a future edit reverts to the bug pattern (synchronous Blob link from
 // a desktop code path), one of these expectations will fail loudly.
@@ -133,45 +120,37 @@ beforeEach(() => {
 describe("exportAsMarkdown", () => {
   describe("desktop mode", () => {
     beforeEach(() => {
-      mockIsDesktop.mockReturnValue(true)
+      mocks.desktop = true
     })
 
-    it("opens a save dialog with the Markdown filter and writes via save_text_file", async () => {
-      mockSave.mockResolvedValue("/Users/me/out.md")
-      mockInvoke.mockResolvedValue(undefined)
+    it("opens a save dialog with the Markdown filter and writes via the native bridge", async () => {
+      mocks.saveFile.mockResolvedValue("/Users/me/out.md")
 
       const result = await exportAsMarkdown(makeData())
 
       expect(result).toBe("saved")
-      expect(mockSave).toHaveBeenCalledTimes(1)
-      const saveArgs = mockSave.mock.calls[0][0]!
+      expect(mocks.saveFile).toHaveBeenCalledTimes(1)
+      const saveArgs = mocks.saveFile.mock.calls[0][0]!
       expect(saveArgs.filters).toEqual([
         { name: "Markdown", extensions: ["md"] },
       ])
       expect(saveArgs.defaultPath).toMatch(/\.md$/)
 
-      expect(mockInvoke).toHaveBeenCalledTimes(1)
-      const [command, payload] = mockInvoke.mock.calls[0]
-      expect(command).toBe("save_text_file")
-      expect(payload).toMatchObject({ path: "/Users/me/out.md" })
-      expect(typeof (payload as { contents: string }).contents).toBe("string")
-      expect((payload as { contents: string }).contents.length).toBeGreaterThan(
-        0
-      )
+      const bytes = mocks.saveFile.mock.calls[0][1] as Uint8Array
+      expect(new TextDecoder().decode(bytes)).toContain("hello")
     })
 
-    it("returns 'cancelled' and skips invoke when the user dismisses the dialog", async () => {
-      mockSave.mockResolvedValue(null)
+    it("returns 'cancelled' and writes no file when the user dismisses the dialog", async () => {
+      mocks.saveFile.mockResolvedValue(null)
 
       const result = await exportAsMarkdown(makeData())
 
       expect(result).toBe("cancelled")
-      expect(mockInvoke).not.toHaveBeenCalled()
     })
 
     it("propagates the error when the underlying write fails (no false success)", async () => {
-      mockSave.mockResolvedValue("/Users/me/out.md")
-      mockInvoke.mockRejectedValue(new Error("PermissionDenied"))
+      mocks.saveFile.mockResolvedValue("/Users/me/out.md")
+      mocks.saveFile.mockRejectedValue(new Error("PermissionDenied"))
 
       await expect(exportAsMarkdown(makeData())).rejects.toThrow(
         "PermissionDenied"
@@ -181,15 +160,14 @@ describe("exportAsMarkdown", () => {
 
   describe("web mode", () => {
     beforeEach(() => {
-      mockIsDesktop.mockReturnValue(false)
+      mocks.desktop = false
     })
 
-    it("uses the Blob download path and never touches Tauri plugins", async () => {
+    it("uses the Blob download path and never touches native bridge", async () => {
       const result = await exportAsMarkdown(makeData())
 
       expect(result).toBe("saved")
-      expect(mockSave).not.toHaveBeenCalled()
-      expect(mockInvoke).not.toHaveBeenCalled()
+      expect(mocks.saveFile).not.toHaveBeenCalled()
     })
   })
 })
@@ -200,18 +178,19 @@ describe("exportAsMarkdown", () => {
 // ---------------------------------------------------------------------------
 
 describe("exportAsHtml", () => {
-  it("uses the HTML filter and routes through save_text_file on desktop", async () => {
-    mockIsDesktop.mockReturnValue(true)
-    mockSave.mockResolvedValue("/Users/me/out.html")
-    mockInvoke.mockResolvedValue(undefined)
+  it("uses the HTML filter and routes through the native bridge on desktop", async () => {
+    mocks.desktop = true
+    mocks.saveFile.mockResolvedValue("/Users/me/out.html")
 
     const result = await exportAsHtml(makeData())
 
     expect(result).toBe("saved")
-    expect(mockSave.mock.calls[0][0]!.filters).toEqual([
+    expect(mocks.saveFile.mock.calls[0][0]!.filters).toEqual([
       { name: "HTML", extensions: ["html"] },
     ])
-    expect(mockInvoke.mock.calls[0][0]).toBe("save_text_file")
+    expect(new TextDecoder().decode(mocks.saveFile.mock.calls[0][1])).toContain(
+      "hello"
+    )
   })
 })
 

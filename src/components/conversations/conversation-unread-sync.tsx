@@ -5,7 +5,7 @@ import { startConversationReadSync } from "@/lib/conversation-read-sync"
 import { useIsMac } from "@/hooks/use-is-mac"
 import { collectViewedConversationIds } from "@/lib/conversation-unread"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
-import { getCurrentWindow, isLocalDesktop } from "@/lib/platform"
+import { isLocalDesktop } from "@/lib/platform"
 import { getElectronBridge } from "@/lib/electron"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { useTabStore } from "@/stores/tab-store"
@@ -56,7 +56,7 @@ export function ConversationUnreadSync() {
     let cancelled = false
     void (async () => {
       try {
-        const target = getElectronBridge() ?? (await getCurrentWindow())
+        const target = getElectronBridge()
         if (cancelled || target == null) return
         await target.setBadgeCount?.(unreadCount > 0 ? unreadCount : undefined)
       } catch (error) {

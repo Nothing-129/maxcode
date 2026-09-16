@@ -2,8 +2,8 @@
 //! executable lives, whether we run under our supervisor, and how the
 //! restart will be carried out.
 //!
-//! All of this is server/CLI-only — the desktop (Tauri) build never
-//! reaches this module; it self-updates through `tauri-plugin-updater`.
+//! Electron-owned backends report their runtime here but delegate installation
+//! and restart to the desktop shell.
 
 use std::path::PathBuf;
 use std::sync::OnceLock;

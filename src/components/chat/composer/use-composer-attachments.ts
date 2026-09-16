@@ -2,7 +2,6 @@
 
 import {
   useCallback,
-  useEffect,
   useMemo,
   useRef,
   useState,
@@ -16,19 +15,10 @@ import { toast } from "sonner"
 
 import {
   isEmptyAttachmentError,
-  readFileBase64,
   uploadAttachment,
-  uploadLocalPathToRemote,
-  UPLOAD_I18N_KEY_NOT_A_FILE,
   UPLOAD_I18N_KEY_QUOTA_EXCEEDED,
-  UPLOAD_I18N_KEY_TOO_LARGE,
   UPLOAD_MAX_BYTES,
 } from "@/lib/api"
-// Local-IPC file read (never proxied to a remote workspace). Used for the
-// thumbnail preview of a locally-dropped image whose BYTES were uploaded to
-// the remote server — `api.readFileBase64` would route through the remote
-// transport and try to read the local path on the wrong machine.
-import { readFileBase64 as readLocalFileBase64 } from "@/lib/tauri"
 import { extractAppCommandError } from "@/lib/app-error"
 import {
   clipboardHasText,
@@ -39,14 +29,11 @@ import {
   hasFileTreeDragType,
   readFileTreeDragPayload,
 } from "@/lib/file-tree-dnd"
-import { isDesktop, openFileDialog } from "@/lib/platform"
 import {
   buildFileUri,
   buildFileUriWithRange,
   formatFileRangeLabel,
 } from "@/lib/reference-link"
-import { disposeTauriListener } from "@/lib/tauri-listener"
-import { getActiveRemoteConnectionId } from "@/lib/transport"
 import { randomUUID } from "@/lib/utils"
 import type { PromptCapabilitiesInfo, PromptInputBlock } from "@/lib/types"
 import type { Editor } from "@tiptap/core"
@@ -62,16 +49,11 @@ import { buildEmbeddedReferenceUri } from "@/components/chat/composer/reference-
 import type { RichComposerHandle } from "@/components/chat/composer/rich-composer"
 import {
   blobToBase64,
-  buildClipboardResourceUri,
-  buildDataUri,
-  DRAG_DROP_IMAGE_MAX_BYTES,
   editorHasFileReference,
   fileNameFromPath,
   getFilePath,
   hasDragFiles,
-  isTextLikeFile,
   mimeTypeFromPath,
-  pointWithinElement,
 } from "@/components/chat/composer/attachment-files"
 
 /**
@@ -99,17 +81,12 @@ type LogLabel = string
 export interface ComposerAttachmentsOptions {
   /** The editor the inline badges are inserted into. */
   editorRef: RefObject<RichComposerHandle | null>
-  /** Drop target for OS drags (Tauri reports window coordinates, not events on
-   *  the element). Omit to leave OS drag-drop off for this composer. */
-  containerRef?: RefObject<HTMLElement | null>
   /** While true, drops/pastes/picks are ignored (the editor stays editable). */
   disabled?: boolean
   /** Decides whether images may be attached at all, and how they are encoded. */
   promptCapabilities: Pick<PromptCapabilitiesInfo, "image" | "embedded_context">
   /** Groups uploads with the session/tab that owns them (quota + cleanup). */
   attachmentTabId?: string | null
-  /** Start directory for the native picker and the server file browser. */
-  defaultPath?: string | null
   logLabel?: LogLabel
 }
 
@@ -124,9 +101,6 @@ export interface ComposerAttachments {
   hasUploadingImage: boolean
   /** An OS/browser drag is hovering the composer. */
   isDragActive: boolean
-  /** Local desktop: OS paths are readable by the agent, so the native picker is
-   *  offered. False in web mode and for a desktop bound to a remote workspace. */
-  showNativePaperclip: boolean
   /** Whether images route to the thumbnail strip (in any wire encoding). */
   canAttachImages: boolean
   embeddedPayloadsRef: RefObject<Map<string, PromptInputBlock>>
@@ -156,7 +130,6 @@ export interface ComposerAttachments {
     onDragLeave: (event: ReactDragEvent<HTMLElement>) => void
     onDrop: (event: ReactDragEvent<HTMLElement>) => void
   }
-  handlePickFiles: () => Promise<void>
   handleUploadLocalFiles: () => Promise<void>
   handleServerFilesSelected: (paths: string[]) => void
   serverFilePickerOpen: boolean
@@ -175,28 +148,14 @@ export interface ComposerAttachments {
 
 export function useComposerAttachments({
   editorRef,
-  containerRef,
   disabled = false,
   promptCapabilities,
   attachmentTabId = null,
-  defaultPath = null,
   logLabel = "Composer",
 }: ComposerAttachmentsOptions): ComposerAttachments {
   // Same namespace the conversation composer has always used for these toasts,
   // so no message moves and every surface reports uploads identically.
   const tAttach = useTranslations("Folder.chat.messageInput")
-
-  const desktopMode = isDesktop()
-  // Cached for the window's lifetime: `getActiveRemoteConnectionId()` is
-  // configured once when a remote-workspace window is created and never
-  // mutates afterwards. A desktop window bound to a remote codeg-server
-  // has to behave like the web client for attachments — local OS paths
-  // would be ENOENT on the remote agent. Only the truly local desktop
-  // shows the native Paperclip picker.
-  const showNativePaperclip = useMemo(
-    () => desktopMode && getActiveRemoteConnectionId() === null,
-    [desktopMode]
-  )
 
   // Route pasted / dropped / picked images to the thumbnail strip whenever the
   // agent can receive them in ANY form — either as a native ACP image block
@@ -209,13 +168,7 @@ export function useComposerAttachments({
   const embeddedPayloadsRef = useRef<Map<string, PromptInputBlock>>(new Map())
   const [isDragActive, setIsDragActive] = useState(false)
   const dragActiveRef = useRef(false)
-  const lastDomDropAtRef = useRef(0)
-  const disabledRef = useRef(disabled)
   const [serverFilePickerOpen, setServerFilePickerOpen] = useState(false)
-
-  useEffect(() => {
-    disabledRef.current = disabled
-  }, [disabled])
 
   const setDragActiveIfChanged = useCallback((next: boolean) => {
     if (dragActiveRef.current === next) return
@@ -447,40 +400,6 @@ export function useComposerAttachments({
     [appendResourceAttachments, attachmentTabId, logLabel, tAttach]
   )
 
-  const appendEmbeddedResources = useCallback(
-    (
-      resources: Array<{
-        uri: string
-        name: string
-        mimeType: string | null
-        text?: string | null
-        blob?: string | null
-      }>
-    ) => {
-      // Inline bytes (no real path): each becomes a sentinel file badge whose
-      // embedded `resource` block is reconciled back in at send time.
-      insertFileReferences(
-        resources.map((resource) => ({
-          name: resource.name,
-          realBlock: {
-            type: "resource" as const,
-            uri: resource.uri,
-            mime_type: resource.mimeType,
-            text: resource.text ?? null,
-            blob: resource.blob ?? null,
-          },
-        }))
-      )
-    },
-    [insertFileReferences]
-  )
-
-  // Path-less files (browser `File` objects: drag-drop in web mode, paste,
-  // or `<input type=file>` in any mode) need a real backing path before
-  // the agent can read them. Only the truly local desktop keeps the legacy
-  // base64/embedded fallback — web and remote-desktop both push through
-  // `uploadAndAppendFiles` so the resulting ResourceLink points at a real
-  // server-side file.
   const appendFilesAsResources = useCallback(
     async (files: File[]) => {
       if (files.length === 0) return
@@ -489,19 +408,6 @@ export function useComposerAttachments({
         name: string
         mimeType: string | null
         dedupeKey: string
-      }> = []
-      const fallbackDataLinks: Array<{
-        uri: string
-        name: string
-        mimeType: string | null
-        dedupeKey: string
-      }> = []
-      const embeddedResources: Array<{
-        uri: string
-        name: string
-        mimeType: string | null
-        text?: string | null
-        blob?: string | null
       }> = []
       const uploadCandidates: File[] = []
 
@@ -520,57 +426,15 @@ export function useComposerAttachments({
           continue
         }
 
-        if (!showNativePaperclip) {
-          uploadCandidates.push(file)
-          continue
-        }
-
-        if (!promptCapabilities.embedded_context) {
-          const base64 = await blobToBase64(file)
-          const dataUri = buildDataUri(base64, mimeType ?? null)
-          fallbackDataLinks.push({
-            uri: dataUri,
-            name,
-            mimeType: mimeType ?? null,
-            dedupeKey: `${name}:${file.size}:${file.lastModified}`,
-          })
-          continue
-        }
-
-        const uri = buildClipboardResourceUri(name)
-        if (isTextLikeFile(file)) {
-          const textContent = await file.text()
-          embeddedResources.push({
-            uri,
-            name,
-            mimeType: mimeType ?? null,
-            text: textContent,
-          })
-        } else {
-          const blobContent = await blobToBase64(file)
-          embeddedResources.push({
-            uri,
-            name,
-            mimeType: mimeType ?? null,
-            blob: blobContent,
-          })
-        }
+        uploadCandidates.push(file)
       }
 
       appendResourceLinks(pathLinks)
-      appendResourceLinks(fallbackDataLinks)
-      appendEmbeddedResources(embeddedResources)
       if (uploadCandidates.length > 0) {
         await uploadAndAppendFiles(uploadCandidates)
       }
     },
-    [
-      appendEmbeddedResources,
-      appendResourceLinks,
-      promptCapabilities.embedded_context,
-      showNativePaperclip,
-      uploadAndAppendFiles,
-    ]
+    [appendResourceLinks, uploadAndAppendFiles]
   )
 
   const appendImageAttachments = useCallback(
@@ -583,13 +447,8 @@ export function useComposerAttachments({
       // local for the thumbnail and the transport strips it from the sent
       // block (`stripUploadedImagePayloads`), leaving the server to
       // re-inline the bytes from the uploaded file (`prompt_hydration`).
-      // Desktop-local mode keeps the inline path — Tauri IPC has no body
-      // limit and the workspace has no uploads dir.
-      const uploadImages = !showNativePaperclip
 
-      const oversized = uploadImages
-        ? files.filter((f) => f.size > UPLOAD_MAX_BYTES)
-        : []
+      const oversized = files.filter((f) => f.size > UPLOAD_MAX_BYTES)
       if (oversized.length > 0) {
         toast.error(
           tAttach("attachUploadTooLarge", {
@@ -599,8 +458,8 @@ export function useComposerAttachments({
         )
       }
       const accepted = files.filter((file) => {
-        if (uploadImages && file.size > UPLOAD_MAX_BYTES) return false
-        if (uploadImages && file.size === 0) {
+        if (file.size > UPLOAD_MAX_BYTES) return false
+        if (file.size === 0) {
           // Matches `uploadAttachment`'s EmptyAttachmentError semantics:
           // dropped silently, no toast, no broken thumbnail.
           console.warn(
@@ -627,7 +486,7 @@ export function useComposerAttachments({
               uri: null,
               name: file.name || `image-${Date.now()}-${index + 1}`,
               mimeType,
-              ...(uploadImages ? { uploading: true } : {}),
+              uploading: true,
             },
             file,
           }
@@ -636,7 +495,6 @@ export function useComposerAttachments({
       // Thumbnails appear immediately; uploads settle in the background and
       // flip `uploading` off (send is gated on that by the host).
       setAttachments((prev) => [...prev, ...parsed.map((p) => p.attachment)])
-      if (!uploadImages) return
 
       const failed: Array<{ name: string; reason: unknown }> = []
       const quotaRejected: string[] = []
@@ -699,223 +557,8 @@ export function useComposerAttachments({
         )
       }
     },
-    [attachmentTabId, logLabel, showNativePaperclip, tAttach]
+    [attachmentTabId, logLabel, tAttach]
   )
-
-  const appendImagePathAttachments = useCallback(
-    async (paths: string[]) => {
-      if (paths.length === 0 || !canAttachImages) return
-      const settled = await Promise.allSettled(
-        paths.map(async (path, index) => {
-          const data = await readFileBase64(path, DRAG_DROP_IMAGE_MAX_BYTES)
-          return {
-            id: `image:${Date.now()}:${index}:${randomUUID()}`,
-            type: "image" as const,
-            data,
-            uri: buildFileUri(path),
-            name: fileNameFromPath(path),
-            mimeType: mimeTypeFromPath(path) ?? "image/png",
-          }
-        })
-      )
-
-      const parsed: ImageInputAttachment[] = []
-      settled.forEach((result, index) => {
-        if (result.status === "fulfilled") {
-          parsed.push(result.value)
-          return
-        }
-        console.error(
-          `[${logLabel}] drop image path failed (${paths[index]}):`,
-          result.reason
-        )
-      })
-      if (parsed.length === 0) return
-      setAttachments((prev) => [...prev, ...parsed])
-    },
-    [canAttachImages, logLabel]
-  )
-
-  const appendPathsFromDrop = useCallback(
-    async (paths: string[]) => {
-      if (paths.length === 0) return
-      const normalized = paths.filter(
-        (path): path is string => typeof path === "string" && path.length > 0
-      )
-      if (normalized.length === 0) return
-
-      const imagePaths: string[] = []
-      const resourcePaths: string[] = []
-      for (const path of normalized) {
-        const mimeType = mimeTypeFromPath(path) ?? ""
-        if (canAttachImages && mimeType.startsWith("image/")) {
-          imagePaths.push(path)
-        } else {
-          resourcePaths.push(path)
-        }
-      }
-
-      if (imagePaths.length > 0) {
-        await appendImagePathAttachments(imagePaths)
-      }
-      if (resourcePaths.length > 0) {
-        appendResourceAttachments(resourcePaths)
-      }
-    },
-    [appendImagePathAttachments, appendResourceAttachments, canAttachImages]
-  )
-
-  const appendPathsFromDropRef = useRef(appendPathsFromDrop)
-  useEffect(() => {
-    appendPathsFromDropRef.current = appendPathsFromDrop
-  }, [appendPathsFromDrop])
-
-  // Remote-workspace counterpart of `appendPathsFromDrop`. Reads each
-  // local path through Rust, ships the bytes via the upload proxy, then
-  // appends the resulting server-side paths as ResourceLinks. Failures
-  // (oversize, ENOENT, network) are reported in a single aggregated toast
-  // matching `uploadAndAppendFiles`.
-  const uploadPathsToRemote = useCallback(
-    async (paths: string[]) => {
-      const normalized = paths.filter(
-        (p): p is string => typeof p === "string" && p.length > 0
-      )
-      if (normalized.length === 0) return
-
-      const limitMb = Math.round(UPLOAD_MAX_BYTES / (1024 * 1024))
-      const succeeded: string[] = []
-      const failed: Array<{ name: string; reason: unknown }> = []
-      const oversize: string[] = []
-      const directories: string[] = []
-      const quotaRejected: string[] = []
-      const imageAttachmentsToAdd: ImageInputAttachment[] = []
-
-      const CONCURRENCY = 3
-      let cursor = 0
-      const workers = Array.from(
-        { length: Math.min(CONCURRENCY, normalized.length) },
-        async () => {
-          while (cursor < normalized.length) {
-            const idx = cursor++
-            const path = normalized[idx]
-            const name = path.split(/[/\\]/).pop() || path
-            try {
-              const r = await uploadLocalPathToRemote(
-                path,
-                attachmentTabId ?? null
-              )
-              // A dropped image keeps its image-ness: attach it as a
-              // thumbnail whose uri is the uploaded server-side file, so the
-              // agent receives a real image block (hydrated server-side)
-              // instead of a ResourceLink it may never open. The local path
-              // is only readable on THIS desktop — the thumbnail preview
-              // reads it via local IPC; the remote agent reads the upload.
-              const mimeType = r.mimeType ?? mimeTypeFromPath(name) ?? ""
-              if (canAttachImages && mimeType.startsWith("image/")) {
-                const previewData = await readLocalFileBase64(
-                  path,
-                  UPLOAD_MAX_BYTES
-                )
-                imageAttachmentsToAdd.push({
-                  id: `image:${Date.now()}:${idx}:${randomUUID()}`,
-                  type: "image",
-                  data: previewData,
-                  uri: buildFileUri(r.path),
-                  name,
-                  mimeType,
-                })
-                continue
-              }
-              succeeded.push(r.path)
-            } catch (error) {
-              if (isEmptyAttachmentError(error)) {
-                console.warn(
-                  `[${logLabel}] skipping empty remote-drop attachment: ${name}`
-                )
-                continue
-              }
-              // The Rust side tags structured upload errors with an
-              // `i18n_key` (see `app_error::UPLOAD_I18N_KEY_*`); branch
-              // on the key so each user-visible category lands in its own
-              // toast instead of the generic "upload failed" bucket.
-              // Falling back to the bare message would couple us to the
-              // exact English phrasing in `remote_proxy.rs`.
-              const appError = extractAppCommandError(error)
-              const i18nKey = appError?.i18n_key ?? null
-              if (i18nKey === UPLOAD_I18N_KEY_TOO_LARGE) {
-                oversize.push(name)
-              } else if (i18nKey === UPLOAD_I18N_KEY_NOT_A_FILE) {
-                // Dragging a directory or a special file (FIFO, device
-                // node) lands here. The Rust guard short-circuits before
-                // we even read bytes; surface a dedicated toast so the
-                // user understands why nothing was attached.
-                directories.push(name)
-              } else if (i18nKey === UPLOAD_I18N_KEY_QUOTA_EXCEEDED) {
-                quotaRejected.push(name)
-              } else {
-                failed.push({ name, reason: error })
-              }
-            }
-          }
-        }
-      )
-      await Promise.all(workers)
-
-      if (oversize.length > 0) {
-        toast.error(
-          tAttach("attachUploadTooLarge", {
-            limit: limitMb,
-            names: oversize.join(", "),
-          })
-        )
-      }
-      if (directories.length > 0) {
-        toast.error(
-          tAttach("attachUploadNotAFile", {
-            names: directories.join(", "),
-          })
-        )
-      }
-      if (quotaRejected.length > 0) {
-        toast.error(
-          tAttach("attachUploadQuotaExceeded", {
-            names: quotaRejected.join(", "),
-          })
-        )
-      }
-      if (failed.length > 0) {
-        for (const f of failed) {
-          console.error(
-            `[${logLabel}] remote path upload failed (${f.name}):`,
-            f.reason
-          )
-        }
-        toast.error(
-          tAttach("attachUploadFailed", {
-            names: failed.map((f) => f.name).join(", "),
-          })
-        )
-      }
-      if (imageAttachmentsToAdd.length > 0) {
-        setAttachments((prev) => [...prev, ...imageAttachmentsToAdd])
-      }
-      if (succeeded.length > 0) {
-        appendResourceAttachments(succeeded)
-      }
-    },
-    [
-      appendResourceAttachments,
-      attachmentTabId,
-      canAttachImages,
-      logLabel,
-      tAttach,
-    ]
-  )
-
-  const uploadPathsToRemoteRef = useRef(uploadPathsToRemote)
-  useEffect(() => {
-    uploadPathsToRemoteRef.current = uploadPathsToRemote
-  }, [uploadPathsToRemote])
 
   const appendFilesFromInput = useCallback(
     async (files: File[]) => {
@@ -961,7 +604,7 @@ export function useComposerAttachments({
         return true
       }
 
-      // Linux/Tauri (WebKitGTK) fallback: screenshot tools (e.g. WeChat) write
+      // Clipboard fallback: screenshot tools (e.g. WeChat) write
       // the image to the clipboard in a form the synchronous DataTransfer API
       // can't read, so retry through the async Clipboard API. Only for a pure-
       // image clipboard — when text is present we let the default paste run
@@ -1055,7 +698,6 @@ export function useComposerAttachments({
         : null
       if (!hasDragFiles(event.dataTransfer) && !treePayload) return
       event.preventDefault()
-      lastDomDropAtRef.current = Date.now()
       setDragActiveIfChanged(false)
       if (disabled) return
       // A file-tree entry dropped on the composer chrome (the editor's own drop
@@ -1081,157 +723,9 @@ export function useComposerAttachments({
     ]
   )
 
-  // OS-level drag-drop. Tauri delivers these as window events (not DOM events on
-  // the element), so every mounted composer hears every drop — `pointWithinElement`
-  // is what decides whose it was.
-  useEffect(() => {
-    if (!containerRef) return
-    let cancelled = false
-    const unlisteners: Array<() => void | Promise<void>> = []
-
-    const cleanupListeners = () => {
-      for (const fn of unlisteners.splice(0)) {
-        disposeTauriListener(fn, "Composer.dragDrop")
-      }
-    }
-
-    type DragDropPayload =
-      | {
-          type: "enter" | "drop"
-          paths: string[]
-          position: { x: number; y: number }
-        }
-      | {
-          type: "over"
-          position: { x: number; y: number }
-        }
-      | { type: "leave" }
-
-    const handlePayload = (payload: DragDropPayload) => {
-      const host = containerRef.current
-      if (!host) return
-      if (payload.type === "leave") {
-        setDragActiveIfChanged(false)
-        return
-      }
-      const inside = pointWithinElement(payload.position, host)
-      if (payload.type === "drop") {
-        setDragActiveIfChanged(false)
-        if (Date.now() - lastDomDropAtRef.current < 250) return
-        if (!inside || disabledRef.current) return
-        if (getActiveRemoteConnectionId() !== null) {
-          // Remote workspace: local OS paths are unreachable from the
-          // remote agent, so stream the bytes through the upload proxy and
-          // attach the resulting server-side paths instead.
-          void uploadPathsToRemoteRef.current(payload.paths).catch((error) => {
-            console.error(
-              `[${logLabel}] remote drag-drop upload failed:`,
-              error
-            )
-          })
-          return
-        }
-        void appendPathsFromDropRef.current(payload.paths).catch((error) => {
-          console.error(`[${logLabel}] drag drop paths failed:`, error)
-        })
-        return
-      }
-      setDragActiveIfChanged(inside && !disabledRef.current)
-    }
-
-    const setup = async () => {
-      if (!isDesktop()) return
-      const { getCurrentWebview } = await import("@tauri-apps/api/webview")
-      const { TauriEvent } = await import("@tauri-apps/api/event")
-      const webview = getCurrentWebview()
-      try {
-        const unlistenEnter = await webview.listen<{
-          paths: string[]
-          position: { x: number; y: number }
-        }>(TauriEvent.DRAG_ENTER, (event) => {
-          if (cancelled) return
-          handlePayload({
-            type: "enter",
-            paths: event.payload.paths,
-            position: event.payload.position,
-          })
-        })
-        unlisteners.push(unlistenEnter)
-
-        const unlistenOver = await webview.listen<{
-          position: { x: number; y: number }
-        }>(TauriEvent.DRAG_OVER, (event) => {
-          if (cancelled) return
-          handlePayload({
-            type: "over",
-            position: event.payload.position,
-          })
-        })
-        unlisteners.push(unlistenOver)
-
-        const unlistenDrop = await webview.listen<{
-          paths: string[]
-          position: { x: number; y: number }
-        }>(TauriEvent.DRAG_DROP, (event) => {
-          if (cancelled) return
-          handlePayload({
-            type: "drop",
-            paths: event.payload.paths,
-            position: event.payload.position,
-          })
-        })
-        unlisteners.push(unlistenDrop)
-
-        const unlistenLeave = await webview.listen(
-          TauriEvent.DRAG_LEAVE,
-          () => {
-            if (cancelled) return
-            handlePayload({ type: "leave" })
-          }
-        )
-        unlisteners.push(unlistenLeave)
-      } catch {
-        // Ignore non-Tauri environments.
-      } finally {
-        if (cancelled) {
-          cleanupListeners()
-        }
-      }
-    }
-
-    void setup()
-
-    return () => {
-      cancelled = true
-      cleanupListeners()
-    }
-  }, [containerRef, logLabel, setDragActiveIfChanged])
-
-  const handlePickFiles = useCallback(async () => {
-    if (disabled) return
-    // Only wired up when `showNativePaperclip` is true (i.e. local desktop),
-    // so we can hand raw OS paths to the local agent without a round-trip.
-    try {
-      const selected = await openFileDialog({
-        multiple: true,
-        directory: false,
-        defaultPath: defaultPath ?? undefined,
-      })
-      if (!selected) return
-      const picked = Array.isArray(selected) ? selected : [selected]
-      appendResourceAttachments(picked.filter((item): item is string => !!item))
-    } catch (error) {
-      console.error(`[${logLabel}] pick files failed:`, error)
-    }
-  }, [appendResourceAttachments, defaultPath, disabled, logLabel])
-
   const handleUploadLocalFiles = useCallback(async () => {
     if (disabled) return
-    // Open a hidden <input type="file"> to grab File objects (browsers and
-    // Tauri webviews both produce blob-style File objects from this control,
-    // never raw OS paths), then upload each one — `uploadAttachment` picks
-    // the right transport (direct fetch in web mode, IPC-proxied multipart
-    // in remote-desktop mode).
+    // File objects preserve the upload path on both Electron and browsers.
     const input = document.createElement("input")
     input.type = "file"
     input.multiple = true
@@ -1346,7 +840,6 @@ export function useComposerAttachments({
     imageAttachments,
     hasUploadingImage,
     isDragActive,
-    showNativePaperclip,
     canAttachImages,
     embeddedPayloadsRef,
     insertFileReferences,
@@ -1360,7 +853,6 @@ export function useComposerAttachments({
       onDragLeave: handleContainerDragLeave,
       onDrop: handleContainerDrop,
     },
-    handlePickFiles,
     handleUploadLocalFiles,
     handleServerFilesSelected,
     serverFilePickerOpen,

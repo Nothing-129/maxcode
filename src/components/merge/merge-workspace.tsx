@@ -1,14 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-async function emitEvent(event: string, payload?: unknown) {
-  try {
-    const { emit } = await import("@tauri-apps/api/event")
-    await emit(event, payload)
-  } catch {
-    /* not in Tauri */
-  }
-}
 import { Check, FileWarning, Loader2, X, CheckCheck } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -27,7 +19,6 @@ import {
   gitContinueOperation,
   gitStartPullMerge,
 } from "@/lib/api"
-import { petCelebrate } from "@/lib/pet/api"
 import { languageFromPath } from "@/lib/language-detect"
 import { toErrorMessage } from "@/lib/app-error"
 import type { GitConflictFileVersions } from "@/lib/types"
@@ -43,7 +34,6 @@ interface MergeWorkspaceProps {
 }
 
 export function MergeWorkspace({
-  folderId,
   folderPath,
   operation,
   upstreamCommit,
@@ -128,12 +118,6 @@ export function MergeWorkspace({
       await gitResolveConflict(folderPath, selectedFile, content)
       setResolvedFiles((prev) => new Set([...prev, selectedFile]))
 
-      // Notify parent window
-      await emitEvent("folder://merge-conflict-resolved", {
-        folder_id: folderId,
-        file: selectedFile,
-      })
-
       // Auto-select next unresolved file
       const nextUnresolved = files.find(
         (f) => f !== selectedFile && !resolvedFiles.has(f)
@@ -153,10 +137,7 @@ export function MergeWorkspace({
     try {
       await gitAbortOperation(folderPath, operation)
       toast.success(t("abortSuccess"))
-      await emitEvent("folder://merge-aborted", { folder_id: folderId })
-      void petCelebrate("failed").catch((err) => {
-        console.warn("[Merge] pet celebrate (failed) failed:", err)
-      })
+
       onAborted()
     } catch (err) {
       toast.error(toErrorMessage(err))
@@ -170,10 +151,7 @@ export function MergeWorkspace({
     try {
       await gitContinueOperation(folderPath, operation)
       toast.success(t("allResolved"))
-      await emitEvent("folder://merge-completed", { folder_id: folderId })
-      void petCelebrate("jumping").catch((err) => {
-        console.warn("[Merge] pet celebrate (jumping) failed:", err)
-      })
+
       onCompleted()
     } catch (err) {
       toast.error(toErrorMessage(err))

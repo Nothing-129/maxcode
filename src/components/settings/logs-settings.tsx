@@ -15,7 +15,6 @@ import {
   Play,
   RotateCw,
   Trash2,
-  FolderOpen,
   ChevronRight,
   Plus,
   X,
@@ -38,13 +37,11 @@ import {
   getLogSettings,
   getRecentLogs,
   listLogFiles,
-  openLogsDir,
   readLogFile,
   setLogSettings,
   subscribeLogAppended,
   subscribeLogSettingsChanged,
 } from "@/lib/api"
-import { isDesktop, revealItemInDir } from "@/lib/platform"
 import { toErrorMessage } from "@/lib/app-error"
 import type {
   LogFileInfo,
@@ -271,7 +268,6 @@ const LogRow = memo(function LogRow({
 
 export function LogsSettings() {
   const t = useTranslations("LogsSettings")
-  const desktop = isDesktop()
 
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -366,7 +362,7 @@ export function LogsSettings() {
       const [settings, recent, files] = await Promise.all([
         getLogSettings(),
         getRecentLogs({ limit: DISPLAY_LIMIT }),
-        desktop ? Promise.resolve<LogFileInfo[]>([]) : listLogFiles(),
+        listLogFiles(),
       ])
       setCaptureLevel(settings.level)
       setTargets(settings.targets ?? [])
@@ -382,7 +378,7 @@ export function LogsSettings() {
     } finally {
       setLoading(false)
     }
-  }, [desktop])
+  }, [])
 
   useEffect(() => {
     loadInitial().catch((err) => {
@@ -599,18 +595,6 @@ export function LogsSettings() {
     },
     [updateTargets, queueSave]
   )
-
-  const handleOpenFolder = useCallback(async () => {
-    try {
-      const path = await openLogsDir()
-      // `revealItemInDir` (not `openPath`): the opener plugin's path scope
-      // rejects the hidden `~/.codeg/logs` path under its require-literal-
-      // leading-dot Unix default, whereas reveal is not scope-checked.
-      await revealItemInDir(path)
-    } catch (err) {
-      toast.error(t("openFolderFailed"), { description: toErrorMessage(err) })
-    }
-  }, [t])
 
   const handleDownload = useCallback(
     async (file: LogFileInfo) => {
@@ -834,20 +818,6 @@ export function LogsSettings() {
                 <Trash2 className="h-3.5 w-3.5" />
                 {t("clear")}
               </Button>
-              {desktop && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    handleOpenFolder().catch((err) => {
-                      console.error("[LogsSettings] open folder failed:", err)
-                    })
-                  }}
-                >
-                  <FolderOpen className="h-3.5 w-3.5" />
-                  {t("openFolder")}
-                </Button>
-              )}
             </div>
           </div>
 
@@ -907,53 +877,46 @@ export function LogsSettings() {
         </section>
 
         {/* On-disk files (web mode: download for history beyond the buffer) */}
-        {!desktop && (
-          <section className="space-y-3 rounded-xl border bg-card p-4">
+        <section className="space-y-3 rounded-xl border bg-card p-4">
+          <div className="space-y-1">
+            <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
+            <p className="text-xs leading-5 text-muted-foreground">
+              {t("filesDescription")}
+            </p>
+          </div>
+          {logFiles.length === 0 ? (
+            <p className="text-2xs text-muted-foreground">{t("filesEmpty")}</p>
+          ) : (
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {t("filesDescription")}
-              </p>
-            </div>
-            {logFiles.length === 0 ? (
-              <p className="text-2xs text-muted-foreground">
-                {t("filesEmpty")}
-              </p>
-            ) : (
-              <div className="space-y-1">
-                {logFiles.map((file) => (
-                  <div
-                    key={file.name}
-                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5"
-                  >
-                    <span className="truncate font-mono text-xs">
-                      {file.name}
+              {logFiles.map((file) => (
+                <div
+                  key={file.name}
+                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5"
+                >
+                  <span className="truncate font-mono text-xs">
+                    {file.name}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-2xs text-muted-foreground">
+                      {formatBytes(file.size_bytes)}
                     </span>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-2xs text-muted-foreground">
-                        {formatBytes(file.size_bytes)}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          handleDownload(file).catch((err) => {
-                            console.error(
-                              "[LogsSettings] download failed:",
-                              err
-                            )
-                          })
-                        }}
-                      >
-                        {t("download")}
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        handleDownload(file).catch((err) => {
+                          console.error("[LogsSettings] download failed:", err)
+                        })
+                      }}
+                    >
+                      {t("download")}
+                    </Button>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </div>
     </ScrollArea>
   )

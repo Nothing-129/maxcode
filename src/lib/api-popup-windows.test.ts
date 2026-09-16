@@ -12,19 +12,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const mocks = vi.hoisted(() => ({
   call: vi.fn(),
-  shellCall: vi.fn(),
-  isDesktop: vi.fn(() => false),
-  isRemoteDesktopMode: vi.fn(() => false),
-  getActiveRemoteConnectionId: vi.fn<() => string | null>(() => null),
   notifyRemoteDesktopUnauthorized: vi.fn(),
 }))
 
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call: mocks.call }),
-  getShellTransport: () => ({ call: mocks.shellCall }),
-  isDesktop: mocks.isDesktop,
-  isRemoteDesktopMode: mocks.isRemoteDesktopMode,
-  getActiveRemoteConnectionId: mocks.getActiveRemoteConnectionId,
   notifyRemoteDesktopUnauthorized: mocks.notifyRemoteDesktopUnauthorized,
 }))
 
@@ -51,11 +43,6 @@ function deferred<T>() {
 describe("web-mode app popup windows", () => {
   beforeEach(() => {
     mocks.call.mockReset()
-    mocks.shellCall.mockReset()
-    mocks.isDesktop.mockReset()
-    mocks.isDesktop.mockReturnValue(false)
-    mocks.getActiveRemoteConnectionId.mockReset()
-    mocks.getActiveRemoteConnectionId.mockReturnValue(null)
     vi.restoreAllMocks()
   })
 
@@ -67,7 +54,6 @@ describe("web-mode app popup windows", () => {
       await openSettingsWindow("appearance")
       expect(open).not.toHaveBeenCalled()
       expect(mocks.call).not.toHaveBeenCalled()
-      expect(mocks.shellCall).not.toHaveBeenCalled()
     } finally {
       window.removeEventListener("maxcode:open-settings", handler)
     }
@@ -200,19 +186,5 @@ describe("web-mode app popup windows", () => {
 
     await expect(openCommitWindow(7)).rejects.toThrow("backend down")
     expect(popup.close).not.toHaveBeenCalled()
-  })
-
-  it("opens no browser window on desktop — the shell transport owns it", async () => {
-    const open = vi.spyOn(window, "open").mockReturnValue(null)
-    mocks.isDesktop.mockReturnValue(true)
-    mocks.shellCall.mockResolvedValue(undefined)
-
-    await openCommitWindow(7)
-
-    expect(mocks.shellCall).toHaveBeenCalledWith(
-      "open_commit_window",
-      expect.objectContaining({ folderId: 7 })
-    )
-    expect(open).not.toHaveBeenCalled()
   })
 })

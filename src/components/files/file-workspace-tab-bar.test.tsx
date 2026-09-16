@@ -3,14 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { ReactNode } from "react"
 import type { FileWorkspaceTab } from "@/contexts/workspace-context"
 
-const {
-  mockOpenInCode,
-  mockIsRemoteDesktopWindow,
-  mockToastError,
-  fileTabsState,
-} = vi.hoisted(() => ({
-  mockOpenInCode: vi.fn(async (..._args: unknown[]) => {}),
-  mockIsRemoteDesktopWindow: vi.fn(() => false),
+const { mockOpenInCode, mockToastError, fileTabsState } = vi.hoisted(() => ({
+  mockOpenInCode: vi.fn<(...args: unknown[]) => Promise<void>>(async () => {}),
   mockToastError: vi.fn(),
   fileTabsState: {
     tabs: [] as FileWorkspaceTab[],
@@ -27,10 +21,6 @@ vi.mock("sonner", () => ({
 
 vi.mock("@/lib/api", () => ({
   openInCode: (...args: unknown[]) => mockOpenInCode(...args),
-}))
-
-vi.mock("@/lib/platform", () => ({
-  isRemoteDesktopWindow: () => mockIsRemoteDesktopWindow(),
 }))
 
 vi.mock("@/hooks/use-is-coarse-pointer", () => ({
@@ -116,7 +106,6 @@ function menuItem(name: string): HTMLElement {
 describe("FileWorkspaceTabBar open in VS Code", () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockIsRemoteDesktopWindow.mockReturnValue(false)
     mockOpenInCode.mockResolvedValue(undefined)
     fileTabsState.tabs = [fileTab()]
   })
@@ -139,14 +128,6 @@ describe("FileWorkspaceTabBar open in VS Code", () => {
         description: "code missing",
       })
     })
-  })
-
-  it("disables the action in a remote-desktop window", () => {
-    mockIsRemoteDesktopWindow.mockReturnValue(true)
-    openTabMenu()
-    expect(menuItem("openInCode").getAttribute("data-disabled")).not.toBeNull()
-    fireEvent.click(menuItem("openInCode"))
-    expect(mockOpenInCode).not.toHaveBeenCalled()
   })
 
   it("omits the action for tabs without a file path", () => {

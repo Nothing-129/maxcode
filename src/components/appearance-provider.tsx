@@ -103,22 +103,6 @@ import {
 } from "@/lib/workspace-background"
 import { downloadWorkspaceBgMarket } from "@/lib/workspace-background-market"
 
-function syncTrafficLightPosition(zoom: number) {
-  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window))
-    return
-  import("@/lib/tauri").then((t) =>
-    t.updateTrafficLightPosition(zoom).catch(() => {})
-  )
-}
-
-function syncAppearanceMode(mode: string) {
-  if (typeof window === "undefined" || !("__TAURI_INTERNALS__" in window))
-    return
-  import("@/lib/tauri").then((t) =>
-    t.updateAppearanceMode(mode).catch(() => {})
-  )
-}
-
 export type FontSelection = { id: string; custom: string }
 
 type AppearanceContextValue = {
@@ -545,14 +529,13 @@ export function AppearanceProvider({
 
   const setZoomLevel = useCallback((zoom: ZoomLevel) => {
     if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
-    // Re-applying the current level is not free: it reaches Tauri IPC and an
-    // on-disk SQLite upsert. Holding the key at either end of the range, or
+    // Re-applying the current level is not free: it persists the setting and
+    // updates the root font size. Holding the key at either end of the range, or
     // holding reset at 100%, would otherwise write once per repeat forever.
     if (zoomLevelRef.current === zoom) return
     zoomLevelRef.current = zoom
     setZoomLevelState(zoom)
     document.documentElement.style.fontSize = `${(16 * zoom) / 100}px`
-    syncTrafficLightPosition(zoom)
     persist(STORAGE_KEY_ZOOM_LEVEL, String(zoom))
   }, [])
 
@@ -825,17 +808,6 @@ export function AppearanceProvider({
     })
   }, [clearWorkspaceBgSourceUrl])
 
-  // Sync traffic-light position and appearance mode on mount
-  useEffect(() => {
-    syncTrafficLightPosition(zoomLevel)
-    try {
-      syncAppearanceMode(readStored("theme") ?? "system")
-    } catch {
-      // localStorage unavailable
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
   // 仅界面字体需要在 mount 时重新解析并应用 --font-sans，吸收跨版本字体目录变更
   // （inline 脚本写入的是旧版本已解析栈，可能与新目录不一致）。仅在确有漂移时才写，
   // 避免每次加载都触发 localStorage 写入与跨标签页 storage 事件。
@@ -1046,7 +1018,6 @@ export function AppearanceProvider({
           zoomLevelRef.current = zoom
           setZoomLevelState(zoom)
           document.documentElement.style.fontSize = `${(16 * zoom) / 100}px`
-          syncTrafficLightPosition(zoom)
         }
       }
       if (e.key && FONT_KEYS.has(e.key)) {
@@ -1140,10 +1111,6 @@ export function AppearanceProvider({
         setCustomStyleSuspendedState(
           readBool(STORAGE_KEY_CUSTOM_STYLE_SUSPENDED, false)
         )
-      }
-      // Sync appearance mode to Tauri DB when changed in another window
-      if (e.key === "theme") {
-        syncAppearanceMode(e.newValue ?? "system")
       }
     }
     window.addEventListener("storage", onStorage)

@@ -92,41 +92,6 @@ pub async fn set_question_settings_core(
     Ok(desired)
 }
 
-// -------- Tauri commands -----------------------------------------------------
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn get_question_settings(
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-) -> Result<QuestionSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        Ok(load_question_settings(&db.conn).await)
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn set_question_settings(
-    #[cfg(feature = "tauri-runtime")] app: tauri::AppHandle,
-    #[cfg(feature = "tauri-runtime")] db: tauri::State<'_, crate::db::AppDatabase>,
-    #[cfg(feature = "tauri-runtime")] config: tauri::State<'_, QuestionRuntimeConfig>,
-    settings: QuestionSettings,
-) -> Result<QuestionSettings, AppCommandError> {
-    #[cfg(feature = "tauri-runtime")]
-    {
-        let emitter = EventEmitter::Tauri(app);
-        set_question_settings_core(&db.conn, &config, &emitter, settings).await
-    }
-    #[cfg(not(feature = "tauri-runtime"))]
-    {
-        let _ = settings;
-        Err(AppCommandError::configuration_invalid("tauri-only command"))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

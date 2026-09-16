@@ -1,38 +1,20 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
-
+import { afterEach, describe, expect, it, vi } from "vitest"
 import { detectEnvironment } from "./detect"
 
+afterEach(() => vi.unstubAllGlobals())
+
 describe("detectEnvironment", () => {
-  // jsdom-provided `window` is the only global we tinker with. Snapshot the
-  // original `__TAURI_INTERNALS__` (likely undefined) and restore in afterEach.
-  let hadInternals: boolean
-  let originalInternals: unknown
-
-  beforeEach(() => {
-    hadInternals = "__TAURI_INTERNALS__" in window
-    originalInternals = (window as unknown as Record<string, unknown>)
-      .__TAURI_INTERNALS__
-  })
-
-  afterEach(() => {
-    const w = window as unknown as Record<string, unknown>
-    if (hadInternals) {
-      w.__TAURI_INTERNALS__ = originalInternals
-    } else {
-      delete w.__TAURI_INTERNALS__
-    }
-  })
-
-  it("returns 'web' by default in jsdom", () => {
-    const w = window as unknown as Record<string, unknown>
-    delete w.__TAURI_INTERNALS__
+  it("defaults to browser transport without a preload bridge", () => {
     expect(detectEnvironment()).toBe("web")
   })
 
-  it("returns 'tauri' when __TAURI_INTERNALS__ is present", () => {
-    ;(window as unknown as Record<string, unknown>).__TAURI_INTERNALS__ = {
-      invoke: () => {},
-    }
-    expect(detectEnvironment()).toBe("tauri")
+  it("detects the Electron preload bridge", () => {
+    vi.stubGlobal("window", { maxcodeElectron: {} })
+    expect(detectEnvironment()).toBe("electron")
+  })
+
+  it("is safe during static prerender", () => {
+    vi.stubGlobal("window", undefined)
+    expect(detectEnvironment()).toBe("web")
   })
 })

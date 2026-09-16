@@ -1,10 +1,7 @@
-//! Tauri + Axum command surface for the desktop-pet feature.
+//! Shared pet assets, settings, and HTTP operations.
 //!
-//! All filesystem operations live in `crate::pets`; this module owns the
-//! database-backed settings KV plus the thin double-mode wrappers that
-//! translate raw I/O errors into `AppCommandError`. Window-management
-//! commands live in `commands::windows::pet` to keep the Tauri-only code
-//! together.
+//! Filesystem operations live in `crate::pets`; this module translates errors
+//! and maintains persisted settings for the web API.
 
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use sea_orm::DatabaseConnection;
@@ -13,8 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::acp::manager::ConnectionManager;
 use crate::app_error::AppCommandError;
 use crate::db::service::{app_metadata_service, conversation_service};
-#[cfg(feature = "tauri-runtime")]
-use crate::db::AppDatabase;
+
 use crate::models::pet::{
     ImportCodexPetsRequest, ImportCodexPetsResult, ImportablePet, NewPetInput, PetCelebrationKind,
     PetDetail, PetMetaPatch, PetParentRef, PetSessionEntry, PetSessionsPayload, PetSpriteAsset,
@@ -164,7 +160,7 @@ pub async fn pet_set_active_core(
 /// Manual oneshot trigger for events the backend can't observe directly
 /// (e.g. `folder://merge-completed`, which is currently emitted only by
 /// the merge UI in the renderer). Goes through `emit_event` so both the
-/// Tauri webview and any WebSocket clients see the same `pet://oneshot`
+/// Connected WebSocket clients see the same `pet://oneshot`
 /// stream the mapper produces for ACP/git/install events. The narrowed
 /// `PetCelebrationKind` keeps callers from broadcasting an ambient row
 /// (e.g. `running`) — the frontend would silently drop those, which
@@ -272,8 +268,6 @@ pub async fn pet_save_window_state_core(
     Ok(config)
 }
 
-// ─── Tauri command wrappers ─────────────────────────────────────────────
-
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PetIdParams {
@@ -337,214 +331,6 @@ pub async fn pet_marketplace_asset_core(url: String) -> Result<PetSpriteAsset, A
         mime,
         data_base64: BASE64.encode(&bytes),
     })
-}
-
-// Tauri 2 looks up command parameters by their top-level name in the JSON
-// args object. The frontend `lib/pet/api.ts` ships flat objects (e.g.
-// `{ id, displayName, description, spritesheetBase64 }` for `pet_add`), so
-// each command takes flat scalar parameters whose names match the camelCase
-// keys after Tauri's auto snake_case translation. We *don't* declare a
-// single struct param like `input: NewPetInput` — that would expect the
-// frontend to wrap the payload as `{ input: { ... } }`, which it does not.
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_list() -> Result<Vec<PetSummary>, AppCommandError> {
-    pet_list_core().await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_get(id: String) -> Result<PetDetail, AppCommandError> {
-    pet_get_core(id).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_read_spritesheet(id: String) -> Result<PetSpriteAsset, AppCommandError> {
-    pet_read_spritesheet_core(id).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_add(
-    id: String,
-    display_name: String,
-    description: Option<String>,
-    spritesheet_base64: String,
-) -> Result<PetSummary, AppCommandError> {
-    pet_add_core(NewPetInput {
-        id,
-        display_name,
-        description,
-        spritesheet_base64,
-    })
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_update_meta(
-    id: String,
-    patch: PetMetaPatch,
-) -> Result<PetSummary, AppCommandError> {
-    pet_update_meta_core(id, patch).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_replace_sprite(
-    id: String,
-    spritesheet_base64: String,
-) -> Result<(), AppCommandError> {
-    pet_replace_sprite_core(id, spritesheet_base64).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_delete(
-    db: tauri::State<'_, AppDatabase>,
-    id: String,
-) -> Result<(), AppCommandError> {
-    pet_delete_core(&db.conn, id).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_list_importable_codex() -> Result<Vec<ImportablePet>, AppCommandError> {
-    pet_list_importable_codex_core().await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_import_codex(
-    ids: Option<Vec<String>>,
-    overwrite_with_suffix: Option<bool>,
-) -> Result<ImportCodexPetsResult, AppCommandError> {
-    pet_import_codex_core(ImportCodexPetsRequest {
-        ids: ids.unwrap_or_default(),
-        overwrite_with_suffix: overwrite_with_suffix.unwrap_or(false),
-    })
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_codex_import_available() -> Result<PetCodexImportAvailability, AppCommandError> {
-    pet_codex_import_available_core().await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_marketplace_list(
-    page: Option<u32>,
-    page_size: Option<u32>,
-    q: Option<String>,
-    kind: Option<String>,
-    sort: Option<String>,
-    tags: Option<Vec<String>>,
-) -> Result<MarketplaceListResponse, AppCommandError> {
-    pet_marketplace_list_core(MarketplaceListParams {
-        page,
-        page_size,
-        q,
-        kind,
-        sort,
-        tags,
-    })
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_marketplace_install(
-    id: String,
-    download_url: String,
-    overwrite: Option<bool>,
-) -> Result<MarketplaceInstallResponse, AppCommandError> {
-    pet_marketplace_install_core(MarketplaceInstallRequest {
-        id,
-        download_url,
-        overwrite: overwrite.unwrap_or(false),
-    })
-    .await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_marketplace_asset(url: String) -> Result<PetSpriteAsset, AppCommandError> {
-    pet_marketplace_asset_core(url).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_get_settings(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<PetWindowConfig, AppCommandError> {
-    pet_get_settings_core(&db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_set_active(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    pet_id: Option<String>,
-) -> Result<PetWindowConfig, AppCommandError> {
-    pet_set_active_core(&db.conn, &EventEmitter::Tauri(app), pet_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_celebrate(
-    app: tauri::AppHandle,
-    kind: PetCelebrationKind,
-) -> Result<(), AppCommandError> {
-    pet_celebrate_core(&EventEmitter::Tauri(app), kind);
-    Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_get_current_state(
-    handle: tauri::State<'_, PetStateHandle>,
-) -> Result<PetState, AppCommandError> {
-    Ok(pet_get_current_state_core(handle.inner()))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_list_active_sessions(
-    manager: tauri::State<'_, ConnectionManager>,
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<PetSessionsPayload, AppCommandError> {
-    pet_list_active_sessions_core(manager.inner(), &db.conn).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn pet_save_window_state(
-    app: tauri::AppHandle,
-    db: tauri::State<'_, AppDatabase>,
-    x: Option<f64>,
-    y: Option<f64>,
-    scale: Option<f64>,
-    always_on_top: Option<bool>,
-    enabled: Option<bool>,
-) -> Result<PetWindowConfig, AppCommandError> {
-    let scale_changed = scale.is_some();
-    let new_config = pet_save_window_state_core(
-        &db.conn,
-        PetWindowStatePatch {
-            x,
-            y,
-            scale,
-            always_on_top,
-            enabled,
-        },
-    )
-    .await?;
-
-    // Keep the OS window in lockstep with the persisted scale. Without this,
-    // changing scale via the right-click menu would shrink/grow the sprite
-    // inside an unchanged transparent window — a 0.5x sprite floating in a
-    // 1x window's worth of dead pixels that still capture clicks.
-    if scale_changed {
-        if let Some(window) = tauri::Manager::get_webview_window(&app, "pet") {
-            let s = new_config.scale;
-            let _ = window.set_size(tauri::LogicalSize::new(192.0_f64 * s, 208.0_f64 * s));
-        }
-    }
-
-    Ok(new_config)
 }
 
 #[cfg(test)]

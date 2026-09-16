@@ -74,7 +74,7 @@ ad-hoc 临时签名，仅用于本地开发验证，不会自动使用机器上�
 
 ## CI 与发布
 
-`test.yml` 在 macOS、Windows、Linux 上编译无 Tauri feature 的后端，
+`test.yml` 在 macOS、Windows、Linux 上编译共享 Rust 后端，
 执行 `desktop:pack` 后用 `desktop:smoke` 启动包内应用，验证工作区、认证、
 原生桥接与后端退出。Linux 通过 `xvfb-run -a` 提供显示服务。
 
@@ -112,18 +112,27 @@ localStorage 不会自动导入。备份恢复完成后通过 Electron 重启整
 服务器原地更新、回滚和重启；桌面更新由主进程的 `electron-updater` 完成。
 版本号右侧显示实心圆形更新图标，不弹更新通知或详情。点击后下载并校验，然后自动退出后端、安装并重启；主进程共享下载进度。
 
+## 开机启动
+
+已打包的 macOS/Windows 应用可在「设置 → 通用 → 开机启动」启用或关闭，
+登录系统后自动打开主窗口。使用 Electron 原生登录项 API，读取系统状态，
+返回设置窗口时刷新；系统要求授权时显示提示。开发模式、Linux 和浏览器不显示此开关。
+macOS 请将应用安装到 Applications；正式发布应签名并公证，未签名应用的登录项可能无法生效。
+
 ## 迁移范围
 
-Electron 已作为 `desktop:*`、默认 CI 和桌面发布的入口。旧 Tauri 壳仅保留兼容用途，
-不再由默认发布流程产出安装包；兼容检查通过 `legacy-tauri.yml` 手动运行。
-共享 Rust 核心仍位于 `src-tauri/`，便于继续集成上游。
-前端原有 `isDesktop()` 表示 Tauri IPC 能力；Electron 使用独立运行时检测，
-业务请求走 WebTransport，原生能力走 `window.maxcodeElectron`。
+Electron 是 `desktop:*`、默认 CI 和桌面发布的唯一桌面入口。旧 Tauri 壳、
+前端 IPC 分支、插件和兼容 CI 已删除。共享 Rust 核心与图标仍位于 `src-tauri/`，
+便于继续集成上游；业务请求统一走 WebTransport，原生能力走 `window.maxcodeElectron`。
 
-Electron 的 macOS 主工作区使用隐藏系统标题栏与原生交通灯，
-窗口拖拽由页面标题区域承担；子窗口和 Windows/Linux 保留系统标题栏。Tauri 专属的透明桌宠浮窗、原生远程工作区
-连接管理和开机启动设置尚未迁移；对应入口不会在 Electron
-中启用。跨窗口业务界面、附件上传、文件预览与备份使用现有 Web 模式实现。
+Electron 的 macOS 主工作区使用隐藏系统标题栏与原生交通灯，窗口拖拽由页面
+标题区域承担；子窗口和 Windows/Linux 保留系统标题栏。透明桌宠浮窗、原生
+远程工作区连接管理已停止支持。浏览器连接远程服务器、手机访问、
+跨窗口业务界面、附件上传、文件预览与备份继续使用现有 Web 实现。
+
+`@tauri-apps/cli` 仅作为开发时的服务器签名工具保留，通过 `pnpm server:sign`
+调用；它不参与桌面启动或打包。服务器继续使用原 minisign 密钥、`.sig` 格式和
+校验逻辑，已有数据库及凭据不会被清理。
 
 实现参考 [Electron 安全指南](https://www.electronjs.org/docs/latest/tutorial/security)
 和 [Electron Builder 配置](https://www.electron.build/v26/docs/configuration/)。

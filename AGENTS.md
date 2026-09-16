@@ -13,13 +13,20 @@ This file provides guidance to Code Agent when working with code in this reposit
   `config/maxcode-upstream-hotspots.json`。完整流程见
   `docs/maintenance/upstream-integration.md`。
 
+## 智能体维护范围
+
+- 仅维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 六种智能体。
+- 设置、创建会话的智能体目录及后台自动更新仅面向这六种；隐藏新增自定义智能体入口。
+- 其他智能体的实现和历史数据暂时保留；上游集成跳过其专属适配、版本和界面改动。
+- 共用功能仅吸收对上述六种有价值的部分，不恢复其他智能体入口。
+
 ## 项目概述
 
-MaxCode 是一个多智能体编码工作台，它将多个智能体（Claude Code、Codex CLI、OpenCode、Gemini CLI、OpenClaw、Cline 等）统一到一个工作区中，支持会话聚合和多智能体协作，支持桌面安装，服务器/Docker 部署。
+MaxCode 是一个多智能体编码工作台，它将六种智能体（Claude Code、Codex CLI、Grok、Pi、DeepSeek、Google Antigravity）统一到一个工作区中，支持会话聚合和多智能体协作，支持桌面安装，服务器/Docker 部署。
 
 ## 技术栈
 
-- **桌面运行时**: Electron（`electron/` 主进程 + preload，复用无 Tauri feature 的 Rust 服务）；旧 Tauri 壳暂时保留
+- **桌面运行时**: Electron（`electron/` 主进程 + preload，复用共享 Rust 服务）；旧 Tauri 壳已退役
 - **服务器运行时**: 独立 Rust 二进制（Axum HTTP + WebSocket）
 - **前端**: Next.js 16（静态导出模式）+ React 19 + TypeScript（strict）
 - **样式**: Tailwind CSS v4 + shadcn/ui（radix-maia 风格）
@@ -45,11 +52,6 @@ pnpm build                     # 静态导出构建
 # Electron 桌面后端
 cargo check --no-default-features --features native-keyring --bin codeg-server --bin codeg-mcp
 cargo test --no-default-features --features native-keyring --bin codeg-server --lib
-
-# 旧 Tauri 桌面模式（默认 feature）
-cargo check
-cargo test --features test-utils
-cargo clippy --all-targets --features test-utils -- -D warnings
 
 # 服务器模式
 cargo check --no-default-features --bin codeg-server
@@ -80,12 +82,11 @@ pnpm desktop:build:dmg
 默认 CI 和发布流程使用 Electron。`pnpm desktop:pack` 生成解包应用，
 `pnpm desktop:smoke` 验证包内前端和后端的启动链路。
 
-旧 Tauri 仅作兼容保留：`pnpm legacy:tauri:dev`、
-`pnpm legacy:tauri:build --bundles dmg`。兼容 CI 为手动触发的
-`.github/workflows/legacy-tauri.yml`，不再通过默认发布生成 Tauri 安装包。
-共享 Rust 目录与 Cargo 的旧默认 feature 暂不改名或删除；Electron 命令始终
-显式禁用默认 feature。保留项和后续删除条件见
-`docs/maintenance/desktop-runtime-migration.md`。
+Electron 开机启动使用原生登录项 API，支持已打包的 macOS/Windows 应用。
+旧 Tauri 壳、透明桌宠浮窗、原生远程工作区连接管理及旧开机启动实现已退役，
+不得在上游合并时恢复。共享 Rust 后端继续位于 `src-tauri/`，该目录名不代表
+依赖 Tauri。`@tauri-apps/cli` 仅供 `pnpm server:sign` 生成兼容的服务器签名。
+范围和数据兼容说明见 `docs/maintenance/desktop-runtime-migration.md`。
 
 ## 架构
 
@@ -95,16 +96,15 @@ Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
 `codeg-server` 子进程，通过 HTTP/WebSocket 复用共享业务。`electron/preload.cjs`
 提供受限原生能力，打包配置为 `electron/electron-builder.cjs`。
 
-项目通过 Cargo feature flags 支持三种二进制：
+共享 Rust 包包含两个二进制，默认 feature 为空：
 
-- **`codeg`**（`tauri-runtime`，默认 feature）：保留的旧 Tauri 桌面应用
 - **`codeg-server`**（无 feature，`--no-default-features`）：独立服务器模式，仅编译 Axum HTTP API + WebSocket
 - **`codeg-mcp`**（无 feature）：per-launch stdio MCP 伴生进程，被注入到代理 CLI 的 MCP 配置中，向 LLM 暴露**异步**子智能体委托工具。
 
 ### 共享核心
 
-- **`app_state.rs`** — `AppState` 共享状态结构，两种模式通过 `EventEmitter` 枚举区分事件发射方式
-- **`web/event_bridge.rs`** — `EventEmitter::Tauri(AppHandle)` 或 `EventEmitter::WebOnly(Arc<WebEventBroadcaster>)`
+- **`app_state.rs`** — `AppState` 共享状态结构，Electron 与服务器共用
+- **`web/event_bridge.rs`** — `EventEmitter` 将后端事件广播给 WebSocket 客户端
 - **`web/router.rs`** — Axum 路由，接受 `Arc<AppState>`
 - **`web/handlers/`** — HTTP API 端点，全部使用 `Extension<Arc<AppState>>`
 
@@ -115,7 +115,7 @@ Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
 - **`app_state.rs`** — 共享状态（db、连接管理器、终端管理器、事件广播器）
 - **`models/`** — 共享数据结构
 - **`parsers/`** — 每个智能体一个解析器
-- **`commands/`** — 业务逻辑，`_core` 函数供两种模式共用，`#[tauri::command]` 函数仅桌面模式
+- **`commands/`** — 业务逻辑，`_core` 函数由 HTTP handlers 调用
 - **`web/`** — Axum HTTP API + WebSocket + 静态文件服务 + 认证中间件
 - **`acp/`** — Agent Client Protocol 连接管理
 - **`db/`** — SeaORM + SQLite
@@ -124,11 +124,11 @@ Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
 
 #### 核心库（`lib/`）
 
-- **`transport/`** — Transport 抽象层（自动检测 Tauri/Web 环境切换 `invoke()`/`fetch()`）
+- **`transport/`** — HTTP/WebSocket Transport，供 Electron 和浏览器共用
 - **`adapters/`** — AI 响应到组件渲染的适配器
 - **`types.ts`** — Rust 模型的 TypeScript 镜像
 - **`api.ts`** — 主 API 客户端
-- **`tauri.ts`** — Tauri API 封装
+- **`platform.ts`** — Electron 原生桥接及浏览器回退
 
 #### 国际化（`i18n/`）
 
@@ -138,15 +138,14 @@ Electron 桌面入口位于 `electron/main.cjs`，由主进程管理本机
 ### 数据流
 
 Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享业务；原生操作通过 preload → Electron IPC
-旧 Tauri 桌面：前端 `invoke()` → Tauri 命令 → 业务逻辑 → 返回数据
 服务器模式：前端 `fetch()` → Axum HTTP API → 同一业务逻辑 → 返回 JSON
-实时通信：后端事件 → EventEmitter（Tauri 事件 / WebSocket 广播）→ 前端
+实时通信：后端事件 → EventEmitter（WebSocket 广播）→ 前端
 
 ### 条件编译约定
 
-- `#[cfg(feature = "tauri-runtime")]` — 仅旧 Tauri 模式编译（窗口、通知、`tauri::State` 参数等）
-- `#[cfg_attr(feature = "tauri-runtime", tauri::command)]` — 函数始终可用，仅在桌面模式标记为 Tauri 命令
-- `_core` 后缀函数 — 接受普通引用参数（`&AppDatabase`、`&EventEmitter`），供 Web handlers 和 Tauri 命令共用
+- `native-keyring` — Electron 后端启用系统钥匙串，沿用已有凭据；服务器默认关闭
+- `test-utils` — 仅测试启用的共享测试工具
+- `_core` 后缀函数 — 接受普通引用参数（`&AppDatabase`、`&EventEmitter`），供 HTTP handlers 调用
 
 ## 关键约束
 

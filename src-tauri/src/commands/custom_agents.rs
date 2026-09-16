@@ -7,9 +7,6 @@
 //! intentionally no per-agent configuration here — a custom agent is driven
 //! purely by the protocol (see `crate::acp::custom_registry`).
 
-#[cfg(feature = "tauri-runtime")]
-use tauri::State;
-
 use serde::{Deserialize, Serialize};
 
 use crate::acp::custom_registry::{
@@ -450,10 +447,6 @@ fn split_npm_spec(spec: &str) -> (&str, Option<&str>) {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Tauri commands (desktop). The web handlers call the `_core` functions above.
-// ---------------------------------------------------------------------------
-
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SaveCustomAgentParams {
@@ -574,63 +567,6 @@ pub async fn acp_save_custom_agent_params_core(
     def.source = source;
     def.supports_mcp = supports_mcp;
     acp_save_custom_agent_core(def, db, emitter).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn acp_list_custom_agents(
-    db: State<'_, AppDatabase>,
-) -> Result<Vec<CustomAgentInfo>, AcpError> {
-    acp_list_custom_agents_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn acp_save_custom_agent(
-    params: SaveCustomAgentParams,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_save_custom_agent_params_core(params, &db, &emitter).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn acp_delete_custom_agent(
-    registry_id: String,
-    delete_transcripts: bool,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_delete_custom_agent_core(registry_id, delete_transcripts, &db, &emitter).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn acp_fetch_registry_catalog(
-    db: State<'_, AppDatabase>,
-) -> Result<Vec<RegistryCatalogAgent>, AcpError> {
-    acp_fetch_registry_catalog_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub fn acp_current_platform() -> String {
-    acp_current_platform_core()
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[tauri::command]
-pub async fn acp_add_registry_agent(
-    registry_id: String,
-    distribution_kind: Option<String>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_add_registry_agent_core(registry_id, distribution_kind, &db, &emitter).await
 }
 
 #[cfg(test)]

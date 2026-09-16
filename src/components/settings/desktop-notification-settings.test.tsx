@@ -2,23 +2,15 @@ import { act, fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
-interface FakeIdentity {
-  bundleId: string
-  requestedBundleId: string
-  degraded: boolean
-}
-
 const permission = vi.fn<() => string>(() => "granted")
 const requestPermission = vi.fn(async () => "granted")
 const openSystemSettings = vi.fn(async () => undefined)
 const sendTest = vi.fn(async () => undefined)
-const identity = vi.fn<() => Promise<FakeIdentity | null>>(async () => null)
 
 vi.mock("@/lib/notification", () => ({
   getNotificationPermission: () => permission(),
   requestNotificationPermission: () => requestPermission(),
   openSystemNotificationSettings: () => openSystemSettings(),
-  getNotificationIdentity: () => identity(),
 }))
 vi.mock("@/lib/desktop-notification", () => ({
   sendTestNotification: (...args: unknown[]) => sendTest(...(args as [])),
@@ -66,7 +58,6 @@ beforeEach(() => {
   requestPermission.mockClear().mockResolvedValue("granted")
   openSystemSettings.mockClear()
   sendTest.mockClear().mockResolvedValue(undefined)
-  identity.mockClear().mockResolvedValue(null)
 })
 
 describe("DesktopNotificationSettingsSection", () => {
@@ -277,72 +268,5 @@ describe("the permission card", () => {
         "Desktop notifications are working."
       )
     )
-  })
-})
-
-describe("the delivering identity", () => {
-  it("names the app the OS files the notifications under", async () => {
-    permission.mockReturnValue("managed_by_os")
-    identity.mockResolvedValue({
-      bundleId: "app.codeg",
-      requestedBundleId: "app.codeg",
-      degraded: false,
-    })
-    renderSection()
-    expandSection()
-
-    expect(await screen.findByText("app.codeg")).toBeInTheDocument()
-    expect(screen.getByText("Delivered as")).toBeInTheDocument()
-  })
-
-  it("warns when delivery has fallen back to another app", async () => {
-    // The failure this row exists for: a build that could not claim its own
-    // identifier posts as Terminal, so every switch the user can see under
-    // "codeg" in System Settings governs nothing at all.
-    permission.mockReturnValue("managed_by_os")
-    identity.mockResolvedValue({
-      bundleId: "com.apple.Terminal",
-      requestedBundleId: "app.codeg",
-      degraded: true,
-    })
-    renderSection()
-    expandSection()
-
-    expect(await screen.findByText("com.apple.Terminal")).toBeInTheDocument()
-    expect(screen.getByText(/could not be claimed/i)).toBeInTheDocument()
-  })
-
-  it("stays hidden when the backend cannot answer", async () => {
-    permission.mockReturnValue("managed_by_os")
-    identity.mockRejectedValue(new Error("no such command"))
-    renderSection()
-    expandSection()
-
-    // "We don't know" renders as nothing, not as a guess.
-    await waitFor(() => expect(identity).toHaveBeenCalled())
-    expect(screen.queryByText("Delivered as")).not.toBeInTheDocument()
-  })
-
-  it("claims no identity for a section nobody has unfolded", () => {
-    // Reading the identity is what claims it on the backend, so the section
-    // must not reach for it just because it is on screen and enabled.
-    permission.mockReturnValue("managed_by_os")
-    renderSection()
-
-    expect(identity).not.toHaveBeenCalled()
-  })
-
-  it("claims no identity for a section the user turned off", () => {
-    // Reading the identity is what claims it on the backend, so a collapsed
-    // section must not reach for it.
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify({ ...DEFAULT_DESKTOP_NOTIFICATION_PREFS, enabled: false })
-    )
-    resetDesktopNotificationPrefsCacheForTests()
-    permission.mockReturnValue("managed_by_os")
-    renderSection()
-
-    expect(identity).not.toHaveBeenCalled()
   })
 })

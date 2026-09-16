@@ -4,8 +4,6 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "tauri-runtime")]
-use tauri::{Manager, State};
 
 use crate::acp::binary_cache;
 use crate::acp::custom_registry;
@@ -21,8 +19,7 @@ use crate::acp::types::{
     ConnectionStatus, DiagCheck, DiagLevel, DiagSection, DiagnosticsVerdict, GrokSettings,
     GrokStructuredConfig,
 };
-#[cfg(feature = "tauri-runtime")]
-use crate::acp::types::{ConnectionInfo, ForkResultInfo, PromptInputBlock};
+
 use crate::acp::AGENT_NPM_REGISTRY;
 use crate::db::service::agent_setting_service;
 use crate::db::service::model_provider_service;
@@ -1805,15 +1802,6 @@ pub(crate) async fn acp_env_diagnostics_core(
         .format("%Y-%m-%d %H:%M:%S %z")
         .to_string();
     Ok(build_report(&inputs, generated_at, agent_type))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_env_diagnostics(
-    agent_type: Option<AgentType>,
-    db: State<'_, AppDatabase>,
-) -> Result<AgentDiagnosticsReport, AcpError> {
-    acp_env_diagnostics_core(&db, agent_type).await
 }
 
 #[cfg(test)]
@@ -9515,33 +9503,6 @@ fn truncate_probe_output(s: &str) -> String {
     }
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_cursor_auth_status(
-    db: State<'_, AppDatabase>,
-    api_key: Option<String>,
-) -> Result<crate::acp::types::CursorAuthStatus, AcpError> {
-    Ok(acp_cursor_auth_status_core(&db, api_key).await)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_qoder_auth_status(
-    db: State<'_, AppDatabase>,
-    personal_access_token: Option<String>,
-) -> Result<crate::acp::types::QoderAuthStatus, AcpError> {
-    Ok(acp_qoder_auth_status_core(&db, personal_access_token).await)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_cursor_list_models(
-    db: State<'_, AppDatabase>,
-    api_key: Option<String>,
-) -> Result<crate::acp::types::CursorModelsResult, AcpError> {
-    Ok(acp_cursor_list_models_core(&db, api_key).await)
-}
-
 /// Primary env var keys for each agent type: (api_base_url, api_key, model).
 /// Shared by runtime env resolution, model-provider cascade, and config patching.
 fn agent_env_keys(agent_type: AgentType) -> (&'static str, &'static str, &'static str) {
@@ -10145,7 +10106,6 @@ pub(crate) async fn cascade_update_model_provider(
     Ok(())
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_preflight(
     agent_type: AgentType,
     force_refresh: Option<bool>,
@@ -10391,112 +10351,6 @@ pub(crate) async fn acp_update_agent_preferences_and_refresh(
     .await)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn acp_connect(
-    agent_type: AgentType,
-    working_dir: Option<String>,
-    session_id: Option<String>,
-    preferred_mode_id: Option<String>,
-    preferred_config_values: Option<BTreeMap<String, String>>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-    window: tauri::WebviewWindow,
-) -> Result<String, AcpError> {
-    // Resolve through the effective data dir so a custom `CODEG_DATA_DIR`
-    // reaches the credential helper script the agent's git subprocess
-    // will execute. `acp_connect` may be called before the app data dir
-    // exists on disk (first launch); fall back to a sentinel that the
-    // credential helper treats as "no credentials configured".
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let runtime_env =
-        build_session_runtime_env(&db, agent_type, session_id.as_deref(), &app_data_dir).await?;
-
-    // Guard: the session page must never trigger a download or install.
-    // If the agent isn't ready, return SdkNotInstalled here so the frontend
-    // can prompt the user to install it from Agent Settings.
-    verify_agent_installed(agent_type).await?;
-
-    let emitter = EventEmitter::Tauri(app_handle);
-    manager
-        .spawn_agent(
-            agent_type,
-            working_dir,
-            session_id,
-            runtime_env,
-            window.label().to_string(),
-            emitter,
-            preferred_mode_id,
-            preferred_config_values.unwrap_or_default(),
-        )
-        .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_prompt(
-    connection_id: String,
-    blocks: Vec<PromptInputBlock>,
-    folder_id: Option<i32>,
-    conversation_id: Option<i32>,
-    client_message_id: Option<String>,
-    db: State<'_, crate::db::AppDatabase>,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager
-        .send_prompt_linked_with_message_id(
-            &db,
-            &connection_id,
-            blocks,
-            folder_id,
-            conversation_id,
-            None,
-            client_message_id,
-        )
-        .await
-        .map(|_| ())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_set_mode(
-    connection_id: String,
-    mode_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager.set_mode(&connection_id, mode_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_set_config_option(
-    connection_id: String,
-    config_id: String,
-    value_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager
-        .set_config_option(&connection_id, config_id, value_id)
-        .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_goal_control(
-    connection_id: String,
-    action: crate::acp::connection::GoalControlAction,
-    db: State<'_, AppDatabase>,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager.goal_control(&db.conn, &connection_id, action).await
-}
-
 /// Spawn a transient ACP connection for `agent_type` with a silent emitter,
 /// read whatever `SessionConfigOptions` / `SessionModes` the agent advertises,
 /// and tear it down. The returned snapshot drives the delegation-settings UI
@@ -10525,143 +10379,6 @@ pub async fn acp_describe_agent_options_core(
         .await
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_describe_agent_options(
-    agent_type: AgentType,
-    working_dir: Option<String>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app_handle: tauri::AppHandle,
-) -> Result<crate::acp::types::AgentOptionsSnapshot, AcpError> {
-    let app_data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| PathBuf::from("."));
-    acp_describe_agent_options_core(&manager, &db, &app_data_dir, agent_type, working_dir).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_cancel(
-    connection_id: String,
-    db: State<'_, AppDatabase>,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager.cancel(&db.conn, &connection_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_fork(
-    connection_id: String,
-    conversation_id: Option<i32>,
-    folder_id: Option<i32>,
-    // "Fork from here": the rendered turn to fork at. `None` = fork at the
-    // tail, the composer's fork-send behaviour.
-    fork_from_turn_id: Option<String>,
-    db: State<'_, AppDatabase>,
-    manager: State<'_, ConnectionManager>,
-) -> Result<ForkResultInfo, AcpError> {
-    manager
-        .fork_session(
-            &db,
-            &connection_id,
-            conversation_id,
-            folder_id,
-            fork_from_turn_id,
-        )
-        .await
-}
-
-/// Stop one AIR async task. `Ok(false)` = the adapter declined (unknown,
-/// already terminal, or a stop already in flight) — a real answer, not a
-/// failure.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_stop_async_task(
-    connection_id: String,
-    task_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<bool, AcpError> {
-    manager.stop_async_task(&connection_id, &task_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_respond_permission(
-    connection_id: String,
-    request_id: String,
-    option_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager
-        .respond_permission(&connection_id, &request_id, &option_id)
-        .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_answer_question(
-    connection_id: String,
-    question_id: String,
-    answer: crate::acp::question::QuestionAnswer,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager
-        .answer_question(&connection_id, &question_id, answer)
-        .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_answer_plan_approval(
-    connection_id: String,
-    approval_id: String,
-    answer: crate::acp::plan_approval::PlanApprovalAnswer,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager
-        .answer_plan_approval(&connection_id, &approval_id, answer)
-        .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_disconnect(
-    connection_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<(), AcpError> {
-    manager.disconnect(&connection_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_touch_connection(
-    connection_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<bool, AcpError> {
-    Ok(manager.touch(&connection_id).await)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_probe_connection(
-    connection_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<bool, AcpError> {
-    Ok(manager.is_live(&connection_id).await)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_list_connections(
-    manager: State<'_, ConnectionManager>,
-) -> Result<Vec<ConnectionInfo>, AcpError> {
-    Ok(manager.list_connections().await)
-}
-
 pub(crate) async fn acp_get_session_snapshot_core(
     manager: &ConnectionManager,
     connection_id: &str,
@@ -10671,15 +10388,6 @@ pub(crate) async fn acp_get_session_snapshot_core(
     };
     let snap = state.read().await.to_snapshot();
     Ok(Some(snap))
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_get_session_snapshot(
-    connection_id: String,
-    manager: State<'_, ConnectionManager>,
-) -> Result<Option<crate::acp::LiveSessionSnapshot>, AcpError> {
-    acp_get_session_snapshot_core(&manager, &connection_id).await
 }
 
 pub(crate) async fn acp_get_session_snapshot_by_conversation_core(
@@ -10693,15 +10401,6 @@ pub(crate) async fn acp_get_session_snapshot_by_conversation_core(
         return Ok(None);
     };
     acp_get_session_snapshot_core(manager, &conn_id).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_get_session_snapshot_by_conversation(
-    conversation_id: i32,
-    manager: State<'_, ConnectionManager>,
-) -> Result<Option<crate::acp::LiveSessionSnapshot>, AcpError> {
-    acp_get_session_snapshot_by_conversation_core(&manager, conversation_id).await
 }
 
 /// Discover the live connection (if any) another client is currently running
@@ -10772,23 +10471,6 @@ pub(crate) async fn acp_find_connection_for_conversation_core(
     }))
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_find_connection_for_conversation(
-    conversation_id: i32,
-    session_id: Option<String>,
-    agent_type: AgentType,
-    manager: State<'_, ConnectionManager>,
-) -> Result<Option<crate::acp::ConversationConnectionInfo>, AcpError> {
-    acp_find_connection_for_conversation_core(
-        &manager,
-        conversation_id,
-        session_id.as_deref(),
-        agent_type,
-    )
-    .await
-}
-
 pub(crate) async fn acp_get_agent_status_core(
     agent_type: AgentType,
     db: &AppDatabase,
@@ -10855,21 +10537,15 @@ pub(crate) async fn acp_get_agent_status_core(
     })
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_get_agent_status(
-    agent_type: AgentType,
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<crate::acp::types::AcpAgentStatus, AcpError> {
-    acp_get_agent_status_core(agent_type, &db).await
-}
-
 async fn acp_list_agents_with_disabled(
     db: &AppDatabase,
     include_disabled: bool,
 ) -> Result<Vec<AcpAgentInfo>, AcpError> {
     let platform = registry::current_platform();
-    let agent_types = registry::all_acp_agents();
+    let agent_types: Vec<_> = registry::all_acp_agents()
+        .into_iter()
+        .filter(|agent| registry::is_maintained_agent(*agent))
+        .collect();
 
     let defaults = agent_types
         .iter()
@@ -11128,23 +10804,6 @@ pub(crate) async fn acp_list_enabled_agents_core(
     acp_list_agents_with_disabled(db, false).await
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_list_agents(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<AcpAgentInfo>, AcpError> {
-    acp_list_agents_core(&db).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_list_enabled_agents(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<AcpAgentInfo>, AcpError> {
-    acp_list_enabled_agents_core(&db).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_clear_binary_cache(agent_type: AgentType) -> Result<(), AcpError> {
     let meta = registry::get_agent_meta(agent_type);
     if matches!(
@@ -11248,43 +10907,6 @@ pub(crate) async fn acp_update_agent_preferences_core(
     persist_agent_local_config_json(agent_type, Some(local_patch_json.as_str()))?;
     emit_acp_agents_updated(emitter, "preferences_updated", Some(agent_type));
     Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn acp_update_agent_preferences(
-    agent_type: AgentType,
-    enabled: bool,
-    env: BTreeMap<String, String>,
-    config_json: Option<String>,
-    opencode_auth_json: Option<String>,
-    codex_auth_json: Option<String>,
-    codex_config_toml: Option<String>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<usize, AcpError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_agent_preferences_and_refresh(
-        agent_type,
-        enabled,
-        env,
-        config_json,
-        opencode_auth_json,
-        codex_auth_json,
-        codex_config_toml,
-        &db,
-        &manager,
-        &app_data_dir,
-        &emitter,
-    )
-    .await
 }
 
 pub(crate) async fn acp_update_agent_env_core(
@@ -11508,36 +11130,6 @@ fn apply_codex_catalog_and_model(raw: Option<&str>) -> Result<(), AcpError> {
         toml::to_string_pretty(&toml_value).map_err(|e| AcpError::protocol(e.to_string()))?;
     persist_codex_native_config_files(None, Some(&toml_str))?;
     Ok(())
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_update_agent_env(
-    agent_type: AgentType,
-    enabled: bool,
-    env: BTreeMap<String, String>,
-    model_provider_id: Option<i32>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<usize, AcpError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_agent_env_and_refresh(
-        agent_type,
-        enabled,
-        env,
-        model_provider_id,
-        &db,
-        &manager,
-        &app_data_dir,
-        &emitter,
-    )
-    .await
 }
 
 /// Decide what to write to OpenCode's `auth.json`. `None` (caller passed no
@@ -11786,404 +11378,6 @@ pub(crate) async fn acp_update_agent_config_and_refresh(
     .await)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn acp_update_agent_config(
-    agent_type: AgentType,
-    config_json: Option<String>,
-    opencode_auth_json: Option<String>,
-    codex_auth_json: Option<String>,
-    codex_config_toml: Option<String>,
-    codex_model_catalog: Option<String>,
-    codex_sandbox: Option<CodexSandboxStructuredConfig>,
-    grok_config_toml: Option<String>,
-    grok_structured: Option<GrokStructuredConfig>,
-    cursor_cli_config_json: Option<String>,
-    cursor_structured: Option<crate::acp::types::CursorStructuredConfig>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<usize, AcpError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_agent_config_and_refresh(
-        agent_type,
-        config_json,
-        opencode_auth_json,
-        codex_auth_json,
-        codex_config_toml,
-        codex_model_catalog,
-        codex_sandbox,
-        grok_config_toml,
-        grok_structured,
-        cursor_cli_config_json,
-        cursor_structured,
-        &db,
-        &manager,
-        &app_data_dir,
-        &emitter,
-    )
-    .await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_update_hermes_config(
-    provider: String,
-    api_key: Option<String>,
-    model: Option<String>,
-    base_url: Option<String>,
-    raw_config_yaml: Option<String>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_hermes_config_core(
-        HermesConfigUpdate {
-            provider,
-            api_key,
-            model,
-            base_url,
-            raw_config_yaml,
-        },
-        &emitter,
-    )
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn acp_update_kimi_code_config(
-    mode: String,
-    interface_type: Option<String>,
-    auth_type: Option<String>,
-    base_url: Option<String>,
-    api_key: Option<String>,
-    model: Option<String>,
-    max_context_size: Option<i64>,
-    vertex_project: Option<String>,
-    vertex_location: Option<String>,
-    raw_config_toml: Option<String>,
-    reasoning_enabled: Option<bool>,
-    always_thinking: Option<bool>,
-    support_efforts: Option<Vec<String>>,
-    default_effort: Option<String>,
-    manager: State<'_, ConnectionManager>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<usize, AcpError> {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| std::path::PathBuf::from("."));
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_kimi_code_config_and_refresh(
-        KimiCodeConfigUpdate {
-            mode,
-            interface_type,
-            auth_type,
-            base_url,
-            api_key,
-            model,
-            max_context_size,
-            vertex_project,
-            vertex_location,
-            raw_config_toml,
-            reasoning_enabled,
-            always_thinking,
-            support_efforts,
-            default_effort,
-        },
-        &db,
-        &manager,
-        &app_data_dir,
-        &emitter,
-    )
-    .await
-}
-
-/// List the models an API key + endpoint can access (validates the key and
-/// populates the Kimi settings model picker). Desktop command; the web handler
-/// calls `acp_fetch_kimi_models_core` directly.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_fetch_kimi_models(
-    base_url: String,
-    api_key: String,
-) -> Result<Vec<String>, AcpError> {
-    acp_fetch_kimi_models_core(&base_url, &api_key).await
-}
-
-/// Apply a structured Pi config update, writing pi's native `settings.json`
-/// (provider/model/thinking level) and `auth.json` (when an API key is given).
-/// Desktop command; the web handler calls `acp_update_pi_config_core` directly.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-#[allow(clippy::too_many_arguments)]
-pub async fn acp_update_pi_config(
-    provider: String,
-    model: String,
-    thinking_level: Option<String>,
-    api_key: Option<String>,
-    custom_base_url: Option<String>,
-    custom_api: Option<String>,
-    model_reasoning: Option<PiModelReasoningSpec>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_update_pi_config_core(
-        PiConfigUpdate {
-            provider,
-            model,
-            thinking_level,
-            api_key,
-            custom_base_url,
-            custom_api,
-            model_reasoning,
-        },
-        &db,
-        &emitter,
-    )
-    .await
-}
-
-/// Read pi's current native config (model selection + configured auth providers)
-/// for the settings panel. Desktop command; the web handler calls
-/// `load_pi_config_core` directly. Reads the filesystem only — no DB/state needed.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_load_pi_config() -> Result<PiConfigProjection, AcpError> {
-    Ok(load_pi_config_core())
-}
-
-/// Validate a user-supplied custom pi binary (BYO-pi): resolve it (path or
-/// `PATH`) and best-effort read its `--version`. A not-found binary returns
-/// `found=false` (not an error). Desktop command; the web handler calls
-/// `acp_validate_pi_command_core` directly.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_validate_pi_command(command: String) -> Result<PiCommandValidation, AcpError> {
-    Ok(acp_validate_pi_command_core(command))
-}
-
-/// Report which repo-shipped pi resources a workspace ships and whether any
-/// trust decision already covers it. Read-only. Desktop command; the web handler
-/// calls `acp_pi_project_trust_state_core` directly.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_pi_project_trust_state(
-    db: tauri::State<'_, AppDatabase>,
-    workspace: String,
-) -> Result<PiProjectTrustState, AcpError> {
-    acp_pi_project_trust_state_core(&db, workspace).await
-}
-
-/// Project the saved Antigravity auth choice into the server's settings file,
-/// and say whether it landed. Called by the settings panel after a save.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_sync_antigravity_settings(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<crate::acp::connection::AntigravitySyncReport, AcpError> {
-    acp_sync_antigravity_settings_core(&db).await
-}
-
-/// Start a browser-free Antigravity sign-in for a machine with no desktop.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_antigravity_login_start(
-    db: tauri::State<'_, AppDatabase>,
-    method_id: String,
-) -> Result<crate::acp::antigravity_login::AntigravityLoginStart, AcpError> {
-    acp_antigravity_login_start_core(&db, method_id).await
-}
-
-/// Complete a browser-free Antigravity sign-in from the address the user's
-/// browser was redirected to.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_antigravity_login_finish(
-    handle: String,
-    redirect: String,
-) -> Result<crate::acp::antigravity_login::AntigravityLoginOutcome, AcpError> {
-    acp_antigravity_login_finish_core(handle, redirect).await
-}
-
-/// Abandon a pending browser-free Antigravity sign-in.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_antigravity_login_cancel(handle: String) -> Result<(), AcpError> {
-    acp_antigravity_login_cancel_core(handle).await
-}
-
-/// Clear the Antigravity credential so another account can be signed in.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_antigravity_sign_out(
-    db: tauri::State<'_, AppDatabase>,
-    manager: tauri::State<'_, crate::acp::manager::ConnectionManager>,
-) -> Result<crate::acp::connection::AntigravitySyncReport, AcpError> {
-    acp_antigravity_sign_out_core(&db, &manager).await
-}
-
-/// Record (or clear, with `trusted: null`) an explicit project-trust decision in
-/// pi's `trust.json`. Only ever called from a user action in the approval UI.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_pi_set_project_trust(
-    db: tauri::State<'_, AppDatabase>,
-    workspace: String,
-    trusted: Option<bool>,
-) -> Result<(), AcpError> {
-    acp_pi_set_project_trust_core(&db, workspace, trusted).await
-}
-
-/// Record that the user reviewed an existing grant and chose to keep it, which
-/// clears the launch gate for that folder. Does not change pi's trust store.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_pi_acknowledge_project_trust(workspace: String) -> Result<(), AcpError> {
-    acp_pi_acknowledge_project_trust_core(workspace).await
-}
-
-/// List every decision in pi's `trust.json` so the settings page can review and
-/// revoke them — including any auto-seeded by codeg before trust became a user
-/// decision.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_pi_list_trust_entries(
-    db: tauri::State<'_, AppDatabase>,
-) -> Result<Vec<PiTrustEntry>, AcpError> {
-    acp_pi_list_trust_entries_core(&db).await
-}
-
-/// Launch Hermes's interactive setup in the OS terminal. `kind` selects the
-/// flow (`"setup"` → `hermes acp --setup`, `"model"` → `hermes model`); the
-/// exact command is constructed by the backend from the registry recipe (the
-/// renderer cannot supply arbitrary shell text). Ensures `~/.hermes` exists so
-/// the `cd` into it can't fail on a fresh install. Desktop-only: these flows
-/// need a real interactive TTY and a browser for OAuth.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_open_hermes_setup_terminal(kind: String) -> Result<(), AcpError> {
-    let (setup, model) = hermes_setup_commands().await;
-    let command = match kind.as_str() {
-        "setup" => setup,
-        "model" => model,
-        other => {
-            return Err(AcpError::protocol(format!(
-                "unknown hermes setup kind: {other}"
-            )));
-        }
-    };
-    let home = hermes_home_dir();
-    ensure_hermes_home_secure(&home)?;
-    let home_str = home.to_string_lossy();
-    open_external_terminal_impl(&command, Some(home_str.as_ref()))
-}
-
-#[cfg(feature = "tauri-runtime")]
-fn open_external_terminal_impl(command: &str, cwd: Option<&str>) -> Result<(), AcpError> {
-    use std::process::Command;
-    // Reject control characters: a newline breaks out of the macOS AppleScript
-    // string literal (and would corrupt the cmd/shell line elsewhere), turning a
-    // single command into multiple statements.
-    if command.contains(['\n', '\r']) || cwd.is_some_and(|c| c.contains(['\n', '\r'])) {
-        return Err(AcpError::protocol(
-            "terminal command and cwd must not contain newlines",
-        ));
-    }
-    let dir = cwd
-        .map(|c| c.to_string())
-        .unwrap_or_else(|| home_dir_or_default().display().to_string());
-
-    #[cfg(target_os = "macos")]
-    {
-        // Hand `cd <dir> && <command>` to Terminal.app via AppleScript. Quote the
-        // dir for the shell, then escape the whole string for the AppleScript
-        // literal (backslashes first, then double-quotes).
-        let shell_cmd = format!("cd {} && {}", shell_single_quote(&dir), command);
-        let escaped = shell_cmd.replace('\\', "\\\\").replace('"', "\\\"");
-        let osa =
-            format!("tell application \"Terminal\"\nactivate\ndo script \"{escaped}\"\nend tell");
-        Command::new("osascript")
-            .arg("-e")
-            .arg(osa)
-            .spawn()
-            .map_err(|e| AcpError::protocol(format!("open Terminal failed: {e}")))?;
-        return Ok(());
-    }
-
-    #[cfg(target_os = "windows")]
-    {
-        // `start "" cmd /K <command>` opens a new console that stays open. The
-        // empty "" is the window title `start` would otherwise eat.
-        Command::new("cmd")
-            .args(["/C", "start", "", "cmd", "/K", command])
-            .current_dir(&dir)
-            .spawn()
-            .map_err(|e| AcpError::protocol(format!("open terminal failed: {e}")))?;
-        return Ok(());
-    }
-
-    #[cfg(all(unix, not(target_os = "macos")))]
-    {
-        // Probe common Linux terminal emulators in order; keep the window open
-        // after the command by re-exec'ing the user's shell.
-        let keep_open = format!("{command}; exec \"${{SHELL:-bash}}\"");
-        let candidates: [(&str, [&str; 3]); 4] = [
-            ("x-terminal-emulator", ["-e", "sh", "-c"]),
-            ("gnome-terminal", ["--", "sh", "-c"]),
-            ("konsole", ["-e", "sh", "-c"]),
-            ("xterm", ["-e", "sh", "-c"]),
-        ];
-        for (term, args) in candidates {
-            if resolve_command_on_path(term).is_some() {
-                return Command::new(term)
-                    .args(args)
-                    .arg(&keep_open)
-                    .current_dir(&dir)
-                    .spawn()
-                    .map(|_| ())
-                    .map_err(|e| AcpError::protocol(format!("open {term} failed: {e}")));
-            }
-        }
-        return Err(AcpError::protocol(
-            "no supported terminal emulator found (tried x-terminal-emulator, gnome-terminal, konsole, xterm)",
-        ));
-    }
-
-    #[allow(unreachable_code)]
-    Err(AcpError::protocol(
-        "unsupported platform for terminal launch",
-    ))
-}
-
-/// Quote a string for a single-quoted POSIX shell argument.
-#[cfg(all(feature = "tauri-runtime", target_os = "macos"))]
-fn shell_single_quote(value: &str) -> String {
-    format!("'{}'", value.replace('\'', "'\\''"))
-}
-
-/// Ensure `~/.hermes` exists and reveal it in the system file manager.
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_reveal_hermes_home(app: tauri::AppHandle) -> Result<(), AcpError> {
-    use tauri_plugin_opener::OpenerExt;
-    let home = hermes_home_dir();
-    ensure_hermes_home_secure(&home)?;
-    app.opener()
-        .open_path(home.to_string_lossy().to_string(), None::<&str>)
-        .map_err(|e| AcpError::protocol(format!("open hermes folder failed: {e}")))?;
-    Ok(())
-}
-
 pub(crate) async fn acp_download_agent_binary_core(
     agent_type: AgentType,
     version_override: Option<String>,
@@ -12319,18 +11513,6 @@ pub(crate) async fn acp_download_agent_binary_core(
     result
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_download_agent_binary(
-    agent_type: AgentType,
-    version: Option<String>,
-    task_id: String,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_download_agent_binary_core(agent_type, version, task_id, &emitter).await
-}
-
 /// Provision ONLY the uv toolchain (uvx) into codeg's cache — independent of
 /// installing any `Uvx` agent's package. Streams progress over the shared
 /// agent-install event stream so the Settings page shows a live log. Backs the
@@ -12378,13 +11560,6 @@ pub(crate) async fn acp_install_uv_tool_core(
         }
     }
     result
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_install_uv_tool(task_id: String, app: tauri::AppHandle) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_install_uv_tool_core(task_id, &emitter).await
 }
 
 pub(crate) async fn acp_detect_agent_local_version_core(
@@ -12440,17 +11615,6 @@ pub(crate) async fn acp_detect_agent_local_version_core(
     }
 
     Ok(previous)
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_detect_agent_local_version(
-    agent_type: AgentType,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<Option<String>, AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_detect_agent_local_version_core(agent_type, &db.conn, &emitter).await
 }
 
 pub(crate) async fn acp_prepare_npx_agent_core(
@@ -12716,30 +11880,6 @@ pub(crate) async fn acp_prepare_npx_agent_core(
     result
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_prepare_npx_agent(
-    agent_type: AgentType,
-    registry_version: Option<String>,
-    version: Option<String>,
-    clean_first: Option<bool>,
-    task_id: String,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<String, AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_prepare_npx_agent_core(
-        agent_type,
-        registry_version,
-        version,
-        clean_first.unwrap_or(false),
-        task_id,
-        &db,
-        &emitter,
-    )
-    .await
-}
-
 pub(crate) async fn acp_uninstall_agent_core(
     agent_type: AgentType,
     task_id: String,
@@ -12801,18 +11941,6 @@ pub(crate) async fn acp_uninstall_agent_core(
     result
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_uninstall_agent(
-    agent_type: AgentType,
-    task_id: String,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_uninstall_agent_core(agent_type, task_id, &db, &emitter).await
-}
-
 /// The npm package that ships the `pi` binary pi-acp spawns as `pi --mode rpc`.
 /// Installed unpinned ("latest"): pi releases frequently and pi-acp resolves
 /// `pi` from PATH, so the binary's version floats independently of the pinned
@@ -12850,13 +11978,6 @@ pub(crate) async fn acp_install_pi_binary_core(
     result
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_install_pi_binary(task_id: String, app: tauri::AppHandle) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_install_pi_binary_core(task_id, &emitter).await
-}
-
 /// Uninstall the global `pi` binary. Mirrors `acp_uninstall_agent_core`'s event
 /// envelope; the npm subprocess output isn't streamed (the shared helper
 /// collects it via `.output()`), but the Started/Log/Completed/Failed events
@@ -12892,16 +12013,6 @@ pub(crate) async fn acp_uninstall_pi_binary_core(
     result
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_uninstall_pi_binary(
-    task_id: String,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_uninstall_pi_binary_core(task_id, &emitter).await
-}
-
 pub(crate) async fn acp_reorder_agents_core(
     agent_types: &[AgentType],
     db: &AppDatabase,
@@ -12924,18 +12035,6 @@ pub(crate) async fn acp_reorder_agents_core(
     Ok(())
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn acp_reorder_agents(
-    agent_types: Vec<AgentType>,
-    db: State<'_, AppDatabase>,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    acp_reorder_agents_core(&agent_types, &db, &emitter).await
-}
-
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_list_agent_skills(
     agent_type: AgentType,
     workspace_path: Option<String>,
@@ -13009,7 +12108,6 @@ pub async fn acp_list_agent_skills(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_read_agent_skill(
     agent_type: AgentType,
     scope: AgentSkillScope,
@@ -13035,7 +12133,6 @@ pub async fn acp_read_agent_skill(
     Ok(AgentSkillContent { skill, content })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_save_agent_skill(
     agent_type: AgentType,
     scope: AgentSkillScope,
@@ -13104,7 +12201,6 @@ pub async fn acp_save_agent_skill(
     Ok(skill)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn acp_delete_agent_skill(
     agent_type: AgentType,
     scope: AgentSkillScope,
@@ -13136,7 +12232,6 @@ pub(crate) async fn opencode_list_plugins_core() -> Result<PluginCheckSummary, A
     opencode_plugins::check_opencode_plugins(None).map_err(AcpError::Protocol)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn opencode_list_plugins() -> Result<PluginCheckSummary, AcpError> {
     opencode_list_plugins_core().await
 }
@@ -13148,34 +12243,12 @@ pub(crate) async fn opencode_provider_catalog_core(
     crate::acp::opencode_catalog::provider_catalog(data_dir, force_refresh).await
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn opencode_provider_catalog(
-    force_refresh: Option<bool>,
-    app_handle: tauri::AppHandle,
-) -> Result<Vec<crate::acp::opencode_catalog::CatalogProvider>, AcpError> {
-    let data_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map(|p| crate::paths::resolve_effective_data_dir(&p))
-        .unwrap_or_else(|_| PathBuf::from("."));
-    Ok(opencode_provider_catalog_core(&data_dir, force_refresh.unwrap_or(false)).await)
-}
-
 /// The official codex model catalog (full `ModelInfo` entries), sourced at
 /// runtime from the codex codeg actually launches (cache + bundled fallback),
 /// used by the settings editor for the official list, "quick-add official", and
 /// as the clone template for custom entries' heavy required fields.
 pub(crate) async fn codex_bundled_catalog_core(force_refresh: bool) -> Vec<serde_json::Value> {
     crate::acp::codex_catalog_source::runtime_catalog(force_refresh).await
-}
-
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn codex_bundled_catalog(
-    force_refresh: Option<bool>,
-) -> Result<Vec<serde_json::Value>, AcpError> {
-    Ok(codex_bundled_catalog_core(force_refresh.unwrap_or(false)).await)
 }
 
 pub(crate) async fn opencode_install_plugins_core(
@@ -13188,17 +12261,6 @@ pub(crate) async fn opencode_install_plugins_core(
         .map_err(AcpError::Protocol)
 }
 
-#[cfg(feature = "tauri-runtime")]
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
-pub async fn opencode_install_plugins(
-    names: Option<Vec<String>>,
-    task_id: String,
-    app: tauri::AppHandle,
-) -> Result<(), AcpError> {
-    let emitter = EventEmitter::Tauri(app);
-    opencode_install_plugins_core(names, task_id, &emitter).await
-}
-
 pub(crate) async fn opencode_uninstall_plugin_core(
     name: String,
 ) -> Result<PluginCheckSummary, AcpError> {
@@ -13207,7 +12269,6 @@ pub(crate) async fn opencode_uninstall_plugin_core(
         .map_err(AcpError::Protocol)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn opencode_uninstall_plugin(name: String) -> Result<PluginCheckSummary, AcpError> {
     opencode_uninstall_plugin_core(name).await
 }
@@ -13335,12 +12396,10 @@ pub(crate) async fn codex_request_device_code_core() -> Result<CodexDeviceCodeRe
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn codex_request_device_code() -> Result<CodexDeviceCodeResponse, AcpError> {
     codex_request_device_code_core().await
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn codex_poll_device_code(
     device_auth_id: String,
     user_code: String,

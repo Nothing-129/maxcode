@@ -20,20 +20,17 @@ vi.mock("@/components/ui/app-toaster", () => ({ AppToaster: () => null }))
 afterEach(cleanup)
 
 describe("desktop Web service for phone access", () => {
-  it.each(["electron", "tauri"])(
-    "keeps the Web service entry in %s",
-    (environment) => {
-      runtime.environment = environment
-      render(
-        <SettingsShell>
-          <div>Settings</div>
-        </SettingsShell>
-      )
-      expect(
-        screen.getByRole("button", { name: "nav.web_service" })
-      ).toBeVisible()
-    }
-  )
+  it.each(["electron"])("keeps the Web service entry in %s", (environment) => {
+    runtime.environment = environment
+    render(
+      <SettingsShell>
+        <div>Settings</div>
+      </SettingsShell>
+    )
+    expect(
+      screen.getByRole("button", { name: "nav.web_service" })
+    ).toBeVisible()
+  })
 
   it("does not offer desktop listener controls in the phone browser", () => {
     runtime.environment = "web"

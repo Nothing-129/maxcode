@@ -1,13 +1,13 @@
 //! Minisign signature verification for downloaded release archives.
 //!
 //! The release pipeline signs each server tarball/zip with the **same**
-//! minisign key the desktop updater uses (`tauri signer sign`), producing a
+//! historical minisign key (`tauri signer sign`), producing a
 //! detached `<asset>.sig`. We verify that signature against the public key
 //! embedded below before extracting or installing anything — executing a
 //! downloaded binary without verifying its provenance would be the whole
 //! ballgame for an attacker.
 //!
-//! Wire format note: both the public key (from `tauri.conf.json`) and the
+//! Wire format note: both the preserved public key below and the
 //! `.sig` produced by `tauri signer sign` are **base64 of a minisign text
 //! file**. We base64-decode that outer wrapper, then hand the inner
 //! minisign text to `minisign-verify`.
@@ -16,7 +16,7 @@ use base64::Engine;
 use minisign_verify::{PublicKey, Signature};
 
 /// Tauri-format minisign public key — copied verbatim from
-/// `tauri.conf.json` `plugins.updater.pubkey`. Base64 of the two-line
+/// the retired `tauri.conf.json` updater configuration. Base64 of the two-line
 /// `minisign.pub` file (`untrusted comment:` + `RW…` key line).
 const TAURI_PUBKEY_B64: &str = "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBDOTk3RDY2QjI1MTBBQzYKUldUR0NsR3labjJaREZjQjBKQnR5L3J0TXU5UG52UmZTUXgyL1N2cStycWNoTVhGT2tVdjNkZ0QK";
 

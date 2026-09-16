@@ -300,8 +300,7 @@ export function MarkdownDocumentPreview({
                 </a>
               )
             }
-            // Pin protocol-relative urls to https: the webview's own
-            // scheme (tauri://) would otherwise hijack them.
+            // Normalize protocol-relative URLs to HTTPS before opening externally.
             const external = href?.startsWith("//") ? `https:${href}` : href
             return external ? (
               <BrowserLink {...aProps} href={external}>

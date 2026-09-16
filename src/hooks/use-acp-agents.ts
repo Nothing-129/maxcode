@@ -177,7 +177,7 @@ function startSharedSubscription(): void {
 
   // Web/remote transports lose events emitted during a WS disconnect window
   // (the broadcaster drops them while `receiver_count == 0`). Re-fetching on
-  // reconnect is the recovery path; no-op on Tauri IPC.
+  // reconnect is the recovery path.
   const offReconnect = onTransportReconnect(reload)
   disposers.push(() => {
     if (offReconnect) {
@@ -218,9 +218,8 @@ function acquireSharedSubscription(): () => void {
 /**
  * Subscribe to the ACP agent registry. Every hook instance shares ONE store,
  * ONE fetch, and ONE set of focus / `app://acp-agents-updated` / reconnect
- * listeners (ref-counted) — previously each instance duplicated all of them and
- * the direct Tauri event API, bypassing the platform layer. Uses the
- * platform-agnostic `subscribe()` so the event path works in desktop and web.
+ * listeners (ref-counted). The shared `subscribe()` layer delivers backend
+ * events in Electron and browser clients.
  *
  * Behavior on error: the agents list is **not cleared** — keeping the last good
  * cache prevents a transient API blip from silently degrading downstream

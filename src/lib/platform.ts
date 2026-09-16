@@ -1,55 +1,17 @@
-import {
-  getActiveRemoteConnectionId,
-  isDesktop,
-  getTransport,
-} from "./transport"
+import { getTransport } from "./transport"
 import type { EventStream, UnsubscribeFn } from "./transport/types"
 import { getElectronBridge, isElectron } from "./electron"
 import type { ElectronOpenDialogOptions } from "./electron"
 
-/**
- * Platform-aware API wrappers for features that differ between
- * Tauri desktop and web browser environments.
- */
-
-export { isDesktop }
 export { isElectron }
 
-/** A native shell, independent of whether its backend uses IPC or HTTP. */
-export function isNativeDesktop(): boolean {
-  return isDesktop() || isElectron()
-}
-
-/**
- * True only for a LOCAL desktop app — a native window not viewing a remote
- * workspace. This is the exact condition under which `openPath` /
- * `revealItemInDir` actually do something (they no-op otherwise), so gate any
- * "reveal in file manager" affordance on it to avoid rendering a dead button
- * for remote-desktop connections.
- */
-export function isLocalDesktop(): boolean {
-  return isNativeDesktop() && getActiveRemoteConnectionId() === null
-}
-
-/**
- * True for a Tauri window pointed at a REMOTE workspace — the one case where
- * we know for certain the host that owns the workspace paths is not the machine
- * the user is looking at.
- *
- * Gate on this for actions the backend performs by opening a window on the
- * workspace host (launching an external editor, say): they'd succeed on the
- * far end and appear to do nothing here. Plain web mode is deliberately NOT
- * covered — a browser pointed at a `codeg-server` running on the user's own
- * machine is a first-class setup, and the loopback hostname can't tell that
- * apart from a port-forwarded remote.
- */
-export function isRemoteDesktopWindow(): boolean {
-  return isDesktop() && getActiveRemoteConnectionId() !== null
-}
+/** Native operations are available through the Electron preload bridge. */
+export const isNativeDesktop = isElectron
+export const isLocalDesktop = isElectron
 
 /**
  * Subscribe to backend events.
- * Uses Tauri listen() in desktop mode, WebSocket in web mode.
+ * Uses the shared WebSocket event transport.
  */
 export async function subscribe<T>(
   event: string,
@@ -58,33 +20,14 @@ export async function subscribe<T>(
   return getTransport().subscribe(event, handler)
 }
 
-/**
- * Register a callback to fire after a WebSocket transport reconnects.
- * Returns an unsubscribe function. Returns `null` on IPC-only transports
- * (desktop Tauri) where there's no disconnect window to recover from —
- * callers that re-fetch state on reconnect can safely no-op in that case.
- *
- * Use this alongside `subscribe()` for state that must be re-synced after
- * a network blip: the broadcaster drops events while `receiver_count == 0`,
- * so anything fired during the disconnect window is lost.
- */
+/** Re-sync state after the shared WebSocket transport reconnects. */
 export function onTransportReconnect(
   callback: () => void
 ): UnsubscribeFn | null {
   return getTransport().onReconnect?.(callback) ?? null
 }
 
-/**
- * Per-connection Subscribe-with-Snapshot stream. Returns `null` only on
- * the desktop Tauri transport (which uses local IPC and is race-free, so
- * the legacy `subscribe()` flow stays as the fallback). Web and remote-
- * desktop transports always return an EventStream.
- *
- * The returned EventStream instance is owned by the transport: it survives
- * across calls and re-attaches its subscriptions on reconnect. Don't
- * cache it across remote-workspace swaps — call this each time you need
- * to attach so you bind to the currently-active transport.
- */
+/** Per-connection snapshot stream, with automatic re-attachment on reconnect. */
 export function getEventStream(): EventStream | null {
   const transport = getTransport()
   const factory = transport.eventStream
@@ -92,34 +35,11 @@ export function getEventStream(): EventStream | null {
   return factory.call(transport)
 }
 
-/**
- * Open a URL in the default browser (desktop) or a new tab (web).
- *
- * The remote-workspace guard its neighbours carry is deliberately ABSENT here.
- * `openPath` / `revealItemInDir` take filesystem paths, which belong to
- * whichever host the workspace lives on; a URL belongs to no host. And a
- * remote-desktop window is still a Tauri webview, where `window.open` opens
- * NOTHING (the app registers no new-window handler, so wry answers the request
- * with nil on macOS and `SetHandled(true)` on Windows) — gating this on
- * `isLocalDesktop()` left every external link silently dead in those windows.
- * The `remote-*` windows carry `opener:default` in `capabilities/default.json`,
- * so the plugin call is permitted there.
- *
- * `noreferrer` (which implies `noopener`) is not decoration: without it the
- * opened page gets a `window.opener` handle back into the app and can navigate
- * this tab, and the Referer leaks. It also makes `window.open` return null even
- * on success (HTML window-open steps 12 and 17), so the return value carries no
- * signal — don't test it for a "popup blocked" check.
- */
+/** Open a URL in the desktop browser or a new browser tab. */
 export async function openUrl(url: string): Promise<void> {
   const electron = getElectronBridge()
   if (electron) return electron.openExternal(url)
-  if (isDesktop()) {
-    const { openUrl: tauriOpenUrl } = await import("@tauri-apps/plugin-opener")
-    await tauriOpenUrl(url)
-  } else {
-    window.open(url, "_blank", "noreferrer")
-  }
+  window.open(url, "_blank", "noreferrer")
 }
 
 /**
@@ -130,11 +50,6 @@ export async function openPath(path: string): Promise<void> {
   if (!isLocalDesktop()) return
   const electron = getElectronBridge()
   if (electron) return electron.openPath(path)
-  if (isDesktop() && getActiveRemoteConnectionId() === null) {
-    const { openPath: tauriOpenPath } =
-      await import("@tauri-apps/plugin-opener")
-    await tauriOpenPath(path)
-  }
 }
 
 /**
@@ -145,11 +60,6 @@ export async function revealItemInDir(path: string): Promise<void> {
   if (!isLocalDesktop()) return
   const electron = getElectronBridge()
   if (electron) return electron.revealItemInDir(path)
-  if (isDesktop() && getActiveRemoteConnectionId() === null) {
-    const { revealItemInDir: tauriReveal } =
-      await import("@tauri-apps/plugin-opener")
-    await tauriReveal(path)
-  }
 }
 
 /**
@@ -163,10 +73,7 @@ export async function openFileDialog(
     const paths = await electron.openFileDialog(options ?? {})
     return options?.multiple ? paths : (paths?.[0] ?? null)
   }
-  if (isDesktop() && getActiveRemoteConnectionId() === null) {
-    const { open } = await import("@tauri-apps/plugin-dialog")
-    return open(options ?? {})
-  }
+
   // Web fallback: for directory selection, prompt for server-side path.
   // For file selection, use a hidden file input.
   if (options?.directory) {
@@ -191,30 +98,9 @@ export async function openFileDialog(
   })
 }
 
-/**
- * Get the current Tauri window (desktop only).
- * Returns null in web mode.
- */
-export async function getCurrentWindow() {
-  if (isDesktop()) {
-    const { getCurrentWindow: tauriGetCurrentWindow } =
-      await import("@tauri-apps/api/window")
-    return tauriGetCurrentWindow()
-  }
-  return null
-}
-
-/**
- * Close the current window.
- * Desktop: closes Tauri window. Web: navigates back or closes tab.
- */
+/** Close the desktop window or return to the previous browser page. */
 export async function closeCurrentWindow(): Promise<void> {
   const electron = getElectronBridge()
   if (electron) return electron.closeWindow()
-  if (isDesktop()) {
-    const win = await getCurrentWindow()
-    await win?.close()
-  } else {
-    window.history.back()
-  }
+  window.history.back()
 }

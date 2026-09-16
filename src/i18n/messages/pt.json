@@ -242,10 +242,6 @@
     "loading": "Carregando...",
     "sectionTitle": "Gerenciamento do sistema",
     "sectionDescription": "Gerencie atualizações do app, o início automático ao fazer login, o proxy de rede e as preferências de idioma.",
-    "autostartTitle": "Iniciar ao fazer login",
-    "autostartDescription": "Abre automaticamente depois de você entrar neste computador.",
-    "autostartSaveFailed": "Falha ao salvar as configurações de início automático: {message}",
-    "autostartUnavailable": "Não foi possível ler o registro de inicialização deste computador: {message}",
     "proxyTitle": "Proxy de rede",
     "proxyDescription": "Quando ativado, as solicitações de rede seguintes priorizam este proxy (incluindo chat ACP, instalação de agentes e operações remotas do Git).",
     "loadFailed": "Falha ao carregar: {message}",
@@ -1486,6 +1482,7 @@
       "onlineChecking": "Consultando a fonte de publicação…",
       "onlineFailed": "Falha na verificação online: {error}",
       "onlineUnavailable": "Não há informações de versão online.",
+      "officialRuntime": "CLI nativa: {installed}; última oficial: {latest}",
       "onlineRelease": "Versão publicada mais recente: {version} ({source})",
       "onlineUnknown": "A versão local não é comparável.",
       "onlineNewer": "Há uma atualização disponível.",
@@ -1655,9 +1652,16 @@
     "skillPacksLoading": "Carregando pacotes de habilidades…"
   },
   "GeneralSettings": {
+    "loginItem": {
+      "title": "Iniciar ao entrar",
+      "description": "Abrir o MaxCode automaticamente ao entrar no computador.",
+      "needsApproval": "Permita o MaxCode nos itens de início de sessão ou nos aplicativos de inicialização do sistema.",
+      "loadFailed": "Não foi possível ler a configuração de inicialização. Volte a esta janela para tentar novamente.",
+      "saveFailed": "Não foi possível salvar a configuração. Verifique os itens de início de sessão ou os aplicativos de inicialização."
+    },
     "loading": "Carregando...",
     "sectionTitle": "Geral",
-    "sectionDescription": "Preferências centralizadas para o terminal padrão, aceleração de renderização, notificações e delegação multi-agente.",
+    "sectionDescription": "Preferências centralizadas para o terminal padrão, notificações e delegação multi-agente.",
     "terminalTitle": "Terminal padrão",
     "terminalDescription": "Escolha o shell usado ao abrir novas abas de terminal pela barra de terminal ou pela árvore de arquivos. Os agentes também o usam quando pedem ao MaxCode para executar uma linha de comando inteira.",
     "terminalSystemDefault": "Padrão do sistema",
@@ -1675,12 +1679,6 @@
     "terminalCurrentShell": "Em uso: {path}",
     "colorizeCommandOutput": "Colorir a saída dos comandos",
     "colorizeCommandOutputDescription": "Força cor ANSI nos comandos que os agentes executam, para que a saída apareça colorida na transcrição em vez de como texto simples. Vale para sessões novas.",
-    "renderingDescription": "Desative a aceleração de hardware se o aplicativo apresentar tela preta ou falhas de renderização (comum em certas GPUs AMD ou GPUs Intel integradas no Windows e com o driver proprietário da NVIDIA no Linux). Aplica-se apenas às versões desktop do Windows e do Linux.",
-    "disableHardwareAcceleration": "Desativar aceleração de hardware",
-    "renderingSaveFailed": "Falha ao salvar as configurações de renderização: {message}",
-    "restartRequired": "Salvo. Reinicie o aplicativo para aplicar a alteração.",
-    "restartNow": "Reiniciar agora",
-    "restartFailed": "Falha ao reiniciar: {message}",
     "loadFailed": "Falha ao carregar: {message}"
   },
   "LoginPage": {
@@ -2157,8 +2155,7 @@
           "workspace": "Espaço de trabalho",
           "navigation": "Navegação",
           "more": "Mais"
-        },
-        "showPet": "Mostrar pet"
+        }
       }
     },
     "auxPanel": {
@@ -4465,166 +4462,6 @@
       "saved": "Mensagem rápida salva",
       "deleted": "Mensagem rápida excluída"
     }
-  },
-  "Pet": {
-    "badge": {
-      "running": "{count} em execução",
-      "waiting": "{count} aguardando aprovação",
-      "error": "{count} com erro"
-    },
-    "panel": {
-      "title": "Sessões ativas",
-      "empty": "Nenhuma sessão ativa",
-      "emptyHint": "Agentes em execução e os que precisam de você aparecem aqui.",
-      "statusRunning": "Em execução",
-      "statusWaiting": "Aguardando",
-      "statusError": "Erro",
-      "subAgentOf": "Subagente de"
-    },
-    "menu": {
-      "scale": "Escala",
-      "openManager": "Gerenciar pets",
-      "close": "Fechar"
-    },
-    "loadError": "Falha ao carregar pet",
-    "missingPetIdParam": "Nenhum pet selecionado",
-    "summonButton": "Pet",
-    "manager": {
-      "title": "Pets",
-      "description": "Companheiros flutuantes de desktop com sprites compatíveis com o Codex.",
-      "addPet": "Adicionar pet",
-      "importFromCodex": "Importar do Codex",
-      "noPets": "Sem pets. Adicione um ou importe do Codex.",
-      "setActive": "Ativar",
-      "active": "Ativo",
-      "edit": "Editar",
-      "delete": "Excluir",
-      "deleteConfirm": "Excluir o pet \"{name}\"? Será removido do disco.",
-      "summon": "Invocar janela do pet",
-      "openCodexHelp": "Pets do Codex precisam estar em ~/.codex/pets/. Nenhum encontrado.",
-      "specRequirement": "O sprite precisa ter 1536px de largura e altura múltipla de 208px (ex.: 1872 ou 2288), em PNG ou WebP com transparência.",
-      "form": {
-        "id": "ID do pet",
-        "idHelp": "Minúsculas, dígitos, '-' e '_'. Máx 64 caracteres.",
-        "displayName": "Nome",
-        "description": "Descrição (opcional)",
-        "spritesheet": "Sprite",
-        "chooseFile": "Escolher arquivo",
-        "replaceFile": "Substituir sprite",
-        "saveCreate": "Adicionar pet",
-        "saveUpdate": "Salvar alterações",
-        "cancel": "Cancelar"
-      },
-      "errors": {
-        "missingId": "ID obrigatório",
-        "missingName": "Nome obrigatório",
-        "missingSpritesheet": "Sprite obrigatório",
-        "addFailed": "Falha ao adicionar",
-        "updateFailed": "Falha ao atualizar",
-        "deleteFailed": "Falha ao excluir",
-        "loadFailed": "Falha ao carregar pets",
-        "setActiveFailed": "Falha ao ativar pet",
-        "summonFailed": "Falha ao abrir a janela do pet"
-      }
-    },
-    "import": {
-      "title": "Importar do Codex",
-      "subtitle": "Pets disponíveis em ~/.codex/pets/.",
-      "selectAll": "Selecionar todos",
-      "alreadyImported": "Já importado",
-      "renameOnConflict": "Renomear conflitos com sufixo -imported",
-      "import": "Importar selecionados",
-      "noneFound": "Nenhum pet do Codex disponível.",
-      "imported": "Importação concluída",
-      "failed": "Falha no import",
-      "close": "Fechar"
-    },
-    "marketplace": {
-      "openMarketplace": "Mercado de pets",
-      "title": "Mercado de pets",
-      "search": "Buscar pets",
-      "kindFilter": {
-        "all": "Todos",
-        "object": "Objeto",
-        "animal": "Animal",
-        "person": "Pessoa",
-        "creature": "Criatura"
-      },
-      "sortFilter": {
-        "latest": "Recentes",
-        "popular": "Populares",
-        "views": "Mais vistos"
-      },
-      "refresh": "Atualizar",
-      "install": "Instalar",
-      "installing": "Instalando",
-      "reinstall": "Reinstalar",
-      "reinstallConfirm": "Sobrescrever o pet local \"{name}\"? Os dados existentes serão substituídos.",
-      "cancel": "Cancelar",
-      "stats": {
-        "views": "Visualizações",
-        "downloads": "Downloads",
-        "likes": "Curtidas"
-      },
-      "actions": {
-        "idle": "Parado",
-        "running_right": "Corre dir.",
-        "running_left": "Corre esq.",
-        "waving": "Acena",
-        "jumping": "Pula",
-        "failed": "Falha",
-        "waiting": "Espera",
-        "running": "Corre",
-        "review": "Revisão"
-      },
-      "page": "Página {page} de {total}",
-      "prev": "Anterior",
-      "next": "Próxima",
-      "empty": "Nenhum pet corresponde.",
-      "successInstalled": "\"{name}\" instalado",
-      "errors": {
-        "loadFailed": "Falha ao carregar o mercado",
-        "installFailed": "Falha ao instalar o pet",
-        "alreadyInstalled": "O pet já existe localmente"
-      }
-    }
-  },
-  "RemoteWorkspace": {
-    "openRemoteWorkspace": "Open remote workspace",
-    "manage": "Manage remote workspace",
-    "manageTitle": "Remote Workspace connections",
-    "empty": "No remote connections",
-    "searchPlaceholder": "Search remote workspaces",
-    "orderFailed": "Failed to save remote workspace order",
-    "dragSort": "Drag to sort",
-    "dragSortConnection": "Drag to sort {name}",
-    "newConnection": "New connection",
-    "loading": "Loading",
-    "loadingConnection": "Loading remote connection",
-    "name": "Name",
-    "baseUrl": "Service URL",
-    "token": "Access token",
-    "customHeaders": "Cabeçalhos personalizados",
-    "customHeaderName": "Nome do cabeçalho",
-    "customHeaderValue": "Valor do cabeçalho",
-    "addCustomHeader": "Adicionar cabeçalho",
-    "removeCustomHeader": "Remover cabeçalho",
-    "save": "Save",
-    "delete": "Delete",
-    "confirmDelete": {
-      "title": "Delete remote connection?",
-      "message": "This will remove \"{name}\" from this device. This action cannot be undone.",
-      "cancel": "Cancel",
-      "confirm": "Delete"
-    },
-    "saved": "Remote connection saved.",
-    "deleted": "Remote connection deleted.",
-    "loadFailed": "Failed to load remote connections",
-    "saveFailed": "Failed to save remote connection",
-    "deleteFailed": "Failed to delete remote connection",
-    "openFailed": "Failed to open remote workspace",
-    "connectionLoadFailed": "Failed to load remote connection: {message}",
-    "connectionExpired": "Remote connection \"{name}\" is expired. Update its token and reload this window."
   },
   "ServerFileBrowser": {
     "title": "Selecionar arquivo do servidor",

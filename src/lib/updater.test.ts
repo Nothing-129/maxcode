@@ -1,24 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 const call = vi.fn()
-// Flipped per-test so the desktop (Tauri plugin) branch of the updater can be
-// exercised alongside the server one.
+const electronCheck = vi.fn()
 let desktop = false
-
 vi.mock("@/lib/transport", () => ({
   getTransport: () => ({ call }),
-  isDesktop: () => desktop,
-  isRemoteDesktopMode: () => false,
-  getActiveRemoteConnectionId: () => null,
 }))
-
-const tauriGetVersion = vi.fn(async () => "0.21.8")
-const tauriCheck = vi.fn()
-vi.mock("@tauri-apps/api/app", () => ({
-  getVersion: () => tauriGetVersion(),
-}))
-vi.mock("@tauri-apps/plugin-updater", () => ({
-  check: (options?: { timeout?: number }) => tauriCheck(options),
+vi.mock("./electron", () => ({
+  isElectron: () => desktop,
+  getElectronBridge: () =>
+    desktop ? { version: "0.21.8", checkForUpdate: electronCheck } : null,
 }))
 
 import {
@@ -32,6 +23,10 @@ import {
   readServerVersionStrict,
   waitForServerHealthy,
 } from "@/lib/updater"
+
+afterEach(() => {
+  desktop = false
+})
 
 describe("readServerVersionStrict", () => {
   beforeEach(() => {
@@ -221,8 +216,7 @@ describe("waitForServerHealthy", () => {
 describe("checkAppUpdateInfo", () => {
   beforeEach(() => {
     call.mockReset()
-    tauriCheck.mockReset()
-    tauriGetVersion.mockClear()
+    electronCheck.mockReset()
     desktop = false
   })
 
@@ -249,69 +243,23 @@ describe("checkAppUpdateInfo", () => {
     expect(result.liveProgress).toBe(true)
   })
 
-  it("copies the desktop release fields and releases the updater handle", async () => {
-    // The Tauri `Update` is a resource handle. Since the download is driven in
-    // Rust (which re-checks on its own), holding it would leak an entry in the
-    // resource table on every periodic check.
+  it("uses Electron's updater without invoking the bundled server updater", async () => {
     desktop = true
-    const close = vi.fn(async () => {})
-    tauriCheck.mockResolvedValueOnce({
-      version: "0.21.9",
-      body: "fixes",
-      date: "2026-07-24",
-      close,
-    })
-
-    const result = await checkAppUpdateInfo()
-    expect(result).toEqual({
+    const result = {
       currentVersion: "0.21.8",
-      update: { version: "0.21.9", body: "fixes", date: "2026-07-24" },
-    })
-    expect(close).toHaveBeenCalledTimes(1)
-    // Never reaches the server endpoint in desktop mode.
+      update: { version: "0.21.9", body: "fixes" },
+    }
+    electronCheck.mockResolvedValueOnce(result)
+    expect(await checkAppUpdateInfo()).toEqual(result)
     expect(call).not.toHaveBeenCalled()
   })
 
-  it("reports no update (and closes nothing) when desktop is up to date", async () => {
+  it("propagates a failed Electron check for error classification", async () => {
     desktop = true
-    tauriCheck.mockResolvedValueOnce(null)
-
-    const result = await checkAppUpdateInfo()
-    expect(result).toEqual({ currentVersion: "0.21.8", update: null })
-  })
-
-  it("still releases the handle when reading its fields throws", async () => {
-    desktop = true
-    const close = vi.fn(async () => {})
-    tauriCheck.mockResolvedValueOnce({
-      get version(): string {
-        throw new Error("resource gone")
-      },
-      close,
-    })
-
-    await expect(checkAppUpdateInfo()).rejects.toThrow("resource gone")
-    expect(close).toHaveBeenCalledTimes(1)
-  })
-
-  it("bounds the desktop manifest fetch so a black-holed network can't hang it", async () => {
-    // tauri-plugin-updater applies no timeout of its own; without an explicit
-    // one a dropped-packet network leaves check() pending forever, and with it
-    // the provider's in-flight guard — killing checks for the whole session.
-    desktop = true
-    tauriCheck.mockResolvedValueOnce(null)
-
-    await checkAppUpdateInfo()
-
-    const opts = tauriCheck.mock.calls[0]?.[0] as { timeout?: number }
-    expect(opts?.timeout).toBeGreaterThan(0)
-  })
-
-  it("propagates a failed check so the caller can classify it", async () => {
-    desktop = true
-    tauriCheck.mockRejectedValueOnce(new Error("error sending request for url"))
-
-    await expect(checkAppUpdateInfo()).rejects.toThrow()
+    electronCheck.mockRejectedValueOnce(
+      new Error("error sending request for url")
+    )
+    await expect(checkAppUpdateInfo()).rejects.toThrow("error sending request")
   })
 })
 

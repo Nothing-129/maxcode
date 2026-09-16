@@ -1,9 +1,7 @@
 "use client"
 
 import {
-  createContext,
   useCallback,
-  useContext,
   useDeferredValue,
   useEffect,
   useMemo,
@@ -28,7 +26,6 @@ import {
   useWorkspaceFileTabs,
 } from "@/contexts/workspace-context"
 import { useWorkspaceStateStore } from "@/hooks/use-workspace-state-store"
-import { detectPlatform } from "@/hooks/use-platform"
 import { findOwningFolder } from "@/lib/file-open-target"
 import { AuxPanelNoFolderEmpty } from "@/components/layout/aux-panel-no-folder-empty"
 import { WorkspaceDegradedBanner } from "@/components/layout/workspace-degraded-banner"
@@ -53,10 +50,8 @@ import {
   renameFileTreeEntry,
   WORKSPACE_DOWNLOAD_CANCELLED,
 } from "@/lib/api"
-import { isDesktop, isRemoteDesktopMode } from "@/lib/transport"
 import { emitAttachFileToSession } from "@/lib/session-attachment-events"
 import {
-  resolveFileTreeDropZone,
   writeFileTreeDragData,
   type FileTreeDragPayload,
 } from "@/lib/file-tree-dnd"
@@ -151,17 +146,6 @@ async function copyPathToClipboard(
 
 const FILE_TREE_ROOT_PATH = "__workspace_root__"
 const GITIGNORE_MUTED_CLASS = "text-muted-foreground/55"
-
-/**
- * The directory drop zone highlighted by an in-flight *desktop* native drag
- * (relative path; `""` = workspace root), or null. On the web each row derives
- * its own drop highlight from the DOM `dragover`/`dragleave` it receives; on
- * desktop WebKit suppresses those target-side events during a native drag
- * (only `dragstart`/`dragend` reach the DOM), so the highlight is instead
- * broadcast here from Tauri's native DRAG_OVER hit-test and OR-ed into each
- * row's `dropActive`. Stays null on the web, so it never forces a re-render there.
- */
-const DesktopDropDirContext = createContext<string | null>(null)
 
 interface FileActionTarget {
   kind: "file" | "dir"
@@ -542,11 +526,6 @@ interface TreeDndHandlers {
   /** Begin dragging `node`: stash it as the source and write the drag payload
    *  (so the composer can read a file reference off the same drag). */
   onEntryDragStart: (event: React.DragEvent, node: FileTreeNode) => void
-  /** Fires continuously while dragging the source row (the DOM `drag` event).
-   *  Desktop-only use: WebKit suppresses the target-side dragover, but this
-   *  source-side event still fires with the cursor in CSS px, so the drop-target
-   *  directory highlight is hit-tested from here. No-op on the web. */
-  onEntryDrag: (clientX: number, clientY: number) => void
   /** End the current drag (drop or cancel) — clears the source. */
   onEntryDragEnd: () => void
   /** Whether the in-flight source may drop into `destDir` (relative; `""` =
@@ -573,9 +552,6 @@ function RootDropFolder({
   children: ReactNode
 } & HTMLAttributes<HTMLDivElement>) {
   const [dropActive, setDropActive] = useState(false)
-  // On desktop the DOM dragover never reaches this row, so also honor the
-  // native-drag highlight broadcast for the workspace root ("").
-  const desktopDropActive = useContext(DesktopDropDirContext) === ""
   return (
     <FileTreeFolder
       // Forwarded first so the row's own props win, but forwarded at all: this
@@ -587,7 +563,7 @@ function RootDropFolder({
       name={name}
       className={cn("font-medium", props.className)}
       actions={<RowMoreButton />}
-      dropActive={dropActive || desktopDropActive}
+      dropActive={dropActive}
       dropTargetDir=""
       depth={0}
       rowProps={{
@@ -688,9 +664,6 @@ function RenderNode({
   // directory row up while a valid drop hovers it (files are never drop targets).
   const [dragging, setDragging] = useState(false)
   const [dropActive, setDropActive] = useState(false)
-  // Desktop native drags don't emit DOM dragover, so a directory also lights up
-  // when it's the drop zone broadcast from the Tauri DRAG_OVER hit-test.
-  const desktopDropDir = useContext(DesktopDropDirContext)
   // The backend flags every directory that is a symlink on disk, so this badges
   // links the user made with `ln -s` at any depth — not just the top-level ones
   // registered through the "link folder" dialog.
@@ -769,7 +742,6 @@ function RenderNode({
               setDragging(true)
               dnd.onEntryDragStart(event, node)
             }}
-            onDrag={(event) => dnd.onEntryDrag(event.clientX, event.clientY)}
             onDragEnd={() => {
               setDragging(false)
               dnd.onEntryDragEnd()
@@ -959,7 +931,7 @@ function RenderNode({
                 : undefined
           }
           iconClassName={isGitignoreIgnored ? GITIGNORE_MUTED_CLASS : undefined}
-          dropActive={dropActive || desktopDropDir === node.path}
+          dropActive={dropActive}
           dropTargetDir={node.path}
           depth={depth}
           rowProps={{
@@ -969,7 +941,7 @@ function RenderNode({
               setDragging(true)
               dnd.onEntryDragStart(event, node)
             },
-            onDrag: (event) => dnd.onEntryDrag(event.clientX, event.clientY),
+
             onDragEnd: () => {
               setDragging(false)
               setDropActive(false)
@@ -1297,19 +1269,8 @@ export function FileTreeTab() {
     kind: "file" | "dir"
     parentDir: string
   } | null>(null)
-  // Desktop-only: true once our drag has ended but its source is still retained
-  // for the trailing native DRAG_DROP (which arrives after `dragend`). The next
-  // drag to *enter* the webview evicts the retained source so an unrelated
-  // (also path-less) foreign drop can't replay a cancelled tree drag.
-  const dragEndedRef = useRef(false)
-  // Desktop-only: the directory drop zone (relative path; "" = root) under the
-  // in-flight native drag, broadcast to rows via DesktopDropDirContext so they
-  // highlight it (WebKit doesn't deliver the DOM dragover that drives the web
-  // highlight). Null when no valid directory is under the cursor. Always null on
-  // the web, where the DOM path handles the highlight locally.
-  const [desktopDropDir, setDesktopDropDir] = useState<string | null>(null)
-
   useEffect(() => {
+    dragSourceRef.current = null
     setExpandedPaths(new Set([FILE_TREE_ROOT_PATH]))
     previousExpandedPathsRef.current = new Set([FILE_TREE_ROOT_PATH])
     setGitignoreIgnoredPaths(new Set())
@@ -1905,7 +1866,6 @@ export function FileTreeTab() {
         kind: node.kind,
         parentDir: parentDir(node.path),
       }
-      dragEndedRef.current = false
       writeFileTreeDragData(event.dataTransfer, payload)
       // Let the target choose: "move" for a tree folder, "copy" for the composer.
       event.dataTransfer.effectAllowed = "copyMove"
@@ -1918,52 +1878,8 @@ export function FileTreeTab() {
     [folder?.path]
   )
 
-  // Desktop drop-target highlight. WebKit swallows the target-side DOM dragover
-  // during a native drag (only source-side dragstart/drag/dragend reach the DOM
-  // — the same reason the drop is committed from Tauri's native event), so the
-  // per-row onDragOver highlight never runs on desktop. The source-side `drag`
-  // event DOES fire, with the cursor already in CSS px, so we hit-test it here to
-  // light up the directory under the cursor. Web keeps its own onDragOver path;
-  // this early-returns there so desktopDropDir stays null and forces no re-render.
-  const onEntryDrag = useCallback((clientX: number, clientY: number) => {
-    if (!isDesktop()) return
-    // Some `drag` frames report (0,0) before the cursor is tracked — ignore them
-    // so a stray frame doesn't flicker the highlight off.
-    if (clientX === 0 && clientY === 0) return
-    const src = dragSourceRef.current
-    if (!src) {
-      setDesktopDropDir(null)
-      return
-    }
-    const zone = resolveFileTreeDropZone(
-      document.elementFromPoint(clientX, clientY)
-    )
-    setDesktopDropDir(
-      zone?.kind === "dir" && canMoveEntry(src, zone.destDir)
-        ? zone.destDir
-        : null
-    )
-  }, [])
-
   const onEntryDragEnd = useCallback(() => {
-    // On desktop the HTML5 `drop` never fires — Tauri's webview consumes the OS
-    // drop before WebKit dispatches it — so the drag is committed later from the
-    // native DRAG_DROP event, which arrives *after* this `dragend` and still
-    // needs the source. Keep it and mark the drag ended so a subsequent foreign
-    // drag entering the webview evicts the now-stale source (see the DRAG_ENTER
-    // listener) rather than letting an unrelated path-less drop replay it. On
-    // the web the DOM `drop` handler has already committed synchronously by now,
-    // so clearing here just tidies up after a drop or a cancel.
-    if (isDesktop()) {
-      dragEndedRef.current = true
-    } else {
-      dragSourceRef.current = null
-    }
-    // Drop the desktop highlight on any drag end (including cancel). `dragend`
-    // fires on desktop even though `drop` doesn't, and precedes the trailing
-    // native DRAG_DROP; the pending move still reads the retained dragSourceRef.
-    // No-op on the web (already null → React bails out).
-    setDesktopDropDir(null)
+    dragSourceRef.current = null
   }, [])
 
   const canDropInto = useCallback((destDir: string) => {
@@ -1984,150 +1900,12 @@ export function FileTreeTab() {
   const treeDndValue = useMemo<TreeDndHandlers>(
     () => ({
       onEntryDragStart,
-      onEntryDrag,
       onEntryDragEnd,
       canDropInto,
       onDropInto,
     }),
-    [onEntryDragStart, onEntryDrag, onEntryDragEnd, canDropInto, onDropInto]
+    [onEntryDragStart, onEntryDragEnd, canDropInto, onDropInto]
   )
-
-  // Desktop commit path. Tauri's webview drag-drop handler always reports the
-  // OS drop as handled, so WebKit never dispatches an HTML5 `drop` to the DOM
-  // and the tree/composer `onDrop` handlers (which drive the web path) never
-  // run. Tauri does emit its own drag-drop event for the same gesture, so we
-  // finish an in-flight tree drag here: an internal drag reports no `paths`
-  // (only OS file drops carry paths — those belong to the composer's uploader),
-  // and we hit-test the drop coordinates against the `data-tree-drop-*` markers
-  // to decide between a directory move and a composer insert.
-  const commitDesktopDrop = useCallback(
-    (paths: string[], position: { x: number; y: number }) => {
-      const src = dragSourceRef.current
-      if (!src) return
-      // OS file drops carry `paths`; those are the composer uploader's job. An
-      // internal tree drag has none — but neither do foreign text/link/other
-      // non-file drops, so also require our own retained source (evicted by the
-      // DRAG_ENTER listener once a new drag begins) before acting.
-      if (paths.length > 0) return
-      dragSourceRef.current = null
-      dragEndedRef.current = false
-      const rootPath = folder?.path
-      if (!rootPath) return
-      // Resolve one authoritative CSS-pixel point (`elementFromPoint`'s space).
-      // On macOS wry reports the drop in window points, which already equal CSS
-      // pixels (Tauri mislabels them "physical"), so use them as-is; elsewhere
-      // the position is genuinely physical and is scaled down by the DPR.
-      const scale =
-        detectPlatform() === "macos" ? 1 : window.devicePixelRatio || 1
-      const zone = resolveFileTreeDropZone(
-        document.elementFromPoint(position.x / scale, position.y / scale)
-      )
-      if (!zone) return
-      if (zone.kind === "dir") {
-        if (canMoveEntry(src, zone.destDir)) {
-          void handleMoveEntry(src.relPath, zone.destDir)
-        }
-      } else {
-        emitAttachFileToSession({
-          tabId: zone.tabId,
-          path: joinFsPath(rootPath, src.relPath),
-        })
-      }
-    },
-    [folder?.path, handleMoveEntry]
-  )
-  // Read at event time so the Tauri listener can subscribe once (below) yet
-  // always see the latest folder / move handler.
-  const commitDesktopDropRef = useRef(commitDesktopDrop)
-  useEffect(() => {
-    commitDesktopDropRef.current = commitDesktopDrop
-  }, [commitDesktopDrop])
-
-  useEffect(() => {
-    if (!isDesktop()) return
-    let cancelled = false
-    const unlisteners: Array<() => void> = []
-    const setup = async () => {
-      const { getCurrentWebview } = await import("@tauri-apps/api/webview")
-      const { TauriEvent } = await import("@tauri-apps/api/event")
-      const webview = getCurrentWebview()
-      // Which directory zone (relative path; "" = root) the drag is over, or
-      // null. Mirrors commitDesktopDrop's hit-test but for the live highlight:
-      // same authoritative-CSS-pixel scaling (macOS window points already equal
-      // CSS px; elsewhere physical ÷ DPR), and only a *droppable* directory
-      // (canMoveEntry) lights up — hovering a file, the composer, or an invalid
-      // target clears it.
-      const resolveDesktopDropDir = (position: {
-        x: number
-        y: number
-      }): string | null => {
-        const src = dragSourceRef.current
-        if (!src) return null
-        const scale =
-          detectPlatform() === "macos" ? 1 : window.devicePixelRatio || 1
-        const zone = resolveFileTreeDropZone(
-          document.elementFromPoint(position.x / scale, position.y / scale)
-        )
-        return zone?.kind === "dir" && canMoveEntry(src, zone.destDir)
-          ? zone.destDir
-          : null
-      }
-      const unlistenOver = await webview.listen<{
-        position: { x: number; y: number }
-      }>(TauriEvent.DRAG_OVER, (event) => {
-        if (cancelled) return
-        setDesktopDropDir(resolveDesktopDropDir(event.payload.position))
-      })
-      const unlistenLeave = await webview.listen(TauriEvent.DRAG_LEAVE, () => {
-        if (cancelled) return
-        setDesktopDropDir(null)
-      })
-      const unlistenDrop = await webview.listen<{
-        paths: string[]
-        position: { x: number; y: number }
-      }>(TauriEvent.DRAG_DROP, (event) => {
-        if (cancelled) return
-        setDesktopDropDir(null)
-        commitDesktopDropRef.current(
-          event.payload.paths,
-          event.payload.position
-        )
-      })
-      // A new drag entering the webview after our own drag ended means the
-      // retained source belongs to a cancelled drag — evict it so this foreign
-      // (also path-less) drop can't replay it. Our own drag re-enters while
-      // `dragEndedRef` is false (dragstart runs first), so it's untouched.
-      const unlistenEnter = await webview.listen(TauriEvent.DRAG_ENTER, () => {
-        if (cancelled) return
-        if (dragEndedRef.current) {
-          dragSourceRef.current = null
-          dragEndedRef.current = false
-        }
-      })
-      if (cancelled) {
-        unlistenOver()
-        unlistenLeave()
-        unlistenDrop()
-        unlistenEnter()
-        return
-      }
-      unlisteners.push(unlistenOver, unlistenLeave, unlistenDrop, unlistenEnter)
-    }
-    void setup()
-    return () => {
-      cancelled = true
-      for (const unlisten of unlisteners.splice(0)) unlisten()
-    }
-  }, [])
-
-  // A workspace-folder switch invalidates any retained drag source: its path is
-  // relative to the previous root, so a trailing native drop must not move it
-  // under the new root.
-  useEffect(() => {
-    dragSourceRef.current = null
-    dragEndedRef.current = false
-    setDesktopDropDir(null)
-  }, [folder?.path])
 
   const handleOpenDirInTerminal = useCallback(
     async (dirPath: string, fileName: string) => {
@@ -2184,12 +1962,7 @@ export function FileTreeTab() {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
   const [uploadDialogTarget, setUploadDialogTarget] = useState("")
   useEffect(() => {
-    // "webMode" here is a misnomer for "needs in-app upload/download
-    // affordances because there's no native OS file picker for the
-    // *destination/source* filesystem". That's true in pure-web mode
-    // AND in remote-desktop mode (where the workspace lives on the
-    // remote server, not on the local disk the OS dialog would target).
-    setWebMode(!isDesktop() || isRemoteDesktopMode())
+    setWebMode(true)
     setFolderUploadSupported(
       "webkitdirectory" in document.createElement("input")
     )
@@ -2916,7 +2689,7 @@ export function FileTreeTab() {
               onSelect={handleTreeSelect}
             >
               {folder?.path && (
-                <DesktopDropDirContext.Provider value={desktopDropDir}>
+                <>
                   <ContextMenu>
                     {/*
                       asChild merges the Radix trigger's pointerdown /
@@ -3108,7 +2881,7 @@ export function FileTreeTab() {
                       )}
                     </ContextMenuContent>
                   </ContextMenu>
-                </DesktopDropDirContext.Provider>
+                </>
               )}
             </FileTree>
           </ScrollArea>

@@ -735,7 +735,6 @@ fn extract_bundle_dir(
 
 // ─── Commands: list / status ────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_list() -> Result<Vec<ExpertListItem>, ExpertsError> {
     let meta_list = bundled_metadata().to_vec();
     let manifest = load_manifest();
@@ -758,7 +757,6 @@ pub async fn experts_list() -> Result<Vec<ExpertListItem>, ExpertsError> {
     Ok(out)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_get_install_status(
     expert_id: String,
 ) -> Result<Vec<ExpertInstallStatus>, ExpertsError> {
@@ -890,7 +888,6 @@ fn link_one_locked(
     })
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_link_to_agent(
     expert_id: String,
     agent_type: AgentType,
@@ -899,7 +896,6 @@ pub async fn experts_link_to_agent(
     link_one_locked(&expert_id, agent_type)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_unlink_from_agent(
     expert_id: String,
     agent_type: AgentType,
@@ -964,7 +960,6 @@ fn unlink_one_locked(expert_id: &str, agent_type: AgentType) -> Result<(), Exper
 /// re-fetches the authoritative snapshot via `experts_list_all_install_statuses`
 /// to reconcile (necessary because shared agent dirs make per-op state
 /// non-local — see the office/experts shared-dir note).
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, ExpertsError> {
     let _guard = mutation_lock().lock().await;
     let mut out = Vec::with_capacity(ops.len());
@@ -1002,7 +997,6 @@ pub async fn experts_apply_links(ops: Vec<LinkOp>) -> Result<Vec<LinkOpResult>, 
 /// One-shot snapshot of every (expert, agent) link state — lets the matrix UI
 /// render the whole grid from a single round-trip instead of one
 /// `experts_get_install_status` call per expert.
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_list_all_install_statuses() -> Result<Vec<ExpertInstallStatus>, ExpertsError> {
     let agents = supported_agents();
     let mut out = Vec::with_capacity(bundled_metadata().len() * agents.len());
@@ -1031,7 +1025,6 @@ pub async fn experts_list_all_install_statuses() -> Result<Vec<ExpertInstallStat
 
 // ─── Commands: read / open ──────────────────────────────────────────────
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_read_content(expert_id: String) -> Result<String, ExpertsError> {
     let expert_id =
         validate_skill_id(&expert_id).map_err(|e| ExpertsError::Metadata(e.to_string()))?;
@@ -1053,7 +1046,6 @@ pub async fn experts_read_content(expert_id: String) -> Result<String, ExpertsEr
     Ok(content)
 }
 
-#[cfg_attr(feature = "tauri-runtime", tauri::command)]
 pub async fn experts_open_central_dir() -> Result<String, ExpertsError> {
     let dir = central_experts_dir();
     fs::create_dir_all(&dir)?;
