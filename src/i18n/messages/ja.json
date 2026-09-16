@@ -302,6 +302,7 @@
     "updateError": "更新エラー: {message}",
     "checking": "確認中...",
     "checkUpdate": "更新を確認",
+    "updateAction": "更新",
     "updating": "インストール中...",
     "downloading": "ダウンロード中...",
     "upgradeTo": "v{version} にアップグレード",

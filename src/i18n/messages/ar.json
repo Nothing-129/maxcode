@@ -302,6 +302,7 @@
     "updateError": "خطأ في التحديث: {message}",
     "checking": "جارٍ التحقق...",
     "checkUpdate": "التحقق من التحديثات",
+    "updateAction": "تحديث",
     "updating": "جارٍ التثبيت...",
     "downloading": "جارٍ التنزيل...",
     "upgradeTo": "الترقية إلى v{version}",

@@ -302,6 +302,7 @@
     "updateError": "更新异常：{message}",
     "checking": "检查中...",
     "checkUpdate": "检查更新",
+    "updateAction": "更新",
     "updating": "升级中...",
     "downloading": "下载中...",
     "upgradeTo": "升级到 v{version}",

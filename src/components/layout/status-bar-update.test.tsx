@@ -111,7 +111,10 @@ describe("StatusBarUpdate — direct update action", () => {
       name: "Download update and restart",
     })
     expect(button.previousElementSibling).toHaveTextContent("v0.21.7")
-    expect(button.textContent).toBe("")
+    // The pill collapses to just the icon; the label only shows on hover.
+    expect(button.textContent).toBe("Update")
+    expect(button.querySelector("svg")).toHaveClass("group-hover:hidden")
+    expect(button.querySelector("span")).toHaveClass("hidden", "group-hover:inline")
     expect(button).toHaveClass("rounded-full", "bg-blue-600", "text-white")
     expect(startUpdate).not.toHaveBeenCalled()
     expect(toastInfo).not.toHaveBeenCalled()

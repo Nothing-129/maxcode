@@ -302,6 +302,7 @@
     "updateError": "업데이트 오류: {message}",
     "checking": "확인 중...",
     "checkUpdate": "업데이트 확인",
+    "updateAction": "업데이트",
     "updating": "설치 중...",
     "downloading": "다운로드 중...",
     "upgradeTo": "v{version}로 업그레이드",

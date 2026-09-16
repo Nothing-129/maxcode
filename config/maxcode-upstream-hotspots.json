@@ -628,7 +628,7 @@
     {
       "id": "chat.column-width-drag",
       "category": "product",
-      "description": "The centered conversation content column width is user-draggable from an edge handle that stays invisible until hovered, resizes live with symmetric centered growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
+      "description": "Real conversation views (not the new-chat welcome page, read-only or shared surfaces) offer an edge handle that stays invisible until hovered, resizes the centered content column live with symmetric growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
       "origins": ["worktree-2026-09-15"],
       "paths": [
         "src/lib/chat-column-width.ts",
@@ -636,7 +636,8 @@
         "src/components/appearance-provider.tsx",
         "src/hooks/use-appearance.ts",
         "src/components/chat/chat-column-resize-handle.tsx",
-        "src/app/workspace/layout.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
         "src/app/globals.css",
         "src/i18n/messages/"
       ],

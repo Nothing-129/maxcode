@@ -3171,6 +3171,18 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   }
 }
 
+/* 会话列宽拖动浮现的渐隐细线：2×120px —— 中部浅灰（前景 30%，
+   明暗各自适配）、轮廓清晰，上下两端渐变至背景色。 */
+.chat-column-edge-line {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in oklab, var(--foreground) 30%, transparent) 22%,
+    color-mix(in oklab, var(--foreground) 30%, transparent) 78%,
+    transparent
+  );
+}
+
 /* Native macOS controls share the workspace header in Electron. */
 html[data-native-shell="electron"] [data-tauri-drag-region] {
   -webkit-app-region: drag;

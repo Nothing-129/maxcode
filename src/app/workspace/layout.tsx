@@ -62,7 +62,6 @@ import { useWorkspaceBackground, useZoomLevel } from "@/hooks/use-appearance"
 import { FILL_MODE_STYLE } from "@/lib/workspace-background"
 import { TerminalPanel } from "@/components/terminal/terminal-panel"
 import { AuxPanel } from "@/components/layout/aux-panel"
-import { ChatColumnResizeHandle } from "@/components/chat/chat-column-resize-handle"
 import { LeftEdgeChrome } from "@/components/layout/left-edge-chrome"
 import { RightEdgeChrome } from "@/components/layout/right-edge-chrome"
 import { WorkspaceChromeController } from "@/components/layout/workspace-chrome-controller"
@@ -386,10 +385,6 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
                   onFocusCapture={markConversationActive}
                 >
                   {children}
-                  {/* 内容列拖宽抓手：定位依赖本容器 relative + 宽度 === 列包含块
-                      宽度，别挪去别的层。多会话标签共用这一个实例（后台标签仍挂载，
-                      各自再渲染会叠出多个热区）。 */}
-                  <ChatColumnResizeHandle />
                 </div>
               </section>
             </OverlayHostHiddenProvider>

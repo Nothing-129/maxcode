@@ -32,6 +32,7 @@ import { PermissionDialog } from "@/components/chat/permission-dialog"
 import { QuestionDialog } from "@/components/chat/question-dialog"
 import { AskQuestionCard } from "@/components/chat/ask-question-card"
 import { PlanApprovalCard } from "@/components/chat/plan-approval-card"
+import { ChatColumnResizeHandle } from "@/components/chat/chat-column-resize-handle"
 
 interface ConversationShellProps {
   status: ConnectionStatus | null
@@ -93,6 +94,9 @@ interface ConversationShellProps {
   folderPickerOverride?: ConversationFolderPickerOverride
   draftStorageKey?: string | null
   hideInput?: boolean
+  /** 内容列拖宽抓手。仅真实会话视图开启（新增对话的欢迎页没有可拖的
+   *  转写列，不该出现）；只读/分享等其他 surface 保持缺省关闭。 */
+  columnResize?: boolean
   /** Optional banner rendered in the composer dock, where the input sits.
    *  Used with `hideInput` to explain WHY the composer is unavailable (e.g.
    *  the agent failed to load this session) without hijacking the message
@@ -181,6 +185,7 @@ export function ConversationShell({
   folderPickerOverride,
   draftStorageKey,
   hideInput = false,
+  columnResize = false,
   composerBanner,
   feedbackList,
   onAddFeedback,
@@ -397,6 +402,10 @@ export function ConversationShell({
           {error}
         </div>
       )}
+
+      {/* 列右缘拖宽抓手（全高热区，含 composer 段）：定位依赖 root 的
+          relative 且宽度 === 列包含块宽度。欢迎页经 columnResize 关闭。 */}
+      {columnResize ? <ChatColumnResizeHandle /> : null}
     </div>
   )
 }

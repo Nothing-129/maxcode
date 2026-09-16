@@ -302,6 +302,7 @@
     "updateError": "Update error: {message}",
     "checking": "Checking...",
     "checkUpdate": "Check for updates",
+    "updateAction": "Update",
     "updating": "Installing...",
     "downloading": "Downloading...",
     "upgradeTo": "Upgrade to v{version}",

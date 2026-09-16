@@ -605,8 +605,11 @@ export function AppearanceProvider({
   }, [])
 
   // 抓手拖拽每帧都会调这里；持久化交给下方 useDebouncedPersist，setter 只管生效。
+  // 注意：不挂 APPEARANCE_CUSTOMIZATION_ENABLED 门控 —— 那套开关管的是尚未发布的
+  // 外观自定义（主题色/字体等）；列宽拖动是已发布的下游功能，挂上去会让拖动静默
+  // 无效（曾在实机验证中翻车）。存储 key 不匹配 FIXED_APPEARANCE_KEY_PATTERN，
+  // 读写在两种模式下都正常。
   const setChatColumnWidth = useCallback((rem: number) => {
-    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
     setChatColumnWidthState(clampChatColumnWidth(rem))
   }, [])
 

@@ -2255,6 +2255,8 @@ const ConversationTabView = memo(function ConversationTabView({
       attachmentTabId={tabId}
       draftStorageKey={draftStorageKey}
       hideInput={isWelcomeMode || Boolean(acpLoadError)}
+      // 新增对话的欢迎页没有转写列，不给拖宽抓手；发送过/持久化过的会话才有。
+      columnResize={!isWelcomeMode}
       injectContent={composerInject}
       onInjectConsumed={handleComposerInjectConsumed}
       composerBanner={acpLoadErrorBanner}

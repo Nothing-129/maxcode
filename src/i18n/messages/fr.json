@@ -302,6 +302,7 @@
     "updateError": "Erreur de mise à jour : {message}",
     "checking": "Vérification...",
     "checkUpdate": "Rechercher les mises à jour",
+    "updateAction": "Mettre à jour",
     "updating": "Installation...",
     "downloading": "Téléchargement...",
     "upgradeTo": "Mettre à jour vers v{version}",

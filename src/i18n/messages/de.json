@@ -302,6 +302,7 @@
     "updateError": "Update-Fehler: {message}",
     "checking": "Wird geprüft...",
     "checkUpdate": "Nach Updates suchen",
+    "updateAction": "Aktualisieren",
     "updating": "Wird installiert...",
     "downloading": "Herunterladen...",
     "upgradeTo": "Auf v{version} aktualisieren",

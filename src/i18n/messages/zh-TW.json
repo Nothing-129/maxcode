@@ -302,6 +302,7 @@
     "updateError": "更新異常：{message}",
     "checking": "檢查中...",
     "checkUpdate": "檢查更新",
+    "updateAction": "更新",
     "updating": "升級中...",
     "downloading": "下載中...",
     "upgradeTo": "升級到 v{version}",

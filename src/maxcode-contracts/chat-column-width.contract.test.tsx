@@ -171,9 +171,22 @@ describe("MaxCode chat column width", () => {
     expect(css).toMatch(
       /@media \(max-width: 767px\)\s*\{\s*\.maxcode-chat-column\s*\{\s*max-width: 100%;\s*\}/
     )
-    // 抓手只挂桌面会话区（MobileWorkspaceContent 不渲染）。
+    // 抓手由会话 shell 按 columnResize 渲染；新增对话的欢迎页必须关闭
+    // （没有可拖的转写列），workspace 布局层不再挂载。
+    const shell = readFileSync(
+      "src/components/chat/conversation-shell.tsx",
+      "utf8"
+    )
+    expect(shell).toContain(
+      "{columnResize ? <ChatColumnResizeHandle /> : null}"
+    )
+    const panel = readFileSync(
+      "src/components/conversations/conversation-detail-panel.tsx",
+      "utf8"
+    )
+    expect(panel).toContain("columnResize={!isWelcomeMode}")
     const layout = readFileSync("src/app/workspace/layout.tsx", "utf8")
-    expect(layout.match(/ChatColumnResizeHandle/g)?.length).toBe(2) // import + 挂载
+    expect(layout).not.toContain("ChatColumnResizeHandle")
     // 抓手热区定位公式必须与列取宽逻辑一致（50% + min(半宽, 50%)）。
     const handleSource = readFileSync(
       "src/components/chat/chat-column-resize-handle.tsx",
@@ -184,19 +197,37 @@ describe("MaxCode chat column width", () => {
     )
   })
 
-  it("reveals the grip only at the column edge and labels it", () => {
+  it("reveals the edge line only at the column edge and labels it", () => {
     renderWorkspace()
     const handle = screen.getByRole("separator", {
       name: "Drag to resize conversation width",
     })
     expect(handle.className).toContain("cursor-col-resize")
 
-    // 休息态视觉为 opacity-0，只有 hover / 拖动 / 聚焦才浮现。
-    const [hairline, grip] = handle.querySelectorAll("span")
-    expect(hairline.className).toContain("opacity-0")
-    expect(hairline.className).toContain("group-hover:opacity-100")
-    expect(grip.className).toContain("opacity-0")
-    expect(grip.className).toContain("group-hover:opacity-100")
+    // 休息态唯一视觉是渐隐细线（2×120px，峰值前景 30%，渐变由
+    // .chat-column-edge-line 提供），opacity-0；hover / 拖动 / 键盘聚焦才
+    // 浮现，且竖线跟随指针垂直位置。
+    const visuals = handle.querySelectorAll(":scope > span")
+    expect(visuals.length).toBe(1)
+    const line = visuals[0]
+    expect(line.className).toContain("chat-column-edge-line")
+    expect(line.className).toContain("h-[120px]")
+    expect(line.className).toContain("w-[2px]")
+    expect(line.className).toContain("opacity-0")
+    expect(handle.querySelector(".inset-y-0")).toBeNull()
+
+    const handleSource = readFileSync(
+      "src/components/chat/chat-column-resize-handle.tsx",
+      "utf8"
+    )
+    expect(handleSource).toContain("onPointerEnter")
+    expect(handleSource).toContain("trackPointerY")
+    // 离开热区后线必须原地淡出，top 不得回中（否则顶部/底部挪开时会在中间
+    // 闪出一段淡出中的线）：位置状态与显隐状态分离。
+    expect(handleSource).toContain("setLineVisible(false)")
+    expect(handleSource).toContain("top: lineY ??")
+    const css = readFileSync("src/app/globals.css", "utf8")
+    expect(css).toMatch(/\.chat-column-edge-line\s*\{[^}]*var\(--foreground\)/)
   })
 
   it("synchronizes width changed from another window", () => {
@@ -221,9 +252,7 @@ describe("MaxCode chat column width", () => {
   })
 })
 
-// Exercise the retained customization implementation in its future enabled mode.
-vi.mock("@/lib/appearance-policy", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/appearance-policy")>()),
-  APPEARANCE_CUSTOMIZATION_ENABLED: true,
-  isFixedAppearanceKey: () => false,
-}))
+// 刻意不 mock appearance-policy：APPEARANCE_CUSTOMIZATION_ENABLED 在生产为 false，
+// 列宽拖动必须在这种模式下照样生效（曾有回归：setter 照搬字号门控导致拖动
+// 静默无效，实机才暴露）。存储 key 不匹配 FIXED_APPEARANCE_KEY_PATTERN，
+// 读写路径在两种模式下都应工作。

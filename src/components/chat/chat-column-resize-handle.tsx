@@ -25,11 +25,24 @@ export function ChatColumnResizeHandle() {
   const t = useTranslations("Folder.chat.columnResize")
   const { chatColumnWidth, setChatColumnWidth } = useChatColumnWidth()
   const [dragging, setDragging] = useState(false)
+  // 渐隐竖线跟随指针的垂直位置（参考端交互：光标到哪线到哪）。位置与显隐分离：
+  // lineY 保留最后一次指针位置，离开热区只翻 lineVisible —— top 不回中，否则
+  // 在顶部/底部钳制位挪开时，会看到线跳到中间闪一下再消失（用户实测反馈）。
+  const [lineY, setLineY] = useState<number | null>(null)
+  const [lineVisible, setLineVisible] = useState(false)
+  const containerRef = useRef<HTMLDivElement | null>(null)
   const dragStart = useRef<{
     x: number
     widthPx: number
     rootFontPx: number
   } | null>(null)
+
+  const trackPointerY = useCallback((clientY: number) => {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setLineY(Math.min(Math.max(clientY - rect.top, 88), rect.height - 88))
+    setLineVisible(true)
+  }, [])
 
   // 列居中、双缘随拖动对称伸缩：列宽变化量 = 指针位移 × 2，抓手恰好跟手。
   const onPointerDown = useCallback(
@@ -45,18 +58,20 @@ export function ChatColumnResizeHandle() {
         rootFontPx,
       }
       setDragging(true)
+      trackPointerY(e.clientY)
     },
-    [chatColumnWidth]
+    [chatColumnWidth, trackPointerY]
   )
 
   const onPointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
+      trackPointerY(e.clientY)
       const start = dragStart.current
       if (!start) return
       const nextPx = start.widthPx + (e.clientX - start.x) * 2
       setChatColumnWidth(nextPx / start.rootFontPx)
     },
-    [setChatColumnWidth]
+    [setChatColumnWidth, trackPointerY]
   )
 
   const endDrag = useCallback(() => {
@@ -93,6 +108,7 @@ export function ChatColumnResizeHandle() {
 
   return (
     <div
+      ref={containerRef}
       role="separator"
       aria-orientation="vertical"
       aria-label={t("label")}
@@ -104,6 +120,8 @@ export function ChatColumnResizeHandle() {
       tabIndex={0}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
+      onPointerEnter={(e) => trackPointerY(e.clientY)}
+      onPointerLeave={() => setLineVisible(false)}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}
       onLostPointerCapture={endDrag}
@@ -117,31 +135,20 @@ export function ChatColumnResizeHandle() {
         left: "calc(50% + min(var(--chat-column-max, 48rem) / 2, 50%))",
       }}
     >
-      {/* 发丝线：仅 hover / 拖动 / 键盘聚焦时浮现，平时零视觉占位。 */}
+      {/* 渐隐细线（2×120px：浅灰、上下两端长距离渐隐），跟随指针垂直位置；
+          渐变在 globals.css 的 .chat-column-edge-line（用 --foreground 适配
+          明暗）。唯一的浮现视觉，热区本身不可见。 */}
       <span
         aria-hidden
         className={cn(
-          "absolute inset-y-0 left-1/2 w-0.5 -translate-x-1/2 rounded-full transition-opacity duration-150",
-          dragging
-            ? "bg-foreground/40 opacity-100"
-            : "bg-foreground/25 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
-        )}
-      />
-      {/* 竖排 grip：垂直居中的小胶囊，两道竖杠。 */}
-      <span
-        aria-hidden
-        className={cn(
-          "absolute top-1/2 left-1/2 flex h-9 w-4 -translate-x-1/2 -translate-y-1/2",
-          "flex-col items-center justify-center gap-1 rounded-full border border-border",
-          "bg-background shadow-sm transition-opacity duration-150",
-          dragging
+          "chat-column-edge-line absolute left-1/2 h-[120px] w-[2px] -translate-x-1/2 -translate-y-1/2 rounded-full",
+          "transition-opacity duration-150",
+          dragging || lineVisible
             ? "opacity-100"
-            : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100"
+            : "opacity-0 group-focus-visible:opacity-100"
         )}
-      >
-        <span className="h-2.5 w-px rounded-full bg-foreground/45" />
-        <span className="h-2.5 w-px rounded-full bg-foreground/45" />
-      </span>
+        style={{ top: lineY ?? "50%" }}
+      />
     </div>
   )
 }

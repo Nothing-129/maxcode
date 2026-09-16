@@ -95,7 +95,7 @@ export function StatusBarUpdate() {
           disabled={busy}
           onClick={() => void handleUpdate()}
           className={cn(
-            "flex size-5 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+            "group flex h-5 shrink-0 items-center justify-center gap-0.5 rounded-full px-1 transition-all group-hover:px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
             failed
               ? "bg-destructive text-white hover:bg-destructive/90"
               : "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400"
@@ -113,11 +113,16 @@ export function StatusBarUpdate() {
               strokeWidth={2.5}
             />
           ) : (
-            <ArrowDown
-              aria-hidden="true"
-              className="size-3"
-              strokeWidth={2.5}
-            />
+            <>
+              <ArrowDown
+                aria-hidden="true"
+                className="size-3 group-hover:hidden"
+                strokeWidth={2.5}
+              />
+              <span className="hidden text-2xs font-medium group-hover:inline">
+                {t("updateAction")}
+              </span>
+            </>
           )}
         </button>
       )}
