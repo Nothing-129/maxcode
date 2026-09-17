@@ -1,5 +1,5 @@
 import { type ComponentProps, type ReactElement } from "react"
-import { cleanup, render, waitFor } from "@testing-library/react"
+import { cleanup, fireEvent, render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest"
@@ -46,6 +46,7 @@ const h = vi.hoisted(() => ({
     addresses: ["http://127.0.0.1:3080"],
   })),
   closeTab: vi.fn(),
+  closePane: vi.fn(),
   openNewConversationTab: vi.fn(),
   updateConversationLocal: vi.fn(),
   refreshConversations: vi.fn(),
@@ -66,9 +67,16 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/transport", () => ({
   getServerBaseUrl: () => "http://localhost:3000",
 }))
+// Title dragging is covered separately; keep these header menu tests isolated.
+vi.mock("@/hooks/use-conversation-drag", () => ({
+  useConversationDrag: () => undefined,
+}))
 vi.mock("@/contexts/tab-context", () => ({
+  useTabStore: (selector: (s: { archivedPaneDrafts: unknown[] }) => unknown) =>
+    selector({ archivedPaneDrafts: [] }),
   useTabActions: () => ({
     closeTab: h.closeTab,
+    closePane: h.closePane,
     openNewConversationTab: h.openNewConversationTab,
   }),
 }))
@@ -126,6 +134,31 @@ beforeEach(() => vi.clearAllMocks())
 afterEach(cleanup)
 
 describe("MaxCode: title completion is the only status action", () => {
+  it("closes only the clicked pane on middle title click", () => {
+    const { getByText } = render(
+      withIntl(
+        <>
+          <ConversationDetailHeader {...A} />
+          <ConversationDetailHeader {...A} tabId="tab-b" title="conv-b" />
+        </>
+      )
+    )
+    const title = getByText("conv-b")
+    fireEvent.click(title, { button: 0 })
+    fireEvent(title, new MouseEvent("auxclick", { bubbles: true, button: 2 }))
+    expect(h.closePane).not.toHaveBeenCalled()
+    const middleClick = new MouseEvent("auxclick", {
+      bubbles: true,
+      cancelable: true,
+      button: 1,
+    })
+    fireEvent(title, middleClick)
+    expect(middleClick.defaultPrevented).toBe(true)
+    expect(h.closePane).toHaveBeenCalledTimes(1)
+    expect(h.closePane).toHaveBeenCalledWith("tab-b")
+    expect(h.closeTab).not.toHaveBeenCalled()
+  })
+
   it("opens conversation actions from the ellipsis immediately beside the title", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     const { getByRole, getByText, queryByRole } = render(

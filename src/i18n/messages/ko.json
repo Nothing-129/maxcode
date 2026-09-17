@@ -1966,8 +1966,7 @@
       "sectionRecent": "최근",
       "noChats": "채팅 없음",
       "noRecent": "최근 대화 없음",
-      "showMoreRecent": "더 보기 ({count})",
-      "showMoreFolder": "펼쳐 보기",
+      "showMoreConversations": "더 보기 ({count})",
       "resetRecentLimit": "처음 {count}개로 되돌리기",
       "noFolders": "열린 폴더 없음",
       "newChatAction": "새 채팅",
@@ -2068,6 +2067,8 @@
       "copiedField": "{field} 복사됨"
     },
     "conversationCard": {
+      "closePane": "분할 영역 닫기",
+      "restorePaneDraft": "마지막 미전송 초안 복원",
       "folderZone": "{name} 분할",
       "otherFolderZone": "기타",
       "closeFolderZone": "{name} 분할 닫기",

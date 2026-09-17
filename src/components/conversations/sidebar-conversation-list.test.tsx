@@ -1360,7 +1360,7 @@ describe("SidebarConversationList — Recent section", () => {
     // `recentLimit` starts at RECENT_PAGE_SIZE and only ever grew, so a list
     // expanded a few pages deep stayed that way for the rest of the session.
     // These cover the way back out.
-    const PAGE = 15
+    const PAGE = 10
     const FOLDER_PAGE = 10
     const TOTAL = PAGE + 4
 
@@ -1372,16 +1372,19 @@ describe("SidebarConversationList — Recent section", () => {
       Math.min(TOTAL, FOLDER_PAGE)
 
     const buttonWithText = (text: string) =>
-      Array.from(document.querySelectorAll("button")).find((b) =>
-        b.textContent?.includes(text)
+      Array.from(document.querySelectorAll(".group\\/recent-more button")).find(
+        (b) => b.textContent?.includes(text)
       )
     const resetButton = () =>
-      Array.from(document.querySelectorAll("button")).find(
+      Array.from(document.querySelectorAll(".group\\/recent-more button")).find(
         (b) => b.getAttribute("aria-label") === resetLabel
       )
 
     const showMoreLabel = (count: number) =>
-      enMessages.Folder.sidebar.showMoreRecent.replace("{count}", String(count))
+      enMessages.Folder.sidebar.showMoreConversations.replace(
+        "{count}",
+        String(count)
+      )
     const resetLabel = enMessages.Folder.sidebar.resetRecentLimit.replace(
       "{count}",
       String(PAGE)
@@ -1398,6 +1401,25 @@ describe("SidebarConversationList — Recent section", () => {
         allFolders: folders,
         conversations: Array.from({ length: TOTAL }, (_, i) => conv(i + 1, 1)),
       })
+    })
+
+    it("returns to the first page after Recent is collapsed and reopened", () => {
+      render(recentTree(true))
+      act(() => {
+        fireEvent.click(buttonWithText(showMoreLabel(TOTAL - PAGE))!)
+      })
+      expect(recentRowCount()).toBe(TOTAL)
+
+      const header = () =>
+        Array.from(document.querySelectorAll("button")).find(
+          (button) => button.textContent === RECENT
+        )!
+      act(() => fireEvent.click(header()))
+      expect(recentRowCount()).toBe(0)
+      act(() => fireEvent.click(header()))
+      expect(recentRowCount()).toBe(PAGE)
+      expect(buttonWithText(showMoreLabel(TOTAL - PAGE))).toBeDefined()
+      expect(resetButton()).toBeUndefined()
     })
 
     it("folds a multi-page list back to the first page", () => {
@@ -1495,7 +1517,11 @@ describe("SidebarConversationList — Recent section", () => {
 })
 
 describe("SidebarConversationList — folder paging", () => {
-  const SHOW_MORE = enMessages.Folder.sidebar.showMoreFolder
+  const showMoreLabel = (count: number) =>
+    enMessages.Folder.sidebar.showMoreConversations.replace(
+      "{count}",
+      String(count)
+    )
 
   beforeEach(() => {
     probes.card = 0
@@ -1518,7 +1544,7 @@ describe("SidebarConversationList — folder paging", () => {
 
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(10)
     const first = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.textContent === SHOW_MORE
+      (b) => b.textContent === showMoreLabel(12)
     )
     expect(first).toBeTruthy()
 
@@ -1527,7 +1553,7 @@ describe("SidebarConversationList — folder paging", () => {
     })
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(20)
     const second = Array.from(document.querySelectorAll("button")).find(
-      (b) => b.textContent === SHOW_MORE
+      (b) => b.textContent === showMoreLabel(2)
     )
     expect(second).toBeTruthy()
 
@@ -1536,8 +1562,8 @@ describe("SidebarConversationList — folder paging", () => {
     })
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(22)
     expect(
-      Array.from(document.querySelectorAll("button")).some(
-        (b) => b.textContent === SHOW_MORE
+      Array.from(document.querySelectorAll("button")).some((b) =>
+        b.textContent?.startsWith("Show more")
       )
     ).toBe(false)
   })
@@ -1551,7 +1577,7 @@ describe("SidebarConversationList — folder paging", () => {
 
     const showMore = () =>
       Array.from(document.querySelectorAll("button")).find(
-        (b) => b.textContent === SHOW_MORE
+        (b) => b.textContent === showMoreLabel(12)
       )
 
     act(() => {
@@ -1577,7 +1603,11 @@ describe("SidebarConversationList — folder paging", () => {
 })
 
 describe("SidebarConversationList — chat paging", () => {
-  const SHOW_MORE = enMessages.Folder.sidebar.showMoreFolder
+  const showMoreLabel = (count: number) =>
+    enMessages.Folder.sidebar.showMoreConversations.replace(
+      "{count}",
+      String(count)
+    )
   const CHAT_SECTION = enMessages.Folder.sidebar.sectionChats
 
   beforeEach(() => {
@@ -1602,17 +1632,17 @@ describe("SidebarConversationList — chat paging", () => {
     render(tree())
 
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(10)
-    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    act(() => fireEvent.click(buttonWithText(showMoreLabel(12))!))
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(20)
-    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    act(() => fireEvent.click(buttonWithText(showMoreLabel(2))!))
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(22)
-    expect(buttonWithText(SHOW_MORE)).toBeUndefined()
+    expect(buttonWithText(showMoreLabel(2))).toBeUndefined()
   })
 
   it("returns to the first page after Chat is collapsed and reopened", () => {
     render(tree())
 
-    act(() => fireEvent.click(buttonWithText(SHOW_MORE)!))
+    act(() => fireEvent.click(buttonWithText(showMoreLabel(12))!))
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(20)
 
     act(() => fireEvent.click(buttonWithText(CHAT_SECTION)!))
@@ -1620,7 +1650,7 @@ describe("SidebarConversationList — chat paging", () => {
     act(() => fireEvent.click(buttonWithText(CHAT_SECTION)!))
 
     expect(document.querySelectorAll("[data-conversation-id]")).toHaveLength(10)
-    expect(buttonWithText(SHOW_MORE)).toBeTruthy()
+    expect(buttonWithText(showMoreLabel(12))).toBeTruthy()
   })
 
   it("reveals the page containing the active chat before scrolling to it", () => {

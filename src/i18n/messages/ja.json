@@ -1966,8 +1966,7 @@
       "sectionRecent": "最近",
       "noChats": "チャットがありません",
       "noRecent": "最近の会話はありません",
-      "showMoreRecent": "さらに表示（{count}）",
-      "showMoreFolder": "展開して表示",
+      "showMoreConversations": "さらに表示（{count}）",
       "resetRecentLimit": "最初の{count}件に戻す",
       "noFolders": "開いているフォルダがありません",
       "newChatAction": "新しいチャット",
@@ -2068,6 +2067,8 @@
       "copiedField": "{field}をコピーしました"
     },
     "conversationCard": {
+      "closePane": "ペインを閉じる",
+      "restorePaneDraft": "最後の未送信の下書きを復元",
       "folderZone": "{name} 分割",
       "otherFolderZone": "その他",
       "closeFolderZone": "{name} 分割を閉じる",

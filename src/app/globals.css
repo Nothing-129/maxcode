@@ -1349,6 +1349,22 @@
   background-color: var(--ws-chrome-border);
 }
 
+/* A single quiet sidebar seam, including over workspace images. Keep the
+   full resize hit area and reveal the handle smoothly during interaction. */
+[data-sidebar-seam]::before {
+  opacity: 0.25;
+  transition:
+    width 150ms ease-out,
+    height 150ms ease-out,
+    background-color 150ms ease-out,
+    opacity 150ms ease-out;
+}
+[data-sidebar-seam][data-resize-handle-state="hover"]::before,
+[data-sidebar-seam][data-resize-handle-state="drag"]::before,
+[data-sidebar-seam]:focus-visible::before {
+  opacity: 1;
+}
+
 /* 旧 WebKitGTK 无 color-mix 时降级为不透明（背景图仅在透明内容区透出，不崩）。 */
 @supports not (background: color-mix(in oklch, white, transparent)) {
   /* 老引擎关掉面板 chrome 的背景模糊（背景色 color-mix 已作废回落到不透明 bg-*）。消息内表面

@@ -1,5 +1,6 @@
 "use client"
 
+import { useConversationDrag } from "@/hooks/use-conversation-drag"
 import { openConversationFind } from "@/lib/conversation-find-events"
 import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
 import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
@@ -41,7 +42,7 @@ import {
 import { formatConversationTitle } from "@/lib/conversation-title"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
-import { useTabActions } from "@/contexts/tab-context"
+import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { getRuntimeSession } from "@/stores/conversation-runtime-store"
 import type { ConversationStatus } from "@/lib/types"
 import {
@@ -122,7 +123,9 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const ime = useImeGuard()
   const tConv = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
-  const { closeTab, openNewConversationTab } = useTabActions()
+  const { closeTab, closePane, restorePaneDraft, openNewConversationTab } =
+    useTabActions()
+  const hasArchivedDraft = useTabStore((s) => s.archivedPaneDrafts.length > 0)
   const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const updateConversationLocal = useAppWorkspaceStore(
     (s) => s.updateConversationLocal
@@ -397,6 +400,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     }
   }, [shareTarget])
 
+  const handleTitleDrag = useConversationDrag(tabId, title)
+
   const header = (
     // Transparent (no surface class): the title header reads as part of the
     // message canvas below it rather than as a frosted chrome band. The supplied
@@ -410,7 +415,22 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       {/* 标题文字占据剩余宽度，超出时截断。 */}
       <div className="flex min-w-0 flex-1 items-center gap-1">
         <span
-          className="min-w-0 truncate text-sm leading-5 font-semibold text-foreground"
+          className="min-w-0 truncate text-sm leading-5 font-semibold text-foreground md:cursor-grab md:active:cursor-grabbing"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+          onPointerDown={(event) => {
+            if (event.button === 1) {
+              event.preventDefault()
+              event.stopPropagation()
+              return
+            }
+            handleTitleDrag(event)
+          }}
+          onAuxClick={(event) => {
+            if (event.button !== 1) return
+            event.preventDefault()
+            event.stopPropagation()
+            closePane(tabId)
+          }}
           title={title}
         >
           {displayTitle}
@@ -427,6 +447,18 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            <DropdownMenuItem onSelect={() => closePane(tabId)}>
+              {t("closePane")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={!hasArchivedDraft}
+              onSelect={() => {
+                restorePaneDraft()
+              }}
+            >
+              {t("restorePaneDraft")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
             <DropdownMenuItem
               disabled={!folderPath}
               onSelect={handleNewConversation}

@@ -997,9 +997,9 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
               collapse never flashes white: Sidebar `return null`s the instant
               it closes, but the panel keeps a shrinking width for the 240ms
               slide — an un-backed wrapper would show the root `bg-background`
-              (white) through that gap. 真实 ChatGPT 桌面端在侧栏与主区之间有
-              一条 #e6e6e7 发丝分隔线（--sidebar-border ≈ #e6e6e6），故挂 border-r。 */}
-          <div className="h-full min-h-0 overflow-hidden ws-surface-sidebar border-r border-sidebar-border">
+              (white) through that gap. The resize handle owns the subtle seam,
+              avoiding a second border along the sidebar edge. */}
+          <div className="h-full min-h-0 overflow-hidden ws-surface-sidebar">
             <Sidebar />
           </div>
         </ResizablePanel>
@@ -1007,6 +1007,7 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
         <ResizableHandle
           withHandle
           disabled={!sidebarOpen}
+          data-sidebar-seam
           className={
             sidebarOpen ? "" : "pointer-events-none w-0 opacity-0 after:w-0"
           }

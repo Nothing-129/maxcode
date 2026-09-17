@@ -75,10 +75,18 @@ vi.mock("@/lib/transport", () => ({
   isRemoteDesktopMode: () => false,
 }))
 vi.mock("@/contexts/tab-context", () => ({
+  useTabStore: (selector: (s: { archivedPaneDrafts: unknown[] }) => unknown) =>
+    selector({ archivedPaneDrafts: [] }),
   useTabActions: () => ({
     closeTab: h.closeTab,
+    closePane: vi.fn(),
+    restorePaneDraft: vi.fn(),
     openNewConversationTab: h.openNewConversationTab,
   }),
+}))
+// Drag gestures are covered by the dedicated hook tests.
+vi.mock("@/hooks/use-conversation-drag", () => ({
+  useConversationDrag: () => vi.fn(),
 }))
 // The header collapses the touch sidebar on "new conversation"; these tests
 // exercise rename/delete targeting, so a bare stub context is enough.

@@ -1966,8 +1966,7 @@
       "sectionRecent": "最近",
       "noChats": "沒有聊天",
       "noRecent": "暫無最近對話",
-      "showMoreRecent": "顯示更多（{count}）",
-      "showMoreFolder": "展開顯示",
+      "showMoreConversations": "顯示更多（{count}）",
       "resetRecentLimit": "重設為前 {count} 筆",
       "noFolders": "沒有開啟的資料夾",
       "newChatAction": "新增聊天",
@@ -2068,6 +2067,8 @@
       "copiedField": "已複製{field}"
     },
     "conversationCard": {
+      "closePane": "關閉分區",
+      "restorePaneDraft": "還原上次未傳送的草稿",
       "folderZone": "{name} 分區",
       "otherFolderZone": "其他",
       "closeFolderZone": "關閉 {name} 分區",

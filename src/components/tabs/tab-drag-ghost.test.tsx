@@ -39,6 +39,23 @@ describe("TabDragGhost", () => {
     expect(screen.queryByText("Refactor the parser")).toBeNull()
   })
 
+  it("shows a sidebar drag immediately, even before reaching a pane", () => {
+    render(<TabDragGhost />)
+    act(() =>
+      useTabStore.getState().updateTabDrag({
+        tabId: "sidebar-codex-9",
+        title: "Folder conversation",
+        source: "sidebar",
+        x: 100,
+        y: 200,
+        overGroupId: null,
+      })
+    )
+    expect(screen.getByText("Folder conversation")).toBeTruthy()
+    release()
+    expect(screen.queryByText("Folder conversation")).toBeNull()
+  })
+
   it("leaves text-selection suppression to the dragged tab itself", () => {
     // The guard covers EVERY tab drag (within-group sorting, the unsplit strip),
     // not just the cross-group ones that produce a ghost — so it lives in

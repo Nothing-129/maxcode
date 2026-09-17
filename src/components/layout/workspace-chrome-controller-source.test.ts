@@ -42,7 +42,7 @@ describe("tab close/navigation shortcuts live in the always-mounted controller",
     // calls next to these are what stop mod+w reaching the window-close default.
     expect(controllerSource).toMatch(/switchTab\(/)
     expect(controllerSource).toMatch(/switchFileTab\(/)
-    expect(controllerSource).toMatch(/closeTab\(/)
+    expect(controllerSource).toMatch(/closePane\(/)
     expect(controllerSource).toMatch(/closeFileTab\(/)
     expect(controllerSource).toMatch(/closeAllFileTabs\(/)
   })

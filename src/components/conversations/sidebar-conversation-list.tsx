@@ -141,6 +141,7 @@ import {
   type SidebarLayout,
   type SidebarRow,
 } from "./sidebar-conversation-grouping"
+import { useSidebarConversationDrag } from "@/hooks/use-sidebar-conversation-drag"
 import { useSubsessionSync } from "@/hooks/use-subsession-sync"
 import { SidebarSectionHeader } from "./sidebar-section-header"
 import { SidebarFolderGroupHeader } from "./sidebar-folder-group-header"
@@ -1260,6 +1261,7 @@ export function SidebarConversationList({
   const toggleSection = useCallback(
     (section: SidebarSectionKey) => {
       if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
+      if (section === "recent") setRecentLimit(RECENT_PAGE_SIZE)
       if (section === "folders" && foldersExpanded) {
         // Reopening the section should show folder names with their sessions
         // folded, including folders inside groups and worktree containers.
@@ -2224,6 +2226,8 @@ export function SidebarConversationList({
     },
     [openTab, openConversations, t]
   )
+
+  const handleConversationPointerDown = useSidebarConversationDrag(handleSelect)
 
   const handleDoubleClick = useCallback(
     (id: number, agentType: string, folderId: number) => {
@@ -3219,7 +3223,9 @@ export function SidebarConversationList({
             >
               <ChevronDown className="h-[0.75rem] w-[0.75rem]" />
             </span>
-            <span className="truncate">{t("showMoreFolder")}</span>
+            <span className="truncate">
+              {t("showMoreConversations", { count: row.remaining })}
+            </span>
           </button>
         </div>
       )
@@ -3301,7 +3307,7 @@ export function SidebarConversationList({
             </span>
             <span className="truncate">
               {showMore
-                ? t("showMoreRecent", { count: row.remaining })
+                ? t("showMoreConversations", { count: row.remaining })
                 : resetLabel}
             </span>
           </button>
@@ -3357,7 +3363,9 @@ export function SidebarConversationList({
             >
               <ChevronDown className="h-[0.75rem] w-[0.75rem]" />
             </span>
-            <span className="relative truncate">{t("showMoreFolder")}</span>
+            <span className="relative truncate">
+              {t("showMoreConversations", { count: row.remaining })}
+            </span>
           </button>
         </div>
       )
@@ -3404,6 +3412,7 @@ export function SidebarConversationList({
           now
         )}
         onSelect={handleSelect}
+        onConversationPointerDown={handleConversationPointerDown}
         onDoubleClick={handleDoubleClick}
         onRename={handleRename}
         onDelete={handleDelete}

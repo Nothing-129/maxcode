@@ -1,3 +1,10 @@
+import {
+  capturePaneDraft,
+  readPaneDraftArchive,
+  writePaneDraftArchive,
+  restorePaneDraftContent,
+  type ArchivedPaneDraft,
+} from "@/lib/pane-draft-archive"
 import { create } from "zustand"
 import { useShallow } from "zustand/react/shallow"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -154,6 +161,9 @@ export interface TabLabels {
 }
 
 export interface TabStoreState {
+  archivedPaneDrafts: ArchivedPaneDraft[]
+  closePane: (tabId: string) => void
+  restorePaneDraft: (draftId?: string) => boolean
   rawTabs: TabItemInternal[]
   activeTabId: string | null
   previewReplacedTabIds: string[]
@@ -188,6 +198,8 @@ export interface TabStoreState {
     x: number
     y: number
     overGroupId: string | null
+    direction?: SplitDirection | null
+    source?: "sidebar"
   } | null
   childSummaries: Map<number, DbConversationSummary>
   /**
@@ -234,6 +246,19 @@ export interface TabStoreState {
     tabId: string,
     direction: SplitDirection,
     opts: { move: boolean }
+  ) => void
+  openConversationInGroup: (
+    conversation: Pick<
+      DbConversationSummary,
+      "id" | "folder_id" | "agent_type" | "title"
+    >,
+    targetGroupId: string,
+    direction: SplitDirection | null
+  ) => void
+  dropTabInGroup: (
+    tabId: string,
+    targetGroupId: string,
+    direction: SplitDirection | null
   ) => void
   openFolderInSplit: (
     folderId: number,
@@ -526,15 +551,11 @@ export function groupOfTab(
   return firstLeafId(layout)
 }
 
-/** True when more than one group exists (the canonical tree keeps a split root
- *  only while it has ≥ 2 leaves).
- *
- * ChatGPT 桌面端 1:1 复刻：ChatGPT 没有分屏，用户选择牺牲该功能。分屏被整体
- * 禁用——选择器恒为 false（单窗格布局），且下方 hydration 会把历史持久化的
- * 分屏布局归一为单组，splitTab/moveTabToGroup 也已改为空操作，布局永远无法
- * 再变成多组。 */
-export function selectIsSplit(): boolean {
-  return false
+/** Whether the workspace has multiple conversation groups. */
+export function selectIsSplit(
+  state: Pick<TabStoreState, "groupLayout">
+): boolean {
+  return state.groupLayout.type === "split"
 }
 
 /**
@@ -762,11 +783,7 @@ function readPersistedGroupState(): {
         pendingRestoreDrafts = sanitizeDrafts(parsed.drafts)
         pendingRestoreActiveDraft =
           typeof parsed.activeDraft === "string" ? parsed.activeDraft : null
-        // ChatGPT 桌面端 1:1 复刻：分屏禁用——历史持久化的分屏布局（多叶树）
-        // 归一为单组。groupOf 里指向已消亡组的分配在单叶布局下自然失效
-        // （groupOfTab 对任何 tab 都解析到根组），无需逐条迁移。
-        const layout =
-          parsed.layout.type === "group" ? parsed.layout : singleGroupLayout()
+        const layout = parsed.layout
         return {
           groupLayout: layout,
           groupOf: sanitizeStringRecord(parsed.assignments),
@@ -1211,6 +1228,18 @@ function resolveAgentForFolder(
   })
 }
 
+/** Archive unsent new-conversation documents independently of hidden tabs. */
+function archivePaneDrafts(tabs: TabItemInternal[]) {
+  let archive = useTabStore.getState().archivedPaneDrafts
+  for (const tab of tabs) {
+    const draft = capturePaneDraft(tab)
+    if (draft)
+      archive = [...archive.filter((item) => item.tab.id !== tab.id), draft]
+  }
+  writePaneDraftArchive(archive)
+  useTabStore.setState({ archivedPaneDrafts: archive })
+}
+
 function makeReplacementDraftTab(preferred?: TabItemInternal): TabItemInternal {
   const { folders, allFolders } = useAppWorkspaceStore.getState()
   // A closing chat-mode tab (its hidden chat folder, or the in-memory draft
@@ -1255,6 +1284,7 @@ function makeReplacementDraftTab(preferred?: TabItemInternal): TabItemInternal {
 
 function initialTabState() {
   return {
+    archivedPaneDrafts: readPaneDraftArchive(),
     rawTabs: [] as TabItemInternal[],
     activeTabId: null as string | null,
     previewReplacedTabIds: [] as string[],
@@ -1585,25 +1615,366 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     persistGroupState()
   },
 
+  closePane: (tabId) => {
+    const st = get()
+    if (!st.rawTabs.some((tab) => tab.id === tabId)) return
+    get().closeGroup(groupOfTab(st.groupOf, st.groupLayout, tabId))
+  },
+
+  restorePaneDraft: (draftId) => {
+    const st = get()
+    const draft = draftId
+      ? st.archivedPaneDrafts.find((item) => item.tab.id === draftId)
+      : st.archivedPaneDrafts[st.archivedPaneDrafts.length - 1]
+    if (!draft) return false
+    const destination = resolveTargetGroup(st)
+    const displaced = st.rawTabs.filter(
+      (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === destination
+    )
+    archivePaneDrafts(displaced)
+    restorePaneDraftContent(draft)
+    const archive = get().archivedPaneDrafts.filter(
+      (item) => item.tab.id !== draft.tab.id
+    )
+    writePaneDraftArchive(archive)
+    const groupFolder = { ...st.groupFolder }
+    delete groupFolder[destination]
+    set({
+      rawTabs: [
+        ...st.rawTabs.filter(
+          (tab) => !displaced.includes(tab) && tab.id !== draft.tab.id
+        ),
+        draft.tab,
+      ],
+      groupOf: { ...st.groupOf, [draft.tab.id]: destination },
+      groupFolder,
+      archivedPaneDrafts: archive,
+      activeTabId: draft.tab.id,
+      tileByGroup: { ...st.tileByGroup, [destination]: false },
+    })
+    recomputeTabs()
+    runtime.activateConversationPane()
+    return true
+  },
+
+  openConversationInGroup: (conversation, targetGroupId, direction) => {
+    const st = get()
+    if (!leafIds(st.groupLayout).includes(targetGroupId)) return
+    const existingIndex = findTabIndexForConversation(
+      st.rawTabs,
+      conversation.folder_id,
+      conversation.agent_type,
+      conversation.id
+    )
+    const existing = existingIndex >= 0 ? st.rawTabs[existingIndex] : undefined
+    const tab: TabItemInternal = existing ?? {
+      id: makeConversationTabId(
+        conversation.folder_id,
+        conversation.agent_type,
+        conversation.id
+      ),
+      kind: "conversation",
+      folderId: conversation.folder_id,
+      conversationId: conversation.id,
+      agentType: conversation.agent_type,
+      title:
+        formatConversationTitle(conversation.title) ||
+        runtime.labels.untitledConversation,
+      isPinned: true,
+    }
+    const destination = direction ? makeGroupId() : targetGroupId
+    let rawTabs = existing ? [...st.rawTabs] : [...st.rawTabs, tab]
+    const groupOf = { ...st.groupOf, [tab.id]: destination }
+    // Splitting the only visible conversation needs a placeholder in its old
+    // pane; otherwise normalization would immediately collapse the new split.
+    if (
+      direction &&
+      existing &&
+      groupOfTab(st.groupOf, st.groupLayout, tab.id) === targetGroupId &&
+      !st.rawTabs.some(
+        (item) =>
+          item.id !== tab.id &&
+          groupOfTab(st.groupOf, st.groupLayout, item.id) === targetGroupId
+      )
+    ) {
+      const isChat =
+        useAppWorkspaceStore
+          .getState()
+          .allFolders.find((folder) => folder.id === tab.folderId)?.kind ===
+          "chat" || tab.isChat
+      const draft: TabItemInternal = {
+        ...tab,
+        id: makeNewConversationTabId(),
+        conversationId: null,
+        runtimeConversationId: undefined,
+        title: runtime.labels.newConversation,
+        isPinned: true,
+        ...(isChat ? { folderId: 0, isChat: true, workingDir: undefined } : {}),
+      }
+      rawTabs.push(draft)
+      groupOf[draft.id] = targetGroupId
+    }
+    // A center drop replaces the pane, rather than retaining an invisible tab stack.
+    if (!direction) {
+      const displaced = st.rawTabs.filter(
+        (item) =>
+          item.id !== tab.id &&
+          groupOfTab(st.groupOf, st.groupLayout, item.id) === destination
+      )
+      archivePaneDrafts(displaced)
+      const removed = new Set(displaced.map((item) => item.id))
+      rawTabs = rawTabs.filter((item) => !removed.has(item.id))
+      for (const id of removed) {
+        delete groupOf[id]
+        discardAskSelectionPrompts(id)
+      }
+    }
+    const groupFolder = { ...st.groupFolder }
+    delete groupFolder[destination]
+    rawTabs = rawTabs.map((item) =>
+      item.id === tab.id && !item.isPinned ? { ...item, isPinned: true } : item
+    )
+    set({
+      rawTabs,
+      groupOf,
+      groupFolder,
+      groupLayout: direction
+        ? splitGroup(st.groupLayout, targetGroupId, direction, destination)
+        : st.groupLayout,
+      activeTabId: tab.id,
+    })
+    recomputeTabs()
+    runtime.activateConversationPane()
+  },
+
+  dropTabInGroup: (tabId, targetGroupId, direction) => {
+    const st = get()
+    const tab = st.rawTabs.find((item) => item.id === tabId)
+    if (!tab || !leafIds(st.groupLayout).includes(targetGroupId)) return
+    const sourceGroup = groupOfTab(st.groupOf, st.groupLayout, tabId)
+    if (!direction) {
+      if (tab.conversationId != null)
+        get().openConversationInGroup(
+          {
+            id: tab.conversationId,
+            folder_id: tab.folderId,
+            agent_type: tab.agentType,
+            title: tab.title,
+          },
+          targetGroupId,
+          null
+        )
+      return
+    }
+    if (sourceGroup === targetGroupId) {
+      const members = st.rawTabs.filter(
+        (item) =>
+          groupOfTab(st.groupOf, st.groupLayout, item.id) === sourceGroup
+      )
+      get().splitTab(tabId, direction, {
+        move: tab.conversationId != null && members.length > 1,
+      })
+      return
+    }
+    // Draft text belongs to its original group; never move or discard it.
+    if (tab.conversationId == null) return
+    const newGroupId = makeGroupId()
+    set({
+      groupLayout: splitGroup(
+        st.groupLayout,
+        targetGroupId,
+        direction,
+        newGroupId
+      ),
+      groupOf: { ...st.groupOf, [tabId]: newGroupId },
+      activeTabId: tabId,
+    })
+    recomputeTabs()
+    runtime.activateConversationPane()
+  },
+
   splitTab: (tabId, direction, opts) => {
-    // ChatGPT 桌面端 1:1 复刻：分屏禁用（ChatGPT 无分屏，用户选择牺牲该
-    // 功能）。两个入口（拖拽分屏 / 移动到新组）都改为空操作，布局保持单组。
-    void tabId
-    void direction
-    void opts
-    return
+    const st = get()
+    const tab = st.rawTabs.find((t) => t.id === tabId)
+    if (!tab) return
+    const sourceGroup = groupOfTab(st.groupOf, st.groupLayout, tabId)
+
+    if (opts.move) {
+      // A draft belongs to the group that spawned it (see `moveTabToGroup`);
+      // plain split still seeds the new group with its own draft.
+      if (tab.conversationId == null) return
+      // Moving the group's only tab would just shift the group — pointless.
+      const groupSize = st.rawTabs.filter(
+        (t) => groupOfTab(st.groupOf, st.groupLayout, t.id) === sourceGroup
+      ).length
+      if (groupSize < 2) return
+      const newGroupId = makeGroupId()
+      const nextLayout = splitGroup(
+        st.groupLayout,
+        sourceGroup,
+        direction,
+        newGroupId
+      )
+      if (nextLayout === st.groupLayout) return
+      set({
+        groupLayout: nextLayout,
+        groupOf: { ...st.groupOf, [tabId]: newGroupId },
+        groupFolder:
+          st.groupFolder[sourceGroup] == null
+            ? st.groupFolder
+            : {
+                ...st.groupFolder,
+                [newGroupId]: st.groupFolder[sourceGroup],
+              },
+        activeTabId: tabId,
+      })
+      recomputeTabs()
+      runtime.activateConversationPane()
+      return
+    }
+
+    // Split without moving: the new group opens with a fresh draft seeded from
+    // the context tab (conversations can't be duplicated across groups).
+    const newGroupId = makeGroupId()
+    const nextLayout = splitGroup(
+      st.groupLayout,
+      sourceGroup,
+      direction,
+      newGroupId
+    )
+    if (nextLayout === st.groupLayout) return
+    const inherit =
+      tab.conversationId != null || !tab.agentTypeProvisional
+        ? tab.agentType
+        : null
+    const { allFolders, folders } = useAppWorkspaceStore.getState()
+    const contextIsChat =
+      tab.isChat === true ||
+      allFolders.find((f) => f.id === tab.folderId)?.kind === "chat"
+    let newTab: TabItemInternal
+    if (contextIsChat) {
+      const { agentType, provisional } = resolveAgentForFolder(
+        0,
+        inherit,
+        null,
+        true
+      )
+      newTab = {
+        id: makeNewConversationTabId(),
+        kind: "conversation",
+        folderId: 0,
+        conversationId: null,
+        agentType,
+        title: runtime.labels.newConversation,
+        isPinned: true,
+        workingDir: undefined,
+        agentTypeProvisional: provisional,
+        isChat: true,
+      }
+    } else {
+      const { agentType, provisional } = resolveAgentForFolder(
+        tab.folderId,
+        inherit
+      )
+      newTab = {
+        id: makeNewConversationTabId(),
+        kind: "conversation",
+        folderId: tab.folderId,
+        conversationId: null,
+        agentType,
+        title: runtime.labels.newConversation,
+        isPinned: true,
+        workingDir:
+          tab.workingDir ?? folders.find((f) => f.id === tab.folderId)?.path,
+        agentTypeProvisional: provisional,
+      }
+    }
+    set({
+      rawTabs: [...st.rawTabs, newTab],
+      groupLayout: nextLayout,
+      groupOf: { ...st.groupOf, [newTab.id]: newGroupId },
+      groupFolder:
+        st.groupFolder[sourceGroup] == null
+          ? st.groupFolder
+          : {
+              ...st.groupFolder,
+              [newGroupId]: st.groupFolder[sourceGroup],
+            },
+      activeTabId: newTab.id,
+    })
+    recomputeTabs()
+    runtime.activateConversationPane()
   },
   moveTabToGroup: (tabId, targetGroupId, opts) => {
-    // ChatGPT 桌面端 1:1 复刻：分屏禁用——跨组移动随分屏一并失效，空操作。
-    void tabId
-    void targetGroupId
-    void opts
-    return
+    const st = get()
+    const moving = st.rawTabs.find((t) => t.id === tabId)
+    if (!moving) return
+    if (!leafIds(st.groupLayout).includes(targetGroupId)) return
+    if (groupOfTab(st.groupOf, st.groupLayout, tabId) === targetGroupId) return
+    const targetFolder = st.groupFolder[targetGroupId]
+    if (
+      targetFolder != null &&
+      targetFolder !== OTHER_FOLDER_ZONE_ID &&
+      targetFolder !== moving.folderId
+    )
+      return
+    // Drafts are group-bound: each group owns its unsent scratch conversation
+    // (its own composer text, its own folder/agent context), and every group can
+    // spawn one on demand from its own strip. Moving one would leave a group
+    // without its slot and hand another a second. Reordering WITHIN the group is
+    // unaffected (that path never reaches here). The UI hides both move
+    // affordances for drafts; this backstops the programmatic path.
+    if (moving.conversationId == null) return
+
+    if (opts?.index == null) {
+      // Menu move: only the assignment changes — the tab keeps its global
+      // rawTabs slot (group order = filtered order), so the synced payload
+      // stays byte-identical and no save fires.
+      set({
+        groupOf: { ...st.groupOf, [tabId]: targetGroupId },
+        activeTabId: tabId,
+      })
+      recomputeTabs()
+      runtime.activateConversationPane()
+      return
+    }
+
+    // Drag drop: land at `index` within the target group. Splice the tab out,
+    // then insert it before the target group's k-th member (after its last
+    // member when k = member count) — a partition insert, so every OTHER
+    // group's relative order is untouched. rawTabs order changes, which
+    // syncs like any user reorder.
+    const without = st.rawTabs.filter((t) => t.id !== tabId)
+    const memberSlots: number[] = []
+    without.forEach((t, i) => {
+      if (groupOfTab(st.groupOf, st.groupLayout, t.id) === targetGroupId) {
+        memberSlots.push(i)
+      }
+    })
+    const k = Math.max(0, Math.min(opts.index, memberSlots.length))
+    const insertPos =
+      k < memberSlots.length
+        ? memberSlots[k]
+        : memberSlots.length > 0
+          ? memberSlots[memberSlots.length - 1] + 1
+          : without.length
+    const nextRaw = [
+      ...without.slice(0, insertPos),
+      moving,
+      ...without.slice(insertPos),
+    ]
+    set({
+      rawTabs: nextRaw,
+      groupOf: { ...st.groupOf, [tabId]: targetGroupId },
+      activeTabId: tabId,
+    })
+    recomputeTabs()
+    runtime.activateConversationPane()
   },
 
   openFolderInSplit: (folderId, workingDir, side) => {
-    // ChatGPT 桌面端 1:1 复刻：分屏禁用——左/右分栏打开文件夹退化为在当前
-    // 单组里正常打开该文件夹的新会话（side 不再有意义）。
+    // Legacy folder-menu API remains a regular open. Direct drag splits are
+    // independent of folder-bound zones.
     void side
     return get().openNewConversationTab(folderId, workingDir)
   },
@@ -1616,7 +1987,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       prev.tabId === drag.tabId &&
       prev.x === drag.x &&
       prev.y === drag.y &&
-      prev.overGroupId === drag.overGroupId
+      prev.overGroupId === drag.overGroupId &&
+      prev.direction === drag.direction &&
+      prev.source === drag.source
     ) {
       return
     }
@@ -1665,16 +2038,14 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     const closing = st.rawTabs.filter(
       (tab) => groupOfTab(st.groupOf, st.groupLayout, tab.id) === groupId
     )
+    archivePaneDrafts(closing)
     const closingIds = new Set(closing.map((tab) => tab.id))
     for (const tab of closing) {
       pushClosedTab(snapshotConversationTab(tab))
       discardAskSelectionPrompts(tab.id)
-      if (tab.conversationId == null) {
-        clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tab.id))
-      }
     }
 
-    const rawTabs = st.rawTabs.filter((tab) => !closingIds.has(tab.id))
+    let rawTabs = st.rawTabs.filter((tab) => !closingIds.has(tab.id))
     const groupOf = { ...st.groupOf }
     for (const tabId of closingIds) delete groupOf[tabId]
     const groupFolder = { ...st.groupFolder }
@@ -1694,6 +2065,19 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
           : (rawTabs[0]?.id ?? null)
     }
 
+    if (rawTabs.length === 0) {
+      const preferred =
+        closing.find((tab) => tab.id === st.activeTabId) ?? closing[0]
+      const draft = makeReplacementDraftTab(preferred)
+      if (!draft.workingDir) {
+        draft.isChat = true
+        draft.folderId = 0
+        draft.workingDir = undefined
+      }
+      rawTabs = [draft]
+      activeTabId = draft.id
+      groupOf[draft.id] = firstLeafId(groupLayout)
+    }
     set({ rawTabs, activeTabId, groupOf, groupFolder, groupLayout })
     recomputeTabs()
     runtime.activateConversationPane()
@@ -2806,6 +3190,8 @@ export function useTabActions() {
       toggleGroupOrientation: s.toggleGroupOrientation,
       dissolveGroup: s.dissolveGroup,
       closeGroup: s.closeGroup,
+      closePane: s.closePane,
+      restorePaneDraft: s.restorePaneDraft,
       unsplitAll: s.unsplitAll,
       reorderGroupTabs: s.reorderGroupTabs,
       resizeGroupSplit: s.resizeGroupSplit,

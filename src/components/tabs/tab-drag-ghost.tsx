@@ -19,7 +19,8 @@ import { useTabStore } from "@/contexts/tab-context"
  */
 export function TabDragGhost() {
   const drag = useTabStore((s) => s.tabDrag)
-  if (!drag || drag.overGroupId == null) return null
+  if (!drag || (drag.overGroupId == null && drag.source !== "sidebar"))
+    return null
   return createPortal(
     <div
       aria-hidden

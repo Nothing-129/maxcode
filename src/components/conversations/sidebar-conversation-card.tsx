@@ -200,6 +200,10 @@ interface SidebarConversationCardProps {
   isSelected: boolean
   isOpenInTab?: boolean
   timeLabel?: string
+  onConversationPointerDown?: (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    conversation: DbConversationSummary
+  ) => boolean
   onSelect: (id: number, agentType: string, folderId: number) => void
   onDoubleClick?: (id: number, agentType: string, folderId: number) => void
   onRename: (id: number, newTitle: string) => Promise<void>
@@ -229,6 +233,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   isOpenInTab = false,
   timeLabel,
   onSelect,
+  onConversationPointerDown,
   onDoubleClick,
   onRename,
   onDelete,
@@ -263,10 +268,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || event.pointerType !== "mouse") return
+      if (onConversationPointerDown?.(event, conversation)) {
+        setHoverOpen(false)
+        return
+      }
       rememberPointerSelection(conversation.id)
       selectConversation()
     },
-    [conversation.id, selectConversation]
+    [conversation, onConversationPointerDown, selectConversation]
   )
   const handleClick = useCallback(() => {
     if (consumeRecentPointerSelection(conversation.id)) return
@@ -405,6 +414,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onDoubleClick={handleDblClick}
                     className={cn(
                       "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
+                      onConversationPointerDown &&
+                        "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
                       "pr-[0.25rem]"
                     )}

@@ -2,6 +2,35 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "conversation.scroll-to-bottom-hit-area",
+      "category": "product",
+      "description": "The full scroll-to-bottom button stays clickable above transcript content and does not shift on press, including at its edges.",
+      "origins": ["worktree-2026-09-17"],
+      "paths": ["src/components/ai-elements/message-thread.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/scroll-to-bottom-hit-area.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "workspace.subtle-sidebar-seam",
+      "category": "product",
+      "description": "Desktop sidebar uses one low-opacity separator instead of a wrapper border plus resize line. Hover, drag and keyboard focus restore visibility with a smooth transition, including over workspace backgrounds.",
+      "origins": ["worktree-2026-09-17"],
+      "paths": ["src/app/workspace/layout.tsx", "src/app/globals.css"],
+      "contracts": ["src/maxcode-contracts/sidebar-seam.contract.test.ts"]
+    },
+    {
+      "id": "sidebar.ten-item-pagination",
+      "category": "product",
+      "description": "Recent and Chat match folder pagination: initially show 10 conversations and reveal 10 more per click, with independent section limits. Recent, folders and Chat use one Show more label with the remaining-item count, decreasing after each reveal. Collapsing and reopening Recent resets it to the first page.",
+      "origins": ["worktree-2026-09-17"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-grouping.ts",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/sidebar-pagination.contract.test.ts"]
+    },
+    {
       "id": "agents.six-agent-upstream-20260917",
       "category": "runtime",
       "description": "Selected September upstream integration for the six maintained agents: Codex 1.12/Claude 0.78 recommendations and peer/version-aware questions, explicit default-to-no permission styling, Grok 1.0.30, DeepSeek generation-first history with downstream timing preserved, advertised slash commands and reliable draft hydration, opening-state hints over existing warm-owner/mobile grace lifecycle, isolated launch temp directories and persistent cache migration. Keep official CLI independent updates, six-agent catalog and Electron-only startup; excluded agents and Tauri stay out.",
@@ -1333,12 +1362,13 @@
     {
       "id": "navigation.folder-bound-tab-splits",
       "category": "product",
-      "description": "ChatGPT desktop 1:1 replica (2026-09-08): ChatGPT has no split view and the user chose to sacrifice it. Split groups are permanently disabled — selectIsSplit is always false, hydration collapses any persisted multi-group layout into a single group, splitTab/moveTabToGroup are no-ops, and openFolderInSplit opens in the single group. Folder context menus omit the retired left/right split actions and their callbacks. The former folder-bound split-zone behavior (left/right binding, Other zone, per-zone single tab) is retired with the feature.",
+      "description": "Direct desktop dragging restores conversation splits: drag conversations directly from sidebar folder lists to any pane edge for nested splits or to a pane center to open them; title dragging also remains available. Defer sidebar selection until release, and never replace the current pane during a drag, with half-pane previews and resizable dividers. Preserve layout ratios across restart, draft ownership, live tabs, and mobile single-pane presentation. Middle-clicking a conversation title closes that pane through the same draft-preserving close action. Closing a pane removes its entire hidden history and fills the space with neighboring panes; closing the last pane opens a fresh draft. Center drops replace the target instead of accumulating tabs. Archive unsent drafts independently and provide explicit restoration, including after restart. Never render conversation tab bars in single or split layouts. No layout preset buttons; folder split menu entries remain retired.",
       "origins": [
         "worktree-2026-09-01",
         "worktree-2026-09-02",
         "chatgpt-replica-2026-09-08",
-        "codex-screenshot-2026-09-09"
+        "codex-screenshot-2026-09-09",
+        "worktree-2026-09-17"
       ],
       "paths": [
         "src/lib/tab-group-layout.ts",
@@ -1347,9 +1377,21 @@
         "src/components/conversations/conversation-detail-panel.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/search-command-dialog.tsx",
-        "src/i18n/messages/"
+        "src/i18n/messages/",
+        "src/lib/conversation-drop-target.ts",
+        "src/hooks/use-conversation-drag.ts",
+        "src/hooks/use-sidebar-conversation-drag.ts",
+        "src/lib/pane-draft-archive.ts",
+        "src/components/layout/workspace-chrome-controller.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/group-split-handle.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/folder-split-zones.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/folder-split-zones.contract.test.ts",
+        "src/maxcode-contracts/pane-close-replace.contract.test.ts",
+        "src/maxcode-contracts/title-completion-only.contract.test.tsx"
+      ]
     },
     {
       "id": "navigation.tabs-touch-and-selection",

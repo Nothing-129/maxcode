@@ -19,8 +19,7 @@ const source = readFileSync(
  * and out of split leaves every surviving view's DOM node identity untouched.
  *
  * The conditional shapes `renderGroupShell` relies on are:
- *   1. TWO leading `{isSplit && …}` siblings (the group strip, then the
- *      group's conversation title bar) ahead of the unkeyed content wrapper
+ *   1. ONE leading `{isSplit && …}` sibling (the conversation title bar) ahead of the unkeyed content wrapper
  *      (inside each shell), and
  *   2. a trailing `{isSplit && handles.map(...)}` sibling after the keyed shell
  *      array (inside the container).
@@ -36,11 +35,6 @@ const source = readFileSync(
 function Shell({ isSplit }: { isSplit: boolean }) {
   return (
     <div data-testid="shell">
-      {isSplit && (
-        <div data-testid="strip" className="flex h-10 shrink-0 items-stretch">
-          strip
-        </div>
-      )}
       {isSplit && (
         <div data-testid="header" className="shrink-0">
           title bar
@@ -79,7 +73,7 @@ function Container({
 }
 
 describe("split group shell reconciliation", () => {
-  it("keeps the content subtree mounted when the strip + title bar appear and disappear", () => {
+  it("keeps the content subtree mounted when the title header appears and disappears", () => {
     const { rerender, getByTestId, queryByTestId } = render(
       <Shell isSplit={false} />
     )
@@ -88,14 +82,14 @@ describe("split group shell reconciliation", () => {
     expect(queryByTestId("strip")).toBeNull()
     expect(queryByTestId("header")).toBeNull()
 
-    // Split: the strip AND the group title bar are prepended.
+    // Split: the title header appears; there is no tab strip.
     rerender(<Shell isSplit={true} />)
-    expect(queryByTestId("strip")).not.toBeNull()
+    expect(queryByTestId("strip")).toBeNull()
     expect(queryByTestId("header")).not.toBeNull()
     expect(getByTestId("content")).toBe(content)
     expect(getByTestId("view")).toBe(view)
 
-    // Unsplit: both go away again.
+    // Unsplit: the group header goes away again.
     rerender(<Shell isSplit={false} />)
     expect(queryByTestId("strip")).toBeNull()
     expect(queryByTestId("header")).toBeNull()
@@ -130,28 +124,20 @@ describe("split group shell reconciliation", () => {
 })
 
 describe("split group shell source shape", () => {
-  // Ties the mirrored components above to the real render path: if the shell's
-  // children stop being [conditional strip, conditional title bar, content
-  // wrapper] siblings, the behavioural proof above no longer describes
-  // production.
-  it("keeps strip, title bar, and content wrapper as plain sibling slots", () => {
-    const shellStart = source.indexOf("const renderGroupShell = (groupId")
-    expect(shellStart).toBeGreaterThan(-1)
-    const shellBody = source.slice(shellStart, shellStart + 6000)
-    const stripIdx = shellBody.indexOf("{showSplitLayout && (")
+  it("keeps the conditional title header and content in stable sibling slots", () => {
+    const shellBody = source.slice(
+      source.indexOf("const renderGroupShell = (groupId")
+    )
     const headerIdx = shellBody.indexOf("{showSplitLayout && selTab && (")
     const contentIdx = shellBody.indexOf(
-      '<div className="relative min-h-0 flex-1 overflow-hidden">'
+      'className="relative min-h-0 flex-1 overflow-hidden"'
     )
-    expect(stripIdx).toBeGreaterThan(-1)
-    expect(headerIdx).toBeGreaterThan(stripIdx)
+    expect(headerIdx).toBeGreaterThan(-1)
     expect(contentIdx).toBeGreaterThan(headerIdx)
-    // The per-group title bar lives between them.
     expect(shellBody.slice(headerIdx, contentIdx)).toContain(
       "<ConversationDetailHeader"
     )
-    // No fragment/wrapper around the trio — that would make the flip shift
-    // slots and remount the content subtree.
-    expect(shellBody.slice(stripIdx, contentIdx)).not.toContain("<>")
+    expect(shellBody.slice(headerIdx, contentIdx)).not.toContain("<>")
+    expect(shellBody).not.toContain("<TabBar")
   })
 })

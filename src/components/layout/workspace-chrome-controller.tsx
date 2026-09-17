@@ -43,8 +43,13 @@ export function WorkspaceChromeController() {
   const { toggle } = useSidebarContext()
   const { toggle: toggleAuxPanel } = useAuxPanelContext()
   const { toggle: toggleTerminal } = useTerminalContext()
-  const { openNewConversationTab, openTab, switchTab, closeTab } =
-    useTabActions()
+  const {
+    openNewConversationTab,
+    openTab,
+    switchTab,
+    closePane,
+    restorePaneDraft,
+  } = useTabActions()
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
   // Tab-close/navigation shortcuts used to live in the visible tab strips.
@@ -194,7 +199,7 @@ export function WorkspaceChromeController() {
         if (conversationPaneActive) {
           if (!activeTabId) return
           e.preventDefault()
-          closeTab(activeTabId)
+          closePane(activeTabId)
         } else if (filesPaneActive) {
           if (!activeFileTabId) return
           e.preventDefault()
@@ -230,6 +235,10 @@ export function WorkspaceChromeController() {
             )
             return
           }
+          if (restorePaneDraft(closed.key)) {
+            openConversations()
+            return
+          }
           const folder = useAppWorkspaceStore
             .getState()
             .getFolder(closed.folderId)
@@ -260,7 +269,8 @@ export function WorkspaceChromeController() {
     tabs,
     activeTabId,
     switchTab,
-    closeTab,
+    closePane,
+    restorePaneDraft,
     mode,
     activePane,
     filesMaximized,

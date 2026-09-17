@@ -1966,8 +1966,7 @@
       "sectionRecent": "الأحدث",
       "noChats": "لا توجد محادثات",
       "noRecent": "لا توجد محادثات حديثة",
-      "showMoreRecent": "عرض المزيد ({count})",
-      "showMoreFolder": "عرض المزيد",
+      "showMoreConversations": "عرض المزيد ({count})",
       "resetRecentLimit": "إعادة التعيين إلى أول {count}",
       "noFolders": "لا توجد مجلدات مفتوحة",
       "newChatAction": "محادثة جديدة",
@@ -2068,6 +2067,8 @@
       "copiedField": "تم نسخ {field}"
     },
     "conversationCard": {
+      "closePane": "إغلاق الجزء",
+      "restorePaneDraft": "استعادة آخر مسودة غير مرسلة",
       "folderZone": "قسم {name}",
       "otherFolderZone": "أخرى",
       "closeFolderZone": "إغلاق قسم {name}",

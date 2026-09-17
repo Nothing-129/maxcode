@@ -1966,8 +1966,7 @@
       "sectionRecent": "Zuletzt",
       "noChats": "Keine Chats",
       "noRecent": "Keine kürzlichen Konversationen",
-      "showMoreRecent": "Mehr anzeigen ({count})",
-      "showMoreFolder": "Mehr anzeigen",
+      "showMoreConversations": "Mehr anzeigen ({count})",
       "resetRecentLimit": "Auf die ersten {count} zurücksetzen",
       "noFolders": "Keine Ordner geöffnet",
       "newChatAction": "Neuer Chat",
@@ -2068,6 +2067,8 @@
       "copiedField": "{field} kopiert"
     },
     "conversationCard": {
+      "closePane": "Bereich schließen",
+      "restorePaneDraft": "Letzten ungesendeten Entwurf wiederherstellen",
       "folderZone": "Bereich {name}",
       "otherFolderZone": "Andere",
       "closeFolderZone": "Bereich {name} schließen",

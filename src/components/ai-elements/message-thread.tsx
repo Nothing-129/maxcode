@@ -177,7 +177,7 @@ export const MessageThreadScrollButton = ({
     !isAtBottom && (
       <Button
         className={cn(
-          "absolute bottom-4 left-[50%] translate-x-[-50%] rounded-full bg-background/90 hover:bg-muted/90",
+          "pointer-events-auto absolute bottom-4 left-[50%] z-10 translate-x-[-50%] cursor-pointer rounded-full bg-background/90 transition-colors hover:bg-muted/90 active:not-aria-[haspopup]:translate-y-0",
           className
         )}
         onClick={handleScrollToBottom}
