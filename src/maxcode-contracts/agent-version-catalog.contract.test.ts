@@ -19,7 +19,7 @@ describe("MaxCode contract: reviewed built-in agent version catalog", () => {
     ["Hermes", "CodeBuddy", "0.21.1", "hermes-agent@0.21.1"],
     ["CodeBuddy", "KimiCode", "2.149.0", "@tencent-ai/codebuddy-code@2.149.0"],
     ["KimiCode", "Pi", "0.42.0", "@moonshot-ai/kimi-code@0.42.0"],
-    ["Grok", "Cursor", "1.0.30", "@xai-official/grok@1.0.30"],
+    ["Grok", "Cursor", "1.0.34", "@xai-official/grok@1.0.34"],
     ["Qoder", "Antigravity", "1.1.49", "@qoder-ai/qodercli@1.1.49"],
   ])(
     "pins %s before %s at the reviewed release",

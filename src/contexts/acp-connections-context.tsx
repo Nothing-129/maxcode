@@ -887,19 +887,138 @@ type Action =
       contextKey: string
     }
 
-type StreamingAction =
-  | {
-      type: "CONTENT_DELTA"
-      contextKey: string
-      text: string
-      parentToolUseId?: string
+type StreamingAction = {
+  type: "CONTENT_DELTA" | "THINKING"
+  contextKey: string
+  text: string
+  parentToolUseId?: string
+  // Preserve the first/last non-empty delta's browser arrival time through
+  // coalescing. Render cadence must not become TTFT or model decode time.
+  firstTokenAt?: number
+  lastTokenAt?: number
+}
+
+/** One display frame: the narrowest window streaming deltas coalesce into. */
+export const STREAM_FLUSH_FRAME_MS = 16
+/**
+ * The widest — about five batches a second.
+ *
+ * Kept well under the 500 ms sample period of the tok/s gauge
+ * (`useTokenOutputSpeed`), which reads the live message on its own clock: at
+ * most one window's worth of text can be un-flushed when it samples, so the
+ * reading stays accurate. Raising this past ~250 ms would make that gauge
+ * sawtooth, and is not a free knob.
+ */
+export const STREAM_FLUSH_MAX_MS = 192
+/** Characters of re-rendered live content that buy one more frame. */
+const STREAM_FLUSH_CHARS_PER_FRAME = 8 * 1024
+/**
+ * What one re-rendered non-prose block costs, in prose-equivalent characters.
+ *
+ * Measured in the real component tree (jsdom, React 19), re-rendering a live
+ * turn the way a batch does — growing prose costs 0.00075 ms/char, while each
+ * block that re-renders whole costs a FLAT 0.02 ms (a collapsed thinking
+ * block) to 0.18 ms (a plan card), with a tool card at 0.06 ms. That is 30 to
+ * 235 prose-equivalent characters; 128 sits inside the range, so 64 cards buy
+ * one extra frame.
+ *
+ * Flat, not proportional to the block's content, because that is what the
+ * measurement shows: a collapsed thinking block costs the same at 200 and at
+ * 4000 characters, since the cards render clamped previews and Radix keeps
+ * closed content unmounted.
+ */
+const STREAM_FLUSH_BLOCK_CHARS = 128
+/**
+ * Deltas one connection may coalesce before the window is cut short. A safety
+ * valve for a burst the timer can't keep up with, not a cadence knob — it
+ * bounds one connection's unrendered backlog, so it is per connection like the
+ * window it pre-empts.
+ */
+const STREAM_QUEUE_CAP = 256
+
+/**
+ * What the next batch will re-render, in prose-equivalent characters, read off
+ * the live message as of the LAST batch.
+ *
+ * Every batch replaces the live message, so the whole turn is re-adapted and
+ * handed to the renderer again. What that costs is NOT uniform:
+ *
+ * - The trailing text/thinking run — the block this batch grows — is
+ *   re-rendered whole: normalized, re-lexed into markdown blocks,
+ *   re-highlighted. Linear in its length, and the dominant term.
+ * - Settled prose above it is FREE: `TextPart` memoizes on the string by
+ *   value, so an unchanged run bails out before the markdown renderer.
+ *   (Measured: eight extra settled 8 KB blocks cost nothing.)
+ * - Everything else — tool cards, closed thinking blocks, plan cards,
+ *   steering notes — re-renders on EVERY batch regardless. They memoize on
+ *   the part object, and `createMessageTurnAdapter` refuses to cache a
+ *   streaming turn (`cacheable = !isStreaming && !inProgress`), so each batch
+ *   hands them freshly built objects. Charged a flat
+ *   `STREAM_FLUSH_BLOCK_CHARS` each.
+ *
+ * A turn that has run a hundred tools and is now writing its summary has a
+ * short run and a real per-batch cost; sizing from the run alone would leave
+ * it on a single frame while it burns a third of every one.
+ */
+export function liveRerenderChars(
+  content: readonly LiveContentBlock[] | undefined
+): number {
+  if (!content || content.length === 0) return 0
+  let chars = 0
+  const lastIndex = content.length - 1
+  for (let i = 0; i < content.length; i++) {
+    const block = content[i]
+    if (block.type === "text" || block.type === "thinking") {
+      // Only the trailing run is charged per character — it is the one the
+      // batch grows, and the only one whose memo the batch invalidates. (A
+      // trailing thinking run is charged in full on the assumption it is
+      // expanded while it streams; if it is not, this over-charges by one
+      // block, which the ceiling bounds. Same for a trailing run that belongs
+      // to a sub-agent: `parentToolUseId` is deliberately not read here, so a
+      // delegated run is charged as main prose. It renders inside a capsule
+      // that may be collapsed, so this errs toward the wider window — the
+      // direction that costs latency, never correctness.)
+      if (i === lastIndex) chars += block.text.length
+      continue
     }
-  | {
-      type: "THINKING"
-      contextKey: string
-      text: string
-      parentToolUseId?: string
-    }
+    chars += STREAM_FLUSH_BLOCK_CHARS
+  }
+  return chars
+}
+
+/**
+ * How long streaming deltas coalesce before one `STREAM_BATCH` lands, given
+ * what that batch will re-render (see `liveRerenderChars`).
+ *
+ * The cost is linear in that, and the window was a flat 16 ms — so the work a
+ * turn cost grew with the SQUARE of its own output, while the rate it arrived
+ * at stayed the same. Past a few tens of KB the renderer could no longer keep
+ * up with the stream, which is #589: at ~300 tok/s the whole UI stops
+ * responding, on hardware with plenty of headroom.
+ *
+ * Measured on a 300 tok/s stream, counting the characters re-rendered across
+ * a turn: 30 s of output cost 32.5M before and 11.1M after; 120 s cost 518.8M
+ * before and 59.9M after.
+ *
+ * Under 8 KB — nearly every reply — keeps the 16 ms window it has today. Past
+ * that each further 8 KB buys one more frame, so the cost per second flattens
+ * out instead of climbing with the answer.
+ *
+ * Nothing about WHAT gets delivered changes: the queue merges and dispatches
+ * exactly as before, every chunk lands once and in order, and every event that
+ * MUTATES the live message — a tool card, a permission prompt, the end of a
+ * turn — flushes the queue first, so none of them waits on this window and
+ * none of them can land out of wire order. (Events that touch nothing the
+ * transcript renders, such as `permission_resolved` or `async_task`, do not
+ * flush; that predates this window and is unchanged by it.)
+ */
+export function streamFlushDelayMs(liveRunChars: number): number {
+  const frames = Math.max(
+    1,
+    Math.ceil(liveRunChars / STREAM_FLUSH_CHARS_PER_FRAME)
+  )
+  return Math.min(STREAM_FLUSH_MAX_MS, STREAM_FLUSH_FRAME_MS * frames)
+}
 
 type ConnectionsMap = Map<string, ConnectionState>
 const MAX_LIVE_TOOL_RAW_OUTPUT_CHARS = 200_000
@@ -1584,16 +1703,28 @@ function applyStreamingAction(
   if (!newContent) return null
   const isRootToken = action.parentToolUseId == null && action.text.length > 0
   const contentIndex = Math.max(0, newContent.length - 1)
-  const generationTiming = isRootToken
-    ? markLiveGenerationOutput(
-        prev.generationTiming,
+  let generationTiming = prev.generationTiming
+  if (isRootToken) {
+    const firstTokenAt = action.firstTokenAt ?? Date.now()
+    const lastTokenAt = action.lastTokenAt ?? firstTokenAt
+    generationTiming = markLiveGenerationOutput(
+      generationTiming,
+      prev.startedAt,
+      contentIndex,
+      prev.generationTiming?.nextStepStartedAt != null ||
+        lastRootGeneratedBlock(prev.content)?.type === "tool_call",
+      firstTokenAt
+    )
+    if (lastTokenAt !== firstTokenAt) {
+      generationTiming = markLiveGenerationOutput(
+        generationTiming,
         prev.startedAt,
         contentIndex,
-        prev.generationTiming?.nextStepStartedAt != null ||
-          lastRootGeneratedBlock(prev.content)?.type === "tool_call",
-        Date.now()
+        false,
+        lastTokenAt
       )
-    : prev.generationTiming
+    }
+  }
   return {
     ...conn,
     liveMessage: { ...prev, content: newContent, generationTiming },
@@ -3618,8 +3749,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // Activity tracking (no re-renders)
   const lastActivityRef = useRef(new Map<string, number>())
-  const streamingQueueRef = useRef<StreamingAction[]>([])
-  const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // Streaming coalescing queue + its window, PER CONNECTION (see
+  // `flushStreamingQueue`). Entries are created on the first delta after a
+  // flush and removed by the flush that drains them, so both maps hold only
+  // the connections with deltas in flight right now.
+  const streamingQueuesRef = useRef(new Map<string, StreamingAction[]>())
+  const flushTimersRef = useRef(
+    new Map<string, ReturnType<typeof setTimeout>>()
+  )
   const pendingUnmappedEventsRef = useRef(new Map<string, EventEnvelope[]>())
   const listenerReadyRef = useRef(false)
   const listenerReadyWaitersRef = useRef<Array<() => void>>([])
@@ -3694,10 +3831,69 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // ── Dispatch (replaces useReducer dispatch) ──
 
+  /**
+   * Drop ONE connection's queued deltas and its window, without dispatching.
+   *
+   * Declared here rather than beside the other streaming helpers because
+   * `dispatch` below calls it and needs it in scope; it touches only the two
+   * refs, so there is no cycle.
+   */
+  const discardStreamingKey = useCallback((contextKey: string) => {
+    const timer = flushTimersRef.current.get(contextKey)
+    if (timer !== undefined) {
+      clearTimeout(timer)
+      flushTimersRef.current.delete(contextKey)
+    }
+    streamingQueuesRef.current.delete(contextKey)
+  }, [])
+
+  /** The same, for every connection at once. */
+  const discardStreamingQueues = useCallback(() => {
+    for (const timer of flushTimersRef.current.values()) clearTimeout(timer)
+    flushTimersRef.current.clear()
+    streamingQueuesRef.current.clear()
+  }, [])
+
   const dispatch = useCallback(
     (action: Action) => {
       const prev = storeRef.current.connections
       const next = connectionsReducer(prev, action)
+
+      // "No entry, no queue." A removed key must not leave deltas armed behind
+      // it: they land up to `STREAM_FLUSH_MAX_MS` later, and context keys are
+      // REUSED — the same `conv-<id>-<agent>-<folder>` string is handed to the
+      // next connection that opens on that tab — so a late batch does not
+      // merely waste a dispatch, it can append a dead turn's prose to a live
+      // one.
+      //
+      // Read off the reducer's OWN result rather than from a list of removal
+      // actions, so the rule is exactly "the entry is gone" and cannot drift
+      // from what the reducer decided. It also declines where the reducer
+      // declines — a rekey onto an occupied key is rejected, and discarding
+      // for a connection that is still there and still talking would lose its
+      // trailing prose.
+      //
+      // What IS enumerated is the two hot paths, so that the list fails safe:
+      // forget to add a case here and the cost is a walk over the open
+      // connections, not a stray window. Listing the removals instead reads
+      // cheaper and fails the other way — that is how `DELEGATION_CHILD_DETACH`
+      // went uncovered, and a size check alone would miss the next action
+      // shaped like `REKEY_CONNECTION`, which removes a key and adds another.
+      //
+      // Discard rather than flush: a flush would re-enter `dispatch`, and
+      // there is no one left to render the result. Callers that DO want the
+      // deltas landed first call `flushStreamingQueue(key)` before removing —
+      // `connect()`'s orphan rescue is the one that does, ahead of its rekey.
+      if (
+        next !== prev &&
+        action.type !== "STREAM_BATCH" &&
+        action.type !== "BATCH_TOOL_CALL_UPDATES"
+      ) {
+        for (const key of prev.keys()) {
+          if (!next.has(key)) discardStreamingKey(key)
+        }
+      }
+
       if (next === prev) return // no change
 
       storeRef.current.connections = next
@@ -3750,7 +3946,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         }
       }
     },
-    [notifyKeyListeners, notifyAllKeyListeners]
+    [discardStreamingKey, notifyKeyListeners, notifyAllKeyListeners]
   )
 
   // ── setActiveKey ──
@@ -3850,67 +4046,121 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     [dispatch]
   )
 
-  const flushStreamingQueue = useCallback(() => {
-    flushTimerRef.current = null
-    const queued = streamingQueueRef.current
-    if (queued.length === 0) return
-    streamingQueueRef.current = []
-
-    // Merge adjacent deltas by connection key (per-key order preserved),
-    // reducing reducer work and string copies under high-frequency streams.
-    const grouped = new Map<string, StreamingAction[]>()
-    for (const action of queued) {
-      const list = grouped.get(action.contextKey)
-      if (!list) {
-        grouped.set(action.contextKey, [{ ...action }])
-        continue
+  /**
+   * Drain ONE connection's coalesced deltas into a single `STREAM_BATCH`.
+   *
+   * Scheduling is PER CONNECTION. The queue and its window used to be global,
+   * so the window a batch waited in was whichever connection's delta happened
+   * to arm the timer. Harmless while that window was a flat 16 ms; once
+   * `streamFlushDelayMs` sizes it from what is being re-rendered, a long reply
+   * in one conversation held every OTHER conversation's deltas for up to
+   * `STREAM_FLUSH_MAX_MS` — including a background conversation with no panel
+   * mounted, which costs nothing to flush and so bought nothing by waiting.
+   * Codeg runs several agents at once by design, so that is the normal case,
+   * not a corner of one.
+   *
+   * Connections are independent — own wire, own seq cursor, own
+   * `ConnectionState` — so there is nothing to coordinate between them, and
+   * per-key ordering is what the reducer and the out-of-turn guards already
+   * reason about. Page wake-up drains each surviving connection; teardown
+   * discards instead (`discardStreamingQueues`), because a batch dispatched
+   * into a key being removed can otherwise land on its successor.
+   */
+  const flushStreamingQueue = useCallback(
+    (contextKey: string) => {
+      // CANCEL the pending window, don't just forget it. Most callers are
+      // event handlers flushing out of turn (a tool card, a permission prompt,
+      // a usage update), and a timer that is only dropped from the map still
+      // fires: it releases whatever the NEXT window had queued, early, and
+      // takes that window's entry with it, so the delta after it arms a third
+      // timer. One stray timer per out-of-turn flush, each halving the
+      // cadence — which is how a widened window (`streamFlushDelayMs`) decays
+      // back to a flat frame over exactly the long turns it exists for.
+      const timer = flushTimersRef.current.get(contextKey)
+      if (timer !== undefined) {
+        clearTimeout(timer)
+        flushTimersRef.current.delete(contextKey)
       }
-      const last = list[list.length - 1]
-      // Same-type AND same subagent attribution: within one flush window,
-      // main-thread and parented deltas (or two different subagents') must
-      // not concatenate — this pre-coalescing runs BEFORE the reducer's
-      // attribution-aware merge and would otherwise defeat it.
-      if (
-        last &&
-        last.type === action.type &&
-        last.parentToolUseId === action.parentToolUseId
-      ) {
-        last.text += action.text
-      } else {
-        list.push({ ...action })
-      }
-    }
+      const queued = streamingQueuesRef.current.get(contextKey)
+      if (queued === undefined) return
+      streamingQueuesRef.current.delete(contextKey)
+      if (queued.length === 0) return
 
-    const compacted = Array.from(grouped.values()).flat()
-    dispatch({ type: "STREAM_BATCH", actions: compacted })
-  }, [dispatch])
+      // Merge adjacent deltas (arrival order preserved), reducing reducer work
+      // and string copies under high-frequency streams. Same-type AND same
+      // subagent attribution: within one flush window, main-thread and
+      // parented deltas (or two different subagents') must not concatenate —
+      // this pre-coalescing runs BEFORE the reducer's attribution-aware merge
+      // and would otherwise defeat it.
+      const compacted: StreamingAction[] = []
+      for (const action of queued) {
+        const last = compacted[compacted.length - 1]
+        if (
+          last &&
+          last.type === action.type &&
+          last.parentToolUseId === action.parentToolUseId
+        ) {
+          last.text += action.text
+          last.firstTokenAt ??= action.firstTokenAt
+          last.lastTokenAt = action.lastTokenAt ?? last.lastTokenAt
+        } else {
+          compacted.push({ ...action })
+        }
+      }
+
+      dispatch({ type: "STREAM_BATCH", actions: compacted })
+    },
+    [dispatch]
+  )
 
   const enqueueStreamingAction = useCallback(
     (action: StreamingAction) => {
-      streamingQueueRef.current.push(action)
-      if (streamingQueueRef.current.length >= 256) {
-        if (flushTimerRef.current !== null) {
-          clearTimeout(flushTimerRef.current)
-          flushTimerRef.current = null
-        }
-        flushStreamingQueue()
+      const { contextKey } = action
+      if (action.text.length > 0) {
+        const now = Date.now()
+        action = { ...action, firstTokenAt: now, lastTokenAt: now }
+      }
+      let queue = streamingQueuesRef.current.get(contextKey)
+      if (queue === undefined) {
+        queue = []
+        streamingQueuesRef.current.set(contextKey, queue)
+      }
+      queue.push(action)
+      if (queue.length >= STREAM_QUEUE_CAP) {
+        // Cap reached — `flushStreamingQueue` clears the pending window itself.
+        flushStreamingQueue(contextKey)
         return
       }
-      if (flushTimerRef.current === null) {
-        flushTimerRef.current = setTimeout(flushStreamingQueue, 16)
+      if (!flushTimersRef.current.has(contextKey)) {
+        // Size the window from what this batch will re-render, read as of the
+        // last batch — so it costs one map lookup plus a walk over the live
+        // turn's blocks, and a fresh turn (empty live message) is back to a
+        // single frame. See `liveRerenderChars` and `streamFlushDelayMs`.
+        const delay = streamFlushDelayMs(
+          liveRerenderChars(
+            storeRef.current.connections.get(contextKey)?.liveMessage?.content
+          )
+        )
+        flushTimersRef.current.set(
+          contextKey,
+          setTimeout(() => flushStreamingQueue(contextKey), delay)
+        )
       }
     },
     [flushStreamingQueue]
   )
 
   // Mobile browsers freeze `setTimeout` while the tab is backgrounded or
-  // the screen is locked. Deltas already queued then sit until the 16ms
+  // the screen is locked. Deltas already queued then sit until their flush
   // timer fires — which may be never if the timer was scheduled just as
   // JS froze. Flush on wake so a turn that arrived as the page hid is
   // painted as soon as the user looks again.
   useEffect(() => {
     const onVisible = () => {
-      if (document.visibilityState === "visible") flushStreamingQueue()
+      if (document.visibilityState !== "visible") return
+      for (const key of streamingQueuesRef.current.keys()) {
+        flushStreamingQueue(key)
+      }
     }
     document.addEventListener("visibilitychange", onVisible)
     window.addEventListener("pageshow", onVisible)
@@ -4120,7 +4370,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       if (!echo) playEventSound(e)
       switch (e.type) {
         case "status_changed":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({ type: "STATUS_CHANGED", contextKey, status: e.status })
           break
         case "content_delta":
@@ -4144,7 +4394,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "claude_sdk_message":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "CLAUDE_API_RETRY",
             contextKey,
@@ -4153,7 +4403,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         case "tool_call":
           settleRetryIncidentsOnProgress(contextKey)
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "TOOL_CALL",
             contextKey,
@@ -4170,7 +4420,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "tool_call_update":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           pendingToolCallUpdates.current.push({
             contextKey,
             tool_call_id: e.tool_call_id,
@@ -4201,7 +4451,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // as a tool result, never a user message. Those stay in the notes
           // list above the composer, which is where a reload leaves them too.
           if (e.item.status !== "delivered") break
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "STEERING_MESSAGE",
             contextKey,
@@ -4244,7 +4494,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // Agent called the blocking `ask_user_question` MCP tool. Flush any
           // queued streaming so the card renders against current content, then
           // raise the interactive multiple-choice card above the input box.
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "SET_ASK_QUESTION",
             contextKey,
@@ -4286,7 +4536,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // Grok called `exit_plan_mode`: it's blocked on the user's approval of
           // the plan. Flush queued streaming so the card renders against current
           // content, then raise the interactive plan-approval card.
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "SET_PLAN_APPROVAL",
             contextKey,
@@ -4432,7 +4682,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "permission_request":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           flushPendingToolCallUpdates()
           dispatch({
             type: "PERMISSION_REQUEST",
@@ -4463,7 +4713,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           }
           break
         case "session_started":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "SESSION_STARTED",
             contextKey,
@@ -4500,7 +4750,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           }
           break
         case "session_modes": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           // Preferences are applied on the backend during connect (see
           // `getSavedPrefsForConnect` + `acp_connect`), so `e.modes` already
           // carries the user's preferred `current_mode_id` — no client-side
@@ -4517,7 +4767,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "session_config_options": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           // Same as `session_modes`: backend already merged saved prefs
           // into `current_value` before emitting.
           dispatch({
@@ -4546,7 +4796,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "session_config_stale": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "CONFIG_STALE_CHANGED",
             contextKey,
@@ -4556,7 +4806,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "selectors_ready": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "SELECTORS_READY",
             contextKey,
@@ -4573,7 +4823,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "prompt_capabilities":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "PROMPT_CAPABILITIES",
             contextKey,
@@ -4581,7 +4831,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "fork_supported":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "FORK_SUPPORTED",
             contextKey,
@@ -4589,7 +4839,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "mode_changed":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "MODE_CHANGED",
             contextKey,
@@ -4597,7 +4847,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "plan_update":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "PLAN_UPDATE",
             contextKey,
@@ -4644,7 +4894,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // Without this, a delta enqueued just BEFORE the retry arrived lands
           // just AFTER it and wipes the banner we are about to raise — which pi
           // reaches routinely, since it retries mid-stream between prose chunks.
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           const retryConn = storeRef.current.connections.get(contextKey)
           dispatch({
             type: "CLAUDE_API_RETRY",
@@ -4662,7 +4912,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "turn_complete": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           flushPendingToolCallUpdates()
           // AIR retry warnings settle only at a CLEAN turn end, mirroring the
           // backend's `apply_event`. A failed turn's terminal failure rides
@@ -4735,7 +4985,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "error": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           const nc = storeRef.current.connections.get(contextKey)
           const agentLabel = nc
             ? getAgentLabel(nc.agentType)
@@ -4880,7 +5130,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "session_load_failed": {
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           // Localize via the stable `code` field ("resource_not_found" —
           // JSON-RPC -32002 — plus "session_unavailable" and
           // "session_archived", both matched on the wire message). Fall back
@@ -4954,7 +5204,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           break
         }
         case "available_commands":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "AVAILABLE_COMMANDS",
             contextKey,
@@ -4962,7 +5212,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           })
           break
         case "usage_update":
-          flushStreamingQueue()
+          flushStreamingQueue(contextKey)
           dispatch({
             type: "USAGE_UPDATE",
             contextKey,
@@ -5131,6 +5381,28 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       let activeSub: EventStreamSubscription | null = null
       const handlers: AttachHandlers = {
         onSnapshot: (snapshot) => {
+          // Land anything still coalescing BEFORE the snapshot replaces the
+          // live message. This handler also runs on an attach-stream
+          // RECONNECT, mid-turn, so deltas from before the drop can still be
+          // queued — and the hydrate would swap `liveMessage` out from under
+          // them, so the flush that follows would append a run the snapshot
+          // already contains, duplicating it on screen.
+          //
+          // Flush, not discard: `HYDRATE_FROM_SNAPSHOT` has a stale-snapshot
+          // branch that merges selector fields only and leaves `liveMessage`
+          // untouched, so discarding would silently drop prose nothing else
+          // redelivers. Flushing is what the queue's contract asks for anyway
+          // — every path that reads or replaces `liveMessage` from outside
+          // should see the same state it would have seen with no coalescing
+          // at all.
+          //
+          // The other three snapshot consumers don't need this: they hydrate
+          // at attach time, before `bindConnectionRoute` gives the key a
+          // route, so no delta of theirs can be in flight yet — and a queue
+          // left by a PREVIOUS connection under a recycled key is discarded
+          // at `CONNECTION_REMOVED` (see `dispatch`), which is the right
+          // outcome there, not a flush.
+          flushStreamingQueue(contextKey)
           const patch = denormalizeSnapshot(snapshot)
           dispatch({ type: "HYDRATE_FROM_SNAPSHOT", contextKey, patch })
           surfaceSnapshotErrorDetailsRef.current(contextKey, patch)
@@ -5198,6 +5470,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       applyMappedEnvelope,
       captureIdentityBeforeRemoval,
       dispatch,
+      flushStreamingQueue,
       seedDelegationsFromSnapshot,
     ]
   )
@@ -5316,17 +5589,17 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       cancelled = true
       listenerReadyRef.current = false
       resolveListenerReadyWaiters()
-      if (flushTimerRef.current !== null) {
-        clearTimeout(flushTimerRef.current)
-        flushTimerRef.current = null
-      }
       unlisten?.()
     }
-    // Every dep here is a `useCallback(..., [])` — the subscription is
+    // Every dependency remains stable for the provider's lifetime, so this is
     // registered once per mount and torn down only on unmount. The event
     // handler deliberately isn't a dep; it's reached through
     // `handleMappedEventRef` so a changing closure can't churn the listener.
   }, [bufferUnmappedEvent, dispatch, resolveListenerReadyWaiters])
+
+  // Both the legacy event protocol and attach streams create flush windows.
+  // Keep cleanup outside the listener effect, which returns early for attach.
+  useEffect(() => discardStreamingQueues, [discardStreamingQueues])
 
   /**
    * Ask the backend whether it still holds a live connection under this id.
@@ -5370,10 +5643,18 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       releaseConnectionRoute(connectionId, contextKey)
       teardownAttachSubscription(contextKey)
       pendingUnmappedEventsRef.current.delete(connectionId)
+      // The direct status dispatch below bypasses the event handler's flush.
+      // Land the final queued words before `disconnected` rejects new deltas.
+      flushStreamingQueue(contextKey)
       dispatch({ type: "STATUS_CHANGED", contextKey, status: "disconnected" })
       return true
     },
-    [dispatch, releaseConnectionRoute, teardownAttachSubscription]
+    [
+      dispatch,
+      flushStreamingQueue,
+      releaseConnectionRoute,
+      teardownAttachSubscription,
+    ]
   )
 
   // ── Active/true-warm keepalive + read-only liveness reconciliation ──
@@ -5944,6 +6225,11 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             }
           }
           if (orphanKey && orphanConn) {
+            // Land the orphan's coalesced deltas while it still HAS an entry:
+            // the reducer drops a `STREAM_BATCH` for a key with no connection,
+            // so anything still in its window would be lost text. Up to
+            // STREAM_FLUSH_MAX_MS of a live reply, and this runs mid-turn.
+            flushStreamingQueue(orphanKey)
             // The entry MOVES (REKEY_CONNECTION below deletes `orphanKey`), so
             // its route has to move with it — a stale orphan-key route would
             // deliver this connection's events to a contextKey with no entry.
@@ -6288,6 +6574,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       consumeBufferedEvents,
       dispatch,
       dropConnectPending,
+      flushStreamingQueue,
       isConnectionLiveOnBackend,
       isConnectionReferencedLocally,
       localOwnerKeyOf,
@@ -6581,6 +6868,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     // didn't visit.
     reverseMapRef.current.clear()
     lastActivityRef.current.clear()
+    // Same reuse hazard as the caches below, on a clock: a delta queued just
+    // before this would otherwise dispatch up to STREAM_FLUSH_MAX_MS later,
+    // into whatever now holds its contextKey. `dispatch` repeats this for
+    // REMOVE_ALL; this call is the one ahead of the await below, which is the
+    // window a still-armed timer would fire in.
+    discardStreamingQueues()
     // Context keys are reused across backends, so a surviving entry here would
     // suppress the first snapshot alert of an unrelated session.
     alertedErrorDetailsRef.current.clear()
@@ -6591,7 +6884,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     pendingConnectsRef.current.clear()
     await Promise.all(promises)
     dispatch({ type: "REMOVE_ALL" })
-  }, [dispatch, teardownAttachSubscription])
+  }, [discardStreamingQueues, dispatch, teardownAttachSubscription])
 
   const sendPrompt = useCallback(
     async (

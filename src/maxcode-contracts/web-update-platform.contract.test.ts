@@ -31,8 +31,8 @@ describe("MaxCode contract: updater and release channel", () => {
   it("highlights the update action in blue in both themes", () => {
     const status = source("src/components/layout/status-bar-update.tsx")
     expect(status).toContain("rounded-full")
-    expect(status).toContain("bg-blue-600")
-    expect(status).toContain("dark:bg-blue-500")
+    expect(status).toContain("bg-[#3ca1ef]")
+    expect(status).not.toMatch(/dark:(?:hover:)?bg-/)
   })
 
   it("uses the personal MaxCode release feed and removes overlapping update toasts", () => {

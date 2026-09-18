@@ -3135,6 +3135,8 @@
         "sendEmail": "E-Mail senden"
       },
       "messageQueue": {
+        "steerItemNow": "Zum laufenden Durchgang hinzufügen",
+        "steerItemNowHint": "Diese Nachricht senden, ohne die laufende Antwort zu stoppen",
         "adjustDirection": "Richtung ändern",
         "adjustDirectionHint": "Aktuelle Antwort stoppen und diese Nachricht als Nächstes senden",
         "reorderItem": "Zum Sortieren ziehen",

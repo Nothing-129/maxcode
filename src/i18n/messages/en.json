@@ -3135,6 +3135,8 @@
         "sendEmail": "Send email"
       },
       "messageQueue": {
+        "steerItemNow": "Append to current turn",
+        "steerItemNowHint": "Send into the current turn without stopping the reply",
         "adjustDirection": "Adjust direction",
         "adjustDirectionHint": "Stop the current reply and send this message next",
         "reorderItem": "Drag to reorder",

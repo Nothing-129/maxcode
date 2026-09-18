@@ -62,6 +62,45 @@ const ISOLATION_ENV: &str = "CODEG_ACP_TMP_ISOLATION";
 /// extraction churn on a different volume.
 const ROOT_ENV: &str = "CODEG_ACP_TMP_ROOT";
 
+/// Bytes of `sockaddr_un::sun_path` — the kernel's hard cap on the path of an
+/// AF_UNIX socket, and the reason this module cannot nest its scratch
+/// directories under an arbitrarily long `TMPDIR`.
+///
+/// The cap applies to the path as GIVEN to `bind`, not to anything resolved, so
+/// it cannot be dodged with a shorter symlink to the same directory. It is also
+/// not a `PATH_MAX`-sized budget: 104 bytes is barely twice a macOS per-user
+/// temp directory, so every byte this module prepends is a byte taken off what
+/// the child has left.
+///
+/// Shared with [`crate::acp::delegation::listener`], which has the same budget
+/// to keep for codeg's OWN broker socket. One definition rather than two
+/// because [`tests::sun_path_cap_matches_the_kernel`] checks this one against
+/// `libc`, and a second copy would be a number nothing verifies.
+#[cfg(any(target_os = "linux", target_os = "android"))]
+pub(crate) const SUN_PATH_CAP: usize = 108;
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
+pub(crate) const SUN_PATH_CAP: usize = 104;
+
+/// The longest name [`new_dir_name`] can mint: ten digits of `u32` pid, the
+/// separator, and eight hex.
+///
+/// A CONSTANT, not the width of our actual pid. [`scratch_root`] has to answer
+/// the same path in every process that ever sweeps this machine, and a budget
+/// derived from a live pid would not: a four-digit-pid process could pick one
+/// root while a six-digit-pid process picked another, and each would then be
+/// sweeping a root the other was still filling.
+#[cfg(unix)]
+const MAX_LEAF_NAME_LEN: usize = 10 + 1 + 8;
+
+/// Bytes kept free inside the scratch directory for a socket the CHILD creates
+/// — the separator plus its file name.
+///
+/// Sized from what agents really do: a `<prefix>-<uuid v4>.sock` name is 36
+/// bytes of UUID plus 5 of extension plus a short prefix. The agent in #754
+/// used 45, so 56 holds a full name of that shape with margin.
+#[cfg(unix)]
+const CHILD_SOCKET_RESERVE: usize = 56;
+
 /// The three names a child consults for its temp directory. All are set
 /// together: `GetTempPathW` reads `TMP` before `TEMP`, so setting only one
 /// leaves the other able to win.
@@ -105,20 +144,135 @@ pub fn isolation_enabled() -> bool {
     )
 }
 
+/// A scratch root is only usable if a child can still bind a unix socket
+/// INSIDE it. Isolation costs `/codeg-acp/<pid>-<hex>` — about 25 bytes — and
+/// [`SUN_PATH_CAP`] is small enough that spending them can push a child that
+/// bound fine on the ambient temp directory over the cap (#754: a macOS
+/// `/var/folders/…/T` is 48 bytes, leaving 55 for a socket name; nesting under
+/// it leaves 30, and the agent's name was 45).
+#[cfg(unix)]
+fn leaves_room_for_a_child_socket(root: &Path) -> bool {
+    // The deepest path we will hand a child: the root, a separator, and the
+    // longest leaf `new_dir_name` can produce.
+    let scratch_dir = root.as_os_str().len() + 1 + MAX_LEAF_NAME_LEN;
+    // STRICTLY less than the cap: `sun_path` has to hold the terminating NUL
+    // too, so the last byte of the array is never available to the path.
+    scratch_dir + CHILD_SOCKET_RESERVE < SUN_PATH_CAP
+}
+
+/// Short fallback root, used when the ambient temp directory is too long to
+/// nest under.
+///
+/// `/tmp` because it is the shortest directory POSIX guarantees exists. Scoped
+/// by euid because, unlike a macOS per-user `/var/folders/…/T`, `/tmp` is
+/// shared with every other user on the machine: without the uid the first
+/// account to run codeg would own `codeg-acp` and every other account would be
+/// unable to create inside it. [`create`] makes it `0700` so the contents stay
+/// as private as they were in the per-user directory this replaces.
+#[cfg(unix)]
+fn short_root() -> PathBuf {
+    PathBuf::from(format!(
+        "/tmp/{SCRATCH_NAMESPACE}-{}",
+        // Always succeeds; `geteuid` has no failure mode.
+        unsafe { libc::geteuid() }
+    ))
+}
+
+/// Pick the root to nest under, given the ambient temp directory.
+///
+/// Split out from [`scratch_root`] so the choice is a pure function of its
+/// input and can be tested without touching the process environment.
+#[cfg(unix)]
+fn choose_root(ambient: &Path) -> PathBuf {
+    let preferred = ambient.join(SCRATCH_NAMESPACE);
+    if leaves_room_for_a_child_socket(&preferred) {
+        return preferred;
+    }
+    let short = short_root();
+    if leaves_room_for_a_child_socket(&short) {
+        return short;
+    }
+    // Nothing fits. Isolation still beats the unbounded leak it exists to stop,
+    // so take the preferred root anyway and name the escape hatch — an agent
+    // that binds a socket in `TMPDIR` is going to need it.
+    warn_no_root_fits(&preferred);
+    preferred
+}
+
+#[cfg(unix)]
+fn warn_no_root_fits(root: &Path) {
+    static ONCE: std::sync::Once = std::sync::Once::new();
+    ONCE.call_once(|| {
+        tracing::warn!(
+            "[ACP][scratch] {} leaves a child under {CHILD_SOCKET_RESERVE} bytes for a \
+             unix socket name (AF_UNIX paths cap at {} here); an agent that binds a \
+             socket in its temp dir may fail to start. Set {ROOT_ENV} to a shorter \
+             directory, or {ISOLATION_ENV}=0 to turn isolation off.",
+            root.display(),
+            SUN_PATH_CAP - 1,
+        );
+    });
+}
+
 /// The single directory under which every per-launch scratch dir is created.
 ///
-/// Deliberately ONE root, not one per agent configuration. An earlier design
-/// derived the root from a per-agent `env_json` `TMP` so a user could choose
-/// the volume; that made the set of roots unbounded and not discoverable by a
-/// crash sweep (change the setting, crash, and the old root keeps its
-/// gigabytes forever). A per-agent `TMP` is therefore IGNORED while isolation
-/// is on — see [`apply_to_env`].
+/// Deliberately not one root per agent configuration. An earlier design derived
+/// the root from a per-agent `env_json` `TMP` so a user could choose the volume;
+/// that made the set of roots unbounded and not discoverable by a crash sweep
+/// (change the setting, crash, and the old root keeps its gigabytes forever). A
+/// per-agent `TMP` is therefore IGNORED while isolation is on — see
+/// [`apply_to_env`].
+///
+/// One root at a time, but not the same one forever: `choose_root` moves it
+/// when the ambient temp directory is too long to bind a unix socket under
+/// (#754). That keeps the set SMALL and ENUMERABLE rather than unbounded, which
+/// is what the sweeps actually need — [`sweep_roots`] visits every root codeg
+/// can pick, so relocating never strands a directory.
 pub fn scratch_root() -> PathBuf {
-    let base = std::env::var_os(ROOT_ENV)
-        .filter(|v| !v.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join(SCRATCH_NAMESPACE)
+    if let Some(explicit) = std::env::var_os(ROOT_ENV).filter(|v| !v.is_empty()) {
+        // An explicit root is a decision about which VOLUME absorbs the churn,
+        // usually taken to stop a system disk filling up. Honour it even when
+        // it is too long to be safe and say so once, rather than silently
+        // relocating gigabytes back onto the disk the user moved them off.
+        let root = PathBuf::from(explicit).join(SCRATCH_NAMESPACE);
+        #[cfg(unix)]
+        if !leaves_room_for_a_child_socket(&root) {
+            warn_no_root_fits(&root);
+        }
+        return root;
+    }
+    #[cfg(unix)]
+    {
+        choose_root(&std::env::temp_dir())
+    }
+    #[cfg(not(unix))]
+    {
+        // Windows children use named pipes, which live in their own kernel
+        // namespace and have no `sun_path` budget to blow.
+        std::env::temp_dir().join(SCRATCH_NAMESPACE)
+    }
+}
+
+/// Every root a scratch directory of ours could be sitting under.
+///
+/// More than one because [`scratch_root`]'s answer is not fixed for all time:
+/// it moves when the ambient temp directory crosses the length budget, when
+/// [`ROOT_ENV`] is set or cleared, and — for anyone upgrading past #754 — when
+/// codeg itself changes its mind about where the short root lives. Sweeping
+/// only today's answer would strand yesterday's directories exactly the way
+/// this module's own docs warn about.
+fn sweep_roots() -> Vec<PathBuf> {
+    let mut roots = vec![scratch_root()];
+    for candidate in [
+        std::env::temp_dir().join(SCRATCH_NAMESPACE),
+        #[cfg(unix)]
+        short_root(),
+    ] {
+        if !roots.contains(&candidate) {
+            roots.push(candidate);
+        }
+    }
+    roots
 }
 
 /// A scratch directory owned by one agent launch.
@@ -242,7 +396,7 @@ pub fn create() -> Option<LaunchScratch> {
         return None;
     }
     let root = scratch_root();
-    if let Err(e) = std::fs::create_dir_all(&root) {
+    if let Err(e) = create_root(&root) {
         tracing::warn!(
             "[ACP][scratch] cannot create {}: {e}; launching on the system temp dir",
             root.display()
@@ -257,7 +411,7 @@ pub fn create() -> Option<LaunchScratch> {
             continue;
         }
         let path = root.join(&name);
-        match std::fs::create_dir(&path) {
+        match create_leaf(&path) {
             Ok(()) => {
                 return Some(LaunchScratch {
                     name,
@@ -280,6 +434,112 @@ pub fn create() -> Option<LaunchScratch> {
         }
     }
     None
+}
+
+/// `create_dir_all` for the root, private on Unix and refused if it is not ours.
+///
+/// `0700` rather than the umask default because `short_root` puts the root in
+/// `/tmp`, which is `1777` — the per-user directory it stands in for
+/// (`/var/folders/…/T`) is itself `0700`, and a path-length fallback has no
+/// business widening who can read an agent's temp files.
+///
+/// The mode alone is not enough, which is why [`verify_root_is_ours`] follows
+/// it: `mode` applies to a `mkdir` that HAPPENS, and `recursive(true)` answers
+/// `Ok(())` for a directory that already exists — leaving its mode and its
+/// owner exactly as they were. In a world-writable `/tmp` that is a directory
+/// another local user can win the race to create.
+///
+/// Shared with [`crate::acp::delegation::listener`], whose own `/tmp` fallback
+/// for the broker socket is waiting in the same world-writable directory for
+/// the same squatter. The guard is security-sensitive enough that a second copy
+/// of it is worse than a `pub(crate)`.
+pub(crate) fn create_root(root: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(root)?;
+        verify_root_is_ours(root)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(root)
+    }
+}
+
+/// Refuse a scratch root codeg did not create.
+///
+/// Guards the two ways `/tmp/codeg-acp-<euid>` can be waiting for us: a
+/// directory another local account created first (they own it, so they can read
+/// and replace what the agent unpacks there), and a SYMLINK aimed somewhere
+/// else — `create_dir_all` is satisfied by a symlink to a directory, so without
+/// this the whole scratch tree, and the sweeps that delete it, would follow.
+///
+/// Refusing is safe: [`create`] treats an uncreatable root as "no isolation",
+/// so the child falls back to the ambient temp directory it used before this
+/// module existed — which is short, so #754 does not come back with it.
+///
+/// Once the root exists and is ours there is no TOCTOU left to close: `/tmp` is
+/// sticky, so no other account can rename or delete an entry it does not own,
+/// and the root itself is `0700`.
+#[cfg(unix)]
+fn verify_root_is_ours(root: &Path) -> std::io::Result<()> {
+    use std::os::unix::fs::{MetadataExt, PermissionsExt};
+
+    // `symlink_metadata`, not `metadata`: a symlink is the case to reject, and
+    // `metadata` would resolve it and cheerfully report the target as a fine
+    // directory.
+    let meta = std::fs::symlink_metadata(root)?;
+    if !meta.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "scratch root is a symlink or a file, not a directory",
+        ));
+    }
+    let us = unsafe { libc::geteuid() };
+    if meta.uid() != us {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!(
+                "scratch root belongs to uid {}, not to us ({us})",
+                meta.uid()
+            ),
+        ));
+    }
+    // Ours, but reachable by others — a root left behind by a codeg that
+    // predates the `0700` above, when `create_dir_all` took the umask default.
+    // Tighten it rather than refuse: refusing would turn every upgrade into a
+    // silent loss of isolation. Failure must propagate: ownership alone does
+    // not prevent other accounts from modifying a world-writable directory.
+    if meta.mode() & 0o077 != 0 {
+        std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o700))?;
+        if std::fs::symlink_metadata(root)?.mode() & 0o077 != 0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::PermissionDenied,
+                "scratch root could not be made private",
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// `create_dir` for one launch's directory, `0700` on Unix.
+///
+/// Deliberately not `create_dir_all`: a name that somehow already exists has to
+/// surface as `AlreadyExists` so [`create`] mints another one instead of
+/// adopting a directory it does not own.
+fn create_leaf(path: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        std::fs::DirBuilder::new().mode(0o700).create(path)
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir(path)
+    }
 }
 
 /// Point a merged agent environment at `scratch`.
@@ -313,6 +573,15 @@ pub(crate) fn apply_to_env(env: &mut std::collections::BTreeMap<String, String>,
     }
 }
 
+/// Sweeping must enforce the same ownership/symlink boundary as creation.
+/// A refused fallback root may already exist, and reading through it would
+/// otherwise let cleanup reach directories outside our scratch namespace.
+fn read_sweep_root(root: &Path) -> Option<std::fs::ReadDir> {
+    #[cfg(unix)]
+    verify_root_is_ours(root).ok()?;
+    std::fs::read_dir(root).ok()
+}
+
 /// Reclaim scratch directories belonging to THIS process that are no longer
 /// live — a launch whose removal ladder was exhausted, or one left by a
 /// previous process that held the same pid number.
@@ -320,7 +589,7 @@ pub(crate) fn apply_to_env(env: &mut std::collections::BTreeMap<String, String>,
 /// Exact set arithmetic, no heuristic: a live launch is in the registry by
 /// construction (invariant 1), so it can never appear in the diff.
 pub fn sweep_own_orphans() {
-    let root = scratch_root();
+    let roots = sweep_roots();
     let our_pid = std::process::id();
 
     // INVARIANT 3: enumerate + diff under the lock...
@@ -328,10 +597,10 @@ pub fn sweep_own_orphans() {
         let Ok(guard) = registry().lock() else {
             return;
         };
-        let Ok(entries) = std::fs::read_dir(&root) else {
-            return;
-        };
-        entries
+        roots
+            .iter()
+            .filter_map(|root| read_sweep_root(root))
+            .flatten()
             .flatten()
             .filter_map(|entry| {
                 let name = entry.file_name().to_string_lossy().into_owned();
@@ -355,12 +624,13 @@ pub fn sweep_own_orphans() {
 /// see [`probe_pid`] for why "the probe failed" must not be read as "the owner
 /// is gone".
 pub fn sweep_foreign_orphans() {
-    let root = scratch_root();
     let our_pid = std::process::id();
-    let Ok(entries) = std::fs::read_dir(&root) else {
-        return;
-    };
-    for entry in entries.flatten() {
+    for entry in sweep_roots()
+        .iter()
+        .filter_map(|root| read_sweep_root(root))
+        .flatten()
+        .flatten()
+    {
         let name = entry.file_name().to_string_lossy().into_owned();
         let Some(pid) = pid_from_dir_name(&name) else {
             continue;
@@ -553,6 +823,167 @@ fn clear_readonly_recursive(path: &Path) -> std::io::Result<()> {
 mod tests {
     use super::*;
 
+    /// Length of a real macOS per-user temp directory,
+    /// `/var/folders/hl/26lfwjvs4s760g9fm1nk15xm0000gn/T`. Short enough that a
+    /// child could bind a socket directly in it, long enough that it cannot
+    /// also absorb `/codeg-acp/<pid>-<hex>` — which is the whole of #754.
+    #[cfg(unix)]
+    const MACOS_TEMP_DIR_LEN: usize = 48;
+
+    /// A real directory exactly `len` bytes long, built under `/tmp` so the
+    /// length is ours to choose rather than this machine's `TMPDIR`'s.
+    #[cfg(unix)]
+    fn ambient_of_len(holder: &Path, len: usize) -> PathBuf {
+        let pad = len.saturating_sub(holder.as_os_str().len() + 1);
+        assert!(pad >= 1, "{} is already {len} bytes", holder.display());
+        let dir = holder.join("x".repeat(pad));
+        std::fs::create_dir(&dir).expect("create ambient");
+        assert_eq!(dir.as_os_str().len(), len);
+        dir
+    }
+
+    /// #754. The regression that mattered was not arithmetic, it was a child
+    /// that could no longer `bind`, so this asserts against the kernel rather
+    /// than against [`leaves_room_for_a_child_socket`]'s own opinion.
+    ///
+    /// Before the length budget existed this bound
+    /// `<ambient>/codeg-acp/<pid>-<hex>/znr-<uuid>.sock` — 119 bytes — and
+    /// failed with `path must be shorter than SUN_LEN`.
+    #[cfg(unix)]
+    #[test]
+    fn a_child_can_bind_a_unix_socket_inside_the_scratch_dir() {
+        let holder = tempfile::tempdir_in("/tmp").expect("tempdir");
+        let ambient = ambient_of_len(holder.path(), MACOS_TEMP_DIR_LEN);
+
+        let root = choose_root(&ambient);
+        create_root(&root).expect("create root");
+        let leaf = root.join(new_dir_name(std::process::id()));
+        create_leaf(&leaf).expect("create leaf");
+
+        // The name the agent in #754 creates: `znr-<uuid v4>.sock`, 45 bytes.
+        let sock = leaf.join(format!("znr-{}.sock", uuid::Uuid::new_v4()));
+        assert_eq!(sock.file_name().expect("file name").len(), 45);
+        let bound = std::os::unix::net::UnixListener::bind(&sock);
+        let ok = bound.is_ok();
+        drop(bound);
+        // The leaf can sit outside `holder` once the short root is chosen.
+        let _ = std::fs::remove_dir_all(&leaf);
+        assert!(
+            ok,
+            "a child must be able to bind {} bytes at {}",
+            sock.as_os_str().len(),
+            sock.display()
+        );
+    }
+
+    /// The fallback only fires when it has to: a temp directory short enough to
+    /// nest under keeps the churn where the user's `TMPDIR` points, which is
+    /// the case on a typical Linux box where `temp_dir()` is already `/tmp`.
+    #[cfg(unix)]
+    #[test]
+    fn a_short_temp_dir_is_still_nested_under_normally() {
+        let ambient = Path::new("/tmp");
+        assert_eq!(choose_root(ambient), ambient.join(SCRATCH_NAMESPACE));
+    }
+
+    /// ...and an over-long one moves to the short root rather than being nested
+    /// under regardless.
+    #[cfg(unix)]
+    #[test]
+    fn an_over_long_temp_dir_falls_back_to_the_short_root() {
+        let ambient = PathBuf::from(format!("/var/folders/hl/{}/T", "z".repeat(30)));
+        assert_eq!(ambient.as_os_str().len(), MACOS_TEMP_DIR_LEN);
+        assert!(
+            !leaves_room_for_a_child_socket(&ambient.join(SCRATCH_NAMESPACE)),
+            "the nested root is what #754 showed does not fit"
+        );
+        assert_eq!(choose_root(&ambient), short_root());
+    }
+
+    /// `short_root` lives in a `1777` `/tmp`, so the root can be waiting for us
+    /// when we get there. A symlink is the dangerous shape: `create_dir_all` is
+    /// satisfied by one pointing at a directory, which would put the whole
+    /// scratch tree — and the sweeps that delete it — wherever it aims.
+    #[cfg(unix)]
+    #[test]
+    fn a_symlinked_root_is_refused() {
+        let holder = tempfile::tempdir().expect("tempdir");
+        let elsewhere = holder.path().join("attacker-owned");
+        std::fs::create_dir(&elsewhere).expect("create target");
+        let root = holder.path().join("root");
+        std::os::unix::fs::symlink(&elsewhere, &root).expect("symlink");
+
+        assert!(
+            create_root(&root).is_err(),
+            "a symlinked root must not be adopted"
+        );
+    }
+
+    /// The other half: a root we DO own, merely left group/world-reachable by a
+    /// codeg that predates the `0700`. Refusing that would turn every upgrade
+    /// into a silent loss of isolation, so it is tightened instead.
+    #[cfg(unix)]
+    #[test]
+    fn a_loose_root_we_own_is_tightened_rather_than_refused() {
+        use std::os::unix::fs::PermissionsExt;
+        let holder = tempfile::tempdir().expect("tempdir");
+        let root = holder.path().join("codeg-acp");
+        std::fs::create_dir(&root).expect("create root");
+        std::fs::set_permissions(&root, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+
+        create_root(&root).expect("a root we own must still be usable");
+
+        let mode = std::fs::metadata(&root).expect("meta").permissions().mode();
+        assert_eq!(mode & 0o777, 0o700, "and must come back private");
+    }
+
+    /// A launch directory is what the child is actually handed, so it carries
+    /// the same `0700` as the root above it.
+    #[cfg(unix)]
+    #[test]
+    fn a_launch_directory_is_private_and_reports_collisions() {
+        use std::os::unix::fs::PermissionsExt;
+        let holder = tempfile::tempdir().expect("tempdir");
+        let leaf = holder.path().join(new_dir_name(std::process::id()));
+
+        create_leaf(&leaf).expect("create leaf");
+        let mode = std::fs::metadata(&leaf).expect("meta").permissions().mode();
+        assert_eq!(mode & 0o777, 0o700);
+
+        // `create` mints a new name on this error rather than adopting the
+        // directory, so it has to keep arriving as `AlreadyExists`.
+        assert_eq!(
+            create_leaf(&leaf)
+                .expect_err("second create must fail")
+                .kind(),
+            std::io::ErrorKind::AlreadyExists
+        );
+    }
+
+    /// The budget is only worth anything if it is measured against the number
+    /// the kernel actually enforces.
+    #[cfg(unix)]
+    #[test]
+    fn sun_path_cap_matches_the_kernel() {
+        let addr = unsafe { std::mem::zeroed::<libc::sockaddr_un>() };
+        assert_eq!(SUN_PATH_CAP, addr.sun_path.len());
+    }
+
+    /// Whatever root is chosen must stay reachable by the sweeps, or the fix
+    /// for #754 would reopen the leak #735 closed by stranding directories
+    /// under a root nothing enumerates any more.
+    #[cfg(unix)]
+    #[test]
+    fn the_sweeps_still_cover_the_root_that_is_not_in_use() {
+        let roots = sweep_roots();
+        assert!(roots.contains(&scratch_root()), "the live root");
+        assert!(
+            roots.contains(&std::env::temp_dir().join(SCRATCH_NAMESPACE)),
+            "and the ambient one, which a previous version may have filled"
+        );
+        assert!(roots.contains(&short_root()), "and the short fallback");
+    }
+
     #[test]
     fn dir_name_round_trips_through_the_pid_parser() {
         let name = new_dir_name(4242);
@@ -718,3 +1149,7 @@ mod tests {
         assert!(!target.exists());
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "../../../src/maxcode-contracts/launch-scratch-budget.contract.rs"]
+mod maxcode_launch_scratch_budget_contract;

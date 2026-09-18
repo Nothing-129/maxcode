@@ -98,7 +98,7 @@ export function StatusBarUpdate() {
             "group flex h-5 shrink-0 items-center justify-center gap-0.5 rounded-full px-1 transition-all group-hover:px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
             failed
               ? "bg-destructive text-white hover:bg-destructive/90"
-              : "bg-blue-600 text-white hover:bg-blue-500 dark:bg-blue-500 dark:text-white dark:hover:bg-blue-400"
+              : "bg-[#3ca1ef] text-white hover:bg-[#3ca1ef]/90"
           )}
         >
           {busy ? (

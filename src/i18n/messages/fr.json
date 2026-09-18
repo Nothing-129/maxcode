@@ -3135,6 +3135,8 @@
         "sendEmail": "Envoyer un e-mail"
       },
       "messageQueue": {
+        "steerItemNow": "Ajouter au tour en cours",
+        "steerItemNowHint": "Envoyer dans le tour en cours sans arrêter la réponse",
         "adjustDirection": "Réorienter",
         "adjustDirectionHint": "Arrêter la réponse et envoyer ce message ensuite",
         "reorderItem": "Glisser pour réordonner",

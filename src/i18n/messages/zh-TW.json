@@ -3135,6 +3135,8 @@
         "sendEmail": "傳送郵件"
       },
       "messageQueue": {
+        "steerItemNow": "追加到目前回合",
+        "steerItemNowHint": "不主動停止目前回覆，將這則訊息追加到目前回合",
         "adjustDirection": "調整方向",
         "adjustDirectionHint": "暫停目前回覆，接著執行這則訊息",
         "reorderItem": "拖曳排序",

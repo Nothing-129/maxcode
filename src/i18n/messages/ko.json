@@ -3135,6 +3135,8 @@
         "sendEmail": "메일 보내기"
       },
       "messageQueue": {
+        "steerItemNow": "현재 턴에 추가",
+        "steerItemNowHint": "응답을 중지하지 않고 이 메시지를 현재 턴에 추가",
         "adjustDirection": "방향 조정",
         "adjustDirectionHint": "현재 응답을 중지하고 이 메시지를 다음으로 전송",
         "reorderItem": "드래그하여 순서 변경",

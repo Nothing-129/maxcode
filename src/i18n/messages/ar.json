@@ -3135,6 +3135,8 @@
         "sendEmail": "إرسال بريد"
       },
       "messageQueue": {
+        "steerItemNow": "إضافة إلى الجولة الحالية",
+        "steerItemNowHint": "إرسال الرسالة إلى الجولة الحالية دون إيقاف الرد",
         "adjustDirection": "تعديل الاتجاه",
         "adjustDirectionHint": "إيقاف الرد الحالي وإرسال هذه الرسالة تاليًا",
         "reorderItem": "اسحب لإعادة الترتيب",

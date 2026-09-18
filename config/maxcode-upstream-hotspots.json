@@ -2,6 +2,99 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.claude-native-queued-steering",
+      "category": "runtime",
+      "description": "Only Claude Code sessions with confirmed native steering append queued messages into the current turn. Other agents and non-native Claude keep stop-and-prioritize. Complete draft blocks refuse pull fallback; queue-owned claims survive panel remounts, block auto-flush and duplicate clicks, preserve attachments on failure and remove only confirmed deliveries.",
+      "origins": ["cc6e4876", "642b0b33", "52980d31", "worktree-2026-09-19"],
+      "paths": [
+        "src/hooks/use-message-queue.ts",
+        "src/components/chat/message-queue-display.tsx",
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/lib/prompt-draft.ts",
+        "src-tauri/src/acp/manager.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/claude-native-queue.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.sent-prompt-history",
+      "category": "product",
+      "description": "Chat and canvas recall only the current session user prompts with unmodified Up/Down at whole-document boundaries. Draft JSON and attachments survive browsing; pending saves land before recall. IME, menus, selection, multiline movement and queue editing retain their original behavior.",
+      "origins": ["3593fcb0", "7444874c", "ce1dd3c5", "worktree-2026-09-19"],
+      "paths": [
+        "src/lib/composer-history.ts",
+        "src/components/chat/composer/rich-composer.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/canvas/canvas-conversation-surface.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/composer-history.contract.test.tsx"]
+    },
+    {
+      "id": "runtime.connection-streaming-cadence",
+      "category": "runtime",
+      "description": "Each live connection has its own adaptive 16–192 ms flush window, sized from mounted live rendering work. Early flush cancels its timer; teardown discards stale deltas and rekey preserves text. Keep downstream wake flush, subagent attribution, raw arrival timing and token billing.",
+      "origins": [
+        "8a25483b",
+        "f2f86d83",
+        "61e1c470",
+        "9bbe799a",
+        "a9254722",
+        "78101821",
+        "worktree-2026-09-19"
+      ],
+      "paths": ["src/contexts/acp-connections-context.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/streaming-isolation.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "runtime.upstream-socket-ask-20260919",
+      "category": "runtime",
+      "description": "Agent scratch and broker sockets respect Unix path budgets with private owned short roots, reject unsafe roots, and preserve existing Electron lifecycle. Only the exact injected codeg-mcp ask tool can bypass redundant approval, only allow-once and while enabled. Native queued drafts never downgrade to pull notes. Only Grok advances to 1.0.34; other catalog entries remain unchanged.",
+      "origins": [
+        "f7d36ea1",
+        "b744d2e6",
+        "0594b1d8",
+        "a425e41d",
+        "232cc34c",
+        "worktree-2026-09-19"
+      ],
+      "paths": [
+        "src-tauri/src/acp/scratch_dir.rs",
+        "src-tauri/src/acp/delegation/listener.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/question.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src/maxcode-contracts/own-ask-permission.contract.rs",
+        "src/maxcode-contracts/launch-scratch-budget.contract.rs",
+        "src/maxcode-contracts/broker-socket-budget.contract.rs",
+        "src/maxcode-contracts/native-queued-feedback.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-runtime-20260919.contract.test.ts"
+      ]
+    },
+    {
+      "id": "conversation.queued-task-retention",
+      "category": "runtime",
+      "description": "Queued tasks belong to the lightweight tab wrapper and keep hidden conversations mounted after turn completion; delayed send failures restore drafts even after transcript virtualization.",
+      "origins": ["worktree-2026-09-18"],
+      "paths": [
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/lib/conversation-tab-retention.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/queued-task-retention.contract.test.tsx"
+      ]
+    },
+    {
       "id": "conversation.scroll-to-bottom-hit-area",
       "category": "product",
       "description": "The full scroll-to-bottom button stays clickable above transcript content and does not shift on press, including at its edges.",
@@ -1639,11 +1732,11 @@
     {
       "id": "appearance.send-button-brand-color",
       "category": "product",
-      "description": "The enabled send button uses the MaxCode wordmark slash blue #285ee1 with a white arrow and a blue hover state. Both running stop buttons use the same blue background and hover state with a white square. Disabled sends retain muted paint and existing sendability gating.",
-      "origins": ["worktree-2026-09-09"],
+      "description": "Send, running stop and normal update actions use #3CA1EF with white icons and 90% opacity hover in both light and dark modes. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
+      "origins": ["worktree-2026-09-09", "worktree-2026-09-18"],
       "paths": [
         "src/components/chat/message-input.tsx",
-        "src/components/layout/sidebar-wordmark.tsx"
+        "src/components/layout/status-bar-update.tsx"
       ],
       "contracts": ["src/maxcode-contracts/send-button-color.contract.test.ts"]
     },

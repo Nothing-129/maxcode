@@ -91,6 +91,23 @@ export function getPromptDraftMessageText(
     : getPromptDraftDisplayText(draft, attachedResourcesFallback)
 }
 
+/** Encode the same complete draft for composer and queued native steering. */
+export function buildSteerPayload(draft: PromptDraft): {
+  text: string
+  blocks?: PromptInputBlock[]
+} | null {
+  const blocks = draft.blocks.some((block) => block.type !== "text")
+    ? draft.blocks
+    : undefined
+  const text = blocks
+    ? draft.displayText.trim()
+    : draft.blocks
+        .map((block) => (block.type === "text" ? block.text : ""))
+        .join("\n")
+        .trim()
+  return text ? { text, ...(blocks ? { blocks } : {}) } : null
+}
+
 export function buildUserMessageTextPartsFromDraft(
   draft: PromptDraft,
   attachedResourcesFallback: string

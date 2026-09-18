@@ -3114,7 +3114,9 @@ impl ConnectionManager {
         // and this call (startedNewTurn latch). `NoActiveTurn` is the
         // rejection the caller already maps to its queue fallback, which
         // re-routes the WHOLE draft — attachments included — as the next
-        // turn's prompt.
+        // turn's prompt. Text-only queue insertion also sends nonempty blocks
+        // deliberately: it is native-only and must never degrade to a pull
+        // note if the connection loses native steering before this call.
         if blocks.is_some() {
             return Err(AcpError::NoActiveTurn);
         }
@@ -9582,3 +9584,7 @@ mod tests {
             .await;
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/native-queued-feedback.contract.rs"]
+mod maxcode_native_queued_feedback_contract;

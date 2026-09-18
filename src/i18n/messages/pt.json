@@ -3135,6 +3135,8 @@
         "sendEmail": "Enviar e-mail"
       },
       "messageQueue": {
+        "steerItemNow": "Adicionar ao turno atual",
+        "steerItemNowHint": "Enviar no turno atual sem interromper a resposta",
         "adjustDirection": "Ajustar direção",
         "adjustDirectionHint": "Parar a resposta atual e enviar esta mensagem em seguida",
         "reorderItem": "Arrastar para reordenar",

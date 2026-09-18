@@ -1,8 +1,8 @@
 "use client"
 
-import { useCallback, type PointerEvent } from "react"
+import { useCallback, useRef, useState, type PointerEvent } from "react"
 import { Reorder, useDragControls } from "motion/react"
-import { CornerDownRight, ListPlus, Pencil, Trash2 } from "lucide-react"
+import { CornerDownRight, ListPlus, Pencil, Trash2, Zap } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { cn } from "@/lib/utils"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
@@ -13,12 +13,16 @@ interface MessageQueueDisplayProps {
   onEdit: (id: string) => void
   onDelete: (id: string) => void
   onAdjustDirection?: (id: string) => void
+  onSteerItem?: (id: string) => Promise<void>
+  steering?: boolean
   editingItemId: string | null
 }
 
 interface QueueItemProps {
   item: QueuedMessage
   onAdjustDirection?: (id: string) => void
+  onSteerItem?: (id: string) => Promise<void>
+  steering?: boolean
   isEditing: boolean
   onEdit: (id: string) => void
   onDelete: (id: string) => void
@@ -27,6 +31,8 @@ interface QueueItemProps {
 function QueueItem({
   item,
   onAdjustDirection,
+  onSteerItem,
+  steering = false,
   isEditing,
   onEdit,
   onDelete,
@@ -38,9 +44,9 @@ function QueueItem({
     (event: PointerEvent<HTMLButtonElement>) => {
       event.preventDefault()
       event.stopPropagation()
-      dragControls.start(event)
+      if (!steering) dragControls.start(event)
     },
-    [dragControls]
+    [dragControls, steering]
   )
 
   return (
@@ -69,20 +75,33 @@ function QueueItem({
       >
         {item.draft.displayText}
       </span>
-      {onAdjustDirection && (
+      {onSteerItem && !isEditing ? (
+        <button
+          type="button"
+          onClick={() => void onSteerItem(item.id)}
+          disabled={steering}
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          title={t("steerItemNowHint")}
+        >
+          <Zap className="size-3.5" />
+          {t("steerItemNow")}
+        </button>
+      ) : onAdjustDirection ? (
         <button
           type="button"
           onClick={() => onAdjustDirection(item.id)}
+          disabled={steering}
           className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={t("adjustDirectionHint")}
         >
           <CornerDownRight className="size-3.5" />
           {t("adjustDirection")}
         </button>
-      )}
+      ) : null}
       <button
         type="button"
         onClick={() => onEdit(item.id)}
+        disabled={steering}
         className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("editItem")}
         aria-label={t("editItem")}
@@ -93,6 +112,7 @@ function QueueItem({
       <button
         type="button"
         onClick={() => onDelete(item.id)}
+        disabled={steering}
         className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("deleteItem")}
         aria-label={t("deleteItem")}
@@ -110,7 +130,26 @@ export function MessageQueueDisplay({
   onDelete,
   editingItemId,
   onAdjustDirection,
+  onSteerItem,
+  steering = false,
 }: MessageQueueDisplayProps) {
+  const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
+  const handleSteer = useCallback(
+    async (id: string) => {
+      if (!onSteerItem || pendingRef.current || steering) return
+      pendingRef.current = true
+      setPending(true)
+      try {
+        await onSteerItem(id)
+      } finally {
+        pendingRef.current = false
+        setPending(false)
+      }
+    },
+    [onSteerItem, steering]
+  )
+
   if (queue.length === 0) return null
 
   return (
@@ -130,6 +169,10 @@ export function MessageQueueDisplay({
             onEdit={onEdit}
             onDelete={onDelete}
             onAdjustDirection={editingItemId ? undefined : onAdjustDirection}
+            onSteerItem={
+              editingItemId || !onSteerItem ? undefined : handleSteer
+            }
+            steering={steering || pending}
           />
         ))}
       </Reorder.Group>

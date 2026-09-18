@@ -3135,6 +3135,8 @@
         "sendEmail": "メールを送信"
       },
       "messageQueue": {
+        "steerItemNow": "現在のターンに追加",
+        "steerItemNowHint": "応答を停止せずにこのメッセージを現在のターンに追加",
         "adjustDirection": "方向を調整",
         "adjustDirectionHint": "現在の応答を停止し、このメッセージを次に送信",
         "reorderItem": "ドラッグして並べ替え",

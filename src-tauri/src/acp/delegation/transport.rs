@@ -688,7 +688,11 @@ mod tests {
     async fn uds_round_trip() {
         use tokio::net::UnixListener;
 
-        let dir = tempfile::tempdir().unwrap();
+        // `/tmp`, not `$TMPDIR`: a socket path has ~104 bytes of `sun_path` to
+        // live in, and codeg exports a 72-byte per-session `TMPDIR` to the
+        // agents it launches. Under `tempdir()` this lands at 99 bytes there —
+        // green, but one directory level from an unexplainable red.
+        let dir = tempfile::tempdir_in("/tmp").unwrap();
         let path = dir.path().join("codeg-mcp.sock");
         let listener = UnixListener::bind(&path).unwrap();
         let server_path = path.to_string_lossy().to_string();

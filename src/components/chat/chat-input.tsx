@@ -52,6 +52,10 @@ interface ChatInputProps {
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
+  /** Claude-only, confirmed native delivery. Other agents retain cancellation. */
+  onQueueSteer?: (id: string) => Promise<void>
+  queueSteering?: boolean
+  getSentHistory?: () => string[]
   editingItemId?: string | null
   editingDraftText?: string | null
   editingDraftBlocks?: PromptInputBlock[] | null
@@ -121,6 +125,9 @@ export const ChatInput = memo(function ChatInput({
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
+  onQueueSteer,
+  queueSteering = false,
+  getSentHistory,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -182,6 +189,14 @@ export const ChatInput = memo(function ChatInput({
             onEdit={onQueueEdit}
             onDelete={onQueueDelete}
             editingItemId={editingItemId ?? null}
+            steering={queueSteering}
+            onSteerItem={
+              isPrompting &&
+              agentType === "claude_code" &&
+              steerChannel === "native"
+                ? onQueueSteer
+                : undefined
+            }
             onAdjustDirection={
               isPrompting && onCancel
                 ? (id) => {
@@ -199,6 +214,7 @@ export const ChatInput = memo(function ChatInput({
         )}
       <MessageInput
         onSend={onSend}
+        getSentHistory={getSentHistory}
         promptCapabilities={promptCapabilities}
         onFocus={onFocus}
         defaultPath={defaultPath}

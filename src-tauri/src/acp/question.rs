@@ -681,6 +681,37 @@ pub fn pi_select_option_id(outcome: &QuestionOutcome, ask: &PiSelectAsk) -> Opti
         .map(|(_, option_id)| option_id.clone())
 }
 
+/// True when a host's name for a tool is codeg's OWN `ask_user_question`
+/// companion tool, in whatever spelling the host composed it
+/// (`mcp__codeg-mcp__ask_user_question` from claude-agent-acp,
+/// `codeg-mcp/ask_user_question`, `codeg-mcp: ask_user_question`, …). Only
+/// recognized complete spellings match; case and outer whitespace are ignored.
+///
+/// BOTH halves have to be present — the server name codeg itself injects
+/// (`codeg-mcp`, see `acp::connection::inject_codeg_mcp`) AND the tool name.
+/// The frontend can afford a bare `*ask_user_question` suffix rule because a
+/// wrong match there only picks a nicer card; this one unlocks an AUTO-APPROVAL
+/// of a blocked `session/request_permission`, and a third-party MCP server's
+/// similarly named tool is the user's to approve, not codeg's.
+///
+/// Auto-approving codeg's own ask tool is not a permission being skipped: the
+/// tool's entire effect is to put the interactive question card on screen and
+/// block until the user answers it. The consent IS the next dialog, so gating it
+/// behind a generic "run this tool?" card asks the user to approve being asked.
+pub fn is_codeg_ask_tool_name(name: &str) -> bool {
+    // Keep the server/tool boundary intact. Flattening separators would also
+    // accept a different server (`codeg-mcp-ask`) calling `user_question`.
+    // Unknown host spellings keep the ordinary approval card.
+    matches!(
+        name.trim().to_ascii_lowercase().as_str(),
+        "mcp__codeg-mcp__ask_user_question"
+            | "codeg-mcp/ask_user_question"
+            | "codeg-mcp:ask_user_question"
+            | "codeg-mcp: ask_user_question"
+            | "mcp.codeg-mcp.ask_user_question"
+    )
+}
+
 /// Serialize a resolved [`QuestionOutcome`] into grok's `AskUserQuestionExtResponse`
 /// — the reply to a `_x.ai/ask_user_question` ext request. Verified against grok
 /// 0.2.101 on a real run: the response is internally tagged by `outcome`; the
@@ -3207,6 +3238,50 @@ mod tests {
             ("deny".to_string(), "Deny".to_string()),
         ];
         assert!(parse_pi_select_ask(&pi_select_tool_call(), &foreign).is_none());
+    }
+
+    #[test]
+    fn is_codeg_ask_tool_name_accepts_every_host_spelling_of_codegs_own_tool() {
+        for spelling in [
+            // claude-agent-acp: an MCP tool's permission card title IS the
+            // raw tool name.
+            "mcp__codeg-mcp__ask_user_question",
+            "codeg-mcp/ask_user_question",
+            "codeg-mcp: ask_user_question",
+            "mcp.codeg-mcp.ask_user_question",
+            // Hosts that title-case or pad it.
+            "  MCP__Codeg-MCP__Ask_User_Question  ",
+        ] {
+            assert!(
+                is_codeg_ask_tool_name(spelling),
+                "{spelling} is codeg's own ask tool"
+            );
+        }
+    }
+
+    #[test]
+    fn is_codeg_ask_tool_name_rejects_tools_that_are_not_codegs_ask() {
+        for other in [
+            // A third-party MCP server's similarly named tool: approving it is
+            // the user's decision, so the bare suffix must NOT be enough.
+            "mcp__other-server__ask_user_question",
+            "ask_user_question",
+            // grok's NATIVE ask arrives on its own ext channel, never as a
+            // permission request — and it is not codeg-mcp's tool either.
+            "_x.ai/ask_user_question",
+            // Codeg's other companion tools keep their approval gate.
+            "mcp__codeg-mcp__delegate_to_agent",
+            "mcp__codeg-mcp__check_user_feedback",
+            // Right server, right words, wrong tool — the match is anchored at
+            // the END so a longer name cannot borrow it.
+            "mcp__codeg-mcp__ask_user_question_twice",
+            "",
+        ] {
+            assert!(
+                !is_codeg_ask_tool_name(other),
+                "{other} must keep its approval card"
+            );
+        }
     }
 
     #[test]

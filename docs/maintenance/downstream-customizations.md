@@ -19,6 +19,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#3CA1EF`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新仅保留六种，隐藏自定义新增入口 | `worktree-2026-09-17` | `agents.maintained-catalog` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
@@ -180,3 +181,15 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 | 工作树导入 | 同批导入也归属仓库，拒绝循环/悬空/多层父节点，保留当前侧栏分组 | `history.import-worktree-grouping` |
 | Claude | 0.75.1 分叉定位、压缩历史和实时摘要；沿用现有分隔线及回复折叠 | `history.claude-compaction-compatible` |
 | 运行时 | Pi 历史、Cline 解析、进程回收、Antigravity 登录、Pi MCP 扩展配置；保留扩展字段与现有界面 | `agents.functional-upstream-runtime` |
+
+
+## 2026-09-19 选择性上游吸收
+
+范围与逐项评审见 [upstream-review-20260919.md](./upstream-review-20260919.md)。
+
+| 范围 | 保留的下游行为 | 保护项 |
+| --- | --- | --- |
+| 队列追加 | 仅 Claude Code 已确认原生通道时追加到当前轮次；其余保留停止后优先发送。完整附件和队列持有的在途状态禁止降级为待读备注、重复发送或面板卸载丢失。 | `chat.claude-native-queued-steering` |
+| 输入历史 | 文档整体首尾的 ↑/↓ 召回当前会话提示词；保留草稿徽标、附件、IME、菜单及队列编辑。 | `chat.sent-prompt-history` |
+| 流式更新 | 按连接独立自适应刷新，断连丢弃旧增量、迁移前完成刷新；保留唤醒恢复、归属、实际到达时间及费用统计。 | `runtime.connection-streaming-cadence` |
+| 运行时 | 私有短临时目录与 socket 路径限额、精确识别自带提问工具的一次授权、Grok 1.0.34。 | `runtime.upstream-socket-ask-20260919` |

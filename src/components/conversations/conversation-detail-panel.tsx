@@ -86,7 +86,9 @@ import {
   shouldQueueDirectSend,
   shouldRejectDuplicateCreate,
 } from "@/lib/queue-flush"
-import { TurnBusyError } from "@/lib/turn-busy"
+import { TurnBusyError, isNoActiveTurnRejection } from "@/lib/turn-busy"
+import { toErrorMessage } from "@/lib/app-error"
+import { userPromptHistory } from "@/lib/composer-history"
 import {
   getConversationIdByExternalIdFromStore,
   getRuntimeSession,
@@ -97,6 +99,7 @@ import {
 import { useShallow } from "zustand/react/shallow"
 import { useConversationDetail } from "@/hooks/use-conversation-detail"
 import {
+  buildSteerPayload,
   extractUserImagesFromDraft,
   getPromptDraftDisplayText,
   getPromptDraftMessageText,
@@ -174,6 +177,7 @@ interface ConversationTabViewProps {
   groupId: string
   /** Set for one handoff render before a hidden idle owner UI unmounts. */
   preserveIdleOwnerOnUnmount?: boolean
+  messageQueue: ReturnType<typeof useMessageQueue>
 }
 
 function buildOptimisticUserTurnFromDraft(
@@ -241,8 +245,10 @@ const ConversationTabView = memo(function ConversationTabView({
   reloadSignal,
   groupId,
   preserveIdleOwnerOnUnmount,
+  messageQueue,
 }: ConversationTabViewProps) {
   const t = useTranslations("Folder.conversation")
+  const tCmp = useTranslations("Folder.chat.messageInput")
   const tWelcome = useTranslations("Folder.chat.welcomeInputPanel")
   const tDiag = useTranslations("DiagnosticsSettings")
   const sharedT = useTranslations("Folder.chat.shared")
@@ -628,9 +634,11 @@ const ConversationTabView = memo(function ConversationTabView({
     preserveIdleOwnerOnUnmount,
   })
   const { status: connStatus, sessionId: connSessionId } = conn
-  const messageQueue = useMessageQueue()
   const {
     queue: msgQueue,
+    steeringItemId: mqSteeringItemId,
+    beginSteering: mqBeginSteering,
+    finishSteering: mqFinishSteering,
     enqueue: mqEnqueue,
     requeueFront: mqRequeueFront,
     getQueueLength: mqGetQueueLength,
@@ -851,7 +859,7 @@ const ConversationTabView = memo(function ConversationTabView({
     // lifecycle reconnects — which, for a not-installed target, never happens.
     if (!connectionReady) return
     if (runtimeSyncState === "awaiting_persist") return
-    if (msgQueue.length === 0 || mqEditingItemId) return
+    if (msgQueue.length === 0 || mqEditingItemId || mqSteeringItemId) return
     if (!sendableQueueHeadId) return
     // setTimeout (not microtask) so a COMPLETE_TURN commit settles first AND so
     // a just-bounced retry waits out the backoff window before re-sending.
@@ -884,6 +892,7 @@ const ConversationTabView = memo(function ConversationTabView({
     msgQueue.length,
     mqEditingItemId,
     sendableQueueHeadId,
+    mqSteeringItemId,
   ])
 
   // Mirror the connection's liveMessage into the runtime session OUTSIDE React.
@@ -2190,6 +2199,55 @@ const ConversationTabView = memo(function ConversationTabView({
     [feedbackSteer]
   )
 
+  const getSentHistory = useCallback(
+    () =>
+      userPromptHistory(
+        getTimelineTurns(effectiveConversationId).map((entry) => entry.turn)
+      ),
+    [effectiveConversationId]
+  )
+  const canSteerQueue =
+    selectedAgent === "claude_code" &&
+    !connIsForOtherAgent &&
+    feedback.featureEnabled &&
+    feedback.steerAvailable &&
+    feedback.channel === "native" &&
+    connStatus === "prompting"
+
+  const handleQueueSteer = useCallback(
+    async (id: string) => {
+      if (!canSteerQueue) return
+      // Claim from the authoritative queue before awaiting. The lightweight tab
+      // owns this claim, so remounting its heavy view cannot auto-send it twice.
+      const item = mqBeginSteering(id)
+      if (!item) return
+      let delivered = false
+      let flushBlocked = false
+      try {
+        const payload = buildSteerPayload(item.draft)
+        if (!payload || item.draft.blocks.length === 0) return
+        // Always transmit the complete original blocks, including plain text.
+        // The backend refuses blocks on the pull channel: if native capability
+        // vanished since the snapshot, this stays queued instead of becoming a
+        // note the agent may never read. Never silently downgrade this action.
+        await feedbackSteer(payload.text, item.draft.blocks)
+        delivered = true
+      } catch (error: unknown) {
+        if (isNoActiveTurnRejection(error)) {
+          toast.info(tCmp("steerQueuedInstead"))
+        } else {
+          flushBlocked = true
+          toast.error(tCmp("steerFailed"), {
+            description: toErrorMessage(error),
+          })
+        }
+      } finally {
+        mqFinishSteering(id, delivered, { flushBlocked })
+      }
+    },
+    [canSteerQueue, mqBeginSteering, mqFinishSteering, feedbackSteer, tCmp]
+  )
+
   return (
     <ConversationShell
       topBanner={
@@ -2276,6 +2334,9 @@ const ConversationTabView = memo(function ConversationTabView({
       onQueueReorder={mqReorder}
       onQueueEdit={handleQueueEdit}
       onQueueDelete={mqRemove}
+      onQueueSteer={canSteerQueue ? handleQueueSteer : undefined}
+      queueSteering={mqSteeringItemId !== null}
+      getSentHistory={getSentHistory}
       editingItemId={mqEditingItemId}
       editingDraftText={editingQueueDraftText}
       editingDraftBlocks={editingQueueDraftBlocks}
@@ -2456,7 +2517,10 @@ const ConversationTabView = memo(function ConversationTabView({
   )
 })
 
-interface LazyConversationTabViewProps extends ConversationTabViewProps {
+interface LazyConversationTabViewProps extends Omit<
+  ConversationTabViewProps,
+  "messageQueue"
+> {
   visible: boolean
 }
 
@@ -2470,9 +2534,13 @@ const LazyConversationTabView = memo(function LazyConversationTabView({
   visible,
   ...props
 }: LazyConversationTabViewProps) {
+  // Own the queue outside the virtualized transcript so idle unmounts cannot
+  // discard drafts (including failed sends that return after unmount).
+  const messageQueue = useMessageQueue()
   const conn = useConnection(props.tabId)
   const retention = getConversationTabRetention({
     visible,
+    hasQueuedMessages: messageQueue.queue.length > 0,
     status: conn.status,
     isViewer: conn.isViewer,
     backgroundOutstanding: conn.backgroundOutstanding,
@@ -2500,6 +2568,7 @@ const LazyConversationTabView = memo(function LazyConversationTabView({
   return (
     <ConversationTabView
       {...props}
+      messageQueue={messageQueue}
       preserveIdleOwnerOnUnmount={needsIdleOwnerHandoff}
     />
   )

@@ -3,6 +3,7 @@ export interface ConversationTabRetentionInput {
   status: string | null
   isViewer: boolean
   backgroundOutstanding: number
+  hasQueuedMessages?: boolean
   hasPendingInteraction: boolean
 }
 
@@ -22,12 +23,14 @@ export function getConversationTabRetention({
   isViewer,
   backgroundOutstanding,
   hasPendingInteraction,
+  hasQueuedMessages = false,
 }: ConversationTabRetentionInput): ConversationTabRetention {
   const hasProtectedWork =
     status === "connecting" ||
     status === "prompting" ||
     backgroundOutstanding > 0 ||
-    hasPendingInteraction
+    hasPendingInteraction ||
+    hasQueuedMessages
   const mounted = visible || hasProtectedWork
 
   return {

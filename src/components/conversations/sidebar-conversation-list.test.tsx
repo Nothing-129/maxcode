@@ -1372,13 +1372,17 @@ describe("SidebarConversationList — Recent section", () => {
       Math.min(TOTAL, FOLDER_PAGE)
 
     const buttonWithText = (text: string) =>
-      Array.from(document.querySelectorAll(".group\\/recent-more button")).find(
-        (b) => b.textContent?.includes(text)
-      )
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          ".group\\/recent-more button"
+        )
+      ).find((b) => b.textContent?.includes(text))
     const resetButton = () =>
-      Array.from(document.querySelectorAll(".group\\/recent-more button")).find(
-        (b) => b.getAttribute("aria-label") === resetLabel
-      )
+      Array.from(
+        document.querySelectorAll<HTMLButtonElement>(
+          ".group\\/recent-more button"
+        )
+      ).find((b) => b.getAttribute("aria-label") === resetLabel)
 
     const showMoreLabel = (count: number) =>
       enMessages.Folder.sidebar.showMoreConversations.replace(

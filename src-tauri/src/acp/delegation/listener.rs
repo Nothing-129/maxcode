@@ -29,6 +29,8 @@ use crate::acp::delegation::types::{
 };
 use crate::acp::feedback::{PendingFeedback, SessionFeedbackAccess};
 use crate::acp::question::{QuestionOutcome, SessionQuestionAccess};
+#[cfg(unix)]
+use crate::acp::scratch_dir::SUN_PATH_CAP;
 use crate::acp::session_info::{SessionInfo, SessionInfoAccess};
 use crate::acp::work_task_tools::{TaskReportAck, WorkTaskToolAccess};
 use crate::models::AgentType;
@@ -140,11 +142,7 @@ impl DelegationListener {
     /// down the listener.
     #[cfg(unix)]
     pub async fn run(self: Arc<Self>, socket_path: PathBuf) -> std::io::Result<()> {
-        let _ = tokio::fs::remove_file(&socket_path).await;
-        if let Some(parent) = socket_path.parent() {
-            let _ = tokio::fs::create_dir_all(parent).await;
-        }
-        let listener = tokio::net::UnixListener::bind(&socket_path)?;
+        let listener = bind_unix_socket(&socket_path).await?;
         tracing::info!("[delegation] listening on UDS {}", socket_path.display());
         loop {
             match listener.accept().await {
@@ -856,16 +854,75 @@ fn parse_agent_type(raw: &str) -> Option<AgentType> {
     serde_json::from_value(serde_json::Value::String(raw.to_string())).ok()
 }
 
+/// Validate before touching the filesystem: a rejected path must not remove
+/// an existing socket or create directories. The local listener binds directly
+/// (there is no upstream staged-rebind service), so only the actual path needs
+/// to fit the kernel's budget.
+#[cfg(unix)]
+async fn bind_unix_socket(socket_path: &Path) -> std::io::Result<tokio::net::UnixListener> {
+    if !fits_sun_path(socket_path) {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            format!(
+                "socket path is {} bytes; AF_UNIX paths must be under {SUN_PATH_CAP} bytes: {}",
+                socket_path.as_os_str().len(),
+                socket_path.display(),
+            ),
+        ));
+    }
+    if let Some(parent) = socket_path.parent() {
+        // Keep this path as written: canonicalizing /tmp to /private/tmp on
+        // macOS would spend more of the budget and bypass this comparison.
+        if parent == short_socket_dir() {
+            crate::acp::scratch_dir::create_root(parent).map_err(|e| {
+                std::io::Error::new(
+                    e.kind(),
+                    format!("cannot use {} for the delegation socket: {e}", parent.display()),
+                )
+            })?;
+        } else {
+            tokio::fs::create_dir_all(parent).await?;
+        }
+    }
+    let _ = tokio::fs::remove_file(socket_path).await;
+    tokio::net::UnixListener::bind(socket_path)
+}
+
+#[cfg(unix)]
+fn fits_sun_path(path: &Path) -> bool {
+    // Leave room for the terminating NUL, using the kernel-checked constant.
+    path.as_os_str().len() < SUN_PATH_CAP
+}
+
+/// This private per-user directory is separate from disposable launch scratch
+/// directories, whose pid-based sweeps must never remove the broker socket.
+#[cfg(unix)]
+fn short_socket_dir() -> PathBuf {
+    PathBuf::from(format!("/tmp/codeg-{}", unsafe { libc::geteuid() }))
+}
+
 /// Default socket path for the running process, scoped to PID so multiple
 /// codeg instances on the same machine don't collide.
 ///
-/// Unix: a `.sock` file inside `temp_dir`.
+/// Unix: a `.sock` file inside `temp_dir`, falling back to a private per-user
+/// `/tmp` directory if the ambient directory exceeds the AF_UNIX path budget.
 /// Windows: a named pipe address `\\.\pipe\codeg-delegation-<pid>`. Windows
 /// named pipes live in their own kernel namespace and ignore `temp_dir`; the
 /// argument is kept for signature parity across platforms.
 #[cfg(unix)]
 pub fn default_socket_path(temp_dir: &Path) -> PathBuf {
-    temp_dir.join(format!("codeg-delegation-{}.sock", std::process::id()))
+    let name = format!("codeg-delegation-{}.sock", std::process::id());
+    let preferred = temp_dir.join(&name);
+    if fits_sun_path(&preferred) {
+        return preferred;
+    }
+    let short = short_socket_dir().join(&name);
+    tracing::info!(
+        "[delegation] {} exceeds the AF_UNIX path budget; binding {} instead",
+        preferred.display(),
+        short.display(),
+    );
+    short
 }
 
 #[cfg(windows)]
@@ -2485,3 +2542,7 @@ mod tests {
         assert!(questions.registered.lock().await.is_empty());
     }
 }
+
+#[cfg(all(test, unix))]
+#[path = "../../../../src/maxcode-contracts/broker-socket-budget.contract.rs"]
+mod maxcode_broker_socket_budget_contract;

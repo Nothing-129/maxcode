@@ -43,8 +43,10 @@ import type {
   QuestionAnswer,
 } from "@/lib/types"
 import { cn, randomUUID } from "@/lib/utils"
+import { userPromptHistory } from "@/lib/composer-history"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import {
+  getTimelineTurns,
   useConversationRuntimeActions,
   useConversationRuntimeStore,
 } from "@/stores/conversation-runtime-store"
@@ -711,6 +713,16 @@ export function CanvasConversationSurface({
     return conn.modes?.current_mode_id ?? connectionModes[0]?.id ?? null
   }, [conn.modes, connectionModes, modeId])
 
+  // Arrow-key history source, read lazily on the first Up/Down (see
+  // `MessageInput.getSentHistory`) so streaming tokens cost nothing here.
+  const getSentHistory = useCallback(
+    () =>
+      userPromptHistory(
+        getTimelineTurns(effectiveConversationId).map((entry) => entry.turn)
+      ),
+    [effectiveConversationId]
+  )
+
   const isDraft = dbConversationId == null
 
   return (
@@ -753,6 +765,7 @@ export function CanvasConversationSurface({
           agentType={agentType}
           availableCommands={conn.availableCommands ?? []}
           draftStorageKey={`canvas-draft:${contextKey}`}
+          getSentHistory={getSentHistory}
           // The card's own connection key doubles as its composer scope: the
           // context-usage ring and connection dot in the picker row read it as
           // a contextKey (they showed nothing at all while it was undefined).

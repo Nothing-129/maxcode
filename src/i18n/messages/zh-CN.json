@@ -3135,6 +3135,8 @@
         "sendEmail": "发送邮件"
       },
       "messageQueue": {
+        "steerItemNow": "追加到当前轮次",
+        "steerItemNowHint": "不主动停止当前回复，将这条消息追加到当前轮次",
         "adjustDirection": "调整方向",
         "adjustDirectionHint": "暂停当前回复，立即接着执行这条消息",
         "reorderItem": "拖动排序",

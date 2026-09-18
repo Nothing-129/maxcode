@@ -120,6 +120,10 @@ interface ConversationShellProps {
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
+  /** Claude-only, confirmed native delivery. Other agents retain cancellation. */
+  onQueueSteer?: (id: string) => Promise<void>
+  queueSteering?: boolean
+  getSentHistory?: () => string[]
   editingItemId?: string | null
   editingDraftText?: string | null
   editingDraftBlocks?: PromptInputBlock[] | null
@@ -197,6 +201,9 @@ export function ConversationShell({
   onQueueReorder,
   onQueueEdit,
   onQueueDelete,
+  onQueueSteer,
+  queueSteering = false,
+  getSentHistory,
   editingItemId,
   editingDraftText,
   editingDraftBlocks,
@@ -362,6 +369,9 @@ export function ConversationShell({
               onQueueReorder={onQueueReorder}
               onQueueEdit={onQueueEdit}
               onQueueDelete={onQueueDelete}
+              onQueueSteer={onQueueSteer}
+              queueSteering={queueSteering}
+              getSentHistory={getSentHistory}
               editingItemId={editingItemId}
               editingDraftText={editingDraftText}
               editingDraftBlocks={editingDraftBlocks}

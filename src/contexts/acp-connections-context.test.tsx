@@ -1,9 +1,11 @@
 import { useEffect } from "react"
-import { act, render } from "@testing-library/react"
+import { act, cleanup, render } from "@testing-library/react"
 import { useTranslations } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import {
   AcpConnectionsProvider,
+  STREAM_FLUSH_FRAME_MS,
+  STREAM_FLUSH_MAX_MS,
   useAcpActions,
   useConnectionStore,
 } from "@/contexts/acp-connections-context"
@@ -2306,6 +2308,605 @@ describe("out-of-turn wire guard + background activity", () => {
   })
 })
 
+describe("streaming flush window widens with the run it re-renders", () => {
+  async function mountStreamingOwner() {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1", 42)
+    })
+    const handlers = latestAttachHandlers()
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "status_changed",
+      status: "prompting",
+    })
+    return handlers
+  }
+
+  function liveTextFor(key: string): string {
+    const content = h.store!.getConnection(key)?.liveMessage?.content ?? []
+    return content
+      .map((block) => (block.type === "text" ? block.text : ""))
+      .join("")
+  }
+
+  function liveText(): string {
+    return liveTextFor(TAB)
+  }
+
+  /** A second conversation streaming at the same time, on its own connection. */
+  const OTHER_TAB = "conv-2-claude_code-43"
+
+  async function mountTwoStreamingOwners() {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    h.acpConnect.mockReset()
+    h.acpConnect
+      .mockResolvedValueOnce("conn-a")
+      .mockResolvedValueOnce("conn-b")
+      .mockResolvedValue("conn-extra")
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/a", "sess-a", 42)
+    })
+    const a = latestAttachHandlers()
+    await act(async () => {
+      await h.actions!.connect(OTHER_TAB, "claude_code", "/tmp/b", "sess-b", 43)
+    })
+    const b = latestAttachHandlers()
+    for (const [handlers, id] of [
+      [a, "conn-a"],
+      [b, "conn-b"],
+    ] as const) {
+      emitAcpEvent(handlers, {
+        seq: 1,
+        connection_id: id,
+        type: "status_changed",
+        status: "prompting",
+      })
+    }
+    return { a, b }
+  }
+
+  it("holds a long run for more frames, and delivers exactly what arrived", async () => {
+    const handlers = await mountStreamingOwner()
+    // Mount and connect on real timers (they await the transport); only the
+    // flush window below is driven by hand.
+    vi.useFakeTimers()
+    try {
+      // First delta of the turn: the live message is empty, so the window is
+      // the single frame it has always been.
+      const head = "a".repeat(9000)
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: head,
+      })
+      expect(liveText()).toBe("")
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(head)
+
+      // The next delta is armed against a 9000-character run, which is past
+      // the first step: one frame is no longer enough to release it.
+      emitAcpEvent(handlers, {
+        seq: 3,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "b",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(head)
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(`${head}b`)
+
+      // Whatever the window, every chunk lands once and in order.
+      let expected = `${head}b`
+      for (let i = 0; i < 40; i++) {
+        const text = `-${i}-`
+        expected += text
+        emitAcpEvent(handlers, {
+          seq: 4 + i,
+          connection_id: "spawned-conn",
+          type: "content_delta",
+          text,
+        })
+        act(() => {
+          vi.advanceTimersByTime(STREAM_FLUSH_MAX_MS)
+        })
+      }
+      expect(liveText()).toBe(expected)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The window is sized by the RUN the batch appends to, not by how much the
+  // turn has said in total: a reply that has already written 9 KB and then ran
+  // a tool is back to rendering a short block, and must not keep paying for
+  // the prose above it.
+  it("returns to a single frame when a new run starts", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "a".repeat(9000),
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+
+      // A tool call closes the prose run (and flushes the queue itself), so
+      // the reply that resumes after it starts short again.
+      emitAcpEvent(handlers, {
+        seq: 3,
+        connection_id: "spawned-conn",
+        type: "tool_call",
+        tool_call_id: "toolu_1",
+        title: "Read",
+        kind: "read",
+        status: "in_progress",
+        content: null,
+        raw_input: null,
+        raw_output: null,
+      })
+      emitAcpEvent(handlers, {
+        seq: 4,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "after",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(`${"a".repeat(9000)}after`)
+
+      // And it stays there while the new run is short, even though the turn
+      // now holds more than 9 KB in total.
+      emitAcpEvent(handlers, {
+        seq: 5,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: " more",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(`${"a".repeat(9000)}after more`)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // An event that flushes the queue mid-window must CANCEL that window, not
+  // just forget it. A forgotten timer still fires, releases whatever the next
+  // window had queued, and takes the ref down with it — so the window after it
+  // is forgotten too. One such event per turn is enough to halve the cadence,
+  // and a long turn has many (`usage_update`, `tool_call_update`, …), so the
+  // widening decays back to a flat 16 ms over exactly the turns it is for.
+  it("cancels the pending window when an event flushes the queue early", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      const head = "a".repeat(9000)
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: head,
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(head)
+
+      // Arms a two-frame window against the 9 KB run.
+      emitAcpEvent(handlers, {
+        seq: 3,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "b",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(head)
+
+      // One frame in, a non-streaming event flushes the queue itself.
+      emitAcpEvent(handlers, {
+        seq: 4,
+        connection_id: "spawned-conn",
+        type: "usage_update",
+        used: 1_000,
+        size: 200_000,
+      })
+      expect(liveText()).toBe(`${head}b`)
+
+      // The next delta arms its own two-frame window from here. The window the
+      // flush pre-empted must not fire inside it and cut it short.
+      emitAcpEvent(handlers, {
+        seq: 5,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "c",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(`${head}b`)
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveText()).toBe(`${head}bc`)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Codeg runs several agents at once by design. A window sized from what one
+  // conversation is re-rendering must not be charged to another — least of all
+  // to a background one that costs nothing to flush and gains nothing by
+  // waiting.
+  it("never makes one conversation wait on another's long reply", async () => {
+    const { a, b } = await mountTwoStreamingOwners()
+    vi.useFakeTimers()
+    try {
+      const head = "a".repeat(9000)
+      emitAcpEvent(a, {
+        seq: 2,
+        connection_id: "conn-a",
+        type: "content_delta",
+        text: head,
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveTextFor(TAB)).toBe(head)
+
+      // A's next delta is armed against its 9 KB run — two frames. B has said
+      // nothing, so B's is one, and B must get it.
+      emitAcpEvent(a, {
+        seq: 3,
+        connection_id: "conn-a",
+        type: "content_delta",
+        text: "A",
+      })
+      emitAcpEvent(b, {
+        seq: 2,
+        connection_id: "conn-b",
+        type: "content_delta",
+        text: "B",
+      })
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveTextFor(OTHER_TAB)).toBe("B")
+      expect(liveTextFor(TAB)).toBe(head)
+
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveTextFor(TAB)).toBe(`${head}A`)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The other half of the same rule: flushing one conversation out of turn
+  // must not release another's window early either.
+  it("does not let one conversation's event flush another's queue", async () => {
+    const { a, b } = await mountTwoStreamingOwners()
+    vi.useFakeTimers()
+    try {
+      emitAcpEvent(a, {
+        seq: 2,
+        connection_id: "conn-a",
+        type: "content_delta",
+        text: "A",
+      })
+      emitAcpEvent(b, {
+        seq: 2,
+        connection_id: "conn-b",
+        type: "content_delta",
+        text: "B",
+      })
+      // B's tool call flushes B's queue, and only B's.
+      emitAcpEvent(b, {
+        seq: 3,
+        connection_id: "conn-b",
+        type: "tool_call",
+        tool_call_id: "toolu_1",
+        title: "Read",
+        kind: "read",
+        status: "in_progress",
+        content: null,
+        raw_input: null,
+        raw_output: null,
+      })
+      // Positive half: the out-of-turn flush really did fire, so A's empty
+      // reading below is scoping, not a flush that silently does nothing.
+      expect(liveTextFor(OTHER_TAB)).toBe("B")
+      expect(liveTextFor(TAB)).toBe("")
+
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_FRAME_MS)
+      })
+      expect(liveTextFor(TAB)).toBe("A")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // A snapshot REPLACES the live message wholesale. Deltas still coalescing
+  // when one lands would append to the message it installed — which already
+  // contains them, because the snapshot is generated at a higher seq — and
+  // the reply shows the same prose twice. The attach stream re-emits a
+  // snapshot on RECONNECT, mid-turn, so this is what a dropped WebSocket does
+  // to a streaming reply, not a corner case.
+  it("lands coalesced deltas before a mid-turn snapshot replaces the message", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "hello ",
+      })
+      expect(liveText()).toBe("")
+
+      // The reconnect snapshot was generated after that delta reached the
+      // backend, so it already carries the text sitting in our window. Still
+      // `prompting`: the turn did not stop because the socket did.
+      h.denormalizeSnapshot.mockReturnValue({
+        connectionId: "spawned-conn",
+        status: "prompting",
+        sessionId: null,
+        modes: null,
+        configOptions: null,
+        availableCommands: null,
+        usage: null,
+        liveMessage: {
+          id: "live-1",
+          role: "assistant",
+          content: [{ type: "text", text: "hello " }],
+          startedAt: 0,
+        },
+        pendingPermission: null,
+        pendingAskQuestion: null,
+        pendingUserMessage: null,
+        promptCapabilities: null,
+        selectorsReady: false,
+        supportsFork: false,
+        configStale: false,
+        configStaleKind: null,
+        lastError: null,
+        eventSeq: 9,
+        activeDelegations: [],
+      })
+      hydrateSnapshot(handlers, {
+        event_seq: 9,
+      } as unknown as LiveSessionSnapshot)
+
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_MAX_MS)
+      })
+      expect(liveText()).toBe("hello ")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // …and FLUSH is why that is a flush and not a discard. A snapshot behind
+  // our cursor takes the stale branch, which merges selector fields and
+  // leaves `liveMessage` alone — so it never redelivers the queued prose, and
+  // dropping the queue there would lose it outright. Which branch a snapshot
+  // takes isn't knowable at the call site, so the safe move is the one that
+  // is correct on both.
+  it("keeps coalesced deltas a stale snapshot will not redeliver", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      emitAcpEvent(handlers, {
+        seq: 4,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "hello ",
+      })
+      expect(liveText()).toBe("")
+
+      // eventSeq 2 is behind the cursor the delta above advanced to 4, so
+      // this hydrate takes the stale branch. Note it carries no live message
+      // of its own — the stale branch would ignore one anyway.
+      h.denormalizeSnapshot.mockReturnValue({
+        connectionId: "spawned-conn",
+        status: "connected",
+        sessionId: null,
+        modes: null,
+        configOptions: null,
+        availableCommands: null,
+        usage: null,
+        liveMessage: null,
+        pendingPermission: null,
+        pendingAskQuestion: null,
+        pendingUserMessage: null,
+        promptCapabilities: null,
+        selectorsReady: true,
+        supportsFork: false,
+        configStale: false,
+        configStaleKind: null,
+        lastError: null,
+        eventSeq: 2,
+        activeDelegations: [],
+      })
+      hydrateSnapshot(handlers, {
+        event_seq: 2,
+      } as unknown as LiveSessionSnapshot)
+
+      // The stale branch merged its latched field and left the turn alone…
+      expect(h.store!.getConnection(TAB)?.selectorsReady).toBe(true)
+      expect(h.store!.getConnection(TAB)?.status).toBe("prompting")
+      // …and the prose that was mid-window is on screen, not dropped.
+      expect(liveText()).toBe("hello ")
+
+      act(() => {
+        vi.advanceTimersByTime(STREAM_FLUSH_MAX_MS)
+      })
+      expect(liveText()).toBe("hello ")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Removing the entry disarms its window: "no connection, no queue".
+  //
+  // Asserted on the timer rather than on rendered text, because the text is
+  // already defended twice over — `status_changed` flushes before it applies
+  // `prompting`, and the out-of-turn guard drops a batch for a connection
+  // that isn't prompting — so a leak would have to thread between both to
+  // show up on screen. The invariant is the thing worth pinning: context keys
+  // are REUSED (close a tab mid-turn and reopen it and the next connection is
+  // handed the same `conv-<id>-<agent>-<folder>` string), and a window that
+  // outlives its connection is a dispatch aimed at whoever holds the key up
+  // to STREAM_FLUSH_MAX_MS later. Cheap to keep impossible; unpleasant to
+  // rediscover from a duplicated paragraph in someone's reply.
+  it("disarms a removed connection's flush window", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      const idle = vi.getTimerCount()
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "from the turn that was closed",
+      })
+      expect(liveText()).toBe("")
+      expect(vi.getTimerCount()).toBe(idle + 1)
+
+      await act(async () => {
+        await h.actions!.disconnect(TAB)
+      })
+      expect(h.store!.getConnection(TAB)).toBeUndefined()
+      expect(vi.getTimerCount()).toBe(idle)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // Settling a connection the backend has forgotten is the one turn-ending
+  // path that dispatches STATUS_CHANGED directly instead of going through the
+  // event handler, so nothing else drains the queue — and the moment the
+  // entry reads `disconnected` the out-of-turn guard drops the batch. The
+  // last thing the agent managed to say should still be on screen.
+  it("lands what was mid-window when a connection is settled as gone", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "last words",
+      })
+      expect(liveText()).toBe("")
+
+      // Pressing Stop on a connection the backend no longer holds.
+      h.acpCancel.mockRejectedValueOnce(new Error("Connection not found"))
+      await act(async () => {
+        await h.actions!.cancel(TAB)
+      })
+
+      expect(h.store!.getConnection(TAB)?.status).toBe("disconnected")
+      expect(liveText()).toBe("last words")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // The same rule on a different removal. `DELEGATION_CHILD_DETACH` drops an
+  // entry too, and it is why the discard is derived from the reducer's result
+  // rather than from a list of action types: closing the work-task transcript
+  // dialog on a streaming sub-agent must not leave a window armed either, and
+  // nobody should have to remember to extend a list to get that.
+  it("disarms a detached delegation child's flush window", async () => {
+    const CHILD = "task-conn-1"
+    await mountProvider()
+    act(() => {
+      h.actions!.attachDelegationChild({
+        connectionId: CHILD,
+        parentConnectionId: CHILD,
+        parentToolUseId: "work-task-9",
+        agentType: "claude_code",
+        hydrate: false,
+      })
+    })
+    const child = latestAttachHandlers()
+    emitAcpEvent(child, {
+      seq: 1,
+      connection_id: CHILD,
+      type: "status_changed",
+      status: "prompting",
+    })
+
+    vi.useFakeTimers()
+    try {
+      const idle = vi.getTimerCount()
+      emitAcpEvent(child, {
+        seq: 2,
+        connection_id: CHILD,
+        type: "content_delta",
+        text: "sub-agent, mid-sentence",
+      })
+      expect(vi.getTimerCount()).toBe(idle + 1)
+
+      act(() => {
+        h.actions!.detachDelegationChild(CHILD)
+      })
+      expect(h.store!.getConnection(CHILD)).toBeUndefined()
+      expect(vi.getTimerCount()).toBe(idle)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  // …and the same on unmount. This suite runs the attach transport, which is
+  // the one whose windows used to survive: the legacy `acp://event` listener
+  // effect owned the cleanup, and it returns early — before registering any —
+  // for exactly the transports that stream through attach subscriptions.
+  it("drops every armed window when the provider unmounts", async () => {
+    const handlers = await mountStreamingOwner()
+    vi.useFakeTimers()
+    try {
+      const idle = vi.getTimerCount()
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "content_delta",
+        text: "mid-sentence",
+      })
+      expect(vi.getTimerCount()).toBe(idle + 1)
+
+      // RTL's `cleanup` unmounts inside its own `act`, and clears its
+      // registry afterwards — so the suite's auto-cleanup is a no-op here.
+      cleanup()
+      expect(vi.getTimerCount()).toBe(idle)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe("AcpConnectionsProvider Grok cross-agent-type model switch", () => {
   function grokModelOptions(current: string): SessionConfigOptionInfo[] {
     return [
@@ -4001,6 +4602,67 @@ describe("connect() teardown races", () => {
     )
     expect(h.store!.getConnection(TAB)).toBeUndefined()
     expect(h.acpConnect).not.toHaveBeenCalled()
+  })
+
+  // Orphan rescue happens MID-TURN, and the reducer drops a `STREAM_BATCH`
+  // for a key with no connection — so deltas still sitting in the old key's
+  // flush window are lost text unless they land before the entry moves. Up to
+  // STREAM_FLUSH_MAX_MS of a live reply.
+  it("lands the old key's coalesced deltas before rescuing its connection", async () => {
+    mountDesktop()
+    await act(async () => {})
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1")
+    })
+    const onEvent = vi.mocked(subscribe).mock.calls[0]![1] as (
+      envelope: EventEnvelope
+    ) => void
+    // Hold the clock from here on. The window is only 16 ms, so on real timers
+    // the rescue's own awaits could outlast it and the delta would land
+    // because the timer fired — the test would keep passing with the flush
+    // below deleted. Under fake timers the clock never advances, so the only
+    // thing that can deliver this text is the explicit flush.
+    h.acpTouchConnection.mockResolvedValue(true)
+    vi.useFakeTimers()
+    try {
+      act(() => {
+        onEvent({
+          seq: 1,
+          connection_id: "spawned-conn",
+          type: "session_started",
+          session_id: "sess-1",
+        } as EventEnvelope)
+        onEvent({
+          seq: 2,
+          connection_id: "spawned-conn",
+          type: "status_changed",
+          status: "prompting",
+        } as EventEnvelope)
+        // Still inside its flush window when the rescue below fires.
+        onEvent({
+          seq: 3,
+          connection_id: "spawned-conn",
+          type: "content_delta",
+          text: "half a sentence",
+        } as EventEnvelope)
+      })
+      // Queued, not applied: the window has not elapsed.
+      expect(h.store!.getConnection(TAB)?.liveMessage?.content).toEqual([])
+
+      await act(async () => {
+        await h.actions!.connect(RESCUE_TAB, "claude_code", "/tmp/x", "sess-1")
+      })
+
+      const rescued = h.store!.getConnection(RESCUE_TAB)
+      expect(rescued?.connectionId).toBe("spawned-conn")
+      expect(
+        (rescued?.liveMessage?.content ?? [])
+          .map((block) => (block.type === "text" ? block.text : ""))
+          .join("")
+      ).toBe("half a sentence")
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it("still connects when the backend GC'd the connection mid-probe", async () => {

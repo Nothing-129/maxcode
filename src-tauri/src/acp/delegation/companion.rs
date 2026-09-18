@@ -2916,7 +2916,11 @@ mod tests {
         use crate::acp::delegation::transport::{read_frame, write_frame, BrokerMessage};
         use tokio::net::UnixListener;
 
-        let dir = tempfile::tempdir().unwrap();
+        // `/tmp`, not `$TMPDIR`: a socket path has ~104 bytes of `sun_path` to
+        // live in, and codeg exports a 72-byte per-session `TMPDIR` to the
+        // agents it launches. Under `tempdir()` this lands at 92 bytes there —
+        // green, but with very little left for a deeper nesting.
+        let dir = tempfile::tempdir_in("/tmp").unwrap();
         let sock = dir.path().join("fb.sock").to_string_lossy().to_string();
         let listener = UnixListener::bind(&sock).unwrap();
         let committed = Arc::new(Mutex::new(Vec::<Vec<String>>::new()));
@@ -2985,7 +2989,11 @@ mod tests {
         use crate::acp::delegation::transport::{read_frame, write_frame, BrokerMessage};
         use tokio::net::UnixListener;
 
-        let dir = tempfile::tempdir().unwrap();
+        // `/tmp`, not `$TMPDIR`: a socket path has ~104 bytes of `sun_path` to
+        // live in, and codeg exports a 72-byte per-session `TMPDIR` to the
+        // agents it launches. Under `tempdir()` this lands at 92 bytes there —
+        // green, but with very little left for a deeper nesting.
+        let dir = tempfile::tempdir_in("/tmp").unwrap();
         let sock = dir.path().join("fb.sock").to_string_lossy().to_string();
         let listener = UnixListener::bind(&sock).unwrap();
         let saw_commit = Arc::new(Mutex::new(false));

@@ -38,6 +38,14 @@ export interface QueuedMessage {
 
 export interface UseMessageQueueReturn {
   queue: QueuedMessage[]
+  /** An item claimed by native steering stays visible until delivery settles. */
+  steeringItemId: string | null
+  beginSteering: (id: string) => QueuedMessage | undefined
+  finishSteering: (
+    id: string,
+    delivered: boolean,
+    opts?: { flushBlocked?: boolean }
+  ) => void
   enqueue: (
     draft: PromptDraft,
     modeId: string | null,
@@ -87,6 +95,8 @@ export interface UseMessageQueueReturn {
 
 export function useMessageQueue(): UseMessageQueueReturn {
   const [queue, setQueue] = useState<QueuedMessage[]>([])
+  const [steeringItemId, setSteeringItemId] = useState<string | null>(null)
+  const steeringItemRef = useRef<string | null>(null)
   const [editingItemId, setEditingItemId] = useState<string | null>(null)
   // Authoritative copy of the queue, updated SYNCHRONOUSLY by every mutation
   // (before the React state commit). Reads that must observe the same-tick
@@ -144,11 +154,13 @@ export function useMessageQueue(): UseMessageQueueReturn {
   )
 
   const peekSendable = useCallback((): QueuedMessage | undefined => {
+    if (steeringItemRef.current !== null) return undefined
     return queueRef.current.find((item) => !item.flushBlocked)
   }, [])
 
   const dequeue = useCallback((): QueuedMessage | undefined => {
     const current = queueRef.current
+    if (steeringItemRef.current !== null) return undefined
     if (current.length === 0) return undefined
     commit(current.slice(1))
     return current[0]
@@ -156,6 +168,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
 
   const remove = useCallback(
     (id: string): QueuedMessage | undefined => {
+      if (steeringItemRef.current === id) return undefined
       const current = queueRef.current
       const item = current.find((queued) => queued.id === id)
       if (!item) return undefined
@@ -196,6 +209,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
 
   const updateItem = useCallback(
     (id: string, draft: PromptDraft) => {
+      if (steeringItemRef.current === id) return
       commit(
         queueRef.current.map((item) =>
           item.id === id ? { ...item, draft, flushBlocked: undefined } : item
@@ -209,6 +223,7 @@ export function useMessageQueue(): UseMessageQueueReturn {
   const getQueueLength = useCallback(() => queueRef.current.length, [])
 
   const startEditing = useCallback((id: string) => {
+    if (steeringItemRef.current === id) return
     setEditingItemId(id)
   }, [])
 
@@ -216,8 +231,43 @@ export function useMessageQueue(): UseMessageQueueReturn {
     setEditingItemId(null)
   }, [])
 
+  const beginSteering = useCallback(
+    (id: string): QueuedMessage | undefined => {
+      if (steeringItemRef.current !== null || editingItemId) return undefined
+      const item = queueRef.current.find((entry) => entry.id === id)
+      if (!item) return undefined
+      steeringItemRef.current = id
+      setSteeringItemId(id)
+      return item
+    },
+    [editingItemId]
+  )
+
+  const finishSteering = useCallback(
+    (id: string, delivered: boolean, opts?: { flushBlocked?: boolean }) => {
+      if (steeringItemRef.current !== id) return
+      if (delivered) {
+        commit(queueRef.current.filter((item) => item.id !== id))
+      } else if (opts?.flushBlocked) {
+        // A transport error can arrive AFTER the backend accepted delivery.
+        // Keep the draft for an explicit retry, never automatically send twice.
+        commit(
+          queueRef.current.map((item) =>
+            item.id === id ? { ...item, flushBlocked: true } : item
+          )
+        )
+      }
+      steeringItemRef.current = null
+      setSteeringItemId(null)
+    },
+    [commit]
+  )
+
   return {
     queue,
+    steeringItemId,
+    beginSteering,
+    finishSteering,
     enqueue,
     requeueFront,
     peekSendable,

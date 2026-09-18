@@ -5472,6 +5472,15 @@ async fn run_connection(
                 async move |req: RequestPermissionRequest,
                             responder: Responder<RequestPermissionResponse>,
                             _cx: ConnectionTo<Agent>| {
+                    // An approval gating codeg's OWN ask tool is a dialog asking
+                    // permission to show a dialog; allow it so the user sees only
+                    // the interactive question card (see
+                    // `codeg_ask_auto_allow_option`).
+                    let responder =
+                        match try_auto_allow_codeg_ask(&perm_ask_access, &req, responder).await {
+                            Ok(()) => return Ok(()),
+                            Err(responder) => responder,
+                        };
                     // pi asks the user a question THROUGH this channel (see
                     // `try_bridge_pi_select_ask`); route it to the interactive
                     // question card instead of an approval card. Every reject
@@ -6746,6 +6755,90 @@ async fn handle_grok_ask_user_question(
             }
         }
     });
+}
+
+/// The option id that silently allows a `session/request_permission` which is
+/// only gating codeg's OWN `ask_user_question` companion tool, or `None` to
+/// leave the request on the ordinary approval-card path.
+///
+/// An agent whose permission mode consults the user before every MCP tool call
+/// (claude-agent-acp's default) gates the ask tool too, so asking the user a
+/// question used to cost TWO dialogs: a raw "run mcp__codeg-mcp__ask_user_question?"
+/// approval dumping the questions as JSON, and only after "Yes" the real
+/// interactive card. The first one carries no decision the second doesn't — see
+/// [`crate::acp::question::is_codeg_ask_tool_name`] for why answering it is the
+/// user's consent either way.
+///
+/// The tool is identified by NAME, read from the two places a host puts it:
+/// `toolCall.title` (claude-agent-acp's `toolInfoFromToolUse` falls through to
+/// the raw tool name for MCP tools) and the request-level
+/// `_meta.permission.title` it pairs with (claude-agent-acp 0.73+ / codex-acp
+/// 1.7+, the same block [`hoist_request_permission_meta`] forwards to the card).
+/// The ACP `toolCall.name` field would be the exact answer but is UNSTABLE and
+/// dropped by the schema crate codeg pins, so it is not available here.
+///
+/// Only an `allow_once` option is ever selected. An `allow_always` writes a
+/// durable permission rule into the user's own agent settings — a decision that
+/// outlives this turn and this connection, so it stays theirs to make. With no
+/// such option (an agent that offers only "always"), `None` keeps today's card.
+fn codeg_ask_auto_allow_option(
+    req: &RequestPermissionRequest,
+    ask_enabled: bool,
+) -> Option<String> {
+    if !ask_enabled {
+        return None;
+    }
+    let permission_title = req
+        .meta
+        .as_ref()
+        .and_then(|m| m.get("permission"))
+        .and_then(|p| p.get("title"))
+        .and_then(serde_json::Value::as_str);
+    let is_ask = [req.tool_call.fields.title.as_deref(), permission_title]
+        .into_iter()
+        .flatten()
+        .any(crate::acp::question::is_codeg_ask_tool_name);
+    if !is_ask {
+        return None;
+    }
+    req.options
+        .iter()
+        .find(|opt| opt.kind == PermissionOptionKind::AllowOnce)
+        .map(|opt| opt.option_id.to_string())
+}
+
+/// Answer a permission request that is merely gating codeg's own ask tool, so
+/// the interactive question card is the only thing the user ever sees.
+///
+/// `Err(responder)` hands the request back for the ordinary permission path —
+/// the outcome for every other tool, and the deliberate fallback whenever the
+/// auto-allow cannot be taken (the ask feature is off, or the agent offered no
+/// allow-once option).
+async fn try_auto_allow_codeg_ask(
+    access: &Option<(
+        Arc<dyn crate::acp::question::SessionQuestionAccess>,
+        crate::acp::question::QuestionRuntimeConfig,
+    )>,
+    req: &RequestPermissionRequest,
+    responder: Responder<RequestPermissionResponse>,
+) -> Result<(), Responder<RequestPermissionResponse>> {
+    // Same kill switch as the ask tool itself (and as `try_bridge_pi_select_ask`):
+    // with the feature off codeg-mcp never exposed `ask_user_question`, so a
+    // request naming it is not the tool this shortcut is allowed to speak for.
+    let Some((_, ask_cfg)) = access else {
+        return Err(responder);
+    };
+    let Some(option_id) = codeg_ask_auto_allow_option(req, ask_cfg.is_enabled().await) else {
+        return Err(responder);
+    };
+    tracing::debug!(
+        "[ACP] auto-allowing the permission request for codeg's own ask_user_question tool \
+         (option {option_id}); the interactive question card is the actual prompt"
+    );
+    let _ = responder.respond(RequestPermissionResponse::new(
+        RequestPermissionOutcome::Selected(SelectedPermissionOutcome::new(option_id)),
+    ));
+    Ok(())
 }
 
 /// Bridge pi's extension-UI `select` — the way a pi extension asks the user a
@@ -15974,6 +16067,100 @@ mod tests {
         }
     }
 
+    /// claude-agent-acp 0.78.0's permission request for an MCP tool, verified
+    /// against `buildClaudePermissionPresentation` + `toolInfoFromToolUse`: an
+    /// MCP tool falls through the tool switch, so BOTH the card title and the
+    /// request-level `_meta.permission.title` are the raw `mcp__<server>__<tool>`
+    /// name, and the options are allow-once / reject.
+    fn claude_mcp_permission_request(
+        tool_name: &str,
+        options: Vec<sacp::schema::PermissionOption>,
+    ) -> RequestPermissionRequest {
+        RequestPermissionRequest::new(
+            SessionId::new("sess-1"),
+            sacp::schema::ToolCallUpdate::new(
+                "toolu_01",
+                sacp::schema::ToolCallUpdateFields::new()
+                    .title(tool_name.to_string())
+                    .kind(sacp::schema::ToolKind::Other)
+                    .raw_input(serde_json::json!({ "questions": [] })),
+            ),
+            options,
+        )
+        .meta(meta_map(serde_json::json!({
+            "permission": { "version": 1, "title": tool_name }
+        })))
+    }
+
+    fn claude_permission_options() -> Vec<sacp::schema::PermissionOption> {
+        vec![
+            sacp::schema::PermissionOption::new(
+                "allow-once",
+                "Yes",
+                PermissionOptionKind::AllowOnce,
+            ),
+            sacp::schema::PermissionOption::new("reject", "No", PermissionOptionKind::RejectOnce),
+        ]
+    }
+
+    #[test]
+    fn codeg_ask_auto_allow_option_picks_allow_once_for_codegs_own_ask_tool() {
+        let req = claude_mcp_permission_request(
+            "mcp__codeg-mcp__ask_user_question",
+            claude_permission_options(),
+        );
+        assert_eq!(
+            codeg_ask_auto_allow_option(&req, true).as_deref(),
+            Some("allow-once")
+        );
+        // The title alone is enough: an agent that sends no request-level
+        // `_meta.permission` block still gets the shortcut.
+        let mut bare = claude_mcp_permission_request(
+            "mcp__codeg-mcp__ask_user_question",
+            claude_permission_options(),
+        );
+        bare.meta = None;
+        assert_eq!(
+            codeg_ask_auto_allow_option(&bare, true).as_deref(),
+            Some("allow-once")
+        );
+    }
+
+    #[test]
+    fn codeg_ask_auto_allow_option_leaves_every_other_approval_on_the_card() {
+        // Another server's ask tool: approving it is the user's call, not
+        // codeg's, even though the tool half of the name matches.
+        for foreign in [
+            "mcp__other-server__ask_user_question",
+            "mcp__codeg-mcp__delegate_to_agent",
+            "Bash",
+        ] {
+            let req = claude_mcp_permission_request(foreign, claude_permission_options());
+            assert!(
+                codeg_ask_auto_allow_option(&req, true).is_none(),
+                "{foreign} must keep its approval card"
+            );
+        }
+        // An agent offering only a DURABLE allow writes a rule into the user's
+        // own settings — that outlives this turn, so it stays their decision.
+        let always_only = claude_mcp_permission_request(
+            "mcp__codeg-mcp__ask_user_question",
+            vec![
+                sacp::schema::PermissionOption::new(
+                    "allow-with-updates",
+                    "Yes, and don't ask again",
+                    PermissionOptionKind::AllowAlways,
+                ),
+                sacp::schema::PermissionOption::new(
+                    "reject",
+                    "No",
+                    PermissionOptionKind::RejectOnce,
+                ),
+            ],
+        );
+        assert!(codeg_ask_auto_allow_option(&always_only, true).is_none());
+    }
+
     #[test]
     fn codex_retry_indicator_extracts_message_and_object_http_status() {
         // codex-acp #289: object-variant `codexErrorInfo` carries an inner
@@ -23616,3 +23803,7 @@ mod tests {
         assert_eq!(untyped["configOptions"].as_array().unwrap().len(), 1);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/own-ask-permission.contract.rs"]
+mod maxcode_own_ask_permission_contract;
