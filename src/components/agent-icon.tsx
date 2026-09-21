@@ -464,17 +464,20 @@ const CursorMonoIcon = memo(function CursorMonoIcon({
 })
 
 // ZCode's official Z mark — the glyph from zai-org/ZCode
-// (packages/ui/src/assets/Z.svg, Apache-2.0). Upstream renders it as a
-// dark gradient STROKE on light backgrounds; here the same geometry is
-// filled with currentColor (nonzero winding keeps the two arm cutouts)
-// and tinted Z.ai blue, matching the other frameless mono marks.
+// (packages/ui/src/assets/Z.svg; the packaged app icons in
+// packages/desktop/build/icon*.png are the same geometry as an opaque
+// top-to-bottom charcoal gradient). The user-facing direction is to keep
+// the official dark treatment verbatim: the gradient is sampled from
+// icon.png (#131516 → #030303) rather than re-tinted.
 const ZCODE_Z_PATH =
   "M416.94 21L165.546 340H19L55.5693 293.581L138.137 190.103L138.141 190.098L233.312 68.0605L233.313 68.0615L270.394 21H416.94ZM282.514 293.771H390.497L354.052 339.998H207.856L220.612 323.807C235.554 304.84 258.368 293.771 282.514 293.771ZM227.134 21L220.756 29.0889C201.752 53.1885 172.752 67.252 142.061 67.252H43.9502L80.3965 21H227.134Z"
 
-const ZcodeMonoIcon = memo(function ZcodeMonoIcon({ size = "1em" }: IconProps) {
+const ZcodeColorIcon = memo(function ZcodeColorIcon({
+  size = "1em",
+}: IconProps) {
+  const id = useId()
   return (
     <svg
-      fill="currentColor"
       height={size}
       style={baseSvgStyle}
       viewBox="0 0 436 360"
@@ -482,7 +485,21 @@ const ZcodeMonoIcon = memo(function ZcodeMonoIcon({ size = "1em" }: IconProps) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>ZCode</title>
-      <path d={ZCODE_Z_PATH} />
+      <path d={ZCODE_Z_PATH} fill={`url(#${id})`} />
+      <defs>
+        <linearGradient
+          gradientUnits="userSpaceOnUse"
+          id={id}
+          x1="218"
+          x2="218"
+          y1="21"
+          y2="340"
+        >
+          <stop offset="0" stopColor="#131516" />
+          <stop offset="0.55" stopColor="#0C0E0E" />
+          <stop offset="1" stopColor="#030303" />
+        </linearGradient>
+      </defs>
     </svg>
   )
 })
@@ -498,6 +515,7 @@ const COLOR_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   kimi_code: KimiCodeColorIcon,
   pi: PiColorIcon,
   deepseek: DeepSeekColorIcon,
+  zcode: ZcodeColorIcon,
 }
 
 const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
@@ -509,15 +527,12 @@ const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   cursor: CursorMonoIcon,
   qoder: QoderMonoIcon,
   antigravity: AntigravityMonoIcon,
-  zcode: ZcodeMonoIcon,
 }
 
 // Per-agent color override for mono marks, layered on top of the default
-// `text-foreground` below. ZCode's mark carries Z.ai's brand blue so it reads
-// as a distinct identity chip rather than a plain foreground glyph.
-const AGENT_TEXT_COLORS: Partial<Record<AgentType, string>> = {
-  zcode: "text-[#3B5BFF]",
-}
+// `text-foreground` below. Empty today — mono icons render at full foreground
+// strength unless a specific brand tint is ever needed here.
+const AGENT_TEXT_COLORS: Partial<Record<AgentType, string>> = {}
 
 export function AgentIcon({ agentType, className }: AgentIconProps) {
   const ColorIcon = COLOR_ICONS[agentType]
