@@ -1859,8 +1859,8 @@ impl SessionState {
     /// missing, so an entry left out is a tool card missing from the middle of
     /// the in-flight turn.
     ///
-    /// What the budget bounds is `input` / `output` / `content` / `locations` /
-    /// `images`, and only on calls that already reached a terminal status:
+    /// What the budget bounds is `input` / `output` / `content` / `locations`,
+    /// and only on calls that already reached a terminal status:
     ///
     /// * Pending / InProgress calls are never trimmed, at any size. They are
     ///   the ones the attaching client has to keep rendering and revising from
@@ -1871,10 +1871,44 @@ impl SessionState {
     ///   call's result is durable in the agent's own transcript, which is what
     ///   the conversation reloads from.
     ///
+    /// `images` is NOT bounded, and deliberately: dropping the bytes does not
+    /// degrade the card, it inverts it. The frontend reads an image-generation
+    /// block with `image: null` and a terminal status as a FAILED generation
+    /// (`generated-images-block.tsx`, and `isImageGenerationToolCall` still
+    /// classifies the call from the `label` this keeps), so a trimmed success
+    /// would render "image generation failed". Carrying them whole is exactly
+    /// what the snapshot does today, so nothing here is a regression; what an
+    /// image-heavy turn costs is the same as before this function existed. The
+    /// bytes are still counted below, so they push older RESULT payload out
+    /// first.
+    ///
     /// The budget is spent, not enforced per entry, so the last entry admitted
-    /// may carry the total past it by its own size (one oversized image tool
-    /// call). In-flight entries are counted against the budget but never
-    /// trimmed by it.
+    /// may carry the total past it by its own size. In-flight entries and the
+    /// image data every entry keeps are counted against the budget but never
+    /// trimmed by it — which is why the floor can exceed it, and why the
+    /// accounting counts a trimmed entry's retained bytes rather than dropping
+    /// it from the tally.
+    ///
+    /// ## Assumption this rests on
+    ///
+    /// Bounding only terminal calls assumes the agent reports one. Every agent
+    /// codeg ships does (`upsert_tool_call` inserts at `Pending` and the
+    /// adapter's completion update moves it), but one that never did would
+    /// leave the table untrimmable at any length. Pinned by
+    /// `snapshot_ships_an_all_unsettled_table_whole` so a future change has to
+    /// confront the assumption rather than inherit it.
+    ///
+    /// ## Known degradation
+    ///
+    /// A trimmed entry loses `input`, which is one of the signals the client
+    /// infers a tool's identity from. `label`, `kind` and `meta` survive and
+    /// carry that identity for everything with an authoritative marker
+    /// (delegation companions, claudeCode/qoder/grok meta, the OpenCode name),
+    /// but two input-shape-only classifications fall back to a generic tool
+    /// card on a mid-turn attach of an over-budget turn: codex collab capsules
+    /// (`isCodexCollabInput`) and Kimi `TodoList` writes
+    /// (`kimiTodoWriteEntries`). Cosmetic and self-healing — the conversation
+    /// renders from the transcript on reload.
     fn snapshot_tool_calls(&self) -> Vec<ToolCallState> {
         // Arrival order comes from the live message: `push_tool_call_ref_if_absent`
         // anchors exactly one `ToolCallRef` per call, in the order the agent
@@ -1889,7 +1923,7 @@ impl SessionState {
             }
         }
 
-        // (arrival rank, id, payload bytes). An id with no anchoring ref sorts
+        // (arrival rank, id, trimmable bytes). An id with no anchoring ref sorts
         // newest, so the fail-safe direction is "keep everything" — today that
         // cannot happen, because both `ToolCall` and `ToolCallUpdate` anchor a
         // ref for the id they upsert.
@@ -1900,14 +1934,20 @@ impl SessionState {
                 (
                     arrival.get(id.as_str()).copied().unwrap_or(usize::MAX),
                     id.as_str(),
-                    tool_call_payload_bytes(tc),
+                    tool_call_trimmable_bytes(tc),
                 )
             })
             .collect();
 
+        // Both halves, because the question the early return answers is
+        // "would shipping this whole be over budget", and the image bytes are
+        // part of what ships either way.
         let total = ordered
             .iter()
-            .fold(0usize, |acc, (_, _, bytes)| acc.saturating_add(*bytes));
+            .fold(0usize, |acc, (_, id, bytes)| {
+                acc.saturating_add(*bytes)
+                    .saturating_add(images_slice_size(&self.active_tool_calls[*id].images))
+            });
         if total <= MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES {
             // The ordinary turn: nothing to trim, wire shape byte-identical.
             return self.active_tool_calls.values().cloned().collect();
@@ -1917,15 +1957,21 @@ impl SessionState {
         let mut trimmed: BTreeSet<&str> = BTreeSet::new();
         let mut spent = 0usize;
         for (_, id, bytes) in ordered.iter().rev() {
+            let tc = &self.active_tool_calls[*id];
+            // Counted on every entry, trimmed or not: images ship regardless
+            // (see the doc comment), so leaving them out of the tally would
+            // make the budget measure something the wire does not carry.
+            let kept = images_slice_size(&tc.images);
             let terminal = matches!(
-                self.active_tool_calls[*id].status,
+                tc.status,
                 ToolCallStatus::Completed | ToolCallStatus::Failed
             );
             if terminal && spent >= MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES {
                 trimmed.insert(*id);
+                spent = spent.saturating_add(kept);
                 continue;
             }
-            spent = spent.saturating_add(*bytes);
+            spent = spent.saturating_add(*bytes).saturating_add(kept);
         }
 
         self.active_tool_calls
@@ -1952,7 +1998,10 @@ impl SessionState {
                     // re-anchors an inline sub-thread on a mid-turn attach.
                     // Bounded by contract — a small status object, not output.
                     meta: tc.meta.clone(),
-                    images: Vec::new(),
+                    // Kept: an image-generation block whose `image` is null and
+                    // whose status is terminal renders as a FAILED generation,
+                    // so dropping these would report a success as a failure.
+                    images: tc.images.clone(),
                     // `#[serde(skip)]` — never on the wire either way.
                     raw_input_chunks: Vec::new(),
                 }
@@ -2144,16 +2193,22 @@ fn u32_is_zero(v: &u32) -> bool {
 /// at least the newest 32 in the worst case) — far more than a client attaching
 /// mid-turn has on screen — while holding the #380 session's snapshot at ~2.6 MB
 /// instead of 24 MB.
+///
+/// A ceiling on what is DROPPABLE, not a hard cap on the message: in-flight
+/// calls and every call's image data are counted against it but never trimmed
+/// by it, so a turn holding more of those than the budget ships more than the
+/// budget. That is the same size it ships today.
 const MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES: usize = 2 * 1024 * 1024;
 
-/// The part of a `ToolCallState` that grows with what the tool actually did —
-/// what [`MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES`] bounds. Excludes the identity fields
-/// (id / kind / label / status / meta), which every entry keeps.
+/// The part of a `ToolCallState` a trim actually removes: the RESULT payload,
+/// which grows with what the tool did. Excludes the identity fields (id / kind /
+/// label / status / meta) and `images`, which every entry keeps whatever the
+/// budget says — see [`SessionState::snapshot_tool_calls`] for why.
 ///
 /// Sized with the same escape-aware, allocation-free accounting the per-event
 /// cap uses (`event_stream`), so "this call's payload" means the same number of
 /// bytes on both paths.
-fn tool_call_payload_bytes(tc: &ToolCallState) -> usize {
+fn tool_call_trimmable_bytes(tc: &ToolCallState) -> usize {
     let output = match tc.output.as_ref() {
         Some(ToolCallOutput::Text { content }) => json_str_len(content),
         Some(ToolCallOutput::Error { message }) => json_str_len(message),
@@ -2164,7 +2219,6 @@ fn tool_call_payload_bytes(tc: &ToolCallState) -> usize {
         .saturating_add(output)
         .saturating_add(opt_str_size(&tc.content))
         .saturating_add(opt_json_size(&tc.locations))
-        .saturating_add(images_slice_size(&tc.images))
 }
 
 /// Last non-empty line of `s`, trimmed. `None` if every line is blank.
@@ -3653,7 +3707,7 @@ mod tests {
         let held: usize = s
             .active_tool_calls
             .values()
-            .map(tool_call_payload_bytes)
+            .map(tool_call_trimmable_bytes)
             .sum();
         assert!(
             held > 2 * MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES,
@@ -3704,7 +3758,6 @@ mod tests {
         assert!(oldest.content.is_none());
         assert!(oldest.input.is_none());
         assert!(oldest.locations.is_none());
-        assert!(oldest.images.is_empty());
         assert_eq!(oldest.label, "Read src/tc-0000.rs");
         assert_eq!(oldest.kind, ToolKind::Read);
         assert_eq!(oldest.status, ToolCallStatus::Completed);
@@ -3745,6 +3798,93 @@ mod tests {
             .expect("running call present");
         assert_eq!(huge.status, ToolCallStatus::InProgress);
         assert!(huge.output.is_some(), "a running call is never trimmed");
+    }
+
+    /// A generated image survives the trim, however old the call is.
+    ///
+    /// `isImageGenerationToolCall` classifies the call from the `label` the
+    /// trim keeps, and `generated-images-block.tsx` renders an
+    /// image-generation block whose `image` is null under a terminal status as
+    /// "image generation failed". So shedding the bytes would not show less,
+    /// it would report a success as a failure — and an image is exactly the
+    /// payload a user would then go looking for.
+    #[test]
+    fn snapshot_keeps_a_generated_image_on_the_oldest_trimmed_call() {
+        let mut s = fresh_state();
+        // The oldest call, and the one carrying the image.
+        s.apply_event(&AcpEvent::ToolCall {
+            tool_call_id: "tc-image".into(),
+            title: "Image generation".into(),
+            kind: "other".into(),
+            status: "in_progress".into(),
+            content: None,
+            raw_input: Some("{\"prompt\":\"a cat\"}".into()),
+            raw_output: None,
+            locations: None,
+            meta: None,
+            images: None,
+        });
+        s.apply_event(&AcpEvent::ToolCallUpdate {
+            tool_call_id: "tc-image".into(),
+            title: None,
+            status: Some("completed".into()),
+            content: None,
+            raw_input: None,
+            raw_output: Some("o".repeat(16 * 1024)),
+            raw_output_append: None,
+            locations: None,
+            meta: None,
+            images: Some(vec![ToolCallImageInfo {
+                data: "R0lGODlhAQABAAAAACw=".repeat(64),
+                mime_type: "image/png".into(),
+                uri: None,
+            }]),
+        });
+        // …then enough finished work after it to push it out of the budget.
+        for i in 0..300 {
+            run_tool_call(&mut s, &format!("tc-{i:04}"), 16 * 1024, true);
+        }
+
+        let snap = s.to_snapshot();
+        let image_call = snap
+            .active_tool_calls
+            .iter()
+            .find(|tc| tc.id == "tc-image")
+            .expect("the image call still ships");
+        assert!(
+            image_call.output.is_none(),
+            "it is old enough to be trimmed, which is what makes this a test"
+        );
+        assert_eq!(
+            image_call.images.len(),
+            1,
+            "a trimmed success must not come back as a failed generation"
+        );
+        assert_eq!(image_call.label, "Image generation");
+    }
+
+    /// The bound covers terminal calls only, so a table that never reaches one
+    /// ships whole however long it gets.
+    ///
+    /// Every agent codeg ships reports a terminal status, which is what makes
+    /// the carve-out for in-flight calls safe. This pins the assumption rather
+    /// than leaving it implicit: an agent that stopped reporting one would
+    /// turn this test red instead of silently restoring #380.
+    #[test]
+    fn snapshot_ships_an_all_unsettled_table_whole() {
+        let mut s = fresh_state();
+        for i in 0..300 {
+            run_tool_call(&mut s, &format!("tc-{i:04}"), 16 * 1024, false);
+        }
+
+        let snap = s.to_snapshot();
+        assert_eq!(snap.active_tool_calls.len(), 300);
+        assert!(
+            snap.active_tool_calls
+                .iter()
+                .all(|tc| tc.output.is_some() && tc.status == ToolCallStatus::InProgress),
+            "nothing unsettled is trimmed at any size"
+        );
     }
 
     #[test]
