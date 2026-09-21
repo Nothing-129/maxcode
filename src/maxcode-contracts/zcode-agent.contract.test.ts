@@ -59,12 +59,21 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
       '"session/subscribe"',
       '"session/stop"',
       '"session/events"',
+      '"session/setModel"',
+      '"session/setThoughtLevel"',
       "session/request_permission",
       "session/requestRuntimePreferences",
       "interaction/requestPermission",
     ]) {
       expect(adapter).toContain(method)
     }
+    // The composer's Model/Reasoning pickers ride configOptions in the
+    // session/new response (pushes sent before session/new finishes are
+    // dropped), sourced deterministically from the create snapshot's
+    // `settings` block — not from push timing.
+    expect(adapter).toContain("applySnapshotSettings")
+    expect(adapter).toContain("config_option_update")
+    expect(adapter).toContain("configOptions: catalog")
     // The permission bridge must translate zcode option kinds onto the ACP
     // enum (allow_once / allow_always / reject_once / reject_always).
     expect(adapter).toContain('"allow_once"')

@@ -463,6 +463,25 @@ const CursorMonoIcon = memo(function CursorMonoIcon({
   )
 })
 
+// ZCode ships no standalone SVG mark (the desktop app only carries .icns
+// assets), so this is a authored geometric Z in the same frameless
+// currentColor style as the other mono marks, tinted with Z.ai's brand blue.
+const ZcodeMonoIcon = memo(function ZcodeMonoIcon({ size = "1em" }: IconProps) {
+  return (
+    <svg
+      fill="currentColor"
+      height={size}
+      style={baseSvgStyle}
+      viewBox="0 0 24 24"
+      width={size}
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <title>ZCode</title>
+      <path d="M5 4h14l-9.4 11.5H19V20H5l9.4-11.5H5V4z" />
+    </svg>
+  )
+})
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyIcon = React.ComponentType<any>
 
@@ -485,12 +504,15 @@ const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   cursor: CursorMonoIcon,
   qoder: QoderMonoIcon,
   antigravity: AntigravityMonoIcon,
+  zcode: ZcodeMonoIcon,
 }
 
 // Per-agent color override for mono marks, layered on top of the default
-// `text-foreground` below. Empty today — mono icons render at full foreground
-// strength unless a specific brand tint is ever needed here.
-const AGENT_TEXT_COLORS: Partial<Record<AgentType, string>> = {}
+// `text-foreground` below. ZCode's mark carries Z.ai's brand blue so it reads
+// as a distinct identity chip rather than a plain foreground glyph.
+const AGENT_TEXT_COLORS: Partial<Record<AgentType, string>> = {
+  zcode: "text-[#3B5BFF]",
+}
 
 export function AgentIcon({ agentType, className }: AgentIconProps) {
   const ColorIcon = COLOR_ICONS[agentType]

@@ -297,6 +297,62 @@ class SessionState {
     this.promptResolver = null
     /** @type {Set<string>} */
     this.seenToolCalls = new Set()
+    /** Model catalog from `state.updated` patches, keyed by "provider/model"
+     * (the ACP config-option value id). @type {Map<string, {name: string, description: string, levels: string[]}>} */
+    this.modelsByValue = new Map()
+    /** @type {{value: string, reasoningLevel: string|null}} */
+    this.currentModel = null
+  }
+
+  /** Rebuild the ACP config options for the composer's Model / Reasoning
+   * pickers from the tracked catalog + current selection. */
+  configOptions() {
+    const options = []
+    if (this.modelsByValue.size > 0) {
+      const entries = [...this.modelsByValue.entries()].map(([value, entry]) => ({
+        value,
+        name: entry.name,
+        ...(entry.description ? { description: entry.description } : {}),
+      }))
+      const currentEntry = this.currentModel?.value
+        ? this.modelsByValue.get(this.currentModel.value)
+        : undefined
+      options.push({
+        id: "model",
+        name: "Model",
+        category: "model",
+        type: "select",
+        currentValue:
+          this.currentModel?.value && this.modelsByValue.has(this.currentModel.value)
+            ? this.currentModel.value
+            : (entries[0]?.value ?? ""),
+        options: entries,
+      })
+      const levels = currentEntry?.levels ?? []
+      if (levels.length > 1) {
+        options.push({
+          id: "reasoning",
+          name: "Reasoning",
+          category: "thought_level",
+          type: "select",
+          currentValue:
+            this.currentModel?.reasoningLevel && levels.includes(this.currentModel.reasoningLevel)
+              ? this.currentModel.reasoningLevel
+              : (levels[0] ?? ""),
+          options: levels.map((level) => ({ value: level, name: level })),
+        })
+      }
+    }
+    return options
+  }
+
+  emitConfigOptions() {
+    const configOptions = this.configOptions()
+    if (configOptions.length === 0) return
+    sessionUpdate(this.sessionId, {
+      sessionUpdate: "config_option_update",
+      configOptions,
+    })
   }
 
   resolvePrompt(stopReason) {
@@ -481,6 +537,14 @@ function dispatchSessionEvent(envelope) {
       session.resolvePrompt(cancelled ? "cancelled" : "end_turn")
       break
     }
+    case "session.updated": {
+      // Mid-session switches (the desktop UI, /model) surface here with the
+      // full new selection; keep the composer's pickers in sync.
+      if (payload.modelSelection) {
+        applyCurrentModel(session, payload.modelSelection)
+      }
+      break;
+    }
     case "session.titleUpdated": {
       if (typeof payload.title === "string" && payload.title.length > 0) {
         sessionUpdate(session.sessionId, {
@@ -569,18 +633,88 @@ function applyToolUpdated(session, payload) {
   }
 }
 
+function modelValueOf(selection) {
+  if (!selection) return null
+  const providerId = selection.providerId ?? selection.ref?.providerId
+  const modelId = selection.modelId ?? selection.ref?.modelId
+  if (!providerId || !modelId) return null
+  return `${providerId}/${modelId}`
+}
+
+function reasoningLevelOf(selection) {
+  return selection?.options?.reasoningLevel ?? selection?.reasoningLevel ?? null
+}
+
+/** Absorb the model catalog from a `state.updated` patch
+ * (`patch.model.available`, the same array the ZCode desktop renders). */
+function applyModelCatalog(session, available) {
+  if (!Array.isArray(available)) return
+  session.modelsByValue = new Map()
+  for (const model of available) {
+    const value = modelValueOf(model)
+    if (!value) continue
+    const levels = (model?.reasoning?.levels ?? [])
+      .map((level) =>
+        typeof level === "string" ? level : (level?.value ?? level?.id ?? null),
+      )
+      .filter(Boolean)
+    const contextWindow = typeof model?.contextWindow === "number" ? model.contextWindow : null
+    session.modelsByValue.set(value, {
+      name: model?.label ?? value,
+      description: contextWindow
+        ? `${Math.round(contextWindow / 1000)}K context`
+        : undefined,
+      levels,
+    })
+  }
+  session.emitConfigOptions()
+}
+
+function applyCurrentModel(session, selection) {
+  const value = modelValueOf(selection)
+  if (!value) return
+  session.currentModel = {
+    value,
+    reasoningLevel: reasoningLevelOf(selection),
+  }
+  session.emitConfigOptions()
+}
+
+/** Absorb the deterministic catalog carried by every session snapshot's
+ * `settings` block (session/create and session/resume results) — no waiting
+ * on push timing. */
+function applySnapshotSettings(session, settings) {
+  const model = settings?.model
+  if (Array.isArray(model?.available)) {
+    applyModelCatalog(session, model.available)
+  }
+  if (model?.current) {
+    applyCurrentModel(session, model.current)
+  }
+  if (settings?.thoughtLevel?.current && session.currentModel) {
+    session.currentModel = {
+      ...session.currentModel,
+      reasoningLevel: settings.thoughtLevel.current,
+    }
+    session.emitConfigOptions()
+  }
+}
+
 function dispatchStateUpdated(params) {
   if (!params?.sessionId) return
   const session = sessions.get(params.sessionId)
   if (!session) return
   const patch = params.patch ?? {}
-  // status running/waiting transitions are observable through turn lifecycle
-  // events; nothing else here maps onto ACP.
-  if (
-    Array.isArray(patch.pendingPermissions) &&
-    patch.pendingPermissions.length === 0
-  ) {
-    // permissions cleared — nothing to emit
+  // The model catalog rides the same patch as the mode snapshot; both the
+  // catalog and the current selection feed the composer's Model/Reasoning
+  // pickers (ACP config options).
+  if (patch.model?.available) {
+    applyModelCatalog(session, patch.model.available)
+  }
+  if (patch.model?.current) {
+    applyCurrentModel(session, patch.model.current)
+  } else if (patch.modelSelection) {
+    applyCurrentModel(session, patch.modelSelection)
   }
 }
 
@@ -895,8 +1029,19 @@ acpIncomingHandlers.set("session/new", async (params) => {
     sessionId,
     deliveryKind: "desktop-continuous",
   })
+  // The create result is a full session snapshot whose `settings` block
+  // carries the model catalog deterministically. Reading it here puts the
+  // composer's pickers (Model / Reasoning) into the session/new response
+  // itself — how codex-acp does it; pushes sent before the host finishes
+  // session/new would land on a connection with no session state and be
+  // dropped. The post-establishment `config_option_update` stream keeps the
+  // pickers in sync after live switches.
+  const session = sessions.get(sessionId)
+  applySnapshotSettings(session, created?.settings)
+  const catalog = session.configOptions()
   return {
     sessionId,
+    ...(catalog.length > 0 ? { configOptions: catalog } : {}),
     _meta: { zcodeSessionId: sessionId },
   }
 })
@@ -918,7 +1063,8 @@ acpIncomingHandlers.set("session/load", async (params) => {
     sessionId,
     deliveryKind: "desktop-continuous",
   })
-  // Replay the recorded history so the host UI shows the prior conversation.
+  applySnapshotSettings(session, resumed?.settings)
+  const resumeCatalog = session.configOptions()
   const replay = await zcodeRequest(
     "session/events",
     { sessionId, afterSeq: 0 },
@@ -935,6 +1081,7 @@ acpIncomingHandlers.set("session/load", async (params) => {
   }
   return {
     sessionId: resumed?.session?.sessionId ?? sessionId,
+    ...(resumeCatalog.length > 0 ? { configOptions: resumeCatalog } : {}),
     _meta: { zcodeSessionId: sessionId, resumed: true },
   }
 })
@@ -956,7 +1103,10 @@ acpIncomingHandlers.set("session/prompt", async (params) => {
   if (!text) {
     return { stopReason: "end_turn" }
   }
-  const modelOverride = parseModelOverride()
+  // Deliberately NO modelSelection here: the session's current selection
+  // (set at create from ZCODE_MODEL, or switched live through the composer's
+  // Model picker via session/setModel) owns every turn. Re-sending the env
+  // override would fight that picker and silently flip turns back.
   return new Promise((resolvePrompt) => {
     if (process.env.ZCODE_ACP_DEBUG === "1") log("prompt resolver installed")
     session.promptResolver = resolvePrompt
@@ -965,7 +1115,6 @@ acpIncomingHandlers.set("session/prompt", async (params) => {
       {
         sessionId,
         content: text,
-        ...(modelOverride ? { modelSelection: modelOverride } : {}),
       },
       0
     ).catch((error) => {
@@ -1004,7 +1153,54 @@ acpIncomingHandlers.set("session/cancel", async (params) => {
 
 acpIncomingHandlers.set("session/set_mode", async () => ({}))
 
-acpIncomingHandlers.set("session/set_config_option", async () => ({}))
+acpIncomingHandlers.set("session/set_config_option", async (params) => {
+  const sessionId = params?.sessionId
+  const session = sessions.get(sessionId)
+  if (!session) throw new Error(`unknown session: ${sessionId}`)
+  const configId = params?.configId
+  const value = params?.value
+
+  if (configId === "model") {
+    const entry = session.modelsByValue.get(value)
+    if (!entry) {
+      throw new Error(`unknown model: ${value}`)
+    }
+    const [providerId, ...rest] = value.split("/")
+    const modelId = rest.join("/")
+    // GLM-style models reject a selection without a reasoning level; carry
+    // the current level over when the new model supports it, else take its
+    // first supported level.
+    let reasoningLevel = session.currentModel?.reasoningLevel
+    if (!reasoningLevel || (entry.levels.length > 0 && !entry.levels.includes(reasoningLevel))) {
+      reasoningLevel = entry.levels[0] ?? null
+    }
+    await zcodeRequest("session/setModel", {
+      sessionId,
+      model: {
+        providerId,
+        modelId,
+        ...(reasoningLevel ? { options: { reasoningLevel } } : {}),
+      },
+    })
+    session.currentModel = { value, reasoningLevel }
+    session.emitConfigOptions()
+    return { configOptions: session.configOptions() }
+  }
+
+  if (configId === "reasoning") {
+    await zcodeRequest("session/setThoughtLevel", {
+      sessionId,
+      thoughtLevel: value,
+    })
+    if (session.currentModel) {
+      session.currentModel = { ...session.currentModel, reasoningLevel: value }
+    }
+    session.emitConfigOptions()
+    return { configOptions: session.configOptions() }
+  }
+
+  throw new Error(`unknown config option: ${configId}`)
+})
 
 // fs/* : the zcode runtime performs its own file IO in the session cwd; the
 // adapter never asks the host for files.
