@@ -2349,6 +2349,16 @@
       "contracts": [
         "src/maxcode-contracts/title-model-default.contract.test.ts"
       ]
+    },
+    {
+      "id": "agents.grok-1040-setup-notifications",
+      "category": "runtime",
+      "description": "Grok 1.0.40 setup progress may carry a null sessionId before session allocation, and its MCP merge announcement is one-way. MaxCode claims both extension notifications at connection scope before sacp's strict per-session routing so healthy Grok sessions remain connected without invalid JSON-RPC error replies.",
+      "origins": ["worktree-2026-09-21"],
+      "paths": ["src-tauri/src/acp/connection.rs"],
+      "contracts": [
+        "src/maxcode-contracts/grok-1040-setup-notifications.contract.test.ts"
+      ]
     }
   ],
   "retired": [

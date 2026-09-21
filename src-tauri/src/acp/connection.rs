@@ -5716,6 +5716,16 @@ async fn run_connection(
             on_receive_request!(),
         )
         .on_receive_notification(
+            async move |_notif: GrokSessionSetupNotification,
+                        _cx: ConnectionTo<Agent>| { Ok(()) },
+            on_receive_notification!(),
+        )
+        .on_receive_notification(
+            async move |_notif: GrokMcpServersUpdatedNotification,
+                        _cx: ConnectionTo<Agent>| { Ok(()) },
+            on_receive_notification!(),
+        )
+        .on_receive_notification(
             async move |notif: AuthStatusUpdateNotification, _cx: ConnectionTo<Agent>| {
                 handle_auth_status_update(agent_type, notif);
                 Ok(())
@@ -13399,6 +13409,40 @@ fn grok_ext_notification_is_alert(dispatch: &Dispatch, agent_type: AgentType) ->
     }
 }
 
+/// Grok 1.0.40 connection progress notification.
+///
+/// The first setup phases happen before Grok allocates the session, so their
+/// payload intentionally carries `sessionId: null`. sacp's per-session router
+/// examines every otherwise-unclaimed notification and strictly deserializes
+/// any present `sessionId` as a string. Letting this extension notification
+/// reach that router therefore tears down an otherwise healthy connection with
+/// `invalid type: null, expected a string` immediately after `session/new`.
+///
+/// Claim the notification at connection scope. MaxCode does not currently show
+/// setup phases, but retaining the observed fields documents the wire contract
+/// and keeps malformed values from being silently accepted.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sacp::JsonRpcNotification)]
+#[notification(method = "_x.ai/session/setup")]
+#[serde(rename_all = "camelCase")]
+struct GrokSessionSetupNotification {
+    method: String,
+    phase: String,
+    session_id: Option<SessionId>,
+}
+
+/// Grok 1.0.40 announces its effective MCP list after merging configuration.
+///
+/// This is a notification, not a request. If no handler claims it, sacp emits a
+/// bare JSON-RPC method-not-found error with no request id; Grok then reports
+/// that it received a message with neither `id` nor `method`. Consume the
+/// announcement so the connection stays quiet and standards-compliant.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, sacp::JsonRpcNotification)]
+#[notification(method = "_x.ai/mcp/servers_updated")]
+#[serde(rename_all = "camelCase")]
+struct GrokMcpServersUpdatedNotification {
+    mcp_servers: serde_json::Value,
+}
+
 /// codex-acp 1.9.0's `_auth/status_update` — the agent reporting which identity
 /// IT is logged in with.
 ///
@@ -18584,6 +18628,56 @@ mod tests {
                 });
             assert!(notif.auth_status.is_object());
         }
+    }
+
+    /// Grok 1.0.40 emits these phases around `session/new`. The early phases
+    /// deliberately have no session yet; accepting JSON null here is the
+    /// compatibility boundary that keeps sacp's stricter per-session router
+    /// from terminating the connection.
+    #[test]
+    fn grok_setup_notification_accepts_pre_session_null_id() {
+        let notif: GrokSessionSetupNotification = serde_json::from_value(serde_json::json!({
+            "method": "session/new",
+            "phase": "auth",
+            "sessionId": null
+        }))
+        .expect("Grok pre-session setup notification must parse");
+
+        assert_eq!(notif.method, "session/new");
+        assert_eq!(notif.phase, "auth");
+        assert!(notif.session_id.is_none());
+        assert!(
+            <GrokSessionSetupNotification as sacp::JsonRpcMessage>::matches_method(
+                "_x.ai/session/setup"
+            )
+        );
+        assert!(
+            !<GrokSessionSetupNotification as sacp::JsonRpcMessage>::matches_method(
+                "session/update"
+            )
+        );
+    }
+
+    /// The MCP merge announcement is also new in Grok 1.0.40. Its handler is
+    /// intentionally narrow so standard ACP session traffic still reaches the
+    /// active-session pipeline.
+    #[test]
+    fn grok_mcp_servers_updated_notification_matches_only_its_extension_method() {
+        let notif: GrokMcpServersUpdatedNotification =
+            serde_json::from_value(serde_json::json!({"mcpServers": [{"name": "codeg"}]}))
+                .expect("Grok MCP announcement must parse");
+
+        assert!(notif.mcp_servers.is_array());
+        assert!(
+            <GrokMcpServersUpdatedNotification as sacp::JsonRpcMessage>::matches_method(
+                "_x.ai/mcp/servers_updated"
+            )
+        );
+        assert!(
+            !<GrokMcpServersUpdatedNotification as sacp::JsonRpcMessage>::matches_method(
+                "session/update"
+            )
+        );
     }
 
     /// The interceptor sits in front of EVERY dispatch, so a false positive
