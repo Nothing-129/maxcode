@@ -26,7 +26,8 @@
 | 模型显示名称 | 按连接所属智能体记录名称，历史回复与会话详情统一；只改显示，不改原始模型 ID 和费用 | `78c9313b` | `chat.agent-model-display-labels` |
 | 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#3CA1EF`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
-| 智能体维护范围 | 设置、选择器、旧缓存与自动更新仅保留六种，隐藏自定义新增入口 | `worktree-2026-09-17` | `agents.maintained-catalog` |
+| 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
+| ZCode 智能体 | 第七种受维护智能体：内置 zcode-acp 适配器（`AgentDistribution::Bundled`，嵌入二进制启动时落盘）驱动 `zcode app-server --stdio` 私有协议，桥接会话/权限/事件；SQLite 历史解析 `~/.zcode/cli/db/db.sqlite`；供应商 CLI 探测与 i18n 齐备；适配器不负责下载 zcode 运行时 | `feat/zcode-agent` | `agents.zcode-bundled-acp-adapter` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 消息图片 | 回复里的本地 Markdown 图片在当前会话工作目录内联显示，文件链接徽章与自动路径链接保持不变 | `402d8b09`、`049ef608`、`worktree-2026-09-14` | `chat.local-markdown-images` |
@@ -38,7 +39,7 @@
 | Antigravity 账号 | OAuth 登录可安全退出并切换 Google 账号；退出前阻断新连接并停止存活进程，调用 ACP logout 后恢复认证方式，同时保留 stdout/stderr 双流登录链接识别 | `7861d6ed`、`de096bb4`、`worktree-2026-09-15` | `agents.antigravity-sign-out` |
 | Codex 子智能体 | 原生子智能体胶囊显示真实结束状态和最终报告，可打开子会话；`list_agents` 还原为协作胶囊，保留 MaxCode 费用、耗时、上下文过滤与既有会话查看器 | `34b0f7fb`、`worktree-2026-09-15` | `chat.codex-native-subagent-results` |
 | 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
-| 智能体自动更新 | 维护范围内已启用且已安装的六种智能体强制后台更新，支持 npm、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14` | `settings.agent-auto-updates` |
+| 智能体自动更新 | 维护范围内已启用且已安装的智能体强制后台更新，支持 npm、二进制、Python（bundled 适配器随 MaxCode 发布，不参与独立更新），无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14`、`feat/zcode-agent` | `settings.agent-auto-updates` |
 | 智能体安装 | 手动 npm 安装、升级、重试及自定义包查询使用 npm.aifalao.net；在线版本检测与自动安装使用官方 registry.npmjs.org，适配器与 CLI 独立检测 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
 | 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
