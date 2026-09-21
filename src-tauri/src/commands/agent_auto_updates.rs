@@ -68,6 +68,8 @@ fn command(agent: AgentType) -> &'static str {
         registry::AgentDistribution::Npx { cmd, .. }
         | registry::AgentDistribution::Binary { cmd, .. }
         | registry::AgentDistribution::Uvx { cmd, .. } => cmd,
+        // Auto-update never manages a bundled adapter (see `prepare`).
+        registry::AgentDistribution::Bundled { .. } => "node",
     }
 }
 fn valid_version(version: &str) -> bool {
@@ -137,6 +139,9 @@ fn runtime_is_current(agent: AgentType, latest: Option<&str>) -> bool {
 }
 fn install_identity(agent: AgentType) -> String {
     match registry::get_agent_meta(agent).distribution {
+        registry::AgentDistribution::Bundled { version, file, .. } => {
+            format!("bundled:{version}:{file}")
+        }
         registry::AgentDistribution::Npx { package, cmd, .. } => format!(
             "npm:{}:{cmd}",
             super::agent_updates::npm_package_name(package).unwrap_or(package)
@@ -329,6 +334,11 @@ async fn prepare(agent: AgentType, version: &str) -> Result<Installed, String> {
     let root = root(agent).ok_or("Missing local data directory")?;
     let identity = install_identity(agent);
     let result = match registry::get_agent_meta(agent).distribution {
+        // Bundled adapters never auto-update: their version is tied to the
+        // MaxCode binary that carries them.
+        registry::AgentDistribution::Bundled { .. } => {
+            return Err("bundled adapters update with MaxCode".into())
+        }
         registry::AgentDistribution::Npx { .. } => {
             prepare_at(agent, version, &root, Path::new("npm")).await
         }

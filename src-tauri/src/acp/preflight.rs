@@ -88,6 +88,13 @@ pub async fn run_preflight(agent_type: AgentType) -> PreflightResult {
     let meta = registry::get_agent_meta(agent_type);
     debug_assert_eq!(meta.agent_type, agent_type);
     let checks = match &meta.distribution {
+        // The adapter ships inside the MaxCode binary; the only environment
+        // requirement is the node that runs it (plus, in practice, the vendor
+        // runtime the adapter itself resolves — surfaced through
+        // `acp_adapter_relation` diagnostics like claude/codex).
+        AgentDistribution::Bundled { node_required, .. } => {
+            check_npm_environment(*node_required).await
+        }
         AgentDistribution::Npx { node_required, .. } => check_npm_environment(*node_required).await,
         AgentDistribution::Binary {
             version,

@@ -2,10 +2,39 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.zcode-bundled-acp-adapter",
+      "category": "runtime",
+      "description": "ZCode is MaxCode's seventh maintained agent and the only one shipped through AgentDistribution::Bundled: the zcode-acp adapter is embedded in the binary and materialized at launch, driving the vendor runtime's private ZCode Protocol (zcode app-server --stdio, no ACP; Z.ai retired its own non-CLI ACP path). Keep the adapter's method bridge (session/create|resume|send|subscribe|stop, interaction/requestPermission to session/request_permission), the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the SQLite history parser over ~/.zcode/cli/db/db.sqlite and the maintained-catalog membership; upstream merges must not silently drop the Bundled distribution, its arms in install/status/verify/auto-update paths or the i18n zcode section.",
+      "origins": [
+        "feat/zcode-agent"
+      ],
+      "paths": [
+        "src-tauri/src/acp/adapters/zcode-acp.mjs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/acp/file_system_runtime.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/agent_auto_updates.rs",
+        "src-tauri/src/commands/mcp.rs",
+        "src-tauri/src/models/agent.rs",
+        "src-tauri/src/parsers/zcode.rs",
+        "src-tauri/src/parsers/mod.rs",
+        "src/lib/types.ts",
+        "src/lib/maintained-agents.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/zcode-agent.contract.test.ts"
+      ]
+    },
+    {
       "id": "agents.claude-079-command-approval",
       "category": "runtime",
       "description": "Claude ACP 0.79 preserves explicit default-to-no approvals and command descriptions, renders bracket/brace/heredoc shell commands and normalizes PowerShell for live/history tools. Only Claude's adapter pin advances; six-agent scope, independent official CLI updates and native queue behavior remain intact.",
-      "origins": ["afdcfe0b"],
+      "origins": [
+        "afdcfe0b"
+      ],
       "paths": [
         "src-tauri/src/acp/registry.rs",
         "src-tauri/src/acp/preflight.rs",
@@ -22,7 +51,11 @@
       "id": "history.pi-declared-model-window",
       "category": "runtime",
       "description": "Pi models.json capacity outranks name inference and follows provider/id, last declaration, 128000 omitted capacity and modelOverrides. Provider switches never reuse the previous provider; ambiguous or invalid declarations are declined. Custom agent/session paths and downstream usage/timing remain intact.",
-      "origins": ["07653466", "7d74c791", "29e435ef"],
+      "origins": [
+        "07653466",
+        "7d74c791",
+        "29e435ef"
+      ],
       "paths": [
         "src-tauri/src/parsers/pi.rs",
         "src/maxcode-contracts/pi-model-window.contract.rs"
@@ -35,7 +68,9 @@
       "id": "runtime.office-watch-immediate-reap",
       "category": "runtime",
       "description": "Office preview watcher teardown sends kill synchronously, without depending on a runtime task being polled; only wait/reaping is detached. Test children also use kill_on_drop.",
-      "origins": ["65588b03"],
+      "origins": [
+        "65588b03"
+      ],
       "paths": [
         "src-tauri/src/office_watch/mod.rs",
         "src/maxcode-contracts/office-watch-reap.contract.rs"
@@ -48,7 +83,10 @@
       "id": "chat.pending-question-collapse",
       "category": "product",
       "description": "Only pending live questions can collapse in normal flow, preserving choices and explicit submission. Replacement sets and submission errors reopen the form. Keep MaxCode's question shell, selection surfaces and footer; no floating/dragging portal or answered-record collapse control.",
-      "origins": ["d3c3ecd6", "3d81d7cc"],
+      "origins": [
+        "d3c3ecd6",
+        "3d81d7cc"
+      ],
       "paths": [
         "src/components/chat/ask-question-card.tsx",
         "src/i18n/messages/"
@@ -61,7 +99,9 @@
       "id": "chat.agent-model-display-labels",
       "category": "product",
       "description": "Connection-owned live/replay model selectors persist per-agent display labels for reply footers, session details and identity chips. Unknown ids pass through; raw billing/request/transcript ids are never rewritten. Missing catalog entries retain old labels, explicit renames back to ids clear stale labels, and existing selector cache helpers remain in use.",
-      "origins": ["78c9313b"],
+      "origins": [
+        "78c9313b"
+      ],
       "paths": [
         "src/lib/model-label-store.ts",
         "src/lib/model-config-groups.ts",
@@ -80,7 +120,9 @@
       "id": "chat.activity-feedback",
       "category": "product",
       "description": "Observed agent phases distinguish waiting, thinking, output, parallel tools and blocking user decisions. Tool status icons animate only in-place transitions, never history mounts; disclosure and output DOM stay intact. Reduced motion disables effects and hidden/offscreen running icons pause.",
-      "origins": ["worktree-2026-09-20"],
+      "origins": [
+        "worktree-2026-09-20"
+      ],
       "paths": [
         "src/components/shared/activity-status-icon.tsx",
         "src/components/shared/activity-status-icon.module.css",
@@ -102,13 +144,20 @@
         "src/i18n/messages/pt.json",
         "src/i18n/messages/ar.json"
       ],
-      "contracts": ["src/maxcode-contracts/activity-feedback.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/activity-feedback.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.claude-native-queued-steering",
       "category": "runtime",
       "description": "Only Claude Code sessions with confirmed native steering append queued messages into the current turn. Other agents and non-native Claude keep stop-and-prioritize. Complete draft blocks refuse pull fallback; queue-owned claims survive panel remounts, block auto-flush and duplicate clicks, preserve attachments on failure and remove only confirmed deliveries.",
-      "origins": ["cc6e4876", "642b0b33", "52980d31", "worktree-2026-09-19"],
+      "origins": [
+        "cc6e4876",
+        "642b0b33",
+        "52980d31",
+        "worktree-2026-09-19"
+      ],
       "paths": [
         "src/hooks/use-message-queue.ts",
         "src/components/chat/message-queue-display.tsx",
@@ -126,7 +175,12 @@
       "id": "chat.sent-prompt-history",
       "category": "product",
       "description": "Chat and canvas recall only the current session user prompts with unmodified Up/Down at whole-document boundaries. Draft JSON and attachments survive browsing; pending saves land before recall. IME, menus, selection, multiline movement and queue editing retain their original behavior.",
-      "origins": ["3593fcb0", "7444874c", "ce1dd3c5", "worktree-2026-09-19"],
+      "origins": [
+        "3593fcb0",
+        "7444874c",
+        "ce1dd3c5",
+        "worktree-2026-09-19"
+      ],
       "paths": [
         "src/lib/composer-history.ts",
         "src/components/chat/composer/rich-composer.tsx",
@@ -136,7 +190,9 @@
         "src/components/conversations/conversation-detail-panel.tsx",
         "src/components/canvas/canvas-conversation-surface.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/composer-history.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/composer-history.contract.test.tsx"
+      ]
     },
     {
       "id": "runtime.connection-streaming-cadence",
@@ -151,7 +207,9 @@
         "78101821",
         "worktree-2026-09-19"
       ],
-      "paths": ["src/contexts/acp-connections-context.tsx"],
+      "paths": [
+        "src/contexts/acp-connections-context.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/streaming-isolation.contract.test.tsx"
       ]
@@ -188,7 +246,9 @@
       "id": "conversation.queued-task-retention",
       "category": "runtime",
       "description": "Queued tasks belong to the lightweight tab wrapper and keep hidden conversations mounted after turn completion; delayed send failures restore drafts even after transcript virtualization.",
-      "origins": ["worktree-2026-09-18"],
+      "origins": [
+        "worktree-2026-09-18"
+      ],
       "paths": [
         "src/components/conversations/conversation-detail-panel.tsx",
         "src/lib/conversation-tab-retention.ts"
@@ -201,8 +261,12 @@
       "id": "conversation.scroll-to-bottom-hit-area",
       "category": "product",
       "description": "The full scroll-to-bottom button stays clickable above transcript content and does not shift on press, including at its edges.",
-      "origins": ["worktree-2026-09-17"],
-      "paths": ["src/components/ai-elements/message-thread.tsx"],
+      "origins": [
+        "worktree-2026-09-17"
+      ],
+      "paths": [
+        "src/components/ai-elements/message-thread.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/scroll-to-bottom-hit-area.contract.test.tsx"
       ]
@@ -211,20 +275,31 @@
       "id": "workspace.subtle-sidebar-seam",
       "category": "product",
       "description": "Desktop sidebar uses one low-opacity separator instead of a wrapper border plus resize line. Hover, drag and keyboard focus restore visibility with a smooth transition, including over workspace backgrounds.",
-      "origins": ["worktree-2026-09-17"],
-      "paths": ["src/app/workspace/layout.tsx", "src/app/globals.css"],
-      "contracts": ["src/maxcode-contracts/sidebar-seam.contract.test.ts"]
+      "origins": [
+        "worktree-2026-09-17"
+      ],
+      "paths": [
+        "src/app/workspace/layout.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-seam.contract.test.ts"
+      ]
     },
     {
       "id": "sidebar.ten-item-pagination",
       "category": "product",
       "description": "Recent and Chat match folder pagination: initially show 10 conversations and reveal 10 more per click, with independent section limits. Recent, folders and Chat use one Show more label with the remaining-item count, decreasing after each reveal. Collapsing and reopening Recent resets it to the first page.",
-      "origins": ["worktree-2026-09-17"],
+      "origins": [
+        "worktree-2026-09-17"
+      ],
       "paths": [
         "src/components/conversations/sidebar-conversation-grouping.ts",
         "src/components/conversations/sidebar-conversation-list.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/sidebar-pagination.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-pagination.contract.test.ts"
+      ]
     },
     {
       "id": "agents.six-agent-upstream-20260917",
@@ -271,7 +346,9 @@
       "id": "agents.maintained-catalog",
       "category": "product",
       "description": "Only Claude Code, Codex, Grok, Pi, DeepSeek and Google Antigravity appear in settings and agent pickers or receive background updates. Filter old UI caches and hide custom registration; retain all historical types, parsers and adapter implementations. Upstream reviews exclude other agents specific changes.",
-      "origins": ["worktree-2026-09-17"],
+      "origins": [
+        "worktree-2026-09-17"
+      ],
       "paths": [
         "src/lib/maintained-agents.ts",
         "src/lib/resolve-default-agent.ts",
@@ -283,21 +360,31 @@
         "src-tauri/src/commands/acp.rs",
         "src-tauri/src/commands/agent_auto_updates.rs"
       ],
-      "contracts": ["src/maxcode-contracts/maintained-agents.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/maintained-agents.contract.test.ts"
+      ]
     },
     {
       "id": "chat.unified-code-card",
       "category": "product",
       "description": "Chat code fences use one rounded neutral surface without a header/body divider, with compact language labels and action icons. Dark mode and workspace backgrounds preserve the unified surface while syntax colors, line numbers and copy/download actions remain available.",
-      "origins": ["worktree-2026-09-16"],
-      "paths": ["src/app/globals.css"],
-      "contracts": ["src/maxcode-contracts/chat-code-card.contract.test.ts"]
+      "origins": [
+        "worktree-2026-09-16"
+      ],
+      "paths": [
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-code-card.contract.test.ts"
+      ]
     },
     {
       "id": "desktop.launch-at-login",
       "category": "platform",
       "description": "Packaged macOS and Windows Electron apps expose an opt-in launch-at-login switch in General settings. Trusted IPC uses native login items, validates booleans, reads back OS state and reports approval or save failures. Focus refreshes external system changes. Browser, Linux and development builds cannot register startup entries.",
-      "origins": ["worktree-2026-09-16"],
+      "origins": [
+        "worktree-2026-09-16"
+      ],
       "paths": [
         "electron/login-item.cjs",
         "electron/main.cjs",
@@ -315,7 +402,9 @@
       "id": "desktop.tauri-retirement",
       "category": "platform",
       "description": "Electron is the only desktop shell; both Electron and browser clients use the shared HTTP/WebSocket backend. Tauri runtime dependencies, native IPC, transparent pet windows, native remote-workspace connection management and legacy launch-at-login implementation stay retired. Shared Rust server/MCP, system keyring, existing data, icons, mobile access and server minisign signatures remain compatible; the Tauri CLI is retained only as the server signing utility.",
-      "origins": ["worktree-2026-09-16"],
+      "origins": [
+        "worktree-2026-09-16"
+      ],
       "paths": [
         "package.json",
         "pnpm-lock.yaml",
@@ -331,14 +420,20 @@
         "electron/",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/tauri-retirement.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/tauri-retirement.contract.test.ts"
+      ]
     },
     {
       "id": "android.direct-web-links",
       "category": "product",
       "description": "Android saves links locally without health or token validation; token is optional, deep-link paths/query/fragment are preserved and opened directly. Legacy MaxCode bootstrap is limited to roots with nonempty tokens. Generic pages reserve native status-bar/cutout and keyboard insets instead of using immersive MaxCode CSS.",
-      "origins": ["worktree-2026-09-15"],
-      "paths": ["android-webview/"],
+      "origins": [
+        "worktree-2026-09-15"
+      ],
+      "paths": [
+        "android-webview/"
+      ],
       "contracts": [
         "src/maxcode-contracts/android-direct-links.contract.test.ts"
       ]
@@ -347,15 +442,23 @@
       "id": "ios.webview-client",
       "category": "product",
       "description": "Independent iPhone/iPad WKWebView shell with native connection management, atomic device-only Keychain storage, authenticated non-redirecting health checks, origin-scoped token bootstrap, isolated in-memory web sessions, fresh entry URLs, native keyboard/safe-area layout and foreground/network recovery.",
-      "origins": ["worktree-2026-09-14"],
-      "paths": ["ios-webview/"],
-      "contracts": ["src/maxcode-contracts/ios-webview-client.contract.test.ts"]
+      "origins": [
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "ios-webview/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/ios-webview-client.contract.test.ts"
+      ]
     },
     {
       "id": "settings.agent-auto-updates",
       "category": "runtime",
       "description": "Enabled installed agents in the six-agent MaxCode maintenance scope update automatically via official npm releases, binary archives or isolated Python tools after startup and every six hours. Codex, Claude Code and Pi track and verify official vendor CLI versions independently of adapter versions and launch the isolated runtime via adapter-supported environment variables. Independent prefixes are verified before an idle-only atomic activation; downloads never replace running files. Automatic updates are mandatory for enabled installed agents; legacy opt-outs are ignored and no toggle is shown. Status is shown in the Version Status category, and manual install serialization and retry backoff are preserved.",
-      "origins": ["worktree-2026-09-14"],
+      "origins": [
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src-tauri/src/commands/agent_auto_updates.rs",
         "src-tauri/src/acp/binary_cache.rs",
@@ -382,7 +485,9 @@
       "id": "settings.agent-npm-mirror",
       "category": "runtime",
       "description": "Manual agent npm installs, upgrades, retries and custom package metadata use the aifalao registry. Online checks and automatic installs use the official npm registry. Install logs show the selected registry.",
-      "origins": ["worktree-2026-09-14"],
+      "origins": [
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src-tauri/src/acp/mod.rs",
         "src-tauri/src/acp/registry.rs",
@@ -390,13 +495,17 @@
         "src-tauri/src/commands/agent_updates.rs",
         "src-tauri/src/commands/custom_agents.rs"
       ],
-      "contracts": ["src/maxcode-contracts/agent-npm-mirror.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/agent-npm-mirror.contract.test.ts"
+      ]
     },
     {
       "id": "automations.worktree-opt-in",
       "category": "product",
       "description": "Blank and template-seeded automations default to shared_in_root with new-worktree-per-run unchecked; editing preserves saved isolation and users can explicitly enable worktree isolation.",
-      "origins": ["worktree-2026-09-11"],
+      "origins": [
+        "worktree-2026-09-11"
+      ],
       "paths": [
         "src/components/automations/automation-editor.tsx",
         "src/components/automations/automation-templates.ts"
@@ -409,7 +518,9 @@
       "id": "chat.codex-followup-controls",
       "category": "product",
       "description": "Standalone Codex followup directives render as suggestion controls that append prompts to the current composer without sending. Read-only and public surfaces render labels; code examples and malformed directives stay literal.",
-      "origins": ["worktree-2026-09-11"],
+      "origins": [
+        "worktree-2026-09-11"
+      ],
       "paths": [
         "src/components/ai-elements/codex-followup.tsx",
         "src/components/ai-elements/remark-codex-followup.ts",
@@ -417,13 +528,17 @@
         "src/components/ai-elements/message.tsx",
         "src/components/conversations/conversation-detail-panel.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/codex-followup.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/codex-followup.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.reply-artifacts-summary",
       "category": "product",
       "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Streaming replies do not parse diffs.",
-      "origins": ["worktree-2026-09-11"],
+      "origins": [
+        "worktree-2026-09-11"
+      ],
       "paths": [
         "src/components/message/reply-artifacts.tsx",
         "src/i18n/messages/"
@@ -436,8 +551,12 @@
       "id": "history.deepseek-versioned-logs",
       "category": "runtime",
       "description": "DeepSeek history loads v3 compressed and plaintext artifacts before legacy logs, retaining complete frames during concurrent writes. Persisted conversations must not appear empty after the harness changes its log filename.",
-      "origins": ["worktree-2026-09-11"],
-      "paths": ["src-tauri/src/parsers/deepseek.rs"],
+      "origins": [
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/parsers/deepseek.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/deepseek-versioned-history.contract.test.ts"
       ]
@@ -446,7 +565,9 @@
       "id": "settings.agent-online-updates",
       "category": "product",
       "description": "Agent settings check all enabled agents on page entry, share release results with sidebar update badges and the Version Status category (no separate update card), check enabled agents every six hours while mounted, cache per agent for six hours, skip disabled selections, and allow forced refresh from Version Status. npm checks the actual ACP package; other supported agents use the ACP registry. Failures/unknown versions never claim latest. An available npm update is installed immediately by Version Status Upgrade; typed custom-version installs still use the version dialog. Reviewed pins and running sessions remain unchanged.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/settings/agent-update-check.tsx",
         "src/components/settings/acp-agent-settings.tsx",
@@ -467,7 +588,9 @@
       "id": "settings.agent-diagnostics-overlay",
       "category": "product",
       "description": "Agent diagnostics portal stays above in-window settings, immediately shows loading, and exposes probe errors, retry results and dismissal.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/settings/in-app-settings.tsx",
         "src/components/settings/acp-agent-settings.tsx",
@@ -482,7 +605,9 @@
       "id": "conversations.cross-device-read",
       "category": "runtime",
       "description": "Read receipts persist on the backend, broadcast across desktop and mobile, and reconcile on reconnect/wake without reapplying seen receipts to new unread activity.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/lib/conversation-read-sync.ts",
         "src/stores/conversation-unread-store.ts",
@@ -500,7 +625,9 @@
       "id": "settings.mobile-category-navigation",
       "category": "product",
       "description": "The mobile top-right settings menu opens above the in-window settings surface, switches categories without losing drafts, and dismisses on outside press or Escape. Settings stay below shared z-50 portals; preserved workspace drawers are hidden and inert until returning. Standalone settings retain remote context and desktop keeps sidebar navigation.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/settings/in-app-settings.tsx",
         "src/components/settings/settings-shell.tsx",
@@ -515,7 +642,9 @@
       "id": "chat.mobile-session-recovery",
       "category": "runtime",
       "description": "Visible active conversations reconcile agent sessions on browser wake and transport recovery, probe apparently connected sessions before reuse, and delay connecting, disconnected and error inline indicators until the same state persists for 3 seconds; reset the delay on state or tab changes, restore connected immediately, and retain red persistent disconnection indicators. In-flight connect (preflight, discovery, spawn) and waiting on a historical session id report connecting rather than a missing entry as disconnected.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/hooks/use-connection-lifecycle.ts",
         "src/contexts/acp-connections-context.tsx",
@@ -530,8 +659,12 @@
       "id": "chat.pi-startup-banner-suppressed",
       "category": "product",
       "description": "pi-acp's session-start banner (pi version / Context / Skills) is dropped from pi's live transcript. pi-acp emits it on the prose channel right after session/new but never writes it to pi's session JSONL, so rendering it live made it flash on screen and vanish once the turn settled; the live view must match what the persisted transcript will contain.",
-      "origins": ["worktree-2026-09-11"],
-      "paths": ["src-tauri/src/acp/connection.rs"],
+      "origins": [
+        "worktree-2026-09-11"
+      ],
+      "paths": [
+        "src-tauri/src/acp/connection.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/pi-startup-banner-suppressed.contract.test.ts"
       ]
@@ -540,7 +673,9 @@
       "id": "chat.mobile-header-new-conversation",
       "category": "product",
       "description": "Desktop conversation titles keep the overflow trigger beside the title and expose a compact new-chat button on the right of the header row. Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/layout/folder-title-bar.tsx"
@@ -553,8 +688,12 @@
       "id": "settings.public-share-layout",
       "category": "product",
       "description": "Public share URL stays in the Web service column in a separate section below local service controls and addresses, with spacing and a divider. Public URL edits require explicit Save with success/error feedback; other settings never persist the unsaved URL draft.",
-      "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/settings/web-service-settings.tsx"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
+      "paths": [
+        "src/components/settings/web-service-settings.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/web-service-share-layout.contract.test.ts",
         "src/maxcode-contracts/web-service-share-save.contract.test.tsx"
@@ -564,23 +703,38 @@
       "id": "token-usage.data-colors",
       "category": "product",
       "description": "Neutral themes retain blue cache charts and violet fresh tokens, with brighter dark-mode colors and shared palette for heatmaps and exported cards.",
-      "origins": ["worktree-2026-09-10"],
-      "paths": ["src/app/globals.css", "src/components/token-usage/"],
-      "contracts": ["src/maxcode-contracts/token-usage-colors.contract.test.ts"]
+      "origins": [
+        "worktree-2026-09-10"
+      ],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/token-usage/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/token-usage-colors.contract.test.ts"
+      ]
     },
     {
       "id": "chat.reference-question-picker",
       "category": "product",
       "description": "Question cards use a rounded shell with a subtle shadow, prominent question heading, readable gray option surfaces with fine borders, stronger selected outlines and inverted numbered markers, and a divided action footer. Preserve explicit submission and accessible selection controls.",
-      "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/chat/ask-question-card.tsx"],
-      "contracts": ["src/maxcode-contracts/question-picker.contract.test.tsx"]
+      "origins": [
+        "worktree-2026-09-10"
+      ],
+      "paths": [
+        "src/components/chat/ask-question-card.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/question-picker.contract.test.tsx"
+      ]
     },
     {
       "id": "tasks.no-ui-entry-points",
       "category": "product",
       "description": "Work task UI is retired: no sidebar or quick-menu navigation, no registered task page/title/settings, and no Issue/PR start, retrigger or task-status navigation. Legacy task routes resolve to conversations. Message actions retain the normal new-chat draft flow.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/workbench/workbench-content.tsx",
         "src/contexts/workbench-route-context.tsx",
@@ -598,7 +752,9 @@
       "id": "messages.action-hover-continuity",
       "category": "product",
       "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons without increasing message spacing. The actual Virtua item stacking context is raised on column hover or keyboard focus, with hover above retained focus, so the following item's transparent padding cannot intercept buttons. Open portalled tooltips keep their owning actions visible and raised when their arrows overlap a trigger edge.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/app/globals.css",
         "src/components/message/turn-stats.tsx",
@@ -612,7 +768,9 @@
       "id": "messages.new-chat-from-message",
       "category": "product",
       "description": "Message actions open a normal conversation and carry the original text into its unsent composer, retaining source folder and agent without creating a work task or auto-sending. Existing draft text is preserved.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/message/use-new-chat-from-message.ts",
         "src/components/message/message-list-view.tsx",
@@ -629,8 +787,12 @@
       "id": "workspace.update-action-color",
       "category": "product",
       "description": "The sidebar update action uses blue-600 in light mode and blue-400 in dark mode for visibility; update errors retain the destructive color.",
-      "origins": ["worktree-2026-09-10"],
-      "paths": ["src/components/layout/status-bar-update.tsx"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
+      "paths": [
+        "src/components/layout/status-bar-update.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/web-update-platform.contract.test.ts"
       ]
@@ -639,7 +801,9 @@
       "id": "android.fresh-frontend-entry",
       "category": "platform",
       "description": "Android uses a fresh HTML URL for both login and workspace bootstrap on every connection, bypassing pre-no-cache entry documents without clearing credentials or content-hashed asset caches.",
-      "origins": ["worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "android-webview/app/src/main/java/app/codeg/web/UrlNormalizer.java",
         "android-webview/app/src/main/java/app/codeg/web/MainActivity.java",
@@ -653,7 +817,9 @@
       "id": "desktop.electron-window-state",
       "category": "product",
       "description": "Electron workspace persists normal window bounds and maximized/full-screen state across close, relaunch and update installation, flushes before backend shutdown, and restores bounds within a connected display without child windows overwriting them.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "electron/main.cjs",
         "electron/window-state.cjs",
@@ -667,7 +833,9 @@
       "id": "web.frontend-refresh",
       "category": "product",
       "description": "HTML and frontend build metadata revalidate on every request; hashed JS/CSS retain immutable caching. Mobile checks the served frontend build on foreground and reconnect, prompts to refresh, and offers a refresh item inside the mobile tools menu after settings, with no title-row button without clearing credentials or saving drafts.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "package.json",
         "scripts/build-frontend.mjs",
@@ -681,14 +849,20 @@
         "src-tauri/src/web/mod.rs",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/frontend-refresh.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/frontend-refresh.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.viewer-sync-request-bounds",
       "category": "product",
       "description": "Cross-client viewer detail synchronization coalesces repeated WebSocket nudges into one active poll with a shared five-attempt backoff budget, preventing read-triggered metadata feedback from piling up HTTP requests while retaining late-update refreshes.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/stores/conversation-runtime-store.ts"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/stores/conversation-runtime-store.ts"
+      ],
       "contracts": [
         "src/maxcode-contracts/viewer-sync-request-bounds.contract.test.ts"
       ]
@@ -697,19 +871,25 @@
       "id": "chat.structured-title-stability",
       "category": "product",
       "description": "Unlocked structured fallback titles cannot be downgraded by transcript, native ACP or Codex index refreshes. Compare the observed title at write time to protect concurrent recovery. Live detail returns persisted title and lock metadata after recovery while allowing later refinement.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src-tauri/src/db/service/conversation_service.rs",
         "src-tauri/src/session_title.rs",
         "src-tauri/src/commands/conversations.rs"
       ],
-      "contracts": ["src/maxcode-contracts/title-stability.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/title-stability.contract.test.ts"
+      ]
     },
     {
       "id": "chat.mobile-conversation-layout",
       "category": "product",
       "description": "Mobile hides the conversation search menu entry and sent-message edit button even on interaction, and disables in-conversation search shortcuts and menu events. Desktop retains search and edit. Mobile user bubbles allow 92% width and place copy/task actions below the bubble without consuming text width; desktop keeps 82% and inline actions. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/ai-elements/message.tsx",
         "src/components/message/message-list-view.tsx",
@@ -727,7 +907,9 @@
       "id": "composer.metric-layout",
       "category": "product",
       "description": "Composer metrics use five compact values separated by vertical bars, Chinese label-first round counts (回合2) and first-token wording, two-decimal inline USD estimates without an approximation prefix, and no usage pill background. Visible and measured performance layouts share the same renderer; hidden metrics do not leave orphan separators.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/chat/message-input.tsx",
         "src/components/chat/composer-generation-stats.tsx",
@@ -746,7 +928,9 @@
       "id": "composer.metric-colors",
       "category": "product",
       "description": "Composer rounds, TTFT, throughput, context/token amount and estimated cost inherit a single muted text color from the trailing metrics group, with no per-metric color/opacity overrides or isolated usage-hover color.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/chat/message-input.tsx",
         "src/components/chat/composer-generation-stats.tsx",
@@ -760,7 +944,9 @@
       "id": "chat.conversation-find",
       "category": "product",
       "description": "The conversation title action menu or Ctrl/Cmd+F opens current-conversation search; there is no floating launcher. Search supports matching-message navigation, highlighted excerpts and paginated history search with bounded retries. Only active main conversation views handle the shortcut.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/lib/conversation-find-events.ts",
         "src/components/conversations/conversation-detail-header.tsx",
@@ -777,7 +963,9 @@
       "id": "composer.conversation-cost",
       "category": "product",
       "description": "Refresh billing totals after each completed reply without switching conversations, including new draft sessions with no loaded DB detail. Hide the inline amount and its separator until a numeric estimate is available, including while loading or when pricing is unavailable. Display the estimated USD amount beside the composer token/context indicator without opening the popover, sharing one calculation with expanded details. Estimate full-transcript cost in USD at standard models.dev API rates, using normalized input/output/cache buckets and fixed-point arithmetic. Preserve per-turn models, unknown pricing and cache fields; explicitly label partial estimates and excluded tier/plan/discount pricing.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/lib/conversation-cost.ts",
         "src/stores/conversation-runtime-store.ts",
@@ -798,19 +986,25 @@
       "id": "sidebar.collapsed-folder-running",
       "category": "product",
       "description": "Folders and folder groups show a trailing neutral running spinner only while collapsed and containing running sessions, with no visible numeric badge.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/conversations/folder-running-indicator.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-folder-group-header.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/folder-running.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/folder-running.contract.test.tsx"
+      ]
     },
     {
       "id": "desktop.electron-dock-badge",
       "category": "product",
       "description": "macOS Electron Dock badge reflects visible unread conversations and clears when read, through validated native IPC.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/conversations/conversation-unread-sync.tsx",
         "src/lib/electron.ts",
@@ -825,7 +1019,9 @@
       "id": "composer.conversation-round-count",
       "category": "product",
       "description": "Show user-prompt round count immediately before TTFT, including live sends and unloaded history without counting assistant or tool steps. Retain measured compact-mode fitting.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/chat/composer-generation-stats.tsx",
         "src/lib/types.ts",
@@ -840,8 +1036,12 @@
       "id": "composer.usage-popover",
       "category": "product",
       "description": "Composer usage popover separates context capacity from session token totals with a prominent percentage, thin progress bar, spaced aligned definition rows and a subtle total row; cache hit rate uses cache reads divided by input plus cache reads and writes, excluding output, with -- for zero input; width fits narrow viewports.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/components/chat/composer-context-usage.tsx"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/components/chat/composer-context-usage.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/composer-usage-popover.contract.test.tsx"
       ]
@@ -850,7 +1050,9 @@
       "id": "composer.empty-selection",
       "category": "product",
       "description": "Selecting all and deleting composer text leaves a clean placeholder and caret without native or inactive selection paint on the empty paragraph; real text selection remains visible.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/app/globals.css",
         "src/components/chat/composer/inactive-selection.ts"
@@ -863,7 +1065,9 @@
       "id": "chat.image-only-message",
       "category": "product",
       "description": "Image-only user messages show attachments without an empty text bubble or generated attachment-summary caption; captions and non-text content retain their message body.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/message/message-list-view.tsx",
         "src/lib/prompt-draft.ts",
@@ -878,7 +1082,9 @@
       "id": "mobile.composer-bottom-gap",
       "category": "product",
       "description": "Browsers reserve bottom safe-area padding once at the workspace; Android native layout owns navigation-bar/IME avoidance and injects zero bottom padding into current/legacy page shells on all devices. The composer keeps an 8px phone gutter and 12px desktop gutter without duplicate insets.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/components/chat/chat-input.tsx",
@@ -894,7 +1100,9 @@
       "id": "desktop.electron-web-service",
       "category": "product",
       "description": "Electron exposes a separately controlled authenticated Web listener for phone access, retaining saved port/token and auto-start without interrupting the private desktop transport.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/settings/settings-shell.tsx",
         "src-tauri/src/bin/codeg_server.rs",
@@ -909,8 +1117,12 @@
       "id": "chat.running-composer-actions",
       "category": "product",
       "description": "Running composer uses separate 32px circular stop, queue and more-action buttons, a neutral solid stop glyph and an up-arrow queue action, without split-button seams.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/components/chat/message-input.tsx"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/components/chat/message-input.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/running-composer-actions.contract.test.ts"
       ]
@@ -919,7 +1131,9 @@
       "id": "workspace.scroll-only-scrollbars",
       "category": "product",
       "description": "Shared scroll areas and the document show overlay scrollbars on scroll and hide after 800ms of inactivity, even while the pointer remains within the content.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/ui/scroll-area.tsx",
         "src/components/overlay-scrollbars-init.tsx"
@@ -932,7 +1146,9 @@
       "id": "chat.tool-retry-recovery",
       "category": "product",
       "description": "Confirmed identical read-only retries soften historical error badges and remove recovered attempts from the failure summary, while retaining original errors. Unrelated successes never resolve failures. Tool-group execution issues use a neutral count rather than a red task-failure signal; expanded tool errors and session failure alerts remain intact.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/lib/tool-call-recovery.ts",
         "src/components/message/content-parts-renderer.tsx",
@@ -947,7 +1163,9 @@
       "id": "folders.alias-only-label",
       "category": "product",
       "description": "Renamed folders show only their trimmed alias in sidebar, headers, pickers and string labels; unset aliases use the original name. Paths, ids, search matching and synthetic root worktree markers remain intact.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/lib/folder-display.ts",
         "src/components/conversations/folder-alias-label.tsx",
@@ -956,13 +1174,17 @@
         "src/components/chat/conversation-context-bar.tsx",
         "src/components/token-usage/token-usage-page.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/folder-alias-only.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/folder-alias-only.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.column-width-drag",
       "category": "product",
       "description": "Real conversation views (not the new-chat welcome page, read-only or shared surfaces) offer an edge handle that stays invisible until hovered, resizes the centered content column live with symmetric growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
-      "origins": ["worktree-2026-09-15"],
+      "origins": [
+        "worktree-2026-09-15"
+      ],
       "paths": [
         "src/lib/chat-column-width.ts",
         "src/lib/appearance-script.ts",
@@ -974,14 +1196,20 @@
         "src/app/globals.css",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/chat-column-width.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/chat-column-width.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.markdown-link-cursor",
       "category": "product",
       "description": "Clickable Markdown links show a pointer cursor; incomplete streaming links remain inert.",
-      "origins": ["worktree-2026-09-15"],
-      "paths": ["src/components/ai-elements/markdown-link.tsx"],
+      "origins": [
+        "worktree-2026-09-15"
+      ],
+      "paths": [
+        "src/components/ai-elements/markdown-link.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/markdown-link-cursor.contract.test.tsx"
       ]
@@ -990,7 +1218,9 @@
       "id": "chat.file-link-presentation",
       "category": "product",
       "description": "Transcript file links use the full available width and wrap long filenames on desktop and mobile, with body-sized blue labels and offline VSCode Icons artwork determined from exact filenames and compound extensions, including distinct Markdown/MDX/HTML/CSS/JS/TS/React/config formats and native theme variants. Composer reference chips remain compact and all file actions are preserved.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
         "src/components/chat/composer/badges/reference-badge.tsx",
@@ -1001,25 +1231,35 @@
         "scripts/generate-file-icons.mjs",
         "public/file-icons/"
       ],
-      "contracts": ["src/maxcode-contracts/file-link-style.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/file-link-style.contract.test.tsx"
+      ]
     },
     {
       "id": "conversations.reference-status-indicators",
       "category": "product",
       "description": "Sidebar running status uses a 12px thin neutral ring with a rounded rotating arc; unread markers use an 8px solid blue dot.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/conversations/sidebar-conversation-card.tsx",
         "src/components/conversations/conversation-unread-dot.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/status-indicators.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/status-indicators.contract.test.tsx"
+      ]
     },
     {
       "id": "workspace.subtle-resize-handles",
       "category": "product",
       "description": "Panel dividers remain 1px at rest and 2px on hover or drag, retaining the wider invisible pointer target.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/components/ui/resizable.tsx"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/components/ui/resizable.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/subtle-resize-handles.contract.test.ts"
       ]
@@ -1028,8 +1268,12 @@
       "id": "conversations.title-overflow-menu",
       "category": "product",
       "description": "A single always-visible ellipsis immediately after the conversation title opens conversation actions; rename is available inside the menu instead of a separate pencil button. Desktop also exposes a new-conversation button on the right of the header row. Mobile keeps the far-right new-chat button and hides the overflow trigger.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/components/conversations/conversation-detail-header.tsx"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/components/conversations/conversation-detail-header.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/title-completion-only.contract.test.tsx"
       ]
@@ -1038,7 +1282,9 @@
       "id": "chat.reference-style-refinement",
       "category": "product",
       "description": "Pale blue padded user bubbles, 14px/22.75px system chat typography with 430 body weight, 600 emphasis and #1a1c1f body color, historical reply actions within the existing turn gutter with final-row space preserved, and outside list markers with aligned wrapped text and distinct paragraph/list spacing, Chinese elapsed labels using 小时/分/秒, subtle composer chrome with all controls retained and all inline selectors grouped at the left, subdued external metadata and sidebar labels at 14px with the reference desktop 430 weight with screenshot-measured #434447 labels without open-tab black overrides and 22px line height, centered in 31px conversation rows with 1px vertical insets, 8px sidebar gutters, pale selection, restored 7px icon-label gaps and the established 20px depth step; titles and hierarchy remain unchanged.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/ai-elements/message.tsx",
         "src/lib/font-presets.ts",
@@ -1063,7 +1309,9 @@
       "id": "composer.queued-message-card",
       "category": "product",
       "description": "Queued messages sit above the composer with adjust-direction, edit and delete actions in that order. Adjust-direction promotes the selected message and cancels the active reply so the existing queue flush resumes it; editing removes the item from the queue and restores its draft into the composer for a normal send.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/chat/message-queue-display.tsx",
         "src/components/chat/chat-input.tsx",
@@ -1079,7 +1327,9 @@
       "id": "settings.default-agent-order",
       "category": "product",
       "description": "Initialize built-in agents in the screenshot-defined order, with Codex first; retain saved user ordering and append custom agents after built-ins.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src-tauri/src/acp/registry.rs",
         "src-tauri/src/commands/acp.rs",
@@ -1093,7 +1343,9 @@
       "id": "conversations.title-completion-only",
       "category": "product",
       "description": "Remove manual status switching and status-color settings; retain the original running spinner and unread indicators, title hover and title menu completion actions, existing completed-conversation filtering and unchanged titles.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/conversations/sidebar-conversation-card.tsx",
@@ -1108,52 +1360,73 @@
       "id": "conversations.folder-unread",
       "category": "product",
       "description": "Unread blue dots appear only on the direct display folder header, including collapsed folders, never on ancestor repository containers or folder groups, and clear after all settled unread sessions are read.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/lib/folder-unread.ts",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-folder-group-header.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/folder-unread.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/folder-unread.contract.test.tsx"
+      ]
     },
     {
       "id": "sidebar.search-tools",
       "category": "product",
       "description": "Desktop and mobile sidebars keep search, locate-active and overflow tools visible in order. Desktop right-aligns the tools in the top header, rather than beside the wordmark, with a flexible draggable spacer after the reserved sidebar-toggle chrome. Mobile places the 44px tools beside the sidebar title in one row and closes the drawer for search; overflow retains expand/collapse, mark-all-read and list preferences.",
-      "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
-      "paths": ["src/components/layout/sidebar.tsx"],
-      "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]
+      "origins": [
+        "worktree-2026-09-08",
+        "worktree-2026-09-09"
+      ],
+      "paths": [
+        "src/components/layout/sidebar.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-tools.contract.test.tsx"
+      ]
     },
     {
       "id": "sidebar.product-wordmark",
       "category": "product",
       "description": "Desktop sidebar uses an enlarged MaxCode wordmark (28px slash, 24px Max and 22px Code) with a 4.2px round-capped cobalt-blue slash (#285ee1 light, #82a4ff dark), shared by its base and animated overlay. Any in-progress workspace conversation activates a blue-cyan-purple gradient flowing over 3.6 seconds and a 1.8-second slash-only breathing cycle (scaleY 0.82 to 1.08, opacity 0.5 to 1), without glow or traveling highlights; it fades out when all work settles and stays static cobalt under reduced motion. SVG gradient IDs are instance-local. Text remains still, with one accessible product name and no navigation stop.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/layout/sidebar.tsx",
         "src/components/layout/sidebar-wordmark.tsx",
         "src/components/layout/sidebar-wordmark.module.css"
       ],
-      "contracts": ["src/maxcode-contracts/sidebar-wordmark.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-wordmark.contract.test.tsx"
+      ]
     },
     {
       "id": "messages.edit-sent-message",
       "category": "product",
       "description": "An edit icon beside Copy immediately stops an active reply and replaces/focuses the normal composer with the original user text. It exits queue-edit mode and never opens a dialog or automatically sends. Read-only views hide the action.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/message/sent-message-edit-button.tsx",
         "src/components/message/message-list-view.tsx",
         "src/components/conversations/conversation-detail-panel.tsx",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/edit-sent-message.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/edit-sent-message.contract.test.tsx"
+      ]
     },
     {
       "id": "workspace.mobile-header",
       "category": "product",
       "description": "Mobile shares a single canvas-colored header with the active title. New conversation and secondary workspace actions stay in the tools menu to preserve title width; desktop title placement is unchanged.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/layout/mobile-header-slot.tsx",
         "src/i18n/messages/",
@@ -1161,24 +1434,32 @@
         "src/components/conversations/conversation-detail-header.tsx",
         "src/app/workspace/layout.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/mobile-header.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/mobile-header.contract.test.tsx"
+      ]
     },
     {
       "id": "conversations.recent-new-chat",
       "category": "product",
       "description": "Recent starts a folderless chat through the same navigation action as Chats, regardless of the active folder, with a New chat label.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-section-header.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/recent-new-chat.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/recent-new-chat.contract.test.tsx"
+      ]
     },
     {
       "id": "desktop.differential-updates",
       "category": "platform",
       "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready; an explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "electron/",
         "package.json",
@@ -1203,8 +1484,12 @@
       "id": "conversations.folders-section-collapse",
       "category": "product",
       "description": "Collapsing the Folders section also persists every open folder, including grouped folders and worktree children, as folded and resets folder paging; reopening shows folder names with conversation lists still folded.",
-      "origins": ["worktree-2026-09-08"],
-      "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/folders-section-collapse.contract.test.ts"
       ]
@@ -1213,7 +1498,9 @@
       "id": "desktop.electron-release-pipeline",
       "category": "release",
       "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Server minisign compatibility remains; legacy Tauri shell and CI are retired.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         ".github/workflows/test.yml",
         ".github/workflows/release.yml",
@@ -1234,19 +1521,25 @@
       "id": "workspace.sidebar-navigation",
       "category": "product",
       "description": "Sidebar navigation omits Tasks and Repository dashboard regardless of saved visibility, retaining New chat (新建对话 in Simplified Chinese), Automations (自动任务) and conversation history. Both fixed navigation actions use 14px labels at default zoom. Folder, Recent and Chats new-conversation actions all navigate to conversations and collapse the sidebar on mobile or coarse-pointer layouts.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/layout/sidebar.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/i18n/messages/zh-CN.json"
       ],
-      "contracts": ["src/maxcode-contracts/sidebar-navigation.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-navigation.contract.test.ts"
+      ]
     },
     {
       "id": "chat.attachment-paste-during-ime",
       "category": "product",
       "description": "Image and file paste reaches the attachment handler during IME composition; Electron reads native clipboard screenshots when browser paste data is unavailable, preserving ordinary text paste.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/chat/composer/rich-composer.tsx",
         "src/lib/clipboard-images.ts",
@@ -1262,8 +1555,12 @@
       "id": "conversations.cancelled-without-error-badge",
       "category": "product",
       "description": "Cancelled sidebar conversations show the normal timestamp instead of a red X; running and unread indicators retain priority.",
-      "origins": ["worktree-2026-09-08"],
-      "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-card.tsx"
+      ],
       "contracts": [
         "src/maxcode-contracts/cancelled-conversation-badge.contract.test.tsx"
       ]
@@ -1272,7 +1569,9 @@
       "id": "chat.live-progress-summary",
       "category": "product",
       "description": "All intermediate prose stays visible in order; consecutive thinking and tool steps between prose blocks share a collapsed disclosure. Completed turns retain the final-answer fold.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/message/completed-turn-content.tsx",
         "src/components/message/progress-sections.tsx",
@@ -1286,15 +1585,23 @@
       "id": "chat.compact-reasoning",
       "category": "product",
       "description": "Thinking stays collapsed during streaming; readers can expand a bounded scrollable panel, and manual choices survive streaming updates and completion.",
-      "origins": ["worktree-2026-09-08"],
-      "paths": ["src/components/ai-elements/reasoning.tsx"],
-      "contracts": ["src/maxcode-contracts/compact-reasoning.contract.test.tsx"]
+      "origins": [
+        "worktree-2026-09-08"
+      ],
+      "paths": [
+        "src/components/ai-elements/reasoning.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/compact-reasoning.contract.test.tsx"
+      ]
     },
     {
       "id": "desktop.electron-runtime",
       "category": "platform",
       "description": "Electron is the default desktop entry, hosts the shared Rust server on an authenticated private loopback port, preserves desktop preferences and data paths, provides isolated native file and notification capabilities, and owns backend shutdown and installer updates. Finder launches restore the login-shell PATH with standard Node install fallbacks before spawning agents.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "electron/",
         "package.json",
@@ -1347,7 +1654,9 @@
       "id": "attachments.hundred-mib-upload",
       "category": "product",
       "description": "Local attachments allow 100 MiB per file across Web, desktop drag/drop and remote uploads; multipart framing has extra headroom and prompt image hydration allows one maximum-sized image.",
-      "origins": ["worktree-2026-09-07"],
+      "origins": [
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "src/lib/api.ts",
         "src/components/chat/composer/attachment-files.ts",
@@ -1364,8 +1673,12 @@
       "id": "chat.codex-plugin-context-filter",
       "category": "product",
       "description": "Codex injected recommended_plugins records never appear as chat turns, titles or message counts; real prompts remain visible.",
-      "origins": ["worktree-2026-09-07"],
-      "paths": ["src-tauri/src/parsers/codex.rs"],
+      "origins": [
+        "worktree-2026-09-07"
+      ],
+      "paths": [
+        "src-tauri/src/parsers/codex.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/codex-plugin-context.contract.test.ts"
       ]
@@ -1374,7 +1687,9 @@
       "id": "chat.independent-font-size",
       "category": "product",
       "description": "Chat message text has a persisted independent font size, with pre-hydration and cross-window sync; interface controls retain their size.",
-      "origins": ["worktree-2026-09-07"],
+      "origins": [
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "src/lib/font-presets.ts",
         "src/lib/appearance-script.ts",
@@ -1385,13 +1700,18 @@
         "src/app/globals.css",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/chat-font-size.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/chat-font-size.contract.test.tsx"
+      ]
     },
     {
       "id": "conversations.manual-title-refresh",
       "category": "product",
       "description": "Conversation, sidebar and tab menus do not expose manual title refresh, and the frontend has no refresh-title request helper. Automatic title generation and manual renaming remain available.",
-      "origins": ["worktree-2026-09-07", "worktree-2026-09-10"],
+      "origins": [
+        "worktree-2026-09-07",
+        "worktree-2026-09-10"
+      ],
       "paths": [
         "src/components/conversations/sidebar-conversation-card.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
@@ -1407,7 +1727,9 @@
       "id": "conversations.structured-title-recovery",
       "category": "product",
       "description": "Dedicated titles normalize MMDD｜type｜topic, use Shanghai creation-date MMDD｜其他｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, use nine categories with explicit outcome-based boundaries and 其他 for social conversation, normalize legacy 未知 fallbacks to 其他, treat understandable short messages as valid title topics, verify greeting kickoff sends HTTP for every supported agent, and log HTTP attempts, responses, outcomes and skip reasons without credentials or message content.",
-      "origins": ["worktree-2026-09-07"],
+      "origins": [
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "src-tauri/src/session_title.rs",
         "src-tauri/src/session_title_tests.rs",
@@ -1422,7 +1744,9 @@
       "id": "chat.no-top-background-task-strip",
       "category": "product",
       "description": "All MaxCode chat surfaces omit the background task strip above the transcript while preserving background task execution and transcript content.",
-      "origins": ["worktree-2026-09-07"],
+      "origins": [
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "src/components/chat/conversation-shell.tsx",
         "src/components/chat/async-task-strip.tsx",
@@ -1437,7 +1761,9 @@
       "id": "maintenance.upstream-integration-guard",
       "category": "maintenance",
       "description": "MaxCode inventories downstream behavior, detects incoming overlap, and runs independent contracts before an upstream merge.",
-      "origins": ["worktree-2026-08-31"],
+      "origins": [
+        "worktree-2026-08-31"
+      ],
       "paths": [
         "config/maxcode-upstream-hotspots.json",
         "scripts/check-upstream-impact.mjs",
@@ -1455,7 +1781,10 @@
       "id": "chat.reply-folding",
       "category": "product",
       "description": "Live work keeps prose visible with grouped activity disclosures, completed process work folds automatically, the final answer stays visible, and an explicit reader preference wins.",
-      "origins": ["108154e4", "worktree-2026-08-31"],
+      "origins": [
+        "108154e4",
+        "worktree-2026-08-31"
+      ],
       "paths": [
         "src/components/message/completed-turn-content.tsx",
         "src/components/message/message-list-view.tsx"
@@ -1468,7 +1797,10 @@
       "id": "conversations.agent-defaults",
       "category": "product",
       "description": "New drafts remember the last agent per scope, then fall back through folder, inherited, and user-sorted agent choices.",
-      "origins": ["dc86bec0", "16941c88"],
+      "origins": [
+        "dc86bec0",
+        "16941c88"
+      ],
       "paths": [
         "src/lib/resolve-default-agent.ts",
         "src/lib/last-selected-agent-storage.ts",
@@ -1486,7 +1818,13 @@
       "id": "conversations.unread-and-status",
       "category": "product",
       "description": "Settled background activity becomes unread, visible threads clear, all unread can be cleared, and status colors/actions remain independently configurable.",
-      "origins": ["53144985", "06bb8457", "c283e981", "8d9cb933", "1a4a3532"],
+      "origins": [
+        "53144985",
+        "06bb8457",
+        "c283e981",
+        "8d9cb933",
+        "1a4a3532"
+      ],
       "paths": [
         "src/lib/conversation-unread.ts",
         "src/lib/conversation-unread-storage.ts",
@@ -1507,7 +1845,10 @@
       "id": "conversations.read-only-sharing",
       "category": "product",
       "description": "Sharing is available only in the conversation actions menu, with no standalone header share button. Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; shared thinking stays collapsed by default with the desktop interaction, an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
-      "origins": ["worktree-2026-08-31", "worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-08-31",
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
         "src/components/ai-elements/message.tsx",
@@ -1593,7 +1934,12 @@
       "id": "navigation.tabs-touch-and-selection",
       "category": "product",
       "description": "Conversation tabs scroll at fixed width, fine-pointer drag requires intent, mobile navigation collapses correctly, and transcript text remains selectable.",
-      "origins": ["7a445edf", "f60fecca", "eb9cee07", "7ca7b5b3"],
+      "origins": [
+        "7a445edf",
+        "f60fecca",
+        "eb9cee07",
+        "7ca7b5b3"
+      ],
       "paths": [
         "src/components/tabs/tab-bar.tsx",
         "src/components/tabs/tab-item.tsx",
@@ -1611,7 +1957,11 @@
       "id": "messages.local-paths-and-artifacts",
       "category": "product",
       "description": "Plain local artifact paths become safe file references and binary artifacts open or reveal through the desktop host.",
-      "origins": ["7ca7b5b3", "06bb8457", "c283e981"],
+      "origins": [
+        "7ca7b5b3",
+        "06bb8457",
+        "c283e981"
+      ],
       "paths": [
         "src/components/ai-elements/remark-autolink-local-paths.ts",
         "src/components/ai-elements/message.tsx",
@@ -1619,13 +1969,17 @@
         "src/lib/language-detect.ts",
         "electron/preload.cjs"
       ],
-      "contracts": ["src/maxcode-contracts/local-paths.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/local-paths.contract.test.ts"
+      ]
     },
     {
       "id": "messages.system-font-and-duration",
       "category": "product",
       "description": "System sans/mono fonts are the defaults and completed turns show an inferred processed duration when the agent omits one.",
-      "origins": ["d61af64a"],
+      "origins": [
+        "d61af64a"
+      ],
       "paths": [
         "src/lib/font-presets.ts",
         "src/lib/appearance-script.ts",
@@ -1642,7 +1996,9 @@
       "id": "messages.generation-stats",
       "category": "product",
       "description": "Conversations show DeepSeek-Harness-compatible average first-token latency and decode throughput beside the branch when the measured composer space is sufficient; DeepSeek uses native exact records, live ACP agents collect browser-observed step boundaries, and remounted tabs rebind stale virtual runtime IDs so saved figures remain visible.",
-      "origins": ["worktree-2026-08-31"],
+      "origins": [
+        "worktree-2026-08-31"
+      ],
       "paths": [
         "src-tauri/src/models/conversation.rs",
         "src-tauri/src/models/mod.rs",
@@ -1666,7 +2022,10 @@
       "id": "web.auth-and-session-recovery",
       "category": "runtime",
       "description": "Transient WebSocket loss preserves credentials, probes health with backoff, restores subscriptions, and only authenticated 401 responses show session expiry.",
-      "origins": ["352bc868", "2c859b2a"],
+      "origins": [
+        "352bc868",
+        "2c859b2a"
+      ],
       "paths": [
         "src/lib/transport/web-transport.ts",
         "src/contexts/acp-connections-context.tsx",
@@ -1681,7 +2040,10 @@
       "id": "web.pwa-installation",
       "category": "platform",
       "description": "Web deployments expose an installable standalone PWA while Electron avoids service-worker registration.",
-      "origins": ["cbd85449", "bddabc51"],
+      "origins": [
+        "cbd85449",
+        "bddabc51"
+      ],
       "paths": [
         "src/app/manifest.ts",
         "src/app/layout.tsx",
@@ -1700,7 +2062,12 @@
       "id": "updates.maxcode-channel-and-ui",
       "category": "product",
       "description": "The status bar reports MaxCode releases, persists discovery/dismissal, and dismisses a discovery toast when its update panel opens.",
-      "origins": ["b558e9bb", "ba09a7b5", "dceb62ac", "worktree-2026-08-31"],
+      "origins": [
+        "b558e9bb",
+        "ba09a7b5",
+        "dceb62ac",
+        "worktree-2026-08-31"
+      ],
       "paths": [
         "src/components/layout/status-bar-update.tsx",
         "src/components/providers/update-provider.tsx",
@@ -1716,7 +2083,12 @@
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
       "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
-      "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
+      "origins": [
+        "108154e4",
+        "53144985",
+        "bb6949f5",
+        "16941c88"
+      ],
       "paths": [
         "src-tauri/src/acp/registry.rs",
         "src-tauri/src/acp/preflight.rs",
@@ -1739,21 +2111,33 @@
         "src/lib/types.ts",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/android-and-agents.contract.test.ts"
+      ]
     },
     {
       "id": "automation.structured-conversation-titles",
       "category": "product",
       "description": "Automation runs use locked Shanghai-date-prefixed sidebar titles in the form MMDD｜自动｜automation name, preserving run identity against prompt-derived parser backfills.",
-      "origins": ["worktree-2026-09-04"],
-      "paths": ["src-tauri/src/automation/engine.rs"],
-      "contracts": ["src/maxcode-contracts/automation-title.contract.test.ts"]
+      "origins": [
+        "worktree-2026-09-04"
+      ],
+      "paths": [
+        "src-tauri/src/automation/engine.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-title.contract.test.ts"
+      ]
     },
     {
       "id": "agents.bounded-connection-lifecycle",
       "category": "runtime",
       "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped. Backup restore uses authoritative session state and treats locked sessions and unreaped children as live.",
-      "origins": ["2c859b2a", "worktree-2026-08-31", "worktree-2026-09-07"],
+      "origins": [
+        "2c859b2a",
+        "worktree-2026-08-31",
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "src/lib/constants.ts",
         "src/lib/conversation-tab-retention.ts",
@@ -1766,13 +2150,17 @@
         "src-tauri/src/commands/acp.rs",
         "src-tauri/src/web/handlers/acp.rs"
       ],
-      "contracts": ["src/maxcode-contracts/acp-runtime.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/acp-runtime.contract.test.ts"
+      ]
     },
     {
       "id": "settings.pi-maximum-thinking",
       "category": "product",
       "description": "Pi exposes its extended maximum thinking level and labels it in every supported locale.",
-      "origins": ["e1fda1d3"],
+      "origins": [
+        "e1fda1d3"
+      ],
       "paths": [
         "src/lib/pi-thinking.ts",
         "src/components/settings/pi-config-panel.tsx",
@@ -1787,13 +2175,17 @@
         "src/i18n/messages/zh-CN.json",
         "src/i18n/messages/zh-TW.json"
       ],
-      "contracts": ["src/maxcode-contracts/android-and-agents.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/android-and-agents.contract.test.ts"
+      ]
     },
     {
       "id": "agents.grok-custom-endpoint-precedence",
       "category": "runtime",
       "description": "A Grok custom default written by CCS or another native provider switcher overrides MaxCode's stale remembered stock-model selection when sessions connect or resume.",
-      "origins": ["worktree-2026-09-03"],
+      "origins": [
+        "worktree-2026-09-03"
+      ],
       "paths": [
         "src-tauri/src/acp/connection.rs",
         "src-tauri/src/parsers/grok.rs"
@@ -1806,7 +2198,11 @@
       "id": "android.webview-client",
       "category": "platform",
       "description": "The Android shell keeps multiple connections, encrypted tokens, server health checks, WebView bootstrapping, platform-safe insets, device compatibility fixes, and local attachment results returned through single URIs or multi-select ClipData. Its connection chooser uses the MaxCode artwork, white light-mode surfaces, a low-emphasis text action for adding connections, overflow management with delete confirmation, and a scrollable bottom-sheet form.",
-      "origins": ["bddabc51", "worktree-2026-08-31", "worktree-2026-09-07"],
+      "origins": [
+        "bddabc51",
+        "worktree-2026-08-31",
+        "worktree-2026-09-07"
+      ],
       "paths": [
         "android-webview/",
         "src/app/globals.css",
@@ -1822,7 +2218,9 @@
       "id": "appearance.sidebar-reference-icons",
       "category": "product",
       "description": "Sidebar icons follow the supplied ChatGPT reference: thin rounded compose, clock for automations, and 16px thin folder glyphs preserving expanded and repository states.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/components/layout/sidebar-navigation-icon.tsx",
         "src/components/layout/sidebar.tsx",
@@ -1836,12 +2234,17 @@
       "id": "appearance.send-button-brand-color",
       "category": "product",
       "description": "Send, running stop and normal update actions use #3CA1EF with white icons and 90% opacity hover in both light and dark modes. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
-      "origins": ["worktree-2026-09-09", "worktree-2026-09-18"],
+      "origins": [
+        "worktree-2026-09-09",
+        "worktree-2026-09-18"
+      ],
       "paths": [
         "src/components/chat/message-input.tsx",
         "src/components/layout/status-bar-update.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/send-button-color.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/send-button-color.contract.test.ts"
+      ]
     },
     {
       "id": "appearance.gpt-shell-surfaces",
@@ -1865,7 +2268,11 @@
       "id": "branding.maxcode",
       "category": "branding",
       "description": "Product names, localized UI prose, icons, documentation, installers, and release links remain on the MaxCode personal fork. Product readmes omit sponsor sections, referral promotions, and sponsor recruitment. Preserve upstream attribution and literal compatibility identifiers, commands, paths, and configuration keys.",
-      "origins": ["9eaecc27", "dc86bec0", "c7a21a24"],
+      "origins": [
+        "9eaecc27",
+        "dc86bec0",
+        "c7a21a24"
+      ],
       "paths": [
         "README.md",
         "docs/readme/",
@@ -1925,7 +2332,9 @@
         "worktree-2026-09-07",
         "worktree-2026-09-15"
       ],
-      "paths": ["src-tauri/src/acp/registry.rs"],
+      "paths": [
+        "src-tauri/src/acp/registry.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/opencode-distribution.contract.test.ts"
       ]
@@ -1934,20 +2343,26 @@
       "id": "chat.message-tick-rail",
       "category": "product",
       "description": "The old message navigator card is removed. Hidden on mobile viewports below 768px. On desktop, only when the actual transcript overflows its viewport, the conversation edge tick rail previews user questions and assistant text, follows the visible virtual row and jumps within the loaded history without parsing file diffs.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/message/conversation-message-rail.tsx",
         "src/components/message/observe-thread-overflow.ts",
         "src/components/message/message-list-view.tsx",
         "src/components/message/virtualized-message-thread.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/message-rail.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/message-rail.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.desktop-typography",
       "category": "product",
       "description": "Newly sent optimistic messages retain the same full-opacity text and bubble styling as persisted messages. System font stack, 14px sidebar labels and 12px sections, compact title typography, and 14px message shells with 430 weight, #1a1c1f text, 1.625 line height and 600 emphasis. Markdown uses outside list markers, aligned continuation lines, compact paragraph-to-list spacing and block paragraphs inside loose list items.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/lib/font-presets.ts",
         "src/app/globals.css",
@@ -1971,7 +2386,9 @@
       "id": "appearance.fixed-desktop-defaults",
       "category": "product",
       "description": "Hide optional appearance controls; fix color/zoom/fonts to defaults, disable background/status colors/welcome cards/pets, and keep conversation status actions enabled despite saved overrides.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/lib/ui-preferences-store.ts",
         "src/components/settings/appearance-settings.tsx",
@@ -1980,13 +2397,17 @@
         "src/lib/appearance-script.ts",
         "src/components/appearance-provider.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/fixed-appearance.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/fixed-appearance.contract.test.tsx"
+      ]
     },
     {
       "id": "settings.in-window-navigation",
       "category": "product",
       "description": "Workspace settings open within the current window, retain the mounted conversation/draft and return via Back to app without opening a popup or backend window. Main navigation exposes Skill Packs (including OfficeCLI installation) and omits MCP, Skills and Model Providers. Category switches retain visited pages until settings close, preserving local edits and containing lazy loading within the content pane.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/lib/in-app-settings.ts",
         "src/lib/api.ts",
@@ -1999,13 +2420,17 @@
         "src/components/shared/setting-card.tsx",
         "src/components/settings/general-settings.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/in-app-settings.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/in-app-settings.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.composer-typography",
       "category": "product",
       "description": "Welcome and conversation composers use screenshot-verified 14px medium (500) text with 21px lines at default interface zoom, independent of transcript font size. Regular (400) is visibly too thin. The reference desktop font fallback order is preserved instead of forcing PingFang SC, with sampled #1a1c1e light text and theme foreground in dark mode. Placeholder text uses muted foreground at 65% opacity.",
-      "origins": ["worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/app/globals.css",
         "src/components/chat/composer/rich-composer.tsx"
@@ -2018,7 +2443,9 @@
       "id": "chat.desktop-composer-layout",
       "category": "product",
       "description": "Screenshot-matched Codex desktop chat: 48rem centered transcript/composer column with a 104px minimum docked composer and 20px corners, narrow sidebar, one header row, original inline model/permission controls with a narrow settings menu, folder/branch controls plus runtime metrics in an independent unboxed row below the composer, and the original full agent strip above the welcome composer.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/chat/agent-selector.tsx",
         "src/components/conversations/conversation-detail-panel.tsx",
@@ -2050,20 +2477,27 @@
       "id": "chat.selector-pointer-focus",
       "category": "product",
       "description": "Selector controls suppress restored keyboard rings after pointer selection while retaining focus and keyboard focus indicators; input modality tracking spans portal menus.",
-      "origins": ["worktree-2026-09-08"],
+      "origins": [
+        "worktree-2026-09-08"
+      ],
       "paths": [
         "src/components/input-modality-init.tsx",
         "src/components/chat/selector-tooltip.tsx",
         "src/app/layout.tsx",
         "src/app/globals.css"
       ],
-      "contracts": ["src/maxcode-contracts/selector-focus.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/selector-focus.contract.test.tsx"
+      ]
     },
     {
       "id": "workspace.sidebar-footer",
       "category": "product",
       "description": "Sidebar footer retains conversation usage, alerts and version/update entries outside scrolling history, with the version/update entry before the alerts icon. The alerts entry is absent when there are no alerts and appears only while warnings or errors exist. The mobile footer uses the drawer background without a divider. The obsolete quick-actions gamepad launcher must stay removed after adopting the sidebar navigation and overflow controls.",
-      "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
+      "origins": [
+        "worktree-2026-09-08",
+        "worktree-2026-09-09"
+      ],
       "paths": [
         "src/app/globals.css",
         "src/components/layout/sidebar.tsx",
@@ -2082,7 +2516,11 @@
       "id": "history.codex-semantic-mcp",
       "category": "runtime",
       "description": "Restore Codex code-mode MCP history through existing tool blocks and conservative call correlation, preserving MaxCode model billing, elapsed time, native subagent identity and injected-context filtering without replacing the message layout.",
-      "origins": ["a04fe077", "1edca458", "worktree-2026-09-11"],
+      "origins": [
+        "a04fe077",
+        "1edca458",
+        "worktree-2026-09-11"
+      ],
       "paths": [
         "src-tauri/src/parsers/codex.rs",
         "src-tauri/src/parsers/codex_code_mode.rs",
@@ -2116,7 +2554,12 @@
       "id": "history.claude-compaction-compatible",
       "category": "runtime",
       "description": "Claude 0.75.1 histories restore compaction prompts, boundaries, summaries and current context usage; exact fork fallbacks and live system summaries survive. Dedupe live/history copies without replacing MaxCode reply grouping, folding or divider layout.",
-      "origins": ["14168211", "5f22a3e1", "ad7af8c4", "worktree-2026-09-11"],
+      "origins": [
+        "14168211",
+        "5f22a3e1",
+        "ad7af8c4",
+        "worktree-2026-09-11"
+      ],
       "paths": [
         "src-tauri/src/parsers/claude.rs",
         "src-tauri/src/acp/fork.rs",
@@ -2166,8 +2609,14 @@
       "id": "chat.query-bearing-mcp-names",
       "category": "runtime",
       "description": "MCP tool calls whose payload includes query keep their explicit name. Only wire-identified web search, including Codex action titles and webSearch types, classify as websearch; generic kind search stays local grep. Existing tool cards are reused.",
-      "origins": ["fc8cad0c", "a47c68a9", "worktree-2026-09-14"],
-      "paths": ["src/lib/tool-call-normalization.ts"],
+      "origins": [
+        "fc8cad0c",
+        "a47c68a9",
+        "worktree-2026-09-14"
+      ],
+      "paths": [
+        "src/lib/tool-call-normalization.ts"
+      ],
       "contracts": [
         "src/maxcode-contracts/query-bearing-mcp-tool-names.contract.test.ts"
       ]
@@ -2176,7 +2625,11 @@
       "id": "chat.local-markdown-images",
       "category": "product",
       "description": "Assistant Markdown local image paths render inline in the current transcript via a workspace-confined reader. Existing file-link badges, autolinked paths and public-share link policy stay in place.",
-      "origins": ["402d8b09", "049ef608", "worktree-2026-09-14"],
+      "origins": [
+        "402d8b09",
+        "049ef608",
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src/lib/markdown-local-image.ts",
         "src/components/ai-elements/remark-local-images.ts",
@@ -2193,7 +2646,11 @@
       "id": "chat.composer-token-action",
       "category": "product",
       "description": "Right-clicking the composer selects the token under the pointer so Cut/Copy work, and adds an Open link/file/email row that uses the existing opener allow-list. Existing paste-as-plain-text and quick-message items stay.",
-      "origins": ["06a2a503", "0ebad4aa", "worktree-2026-09-14"],
+      "origins": [
+        "06a2a503",
+        "0ebad4aa",
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src/lib/text-token-at.ts",
         "src/components/chat/composer/token-selection.ts",
@@ -2209,7 +2666,10 @@
       "id": "chat.file-badge-download",
       "category": "product",
       "description": "File badges in the transcript offer Download where the workspace file API is available, without removing MaxCode reveal, open-with-default-app, or copy-path rows.",
-      "origins": ["f39ff3e2", "worktree-2026-09-14"],
+      "origins": [
+        "f39ff3e2",
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src/components/message/file-reference-actions.tsx",
         "src/lib/api.ts"
@@ -2222,7 +2682,11 @@
       "id": "settings.deepseek-model-catalog",
       "category": "product",
       "description": "DeepSeek settings keep the existing API key/URL panel and add a harness model-list editor for deepseek-acp 0.9.0. v3 history recovery and first-token timing from assistant/chunk remain.",
-      "origins": ["5a20a569", "193046cb", "worktree-2026-09-14"],
+      "origins": [
+        "5a20a569",
+        "193046cb",
+        "worktree-2026-09-14"
+      ],
       "paths": [
         "src-tauri/src/commands/deepseek_settings.rs",
         "src-tauri/src/acp/registry.rs",
@@ -2239,7 +2703,10 @@
       "id": "workspace.binary-image-diffs",
       "category": "product",
       "description": "Raster image changes stay visible in workspace, commit, push and unstash reviews as bounded before/after images. Missing sides remain distinct from failed reads, Git blobs are pinned before sizing, and MaxCode still opens non-previewable desktop artifacts with the system application.",
-      "origins": ["504fc279", "worktree-2026-09-15"],
+      "origins": [
+        "504fc279",
+        "worktree-2026-09-15"
+      ],
       "paths": [
         "src-tauri/src/commands/folders.rs",
         "src-tauri/src/web/handlers/git.rs",
@@ -2253,7 +2720,9 @@
         "src/components/layout/unstash-dialog.tsx",
         "src/contexts/workspace-context.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/image-diff.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/image-diff.contract.test.ts"
+      ]
     },
     {
       "id": "settings.command-color-opt-in",
@@ -2283,7 +2752,11 @@
       "id": "agents.antigravity-sign-out",
       "category": "runtime",
       "description": "Antigravity OAuth users can sign out and choose another Google account. Sign-out serializes against sign-in, quiesces live and draining Antigravity processes before ACP logout, restores the saved auth method, and preserves MaxCode dual-stream login-link discovery.",
-      "origins": ["7861d6ed", "de096bb4", "worktree-2026-09-15"],
+      "origins": [
+        "7861d6ed",
+        "de096bb4",
+        "worktree-2026-09-15"
+      ],
       "paths": [
         "src-tauri/src/acp/antigravity_login.rs",
         "src-tauri/src/acp/manager.rs",
@@ -2301,7 +2774,10 @@
       "id": "chat.codex-native-subagent-results",
       "category": "product",
       "description": "Codex native subagent launch capsules retain the child id, terminal outcome and final report across live updates and history, expose the child rollout through MaxCode's existing session viewer, and turn list_agents rosters into collaboration capsules without replacing billing or injected-context rules.",
-      "origins": ["34b0f7fb", "worktree-2026-09-15"],
+      "origins": [
+        "34b0f7fb",
+        "worktree-2026-09-15"
+      ],
       "paths": [
         "src-tauri/src/acp/connection.rs",
         "src-tauri/src/parsers/codex.rs",
@@ -2340,7 +2816,9 @@
       "id": "settings.default-title-model",
       "category": "product",
       "description": "Users without saved title-model settings see the reviewed free Groq configuration prefilled and enabled, with the API key intentionally blank, the default reasoning parameter retained, and a desktop-safe signup/key link. The suggestion remains runtime-inactive until the user saves it with their own key; existing saved settings are never overwritten.",
-      "origins": ["worktree-2026-09-15"],
+      "origins": [
+        "worktree-2026-09-15"
+      ],
       "paths": [
         "src-tauri/src/commands/system_settings.rs",
         "src/components/settings/system-network-settings.tsx",
@@ -2367,7 +2845,10 @@
       "category": "product",
       "status": "retired",
       "description": "The Teambition task-board integration was added and then intentionally removed before this inventory was established.",
-      "origins": ["16f8bbbb", "worktree-2026-08-31"],
+      "origins": [
+        "16f8bbbb",
+        "worktree-2026-08-31"
+      ],
       "reason": "The current product no longer exposes the route, settings, frontend components, API, or backend handlers; it must not be resurrected during an upstream merge."
     },
     {
@@ -2375,7 +2856,9 @@
       "category": "platform",
       "status": "retired",
       "description": "Legacy Tauri desktop shell, transparent desktop pet windows, native remote-workspace connection manager and launch-at-login settings.",
-      "origins": ["worktree-2026-09-16"],
+      "origins": [
+        "worktree-2026-09-16"
+      ],
       "reason": "Explicitly discontinued after adopting Electron. Do not restore runtime plugins, IPC paths, legacy build/CI entries or these UI surfaces during upstream integration. Keep shared Rust business logic, historical data and the compatible server signing utility."
     }
   ]

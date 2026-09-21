@@ -1358,6 +1358,10 @@
       "rawEditorWarning": "الحفظ هنا يستبدل الملف بأكمله حرفيًا، ويحل محل الإعدادات المنظَّمة أعلاه.",
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
+    "zcode": {
+      "configManagement": "وقت تشغيل ZCode",
+      "configDescription": "يأتي MaxCode بمحوّط zcode-acp مدمج؛ كل ما تحتاجه هو وقت تشغيل ZCode (تطبيق ZCode لسطح المكتب أو واجهة سطر الأوامر المستقلة). مزودو الخدمة وتسجيل الدخول يعيشون في تطبيق ZCode (~/.zcode) ويُستخدمون كما هم. يمكن ضبط مفاتيح التشغيل الاختيارية (ZCODE_CLI لتجاوز نقطة الدخول، وZCODE_MODE لوضع الأذونات، وZCODE_MODEL لتثبيت الاختيار) في محرّر متغيرات البيئة الخام أدناه."
+    },
     "authModeOfficialSubscription": "الاشتراك الرسمي",
     "authModeCustomEndpoint": "نقطة نهاية مخصصة",
     "authModeCustomEndpointHint": "تكوين عنوان API ومفتاح API يدوياً لنقطة نهاية مخصصة.",

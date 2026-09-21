@@ -631,6 +631,22 @@ fn is_npm_command_candidate(path: &Path) -> bool {
 pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), AcpError> {
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
+        // The bundled adapter materializes on launch; "installed" reduces to
+        // node being resolvable (the vendor zcode runtime is located by the
+        // adapter and reported through preflight diagnostics, not an install
+        // gate — same split as claude/codex, whose vendor CLI absence is also
+        // not a connect blocker).
+        registry::AgentDistribution::Bundled { .. } => {
+            let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+            if resolve_command_on_path(node_name).is_some() {
+                Ok(())
+            } else {
+                Err(AcpError::SdkNotInstalled(format!(
+                    "{} is not installed. Please install it in Agent Settings.",
+                    meta.name
+                )))
+            }
+        }
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let runtime_ready = match resolved.as_ref() {
@@ -761,6 +777,9 @@ async fn detect_local_version(agent_type: AgentType) -> Option<String> {
     }
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
+        // The bundled adapter is always exactly the registry version — it is
+        // compiled into the MaxCode binary.
+        registry::AgentDistribution::Bundled { version, .. } => Some(version.to_string()),
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await?;
             if npm_package_requires_scripts(package) {
@@ -1084,6 +1103,35 @@ async fn collect_agent_diag(
     // Each distribution resolves launchability differently — mirror the exact
     // gates `verify_agent_installed` uses so the report agrees with connect.
     match meta.distribution {
+        registry::AgentDistribution::Bundled {
+            version,
+            node_required,
+            ..
+        } => {
+            diag.distribution = "bundled";
+            diag.package = None;
+            diag.node_required = node_required.map(str::to_string);
+            // The adapter always exists; launchability is node itself.
+            let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+            diag.launchable = resolve_command_on_path(node_name)
+                .map(|p| p.to_string_lossy().to_string());
+            diag.detected_version = Some(version.to_string());
+            // Vendor CLI probe (zcode) mirrors the npx adapter agents.
+            if let Some(relation) = registry::acp_adapter_relation(agent_type) {
+                let native_path =
+                    resolve_vendor_cli(relation.native_cmd, relation.extra_dirs).await;
+                let native_version = match &native_path {
+                    Some(p) => diag_run(p, &["--version"]).await,
+                    None => None,
+                };
+                diag.adapter = Some(AdapterProbe {
+                    native_cmd: relation.native_cmd.to_string(),
+                    native_path: native_path.map(|p| p.to_string_lossy().to_string()),
+                    native_version,
+                    shared_config_dir: relation.shared_config_dir.to_string(),
+                });
+            }
+        }
         registry::AgentDistribution::Npx {
             cmd,
             package,
@@ -8255,6 +8303,11 @@ pub(crate) fn skill_storage_spec(agent_type: AgentType) -> Option<SkillStorageSp
             global_dirs: vec![home_dir_or_default().join(".claude").join("skills")],
             project_rel_dirs: vec![".claude/skills"],
         }),
+        AgentType::Zcode => Some(SkillStorageSpec {
+            kind: SkillStorageKind::SkillDirectoryOnly,
+            global_dirs: vec![home_dir_or_default().join(".zcode").join("skills")],
+            project_rel_dirs: vec![".zcode/skills", ".agents/skills"],
+        }),
         AgentType::Codex => Some(SkillStorageSpec {
             kind: SkillStorageKind::SkillDirectoryOrMarkdownFile,
             global_dirs: vec![
@@ -9829,6 +9882,11 @@ fn cascade_update_agent_config(
             // against Cursor's own backend; there is no third-party
             // model-provider endpoint to cascade into.
         }
+        AgentType::Zcode => {
+            // ZCode manages providers in its own personal provider config
+            // (~/.zcode/v2/provider_config.json, normally edited in the ZCode
+            // app); codeg writes no provider creds.
+        }
         AgentType::Codex => {
             let auth_path = codex_auth_json_path();
             let mut auth_obj = if auth_path.exists() {
@@ -10482,6 +10540,11 @@ pub(crate) async fn acp_get_agent_status_core(
         .map_err(|e| AcpError::protocol(e.to_string()))?;
 
     let (available, installed_version) = match &meta.distribution {
+        registry::AgentDistribution::Bundled { version, .. } => {
+            // Available everywhere MaxCode itself runs; the pinned version is
+            // the adapter compiled into the binary.
+            (true, Some(version.to_string()))
+        }
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let version = npx_displayed_version(
@@ -10575,6 +10638,9 @@ async fn acp_list_agents_with_disabled(
         }
         let meta = registry::get_agent_meta(agent_type);
         let (available, dist_type, local_installed_version) = match &meta.distribution {
+            registry::AgentDistribution::Bundled { version, .. } => {
+                (true, "bundled", Some(version.to_string()))
+            }
             registry::AgentDistribution::Npx { cmd, package, .. } => {
                 // Keep the list path bounded: each list request probes npm
                 // global prefix at most once, then reuses the result across
@@ -11409,6 +11475,17 @@ pub(crate) async fn acp_download_agent_binary_core(
 
     let meta = registry::get_agent_meta(agent_type);
     let result = match meta.distribution {
+        // The bundled adapter materializes at launch; "install" is a no-op that
+        // reports success so the Settings flow completes.
+        registry::AgentDistribution::Bundled { version, .. } => {
+            emit_agent_install_event(
+                emitter,
+                &task_id,
+                AgentInstallEventKind::Completed,
+                format!("zcode-acp adapter {version} is bundled with MaxCode"),
+            );
+            Ok(())
+        }
         registry::AgentDistribution::Binary {
             version,
             cmd,
@@ -11620,6 +11697,12 @@ pub(crate) async fn acp_detect_agent_local_version_core(
     // a best-effort fallback.
     let authoritative_none = match registry::get_agent_meta(agent_type).distribution {
         registry::AgentDistribution::Binary { .. } => true,
+        registry::AgentDistribution::Bundled { version, .. } => {
+            // detect_local_version answered the pinned version; None here is
+            // impossible, but treat it as authoritative like Binary.
+            let _ = version;
+            true
+        }
         registry::AgentDistribution::Npx { package, .. } => npm_package_requires_scripts(package),
         registry::AgentDistribution::Uvx { .. } => false,
     };
@@ -11651,6 +11734,18 @@ pub(crate) async fn acp_prepare_npx_agent_core(
 
     let meta = registry::get_agent_meta(agent_type);
     let result = match meta.distribution {
+        registry::AgentDistribution::Bundled { version, .. } => {
+            emit_agent_install_event(
+                emitter,
+                &task_id,
+                AgentInstallEventKind::Completed,
+                format!("zcode-acp adapter {version} is bundled with MaxCode; nothing to prepare"),
+            );
+            Ok(registry::get_agent_meta(agent_type)
+                .registry_version()
+                .map(str::to_string)
+                .unwrap_or_else(|| version.to_string()))
+        }
         registry::AgentDistribution::Npx { package, cmd, .. } => {
             let default = agent_setting_service::AgentDefaultInput {
                 agent_type,
@@ -11919,6 +12014,11 @@ pub(crate) async fn acp_uninstall_agent_core(
 
     let result: Result<(), AcpError> = async {
         match meta.distribution {
+            registry::AgentDistribution::Bundled { .. } => {
+                // Dropping the materialized adapter is enough; the next launch
+                // rewrites it from the binary.
+                binary_cache::clear_agent_cache(agent_type)?;
+            }
             registry::AgentDistribution::Binary { .. } => {
                 binary_cache::clear_agent_cache(agent_type)?;
             }

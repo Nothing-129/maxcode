@@ -17,6 +17,7 @@ describe("MaxCode contract: initial agent order", () => {
       "Pi",
       "Antigravity",
       "ClaudeCode",
+      "Zcode",
       "Gemini",
       "OpenClaw",
       "OpenCode",

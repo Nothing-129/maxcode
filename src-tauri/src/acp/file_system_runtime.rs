@@ -612,6 +612,15 @@ fn agent_root_slots(agent_type: AgentType) -> &'static [RootSlot] {
             trims: false,
             default_rel: &[".codex"],
         }],
+        // ZCode relocates its whole data tree via `ZCODE_DATA_BASE_DIR`,
+        // which names the PARENT of `.zcode` (unlike `GEMINI_HOME`, which
+        // names the dir itself) — the CLI's `resolvePath` joins `.zcode`
+        // onto it, so the slot must join too.
+        AgentType::Zcode => &[RootSlot {
+            candidates: &[("ZCODE_DATA_BASE_DIR", ".zcode", VERBATIM)],
+            trims: false,
+            default_rel: &[".zcode"],
+        }],
         // `resolve_gemini_base_dir_from` joins `.gemini` onto GEMINI_CLI_HOME.
         AgentType::Gemini => &[RootSlot {
             candidates: &[("GEMINI_CLI_HOME", ".gemini", VERBATIM)],
