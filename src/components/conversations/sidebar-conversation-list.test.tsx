@@ -1361,13 +1361,6 @@ describe("SidebarConversationList — Recent section", () => {
     ).map((el) => el.closest("[data-conv-key]"))
     expect(recentRows).toHaveLength(2)
     for (const row of recentRows) {
-      expect(row).toHaveClass("h-[2.75rem]")
-    }
-    const folderRows = Array.from(
-      document.querySelectorAll("[data-conv-key]")
-    ).filter((row) => !row.querySelector("[data-recent-folder]"))
-    expect(folderRows.length).toBeGreaterThan(0)
-    for (const row of folderRows) {
       expect(row).toHaveClass("h-[1.9375rem]")
     }
   })

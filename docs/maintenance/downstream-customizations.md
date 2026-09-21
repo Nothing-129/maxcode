@@ -27,7 +27,7 @@
 | 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#3CA1EF`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
-| ZCode 智能体 | 第七种受维护智能体：内置 zcode-acp 适配器（`AgentDistribution::Bundled`，嵌入二进制启动时落盘）驱动 `zcode app-server --stdio` 私有协议，桥接会话/权限/事件；SQLite 历史解析 `~/.zcode/cli/db/db.sqlite`；供应商 CLI 探测与 i18n 齐备；适配器不负责下载 zcode 运行时 | `feat/zcode-agent` | `agents.zcode-bundled-acp-adapter` |
+| ZCode 智能体 | 第七种受维护智能体：内置 zcode-acp 适配器（`AgentDistribution::Bundled`，嵌入二进制启动时落盘）驱动 `zcode app-server --stdio` 私有协议，桥接会话/权限/事件；SQLite 历史解析 `~/.zcode/cli/db/db.sqlite`；供应商 CLI 探测与 i18n 齐备；适配器不负责下载 zcode 运行时；侧栏标题与 Codex/Grok/Pi/DeepSeek/Claude 一样走结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题 | `feat/zcode-agent` | `agents.zcode-bundled-acp-adapter` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 消息图片 | 回复里的本地 Markdown 图片在当前会话工作目录内联显示，文件链接徽章与自动路径链接保持不变 | `402d8b09`、`049ef608`、`worktree-2026-09-14` | `chat.local-markdown-images` |
@@ -75,6 +75,7 @@
 | 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
+| 会话 | 模型工作状态（等待响应、思考中、流式输出、正在使用工具、等待你）只显示文案，左侧不放状态图标；agent 图标、耗时和 tok/s 保留；工具卡片状态图标保留。上游 activity-feedback 不得把左侧图标加回来 | `worktree-2026-09-21` | `chat.live-turn-status-text-only` |
 | 思考 | 流式思考默认单行折叠，手动展开后限高滚动，更新及完成时保留手动选择 | `worktree-2026-09-08` | `chat.compact-reasoning` |
 | 会话 | 回复运行时摘要展示、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
 | 会话 | 按文件夹/聊天范围记住智能体，按明确优先级选择新会话默认智能体 | `dc86bec0`、`16941c88` | `conversations.agent-defaults` |

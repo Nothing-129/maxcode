@@ -254,7 +254,7 @@ export const ChatInput = memo(function ChatInput({
         injectContent={injectContent}
         onInjectConsumed={onInjectConsumed}
         placeholder={
-          isConnecting
+          isConnecting || selectorsLoading
             ? t("connecting")
             : isPrompting
               ? t("agentResponding", { agent: agentName ?? "Agent" })

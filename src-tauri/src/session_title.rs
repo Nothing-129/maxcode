@@ -1,4 +1,4 @@
-//! Codex, Grok, Pi, DeepSeek Harness, and Claude Code sidebar titles:
+//! Codex, Grok, Pi, DeepSeek Harness, Claude Code, and ZCode sidebar titles:
 //! structured fallback, then an optional locale-matched refine through the
 //! user's dedicated OpenAI-compatible model.
 //!
@@ -594,6 +594,7 @@ pub fn supports_dedicated_auto_title(agent_type: AgentType) -> bool {
             | AgentType::Pi
             | AgentType::DeepSeek
             | AgentType::ClaudeCode
+            | AgentType::Zcode
     )
 }
 
@@ -1505,6 +1506,7 @@ mod tests {
         assert!(supports_dedicated_auto_title(AgentType::Pi));
         assert!(supports_dedicated_auto_title(AgentType::DeepSeek));
         assert!(supports_dedicated_auto_title(AgentType::ClaudeCode));
+        assert!(supports_dedicated_auto_title(AgentType::Zcode));
         assert!(!supports_dedicated_auto_title(AgentType::Gemini));
     }
 

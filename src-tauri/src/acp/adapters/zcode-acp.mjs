@@ -21,7 +21,7 @@
 //
 // No third-party dependencies; requires Node >= 18.
 
-import { spawn, execFileSync } from "node:child_process"
+import { spawn } from "node:child_process"
 import { existsSync, readdirSync } from "node:fs"
 import { homedir } from "node:os"
 import { dirname, join, resolve } from "node:path"
@@ -264,21 +264,6 @@ function zcodeCommandFor(entry) {
   return [entry]
 }
 
-function queryZcodeVersion(entry) {
-  try {
-    const [cmd, ...rest] = zcodeCommandFor(entry)
-    const output = execFileSync(cmd, [...rest, "--version"], {
-      encoding: "utf8",
-      timeout: 10000,
-      stdio: ["ignore", "pipe", "ignore"],
-    })
-    const match = output.trim().match(/(\d+\.\d+\.\d+(?:[-+.\w]*)?)/)
-    return match ? match[1] : output.trim().slice(0, 32)
-  } catch {
-    return "unknown"
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
@@ -287,10 +272,79 @@ function queryZcodeVersion(entry) {
 // line up with zero translation.
 const sessions = new Map() // sessionId -> SessionState
 
+// Official ZCode permission modes (ZJt in the desktop bundle). `auto` is a
+// runtime alias the protocol enum accepts; the picker surfaces the four
+// user-facing ids and maps anything else to build.
+const ZCODE_MODES = [
+  {
+    id: "build",
+    name: "Ask before changes",
+    description: "Ask before each file changes.",
+  },
+  {
+    id: "edit",
+    name: "Edit automatically",
+    description:
+      "Edit selected files or relevant workspace files automatically.",
+  },
+  {
+    id: "plan",
+    name: "Plan mode",
+    description: "Inspect the code and present a plan before editing.",
+  },
+  {
+    id: "yolo",
+    name: "Full access",
+    description: "Edit and run commands with fewer confirmations.",
+  },
+]
+const ZCODE_MODE_IDS = new Set(ZCODE_MODES.map((mode) => mode.id))
+
+function normalizeZcodeMode(mode) {
+  return ZCODE_MODE_IDS.has(mode) ? mode : "build"
+}
+
+function initialZcodeMode() {
+  return normalizeZcodeMode(process.env.ZCODE_MODE?.trim() || "build")
+}
+
+function sessionModesState(currentMode) {
+  return {
+    currentModeId: normalizeZcodeMode(currentMode),
+    availableModes: ZCODE_MODES.map((mode) => ({
+      id: mode.id,
+      name: mode.name,
+      description: mode.description,
+    })),
+  }
+}
+
+function emitCurrentMode(session) {
+  if (!session?.currentMode) return
+  sessionUpdate(session.sessionId, {
+    sessionUpdate: "current_mode_update",
+    currentModeId: session.currentMode,
+  })
+}
+
+function applyCurrentMode(session, mode, { emit = true } = {}) {
+  if (!session || mode == null) return
+  const id = normalizeZcodeMode(
+    typeof mode === "string" ? mode : (mode.current ?? mode.mode ?? mode)
+  )
+  if (session.currentMode === id) return
+  session.currentMode = id
+  if (emit) {
+    emitCurrentMode(session)
+    session.emitConfigOptions()
+  }
+}
+
 class SessionState {
   constructor(sessionId, cwd) {
     this.sessionId = sessionId
     this.cwd = cwd
+    this.currentMode = initialZcodeMode()
     this.subscribed = false
     /** Resolves the in-flight `session/prompt` — ACP keeps one prompt per
      * session in flight, so a single slot is the whole state machine. */
@@ -304,10 +358,25 @@ class SessionState {
     this.currentModel = null
   }
 
-  /** Rebuild the ACP config options for the composer's Model / Reasoning
-   * pickers from the tracked catalog + current selection. */
+  /** Rebuild the ACP config options for the composer's Mode / Model /
+   * Reasoning pickers. Mode is a config option (not ACP session-modes)
+   * because the composer hides the session-mode chip whenever any config
+   * option is present. */
   configOptions() {
-    const options = []
+    const options = [
+      {
+        id: "mode",
+        name: "Mode",
+        category: "mode",
+        type: "select",
+        currentValue: normalizeZcodeMode(this.currentMode),
+        options: ZCODE_MODES.map((mode) => ({
+          value: mode.id,
+          name: mode.name,
+          description: mode.description,
+        })),
+      },
+    ]
     if (this.modelsByValue.size > 0) {
       const entries = [...this.modelsByValue.entries()].map(
         ([value, entry]) => ({
@@ -542,11 +611,12 @@ function dispatchSessionEvent(envelope) {
       break
     }
     case "session.updated": {
-      // Mid-session switches (the desktop UI, /model) surface here with the
-      // full new selection; keep the composer's pickers in sync.
+      // Mid-session switches (the desktop UI, /model, /mode) surface here
+      // with the full new selection; keep the composer's pickers in sync.
       if (payload.modelSelection) {
         applyCurrentModel(session, payload.modelSelection)
       }
+      if (payload.mode != null) applyCurrentMode(session, payload.mode)
       break
     }
     case "session.titleUpdated": {
@@ -651,7 +721,7 @@ function reasoningLevelOf(selection) {
 
 /** Absorb the model catalog from a `state.updated` patch
  * (`patch.model.available`, the same array the ZCode desktop renders). */
-function applyModelCatalog(session, available) {
+function applyModelCatalog(session, available, { emit = true } = {}) {
   if (!Array.isArray(available)) return
   session.modelsByValue = new Map()
   for (const model of available) {
@@ -672,37 +742,40 @@ function applyModelCatalog(session, available) {
       levels,
     })
   }
-  session.emitConfigOptions()
+  if (emit) session.emitConfigOptions()
 }
 
-function applyCurrentModel(session, selection) {
+function applyCurrentModel(session, selection, { emit = true } = {}) {
   const value = modelValueOf(selection)
   if (!value) return
   session.currentModel = {
     value,
     reasoningLevel: reasoningLevelOf(selection),
   }
-  session.emitConfigOptions()
+  if (emit) session.emitConfigOptions()
 }
 
 /** Absorb the deterministic catalog carried by every session snapshot's
  * `settings` block (session/create and session/resume results) — no waiting
- * on push timing. */
-function applySnapshotSettings(session, settings) {
+ * on push timing. `emit: false` while `session/new|load` is still in flight:
+ * the host has no session yet, so a `config_option_update` push is dropped. */
+function applySnapshotSettings(session, settings, { emit = true } = {}) {
   const model = settings?.model
   if (Array.isArray(model?.available)) {
-    applyModelCatalog(session, model.available)
+    applyModelCatalog(session, model.available, { emit })
   }
   if (model?.current) {
-    applyCurrentModel(session, model.current)
+    applyCurrentModel(session, model.current, { emit })
   }
   if (settings?.thoughtLevel?.current && session.currentModel) {
     session.currentModel = {
       ...session.currentModel,
       reasoningLevel: settings.thoughtLevel.current,
     }
-    session.emitConfigOptions()
+    if (emit) session.emitConfigOptions()
   }
+  const mode = settings?.mode?.current ?? settings?.permission?.mode
+  if (mode) applyCurrentMode(session, mode, { emit })
 }
 
 function dispatchStateUpdated(params) {
@@ -721,6 +794,8 @@ function dispatchStateUpdated(params) {
   } else if (patch.modelSelection) {
     applyCurrentModel(session, patch.modelSelection)
   }
+  const mode = patch.mode?.current ?? patch.permission?.mode ?? patch.mode
+  if (typeof mode === "string") applyCurrentMode(session, mode)
 }
 
 // ---------------------------------------------------------------------------
@@ -860,7 +935,10 @@ acpIncomingHandlers.set("initialize", async () => {
     error.data = { hint: detail }
     throw error
   }
-  const version = queryZcodeVersion(found.entry)
+  // Do not run `zcode --version` here: it is a second full load of the 14MB
+  // desktop bundle and blocks ACP Initialize (~0.5s) before app-server even
+  // starts. Wait until app-server has written its first protocol frame so
+  // session/new can proceed immediately after this returns.
   await ensureZcodeSpawned(found)
   return {
     protocolVersion: 1,
@@ -876,11 +954,10 @@ acpIncomingHandlers.set("initialize", async () => {
     _meta: {
       zcodeEntry: found.entry,
       zcodeEntrySource: found.via,
-      zcodeVersion: version,
     },
     agentInfo: {
       name: "ZCode",
-      version,
+      version: "runtime",
     },
   }
 })
@@ -951,13 +1028,28 @@ function providerRuntimeEnv(entry) {
 }
 
 let zcodeSpawnPromise = null
+let zcodeReadyPromise = null
+let settleZcodeReady = null
+
+function beginZcodeReadyWait() {
+  zcodeReadyPromise = new Promise((resolve, reject) => {
+    settleZcodeReady = { resolve, reject }
+  })
+}
+
+function markZcodeReady() {
+  settleZcodeReady?.resolve()
+  settleZcodeReady = null
+}
+
+const ZCODE_READY_TIMEOUT_MS = 20000
 
 async function ensureZcodeSpawned(found) {
-  if (zcodeChild) return
   if (!zcodeSpawnPromise) {
+    beginZcodeReadyWait()
     zcodeSpawnPromise = (async () => {
       const [command, ...baseArgs] = zcodeCommandFor(found.entry)
-      const providerEnv = await providerRuntimeEnv(found.entry)
+      const providerEnv = providerRuntimeEnv(found.entry)
       const child = spawn(command, [...baseArgs, "app-server", "--stdio"], {
         cwd: homedir(),
         env: { ...process.env, ...providerEnv, NO_COLOR: "1" },
@@ -966,10 +1058,28 @@ async function ensureZcodeSpawned(found) {
       wireZcodeChild(child)
     })().catch((error) => {
       zcodeSpawnPromise = null
+      settleZcodeReady?.reject(error)
+      settleZcodeReady = null
       throw error
     })
   }
   await zcodeSpawnPromise
+  if (!zcodeReadyPromise) return
+  let timer
+  try {
+    await Promise.race([
+      zcodeReadyPromise,
+      new Promise((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("zcode app-server did not become ready")),
+          ZCODE_READY_TIMEOUT_MS
+        )
+        timer.unref?.()
+      }),
+    ])
+  } finally {
+    if (timer) clearTimeout(timer)
+  }
 }
 
 function wireZcodeChild(child) {
@@ -983,8 +1093,10 @@ function wireZcodeChild(child) {
       zcodeBuffer = zcodeBuffer.slice(newlineIndex + 1)
       if (!line) continue
       const message = jsonParse(line, null)
-      if (message) handleZcodeMessage(message)
-      else log(`unparseable zcode frame: ${line.slice(0, 200)}`)
+      if (message) {
+        markZcodeReady()
+        handleZcodeMessage(message)
+      } else log(`unparseable zcode frame: ${line.slice(0, 200)}`)
     }
   })
   child.stdout.on("end", () => rejectAllZcodePending("zcode stdout closed"))
@@ -997,6 +1109,8 @@ function wireZcodeChild(child) {
   child.on("exit", (code, signal) => {
     log(`zcode app-server exited code=${code} signal=${signal}`)
     rejectAllZcodePending("zcode app-server exited")
+    settleZcodeReady?.reject(new Error("zcode app-server exited"))
+    settleZcodeReady = null
     for (const session of sessions.values()) {
       sessionUpdate(session.sessionId, {
         sessionUpdate: "agent_message_chunk",
@@ -1005,6 +1119,8 @@ function wireZcodeChild(child) {
       session.resolvePrompt("end_turn")
     }
     zcodeChild = null
+    zcodeSpawnPromise = null
+    zcodeReadyPromise = null
   })
 }
 
@@ -1022,7 +1138,7 @@ acpIncomingHandlers.set("session/new", async (params) => {
   const modelOverride = parseModelOverride()
   const createParams = {
     workspace: workspaceRefFor(cwd),
-    mode: process.env.ZCODE_MODE?.trim() || "build",
+    mode: initialZcodeMode(),
     ...(modelOverride ? { model: modelOverride } : {}),
     ...(mapMcpServers(params?.mcpServers)
       ? { mcpServers: mapMcpServers(params.mcpServers) }
@@ -1046,10 +1162,11 @@ acpIncomingHandlers.set("session/new", async (params) => {
   // dropped. The post-establishment `config_option_update` stream keeps the
   // pickers in sync after live switches.
   const session = sessions.get(sessionId)
-  applySnapshotSettings(session, created?.settings)
+  applySnapshotSettings(session, created?.settings, { emit: false })
   const catalog = session.configOptions()
   return {
     sessionId,
+    modes: sessionModesState(session.currentMode),
     ...(catalog.length > 0 ? { configOptions: catalog } : {}),
     _meta: { zcodeSessionId: sessionId },
   }
@@ -1072,7 +1189,7 @@ acpIncomingHandlers.set("session/load", async (params) => {
     sessionId,
     deliveryKind: "desktop-continuous",
   })
-  applySnapshotSettings(session, resumed?.settings)
+  applySnapshotSettings(session, resumed?.settings, { emit: false })
   const resumeCatalog = session.configOptions()
   const replay = await zcodeRequest(
     "session/events",
@@ -1090,6 +1207,7 @@ acpIncomingHandlers.set("session/load", async (params) => {
   }
   return {
     sessionId: resumed?.session?.sessionId ?? sessionId,
+    modes: sessionModesState(session.currentMode),
     ...(resumeCatalog.length > 0 ? { configOptions: resumeCatalog } : {}),
     _meta: { zcodeSessionId: sessionId, resumed: true },
   }
@@ -1185,14 +1303,45 @@ acpIncomingHandlers.set("session/cancel", async (params) => {
   }, 500).unref?.()
 })
 
-acpIncomingHandlers.set("session/set_mode", async () => ({}))
+acpIncomingHandlers.set("session/set_mode", async (params) => {
+  const sessionId = params?.sessionId
+  const session = sessionId ? sessions.get(sessionId) : undefined
+  if (!session) throw new Error("session/set_mode requires a live session")
+  const requested = params?.modeId ?? params?.mode
+  if (requested == null || requested === "") {
+    throw new Error("session/set_mode requires modeId")
+  }
+  if (!ZCODE_MODE_IDS.has(requested) && requested !== "auto") {
+    throw new Error(`unknown zcode mode: ${requested}`)
+  }
+  const mode = normalizeZcodeMode(requested)
+  await zcodeRequest("session/setMode", { sessionId, mode })
+  applyCurrentMode(session, mode)
+  return {}
+})
 
 acpIncomingHandlers.set("session/set_config_option", async (params) => {
   const sessionId = params?.sessionId
   const session = sessions.get(sessionId)
   if (!session) throw new Error(`unknown session: ${sessionId}`)
   const configId = params?.configId
-  const value = params?.value
+  const value =
+    typeof params?.value === "string"
+      ? params.value
+      : (params?.value?.value ?? params?.value)
+
+  if (configId === "mode") {
+    if (value == null || value === "") {
+      throw new Error("mode requires a value")
+    }
+    if (!ZCODE_MODE_IDS.has(value) && value !== "auto") {
+      throw new Error(`unknown zcode mode: ${value}`)
+    }
+    const mode = normalizeZcodeMode(value)
+    await zcodeRequest("session/setMode", { sessionId, mode })
+    applyCurrentMode(session, mode)
+    return { configOptions: session.configOptions() }
+  }
 
   if (configId === "model") {
     const entry = session.modelsByValue.get(value)
@@ -1296,3 +1445,15 @@ process.stdin.on("end", () => {
 process.on("uncaughtException", (error) => {
   log(`uncaught exception: ${error?.stack ?? error}`)
 })
+
+// Start app-server as soon as this adapter process exists, so Initialize
+// mostly waits for a runtime that is already booting rather than starting
+// the 14MB bundle from cold.
+{
+  const found = findZcodeEntry()
+  if (found) {
+    ensureZcodeSpawned(found).catch((error) =>
+      log(`eager spawn failed: ${error?.message ?? error}`)
+    )
+  }
+}

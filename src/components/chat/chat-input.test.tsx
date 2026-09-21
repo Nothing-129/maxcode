@@ -133,6 +133,12 @@ describe("ChatInput slash-command loading window", () => {
     ).toBe(true)
   })
 
+  it("keeps the connecting placeholder until selectors_ready", () => {
+    expect(
+      renderStatus({ status: "connected", selectorsLoading: true })?.placeholder
+    ).toMatch(/connecting/i)
+  })
+
   it("stops once the session is initialized", () => {
     expect(
       renderStatus({ status: "connected", selectorsLoading: false })

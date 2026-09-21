@@ -36,6 +36,16 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
     expect(types).toMatch(/\|\s*"zcode"/)
   })
 
+  it("uses the same structured auto-title refine as the other maintained agents", () => {
+    const titles = source("src-tauri/src/session_title.rs")
+    const support = titles
+      .split("pub fn supports_dedicated_auto_title")[1]
+      .split("pub async fn kickoff_auto_title")[0]
+    expect(support).toContain("AgentType::Zcode")
+    const tests = source("src-tauri/src/session_title_tests.rs")
+    expect(tests).toContain("AgentType::Zcode")
+  })
+
   it("ships as a Bundled adapter pinned inside the registry", () => {
     const start = registry.indexOf("AgentType::Zcode => AcpAgentMeta {")
     const end = registry.indexOf("AgentType::Custom(_) => unreachable!", start)
@@ -61,6 +71,7 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
       '"session/events"',
       '"session/setModel"',
       '"session/setThoughtLevel"',
+      '"session/setMode"',
       "session/request_permission",
       "session/requestRuntimePreferences",
       "interaction/requestPermission",
@@ -80,6 +91,24 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
     expect(adapter).toContain("applySnapshotSettings")
     expect(adapter).toContain("config_option_update")
     expect(adapter).toContain("configOptions: catalog")
+    expect(adapter).toContain(
+      "applySnapshotSettings(session, created?.settings, { emit: false })"
+    )
+    expect(adapter).toContain("modes: sessionModesState(session.currentMode)")
+    expect(adapter).toContain('sessionUpdate: "current_mode_update"')
+    expect(adapter).toContain('id: "mode"')
+    expect(adapter).toContain('id: "yolo"')
+    expect(adapter).toContain('id: "plan"')
+    expect(adapter).toContain('category: "mode"')
+    // Initialize must not pay for a synchronous `zcode --version` spawn —
+    // that reloads the 14MB desktop bundle and holds the composer on
+    // selectorsLoading (send disabled, empty model list) until session/new.
+    const initialize = adapter
+      .split('acpIncomingHandlers.set("initialize"')[1]
+      ?.split("acpIncomingHandlers.set(")[0]
+    expect(initialize).toBeTruthy()
+    expect(initialize).toContain("ensureZcodeSpawned")
+    expect(initialize).not.toContain("queryZcodeVersion")
     // The permission bridge must translate zcode option kinds onto the ACP
     // enum (allow_once / allow_always / reject_once / reject_always).
     expect(adapter).toContain('"allow_once"')
@@ -117,5 +146,19 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
     expect(registry).toMatch(
       /AgentType::Zcode => Some\(AcpAdapterRelation \{[\s\S]*shared_config_dir: "~\/\.zcode"/
     )
+  })
+
+  it("paints the official Z mark with currentColor so it stays visible in both themes", () => {
+    const icon = source("src/components/agent-icon.tsx")
+    const start = icon.indexOf("const ZcodeMonoIcon")
+    const end = icon.indexOf("const COLOR_ICONS")
+    expect(start).toBeGreaterThan(-1)
+    expect(end).toBeGreaterThan(start)
+    const mark = icon.slice(start, end)
+    expect(mark).toContain('fill="currentColor"')
+    expect(mark).toContain("ZCODE_Z_PATH")
+    expect(mark).not.toContain("linearGradient")
+    expect(icon).toContain("zcode: ZcodeMonoIcon")
+    expect(icon).not.toContain("zcode: ZcodeColorIcon")
   })
 })

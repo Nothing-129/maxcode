@@ -228,9 +228,10 @@ interface SidebarConversationCardProps {
   /** Toggle this conversation's sub-session subtree (lazily loads on expand). */
   onToggleExpand?: (id: number) => void
   /**
-   * Folder display name for Recent rows. When set, the card grows a second
-   * muted line under the title. Omitted everywhere else so folder-section
-   * rows stay compact (they already sit under a folder header).
+   * Folder (or Chat) display name for Recent rows. Rendered as a muted
+   * chip immediately after the title; the chip truncates first so the
+   * title keeps its width. Omitted everywhere else so folder-section
+   * rows stay unadorned (they already sit under a header).
    */
   folderLabel?: string
   /** Folder glyph before the label. Chat rows use a message glyph instead. */
@@ -378,10 +379,9 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
 
   return (
     <>
-      {/* Hover bubble: compact rows truncate the title and omit the path /
-          branch, so resting the pointer floats those out to the right. Recent
-          rows already name the folder on a second line; the bubble still
-          carries path and branch. Wrapping the ContextMenu (not the other way
+      {/* Hover bubble: the row truncates the title and Recent only names the
+          folder in a trailing chip, so resting the pointer floats the path /
+          branch out to the right. Wrapping the ContextMenu (not the other way
           round) keeps the menu's trigger and this one on the same element —
           both are `asChild` Slots, so their props merge onto the row div
           below. */}
@@ -395,10 +395,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
           <ContextMenuTrigger asChild>
             <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
               <div
-                className={cn(
-                  "relative py-px bg-sidebar ws-transparent-bg",
-                  showFolderMeta ? "h-[2.75rem]" : "h-[1.9375rem]"
-                )}
+                className="relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg"
                 data-conv-key={`${conversation.agent_type}:${conversation.id}`}
                 // Per-level indent: shift the shared rail axis right by one step per
                 // depth. Root rows (depth 0) leave the var untouched so they inherit
@@ -416,8 +413,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                 <div
                   className={cn(
                     // Compact history rows from the supplied desktop reference.
-                    "group relative flex h-full w-full",
-                    showFolderMeta ? "items-stretch" : "items-center",
+                    "group relative flex h-full w-full items-center",
                     "rounded-[0.625rem] text-sidebar-foreground",
                     "transition-colors duration-[120ms]",
                     isSelected
@@ -431,10 +427,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onClick={handleClick}
                     onDoubleClick={handleDblClick}
                     className={cn(
-                      "relative flex h-full min-w-0 flex-1 text-left outline-none",
-                      showFolderMeta
-                        ? "flex-col items-stretch"
-                        : "items-center gap-[0.625rem]",
+                      "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
                       onConversationPointerDown &&
                         "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
@@ -471,7 +464,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     )}
                     <div
                       className={cn(
-                        "pointer-events-none absolute z-10 flex items-center justify-center overflow-visible",
+                        "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
                         // With children, the row hover (or focus) swaps this agent
                         // icon out for the expand chevron at the same spot — fade it
                         // so the two cross-fade in place. On touch (no hover) the
@@ -481,7 +474,6 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
                       )}
                       style={{
-                        top: showFolderMeta ? "0.90625rem" : "50%",
                         left: "var(--conv-rail-axis, 0.875rem)",
                         width: "0.875rem",
                         height: "0.875rem",
@@ -498,12 +490,15 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     <span
                       className={cn(
                         "flex min-w-0 items-center",
-                        showFolderMeta ? "h-[1.8125rem]" : "flex-1"
+                        showFolderMeta ? "gap-[0.375rem]" : "flex-1"
                       )}
                     >
                       <ConversationTitleLabel
                         data-open-in-tab={isOpenInTab || undefined}
-                        className="maxcode-sidebar-label relative min-w-0 flex-1 text-[0.875rem] leading-[1.375rem] font-[430]"
+                        className={cn(
+                          "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
+                          showFolderMeta ? "shrink grow-0" : "flex-1"
+                        )}
                         title={conversation.title}
                         fallback={t("untitledConversation")}
                       />
@@ -524,31 +519,33 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           </span>
                         </span>
                       ) : null}
+                      {showFolderMeta ? (
+                        <span
+                          data-recent-folder
+                          title={folderLabel}
+                          className="flex min-w-0 max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+                        >
+                          {showFolderIcon ? (
+                            <Folder
+                              data-recent-source="folder"
+                              className="h-[0.625rem] w-[0.625rem] shrink-0"
+                              strokeWidth={1.5}
+                              aria-hidden
+                            />
+                          ) : (
+                            <MessageSquare
+                              data-recent-source="chat"
+                              className="h-[0.625rem] w-[0.625rem] shrink-0"
+                              strokeWidth={1.5}
+                              aria-hidden
+                            />
+                          )}
+                          <span className="min-w-0 truncate">
+                            {folderLabel}
+                          </span>
+                        </span>
+                      ) : null}
                     </span>
-                    {showFolderMeta ? (
-                      <span
-                        data-recent-folder
-                        title={folderLabel}
-                        className="flex min-w-0 items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
-                      >
-                        {showFolderIcon ? (
-                          <Folder
-                            data-recent-source="folder"
-                            className="h-[0.625rem] w-[0.625rem] shrink-0"
-                            strokeWidth={1.5}
-                            aria-hidden
-                          />
-                        ) : (
-                          <MessageSquare
-                            data-recent-source="chat"
-                            className="h-[0.625rem] w-[0.625rem] shrink-0"
-                            strokeWidth={1.5}
-                            aria-hidden
-                          />
-                        )}
-                        <span className="min-w-0 truncate">{folderLabel}</span>
-                      </span>
-                    ) : null}
                   </button>
 
                   {/* Expand/collapse affordance for delegation children. It overlays
@@ -577,8 +574,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           : t("expandSubsessions")
                       }
                       className={cn(
-                        "absolute top-0 z-20 flex items-center justify-center",
-                        showFolderMeta ? "h-[1.8125rem]" : "bottom-0",
+                        "absolute top-0 bottom-0 z-20 flex items-center justify-center",
                         "cursor-pointer outline-none",
                         "opacity-0 pointer-events-none transition-opacity duration-150",
                         "group-hover:opacity-100 group-hover:pointer-events-auto",
@@ -603,12 +599,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   )}
 
                   {/* Timestamp/unread indicator swaps to pin and completion actions on hover. */}
-                  <div
-                    className={cn(
-                      "flex shrink-0 items-center pr-[0.375rem]",
-                      showFolderMeta ? "h-[1.8125rem]" : "h-full"
-                    )}
-                  >
+                  <div className="flex h-full shrink-0 items-center pr-[0.375rem]">
                     <span
                       className={cn(
                         "flex items-center",

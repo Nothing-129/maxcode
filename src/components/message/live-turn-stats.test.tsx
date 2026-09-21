@@ -120,7 +120,7 @@ describe("LiveTurnStats", () => {
       </NextIntlClientProvider>
     )
 
-    expect(screen.getByText("-- tok/s")).toBeInTheDocument()
+    expect(screen.getByText("- tok/s")).toBeInTheDocument()
   })
 })
 

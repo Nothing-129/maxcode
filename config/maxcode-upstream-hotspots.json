@@ -4,7 +4,7 @@
     {
       "id": "agents.zcode-bundled-acp-adapter",
       "category": "runtime",
-      "description": "ZCode is MaxCode's seventh maintained agent and the only one shipped through AgentDistribution::Bundled: the zcode-acp adapter is embedded in the binary and materialized at launch, driving the vendor runtime's private ZCode Protocol (zcode app-server --stdio, no ACP; Z.ai retired its own non-CLI ACP path). Keep the adapter's method bridge (session/create|resume|send|subscribe|stop, interaction/requestPermission to session/request_permission), the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the SQLite history parser over ~/.zcode/cli/db/db.sqlite and the maintained-catalog membership; upstream merges must not silently drop the Bundled distribution, its arms in install/status/verify/auto-update paths or the i18n zcode section.",
+      "description": "ZCode is MaxCode's seventh maintained agent and the only one shipped through AgentDistribution::Bundled: the zcode-acp adapter is embedded in the binary and materialized at launch, driving the vendor runtime's private ZCode Protocol (zcode app-server --stdio, no ACP; Z.ai retired its own non-CLI ACP path). Keep the adapter's method bridge (session/create|resume|send|subscribe|stop, interaction/requestPermission to session/request_permission), the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the SQLite history parser over ~/.zcode/cli/db/db.sqlite, structured auto-titles via supports_dedicated_auto_title, and the maintained-catalog membership; upstream merges must not silently drop the Bundled distribution, its arms in install/status/verify/auto-update paths or the i18n zcode section.",
       "origins": [
         "feat/zcode-agent"
       ],
@@ -20,6 +20,7 @@
         "src-tauri/src/models/agent.rs",
         "src-tauri/src/parsers/zcode.rs",
         "src-tauri/src/parsers/mod.rs",
+        "src-tauri/src/session_title.rs",
         "src/lib/types.ts",
         "src/lib/maintained-agents.ts",
         "src/i18n/messages/"
@@ -119,7 +120,7 @@
     {
       "id": "chat.activity-feedback",
       "category": "product",
-      "description": "Observed agent phases distinguish waiting, thinking, output, parallel tools and blocking user decisions. Tool status icons animate only in-place transitions, never history mounts; disclosure and output DOM stay intact. Reduced motion disables effects and hidden/offscreen running icons pause.",
+      "description": "Observed agent phases distinguish waiting, thinking, output, parallel tools and blocking user decisions. Tool status icons animate only in-place transitions, never history mounts; disclosure and output DOM stay intact. Reduced motion disables effects and hidden/offscreen running icons pause. Live working-state labels stay text-only; see chat.live-turn-status-text-only.",
       "origins": [
         "worktree-2026-09-20"
       ],
@@ -146,6 +147,21 @@
       ],
       "contracts": [
         "src/maxcode-contracts/activity-feedback.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.live-turn-status-text-only",
+      "category": "product",
+      "description": "Model working-state copy (waiting, thinking, streaming, running tools, awaiting user) is text-only. Live turn stats and the pending typing row must not place ActivityStatusIcon, Clock3, or any other decorative status glyph beside those labels. Agent icon, elapsed timer and tok/s remain. Tool-card status icons stay on tool cards. Upstream activity-feedback merges must not restore the left-hand glyph.",
+      "origins": [
+        "worktree-2026-09-21"
+      ],
+      "paths": [
+        "src/components/message/live-turn-stats.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/live-turn-status-text-only.contract.test.tsx"
       ]
     },
     {
@@ -2082,7 +2098,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, Claude Code, and ZCode without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": [
         "108154e4",
         "53144985",

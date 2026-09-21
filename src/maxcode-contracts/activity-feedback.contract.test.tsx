@@ -108,12 +108,17 @@ describe("agent activity feedback contract", () => {
     )
     const { container, rerender } = render(view(message([])))
     expect(screen.getByRole("status")).toHaveTextContent("Waiting for response")
+    rerender(view(message([thinking])))
+    expect(screen.getByRole("status")).toHaveTextContent("Thinking...")
+    rerender(view(message([text])))
+    expect(screen.getByRole("status")).toHaveTextContent("Streaming")
     rerender(view(message([tool("in_progress")])))
     expect(screen.getByRole("status")).toHaveTextContent("Running tools")
     rerender(view(message([tool("in_progress")]), true))
     expect(screen.getByRole("status")).toHaveTextContent("Waiting for you")
     expect(container.querySelector(".animate-pulse")).toBeNull()
-    expect(screen.getByText("-- tok/s")).toBeInTheDocument()
+    expect(container.querySelector("[data-activity-status]")).toBeNull()
+    expect(screen.getByText("- tok/s")).toBeInTheDocument()
   })
 
   it("wires blocking interactions through all transcript hosts", () => {

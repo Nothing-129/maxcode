@@ -75,12 +75,19 @@ describe("MaxCode contract: agent compatibility", () => {
     expect(grok).toContain('"plan" =>')
   })
 
-  it("uses structured auto titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code", () => {
+  it("uses structured auto titles for Codex, Grok, Pi, DeepSeek Harness, Claude Code, and ZCode", () => {
     const titles = source("src-tauri/src/session_title.rs")
     const support = titles
       .split("pub fn supports_dedicated_auto_title")[1]
       .split("pub async fn kickoff_auto_title")[0]
-    for (const agent of ["Codex", "Grok", "Pi", "DeepSeek", "ClaudeCode"]) {
+    for (const agent of [
+      "Codex",
+      "Grok",
+      "Pi",
+      "DeepSeek",
+      "ClaudeCode",
+      "Zcode",
+    ]) {
       expect(support).toContain(`AgentType::${agent}`)
     }
     const manager = source("src-tauri/src/acp/manager.rs")

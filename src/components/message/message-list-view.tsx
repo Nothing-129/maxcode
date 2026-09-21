@@ -35,7 +35,6 @@ import { resolveTurnDurationMs, TurnStats } from "./turn-stats"
 import { LiveTurnStats } from "./live-turn-stats"
 import { ModelLabelProvider } from "./model-label-context"
 import { useModelLabels } from "@/hooks/use-model-labels"
-import { ActivityStatusIcon } from "@/components/shared/activity-status-icon"
 import { ReplyArtifacts } from "./reply-artifacts"
 import { UserResourceLinks } from "./user-resource-links"
 import { UserImageAttachments } from "./user-image-attachments"
@@ -982,10 +981,10 @@ const PendingTypingIndicator = memo(function PendingTypingIndicator({
     <Message from="assistant">
       <MessageContent>
         <div
-          className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground"
+          className="flex items-center py-1 text-xs text-muted-foreground"
           role="status"
         >
-          <ActivityStatusIcon status={awaitingUser ? "approval" : "waiting"} />
+          {/* Working-state copy is text-only; do not restore ActivityStatusIcon. */}
           <span>{t(awaitingUser ? "awaitingUser" : "waiting")}</span>
         </div>
       </MessageContent>

@@ -711,7 +711,7 @@ describe("SidebarConversationCard sub-session chevron", () => {
   })
 })
 
-describe("SidebarConversationCard Recent folder line", () => {
+describe("SidebarConversationCard Recent folder chip", () => {
   it("keeps compact rows when no folder label is passed", () => {
     const { container, queryByText } = renderWithIntl(
       <SidebarConversationCard
@@ -727,12 +727,11 @@ describe("SidebarConversationCard Recent folder line", () => {
     )
     const row = container.querySelector("[data-conv-key]")
     expect(row).toHaveClass("h-[1.9375rem]")
-    expect(row).not.toHaveClass("h-[2.75rem]")
     expect(container.querySelector("[data-recent-folder]")).toBeNull()
     expect(queryByText("外呼中心")).toBeNull()
   })
 
-  it("renders a muted second line and grows the row when a folder label is set", () => {
+  it("keeps the compact row and sits a muted folder chip immediately after the title", () => {
     const { container, getByText } = renderWithIntl(
       <SidebarConversationCard
         conversation={conv(1)}
@@ -748,20 +747,27 @@ describe("SidebarConversationCard Recent folder line", () => {
       />
     )
     const row = container.querySelector("[data-conv-key]")
-    expect(row).toHaveClass("h-[2.75rem]")
+    expect(row).toHaveClass("h-[1.9375rem]")
     const folder = container.querySelector("[data-recent-folder]")
     expect(folder).not.toBeNull()
     expect(folder).toHaveClass(
+      "min-w-0",
+      "max-w-[7.5rem]",
+      "shrink-[999]",
       "text-[0.6875rem]",
       "leading-[0.8125rem]",
       "text-muted-foreground/55"
     )
+    expect(folder).not.toHaveClass("shrink-0")
     expect(folder).toHaveAttribute("title", "外呼中心")
     expect(
       folder?.querySelector('[data-recent-source="folder"]')
     ).not.toBeNull()
     expect(getByText("外呼中心")).toHaveClass("truncate")
-    expect(getByText("conv-1")).not.toBeNull()
+    const title = getByText("conv-1")
+    expect(title).toHaveClass("shrink", "grow-0")
+    expect(title).not.toHaveClass("flex-1")
+    expect(title.nextElementSibling).toBe(folder)
   })
 
   it("uses a chat glyph for folderless chat rows", () => {
@@ -785,10 +791,10 @@ describe("SidebarConversationCard Recent folder line", () => {
   })
 })
 
-// Compact rows omit path and branch; Recent already names the folder on a
-// second line. Resting the pointer still floats a read-only bubble with the
-// folder, its absolute path, and the branch. Radix portals the content to the
-// body, hence the `screen` queries.
+// Compact rows omit path and branch; Recent names the folder in a chip that
+// follows the title. Resting the pointer still floats a read-only bubble with
+// the folder, its absolute path, and the branch. Radix portals the content to
+// the body, hence the `screen` queries.
 describe("SidebarConversationCard hover details bubble", () => {
   const FOLDER_PATH = "/Users/dev/projects/codeg"
 
