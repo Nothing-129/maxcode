@@ -38,6 +38,7 @@ const expected = [
   "pi",
   "deepseek",
   "antigravity",
+  "zcode",
 ]
 
 afterEach(() => {
@@ -45,7 +46,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-describe("MaxCode six-agent maintenance scope", () => {
+describe("MaxCode seven-agent maintenance scope", () => {
   it.each([acpListAgents, acpListEnabledAgents])(
     "exposes only maintained agents even against an older backend",
     async (query) => {
@@ -57,7 +58,7 @@ describe("MaxCode six-agent maintenance scope", () => {
       expect(agents.map((agent) => agent.sort_order)).toEqual(
         [...agents.map((agent) => agent.sort_order)].sort((a, b) => a - b)
       )
-      expect(catalog).toHaveLength(16)
+      expect(catalog).toHaveLength(17)
     }
   )
 
@@ -69,7 +70,7 @@ describe("MaxCode six-agent maintenance scope", () => {
         .sort()
     ).toEqual([...expected].sort())
     expect(AGENT_DISPLAY_ORDER).toContain("gemini")
-    expect(MAINTAINED_AGENT_TYPES).toHaveLength(6)
+    expect(MAINTAINED_AGENT_TYPES).toHaveLength(7)
     expect(source("src/hooks/use-sorted-available-agents.ts")).toContain(
       "new Set<string>(MAINTAINED_AGENT_TYPES)"
     )
@@ -120,6 +121,7 @@ describe("MaxCode six-agent maintenance scope", () => {
       "Pi",
       "Antigravity",
       "ClaudeCode",
+      "Zcode",
     ])
   })
 })

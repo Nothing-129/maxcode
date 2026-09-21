@@ -15,6 +15,7 @@ pub mod openclaw;
 pub mod opencode;
 pub mod pi;
 pub mod qoder;
+pub mod zcode;
 mod summary_cache;
 
 use std::collections::{HashMap, HashSet};
@@ -242,6 +243,17 @@ pub fn external_transcript_sources() -> Vec<ExternalSource> {
             sqlite: true,
             include_top: None,
         },
+        ExternalSource {
+            // ZCode keeps every session in one live SQLite store. The archive
+            // carries only the transcript database (page-copied through a
+            // read-only connection so WAL frames survive), never the sibling
+            // provider config or credentials under `~/.zcode/v2`.
+            agent: "zcode",
+            root: zcode::resolve_zcode_data_root().join("cli").join("db").join("db.sqlite"),
+            is_file: true,
+            sqlite: true,
+            include_top: None,
+        },
     ];
     if let Some(home) = dirs::home_dir() {
         sources.push(ExternalSource {
@@ -306,6 +318,7 @@ pub fn build_agent_parser(agent_type: AgentType) -> Box<dyn AgentParser> {
         AgentType::DeepSeek => Box::new(deepseek::DeepSeekParser::new()),
         AgentType::Qoder => Box::new(qoder::QoderParser::new()),
         AgentType::Antigravity => Box::new(antigravity::AntigravityParser::new()),
+        AgentType::Zcode => Box::new(zcode::ZcodeParser::new()),
         // Custom ACP agents have no native store to reverse-engineer; their
         // history is codeg's own ACP transcript.
         AgentType::Custom(_) => Box::new(acp_native::AcpNativeParser::new(agent_type)),

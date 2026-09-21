@@ -1358,6 +1358,10 @@
       "rawEditorWarning": "在此儲存會按原文覆寫整個檔案，取代掉上方的結構化設定。",
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
+    "zcode": {
+      "configManagement": "ZCode 執行時",
+      "configDescription": "MaxCode 內建 zcode-acp 轉接器，需要你自行安裝 ZCode 執行時——ZCode 桌面版或獨立 CLI。模型與登入憑證保存在 ZCode 應用自己的 ~/.zcode 目錄，無需重複設定。可選啟動參數（ZCODE_CLI 入口覆蓋、ZCODE_MODE 權限模式、ZCODE_MODEL 固定模型）可在下方原始環境變數編輯器中設定。"
+    },
     "authModeOfficialSubscription": "官網訂閱",
     "authModeCustomEndpoint": "自定義介面",
     "authModeCustomEndpointHint": "手動配置 API URL 和 API Key 連接自定義介面。",

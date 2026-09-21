@@ -1358,6 +1358,10 @@
       "rawEditorWarning": "Enregistrer ici écrase tout le fichier tel quel et remplace les réglages structurés ci-dessus.",
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
+    "zcode": {
+      "configManagement": "Runtime ZCode",
+      "configDescription": "MaxCode intègre l'adaptateur zcode-acp ; il ne vous manque que le runtime ZCode (l'app desktop ZCode ou la CLI autonome). Les fournisseurs et la connexion vivent dans l'app ZCode (~/.zcode) et sont repris tels quels. Les réglages de lancement optionnels (ZCODE_CLI remplacement d'entrée, ZCODE_MODE mode de permission, ZCODE_MODEL sélection figée) se règlent dans l'éditeur brut de variables d'environnement ci-dessous."
+    },
     "authModeOfficialSubscription": "Abonnement officiel",
     "authModeCustomEndpoint": "Endpoint personnalisé",
     "authModeCustomEndpointHint": "Configurer manuellement l'URL API et la clé API pour un endpoint personnalisé.",

@@ -3273,6 +3273,10 @@ pub fn read_servers_for_agent_type(
         // third-party extension). Scanning its extension config must not
         // change the servers forwarded to a pi ACP session.
         AgentType::Pi => Ok(BTreeMap::new()),
+        // ZCode's native MCP config (~/.zcode/cli/config.json, `mcp.servers`)
+        // is not imported; MaxCode forwards its own configured servers over
+        // the ACP wire and the adapter maps them into session/create.
+        AgentType::Zcode => Ok(BTreeMap::new()),
         // deepseek-acp has no native MCP config file: it takes servers only
         // as `session/new`'s `mcpServers`. `$DSH_HOME/mcp.json` is codeg's own
         // record of what to send, and the ACP wire is the delivery path — so

@@ -1358,6 +1358,10 @@
       "rawEditorWarning": "在此保存会按原文覆盖整个文件，替换掉上方的结构化配置。",
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
+    "zcode": {
+      "configManagement": "ZCode 运行时",
+      "configDescription": "MaxCode 内置 zcode-acp 适配器，需要你自行安装 ZCode 运行时——ZCode 桌面版或独立 CLI。模型与登录凭据保存在 ZCode 应用自己的 ~/.zcode 目录，无需重复配置。可选启动参数（ZCODE_CLI 入口覆盖、ZCODE_MODE 权限模式、ZCODE_MODEL 固定模型）可在下方原始环境变量编辑器中设置。"
+    },
     "authModeOfficialSubscription": "官网订阅",
     "authModeCustomEndpoint": "自定义接口",
     "authModeCustomEndpointHint": "手动配置 API URL 和 API Key 连接自定义接口。",

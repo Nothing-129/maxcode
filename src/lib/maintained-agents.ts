@@ -8,6 +8,7 @@ export const MAINTAINED_AGENT_TYPES = [
   "pi",
   "antigravity",
   "claude_code",
+  "zcode",
 ] as const satisfies readonly AgentType[]
 
 export const ALLOW_CUSTOM_AGENT_REGISTRATION = false

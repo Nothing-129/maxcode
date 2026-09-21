@@ -1811,6 +1811,62 @@ async fn build_agent(
     debug_assert_eq!(meta.agent_type, agent_type);
 
     let agent = match meta.distribution {
+        AgentDistribution::Bundled {
+            version,
+            file,
+            source,
+            args,
+            env,
+            ..
+        } => {
+            // Materialize the embedded adapter into the same versioned agent
+            // cache the Binary distributions use, then launch it with node.
+            // There is nothing to download and no install prompt: a missing or
+            // stale cache entry is rewritten right here, every launch.
+            let registry_id = registry::registry_id_for(agent_type);
+            let dir = crate::acp::binary_cache::binary_dir(registry_id, version)?;
+            std::fs::create_dir_all(&dir).map_err(|e| {
+                AcpError::SpawnFailed(format!("failed to create adapter cache dir: {e}"))
+            })?;
+            let script_path = dir.join(file);
+            let stale = std::fs::read_to_string(&script_path)
+                .map(|current| current != source)
+                .unwrap_or(true);
+            if stale {
+                std::fs::write(&script_path, source).map_err(|e| {
+                    AcpError::SpawnFailed(format!("failed to materialize zcode-acp adapter: {e}"))
+                })?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    let _ = std::fs::set_permissions(
+                        &script_path,
+                        std::fs::Permissions::from_mode(0o755),
+                    );
+                }
+            }
+            let node = crate::commands::acp::resolve_command_on_path(
+                if cfg!(windows) { "node.exe" } else { "node" },
+            )
+            .map(|p| p.to_string_lossy().to_string())
+            .unwrap_or_else(|| "node".to_string());
+            let merged_env = merge_agent_env(env, runtime_env, scratch);
+            let mut parts: Vec<String> = Vec::new();
+            for (k, v) in &merged_env {
+                parts.push(format!("{k}={v}"));
+            }
+            parts.push(node);
+            parts.push(script_path.to_string_lossy().to_string());
+            for a in args {
+                parts.push((*a).into());
+            }
+            let refs: Vec<&str> = parts.iter().map(|s| s.as_str()).collect();
+            let agent_name = meta.name.to_string();
+            let tail = Arc::clone(stderr_tail);
+            AcpAgent::from_args(&refs)
+                .map(|a| a.with_debug(agent_debug_callback(agent_name, tail, false)))
+                .map_err(|e| AcpError::SpawnFailed(e.to_string()))
+        }
         AgentDistribution::Npx { cmd, args, env, .. } => {
             // pi-acp spawns the real `pi` binary; fail fast with a clear,
             // install-prompt-routable error if it (or a BYO-pi override) isn't
