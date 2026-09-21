@@ -1232,7 +1232,7 @@ acpIncomingHandlers.set("session/prompt", async (params) => {
   // the zcode server, which turns dataBase64 into a data: URL for the
   // runtime — no temp file needed).
   const imageBlocks = blocks.filter(
-    (block) => block?.type === "image" && typeof block.data === "string",
+    (block) => block?.type === "image" && typeof block.data === "string"
   )
   const attachments = imageBlocks.map((block, index) => {
     const mimeType =

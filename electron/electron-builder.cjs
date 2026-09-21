@@ -17,8 +17,7 @@ module.exports = {
   executableName: "maxcode",
   extraMetadata: {
     version,
-    desktopUpdates:
-      process.platform !== "darwin" || release || localUpdates,
+    desktopUpdates: process.platform !== "darwin" || release || localUpdates,
   },
   directories: {
     app: __dirname,
