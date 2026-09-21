@@ -463,12 +463,10 @@ const CursorMonoIcon = memo(function CursorMonoIcon({
   )
 })
 
-// ZCode's official Z mark — the glyph from zai-org/ZCode
-// (packages/ui/src/assets/Z.svg; the packaged app icons in
-// packages/desktop/build/icon*.png are the same geometry as an opaque
-// top-to-bottom charcoal gradient). The user-facing direction is to keep
-// the official dark treatment verbatim: the gradient is sampled from
-// icon.png (#131516 → #030303) rather than re-tinted.
+// ZCode's official macOS app icon (packages/desktop/build/icon.icns),
+// reproduced as a vector: a charcoal-gradient rounded square
+// (#141617 → #020203, sampled) with the white Z glyph from
+// packages/ui/src/assets/Z.svg centered on it.
 const ZCODE_Z_PATH =
   "M416.94 21L165.546 340H19L55.5693 293.581L138.137 190.103L138.141 190.098L233.312 68.0605L233.313 68.0615L270.394 21H416.94ZM282.514 293.771H390.497L354.052 339.998H207.856L220.612 323.807C235.554 304.84 258.368 293.771 282.514 293.771ZM227.134 21L220.756 29.0889C201.752 53.1885 172.752 67.252 142.061 67.252H43.9502L80.3965 21H227.134Z"
 
@@ -480,24 +478,28 @@ const ZcodeColorIcon = memo(function ZcodeColorIcon({
     <svg
       height={size}
       style={baseSvgStyle}
-      viewBox="0 0 436 360"
+      viewBox="0 0 512 512"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>ZCode</title>
-      <path d={ZCODE_Z_PATH} fill={`url(#${id})`} />
+      <rect fill={`url(#${id})`} height="512" rx="114" width="512" />
+      <path
+        d={ZCODE_Z_PATH}
+        fill="#FFFFFF"
+        transform="translate(72 103.4) scale(0.8465)"
+      />
       <defs>
         <linearGradient
           gradientUnits="userSpaceOnUse"
           id={id}
-          x1="218"
-          x2="218"
-          y1="21"
-          y2="340"
+          x1="256"
+          x2="256"
+          y1="0"
+          y2="512"
         >
-          <stop offset="0" stopColor="#131516" />
-          <stop offset="0.55" stopColor="#0C0E0E" />
-          <stop offset="1" stopColor="#030303" />
+          <stop offset="0" stopColor="#141617" />
+          <stop offset="1" stopColor="#020203" />
         </linearGradient>
       </defs>
     </svg>
