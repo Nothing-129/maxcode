@@ -3,6 +3,12 @@ const path = require("node:path")
 const fs = require("node:fs")
 const { version } = require("../package.json")
 const release = process.env.CODEG_ELECTRON_RELEASE === "1"
+// Unsigned local macOS builds can still poll the project's own update feed:
+// electron-updater verifies downloads against the published yml digests, and
+// replacing an ad-hoc app with an official signed one needs no local signing.
+// Opt in explicitly so the default local DMG keeps the historical
+// updates-off behavior.
+const localUpdates = process.env.CODEG_ELECTRON_UPDATES === "1"
 const { updateFeed } = require("./update-config.cjs")
 
 module.exports = {
@@ -11,7 +17,8 @@ module.exports = {
   executableName: "maxcode",
   extraMetadata: {
     version,
-    desktopUpdates: process.platform !== "darwin" || release,
+    desktopUpdates:
+      process.platform !== "darwin" || release || localUpdates,
   },
   directories: {
     app: __dirname,
