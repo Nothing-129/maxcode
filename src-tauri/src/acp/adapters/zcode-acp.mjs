@@ -309,11 +309,13 @@ class SessionState {
   configOptions() {
     const options = []
     if (this.modelsByValue.size > 0) {
-      const entries = [...this.modelsByValue.entries()].map(([value, entry]) => ({
-        value,
-        name: entry.name,
-        ...(entry.description ? { description: entry.description } : {}),
-      }))
+      const entries = [...this.modelsByValue.entries()].map(
+        ([value, entry]) => ({
+          value,
+          name: entry.name,
+          ...(entry.description ? { description: entry.description } : {}),
+        })
+      )
       const currentEntry = this.currentModel?.value
         ? this.modelsByValue.get(this.currentModel.value)
         : undefined
@@ -323,7 +325,8 @@ class SessionState {
         category: "model",
         type: "select",
         currentValue:
-          this.currentModel?.value && this.modelsByValue.has(this.currentModel.value)
+          this.currentModel?.value &&
+          this.modelsByValue.has(this.currentModel.value)
             ? this.currentModel.value
             : (entries[0]?.value ?? ""),
         options: entries,
@@ -336,7 +339,8 @@ class SessionState {
           category: "thought_level",
           type: "select",
           currentValue:
-            this.currentModel?.reasoningLevel && levels.includes(this.currentModel.reasoningLevel)
+            this.currentModel?.reasoningLevel &&
+            levels.includes(this.currentModel.reasoningLevel)
               ? this.currentModel.reasoningLevel
               : (levels[0] ?? ""),
           options: levels.map((level) => ({ value: level, name: level })),
@@ -543,7 +547,7 @@ function dispatchSessionEvent(envelope) {
       if (payload.modelSelection) {
         applyCurrentModel(session, payload.modelSelection)
       }
-      break;
+      break
     }
     case "session.titleUpdated": {
       if (typeof payload.title === "string" && payload.title.length > 0) {
@@ -655,10 +659,11 @@ function applyModelCatalog(session, available) {
     if (!value) continue
     const levels = (model?.reasoning?.levels ?? [])
       .map((level) =>
-        typeof level === "string" ? level : (level?.value ?? level?.id ?? null),
+        typeof level === "string" ? level : (level?.value ?? level?.id ?? null)
       )
       .filter(Boolean)
-    const contextWindow = typeof model?.contextWindow === "number" ? model.contextWindow : null
+    const contextWindow =
+      typeof model?.contextWindow === "number" ? model.contextWindow : null
     session.modelsByValue.set(value, {
       name: model?.label ?? value,
       description: contextWindow
@@ -1171,7 +1176,10 @@ acpIncomingHandlers.set("session/set_config_option", async (params) => {
     // the current level over when the new model supports it, else take its
     // first supported level.
     let reasoningLevel = session.currentModel?.reasoningLevel
-    if (!reasoningLevel || (entry.levels.length > 0 && !entry.levels.includes(reasoningLevel))) {
+    if (
+      !reasoningLevel ||
+      (entry.levels.length > 0 && !entry.levels.includes(reasoningLevel))
+    ) {
       reasoningLevel = entry.levels[0] ?? null
     }
     await zcodeRequest("session/setModel", {
