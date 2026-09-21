@@ -3430,6 +3430,10 @@
         "showLess": "Mostrar menos"
       },
       "liveTurnStats": {
+        "waiting": "Aguardando resposta",
+        "running": "Executando ferramentas",
+        "awaitingUser": "Aguardando sua confirmação",
+        "settled": "Resposta encerrada",
         "thinking": "Pensando...",
         "streaming": "Transmitindo",
         "elapsedHours": "{value} h",
@@ -3736,7 +3740,9 @@
         "skip": "Pular",
         "next": "Próxima",
         "submit": "Enviar",
-        "submitError": "Falha ao enviar. Tente novamente."
+        "submitError": "Falha ao enviar. Tente novamente.",
+        "collapse": "Recolher",
+        "expand": "Expandir"
       },
       "planApproval": {
         "title": "O agente tem um plano — revise",

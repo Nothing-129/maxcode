@@ -23,7 +23,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it("checks from the version button and silently offers an adjacent icon, then downloads and restarts Electron with one click even if the update control unmounts", async () => {
+it("hides the desktop action until download completes and waits for an explicit restart even across navigation and renderer remounts", async () => {
   localStorage.clear()
   const check = vi.fn(async () => ({
     currentVersion: "0.30.6",
@@ -77,26 +77,52 @@ it("checks from the version button and silently offers an adjacent icon, then do
     fireEvent.click(version)
     await waitFor(() => expect(check).toHaveBeenCalledOnce())
     expect(start).not.toHaveBeenCalled()
-    const button = await screen.findByRole("button", {
-      name: "Download update and restart",
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    // The main process starts the download after checking; no renderer start IPC.
+    await act(async () => {
+      listener?.({ seq: 1, status: "downloading", version: "0.30.7" })
     })
-    expect(button.previousElementSibling).toHaveTextContent("v0.30.6")
+    expect(screen.getAllByRole("button")).toHaveLength(1)
     expect(notify).not.toHaveBeenCalled()
     expect(start).not.toHaveBeenCalled()
     expect(install).not.toHaveBeenCalled()
-    fireEvent.click(button)
-    await waitFor(() => expect(start).toHaveBeenCalledOnce())
     expect(screen.queryByText("Release details")).toBeNull()
-    expect(install).not.toHaveBeenCalled()
+    await act(async () => {
+      listener?.({ seq: 2, status: "error", error: "Network unavailable" })
+    })
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(version).not.toBeDisabled()
+    fireEvent.click(version)
+    await waitFor(() => expect(check).toHaveBeenCalledTimes(2))
+    await act(async () => {
+      listener?.({ seq: 3, status: "downloading", version: "0.30.7" })
+    })
     view.rerender(content(false))
     await act(async () => {
-      listener?.({ seq: 2, status: "ready_to_restart", version: "0.30.7" })
+      listener?.({ seq: 4, status: "ready_to_restart", version: "0.30.7" })
     })
+    expect(install).not.toHaveBeenCalled()
+    view.rerender(content(true))
+    const button = await screen.findByRole("button", {
+      name: messages.SystemSettings.restartToUpdate,
+    })
+    expect(button.previousElementSibling).toHaveTextContent("v0.30.6")
+    expect(install).not.toHaveBeenCalled()
+    // A fresh renderer also must not install a package staged by the main process.
+    window.maxcodeElectron!.getUpdateState = async () => ({
+      seq: 4,
+      status: "ready_to_restart",
+      version: "0.30.7",
+    })
+    view.rerender(<div />)
+    view.rerender(content(true))
+    const restored = await screen.findByRole("button", {
+      name: messages.SystemSettings.restartToUpdate,
+    })
+    expect(install).not.toHaveBeenCalled()
+    fireEvent.click(restored)
     await waitFor(() => expect(install).toHaveBeenCalledOnce())
-    await act(async () => {
-      listener?.({ seq: 2, status: "ready_to_restart", version: "0.30.7" })
-    })
-    expect(install).toHaveBeenCalledOnce()
+    expect(start).not.toHaveBeenCalled()
     expect(backendCall).not.toHaveBeenCalled()
     expect(notify).not.toHaveBeenCalled()
   } finally {

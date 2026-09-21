@@ -16,8 +16,10 @@ import {
   Pin,
   PinOff,
   CheckCircle2,
+  Folder,
   FolderX,
   Info,
+  MessageSquare,
   ChevronRight,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -225,6 +227,14 @@ interface SidebarConversationCardProps {
   expanded?: boolean
   /** Toggle this conversation's sub-session subtree (lazily loads on expand). */
   onToggleExpand?: (id: number) => void
+  /**
+   * Folder display name for Recent rows. When set, the card grows a second
+   * muted line under the title. Omitted everywhere else so folder-section
+   * rows stay compact (they already sit under a folder header).
+   */
+  folderLabel?: string
+  /** Folder glyph before the label. Chat rows use a message glyph instead. */
+  showFolderIcon?: boolean
 }
 
 export const SidebarConversationCard = memo(function SidebarConversationCard({
@@ -245,6 +255,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   hasChildren = false,
   expanded = false,
   onToggleExpand,
+  folderLabel,
+  showFolderIcon = false,
 }: SidebarConversationCardProps) {
   const t = useTranslations("Folder.conversationCard")
   const ime = useImeGuard()
@@ -362,15 +374,17 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions =
     !isSubsession && (Boolean(onTogglePin) || showDoneAction)
+  const showFolderMeta = Boolean(folderLabel)
 
   return (
     <>
-      {/* Hover bubble: the row truncates to one line and says nothing about
-          WHERE the session lives, so resting the pointer on it floats the
-          folder / path / branch out to the right. Wrapping the ContextMenu (not
-          the other way round) keeps the menu's trigger and this one on the same
-          element — both are `asChild` Slots, so their props merge onto the row
-          div below. */}
+      {/* Hover bubble: compact rows truncate the title and omit the path /
+          branch, so resting the pointer floats those out to the right. Recent
+          rows already name the folder on a second line; the bubble still
+          carries path and branch. Wrapping the ContextMenu (not the other way
+          round) keeps the menu's trigger and this one on the same element —
+          both are `asChild` Slots, so their props merge onto the row div
+          below. */}
       <HoverCard
         open={hoverOpen}
         onOpenChange={setHoverOpen}
@@ -381,7 +395,10 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
           <ContextMenuTrigger asChild>
             <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
               <div
-                className="relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg"
+                className={cn(
+                  "relative py-px bg-sidebar ws-transparent-bg",
+                  showFolderMeta ? "h-[2.75rem]" : "h-[1.9375rem]"
+                )}
                 data-conv-key={`${conversation.agent_type}:${conversation.id}`}
                 // Per-level indent: shift the shared rail axis right by one step per
                 // depth. Root rows (depth 0) leave the var untouched so they inherit
@@ -399,7 +416,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                 <div
                   className={cn(
                     // Compact history rows from the supplied desktop reference.
-                    "group relative flex h-full w-full items-center",
+                    "group relative flex h-full w-full",
+                    showFolderMeta ? "items-stretch" : "items-center",
                     "rounded-[0.625rem] text-sidebar-foreground",
                     "transition-colors duration-[120ms]",
                     isSelected
@@ -413,7 +431,10 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onClick={handleClick}
                     onDoubleClick={handleDblClick}
                     className={cn(
-                      "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
+                      "relative flex h-full min-w-0 flex-1 text-left outline-none",
+                      showFolderMeta
+                        ? "flex-col items-stretch"
+                        : "items-center gap-[0.625rem]",
                       onConversationPointerDown &&
                         "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
@@ -450,7 +471,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     )}
                     <div
                       className={cn(
-                        "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
+                        "pointer-events-none absolute z-10 flex items-center justify-center overflow-visible",
                         // With children, the row hover (or focus) swaps this agent
                         // icon out for the expand chevron at the same spot — fade it
                         // so the two cross-fade in place. On touch (no hover) the
@@ -460,6 +481,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
                       )}
                       style={{
+                        top: showFolderMeta ? "0.90625rem" : "50%",
                         left: "var(--conv-rail-axis, 0.875rem)",
                         width: "0.875rem",
                         height: "0.875rem",
@@ -473,27 +495,58 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       />
                     </div>
 
-                    <ConversationTitleLabel
-                      data-open-in-tab={isOpenInTab || undefined}
-                      className="maxcode-sidebar-label relative min-w-0 flex-1 text-[0.875rem] leading-[1.375rem] font-[430]"
-                      title={conversation.title}
-                      fallback={t("untitledConversation")}
-                    />
-                    {/* Re-parented out of a removed worktree: history loads fine,
-                    but "continue" may need a fresh session (the agent's files
-                    were keyed to the old path). */}
-                    {conversation.origin_cwd ? (
-                      <span
-                        className="inline-flex shrink-0 items-center"
-                        title={tSidebar("worktreeRemovedBadge")}
-                      >
-                        <FolderX
-                          className="h-3 w-3 text-muted-foreground/60"
-                          aria-hidden
-                        />
-                        <span className="sr-only">
-                          {tSidebar("worktreeRemovedBadge")}
+                    <span
+                      className={cn(
+                        "flex min-w-0 items-center",
+                        showFolderMeta ? "h-[1.8125rem]" : "flex-1"
+                      )}
+                    >
+                      <ConversationTitleLabel
+                        data-open-in-tab={isOpenInTab || undefined}
+                        className="maxcode-sidebar-label relative min-w-0 flex-1 text-[0.875rem] leading-[1.375rem] font-[430]"
+                        title={conversation.title}
+                        fallback={t("untitledConversation")}
+                      />
+                      {/* Re-parented out of a removed worktree: history loads fine,
+                      but "continue" may need a fresh session (the agent's files
+                      were keyed to the old path). */}
+                      {conversation.origin_cwd ? (
+                        <span
+                          className="inline-flex shrink-0 items-center"
+                          title={tSidebar("worktreeRemovedBadge")}
+                        >
+                          <FolderX
+                            className="h-3 w-3 text-muted-foreground/60"
+                            aria-hidden
+                          />
+                          <span className="sr-only">
+                            {tSidebar("worktreeRemovedBadge")}
+                          </span>
                         </span>
+                      ) : null}
+                    </span>
+                    {showFolderMeta ? (
+                      <span
+                        data-recent-folder
+                        title={folderLabel}
+                        className="flex min-w-0 items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+                      >
+                        {showFolderIcon ? (
+                          <Folder
+                            data-recent-source="folder"
+                            className="h-[0.625rem] w-[0.625rem] shrink-0"
+                            strokeWidth={1.5}
+                            aria-hidden
+                          />
+                        ) : (
+                          <MessageSquare
+                            data-recent-source="chat"
+                            className="h-[0.625rem] w-[0.625rem] shrink-0"
+                            strokeWidth={1.5}
+                            aria-hidden
+                          />
+                        )}
+                        <span className="min-w-0 truncate">{folderLabel}</span>
                       </span>
                     ) : null}
                   </button>
@@ -524,7 +577,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           : t("expandSubsessions")
                       }
                       className={cn(
-                        "absolute top-0 bottom-0 z-20 flex items-center justify-center",
+                        "absolute top-0 z-20 flex items-center justify-center",
+                        showFolderMeta ? "h-[1.8125rem]" : "bottom-0",
                         "cursor-pointer outline-none",
                         "opacity-0 pointer-events-none transition-opacity duration-150",
                         "group-hover:opacity-100 group-hover:pointer-events-auto",
@@ -549,7 +603,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   )}
 
                   {/* Timestamp/unread indicator swaps to pin and completion actions on hover. */}
-                  <div className="flex h-full shrink-0 items-center pr-[0.375rem]">
+                  <div
+                    className={cn(
+                      "flex shrink-0 items-center pr-[0.375rem]",
+                      showFolderMeta ? "h-[1.8125rem]" : "h-full"
+                    )}
+                  >
                     <span
                       className={cn(
                         "flex items-center",

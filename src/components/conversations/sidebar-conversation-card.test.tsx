@@ -711,8 +711,82 @@ describe("SidebarConversationCard sub-session chevron", () => {
   })
 })
 
-// The row truncates to one line and never says where the session lives, so
-// resting the pointer on it floats a read-only bubble out to the right with the
+describe("SidebarConversationCard Recent folder line", () => {
+  it("keeps compact rows when no folder label is passed", () => {
+    const { container, queryByText } = renderWithIntl(
+      <SidebarConversationCard
+        conversation={conv(1)}
+        isSelected={false}
+        timeLabel="5m"
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const row = container.querySelector("[data-conv-key]")
+    expect(row).toHaveClass("h-[1.9375rem]")
+    expect(row).not.toHaveClass("h-[2.75rem]")
+    expect(container.querySelector("[data-recent-folder]")).toBeNull()
+    expect(queryByText("外呼中心")).toBeNull()
+  })
+
+  it("renders a muted second line and grows the row when a folder label is set", () => {
+    const { container, getByText } = renderWithIntl(
+      <SidebarConversationCard
+        conversation={conv(1)}
+        isSelected={false}
+        timeLabel="5m"
+        folderLabel="外呼中心"
+        showFolderIcon
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const row = container.querySelector("[data-conv-key]")
+    expect(row).toHaveClass("h-[2.75rem]")
+    const folder = container.querySelector("[data-recent-folder]")
+    expect(folder).not.toBeNull()
+    expect(folder).toHaveClass(
+      "text-[0.6875rem]",
+      "leading-[0.8125rem]",
+      "text-muted-foreground/55"
+    )
+    expect(folder).toHaveAttribute("title", "外呼中心")
+    expect(
+      folder?.querySelector('[data-recent-source="folder"]')
+    ).not.toBeNull()
+    expect(getByText("外呼中心")).toHaveClass("truncate")
+    expect(getByText("conv-1")).not.toBeNull()
+  })
+
+  it("uses a chat glyph for folderless chat rows", () => {
+    const { container, getByText } = renderWithIntl(
+      <SidebarConversationCard
+        conversation={{ ...conv(1), kind: "chat" }}
+        isSelected={false}
+        timeLabel="5m"
+        folderLabel="Chat"
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const folder = container.querySelector("[data-recent-folder]")
+    expect(folder?.querySelector('[data-recent-source="chat"]')).not.toBeNull()
+    expect(folder?.querySelector('[data-recent-source="folder"]')).toBeNull()
+    expect(getByText("Chat")).not.toBeNull()
+  })
+})
+
+// Compact rows omit path and branch; Recent already names the folder on a
+// second line. Resting the pointer still floats a read-only bubble with the
 // folder, its absolute path, and the branch. Radix portals the content to the
 // body, hence the `screen` queries.
 describe("SidebarConversationCard hover details bubble", () => {

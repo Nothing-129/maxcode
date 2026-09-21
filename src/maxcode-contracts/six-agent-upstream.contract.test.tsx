@@ -72,7 +72,7 @@ describe("six maintained agents: selected upstream integration", () => {
     ).toContain("newest_generation_preserves_downstream_encoding_migration")
     const registry = source("src-tauri/src/acp/registry.rs")
     for (const pin of [
-      "claude-agent-acp@0.78.0",
+      "claude-agent-acp@0.79.0",
       "codex-acp@1.12.0",
       "grok@1.0.34",
       "pi-acp@0.0.33",

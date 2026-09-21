@@ -16,11 +16,14 @@ import { Bike, Car, FilePenLine, Rocket, Snail, Timer } from "lucide-react"
 import type { AgentType } from "@/lib/types"
 import { AgentIcon } from "@/components/agent-icon"
 import { useTokenOutputSpeed } from "@/hooks/use-token-output-speed"
+import { ActivityStatusIcon } from "@/components/shared/activity-status-icon"
+import { getAgentActivity } from "@/lib/agent-activity"
 
 interface LiveTurnStatsProps {
   message: LiveMessage
   agentType: AgentType
   isStreaming?: boolean
+  awaitingUser?: boolean
 }
 
 interface LineChangeStats {
@@ -359,6 +362,7 @@ export function LiveTurnStats({
   message,
   agentType,
   isStreaming = true,
+  awaitingUser = false,
 }: LiveTurnStatsProps) {
   const locale = useLocale()
   const t = useTranslations("Folder.chat.liveTurnStats")
@@ -381,30 +385,28 @@ export function LiveTurnStats({
     return () => clearInterval(timer)
   }, [message.startedAt])
 
-  const hasThinkingBlock = message.content.some((b) => b.type === "thinking")
-
-  // Only active streams should show thinking/streaming state.
-  const lastBlock = message.content[message.content.length - 1]
-  const isThinking =
-    isStreaming &&
-    hasThinkingBlock &&
-    message.content.length <= 1 &&
-    lastBlock?.type === "thinking"
+  const activity = getAgentActivity(message, isStreaming, awaitingUser)
+  const activityStatus =
+    activity === "awaitingUser"
+      ? "approval"
+      : activity === "settled"
+        ? "responded"
+        : activity
 
   const elapsedLabel = formatElapsedLabel(elapsed, t)
 
   return (
     <div className="@container/turnstats shrink-0">
       <div className="flex min-h-8 flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1 text-xs leading-none text-muted-foreground @[24rem]/turnstats:gap-x-3 @[24rem]/turnstats:px-4">
-        <AgentIcon
-          agentType={agentType}
-          className="h-3.5 w-3.5 animate-pulse"
-        />
-        {isThinking ? (
-          <span>{t("thinking")}</span>
-        ) : (
-          <span>{t("streaming")}</span>
-        )}
+        <AgentIcon agentType={agentType} className="h-3.5 w-3.5" />
+        <span
+          className="inline-flex items-center gap-1.5"
+          role="status"
+          aria-atomic="true"
+        >
+          <ActivityStatusIcon key={message.id} status={activityStatus} />
+          <span>{t(activity)}</span>
+        </span>
         <span className="text-border leading-none">|</span>
         <span className="inline-flex items-center gap-1 leading-none">
           <Timer className="h-3 w-3 shrink-0" />

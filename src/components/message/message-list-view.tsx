@@ -33,6 +33,9 @@ import {
 } from "@/lib/adapters/ai-elements-adapter"
 import { resolveTurnDurationMs, TurnStats } from "./turn-stats"
 import { LiveTurnStats } from "./live-turn-stats"
+import { ModelLabelProvider } from "./model-label-context"
+import { useModelLabels } from "@/hooks/use-model-labels"
+import { ActivityStatusIcon } from "@/components/shared/activity-status-icon"
 import { ReplyArtifacts } from "./reply-artifacts"
 import { UserResourceLinks } from "./user-resource-links"
 import { UserImageAttachments } from "./user-image-attachments"
@@ -88,6 +91,7 @@ interface MessageListViewProps {
   imageRoot?: string | null
   agentType: AgentType
   connStatus?: ConnectionStatus | null
+  awaitingUser?: boolean
   isActive?: boolean
   sendSignal?: number
   detailLoading?: boolean
@@ -968,14 +972,21 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   )
 })
 
-const PendingTypingIndicator = memo(function PendingTypingIndicator() {
+const PendingTypingIndicator = memo(function PendingTypingIndicator({
+  awaitingUser,
+}: {
+  awaitingUser: boolean
+}) {
+  const t = useTranslations("Folder.chat.liveTurnStats")
   return (
     <Message from="assistant">
       <MessageContent>
-        <div className="flex items-center gap-1.5 py-1">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-[pulse_1.4s_ease-in-out_infinite]" />
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-[pulse_1.4s_ease-in-out_0.2s_infinite]" />
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-muted-foreground/60 animate-[pulse_1.4s_ease-in-out_0.4s_infinite]" />
+        <div
+          className="flex items-center gap-1.5 py-1 text-xs text-muted-foreground"
+          role="status"
+        >
+          <ActivityStatusIcon status={awaitingUser ? "approval" : "waiting"} />
+          <span>{t(awaitingUser ? "awaitingUser" : "waiting")}</span>
         </div>
       </MessageContent>
     </Message>
@@ -1011,6 +1022,7 @@ export function MessageListView({
   imageRoot,
   agentType,
   connStatus,
+  awaitingUser = false,
   isActive = true,
   sendSignal = 0,
   detailLoading = false,
@@ -1029,6 +1041,7 @@ export function MessageListView({
 }: MessageListViewProps) {
   const t = useTranslations("Folder.chat.messageList")
   const sharedT = useTranslations("Folder.chat.shared")
+  const modelLabel = useModelLabels(agentType)
   // Subscribe to only this conversation's session + derived timeline. Another
   // conversation's streaming token no longer re-renders this view; the timeline
   // selector returns a reference-stable array (memoized per session object) so
@@ -1355,7 +1368,7 @@ export function MessageListView({
           )
         }
         case "typing":
-          return <PendingTypingIndicator />
+          return <PendingTypingIndicator awaitingUser={awaitingUser} />
         case "compaction":
           // Chrome-less centered divider between turns (no avatar / stats footer).
           return (
@@ -1368,6 +1381,7 @@ export function MessageListView({
       }
     },
     [
+      awaitingUser,
       userTurnHeader,
       onEditMessage,
       fold.armed,
@@ -1566,6 +1580,7 @@ export function MessageListView({
         {liveMessage && connStatus === "prompting" && (
           <LiveTurnStats
             message={liveMessage}
+            awaitingUser={awaitingUser}
             agentType={agentType}
             isStreaming={connStatus === "prompting"}
           />
@@ -1607,7 +1622,7 @@ export function MessageListView({
     <MarkdownImageProvider
       rootPath={imageRoot === undefined ? storedImageRoot : imageRoot}
     >
-      {thread}
+      <ModelLabelProvider value={modelLabel}>{thread}</ModelLabelProvider>
     </MarkdownImageProvider>
   )
 }

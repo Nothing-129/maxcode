@@ -2,7 +2,15 @@
 
 import { useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Check, ChevronRight, Loader2, ArrowRight, Pencil } from "lucide-react"
+import {
+  Check,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  ArrowRight,
+  Pencil,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -100,6 +108,9 @@ export function AskQuestionCard({
   // selections never carry over — the component stays correct on its own rather
   // than relying on the caller to supply a fresh React key.
   const [renderedId, setRenderedId] = useState(question.question_id)
+  // Collapsing only hides the pending form; it never answers or skips it.
+  const [liveCollapsed, setCollapsed] = useState(false)
+  const collapsed = !readOnly && liveCollapsed
 
   // How many questions are answered — drives the progress bar, the counter, and
   // the submit gate (every question must be answered).
@@ -125,6 +136,8 @@ export function AskQuestionCard({
     setActiveId(questions[0]?.id ?? "")
     setSubmitting(false)
     setError(false)
+    // A replacement is a new blocking request, not the card the user put away.
+    setCollapsed(false)
     // `inFlight` is intentionally not reset here — refs must not be written
     // during render. `run` clears it whenever the round-trip resolves (both the
     // success and failure paths), so it is already idle by the time a replacement
@@ -227,6 +240,8 @@ export function AskQuestionCard({
       setError(true)
       setSubmitting(false)
       inFlight.current = false
+      // The error and retry must remain visible after a failed submission.
+      setCollapsed(false)
     }
   }
 
@@ -474,7 +489,7 @@ export function AskQuestionCard({
       aria-label={title ?? t("title")}
       className="mb-2 flex max-h-[88svh] flex-col overflow-hidden rounded-[20px] border border-border bg-card shadow-sm ws-msg-card"
     >
-      {isMulti && (
+      {isMulti && !collapsed && (
         <Progress
           value={(answeredCount / questions.length) * 100}
           aria-label={t("title")}
@@ -488,16 +503,16 @@ export function AskQuestionCard({
         <div
           className={cn(
             "flex shrink-0 gap-2.5 px-1 pt-0.5 pb-1",
-            resolvedSubtitle ? "items-start" : "items-center"
+            resolvedSubtitle && !collapsed ? "items-start" : "items-center"
           )}
         >
           <div className="min-w-0 flex-1">
-            {!isMulti && !readOnly ? (
+            {!isMulti && !readOnly && !collapsed ? (
               questionHeading(questions[0])
             ) : (
               <p className="text-sm font-medium">{title ?? t("title")}</p>
             )}
-            {readOnly && resolvedSubtitle && (
+            {readOnly && resolvedSubtitle && !collapsed && (
               <p className="text-xs text-muted-foreground">
                 {resolvedSubtitle}
               </p>
@@ -508,62 +523,80 @@ export function AskQuestionCard({
               {`${answeredCount}/${questions.length}`}
             </span>
           )}
+          {!readOnly && (
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              className="shrink-0 self-center"
+              aria-label={collapsed ? t("expand") : t("collapse")}
+              aria-expanded={!collapsed}
+              title={collapsed ? t("expand") : t("collapse")}
+              onClick={() => setCollapsed((value) => !value)}
+            >
+              {collapsed ? (
+                <ChevronUp className="size-3.5" />
+              ) : (
+                <ChevronDown className="size-3.5" />
+              )}
+            </Button>
+          )}
         </div>
 
-        {isMulti ? (
-          <Tabs
-            value={activeId}
-            onValueChange={setActiveId}
-            className="flex min-h-0 flex-col gap-2"
-          >
-            <TabsList className="w-full shrink-0">
-              {questions.map((q, i) => {
-                const done = isAnswered(state[q.id])
-                return (
-                  <TabsTrigger
-                    key={q.id}
-                    value={q.id}
-                    disabled={submitting}
-                    data-answered={done ? "true" : "false"}
-                    className="min-w-0 gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[answered=true]:text-primary"
-                  >
-                    {done ? (
-                      <Check className="size-3.5 shrink-0 text-primary" />
-                    ) : (
-                      <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-current text-3xs leading-none">
-                        {i + 1}
-                      </span>
-                    )}
-                    <span className="truncate">{q.header}</span>
-                  </TabsTrigger>
-                )
-              })}
-            </TabsList>
-            {questions.map((q) => (
-              <TabsContent
-                key={q.id}
-                value={q.id}
-                style={{ height: bodyHeight }}
-                className="mt-0 flex-none space-y-2.5 overflow-y-auto pr-1"
-              >
-                {questionHeading(q)}
-                {renderOptions(q)}
-              </TabsContent>
-            ))}
-          </Tabs>
-        ) : (
-          <div className="min-h-0 space-y-2.5 overflow-y-auto">
-            {questions.map((q) => (
-              <div key={q.id} className="space-y-2.5">
-                {readOnly && questionHeading(q)}
-                {renderOptions(q)}
-              </div>
-            ))}
-          </div>
-        )}
+        {!collapsed &&
+          (isMulti ? (
+            <Tabs
+              value={activeId}
+              onValueChange={setActiveId}
+              className="flex min-h-0 flex-col gap-2"
+            >
+              <TabsList className="w-full shrink-0">
+                {questions.map((q, i) => {
+                  const done = isAnswered(state[q.id])
+                  return (
+                    <TabsTrigger
+                      key={q.id}
+                      value={q.id}
+                      disabled={submitting}
+                      data-answered={done ? "true" : "false"}
+                      className="min-w-0 gap-1.5 data-[state=active]:bg-background data-[state=active]:shadow-sm data-[answered=true]:text-primary"
+                    >
+                      {done ? (
+                        <Check className="size-3.5 shrink-0 text-primary" />
+                      ) : (
+                        <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-current text-3xs leading-none">
+                          {i + 1}
+                        </span>
+                      )}
+                      <span className="truncate">{q.header}</span>
+                    </TabsTrigger>
+                  )
+                })}
+              </TabsList>
+              {questions.map((q) => (
+                <TabsContent
+                  key={q.id}
+                  value={q.id}
+                  style={{ height: bodyHeight }}
+                  className="mt-0 flex-none space-y-2.5 overflow-y-auto pr-1"
+                >
+                  {questionHeading(q)}
+                  {renderOptions(q)}
+                </TabsContent>
+              ))}
+            </Tabs>
+          ) : (
+            <div className="min-h-0 space-y-2.5 overflow-y-auto">
+              {questions.map((q) => (
+                <div key={q.id} className="space-y-2.5">
+                  {readOnly && questionHeading(q)}
+                  {renderOptions(q)}
+                </div>
+              ))}
+            </div>
+          ))}
 
-        {/* Footer — dropped in the read-only/answered view */}
-        {!readOnly && (
+        {/* Footer — hidden with the form, absent from answered records. */}
+        {!readOnly && !collapsed && (
           <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/60 px-1 pt-3">
             <Button
               variant="outline"

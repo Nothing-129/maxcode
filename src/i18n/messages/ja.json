@@ -3430,6 +3430,10 @@
         "showLess": "折りたたむ"
       },
       "liveTurnStats": {
+        "waiting": "応答を待機中",
+        "running": "ツールを実行中",
+        "awaitingUser": "確認を待機中",
+        "settled": "応答終了",
         "thinking": "考え中...",
         "streaming": "ストリーミング中",
         "elapsedHours": "{value}時間",
@@ -3736,7 +3740,9 @@
         "skip": "スキップ",
         "next": "次へ",
         "submit": "送信",
-        "submitError": "送信できませんでした。もう一度お試しください。"
+        "submitError": "送信できませんでした。もう一度お試しください。",
+        "collapse": "折りたたむ",
+        "expand": "展開"
       },
       "planApproval": {
         "title": "エージェントが計画を提示しました — 確認してください",

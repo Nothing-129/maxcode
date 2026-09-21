@@ -182,7 +182,7 @@ function createDesktopUpdater({
     }
     return checking
   }
-  return {
+  const controller = {
     snapshot,
     status: () => ({ ...info(), capability: "reexec", restartDelayMs: 0 }),
     async check() {
@@ -190,8 +190,12 @@ function createDesktopUpdater({
         enabled &&
         !downloading &&
         !["ready_to_restart", "restarting"].includes(state.status)
-      )
+      ) {
         await checkRaw()
+        // Downloads are owned by the main process, never by a mounted view.
+        // start() coalesces simultaneous checks from multiple windows.
+        if (available) controller.start()
+      }
       return info()
     },
     start() {
@@ -267,6 +271,7 @@ function createDesktopUpdater({
       }
     },
   }
+  return controller
 }
 
 module.exports = { createDesktopUpdater, probeUrl }

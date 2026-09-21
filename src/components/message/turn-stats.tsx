@@ -19,6 +19,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useMessageScroll } from "@/components/message/message-scroll-context"
+import { useModelLabel } from "@/components/message/model-label-context"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
 import { formatTokenCount } from "@/lib/token-format"
@@ -92,6 +93,7 @@ export function TurnStats({
   const tLive = useTranslations("Folder.chat.liveTurnStats")
   const tTasks = useTranslations("Tasks")
   const scroll = useMessageScroll()
+  const modelLabel = useModelLabel()
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
   const shortTimeFormatter = useMemo(
@@ -125,7 +127,10 @@ export function TurnStats({
     ? fullTimeFormatter.format(completedAtDate)
     : null
 
-  const displayModels = models?.length ? models : model ? [model] : []
+  // Labels are presentation-only: preserve raw ids for billing and requests.
+  const displayModels = (models?.length ? models : model ? [model] : []).map(
+    (id) => modelLabel(id) ?? id
+  )
   const resolvedDurationMs = resolveTurnDurationMs(
     duration_ms,
     completedAt,

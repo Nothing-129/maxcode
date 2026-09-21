@@ -3430,6 +3430,10 @@
         "showLess": "طي"
       },
       "liveTurnStats": {
+        "waiting": "في انتظار الرد",
+        "running": "جارٍ تشغيل الأدوات",
+        "awaitingUser": "في انتظار تأكيدك",
+        "settled": "انتهى الرد",
         "thinking": "جارٍ التفكير...",
         "streaming": "جارٍ البث",
         "elapsedHours": "{value}س",
@@ -3736,7 +3740,9 @@
         "skip": "تخطّي",
         "next": "التالي",
         "submit": "إرسال",
-        "submitError": "تعذّر الإرسال. حاول مرة أخرى."
+        "submitError": "تعذّر الإرسال. حاول مرة أخرى.",
+        "collapse": "طيّ",
+        "expand": "توسيع"
       },
       "planApproval": {
         "title": "لدى الوكيل خطة — راجعها",

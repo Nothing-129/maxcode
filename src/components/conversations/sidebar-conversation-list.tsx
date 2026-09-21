@@ -45,6 +45,7 @@ import {
 } from "lucide-react"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
+import { recentConversationFolderLabel } from "@/lib/folder-display"
 import { collectUnreadFolders } from "@/lib/folder-unread"
 import { ConversationUnreadDot } from "./conversation-unread-dot"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
@@ -3396,6 +3397,9 @@ export function SidebarConversationList({
       )
     }
     const conv = row.conversation
+    const recentFolderName = row.recent
+      ? recentConversationFolderLabel(conv, allFolders)
+      : null
     // No folder tint reaches this row: a card always renders in the app theme,
     // whichever colour its folder carries. The colour is a label for the FOLDER,
     // not a skin for the sessions inside it.
@@ -3424,6 +3428,11 @@ export function SidebarConversationList({
         hasChildren={conv.child_count > 0}
         expanded={conversationExpanded.has(conv.id)}
         onToggleExpand={toggleConversation}
+        folderLabel={
+          recentFolderName ??
+          (row.recent && conv.kind === "chat" ? t("sectionChats") : undefined)
+        }
+        showFolderIcon={recentFolderName != null}
       />
     )
   }

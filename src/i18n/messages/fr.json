@@ -3430,6 +3430,10 @@
         "showLess": "Afficher moins"
       },
       "liveTurnStats": {
+        "waiting": "En attente de réponse",
+        "running": "Exécution des outils",
+        "awaitingUser": "En attente de votre confirmation",
+        "settled": "Réponse terminée",
         "thinking": "Réflexion...",
         "streaming": "Diffusion",
         "elapsedHours": "{value} h",
@@ -3736,7 +3740,9 @@
         "skip": "Ignorer",
         "next": "Suivant",
         "submit": "Envoyer",
-        "submitError": "Échec de l'envoi. Veuillez réessayer."
+        "submitError": "Échec de l'envoi. Veuillez réessayer.",
+        "collapse": "Replier",
+        "expand": "Déplier"
       },
       "planApproval": {
         "title": "L'agent a un plan — à vérifier",

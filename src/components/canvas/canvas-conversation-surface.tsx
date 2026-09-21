@@ -794,6 +794,14 @@ export function CanvasConversationSurface({
             imageRoot={workingDir}
             agentType={agentType}
             connStatus={connStatus}
+            awaitingUser={
+              !!(
+                conn.pendingPermission ||
+                conn.pendingQuestion ||
+                conn.pendingAskQuestion ||
+                conn.pendingPlanApproval
+              )
+            }
             isActive={isActive}
             sendSignal={sendSignal}
             detailLoading={detailLoading}

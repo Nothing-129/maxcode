@@ -80,7 +80,7 @@ function fixture(
 }
 
 describe("MaxCode contract: Electron differential update lifecycle", () => {
-  it("uses the personal architecture feed and opts into differential downloads without downloading or installing on its own", async () => {
+  it("automatically downloads stable updates after checking but never installs without a click", async () => {
     const { controller, updater } = fixture()
     expect(updater).toMatchObject({
       autoDownload: false,
@@ -98,6 +98,21 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
       runtime: "electron",
       update: { version: "0.30.7" },
     })
+    await vi.waitFor(() =>
+      expect(updater.downloadUpdate).toHaveBeenCalledOnce()
+    )
+    await Promise.all([controller.check(), controller.check()])
+    expect(updater.downloadUpdate).toHaveBeenCalledOnce()
+    expect(updater.quitAndInstall).not.toHaveBeenCalled()
+  })
+
+  it("does not download when no newer release exists", async () => {
+    const { controller, updater } = fixture()
+    updater.checkForUpdates.mockImplementation(async () => {
+      updater.emit("update-not-available")
+    })
+    await controller.check()
+    expect(controller.snapshot().status).toBe("idle")
     expect(updater.downloadUpdate).not.toHaveBeenCalled()
     expect(updater.quitAndInstall).not.toHaveBeenCalled()
   })
@@ -150,7 +165,8 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
         error: "Network unavailable",
       })
     )
-    f.controller.start()
+    // The desktop hides failed-download actions; checking the version retries.
+    await f.controller.check()
     await vi.waitFor(() =>
       expect(f.updater.downloadUpdate).toHaveBeenCalledTimes(3)
     )
@@ -171,13 +187,11 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
     expect(await controller.check()).toMatchObject({
       update: { version: "0.30.7" },
     })
-    expect(updater.setFeedURL.mock.calls.map((call) => call[0])).toEqual([
-      githubFeed,
-      githubFeed,
-      mirrorFeed,
-    ])
-    expect(updater.previousBlockmapBaseUrlOverride).toBe(
-      `${UPDATE_MIRROR}/download/v0.30.6/`
+    expect(
+      updater.setFeedURL.mock.calls.slice(0, 3).map((call) => call[0])
+    ).toEqual([githubFeed, githubFeed, mirrorFeed])
+    await vi.waitFor(() =>
+      expect(updater.downloadUpdate).toHaveBeenCalledOnce()
     )
   })
 
@@ -188,11 +202,15 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
     expect(await controller.check()).toMatchObject({
       update: { version: "0.30.7" },
     })
+    await vi.waitFor(() =>
+      expect(updater.downloadUpdate).toHaveBeenCalledOnce()
+    )
     expect(updater.setFeedURL.mock.calls.map((call) => call[0])).toEqual([
       githubFeed,
       mirrorFeed,
+      mirrorFeed,
     ])
-    expect(updater.checkForUpdates).toHaveBeenCalledOnce()
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(2)
   })
 
   it("retries the download on the Cloudflare Tunnel mirror after GitHub transfer fails", async () => {

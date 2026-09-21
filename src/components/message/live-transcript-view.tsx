@@ -369,6 +369,14 @@ export function LiveTranscriptView({
           imageRoot={conn?.workingDir ?? undefined}
           agentType={agentType ?? "claude_code"}
           connStatus={connStatus}
+          awaitingUser={
+            !!(
+              conn?.pendingPermission ||
+              conn?.pendingQuestion ||
+              conn?.pendingAskQuestion ||
+              conn?.pendingPlanApproval
+            )
+          }
           isActive={false}
           detailLoading={detailLoading}
           detailError={error}

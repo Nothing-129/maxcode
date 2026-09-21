@@ -125,6 +125,7 @@ import {
   getCachedSelectors,
   updateCachedSelectors,
 } from "@/lib/selectors-cache-storage"
+import { rememberModelLabels } from "@/lib/model-label-store"
 import { useAlertContext, type AlertAction } from "@/contexts/alert-context"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 
@@ -4780,6 +4781,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             updateCachedSelectors(cfgConn.agentType, {
               configOptions: e.config_options,
             })
+            // Attribute labels to the connection, never the selected UI agent.
+            rememberModelLabels(cfgConn.agentType, e.config_options)
           }
           break
         }
@@ -4819,6 +4822,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               modes: rdyConn.modes,
               configOptions: rdyConn.configOptions,
             })
+            // Replay may restore selectors without a fresh options event.
+            rememberModelLabels(rdyConn.agentType, rdyConn.configOptions)
           }
           break
         }

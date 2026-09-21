@@ -258,24 +258,35 @@ describe("UpdateProvider", () => {
     await waitFor(() => expect(text()).toBe("installing #51"))
   })
 
-  it("automatically restarts once an installed update is ready", async () => {
+  it("does not automatically restart a staged desktop update", async () => {
     desktopMode = true
     snapshot = {
       seq: 12,
       status: "ready_to_restart",
       version: "0.21.9",
     }
-    // A desktop relaunch never resolves in production. Keep it pending here so
-    // the test verifies the automatic request without simulating app teardown.
-    callImpl = async (endpoint: string) => {
+    render(makeTree())
+
+    await waitFor(() => expect(text()).toBe("ready_to_restart #12"))
+    expect(installUpdate).not.toHaveBeenCalled()
+  })
+
+  it("still automatically requests a server restart when staging finishes", async () => {
+    snapshot = { seq: 12, status: "ready_to_restart", version: "0.21.9" }
+    callImpl = async (endpoint) => {
       if (endpoint === "app_update_state") return snapshot
+      if (endpoint === "app_update_status") return checkResult()
+      if (endpoint === "health") return { version: "0.21.7" }
       if (endpoint === "restart_app") return new Promise(() => {})
       throw new Error(`unexpected endpoint: ${endpoint}`)
     }
-
     render(makeTree())
-
-    await waitFor(() => expect(installUpdate).toHaveBeenCalledTimes(1))
+    await waitFor(() =>
+      expect(
+        call.mock.calls.filter(([name]) => name === "restart_app")
+      ).toHaveLength(1)
+    )
+    expect(installUpdate).not.toHaveBeenCalled()
   })
 })
 

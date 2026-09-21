@@ -19,6 +19,11 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| Claude 命令审批 | ACP 0.79、PowerShell 归一化、特殊 Shell 命令完整展示，保留显式拒绝优先和独立 CLI 更新 | `afdcfe0b` | `agents.claude-079-command-approval` |
+| Pi 上下文容量 | 按 provider/id 读取 models.json，支持默认值、重复声明及覆盖层，保留历史计时和用量 | `07653466`、`7d74c791`、`29e435ef` | `history.pi-declared-model-window` |
+| Office 预览清理 | 同步发出终止信号、异步回收，关闭时不依赖任务调度 | `65588b03` | `runtime.office-watch-immediate-reap` |
+| 待回答提问卡 | 正常布局中折叠，保留选择；新问题和提交失败自动展开，沿用现有问题卡视觉 | `d3c3ecd6`、`3d81d7cc` | `chat.pending-question-collapse` |
+| 模型显示名称 | 按连接所属智能体记录名称，历史回复与会话详情统一；只改显示，不改原始模型 ID 和费用 | `78c9313b` | `chat.agent-model-display-labels` |
 | 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#3CA1EF`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新仅保留六种，隐藏自定义新增入口 | `worktree-2026-09-17` | `agents.maintained-catalog` |

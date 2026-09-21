@@ -2,6 +2,109 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.claude-079-command-approval",
+      "category": "runtime",
+      "description": "Claude ACP 0.79 preserves explicit default-to-no approvals and command descriptions, renders bracket/brace/heredoc shell commands and normalizes PowerShell for live/history tools. Only Claude's adapter pin advances; six-agent scope, independent official CLI updates and native queue behavior remain intact.",
+      "origins": ["afdcfe0b"],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src/lib/permission-request.ts",
+        "src/lib/tool-call-normalization.ts",
+        "src/lib/adapters/tool-kind-classifier.ts",
+        "src/components/chat/permission-dialog.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-selected-20260920.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "history.pi-declared-model-window",
+      "category": "runtime",
+      "description": "Pi models.json capacity outranks name inference and follows provider/id, last declaration, 128000 omitted capacity and modelOverrides. Provider switches never reuse the previous provider; ambiguous or invalid declarations are declined. Custom agent/session paths and downstream usage/timing remain intact.",
+      "origins": ["07653466", "7d74c791", "29e435ef"],
+      "paths": [
+        "src-tauri/src/parsers/pi.rs",
+        "src/maxcode-contracts/pi-model-window.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-selected-20260920.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "runtime.office-watch-immediate-reap",
+      "category": "runtime",
+      "description": "Office preview watcher teardown sends kill synchronously, without depending on a runtime task being polled; only wait/reaping is detached. Test children also use kill_on_drop.",
+      "origins": ["65588b03"],
+      "paths": [
+        "src-tauri/src/office_watch/mod.rs",
+        "src/maxcode-contracts/office-watch-reap.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-selected-20260920.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.pending-question-collapse",
+      "category": "product",
+      "description": "Only pending live questions can collapse in normal flow, preserving choices and explicit submission. Replacement sets and submission errors reopen the form. Keep MaxCode's question shell, selection surfaces and footer; no floating/dragging portal or answered-record collapse control.",
+      "origins": ["d3c3ecd6", "3d81d7cc"],
+      "paths": [
+        "src/components/chat/ask-question-card.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-selected-20260920.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.agent-model-display-labels",
+      "category": "product",
+      "description": "Connection-owned live/replay model selectors persist per-agent display labels for reply footers, session details and identity chips. Unknown ids pass through; raw billing/request/transcript ids are never rewritten. Missing catalog entries retain old labels, explicit renames back to ids clear stale labels, and existing selector cache helpers remain in use.",
+      "origins": ["78c9313b"],
+      "paths": [
+        "src/lib/model-label-store.ts",
+        "src/lib/model-config-groups.ts",
+        "src/hooks/use-model-labels.ts",
+        "src/components/message/model-label-context.tsx",
+        "src/components/message/turn-stats.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/conversations/session-details-content.tsx",
+        "src/contexts/acp-connections-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/model-display-labels.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.activity-feedback",
+      "category": "product",
+      "description": "Observed agent phases distinguish waiting, thinking, output, parallel tools and blocking user decisions. Tool status icons animate only in-place transitions, never history mounts; disclosure and output DOM stay intact. Reduced motion disables effects and hidden/offscreen running icons pause.",
+      "origins": ["worktree-2026-09-20"],
+      "paths": [
+        "src/components/shared/activity-status-icon.tsx",
+        "src/components/shared/activity-status-icon.module.css",
+        "src/lib/agent-activity.ts",
+        "src/components/ai-elements/tool.tsx",
+        "src/components/message/live-turn-stats.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/live-transcript-view.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/canvas/canvas-conversation-surface.tsx",
+        "src/i18n/messages/en.json",
+        "src/i18n/messages/zh-CN.json",
+        "src/i18n/messages/zh-TW.json",
+        "src/i18n/messages/ja.json",
+        "src/i18n/messages/ko.json",
+        "src/i18n/messages/de.json",
+        "src/i18n/messages/es.json",
+        "src/i18n/messages/fr.json",
+        "src/i18n/messages/pt.json",
+        "src/i18n/messages/ar.json"
+      ],
+      "contracts": ["src/maxcode-contracts/activity-feedback.contract.test.tsx"]
+    },
+    {
       "id": "chat.claude-native-queued-steering",
       "category": "runtime",
       "description": "Only Claude Code sessions with confirmed native steering append queued messages into the current turn. Other agents and non-native Claude keep stop-and-prioritize. Complete draft blocks refuse pull fallback; queue-owned claims survive panel remounts, block auto-flush and duplicate clicks, preserve attachments on failure and remove only confirmed deliveries.",
@@ -1074,7 +1177,7 @@
     {
       "id": "desktop.differential-updates",
       "category": "platform",
-      "description": "Electron owns stable-channel update checks, differential downloads with verified full-download fallback, shared progress, and automatic restart after managed backend shutdown. Clicking the version checks for updates directly. A quiet icon beside the version starts the whole download-and-restart flow with one click, without discovery notifications or a release-details popover. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
+      "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready; an explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "electron/",
@@ -1959,7 +2062,7 @@
     {
       "id": "workspace.sidebar-footer",
       "category": "product",
-      "description": "Sidebar footer retains conversation usage, alerts and version/update entries outside scrolling history, with the version/update entry before the alerts icon. The mobile footer uses the drawer background without a divider. The obsolete quick-actions gamepad launcher must stay removed after adopting the sidebar navigation and overflow controls.",
+      "description": "Sidebar footer retains conversation usage, alerts and version/update entries outside scrolling history, with the version/update entry before the alerts icon. The alerts entry is absent when there are no alerts and appears only while warnings or errors exist. The mobile footer uses the drawer background without a divider. The obsolete quick-actions gamepad launcher must stay removed after adopting the sidebar navigation and overflow controls.",
       "origins": ["worktree-2026-09-08", "worktree-2026-09-09"],
       "paths": [
         "src/app/globals.css",
@@ -1970,7 +2073,10 @@
         "src/components/layout/status-bar-update.tsx",
         "src/components/layout/quick-actions-dropdown.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/sidebar-footer.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-footer.contract.test.tsx",
+        "src/maxcode-contracts/status-bar-alerts.contract.test.tsx"
+      ]
     },
     {
       "id": "history.codex-semantic-mcp",

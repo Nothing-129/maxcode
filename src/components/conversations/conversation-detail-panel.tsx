@@ -2117,6 +2117,14 @@ const ConversationTabView = memo(function ConversationTabView({
           imageRoot={workingDirForConnection ?? null}
           agentType={selectedAgent}
           connStatus={connStatus}
+          awaitingUser={
+            !!(
+              conn.pendingPermission ||
+              conn.pendingQuestion ||
+              conn.pendingAskQuestion ||
+              conn.pendingPlanApproval
+            )
+          }
           isActive={isActive}
           sendSignal={sendSignal}
           detailLoading={detailLoading}

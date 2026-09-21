@@ -3430,6 +3430,10 @@
         "showLess": "Weniger anzeigen"
       },
       "liveTurnStats": {
+        "waiting": "Warte auf Antwort",
+        "running": "Werkzeuge werden ausgeführt",
+        "awaitingUser": "Warte auf deine Bestätigung",
+        "settled": "Antwort beendet",
         "thinking": "Denkt nach...",
         "streaming": "Übertragung",
         "elapsedHours": "{value} Std",
@@ -3736,7 +3740,9 @@
         "skip": "Überspringen",
         "next": "Weiter",
         "submit": "Senden",
-        "submitError": "Senden fehlgeschlagen. Bitte versuche es erneut."
+        "submitError": "Senden fehlgeschlagen. Bitte versuche es erneut.",
+        "collapse": "Einklappen",
+        "expand": "Ausklappen"
       },
       "planApproval": {
         "title": "Der Agent hat einen Plan – bitte prüfen",

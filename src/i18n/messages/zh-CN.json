@@ -3430,6 +3430,10 @@
         "showLess": "收起"
       },
       "liveTurnStats": {
+        "waiting": "等待响应",
+        "running": "执行工具中",
+        "awaitingUser": "等待你的确认",
+        "settled": "响应已结束",
         "thinking": "思考中...",
         "streaming": "工作中",
         "elapsedHours": "{value} 小时",
@@ -3736,7 +3740,9 @@
         "skip": "跳过",
         "next": "下一题",
         "submit": "提交",
-        "submitError": "提交失败，请重试。"
+        "submitError": "提交失败，请重试。",
+        "collapse": "折叠",
+        "expand": "展开"
       },
       "planApproval": {
         "title": "智能体已给出计划——请审阅",

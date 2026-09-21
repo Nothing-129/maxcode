@@ -137,9 +137,9 @@ export interface UpdateContextValue {
   /** Begin (or attach to) a background download+install of the available
    * update. Progress arrives via {@link state}. */
   startUpdate: () => Promise<void>
-  /** Relaunch into the staged update. The provider calls this automatically
-   * when `state.status` becomes `ready_to_restart`; it remains exposed for the
-   * manual recovery button if that automatic attempt fails. Desktop relaunches
+  /** Relaunch into the staged update. Desktop waits for an explicit click;
+   * servers call this automatically on `ready_to_restart`, with manual
+   * recovery available if that attempt fails. Desktop relaunches
    * the app; server drives the countdown + health-poll + reload. */
   restart: () => Promise<void>
   /** Revert to the previously-installed server bundle (server mode only). */
@@ -802,12 +802,11 @@ export function UpdateProvider({ children }: { children: React.ReactNode }) {
     }
   }, [t])
 
-  // Installing an update is a single action: once the backend has finished
-  // downloading, verifying and staging it, relaunch immediately. Keeping this
-  // in the provider (rather than a particular settings/status component) also
-  // covers updates that finish while the user navigates elsewhere or reloads
-  // the renderer mid-download.
+  // Servers retain their one-action install flow. Electron downloads silently
+  // in the main process and must wait for the user's explicit restart action,
+  // including when a renderer remounts with an already-staged update.
   useEffect(() => {
+    if (usesElectronInstaller()) return
     if (state.status !== "ready_to_restart") {
       autoRestartedSeqRef.current = null
       return

@@ -1,0 +1,97 @@
+# Logs
+/logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules
+dist
+dist-ssr
+*.local
+tsconfig.tsbuildinfo
+
+# Next.js
+.next/
+out/
+next-env.d.ts
+
+# Monaco editor local files (copied from node_modules)
+public/vs
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Test artifacts
+coverage/
+*.snap.new
+.vitest-cache/
+
+# macOS signing material. Keep certificates and exported private keys out of git.
+*.cer
+*.csr
+*.p12
+certificate-base64.txt
+
+# Agent
+.claude
+.docs
+docs/superpowers
+
+# Tauri sidecar staging (built per-target by prepare-sidecars.mjs).
+# The binaries are platform-specific build artifacts; ship them through
+# release.yml, not git.
+src-tauri/binaries/
+
+# Electron platform-specific backend staging and packages.
+electron/.staging/
+electron/dist/
+
+# pnpm local store (pnpm 11+)
+.pnpm-store/
+
+# `rustc foo.rs` with no -o writes its binary here. Scratch compiles are how
+# you check a borrow or a lifetime question in isolation, and the leftover
+# executable then sits untracked in the repo root — which is enough to fail a
+# work task's "worktree is clean" check at delivery.
+/rust_out
+
+# ===== ↑ 以上同步自 .gitignore（「从 .gitignore 同步」只重写以上部分）=====
+.git/
+.hg/
+.svn/
+bower_components/
+jspm_packages/
+__pycache__/
+site-packages/
+venv/
+htmlcov/
+lcov-report/
+cmakefiles/
+cmake-build-*/
+bazel-*/
+pods/
+deriveddata/
+storybook-static/
+playwright-report/
+test-results/
+allure-results/
+allure-report/
+cdk.out/
+*.egg-info/
+*.dist-info/
+eggs/
+pip-wheel-metadata/
+wheels/
+# ----- ↑ 以上为 ZCode 默认排除规则（自定义规则请写在本行下方，不会被同步/恢复改动）-----
+# 自定义规则写在下方（本行提示可删除）

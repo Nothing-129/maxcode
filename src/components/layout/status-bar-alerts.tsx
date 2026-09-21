@@ -153,6 +153,8 @@ export function StatusBarAlerts() {
   const t = useTranslations("Folder.statusBar.alerts")
   const { alerts, hasAlerts, dismissAlert, clearAll } = useAlertContext()
 
+  if (!hasAlerts) return null
+
   return (
     <Popover>
       <PopoverTrigger asChild>

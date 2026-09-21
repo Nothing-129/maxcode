@@ -1,4 +1,4 @@
-import type { FolderDetail } from "@/lib/types"
+import type { DbConversationSummary, FolderDetail } from "@/lib/types"
 
 /**
  * The name to show for a folder in the branch selector and the input-box folder
@@ -66,4 +66,27 @@ export function resolvePickerSelectedFolderId(
   folder: Pick<FolderDetail, "id" | "parent_id">
 ): number {
   return folder.parent_id ?? folder.id
+}
+
+/**
+ * Folder name shown under a Recent-row title. Chat-mode sessions are
+ * folderless on purpose, so they return null — the Recent row then falls
+ * back to the sidebar "Chat" section label. Worktrees surface the parent
+ * repo (alias, then name), matching the other folder-display surfaces.
+ */
+export function recentConversationFolderLabel(
+  conversation: Pick<DbConversationSummary, "folder_id" | "kind">,
+  folders: readonly Pick<
+    FolderDetail,
+    "id" | "name" | "alias" | "parent_id" | "kind"
+  >[]
+): string | null {
+  if (conversation.kind === "chat") return null
+  const folder = folders.find((f) => f.id === conversation.folder_id)
+  if (!folder || folder.kind === "chat") return null
+  const display =
+    folders.find((f) => f.id === resolvePickerSelectedFolderId(folder)) ??
+    folder
+  const label = formatFolderLabelWithAlias(display)
+  return label || null
 }

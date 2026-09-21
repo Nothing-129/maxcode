@@ -1339,6 +1339,39 @@ describe("SidebarConversationList — Recent section", () => {
     expect(document.body.textContent).not.toContain("conv-13")
   })
 
+  it("names the folder on Recent rows only", () => {
+    render(recentTree(true))
+    const labels = Array.from(
+      document.querySelectorAll("[data-recent-folder]")
+    ).map((el) => el.textContent)
+    expect(labels).toHaveLength(2)
+    expect(labels).toEqual(expect.arrayContaining(["Chat", "Repo"]))
+    const folderMarks = Array.from(
+      document.querySelectorAll("[data-recent-folder]")
+    )
+    for (const el of folderMarks) {
+      if (el.textContent === "Repo") {
+        expect(el.querySelector('[data-recent-source="folder"]')).not.toBeNull()
+      } else {
+        expect(el.querySelector('[data-recent-source="chat"]')).not.toBeNull()
+      }
+    }
+    const recentRows = Array.from(
+      document.querySelectorAll("[data-recent-folder]")
+    ).map((el) => el.closest("[data-conv-key]"))
+    expect(recentRows).toHaveLength(2)
+    for (const row of recentRows) {
+      expect(row).toHaveClass("h-[2.75rem]")
+    }
+    const folderRows = Array.from(
+      document.querySelectorAll("[data-conv-key]")
+    ).filter((row) => !row.querySelector("[data-recent-folder]"))
+    expect(folderRows.length).toBeGreaterThan(0)
+    for (const row of folderRows) {
+      expect(row).toHaveClass("h-[1.9375rem]")
+    }
+  })
+
   it("collapses independently of the other sections", () => {
     render(recentTree(true))
     const header = Array.from(document.querySelectorAll("button")).find(

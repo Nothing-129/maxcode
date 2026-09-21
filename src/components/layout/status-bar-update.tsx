@@ -5,6 +5,7 @@ import { ArrowDown, CircleAlert, LoaderCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { openUrl } from "@/lib/platform"
+import { usesElectronInstaller } from "@/lib/updater"
 import { cn } from "@/lib/utils"
 
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
@@ -26,6 +27,7 @@ export function StatusBarUpdate() {
     restartCountdown,
     isBusy,
     canInstallInPlace,
+    runtime,
     checking,
     checkNow,
     startUpdate,
@@ -36,7 +38,13 @@ export function StatusBarUpdate() {
   const ready = state.status === "ready_to_restart"
   const failed = state.status === "error"
   const busy = actionPending || isBusy || isUpdating || restarting
-  const showAction = available || isUpdating || restarting || ready || failed
+  const desktopAutoDownload =
+    usesElectronInstaller() || (runtime === "electron" && canInstallInPlace)
+  // Desktop offers an install action only once the verified package is ready.
+  // Failed background downloads can be retried by checking the version again.
+  const showAction = desktopAutoDownload
+    ? ready || restarting
+    : available || isUpdating || restarting || ready || failed
   const percent =
     state.status === "downloading" && state.total && state.total > 0
       ? Math.min(100, Math.round(((state.downloaded ?? 0) / state.total) * 100))

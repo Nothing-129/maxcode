@@ -3430,6 +3430,10 @@
         "showLess": "Show less"
       },
       "liveTurnStats": {
+        "waiting": "Waiting for response",
+        "running": "Running tools",
+        "awaitingUser": "Waiting for you",
+        "settled": "Response ended",
         "thinking": "Thinking...",
         "streaming": "Streaming",
         "elapsedHours": "{value}h",
@@ -3736,7 +3740,9 @@
         "skip": "Skip",
         "next": "Next",
         "submit": "Submit",
-        "submitError": "Couldn't submit. Please try again."
+        "submitError": "Couldn't submit. Please try again.",
+        "collapse": "Collapse",
+        "expand": "Expand"
       },
       "planApproval": {
         "title": "The agent has a plan — review it",

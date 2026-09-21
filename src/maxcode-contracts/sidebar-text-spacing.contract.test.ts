@@ -20,7 +20,16 @@ describe("sidebar text and spacing", () => {
     const card = source(
       "src/components/conversations/sidebar-conversation-card.tsx"
     )
-    expect(card).toContain("relative h-[1.9375rem] py-px")
+    expect(card).toContain("relative py-px bg-sidebar ws-transparent-bg")
+    expect(card).toContain("h-[1.9375rem]")
+    expect(card).toContain("h-[2.75rem]")
+    expect(card).toContain(
+      "flex min-w-0 items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+    )
+    expect(card).toContain("h-[0.625rem] w-[0.625rem] shrink-0")
+    expect(card).toContain("strokeWidth={1.5}")
+    expect(card).toContain('data-recent-source="chat"')
+    expect(card).toContain("MessageSquare")
     expect(card).toContain("maxcode-sidebar-label")
     expect(card).not.toContain('isOpenInTab && "text-primary"')
     expect(card).toContain("bg-black/[0.04] dark:bg-white/[0.06]")
@@ -43,5 +52,7 @@ describe("sidebar text and spacing", () => {
     expect(list).toContain("relative h-[2rem] rounded-full py-px")
     expect(list).toContain("h-full min-h-0 px-2 pb-1.5")
     expect(list).toContain("px-2 [--conv-rail-axis:0.875rem]")
+    expect(list).toContain("recentConversationFolderLabel(conv, allFolders)")
+    expect(list).toContain('conv.kind === "chat" ? t("sectionChats")')
   })
 })

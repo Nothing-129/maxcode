@@ -3,6 +3,7 @@ import {
   excludeChatFolders,
   filterTopLevelFolders,
   formatFolderLabelWithAlias,
+  recentConversationFolderLabel,
   resolveFolderDisplayName,
   resolvePickerSelectedFolderId,
 } from "@/lib/folder-display"
@@ -90,6 +91,66 @@ describe("resolvePickerSelectedFolderId", () => {
 
   it("returns the parent id for a worktree folder", () => {
     expect(resolvePickerSelectedFolderId({ id: 7, parent_id: 3 })).toBe(3)
+  })
+})
+
+describe("recentConversationFolderLabel", () => {
+  const folders = [
+    {
+      id: 1,
+      name: "callcenter",
+      alias: "外呼中心",
+      parent_id: null,
+      kind: "regular" as const,
+    },
+    {
+      id: 2,
+      name: "callcenter-feature",
+      alias: null,
+      parent_id: 1,
+      kind: "regular" as const,
+    },
+    {
+      id: 3,
+      name: "chat-hidden",
+      alias: null,
+      parent_id: null,
+      kind: "chat" as const,
+    },
+  ]
+
+  it("returns the folder alias for a regular Recent row", () => {
+    expect(
+      recentConversationFolderLabel({ folder_id: 1, kind: "regular" }, folders)
+    ).toBe("外呼中心")
+  })
+
+  it("falls back to the directory name when the alias is unset", () => {
+    const unnamed = [{ ...folders[0], alias: null }]
+    expect(
+      recentConversationFolderLabel({ folder_id: 1, kind: "regular" }, unnamed)
+    ).toBe("callcenter")
+  })
+
+  it("surfaces the parent repo for a worktree conversation", () => {
+    expect(
+      recentConversationFolderLabel({ folder_id: 2, kind: "regular" }, folders)
+    ).toBe("外呼中心")
+  })
+
+  it("returns null for chat-mode conversations and chat folders", () => {
+    expect(
+      recentConversationFolderLabel({ folder_id: 3, kind: "chat" }, folders)
+    ).toBeNull()
+    expect(
+      recentConversationFolderLabel({ folder_id: 3, kind: "regular" }, folders)
+    ).toBeNull()
+  })
+
+  it("returns null when the folder is missing", () => {
+    expect(
+      recentConversationFolderLabel({ folder_id: 99, kind: "regular" }, folders)
+    ).toBeNull()
   })
 })
 

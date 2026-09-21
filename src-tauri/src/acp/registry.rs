@@ -1031,9 +1031,116 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // "a free-text note must not eat the selection" idea, arriving in
             // the same fortnight, on the one adapter where codeg is not the
             // client that sees it.
+            //
+            // 0.79.0 is two upstream changes (#1070, #1143) plus the release
+            // chore, touching three emitted files — `tools.js`,
+            // `permissions/presentation.js`, `acp-agent.js`. The set diff of
+            // QUOTED STRING LITERALS over `dist/**/*.js` that (p)–(s) leaned on
+            // adds and removes NOTHING here: `"PowerShell"` was already in the
+            // bundle (0.78.0 read it in `buildClaudePermissionPresentation`
+            // alone), so the whole wire-visible delta is control flow and the
+            // literal diff cannot see it. `@anthropic-ai/claude-agent-sdk` moves
+            // 0.3.270 → 0.3.274, i.e. CLI 2.1.270 → 2.1.274 (`manifest.json`);
+            // `engines.node` stays ">=22".
+            //
+            // (t) **A shell approval's heading is now the COMMAND, not the
+            // model's summary** (#1070, upstream #1068) — the one delta in this
+            // release that costs codeg code. Through 0.78.0
+            // `buildClaudePermissionPresentation` gave a `Bash`/`PowerShell`
+            // request `shellTitle = compactText(input.description) ?? toolName`
+            // and used it for BOTH the presentation's `toolCall.title` and its
+            // `_meta.permission.title`. 0.79.0 drops `shellTitle`: the title is
+            // `info.title` (i.e. `input.command`), and for those two tools it is
+            // no longer passed through `humanText` at all — upstream's stated
+            // reason being that "shell titles are executable input", so
+            // whitespace compaction would move quoting and comment boundaries
+            // and a length cap could hide what runs.
+            //
+            // One half of that is pure gain here. `ensureToolCallEmitted` emits
+            // the presentation's `toolCall`, and when the command actually runs
+            // `toolCallNotification` refines the SAME id from
+            // `toolInfoFromToolUse` — the command. Through 0.78.0 those two
+            // disagreed, so an approved Bash card silently renamed itself from
+            // the summary to the command the moment it started. They are now the
+            // same string.
+            //
+            // The other half is a regression codeg has to absorb, and it lands
+            // exactly where the client was most careful. `_meta.permission.title`
+            // is now byte-identical to `toolCall.title` AND to the command
+            // codeg renders in the card's own block; `parsePermissionToolCall`
+            // prefers that meta title over the title precisely BECAUSE the title
+            // used to be the command. So the heading turns into a second copy of
+            // the command block, and the model's one-line label leaves the card
+            // altogether: with no `terminal_output` capability advertised (see
+            // `build_client_capabilities`) the adapter still puts
+            // `input.description` in `toolCall.content`, but the dialog shows
+            // `contentText` only when NO structured view exists, and a command
+            // card always has one. The fix is in `permission-request.ts`, keyed
+            // on the shape rather than on a version: a meta heading equal to the
+            // command being displayed is not a heading, so it yields to
+            // `rawInput.description` — the same field 0.78.0's `shellTitle` read.
+            //
+            // (u) **PowerShell joins Bash everywhere else** (same PR). On
+            // Windows without Git Bash the CLI's shell tool IS `PowerShell` —
+            // SDK 0.3.274 spells the failure mode out in
+            // `SDKStartupFailureReason.shell_tool_missing` ("Git Bash is
+            // missing, and PowerShell is missing or turned off by
+            // CLAUDE_CODE_USE_POWERSHELL_TOOL"). Until now it fell through
+            // `toolInfoFromToolUse`'s default arm to `{title: "PowerShell",
+            // kind: "other", content: []}`, so a Windows user's every shell call
+            // arrived with no command on it. It now shares Bash's arm in all
+            // four places: `toolInfoFromToolUse` (`title` = the command, `kind:
+            // "execute"`, the description as `content`), `claudeCodeMetaFromToolUse`
+            // (`_meta.claudeCode.title` = the description), the terminal
+            // `_meta` on the opening frame, and the error-result arm that yields
+            // to the terminal channel. The terminal half is gated on the client
+            // `_meta.terminal_output` capability, which codeg does not advertise,
+            // so it stays inert and the description keeps riding `content`.
+            //
+            // codeg only half-knew the name, and the halves it knew were the
+            // cheap ones. `getToolIcon` and `classifyToolKind` both carried a
+            // `powershell` arm (added for pi, which swaps the same name in on
+            // Windows), but `normalizeToolName` did not — so every dispatch
+            // keyed on the NORMALIZED name (`isCommandTool`, `deriveToolTitle`,
+            // `StructuredToolInput`) missed it, and the card rendered a terminal
+            // icon over a raw-JSON dump with no command line and no terminal
+            // body. One alias entry in `tool-call-normalization.ts` settles live
+            // claude, `parsers::claude` history (the CLI's JSONL names the tool
+            // `PowerShell` verbatim, so this was broken there independently of
+            // any adapter version) and pi at once.
+            //
+            // (v) Two things that arrive free and need no code.
+            //
+            // `#1143` also carries "hold through placeholder task results": CLI
+            // 2.1.274+ answers background-task completions that were already
+            // QUEUED with one model call, so every queued notification still
+            // gets a result but all except the last are placeholders
+            // (`num_turns: 0`, empty text) emitted BEFORE the shared followup
+            // runs. Settling the deferred turn on one of those would release
+            // `session/prompt` with the promised text still ahead — the
+            // out-of-turn delivery class upstream fixed in #864–#866 — so the
+            // hold now waits for `num_turns > 0`. codeg advertises `asyncTasks`
+            // and runs claude background shells/workflows/monitors through it,
+            // so this is a fix codeg gets by bumping.
+            //
+            // `_meta.claudeCode.mcpServer` (SDK 0.3.274's `McpServerProvenance`,
+            // `{name, source}`) is NOT consumed. It answers "which server serves
+            // this `mcp__*` tool, and was it registered in-process by the host
+            // (`source: "sdk"`) or configured"; codeg injects codeg-mcp over
+            // stdio, which is a configured source and never reads `sdk`, and the
+            // only trust question codeg asks of an MCP tool call — is this one of
+            // the companions I minted? — it already answers from the tool name
+            // it chose itself. What DOES change without asking is its sibling:
+            // the block is now emitted when `mcpServer` is present even with no
+            // `parentToolUseId`, so `_meta.claudeCode.toolName` reaches a
+            // top-level MCP tool's PERMISSION frame for the first time. That is
+            // the signal `inferLiveToolName` resolves the codeg-mcp companion
+            // cards on, so a pending MCP approval now shows the right card
+            // instead of flipping to it once the call runs and the streamed
+            // frame (which always carried `toolName`) refines it.
             distribution: AgentDistribution::Npx {
-                version: "0.78.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.78.0",
+                version: "0.79.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.79.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2535,8 +2642,8 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.78.0",
-            "@agentclientprotocol/claude-agent-acp@0.78.0",
+            "0.79.0",
+            "@agentclientprotocol/claude-agent-acp@0.79.0",
             Some("22.0.0"),
         );
         assert_npx_version(
