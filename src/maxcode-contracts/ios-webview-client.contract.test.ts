@@ -39,16 +39,16 @@ describe("MaxCode iOS shell contract", () => {
     }
     expect(chooser).toContain('UIAction(title: "编辑"')
     expect(chooser).toContain('UIAction(title: "删除"')
-    expect(source(root + "AppDelegate.swift")).toContain(
+    expect(source(root + "SceneDelegate.swift")).toContain(
       "prefersLargeTitles = false"
     )
   })
 
   it("opens the chooser on cold launch and keeps native workspace controls hidden", () => {
-    const app = source(root + "AppDelegate.swift")
-    expect(app).toContain("rootViewController: ConnectionsViewController()")
-    expect(app).toContain("setNavigationBarHidden(true, animated: false)")
-    expect(app).not.toContain("WorkspaceViewController(")
+    const scene = source(root + "SceneDelegate.swift")
+    expect(scene).toContain("rootViewController: ConnectionsViewController()")
+    expect(scene).toContain("setNavigationBarHidden(true, animated: false)")
+    expect(scene).not.toContain("WorkspaceViewController(")
     const chooser = source(root + "ConnectionsViewController.swift")
     expect(chooser).not.toContain("setNavigationBarHidden(false")
     const workspace = source(root + "WorkspaceViewController.swift")
@@ -57,6 +57,17 @@ describe("MaxCode iOS shell contract", () => {
     expect(workspace).toContain("errorPanel.isHidden = true")
     expect(workspace).toContain('retry.setTitle("重新加载"')
     expect(workspace).toContain("popToRootViewController(animated: true)")
+  })
+
+  it("uses the scene lifecycle required by current iOS releases", () => {
+    const plist = source(root + "Info.plist")
+    expect(plist).toContain("UIApplicationSceneManifest")
+    expect(plist).toContain("UIWindowSceneSessionRoleApplication")
+    expect(plist).toContain("$(PRODUCT_MODULE_NAME).SceneDelegate")
+    const scene = source(root + "SceneDelegate.swift")
+    expect(scene).toContain("UIWindowSceneDelegate")
+    expect(scene).toContain("UIWindow(windowScene: windowScene)")
+    expect(source(root + "AppDelegate.swift")).not.toContain("UIWindow(frame:")
   })
 
   it("prevents focus zoom for native-shell form controls and rich editors", () => {
@@ -125,6 +136,7 @@ describe("MaxCode iOS shell contract", () => {
     expect(project).toContain('TARGETED_DEVICE_FAMILY = "1,2"')
     for (const file of [
       "AppDelegate.swift",
+      "SceneDelegate.swift",
       "ConnectionsViewController.swift",
       "ConnectionEditorViewController.swift",
       "WorkspaceViewController.swift",

@@ -68,7 +68,7 @@ for configuration in ["Debug", "Release"]:
         "TARGETED_DEVICE_FAMILY": "1,2", "SUPPORTED_PLATFORMS": "iphoneos iphonesimulator",
         "SUPPORTS_MACCATALYST": "NO",
         "INFOPLIST_FILE": "MaxCode/Info.plist", "GENERATE_INFOPLIST_FILE": "NO",
-        "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon", "CURRENT_PROJECT_VERSION": "1",
+        "ASSETCATALOG_COMPILER_APPICON_NAME": "AppIcon", "CURRENT_PROJECT_VERSION": "3",
         "MARKETING_VERSION": "0.1.0", "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks"]
     }))
 
