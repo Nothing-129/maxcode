@@ -866,7 +866,11 @@ acpIncomingHandlers.set("initialize", async () => {
     protocolVersion: 1,
     agentCapabilities: {
       loadSession: true,
-      promptCapabilities: {},
+      promptCapabilities: {
+        // Pasted images flow as ACP image blocks and are translated below
+        // into zcode's inline dataBase64 attachments.
+        image: true,
+      },
     },
     authMethods: [],
     _meta: {
@@ -1105,7 +1109,31 @@ acpIncomingHandlers.set("session/prompt", async (params) => {
     })
     .filter(Boolean)
     .join("\n")
-  if (!text) {
+  // ACP image blocks -> zcode's inline attachment payload
+  // (kind/dataBase64/filename/mimeType; see mapProtocolPromptAttachment in
+  // the zcode server, which turns dataBase64 into a data: URL for the
+  // runtime — no temp file needed).
+  const imageBlocks = blocks.filter(
+    (block) => block?.type === "image" && typeof block.data === "string",
+  )
+  const attachments = imageBlocks.map((block, index) => {
+    const mimeType =
+      typeof block.mimeType === "string" && block.mimeType
+        ? block.mimeType
+        : "image/png"
+    const extension = mimeType.split("/")[1]?.split(";")[0] || "png"
+    return {
+      kind: "image",
+      dataBase64: block.data,
+      mimeType,
+      filename:
+        typeof block.fileName === "string" && block.fileName
+          ? block.fileName
+          : `image-${index + 1}.${extension}`,
+      sizeBytes: Math.floor((block.data.length * 3) / 4),
+    }
+  })
+  if (!text && attachments.length === 0) {
     return { stopReason: "end_turn" }
   }
   // Deliberately NO modelSelection here: the session's current selection
@@ -1120,6 +1148,7 @@ acpIncomingHandlers.set("session/prompt", async (params) => {
       {
         sessionId,
         content: text,
+        ...(attachments.length > 0 ? { attachments } : {}),
       },
       0
     ).catch((error) => {

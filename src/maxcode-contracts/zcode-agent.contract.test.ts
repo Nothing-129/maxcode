@@ -71,6 +71,12 @@ describe("MaxCode contract: ZCode agent (bundled ACP adapter)", () => {
     // session/new response (pushes sent before session/new finishes are
     // dropped), sourced deterministically from the create snapshot's
     // `settings` block — not from push timing.
+    // Pasted images ride ACP image blocks and are translated to zcode's
+    // inline attachment payload (kind/dataBase64), no temp file.
+    expect(adapter).toContain("promptCapabilities: {")
+    expect(adapter).toContain("image: true")
+    expect(adapter).toContain('kind: "image"')
+    expect(adapter).toContain("dataBase64: block.data")
     expect(adapter).toContain("applySnapshotSettings")
     expect(adapter).toContain("config_option_update")
     expect(adapter).toContain("configOptions: catalog")
