@@ -57,6 +57,40 @@ pub struct EventEnvelope {
     pub payload: AcpEvent,
 }
 
+/// One ACP Session Notice — fire-and-forget advisory text for the user, from
+/// the [Session Notices RFD](https://agentclientprotocol.com/rfds/session-notices)
+/// (claude-agent-acp 0.81+/codex-acp 1.13+, published only because
+/// `build_client_capabilities` advertises `clientCapabilities.session.notices`).
+///
+/// **A notice is an event, not a record.** It carries no id, no revision and no
+/// lifecycle; it is never replayed from history, and two identical notices are
+/// two independent events. The RFD is explicit that an agent must not rely on
+/// one being received, displayed, or seen — which is why nothing here acks it
+/// and why the replay seam drops them outright.
+///
+/// It replaces, on the connections that advertise it, the `**bold label:** …`
+/// agent-message line both adapters used to fold these into, and it OUTRANKS
+/// the AIR advisory lane (claude gates its model-fallback publish on
+/// `!supportsNotices`; codex says the same in readme-dev). So the consumer
+/// mirrors `warning`/`error` back into [`SessionFailureRecord`] to keep the
+/// banner's behaviour — see `acp-connections-context`.
+///
+/// `severity` stays a plain string for the same reason the AIR vocabulary does:
+/// a future level degrades to the frontend's fallback rendering instead of
+/// failing to deserialize.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SessionNotice {
+    /// `info` | `warning` | `error` today.
+    pub severity: String,
+    /// Required, non-empty plain text that stands alone. Adapter-authored, in
+    /// the adapter's own English — passed through verbatim, exactly as
+    /// [`SessionFailureRecord::title`] already is.
+    pub title: String,
+    /// Optional plain-text detail or guidance.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
 /// One JetBrains AIR typed session failure record
 /// (`session_info_update._meta.jetbrains.air.sessionFailure`; claude-agent-acp
 /// 0.67+/codex-acp 1.2+, published only because `build_client_capabilities`
@@ -400,6 +434,12 @@ pub enum AcpEvent {
     /// itself is not rendered. Omitted when the update carries no title so
     /// goal-only `session_info_update`s stay off the lifecycle path.
     NativeSessionTitle { title: String },
+    /// Claude Code `/clear` rolled the on-disk transcript to a new uuid while
+    /// the public ACP session id stayed the same. The watcher adopted the new
+    /// file; the lifecycle worker re-points `conversation.external_id` so
+    /// reopen reads post-clear turns. Does NOT change `SessionState.external_id`
+    /// (that id is still the live ACP session).
+    TranscriptRolledOver { transcript_id: String },
     /// Backend has transitioned the conversation row's `status` column.
     /// Emitted by `send_prompt_linked` (`InProgress`) and the lifecycle
     /// subscriber on `TurnComplete` (`PendingReview`). The frontend mirrors
@@ -556,6 +596,18 @@ pub enum AcpEvent {
     /// text chunks), so severity-`warning` records take over the retry-banner
     /// role on those connections.
     SessionFailure { record: SessionFailureRecord },
+    /// One ACP Session Notice (see [`SessionNotice`]). Unlike its
+    /// `SessionFailure` neighbour this is NOT a record: there is no id to merge
+    /// on and no revision to reject, so every emission is a distinct event and
+    /// `SessionState::apply_event` deliberately keeps none of it. The frontend
+    /// raises a toast and, for `warning`/`error`, mirrors a synthetic
+    /// `SessionFailureRecord` so the banner keeps the role the AIR advisory
+    /// lane used to fill.
+    ///
+    /// Reaches codeg from the two adapters `build_client_capabilities`
+    /// advertises `session.notices` to: claude-agent-acp (0.81+) and codex-acp
+    /// (1.13+). Dropped on the replay seam — a notice has no history position.
+    SessionNotice { notice: SessionNotice },
     /// A JetBrains AIR async-task delta (see [`AsyncTaskDelta`]). Emitted for
     /// every frame codeg could read; the merge into whole rows happens
     /// identically in `SessionState::apply_event` (which the snapshot is taken

@@ -1708,7 +1708,7 @@
     "sectionTitle": "General",
     "sectionDescription": "Centralized preferences for the default terminal, notifications, and multi-agent delegation.",
     "terminalTitle": "Default Terminal",
-    "terminalDescription": "Choose the shell used when opening new terminal tabs from the terminal bar or file tree. Agents also use it when they ask MaxCode to run a whole command line for them.",
+    "terminalDescription": "Choose the shell MaxCode launches for new terminal tabs and for whole command lines an agent asks MaxCode to run. Agents with a shell of their own (Codex, Claude Code) run commands inside their own process, where this setting cannot reach them.",
     "terminalSystemDefault": "System default",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "subagent request limit",
             "child_empty": "subagent no output",
             "child_auth_required": "subagent needs sign-in",
+            "child_rejected": "subagent rejected",
             "child_unknown": "subagent unknown error",
             "unknown": "unknown task"
           }
@@ -3854,7 +3855,10 @@
         "compacting": "Compacting context…",
         "compacted": "Context compacted",
         "compactedTokens": "Context compacted · {before} → {after} tokens",
-        "failed": "Context compaction failed"
+        "failed": "Context compaction failed",
+        "summary": "Summary",
+        "triggerManual": "Manually triggered",
+        "triggerAutomatic": "Automatically triggered"
       },
       "sessionFailure": {
         "category": {

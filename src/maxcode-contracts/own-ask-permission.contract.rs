@@ -3,15 +3,19 @@ use super::*;
 fn permission_request(name: &str, kinds: &[PermissionOptionKind]) -> RequestPermissionRequest {
     RequestPermissionRequest::new(
         SessionId::new("maxcode-contract"),
-        sacp::schema::ToolCallUpdate::new(
+        agent_client_protocol::schema::v1::ToolCallUpdate::new(
             "ask",
-            sacp::schema::ToolCallUpdateFields::new().title(name.to_owned()),
+            agent_client_protocol::schema::v1::ToolCallUpdateFields::new().title(name.to_owned()),
         ),
         kinds
             .iter()
             .enumerate()
             .map(|(index, kind)| {
-                sacp::schema::PermissionOption::new(index.to_string(), "Choose", *kind)
+                agent_client_protocol::schema::v1::PermissionOption::new(
+                    index.to_string(),
+                    "Choose",
+                    *kind,
+                )
             })
             .collect(),
     )

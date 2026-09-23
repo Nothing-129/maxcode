@@ -131,8 +131,9 @@ pub struct TerminalShellOption {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AvailableTerminalShells {
     pub options: Vec<TerminalShellOption>,
-    /// What `resolve_shell()` would currently fall back to. Surfaced read-only
-    /// in the UI so users can see what "system default" actually maps to.
+    /// What a new terminal tab would use for the stored selection, resolved to
+    /// a concrete path when possible. For "system default", this is the host
+    /// fallback returned by `resolve_shell()`.
     pub resolved_shell: String,
 }
 

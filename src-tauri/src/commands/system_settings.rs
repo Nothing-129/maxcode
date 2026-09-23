@@ -372,13 +372,12 @@ pub(crate) async fn load_system_language_settings(
     })
 }
 
-/// Whether `value` resolves to an executable on the current host. Used to
-/// drive the "not installed" badge in the picker; never used to *block* a
-/// selection — users may legitimately preconfigure a shell before installing it.
-fn shell_exists(value: &str) -> bool {
+/// Resolve a shell choice to the path the host can currently find.
+/// This probe drives both the install badge and the path reported in settings.
+fn resolve_shell_path(value: &str) -> Option<String> {
     let trimmed = value.trim();
     if trimmed.is_empty() {
-        return false;
+        return None;
     }
 
     let path = std::path::Path::new(trimmed);
@@ -388,10 +387,39 @@ fn shell_exists(value: &str) -> bool {
         || path.components().count() > 1;
 
     if looks_like_path {
-        return path.is_file();
+        if path.is_file() {
+            return Some(trimmed.to_string());
+        }
+        // Windows launches extension-less paths that resolve to .exe files.
+        #[cfg(windows)]
+        if path.extension().is_none() {
+            let with_exe = path.with_extension("exe");
+            if with_exe.is_file() {
+                return Some(with_exe.display().to_string());
+            }
+        }
+        return None;
     }
 
-    which::which(trimmed).is_ok()
+    which::which(trimmed)
+        .ok()
+        .map(|resolved| resolved.display().to_string())
+}
+
+fn shell_exists(value: &str) -> bool {
+    resolve_shell_path(value).is_some()
+}
+
+/// The shell a new built-in terminal tab would try to launch. A configured
+/// choice remains visible even if it is not currently installed.
+pub(crate) fn resolve_effective_shell(default_shell: Option<&str>) -> String {
+    match default_shell
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        None => resolve_shell(),
+        Some(selected) => resolve_shell_path(selected).unwrap_or_else(|| selected.to_string()),
+    }
 }
 
 /// Trim and drop empty-only. We deliberately do **not** filter by host
@@ -418,7 +446,9 @@ pub(crate) fn normalize_terminal_settings(
 /// The frontend renders these verbatim, looking each `label_key` up under its
 /// `GeneralSettings` namespace — so adding a new shell here requires zero
 /// frontend code changes (only a new translation key).
-pub(crate) fn build_available_terminal_shells() -> AvailableTerminalShells {
+pub(crate) fn build_available_terminal_shells(
+    default_shell: Option<&str>,
+) -> AvailableTerminalShells {
     let mut options: Vec<TerminalShellOption> = Vec::new();
 
     options.push(TerminalShellOption {
@@ -458,7 +488,7 @@ pub(crate) fn build_available_terminal_shells() -> AvailableTerminalShells {
 
     AvailableTerminalShells {
         options,
-        resolved_shell: resolve_shell(),
+        resolved_shell: resolve_effective_shell(default_shell),
     }
 }
 
@@ -829,6 +859,43 @@ mod tests {
             loaded.proxy_url.as_deref(),
             Some("http://127.0.0.1:7890"),
             "a legacy bare host:port must be repaired on read"
+        );
+    }
+
+    #[test]
+    fn reported_shell_follows_the_stored_selection() {
+        assert_eq!(resolve_effective_shell(None), resolve_shell());
+        assert_eq!(resolve_effective_shell(Some("  ")), resolve_shell());
+
+        let installed = if cfg!(windows) { "cmd.exe" } else { "sh" };
+        let selected = resolve_effective_shell(Some(installed));
+        assert!(selected.ends_with(installed), "{selected}");
+        assert!(std::path::Path::new(&selected).is_absolute());
+
+        let missing = "definitely-not-a-shell";
+        assert_eq!(
+            resolve_effective_shell(Some("  definitely-not-a-shell  ")),
+            missing
+        );
+        let options = build_available_terminal_shells(Some(missing));
+        assert_eq!(options.resolved_shell, missing);
+        for option in options.options {
+            if let Some(value) = option.value {
+                assert_eq!(option.exists, resolve_shell_path(&value).is_some());
+            }
+        }
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn extensionless_windows_path_resolves_to_exe() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let exe = dir.path().join("pwsh.exe");
+        std::fs::write(&exe, b"").expect("fake shell");
+        let selected = dir.path().join("pwsh");
+        assert_eq!(
+            resolve_effective_shell(Some(&selected.display().to_string())),
+            exe.display().to_string()
         );
     }
 

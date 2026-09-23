@@ -2515,6 +2515,13 @@ export type AcpEvent =
       title: string
     }
   | {
+      // Claude `/clear` rolled the on-disk transcript to a new uuid. The
+      // backend re-points conversation.external_id; the frontend does not
+      // apply this event itself.
+      type: "transcript_rolled_over"
+      transcript_id: string
+    }
+  | {
       type: "conversation_status_changed"
       conversation_id: number
       status: ConversationStatus
@@ -2616,6 +2623,20 @@ export type AcpEvent =
       // resolution (warnings settle at turn boundaries; errors stay active).
       type: "session_failure"
       record: SessionFailureRecord
+    }
+  /**
+   * One ACP Session Notice (claude-agent-acp 0.81+/codex-acp 1.13+; published
+   * because codeg advertises `clientCapabilities.session.notices`).
+   *
+   * NOT a record — no id, no revision, no history position, and never replayed
+   * (the backend drops these on the replay seam). Every emission is a distinct
+   * event, so the consumer raises a toast rather than merging anything. The
+   * `warning`/`error` mirror into `sessionFailures` is a presentation choice
+   * made in `acp-connections-context`, not something the wire carries.
+   */
+  | {
+      type: "session_notice"
+      notice: SessionNotice
     }
   /**
    * A JetBrains AIR async-task delta (claude + codex — see `AsyncTaskDelta`).
@@ -2973,6 +2994,25 @@ export interface SessionLastError {
  * doubles as its id's revision watermark — dropping one would let a delayed
  * stale upsert resurrect it.
  */
+/**
+ * One ACP Session Notice (mirror of Rust `SessionNotice`) — fire-and-forget
+ * advisory text from the Session Notices RFD.
+ *
+ * Replaces, on connections that advertise the capability, the `**bold label:**`
+ * agent-message line both adapters used to fold these into, and it OUTRANKS the
+ * AIR advisory lane — which is why `warning`/`error` notices are mirrored into
+ * a synthetic {@link SessionFailureRecord} so the banner keeps working.
+ */
+export interface SessionNotice {
+  /** `info` | `warning` | `error` today; an unrecognized level renders as
+   *  `info` rather than being dropped. */
+  severity: string
+  /** Adapter-authored, non-empty, in the adapter's own English — passed through
+   *  verbatim, exactly as `SessionFailureRecord.title` already is. */
+  title: string
+  description?: string | null
+}
+
 export interface SessionFailureRecord {
   id: string
   /** Per-id upsert revision, from 1. */

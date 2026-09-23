@@ -1708,7 +1708,7 @@
     "sectionTitle": "Allgemein",
     "sectionDescription": "Zentrale Einstellungen für das Standardterminal, Benachrichtigungen und die Multi-Agent-Delegation.",
     "terminalTitle": "Standardterminal",
-    "terminalDescription": "Wählen Sie die Shell, die beim Öffnen neuer Terminal-Tabs über die Terminalleiste oder den Dateibaum verwendet wird. Agenten nutzen sie ebenfalls, wenn sie MaxCode um die Ausführung einer vollständigen Befehlszeile bitten.",
+    "terminalDescription": "Wählen Sie die Shell, die MaxCode für neue Terminal-Tabs startet und für vollständige Befehlszeilen, deren Ausführung ein Agent bei MaxCode anfragt. Agenten mit einer eigenen Shell (Codex, Claude Code) führen Befehle im eigenen Prozess aus — dorthin reicht diese Einstellung nicht.",
     "terminalSystemDefault": "Systemstandard",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "Subagent: Anfragelimit",
             "child_empty": "Subagent ohne Ausgabe",
             "child_auth_required": "Subagent braucht Anmeldung",
+            "child_rejected": "Subagent lehnte Anfrage ab",
             "child_unknown": "Subagent: Fehler",
             "unknown": "unbekannte Aufgabe"
           }
@@ -3854,7 +3855,10 @@
         "compacting": "Kontext wird komprimiert…",
         "compacted": "Kontext komprimiert",
         "compactedTokens": "Kontext komprimiert · {before} → {after} Tokens",
-        "failed": "Kontextkomprimierung fehlgeschlagen"
+        "failed": "Kontextkomprimierung fehlgeschlagen",
+        "summary": "Zusammenfassung",
+        "triggerManual": "Manuell ausgelöst",
+        "triggerAutomatic": "Automatisch ausgelöst"
       },
       "sessionFailure": {
         "category": {

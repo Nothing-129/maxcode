@@ -100,6 +100,7 @@ beforeEach(() => {
 
 vi.mock("@/lib/api", () => ({
   getHomeDirectory: vi.fn(),
+  listDirectoryWithFiles: vi.fn(),
   readFileForEdit: vi.fn(),
   readFileBase64: vi.fn(),
   readFilePreview: vi.fn(),
@@ -1993,6 +1994,15 @@ describe("WorkspaceProvider office auto-preview", () => {
     workspaceStoreMock.reset()
     // Preference defaults ON; drop any "false" a prior test left behind.
     localStorage.removeItem("workspace:office-auto-preview")
+    vi.mocked(api.listDirectoryWithFiles).mockImplementation(async (root) =>
+      ["report.pptx", "deck.pptx", "report.docx"].map((name) => ({
+        name,
+        path: `${root}/${name}`,
+        isDir: false,
+        hasChildren: false,
+        size: 100,
+      }))
+    )
   })
 
   it("auto-opens an office file's preview when the watcher reports it, with no aux panel involved", async () => {
@@ -2108,6 +2118,105 @@ describe("WorkspaceProvider office auto-preview", () => {
     })
 
     expect(screen.getByTestId("file-tab-count")).toHaveTextContent("1")
+  })
+
+  it("does not open a removed document from a changed_paths envelope", async () => {
+    vi.mocked(api.listDirectoryWithFiles).mockResolvedValue([])
+    renderWorkspace()
+
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+    expect(screen.getByTestId("active-pane")).toHaveTextContent("conversation")
+  })
+
+  it("does not open documents from a removed parent directory", async () => {
+    vi.mocked(api.listDirectoryWithFiles).mockRejectedValue(
+      new Error("Path is not a directory")
+    )
+    renderWorkspace()
+
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["scratch/report.docx"])
+    })
+
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+  })
+
+  it("keeps a dismissed preview closed after switching folders and back", async () => {
+    renderWorkspace()
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+    act(() => screen.getByRole("button", { name: "Close active" }).click())
+    act(() => foldersMock.setActiveFolderId(2))
+    act(() => foldersMock.setActiveFolderId(1))
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+  })
+
+  it("can open a document recreated after an earlier removal event", async () => {
+    vi.mocked(api.listDirectoryWithFiles).mockResolvedValueOnce([])
+    renderWorkspace()
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("1")
+  })
+
+  it("does not mistake a directory with an Office suffix for a document", async () => {
+    vi.mocked(api.listDirectoryWithFiles).mockResolvedValue([
+      {
+        name: "report.docx",
+        path: "/repo/report.docx",
+        isDir: true,
+        hasChildren: true,
+        size: null,
+      },
+    ])
+    renderWorkspace()
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
+  })
+
+  it("discards a pending preview when its workspace is no longer active", async () => {
+    let finish!: (
+      entries: Awaited<ReturnType<typeof api.listDirectoryWithFiles>>
+    ) => void
+    vi.mocked(api.listDirectoryWithFiles).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    renderWorkspace()
+    await act(async () => {
+      workspaceStoreMock.emitEnvelope(["report.docx"])
+    })
+    act(() => foldersMock.setActiveFolderId(2))
+    await act(async () => {
+      finish([
+        {
+          name: "report.docx",
+          path: "/repo/report.docx",
+          isDir: false,
+          hasChildren: false,
+          size: 100,
+        },
+      ])
+    })
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
   })
 
   it("does not auto-open when the preference is disabled", async () => {

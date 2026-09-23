@@ -33,8 +33,8 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use agent_client_protocol::schema::v1::{SessionUpdate, ToolCallContent};
 use chrono::{DateTime, TimeZone, Utc};
-use sacp::schema::{SessionUpdate, ToolCallContent};
 use serde::Deserialize as _;
 
 use crate::acp::connection::{
@@ -554,7 +554,7 @@ fn apply_update(
             let p = open_turn!();
             p.last_at_ms = at_ms;
             match &chunk.content {
-                sacp::schema::ContentBlock::Image(image) => {
+                agent_client_protocol::schema::v1::ContentBlock::Image(image) => {
                     p.has_content = true;
                     p.blocks.push(ContentBlock::Image {
                         data: image.data.clone(),
@@ -627,12 +627,14 @@ fn apply_update(
 
 /// Text of an ACP content block. Non-text blocks that still carry a textual
 /// projection (resource links, embedded text resources) degrade to it.
-fn content_block_text(block: &sacp::schema::ContentBlock) -> String {
+fn content_block_text(block: &agent_client_protocol::schema::v1::ContentBlock) -> String {
     match block {
-        sacp::schema::ContentBlock::Text(t) => t.text.clone(),
-        sacp::schema::ContentBlock::ResourceLink(link) => link.uri.clone(),
-        sacp::schema::ContentBlock::Resource(res) => match &res.resource {
-            sacp::schema::EmbeddedResourceResource::TextResourceContents(t) => t.text.clone(),
+        agent_client_protocol::schema::v1::ContentBlock::Text(t) => t.text.clone(),
+        agent_client_protocol::schema::v1::ContentBlock::ResourceLink(link) => link.uri.clone(),
+        agent_client_protocol::schema::v1::ContentBlock::Resource(res) => match &res.resource {
+            agent_client_protocol::schema::v1::EmbeddedResourceResource::TextResourceContents(
+                t,
+            ) => t.text.clone(),
             _ => String::new(),
         },
         _ => String::new(),
@@ -748,7 +750,7 @@ fn upsert_tool_call(
 /// ACP plans are cumulative snapshots: each `plan` update replaces the previous
 /// one. Model that as a single synthetic `TodoWrite` tool call whose input the
 /// frontend already renders as a plan card.
-fn upsert_plan(pending: &mut PendingTurn, plan: &sacp::schema::Plan) {
+fn upsert_plan(pending: &mut PendingTurn, plan: &agent_client_protocol::schema::v1::Plan) {
     let todos: Vec<serde_json::Value> = plan
         .entries
         .iter()

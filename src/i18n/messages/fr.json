@@ -1708,7 +1708,7 @@
     "sectionTitle": "Général",
     "sectionDescription": "Préférences centralisées pour le terminal par défaut, les notifications et la délégation multi-agents.",
     "terminalTitle": "Terminal par défaut",
-    "terminalDescription": "Choisissez le shell utilisé à l'ouverture de nouveaux onglets de terminal depuis la barre de terminal ou l'arborescence des fichiers. Les agents l'utilisent aussi lorsqu'ils demandent à MaxCode d'exécuter une ligne de commande complète.",
+    "terminalDescription": "Choisissez le shell que MaxCode lance pour les nouveaux onglets de terminal et pour les lignes de commande complètes qu’un agent lui demande d’exécuter. Les agents dotés de leur propre shell (Codex, Claude Code) exécutent les commandes dans leur propre processus : ce réglage ne les atteint pas.",
     "terminalSystemDefault": "Par défaut système",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "sous-agent : limite de requêtes",
             "child_empty": "sous-agent sans sortie",
             "child_auth_required": "sous-agent : connexion requise",
+            "child_rejected": "sous-agent : requête rejetée",
             "child_unknown": "sous-agent : erreur",
             "unknown": "tâche inconnue"
           }
@@ -3854,7 +3855,10 @@
         "compacting": "Compactage du contexte…",
         "compacted": "Contexte compacté",
         "compactedTokens": "Contexte compacté · {before} → {after} tokens",
-        "failed": "Échec de la compaction du contexte"
+        "failed": "Échec de la compaction du contexte",
+        "summary": "Résumé",
+        "triggerManual": "Déclenchée manuellement",
+        "triggerAutomatic": "Déclenchée automatiquement"
       },
       "sessionFailure": {
         "category": {

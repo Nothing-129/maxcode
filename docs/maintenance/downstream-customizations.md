@@ -28,6 +28,7 @@
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
 | ZCode 智能体 | 第七种受维护智能体：内置 zcode-acp 适配器（`AgentDistribution::Bundled`，嵌入二进制启动时落盘）驱动 `zcode app-server --stdio` 私有协议，桥接会话/权限/事件；SQLite 历史解析 `~/.zcode/cli/db/db.sqlite`；供应商 CLI 探测与 i18n 齐备；适配器不负责下载 zcode 运行时；侧栏标题与 Codex/Grok/Pi/DeepSeek/Claude 一样走结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题 | `feat/zcode-agent` | `agents.zcode-bundled-acp-adapter` |
+| 科学技能状态 | 保留历史智能体状态，同时为维护范围内有技能目录的 Grok、DeepSeek、Antigravity 和 ZCode 补齐状态行；不引入其他智能体的新入口 | `45b9a7ec`、`b66f35eb`、`worktree-2026-09-23` | `skills.science-maintained-status` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 消息图片 | 回复里的本地 Markdown 图片在当前会话工作目录内联显示，文件链接徽章与自动路径链接保持不变 | `402d8b09`、`049ef608`、`worktree-2026-09-14` | `chat.local-markdown-images` |

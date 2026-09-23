@@ -1708,7 +1708,7 @@
     "sectionTitle": "一般",
     "sectionDescription": "集中管理預設終端機、通知與提示音以及多智能體協同等通用偏好。",
     "terminalTitle": "預設終端",
-    "terminalDescription": "選擇從終端列或檔案樹開啟新終端分頁時使用的 Shell。智慧代理請求 MaxCode 代為執行整條命令列時也會使用它。",
+    "terminalDescription": "選擇 MaxCode 開啟新終端分頁、以及代智慧代理執行整條命令列時使用的 Shell。自帶 Shell 的智慧代理（如 Codex、Claude Code）會在自己的行程內執行命令，不受此設定影響。",
     "terminalSystemDefault": "系統預設",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "子代理超出請求上限",
             "child_empty": "子代理無回應",
             "child_auth_required": "子智慧體需登入",
+            "child_rejected": "子代理拒絕該請求",
             "child_unknown": "子代理未知錯誤",
             "unknown": "未知任務"
           }
@@ -3854,7 +3855,10 @@
         "compacting": "正在壓縮上下文…",
         "compacted": "上下文已壓縮",
         "compactedTokens": "上下文已壓縮 · {before} → {after} tokens",
-        "failed": "上下文壓縮失敗"
+        "failed": "上下文壓縮失敗",
+        "summary": "摘要",
+        "triggerManual": "手動觸發",
+        "triggerAutomatic": "自動觸發"
       },
       "sessionFailure": {
         "category": {

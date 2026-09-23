@@ -11,7 +11,7 @@ describe("MaxCode contract: upstream runtime fixes preserve existing agent flows
   })
 
   it("arms process cleanup before polling without losing exit ownership", () => {
-    const vendor = source("src-tauri/vendor/sacp-tokio/src/acp_agent.rs")
+    const vendor = source("src-tauri/src/acp/agent_process.rs")
     const monitor = vendor.slice(vendor.indexOf("fn monitor_child("))
     expect(vendor).not.toContain("async fn monitor_child(")
     expect(monitor.indexOf("let guard = ChildGuard")).toBeLessThan(

@@ -611,8 +611,9 @@ pub async fn science_get_install_status(
 }
 
 fn supported_agents() -> Vec<AgentType> {
-    // Science mode ships for this built-in subset (Grok and Cursor are not
-    // listed); the subset is preserved as-is here.
+    // Keep the legacy rows for existing installs, and include every maintained
+    // skills-capable agent shown in the science matrix. Missing rows make a
+    // freshly enabled link appear disabled on the authoritative refresh.
     const ALL: &[AgentType] = &[
         AgentType::ClaudeCode,
         AgentType::Codex,
@@ -624,6 +625,10 @@ fn supported_agents() -> Vec<AgentType> {
         AgentType::CodeBuddy,
         AgentType::KimiCode,
         AgentType::Pi,
+        AgentType::Grok,
+        AgentType::DeepSeek,
+        AgentType::Antigravity,
+        AgentType::Zcode,
     ];
     // Custom agents that declared the shared skills store join the built-in
     // set — the same `skill_storage_spec` gate every skills surface uses, so
@@ -973,6 +978,36 @@ mod tests {
         assert_eq!(rows.len(), expected);
     }
 
+    #[tokio::test]
+    async fn install_statuses_cover_maintained_skills_capable_agents() {
+        let skill_id = bundled_metadata()
+            .first()
+            .expect("science bundle should be non-empty")
+            .id
+            .clone();
+        let one_skill = science_get_install_status(skill_id)
+            .await
+            .expect("status lookup returns Ok");
+        let whole_grid = science_list_all_install_statuses()
+            .await
+            .expect("snapshot returns Ok");
+
+        for agent in crate::acp::registry::builtin_acp_agents()
+            .into_iter()
+            .filter(|agent| crate::acp::registry::is_maintained_agent(*agent))
+            .filter(|agent| skill_storage_spec(*agent).is_some())
+        {
+            assert!(
+                one_skill.iter().any(|row| row.agent_type == agent),
+                "science_get_install_status drops {agent:?}"
+            );
+            assert!(
+                whole_grid.iter().any(|row| row.agent_type == agent),
+                "science_list_all_install_statuses drops {agent:?}"
+            );
+        }
+    }
+
     #[test]
     fn bundled_metadata_is_disjoint_from_experts() {
         // The safety mechanism: science ids must never collide with experts ids
@@ -1001,3 +1036,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/science-maintained-agents.contract.rs"]
+mod science_maintained_agents_contract;

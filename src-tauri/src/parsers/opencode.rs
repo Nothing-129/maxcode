@@ -1555,8 +1555,11 @@ mod tests {
         );
         // The `<path>`/`<content>` envelope and the `N: ` prefixes are gone.
         assert_eq!(
-            read.output_preview.as_deref(),
-            Some(r#"{"content":"export const A = 1","start_line":1}"#)
+            serde_json::from_str::<serde_json::Value>(
+                read.output_preview.as_deref().expect("read preview")
+            )
+            .expect("JSON preview"),
+            serde_json::json!({ "content": "export const A = 1", "start_line": 1 })
         );
     }
 

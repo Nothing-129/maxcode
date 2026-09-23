@@ -22,10 +22,8 @@ import {
 } from "@/components/chat/composer/composer-chrome"
 import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
-import {
-  isComposerChromeClick,
-  restampSkillPrefixes,
-} from "@/components/chat/composer/composer-commands"
+import { restampSkillPrefixes } from "@/components/chat/composer/composer-commands"
+import { useComposerChromeFocus } from "@/components/chat/composer/use-composer-chrome-focus"
 import {
   RichComposer,
   type RichComposerHandle,
@@ -151,6 +149,7 @@ export function TaskMessageComposer({
   const t = useTranslations("Folder.chat.messageInput")
   const editorRef = useRef<RichComposerHandle>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const chromeFocus = useComposerChromeFocus(editorRef)
 
   const { groupLabels, uiLabels } = useComposerMentionLabels()
   const referenceSearch = useReferenceSearch({
@@ -295,12 +294,9 @@ export function TaskMessageComposer({
   return (
     <div
       ref={containerRef}
-      onMouseDown={(e) => {
-        // Clicking the box's padding focuses the nearest caret, like a textarea.
-        if (!isComposerChromeClick(e.target)) return
-        e.preventDefault()
-        editorRef.current?.focusAtCoords(e.clientX, e.clientY)
-      }}
+      // Clicking or tapping the box's padding focuses the nearest caret, like a
+      // textarea.
+      {...chromeFocus}
       {...attach.containerDragProps}
       // Same shell the drawer's Textarea had (and the same rounding as every
       // other box in it); the editor brings the matching px-3 padding.

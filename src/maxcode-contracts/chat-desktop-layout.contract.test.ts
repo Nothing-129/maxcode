@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest"
 
+import { COMPOSER_SIZING } from "@/components/chat/composer/composer-sizing"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: desktop chat geometry and discoverability", () => {
@@ -95,8 +96,10 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
     expect(source("src/components/chat/chat-input.tsx")).toContain(
       "px-4 pb-2 md:pb-3"
     )
+    expect(COMPOSER_SIZING.compact.box).toBe("min-h-26")
+    expect(COMPOSER_SIZING.tall.box).toBe("min-h-30")
     expect(source("src/components/chat/chat-input.tsx")).toContain(
-      'tall ? "min-h-30" : "min-h-26"'
+      "tall={tall}"
     )
     const editor = source("src/components/chat/composer/rich-composer.tsx")
     expect(editor).toContain("px-4 pt-4 pb-3")

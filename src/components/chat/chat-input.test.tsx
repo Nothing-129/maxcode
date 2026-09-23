@@ -161,4 +161,11 @@ describe("ChatInput slash-command loading window", () => {
     )
     expect(renderStatus({ status: "error" })?.commandsLoading).toBe(false)
   })
+
+  it("keeps the composer usable after a turn-scoped prompt rejection", () => {
+    expect(renderStatus({ status: "connected" })?.disabled).toBe(false)
+    expect(renderStatus({ status: "prompting" })?.disabled).toBe(false)
+    expect(renderStatus({ status: "error" })?.disabled).toBe(true)
+    expect(renderStatus({ status: "disconnected" })?.disabled).toBe(true)
+  })
 })
