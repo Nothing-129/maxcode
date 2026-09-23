@@ -12223,10 +12223,10 @@ mod tests {
 
         assert_eq!(sent.as_deref(), Some("/compact"));
         let events = compact_events(&f.engine, f.task_id).await;
-        assert_eq!(events.len(), 2, "{events:?}");
-        assert_eq!(events[1]["status"], "failed");
+        assert_eq!(events.len(), 1, "{events:?}");
+        assert_eq!(events[0]["status"], "failed");
         assert_eq!(
-            events[1]["detail"], "the agent rejected the compaction prompt",
+            events[0]["detail"], "the agent rejected the compaction prompt",
             "{events:?}"
         );
     }
