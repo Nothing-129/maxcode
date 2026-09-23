@@ -6647,11 +6647,33 @@ struct LaunchSeq(std::sync::Mutex<Option<i32>>);
 
 impl LaunchSeq {
     fn set(&self, run_seq: i32) {
-        *self.0.lock().expect("launch seq mutex") = Some(run_seq);
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner()) = Some(run_seq);
     }
 
     fn get(&self) -> Option<i32> {
-        *self.0.lock().expect("launch seq mutex")
+        *self
+            .0
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+}
+
+#[cfg(test)]
+mod launch_seq_poison_tests {
+    use super::LaunchSeq;
+
+    #[test]
+    fn a_poisoned_launch_sequence_can_still_record_the_next_launch() {
+        let seq = LaunchSeq::default();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = seq.0.lock().unwrap();
+            panic!("poison launch sequence");
+        }));
+        seq.set(42);
+        assert_eq!(seq.get(), Some(42));
     }
 }
 

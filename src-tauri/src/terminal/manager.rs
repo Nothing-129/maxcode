@@ -25,6 +25,16 @@ pub struct TerminalManager {
     terminals: Arc<Mutex<HashMap<String, TerminalInstance>>>,
 }
 
+/// The terminal table has no partially valid state to protect after a panic.
+/// Recovering a poisoned lock keeps later reads and shutdown cleanup usable.
+fn lock_terminals(
+    terminals: &Mutex<HashMap<String, TerminalInstance>>,
+) -> std::sync::MutexGuard<'_, HashMap<String, TerminalInstance>> {
+    terminals
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 pub(crate) fn resolve_shell() -> String {
     #[cfg(target_os = "windows")]
     {
@@ -229,7 +239,7 @@ impl TerminalManager {
     ) -> Result<String, TerminalError> {
         // Reject duplicate IDs to prevent orphaning an existing PTY process.
         {
-            let terminals = self.terminals.lock().unwrap();
+            let terminals = lock_terminals(&self.terminals);
             if terminals.contains_key(&opts.terminal_id) {
                 return Err(TerminalError::SpawnFailed(format!(
                     "terminal id '{}' already exists",
@@ -300,10 +310,7 @@ impl TerminalManager {
             temp_files: opts.temp_files,
         };
 
-        self.terminals
-            .lock()
-            .unwrap()
-            .insert(terminal_id.clone(), instance);
+        lock_terminals(&self.terminals).insert(terminal_id.clone(), instance);
 
         // Named writer thread
         std::thread::Builder::new()
@@ -327,7 +334,7 @@ impl TerminalManager {
     }
 
     pub fn write(&self, terminal_id: &str, data: &[u8]) -> Result<(), TerminalError> {
-        let terminals = self.terminals.lock().unwrap();
+        let terminals = lock_terminals(&self.terminals);
         let instance = terminals
             .get(terminal_id)
             .ok_or_else(|| TerminalError::NotFound(terminal_id.to_string()))?;
@@ -339,7 +346,7 @@ impl TerminalManager {
     }
 
     pub fn resize(&self, terminal_id: &str, cols: u16, rows: u16) -> Result<(), TerminalError> {
-        let terminals = self.terminals.lock().unwrap();
+        let terminals = lock_terminals(&self.terminals);
         let instance = terminals
             .get(terminal_id)
             .ok_or_else(|| TerminalError::NotFound(terminal_id.to_string()))?;
@@ -356,10 +363,7 @@ impl TerminalManager {
     }
 
     pub fn kill(&self, terminal_id: &str) -> Result<(), TerminalError> {
-        let mut instance = self
-            .terminals
-            .lock()
-            .unwrap()
+        let mut instance = lock_terminals(&self.terminals)
             .remove(terminal_id)
             .ok_or_else(|| TerminalError::NotFound(terminal_id.to_string()))?;
         terminate_terminal(&mut instance);
@@ -367,7 +371,7 @@ impl TerminalManager {
     }
 
     pub fn list_with_exit_check(&self, emitter: Option<&EventEmitter>) -> Vec<TerminalInfo> {
-        let mut terminals = self.terminals.lock().unwrap();
+        let mut terminals = lock_terminals(&self.terminals);
         let mut exited_terminal_ids: Vec<String> = Vec::new();
 
         // Windows ConPTY may not always surface EOF promptly; reconcile exited
@@ -412,7 +416,7 @@ impl TerminalManager {
 
     pub fn kill_by_owner_window(&self, owner_window_label: &str) -> usize {
         let mut instances = {
-            let mut terminals = self.terminals.lock().unwrap();
+            let mut terminals = lock_terminals(&self.terminals);
             let ids: Vec<String> = terminals
                 .iter()
                 .filter_map(|(id, instance)| {
@@ -442,7 +446,7 @@ impl TerminalManager {
 
     pub fn kill_all(&self) -> usize {
         let mut instances: Vec<TerminalInstance> = {
-            let mut terminals = self.terminals.lock().unwrap();
+            let mut terminals = lock_terminals(&self.terminals);
             terminals.drain().map(|(_, inst)| inst).collect()
         };
         let killed = instances.len();
@@ -507,7 +511,7 @@ fn read_loop(
     }
 
     // Terminal exited — remove from map and clean up temp files
-    if let Some(mut instance) = terminals.lock().unwrap().remove(&terminal_id) {
+    if let Some(mut instance) = lock_terminals(terminals).remove(&terminal_id) {
         cleanup_temp_files(&mut instance.temp_files);
     }
 
@@ -542,6 +546,18 @@ fn thread_name_prefix(terminal_id: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::thread_name_prefix;
+
+    #[test]
+    fn a_poisoned_table_does_not_break_shutdown_cleanup() {
+        let manager = super::TerminalManager::new();
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _table = manager.terminals.lock().unwrap();
+            panic!("poison terminal table");
+        }));
+        assert!(manager.terminals.is_poisoned());
+        assert_eq!(manager.kill_all(), 0);
+        assert!(manager.list_with_exit_check(None).is_empty());
+    }
 
     #[test]
     fn keeps_short_ascii_id() {
