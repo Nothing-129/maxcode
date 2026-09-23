@@ -67,11 +67,10 @@ use crate::models::agent::AgentType;
 use crate::models::message::MessageTurn;
 use crate::parsers::claude::{
     capture_tag, capture_title_record, find_clear_rollover_successor, find_session_file,
-    group_into_turns, is_meta_message, slash_command_display,
-    task_notification_result_regex, task_notification_status_regex,
-    task_notification_summary_regex, task_notification_task_id_regex,
-    task_notification_tool_use_id_regex, ClaudeRecordAccumulator, BACKGROUND_RESULT_MAX_CHARS,
-    CONTEXT_CONTINUATION_PREFIX,
+    group_into_turns, is_meta_message, slash_command_display, task_notification_result_regex,
+    task_notification_status_regex, task_notification_summary_regex,
+    task_notification_task_id_regex, task_notification_tool_use_id_regex, ClaudeRecordAccumulator,
+    BACKGROUND_RESULT_MAX_CHARS, CONTEXT_CONTINUATION_PREFIX,
 };
 use crate::parsers::truncate_str;
 use crate::web::event_bridge::{emit_with_state, EventEmitter};
@@ -901,7 +900,10 @@ impl WatchState {
         // session id names the ABANDONED file, so the lookup asks for the id
         // this watch rolled onto instead.
         if self.file.is_none() {
-            let lookup_id = self.rolled_over_id.clone().unwrap_or_else(|| session_id.clone());
+            let lookup_id = self
+                .rolled_over_id
+                .clone()
+                .unwrap_or_else(|| session_id.clone());
             if let Some(f) = find_session_file(&lookup_id) {
                 self.adopt_file(f);
             }
@@ -2188,7 +2190,10 @@ mod tests {
             Some(&old),
             "a rollover this connection never asked for is not ours to adopt"
         );
-        assert!(ws.pending_transcript_id.is_none(), "no re-point may be emitted");
+        assert!(
+            ws.pending_transcript_id.is_none(),
+            "no re-point may be emitted"
+        );
         assert!(
             event.is_none(),
             "and none of the stranger's records may surface as our activity"

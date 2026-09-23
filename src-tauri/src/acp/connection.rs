@@ -9234,8 +9234,7 @@ fn classify_session_load_failure(
 /// [`classify_session_load_failure`] (a `session/load` that can't be retried)
 /// and [`prompt_rejection_is_terminal`] (a `session/prompt` rejection that no
 /// later prompt on this connection could survive either).
-const SESSION_GONE_MARKERS: &[&str] =
-    &["process exited", "session has ended", "Session not found"];
+const SESSION_GONE_MARKERS: &[&str] = &["process exited", "session has ended", "Session not found"];
 
 /// Whether a `session/prompt` rejection means the CONNECTION is dead, or only
 /// this turn.
@@ -9273,10 +9272,16 @@ const SESSION_GONE_MARKERS: &[&str] =
 /// the early return a sign-out prompt that happened to quote one of the markers
 /// would start tearing connections down.
 fn prompt_rejection_is_terminal(e: &agent_client_protocol::Error) -> bool {
-    if matches!(e.code, agent_client_protocol::schema::v1::ErrorCode::AuthRequired) {
+    if matches!(
+        e.code,
+        agent_client_protocol::schema::v1::ErrorCode::AuthRequired
+    ) {
         return false;
     }
-    if matches!(e.code, agent_client_protocol::schema::v1::ErrorCode::ResourceNotFound) {
+    if matches!(
+        e.code,
+        agent_client_protocol::schema::v1::ErrorCode::ResourceNotFound
+    ) {
         return true;
     }
     let text = e.to_string();
@@ -20484,7 +20489,8 @@ mod tests {
         ));
         // The agent answered to say its session/process is gone.
         for marker in SESSION_GONE_MARKERS {
-            let e = agent_client_protocol::Error::internal_error().data(format!("Claude Code {marker} — sorry"));
+            let e = agent_client_protocol::Error::internal_error()
+                .data(format!("Claude Code {marker} — sorry"));
             assert!(prompt_rejection_is_terminal(&e), "{e}");
         }
         // The runtime's own synthesized error: the response channel was dropped, so

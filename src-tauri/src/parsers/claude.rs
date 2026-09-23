@@ -3286,7 +3286,9 @@ mod tests {
         let text = handback(&[], &["real report", HANDBACK_HEADER, "still the report"]);
         assert_eq!(
             unwrap_handback_frame(&text).as_deref(),
-            Some(&*format!("real report\n{HANDBACK_HEADER}\nstill the report"))
+            Some(&*format!(
+                "real report\n{HANDBACK_HEADER}\nstill the report"
+            ))
         );
     }
 
@@ -3297,7 +3299,10 @@ mod tests {
         assert_eq!(unwrap_handback_frame("  ordinary indented output"), None);
         assert_eq!(unwrap_handback_frame(HANDBACK_HEADER), None);
         let item = json!({"type": "tool_result", "content": "plain result"});
-        assert_eq!(extract_tool_result_text(&item).as_deref(), Some("plain result"));
+        assert_eq!(
+            extract_tool_result_text(&item).as_deref(),
+            Some("plain result")
+        );
     }
 
     /// A resume replays the surviving history into the SAME transcript,
@@ -3908,10 +3913,7 @@ mod tests {
     fn write_clear_jsonl(path: &Path, lines: &[&str]) {
         std::fs::write(
             path,
-            lines
-                .iter()
-                .map(|l| format!("{l}\n"))
-                .collect::<String>(),
+            lines.iter().map(|l| format!("{l}\n")).collect::<String>(),
         )
         .unwrap();
     }

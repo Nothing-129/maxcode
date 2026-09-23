@@ -1942,12 +1942,10 @@ impl SessionState {
         // Both halves, because the question the early return answers is
         // "would shipping this whole be over budget", and the image bytes are
         // part of what ships either way.
-        let total = ordered
-            .iter()
-            .fold(0usize, |acc, (_, id, bytes)| {
-                acc.saturating_add(*bytes)
-                    .saturating_add(images_slice_size(&self.active_tool_calls[*id].images))
-            });
+        let total = ordered.iter().fold(0usize, |acc, (_, id, bytes)| {
+            acc.saturating_add(*bytes)
+                .saturating_add(images_slice_size(&self.active_tool_calls[*id].images))
+        });
         if total <= MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES {
             // The ordinary turn: nothing to trim, wire shape byte-identical.
             return self.active_tool_calls.values().cloned().collect();
@@ -3749,7 +3747,9 @@ mod tests {
         // The running call keeps its partial output at any size — nothing else
         // has it. So does the newest finished one.
         assert!(by_id["tc-running"].output.is_some());
-        assert!(by_id[format!("tc-{:04}", CALLS - 1).as_str()].output.is_some());
+        assert!(by_id[format!("tc-{:04}", CALLS - 1).as_str()]
+            .output
+            .is_some());
 
         // The oldest finished calls ship without the payload, but keep every
         // field that identifies the card.
@@ -3788,7 +3788,12 @@ mod tests {
         for i in 0..200 {
             run_tool_call(&mut s, &format!("tc-{i:04}"), 16 * 1024, true);
         }
-        run_tool_call(&mut s, "tc-huge", MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES + 1024, false);
+        run_tool_call(
+            &mut s,
+            "tc-huge",
+            MAX_SNAPSHOT_TOOL_PAYLOAD_BYTES + 1024,
+            false,
+        );
 
         let snap = s.to_snapshot();
         let huge = snap
