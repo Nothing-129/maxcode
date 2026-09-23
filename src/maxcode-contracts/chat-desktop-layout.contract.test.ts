@@ -98,7 +98,9 @@ describe("MaxCode contract: desktop chat geometry and discoverability", () => {
     )
     expect(COMPOSER_SIZING.compact.box).toBe("min-h-26")
     expect(COMPOSER_SIZING.tall.box).toBe("min-h-30")
-    expect(source("src/components/chat/chat-input.tsx")).toContain("tall={tall}")
+    expect(source("src/components/chat/chat-input.tsx")).toContain(
+      "tall={tall}"
+    )
     const editor = source("src/components/chat/composer/rich-composer.tsx")
     expect(editor).toContain("px-4 pt-4 pb-3")
     expect(editor).not.toContain("text-base md:text-sm")
