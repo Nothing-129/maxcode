@@ -1708,7 +1708,7 @@
     "sectionTitle": "一般",
     "sectionDescription": "デフォルトターミナル、通知と通知音、マルチエージェント委譲などの共通設定をここで一括管理します。",
     "terminalTitle": "デフォルトターミナル",
-    "terminalDescription": "ターミナルバーやファイルツリーから新しいターミナルタブを開くときに使用するシェルを選択します。エージェントが MaxCode にコマンドライン全体の実行を依頼するときにも使われます。",
+    "terminalDescription": "MaxCode が新しいターミナルタブを開くとき、およびエージェントに代わってコマンドライン全体を実行するときに使うシェルを選択します。独自のシェルを持つエージェント（Codex、Claude Code など）は自分のプロセス内でコマンドを実行するため、この設定は届きません。",
     "terminalSystemDefault": "システムデフォルト",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "サブエージェント: 要求上限",
             "child_empty": "サブエージェント応答なし",
             "child_auth_required": "サブエージェント要サインイン",
+            "child_rejected": "サブエージェント: 要求拒否",
             "child_unknown": "サブエージェント: エラー",
             "unknown": "不明なタスク"
           }

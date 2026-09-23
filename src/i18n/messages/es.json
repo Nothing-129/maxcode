@@ -1708,7 +1708,7 @@
     "sectionTitle": "General",
     "sectionDescription": "Preferencias centralizadas para el terminal predeterminado, las notificaciones y la delegación entre agentes.",
     "terminalTitle": "Terminal predeterminada",
-    "terminalDescription": "Elige el shell que se usa al abrir nuevas pestañas de terminal desde la barra de terminal o el árbol de archivos. Los agentes también lo usan cuando piden a MaxCode que ejecute una línea de comandos completa.",
+    "terminalDescription": "Elige el shell que MaxCode usa para las nuevas pestañas de terminal y para las líneas de comandos completas que un agente le pide ejecutar. Los agentes con shell propio (Codex, Claude Code) ejecutan los comandos dentro de su propio proceso, así que este ajuste no les llega.",
     "terminalSystemDefault": "Predeterminado del sistema",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "subagente: límite de solicitudes",
             "child_empty": "subagente sin salida",
             "child_auth_required": "subagente requiere sesión",
+            "child_rejected": "subagente rechazó la solicitud",
             "child_unknown": "subagente: error",
             "unknown": "tarea desconocida"
           }

@@ -1708,7 +1708,7 @@
     "sectionTitle": "常规",
     "sectionDescription": "集中管理默认终端、通知与提示音以及多智能体协同等通用偏好。",
     "terminalTitle": "默认终端",
-    "terminalDescription": "选择从终端栏或文件树打开新终端标签页时使用的 Shell。智能体请求 MaxCode 代为执行整条命令行时也会使用它。",
+    "terminalDescription": "选择 MaxCode 打开新终端标签页、以及代智能体执行整条命令行时使用的 Shell。自带 Shell 的智能体（如 Codex、Claude Code）在自己进程内执行命令，不受此设置影响。",
     "terminalSystemDefault": "系统默认",
     "terminalPowerShell7": "PowerShell 7 (pwsh)",
     "terminalWindowsPowerShell": "Windows PowerShell",
@@ -3515,6 +3515,7 @@
             "child_max_turn_requests": "子代理超出请求上限",
             "child_empty": "子代理无响应",
             "child_auth_required": "子智能体需登录",
+            "child_rejected": "子代理拒绝该请求",
             "child_unknown": "子代理未知错误",
             "unknown": "未知任务"
           }

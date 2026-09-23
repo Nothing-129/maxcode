@@ -129,7 +129,7 @@ export function GeneralSettings() {
   }, [loadSettings])
 
   const persistTerminalShell = useCallback(
-    async (defaultShell: string | null) => {
+    async (defaultShell: string | null): Promise<boolean> => {
       setSavingTerminal(true)
       try {
         const result = await updateSystemTerminalSettings({
@@ -144,29 +144,35 @@ export function GeneralSettings() {
         // color toggle send the superseded shell back and undo the save that
         // just succeeded.
         setStoredDefaultShell(result.default_shell)
-        // Re-fetch options to refresh `exists` flags (e.g. user just installed
-        // pwsh, or backend filter dropped a cross-platform stale value).
-        const refreshedShells = await getAvailableTerminalShells()
-        setAvailableShells(refreshedShells)
-        const nextSelectedId = resolveSelectedShellId(
-          result.default_shell,
-          refreshedShells.options
-        )
-        setSelectedShellId(nextSelectedId)
-        if (nextSelectedId === TERMINAL_SHELL_OPTION_CUSTOM) {
-          setCustomShellPath(result.default_shell ?? "")
-          setCustomPathExists(
-            result.default_shell
-              ? await probeTerminalShellPath(result.default_shell)
-              : null
+        try {
+          // The save has succeeded. Refresh the resolved shell shown below the
+          // picker without reporting a later display failure as a failed save.
+          const refreshedShells = await getAvailableTerminalShells()
+          setAvailableShells(refreshedShells)
+          const nextSelectedId = resolveSelectedShellId(
+            result.default_shell,
+            refreshedShells.options
           )
-        } else {
-          setCustomShellPath("")
-          setCustomPathExists(null)
+          setSelectedShellId(nextSelectedId)
+          if (nextSelectedId === TERMINAL_SHELL_OPTION_CUSTOM) {
+            setCustomShellPath(result.default_shell ?? "")
+            setCustomPathExists(
+              result.default_shell
+                ? await probeTerminalShellPath(result.default_shell)
+                : null
+            )
+          } else {
+            setCustomShellPath("")
+            setCustomPathExists(null)
+          }
+        } catch (err) {
+          console.error("[Settings] refresh terminal shells failed:", err)
         }
+        return true
       } catch (err) {
         const message = toErrorMessage(err)
         toast.error(t("terminalSaveFailed", { message }))
+        return false
       } finally {
         setSavingTerminal(false)
       }
@@ -206,6 +212,7 @@ export function GeneralSettings() {
 
   const onShellSelectChange = useCallback(
     (nextId: string) => {
+      const previousId = selectedShellId
       setSelectedShellId(nextId)
       if (nextId === TERMINAL_SHELL_OPTION_CUSTOM) {
         // Don't persist yet — wait for user to type a path and press Save.
@@ -214,9 +221,11 @@ export function GeneralSettings() {
         return
       }
       const matched = availableShells?.options.find((opt) => opt.id === nextId)
-      void persistTerminalShell(matched?.value ?? null)
+      void persistTerminalShell(matched?.value ?? null).then((saved) => {
+        if (!saved) setSelectedShellId(previousId)
+      })
     },
-    [availableShells, persistTerminalShell]
+    [availableShells, persistTerminalShell, selectedShellId]
   )
 
   const onCustomPathSave = useCallback(() => {

@@ -8,6 +8,23 @@ import {
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const shellOptions = vi.hoisted(() => [
+  {
+    id: "system",
+    label_key: "terminalSystemDefault",
+    value: null,
+    exists: true,
+    accepts_custom_path: false,
+  },
+  {
+    id: "custom",
+    label_key: "terminalShellCustom",
+    value: null,
+    exists: true,
+    accepts_custom_path: true,
+  },
+])
+
 vi.mock("@/lib/api", () => ({
   getSystemTerminalSettings: vi.fn(async () => ({
     default_shell: null,
@@ -15,22 +32,7 @@ vi.mock("@/lib/api", () => ({
   })),
   getAvailableTerminalShells: vi.fn(async () => ({
     resolved_shell: "/bin/zsh",
-    options: [
-      {
-        id: "system",
-        label_key: "terminalSystemDefault",
-        value: null,
-        exists: true,
-        accepts_custom_path: false,
-      },
-      {
-        id: "custom",
-        label_key: "terminalShellCustom",
-        value: null,
-        exists: true,
-        accepts_custom_path: true,
-      },
-    ],
+    options: shellOptions,
   })),
   getSystemRenderingSettings: vi.fn(async () => ({
     disable_hardware_acceleration: false,
@@ -91,6 +93,7 @@ import {
   getSystemTerminalSettings,
   updateSystemTerminalSettings,
 } from "@/lib/api"
+import { toast } from "sonner"
 import { GeneralSettings } from "./general-settings"
 import type { PlatformType } from "@/hooks/use-platform"
 import enMessages from "@/i18n/messages/en.json"
@@ -103,6 +106,10 @@ function renderSettings() {
   )
 }
 
+function shellsResolving(path: string) {
+  return { resolved_shell: path, options: shellOptions }
+}
+
 /**
  * The page is a stack of sections rendered through the shared
  * `SettingsSection` / `SettingCard` / `SettingRow` grammar, so what is worth
@@ -113,6 +120,7 @@ function renderSettings() {
 describe("GeneralSettings", () => {
   beforeEach(() => {
     platform.current = "windows"
+    vi.mocked(toast.error).mockClear()
   })
 
   it("mounts every section and wires each row's label to its control", async () => {
@@ -233,6 +241,7 @@ describe("GeneralSettings", () => {
         colorize_command_output: false,
       })
     )
+    expect(vi.mocked(toast.error)).not.toHaveBeenCalled()
 
     const colorize = screen.getByLabelText("Colorize command output")
     await waitFor(() => expect(colorize).toBeEnabled())
@@ -243,6 +252,64 @@ describe("GeneralSettings", () => {
         default_shell: "/opt/fish2",
         colorize_command_output: true,
       })
+    )
+  })
+
+  it("restores the picker when the shell save is rejected", async () => {
+    vi.mocked(getSystemTerminalSettings).mockResolvedValueOnce({
+      default_shell: "/opt/fish",
+      colorize_command_output: false,
+    })
+    vi.mocked(getAvailableTerminalShells).mockResolvedValueOnce(
+      shellsResolving("/opt/fish")
+    )
+    vi.mocked(updateSystemTerminalSettings).mockRejectedValueOnce(
+      new Error("disk full")
+    )
+    renderSettings()
+
+    const picker = await screen.findByLabelText("Default Terminal")
+    expect(picker).toHaveTextContent("Custom path")
+    fireEvent.keyDown(picker, { key: "Enter" })
+    fireEvent.click(await screen.findByText("System default"))
+
+    await waitFor(() =>
+      expect(vi.mocked(updateSystemTerminalSettings)).toHaveBeenLastCalledWith({
+        default_shell: null,
+        colorize_command_output: false,
+      })
+    )
+    await waitFor(() => expect(picker).toHaveTextContent("Custom path"))
+    expect(screen.getByText("Currently using: /opt/fish")).toBeInTheDocument()
+  })
+
+  it("refreshes the resolved shell after saving a custom path", async () => {
+    vi.mocked(getSystemTerminalSettings).mockResolvedValueOnce({
+      default_shell: "/opt/fish",
+      colorize_command_output: false,
+    })
+    vi.mocked(getAvailableTerminalShells).mockResolvedValueOnce(
+      shellsResolving("/opt/fish")
+    )
+    renderSettings()
+    expect(
+      await screen.findByText("Currently using: /opt/fish")
+    ).toBeInTheDocument()
+
+    const path = screen.getByLabelText("Shell path")
+    fireEvent.change(path, { target: { value: "/opt/fish2" } })
+    vi.mocked(getAvailableTerminalShells).mockResolvedValueOnce(
+      shellsResolving("/opt/fish2")
+    )
+    fireEvent.click(
+      within(path.parentElement as HTMLElement).getByRole("button", {
+        name: "Save",
+      })
+    )
+    await waitFor(() =>
+      expect(
+        screen.getByText("Currently using: /opt/fish2")
+      ).toBeInTheDocument()
     )
   })
 
