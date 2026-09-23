@@ -2609,7 +2609,7 @@
       "paths": [
         "src-tauri/src/parsers/pi.rs",
         "src-tauri/src/parsers/cline.rs",
-        "src-tauri/vendor/sacp-tokio/src/acp_agent.rs",
+        "src-tauri/src/acp/agent_process.rs",
         "src-tauri/src/acp/antigravity_login.rs",
         "src-tauri/src/commands/mcp.rs",
         "src-tauri/src/commands/acp.rs",

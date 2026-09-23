@@ -142,7 +142,7 @@ describe("MaxCode contract: Claude compaction uses the existing conversation lay
     expect(view).toMatch(
       /mergeConsecutiveAssistantTurns\(\s*dedupeCompactionItems\(rawItems\),/
     )
-    expect(view).toContain("<ContextCompactionCard meta={item.meta}")
+    expect(view).toMatch(/<ContextCompactionCard\s+[\s\S]*?meta=\{item\.meta\}/)
     expect(view).toContain('timelineTurns[i].key.startsWith("local-")')
     expect(view).toContain('phase !== "persisted"')
     const parser = source("src-tauri/src/parsers/claude.rs")

@@ -7,7 +7,7 @@
  * children instead of by handing out free space: an engine that reads a
  * min-height-only flex column as main-size-indefinite gives its `flex-grow`
  * children none of it, and #746 is what that looked like — the editable area
- * gone entirely, the action row flush with the top of a 6rem box, and the rest
+ * gone entirely, the action row flush with the top of the box, and the rest
  * of it blank and untappable. A content flex basis (`grow`, see RichComposer)
  * already keeps the editor from collapsing; the floor below keeps the action
  * row on the box's bottom edge there too, instead of floating it above dead

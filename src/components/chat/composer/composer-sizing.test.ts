@@ -7,7 +7,7 @@ import {
   composerEditableMinHeight,
 } from "./composer-sizing"
 
-/** `min-h-24` → 6rem. Tailwind's spacing scale is 0.25rem per step. */
+/** `min-h-26` → 6.5rem. Tailwind's spacing scale is 0.25rem per step. */
 function spacingUtilityToRem(utility: string): number {
   const step = Number(utility.replace("min-h-", ""))
   expect(Number.isFinite(step)).toBe(true)
