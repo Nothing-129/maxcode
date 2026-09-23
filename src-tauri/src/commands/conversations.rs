@@ -1278,14 +1278,20 @@ pub async fn get_folder_conversation_core(
         tokio::task::spawn_blocking(move || -> Result<_, AppCommandError> {
             let parser = build_agent_parser(at);
             match parser.get_conversation(&eid) {
-                Ok(d) => Ok((
-                    d.turns,
-                    d.session_stats,
-                    None,
-                    d.summary.title,
-                    d.summary.model,
-                    d.transcript_watermark,
-                )),
+                Ok(d) => {
+                    // Claude `/clear` (and similar on-disk id changes) make
+                    // the parser resolve a different uuid than we asked for.
+                    // Persist that so reopen/reconnect follow the live file.
+                    let resolved = (d.summary.id != eid).then(|| d.summary.id.clone());
+                    Ok((
+                        d.turns,
+                        d.session_stats,
+                        resolved,
+                        d.summary.title,
+                        d.summary.model,
+                        d.transcript_watermark,
+                    ))
+                }
                 Err(crate::parsers::ParseError::ConversationNotFound(_)) => {
                     // The external_id may no longer match any local file —
                     // e.g. an ACP session UUID (OpenClaw, Cline) or a stale
@@ -1346,26 +1352,57 @@ pub async fn get_folder_conversation_core(
         (vec![], None, None, None, None, None)
     };
 
-    // If we resolved a different external_id (e.g. ACP UUID → parser branch ID),
-    // update the database so future lookups are direct.
+    // If we resolved a different external_id (e.g. ACP UUID → parser branch ID,
+    // or a Claude `/clear` transcript rollover), update the database so future
+    // lookups are direct. Also patch the summary this call returns so the
+    // caller reconnects with the id that actually has the turns.
     //
-    // This is an ALIAS normalization — both ids denote the same session — so it
-    // uses the narrow CAS rather than `bind_external_id`, whose history-split
-    // would manufacture a phantom conversation for the old spelling. The
-    // expected-old value is the exact id this parse ran against, so a
-    // `SessionStarted` that rebound the row while we were parsing leaves this
-    // write matching nothing instead of clobbering the newer binding.
-    if let Some(new_ext_id) = resolved_ext_id {
-        let _ = conversation_service::renormalize_external_id_alias(
-            conn,
-            conversation_id,
-            summary.external_id.as_deref(),
-            new_ext_id,
-        )
-        .await;
-    }
-
+    // Gemini/Cline is an ALIAS normalization — both ids denote the same
+    // session — so it uses the narrow CAS rather than `bind_external_id`,
+    // whose history-split would manufacture a phantom conversation for the
+    // old spelling. Claude `/clear` is a real new transcript file of the
+    // SAME conversation; passing the outgoing id as `continues` advances
+    // in place instead of splitting a sidebar clone.
     let mut summary = summary;
+    if let Some(new_ext_id) = resolved_ext_id {
+        if matches!(summary.agent_type, AgentType::ClaudeCode) {
+            let continues: Vec<String> = summary.external_id.iter().cloned().collect();
+            // Refused when another row already holds the successor — the
+            // rollover's own file can have been imported as its own
+            // conversation. The summary must then keep the id this row
+            // actually owns: handing the caller an id it does not hold is
+            // what sends the next prompt into the HOLDER's transcript while
+            // every event names this row (see `bind_external_id`).
+            match conversation_service::bind_external_id(
+                conn,
+                conversation_id,
+                &new_ext_id,
+                &continues,
+            )
+            .await
+            {
+                Ok(_) => summary.external_id = Some(new_ext_id),
+                Err(e) => {
+                    tracing::warn!(
+                        conversation_id,
+                        to_session = %new_ext_id,
+                        error = %e,
+                        "[conversations] could not follow the transcript rollover; \
+                         keeping the id this row holds"
+                    );
+                }
+            }
+        } else {
+            let _ = conversation_service::renormalize_external_id_alias(
+                conn,
+                conversation_id,
+                summary.external_id.as_deref(),
+                new_ext_id.clone(),
+            )
+            .await;
+            summary.external_id = Some(new_ext_id);
+        }
+    }
     summary.message_count = turns.len() as u32;
     // The transcript is the richer source for the session's model. Codex is
     // the concrete case: an ACP-driven row is created before any
