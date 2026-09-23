@@ -16,6 +16,10 @@ const chatInputSource = readFileSync(
   resolve(process.cwd(), "src/components/chat/chat-input.tsx"),
   "utf8"
 )
+const composerSizingSource = readFileSync(
+  resolve(process.cwd(), "src/components/chat/composer/composer-sizing.ts"),
+  "utf8"
+)
 const messageInputSource = readFileSync(
   resolve(process.cwd(), "src/components/chat/message-input.tsx"),
   "utf8"
@@ -201,9 +205,9 @@ describe("ConversationDetailPanel new conversation layout", () => {
     // Ordinary chat keeps its horizontal alignment and a small visual bottom
     // gap. The workspace alone owns mobile safe-area padding.
     expect(chatInputSource).toContain("px-4 pb-2 md:pb-3")
-    expect(chatInputSource).toContain(
-      'cn(tall ? "min-h-30" : "min-h-26", "max-h-60")'
-    )
+    expect(chatInputSource).toContain("tall={tall}")
+    expect(composerSizingSource).toContain('box: "min-h-26"')
+    expect(composerSizingSource).toContain('box: "min-h-30"')
     expect(chatInputSource).not.toContain("containerClassName")
     expect(source).not.toContain("containerClassName")
     expect(conversationShellSource).not.toContain("containerClassName")
