@@ -2,6 +2,8 @@
 pub const AGENT_NPM_REGISTRY: &str = "https://npm.aifalao.net";
 
 pub mod agent_mentions;
+pub mod agent_process;
+pub mod agent_session;
 pub mod antigravity_login;
 pub mod background_watch;
 pub mod binary_cache;

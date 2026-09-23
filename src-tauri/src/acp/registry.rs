@@ -962,10 +962,10 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `clientCapabilities.session.compaction` being an object — a real
             // typed field, NOT an `_meta` key, so unlike every other opt-in on
             // this list it cannot be smuggled through `ClientCapabilities.meta`:
-            // codeg's pinned `agent-client-protocol-schema` 0.11.7 has no
-            // `session` field on `ClientCapabilities` at all, and no
+            // the `agent-client-protocol-schema` 0.11.7 codeg pinned at the
+            // time had no `session` field on `ClientCapabilities` at all, and no
             // `CompactionUpdate` / `CompactionSummaryChunk` on `SessionUpdate`
-            // (both arrived later behind `unstable_session_compaction`).
+            // (both arrived in schema 1.9 behind `unstable_session_compaction`).
             //
             // ⚠️ THIS ENTRY USED TO CALL THAT "out of reach at this schema pin".
             // It is not, and the correction is worth stating because the same
@@ -974,11 +974,13 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `session/new` and `session/load` already go out as
             // `UntypedMessage`s, and `air_async_task_delta` already reads three
             // variants this very `SessionUpdate` cannot deserialize. Opting in
-            // costs exactly those two established moves — an untyped
-            // `initialize` that grafts the capability on
-            // (`send_initialize` + `client_session_capabilities`) and a raw
-            // pre-dispatch reader (`session_compaction_event`) — and codeg now
-            // does both.
+            // cost exactly those two established moves — an untyped
+            // `initialize` that grafted the capability on, and a raw
+            // pre-dispatch reader (`session_compaction_event`). The move to the
+            // official `agent-client-protocol` 2.2 runtime (schema 1.9.1) has
+            // since made the capability a typed `ClientSessionCapabilities`
+            // member, set in `build_client_capabilities`; the reader stays raw
+            // by choice (see its doc).
             //
             // The `nativeSubagentSessions` trade does NOT repeat here, which is
             // what makes this one worth taking. True: with the capability on,
@@ -994,6 +996,10 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `compaction_summary_chunk`s, which the legacy presentation never
             // carries — `recordSummary` early-returns unless the presentation
             // is `compaction_update`), and real `failed`/`cancelled` states.
+            // The summary rides the synthetic call's `raw_output` under a
+            // `codeg.compactionSummary` claim and opens behind the divider's
+            // "Summary" toggle; history dividers stay summary-less because the
+            // transcript already shows it as the continuation turn beneath.
             //
             // (q) The file-change report went native (#1138), and with it the
             // COST half of the "agentFileChangeReport stays out" record in
@@ -1258,9 +1264,10 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // for why the "out of reach at this schema pin" reading this entry
             // originally carried was wrong. `clientSupportsNotices` gates on
             // `clientCapabilities.session.notices` being an object, so
-            // `client_session_capabilities` grafts it onto an untyped
-            // `initialize` and `session_notice` reads the variant the pinned
-            // `SessionUpdate` cannot. Probed live over stdio against 0.81.0:
+            // `build_client_capabilities` advertises it (grafted onto an untyped
+            // `initialize` until schema 1.9.1 made it a typed member) and
+            // `session_notice` reads the variant ahead of the typed pipeline.
+            // Probed live over stdio against 0.81.0:
             // the handshake is accepted and the `initialize` RESPONSE is
             // byte-identical to the same run with the block withheld.
             //
@@ -1825,20 +1832,24 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // terminal poller, the deltas bridge onto `raw_output`, and the
             // duplicate cumulative `rawOutput` is dropped for those calls.
             //
-            // The client capability #528 adds is NOT advertised, and that is a
-            // decision rather than an omission. `resolveTerminalOutputMode`
-            // already returns `terminal_output_delta` by DEFAULT, so the
-            // streaming above needs nothing on the wire. Advertising
-            // `_meta.terminal_output_delta` would buy exactly one thing —
-            // `createCommandExecutionCompleteUpdate` stops emitting the
-            // duplicate `rawOutput`, which codeg now discards client-side
-            // anyway — and would cost the `search`/`listFiles` cards: the same
-            // flag moves NON-terminal command output onto the delta channel too
-            // (`!commandHadOutput && aggregatedOutput && (commandHadTerminal ||
-            // deltaSupported)`), and those render from the
-            // `{formatted_output, exit_code}` envelope that would stop being
-            // sent (`codex-search-tool-card`). Revisit if those cards ever move
-            // off `rawOutput`.
+            // The client capability #528 adds IS advertised (codex only; see
+            // `build_client_capabilities`). `resolveTerminalOutputMode` already
+            // returns `terminal_output_delta` by DEFAULT, so the streaming above
+            // needed nothing on the wire; what the flag buys is that
+            // `completeCommandExecutionEvent` stops repeating the whole
+            // aggregated output as `rawOutput`, which codeg used to parse only to
+            // discard. It was first held back for the `search`/`listFiles`
+            // cards, on the premise that they render from the
+            // `{formatted_output, exit_code}` envelope — but that premise was
+            // already half gone: codex forwards `outputDelta` for EVERY command,
+            // so any command action that prints something reaches its card
+            // through the same bridge, as plain text, and the envelope only ever
+            // spoke for a command that printed nothing. With the flag, that one
+            // completes as a bare status with no exit code anywhere
+            // (`terminal_exit` is for shell commands only), and the single
+            // reader that needed one — grep's "No matches", rg's exit 1 — now
+            // reads the live `failed`-with-no-output shape instead
+            // (`isCodexGrepNoMatchResult`).
             //
             // (h) `@openai/codex` ^0.154.0 → **^0.155.1** (caret on a 0.x minor
             // pins it inside 0.155.x, so this does not drift to 0.156.0). Two
@@ -1847,8 +1858,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // regenerated from the 0.155.1 binary. This is the removal case
             // `types.ts` calls a *ghost* (a stored per-conversation override
             // naming a slug the catalog no longer lists), which is handled
-            // there and needs nothing here. No new fields on `ModelInfo`, so
-            // `BOOL_FIELDS` is unchanged.
+            // there and needs nothing here. No new fields on `ModelInfo`; the
+            // re-probe against the 0.155.1 binary did turn up two strict
+            // booleans `BOOL_FIELDS` had never covered
+            // (`node_repl_auto_review_required` / `node_repl_disabled`, both
+            // already in 0.154), which it now does.
             //
             // (i) Three fixes that arrive free. A root turn that fails or is
             // interrupted now closes ALL child sessions rather than only the one
@@ -2188,7 +2202,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `--registry=https://npm.aifalao.net` (MaxCode agent mirror)
             // for every npx agent — so no per-agent launch env is needed here.
             // (It couldn't live here anyway: the launch env is serialized as
-            // leading `KEY=value` argv and sacp's `parse_env_var` only accepts
+            // leading `KEY=value` argv and the spawn layer's `parse_env_var` only accepts
             // `[A-Za-z0-9_]` env names, which npm's `@scope:registry` key is not.)
             //
             // 1.0.0 changed ONE thing that reaches codeg without any code change
@@ -2363,12 +2377,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // specifically — and the reason is no longer "the pinned schema
             // can neither advertise nor deserialize it", which is what this
             // entry used to say (see the claude entry's (p) for the correction:
-            // `client_session_capabilities` grafts the capability onto an
-            // untyped `initialize` and `session_compaction_event` reads the
-            // variants back). It stays off because
-            // `client_session_capabilities` only advertises to the two agents
-            // that BUILT these — the same "advertise nothing an agent hasn't
-            // implemented" rule every other opt-in follows. Nothing here
+            // `build_client_capabilities` advertises the capability and
+            // `session_compaction_event` reads the variants back). It stays off
+            // because `build_client_capabilities` only advertises it to the two
+            // agents that BUILT these — the same "advertise nothing an agent
+            // hasn't implemented" rule every other opt-in follows. Nothing here
             // reports deepseek-acp implementing the RFD; if a release does, it
             // joins that match arm and needs no other change.
             // Meanwhile compaction still HAPPENS (auto at the window limit, or
