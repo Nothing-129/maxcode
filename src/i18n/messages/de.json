@@ -3855,7 +3855,10 @@
         "compacting": "Kontext wird komprimiert…",
         "compacted": "Kontext komprimiert",
         "compactedTokens": "Kontext komprimiert · {before} → {after} Tokens",
-        "failed": "Kontextkomprimierung fehlgeschlagen"
+        "failed": "Kontextkomprimierung fehlgeschlagen",
+        "summary": "Zusammenfassung",
+        "triggerManual": "Manuell ausgelöst",
+        "triggerAutomatic": "Automatisch ausgelöst"
       },
       "sessionFailure": {
         "category": {

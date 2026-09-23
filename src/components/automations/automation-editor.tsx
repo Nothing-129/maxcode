@@ -18,7 +18,7 @@ import {
   COMPOSER_CHROME_SHADOW_CLASS,
   COMPOSER_CHROME_SURFACE_CLASS,
 } from "@/components/chat/composer/composer-chrome"
-import { isComposerChromeClick } from "@/components/chat/composer/composer-commands"
+import { useComposerChromeFocus } from "@/components/chat/composer/use-composer-chrome-focus"
 import {
   AgentConfigSection,
   effectiveSelections,
@@ -125,6 +125,7 @@ export function AutomationEditor({
   const [cronBuilderOpen, setCronBuilderOpen] = useState(false)
 
   const editorRef = useRef<RichComposerHandle>(null)
+  const chromeFocus = useComposerChromeFocus(editorRef)
   // The composer's outer box, so the `@` panel spans it like the `/` menu does.
   const composerBoxRef = useRef<HTMLDivElement>(null)
   // True once the user explicitly picks an agent. A system fallback (saved agent
@@ -367,11 +368,7 @@ export function AutomationEditor({
         // same affordance as the chat composer. Interactive controls, badges and
         // the editor surface exclude themselves via NON_CHROME_SELECTOR;
         // `codeg-composer-chrome` paints the text I-beam over the dead space.
-        onMouseDown={(e) => {
-          if (!isComposerChromeClick(e.target)) return
-          e.preventDefault()
-          editorRef.current?.focusAtCoords(e.clientX, e.clientY)
-        }}
+        {...chromeFocus}
         className={cn(
           COMPOSER_CHROME_BOX_CLASS,
           COMPOSER_CHROME_SURFACE_CLASS,

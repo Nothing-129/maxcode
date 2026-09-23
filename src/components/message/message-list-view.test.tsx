@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   advanceReplyFold,
+  compactionOnlyPart,
   extractDelegationSources,
   isForkPointUnnamed,
   markThreadTail,
@@ -12,6 +13,7 @@ import {
   type ResolvedMessageGroup,
   type ThreadRenderItem,
 } from "./message-list-view"
+import { dedupeCompactionItems } from "@/lib/dedupe-compaction-items"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 import type { MessageTurn } from "@/lib/types"
 
@@ -732,5 +734,116 @@ describe("markThreadTail", () => {
     const items: ThreadItem[] = []
     markThreadTail(items)
     expect(items).toEqual([])
+  })
+})
+
+describe("dedupeCompactionItems", () => {
+  const divider = (
+    key: string,
+    payload: Record<string, unknown>
+  ): ThreadItem => ({
+    key,
+    kind: "compaction",
+    source: key.startsWith("live") ? "live" : "history",
+    meta: { contextCompaction: { version: 1, ...payload } },
+  })
+  const full = { preTokens: 108716, postTokens: 4462, durationMs: 92728 }
+  const keys = (items: ThreadItem[]) => items.map((i) => i.key)
+
+  // The live ACP tool_call and the transcript-derived divider are the same
+  // compaction under two ids, and mid-turn both are in the timeline at once.
+  it("keeps the first of two renderings of one compaction", () => {
+    const items = [
+      assistantItem("a"),
+      divider("persisted-c", full),
+      assistantItem("b"),
+      divider("live-c", full),
+    ]
+    expect(keys(dedupeCompactionItems(items))).toEqual([
+      "persisted-a",
+      "persisted-c",
+      "persisted-b",
+    ])
+  })
+
+  it("keeps two genuinely different compactions", () => {
+    const items = [
+      divider("c1", full),
+      divider("c2", {
+        preTokens: 475949,
+        postTokens: 12634,
+        durationMs: 134503,
+      }),
+    ]
+    expect(dedupeCompactionItems(items)).toHaveLength(2)
+  })
+
+  // codex-acp sends a bare `{version: 1}` for every compaction it runs, so a
+  // key that tolerated missing counters would fold a whole session's
+  // compactions into one.
+  it("never folds payloads that cannot identify an event", () => {
+    const bare = [divider("c1", {}), divider("c2", {})]
+    expect(dedupeCompactionItems(bare)).toHaveLength(2)
+    const partial = [
+      divider("c1", { preTokens: 100, postTokens: 10 }),
+      divider("c2", { preTokens: 100, postTokens: 10 }),
+    ]
+    expect(dedupeCompactionItems(partial)).toHaveLength(2)
+    // grok's boolean-marker shape carries no versioned payload at all.
+    const grok: ThreadItem[] = [
+      { key: "g1", kind: "compaction", meta: { contextCompaction: true } },
+      { key: "g2", kind: "compaction", meta: { contextCompaction: true } },
+    ]
+    expect(dedupeCompactionItems(grok)).toHaveLength(2)
+  })
+
+  // Identity-stable so the memo around it does not invalidate every batch.
+  it("returns the input array when nothing is dropped", () => {
+    const items = [assistantItem("a"), divider("c1", full)]
+    expect(dedupeCompactionItems(items)).toBe(items)
+  })
+})
+
+describe("compactionOnlyPart", () => {
+  function compactionGroup(
+    state: "input-available" | "output-available"
+  ): ResolvedMessageGroup {
+    return {
+      id: "live-1",
+      role: "assistant",
+      parts: [
+        {
+          type: "tool-call",
+          toolCallId: "cmp_1",
+          toolName: "Context compaction",
+          input: null,
+          state,
+          output: "We kept the parser notes.",
+          meta: {
+            contextCompaction: { version: 1 },
+            "codeg.compactionSummary": true,
+          },
+        },
+      ],
+      resources: [],
+      images: [],
+    }
+  }
+
+  // A `/compact` still running is a compaction-only live turn, hoisted like a
+  // finished one — so the hoisted item has to keep the lifecycle, or it reads
+  // "compacted" (and its summary renders settled) while it is still going.
+  it("carries the call's state and claimed summary onto the hoisted item", () => {
+    expect(compactionOnlyPart(compactionGroup("input-available"))).toEqual({
+      meta: {
+        contextCompaction: { version: 1 },
+        "codeg.compactionSummary": true,
+      },
+      summary: "We kept the parser notes.",
+      state: "input-available",
+    })
+    expect(compactionOnlyPart(compactionGroup("output-available"))?.state).toBe(
+      "output-available"
+    )
   })
 })

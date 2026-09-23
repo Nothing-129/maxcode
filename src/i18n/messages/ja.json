@@ -3855,7 +3855,10 @@
         "compacting": "コンテキストを圧縮しています…",
         "compacted": "コンテキストを圧縮しました",
         "compactedTokens": "コンテキストを圧縮 · {before} → {after} トークン",
-        "failed": "コンテキストの圧縮に失敗しました"
+        "failed": "コンテキストの圧縮に失敗しました",
+        "summary": "要約",
+        "triggerManual": "手動で実行",
+        "triggerAutomatic": "自動で実行"
       },
       "sessionFailure": {
         "category": {

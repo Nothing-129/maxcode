@@ -21,6 +21,7 @@ import {
   gitIsTracked,
   gitShowDiff,
   gitShowFile,
+  listDirectoryWithFiles,
   readFileBase64,
   readFileForEdit,
   readFilePreview,
@@ -508,6 +509,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   )
   const fileTabsRef = useRef<FileWorkspaceTab[]>([])
   const fileScopesRef = useRef<FileScopes>({})
+  // Keep dismissals across folder changes and effect re-subscriptions. A
+  // watcher event must not reopen a preview the user already closed.
+  const autoOpenedOfficePathsRef = useRef(new Set<string>())
   // Latest-state mirrors for the stable action callbacks. Actions live in a
   // context value that must NOT change identity when tabs/folder change, so
   // they read these refs instead of capturing render-scoped state. The refs
@@ -1563,10 +1567,16 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     // Leading-edge with dedup: an agent building a doc fires a burst of writes,
     // so we open on first sighting and remember it in `autoOpened` (which also
     // keeps a tab the user has since closed from popping back open).
-    const autoOpened = new Set<string>()
+    const autoOpened = autoOpenedOfficePathsRef.current
+    const pending = new Set<string>()
+    let cancelled = false
     const streamRoot = folderPath
     const unsubscribe = subscribeOfficeEnvelopes(({ changed_paths }) => {
       if (!changed_paths || changed_paths.length === 0) return
+      const directories = new Map<
+        string,
+        ReturnType<typeof listDirectoryWithFiles>
+      >()
       // Tab identity is the absolute path, so joining the stream root onto
       // the changed relative path compares exactly — an identically-named
       // doc in another folder has a different absolute path and never
@@ -1591,12 +1601,47 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         // at once — which arrived here as a dozen unreadable previews.
         if (isOfficeOwnerFile(changed)) continue
         const abs = joinRootRel(streamRoot, changed)
-        if (autoOpened.has(abs) || openPaths.has(abs)) continue
-        autoOpened.add(abs)
-        void openFilePreview(abs)
+        if (autoOpened.has(abs) || pending.has(abs)) continue
+        if (openPaths.has(abs)) {
+          autoOpened.add(abs)
+          continue
+        }
+        const io = splitAbsPath(abs)
+        if (!io) continue
+        pending.add(abs)
+        // changed_paths includes removals, including removed worktree copies.
+        // Inspect directory metadata before opening a tab, without reading or
+        // locking the Office document. Share one listing per parent per burst.
+        let listing = directories.get(io.rootPath)
+        if (!listing) {
+          listing = listDirectoryWithFiles(io.rootPath)
+          directories.set(io.rootPath, listing)
+        }
+        void listing
+          .then((entries) => {
+            if (cancelled || autoOpened.has(abs)) return
+            const exists = entries.some(
+              (entry) =>
+                !entry.isDir &&
+                entry.size != null &&
+                normalizeAbsPath(entry.path) === abs
+            )
+            if (!exists) return
+            autoOpened.add(abs)
+            // A manual open during the lookup already handled this file.
+            if (fileTabsRef.current.some((tab) => tab.path === abs)) return
+            return openFilePreview(abs)
+          })
+          .catch(() => {
+            // A removed/unreadable parent is not a document to preview.
+          })
+          .finally(() => pending.delete(abs))
       }
     })
-    return unsubscribe
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [
     folderPath,
     activeFolderIdForOffice,

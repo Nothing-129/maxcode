@@ -3855,7 +3855,10 @@
         "compacting": "Compactage du contexte…",
         "compacted": "Contexte compacté",
         "compactedTokens": "Contexte compacté · {before} → {after} tokens",
-        "failed": "Échec de la compaction du contexte"
+        "failed": "Échec de la compaction du contexte",
+        "summary": "Résumé",
+        "triggerManual": "Déclenchée manuellement",
+        "triggerAutomatic": "Déclenchée automatiquement"
       },
       "sessionFailure": {
         "category": {

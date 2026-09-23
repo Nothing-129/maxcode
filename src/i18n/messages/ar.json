@@ -3855,7 +3855,10 @@
         "compacting": "جارٍ ضغط السياق…",
         "compacted": "تم ضغط السياق",
         "compactedTokens": "تم ضغط السياق · {before} → {after} رمز",
-        "failed": "فشل ضغط السياق"
+        "failed": "فشل ضغط السياق",
+        "summary": "الملخص",
+        "triggerManual": "تم التشغيل يدويًا",
+        "triggerAutomatic": "تم التشغيل تلقائيًا"
       },
       "sessionFailure": {
         "category": {
