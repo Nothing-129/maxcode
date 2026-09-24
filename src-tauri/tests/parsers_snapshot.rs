@@ -19,13 +19,57 @@ use codeg_lib::parsers::{
     opencode::OpenCodeParser, AgentParser,
 };
 use insta::assert_json_snapshot;
-use serde_json::json;
+use serde_json::{json, Value};
 
 fn write(path: &Path, contents: &str) {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).expect("create parent dir");
     }
     fs::write(path, contents).expect("write fixture file");
+}
+
+// Tool previews contain JSON encoded as a string. Its object key order can
+// change when another dependency enables serde_json's preserve_order feature.
+// Sort keys inside those strings so snapshots still compare their full content.
+fn canonicalize_preview_json(value: &mut Value) {
+    match value {
+        Value::Object(fields) => {
+            for (key, nested) in fields {
+                if key.ends_with("_preview") {
+                    if let Value::String(preview) = nested {
+                        if let Ok(parsed) = serde_json::from_str::<Value>(preview) {
+                            *preview = serde_json::to_string(&sort_json_keys(parsed))
+                                .expect("serialize preview JSON");
+                        }
+                    }
+                } else {
+                    canonicalize_preview_json(nested);
+                }
+            }
+        }
+        Value::Array(items) => {
+            for item in items {
+                canonicalize_preview_json(item);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn sort_json_keys(value: Value) -> Value {
+    match value {
+        Value::Object(fields) => {
+            let mut entries = fields.into_iter().collect::<Vec<_>>();
+            entries.sort_by(|left, right| left.0.cmp(&right.0));
+            let mut sorted = serde_json::Map::new();
+            for (key, nested) in entries {
+                sorted.insert(key, sort_json_keys(nested));
+            }
+            Value::Object(sorted)
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sort_json_keys).collect()),
+        other => other,
+    }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -771,6 +815,8 @@ fn opencode_tool_call_session_snapshot() {
     let detail = parser
         .get_conversation(session_id)
         .expect("get conversation");
+    let mut detail = serde_json::to_value(detail).expect("serialize OpenCode detail");
+    canonicalize_preview_json(&mut detail);
     assert_json_snapshot!("opencode_tools_detail", detail, {
         ".**.started_at" => "[ts]",
         ".**.ended_at" => "[ts]",
@@ -1104,6 +1150,8 @@ fn kimi_code_minimal_session_snapshot() {
     let parser = KimiCodeParser::with_base_dir(base);
     let summaries = parser.list_conversations().expect("list kimi");
     let detail = parser.get_conversation(session_id).expect("detail kimi");
+    let mut detail = serde_json::to_value(detail).expect("serialize Kimi detail");
+    canonicalize_preview_json(&mut detail);
 
     assert_json_snapshot!("kimi_code_list", summaries, {
         ".**.started_at" => "[ts]",
