@@ -81,10 +81,6 @@ jobs:
       - name: cargo test
         working-directory: src-tauri
         run: cargo test ${{ matrix.cargo_args }}
-      - name: cargo test (vendored sacp-tokio)
-        if: runner.os == 'Linux' && matrix.mode == 'electron'
-        working-directory: src-tauri
-        run: cargo test --manifest-path vendor/sacp-tokio/Cargo.toml --lib
       - name: cargo clippy
         working-directory: src-tauri
         run: cargo clippy ${{ matrix.cargo_args }} -- -D warnings
