@@ -1,6 +1,9 @@
 "use client"
 
-import { ALLOW_CUSTOM_AGENT_REGISTRATION } from "@/lib/maintained-agents"
+import {
+  ALLOW_CUSTOM_AGENT_REGISTRATION,
+  isHiddenFromAgentSettings,
+} from "@/lib/maintained-agents"
 
 import {
   useCallback,
@@ -4489,7 +4492,12 @@ export function AcpAgentSettings() {
   acpTranslator = (key, values) => rawTranslator(key, values)
   const searchParams = useSearchParams()
   const [agents, setAgents] = useState<AcpAgentInfo[]>([])
-  const agentUpdates = useAgentUpdates(agents)
+  const settingsAgents = useMemo(
+    () =>
+      agents.filter((agent) => !isHiddenFromAgentSettings(agent.agent_type)),
+    [agents]
+  )
+  const agentUpdates = useAgentUpdates(settingsAgents)
   const [loadingAgents, setLoadingAgents] = useState(true)
   const [addCustomOpen, setAddCustomOpen] = useState(false)
   // Registry id of the custom agent being edited; non-null renders the edit
@@ -4589,6 +4597,8 @@ export function AcpAgentSettings() {
   const [dragging, setDragging] = useState<AgentType | null>(null)
   const [reordering, setReordering] = useState(false)
   const pendingOrderRef = useRef<AgentType[] | null>(null)
+  const agentsRef = useRef(agents)
+  agentsRef.current = agents
   const busyActionRef = useRef<Set<AgentType>>(new Set())
   const handledSearchAgentRef = useRef<string | null>(null)
   const agentListRef = useRef<HTMLDivElement | null>(null)
@@ -4609,10 +4619,10 @@ export function AcpAgentSettings() {
 
   const sortedAgents = useMemo(
     () =>
-      [...agents].sort(
+      [...settingsAgents].sort(
         (a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)
       ),
-    [agents]
+    [settingsAgents]
   )
   const selectedAgent = useMemo(
     () =>
@@ -4625,8 +4635,10 @@ export function AcpAgentSettings() {
   )
   const agentTypesKey = useMemo(
     () =>
-      [...new Set(agents.map((agent) => agent.agent_type))].sort().join(","),
-    [agents]
+      [...new Set(settingsAgents.map((agent) => agent.agent_type))]
+        .sort()
+        .join(","),
+    [settingsAgents]
   )
   const requestedAgentType = useMemo(
     () => searchParams.get("agent"),
@@ -5565,7 +5577,10 @@ export function AcpAgentSettings() {
   )
 
   const handleReorder = useCallback((next: AcpAgentInfo[]) => {
-    const reordered = next.map((agent, index) => ({
+    const hidden = agentsRef.current.filter((agent) =>
+      isHiddenFromAgentSettings(agent.agent_type)
+    )
+    const reordered = [...next, ...hidden].map((agent, index) => ({
       ...agent,
       sort_order: index,
     }))

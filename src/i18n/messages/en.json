@@ -75,7 +75,7 @@
     },
     "themeColor": {
       "sectionTitle": "Theme color",
-      "sectionDescription": "Pick a color palette for accents, buttons, and highlights.",
+      "sectionDescription": "Choose a palette for the background, text, and accents.",
       "current": "Current color: {color}",
       "options": {
         "neutral": "Neutral",
@@ -89,7 +89,8 @@
         "green": "Green",
         "blue": "Blue",
         "yellow": "Yellow",
-        "violet": "Violet"
+        "violet": "Violet",
+        "hbuilderx": "HBuilderX Warm"
       }
     },
     "customStyle": {

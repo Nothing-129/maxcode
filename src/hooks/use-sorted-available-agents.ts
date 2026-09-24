@@ -3,7 +3,10 @@
 import { useEffect, useMemo } from "react"
 import { useAcpAgents } from "@/hooks/use-acp-agents"
 import type { AgentType } from "@/lib/types"
-import { MAINTAINED_AGENT_TYPES } from "@/lib/maintained-agents"
+import {
+  isHiddenFromAgentSettings,
+  MAINTAINED_AGENT_TYPES,
+} from "@/lib/maintained-agents"
 
 const STORAGE_KEY = "workspace:sorted-available-agents"
 
@@ -22,7 +25,10 @@ function readSeed(): AgentType[] {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      (v): v is AgentType => typeof v === "string" && VALID_AGENT_TYPES.has(v)
+      (v): v is AgentType =>
+        typeof v === "string" &&
+        VALID_AGENT_TYPES.has(v) &&
+        !isHiddenFromAgentSettings(v)
     )
   } catch {
     return []
@@ -71,7 +77,12 @@ export function useSortedAvailableAgents(): UseSortedAvailableAgentsResult {
 
   const liveSortedTypes = useMemo(
     () =>
-      agents.filter((a) => a.enabled && a.available).map((a) => a.agent_type),
+      agents
+        .filter(
+          (a) =>
+            a.enabled && a.available && !isHiddenFromAgentSettings(a.agent_type)
+        )
+        .map((a) => a.agent_type),
     [agents]
   )
 

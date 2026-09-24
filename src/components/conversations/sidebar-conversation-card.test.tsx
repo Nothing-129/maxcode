@@ -751,13 +751,15 @@ describe("SidebarConversationCard Recent folder chip", () => {
     const folder = container.querySelector("[data-recent-folder]")
     expect(folder).not.toBeNull()
     expect(folder).toHaveClass(
-      "min-w-0",
+      "min-w-[0.625rem]",
       "max-w-[7.5rem]",
       "shrink-[999]",
+      "overflow-hidden",
       "text-[0.6875rem]",
       "leading-[0.8125rem]",
       "text-muted-foreground/55"
     )
+    expect(folder).not.toHaveClass("min-w-0")
     expect(folder).not.toHaveClass("shrink-0")
     expect(folder).toHaveAttribute("title", "外呼中心")
     expect(
@@ -765,9 +767,44 @@ describe("SidebarConversationCard Recent folder chip", () => {
     ).not.toBeNull()
     expect(getByText("外呼中心")).toHaveClass("truncate")
     const title = getByText("conv-1")
-    expect(title).toHaveClass("shrink", "grow-0")
+    expect(title).toHaveClass("shrink", "grow-0", "overflow-hidden")
     expect(title).not.toHaveClass("flex-1")
     expect(title.nextElementSibling).toBe(folder)
+    expect(folder?.parentElement).toHaveClass(
+      "flex-1",
+      "min-w-0",
+      "overflow-hidden"
+    )
+    expect(getByText("5m")).toHaveClass("shrink-0")
+  })
+
+  it("clips a squeezed folder chip instead of letting the glyph overlap the time", () => {
+    const { container, getByText } = renderWithIntl(
+      <SidebarConversationCard
+        conversation={{
+          ...conv(1),
+          title: "0921｜发布｜GitHub构建与版本发布流水线",
+        }}
+        isSelected={false}
+        timeLabel="1h"
+        folderLabel="maxcode"
+        showFolderIcon
+        onSelect={onSelect}
+        onDoubleClick={onDoubleClick}
+        onRename={onRename}
+        onDelete={onDelete}
+        onStatusChange={onStatusChange}
+      />
+    )
+    const folder = container.querySelector("[data-recent-folder]")
+    expect(folder).toHaveClass("min-w-[0.625rem]", "overflow-hidden")
+    expect(folder?.parentElement).toHaveClass("flex-1", "overflow-hidden")
+    expect(getByText("1h")).toHaveClass("shrink-0")
+    expect(folder?.querySelector('[data-recent-source="folder"]')).toHaveClass(
+      "h-[0.625rem]",
+      "w-[0.625rem]",
+      "shrink-0"
+    )
   })
 
   it("uses a chat glyph for folderless chat rows", () => {

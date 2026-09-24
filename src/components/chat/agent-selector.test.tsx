@@ -151,6 +151,28 @@ describe("AgentSelector", () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
+  it("omits ZCode from the new-conversation picker", async () => {
+    mockUseAcpAgents.mockReturnValue({
+      agents: [agent("zcode"), agent("codex")],
+      fresh: true,
+      refresh: async () => {},
+    })
+    const onSelect = vi.fn()
+    const onFallback = vi.fn()
+    const { container } = renderWithIntl(
+      <AgentSelector
+        defaultAgentType="zcode"
+        onSelect={onSelect}
+        onFallback={onFallback}
+      />
+    )
+    expect(container.textContent).not.toContain("ZCode")
+    await waitFor(() => {
+      expect(onFallback).toHaveBeenCalledWith("codex")
+    })
+    expect(onSelect).not.toHaveBeenCalled()
+  })
+
   it("clicking an available agent invokes onSelect with its agent_type", () => {
     mockUseAcpAgents.mockReturnValue({
       agents: [agent("claude_code"), agent("codex")],

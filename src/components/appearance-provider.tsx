@@ -14,6 +14,7 @@ import {
 } from "react"
 import {
   THEME_COLORS,
+  isSelectableThemeColor,
   DEFAULT_THEME_COLOR,
   type ThemeColor,
   ZOOM_LEVELS,
@@ -351,12 +352,13 @@ export function AppearanceProvider({
   // 初始值从 DOM 读取（appearance-script.ts 在 hydration 前已经写好），
   // 而不是从 localStorage 读 —— 避免 SSR 与 CSR 不一致导致的双闪烁。
   const [themeColor, setThemeColorState] = useState<ThemeColor>(() => {
-    if (!APPEARANCE_CUSTOMIZATION_ENABLED || typeof document === "undefined")
-      return DEFAULT_THEME_COLOR
+    if (typeof document === "undefined") return DEFAULT_THEME_COLOR
     const attr = document.documentElement.getAttribute(
       "data-theme"
     ) as ThemeColor | null
-    return attr && (THEME_COLORS as readonly string[]).includes(attr)
+    return attr &&
+      (THEME_COLORS as readonly string[]).includes(attr) &&
+      (APPEARANCE_CUSTOMIZATION_ENABLED || isSelectableThemeColor(attr))
       ? attr
       : DEFAULT_THEME_COLOR
   })
@@ -515,7 +517,8 @@ export function AppearanceProvider({
   )
 
   const setThemeColor = useCallback((color: ThemeColor) => {
-    if (!APPEARANCE_CUSTOMIZATION_ENABLED) return
+    if (!APPEARANCE_CUSTOMIZATION_ENABLED && !isSelectableThemeColor(color))
+      return
     setThemeColorState(color)
     document.documentElement.setAttribute("data-theme", color)
     persist(STORAGE_KEY_THEME_COLOR, color)
@@ -1005,7 +1008,10 @@ export function AppearanceProvider({
       if (e.key && isFixedAppearanceKey(e.key)) return
       if (e.key === STORAGE_KEY_THEME_COLOR && e.newValue) {
         const color = e.newValue as ThemeColor
-        if ((THEME_COLORS as readonly string[]).includes(color)) {
+        if (
+          (THEME_COLORS as readonly string[]).includes(color) &&
+          (APPEARANCE_CUSTOMIZATION_ENABLED || isSelectableThemeColor(color))
+        ) {
           setThemeColorState(color)
           document.documentElement.setAttribute("data-theme", color)
         }

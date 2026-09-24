@@ -91,12 +91,13 @@ describe("fixed desktop appearance", () => {
     expect(localStorage.getItem("codeg-chat-font-size")).toBe("20")
   })
 
-  it("gates exactly the four settings sections", () => {
+  it("shows preset choice while gating advanced appearance sections", () => {
     const settings = source("src/components/settings/appearance-settings.tsx")
     const start = settings.indexOf("{APPEARANCE_CUSTOMIZATION_ENABLED &&")
     const end = settings.indexOf("{/* ===== Workspace background")
     const gated = settings.slice(start, end)
-    expect(gated).toContain("themeColor.sectionTitle")
+    expect(settings.slice(0, start)).toContain("themeColor.sectionTitle")
+    expect(settings.slice(0, start)).toContain("SELECTABLE_THEME_COLORS")
     expect(gated).toContain("zoomLevel.sectionTitle")
     expect(gated).toContain("<FontSettingsSection />")
     expect(gated).toContain("<CustomStyleSection />")

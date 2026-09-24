@@ -159,6 +159,27 @@ describe("generateUnifiedDiff", () => {
     })
   })
 
+  it("counts a few distant edits in a 1500-line file without counting the intervening lines", () => {
+    const oldLines = makeLines(1481)
+    const newLines = [...oldLines]
+    newLines[3] = "changed near start"
+    newLines[1470] = "changed near end"
+    newLines.splice(700, 0, "inserted in middle")
+    const oldText = oldLines.join("\n")
+    const newText = newLines.join("\n")
+
+    expect(estimateChangedLineStats(oldText, newText)).toEqual({
+      additions: 3,
+      deletions: 2,
+    })
+    const diff = generateUnifiedDiff(oldText, newText, "ToolService.cs")!
+    expect(countUnifiedDiffLineChanges(diff)).toEqual({
+      additions: 3,
+      deletions: 2,
+    })
+    expect((diff.match(/^@@ /gm) ?? []).length).toBe(3)
+  })
+
   // countUnifiedDiffLineChanges must not mistake body content for a file header.
   it("counts body lines whose content starts with +++/---", () => {
     const oldText = ["keep", "--- old marker", "keep2"].join("\n")

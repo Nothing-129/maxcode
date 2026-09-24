@@ -123,7 +123,7 @@ describe("configureLanguageValidation", () => {
       monaco as unknown as Parameters<typeof defineMonacoThemes>[0]
     )
 
-    // 12 theme colors x {light, dark}.
+    // Every theme color has a light and dark editor variant.
     expect(defineTheme).toHaveBeenCalledTimes(THEME_COLORS.length * 2)
 
     const call = defineTheme.mock.calls.find(

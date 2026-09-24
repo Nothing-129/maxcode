@@ -32,6 +32,7 @@ export const EDITOR_CANVAS_BG: Record<
   blue: { light: "#fcfdff", dark: "#14171e" },
   yellow: { light: "#fefdfa", dark: "#1a1710" },
   violet: { light: "#fdfdff", dark: "#17161d" },
+  hbuilderx: { light: "#fffbea", dark: "#29271e" },
 }
 
 // Current-line highlight per theme color = that theme's `--muted` token (see the
@@ -56,6 +57,7 @@ export const EDITOR_LINE_HIGHLIGHT: Record<
   blue: { light: "#eff4fd", dark: "#23282f" },
   yellow: { light: "#f8f4eb", dark: "#2b271f" },
   violet: { light: "#f4f3fc", dark: "#27262f" },
+  hbuilderx: { light: "#ece3ca", dark: "#353123" },
 }
 
 // A Monaco theme name encodes both axes: light/dark mode and the active theme color.
@@ -542,6 +544,15 @@ function withCanvasBackground(
   const bg = opaqueBg + alphaHexSuffix
   return {
     ...base,
+    ...(color === "hbuilderx"
+      ? {
+          "editor.foreground": dark ? "#e6e5d8" : "#3a5268",
+          "editorLineNumber.foreground": dark ? "#a9a187" : "#ada17d",
+          "editorLineNumber.activeForeground": dark ? "#e6e5d8" : "#3a5268",
+          "editor.selectionBackground": dark ? "#4b6147" : "#ece3ca",
+          "editor.inactiveSelectionBackground": dark ? "#3c4938" : "#f4ecd2",
+        }
+      : {}),
     "editor.background": bg,
     "editorGutter.background": bg,
     "peekViewEditor.background": bg,

@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import {
   ALLOW_CUSTOM_AGENT_REGISTRATION,
   MAINTAINED_AGENT_TYPES,
+  isHiddenFromAgentSettings,
 } from "@/lib/maintained-agents"
 import type { AcpAgentInfo } from "@/lib/types"
 import { AGENT_DISPLAY_ORDER } from "@/lib/types"
@@ -95,6 +96,23 @@ describe("MaxCode seven-agent maintenance scope", () => {
         fresh: false,
       })
     ).toEqual({ agentType: "codex", provisional: true })
+  })
+
+  it("keeps ZCode out of the agent settings list", () => {
+    expect(isHiddenFromAgentSettings("zcode")).toBe(true)
+    for (const agentType of MAINTAINED_AGENT_TYPES) {
+      if (agentType === "zcode") continue
+      expect(isHiddenFromAgentSettings(agentType)).toBe(false)
+    }
+    expect(source("src/components/settings/acp-agent-settings.tsx")).toContain(
+      "isHiddenFromAgentSettings"
+    )
+    expect(source("src/components/chat/agent-selector.tsx")).toContain(
+      "isHiddenFromAgentSettings"
+    )
+    expect(source("src/lib/resolve-default-agent.ts")).toContain(
+      "isHiddenFromAgentSettings"
+    )
   })
 
   it("hides registration and excludes unsupported agents before backend work", () => {

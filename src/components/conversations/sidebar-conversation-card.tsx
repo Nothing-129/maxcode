@@ -489,15 +489,18 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
 
                     <span
                       className={cn(
-                        "flex min-w-0 items-center",
-                        showFolderMeta ? "gap-[0.375rem]" : "flex-1"
+                        // Clip the Recent chip instead of painting it over the time.
+                        "flex min-w-0 flex-1 items-center overflow-hidden",
+                        showFolderMeta && "gap-[0.375rem]"
                       )}
                     >
                       <ConversationTitleLabel
                         data-open-in-tab={isOpenInTab || undefined}
                         className={cn(
                           "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
-                          showFolderMeta ? "shrink grow-0" : "flex-1"
+                          showFolderMeta
+                            ? "shrink grow-0 overflow-hidden"
+                            : "flex-1"
                         )}
                         title={conversation.title}
                         fallback={t("untitledConversation")}
@@ -523,7 +526,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         <span
                           data-recent-folder
                           title={folderLabel}
-                          className="flex min-w-0 max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+                          className="flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
                         >
                           {showFolderIcon ? (
                             <Folder
@@ -599,7 +602,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   )}
 
                   {/* Timestamp/unread indicator swaps to pin and completion actions on hover. */}
-                  <div className="flex h-full shrink-0 items-center pr-[0.375rem]">
+                  <div
+                    className={cn(
+                      "flex h-full shrink-0 items-center pr-[0.375rem]",
+                      showFolderMeta && "ml-[0.375rem]"
+                    )}
+                  >
                     <span
                       className={cn(
                         "flex items-center",

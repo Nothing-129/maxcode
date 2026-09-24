@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react"
 
 /**
- * 12 个 shadcn 官方主题预设的标识符。
+ * 12 个 shadcn 官方主题预设，加上 HBuilderX 暖黄预设。
  * 实际 CSS 变量值定义在 src/app/globals.css 的 [data-theme="..."] 选择器中。
  */
 export const THEME_COLORS = [
@@ -19,9 +19,17 @@ export const THEME_COLORS = [
   "blue",
   "yellow",
   "violet",
+  "hbuilderx",
 ] as const
 
 export type ThemeColor = (typeof THEME_COLORS)[number]
+
+/** The two palettes available while advanced appearance controls are hidden. */
+export const SELECTABLE_THEME_COLORS = ["neutral", "hbuilderx"] as const
+
+export function isSelectableThemeColor(color: string): color is ThemeColor {
+  return (SELECTABLE_THEME_COLORS as readonly string[]).includes(color)
+}
 
 export const FOLDER_THEME_COLOR_INHERIT = "inherit" as const
 
@@ -68,10 +76,11 @@ export function normalizeFolderThemeColor(
 export const DEFAULT_THEME_COLOR: ThemeColor = "neutral"
 
 /**
- * UI 预览用的代表色（OKLch 字符串，对应各预设的 primary 色 light 版本）。
+ * UI 预览用的代表色（各预设的 light primary；HBuilderX 展示暖纸底色）。
  * 仅用于 Appearance 页面的"色盘圆点"按钮渲染，不会被写入真实样式。
  *
- * 选择 light primary 而非其他变量，是因为 primary 是各预设视觉差异最大的部分。
+ * 常规预设选 light primary，因为它们的视觉差异主要来自强调色；HBuilderX
+ * 的识别特征是暖黄背景，因此用背景色作预览。
  * 这些值必须硬编码（不能通过 var(--primary) 读取），因为每个圆点要永远显示
  * 自己对应预设的代表色，不能跟随当前激活的主题色。
  */
@@ -88,6 +97,7 @@ export const THEME_COLOR_PREVIEW: Record<ThemeColor, string> = {
   blue: "oklch(0.546 0.245 262.881)",
   yellow: "oklch(0.795 0.184 86.047)",
   violet: "oklch(0.606 0.25 292.717)",
+  hbuilderx: "#fffbea",
 }
 
 /**
@@ -135,6 +145,7 @@ export const THEME_COLOR_TITLE: Record<
     light: "oklch(0.5 0.25 292.717)",
     dark: "oklch(0.8 0.111 293.009)",
   },
+  hbuilderx: { light: "#237a53", dark: "#7fd4a5" },
 }
 
 /**

@@ -75,7 +75,7 @@
     },
     "themeColor": {
       "sectionTitle": "主题颜色",
-      "sectionDescription": "选择按钮、强调色和高亮使用的色调。",
+      "sectionDescription": "选择界面背景、文字和强调色的配色方案。",
       "current": "当前颜色：{color}",
       "options": {
         "neutral": "Neutral",
@@ -89,7 +89,8 @@
         "green": "Green",
         "blue": "Blue",
         "yellow": "Yellow",
-        "violet": "Violet"
+        "violet": "Violet",
+        "hbuilderx": "HBuilderX 暖黄"
       }
     },
     "customStyle": {

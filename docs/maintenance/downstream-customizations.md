@@ -19,6 +19,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 外观主题 | 设置中可选择默认或 HBuilderX 暖黄；暖纸色画布、蓝灰正文、绿色强调色及编辑器背景同步，选择持久化并在首帧生效，其他高级外观设置继续隐藏 | `worktree-2026-09-24` | `appearance.hbuilderx-warm-theme` |
 | Claude 命令审批 | ACP 0.79、PowerShell 归一化、特殊 Shell 命令完整展示，保留显式拒绝优先和独立 CLI 更新 | `afdcfe0b` | `agents.claude-079-command-approval` |
 | Pi 上下文容量 | 按 provider/id 读取 models.json，支持默认值、重复声明及覆盖层，保留历史计时和用量 | `07653466`、`7d74c791`、`29e435ef` | `history.pi-declared-model-window` |
 | Office 预览清理 | 同步发出终止信号、异步回收，关闭时不依赖任务调度 | `65588b03` | `runtime.office-watch-immediate-reap` |

@@ -22,9 +22,10 @@ describe("sidebar text and spacing", () => {
     )
     expect(card).toContain("relative h-[1.9375rem] py-px")
     expect(card).toContain(
-      "flex min-w-0 max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+      "flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
     )
-    expect(card).toContain('showFolderMeta ? "shrink grow-0" : "flex-1"')
+    expect(card).toContain("flex min-w-0 flex-1 items-center overflow-hidden")
+    expect(card).toContain('"shrink grow-0 overflow-hidden"')
     expect(card).toContain("h-[0.625rem] w-[0.625rem] shrink-0")
     expect(card).toContain("strokeWidth={1.5}")
     expect(card).toContain('data-recent-source="chat"')

@@ -1,23 +1,20 @@
+import { computeSparseLineDiff } from "./large-line-diff"
+
 export interface LineChangeStats {
   additions: number
   deletions: number
 }
 
 /**
- * Maximum product of changed-window line counts before both the collapsed stat
- * (the LIS below) and the expanded diff (`generateUnifiedDiff`'s LCS table)
- * stop computing an exact diff and treat the whole window as changed.
+ * Maximum product of changed-window line counts before the collapsed stat and
+ * expanded diff switch from their LCS implementations to bounded Myers diff.
  *
- * This single ceiling is the crux of keeping the two consistent: because the
- * number of matching line pairs is ≤ the product of the line counts, one
- * product budget bounds BOTH the LIS work here and the O(n*m) diff table, and —
- * decisively — makes the two share ONE fallback trigger. Below the budget both
- * compute the exact line LCS (identical counts); at or above it both report the
- * full trimmed window (identical counts). They can therefore never disagree.
+ * Both callers use the same threshold and the same bounded algorithm. If the
+ * edit distance exceeds that bound, both report the whole trimmed window.
  *
  * Kept modest because the collapsed stat runs on every edit-card render;
  * localized edits trim to a tiny window regardless of file size, so only
- * genuinely huge contiguous rewrites (~1000+ changed lines) reach the fallback.
+ * large sparse windows reach the bounded algorithm.
  */
 export const LINE_DIFF_LCS_BUDGET = 1_000_000
 
@@ -152,11 +149,19 @@ export function estimateChangedLineStats(
     return { additions: 0, deletions: oldWindow.length }
   }
 
-  // Window too large / duplicate-heavy for an exact LCS: report the whole
-  // (already-trimmed) window as changed. generateUnifiedDiff applies the SAME
-  // gate, so the collapsed stat and the expanded diff fall back together and
-  // their +/- counts stay identical.
+  // The quadratic LCS is too expensive for this window. Sparse edits still
+  // have a short edit path; only broad rewrites use the whole-window fallback.
   if (exceedsLineDiffBudget(oldWindow, newWindow)) {
+    const hunks = computeSparseLineDiff(oldWindow, newWindow)
+    if (hunks) {
+      return hunks.reduce(
+        (stats, hunk) => ({
+          additions: stats.additions + hunk.newLines.length,
+          deletions: stats.deletions + hunk.baseCount,
+        }),
+        { additions: 0, deletions: 0 }
+      )
+    }
     return { additions: newWindow.length, deletions: oldWindow.length }
   }
 

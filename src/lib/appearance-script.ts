@@ -2,6 +2,7 @@ import {
   APPEARANCE_CUSTOMIZATION_ENABLED,
   FIXED_APPEARANCE_KEY_PATTERN,
 } from "./appearance-policy"
+import { SELECTABLE_THEME_COLORS, THEME_COLORS } from "./theme-presets"
 // src/lib/appearance-script.ts
 
 import { DEFAULT_CHAT_FONT_SIZE, FONT_SIZES } from "./font-presets"
@@ -110,7 +111,7 @@ const SCRIPT = `
       if (!${APPEARANCE_CUSTOMIZATION_ENABLED} && ${FIXED_APPEARANCE_KEY_PATTERN.toString()}.test(key)) return null;
       return localStorage.getItem(key);
     }
-    var VALID_COLORS = ["neutral","zinc","slate","stone","gray","red","rose","orange","green","blue","yellow","violet"];
+    var VALID_COLORS = ${JSON.stringify(APPEARANCE_CUSTOMIZATION_ENABLED ? THEME_COLORS : SELECTABLE_THEME_COLORS)};
     var VALID_ZOOMS = [80, 90, 100, 110, 125, 150, 175, 200, 250, 300];
 
     var storedColor = readSetting("${STORAGE_KEY_THEME_COLOR}");

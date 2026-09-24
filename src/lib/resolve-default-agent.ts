@@ -1,5 +1,6 @@
 import type { AgentType } from "@/lib/types"
 import {
+  isHiddenFromAgentSettings,
   isMaintainedAgent,
   MAINTAINED_AGENT_TYPES,
 } from "@/lib/maintained-agents"
@@ -55,25 +56,32 @@ export interface ResolveDefaultAgentResult {
  *   5. `MAINTAINED_AGENT_TYPES[0]` — final fallback when even the sorted list
  *      isn't available yet (cold start).
  *
+ * Agents omitted from the new-conversation picker (currently ZCode) are
+ * skipped at every step, including a remembered or inherited choice.
+ *
  * The result is marked `provisional: true` for cases 3 and 4 when `fresh`
  * is false — i.e. the sorted list might still be stale or empty seed data
  * from localStorage, and the caller should re-resolve once fresh data
  * arrives.
  */
+function isOfferedForNewConversation(agentType: string): boolean {
+  return isMaintainedAgent(agentType) && !isHiddenFromAgentSettings(agentType)
+}
+
 export function resolveDefaultAgent(
   input: ResolveDefaultAgentInput
 ): ResolveDefaultAgentResult {
   const { lastSelected, folderDefault, inherit, sortedTypes, fresh } = input
-  if (lastSelected && isMaintainedAgent(lastSelected)) {
+  if (lastSelected && isOfferedForNewConversation(lastSelected)) {
     return { agentType: lastSelected, provisional: false }
   }
-  if (folderDefault && isMaintainedAgent(folderDefault)) {
+  if (folderDefault && isOfferedForNewConversation(folderDefault)) {
     return { agentType: folderDefault, provisional: false }
   }
-  if (inherit && isMaintainedAgent(inherit)) {
+  if (inherit && isOfferedForNewConversation(inherit)) {
     return { agentType: inherit, provisional: false }
   }
-  const firstMaintained = sortedTypes.find(isMaintainedAgent)
+  const firstMaintained = sortedTypes.find(isOfferedForNewConversation)
   if (firstMaintained) {
     return { agentType: firstMaintained, provisional: !fresh }
   }

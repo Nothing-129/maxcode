@@ -12,6 +12,7 @@ import { useTranslations } from "next-intl"
 import { MoreHorizontal } from "lucide-react"
 import { useAcpAgents } from "@/hooks/use-acp-agents"
 import type { AgentType, AcpAgentInfo } from "@/lib/types"
+import { isHiddenFromAgentSettings } from "@/lib/maintained-agents"
 import { getAgentLabel } from "@/lib/custom-agents"
 import { AgentIcon } from "@/components/agent-icon"
 import { SelectorTooltip } from "@/components/chat/selector-tooltip"
@@ -79,7 +80,10 @@ export function AgentSelector({
   const t = useTranslations("Folder.chat.agentSelector")
   const { agents: rawAgents } = useAcpAgents()
   const agents = useMemo<AcpAgentInfo[]>(
-    () => rawAgents.filter((a) => a.enabled),
+    () =>
+      rawAgents.filter(
+        (a) => a.enabled && !isHiddenFromAgentSettings(a.agent_type)
+      ),
     [rawAgents]
   )
   const onSelectRef = useRef(onSelect)

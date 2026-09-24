@@ -1,11 +1,12 @@
 import { computeLineDiff, type DiffHunk } from "@/components/merge/merge-diff"
 import { exceedsLineDiffBudget } from "./line-change-stats"
+import { computeSparseLineDiff } from "./large-line-diff"
 
 /**
  * Generate a unified diff string from old and new text.
  *
- * Uses LCS-based line diff when within budget, falls back to
- * simple "all deletions then all additions" for very large inputs.
+ * Uses LCS-based line diff within budget and bounded Myers diff for large,
+ * sparse edits. Broad rewrites use a whole-window fallback.
  */
 export function generateUnifiedDiff(
   oldText: string,
@@ -54,14 +55,16 @@ export function generateUnifiedDiff(
   // Nothing left after trimming (content differed only by a trailing newline).
   if (midOld.length === 0 && midNew.length === 0) return null
 
-  // Fall back to the naive diff when the changed window is too large for an
-  // exact LCS. This gate is shared with the collapsed +N/−M stat
-  // (line-change-stats.ts) so the two always agree: below the budget both
-  // compute the exact LCS; at/above it both treat the whole window as changed.
-  // The window is already trimmed, so the naive output covers only the real
-  // change region, never the whole file.
+  // Keep the collapsed +N/−M stat and expanded diff on the same algorithm.
+  // A few distant edits remain compact even when their window spans the file.
   if (exceedsLineDiffBudget(midOld, midNew)) {
-    return buildNaiveDiff(header, midOld, midNew, prefix)
+    const sparseHunks = computeSparseLineDiff(midOld, midNew)
+    if (!sparseHunks) return buildNaiveDiff(header, midOld, midNew, prefix)
+    const offsetHunks = sparseHunks.map((hunk) => ({
+      ...hunk,
+      baseStart: hunk.baseStart + prefix,
+    }))
+    return `${header}\n${buildUnifiedHunks(oldLines, offsetHunks, contextLines)}`
   }
 
   const hunks = computeLineDiff(midOld, midNew)

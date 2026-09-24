@@ -2,6 +2,27 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "appearance.hbuilderx-warm-theme",
+      "category": "product",
+      "description": "Appearance settings offer neutral and screenshot-inspired HBuilderX warm paper palettes while other advanced appearance controls stay hidden. The choice persists and applies before first paint, including warm editor surfaces and readable text in light and dark modes.",
+      "origins": [
+        "worktree-2026-09-24"
+      ],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/appearance-provider.tsx",
+        "src/components/settings/appearance-settings.tsx",
+        "src/lib/appearance-policy.ts",
+        "src/lib/appearance-script.ts",
+        "src/lib/monaco-themes.ts",
+        "src/lib/theme-presets.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/hbuilderx-theme.contract.test.tsx"
+      ]
+    },
+    {
       "id": "agents.zcode-bundled-acp-adapter",
       "category": "runtime",
       "description": "ZCode is MaxCode's seventh maintained agent and the only one shipped through AgentDistribution::Bundled: the zcode-acp adapter is embedded in the binary and materialized at launch, driving the vendor runtime's private ZCode Protocol (zcode app-server --stdio, no ACP; Z.ai retired its own non-CLI ACP path). Keep the adapter's method bridge (session/create|resume|send|subscribe|stop, interaction/requestPermission to session/request_permission), the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the SQLite history parser over ~/.zcode/cli/db/db.sqlite, structured auto-titles via supports_dedicated_auto_title, and the maintained-catalog membership; upstream merges must not silently drop the Bundled distribution, its arms in install/status/verify/auto-update paths or the i18n zcode section.",
@@ -546,6 +567,23 @@
       ],
       "contracts": [
         "src/maxcode-contracts/codex-followup.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.reply-diff-large-file",
+      "category": "product",
+      "description": "A few distant edits in a large file retain their actual added/deleted line counts and compact review hunks instead of reporting the whole file as rewritten.",
+      "origins": [
+        "worktree-2026-09-23"
+      ],
+      "paths": [
+        "src/lib/large-line-diff.ts",
+        "src/lib/line-change-stats.ts",
+        "src/lib/unified-diff-generator.ts",
+        "src/lib/session-files.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/reply-diff-large-file.contract.test.ts"
       ]
     },
     {
