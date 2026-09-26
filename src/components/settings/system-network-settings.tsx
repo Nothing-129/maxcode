@@ -1,6 +1,12 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react"
 import { Languages, Loader2, Plus, Sparkles, Trash2, Wifi } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -52,6 +58,18 @@ function GithubMarkIcon({ className }: { className?: string }) {
 
 const PROXY_EXAMPLE = "http://127.0.0.1:7890"
 const GROQ_API_KEYS_URL = "https://console.groq.com/keys"
+// Written exactly as the backend stores the list — comma-separated, no spaces —
+// so the example, the placeholder and the saved value all read the same.
+const PROXY_BYPASS_EXAMPLE = "git.example.com,.example.org,192.168.1.10"
+
+// A value in a hint, set apart from the prose so its punctuation is not read
+// as the sentence's. `dir="ltr"` keeps it intact in Arabic, where the leading
+// `.` of `.example.com` would otherwise move to the far end.
+const hintLiteral = (chunks: ReactNode) => (
+  <code dir="ltr" className="rounded bg-muted px-1 font-mono break-words">
+    {chunks}
+  </code>
+)
 const APP_LANGUAGE_VALUES = APP_LOCALES
 
 type LanguageSelectValue = "system" | AppLocale
@@ -89,6 +107,7 @@ export function SystemNetworkSettings() {
   const [enabled, setEnabled] = useState(false)
   const [proxyUrl, setProxyUrl] = useState("")
   const [proxyUrlError, setProxyUrlError] = useState<string | null>(null)
+  const [noProxy, setNoProxy] = useState("")
   const [loadError, setLoadError] = useState<string | null>(null)
   const [titleModelEnabled, setTitleModelEnabled] = useState(false)
   const [titleModelBaseUrl, setTitleModelBaseUrl] = useState("")
@@ -161,6 +180,7 @@ export function SystemNetworkSettings() {
       setTitleModelApiKey("")
       setClearTitleModelApiKey(false)
       setTitleModelTestResult(null)
+      setNoProxy(proxySettings.no_proxy ?? "")
     } catch (err) {
       const message = toErrorMessage(err)
       setLoadError(message)
@@ -177,7 +197,7 @@ export function SystemNetworkSettings() {
   }, [loadSettings])
 
   const saveProxySettings = useCallback(
-    async (nextEnabled: boolean, nextProxyUrl: string) => {
+    async (nextEnabled: boolean, nextProxyUrl: string, nextNoProxy: string) => {
       if (nextEnabled && !nextProxyUrl.trim()) return
 
       setSaving(true)
@@ -185,9 +205,11 @@ export function SystemNetworkSettings() {
         const next = await updateSystemProxySettings({
           enabled: nextEnabled,
           proxy_url: nextProxyUrl.trim() || null,
+          no_proxy: nextNoProxy.trim() || null,
         })
         setEnabled(next.enabled)
         setProxyUrl(next.proxy_url ?? "")
+        setNoProxy(next.no_proxy ?? "")
       } catch (err) {
         const message = toErrorMessage(err)
         toast.error(t("saveFailed", { message }))
@@ -365,7 +387,7 @@ export function SystemNetworkSettings() {
                 }
                 setProxyUrlError(null)
                 setEnabled(next)
-                saveProxySettings(next, proxyUrl)
+                saveProxySettings(next, proxyUrl, noProxy)
               }}
             />
             {t("enableProxy")}
@@ -387,7 +409,7 @@ export function SystemNetworkSettings() {
                   return
                 }
                 setProxyUrlError(null)
-                saveProxySettings(enabled, proxyUrl)
+                saveProxySettings(enabled, proxyUrl, noProxy)
               }}
               placeholder={PROXY_EXAMPLE}
               disabled={saving}
@@ -398,6 +420,32 @@ export function SystemNetworkSettings() {
             )}
             <p className="text-2xs text-muted-foreground">
               {t("proxyHint", { example: PROXY_EXAMPLE })}
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <label
+              htmlFor="system-proxy-bypass"
+              className="text-xs font-medium text-muted-foreground"
+            >
+              {t("proxyBypass")}
+            </label>
+            <Input
+              id="system-proxy-bypass"
+              // Hosts read left to right in every locale; in Arabic an entry
+              // typed first as `.example.com` would show its dot at the end.
+              dir="ltr"
+              value={noProxy}
+              onChange={(event) => setNoProxy(event.target.value)}
+              onBlur={() => saveProxySettings(enabled, proxyUrl, noProxy)}
+              placeholder={PROXY_BYPASS_EXAMPLE}
+              disabled={saving}
+            />
+            <p className="text-2xs text-muted-foreground">
+              {t.rich("proxyBypassHint", {
+                example: PROXY_BYPASS_EXAMPLE,
+                code: hintLiteral,
+              })}
             </p>
           </div>
         </section>

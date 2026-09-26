@@ -27,7 +27,7 @@ import { StatusBarAlerts } from "./status-bar-alerts"
 import enMessages from "@/i18n/messages/en.json"
 
 const EVIDENCE =
-  "dropped 1 update(s) (0 decode, 1 dispatch)\n" +
+  "dropped 1 unreadable update(s)\n" +
   "stderr (this turn, last 1 lines):\n  Error: 401 Unauthorized"
 
 function makeAlert(overrides: Partial<Alert>): Alert {

@@ -28,7 +28,12 @@ import { useAcpAgents } from "@/hooks/use-acp-agents"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
-import { groupOfTab, isReparentUnmount } from "@/stores/tab-store"
+import {
+  groupOfTab,
+  isReparentUnmount,
+  reparentedViewRuntimeConversationId,
+  trackConversationView,
+} from "@/stores/tab-store"
 import { computeRects, leafIds } from "@/lib/tab-group-layout"
 import { getConversationTabRetention } from "@/lib/conversation-tab-retention"
 import { useTaskContext } from "@/contexts/task-context"
@@ -90,9 +95,11 @@ import { TurnBusyError, isNoActiveTurnRejection } from "@/lib/turn-busy"
 import { toErrorMessage } from "@/lib/app-error"
 import { userPromptHistory } from "@/lib/composer-history"
 import {
+  claimRuntimeSession,
   getConversationIdByExternalIdFromStore,
   getRuntimeSession,
   getTimelineTurns,
+  releaseRuntimeSession,
   useConversationRuntimeActions,
   useConversationRuntimeStore,
 } from "@/stores/conversation-runtime-store"
@@ -296,7 +303,6 @@ const ConversationTabView = memo(function ConversationTabView({
     completeTurn,
     refetchDetail,
     syncTurnMetadata,
-    removeConversation,
     setAcpLoadError,
     setDbConversationId,
     setExternalId,
@@ -308,9 +314,19 @@ const ConversationTabView = memo(function ConversationTabView({
 
   // Stable runtime session key — set once at mount, never changes.
   // For new conversations this is a virtual (negative) ID; for existing
-  // conversations opened from the sidebar it equals the real DB ID.
+  // conversations opened from the sidebar it equals the real DB ID. A view
+  // remounted by a reparent carries on with its predecessor's key, which for a
+  // tab that started as a draft is still the virtual one (see
+  // `reparentedViewRuntimeConversationId`).
   const [effectiveConversationId] = useState(
-    () => conversationId ?? buildVirtualConversationId(`draft-${tabId}`)
+    () =>
+      reparentedViewRuntimeConversationId(useTabStore.getState(), tabId) ??
+      conversationId ??
+      buildVirtualConversationId(`draft-${tabId}`)
+  )
+  useEffect(
+    () => trackConversationView(tabId, groupId, effectiveConversationId),
+    [tabId, groupId, effectiveConversationId]
   )
   const [createdConversationId, setCreatedConversationId] = useState<
     number | null
@@ -382,8 +398,10 @@ const ConversationTabView = memo(function ConversationTabView({
     setTabRuntimeConversationId,
   ])
 
-  // Clear pendingCleanup when tab is (re)opened
+  // Clear pendingCleanup when tab is (re)opened, and take the session back from
+  // a release the view just before this one scheduled on it.
   useEffect(() => {
+    claimRuntimeSession(effectiveConversationId)
     setPendingCleanup(effectiveConversationId, false)
   }, [effectiveConversationId, setPendingCleanup])
 
@@ -906,7 +924,7 @@ const ConversationTabView = memo(function ConversationTabView({
   // rekey path: close+reopen mid-turn, where detail.turns may already hold user
   // turns that would otherwise drop the live assistant stream). Turn-end clearing
   // is owned by COMPLETE_TURN (nulls liveMessage); unmount clearing by
-  // removeConversation. `tabId` is the connection contextKey.
+  // releaseRuntimeSession. `tabId` is the connection contextKey.
   useEffect(() => {
     return acpActions.registerLiveMessageSink(tabId, (liveMessage, isLive) =>
       setLiveMessage(effectiveConversationId, liveMessage, isLive)
@@ -1022,21 +1040,43 @@ const ConversationTabView = memo(function ConversationTabView({
     mountedRef.current = true
     return () => {
       mountedRef.current = false
+      if (isReparentUnmount(useTabStore.getState(), tabId, groupId)) {
+        // Dragging the tab into another group reparents this view: React
+        // remounts it under that group's shell while the tab stays open. The
+        // connection is already held across that unmount (see
+        // `isTransientUnmount` above) and the runtime session has to be held
+        // with it — it holds the transcript. Dropping it emptied the message
+        // list and nothing brought it back: the remounted view re-registers
+        // its live-message sink on the connection it just kept, which recreates
+        // the session with a `liveMessage` and no `detail`, and `fetchDetail`
+        // skips a session that already has live data. Header, title and
+        // composer all read the tab row, so they looked untouched while the
+        // transcript stayed blank until the tab was closed and reopened.
+        //
+        // The post-turn metadata sync is left running for the same reason: it
+        // patches the session, not this view, and short of reopening the
+        // conversation it is the only thing that lands a live reply's usage,
+        // model and fork-point name. Cancelling it here lost them whenever the
+        // drag came within its retry window of a reply finishing.
+        return
+      }
       syncCancelRef.current?.()
       if (connStatusRef.current === "prompting" && !isViewerRef.current) {
         // Owner, agent still responding — keep the session for deferred cleanup
         // (the background turn_complete handler removes it once done).
         setPendingCleanup(effectiveConversationId, true)
       } else {
-        // Idle owner, or a VIEWER (any status): remove immediately. A viewer's
-        // unmount detaches its attach subscription, so no turn_complete will
-        // arrive to resolve a deferred cleanup — deferring would leak the
-        // runtime session (especially in web mode, which has no event firehose
-        // after detach).
-        removeConversation(effectiveConversationId)
+        // Idle owner, or a VIEWER (any status): remove now rather than on a
+        // turn_complete. A viewer's unmount detaches its attach subscription,
+        // so no turn_complete will arrive to resolve a deferred cleanup —
+        // waiting for one would leak the runtime session (especially in web
+        // mode, which has no event firehose after detach). "Now" is the end of
+        // this task, so a view mounting straight back onto the session can
+        // still claim it (see `releaseRuntimeSession`).
+        releaseRuntimeSession(effectiveConversationId)
       }
     }
-  }, [effectiveConversationId, removeConversation, setPendingCleanup])
+  }, [effectiveConversationId, groupId, setPendingCleanup, tabId])
 
   const handleSend = useCallback(
     (

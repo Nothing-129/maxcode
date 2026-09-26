@@ -19,6 +19,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 上游稳定性集成 | 草稿绑定后跨分栏移动保留运行时，Codex 回退历史、ACP 撤销/断连、Claude 工具参数和附件去重、文件链接、代理本机直连；保留 Electron、标题模型与公开分享策略 | `81163947`、`1a347230`、`6aaac6f9`、`94a17675`、`dd13b595`、`b18fa74d`、`0a802c9e` | `runtime.upstream-priority-20260926` |
 | 外观主题 | 设置中可选择默认或 HBuilderX 暖黄；暖纸色画布、蓝灰正文、绿色强调色及编辑器背景同步，选择持久化并在首帧生效，其他高级外观设置继续隐藏 | `worktree-2026-09-24` | `appearance.hbuilderx-warm-theme` |
 | Claude 命令审批 | ACP 0.79、PowerShell 归一化、特殊 Shell 命令完整展示，保留显式拒绝优先和独立 CLI 更新 | `afdcfe0b` | `agents.claude-079-command-approval` |
 | Pi 上下文容量 | 按 provider/id 读取 models.json，支持默认值、重复声明及覆盖层，保留历史计时和用量 | `07653466`、`7d74c791`、`29e435ef` | `history.pi-declared-model-window` |

@@ -124,6 +124,24 @@ describe("resolveFileReferenceTarget", () => {
     })
   })
 
+  it("resolves dot segments the way the opener does before placing the file", () => {
+    // `../site/a.md` opens `/site/a.md`: outside the folder, so no relative
+    // form (and no download) even though `/repo/../site/a.md` starts with it.
+    expect(resolveFileReferenceTarget("../site/a.md", "/repo")).toEqual({
+      absolute: "/site/a.md",
+      relative: null,
+    })
+    expect(resolveFileReferenceTarget("./src/../a.md", "/repo")).toEqual({
+      absolute: "/repo/a.md",
+      relative: "a.md",
+    })
+    // …and places it against the folder resolved the same way.
+    expect(resolveFileReferenceTarget("./a.md", "/repo/../site")).toEqual({
+      absolute: "/site/a.md",
+      relative: "a.md",
+    })
+  })
+
   it("keeps a ~ path in tilde form (home only resolves through the backend)", () => {
     expect(resolveFileReferenceTarget("~/notes/todo.md", "/repo")).toEqual({
       absolute: "~/notes/todo.md",
@@ -316,6 +334,35 @@ describe("FileReferenceActions", () => {
     expect(mocks.toastSuccess).not.toHaveBeenCalled()
   })
 
+  it("downloads from the folder the way the opener resolves it", async () => {
+    // A click on `./a.md` under `/repo/../site` opens `/site/a.md`; the
+    // download has to fetch that same file, so it is rooted the same way.
+    mocks.folderPath = "/repo/../site"
+    renderActions("./a.md")
+    openMenu()
+
+    fireEvent.click(item("Download file"))
+    await waitFor(() => {
+      expect(mocks.downloadWorkspaceFile).toHaveBeenCalledWith(
+        "/site",
+        "a.md",
+        "a.md"
+      )
+    })
+    expect(mocks.downloadWorkspaceFile).toHaveBeenCalledTimes(1)
+  })
+
+  it("offers no relative path or download for a `../` file outside the folder", () => {
+    renderActions("../site/a.md")
+    openMenu()
+
+    expect(item("Copy relative path")).toHaveAttribute("data-disabled")
+    expect(item("Download file")).toHaveAttribute("data-disabled")
+    expect(item("Copy absolute path")).not.toHaveAttribute("data-disabled")
+  })
+
+  /** The remote-desktop path writes through a save dialog, so where the file
+   * landed is the one outcome the user cannot see for themselves. */
   it("names the saved path when the download went through a save dialog", async () => {
     mocks.downloadWorkspaceFile.mockResolvedValue({
       status: "done",

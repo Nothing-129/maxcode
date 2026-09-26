@@ -1,7 +1,7 @@
 import {
-  fireEvent,
   render,
   screen,
+  fireEvent,
   waitFor,
   within,
 } from "@testing-library/react"
@@ -56,10 +56,20 @@ vi.mock("@/components/i18n-provider", () => ({
 }))
 
 import { SystemNetworkSettings } from "./system-network-settings"
+import arMessages from "@/i18n/messages/ar.json"
+import deMessages from "@/i18n/messages/de.json"
 import enMessages from "@/i18n/messages/en.json"
+import esMessages from "@/i18n/messages/es.json"
+import frMessages from "@/i18n/messages/fr.json"
+import jaMessages from "@/i18n/messages/ja.json"
+import koMessages from "@/i18n/messages/ko.json"
+import ptMessages from "@/i18n/messages/pt.json"
+import zhCNMessages from "@/i18n/messages/zh-CN.json"
+import zhTWMessages from "@/i18n/messages/zh-TW.json"
 import { openUrl } from "@/lib/platform"
 import {
   getSystemProxySettings,
+  updateSystemProxySettings,
   getSystemTitleModelSettings,
   testSystemTitleModelSettings,
   updateSystemTitleModelSettings,
@@ -70,6 +80,7 @@ const mockGetTitleModel = vi.mocked(getSystemTitleModelSettings)
 const mockSetTitleModel = vi.mocked(updateSystemTitleModelSettings)
 const mockTestTitleModel = vi.mocked(testSystemTitleModelSettings)
 const mockOpenUrl = vi.mocked(openUrl)
+const mockSetProxy = vi.mocked(updateSystemProxySettings)
 
 function renderWithIntl() {
   return render(
@@ -82,6 +93,7 @@ function renderWithIntl() {
 beforeEach(() => {
   transportCall.mockReset()
   mockGetProxy.mockReset()
+  mockSetProxy.mockReset()
   mockGetTitleModel.mockReset()
   mockSetTitleModel.mockReset()
   mockTestTitleModel.mockReset()
@@ -280,4 +292,166 @@ describe("SystemNetworkSettings — conversation title model", () => {
       await within(section!).findByText(/Fix session titles.*84 ms/)
     ).toBeInTheDocument()
   })
+})
+
+describe("SystemNetworkSettings — proxy bypass list", () => {
+  it("saves the list with the proxy and shows what the backend stored", async () => {
+    mockGetProxy.mockResolvedValue({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com",
+    })
+    // The backend canonicalizes the list; the field follows its answer.
+    mockSetProxy.mockResolvedValue({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com,192.168.1.10",
+    })
+
+    renderWithIntl()
+
+    const bypass = await screen.findByLabelText("Bypass proxy for")
+    expect(bypass).toHaveValue("corp.example.com")
+
+    fireEvent.change(bypass, {
+      target: { value: " corp.example.com;192.168.1.10 " },
+    })
+    fireEvent.blur(bypass)
+
+    await waitFor(() =>
+      expect(bypass).toHaveValue("corp.example.com,192.168.1.10")
+    )
+    expect(mockSetProxy).toHaveBeenCalledWith({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com;192.168.1.10",
+    })
+  })
+
+  it("keeps the list when the proxy address or switch is saved", async () => {
+    // Every save sends the whole settings row, so saving one field must not
+    // wipe the bypass list the backend already has.
+    mockGetProxy.mockResolvedValue({
+      enabled: false,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com",
+    })
+    mockSetProxy.mockImplementation(async (settings) => settings)
+
+    renderWithIntl()
+
+    const address = await screen.findByDisplayValue("http://10.0.0.2:3128")
+    fireEvent.blur(address)
+    await waitFor(() => expect(mockSetProxy).toHaveBeenCalledTimes(1))
+    expect(mockSetProxy).toHaveBeenLastCalledWith({
+      enabled: false,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com",
+    })
+
+    fireEvent.click(screen.getByLabelText("Enable system proxy"))
+    await waitFor(() => expect(mockSetProxy).toHaveBeenCalledTimes(2))
+    expect(mockSetProxy).toHaveBeenLastCalledWith({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com",
+    })
+  })
+
+  it("clears the list with an empty field", async () => {
+    mockGetProxy.mockResolvedValue({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: "corp.example.com",
+    })
+    mockSetProxy.mockImplementation(async (settings) => settings)
+
+    renderWithIntl()
+
+    const bypass = await screen.findByLabelText("Bypass proxy for")
+    fireEvent.change(bypass, { target: { value: "   " } })
+    fireEvent.blur(bypass)
+
+    await waitFor(() => expect(mockSetProxy).toHaveBeenCalledTimes(1))
+    expect(mockSetProxy).toHaveBeenCalledWith({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+      no_proxy: null,
+    })
+    await waitFor(() => expect(bypass).toHaveValue(""))
+  })
+
+  it("states the list format with the same literals as the placeholder", async () => {
+    mockGetProxy.mockResolvedValue({
+      enabled: false,
+      proxy_url: null,
+      no_proxy: null,
+    })
+
+    renderWithIntl()
+
+    const bypass = await screen.findByLabelText("Bypass proxy for")
+    const example = bypass.getAttribute("placeholder") ?? ""
+    // The form the backend stores and shows back: commas, no spaces.
+    expect(example).toMatch(/^[^\s,]+(,[^\s,]+)+$/)
+    // Hosts read left to right even in Arabic.
+    expect(bypass).toHaveAttribute("dir", "ltr")
+
+    const hint = screen.getByText(/Separate entries with commas and no spaces/)
+    for (const literal of [
+      example,
+      "example.com",
+      ".example.com",
+      "localhost,127.0.0.1,::1",
+    ]) {
+      const node = within(hint).getByText(literal)
+      expect(node.tagName).toBe("CODE")
+      // Kept whole in Arabic, where a leading `.` would otherwise move.
+      expect(node).toHaveAttribute("dir", "ltr")
+    }
+  })
+
+  it("shows an empty list for a server that predates the setting", async () => {
+    // A remote workspace on an older server never sends `no_proxy`.
+    mockGetProxy.mockResolvedValue({
+      enabled: true,
+      proxy_url: "http://10.0.0.2:3128",
+    })
+
+    renderWithIntl()
+
+    expect(await screen.findByLabelText("Bypass proxy for")).toHaveValue("")
+    expect(screen.queryByText(/Load failed/)).not.toBeInTheDocument()
+  })
+})
+
+describe("SystemNetworkSettings — proxy bypass hint in every locale", () => {
+  it.each([
+    ["ar", arMessages],
+    ["de", deMessages],
+    ["en", enMessages],
+    ["es", esMessages],
+    ["fr", frMessages],
+    ["ja", jaMessages],
+    ["ko", koMessages],
+    ["pt", ptMessages],
+    ["zh-CN", zhCNMessages],
+    ["zh-TW", zhTWMessages],
+  ] as const)(
+    "%s writes every value the way the field takes it",
+    (_, messages) => {
+      const hint = messages.SystemSettings.proxyBypassHint
+      for (const literal of [
+        "{example}",
+        "example.com",
+        ".example.com",
+        "localhost,127.0.0.1,::1",
+      ]) {
+        expect(hint).toContain(`<code>${literal}</code>`)
+      }
+      // The local hosts appear once, as that literal — never listed with the
+      // locale's own punctuation (、 ، or ", "), which reads as a separator.
+      expect(hint.split("localhost")).toHaveLength(2)
+    }
+  )
 })

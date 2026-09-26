@@ -395,11 +395,11 @@ pub enum AcpEvent {
     /// screen, which publishes no `PermissionRequest` of its own. Without this,
     /// the `queued` count on the card already delivered would go stale.
     PermissionQueueDepth { depth: u32 },
-    /// User responded to (or the connection drained) a previously-pending
-    /// permission request. The responder.respond() side of the SACP exchange
-    /// is RPC-only, so without this event downstream consumers (pet snapshot,
-    /// session_state for snapshot recovery) would have to wait until
-    /// TurnComplete to learn that the permission is no longer outstanding —
+    /// User responded to (or the connection drained, or the agent withdrew) a
+    /// previously-pending permission request. The responder.respond() side of
+    /// the ACP exchange is RPC-only, so without this event downstream consumers
+    /// (pet snapshot, session_state for snapshot recovery) would have to wait
+    /// until TurnComplete to learn that the permission is no longer outstanding —
     /// keeping the pet pinned on `Waiting` through whatever work the agent
     /// does after the approval (which, for ExitPlanMode, is the entire
     /// implementation phase).
@@ -962,7 +962,7 @@ pub struct SessionConfigSelectInfo {
     pub groups: Vec<SessionConfigSelectGroupInfo>,
 }
 
-/// An on/off toggle config option (ACP's `unstable_boolean_config`). Cline
+/// An on/off toggle config option (ACP's boolean `SessionConfigOption`). Cline
 /// 3.0.50+ ships one as `auto_approve` ("Auto-approve tools").
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SessionConfigBooleanInfo {

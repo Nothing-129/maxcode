@@ -2,6 +2,46 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.upstream-priority-20260926",
+      "category": "runtime",
+      "description": "Selected upstream stability fixes preserve MaxCode direct split drops, bound draft runtime identity and native session accounting, public-share link policy, title-model settings and Electron/shared-server routing. Proxied agent launches always bypass loopback and merge both NO_PROXY spellings. Claude/Codex adapters advance without expanding the agent catalog.",
+      "origins": [
+        "81163947",
+        "1a347230",
+        "6aaac6f9",
+        "d965dd26",
+        "94a17675",
+        "dd13b595",
+        "3ade0124",
+        "b18fa74d",
+        "40eeb6fd",
+        "0a802c9e",
+        "5f073a6c",
+        "ef1c3766"
+      ],
+      "paths": [
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/stores/tab-store.ts",
+        "src/stores/conversation-runtime-store.ts",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/background_watch.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/network/proxy.rs",
+        "src-tauri/src/commands/system_settings.rs",
+        "src/components/settings/system-network-settings.tsx",
+        "src/components/ai-elements/message.tsx",
+        "src/components/ai-elements/reasoning.tsx",
+        "src/components/ai-elements/markdown-link.tsx",
+        "src/components/ai-elements/rehype-relative-file-links.ts",
+        "src/components/message/file-reference-actions.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-priority-runtime.contract.test.ts"
+      ]
+    },
+    {
       "id": "appearance.hbuilderx-warm-theme",
       "category": "product",
       "description": "Appearance settings offer neutral and screenshot-inspired HBuilderX warm paper palettes while other advanced appearance controls stay hidden. The choice persists and applies before first paint, including warm editor surfaces and readable text in light and dark modes.",
@@ -2886,8 +2926,12 @@
       "id": "agents.grok-1040-setup-notifications",
       "category": "runtime",
       "description": "Grok 1.0.40 setup progress may carry a null sessionId before session allocation, and its MCP merge announcement is one-way. MaxCode claims both extension notifications at connection scope before sacp's strict per-session routing so healthy Grok sessions remain connected without invalid JSON-RPC error replies.",
-      "origins": ["worktree-2026-09-21"],
-      "paths": ["src-tauri/src/acp/connection.rs"],
+      "origins": [
+        "worktree-2026-09-21"
+      ],
+      "paths": [
+        "src-tauri/src/acp/connection.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/grok-1040-setup-notifications.contract.test.ts"
       ]
@@ -2896,8 +2940,14 @@
       "id": "skills.science-maintained-status",
       "category": "product",
       "description": "Science skill status includes every maintained skill-capable agent, including Grok, DeepSeek, Antigravity and ZCode, while keeping historical rows and excluding unmaintained new agent columns.",
-      "origins": ["45b9a7ec", "b66f35eb", "worktree-2026-09-23"],
-      "paths": ["src-tauri/src/commands/science.rs"],
+      "origins": [
+        "45b9a7ec",
+        "b66f35eb",
+        "worktree-2026-09-23"
+      ],
+      "paths": [
+        "src-tauri/src/commands/science.rs"
+      ],
       "contracts": [
         "src/maxcode-contracts/science-maintained-agents.contract.test.ts"
       ]
