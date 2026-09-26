@@ -2,6 +2,37 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.upstream-second-20260926",
+      "category": "runtime",
+      "description": "Second selected upstream batch preserves Electron update ownership and compact update status, pins only Antigravity/Grok, and adapts screenshot markup to uploaded chat/task attachments with atomic URI replacement, failure recovery and image-bound annotation text.",
+      "origins": [
+        "f773185a",
+        "d8c3d54e",
+        "f0b5bfc5",
+        "ab8e4fd4"
+      ],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/antigravity.rs",
+        "src-tauri/src/update/",
+        "src-tauri/src/web/handlers/web_server.rs",
+        "src/components/providers/update-provider.tsx",
+        "src/components/layout/status-bar-update.tsx",
+        "src/lib/updater.ts",
+        "src/lib/image-markup.ts",
+        "src/components/chat/message-input-attachments.ts",
+        "src/components/chat/composer/image-markup-dialog.tsx",
+        "src/components/chat/composer/composer-image-thumbnails.tsx",
+        "src/components/chat/composer/use-composer-attachments.ts",
+        "src/components/chat/message-input.tsx",
+        "src/components/tasks/task-message-composer.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-second-batch.contract.test.tsx"
+      ]
+    },
+    {
       "id": "runtime.upstream-priority-20260926",
       "category": "runtime",
       "description": "Selected upstream stability fixes preserve MaxCode direct split drops, bound draft runtime identity and native session accounting, public-share link policy, title-model settings and Electron/shared-server routing. Proxied agent launches always bypass loopback and merge both NO_PROXY spellings. Claude/Codex adapters advance without expanding the agent catalog.",

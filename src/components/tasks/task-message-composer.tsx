@@ -308,6 +308,7 @@ export function TaskMessageComposer({
           <ComposerImageThumbnails
             attachments={attach.imageAttachments}
             onRemove={attach.removeAttachment}
+            onMarkup={attach.replaceImageAttachment}
           />
         </div>
       ) : null}

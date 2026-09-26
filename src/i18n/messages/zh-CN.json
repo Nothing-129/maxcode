@@ -342,6 +342,8 @@
     "rollbackSuccess": "已回滚到上一个版本，正在重新加载……",
     "rollbackFailed": "回滚失败，请检查服务器日志。",
     "updateErrors": {
+      "permissionDenied": "无法写入 {path}，因此无法就地安装更新。请以管理员权限手动更新，或检查安装目录权限。",
+      "targetWriteFailed": "无法写入 {path}，因此无法就地安装更新：{reason}",
       "sourceUnavailable": "无法连接更新源，请检查网络或代理设置后重试。",
       "network": "网络连接异常，请检查网络或代理设置后重试。",
       "downloadFailed": "下载更新包失败，请稍后重试。",
@@ -5855,5 +5857,18 @@
     "toastSaved": "模型列表已保存",
     "toastRestored": "已改用代理内置模型列表",
     "toastSaveFailed": "保存模型列表失败"
+  },
+  "ImageMarkup": {
+    "failed": "无法保存标注图片",
+    "markupTitle": "标注截图",
+    "markupTools": "绘制工具",
+    "markupBox": "方框",
+    "markupArrow": "箭头",
+    "markupUndo": "撤销",
+    "markupClear": "清除",
+    "markupHint": "在图上拖动来画。每个标注都带编号，消息里可以直接用编号指代。",
+    "markupCount": "{count, plural, other {# 个标注}}",
+    "markupCancel": "取消",
+    "markupSend": "保存图片"
   }
 }

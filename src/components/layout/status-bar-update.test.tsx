@@ -49,6 +49,7 @@ function makeCtx(overrides: Partial<UpdateContextValue>): UpdateContextValue {
     liveProgress: false,
     runtime: undefined,
     rollbackAvailable: false,
+    selfUpdateBlocker: null,
     canInstallInPlace: true,
     dismissedVersion: null,
     checkNow,
@@ -184,4 +185,32 @@ describe("StatusBarUpdate — direct update action", () => {
     expect(startUpdate).not.toHaveBeenCalled()
     await waitFor(() => expect(button).not.toBeDisabled())
   })
+})
+
+it("explains an unwritable target and opens the MaxCode release instead of retrying", async () => {
+  renderWith({
+    available: RELEASE,
+    canInstallInPlace: false,
+    selfUpdateBlocker: {
+      code: "permission_denied",
+      message: "Update target is not writable: /opt/maxcode",
+      i18n_key: "SystemSettings.updateErrors.permissionDenied",
+      i18n_params: { path: "/opt/maxcode" },
+    },
+  })
+  expect(screen.getByRole("status")).toHaveTextContent(
+    "Cannot write to /opt/maxcode"
+  )
+  const action = screen.getByRole("button", { name: "View v0.21.9 release" })
+  expect(action).toHaveAttribute(
+    "title",
+    expect.stringContaining("/opt/maxcode")
+  )
+  fireEvent.click(action)
+  await waitFor(() =>
+    expect(openUrl).toHaveBeenCalledWith(
+      "https://github.com/Nothing-129/maxcode/releases/latest"
+    )
+  )
+  expect(startUpdate).not.toHaveBeenCalled()
 })

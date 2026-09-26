@@ -342,6 +342,8 @@
     "rollbackSuccess": "Rolled back to the previous version. Reloading...",
     "rollbackFailed": "Rollback failed. Check the server logs.",
     "updateErrors": {
+      "permissionDenied": "Cannot write to {path}, so updates can't be installed in place. Update manually with administrator privileges or check installation permissions.",
+      "targetWriteFailed": "Cannot write to {path}, so updates can't be installed in place: {reason}",
       "sourceUnavailable": "Cannot reach the update source. Check your network or proxy and try again.",
       "network": "Network connection failed. Check your network or proxy and try again.",
       "downloadFailed": "Failed to download update package. Please try again later.",
@@ -5855,5 +5857,18 @@
     "toastSaved": "Model list saved",
     "toastRestored": "Using the agent's built-in model list",
     "toastSaveFailed": "Could not save the model list"
+  },
+  "ImageMarkup": {
+    "failed": "Could not save the marked image",
+    "markupTitle": "Mark up the screenshot",
+    "markupTools": "Drawing tool",
+    "markupBox": "Box",
+    "markupArrow": "Arrow",
+    "markupUndo": "Undo",
+    "markupClear": "Clear",
+    "markupHint": "Drag across the picture to draw. Each mark gets a number your message can refer to.",
+    "markupCount": "{count, plural, one {# mark} other {# marks}}",
+    "markupCancel": "Cancel",
+    "markupSend": "Save image"
   }
 }

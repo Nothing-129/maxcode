@@ -2411,24 +2411,24 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `models` that the composer's selectors and context ring read, and
             // prompting straight after it works. It also skips `session/load`'s
             // history replay, which codeg only drained to discard. The 1.0.1–
-            // 1.0.34 patches add nothing further here: re-probed live against
-            // the 1.0.34 binary, `initialize` still answers
+            // 1.0.41 patches add nothing further here: re-probed live against
+            // the 1.0.41 binary, `initialize` still answers
             // `sessionCapabilities: {list, resume, close}` plus the same
             // `promptCapabilities.embeddedContext` (and `mcpCapabilities`
             // http+sse, `loadSession: true`), so the resume rung stands. All
             // six `@xai-official/grok-<os>-<arch>` optional deps are published
-            // at 1.0.34 — they are OPTIONAL, so a platform that lags would fail
+            // at 1.0.41 — they are OPTIONAL, so a platform that lags would fail
             // only for that platform's users, at run time, in the trampoline.
             // Connection-level null session IDs are claimed by ClaimNullSessionIds.
             distribution: AgentDistribution::Npx {
-                version: "1.0.34",
-                package: "@xai-official/grok@1.0.34",
+                version: "1.0.41",
+                package: "@xai-official/grok@1.0.41",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
                 // only for a non-default permission mode) MUST precede this
                 // subcommand — `grok agent stdio` itself rejects them (re-verified
-                // against 1.0.34: it still only accepts --debug/--debug-file/
+                // against 1.0.41: it still only accepts --debug/--debug-file/
                 // --leader-socket) — so `build_agent` inserts them ahead of these
                 // args rather than appending after. Since 1.0.3 `grok --help` no
                 // longer LISTS `--no-auto-update`, but it is still accepted:
@@ -2439,7 +2439,7 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 // auto/dontAsk/bypassPermissions/plan).
                 args: &["agent", "stdio"],
                 env: &[],
-                // `@xai-official/grok@1.0.34` declares `engines.node: ">=20"`;
+                // `@xai-official/grok@1.0.41` declares `engines.node: ">=20"`;
                 // surface that in preflight so Node 18 isn't silently accepted.
                 node_required: Some("20.0.0"),
             },
@@ -2744,18 +2744,20 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // (`agy_acp_server_20260818_01_RC01`), so substituting a requested
             // version into the URL was a no-op and `supports_custom_version()`
             // answered false. Google has since renamed the archives after the
-            // release itself (`agy_acp_server_1.1.1`) and back-published the
-            // old build under `agy_acp_server_1.0.0`, so the version now
-            // templates into the URL like every other binary agent and the
-            // custom-version control appears for Antigravity. The numbering is
-            // sparse — 1.0.1 was never published, and a typed version that does
-            // not exist 404s at download rather than caching the wrong bytes —
-            // which is the same contract Cursor and OpenCode already have.
-            // `darwin-x86_64` is deliberately absent: upstream publishes no
-            // Intel macOS build, so those machines get `PlatformNotSupported`
-            // rather than a 404 mid-download.
+            // release itself, so the version now templates into the URL like
+            // every other binary agent and the custom-version control appears
+            // for Antigravity. The name has moved twice since: 1.0.0–1.1.x are
+            // `agy-acp-server-agy_acp_server_<version>-<target>.zip` (1.0.0 is
+            // the old build, back-published), and from 1.2.0 the infix is gone
+            // (`agy-acp-server-<version>-<target>.zip`). Only the current shape
+            // is templated, so a typed version below 1.2.0 404s at download —
+            // as does one never published (1.0.1) — rather than caching the
+            // wrong bytes, which is the same contract Cursor and OpenCode
+            // already have. `darwin-x86_64` first shipped with 1.2.1 (1.2.0
+            // still covered only the other five targets), so on an Intel Mac
+            // anything older 404s the same way.
             distribution: AgentDistribution::Binary {
-                version: "1.1.1",
+                version: "1.2.1",
                 // Never resolvable on PATH (there is no standalone CLI by
                 // this name); it exists because `Binary` requires one, and
                 // for dir-tree agents `installed_binary_path` ignores it in
@@ -2772,27 +2774,32 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-agy_acp_server_1.1.1-darwin-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.2.1-darwin-arm64.zip",
+                        sha256: None,
+                    },
+                    PlatformBinary {
+                        platform: "darwin-x86_64",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.2.1-darwin-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.2.1-linux-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-agy_acp_server_1.1.1-linux-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.2.1-linux-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.2.1-windows-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-agy_acp_server_1.1.1-windows-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.2.1-windows-x86_64.zip",
                         sha256: None,
                     },
                 ],
@@ -2935,17 +2942,17 @@ mod tests {
                 dir_entry,
                 ..
             } => {
-                assert_eq!(version, "1.1.1");
+                assert_eq!(version, "1.2.1");
                 assert_eq!(cmd, "agy_acp_server");
                 let entry = dir_entry.expect("antigravity must use dir-tree extraction");
                 assert_eq!(entry.unix, "agy_acp_server.par");
                 assert_eq!(entry.windows, "agy_acp_server.exe");
-                // Five targets: upstream publishes no Intel macOS build.
-                assert_eq!(platforms.len(), 5);
-                assert!(!platforms.iter().any(|p| p.platform == "darwin-x86_64"));
+                // Six targets: upstream added the Intel macOS build in 1.2.1.
+                assert_eq!(platforms.len(), 6);
+                assert!(platforms.iter().any(|p| p.platform == "darwin-x86_64"));
                 for platform in platforms {
                     assert!(
-                        platform.url.contains("agy_acp_server_1.1.1"),
+                        platform.url.contains("/agy-acp-server-1.2.1-"),
                         "{} URL lost the release name: {}",
                         platform.platform,
                         platform.url
@@ -3181,8 +3188,8 @@ mod tests {
         assert_npx_version(AgentType::Pi, "0.0.33", "pi-acp@0.0.33", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.34",
-            "@xai-official/grok@1.0.34",
+            "1.0.41",
+            "@xai-official/grok@1.0.41",
             Some("20.0.0"),
         );
         assert_npx_version(

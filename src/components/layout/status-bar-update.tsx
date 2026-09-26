@@ -5,7 +5,7 @@ import { ArrowDown, CircleAlert, LoaderCircle } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { openUrl } from "@/lib/platform"
-import { usesElectronInstaller } from "@/lib/updater"
+import { describeAppUpdateError, usesElectronInstaller } from "@/lib/updater"
 import { cn } from "@/lib/utils"
 
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
@@ -27,6 +27,7 @@ export function StatusBarUpdate() {
     restartCountdown,
     isBusy,
     canInstallInPlace,
+    selfUpdateBlocker,
     runtime,
     checking,
     checkNow,
@@ -49,6 +50,16 @@ export function StatusBarUpdate() {
     state.status === "downloading" && state.total && state.total > 0
       ? Math.min(100, Math.round(((state.downloaded ?? 0) / state.total) * 100))
       : null
+  const reason = selfUpdateBlocker
+    ? describeAppUpdateError(
+        selfUpdateBlocker.message,
+        "install",
+        selfUpdateBlocker
+      )
+    : failed && state.error
+      ? describeAppUpdateError(state.error, "install", state.errorInfo)
+      : null
+  const reasonText = reason ? t(reason.key, reason.values) : null
   const label = restarting
     ? t("restarting")
     : isUpdating || actionPending
@@ -57,7 +68,7 @@ export function StatusBarUpdate() {
         : t("updating")
       : ready
         ? t("restartToUpdate")
-        : failed
+        : failed && canInstallInPlace
           ? `${t("updateFailedStatus")} · ${t("retry")}`
           : canInstallInPlace
             ? t("downloadAndRestart")
@@ -99,7 +110,7 @@ export function StatusBarUpdate() {
         <button
           type="button"
           aria-label={label}
-          title={label}
+          title={reasonText ? `${label} — ${reasonText}` : label}
           disabled={busy}
           onClick={() => void handleUpdate()}
           className={cn(
@@ -133,6 +144,15 @@ export function StatusBarUpdate() {
             </>
           )}
         </button>
+      )}
+      {selfUpdateBlocker && reasonText && (
+        <span
+          role="status"
+          className="max-w-80 truncate text-2xs text-muted-foreground"
+          title={reasonText}
+        >
+          {reasonText}
+        </span>
       )}
     </div>
   )

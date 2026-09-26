@@ -342,6 +342,8 @@
     "rollbackSuccess": "已復原到上一個版本，正在重新載入……",
     "rollbackFailed": "復原失敗，請檢查伺服器日誌。",
     "updateErrors": {
+      "permissionDenied": "無法寫入 {path}，因此無法就地安裝更新。請以管理員權限手動更新，或檢查安裝目錄權限。",
+      "targetWriteFailed": "無法寫入 {path}，因此無法就地安裝更新：{reason}",
       "sourceUnavailable": "無法連線更新來源，請檢查網路或代理設定後重試。",
       "network": "網路連線異常，請檢查網路或代理設定後重試。",
       "downloadFailed": "下載更新包失敗，請稍後再試。",
@@ -5855,5 +5857,18 @@
     "toastSaved": "模型清單已儲存",
     "toastRestored": "已改用代理內建模型清單",
     "toastSaveFailed": "儲存模型清單失敗"
+  },
+  "ImageMarkup": {
+    "failed": "無法儲存標註圖片",
+    "markupTitle": "標註截圖",
+    "markupTools": "繪製工具",
+    "markupBox": "方框",
+    "markupArrow": "箭頭",
+    "markupUndo": "復原",
+    "markupClear": "清除",
+    "markupHint": "在圖上拖曳來畫。每個標註都有編號，訊息裡可以直接用編號指稱。",
+    "markupCount": "{count, plural, other {# 個標註}}",
+    "markupCancel": "取消",
+    "markupSend": "儲存圖片"
   }
 }

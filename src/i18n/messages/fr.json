@@ -342,6 +342,8 @@
     "rollbackSuccess": "Retour à la version précédente. Rechargement...",
     "rollbackFailed": "Échec du retour en arrière. Consultez les journaux du serveur.",
     "updateErrors": {
+      "permissionDenied": "Impossible d’écrire dans {path} : les mises à jour ne peuvent pas être installées sur place. Effectuez la mise à jour manuellement avec les droits d’administrateur ou vérifiez les autorisations d’installation.",
+      "targetWriteFailed": "Impossible d’écrire dans {path} : les mises à jour ne peuvent pas être installées sur place ({reason}).",
       "sourceUnavailable": "Impossible d’atteindre la source de mise à jour. Vérifiez votre réseau ou proxy et réessayez.",
       "network": "La connexion réseau a échoué. Vérifiez votre réseau ou proxy et réessayez.",
       "downloadFailed": "Impossible de télécharger le paquet de mise à jour. Veuillez réessayer plus tard.",
@@ -5855,5 +5857,18 @@
     "toastSaved": "Liste de modèles enregistrée",
     "toastRestored": "Utilisation de la liste de modèles intégrée de l'agent",
     "toastSaveFailed": "Impossible d'enregistrer la liste de modèles"
+  },
+  "ImageMarkup": {
+    "failed": "Impossible d’enregistrer l’image annotée",
+    "markupTitle": "Annoter la capture",
+    "markupTools": "Outil de dessin",
+    "markupBox": "Cadre",
+    "markupArrow": "Flèche",
+    "markupUndo": "Défaire",
+    "markupClear": "Effacer",
+    "markupHint": "Faites glisser sur l'image pour dessiner. Chaque marque porte un numéro auquel votre message peut faire référence.",
+    "markupCount": "{count, plural, one {# marque} other {# marques}}",
+    "markupCancel": "Annuler",
+    "markupSend": "Enregistrer l’image"
   }
 }

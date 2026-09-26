@@ -342,6 +342,8 @@
     "rollbackSuccess": "以前のバージョンにロールバックしました。再読み込みしています...",
     "rollbackFailed": "ロールバックに失敗しました。サーバーのログを確認してください。",
     "updateErrors": {
+      "permissionDenied": "{path} に書き込めないため、その場で更新をインストールできません。管理者権限で手動更新するか、インストール先の権限を確認してください。",
+      "targetWriteFailed": "{path} に書き込めないため、その場で更新をインストールできません: {reason}",
       "sourceUnavailable": "更新ソースに接続できません。ネットワークまたはプロキシを確認して再試行してください。",
       "network": "ネットワーク接続に失敗しました。ネットワークまたはプロキシを確認して再試行してください。",
       "downloadFailed": "更新パッケージのダウンロードに失敗しました。しばらくしてから再試行してください。",
@@ -5855,5 +5857,18 @@
     "toastSaved": "モデル一覧を保存しました",
     "toastRestored": "エージェント内蔵のモデル一覧を使用します",
     "toastSaveFailed": "モデル一覧を保存できませんでした"
+  },
+  "ImageMarkup": {
+    "failed": "注釈付き画像を保存できませんでした",
+    "markupTitle": "スクリーンショットに書き込む",
+    "markupTools": "描画ツール",
+    "markupBox": "枠",
+    "markupArrow": "矢印",
+    "markupUndo": "元に戻す",
+    "markupClear": "消去",
+    "markupHint": "画像の上をドラッグして描きます。マークには番号が付くので、メッセージではその番号で指し示せます。",
+    "markupCount": "{count, plural, other {マーク # 個}}",
+    "markupCancel": "キャンセル",
+    "markupSend": "画像を保存"
   }
 }

@@ -342,6 +342,8 @@
     "rollbackSuccess": "Se revirtió a la versión anterior. Recargando...",
     "rollbackFailed": "Error al revertir. Revisa los registros del servidor.",
     "updateErrors": {
+      "permissionDenied": "No se puede escribir en {path}, así que las actualizaciones no pueden instalarse en el lugar. Actualiza manualmente con permisos de administrador o revisa los permisos de instalación.",
+      "targetWriteFailed": "No se puede escribir en {path}, así que las actualizaciones no pueden instalarse en el lugar: {reason}",
       "sourceUnavailable": "No se puede acceder al origen de actualización. Revisa tu red o proxy e inténtalo de nuevo.",
       "network": "Falló la conexión de red. Revisa tu red o proxy e inténtalo de nuevo.",
       "downloadFailed": "No se pudo descargar el paquete de actualización. Inténtalo más tarde.",
@@ -5855,5 +5857,18 @@
     "toastSaved": "Lista de modelos guardada",
     "toastRestored": "Usando la lista de modelos integrada del agente",
     "toastSaveFailed": "No se pudo guardar la lista de modelos"
+  },
+  "ImageMarkup": {
+    "failed": "No se pudo guardar la imagen anotada",
+    "markupTitle": "Marcar la captura",
+    "markupTools": "Herramienta de dibujo",
+    "markupBox": "Recuadro",
+    "markupArrow": "Flecha",
+    "markupUndo": "Deshacer",
+    "markupClear": "Borrar",
+    "markupHint": "Arrastra sobre la imagen para dibujar. Cada marca lleva un número al que tu mensaje puede referirse.",
+    "markupCount": "{count, plural, one {# marca} other {# marcas}}",
+    "markupCancel": "Cancelar",
+    "markupSend": "Guardar imagen"
   }
 }

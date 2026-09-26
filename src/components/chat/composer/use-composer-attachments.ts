@@ -35,6 +35,7 @@ import {
   buildFileUriWithRange,
   formatFileRangeLabel,
 } from "@/lib/reference-link"
+import type { MarkupMark } from "@/lib/image-markup"
 import { randomUUID } from "@/lib/utils"
 import type { PromptCapabilitiesInfo, PromptInputBlock } from "@/lib/types"
 import type { Editor } from "@tiptap/core"
@@ -146,6 +147,12 @@ export interface ComposerAttachments {
     blocks: PromptInputBlock[],
     known?: KnownInvocations
   ) => void
+  replaceImageAttachment: (
+    id: string,
+    image: Blob,
+    text: string,
+    marks: MarkupMark[]
+  ) => Promise<void>
   removeAttachment: (id: string) => void
   clearAttachments: () => void
   /** The image blocks for a send, in the encoding the agent accepts. Inline
@@ -806,6 +813,59 @@ export function useComposerAttachments({
     []
   )
 
+  const replaceImageAttachment = useCallback(
+    async (id: string, image: Blob, text: string, marks: MarkupMark[]) => {
+      const original = attachments.find(
+        (a) => a.id === id && a.type === "image"
+      )
+      if (
+        !original ||
+        original.type !== "image" ||
+        original.uploading ||
+        disabled
+      )
+        return
+      const file = new File(
+        [image],
+        `marked-image.${image.type === "image/jpeg" ? "jpg" : "png"}`,
+        { type: image.type }
+      )
+      // Keep the original bytes until upload succeeds; block sending during replacement.
+      const pending = { ...original, uploading: true }
+      setAttachments((prev) => prev.map((a) => (a === original ? pending : a)))
+      try {
+        const data = await blobToBase64(file)
+        const uploaded = await uploadAttachment(file, attachmentTabId ?? null)
+        setAttachments((prev) =>
+          prev.map((a) =>
+            a === pending
+              ? {
+                  ...original,
+                  data,
+                  uri: buildFileUri(uploaded.path),
+                  mimeType: image.type,
+                  name: file.name,
+                  uploading: false,
+                  markupText: text,
+                  markupSource: {
+                    data: original.markupSource?.data ?? original.data,
+                    mime: original.markupSource?.mime ?? original.mimeType,
+                    marks,
+                  },
+                }
+              : a
+          )
+        )
+      } catch (error) {
+        setAttachments((prev) =>
+          prev.map((a) => (a === pending ? original : a))
+        )
+        throw error
+      }
+    },
+    [attachments, attachmentTabId, disabled]
+  )
+
   const removeAttachment = useCallback((id: string) => {
     setAttachments((prev) => prev.filter((item) => item.id !== id))
   }, [])
@@ -835,9 +895,12 @@ export function useComposerAttachments({
   // `embedded_context: true` still receives the bytes it accepts.
   const imagePromptBlocks = useCallback(
     (): PromptInputBlock[] =>
-      imageAttachments.map((attachment) =>
-        imageAttachmentToPromptBlock(attachment, promptCapabilities)
-      ),
+      imageAttachments.flatMap((attachment): PromptInputBlock[] => [
+        imageAttachmentToPromptBlock(attachment, promptCapabilities),
+        ...(attachment.markupText
+          ? [{ type: "text" as const, text: attachment.markupText }]
+          : []),
+      ]),
     [imageAttachments, promptCapabilities]
   )
 
@@ -865,6 +928,7 @@ export function useComposerAttachments({
     serverFilePickerOpen,
     setServerFilePickerOpen,
     hydrateFromBlocks,
+    replaceImageAttachment,
     removeAttachment,
     clearAttachments,
     imagePromptBlocks,

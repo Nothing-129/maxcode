@@ -342,6 +342,8 @@
     "rollbackSuccess": "Auf die vorherige Version zurückgesetzt. Wird neu geladen...",
     "rollbackFailed": "Zurücksetzen fehlgeschlagen. Prüfe die Serverprotokolle.",
     "updateErrors": {
+      "permissionDenied": "In {path} kann nicht geschrieben werden, daher lassen sich Updates nicht direkt installieren. Aktualisiere manuell mit Administratorrechten oder prüfe die Berechtigungen der Installation.",
+      "targetWriteFailed": "In {path} kann nicht geschrieben werden, daher lassen sich Updates nicht direkt installieren: {reason}",
       "sourceUnavailable": "Die Update-Quelle ist nicht erreichbar. Prüfe Netzwerk oder Proxy und versuche es erneut.",
       "network": "Netzwerkverbindung fehlgeschlagen. Prüfe Netzwerk oder Proxy und versuche es erneut.",
       "downloadFailed": "Das Update-Paket konnte nicht heruntergeladen werden. Bitte später erneut versuchen.",
@@ -5855,5 +5857,18 @@
     "toastSaved": "Modellliste gespeichert",
     "toastRestored": "Es wird die eingebaute Modellliste des Agenten verwendet",
     "toastSaveFailed": "Die Modellliste konnte nicht gespeichert werden"
+  },
+  "ImageMarkup": {
+    "failed": "Das markierte Bild konnte nicht gespeichert werden",
+    "markupTitle": "Screenshot markieren",
+    "markupTools": "Zeichenwerkzeug",
+    "markupBox": "Rahmen",
+    "markupArrow": "Pfeil",
+    "markupUndo": "Rückgängig",
+    "markupClear": "Leeren",
+    "markupHint": "Zieh über das Bild, um zu zeichnen. Jede Markierung bekommt eine Nummer, auf die sich deine Nachricht beziehen kann.",
+    "markupCount": "{count, plural, one {# Markierung} other {# Markierungen}}",
+    "markupCancel": "Abbrechen",
+    "markupSend": "Bild speichern"
   }
 }

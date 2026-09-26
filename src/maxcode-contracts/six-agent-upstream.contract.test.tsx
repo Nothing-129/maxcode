@@ -74,7 +74,7 @@ describe("six maintained agents: selected upstream integration", () => {
     for (const pin of [
       "claude-agent-acp@0.81.1",
       "codex-acp@1.13.1",
-      "grok@1.0.34",
+      "grok@1.0.41",
       "pi-acp@0.0.33",
     ])
       expect(registry).toContain(pin)

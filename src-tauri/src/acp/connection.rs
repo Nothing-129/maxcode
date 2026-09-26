@@ -13095,7 +13095,8 @@ fn claude_chunk_parent_tool_use_id(
 }
 
 /// `json_value_to_text` for a tool call's `rawInput`, with Claude Code's
-/// file-tool argument aliases settled first.
+/// file-tool argument aliases settled first, and Antigravity's MCP input
+/// folded back into its history shape ([`fold_antigravity_mcp_raw_input`]).
 ///
 /// claude-agent-acp forwards the model's `tool_use.input` verbatim as
 /// `rawInput`, so a Write the model spelled `{path, file_text}` — which CLI
@@ -13129,7 +13130,69 @@ fn tool_call_raw_input_text(
             return json_value_to_text(&canonical);
         }
     }
+    if agent_type == AgentType::Antigravity {
+        let folded = fold_antigravity_mcp_raw_input(meta, raw_input.as_ref());
+        if folded.is_some() {
+            return json_value_to_text(&folded);
+        }
+    }
     json_value_to_text(raw_input)
+}
+
+/// Antigravity 1.2's live MCP `rawInput`, folded back into the shape its
+/// history takes.
+///
+/// The server rewrites every MCP dispatch before a client sees it
+/// (`tools.py::unwrap_mcp_tool_call`). Through 1.1 that produced
+/// `{"arguments": {…}, "prompt": "<sentence>"}`, and `parsers::antigravity`
+/// emits exactly that for history. 1.2 ALSO copies each argument onto the top
+/// level — for clients that read `rawInput` without knowing about MCP — and
+/// moves the sentence into `_meta.prompt`. The dedicated cards peel
+/// `arguments` either way, but the generic card lists every top-level key, so
+/// each argument would render twice, once flat and once in the `arguments`
+/// tree, and the live card would stop matching its history twin. History
+/// cannot take the new shape instead: the copy doubles every input against the
+/// parser's `TOOL_INPUT_CAP`, and an input cut there is one no card can parse.
+///
+/// Folds only an EXACT copy — every key beside `arguments` equal to the same
+/// key inside it, none missing — on a call whose `_meta` marks it as MCP.
+/// Anything else passes through: a 1.1 input is already in this shape, and a
+/// tool whose own argument is named `arguments` overwrites the wrapper
+/// upstream, leaving no nested copy to fold into.
+fn fold_antigravity_mcp_raw_input(
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+    raw_input: Option<&serde_json::Value>,
+) -> Option<serde_json::Value> {
+    let meta = meta?;
+    if meta.get("is_mcp_tool_call") != Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
+    let input = raw_input?.as_object()?;
+    let arguments = input.get("arguments")?.as_object()?;
+    let flattened_copy = input.len() - 1 == arguments.len()
+        && arguments
+            .iter()
+            .all(|(key, value)| input.get(key) == Some(value));
+    if !flattened_copy {
+        return None;
+    }
+    let mut folded = serde_json::Map::new();
+    folded.insert(
+        "arguments".to_string(),
+        serde_json::Value::Object(arguments.clone()),
+    );
+    let prompt = meta
+        .get("prompt")
+        .and_then(serde_json::Value::as_str)
+        .map(str::trim)
+        .filter(|prompt| !prompt.is_empty());
+    if let Some(prompt) = prompt {
+        folded.insert(
+            "prompt".to_string(),
+            serde_json::Value::String(prompt.to_string()),
+        );
+    }
+    Some(serde_json::Value::Object(folded))
 }
 
 /// Maintain the set of OPEN CodeBuddy sub-agent tool calls (`open`). `is_agent`
@@ -23926,6 +23989,127 @@ mod tests {
             let emitted: serde_json::Value =
                 serde_json::from_str(emitted.as_deref().expect("raw_input")).unwrap();
             assert_eq!(emitted, raw_input, "{agent_type:?} {tool_name}");
+        }
+    }
+
+    // ---- Antigravity 1.2's flattened MCP input ------------------------------
+
+    /// The `_meta` Antigravity puts on every MCP frame (`unwrap_mcp_tool_call`).
+    fn antigravity_mcp_meta(prompt: Option<&str>) -> serde_json::Value {
+        let mut meta = serde_json::json!({
+            "mcp": {"tool": "browser_navigate", "server": "codeg-mcp"},
+            "is_mcp_tool_call": true,
+        });
+        if let Some(prompt) = prompt {
+            meta["prompt"] = serde_json::json!(prompt);
+        }
+        meta
+    }
+
+    async fn antigravity_emitted_input(
+        agent_type: AgentType,
+        raw_input: serde_json::Value,
+        meta: serde_json::Value,
+    ) -> serde_json::Value {
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        let (_, emitted, _, _) = pi_emit(
+            agent_type,
+            &mut cache,
+            &mut cb,
+            serde_json::json!({
+                "sessionUpdate": "tool_call_update",
+                "toolCallId": "call_nav",
+                "rawInput": raw_input,
+                "_meta": meta,
+            }),
+        )
+        .await;
+        serde_json::from_str(emitted.as_deref().expect("raw_input")).unwrap()
+    }
+
+    /// 1.2 sends each MCP argument twice — flat, and inside `arguments` — with
+    /// the sentence moved to `_meta.prompt`. Both frame kinds carry it (the
+    /// opening `tool_call` and the in-progress update that reconciles a
+    /// permission prompt), and both must reach the card in the shape history
+    /// has, or the generic card lists every argument twice.
+    #[tokio::test]
+    async fn antigravity_mcp_input_folds_back_into_its_history_shape() {
+        let arguments = serde_json::json!({"tabId": "t1", "url": "https://example.com/"});
+        let mut wire_input = arguments.clone();
+        wire_input["arguments"] = arguments.clone();
+        for session_update in ["tool_call", "tool_call_update"] {
+            let mut cache = ToolCallOutputCache::default();
+            let mut cb = CodeBuddyLiveState::default();
+            let mut wire = serde_json::json!({
+                "sessionUpdate": session_update,
+                "toolCallId": "call_nav",
+                "status": "in_progress",
+                "rawInput": wire_input,
+                "_meta": antigravity_mcp_meta(Some("Opening the example page")),
+            });
+            if session_update == "tool_call" {
+                wire["title"] = serde_json::json!("codeg-mcp_browser_navigate");
+            }
+            let (_, emitted, _, _) =
+                pi_emit(AgentType::Antigravity, &mut cache, &mut cb, wire).await;
+            let emitted: serde_json::Value =
+                serde_json::from_str(emitted.as_deref().expect("raw_input")).unwrap();
+            assert_eq!(
+                emitted,
+                serde_json::json!({
+                    "arguments": arguments,
+                    "prompt": "Opening the example page",
+                }),
+                "{session_update}"
+            );
+        }
+    }
+
+    /// Only an exact flattened copy on an MCP-marked Antigravity call is
+    /// folded; every other input reaches the card as sent.
+    #[tokio::test]
+    async fn antigravity_mcp_input_fold_leaves_every_other_input_alone() {
+        let flattened = serde_json::json!({
+            "arguments": {"task_id": "t-1"},
+            "task_id": "t-1",
+        });
+        let cases = [
+            // 1.1's own shape is the target already.
+            (
+                AgentType::Antigravity,
+                serde_json::json!({"arguments": {"task_id": "t-1"}, "prompt": "Cancel it"}),
+                antigravity_mcp_meta(None),
+            ),
+            // Not marked as MCP: an ordinary tool may have an `arguments` key.
+            (
+                AgentType::Antigravity,
+                flattened.clone(),
+                serde_json::json!({"is_mcp_tool_call": false}),
+            ),
+            // A tool's own `arguments` argument overwrites the wrapper
+            // upstream, so the object under that key is not a copy of the rest.
+            (
+                AgentType::Antigravity,
+                serde_json::json!({"arguments": {"depth": 2}, "task_id": "t-1"}),
+                antigravity_mcp_meta(Some("Inspect it")),
+            ),
+            // A near-copy is not a copy.
+            (
+                AgentType::Antigravity,
+                serde_json::json!({"arguments": {"task_id": "t-1"}, "task_id": "t-2"}),
+                antigravity_mcp_meta(Some("Cancel it")),
+            ),
+            // The same bytes from another agent.
+            (
+                AgentType::Codex,
+                flattened.clone(),
+                antigravity_mcp_meta(Some("Cancel it")),
+            ),
+        ];
+        for (agent_type, raw_input, meta) in cases {
+            let emitted = antigravity_emitted_input(agent_type, raw_input.clone(), meta).await;
+            assert_eq!(emitted, raw_input, "{agent_type:?} {raw_input}");
         }
     }
 

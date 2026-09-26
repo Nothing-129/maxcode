@@ -19,6 +19,7 @@
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 上游第二批集成 | Antigravity 1.2.1、Grok 1.0.41；共享服务更新目录权限预检且保留 Electron 安装器；聊天/任务图片附件编号框和箭头标注，上传成功原子替换 URI，失败恢复原图 | `f773185a`、`d8c3d54e`、`f0b5bfc5`、`ab8e4fd4` | `runtime.upstream-second-20260926` |
 | 上游稳定性集成 | 草稿绑定后跨分栏移动保留运行时，Codex 回退历史、ACP 撤销/断连、Claude 工具参数和附件去重、文件链接、代理本机直连；保留 Electron、标题模型与公开分享策略 | `81163947`、`1a347230`、`6aaac6f9`、`94a17675`、`dd13b595`、`b18fa74d`、`0a802c9e` | `runtime.upstream-priority-20260926` |
 | 外观主题 | 设置中可选择默认或 HBuilderX 暖黄；暖纸色画布、蓝灰正文、绿色强调色及编辑器背景同步，选择持久化并在首帧生效，其他高级外观设置继续隐藏 | `worktree-2026-09-24` | `appearance.hbuilderx-warm-theme` |
 | Claude 命令审批 | ACP 0.79、PowerShell 归一化、特殊 Shell 命令完整展示，保留显式拒绝优先和独立 CLI 更新 | `afdcfe0b` | `agents.claude-079-command-approval` |

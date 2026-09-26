@@ -1,9 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { ScreenshotMarkupDialog } from "./image-markup-dialog"
+import type { MarkupMark } from "@/lib/image-markup"
+import { toast } from "sonner"
 import Image from "next/image"
 import { useTranslations } from "next-intl"
-import { Loader2, X } from "lucide-react"
+import { Loader2, Pencil, X } from "lucide-react"
 
 import { ImagePreviewDialog } from "@/components/ui/image-preview-dialog"
 import {
@@ -41,10 +44,20 @@ function toDisplay(attachment: ImageInputAttachment): UserImageDisplay {
 export function ComposerImageThumbnails({
   attachments,
   onRemove,
+  onMarkup,
 }: {
   attachments: ImageInputAttachment[]
   onRemove: (id: string) => void
+  onMarkup?: (
+    id: string,
+    image: Blob,
+    text: string,
+    marks: MarkupMark[]
+  ) => Promise<void>
 }) {
+  const [markupId, setMarkupId] = useState<string | null>(null)
+  const markup = attachments.find((a) => a.id === markupId)
+  const tMarkup = useTranslations("ImageMarkup")
   const t = useTranslations("Folder.chat.messageInput")
   // The shared image actions live in the transcript's namespace; reusing the
   // exact keys keeps the two menus identical in every locale.
@@ -85,6 +98,16 @@ export function ComposerImageThumbnails({
               <Loader2 className="h-4 w-4 animate-spin text-foreground/80" />
             </div>
           ) : null}
+          {onMarkup && !attachment.uploading && (
+            <button
+              type="button"
+              className="absolute bottom-1 left-1 rounded-sm bg-background/80 p-0.5 hover:bg-background"
+              aria-label={tMarkup("markupTitle")}
+              onClick={() => setMarkupId(attachment.id)}
+            >
+              <Pencil className="h-3 w-3" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => onRemove(attachment.id)}
@@ -95,6 +118,26 @@ export function ComposerImageThumbnails({
           </button>
         </ImageActions>
       ))}
+      {markup && onMarkup && (
+        <ScreenshotMarkupDialog
+          key={markup.id}
+          capture={
+            markup.markupSource ?? { mime: markup.mimeType, data: markup.data }
+          }
+          initialMarks={markup.markupSource?.marks}
+          text=""
+          onCancel={() => setMarkupId(null)}
+          onFailed={(error) => {
+            setMarkupId(null)
+            toast.error(tMarkup("failed"), { description: String(error) })
+          }}
+          onSend={async (result) => {
+            if (result.image)
+              await onMarkup(markup.id, result.image, result.text, result.marks)
+            setMarkupId(null)
+          }}
+        />
+      )}
       <ImagePreviewDialog
         src={preview ? `data:${preview.mimeType};base64,${preview.data}` : ""}
         alt={preview?.name ?? ""}

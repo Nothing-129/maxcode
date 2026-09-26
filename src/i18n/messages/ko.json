@@ -342,6 +342,8 @@
     "rollbackSuccess": "이전 버전으로 롤백했습니다. 다시 불러오는 중...",
     "rollbackFailed": "롤백에 실패했습니다. 서버 로그를 확인하세요.",
     "updateErrors": {
+      "permissionDenied": "{path}에 쓸 수 없어 업데이트를 그 자리에서 설치할 수 없습니다. 관리자 권한으로 수동 업데이트하거나 설치 경로의 권한을 확인하세요.",
+      "targetWriteFailed": "{path}에 쓸 수 없어 업데이트를 그 자리에서 설치할 수 없습니다: {reason}",
       "sourceUnavailable": "업데이트 소스에 연결할 수 없습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요.",
       "network": "네트워크 연결에 실패했습니다. 네트워크 또는 프록시를 확인한 뒤 다시 시도하세요.",
       "downloadFailed": "업데이트 패키지 다운로드에 실패했습니다. 잠시 후 다시 시도하세요.",
@@ -5855,5 +5857,18 @@
     "toastSaved": "모델 목록을 저장했습니다",
     "toastRestored": "에이전트 내장 모델 목록을 사용합니다",
     "toastSaveFailed": "모델 목록을 저장하지 못했습니다"
+  },
+  "ImageMarkup": {
+    "failed": "표시한 이미지를 저장할 수 없습니다",
+    "markupTitle": "스크린샷에 표시하기",
+    "markupTools": "그리기 도구",
+    "markupBox": "상자",
+    "markupArrow": "화살표",
+    "markupUndo": "실행 취소",
+    "markupClear": "지우기",
+    "markupHint": "그림 위를 드래그해서 그리세요. 표시마다 번호가 붙어서 메시지에서 번호로 가리킬 수 있습니다.",
+    "markupCount": "{count, plural, other {표시 #개}}",
+    "markupCancel": "취소",
+    "markupSend": "이미지 저장"
   }
 }

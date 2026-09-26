@@ -12,6 +12,7 @@
  * badges. Both fold into the outgoing `PromptInputBlock[]` at send time.
  */
 
+import type { MarkupMark } from "@/lib/image-markup"
 import type { PromptCapabilitiesInfo, PromptInputBlock } from "@/lib/types"
 
 /** A file/resource attachment (a `file://` link, an uploaded blob, or an
@@ -45,6 +46,8 @@ export interface ImageInputAttachment {
    *  flight (`uri` not yet assigned). Sends are blocked while any image is
    *  uploading; never serialized into prompt blocks. */
   uploading?: boolean
+  markupText?: string
+  markupSource?: { data: string; mime: string; marks: MarkupMark[] }
 }
 
 export type InputAttachment = ResourceInputAttachment | ImageInputAttachment

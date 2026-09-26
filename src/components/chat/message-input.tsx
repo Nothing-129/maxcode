@@ -2121,6 +2121,9 @@ export function MessageInput({
                   <ComposerImageThumbnails
                     attachments={imageAttachments}
                     onRemove={attach.removeAttachment}
+                    onMarkup={
+                      disabled ? undefined : attach.replaceImageAttachment
+                    }
                   />
                 }
               />
