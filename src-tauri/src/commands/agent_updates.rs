@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn adapter_checks_use_the_acp_package_not_the_vendor_cli() {
-        for agent in [AgentType::ClaudeCode, AgentType::Codex] {
+        for agent in [AgentType::ClaudeCode, AgentType::Codex, AgentType::Zcode] {
             let registry::AgentDistribution::Npx { package, .. } =
                 registry::get_agent_meta(agent).distribution
             else {

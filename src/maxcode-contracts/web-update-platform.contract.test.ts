@@ -31,7 +31,7 @@ describe("MaxCode contract: updater and release channel", () => {
   it("highlights the update action in blue in both themes", () => {
     const status = source("src/components/layout/status-bar-update.tsx")
     expect(status).toContain("rounded-full")
-    expect(status).toContain("bg-[#3ca1ef]")
+    expect(status).toContain("bg-[#216ae4]")
     expect(status).not.toMatch(/dark:(?:hover:)?bg-/)
   })
 
@@ -112,7 +112,7 @@ describe("MaxCode contract: updater and release channel", () => {
 
   it("keeps notification titles and every locale's test notification on MaxCode", () => {
     for (const path of [
-      "src/contexts/acp-connections-context.tsx",
+      "src/lib/notification-session.ts",
       "src/contexts/tasks-view-context.tsx",
     ]) {
       const content = source(path)

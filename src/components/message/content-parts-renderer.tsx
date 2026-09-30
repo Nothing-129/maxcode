@@ -81,6 +81,13 @@ import { isCodegMcpWorkbenchTool } from "@/lib/codeg-mcp-tool"
 import { fsSeparator } from "@/lib/path-utils"
 import { DelegatedSubThread } from "./delegated-sub-thread"
 import { DelegationStatusCard } from "./delegation-status-card"
+import { CodexVisualizeCard } from "./codex-visualize-card"
+import { HtmlFilePreviews } from "./html-file-previews"
+import {
+  findHtmlFileMentions,
+  hasCodexVisualizeRef,
+  splitCodexVisualizeRefs,
+} from "@/lib/codex-visualize"
 import { DelegationStatusGroupCard } from "./delegation-status-group-card"
 import { BackgroundTaskCard } from "./background-task-card"
 import { GeneratedImagesBlock } from "./generated-images-block"
@@ -856,9 +863,10 @@ function extractEditChangesPayload(
   for (const [path, value] of Object.entries(changes)) {
     const normalizedPath = path.trim()
     if (!normalizedPath) continue
-    const parsedItem = parseEditChangeValue(normalizedPath, value)
-    if (parsedItem) {
-      items.push(parsedItem)
+    // ACP adapters can report several separate hunks for the same file.
+    for (const change of Array.isArray(value) ? value : [value]) {
+      const parsedItem = parseEditChangeValue(normalizedPath, change)
+      if (parsedItem) items.push(parsedItem)
     }
   }
 
@@ -2252,6 +2260,65 @@ const TextPart = memo(function TextPart({
       </div>
     )
   }
+  return <AssistantText text={text} isStreaming={isStreaming} />
+})
+
+/** Explicit references render inline; ordinary file mentions load on demand. */
+function AssistantText({
+  text,
+  isStreaming,
+}: {
+  text: string
+  isStreaming: boolean
+}) {
+  const segments = useMemo(
+    () => (hasCodexVisualizeRef(text) ? splitCodexVisualizeRefs(text) : null),
+    [text]
+  )
+  const mentions = useMemo(() => {
+    if (isStreaming) return []
+    const shown =
+      segments?.flatMap((s) => (s.kind === "visualize" ? [s.ref.path] : [])) ??
+      []
+    return findHtmlFileMentions(text, { exclude: shown })
+  }, [text, segments, isStreaming])
+  const hasInline = segments?.some((s) => s.kind === "visualize") ?? false
+  if (!hasInline && mentions.length === 0) {
+    return <MarkdownText text={text} isStreaming={isStreaming} />
+  }
+  return (
+    <div className="space-y-2">
+      {hasInline && segments ? (
+        segments.map((segment, index) =>
+          segment.kind === "visualize" ? (
+            <CodexVisualizeCard
+              key={`viz-${index}-${segment.ref.path}`}
+              path={segment.ref.path}
+              mode={segment.ref.mode}
+            />
+          ) : (
+            <MarkdownText
+              key={`md-${index}`}
+              text={segment.text}
+              isStreaming={isStreaming}
+            />
+          )
+        )
+      ) : (
+        <MarkdownText text={text} isStreaming={isStreaming} />
+      )}
+      {mentions.length > 0 ? <HtmlFilePreviews paths={mentions} /> : null}
+    </div>
+  )
+}
+
+function MarkdownText({
+  text,
+  isStreaming,
+}: {
+  text: string
+  isStreaming: boolean
+}) {
   return (
     <div className='chat-message-text break-words prose prose-sm dark:prose-invert max-w-none [&_[data-streamdown="code-block-body"]]:max-h-96 [&_[data-streamdown="code-block-body"]]:overflow-auto'>
       <MessageResponse
@@ -2262,7 +2329,7 @@ const TextPart = memo(function TextPart({
       </MessageResponse>
     </div>
   )
-})
+}
 
 const ToolCallPart = memo(function ToolCallPart({
   part,

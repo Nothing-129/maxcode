@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { randomUUID } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
+import { SettingsError } from "@/components/shared/settings-section"
 import { Input } from "@/components/ui/input"
 import {
   Dialog,
@@ -188,11 +189,7 @@ export function AddGitAccountDialog({
             </p>
           </div>
 
-          {error && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-              {error}
-            </div>
-          )}
+          {error && <SettingsError>{error}</SettingsError>}
         </div>
 
         <DialogFooter>

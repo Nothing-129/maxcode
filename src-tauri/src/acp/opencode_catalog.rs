@@ -8,7 +8,7 @@
 //! Resolution order (most fresh first):
 //! 1. live fetch of `models.dev/api.json` (when forced, or when the cache is
 //!    stale), normalized and written back to the on-disk cache;
-//! 2. the on-disk cache under `<data_dir>/cache/opencode/models-dev.json`;
+//! 2. the on-disk cache under `<data_dir>/cache/opencode/models-dev-pricing-v2.json`;
 //! 3. the snapshot bundled into the binary, so the catalog is always available
 //!    offline.
 
@@ -24,7 +24,7 @@ pub const MODELS_DEV_URL: &str = "https://models.dev/api.json";
 
 /// Cache lifetime before we attempt a fresh fetch. Stale cache is still used as
 /// a fallback when the network is unavailable.
-const CACHE_TTL: Duration = Duration::from_secs(24 * 60 * 60);
+const CACHE_TTL: Duration = Duration::from_secs(6 * 60 * 60);
 
 /// Snapshot bundled at build time so the catalog works fully offline. Generated
 /// from the live models.dev API, already normalized to [`CatalogProvider`].
@@ -212,7 +212,7 @@ fn read_cache(data_dir: &Path, require_fresh: bool) -> Option<Vec<CatalogProvide
             .modified()
             .ok()
             .and_then(|m| SystemTime::now().duration_since(m).ok())?;
-        if age > CACHE_TTL {
+        if age >= CACHE_TTL {
             return None;
         }
     }
@@ -280,6 +280,20 @@ pub async fn provider_catalog(data_dir: &Path, force_refresh: bool) -> Vec<Catal
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pricing_cache_expires_after_six_hours_but_remains_an_offline_fallback() {
+        let directory = tempfile::tempdir().unwrap();
+        write_cache(directory.path(), &bundled_catalog());
+        let file = std::fs::File::open(cache_path(directory.path())).unwrap();
+        file.set_modified(SystemTime::now() - Duration::from_secs(5 * 60 * 60))
+            .unwrap();
+        assert!(read_cache(directory.path(), true).is_some());
+        file.set_modified(SystemTime::now() - Duration::from_secs(6 * 60 * 60))
+            .unwrap();
+        assert!(read_cache(directory.path(), true).is_none());
+        assert!(read_cache(directory.path(), false).is_some());
+    }
 
     #[test]
     fn bundled_snapshot_parses_and_is_non_trivial() {

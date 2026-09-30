@@ -749,11 +749,37 @@ function extractUserMessage(turn: MessageTurn): string {
   return "User message"
 }
 
+/** Results can arrive in another assistant sub-turn; correlate by call id. */
+function collectFailedToolIds(turns: MessageTurn[]): Set<string> {
+  const failed = new Set<string>()
+  for (const turn of turns) {
+    for (const block of turn.blocks) {
+      if (
+        ((block.type === "tool_use" && block.status === "failed") ||
+          (block.type === "tool_result" && block.is_error)) &&
+        block.tool_use_id
+      ) {
+        failed.add(block.tool_use_id)
+      }
+    }
+  }
+  return failed
+}
+
+function isFailedToolUse(
+  block: Extract<ContentBlock, { type: "tool_use" }>,
+  failedIds: Set<string>
+): boolean {
+  // Missing status is common in historical records and is not failure.
+  return block.status === "failed" || failedIds.has(block.tool_use_id ?? "")
+}
+
 export function extractSessionFilesGrouped(
   turns: MessageTurn[],
   opts: { includeEmpty?: boolean } = {}
 ): UserMessageGroup[] {
   const { includeEmpty = false } = opts
+  const failedIds = collectFailedToolIds(turns)
   const groups: UserMessageGroup[] = []
   let currentUserTurn: MessageTurn | null = null
   let currentFiles: FileChangeStat[] = []
@@ -787,6 +813,7 @@ export function extractSessionFilesGrouped(
 
       const normalized = normalizeToolName(block.tool_name)
       if (!WRITE_OPS.has(normalized)) continue
+      if (isFailedToolUse(block, failedIds)) continue
 
       const filePaths = extractFilePaths(block.input_preview)
       if (filePaths.length === 0) continue
@@ -840,6 +867,7 @@ export function extractReplyFileChanges(
   }
   const byPath = new Map<string, Acc>()
   const order: string[] = []
+  const failedIds = collectFailedToolIds(turns)
 
   for (const turn of turns) {
     if (turn.role !== "assistant") continue
@@ -849,6 +877,7 @@ export function extractReplyFileChanges(
 
       const normalized = normalizeToolName(block.tool_name)
       if (!WRITE_OPS.has(normalized)) continue
+      if (isFailedToolUse(block, failedIds)) continue
 
       const filePaths = extractFilePaths(block.input_preview)
       if (filePaths.length === 0) continue
@@ -906,6 +935,7 @@ export function buildSessionFileDiff(
 ): string {
   let inGroup = false
   const chunks: string[] = []
+  const failedIds = collectFailedToolIds(turns)
   const normalizedTargetPath = normalizePath(filePath)
 
   for (const turn of turns) {
@@ -929,6 +959,7 @@ export function buildSessionFileDiff(
 
       const normalized = normalizeToolName(block.tool_name)
       if (!WRITE_OPS.has(normalized)) continue
+      if (isFailedToolUse(block, failedIds)) continue
 
       const blockPaths = extractFilePaths(block.input_preview).map(
         normalizePath
@@ -1070,6 +1101,7 @@ function buildDiffChunk(
 
 export function extractSessionFiles(turns: MessageTurn[]): SessionFileChange[] {
   const fileMap = new Map<string, Set<FileOperation>>()
+  const failedIds = collectFailedToolIds(turns)
 
   for (const turn of turns) {
     for (const block of turn.blocks) {
@@ -1077,6 +1109,9 @@ export function extractSessionFiles(turns: MessageTurn[]): SessionFileChange[] {
 
       const normalized = normalizeToolName(block.tool_name)
       if (!FILE_OPS.has(normalized)) continue
+      if (WRITE_OPS.has(normalized) && isFailedToolUse(block, failedIds)) {
+        continue
+      }
 
       const filePaths = extractFilePaths(block.input_preview)
       if (filePaths.length === 0) continue

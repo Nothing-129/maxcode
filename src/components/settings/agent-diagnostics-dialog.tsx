@@ -16,6 +16,7 @@ import {
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
+import { SettingsError } from "@/components/shared/settings-section"
 import {
   Dialog,
   DialogContent,
@@ -39,21 +40,21 @@ export interface AgentDiagnosticsDialogProps {
 const LEVEL_DOT: Record<DiagLevel, string> = {
   ok: "bg-emerald-500",
   warn: "bg-amber-500",
-  fail: "bg-red-500",
+  fail: "bg-destructive",
   info: "bg-muted-foreground/40",
 }
 
 const LEVEL_TEXT: Record<DiagLevel, string> = {
   ok: "text-emerald-500",
   warn: "text-amber-500",
-  fail: "text-red-500",
+  fail: "text-destructive",
   info: "text-muted-foreground",
 }
 
 const VERDICT_BANNER: Record<DiagLevel, string> = {
   ok: "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
   warn: "border-amber-500/30 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  fail: "border-red-500/30 bg-red-500/10 text-red-600 dark:text-red-400",
+  fail: "border-destructive/30 bg-destructive/5 text-destructive",
   info: "border-border bg-muted/40 text-foreground",
 }
 
@@ -171,9 +172,9 @@ export function AgentDiagnosticsDialog({
           )}
 
           {!loading && error && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-600 dark:text-red-400">
+            <SettingsError>
               {t("error")}: {error}
-            </div>
+            </SettingsError>
           )}
 
           {!loading && report && (

@@ -694,7 +694,7 @@ export function BranchDropdown({ folder, isChatMode }: BranchDropdownProps) {
                 ? t("detachedHead", { sha: head?.short_sha ?? "" })
                 : (branch ?? undefined)
             }
-            className="min-w-0 gap-0.5 px-1.5"
+            className="min-w-0 shrink gap-0.5 px-1.5"
           >
             {isDetached ? (
               <GitCommitHorizontal className="size-3 shrink-0 text-muted-foreground" />

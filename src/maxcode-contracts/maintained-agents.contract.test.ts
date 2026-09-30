@@ -98,10 +98,9 @@ describe("MaxCode seven-agent maintenance scope", () => {
     ).toEqual({ agentType: "codex", provisional: true })
   })
 
-  it("keeps ZCode out of the agent settings list", () => {
-    expect(isHiddenFromAgentSettings("zcode")).toBe(true)
+  it("offers all maintained agents including the community ZCode adapter", () => {
+    expect(isHiddenFromAgentSettings("zcode")).toBe(false)
     for (const agentType of MAINTAINED_AGENT_TYPES) {
-      if (agentType === "zcode") continue
       expect(isHiddenFromAgentSettings(agentType)).toBe(false)
     }
     expect(source("src/components/settings/acp-agent-settings.tsx")).toContain(

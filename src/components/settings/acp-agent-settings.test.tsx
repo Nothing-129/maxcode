@@ -24,6 +24,7 @@ import {
   patchCodexConfigTomlText,
   patchEnvByImportantKey,
   patchImportantConfigText,
+  providerToRebindTo,
   codexSandboxSeedsAcpPreset,
   rebaseDeepSeekDraft,
   setAdapterChannel,
@@ -36,6 +37,7 @@ import type {
   AcpAgentInfo,
   AdapterInfo,
   AgentType,
+  ModelProviderInfo,
   PreflightResult,
 } from "@/lib/types"
 
@@ -148,6 +150,56 @@ function codexSandboxDraft(
     codexSandboxBaseline: codexSandboxBaselineOf(seeded),
   }
 }
+
+// Providers arrive ordered by row id, so falling straight to the head of the
+// list rebound the agent to its OLDEST provider whenever the auth-mode dropdown
+// round-tripped through another mode, and the rebind copies that provider's
+// model names over the one the user was on. The rendered round trip is pinned
+// in acp-agent-settings.provider-rebind.test.tsx.
+describe("providerToRebindTo", () => {
+  function provider(id: number): ModelProviderInfo {
+    return {
+      id,
+      name: `provider-${id}`,
+      api_url: "",
+      api_key: "",
+      api_key_masked: "",
+      agent_type: "claude_code",
+      model: null,
+      created_at: "",
+      updated_at: "",
+    }
+  }
+  const available = [provider(1), provider(2), provider(3)]
+
+  it("returns to the user's last pick, not the head", () => {
+    expect(providerToRebindTo(available, 2, null)?.id).toBe(2)
+  })
+
+  it("prefers the last pick over the binding saved on the agent", () => {
+    expect(providerToRebindTo(available, 3, 2)?.id).toBe(3)
+  })
+
+  it("returns to the saved binding when nothing was picked in the panel", () => {
+    expect(providerToRebindTo(available, undefined, 2)?.id).toBe(2)
+  })
+
+  it("skips a last pick that is gone and returns to the saved binding", () => {
+    expect(providerToRebindTo(available, 9, 2)?.id).toBe(2)
+  })
+
+  it("falls back to the head for a first-time pick", () => {
+    expect(providerToRebindTo(available, undefined, null)?.id).toBe(1)
+  })
+
+  it("falls back to the head when every candidate is gone", () => {
+    expect(providerToRebindTo([provider(3), provider(4)], 2, 1)?.id).toBe(3)
+  })
+
+  it("has nothing to bind to when no provider exists", () => {
+    expect(providerToRebindTo([], 2, 2)).toBeNull()
+  })
+})
 
 describe("buildCodexSandboxConfig — Codex sandbox/approval save patch", () => {
   // The core contract. The panel also sends the raw config.toml text and the
@@ -1148,6 +1200,26 @@ describe("applyClaudeProviderToConfigText — provider-bound stale config", () =
     expect(env.ANTHROPIC_CUSTOM_MODEL_OPTION).toBe("gw/opus-preview")
     expect(env.ANTHROPIC_CUSTOM_MODEL_OPTION_NAME).toBe("GW Opus")
     expect(env.ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION).toBe("via gateway")
+  })
+
+  // The Fable pin is provider-owned like the other model pins: a reload can
+  // carry the previous provider's ANTHROPIC_DEFAULT_FABLE_MODEL in the on-disk
+  // config, and a save for a provider that pins no Fable model must drop it.
+  it("writes the provider's Fable pin and clears a stale one", () => {
+    const pinned = applyClaudeProviderToConfigText("", {
+      api_url: "https://gw.example/v1",
+      api_key: "sk-x",
+      model: JSON.stringify({ main: "prov-main", fable: "gw/fable" }),
+    })
+    expect(envOf(pinned).ANTHROPIC_DEFAULT_FABLE_MODEL).toBe("gw/fable")
+
+    const unpinned = applyClaudeProviderToConfigText(pinned, {
+      api_url: "https://gw.example/v1",
+      api_key: "sk-x",
+      model: JSON.stringify({ main: "prov-main" }),
+    })
+    expect(envOf(unpinned).ANTHROPIC_DEFAULT_FABLE_MODEL).toBeUndefined()
+    expect(envOf(unpinned).ANTHROPIC_MODEL).toBe("prov-main")
   })
 
   // The hardening toggles are not provider-controlled, so a provider-authoritative
@@ -2160,10 +2232,10 @@ describe("codex ACP preset disclosures", () => {
     expect(codexSandboxSeedsAcpPreset(true)).toBe(false)
   })
 
-  it("only warns about the lost read-only sandbox when codeg really seeds read-only", () => {
+  it("only notes the 1.7–1.13 read-only gap when codeg really seeds read-only", () => {
     // Unshadowed read-only: codeg injects the `read-only` preset, which on
-    // codex-acp >=1.7.0 is workspace-write with `approvalsReviewer: "user"`.
-    // Both halves of the warning hold.
+    // codex-acp 1.7.0–1.13.x is workspace-write with `approvalsReviewer:
+    // "user"` (2.0.0 made it read-only again). Both halves of the note hold.
     expect(showsCodexReadOnlyAcpWarning("read-only", false)).toBe(true)
     // Shadowed: no preset is injected, so the warning's promise that every
     // escalation reaches the user would be false — and it would sit directly

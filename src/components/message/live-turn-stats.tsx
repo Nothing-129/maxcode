@@ -218,13 +218,16 @@ function extractEditStats(parsed: Record<string, unknown>): LineChangeStats {
     let additions = 0
     let deletions = 0
 
-    for (const change of Object.values(changes)) {
+    for (const change of Object.values(changes).flatMap((value) =>
+      Array.isArray(value) ? value : [value]
+    )) {
       const record = asObject(change)
       if (!record) continue
 
       const unifiedDiff =
         (typeof record.unifiedDiff === "string" && record.unifiedDiff) ||
         (typeof record.unified_diff === "string" && record.unified_diff) ||
+        (typeof record.diff === "string" && record.diff) ||
         null
 
       if (unifiedDiff) {
@@ -237,10 +240,12 @@ function extractEditStats(parsed: Record<string, unknown>): LineChangeStats {
       const oldString =
         (typeof record.oldText === "string" && record.oldText) ||
         (typeof record.old_string === "string" && record.old_string) ||
+        (typeof record.old_text === "string" && record.old_text) ||
         ""
       const newString =
         (typeof record.newText === "string" && record.newText) ||
         (typeof record.new_string === "string" && record.new_string) ||
+        (typeof record.new_text === "string" && record.new_text) ||
         ""
 
       const estimated = estimateChangedLineStats(oldString, newString)

@@ -13,14 +13,9 @@ export const MAINTAINED_AGENT_TYPES = [
 
 export const ALLOW_CUSTOM_AGENT_REGISTRATION = false
 
-/**
- * Still part of the maintained catalog so existing sessions keep working,
- * but omitted from Agent Settings and from the new-conversation picker
- * until that entry is opened again.
- */
-export const SETTINGS_HIDDEN_AGENT_TYPES = [
-  "zcode",
-] as const satisfies readonly AgentType[]
+/** Maintained agents temporarily withheld from settings and new sessions. */
+export const SETTINGS_HIDDEN_AGENT_TYPES =
+  [] as const satisfies readonly AgentType[]
 
 const maintainedAgents = new Set<string>(MAINTAINED_AGENT_TYPES)
 const settingsHiddenAgents = new Set<string>(SETTINGS_HIDDEN_AGENT_TYPES)

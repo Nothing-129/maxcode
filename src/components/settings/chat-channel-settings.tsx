@@ -14,10 +14,14 @@ export function ChatChannelSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <Tabs defaultValue="channels" className="w-full space-y-4 p-3 md:p-4">
+      <Tabs
+        data-settings-page=""
+        defaultValue="channels"
+        className="w-full space-y-4 p-3 md:p-4"
+      >
         <section className="space-y-3">
           <div>
-            <h1 className="text-sm font-semibold">{t("sectionTitle")}</h1>
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
             <p className="text-sm text-muted-foreground">
               {t("sectionDescription")}
             </p>

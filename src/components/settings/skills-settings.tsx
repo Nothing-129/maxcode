@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { SettingsError } from "@/components/shared/settings-section"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -738,10 +739,10 @@ export function SkillsSettings() {
   }
 
   return (
-    <div className="h-full flex flex-col p-3 md:p-4">
+    <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <h2 className="text-base font-semibold">{t("title")}</h2>
+          <h1 data-settings-page-title="">{t("title")}</h1>
           <p className="text-xs text-muted-foreground mt-1">
             {t("description")}
           </p>
@@ -749,9 +750,7 @@ export function SkillsSettings() {
       </div>
 
       {loadingError && (
-        <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-          {loadingError}
-        </div>
+        <SettingsError className="mb-3">{loadingError}</SettingsError>
       )}
 
       {sortedAgents.length === 0 ? (
@@ -896,9 +895,7 @@ export function SkillsSettings() {
                   )}
 
                   {!skillsLoading && skillsError && (
-                    <div className="text-xs text-red-400 rounded-md border border-red-500/30 bg-red-500/5 px-2.5 py-2">
-                      {skillsError}
-                    </div>
+                    <SettingsError>{skillsError}</SettingsError>
                   )}
 
                   {!skillsLoading && !skillsError && !skillsSupported && (

@@ -1544,6 +1544,108 @@ describe("SidebarConversationList — Recent section", () => {
       )
     })
   })
+
+  describe("kind filter", () => {
+    const FILTER_KEY = "workspace:sidebar-recent-filter"
+    const { noRecent, noRecentChats, noRecentFolders } =
+      enMessages.Folder.sidebar
+
+    // Cards rendered for one conversation: its canonical row (Folders or
+    // Chat), plus a second one while Recent lists it too.
+    const cardsFor = (id: number) =>
+      document.querySelectorAll(`[data-conversation-id="${id}"]`).length
+
+    // Radix arms its outside-pointer listener in a `setTimeout(0)` and jsdom has
+    // no `PointerEvent`, so drive the header menu with real `MouseEvent`s under
+    // the pointer-event names (same recipe as sidebar-section-header.test.tsx).
+    async function settle() {
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0))
+      })
+    }
+    function press(target: Element) {
+      for (const type of ["pointerdown", "pointerup", "click"]) {
+        fireEvent(
+          target,
+          new MouseEvent(type, { bubbles: true, cancelable: true, button: 0 })
+        )
+      }
+    }
+    // Open the header menu from the trigger carrying `triggerLabel` and pick
+    // the option whose text is `option`.
+    async function pick(triggerLabel: string, option: string) {
+      await settle()
+      press(document.querySelector(`[aria-label="${triggerLabel}"]`)!)
+      await settle()
+      const item = Array.from(
+        document.querySelectorAll('[role="menuitemradio"]')
+      ).find((el) => el.textContent === option)
+      expect(item).toBeDefined()
+      press(item!)
+    }
+
+    beforeEach(() => {
+      // The collapse test above persists `{recent: true}`; left in place the
+      // section renders collapsed, with no rows for a filter to narrow.
+      localStorage.clear()
+    })
+
+    afterEach(() => {
+      // The describes after this one reset only the storage keys they use, so
+      // a filter left behind would quietly narrow Recent in all of them.
+      localStorage.removeItem(FILTER_KEY)
+    })
+
+    it("restores the persisted filter on mount", () => {
+      localStorage.setItem(FILTER_KEY, "chats")
+      render(recentTree(true))
+      // conv-12 (chat) stays in Recent; conv-11 (folder) keeps only its
+      // Folders row.
+      expect(cardsFor(12)).toBe(2)
+      expect(cardsFor(11)).toBe(1)
+    })
+
+    it.each([
+      // Only a folder conversation left, so "chats" empties Recent…
+      { filter: "chats", only: conv(11, 1), hint: noRecentChats },
+      // …and only a chat, so "folders" does.
+      {
+        filter: "folders",
+        only: conv(12, 99, { kind: "chat" }),
+        hint: noRecentFolders,
+      },
+    ])(
+      "names the $filter filter when it narrows Recent to nothing",
+      ({ filter, only, hint }) => {
+        localStorage.setItem(FILTER_KEY, filter)
+        useAppWorkspaceStore.setState({ conversations: [only] })
+        render(recentTree(true))
+        const text = document.body.textContent
+        expect(text).toContain(hint)
+        // Exactly one hint: neither the other filter's nor the unfiltered one.
+        for (const other of [noRecent, noRecentChats, noRecentFolders]) {
+          if (other !== hint) expect(text).not.toContain(other)
+        }
+      }
+    )
+
+    it("applies, persists and undoes a pick from the header menu", async () => {
+      render(recentTree(true))
+      expect(cardsFor(11)).toBe(2)
+      expect(cardsFor(12)).toBe(2)
+
+      await pick("Show in Recent: All", "Folders")
+      expect(localStorage.getItem(FILTER_KEY)).toBe("folders")
+      expect(cardsFor(11)).toBe(2)
+      expect(cardsFor(12)).toBe(1)
+
+      // Back to All from the (now relabelled) trigger: both kinds return.
+      await pick("Show in Recent: Folders", "All")
+      expect(localStorage.getItem(FILTER_KEY)).toBe("all")
+      expect(cardsFor(11)).toBe(2)
+      expect(cardsFor(12)).toBe(2)
+    })
+  })
 })
 
 describe("SidebarConversationList — folder paging", () => {

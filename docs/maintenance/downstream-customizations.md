@@ -10,15 +10,27 @@
 
 ## 智能体维护范围
 
-自 2026-09-17 起仅维护 Claude Code、Codex、Grok、Pi、DeepSeek 和 Google Antigravity。
+维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。
+2026-09-26 将 ZCode 切换为社区 ACP 适配器，并恢复设置与新会话入口。
 其他智能体保留历史数据、解析器和适配代码，但不出现在设置或新会话目录中，
 不执行后台自动更新，也不吸收其专属上游变更。新增自定义智能体入口隐藏。
 下方早期版本目录记录仅作为历史来源，不代表当前维护范围。
+
+ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显示 GLM 模型；旧配置里重复的 `builtin:bigmodel` 值转换为可切换的注册表 ID，失败切换回显上次确认值。独立契约：`src/maxcode-contracts/zcode-model-registry.contract.test.ts`。
+
+2026-09-30 版本评审依据：[Claude ACP 0.84.0](https://github.com/agentclientprotocol/claude-agent-acp/releases/tag/v0.84.0)、[Codex ACP 2.0.1](https://github.com/agentclientprotocol/codex-acp/releases/tag/v2.0.1)、[Pi ACP 0.0.34](https://github.com/svkozak/pi-acp/releases/tag/v0.0.34)、[Grok 1.0.44 npm 元数据](https://registry.npmjs.org/@xai-official/grok/1.0.44)、[ZCode ACP 0.53.2](https://github.com/william0wang/zcode-acp/releases/tag/v0.53.2)。已比较发布包并检查五个新版的真实 ACP 初始化响应；初始化检查不涉及付费模型请求。ZCode 分叉响应仍使用 `forkedSessionId`，Plan 修复尚未经过原生运行时端到端验证，因此保留相关门控。Pi 0.0.33 的补丁继续按实际安装版本触发，新版不改写包文件。Claude/Codex 的 AIR 目标、审批、子智能体与压缩标记映射到现有消费者；Claude 稀疏更新保留工具身份而不重复终端输出。
 
 ## 活跃功能
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 9 月 30 日上游稳定性 | Claude/Codex AIR 稀疏更新、Read/审批/插件提示，Codex 搜索上下文与历史思考、压缩摘要，Grok 后台跟进；保留完整工具输入、全部 hunk 和权限门控 | `9d9ce6b0`、`2db8a81b`、`b35282c6`、`757bd8e0`、`58f0fd0e`、`9243c7df` | `runtime.upstream-recommended-20260930`、`history.claude-compaction-compatible` |
+| Codex 模型目录 | GPT-6.1 Sol 及官方优先级；安装和托管更新刷新自有目录，保留用户目录、默认、自定义和排除模型 | `155916e6`、`worktree-2026-09-30` | `agents.codex-catalog-refresh-20260930` |
+| Pi 运行时与思考 | 离线能力、实际 profile 和原生 selector；保留七档偏好、自定义映射、旧 .33 补丁及托管 CLI | `9cbd5b96` 至 `b9d9e6b6` | `agents.pi-runtime-thinking-20260930` |
+| HTML/visualize | 内联预览、延迟提及、会话相对资源，隔离 origin/CSP 与每文件信任，脚本默认关闭，公开分享只读 | `20687bb4` 至 `0e5ac772` | `chat.upstream-html-preview-20260930` |
+| Recent 筛选 | 分类先于十条分页，记忆筛选并准确显示余量，保留独立分页、折叠和新建聊天 | `e36c8ed4` 至 `caca52f6` | `sidebar.recent-filters-20260930` |
+| 会话通知 | 关闭窗格后按持久会话命名，保留 MaxCode 隐私、静默重放和 owner 登录动作限制 | `09d74bce`、`d2e86448`、`2db8a81b` | `runtime.session-notifications-20260930` |
+| 设置页视觉统一 | 参考分组设置界面统一侧栏、页面标题与留白、细边框卡片、输入/复合控件及错误提示；页边距不影响嵌套列表，说明样式不覆盖警告/错误颜色，折叠箭头保持可见 | `worktree-2026-09-26` | `settings.reference-grouped-style` |
 | 上游第二批集成 | Antigravity 1.2.1、Grok 1.0.41；共享服务更新目录权限预检且保留 Electron 安装器；聊天/任务图片附件编号框和箭头标注，上传成功原子替换 URI，失败恢复原图 | `f773185a`、`d8c3d54e`、`f0b5bfc5`、`ab8e4fd4` | `runtime.upstream-second-20260926` |
 | 上游稳定性集成 | 草稿绑定后跨分栏移动保留运行时，Codex 回退历史、ACP 撤销/断连、Claude 工具参数和附件去重、文件链接、代理本机直连；保留 Electron、标题模型与公开分享策略 | `81163947`、`1a347230`、`6aaac6f9`、`94a17675`、`dd13b595`、`b18fa74d`、`0a802c9e` | `runtime.upstream-priority-20260926` |
 | 外观主题 | 设置中可选择默认或 HBuilderX 暖黄；暖纸色画布、蓝灰正文、绿色强调色及编辑器背景同步，选择持久化并在首帧生效，其他高级外观设置继续隐藏 | `worktree-2026-09-24` | `appearance.hbuilderx-warm-theme` |
@@ -27,10 +39,10 @@
 | Office 预览清理 | 同步发出终止信号、异步回收，关闭时不依赖任务调度 | `65588b03` | `runtime.office-watch-immediate-reap` |
 | 待回答提问卡 | 正常布局中折叠，保留选择；新问题和提交失败自动展开，沿用现有问题卡视觉 | `d3c3ecd6`、`3d81d7cc` | `chat.pending-question-collapse` |
 | 模型显示名称 | 按连接所属智能体记录名称，历史回复与会话详情统一；只改显示，不改原始模型 ID 和费用 | `78c9313b` | `chat.agent-model-display-labels` |
-| 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#3CA1EF`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18` | `appearance.send-button-brand-color` |
+| 操作按钮颜色 | 发送、运行中停止和正常更新按钮统一使用 `#216AE4`，深浅色一致；保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
-| ZCode 智能体 | 第七种受维护智能体：内置 zcode-acp 适配器（`AgentDistribution::Bundled`，嵌入二进制启动时落盘）驱动 `zcode app-server --stdio` 私有协议，桥接会话/权限/事件；SQLite 历史解析 `~/.zcode/cli/db/db.sqlite`；供应商 CLI 探测与 i18n 齐备；适配器不负责下载 zcode 运行时；侧栏标题与 Codex/Grok/Pi/DeepSeek/Claude 一样走结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题 | `feat/zcode-agent` | `agents.zcode-bundled-acp-adapter` |
+| ZCode 智能体 | 恢复设置与新会话入口，配置区展示社区适配器专属说明；使用 william0wang/zcode-acp 的 npm 包与命令 `zcode-acp-server`，评审版本 0.48.0、要求 Node 22，沿用统一 npm 安装、版本与更新流程；默认 `ZCODE_ACP_MODE=build`，新建会话通过 ACP 配置项同步并确认实际权限模式（已保存选择优先，其次环境变量，再回退 build），界面展示确认值；0.48.0 无法报告独立的 planEnabled 状态，暂时移除 MaxCode 手动 Plan 入口并在发送前拦截该模式，旧 Plan 偏好转为 build；载入/恢复在模型偏好之后强制确认基础权限模式，无显式偏好用 build，有显式支持的选择则保留，确认失败不得进入就绪状态；原生 EnterPlanMode 工具和斜杠命令仍属上游状态回报限制；兼容迁移旧运行时/模式环境变量、模型与思考偏好且新配置优先；因 0.48.0 的 fork 响应不符合 ACP 暂停 ZCode 分叉，保留载入/恢复和其他智能体的能力判断；删除自研内嵌适配器，独立安装的 ZCode 运行时由社区适配器驱动；SQLite 历史只读，数据根优先 `ZCODE_HOME`、兼容 `ZCODE_DATA_BASE_DIR`，通过 `v2/acp-lazy-sessions.json` 将 ACP UUID 解析为原生 `sess_` ID，保留原生列表与旧会话；保留原生 assistant 的模型字段与工具失败状态、错误正文；图片历史支持原生 file part 的 data URL 与同数据根、同会话 artifact，单张解码后上限 8 MiB，限制文件读取并拒绝跨会话与符号链接，缺失或超限图片显示占位且保留纯图片消息；保留供应商 CLI 探测、i18n 和随主题变色的图标；侧栏标题沿用结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题；后续与恢复时的模式选择以适配器确认值为准，拒绝切换沿用提示；数据目录同步到原生存储环境变量，保留显式覆盖 | `feat/zcode-agent`、`worktree-2026-09-26` | `agents.zcode-community-acp-adapter` |
 | 科学技能状态 | 保留历史智能体状态，同时为维护范围内有技能目录的 Grok、DeepSeek、Antigravity 和 ZCode 补齐状态行；不引入其他智能体的新入口 | `45b9a7ec`、`b66f35eb`、`worktree-2026-09-23` | `skills.science-maintained-status` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
@@ -42,8 +54,9 @@
 | 命令颜色 | Agent 命令默认不强制 ANSI；用户可在通用设置显式开启完整颜色环境，保存时不覆盖默认 Shell，Agent 自定义环境仍优先 | `1d4d0074` 至 `c9e25be7`、`worktree-2026-09-15` | `settings.command-color-opt-in` |
 | Antigravity 账号 | OAuth 登录可安全退出并切换 Google 账号；退出前阻断新连接并停止存活进程，调用 ACP logout 后恢复认证方式，同时保留 stdout/stderr 双流登录链接识别 | `7861d6ed`、`de096bb4`、`worktree-2026-09-15` | `agents.antigravity-sign-out` |
 | Codex 子智能体 | 原生子智能体胶囊显示真实结束状态和最终报告，可打开子会话；`list_agents` 还原为协作胶囊，保留 MaxCode 费用、耗时、上下文过滤与既有会话查看器 | `34b0f7fb`、`worktree-2026-09-15` | `chat.codex-native-subagent-results` |
+| 9 月 30 日智能体更新 | Claude ACP 0.84.0、Codex ACP 2.0.1、Pi ACP 0.0.34、Grok 1.0.44、ZCode ACP 0.53.2；恢复 Claude AIR 文件输入、保留 Codex 同文件全部 Diff 片段并同步卡片与行数统计。ZCode 分叉/Plan 限制继续保留，等待原生运行时模式转换验证 | `worktree-2026-09-30` | `agents.release-file-changes-20260930` |
 | 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
-| 智能体自动更新 | 维护范围内已启用且已安装的智能体强制后台更新，支持 npm、二进制、Python（bundled 适配器随 MaxCode 发布，不参与独立更新），无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14`、`feat/zcode-agent` | `settings.agent-auto-updates` |
+| 智能体自动更新 | 维护范围内已启用且已安装的智能体强制后台更新，支持 npm（含 ZCode 社区适配器）、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14`、`feat/zcode-agent`、`worktree-2026-09-26` | `settings.agent-auto-updates` |
 | 智能体安装 | 手动 npm 安装、升级、重试及自定义包查询使用 npm.aifalao.net；在线版本检测与自动安装使用官方 registry.npmjs.org，适配器与 CLI 独立检测 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
 | 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
@@ -59,7 +72,7 @@
 | 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
 | 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
-| 会话费用刷新 | 回复结束后同步累计计费用量，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10` | `composer.conversation-cost` |
+| 会话费用刷新 | 回复结束后同步累计计费用量；定价目录缓存 6 小时，前台定时检查、回到前台补查，离线保留旧价格，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10`、`worktree-2026-09-30` | `composer.conversation-cost` |
 | 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用有金额后才显示，并固定显示两位小数；无金额时隐藏费用及分隔符，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
 | 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |
@@ -89,6 +102,7 @@
 | 导航 | 固定宽度可滚动标签、触控板拖动阈值、移动端导航收起、正文原生选择 | `7a445edf`、`f60fecca`、`eb9cee07`、`7ca7b5b3` | `navigation.tabs-touch-and-selection` |
 | 消息 | 普通本地路径自动变成文件引用，安装包等二进制产物可打开或在文件管理器显示 | `7ca7b5b3`、`06bb8457`、`c283e981` | `messages.local-paths-and-artifacts` |
 | 消息 | 系统字体默认值及代理未提供耗时时的“提示到完成”耗时推导 | `d61af64a` | `messages.system-font-and-duration` |
+| Web | 同步事件/回放/快照处理失败后更换订阅并拉取完整快照，隔离旧帧；连续失败退避重试，清理时取消定时器；恢复允许修复相同序号状态，拒绝更旧快照 | `worktree-2026-09-26` | `web.event-handler-snapshot-recovery` |
 | Web | 断线不清凭证、健康探测退避重连、恢复订阅、仅有凭证的 401 判定会话过期 | `352bc868`、`2c859b2a` | `web.auth-and-session-recovery` |
 | Web | 服务器/Docker 可安装 PWA，Electron 环境不注册 Service Worker | `cbd85449`、`bddabc51` | `web.pwa-installation` |
 | 更新 | MaxCode 更新源、状态栏更新体验、发现/忽略持久化、打开面板时关闭遮挡 Toast | `b558e9bb`、`ba09a7b5`、`dceb62ac`、当前工作区 | `updates.maxcode-channel-and-ui` |
@@ -179,7 +193,8 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 - 来源：`worktree-2026-09-11`；热点：`chat.reply-artifacts-summary`。
 - 新增、修改、删除统一汇总，默认显示三行相对路径与增删统计，可展开剩余文件；审核包含全部文件差异，保留打开文件和定位操作。
-- 契约：`src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx`。
+- 明确失败或被拒绝的写入不计入回复/会话变更统计、文件索引和差异；保留缺少状态的旧历史及成功重试。
+- 契约：`src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx`、`src/maxcode-contracts/failed-file-writes.contract.test.ts`。
 
 ## 2026-09-11 功能移植补充
 

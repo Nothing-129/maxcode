@@ -376,6 +376,13 @@ async fn uvx_displayed_version(
     version
 }
 
+/// Packages whose stored version cannot establish that the runtime is usable.
+fn npx_requires_runtime_probe(agent_type: AgentType, package: &str) -> bool {
+    // 旧 ZCode 内置适配器曾把 0.1.0 写入数据库；迁移到 npm 后必须探测
+    // 实际命令，不能把旧记录当作新适配器已安装或作为其版本。
+    agent_type == AgentType::Zcode || npm_package_requires_scripts(package)
+}
+
 /// Version shown for an npx agent. Packages with load-bearing lifecycle
 /// scripts/native optional dependencies must prove their command can actually
 /// start; npm metadata alone also exists for half-installed runtimes (for
@@ -392,7 +399,7 @@ async fn npx_displayed_version(
             return Some(version);
         }
     }
-    if npm_package_requires_scripts(package) {
+    if npx_requires_runtime_probe(agent_type, package) {
         return system_probed_version(agent_type, bin, None).await;
     }
     match recorded_version {
@@ -631,26 +638,10 @@ fn is_npm_command_candidate(path: &Path) -> bool {
 pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), AcpError> {
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
-        // The bundled adapter materializes on launch; "installed" reduces to
-        // node being resolvable (the vendor zcode runtime is located by the
-        // adapter and reported through preflight diagnostics, not an install
-        // gate — same split as claude/codex, whose vendor CLI absence is also
-        // not a connect blocker).
-        registry::AgentDistribution::Bundled { .. } => {
-            let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-            if resolve_command_on_path(node_name).is_some() {
-                Ok(())
-            } else {
-                Err(AcpError::SdkNotInstalled(format!(
-                    "{} is not installed. Please install it in Agent Settings.",
-                    meta.name
-                )))
-            }
-        }
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let runtime_ready = match resolved.as_ref() {
-                Some(bin) if npm_package_requires_scripts(package) => {
+                Some(bin) if npx_requires_runtime_probe(agent_type, package) => {
                     system_probed_version(agent_type, bin, None).await.is_some()
                 }
                 Some(_) => true,
@@ -777,12 +768,9 @@ async fn detect_local_version(agent_type: AgentType) -> Option<String> {
     }
     let meta = registry::get_agent_meta(agent_type);
     match meta.distribution {
-        // The bundled adapter is always exactly the registry version — it is
-        // compiled into the MaxCode binary.
-        registry::AgentDistribution::Bundled { version, .. } => Some(version.to_string()),
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await?;
-            if npm_package_requires_scripts(package) {
+            if npx_requires_runtime_probe(agent_type, package) {
                 return system_probed_version(agent_type, &resolved, None).await;
             }
             // Try `npm list -g <package_name> --json` to get the real installed version.
@@ -1103,35 +1091,6 @@ async fn collect_agent_diag(
     // Each distribution resolves launchability differently — mirror the exact
     // gates `verify_agent_installed` uses so the report agrees with connect.
     match meta.distribution {
-        registry::AgentDistribution::Bundled {
-            version,
-            node_required,
-            ..
-        } => {
-            diag.distribution = "bundled";
-            diag.package = None;
-            diag.node_required = node_required.map(str::to_string);
-            // The adapter always exists; launchability is node itself.
-            let node_name = if cfg!(windows) { "node.exe" } else { "node" };
-            diag.launchable = resolve_command_on_path(node_name)
-                .map(|p| p.to_string_lossy().to_string());
-            diag.detected_version = Some(version.to_string());
-            // Vendor CLI probe (zcode) mirrors the npx adapter agents.
-            if let Some(relation) = registry::acp_adapter_relation(agent_type) {
-                let native_path =
-                    resolve_vendor_cli(relation.native_cmd, relation.extra_dirs).await;
-                let native_version = match &native_path {
-                    Some(p) => diag_run(p, &["--version"]).await,
-                    None => None,
-                };
-                diag.adapter = Some(AdapterProbe {
-                    native_cmd: relation.native_cmd.to_string(),
-                    native_path: native_path.map(|p| p.to_string_lossy().to_string()),
-                    native_version,
-                    shared_config_dir: relation.shared_config_dir.to_string(),
-                });
-            }
-        }
         registry::AgentDistribution::Npx {
             cmd,
             package,
@@ -3917,6 +3876,108 @@ fn drop_codex_catalog_reference() -> Result<(), AcpError> {
     Ok(())
 }
 
+/// What [`resync_codex_generated_catalog_at`] did.
+#[derive(Debug, PartialEq)]
+enum CodexCatalogResync {
+    /// No catalog codeg can regenerate: config.toml references none, references
+    /// the user's own, or codeg's intent sidecar is missing.
+    NotOwned,
+    /// The generated catalog was re-expanded against the new official list.
+    Rewritten,
+    /// Nothing deviates from codex's own list any more, so the reference and
+    /// the generated files were removed and codex's catalog applies untouched.
+    Released,
+}
+
+/// Re-expand codeg's generated codex catalog (`model_catalog_json`) against
+/// `snapshot`, the official catalog of the codex that is now installed.
+///
+/// The key is a whole-table replace that codeg only rewrites when the model
+/// settings are saved, so a codex upgrade that ships new official models left
+/// every user with custom models or removed officials on the OLD table: codex
+/// 0.159.1 (codex-acp 2.0.1) made GPT-6.1 Sol its default and they would not
+/// see it until they happened to re-save. Expanding the stored intent (the
+/// source sidecar) against the new catalog is exactly what that re-save writes.
+///
+/// Only a catalog codeg owns is touched — config.toml must reference codeg's
+/// own file, and the sidecar must exist. A catalog without a sidecar is NOT
+/// re-imported: read against the new list, every newly shipped official would
+/// look like one the user removed. The root `model` is left alone; the user's
+/// explicit default is part of the sidecar and survives the rewrite as-is.
+fn resync_codex_generated_catalog_at(
+    codex_home: &Path,
+    snapshot: &[serde_json::Value],
+) -> Result<CodexCatalogResync, AcpError> {
+    let config_path = codex_home.join("config.toml");
+    let config_toml = match fs::read_to_string(&config_path) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(CodexCatalogResync::NotOwned)
+        }
+        Err(e) => {
+            return Err(AcpError::protocol(format!(
+                "read codex config.toml failed: {e}"
+            )))
+        }
+    };
+    let owned = config_toml
+        .parse::<toml::Value>()
+        .ok()
+        .as_ref()
+        .and_then(|doc| doc.get("model_catalog_json"))
+        .and_then(toml::Value::as_str)
+        .is_some_and(|value| is_codeg_owned_catalog_ref(value, codex_home));
+    if !owned {
+        return Ok(CodexCatalogResync::NotOwned);
+    }
+    let raw = match fs::read_to_string(codex_home.join(crate::acp::codex_model_catalog::SOURCE_REL))
+    {
+        Ok(raw) => raw,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(CodexCatalogResync::NotOwned)
+        }
+        Err(e) => {
+            return Err(AcpError::protocol(format!(
+                "read codex catalog source failed: {e}"
+            )))
+        }
+    };
+    let config = crate::acp::codex_model_catalog::parse_model_config(Some(&raw));
+    let released = crate::acp::codex_model_catalog::is_effectively_empty(&config, snapshot);
+    if released {
+        // Reference first, files second: codex refuses to start on a
+        // `model_catalog_json` that points at a missing file, so a failure in
+        // between must leave a stale-but-valid table, never a dangling key.
+        if let Some(next) = remove_codex_catalog_key(&config_toml, codex_home)? {
+            fs::write(&config_path, next)
+                .map_err(|e| AcpError::protocol(format!("write codex config.toml failed: {e}")))?;
+        }
+    }
+    crate::acp::codex_model_catalog::write_catalog_files(&raw, codex_home, snapshot)
+        .map_err(|e| AcpError::protocol(e.to_string()))?;
+    Ok(if released {
+        CodexCatalogResync::Released
+    } else {
+        CodexCatalogResync::Rewritten
+    })
+}
+
+/// After codex-acp is (re)installed: refresh the cached official catalog from
+/// the codex it now drives, then bring codeg's generated catalog in line (see
+/// [`resync_codex_generated_catalog_at`]). Only a LIVE catalog is used — the
+/// stale cache or the compiled-in snapshot would just rewrite the old table.
+/// Best-effort: an install never fails over this.
+pub(crate) async fn resync_codex_generated_catalog() {
+    let Some(snapshot) = crate::acp::codex_catalog_source::refresh_live_catalog().await else {
+        tracing::warn!("[acp] codex installed, but its model catalog could not be read");
+        return;
+    };
+    match resync_codex_generated_catalog_at(&codex_home_dir(), &snapshot) {
+        Ok(outcome) => tracing::info!("[acp] codex model catalog after install: {outcome:?}"),
+        Err(e) => tracing::warn!("[acp] codex model catalog resync failed: {e}"),
+    }
+}
+
 /// Apply the Codex panel's sandbox / approval PATCH to the raw config.toml text,
 /// format-preservingly (comments and unmanaged keys are kept). Values are
 /// validated against the upstream vocabularies first, so a UI bug can never
@@ -4255,7 +4316,8 @@ pub(crate) fn grok_launch_permission_mode() -> Option<String> {
 }
 
 /// Map a `~/.codex/config.toml` sandbox/approval pair onto the `INITIAL_AGENT_MODE`
-/// preset id codex-acp accepts (`read-only` / `agent` / `agent-full-access`).
+/// preset id codex-acp accepts (`read-only` / `workspace-write` / `agent` /
+/// `agent-full-access`).
 ///
 /// ## Why this mapping has to exist at all
 ///
@@ -4268,13 +4330,25 @@ pub(crate) fn grok_launch_permission_mode() -> Option<String> {
 /// launch-time channel that makes the user's own config mean anything, exactly
 /// like [`grok_launch_permission_mode`] above.
 ///
-/// ## What the three presets mean (codex-acp ≥1.7.0)
+/// ## What the presets mean, per adapter generation
 ///
-/// | preset | sandbox | approvals reviewer |
-/// |---|---|---|
-/// | `read-only` ("Ask for approval") | workspace-write | `user` |
-/// | `agent` ("Approve for me", DEFAULT) | workspace-write | `auto_review` |
-/// | `agent-full-access` ("Full access") | danger-full-access | policy `never` |
+/// | preset | ≤1.6.2 | 1.7.0–1.13.x | ≥2.0.0 |
+/// |---|---|---|---|
+/// | `read-only` | read-only | workspace-write, reviewer `user` | read-only, reviewer `user` |
+/// | `workspace-write` | — | — | workspace-write, reviewer `user` |
+/// | `agent` (DEFAULT) | workspace-write | workspace-write, reviewer `auto_review` | same |
+/// | `agent-full-access` | danger-full-access, `never` | same | same |
+///
+/// codex-acp 2.0.0 (#480, "restore read-only mode") puts the read-only sandbox
+/// back under `read-only` ("Read-only") and moves the 1.7.0 meaning of that id —
+/// a writable workspace whose every escalation goes to the user — to a NEW id,
+/// `workspace-write` ("Workspace access"). That new preset is the exact image
+/// of the codex CLI default (`sandbox_mode = "workspace-write"` with an
+/// on-request approval policy the user adjudicates), which none of 1.7.0's
+/// three presets was. An id an adapter does not know is not an error:
+/// `AgentMode.getInitialAgentMode` falls back to the DEFAULT (`agent`) on every
+/// version, so injecting `workspace-write` into a ≤1.13.x adapter yields exactly
+/// what this mapping chose before 2.0.0 existed.
 ///
 /// 1.7.0 redefined these. `read-only` used to carry a genuinely read-only
 /// sandbox; it now carries `workspaceWrite` like `agent`, and the two are
@@ -4320,8 +4394,15 @@ pub(crate) fn grok_launch_permission_mode() -> Option<String> {
 ///
 /// So the reviewer change is treated as what it is: an upstream default that
 /// every ACP client now inherits. codeg DISCLOSES it in the Codex panel, and the
-/// composer's approval-preset selector ("Ask for approval") remains the
-/// first-class, per-session control for a user who wants to adjudicate directly.
+/// composer's approval-preset selector remains the first-class, per-session
+/// control for a user who wants to adjudicate directly.
+///
+/// 2.0.0 dissolves that dilemma for the WRITABLE case, which is why a
+/// `workspace-write` config now maps to the new `workspace-write` preset: that id
+/// means "writable workspace, user-reviewed" on the one generation that has it,
+/// and nothing at all — hence the `agent` default, the old answer — on every
+/// other. Unlike `read-only`, there is no version on which it narrows the
+/// sandbox, so the first objection above does not apply to it.
 ///
 /// ## What is deliberately NOT preserved
 ///
@@ -4335,12 +4416,13 @@ pub(crate) fn grok_launch_permission_mode() -> Option<String> {
 /// the sandbox axis and neutral on the approval axis; the panel discloses the
 /// approval loss to the user rather than pretending it away.
 ///
-/// **The read-only sandbox, on codex-acp ≥1.7.0.** No preset carries one any
-/// more, and the adapter re-sends the selected preset's `sandboxPolicy` on every
-/// `runTurn`, so neither `config.toml` nor the `CODEX_CONFIG` session-config
-/// channel can put it back. `read-only` is still the right target for a
-/// read-only config — it is the tightest preset on both adapter generations —
-/// but on ≥1.7.0 the session really is workspace-writable, which the panel says
+/// **The read-only sandbox, on codex-acp 1.7.0–1.13.x.** No preset carries one
+/// there, and the adapter re-sends the selected preset's `sandboxPolicy` on
+/// every `runTurn`, so neither `config.toml` nor the `CODEX_CONFIG`
+/// session-config channel can put it back. `read-only` is still the right
+/// target for a read-only config — it is the tightest preset on every adapter
+/// generation, and 2.0.0 made it a real read-only sandbox again — but on
+/// 1.7.0–1.13.x the session really is workspace-writable, which the panel says
 /// out loud rather than papering over.
 fn codex_initial_agent_mode(settings: &CodexSandboxSettings) -> Option<&'static str> {
     // `default_permissions` makes codex resolve everything through that named
@@ -4367,17 +4449,27 @@ fn codex_initial_agent_mode(settings: &CodexSandboxSettings) -> Option<&'static 
     // `on-request` and dropped anything outside `CODEX_APPROVAL_POLICIES`.
     let never = settings.approval_policy.as_deref() == Some("never");
     match settings.sandbox_mode.as_deref() {
-        // The tightest preset on BOTH adapter generations: a real read-only
-        // sandbox on ≤1.6.2, and workspace-write with user-adjudicated
-        // approvals on ≥1.7.0 (see the note above on what 1.7.0 removed).
+        // The tightest preset on EVERY adapter generation: a real read-only
+        // sandbox on ≤1.6.2 and again from 2.0.0, and workspace-write with
+        // user-adjudicated approvals on 1.7.0–1.13.x (see the table above).
         Some("read-only") => Some("read-only"),
-        Some("workspace-write") => Some("agent"),
+        // A writable workspace. With an approval policy that wants the user,
+        // 2.0.0's `workspace-write` is the exact image (user-reviewed
+        // escalations); an older adapter does not know the id and starts in
+        // `agent`, which is what this arm used to pick for everyone. A config
+        // that asks for NO approvals has no exact preset on any version:
+        // `agent` (a model screens escalations) is the nearest one that does
+        // not widen the sandbox.
+        Some("workspace-write") if never => Some("agent"),
+        Some("workspace-write") => Some("workspace-write"),
         // Full access is the one preset that removes approvals entirely, so it
         // requires the config to say BOTH halves. A danger-full-access sandbox
-        // paired with any approval-requiring policy tightens to `agent` instead
-        // — narrower sandbox, and approvals still happen.
+        // paired with any approval-requiring policy tightens to a writable
+        // workspace instead — narrower sandbox, and approvals still happen,
+        // routed to the user where the adapter can (`workspace-write`, falling
+        // back to `agent` before 2.0.0).
         Some("danger-full-access") if never => Some("agent-full-access"),
-        Some("danger-full-access") => Some("agent"),
+        Some("danger-full-access") => Some("workspace-write"),
         // No sandbox expressed → nothing to preserve, so stay out of the way and
         // let codex-acp's own default stand. (codex-acp always sends an explicit
         // sandboxPolicy anyway, so config.toml's sandbox DEFAULT never applies.)
@@ -5661,44 +5753,144 @@ pub(crate) async fn acp_fetch_kimi_models_core(
 // agent dir honors `PI_CODING_AGENT_DIR` so a custom pi install can be targeted.
 // ---------------------------------------------------------------------------
 
-/// Resolve pi's coding-agent dir: `PI_CODING_AGENT_DIR` if set (trimmed,
-/// non-empty), else `~/.pi/agent` (mirrors `codex_home_dir`/`resolve_kimi_*`).
+/// Resolve pi's coding-agent dir from codeg's own environment:
+/// `PI_CODING_AGENT_DIR` through pi's tilde rule, else `~/.pi/agent`. The same
+/// resolver the history parser uses, so the two cannot drift.
 pub(crate) fn pi_agent_dir() -> PathBuf {
-    match std::env::var("PI_CODING_AGENT_DIR")
-        .ok()
-        .map(|raw| raw.trim().to_string())
-        .filter(|s| !s.is_empty())
-    {
-        Some(value) => PathBuf::from(value),
-        None => home_dir_or_default().join(".pi").join("agent"),
+    crate::parsers::pi::resolve_pi_agent_dir()
+}
+
+/// A variable as a launch with `runtime_env` sets it for its child. On Windows
+/// names are case-insensitive — `pi_coding_agent_dir` in the per-agent env IS
+/// the `PI_CODING_AGENT_DIR` pi reads — and when several spellings are present
+/// the spawn applies them in the map's order, so the last one wins.
+fn launch_env_value<'a>(runtime_env: &'a BTreeMap<String, String>, key: &str) -> Option<&'a str> {
+    if cfg!(windows) {
+        runtime_env
+            .iter()
+            .rev()
+            .find(|(name, _)| name.eq_ignore_ascii_case(key))
+            .map(|(_, value)| value.as_str())
+    } else {
+        runtime_env.get(key).map(String::as_str)
     }
 }
 
-fn pi_settings_json_path() -> PathBuf {
-    pi_agent_dir().join("settings.json")
+#[cfg(windows)]
+const CHILD_HOME_KEY: &str = "USERPROFILE";
+#[cfg(not(windows))]
+const CHILD_HOME_KEY: &str = "HOME";
+
+/// What `os.homedir()` answers in the pi child of a launch with `runtime_env` —
+/// the home pi expands `~` against and puts its default `.pi/agent` under.
+fn pi_child_home(runtime_env: &BTreeMap<String, String>) -> PathBuf {
+    pi_child_home_from(runtime_env, std::env::var_os(CHILD_HOME_KEY))
 }
 
-fn pi_auth_json_path() -> PathBuf {
-    pi_agent_dir().join("auth.json")
+/// [`pi_child_home`] with codeg's own home variable (what the child inherits
+/// when the launch leaves it alone) handed in.
+///
+/// Node takes `HOME` (`USERPROFILE` on Windows) verbatim whenever the child HAS
+/// the variable — relative or even empty, which pi then resolves against its
+/// cwd, the workspace — and asks the OS for the account's home only when it has
+/// none: the launch removed it (a blank launch value) or codeg never had one.
+fn pi_child_home_from(
+    runtime_env: &BTreeMap<String, String>,
+    inherited: Option<std::ffi::OsString>,
+) -> PathBuf {
+    let variable = match launch_env_value(runtime_env, CHILD_HOME_KEY) {
+        Some("") => None,
+        Some(value) => Some(std::ffi::OsString::from(value)),
+        None => inherited,
+    };
+    variable
+        .map(PathBuf::from)
+        .or_else(account_home_dir)
+        // The OS has no home for this account either: pi cannot start then,
+        // so no answer here can be wrong about a pi that runs.
+        .unwrap_or_else(home_dir_or_default)
 }
 
-fn pi_models_json_path() -> PathBuf {
-    pi_agent_dir().join("models.json")
+/// The account's home as the OS records it — Node's fallback without a home
+/// variable: the passwd entry on unix.
+#[cfg(unix)]
+fn account_home_dir() -> Option<PathBuf> {
+    use std::os::unix::ffi::OsStrExt;
+    let mut buf = vec![0 as libc::c_char; 4096];
+    loop {
+        // SAFETY: `entry`, `buf` and `found` are live locals of the stated
+        // sizes for the whole call, and `pw_dir` (which points into `buf`) is
+        // copied out before `buf` is touched again.
+        let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
+        let mut found: *mut libc::passwd = std::ptr::null_mut();
+        let rc = unsafe {
+            libc::getpwuid_r(
+                libc::getuid(),
+                &mut entry,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut found,
+            )
+        };
+        if rc == libc::ERANGE && buf.len() < 1 << 20 {
+            buf.resize(buf.len() * 2, 0);
+            continue;
+        }
+        if rc != 0 || found.is_null() || entry.pw_dir.is_null() {
+            return None;
+        }
+        let dir = unsafe { std::ffi::CStr::from_ptr(entry.pw_dir) };
+        return Some(PathBuf::from(std::ffi::OsStr::from_bytes(dir.to_bytes())));
+    }
 }
 
-/// Like [`pi_agent_dir`], but resolves `PI_CODING_AGENT_DIR` from a per-agent
-/// `runtime_env` map first (the BYO-pi override path) before falling back to the
-/// process env / `~/.pi/agent`. Launch-time trust seeding only has the per-agent
-/// env (the override never lands in codeg's own process env), so it must consult
-/// `runtime_env` to target the same agent dir pi-acp will spawn pi against.
+/// The account's profile folder, which libuv falls back to on Windows.
+#[cfg(not(unix))]
+fn account_home_dir() -> Option<PathBuf> {
+    dirs::home_dir()
+}
+
+/// Pi's agent dir as the pi CHILD of a launch with `runtime_env` resolves it —
+/// before a relative value is anchored (see [`pi_agent_dir_in_workspace`]).
+///
+/// Follows the spawn chain rather than one map: a non-empty `runtime_env` value
+/// replaces codeg's, an exactly-empty one is `env_remove`d (pi then falls back
+/// to its default instead of inheriting codeg's value), and an absent key
+/// inherits codeg's own. `~` and the default expand against the child's home
+/// ([`pi_child_home`]). Never trimmed: pi reads the raw value (`normalizePath`
+/// expands `~` and nothing else).
 pub(crate) fn pi_agent_dir_for_env(runtime_env: &BTreeMap<String, String>) -> PathBuf {
-    match runtime_env
-        .get("PI_CODING_AGENT_DIR")
-        .map(|raw| raw.trim().to_string())
-        .filter(|s| !s.is_empty())
-    {
-        Some(value) => PathBuf::from(value),
-        None => pi_agent_dir(),
+    pi_agent_dir_for_child(runtime_env, std::env::var_os("PI_CODING_AGENT_DIR"))
+}
+
+/// [`pi_agent_dir_for_env`] with codeg's own `PI_CODING_AGENT_DIR` (what the
+/// child inherits when the launch leaves the key alone) handed in.
+fn pi_agent_dir_for_child(
+    runtime_env: &BTreeMap<String, String>,
+    inherited: Option<std::ffi::OsString>,
+) -> PathBuf {
+    let value = match launch_env_value(runtime_env, "PI_CODING_AGENT_DIR") {
+        Some("") => None,
+        Some(value) => Some(std::ffi::OsString::from(value)),
+        None => inherited,
+    };
+    crate::parsers::pi::resolve_pi_agent_dir_from(value, Some(&pi_child_home(runtime_env)))
+}
+
+/// [`pi_agent_dir_for_env`] anchored where pi anchors it: pi-acp starts pi with
+/// the session's workspace as its cwd, so a relative `PI_CODING_AGENT_DIR` names
+/// a directory inside THAT workspace — and the `trust.json` pi consults there
+/// is one the repository itself can ship. Reading it relative to codeg's own cwd
+/// instead would let such a grant slip past the launch gate unseen.
+pub(crate) fn pi_agent_dir_in_workspace(
+    runtime_env: &BTreeMap<String, String>,
+    workspace: &Path,
+) -> PathBuf {
+    let dir = pi_agent_dir_for_env(runtime_env);
+    if dir.is_relative() {
+        workspace.join(dir)
+    } else {
+        dir
     }
 }
 
@@ -5901,24 +6093,49 @@ pub struct PiTrustEntry {
     pub trusted: bool,
 }
 
-/// Resolve the pi agent dir the launch path will use: the per-agent `env_json`
-/// (BYO `PI_CODING_AGENT_DIR`) first, then the process env / `~/.pi/agent`.
+/// The per-agent env the launch path hands pi — where a BYO
+/// `PI_CODING_AGENT_DIR` lives. The override only ever lands in the per-agent
+/// env, never codeg's own process env, so reading `std::env` alone would
+/// silently target the wrong agent dir for BYO-pi users.
 ///
-/// The override only ever lands in the per-agent env, never codeg's own process
-/// env, so reading `std::env` here would silently target the wrong agent dir for
-/// BYO-pi users — the same trap the old launch-time seeding documented.
-async fn pi_agent_dir_from_db(db: &AppDatabase) -> PathBuf {
+/// Fails closed: when the setting cannot be read, guessing "no override" would
+/// point every read AND write at the default profile — writing API keys into a
+/// profile the sessions never open.
+async fn pi_runtime_env_from_db(db: &AppDatabase) -> Result<BTreeMap<String, String>, AcpError> {
     let setting = agent_setting_service::get_by_agent_type(&db.conn, AgentType::Pi)
         .await
-        .ok()
-        .flatten();
+        .map_err(|error| {
+            AcpError::protocol(format!(
+                "Cannot read Pi agent settings from the Codeg database: {error}. Check database access and retry; Pi profile files were not changed."
+            ))
+        })?;
     let local_config_json = load_agent_local_config_json(AgentType::Pi);
-    let runtime_env = build_runtime_env_from_setting(
+    Ok(build_runtime_env_from_setting(
         AgentType::Pi,
         setting.as_ref(),
         local_config_json.as_deref(),
-    );
-    pi_agent_dir_for_env(&runtime_env)
+    ))
+}
+
+/// Settings have no workspace, and a relative agent dir names a different
+/// directory in every workspace pi runs in (see [`pi_agent_dir_in_workspace`]),
+/// so there is no single profile they could read or write. Refuse rather than
+/// resolve it against codeg's own cwd, which no pi process ever uses.
+fn pi_settings_dir_checked(pi_dir: PathBuf) -> Result<PathBuf, AcpError> {
+    if pi_dir.is_absolute() {
+        Ok(pi_dir)
+    } else {
+        Err(AcpError::protocol(format!(
+            "Pi agent directory must be absolute or start with ~/ before editing native settings \
+             (this agent's pi uses \"{}\", relative to each workspace; check \
+             PI_CODING_AGENT_DIR and HOME in its environment)",
+            pi_dir.display()
+        )))
+    }
+}
+
+async fn pi_settings_dir_from_db(db: &AppDatabase) -> Result<PathBuf, AcpError> {
+    pi_settings_dir_checked(pi_agent_dir_for_env(&pi_runtime_env_from_db(db).await?))
 }
 
 /// Project-trust state for `cwd` against explicit files. Split from the DB-backed
@@ -5958,7 +6175,7 @@ pub(crate) fn pi_project_trust_launch_block(
     cwd: &Path,
     runtime_env: &BTreeMap<String, String>,
 ) -> Option<String> {
-    let trust_file = pi_agent_dir_for_env(runtime_env).join("trust.json");
+    let trust_file = pi_agent_dir_in_workspace(runtime_env, cwd).join("trust.json");
     let state = pi_project_trust_state_at(&trust_file, &pi_trust_ack_path(), cwd);
     if state.resources.is_empty() || state.decision != Some(true) || state.acknowledged {
         return None;
@@ -6154,14 +6371,16 @@ pub(crate) async fn acp_pi_project_trust_state_core(
     db: &AppDatabase,
     workspace: String,
 ) -> Result<PiProjectTrustState, AcpError> {
-    let trust_file = pi_agent_dir_from_db(db).await.join("trust.json");
     // Not trimmed, for the same reason as the write path: a directory name may
     // legitimately start or end with a space, and the state must describe the
     // exact folder the caller named.
+    let cwd = Path::new(&workspace);
+    let trust_file =
+        pi_agent_dir_in_workspace(&pi_runtime_env_from_db(db).await?, cwd).join("trust.json");
     Ok(pi_project_trust_state_at(
         &trust_file,
         &pi_trust_ack_path(),
-        Path::new(&workspace),
+        cwd,
     ))
 }
 
@@ -6198,7 +6417,10 @@ pub(crate) async fn acp_pi_set_project_trust_core(
     workspace: String,
     trusted: Option<bool>,
 ) -> Result<(), AcpError> {
-    let path = pi_agent_dir_from_db(db).await.join("trust.json");
+    // The same file the launch gate reads for this workspace — anchored in it
+    // when the agent dir is relative (see `pi_agent_dir_in_workspace`).
+    let path = pi_agent_dir_in_workspace(&pi_runtime_env_from_db(db).await?, Path::new(&workspace))
+        .join("trust.json");
     // The write takes pi's file lock and can sleep on contention, so keep it off
     // the async worker. NOTE: `workspace` is NOT trimmed — leading/trailing
     // spaces are legal in a directory name, and silently trimming them would key
@@ -6356,7 +6578,7 @@ fn pi_write_trust_decision_at(
 pub(crate) async fn acp_pi_list_trust_entries_core(
     db: &AppDatabase,
 ) -> Result<Vec<PiTrustEntry>, AcpError> {
-    let path = pi_agent_dir_from_db(db).await.join("trust.json");
+    let path = pi_settings_dir_from_db(db).await?.join("trust.json");
     Ok(pi_trust_entries_at(&path))
 }
 
@@ -6418,7 +6640,9 @@ pub struct PiModelReasoningSpec {
 }
 
 /// pi's fixed thinking-level vocabulary (`EXTENDED_THINKING_LEVELS` in pi-ai).
-/// Keep this mirror in sync with the frontend's `PI_THINKING_LEVELS`.
+/// `getSupportedThinkingLevels` only ever walks these seven, so a
+/// `thinkingLevelMap` key outside the list is dead weight in `models.json` that
+/// no picker will ever offer.
 const PI_THINKING_LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
 
 /// Read a JSON file into an owned object map, returning an empty map when the
@@ -6522,6 +6746,289 @@ fn apply_pi_custom_model(
     entry.insert("models".to_string(), serde_json::Value::Array(models));
 }
 
+/// One built-in model's thinking capability, as pi's own model registry reports
+/// it (`get_available_models`). Only these fields cross the settings API
+/// boundary — a registry entry also carries base URLs and headers.
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PiModelCapability {
+    pub provider: String,
+    pub id: String,
+    #[serde(default)]
+    pub reasoning: bool,
+    #[serde(default)]
+    pub thinking_level_map: BTreeMap<String, Option<String>>,
+}
+
+/// Whether pi answered the catalog query, and if not, why. The settings panel
+/// words its hint from this: "pi does not list this model" is only true when pi
+/// actually answered.
+#[derive(Debug, Clone, Copy, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PiCatalogStatus {
+    /// pi answered. Its list covers only providers it has credentials for.
+    Ok,
+    /// The configured pi command does not resolve to an executable.
+    NotFound,
+    /// A relative command or agent dir names a different file in every workspace
+    /// pi runs in, and this query has no workspace.
+    RelativePath,
+    /// pi started but gave no usable answer (exited, refused, or unparseable).
+    Failed,
+    /// pi did not answer before the deadline.
+    TimedOut,
+}
+
+/// pi's model catalog for the settings panel: `models` is empty unless `status`
+/// is [`PiCatalogStatus::Ok`].
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct PiModelCatalog {
+    pub status: PiCatalogStatus,
+    pub models: Vec<PiModelCapability>,
+}
+
+impl PiModelCatalog {
+    fn unavailable(status: PiCatalogStatus) -> Self {
+        Self {
+            status,
+            models: Vec::new(),
+        }
+    }
+}
+
+/// Read one line of pi's RPC output: `None` for anything that is not the answer
+/// to the catalog request (pi may emit other lines first), `Some(Err(()))` for
+/// an answer that refuses or cannot be read, `Some(Ok(models))` otherwise.
+fn parse_pi_model_capabilities(line: &str) -> Option<Result<Vec<PiModelCapability>, ()>> {
+    let response: serde_json::Value = serde_json::from_str(line).ok()?;
+    if response.get("id")?.as_str()? != "codeg-models"
+        || response.get("type")?.as_str()? != "response"
+        || response.get("command")?.as_str()? != "get_available_models"
+    {
+        return None;
+    }
+    if response.get("success").and_then(serde_json::Value::as_bool) != Some(true) {
+        return Some(Err(()));
+    }
+    Some(
+        response
+            .get("data")
+            .and_then(|data| data.get("models"))
+            .and_then(|models| serde_json::from_value(models.clone()).ok())
+            .ok_or(()),
+    )
+}
+
+/// The command pi-acp spawns for a launch with `runtime_env`: its
+/// `PI_ACP_PI_COMMAND` as the child sees it (the same removed / inherited rules
+/// as [`pi_agent_dir_for_env`]), else `pi`. pi-acp uses the value verbatim, so it
+/// is not trimmed here either.
+pub(crate) fn pi_command_for_env(runtime_env: &BTreeMap<String, String>) -> String {
+    match launch_env_value(runtime_env, "PI_ACP_PI_COMMAND") {
+        Some("") => None,
+        Some(value) => Some(value.to_string()),
+        None => std::env::var("PI_ACP_PI_COMMAND")
+            .ok()
+            .filter(|value| !value.is_empty()),
+    }
+    .unwrap_or_else(|| "pi".to_string())
+}
+
+/// Whether a pi command is a path (spawned as-is) rather than a name looked up
+/// on `PATH`. `C:pi` is a drive-relative path on Windows, not a name.
+fn pi_command_looks_like_path(command: &str) -> bool {
+    command.contains('/')
+        || command.contains('\\')
+        || command.as_bytes().get(1) == Some(&b':')
+        || Path::new(command).is_absolute()
+}
+
+/// Resolve the command pi-acp will spawn the way that spawn resolves it: a path
+/// against `cwd` (the child's working directory), a bare name on the child's
+/// `PATH` — `env`'s when the launch sets one, else codeg's own, which the child
+/// inherits.
+///
+/// A relative `PATH` entry (an empty one means "the cwd") is anchored in `cwd`
+/// here, because that is where the child looks. `which` alone would test it
+/// against codeg's OWN cwd — a directory the child never searches, and on a
+/// server possibly one other users can write to.
+pub(crate) fn resolve_pi_command_in(
+    command: &str,
+    env: &BTreeMap<String, String>,
+    cwd: &Path,
+) -> Option<PathBuf> {
+    if command.is_empty() {
+        return None;
+    }
+    if pi_command_looks_like_path(command) {
+        let candidate = cwd.join(command);
+        return pi_path_is_executable(&candidate)
+            .then(|| fs::canonicalize(&candidate).unwrap_or(candidate));
+    }
+    let path = launch_env_value(env, "PATH")
+        .map(std::ffi::OsString::from)
+        .or_else(|| std::env::var_os("PATH"))?;
+    // `join_paths` cannot fail on what `split_paths` produced (no entry holds
+    // the separator, and Windows quotes the ones that do); should it anyway,
+    // searching the list as given still beats reporting pi missing.
+    let anchored = std::env::join_paths(
+        std::env::split_paths(&path).filter_map(|entry| anchor_path_entry(&entry, cwd)),
+    )
+    .unwrap_or(path);
+    which::which_in(command, Some(anchored), cwd).ok()
+}
+
+/// One `PATH` entry as the child searches it with `cwd` as its working
+/// directory. `which` alone would test a relative entry against codeg's OWN
+/// cwd. A Windows drive-relative entry (`C:tools`) is dropped instead: it
+/// follows that drive's current directory in the child, which nothing here can
+/// name, so no guess at it is safe. A rooted one (`\tools`) keeps `cwd`'s drive,
+/// as it does for the child.
+fn anchor_path_entry(entry: &Path, cwd: &Path) -> Option<PathBuf> {
+    if entry.is_absolute() {
+        return Some(entry.to_path_buf());
+    }
+    if matches!(
+        entry.components().next(),
+        Some(std::path::Component::Prefix(_))
+    ) {
+        return None;
+    }
+    Some(cwd.join(entry))
+}
+
+/// The catalog query has no workspace, and a relative command or agent dir
+/// names a different file in every workspace pi runs in. Decline rather than
+/// resolve it against the query's own scratch cwd.
+fn pi_runtime_paths_are_stable(runtime_env: &BTreeMap<String, String>) -> bool {
+    let command = pi_command_for_env(runtime_env);
+    let relative_command =
+        pi_command_looks_like_path(&command) && !Path::new(&command).is_absolute();
+    !relative_command && pi_agent_dir_for_env(runtime_env).is_absolute()
+}
+
+/// Ask pi itself for its model catalog — the same executable and agent dir a
+/// session would use — without an ACP session, a prompt, or the network.
+async fn query_pi_model_catalog(
+    runtime_env: &BTreeMap<String, String>,
+    deadline: Duration,
+) -> PiModelCatalog {
+    use std::process::Stdio;
+    use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt, BufReader};
+
+    if !pi_runtime_paths_are_stable(runtime_env) {
+        return PiModelCatalog::unavailable(PiCatalogStatus::RelativePath);
+    }
+    // A private, empty working directory: pi runs where no repository or other
+    // user put anything, and a relative `PATH` entry (an empty one means the
+    // cwd) cannot reach a `pi` someone planted in the shared temp dir. Kept
+    // alive until the child is reaped below.
+    let Ok(query_dir) = tempfile::Builder::new()
+        .prefix("codeg-pi-catalog-")
+        .tempdir()
+    else {
+        return PiModelCatalog::unavailable(PiCatalogStatus::Failed);
+    };
+    let Some(program) = resolve_pi_command_in(
+        &pi_command_for_env(runtime_env),
+        runtime_env,
+        query_dir.path(),
+    ) else {
+        return PiModelCatalog::unavailable(PiCatalogStatus::NotFound);
+    };
+    let mut command = crate::process::tokio_command(program);
+    command
+        .args([
+            "--mode",
+            "rpc",
+            // Without it, pi's RPC mode starts a background model refresh that
+            // renews EXPIRED OAuth logins (rotating the refresh token), and it
+            // exits on stdin EOF without waiting for that — so a query this short
+            // could cut a token rotation off mid-flight. Offline, pi still lists
+            // the same models from its registry and auth store.
+            "--offline",
+            "--no-session",
+            "--no-extensions",
+            "--no-skills",
+            "--no-prompt-templates",
+            "--no-context-files",
+            "--no-approve",
+        ])
+        .current_dir(query_dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .kill_on_drop(true);
+    // The launch convention: an exactly-empty value removes the variable.
+    for (key, value) in runtime_env {
+        if value.is_empty() {
+            command.env_remove(key);
+        } else {
+            command.env(key, value);
+        }
+    }
+    let Ok(mut child) = command.spawn() else {
+        return PiModelCatalog::unavailable(PiCatalogStatus::Failed);
+    };
+    let query = async {
+        let mut stdin = child.stdin.take()?;
+        stdin
+            .write_all(b"{\"id\":\"codeg-models\",\"type\":\"get_available_models\"}\n")
+            .await
+            .ok()?;
+        stdin.flush().await.ok()?;
+        let stdout = child.stdout.take()?;
+        let mut lines = BufReader::new(stdout.take(8 * 1024 * 1024)).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            if let Some(answer) = parse_pi_model_capabilities(&line) {
+                return Some(answer);
+            }
+        }
+        None
+    };
+    let result = tokio::time::timeout(deadline, query).await;
+    if tokio::time::timeout(Duration::from_secs(1), child.wait())
+        .await
+        .is_err()
+    {
+        let _ = child.start_kill();
+        let _ = child.wait().await;
+    }
+    match result {
+        Err(_) => PiModelCatalog::unavailable(PiCatalogStatus::TimedOut),
+        Ok(Some(Ok(models))) => PiModelCatalog {
+            status: PiCatalogStatus::Ok,
+            models,
+        },
+        Ok(_) => PiModelCatalog::unavailable(PiCatalogStatus::Failed),
+    }
+}
+
+/// Reuse MaxCode's managed Pi installation for a catalog query, just as the
+/// launch path does. An explicit runtime or inherited override keeps priority.
+pub(crate) fn apply_managed_pi_runtime(runtime_env: &mut BTreeMap<String, String>) {
+    if let Some((key, path)) = crate::commands::agent_auto_updates::managed_runtime(AgentType::Pi) {
+        if launch_env_value(runtime_env, key).is_none_or(|value| value.trim().is_empty())
+            && std::env::var(key)
+                .ok()
+                .is_none_or(|value| value.trim().is_empty())
+        {
+            runtime_env.insert(key.to_owned(), path.to_string_lossy().into_owned());
+        }
+    }
+}
+
+pub async fn list_pi_model_catalog_core(db: &AppDatabase, data_dir: &Path) -> PiModelCatalog {
+    let Ok(mut runtime_env) =
+        build_runtime_env_for_agent(db, AgentType::Pi, None, data_dir, true).await
+    else {
+        return PiModelCatalog::unavailable(PiCatalogStatus::Failed);
+    };
+    apply_managed_pi_runtime(&mut runtime_env);
+    query_pi_model_catalog(&runtime_env, Duration::from_secs(12)).await
+}
+
 /// Apply a structured Pi config update to pi's native files. Validates the whole
 /// request before any write: provider/model must be non-empty after trim and the
 /// API key must not contain newlines (it lands verbatim in a JSON string). Writes
@@ -6560,6 +7067,10 @@ pub(crate) async fn acp_update_pi_config_core(
         }
     }
 
+    // The profile sessions will read: resolved (and refused if unknowable) before
+    // anything is written anywhere.
+    let pi_dir = pi_settings_dir_from_db(db).await?;
+
     // Ensure the settings row exists (mirrors the kimi flow) so the agent shows
     // up as configured/enabled in the DB-backed settings list.
     let default = agent_setting_service::AgentDefaultInput {
@@ -6572,7 +7083,7 @@ pub(crate) async fn acp_update_pi_config_core(
         .map_err(|e| AcpError::protocol(e.to_string()))?;
 
     // ---- settings.json: merge-write provider/model/thinking level ----
-    let settings_path = pi_settings_json_path();
+    let settings_path = pi_dir.join("settings.json");
     let mut settings = read_json_object_or_empty(&settings_path);
     settings.insert(
         "defaultProvider".to_string(),
@@ -6592,7 +7103,7 @@ pub(crate) async fn acp_update_pi_config_core(
 
     // ---- auth.json: merge-write the provider credential (only when given) ----
     if let Some(key) = api_key {
-        let auth_path = pi_auth_json_path();
+        let auth_path = pi_dir.join("auth.json");
         let mut auth = read_json_object_or_empty(&auth_path);
         let mut entry = serde_json::Map::new();
         entry.insert(
@@ -6625,7 +7136,7 @@ pub(crate) async fn acp_update_pi_config_core(
             .map(str::trim)
             .filter(|s| !s.is_empty())
             .unwrap_or("openai-completions");
-        let models_path = pi_models_json_path();
+        let models_path = pi_dir.join("models.json");
         let mut models_doc = read_json_object_or_empty(&models_path);
         let mut providers = match models_doc.remove("providers") {
             Some(serde_json::Value::Object(map)) => map,
@@ -6741,21 +7252,21 @@ pub struct PiConfigProjection {
 /// Read pi's native files into a `PiConfigProjection`. Never errors: absent or
 /// malformed files yield `None` / an empty provider list (the panel treats that
 /// as "not configured yet").
-pub(crate) fn load_pi_config_core() -> PiConfigProjection {
-    let settings = read_json_object_or_empty(&pi_settings_json_path());
+pub(crate) fn load_pi_config_at(pi_dir: &Path) -> PiConfigProjection {
+    let settings = read_json_object_or_empty(&pi_dir.join("settings.json"));
     let string_key = |key: &str| {
         settings
             .get(key)
             .and_then(serde_json::Value::as_str)
             .map(str::to_string)
     };
-    let mut auth_providers: Vec<String> = read_json_object_or_empty(&pi_auth_json_path())
+    let mut auth_providers: Vec<String> = read_json_object_or_empty(&pi_dir.join("auth.json"))
         .keys()
         .cloned()
         .collect();
     auth_providers.sort();
     let mut custom_providers: Vec<PiCustomProvider> =
-        read_json_object_or_empty(&pi_models_json_path())
+        read_json_object_or_empty(&pi_dir.join("models.json"))
             .get("providers")
             .and_then(serde_json::Value::as_object)
             .map(|providers| {
@@ -6786,6 +7297,17 @@ pub(crate) fn load_pi_config_core() -> PiConfigProjection {
         auth_providers,
         custom_providers,
     }
+}
+
+#[cfg(test)]
+pub(crate) fn load_pi_config_core() -> PiConfigProjection {
+    load_pi_config_at(&pi_agent_dir())
+}
+
+pub(crate) async fn load_pi_config_for_db(
+    db: &AppDatabase,
+) -> Result<PiConfigProjection, AcpError> {
+    Ok(load_pi_config_at(&pi_settings_dir_from_db(db).await?))
 }
 
 /// Result of validating a user-supplied custom pi binary (BYO-pi). `found=false`
@@ -9717,9 +10239,13 @@ const CLAUDE_MODEL_KEY_MAP: &[(&str, &str)] = &[
     ("haiku", "ANTHROPIC_DEFAULT_HAIKU_MODEL"),
     ("sonnet", "ANTHROPIC_DEFAULT_SONNET_MODEL"),
     ("opus", "ANTHROPIC_DEFAULT_OPUS_MODEL"),
+    // What the `fable` alias resolves to (and so `best`, where Fable is
+    // available), and the id the CLI recognizes as a Fable model for its
+    // automatic model fallback on third-party providers.
+    ("fable", "ANTHROPIC_DEFAULT_FABLE_MODEL"),
     // The custom model option trio appends one entry to the in-session /model
     // picker (a model the provider's gateway serves). Carried by the provider's
-    // model JSON like the five model fields, so binding/cascade pushes it too.
+    // model JSON like the six model fields, so binding/cascade pushes it too.
     ("customOption", "ANTHROPIC_CUSTOM_MODEL_OPTION"),
     ("customOptionName", "ANTHROPIC_CUSTOM_MODEL_OPTION_NAME"),
     (
@@ -9736,7 +10262,7 @@ const CLAUDE_MODEL_KEY_MAP: &[(&str, &str)] = &[
 /// "clear". This lets the caller overwrite even when the provider's value is
 /// empty.
 ///
-/// - Claude: returns one entry per `CLAUDE_MODEL_KEY_MAP` row — the five
+/// - Claude: returns one entry per `CLAUDE_MODEL_KEY_MAP` row — the six
 ///   ANTHROPIC_*_MODEL fields plus the ANTHROPIC_CUSTOM_MODEL_OPTION trio. Each
 ///   entry is `None` when the provider's JSON omits that key or has an empty
 ///   value.
@@ -10200,6 +10726,19 @@ pub(crate) async fn build_session_runtime_env(
     session_id: Option<&str>,
     data_dir: &Path,
 ) -> Result<BTreeMap<String, String>, AcpError> {
+    build_runtime_env_for_agent(db, agent_type, session_id, data_dir, false).await
+}
+
+/// Settings may inspect Pi's local model catalog while the agent is disabled.
+/// Reuse the exact launch environment, bypassing only the connection permission
+/// gate; this path starts no ACP session and sends no prompt.
+async fn build_runtime_env_for_agent(
+    db: &AppDatabase,
+    agent_type: AgentType,
+    session_id: Option<&str>,
+    data_dir: &Path,
+    allow_disabled: bool,
+) -> Result<BTreeMap<String, String>, AcpError> {
     let setting = agent_setting_service::get_by_agent_type(&db.conn, agent_type)
         .await
         .map_err(|e| AcpError::protocol(e.to_string()))?;
@@ -10207,7 +10746,7 @@ pub(crate) async fn build_session_runtime_env(
         .as_ref()
         .map(|model| !model.enabled)
         .unwrap_or(false);
-    if disabled {
+    if disabled && !allow_disabled {
         return Err(AcpError::protocol(format!(
             "{agent_type} is disabled in settings"
         )));
@@ -10540,11 +11079,6 @@ pub(crate) async fn acp_get_agent_status_core(
         .map_err(|e| AcpError::protocol(e.to_string()))?;
 
     let (available, installed_version) = match &meta.distribution {
-        registry::AgentDistribution::Bundled { version, .. } => {
-            // Available everywhere MaxCode itself runs; the pinned version is
-            // the adapter compiled into the binary.
-            (true, Some(version.to_string()))
-        }
         registry::AgentDistribution::Npx { cmd, package, .. } => {
             let resolved = resolve_agent_npx_command(agent_type, cmd).await;
             let version = npx_displayed_version(
@@ -10638,9 +11172,6 @@ async fn acp_list_agents_with_disabled(
         }
         let meta = registry::get_agent_meta(agent_type);
         let (available, dist_type, local_installed_version) = match &meta.distribution {
-            registry::AgentDistribution::Bundled { version, .. } => {
-                (true, "bundled", Some(version.to_string()))
-            }
             registry::AgentDistribution::Npx { cmd, package, .. } => {
                 // Keep the list path bounded: each list request probes npm
                 // global prefix at most once, then reuses the result across
@@ -11475,17 +12006,6 @@ pub(crate) async fn acp_download_agent_binary_core(
 
     let meta = registry::get_agent_meta(agent_type);
     let result = match meta.distribution {
-        // The bundled adapter materializes at launch; "install" is a no-op that
-        // reports success so the Settings flow completes.
-        registry::AgentDistribution::Bundled { version, .. } => {
-            emit_agent_install_event(
-                emitter,
-                &task_id,
-                AgentInstallEventKind::Completed,
-                format!("zcode-acp adapter {version} is bundled with MaxCode"),
-            );
-            Ok(())
-        }
         registry::AgentDistribution::Binary {
             version,
             cmd,
@@ -11697,13 +12217,9 @@ pub(crate) async fn acp_detect_agent_local_version_core(
     // a best-effort fallback.
     let authoritative_none = match registry::get_agent_meta(agent_type).distribution {
         registry::AgentDistribution::Binary { .. } => true,
-        registry::AgentDistribution::Bundled { version, .. } => {
-            // detect_local_version answered the pinned version; None here is
-            // impossible, but treat it as authoritative like Binary.
-            let _ = version;
-            true
+        registry::AgentDistribution::Npx { package, .. } => {
+            npx_requires_runtime_probe(agent_type, package)
         }
-        registry::AgentDistribution::Npx { package, .. } => npm_package_requires_scripts(package),
         registry::AgentDistribution::Uvx { .. } => false,
     };
     if authoritative_none {
@@ -11734,18 +12250,6 @@ pub(crate) async fn acp_prepare_npx_agent_core(
 
     let meta = registry::get_agent_meta(agent_type);
     let result = match meta.distribution {
-        registry::AgentDistribution::Bundled { version, .. } => {
-            emit_agent_install_event(
-                emitter,
-                &task_id,
-                AgentInstallEventKind::Completed,
-                format!("zcode-acp adapter {version} is bundled with MaxCode; nothing to prepare"),
-            );
-            Ok(registry::get_agent_meta(agent_type)
-                .registry_version()
-                .map(str::to_string)
-                .unwrap_or_else(|| version.to_string()))
-        }
         registry::AgentDistribution::Npx { package, cmd, .. } => {
             let default = agent_setting_service::AgentDefaultInput {
                 agent_type,
@@ -11862,7 +12366,7 @@ pub(crate) async fn acp_prepare_npx_agent_core(
             // legitimately satisfies the check. Without this, a broken
             // install is recorded as installed and only fails at connect
             // time with an opaque error.
-            if npm_package_requires_scripts(&install_spec) {
+            if npx_requires_runtime_probe(agent_type, &install_spec) {
                 emit_agent_install_event(
                     emitter,
                     &task_id,
@@ -11914,6 +12418,18 @@ pub(crate) async fn acp_prepare_npx_agent_core(
             )
             .await
             .map_err(|e| AcpError::protocol(e.to_string()))?;
+
+            // A new codex-acp can drive a codex with a different official
+            // model list; codeg's generated catalog must follow it.
+            if agent_type == AgentType::Codex {
+                emit_agent_install_event(
+                    emitter,
+                    &task_id,
+                    AgentInstallEventKind::Log,
+                    "Refreshing the Codex model catalog...",
+                );
+                resync_codex_generated_catalog().await;
+            }
             emit_acp_agents_updated(emitter, "npx_prepared", Some(agent_type));
             Ok(resolved)
         }
@@ -12014,11 +12530,6 @@ pub(crate) async fn acp_uninstall_agent_core(
 
     let result: Result<(), AcpError> = async {
         match meta.distribution {
-            registry::AgentDistribution::Bundled { .. } => {
-                // Dropping the materialized adapter is enough; the next launch
-                // rewrites it from the binary.
-                binary_cache::clear_agent_cache(agent_type)?;
-            }
             registry::AgentDistribution::Binary { .. } => {
                 binary_cache::clear_agent_cache(agent_type)?;
             }
@@ -12913,7 +13424,7 @@ mod tests {
         }
         for policy in ["", "approval_policy = \"untrusted\"\n"] {
             let toml = format!("{policy}sandbox_mode = \"workspace-write\"\n");
-            assert_eq!(initial_mode_for(&toml), Some("agent"));
+            assert_eq!(initial_mode_for(&toml), Some("workspace-write"));
         }
     }
 
@@ -12929,6 +13440,13 @@ mod tests {
         // the running adapter's version is not knowable here; the mapping must
         // therefore stay keyed on the sandbox, which is the axis whose meaning
         // did not move. See the "Why the reviewer axis is NOT used" note above.
+        //
+        // codex-acp 2.0.0 adds the preset that config actually describes —
+        // `workspace-write`, a writable workspace whose escalations go to the
+        // user — and an adapter that predates the id starts in its `agent`
+        // default instead (`getInitialAgentMode`: an unknown id falls back),
+        // which is exactly the old mapping. Writable on every version either
+        // way; never `read-only`.
         for policy in [
             "",
             "approval_policy = \"on-request\"\n",
@@ -12938,10 +13456,16 @@ mod tests {
             let toml = format!("{policy}sandbox_mode = \"workspace-write\"\n");
             assert_eq!(
                 initial_mode_for(&toml),
-                Some("agent"),
+                Some("workspace-write"),
                 "a writable config must never be handed the read-only preset ({policy:?})"
             );
         }
+        // No approvals wanted: no preset says exactly that without widening the
+        // sandbox, and the model-screened default is the nearest.
+        assert_eq!(
+            initial_mode_for("approval_policy = \"never\"\nsandbox_mode = \"workspace-write\"\n"),
+            Some("agent")
+        );
     }
 
     #[test]
@@ -12964,7 +13488,7 @@ mod tests {
             let toml = format!("{policy}sandbox_mode = \"danger-full-access\"\n");
             assert_eq!(
                 initial_mode_for(&toml),
-                Some("agent"),
+                Some("workspace-write"),
                 "must not remove approvals for {policy:?}"
             );
         }
@@ -13258,6 +13782,191 @@ base_url = \"https://example.test/v1\"
             home
         ));
         assert!(!is_codeg_owned_catalog_ref("manual.json", home));
+    }
+
+    fn catalog_slugs(home: &Path) -> Vec<String> {
+        let text = fs::read_to_string(home.join(crate::acp::codex_model_catalog::CATALOG_REL))
+            .expect("generated catalog");
+        serde_json::from_str::<serde_json::Value>(&text).expect("catalog json")["models"]
+            .as_array()
+            .expect("models")
+            .iter()
+            .filter_map(|m| m["slug"].as_str().map(str::to_owned))
+            .collect()
+    }
+
+    /// The official list before codex 0.159.1: today's minus GPT-6.1 Sol.
+    fn catalog_without_gpt_6_1_sol() -> Vec<serde_json::Value> {
+        crate::acp::codex_model_catalog::bundled_snapshot_models()
+            .into_iter()
+            .filter(|m| m["slug"] != "gpt-6.1-sol")
+            .collect()
+    }
+
+    /// A catalog codeg generated before an upgrade is re-expanded from its
+    /// stored intent, so the new official model shows up — in codex's own
+    /// rank, behind the custom — without the user re-saving anything.
+    #[test]
+    fn resync_rewrites_codegs_catalog_against_the_new_official_list() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path();
+        let config = config_with_catalog_ref(crate::acp::codex_model_catalog::CATALOG_REL);
+        fs::write(home.join("config.toml"), &config).unwrap();
+        let intent = r#"{"customs":[{"slug":"gw/x","base":"gpt-5.6-sol"}],"default":"gw/x"}"#;
+        crate::acp::codex_model_catalog::write_catalog_files(
+            intent,
+            home,
+            &catalog_without_gpt_6_1_sol(),
+        )
+        .unwrap()
+        .expect("customs → generated catalog");
+        assert!(!catalog_slugs(home).iter().any(|s| s == "gpt-6.1-sol"));
+
+        // Today's list plus one model no compiled-in snapshot has, so only
+        // the list passed in can put it in the table.
+        let mut new = crate::acp::codex_model_catalog::bundled_snapshot_models();
+        let mut unshipped = new
+            .iter()
+            .find(|m| m["slug"] == "gpt-5.5")
+            .cloned()
+            .expect("gpt-5.5 in snapshot");
+        unshipped["slug"] = serde_json::Value::String("gpt-test-unshipped".into());
+        new.push(unshipped);
+        assert_eq!(
+            resync_codex_generated_catalog_at(home, &new).unwrap(),
+            CodexCatalogResync::Rewritten
+        );
+        let slugs = catalog_slugs(home);
+        assert_eq!(slugs[..3], ["gw/x", "gpt-6.1-sol", "gpt-6-astra"]);
+        assert!(slugs.iter().any(|s| s == "gpt-test-unshipped"));
+        assert_eq!(slugs.len(), new.len() + 1);
+        // The intent and config.toml are untouched: same bytes as before.
+        assert_eq!(
+            fs::read_to_string(home.join(crate::acp::codex_model_catalog::SOURCE_REL)).unwrap(),
+            intent
+        );
+        assert_eq!(
+            fs::read_to_string(home.join("config.toml")).unwrap(),
+            config
+        );
+    }
+
+    /// Nothing that codeg cannot regenerate is touched: the user's own catalog,
+    /// a config with no catalog at all, and a codeg catalog whose intent sidecar
+    /// is gone (re-importing it against the NEW list would read every newly
+    /// shipped official as one the user removed).
+    #[test]
+    fn resync_leaves_catalogs_codeg_cannot_regenerate_alone() {
+        let new = crate::acp::codex_model_catalog::bundled_snapshot_models();
+        let intent = r#"{"customs":[{"slug":"gw/x","base":"gpt-5.6-sol"}]}"#;
+        let catalog_path = |home: &Path| home.join(crate::acp::codex_model_catalog::CATALOG_REL);
+
+        // No config.toml at all.
+        let dir = tempfile::tempdir().expect("tempdir");
+        assert_eq!(
+            resync_codex_generated_catalog_at(dir.path(), &new).unwrap(),
+            CodexCatalogResync::NotOwned
+        );
+
+        // The user's own catalog, even with a codeg sidecar lying around.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path();
+        fs::write(
+            home.join("config.toml"),
+            config_with_catalog_ref("manual.json"),
+        )
+        .unwrap();
+        fs::write(
+            home.join(crate::acp::codex_model_catalog::SOURCE_REL),
+            intent,
+        )
+        .unwrap();
+        assert_eq!(
+            resync_codex_generated_catalog_at(home, &new).unwrap(),
+            CodexCatalogResync::NotOwned
+        );
+        assert!(!catalog_path(home).exists(), "no catalog was generated");
+        assert_eq!(
+            fs::read_to_string(home.join("config.toml")).unwrap(),
+            config_with_catalog_ref("manual.json"),
+            "the user's reference is left byte-identical"
+        );
+
+        // No `model_catalog_json` key.
+        fs::write(home.join("config.toml"), "model = \"gpt-5.5\"\n").unwrap();
+        assert_eq!(
+            resync_codex_generated_catalog_at(home, &new).unwrap(),
+            CodexCatalogResync::NotOwned
+        );
+        assert!(!catalog_path(home).exists(), "no catalog was generated");
+
+        // codeg's reference, but no sidecar: the old table stays as it is.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path();
+        fs::write(
+            home.join("config.toml"),
+            config_with_catalog_ref(crate::acp::codex_model_catalog::CATALOG_REL),
+        )
+        .unwrap();
+        crate::acp::codex_model_catalog::write_catalog_files(
+            intent,
+            home,
+            &catalog_without_gpt_6_1_sol(),
+        )
+        .unwrap()
+        .expect("seeded");
+        fs::remove_file(home.join(crate::acp::codex_model_catalog::SOURCE_REL)).unwrap();
+        let before = fs::read_to_string(catalog_path(home)).unwrap();
+        assert_eq!(
+            resync_codex_generated_catalog_at(home, &new).unwrap(),
+            CodexCatalogResync::NotOwned
+        );
+        assert_eq!(fs::read_to_string(catalog_path(home)).unwrap(), before);
+    }
+
+    /// When the new list makes the takeover moot (the only removal names a model
+    /// codex has since retired), control goes back to codex: the reference is
+    /// dropped — format-preservingly — and the generated files with it, so
+    /// config.toml never points at a file that is gone.
+    #[test]
+    fn resync_releases_a_takeover_the_new_list_makes_moot() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let home = dir.path();
+        fs::write(
+            home.join("config.toml"),
+            config_with_catalog_ref(crate::acp::codex_model_catalog::CATALOG_REL),
+        )
+        .unwrap();
+        // The old list still LISTED a model the user removed; the new one no
+        // longer ships it at all.
+        let mut old = crate::acp::codex_model_catalog::bundled_snapshot_models();
+        let mut retired = old
+            .iter()
+            .find(|m| m["slug"] == "gpt-5.5")
+            .cloned()
+            .expect("gpt-5.5 in snapshot");
+        retired["slug"] = serde_json::Value::String("gpt-5.4-retired".into());
+        old.push(retired);
+        let intent = r#"{"customs":[],"excludedOfficials":["gpt-5.4-retired"]}"#;
+        crate::acp::codex_model_catalog::write_catalog_files(intent, home, &old)
+            .unwrap()
+            .expect("a live removal → generated catalog");
+
+        let new = crate::acp::codex_model_catalog::bundled_snapshot_models();
+        assert_eq!(
+            resync_codex_generated_catalog_at(home, &new).unwrap(),
+            CodexCatalogResync::Released
+        );
+        let config = fs::read_to_string(home.join("config.toml")).unwrap();
+        assert!(!config.contains("model_catalog_json"), "{config}");
+        assert!(config.contains("# my codex config"));
+        assert!(config.contains("model = \"gw/x\"           # the model"));
+        assert!(!home
+            .join(crate::acp::codex_model_catalog::CATALOG_REL)
+            .exists());
+        assert!(!home
+            .join(crate::acp::codex_model_catalog::SOURCE_REL)
+            .exists());
     }
 
     #[test]
@@ -14275,6 +14984,447 @@ base_url = \"https://example.test/v1\"
         assert_eq!(models[0]["thinkingLevelMap"]["max"], "max");
     }
 
+    /// A model that advertises max must retain its map through the Rust write path;
+    /// unsupported names must still be discarded before pi reads models.json.
+    #[test]
+    fn pi_custom_model_persists_max_without_unknown_levels() {
+        let mut entry = serde_json::Map::new();
+        apply_pi_custom_model(
+            &mut entry,
+            "reasoning-model",
+            Some(&pi_reasoning_spec(
+                true,
+                &[
+                    ("minimal", Some("minimal")),
+                    ("max", Some("max")),
+                    ("ultra", Some("ultra")),
+                ],
+            )),
+        );
+
+        let models = pi_models_of(&entry);
+        let map = models[0]["thinkingLevelMap"].as_object().unwrap();
+        assert_eq!(map["minimal"], "minimal");
+        assert_eq!(map["max"], "max");
+        assert!(!map.contains_key("ultra"));
+    }
+
+    #[test]
+    fn pi_rpc_projection_keeps_only_capabilities_and_rejects_wrong_responses() {
+        let line = r#"{"id":"codeg-models","type":"response","command":"get_available_models","success":true,"data":{"models":[{"provider":"openai","id":"gpt-5.6-sol","reasoning":true,"thinkingLevelMap":{"max":"max"},"baseUrl":"https://secret.example","apiKey":"secret"}]}}"#;
+        let models = parse_pi_model_capabilities(line).unwrap().unwrap();
+        assert_eq!(models.len(), 1);
+        assert_eq!(models[0].thinking_level_map["max"], Some("max".into()));
+        let projected = serde_json::to_string(&models).unwrap();
+        assert!(!projected.contains("secret"));
+        // Someone else's line: keep reading.
+        assert!(parse_pi_model_capabilities(&line.replace("codeg-models", "other")).is_none());
+        // Our answer, refusing or unreadable: stop, and say it failed.
+        assert_eq!(
+            parse_pi_model_capabilities(&line.replace(r#""success":true"#, r#""success":false"#)),
+            Some(Err(()))
+        );
+        assert_eq!(
+            parse_pi_model_capabilities(&line.replace(r#""models":["#, r#""other":["#)),
+            Some(Err(()))
+        );
+    }
+
+    #[tokio::test]
+    async fn pi_db_read_error_does_not_select_native_profile() {
+        // No migrations: the Pi settings SELECT fails instead of returning None.
+        // A failed lookup must not select the process-global Pi profile, where
+        // native settings and API keys would otherwise be written.
+        let db = AppDatabase {
+            conn: sea_orm::Database::connect("sqlite::memory:").await.unwrap(),
+        };
+        let lookup_failed = |error: AcpError| {
+            let message = error.to_string();
+            assert!(
+                message.contains("Cannot read Pi agent settings"),
+                "failed for another reason: {message}"
+            );
+        };
+        lookup_failed(pi_settings_dir_from_db(&db).await.unwrap_err());
+        lookup_failed(load_pi_config_for_db(&db).await.unwrap_err());
+        let update = PiConfigUpdate {
+            provider: "test-provider".into(),
+            model: "test-model".into(),
+            thinking_level: None,
+            api_key: Some("must-not-reach-native-auth".into()),
+            custom_base_url: None,
+            custom_api: None,
+            model_reasoning: None,
+        };
+        lookup_failed(
+            acp_update_pi_config_core(update, &db, &EventEmitter::Noop)
+                .await
+                .unwrap_err(),
+        );
+        lookup_failed(acp_pi_list_trust_entries_core(&db).await.unwrap_err());
+        lookup_failed(
+            acp_pi_set_project_trust_core(&db, "/tmp/pi-db-error".into(), Some(true))
+                .await
+                .unwrap_err(),
+        );
+        lookup_failed(
+            acp_pi_project_trust_state_core(&db, "/tmp/pi-db-error".into())
+                .await
+                .unwrap_err(),
+        );
+    }
+
+    #[test]
+    fn pi_settings_rejects_relative_agent_directory_and_rpc_paths() {
+        assert!(pi_settings_dir_checked(PathBuf::from("./agent")).is_err());
+        assert!(pi_settings_dir_checked(home_dir_or_default().join("agent")).is_ok());
+        let mut env = BTreeMap::new();
+        env.insert("PI_ACP_PI_COMMAND".into(), "./pi-test.sh".into());
+        assert!(!pi_runtime_paths_are_stable(&env));
+        env.insert("PI_ACP_PI_COMMAND".into(), "pi".into());
+        env.insert("PI_CODING_AGENT_DIR".into(), "./agent".into());
+        assert!(!pi_runtime_paths_are_stable(&env));
+        env.insert("PI_CODING_AGENT_DIR".into(), "~/agent".into());
+        assert!(pi_runtime_paths_are_stable(&env));
+    }
+
+    #[test]
+    fn pi_agent_dir_expands_tilde_override_like_the_pi_runtime() {
+        let mut env = BTreeMap::new();
+        env.insert("PI_CODING_AGENT_DIR".to_string(), "~/custom-pi".to_string());
+        assert_eq!(
+            pi_agent_dir_for_env(&env),
+            pi_child_home(&env).join("custom-pi")
+        );
+        // pi's `normalizePath` takes the value verbatim: a padded value is a
+        // different (here: relative) directory, not the trimmed one.
+        env.insert(
+            "PI_CODING_AGENT_DIR".to_string(),
+            " ~/custom-pi".to_string(),
+        );
+        assert_eq!(pi_agent_dir_for_env(&env), PathBuf::from(" ~/custom-pi"));
+    }
+
+    /// `~` is the CHILD's home — a launch that relocates `HOME` relocates pi's
+    /// profile with it. A key the launch leaves alone is inherited from codeg,
+    /// while a blank one is removed from the child, so pi falls back to its
+    /// default instead of inheriting anything.
+    #[cfg(unix)]
+    #[test]
+    fn pi_agent_dir_follows_the_child_env() {
+        let home = tempfile::tempdir().unwrap();
+        let inherited = || Some(std::ffi::OsString::from("/codeg/own/pi-agent"));
+        let mut env = BTreeMap::new();
+        env.insert(
+            "HOME".to_string(),
+            home.path().to_string_lossy().into_owned(),
+        );
+        assert_eq!(
+            pi_agent_dir_for_child(&env, inherited()),
+            PathBuf::from("/codeg/own/pi-agent")
+        );
+
+        env.insert("PI_CODING_AGENT_DIR".to_string(), "~/isolated".to_string());
+        assert_eq!(
+            pi_agent_dir_for_child(&env, inherited()),
+            home.path().join("isolated")
+        );
+
+        env.insert("PI_CODING_AGENT_DIR".to_string(), String::new());
+        assert_eq!(
+            pi_agent_dir_for_child(&env, inherited()),
+            home.path().join(".pi").join("agent")
+        );
+
+        // A relative HOME is taken verbatim too, so pi's default profile is
+        // relative to its cwd — the workspace — and the gate must look there.
+        env.insert("HOME".to_string(), "home-in-repo".to_string());
+        assert_eq!(
+            pi_agent_dir_for_child(&env, inherited()),
+            PathBuf::from("home-in-repo").join(".pi").join("agent")
+        );
+        let workspace = home.path().join("ws");
+        assert_eq!(
+            pi_agent_dir_in_workspace(&env, &workspace),
+            workspace.join("home-in-repo").join(".pi").join("agent")
+        );
+        assert!(pi_settings_dir_checked(pi_agent_dir_for_env(&env)).is_err());
+    }
+
+    /// Node keeps whatever home variable the child has — inherited empty
+    /// included, from which pi derives a `.pi/agent` relative to its cwd — and
+    /// asks the OS only when the launch removed it or there never was one.
+    #[test]
+    fn pi_child_home_is_whatever_home_the_child_has() {
+        use std::ffi::OsString;
+        let untouched = BTreeMap::new();
+        assert_eq!(
+            pi_child_home_from(&untouched, Some(OsString::new())),
+            PathBuf::new()
+        );
+        assert_eq!(
+            pi_child_home_from(&untouched, Some(OsString::from("inherited-home"))),
+            PathBuf::from("inherited-home")
+        );
+        let account = account_home_dir().unwrap_or_else(home_dir_or_default);
+        assert_eq!(pi_child_home_from(&untouched, None), account);
+        let removed = BTreeMap::from([(CHILD_HOME_KEY.to_string(), String::new())]);
+        assert_eq!(
+            pi_child_home_from(&removed, Some(OsString::from("codeg-home"))),
+            account
+        );
+    }
+
+    /// A relative `PATH` entry lands under the child's cwd; a Windows
+    /// drive-relative one follows a per-drive directory nothing here can name,
+    /// so it is dropped rather than guessed.
+    #[test]
+    fn path_entries_are_anchored_where_the_child_looks() {
+        let cwd = if cfg!(windows) {
+            PathBuf::from("C:\\ws")
+        } else {
+            PathBuf::from("/ws")
+        };
+        let absolute = if cfg!(windows) {
+            PathBuf::from("D:\\tools")
+        } else {
+            PathBuf::from("/usr/bin")
+        };
+        assert_eq!(anchor_path_entry(&absolute, &cwd), Some(absolute.clone()));
+        assert_eq!(
+            anchor_path_entry(Path::new("bin"), &cwd),
+            Some(cwd.join("bin"))
+        );
+        assert_eq!(anchor_path_entry(Path::new(""), &cwd), Some(cwd.join("")));
+        #[cfg(windows)]
+        {
+            assert_eq!(anchor_path_entry(Path::new("C:tools"), &cwd), None);
+            assert_eq!(
+                anchor_path_entry(Path::new("\\tools"), &cwd),
+                Some(PathBuf::from("C:\\tools"))
+            );
+        }
+    }
+
+    /// Env names are case-insensitive on Windows only: there a lowercase key is
+    /// the variable pi reads; elsewhere it is a different variable.
+    #[test]
+    fn launch_env_names_follow_the_platform_case_rules() {
+        let env = BTreeMap::from([("pi_coding_agent_dir".to_string(), "somewhere".to_string())]);
+        let found = launch_env_value(&env, "PI_CODING_AGENT_DIR");
+        if cfg!(windows) {
+            assert_eq!(found, Some("somewhere"));
+        } else {
+            assert_eq!(found, None);
+        }
+    }
+
+    /// A relative agent dir lives inside the workspace pi runs in, so the
+    /// repository itself can ship the `trust.json` pi reads there. The gate must
+    /// read that same file; one under codeg's own cwd would miss the grant.
+    #[test]
+    fn pi_launch_gate_reads_a_relative_agent_dir_inside_the_workspace() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let ws = tmp.path().join("ws");
+        fs::create_dir_all(ws.join(".pi").join("extensions")).unwrap();
+        let shipped = ws.join(".pi-agent");
+        fs::create_dir_all(&shipped).unwrap();
+        let mut grant = serde_json::Map::new();
+        grant.insert(canonical_key(&ws), serde_json::Value::Bool(true));
+        write_json_object_pretty(&shipped.join("trust.json"), &grant).unwrap();
+
+        let env = BTreeMap::from([("PI_CODING_AGENT_DIR".to_string(), ".pi-agent".to_string())]);
+        let blocked = temp_env::with_var(
+            "CODEG_HOME",
+            Some(tmp.path().join("codeg-home").to_string_lossy().to_string()),
+            || pi_project_trust_launch_block(&ws, &env),
+        );
+        assert!(
+            blocked.is_some(),
+            "a grant shipped inside the workspace must stop the launch"
+        );
+    }
+
+    #[test]
+    fn pi_config_projection_reads_selected_agent_directory() {
+        let default = tempfile::tempdir().unwrap();
+        let custom = tempfile::tempdir().unwrap();
+        fs::write(
+            default.path().join("settings.json"),
+            r#"{"defaultModel":"wrong"}"#,
+        )
+        .unwrap();
+        fs::write(
+            custom.path().join("settings.json"),
+            r#"{"defaultModel":"right","defaultThinkingLevel":"max"}"#,
+        )
+        .unwrap();
+        let loaded = load_pi_config_at(custom.path());
+        assert_eq!(loaded.default_model.as_deref(), Some("right"));
+        assert_eq!(loaded.default_thinking_level.as_deref(), Some("max"));
+    }
+
+    /// How long a test waits on a fake pi that is expected to answer. The query
+    /// returns the moment pi replies, so this only bounds a real hang — while a
+    /// fake that answers in milliseconds can still take seconds to start on a
+    /// loaded CI runner (Windows `cmd.exe` above all), and a tight bound turns
+    /// that stall into a spurious `TimedOut`.
+    const PI_ANSWER_DEADLINE: Duration = Duration::from_secs(30);
+
+    #[cfg(unix)]
+    fn fake_pi(dir: &Path, name: &str, body: &str) -> PathBuf {
+        use std::os::unix::fs::PermissionsExt;
+        let script = dir.join(name);
+        fs::write(&script, format!("#!/bin/sh\n{body}")).unwrap();
+        fs::set_permissions(&script, fs::Permissions::from_mode(0o755)).unwrap();
+        script
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pi_rpc_uses_configured_executable_and_agent_dir_offline() {
+        let temp = tempfile::tempdir().unwrap();
+        let command_dir = temp.path().join("Pi runtime with spaces");
+        fs::create_dir(&command_dir).unwrap();
+        let script = fake_pi(
+            &command_dir,
+            "pi",
+            r#"read request
+case "$request $*" in
+  *codeg-models*--offline*--no-session*--no-extensions*)
+    if [ -n "$PI_CODING_AGENT_DIR" ]; then
+      printf '%s\n' '{"id":"codeg-models","type":"response","command":"get_available_models","success":true,"data":{"models":[{"provider":"openai","id":"via-override","reasoning":true,"thinkingLevelMap":{"max":"max"}}]}}'
+    fi
+    ;;
+esac
+"#,
+        );
+        let mut env = BTreeMap::new();
+        env.insert(
+            "PI_ACP_PI_COMMAND".into(),
+            script.to_string_lossy().into_owned(),
+        );
+        env.insert(
+            "PI_CODING_AGENT_DIR".into(),
+            temp.path().to_string_lossy().into_owned(),
+        );
+        let catalog = query_pi_model_catalog(&env, PI_ANSWER_DEADLINE).await;
+        assert_eq!(catalog.status, PiCatalogStatus::Ok);
+        assert_eq!(catalog.models.len(), 1);
+        assert_eq!(catalog.models[0].id, "via-override");
+    }
+
+    /// The panel words its hint from the status, so each way of not getting an
+    /// answer has to be told apart from "pi answered and does not list it".
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pi_catalog_says_why_pi_gave_no_answer() {
+        let temp = tempfile::tempdir().unwrap();
+        let status_for = |command: String, deadline: Duration| {
+            let env = BTreeMap::from([
+                ("PI_ACP_PI_COMMAND".to_string(), command),
+                (
+                    "PI_CODING_AGENT_DIR".to_string(),
+                    temp.path().to_string_lossy().into_owned(),
+                ),
+            ]);
+            async move { query_pi_model_catalog(&env, deadline).await.status }
+        };
+
+        assert_eq!(
+            status_for("./pi-test.sh".into(), PI_ANSWER_DEADLINE).await,
+            PiCatalogStatus::RelativePath
+        );
+        assert_eq!(
+            status_for(
+                "/nonexistent/definitely-not-pi-xyz".into(),
+                PI_ANSWER_DEADLINE
+            )
+            .await,
+            PiCatalogStatus::NotFound
+        );
+        let refusing = fake_pi(
+            temp.path(),
+            "refusing-pi",
+            r#"read request
+printf '%s\n' '{"id":"codeg-models","type":"response","command":"get_available_models","success":false,"error":"boom"}'
+"#,
+        );
+        assert_eq!(
+            status_for(refusing.to_string_lossy().into_owned(), PI_ANSWER_DEADLINE).await,
+            PiCatalogStatus::Failed
+        );
+        let silent = fake_pi(temp.path(), "silent-pi", "read request\n");
+        assert_eq!(
+            status_for(silent.to_string_lossy().into_owned(), PI_ANSWER_DEADLINE).await,
+            PiCatalogStatus::Failed
+        );
+        let slow = fake_pi(temp.path(), "slow-pi", "sleep 30\n");
+        assert_eq!(
+            status_for(
+                slow.to_string_lossy().into_owned(),
+                Duration::from_millis(500)
+            )
+            .await,
+            PiCatalogStatus::TimedOut
+        );
+    }
+
+    /// A relative `PATH` entry must not resolve inside the shared temp dir,
+    /// where anyone can put a `pi` — the query runs in a private, empty one.
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn pi_catalog_never_runs_a_pi_planted_in_the_shared_temp_dir() {
+        let entry = format!("codeg-planted-{}", uuid::Uuid::new_v4());
+        let planted_dir = std::env::temp_dir().join(&entry);
+        fs::create_dir(&planted_dir).unwrap();
+        fake_pi(
+            &planted_dir,
+            "pi",
+            r#"read request
+printf '%s\n' '{"id":"codeg-models","type":"response","command":"get_available_models","success":true,"data":{"models":[]}}'
+"#,
+        );
+        let agent_dir = tempfile::tempdir().unwrap();
+        let env = BTreeMap::from([
+            ("PATH".to_string(), entry),
+            (
+                "PI_CODING_AGENT_DIR".to_string(),
+                agent_dir.path().to_string_lossy().into_owned(),
+            ),
+        ]);
+        let status = query_pi_model_catalog(&env, Duration::from_secs(2))
+            .await
+            .status;
+        fs::remove_dir_all(&planted_dir).unwrap();
+        assert_eq!(status, PiCatalogStatus::NotFound);
+    }
+
+    #[cfg(windows)]
+    #[tokio::test]
+    async fn pi_rpc_launches_npm_cmd_from_path_with_spaces() {
+        let temp = tempfile::tempdir().unwrap();
+        let command_dir = temp.path().join("Pi runtime with spaces");
+        fs::create_dir(&command_dir).unwrap();
+        let script = command_dir.join("pi.cmd");
+        fs::write(
+            &script,
+            r#"@echo off
+set /p request=
+echo {"id":"codeg-models","type":"response","command":"get_available_models","success":true,"data":{"models":[{"provider":"openai","id":"windows","reasoning":true,"thinkingLevelMap":{"max":"max"}}]}}
+"#.replace('\n', "\r\n"),
+        ).unwrap();
+        let mut env = BTreeMap::new();
+        env.insert(
+            "PI_ACP_PI_COMMAND".into(),
+            script.to_string_lossy().into_owned(),
+        );
+        let catalog = query_pi_model_catalog(&env, PI_ANSWER_DEADLINE).await;
+        assert_eq!(catalog.status, PiCatalogStatus::Ok);
+        assert_eq!(catalog.models.len(), 1);
+        assert_eq!(catalog.models[0].id, "windows");
+    }
+
     /// The older writer skipped an already-listed model entirely, so a declaration
     /// could never reach one. Upserting must still leave every field the form has
     /// no opinion about — including a renamed `name` — exactly as the user left it.
@@ -14882,6 +16032,29 @@ wire_api = "chat"
             bare.get("ANTHROPIC_CUSTOM_MODEL_OPTION_DESCRIPTION"),
             Some(&None)
         );
+    }
+
+    #[test]
+    fn parse_provider_model_emits_claude_default_fable_model() {
+        // `fable` is a provider-owned pin like the other model fields: a value
+        // sets ANTHROPIC_DEFAULT_FABLE_MODEL (trimmed), and an omitted one is an
+        // authoritative clear, so the previous provider's Fable pin cannot
+        // survive a bind or a provider edit.
+        let out = parse_provider_model(
+            AgentType::ClaudeCode,
+            Some(r#"{"opus":"gw/opus","fable":" gw/fable "}"#),
+        );
+        assert_eq!(
+            out.get("ANTHROPIC_DEFAULT_FABLE_MODEL"),
+            Some(&Some("gw/fable".to_string()))
+        );
+        assert_eq!(
+            out.get("ANTHROPIC_DEFAULT_OPUS_MODEL"),
+            Some(&Some("gw/opus".to_string()))
+        );
+
+        let bare = parse_provider_model(AgentType::ClaudeCode, Some(r#"{"main":"x"}"#));
+        assert_eq!(bare.get("ANTHROPIC_DEFAULT_FABLE_MODEL"), Some(&None));
     }
 
     #[test]
@@ -15893,6 +17066,36 @@ wire_api = "chat"
 
         assert_eq!(version, None, "a DB version must not mask a broken runtime");
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn zcode_status_probes_npm_adapter_instead_of_the_old_bundled_version() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let command_path = dir.path().join("zcode-acp-server");
+        std::fs::write(&command_path, "#!/bin/sh\necho zcode-acp-server 0.48.0\n").unwrap();
+        std::fs::set_permissions(&command_path, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let package = "zcode-acp-server@0.48.0";
+        let previous = Some("0.1.0".to_string());
+        assert_eq!(
+            npx_displayed_version(
+                AgentType::Zcode,
+                Some(&command_path),
+                package,
+                previous.clone(),
+            )
+            .await,
+            Some("0.48.0".to_string())
+        );
+        assert_eq!(
+            npx_displayed_version(AgentType::Zcode, None, package, previous).await,
+            None,
+            "the old bundled record must not make a missing npm adapter installed"
+        );
+        assert!(npx_requires_runtime_probe(AgentType::Zcode, package));
+        assert!(!npm_package_requires_scripts(package));
     }
 
     #[tokio::test]
@@ -18104,3 +19307,7 @@ model = "gpt"
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/upstream-codex-catalog-20260930.contract.rs"]
+mod maxcode_upstream_codex_catalog_20260930_contract;

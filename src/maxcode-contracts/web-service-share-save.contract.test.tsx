@@ -12,16 +12,22 @@ const h = vi.hoisted(() => ({
     publicShareUrl: "https://old.example.com",
   },
   update: vi.fn(),
+  status: vi.fn(),
+  copy: vi.fn(),
 }))
 vi.mock("@/lib/api", () => ({
   getWebServiceConfig: async () => h.config,
-  getWebServerStatus: async () => null,
+  getWebServerStatus: () => h.status(),
   probeWebServicePort: async () => null,
   updateWebServiceConfig: (config: typeof h.config) => h.update(config),
   startWebServer: vi.fn(),
   stopWebServer: vi.fn(),
 }))
 vi.mock("@/lib/platform", () => ({ openUrl: vi.fn() }))
+vi.mock("@/lib/utils", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/utils")>()),
+  copyTextToClipboard: (text: string) => h.copy(text),
+}))
 
 beforeEach(() => {
   h.config = {
@@ -34,6 +40,8 @@ beforeEach(() => {
     h.config = config
     return config
   })
+  h.status.mockReset().mockResolvedValue(null)
+  h.copy.mockReset().mockResolvedValue(true)
 })
 afterEach(cleanup)
 
@@ -76,5 +84,45 @@ describe("MaxCode contract: explicit public share URL save", () => {
     expect(view.queryByText("Saved")).toBeNull()
     fireEvent.click(view.getByRole("button", { name: "Save" }))
     await view.findByText("Saved")
+  })
+})
+
+describe("MaxCode contract: Web service token input controls", () => {
+  it("allows editing, regeneration, reveal and copy in the shared input group", async () => {
+    const view = await setup()
+    const input = view.getByLabelText("Access Token")
+    expect(input).toHaveAttribute("type", "password")
+    expect(input).toHaveValue("token")
+
+    fireEvent.change(input, { target: { value: "edited-token" } })
+    expect(input).toHaveValue("edited-token")
+    fireEvent.click(view.getByRole("button", { name: "Show" }))
+    expect(input).toHaveAttribute("type", "text")
+    fireEvent.click(view.getByRole("button", { name: "Copy" }))
+    await waitFor(() => expect(h.copy).toHaveBeenCalledWith("edited-token"))
+    fireEvent.click(view.getByRole("button", { name: "Hide" }))
+    expect(input).toHaveAttribute("type", "password")
+
+    fireEvent.click(view.getByRole("button", { name: "Regenerate" }))
+    expect((input as HTMLInputElement).value).toMatch(/^[a-f0-9]{32}$/)
+    fireEvent.change(input, { target: { value: "" } })
+    expect(view.getByRole("button", { name: "Copy" })).toBeDisabled()
+  })
+
+  it("locks edits for a running service while keeping reveal and copy usable", async () => {
+    h.status.mockResolvedValue({
+      port: 3080,
+      token: "running-token",
+      addresses: [],
+    })
+    const view = await setup()
+    const input = view.getByLabelText("Access Token")
+    expect(input).toBeDisabled()
+    expect(input).toHaveValue("running-token")
+    expect(view.queryByRole("button", { name: "Regenerate" })).toBeNull()
+    fireEvent.click(view.getByRole("button", { name: "Show" }))
+    expect(input).toHaveAttribute("type", "text")
+    fireEvent.click(view.getByRole("button", { name: "Copy" }))
+    await waitFor(() => expect(h.copy).toHaveBeenCalledWith("running-token"))
   })
 })

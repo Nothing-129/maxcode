@@ -1,5 +1,7 @@
 "use client"
 
+import { SettingsError } from "@/components/shared/settings-section"
+
 import {
   useCallback,
   useEffect,
@@ -334,21 +336,17 @@ export function QuickMessagesSettings() {
       : null
 
   return (
-    <div className="h-full flex flex-col p-3 md:p-4">
+    <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <h2 className="text-base font-semibold">{t("title")}</h2>
+          <h1 data-settings-page-title="">{t("title")}</h1>
           <p className="text-xs text-muted-foreground mt-1">
             {t("description")}
           </p>
         </div>
       </div>
 
-      {loadError && (
-        <div className="mb-3 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-          {loadError}
-        </div>
-      )}
+      {loadError && <SettingsError className="mb-3">{loadError}</SettingsError>}
 
       <div ref={panelContainerRef} className="flex-1 min-h-0 min-w-0">
         <ResizablePanelGroup
@@ -507,7 +505,7 @@ export function QuickMessagesSettings() {
                       size="sm"
                       variant="outline"
                       onClick={() => setDeleteTargetId(selectedMessage.id)}
-                      className="text-red-500 hover:text-red-500"
+                      className="text-destructive hover:text-destructive"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       {t("actions.delete")}

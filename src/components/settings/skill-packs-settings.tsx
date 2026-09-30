@@ -98,9 +98,9 @@ export function SkillPacksSettings() {
   }, [t])
 
   return (
-    <div className="h-full flex flex-col p-3 md:p-4">
+    <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="shrink-0 pb-4">
-        <h2 className="text-base font-semibold">{t("title")}</h2>
+        <h1 data-settings-page-title="">{t("title")}</h1>
         <p className="text-xs text-muted-foreground mt-1">{t("description")}</p>
       </div>
 

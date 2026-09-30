@@ -150,3 +150,37 @@ describe("MaxCode contract: Claude compaction uses the existing conversation lay
     expect(parser).toContain("postTokens")
   })
 })
+
+describe("MaxCode exact compaction identity", () => {
+  const event = (
+    key: string,
+    callId: string,
+    source?: "history" | "live",
+    payload: Record<string, unknown> = full
+  ) => ({ ...divider(key, payload, source), callId })
+  it("dedupes sparse Codex copies by call ID without conflating new calls", () => {
+    const result = dedupeCompactionItems([
+      event("a", "a", "history", {}),
+      event("copy", "a", "live", {}),
+      event("b", "b", "history", {}),
+    ])
+    expect(result.map((x) => x.key)).toEqual(["a", "b"])
+  })
+  it("consumes the counter pair after an ID match", () => {
+    const result = dedupeCompactionItems([
+      event("a", "a", "history"),
+      event("copy", "a", "live"),
+      event("b", "b", "live"),
+    ])
+    expect(result.map((x) => x.key)).toEqual(["a", "b"])
+  })
+  it("keeps same-source events and remembers aliases of counter-matched copies", () => {
+    const result = dedupeCompactionItems([
+      event("a", "a", "history"),
+      event("copy", "b", "live"),
+      event("repeat", "b", "live"),
+      event("c", "c", "history"),
+    ])
+    expect(result.map((x) => x.key)).toEqual(["a", "c"])
+  })
+})

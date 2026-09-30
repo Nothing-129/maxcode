@@ -1081,9 +1081,9 @@
       "sandboxMode_read-only": "只读",
       "sandboxMode_workspace-write": "可写工作区",
       "sandboxMode_danger-full-access": "完全放开（无沙箱）",
-      "sandboxModeReadOnlyAcpWarning": "ACP 适配器已经没有只读沙箱了，因此无论这里怎么选，MaxCode 会话都以可写工作区运行。MaxCode 会选中它能选的最严格预设——每一次越权都交给你审批——但工作区内部的修改不再需要审批。codex CLI 和 IDE 会话仍然遵守只读。",
+      "sandboxModeReadOnlyAcpWarning": "codex-acp 1.7–1.13 没有只读沙箱：在这些适配器版本上，无论这里怎么选，MaxCode 会话都以可写工作区运行，但每一次越权仍会交给你审批。codex-acp 2.0 已恢复只读沙箱，若装的是旧版适配器请升级。codex CLI 和 IDE 会话始终遵守只读。",
       "sandboxModeHint": "在 Windows 上，未开启 codex 的实验性 Windows 沙箱时，可写工作区会被降级为只读。",
-      "sandboxModeSeedsPresetHint": "MaxCode 还会用它推导会话的初始审批预设，因此与审批策略不同，它对普通提问同样生效。注意：适配器的默认预设现在会让模型先筛一遍越权请求，只把它判定为不安全的转给你；想逐条自己审，在输入框中选「请求批准」。输入框中选择的预设始终覆盖它。",
+      "sandboxModeSeedsPresetHint": "MaxCode 还会用它推导会话的初始审批预设，因此与审批策略不同，它对普通提问同样生效。只读从「Read-only」开始。审批策略为 never 时，完全访问从「Full access」开始，可写工作区从「Auto review」开始——由模型先筛一遍越权请求，只把它判定为不安全的转给你。审批策略为其他值时，可写工作区与完全访问在 codex-acp 2.0 及以上从「Workspace access」开始，每一次越权都交给你审批；在更旧的适配器上从「Auto review」开始。未设置时沿用适配器默认的「Auto review」。输入框中选择的预设始终覆盖它。",
       "writableRootsLabel": "额外可写目录",
       "writableRootsHint": "每行一个绝对路径，作为工作目录之外的额外可写位置。",
       "sandboxRootsRelativeError": "必须是绝对路径 — codex 会把相对路径解析到 ~/.codex 下：{path}",
@@ -1365,7 +1365,7 @@
     },
     "zcode": {
       "configManagement": "ZCode 运行时",
-      "configDescription": "MaxCode 内置 zcode-acp 适配器，需要你自行安装 ZCode 运行时——ZCode 桌面版或独立 CLI。模型与登录凭据保存在 ZCode 应用自己的 ~/.zcode 目录，无需重复配置。可选启动参数（ZCODE_CLI 入口覆盖、ZCODE_MODE 权限模式、ZCODE_MODEL 固定模型）可在下方原始环境变量编辑器中设置。"
+      "configDescription": "MaxCode 使用 William 的 zcode-acp-server 适配器。请先安装并配置 ZCode 桌面版或 CLI，模型与登录凭据共用 ~/.zcode。自定义运行时路径使用 ZCODE_BIN，初始权限模式使用 ZCODE_ACP_MODE；默认保留工具审批。"
     },
     "authModeOfficialSubscription": "官网订阅",
     "authModeCustomEndpoint": "自定义接口",
@@ -1384,6 +1384,7 @@
       "haikuDefaultModel": "Haiku 默认模型",
       "sonnetDefaultModel": "Sonnet 默认模型",
       "opusDefaultModel": "Opus 默认模型",
+      "fableDefaultModel": "Fable 默认模型",
       "customModelOption": "自定义模型 ID",
       "customModelOptionName": "自定义模型名称",
       "customModelOptionDescription": "自定义模型描述",
@@ -1576,7 +1577,9 @@
       "modeCustom": "自定义 pi",
       "modeCustomHint": "运行你自己的 pi 构建、安装或包装脚本。",
       "commandLabel": "pi 命令或路径",
-      "commandHint": "绝对路径、PATH 上的命令名，或包装脚本（如 monorepo 的 ./pi-test.sh）。",
+      "commandHint": "请使用绝对路径或 PATH 中的命令名。",
+      "relativeCommandPath": "请使用 Pi 命令的绝对路径或 PATH 中的命令名。",
+      "relativeAgentDir": "请使用 Pi agent 目录的绝对路径或 ~/...；相对目录会因工作区不同而变化。",
       "commandNotFound": "未找到命令",
       "validate": "验证",
       "advanced": "高级",
@@ -1616,7 +1619,14 @@
       "levelsEmptyError": "至少选一个档位——一个都不选时 pi 只会退回 Off。",
       "wireValuesTitle": "高级：发给供应商的值",
       "wireValuesHint": "留空表示原样发送档位名。接入点需要别的写法时才填——Google 系需要 LOW / HIGH。",
-      "defaultLevelUnlisted": "该档位不在上面的可选列表里——pi 会把它压下来。"
+      "defaultLevelUnlisted": "该档位不在上面的可选列表里——pi 会把它压下来。",
+      "modelLevels": "{model} 提供：{levels}。",
+      "modelNoThinking": "{model} 没有思考档位——Pi 运行它时始终关闭思考。",
+      "levelClamped": "{model} 不提供「{level}」，Pi 会以「{effective}」运行它；提供「{level}」的模型仍按「{level}」运行。",
+      "modelNotListed": "Pi 没有在该提供方下列出此模型。请检查模型 ID——Pi 只列出已配置 API 密钥或已登录的提供方。",
+      "catalogUnavailable": "无法向 Pi 查询此模型提供哪些思考档位。",
+      "configLoadFailed": "无法读取 Pi 的设置：{message}",
+      "runtimeTooOld": "此 Pi 版本过旧：MaxCode 需要 Pi {min} 或更新版本才能打开会话。请先更新 Pi。"
     },
     "addCustomAgent": "添加自定义智能体",
     "addCustomAgentHint": "接入任意兼容 ACP 的智能体。可从公开 ACP 注册表中选择，或直接粘贴其注册表信息。",
@@ -1999,7 +2009,12 @@
         "removeFromGroup": "不分组",
         "newGroupAndMove": "新建分组…",
         "dropToUngroup": "拖到这里可移出分组"
-      }
+      },
+      "recentFilterAll": "全部",
+      "recentFilterTitle": "最近显示：{filter}",
+      "noRecentChats": "没有最近的聊天",
+      "noRecentFolders": "没有最近的文件夹会话",
+      "recentFilterMenuLabel": "最近显示"
     },
     "conversation": {
       "reloadFailed": "会话重新加载失败：{message}",
@@ -3021,6 +3036,7 @@
           "turnFailedMaxTurnRequests": "{agent} 已达到本轮回复允许的最大请求次数。",
           "turnFailedUnknown": "{agent} 以未知的停止原因结束了本轮回复。",
           "turnFailedAuthRequired": "{agent} 需要你重新登录后才能执行本轮回复。请在设置中登录，然后重新发送这条消息。",
+          "agentRuntimeOutdated": "{agent} 版本过旧，无法配合当前版本的 MaxCode 使用。请更新后重新打开该会话。",
           "grokModelSwitchIncompatibleAgent": "{agent} 无法在已有对话中切换到该模型，请新建会话以使用它。",
           "turnFailedEmpty": "{agent} 本轮没有产生任何回复就结束了。",
           "turnFailedEmptyProtocol": "{agent} 本轮的输出 MaxCode 无法解析，可能是代理版本与协议不匹配。",
@@ -3047,7 +3063,9 @@
           "lineNoErrorWithDelay": "{retry}，{delay}",
           "httpStatus": "（HTTP {status}）"
         },
-        "configOptionAdjusted": "{agent} 把{option}设成了 {actual}，而不是 {requested}"
+        "configOptionAdjusted": "{agent} 把{option}设成了 {actual}，而不是 {requested}",
+        "noticeTitle": "{agent}：{title}",
+        "pluginLoadFailedTitle": "{agent} 有 {count} 个插件加载失败"
       },
       "connectionLifecycle": {
         "tasks": {
@@ -3704,7 +3722,22 @@
           "outputMissing": "codex 截断脚本输出时丢掉了这条命令的分隔行，因此没有输出可以归属给它。",
           "sharedWith": "本段还包含 {commands} 的输出——它们的分隔行被 codex 截断丢弃了。",
           "truncated": "已截断"
-        }
+        },
+        "visualizeTitle": "可视化",
+        "visualizeWide": "宽屏",
+        "visualizeLoading": "正在加载可视化…",
+        "visualizeError": "无法加载可视化内容",
+        "visualizeReload": "重新加载",
+        "visualizeOpenFile": "打开文件",
+        "visualizeExpand": "展开全部",
+        "visualizeCollapse": "收起",
+        "visualizeScriptsOn": "脚本已开启",
+        "visualizeScriptsOff": "启用脚本",
+        "visualizeScriptsHint": "运行可视化中的脚本以支持交互。脚本在沙箱中运行，无法访问网络或你的文件。",
+        "visualizeFrameTitle": "Codex 可视化",
+        "htmlPreviewOpen": "预览",
+        "htmlPreviewOpenAria": "预览 {name}",
+        "htmlPreviewHide": "收起预览"
       },
       "conversationFind": {
         "title": "搜索当前对话",
@@ -4268,13 +4301,14 @@
     "agentTypeRequired": "请选择智能体类型。",
     "agentTypeImmutableHint": "智能体类型创建后不可修改。",
     "model": "模型",
-    "modelPlaceholderCodex": "gpt-6-sol / gpt-6-luna",
+    "modelPlaceholderCodex": "gpt-6.1-sol / gpt-6-luna",
     "modelPlaceholderGemini": "gemini-3-pro-preview",
     "claudeMainModel": "主模型",
     "claudeReasoningModel": "推理模型（思考）",
     "claudeHaikuDefaultModel": "默认 Haiku 模型",
     "claudeSonnetDefaultModel": "默认 Sonnet 模型",
     "claudeOpusDefaultModel": "默认 Opus 模型",
+    "claudeFableDefaultModel": "默认 Fable 模型",
     "claudeCustomModelOption": "自定义模型 ID",
     "claudeCustomModelOptionName": "自定义模型名称",
     "claudeCustomModelOptionDescription": "自定义模型描述",

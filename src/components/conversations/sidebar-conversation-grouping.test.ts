@@ -1499,6 +1499,35 @@ describe("selectChatConversationsWithReuse", () => {
 describe("selectRecentConversationsWithReuse", () => {
   const open = new Set([10])
 
+  it("narrows to chats or to folder sessions when a filter is set", () => {
+    const folderConv = conv(1, 10)
+    const chatConv = conv(2, 99, { kind: "chat" })
+    const pick = (filter: "all" | "chats" | "folders") =>
+      selectRecentConversationsWithReuse(
+        [folderConv, chatConv],
+        true,
+        "created",
+        open,
+        [],
+        filter
+      ).map((c) => c.id)
+    expect(pick("all")).toEqual([2, 1])
+    expect(pick("chats")).toEqual([2])
+    expect(pick("folders")).toEqual([1])
+  })
+
+  it("still drops closed-folder sessions under the folders filter", () => {
+    const out = selectRecentConversationsWithReuse(
+      [conv(2, 77)],
+      true,
+      "created",
+      open,
+      [],
+      "folders"
+    )
+    expect(out).toEqual([])
+  })
+
   it("mixes folder and chat conversations, newest first, excluding pinned", () => {
     const folderConv = conv(1, 10)
     const chatConv = conv(2, 99, { kind: "chat" }) // higher id → later created_at

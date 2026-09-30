@@ -1921,7 +1921,7 @@ export function MessageInput({
           onClick={onCancel}
           variant="default"
           size="icon"
-          className="h-8 w-8 rounded-full bg-[#3ca1ef] text-white hover:bg-[#3ca1ef]/90"
+          className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
           title={t("cancel")}
         >
           <Square className="size-3.5 fill-current" strokeWidth={0} />
@@ -1975,19 +1975,19 @@ export function MessageInput({
         onClick={onCancel}
         variant="default"
         size="icon"
-        className="h-8 w-8 rounded-full bg-[#3ca1ef] text-white hover:bg-[#3ca1ef]/90"
+        className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
         title={t("cancel")}
       >
         <Square className="size-3.5 fill-current" strokeWidth={0} />
       </Button>
     )
   ) : (
-    // MaxCode 发送钮：32px 正圆、白色上箭头；可用时使用统一操作蓝色 #3CA1EF。
+    // MaxCode 发送钮：32px 正圆、白色上箭头；可用时使用统一操作蓝色 #216AE4。
     <Button
       onClick={handleSend}
       disabled={disabled || !hasSendableContent}
       size="icon"
-      className="h-8 w-8 rounded-full enabled:bg-[#3ca1ef] enabled:text-white enabled:hover:bg-[#3ca1ef]/90 disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground"
+      className="h-8 w-8 rounded-full enabled:bg-[#216ae4] enabled:text-white enabled:hover:bg-[#216ae4]/90 disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground"
       title={t("send")}
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />

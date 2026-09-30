@@ -51,7 +51,7 @@ pub struct CheckItem {
 /// `None` on [`PreflightResult`] for every non-adapter agent.
 #[derive(Debug, Clone, Serialize)]
 pub struct AdapterInfo {
-    /// npm spec codeg installs, e.g. "@agentclientprotocol/claude-agent-acp@0.81.1".
+    /// npm spec codeg installs, e.g. "@agentclientprotocol/claude-agent-acp@0.84.0".
     pub adapter_package: String,
     /// Command the launch gate resolves, e.g. "claude-agent-acp".
     pub adapter_cmd: String,
@@ -88,13 +88,6 @@ pub async fn run_preflight(agent_type: AgentType) -> PreflightResult {
     let meta = registry::get_agent_meta(agent_type);
     debug_assert_eq!(meta.agent_type, agent_type);
     let checks = match &meta.distribution {
-        // The adapter ships inside the MaxCode binary; the only environment
-        // requirement is the node that runs it (plus, in practice, the vendor
-        // runtime the adapter itself resolves — surfaced through
-        // `acp_adapter_relation` diagnostics like claude/codex).
-        AgentDistribution::Bundled { node_required, .. } => {
-            check_npm_environment(*node_required).await
-        }
         AgentDistribution::Npx { node_required, .. } => check_npm_environment(*node_required).await,
         AgentDistribution::Binary {
             version,
@@ -732,7 +725,7 @@ mod adapter_tests {
         );
         assert_eq!(
             info.adapter_package,
-            "@agentclientprotocol/claude-agent-acp@0.81.1"
+            "@agentclientprotocol/claude-agent-acp@0.84.0"
         );
         assert_eq!(info.adapter_cmd, "claude-agent-acp");
         assert!(!info.adapter_installed);
@@ -749,15 +742,27 @@ mod adapter_tests {
     #[test]
     fn codex_adapter_info_uses_codex_home() {
         let info = info_for(AgentType::Codex, None, true);
-        assert_eq!(
-            info.adapter_package,
-            "@agentclientprotocol/codex-acp@1.13.1"
-        );
+        assert_eq!(info.adapter_package, "@agentclientprotocol/codex-acp@2.0.1");
         assert_eq!(info.adapter_cmd, "codex-acp");
         assert!(info.adapter_installed);
         assert_eq!(info.native_cmd, "codex");
         assert!(info.native_path.is_none());
         assert_eq!(info.shared_config_dir, "~/.codex");
+    }
+
+    #[test]
+    fn zcode_adapter_info_keeps_the_vendor_runtime_separate() {
+        let info = info_for(AgentType::Zcode, Some("/home/user/.local/bin/zcode"), false);
+        assert_eq!(info.adapter_package, "zcode-acp-server@0.53.2");
+        assert_eq!(info.adapter_cmd, "zcode-acp-server");
+        assert!(!info.adapter_installed);
+        assert_eq!(info.native_cmd, "zcode");
+        assert_eq!(
+            info.native_path.as_deref(),
+            Some("/home/user/.local/bin/zcode")
+        );
+        assert_eq!(info.shared_config_dir, "~/.zcode");
+        assert_eq!(info.docs_url, "https://github.com/william0wang/zcode-acp");
     }
 
     // Non-adapter agents must produce nothing: `probe_adapter` short-circuits

@@ -2,19 +2,24 @@ import { beforeEach, describe, expect, it } from "vitest"
 
 import {
   DEFAULT_SECTION_ORDER,
+  SIDEBAR_RECENT_FILTERS,
+  loadRecentFilter,
   loadSectionCollapsed,
   loadSectionOrder,
   loadShowRecent,
   loadSortMode,
   moveSectionInOrder,
   normalizeSectionOrder,
+  saveRecentFilter,
   saveSectionOrder,
   saveShowRecent,
+  type SidebarRecentFilter,
 } from "./sidebar-view-mode-storage"
 
 const SECTION_ORDER_KEY = "workspace:sidebar-section-order"
 const SHOW_RECENT_KEY = "workspace:sidebar-show-recent"
 const SORT_MODE_KEY = "workspace:sidebar-sort-mode"
+const RECENT_FILTER_KEY = "workspace:sidebar-recent-filter"
 
 describe("normalizeSectionOrder", () => {
   it("passes a complete order through unchanged", () => {
@@ -144,6 +149,35 @@ describe("loadSortMode", () => {
   it("respects an explicitly stored created-time preference", () => {
     localStorage.setItem(SORT_MODE_KEY, "created")
     expect(loadSortMode()).toBe("created")
+  })
+})
+
+describe("loadRecentFilter", () => {
+  beforeEach(() => localStorage.clear())
+
+  it("defaults to all with nothing stored", () => {
+    expect(loadRecentFilter()).toBe("all")
+  })
+
+  it("round-trips every filter", () => {
+    // Spelled out rather than read from SIDEBAR_RECENT_FILTERS, so dropping a
+    // filter from that list fails here instead of quietly testing fewer.
+    const filters: SidebarRecentFilter[] = ["all", "chats", "folders"]
+    expect([...SIDEBAR_RECENT_FILTERS]).toEqual(filters)
+    for (const filter of filters) {
+      saveRecentFilter(filter)
+      expect(localStorage.getItem(RECENT_FILTER_KEY)).toBe(filter)
+      expect(loadRecentFilter()).toBe(filter)
+    }
+  })
+
+  it("reads anything it does not recognise as all", () => {
+    // Garbage, an empty string, a different case, or a value some future build
+    // wrote: none may narrow the list to something the menu cannot show.
+    for (const raw of ["bogus", "", "Chats", "archived"]) {
+      localStorage.setItem(RECENT_FILTER_KEY, raw)
+      expect(loadRecentFilter()).toBe("all")
+    }
   })
 })
 

@@ -151,7 +151,7 @@ describe("AgentSelector", () => {
     expect(onOpenSettings).toHaveBeenCalledTimes(1)
   })
 
-  it("omits ZCode from the new-conversation picker", async () => {
+  it("offers ZCode without falling back to another agent", () => {
     mockUseAcpAgents.mockReturnValue({
       agents: [agent("zcode"), agent("codex")],
       fresh: true,
@@ -166,11 +166,10 @@ describe("AgentSelector", () => {
         onFallback={onFallback}
       />
     )
-    expect(container.textContent).not.toContain("ZCode")
-    await waitFor(() => {
-      expect(onFallback).toHaveBeenCalledWith("codex")
-    })
-    expect(onSelect).not.toHaveBeenCalled()
+    expect(container.textContent).toContain("ZCode")
+    expect(onFallback).not.toHaveBeenCalled()
+    fireEvent.click(screen.getByRole("button", { name: /ZCode/ }))
+    expect(onSelect).toHaveBeenCalledWith("zcode")
   })
 
   it("clicking an available agent invokes onSelect with its agent_type", () => {

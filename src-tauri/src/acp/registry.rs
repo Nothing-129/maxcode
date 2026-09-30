@@ -28,25 +28,6 @@ pub enum AgentDistribution {
         /// per-version cache dir and the entry path inside it is launched.
         dir_entry: Option<BinaryDirEntry>,
     },
-    /// An ACP adapter that MaxCode itself ships, embedded in the binary via
-    /// `include_str!` and materialized into the agent cache at launch. There
-    /// is nothing to download: "install" is writing the script next to the
-    /// other cached launchers, and the pinned `version` is the ADAPTER's —
-    /// it advances only with a MaxCode release. Used for ZCode, whose agent
-    /// runtime is a vendor CLI (`zcode app-server`) that speaks the private
-    /// ZCode Protocol rather than ACP; the bundled script translates.
-    Bundled {
-        version: &'static str,
-        /// File name the script is materialized under in the cache dir.
-        file: &'static str,
-        /// Embedded adapter source (`include_str!` of
-        /// `src/acp/adapters/zcode-acp.mjs`).
-        source: &'static str,
-        args: &'static [&'static str],
-        env: &'static [(&'static str, &'static str)],
-        /// Minimum Node.js version required to run the adapter.
-        node_required: Option<&'static str>,
-    },
     /// Python agents launched through `uvx` (the `uv` tool runner), which
     /// fetches + caches the pinned package on first use — analogous to npx.
     /// Used for custom ACP agents distributed as PyPI packages (Hermes shipped
@@ -161,7 +142,6 @@ impl AcpAgentMeta {
         match &self.distribution {
             AgentDistribution::Npx { version, .. }
             | AgentDistribution::Binary { version, .. }
-            | AgentDistribution::Bundled { version, .. }
             | AgentDistribution::Uvx { version, .. } => Some(*version),
         }
     }
@@ -192,10 +172,6 @@ impl AcpAgentMeta {
     pub fn supports_custom_version(&self) -> bool {
         match &self.distribution {
             AgentDistribution::Npx { .. } => true,
-            // The bundled adapter ships inside the MaxCode binary; its
-            // version advances only with a MaxCode release, so there is no
-            // other version to fetch.
-            AgentDistribution::Bundled { .. } => false,
             AgentDistribution::Uvx { .. } => false,
             AgentDistribution::Binary {
                 version, platforms, ..
@@ -373,7 +349,7 @@ pub struct AcpAdapterRelation {
 }
 
 /// Adapter relation for an agent, or `None` when codeg's entry IS the vendor's
-/// own CLI (every agent except these two).
+/// own CLI.
 ///
 /// Adding an entry here changes what preflight/diagnostics report — keep the
 /// `acp_adapter_relation_covers_only_wrapper_agents` test in sync.
@@ -395,12 +371,7 @@ pub fn acp_adapter_relation(agent_type: AgentType) -> Option<AcpAdapterRelation>
             extra_dirs: &[".local/bin"],
             docs_url: ACP_ADAPTER_DOCS_URL,
         }),
-        // Same split as claude/codex, with a twist: codeg BUNDLES the adapter
-        // itself (`AgentDistribution::Bundled`), so what preflight probes is
-        // only the vendor runtime — the ZCode desktop app or the standalone
-        // CLI, whichever the user installed. Both share `~/.zcode`, which is
-        // also where sessions live (SQLite at `~/.zcode/cli/db/db.sqlite`),
-        // so an existing desktop login carries over with no second sign-in.
+        // The npm bridge uses the user's existing ZCode runtime and login.
         AgentType::Zcode => Some(AcpAdapterRelation {
             native_cmd: "zcode",
             native_label: "ZCode CLI",
@@ -408,7 +379,7 @@ pub fn acp_adapter_relation(agent_type: AgentType) -> Option<AcpAdapterRelation>
             // install.sh targets ~/.local/bin; the desktop app bundle is
             // probed separately by the adapter's own entry resolution.
             extra_dirs: &[".local/bin"],
-            docs_url: "https://github.com/zai-org/ZCode",
+            docs_url: "https://github.com/william0wang/zcode-acp",
         }),
         _ => None,
     }
@@ -417,6 +388,9 @@ pub fn acp_adapter_relation(agent_type: AgentType) -> Option<AcpAdapterRelation>
 /// Docs anchor explaining the adapter/vendor-CLI split. The zh mirror carries
 /// the same explicit `{#acp-adapters}` anchor.
 const ACP_ADAPTER_DOCS_URL: &str = "https://docs.codeg.app/guide/supported-agents#acp-adapters";
+
+/// pi-acp 0.0.34 opens sessions through get_available_thinking_levels.
+pub const PI_MIN_RUNTIME_VERSION: &str = "0.81.0";
 
 /// Minimum adapter version whose `_session/steering` honors the
 /// `_meta.steering.idleBehavior = "promptRequired"` opt-in — one of the three
@@ -499,7 +473,6 @@ fn distribution_uses_cursor_acp(distribution: &AgentDistribution) -> bool {
         AgentDistribution::Npx { cmd, args, .. } | AgentDistribution::Binary { cmd, args, .. } => {
             launch_spec_uses_cursor_acp(cmd, args)
         }
-        AgentDistribution::Bundled { .. } => false,
         AgentDistribution::Uvx {
             cmd,
             args,
@@ -1001,8 +974,9 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // is `compaction_update`), and real `failed`/`cancelled` states.
             // The summary rides the synthetic call's `raw_output` under a
             // `codeg.compactionSummary` claim and opens behind the divider's
-            // "Summary" toggle; history dividers stay summary-less because the
-            // transcript already shows it as the continuation turn beneath.
+            // "Summary" toggle; the history divider opens onto the same summary,
+            // folded in by `parsers::claude` from the transcript's continuation
+            // record.
             //
             // (q) The file-change report went native (#1138), and with it the
             // COST half of the "agentFileChangeReport stays out" record in
@@ -1430,9 +1404,14 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // #1104 touches only `providers/set`, which codeg never sends.
             // #1146: an unreadable managed-policy tier no longer kills the
             // adapter before it answers `initialize`.
+            // 0.84.0: reviewed AIR tool-call rendering and SDK 0.3.284. AIR
+            // file inputs omit text already carried by standard Diff blocks;
+            // MaxCode restores canonical inputs before rendering (no diffPatch opt-in).
+            // Background count_tokens can delay the first prompt/model switch
+            // on endpoints that do not answer counting requests (upstream #1192).
             distribution: AgentDistribution::Npx {
-                version: "0.81.1",
-                package: "@agentclientprotocol/claude-agent-acp@0.81.1",
+                version: "0.84.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.84.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2072,9 +2051,15 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // `disabledPluginIds`, `availableAccessPrograms`, MCP
             // `serverCapabilities`) are additive, and the parser reads rollouts
             // as untyped JSON.
+            // 2.0.1: reviewed the AIR tool-call contract and Codex 0.159.1.
+            // Preserve MaxCode's existing failure/task capabilities and ordered
+            // per-path diff hunks; diffPatch/rawInputRendering stay unadvertised.
+            // The bundled catalog adds GPT-6.1 Sol and follows Codex priority,
+            // rather than file order. Installation refreshes only our generated
+            // catalog from its intent sidecar, preserving user catalogs/defaults.
             distribution: AgentDistribution::Npx {
-                version: "1.13.1",
-                package: "@agentclientprotocol/codex-acp@1.13.1",
+                version: "2.0.1",
+                package: "@agentclientprotocol/codex-acp@2.0.1",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
@@ -2370,9 +2355,12 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // (`npx -y pi-acp`, no subcommand). `node_required` follows pi's
             // 22+ requirement (pi-acp's own engines say >=20). The embedded
             // context env lets pi-acp advertise `promptCapabilities.embeddedContext`.
+            // 0.0.34 discovers model-specific thinking levels (including max)
+            // through Pi RPC and reports standard usage_update. The 0.0.33
+            // launch patch remains version-gated for older installed adapters.
             distribution: AgentDistribution::Npx {
-                version: "0.0.33",
-                package: "pi-acp@0.0.33",
+                version: "0.0.34",
+                package: "pi-acp@0.0.34",
                 cmd: "pi-acp",
                 args: &[],
                 env: &[("PI_ACP_ENABLE_EMBEDDED_CONTEXT", "true")],
@@ -2420,9 +2408,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // at 1.0.41 — they are OPTIONAL, so a platform that lags would fail
             // only for that platform's users, at run time, in the trampoline.
             // Connection-level null session IDs are claimed by ClaimNullSessionIds.
+            // 1.0.44: reviewed stable npm release; keep agent stdio, root-level
+            // permission flags and connection-scope setup notification handling.
             distribution: AgentDistribution::Npx {
-                version: "1.0.41",
-                package: "@xai-official/grok@1.0.41",
+                version: "1.0.44",
+                package: "@xai-official/grok@1.0.44",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
@@ -2824,41 +2814,22 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             agent_type,
             supports_mcp: true,
             name: "ZCode",
-            description: "Z.ai's coding agent (ACP via MaxCode's bundled zcode-acp adapter)",
-            // ZCode is Z.ai's agent runtime — the same harness that powers
-            // the ZCode desktop app. Its programmatic surface is the private
-            // "ZCode Protocol" spoken by `zcode app-server --stdio` (NDJSON
-            // envelopes `{id,method,params}` / `{id,result}` / `{method,...}`),
-            // NOT ACP; the Z.ai org itself retired its non-CLI ACP path
-            // (zai-org/ZCode carries `nonCliAcpRetirement` tests). MaxCode
-            // therefore ships its own translator, embedded in the binary and
-            // materialized into the agent cache at launch — there is no
-            // package to download, and the pinned version below is the
-            // ADAPTER's, advancing only with MaxCode releases.
-            //
-            // The adapter locates the vendor runtime itself (ZCODE_CLI env →
-            // `zcode` on PATH → ~/.local/bin → the desktop app bundle's
-            // `zcode.cjs`), mirrors the desktop host's provider-registry env
-            // (ZCODE_BUILTIN/PERSONAL_PROVIDER_CONFIG_FILE) so template-based
-            // providers resolve, and translates:
-            //   session/new|load → session/create|resume(+subscribe, replay)
-            //   session/prompt   → session/send (resolved on turn.completed)
-            //   session/cancel   → session/stop
-            //   interaction/requestPermission → session/request_permission
-            //   session/event stream → session/update (chunks, tool cards,
-            //   titles)
-            // `acp_adapter_relation` below points preflight at the vendor
-            // CLI, mirroring the claude/codex split: the adapter always
-            // exists, the runtime is the user's own install.
-            distribution: AgentDistribution::Bundled {
-                version: "0.1.0",
-                file: "zcode-acp.mjs",
-                source: include_str!("adapters/zcode-acp.mjs"),
+            description: "Z.ai's coding agent via william0wang's ZCode ACP adapter",
+            // The npm bin is dist/cli.js: its zcode-acp-server alias selects
+            // ACP stdio mode. The bridge resolves the separately installed
+            // ZCode CLI or desktop runtime and reuses ~/.zcode credentials.
+            // 0.53.2: reviewed native plan-state pushes and auto-compaction.
+            // Fork still returns forkedSessionId, not the ACP sessionId. Keep
+            // MaxCode fork/Plan gates and explicit build-mode confirmation until
+            // native-runtime mode transitions are verified end to end.
+            distribution: AgentDistribution::Npx {
+                version: "0.53.2",
+                package: "zcode-acp-server@0.53.2",
+                cmd: "zcode-acp-server",
                 args: &[],
-                env: &[],
-                // The adapter is plain ESM JavaScript with no dependencies;
-                // Node 18 covers everything it uses (fetch not required).
-                node_required: Some("18.0.0"),
+                // 保留旧适配器的审批行为；上游默认 yolo 会跳过工具确认。
+                env: &[("ZCODE_ACP_MODE", "build")],
+                node_required: Some("22.0.0"),
             },
         },
         // Handled by the early return above; kept so the match stays
@@ -3142,11 +3113,25 @@ mod tests {
     }
 
     #[test]
+    fn pi_min_runtime_matches_the_panel_warning() {
+        let panel = include_str!("../../../src/lib/pi-config.ts");
+        assert!(panel.contains(&format!(
+            "PI_MIN_RUNTIME_VERSION = \"{PI_MIN_RUNTIME_VERSION}\""
+        )));
+    }
+
+    #[test]
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
+            AgentType::Zcode,
+            "0.53.2",
+            "zcode-acp-server@0.53.2",
+            Some("22.0.0"),
+        );
+        assert_npx_version(
             AgentType::ClaudeCode,
-            "0.81.1",
-            "@agentclientprotocol/claude-agent-acp@0.81.1",
+            "0.84.0",
+            "@agentclientprotocol/claude-agent-acp@0.84.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3181,15 +3166,15 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "1.13.1",
-            "@agentclientprotocol/codex-acp@1.13.1",
+            "2.0.1",
+            "@agentclientprotocol/codex-acp@2.0.1",
             Some("20.0.0"),
         );
-        assert_npx_version(AgentType::Pi, "0.0.33", "pi-acp@0.0.33", Some("22.0.0"));
+        assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.41",
-            "@xai-official/grok@1.0.41",
+            "1.0.44",
+            "@xai-official/grok@1.0.44",
             Some("20.0.0"),
         );
         assert_npx_version(
@@ -3267,7 +3252,7 @@ mod tests {
         assert!(!launch_spec_uses_cursor_acp("cursor-agent", &["stdio"]));
     }
 
-    // Only Claude Code and Codex ship as a third-party ACP adapter wrapping a
+    // Claude Code, Codex and ZCode use a third-party ACP adapter wrapping a
     // vendor CLI of a different name. Every other agent's registry `cmd` IS the
     // vendor CLI, so claiming an adapter relation for one would make preflight
     // explain a split that doesn't exist.
@@ -3285,19 +3270,28 @@ mod tests {
                 "unexpected adapter relation for {agent_type:?}"
             );
             // The whole point is that the vendor CLI's name differs from the
-            // adapter command codeg actually launches. ZCode is the bundled-
-            // adapter flavor of the same split (the adapter ships inside the
-            // MaxCode binary; the vendor CLI is the zcode runtime).
+            // adapter command codeg actually launches.
             if let Some(relation) = relation {
                 match get_agent_meta(agent_type).distribution {
                     AgentDistribution::Npx { cmd, .. } => {
                         assert_ne!(cmd, relation.native_cmd, "{agent_type:?}")
                     }
-                    AgentDistribution::Bundled { .. } => {}
                     other => panic!("expected npx distribution for {agent_type:?}, got {other:?}"),
                 }
             }
         }
+    }
+
+    #[test]
+    fn zcode_uses_the_npm_acp_entry_with_approval_mode() {
+        let meta = get_agent_meta(AgentType::Zcode);
+        assert!(meta.supports_custom_version());
+        let AgentDistribution::Npx { cmd, args, env, .. } = meta.distribution else {
+            panic!("ZCode must use the npm distribution");
+        };
+        assert_eq!(cmd, "zcode-acp-server");
+        assert!(args.is_empty());
+        assert_eq!(env, &[("ZCODE_ACP_MODE", "build")]);
     }
 
     // OpenClaw rejects MCP server entries inside `mcpServers` (the empty `[]`

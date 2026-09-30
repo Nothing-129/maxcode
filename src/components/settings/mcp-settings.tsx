@@ -1,5 +1,7 @@
 "use client"
 
+import { SettingsError } from "@/components/shared/settings-section"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   Globe,
@@ -352,6 +354,7 @@ function parseJsonObject(
 
 export function McpSettings() {
   const t = useTranslations("McpSettings")
+  const tShell = useTranslations("SettingsShell")
   const ime = useImeGuard()
   const mcpT = useMemo(() => t as unknown as McpTranslator, [t])
   const [loading, setLoading] = useState(true)
@@ -941,7 +944,7 @@ export function McpSettings() {
                         <div className="text-xs font-medium">
                           {field.label}
                           {field.required ? (
-                            <span className="text-red-500 ml-1">*</span>
+                            <span className="text-destructive ml-1">*</span>
                           ) : null}
                           {field.location ? (
                             <span className="text-muted-foreground ml-2">
@@ -1085,703 +1088,725 @@ export function McpSettings() {
         </DialogContent>
       </Dialog>
 
-      <div className="h-full min-h-0 grid grid-cols-1 gap-4 p-3 md:p-4 lg:grid-cols-[22.5rem_1fr]">
-        <section className="min-h-0 rounded-xl border bg-card p-3">
-          <Tabs
-            value={leftTab}
-            onValueChange={(value) => setLeftTab(value as LeftTab)}
-            className="h-full"
-          >
-            <TabsList className="w-full">
-              <TabsTrigger value="local" className="flex-1">
-                {t("tabs.local")}
-              </TabsTrigger>
-              <TabsTrigger value="market" className="flex-1">
-                {t("tabs.market")}
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent
-              value="local"
-              className="h-full min-h-0 pt-2 flex flex-col"
+      <div
+        data-settings-page="wide"
+        className="flex h-full min-h-0 flex-col p-3 md:p-4"
+      >
+        <h1 data-settings-page-title="">{tShell("nav.mcp")}</h1>
+        <div className="min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-[22.5rem_1fr]">
+          <section className="min-h-0 rounded-xl border bg-card p-3">
+            <Tabs
+              value={leftTab}
+              onValueChange={(value) => setLeftTab(value as LeftTab)}
+              className="h-full"
             >
-              <div className="pb-2">
-                <Input
-                  value={localFilter}
-                  onChange={(event) => setLocalFilter(event.target.value)}
-                  placeholder={t("local.filterPlaceholder")}
-                />
-              </div>
+              <TabsList className="w-full">
+                <TabsTrigger value="local" className="flex-1">
+                  {t("tabs.local")}
+                </TabsTrigger>
+                <TabsTrigger value="market" className="flex-1">
+                  {t("tabs.market")}
+                </TabsTrigger>
+              </TabsList>
 
-              {loadingError ? (
-                <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-                  {t("local.loadFailed", { message: loadingError })}
+              <TabsContent
+                value="local"
+                className="h-full min-h-0 pt-2 flex flex-col"
+              >
+                <div className="pb-2">
+                  <Input
+                    value={localFilter}
+                    onChange={(event) => setLocalFilter(event.target.value)}
+                    placeholder={t("local.filterPlaceholder")}
+                  />
                 </div>
-              ) : null}
 
-              {/* One agent's config being unreadable hides only that agent's
+                {loadingError ? (
+                  <SettingsError>
+                    {t("local.loadFailed", { message: loadingError })}
+                  </SettingsError>
+                ) : null}
+
+                {/* One agent's config being unreadable hides only that agent's
                   servers — the rest of the list below is still real, so this
                   is a warning beside it rather than an error instead of it. */}
-              {sourceWarnings.map((warning) => (
-                <div
-                  key={warning.app}
-                  className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-500 break-all"
-                >
-                  {t("local.sourceUnreadable", {
-                    app: appLabel(warning.app),
-                    message: warning.message,
-                  })}
-                </div>
-              ))}
-
-              <div className="flex-1 min-h-0 overflow-auto space-y-1">
-                {filteredLocalServers.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                    {t("local.empty")}
+                {sourceWarnings.map((warning) => (
+                  <div
+                    key={warning.app}
+                    className="rounded-md border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-xs text-amber-500 break-all"
+                  >
+                    {t("local.sourceUnreadable", {
+                      app: appLabel(warning.app),
+                      message: warning.message,
+                    })}
                   </div>
-                ) : (
-                  filteredLocalServers.map((server) => {
-                    const active =
-                      selection?.kind === "local" && selection.id === server.id
-                    const spec = isObject(server.spec) ? server.spec : {}
-                    return (
-                      <ContextMenu key={server.id}>
-                        <ContextMenuTrigger asChild>
-                          <button
-                            className={cn(
-                              "w-full rounded-md border p-2 text-left transition-colors",
-                              active
-                                ? "border-primary bg-primary/5"
-                                : "hover:bg-muted/60"
-                            )}
-                            onClick={() => {
-                              setSelection({ kind: "local", id: server.id })
-                            }}
-                          >
-                            <div className="text-sm font-medium break-all">
-                              {server.id}
-                            </div>
-                            <div className="text-xs text-muted-foreground line-clamp-2 break-all">
-                              {specSummary(spec, mcpT)}
-                            </div>
-                          </button>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          <ContextMenuItem
-                            variant="destructive"
-                            onClick={() => {
-                              uninstallServer(server.id).catch((err) => {
-                                console.error(
-                                  "[Settings] uninstall MCP failed:",
-                                  err
-                                )
-                              })
-                            }}
-                          >
-                            {t("actions.uninstall")}
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    )
-                  })
-                )}
-              </div>
+                ))}
 
-              <div className="border-t pt-2 mt-2 flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="flex-1"
-                  onClick={() => {
-                    refreshLocalServers().catch((err) => {
-                      console.error("[Settings] refresh local MCP failed:", err)
+                <div className="flex-1 min-h-0 overflow-auto space-y-1">
+                  {filteredLocalServers.length === 0 ? (
+                    <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      {t("local.empty")}
+                    </div>
+                  ) : (
+                    filteredLocalServers.map((server) => {
+                      const active =
+                        selection?.kind === "local" &&
+                        selection.id === server.id
+                      const spec = isObject(server.spec) ? server.spec : {}
+                      return (
+                        <ContextMenu key={server.id}>
+                          <ContextMenuTrigger asChild>
+                            <button
+                              className={cn(
+                                "w-full rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/5"
+                                  : "hover:bg-muted/60"
+                              )}
+                              onClick={() => {
+                                setSelection({ kind: "local", id: server.id })
+                              }}
+                            >
+                              <div className="text-sm font-medium break-all">
+                                {server.id}
+                              </div>
+                              <div className="text-xs text-muted-foreground line-clamp-2 break-all">
+                                {specSummary(spec, mcpT)}
+                              </div>
+                            </button>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem
+                              variant="destructive"
+                              onClick={() => {
+                                uninstallServer(server.id).catch((err) => {
+                                  console.error(
+                                    "[Settings] uninstall MCP failed:",
+                                    err
+                                  )
+                                })
+                              }}
+                            >
+                              {t("actions.uninstall")}
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      )
                     })
-                  }}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" />
-                  {t("actions.refresh")}
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1"
-                  onClick={handleCreateDraft}
-                >
-                  <Plus className="h-3.5 w-3.5" />
-                  {t("actions.newMcp")}
-                </Button>
-              </div>
-            </TabsContent>
+                  )}
+                </div>
 
-            {/* Flex column rather than `h-[calc(100% - <header>)]` on the list:
+                <div className="border-t pt-2 mt-2 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => {
+                      refreshLocalServers().catch((err) => {
+                        console.error(
+                          "[Settings] refresh local MCP failed:",
+                          err
+                        )
+                      })
+                    }}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    {t("actions.refresh")}
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleCreateDraft}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    {t("actions.newMcp")}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              {/* Flex column rather than `h-[calc(100% - <header>)]` on the list:
                 the header above is sized by its own controls (rem-driven, so it
                 grows with the zoom level) and the error banner appears and
                 disappears, neither of which a hardcoded subtrahend can track. */}
-            <TabsContent
-              value="market"
-              className="flex h-full min-h-0 flex-col pt-2"
-            >
-              <div className="shrink-0 space-y-2 pb-2">
-                <Select
-                  value={selectedProvider}
-                  onValueChange={setSelectedProvider}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("market.selectMarketplace")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {providers.map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <TabsContent
+                value="market"
+                className="flex h-full min-h-0 flex-col pt-2"
+              >
+                <div className="shrink-0 space-y-2 pb-2">
+                  <Select
+                    value={selectedProvider}
+                    onValueChange={setSelectedProvider}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={t("market.selectMarketplace")}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {providers.map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
 
-                <div className="flex gap-2">
+                  <div className="flex gap-2">
+                    <Input
+                      value={marketQuery}
+                      onChange={(event) => setMarketQuery(event.target.value)}
+                      placeholder={t("market.searchPlaceholder")}
+                      {...ime.props}
+                      onKeyDown={(event) => {
+                        if (ime.isComposing(event) || event.key !== "Enter")
+                          return
+                        executeSearch({
+                          providerId: selectedProvider,
+                          query: marketQuery,
+                        }).catch((err) => {
+                          console.error(
+                            "[Settings] search MCP marketplace failed:",
+                            err
+                          )
+                        })
+                      }}
+                    />
+                    <Button
+                      onClick={() => {
+                        executeSearch({
+                          providerId: selectedProvider,
+                          query: marketQuery,
+                        }).catch((err) => {
+                          console.error(
+                            "[Settings] search MCP marketplace failed:",
+                            err
+                          )
+                        })
+                      }}
+                      disabled={searching || !selectedProvider}
+                    >
+                      {searching ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Search className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                </div>
+
+                {searchError ? (
+                  <SettingsError className="shrink-0">
+                    {t("market.searchFailed", { message: searchError })}
+                  </SettingsError>
+                ) : null}
+
+                <div className="min-h-0 flex-1 overflow-auto space-y-1">
+                  {searching ? (
+                    <div className="h-full min-h-24 rounded-md border border-dashed flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      {t("market.loadingList")}
+                    </div>
+                  ) : searchResults.length === 0 ? (
+                    <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                      {t("market.empty")}
+                    </div>
+                  ) : (
+                    searchResults.map((item) => {
+                      const active =
+                        selection?.kind === "market" &&
+                        selection.id === item.server_id
+                      return (
+                        <ContextMenu
+                          key={`${item.provider_id}:${item.server_id}`}
+                        >
+                          <ContextMenuTrigger asChild>
+                            <button
+                              className={cn(
+                                "w-full rounded-md border p-2 text-left transition-colors",
+                                active
+                                  ? "border-primary bg-primary/5"
+                                  : "hover:bg-muted/60"
+                              )}
+                              onClick={() => {
+                                setSelection({
+                                  kind: "market",
+                                  id: item.server_id,
+                                })
+                              }}
+                            >
+                              <div className="flex items-start gap-2">
+                                <div className="mt-0.5 h-7 w-7 overflow-hidden rounded-md border bg-muted/40 shrink-0">
+                                  {item.icon_url ? (
+                                    // eslint-disable-next-line @next/next/no-img-element
+                                    <img
+                                      src={item.icon_url}
+                                      alt={item.name}
+                                      className="h-full w-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="h-full w-full flex items-center justify-center text-3xs text-muted-foreground">
+                                      MCP
+                                    </div>
+                                  )}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="text-sm font-medium break-all">
+                                    {item.name}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground break-all">
+                                    {item.server_id}
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {item.protocols.map((protocol) => (
+                                  <Badge
+                                    key={`${item.server_id}-${protocol}`}
+                                    variant="secondary"
+                                    className="text-3xs"
+                                  >
+                                    {protocolBadgeLabel(protocol, mcpT)}
+                                  </Badge>
+                                ))}
+                                {item.latest_version ? (
+                                  <Badge variant="outline" className="text-3xs">
+                                    v{item.latest_version}
+                                  </Badge>
+                                ) : null}
+                                {item.verified ? (
+                                  <Badge className="text-3xs">
+                                    {t("badges.verified")}
+                                  </Badge>
+                                ) : null}
+                                {typeof item.downloads === "number" ? (
+                                  <Badge variant="outline" className="text-3xs">
+                                    {t("badges.uses", {
+                                      count: item.downloads,
+                                    })}
+                                  </Badge>
+                                ) : null}
+                              </div>
+                            </button>
+                          </ContextMenuTrigger>
+                          <ContextMenuContent>
+                            <ContextMenuItem
+                              onClick={() => {
+                                setSelection({
+                                  kind: "market",
+                                  id: item.server_id,
+                                })
+                              }}
+                            >
+                              {t("actions.viewDetails")}
+                            </ContextMenuItem>
+                          </ContextMenuContent>
+                        </ContextMenu>
+                      )
+                    })
+                  )}
+                </div>
+              </TabsContent>
+            </Tabs>
+          </section>
+
+          <section className="min-h-0 rounded-xl border bg-card p-4 overflow-auto">
+            {selection?.kind === "draft" ? (
+              <div className="space-y-4">
+                <div>
+                  <h2 className="text-base font-semibold">
+                    {t("local.draftTitle")}
+                  </h2>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("local.draftDescription")}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {t("local.serverIdLabel")}
+                  </div>
                   <Input
-                    value={marketQuery}
-                    onChange={(event) => setMarketQuery(event.target.value)}
-                    placeholder={t("market.searchPlaceholder")}
-                    {...ime.props}
-                    onKeyDown={(event) => {
-                      if (ime.isComposing(event) || event.key !== "Enter")
-                        return
-                      executeSearch({
-                        providerId: selectedProvider,
-                        query: marketQuery,
-                      }).catch((err) => {
-                        console.error(
-                          "[Settings] search MCP marketplace failed:",
-                          err
-                        )
-                      })
-                    }}
+                    value={draftServerId}
+                    onChange={(event) => setDraftServerId(event.target.value)}
+                    placeholder={t("local.serverIdPlaceholder")}
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {t("local.enabledApps")}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {APP_OPTIONS.map((app) => (
+                      <label
+                        key={app.value}
+                        className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={draftAppsDraft[app.value]}
+                          onChange={(event) => {
+                            setDraftAppsDraft((prev) => ({
+                              ...prev,
+                              [app.value]: event.target.checked,
+                            }))
+                          }}
+                        />
+                        {app.label}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {t("local.configJson")}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("local.typeHint")}
+                  </p>
+                  <Textarea
+                    value={draftSpecText}
+                    onChange={(event) => setDraftSpecText(event.target.value)}
+                    className="min-h-[22.5rem] font-mono text-xs"
+                  />
+                </div>
+
+                {draftEnvOnRemote ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    {t("local.envOnRemoteWarning")}
+                  </div>
+                ) : null}
+
+                {/* Creating writes through the same command, which refuses while
+                  any agent's config is unreadable — an id that already exists
+                  in the unread one would be assigned away from it. */}
+                {scanDegraded ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    {t("local.saveBlockedByUnreadableSource")}
+                  </div>
+                ) : null}
+
+                <div className="flex justify-end gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setSelection(null)}
+                    disabled={Boolean(runningAction?.startsWith("create:"))}
+                  >
+                    {t("actions.cancel")}
+                  </Button>
                   <Button
                     onClick={() => {
-                      executeSearch({
-                        providerId: selectedProvider,
-                        query: marketQuery,
-                      }).catch((err) => {
+                      saveDraft().catch((err) => {
                         console.error(
-                          "[Settings] search MCP marketplace failed:",
+                          "[Settings] create local MCP failed:",
                           err
                         )
                       })
                     }}
-                    disabled={searching || !selectedProvider}
+                    disabled={
+                      scanDegraded ||
+                      Boolean(runningAction?.startsWith("create:"))
+                    }
                   >
-                    {searching ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {runningAction?.startsWith("create:") ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {t("actions.creating")}
+                      </>
                     ) : (
-                      <Search className="h-3.5 w-3.5" />
+                      t("actions.create")
                     )}
                   </Button>
                 </div>
               </div>
+            ) : null}
 
-              {searchError ? (
-                <div className="shrink-0 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-                  {t("market.searchFailed", { message: searchError })}
+            {selection?.kind === "local" && selectedLocal ? (
+              <div className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold break-all">
+                      {selectedLocal.id}
+                    </h2>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {t("local.description")}
+                    </p>
+                  </div>
+                  <Button
+                    variant="destructive"
+                    onClick={() => {
+                      uninstallServer(selectedLocal.id).catch((err) => {
+                        console.error("[Settings] uninstall MCP failed:", err)
+                      })
+                    }}
+                    disabled={runningAction === `uninstall:${selectedLocal.id}`}
+                  >
+                    {runningAction === `uninstall:${selectedLocal.id}` ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {t("actions.uninstalling")}
+                      </>
+                    ) : (
+                      t("actions.uninstall")
+                    )}
+                  </Button>
                 </div>
-              ) : null}
 
-              <div className="min-h-0 flex-1 overflow-auto space-y-1">
-                {searching ? (
-                  <div className="h-full min-h-24 rounded-md border border-dashed flex items-center justify-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {t("market.loadingList")}
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {t("local.enabledApps")}
                   </div>
-                ) : searchResults.length === 0 ? (
-                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                    {t("market.empty")}
-                  </div>
-                ) : (
-                  searchResults.map((item) => {
-                    const active =
-                      selection?.kind === "market" &&
-                      selection.id === item.server_id
-                    return (
-                      <ContextMenu
-                        key={`${item.provider_id}:${item.server_id}`}
+                  <div className="flex flex-wrap gap-2">
+                    {APP_OPTIONS.map((app) => (
+                      <label
+                        key={app.value}
+                        className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
                       >
-                        <ContextMenuTrigger asChild>
-                          <button
-                            className={cn(
-                              "w-full rounded-md border p-2 text-left transition-colors",
-                              active
-                                ? "border-primary bg-primary/5"
-                                : "hover:bg-muted/60"
-                            )}
-                            onClick={() => {
-                              setSelection({
-                                kind: "market",
-                                id: item.server_id,
-                              })
-                            }}
-                          >
-                            <div className="flex items-start gap-2">
-                              <div className="mt-0.5 h-7 w-7 overflow-hidden rounded-md border bg-muted/40 shrink-0">
-                                {item.icon_url ? (
-                                  // eslint-disable-next-line @next/next/no-img-element
-                                  <img
-                                    src={item.icon_url}
-                                    alt={item.name}
-                                    className="h-full w-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="h-full w-full flex items-center justify-center text-3xs text-muted-foreground">
-                                    MCP
-                                  </div>
-                                )}
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <div className="text-sm font-medium break-all">
-                                  {item.name}
-                                </div>
-                                <div className="text-xs text-muted-foreground break-all">
-                                  {item.server_id}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div className="mt-2 flex flex-wrap gap-1">
-                              {item.protocols.map((protocol) => (
-                                <Badge
-                                  key={`${item.server_id}-${protocol}`}
-                                  variant="secondary"
-                                  className="text-3xs"
-                                >
-                                  {protocolBadgeLabel(protocol, mcpT)}
-                                </Badge>
-                              ))}
-                              {item.latest_version ? (
-                                <Badge variant="outline" className="text-3xs">
-                                  v{item.latest_version}
-                                </Badge>
-                              ) : null}
-                              {item.verified ? (
-                                <Badge className="text-3xs">
-                                  {t("badges.verified")}
-                                </Badge>
-                              ) : null}
-                              {typeof item.downloads === "number" ? (
-                                <Badge variant="outline" className="text-3xs">
-                                  {t("badges.uses", { count: item.downloads })}
-                                </Badge>
-                              ) : null}
-                            </div>
-                          </button>
-                        </ContextMenuTrigger>
-                        <ContextMenuContent>
-                          <ContextMenuItem
-                            onClick={() => {
-                              setSelection({
-                                kind: "market",
-                                id: item.server_id,
-                              })
-                            }}
-                          >
-                            {t("actions.viewDetails")}
-                          </ContextMenuItem>
-                        </ContextMenuContent>
-                      </ContextMenu>
-                    )
-                  })
-                )}
-              </div>
-            </TabsContent>
-          </Tabs>
-        </section>
-
-        <section className="min-h-0 rounded-xl border bg-card p-4 overflow-auto">
-          {selection?.kind === "draft" ? (
-            <div className="space-y-4">
-              <div>
-                <h2 className="text-base font-semibold">
-                  {t("local.draftTitle")}
-                </h2>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {t("local.draftDescription")}
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {t("local.serverIdLabel")}
+                        <input
+                          type="checkbox"
+                          checked={localAppsDraft[app.value]}
+                          onChange={(event) => {
+                            setLocalAppsDraft((prev) => ({
+                              ...prev,
+                              [app.value]: event.target.checked,
+                            }))
+                          }}
+                        />
+                        {app.label}
+                      </label>
+                    ))}
+                  </div>
                 </div>
-                <Input
-                  value={draftServerId}
-                  onChange={(event) => setDraftServerId(event.target.value)}
-                  placeholder={t("local.serverIdPlaceholder")}
-                />
-              </div>
 
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {t("local.enabledApps")}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {APP_OPTIONS.map((app) => (
-                    <label
-                      key={app.value}
-                      className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={draftAppsDraft[app.value]}
-                        onChange={(event) => {
-                          setDraftAppsDraft((prev) => ({
-                            ...prev,
-                            [app.value]: event.target.checked,
-                          }))
-                        }}
-                      />
-                      {app.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {t("local.configJson")}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("local.typeHint")}
-                </p>
-                <Textarea
-                  value={draftSpecText}
-                  onChange={(event) => setDraftSpecText(event.target.value)}
-                  className="min-h-[22.5rem] font-mono text-xs"
-                />
-              </div>
-
-              {draftEnvOnRemote ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-                  {t("local.envOnRemoteWarning")}
-                </div>
-              ) : null}
-
-              {/* Creating writes through the same command, which refuses while
-                  any agent's config is unreadable — an id that already exists
-                  in the unread one would be assigned away from it. */}
-              {scanDegraded ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-                  {t("local.saveBlockedByUnreadableSource")}
-                </div>
-              ) : null}
-
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => setSelection(null)}
-                  disabled={Boolean(runningAction?.startsWith("create:"))}
-                >
-                  {t("actions.cancel")}
-                </Button>
-                <Button
-                  onClick={() => {
-                    saveDraft().catch((err) => {
-                      console.error("[Settings] create local MCP failed:", err)
-                    })
-                  }}
-                  disabled={
-                    scanDegraded ||
-                    Boolean(runningAction?.startsWith("create:"))
-                  }
-                >
-                  {runningAction?.startsWith("create:") ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {t("actions.creating")}
-                    </>
-                  ) : (
-                    t("actions.create")
-                  )}
-                </Button>
-              </div>
-            </div>
-          ) : null}
-
-          {selection?.kind === "local" && selectedLocal ? (
-            <div className="space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="text-base font-semibold break-all">
-                    {selectedLocal.id}
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("local.description")}
+                <div className="space-y-2">
+                  <div className="text-xs text-muted-foreground">
+                    {t("local.configJson")}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t("local.typeHint")}
                   </p>
+                  <Textarea
+                    value={localSpecText}
+                    onChange={(event) => setLocalSpecText(event.target.value)}
+                    className="min-h-[22.5rem] font-mono text-xs"
+                  />
                 </div>
-                <Button
-                  variant="destructive"
-                  onClick={() => {
-                    uninstallServer(selectedLocal.id).catch((err) => {
-                      console.error("[Settings] uninstall MCP failed:", err)
-                    })
-                  }}
-                  disabled={runningAction === `uninstall:${selectedLocal.id}`}
-                >
-                  {runningAction === `uninstall:${selectedLocal.id}` ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {t("actions.uninstalling")}
-                    </>
-                  ) : (
-                    t("actions.uninstall")
-                  )}
-                </Button>
-              </div>
 
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {t("local.enabledApps")}
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {APP_OPTIONS.map((app) => (
-                    <label
-                      key={app.value}
-                      className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={localAppsDraft[app.value]}
-                        onChange={(event) => {
-                          setLocalAppsDraft((prev) => ({
-                            ...prev,
-                            [app.value]: event.target.checked,
-                          }))
-                        }}
-                      />
-                      {app.label}
-                    </label>
-                  ))}
-                </div>
-              </div>
+                {localEnvOnRemote ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    {t("local.envOnRemoteWarning")}
+                  </div>
+                ) : null}
 
-              <div className="space-y-2">
-                <div className="text-xs text-muted-foreground">
-                  {t("local.configJson")}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {t("local.typeHint")}
-                </p>
-                <Textarea
-                  value={localSpecText}
-                  onChange={(event) => setLocalSpecText(event.target.value)}
-                  className="min-h-[22.5rem] font-mono text-xs"
-                />
-              </div>
-
-              {localEnvOnRemote ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-                  {t("local.envOnRemoteWarning")}
-                </div>
-              ) : null}
-
-              {/* The checkboxes above were seeded from a scan that could not
+                {/* The checkboxes above were seeded from a scan that could not
                   read every agent, so an agent that holds this server may be
                   showing as unchecked — and saving means "remove it from every
                   unchecked agent". The backend refuses such a save too; this
                   keeps the user from composing one whose stale draft would
                   still be accepted once they repair the file out of band. */}
-              {scanDegraded ? (
-                <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
-                  {t("local.saveBlockedByUnreadableSource")}
-                </div>
-              ) : null}
+                {scanDegraded ? (
+                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-600 dark:text-amber-400">
+                    {t("local.saveBlockedByUnreadableSource")}
+                  </div>
+                ) : null}
 
-              <div className="flex justify-end">
-                <Button
-                  onClick={() => {
-                    saveLocalServer().catch((err) => {
-                      console.error("[Settings] save local MCP failed:", err)
-                    })
-                  }}
-                  disabled={
-                    scanDegraded || runningAction === `save:${selectedLocal.id}`
-                  }
-                >
-                  {runningAction === `save:${selectedLocal.id}` ? (
-                    <>
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      {t("actions.saving")}
-                    </>
-                  ) : (
-                    t("actions.save")
-                  )}
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    onClick={() => {
+                      saveLocalServer().catch((err) => {
+                        console.error("[Settings] save local MCP failed:", err)
+                      })
+                    }}
+                    disabled={
+                      scanDegraded ||
+                      runningAction === `save:${selectedLocal.id}`
+                    }
+                  >
+                    {runningAction === `save:${selectedLocal.id}` ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        {t("actions.saving")}
+                      </>
+                    ) : (
+                      t("actions.save")
+                    )}
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : null}
+            ) : null}
 
-          {selection?.kind === "market" ? (
-            <div className="space-y-4">
-              {marketDetailLoading ? (
-                <div className="h-40 flex items-center justify-center gap-2 text-sm text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  {t("market.loadingDetail")}
-                </div>
-              ) : marketDetailError ? (
-                <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-                  {t("market.detailLoadFailed", { message: marketDetailError })}
-                </div>
-              ) : marketDetail ? (
-                <>
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-3 min-w-0">
-                      <div className="h-12 w-12 overflow-hidden rounded-lg border bg-muted/40 shrink-0">
-                        {marketDetail.icon_url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={marketDetail.icon_url}
-                            alt={marketDetail.name}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
-                            MCP
-                          </div>
-                        )}
+            {selection?.kind === "market" ? (
+              <div className="space-y-4">
+                {marketDetailLoading ? (
+                  <div className="h-40 flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    {t("market.loadingDetail")}
+                  </div>
+                ) : marketDetailError ? (
+                  <SettingsError>
+                    {t("market.detailLoadFailed", {
+                      message: marketDetailError,
+                    })}
+                  </SettingsError>
+                ) : marketDetail ? (
+                  <>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0">
+                        <div className="h-12 w-12 overflow-hidden rounded-lg border bg-muted/40 shrink-0">
+                          {marketDetail.icon_url ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={marketDetail.icon_url}
+                              alt={marketDetail.name}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="h-full w-full flex items-center justify-center text-xs text-muted-foreground">
+                              MCP
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h2 className="text-base font-semibold break-all">
+                            {marketDetail.name}
+                          </h2>
+                          <p className="text-xs text-muted-foreground break-all mt-1">
+                            {marketDetail.server_id}
+                          </p>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <h2 className="text-base font-semibold break-all">
-                          {marketDetail.name}
-                        </h2>
-                        <p className="text-xs text-muted-foreground break-all mt-1">
-                          {marketDetail.server_id}
-                        </p>
-                      </div>
+                      <Button onClick={openInstallDialog}>
+                        {t("actions.install")}
+                      </Button>
                     </div>
-                    <Button onClick={openInstallDialog}>
-                      {t("actions.install")}
-                    </Button>
-                  </div>
 
-                  <div className="flex flex-wrap gap-1.5">
-                    {marketDetail.verified ? (
-                      <Badge>{t("badges.verified")}</Badge>
-                    ) : null}
-                    {marketDetail.remote ? (
-                      <Badge variant="secondary">{t("badges.remote")}</Badge>
-                    ) : null}
+                    <div className="flex flex-wrap gap-1.5">
+                      {marketDetail.verified ? (
+                        <Badge>{t("badges.verified")}</Badge>
+                      ) : null}
+                      {marketDetail.remote ? (
+                        <Badge variant="secondary">{t("badges.remote")}</Badge>
+                      ) : null}
+                      {marketDetail.homepage ? (
+                        <Badge variant="outline">
+                          {t("badges.hasHomepage")}
+                        </Badge>
+                      ) : null}
+                      {marketDetail.protocols.map((protocol) => (
+                        <Badge key={`detail-${protocol}`} variant="secondary">
+                          {protocolBadgeLabel(protocol, mcpT)}
+                        </Badge>
+                      ))}
+                      {marketDetail.latest_version ? (
+                        <Badge variant="outline">
+                          v{marketDetail.latest_version}
+                        </Badge>
+                      ) : null}
+                      {typeof marketDetail.downloads === "number" ? (
+                        <Badge variant="outline">
+                          {t("badges.uses", { count: marketDetail.downloads })}
+                        </Badge>
+                      ) : null}
+                    </div>
+
+                    <p className="text-sm text-muted-foreground leading-6">
+                      {marketDetail.description}
+                    </p>
+
                     {marketDetail.homepage ? (
-                      <Badge variant="outline">{t("badges.hasHomepage")}</Badge>
+                      <BrowserLink
+                        href={marketDetail.homepage}
+                        className="text-xs text-primary underline break-all"
+                      >
+                        {marketDetail.homepage}
+                      </BrowserLink>
                     ) : null}
-                    {marketDetail.protocols.map((protocol) => (
-                      <Badge key={`detail-${protocol}`} variant="secondary">
-                        {protocolBadgeLabel(protocol, mcpT)}
-                      </Badge>
-                    ))}
-                    {marketDetail.latest_version ? (
-                      <Badge variant="outline">
-                        v{marketDetail.latest_version}
-                      </Badge>
-                    ) : null}
-                    {typeof marketDetail.downloads === "number" ? (
-                      <Badge variant="outline">
-                        {t("badges.uses", { count: marketDetail.downloads })}
-                      </Badge>
-                    ) : null}
-                  </div>
 
-                  <p className="text-sm text-muted-foreground leading-6">
-                    {marketDetail.description}
-                  </p>
+                    <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
+                      {marketDetail.owner ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          {t("market.owner", { owner: marketDetail.owner })}
+                        </div>
+                      ) : null}
+                      {marketDetail.namespace ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <TerminalSquare className="h-3.5 w-3.5" />
+                          {t("market.namespace", {
+                            namespace: marketDetail.namespace,
+                          })}
+                        </div>
+                      ) : null}
+                      {marketDetail.is_deployed != null ? (
+                        <div className="inline-flex items-center gap-1.5">
+                          <Globe className="h-3.5 w-3.5" />
+                          {marketDetail.is_deployed
+                            ? t("badges.deployed")
+                            : t("badges.notDeployed")}
+                        </div>
+                      ) : null}
+                    </div>
 
-                  {marketDetail.homepage ? (
-                    <BrowserLink
-                      href={marketDetail.homepage}
-                      className="text-xs text-primary underline break-all"
-                    >
-                      {marketDetail.homepage}
-                    </BrowserLink>
-                  ) : null}
-
-                  <div className="grid gap-2 text-xs text-muted-foreground sm:grid-cols-2">
-                    {marketDetail.owner ? (
-                      <div className="inline-flex items-center gap-1.5">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        {t("market.owner", { owner: marketDetail.owner })}
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground">
+                        {t("market.defaultInstallProtocol")}
                       </div>
-                    ) : null}
-                    {marketDetail.namespace ? (
-                      <div className="inline-flex items-center gap-1.5">
-                        <TerminalSquare className="h-3.5 w-3.5" />
-                        {t("market.namespace", {
-                          namespace: marketDetail.namespace,
+                      <Select
+                        value={selectedInstallOption?.id ?? ""}
+                        onValueChange={switchInstallOption}
+                      >
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={t("installDialog.selectProtocol")}
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {marketDetail.install_options.map((option) => (
+                            <SelectItem key={option.id} value={option.id}>
+                              {protocolBadgeLabel(option.protocol, mcpT)} ·{" "}
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="text-2xs text-muted-foreground">
+                        {t("market.currentOptionParameterCount", {
+                          count: selectedInstallOption?.parameters.length ?? 0,
                         })}
                       </div>
-                    ) : null}
-                    {marketDetail.is_deployed != null ? (
-                      <div className="inline-flex items-center gap-1.5">
-                        <Globe className="h-3.5 w-3.5" />
-                        {marketDetail.is_deployed
-                          ? t("badges.deployed")
-                          : t("badges.notDeployed")}
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="text-xs text-muted-foreground">
+                        {t("market.installConfigDescription")}
                       </div>
-                    ) : null}
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">
-                      {t("market.defaultInstallProtocol")}
+                      <Textarea
+                        value={marketSpecText}
+                        onChange={(event) => {
+                          setMarketSpecText(event.target.value)
+                          setMarketSpecDirty(true)
+                        }}
+                        className="min-h-[22.5rem] font-mono text-xs"
+                      />
                     </div>
-                    <Select
-                      value={selectedInstallOption?.id ?? ""}
-                      onValueChange={switchInstallOption}
-                    >
-                      <SelectTrigger>
-                        <SelectValue
-                          placeholder={t("installDialog.selectProtocol")}
-                        />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {marketDetail.install_options.map((option) => (
-                          <SelectItem key={option.id} value={option.id}>
-                            {protocolBadgeLabel(option.protocol, mcpT)} ·{" "}
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="text-2xs text-muted-foreground">
-                      {t("market.currentOptionParameterCount", {
-                        count: selectedInstallOption?.parameters.length ?? 0,
-                      })}
-                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
+                    {t("market.selectLeftToView")}
                   </div>
+                )}
+              </div>
+            ) : null}
 
-                  <div className="space-y-2">
-                    <div className="text-xs text-muted-foreground">
-                      {t("market.installConfigDescription")}
-                    </div>
-                    <Textarea
-                      value={marketSpecText}
-                      onChange={(event) => {
-                        setMarketSpecText(event.target.value)
-                        setMarketSpecDirty(true)
-                      }}
-                      className="min-h-[22.5rem] font-mono text-xs"
-                    />
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-md border border-dashed p-3 text-xs text-muted-foreground">
-                  {t("market.selectLeftToView")}
-                </div>
-              )}
-            </div>
-          ) : null}
-
-          {!selection ? (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              {t("selectLeftMcp")}
-            </div>
-          ) : null}
-        </section>
+            {!selection ? (
+              <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
+                {t("selectLeftMcp")}
+              </div>
+            ) : null}
+          </section>
+        </div>
       </div>
     </>
   )

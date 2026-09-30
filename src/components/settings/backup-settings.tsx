@@ -1,5 +1,7 @@
 "use client"
 
+import { SettingsGroup } from "@/components/shared/settings-group"
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   DatabaseBackup,
@@ -419,11 +421,14 @@ export function BackupSettings() {
   // outer scroll + padding, so this renders a self-contained section.
   return (
     <>
-      <section className="rounded-xl border bg-card p-4 space-y-4">
-        <div className="flex items-center gap-2">
-          <DatabaseBackup className="h-4 w-4" />
-          <h2 className="text-sm font-semibold">{t("title")}</h2>
-        </div>
+      <SettingsGroup
+        heading={
+          <div className="flex items-center gap-2">
+            <DatabaseBackup className="h-4 w-4" />
+            <h2 className="text-sm font-semibold">{t("title")}</h2>
+          </div>
+        }
+      >
         <p className="text-xs text-muted-foreground">{t("description")}</p>
 
         <Tabs defaultValue="backup">
@@ -479,7 +484,7 @@ export function BackupSettings() {
                 />
               )}
               {passphraseMismatch && (
-                <p className="text-2xs text-red-400">
+                <p className="text-2xs text-destructive">
                   {t("export.passphraseMismatch")}
                 </p>
               )}
@@ -642,7 +647,7 @@ export function BackupSettings() {
                   })}
                 </div>
                 {!preview.compatible && (
-                  <div className="text-red-400">
+                  <div className="text-destructive">
                     {t("restore.preview.incompatibleHint")}
                   </div>
                 )}
@@ -731,7 +736,7 @@ export function BackupSettings() {
             )}
 
             {preview?.manifest && (
-              <div className="flex items-start gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-2xs text-red-400">
+              <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-2xs text-destructive">
                 <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0" />
                 <span>{t("restore.replaceWarning")}</span>
               </div>
@@ -764,14 +769,17 @@ export function BackupSettings() {
             )}
           </TabsContent>
         </Tabs>
-      </section>
+      </SettingsGroup>
 
       {/* ── Safety snapshots ── */}
-      <section className="rounded-xl border bg-card p-4 space-y-3">
-        <div className="flex items-center gap-2">
-          <History className="h-4 w-4" />
-          <h2 className="text-sm font-semibold">{t("snapshots.title")}</h2>
-        </div>
+      <SettingsGroup
+        heading={
+          <div className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            <h2 className="text-sm font-semibold">{t("snapshots.title")}</h2>
+          </div>
+        }
+      >
         <p className="text-xs text-muted-foreground">{t("snapshots.hint")}</p>
         {snapshots.length === 0 ? (
           <p className="text-2xs text-muted-foreground">
@@ -813,7 +821,7 @@ export function BackupSettings() {
             ))}
           </ul>
         )}
-      </section>
+      </SettingsGroup>
 
       <AlertDialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <AlertDialogContent>

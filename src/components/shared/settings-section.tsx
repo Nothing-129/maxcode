@@ -103,7 +103,12 @@ export function SettingsSection({
   )
 
   const descriptionNode = description ? (
-    <p className="text-xs leading-5 text-muted-foreground">{description}</p>
+    <p
+      data-settings-description=""
+      className="text-xs leading-5 text-muted-foreground"
+    >
+      {description}
+    </p>
   ) : null
 
   if (collapsible) {

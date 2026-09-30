@@ -192,6 +192,10 @@ export interface ConversationRuntimeSession {
 
   // Temporary state
   optimisticTurns: MessageTurn[]
+  // Wire message ids outlive their optimistic/local copies. A settled detail
+  // fetch replaces those copies with parser ids; replaying an old snapshot
+  // must not append the same prompt again after its completed reply.
+  seenUserMessageIds?: ReadonlySet<string>
   liveMessage: LiveMessage | null
 
   // Sync
@@ -2391,6 +2395,12 @@ function reducer(
         ...current,
         localTurns: promoted,
         optimisticTurns: optimisticToKeep,
+        seenUserMessageIds: new Set([
+          ...(current.seenUserMessageIds ?? []),
+          ...optimisticToPromote
+            .filter((turn) => turn.role === "user")
+            .map((turn) => turn.id),
+        ]),
         liveMessage: null,
         // A kept follow-up send is still in flight — stay awaiting_persist so
         // a settled detail refetch preserves it. Otherwise the completing turn
@@ -2554,6 +2564,11 @@ function reducer(
         state.byConversationId.get(action.conversationId) ??
         createEmptySession(action.conversationId)
       const id = action.turn.id
+      if (current.seenUserMessageIds?.has(id)) return state
+      const seenUserMessageIds = new Set([
+        ...(current.seenUserMessageIds ?? []),
+        id,
+      ])
       // The history boundary must be captured for this disjoint viewer batch
       // even when the prompt is DEDUPED below — a viewer attaching mid-stream
       // sees the prompt already in `detail`, so both dedup guards fire, yet the
@@ -2563,16 +2578,13 @@ function reducer(
       // mid-batch doesn't move it.
       const capture = batchStartCapture(current, id)
       const captureOnly = (): ConversationRuntimeState =>
-        capture.baseline === current.historyAssistantBaseline &&
-        capture.boundaryIndex === current.batchBoundaryIndex &&
-        capture.boundaryHash === current.batchBoundaryPrefixHash
-          ? state
-          : updateSessionInState(state, action.conversationId, (s) => ({
-              ...s,
-              historyAssistantBaseline: capture.baseline,
-              batchBoundaryIndex: capture.boundaryIndex,
-              batchBoundaryPrefixHash: capture.boundaryHash,
-            }))
+        updateSessionInState(state, action.conversationId, (s) => ({
+          ...s,
+          seenUserMessageIds,
+          historyAssistantBaseline: capture.baseline,
+          batchBoundaryIndex: capture.boundaryIndex,
+          batchBoundaryPrefixHash: capture.boundaryHash,
+        }))
       // EXACT-id dedup (not a heuristic): the sender's OWN optimistic turn
       // shares this id — the UI threaded its optimistic turn id to the backend,
       // which echoed it as the `user_message` message_id — so the sender drops
@@ -2651,6 +2663,7 @@ function reducer(
       return updateSessionInState(state, action.conversationId, (s) => ({
         ...s,
         optimisticTurns: [...s.optimisticTurns, action.turn],
+        seenUserMessageIds,
         historyAssistantBaseline: capture.baseline,
         batchBoundaryIndex: capture.boundaryIndex,
         batchBoundaryPrefixHash: capture.boundaryHash,
@@ -2755,6 +2768,10 @@ function reducer(
         detailError: to.detailError ?? from.detailError,
         localTurns: [...from.localTurns, ...to.localTurns],
         optimisticTurns: [...from.optimisticTurns, ...to.optimisticTurns],
+        seenUserMessageIds: new Set([
+          ...(from.seenUserMessageIds ?? []),
+          ...(to.seenUserMessageIds ?? []),
+        ]),
         liveMessage: mergedLiveMessage,
         syncState: to.syncState !== "idle" ? to.syncState : from.syncState,
         activeTurnToken: to.activeTurnToken ?? from.activeTurnToken,

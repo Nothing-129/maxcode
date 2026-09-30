@@ -1,5 +1,9 @@
 "use client"
 
+import { SettingsError } from "@/components/shared/settings-section"
+
+import { SettingsGroup } from "@/components/shared/settings-group"
+
 import {
   Fragment,
   memo,
@@ -146,7 +150,7 @@ function matchesFilter(
 function levelBadgeClasses(level: string): string {
   switch (level.toUpperCase()) {
     case "ERROR":
-      return "text-red-400"
+      return "text-destructive"
     case "WARN":
       return "text-amber-400"
     case "INFO":
@@ -639,28 +643,27 @@ export function LogsSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="w-full space-y-4 p-3 md:p-4">
+      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
-          <h1 className="text-sm font-semibold">{t("sectionTitle")}</h1>
+          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
           <p className="text-xs text-muted-foreground">
             {t("sectionDescription")}
           </p>
         </section>
 
-        {loadError && (
-          <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-            {loadError}
-          </div>
-        )}
+        {loadError && <SettingsError>{loadError}</SettingsError>}
 
         {/* Capture level */}
-        <section className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold">{t("captureTitle")}</h2>
-            <p className="text-xs leading-5 text-muted-foreground">
-              {t("captureDescription")}
-            </p>
-          </div>
+        <SettingsGroup
+          heading={
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold">{t("captureTitle")}</h2>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {t("captureDescription")}
+              </p>
+            </div>
+          }
+        >
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">
               {t("captureLabel")}
@@ -774,53 +777,55 @@ export function LogsSettings() {
               </div>
             )}
           </div>
-        </section>
+        </SettingsGroup>
 
         {/* Viewer */}
-        <section className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="space-y-1">
-              <h2 className="text-sm font-semibold">{t("viewerTitle")}</h2>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {t("viewerDescription")}
-              </p>
+        <SettingsGroup
+          heading={
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-1">
+                <h2 className="text-sm font-semibold">{t("viewerTitle")}</h2>
+                <p className="text-xs leading-5 text-muted-foreground">
+                  {t("viewerDescription")}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant={liveTail ? "default" : "outline"}
+                  onClick={() => setLiveTail((v) => !v)}
+                >
+                  {liveTail ? (
+                    <Pause className="h-3.5 w-3.5" />
+                  ) : (
+                    <Play className="h-3.5 w-3.5" />
+                  )}
+                  {liveTail ? t("pause") : t("resume")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    refreshLogs().catch((err) => {
+                      console.error("[LogsSettings] refresh failed:", err)
+                    })
+                  }}
+                >
+                  <RotateCw className="h-3.5 w-3.5" />
+                  {t("refresh")}
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setRecords([])}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  {t("clear")}
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant={liveTail ? "default" : "outline"}
-                onClick={() => setLiveTail((v) => !v)}
-              >
-                {liveTail ? (
-                  <Pause className="h-3.5 w-3.5" />
-                ) : (
-                  <Play className="h-3.5 w-3.5" />
-                )}
-                {liveTail ? t("pause") : t("resume")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  refreshLogs().catch((err) => {
-                    console.error("[LogsSettings] refresh failed:", err)
-                  })
-                }}
-              >
-                <RotateCw className="h-3.5 w-3.5" />
-                {t("refresh")}
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setRecords([])}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-                {t("clear")}
-              </Button>
-            </div>
-          </div>
-
+          }
+        >
           <div className="flex flex-wrap items-center gap-2">
             <Input
               value={search}
@@ -874,16 +879,19 @@ export function LogsSettings() {
               </ScrollArea>
             )}
           </div>
-        </section>
+        </SettingsGroup>
 
         {/* On-disk files (web mode: download for history beyond the buffer) */}
-        <section className="space-y-3 rounded-xl border bg-card p-4">
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
-            <p className="text-xs leading-5 text-muted-foreground">
-              {t("filesDescription")}
-            </p>
-          </div>
+        <SettingsGroup
+          heading={
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
+              <p className="text-xs leading-5 text-muted-foreground">
+                {t("filesDescription")}
+              </p>
+            </div>
+          }
+        >
           {logFiles.length === 0 ? (
             <p className="text-2xs text-muted-foreground">{t("filesEmpty")}</p>
           ) : (
@@ -916,7 +924,7 @@ export function LogsSettings() {
               ))}
             </div>
           )}
-        </section>
+        </SettingsGroup>
       </div>
     </ScrollArea>
   )

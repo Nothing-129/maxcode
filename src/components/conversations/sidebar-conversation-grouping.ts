@@ -7,6 +7,7 @@ import type {
 import {
   DEFAULT_SECTION_ORDER,
   normalizeSectionOrder,
+  type SidebarRecentFilter,
   type SidebarSortMode,
   type SidebarSectionKey,
   type SidebarSectionOrder,
@@ -296,6 +297,8 @@ export function selectChatConversationsWithReuse(
  *   by `kind` instead.
  * - Sorted by `sortMode` (not always `updated_at`) so the row order agrees with
  *   the timestamp each card actually shows.
+ * - `filter` optionally narrows the mix to chats only or folder sessions only;
+ *   the default (`"all"`) is the section's whole point.
  *
  * `prev` is the array returned last call (threaded via a ref by the caller).
  */
@@ -304,13 +307,19 @@ export function selectRecentConversationsWithReuse(
   showCompleted: boolean,
   sortMode: SidebarSortMode,
   openFolderIds: ReadonlySet<number>,
-  prev: DbConversationSummary[]
+  prev: DbConversationSummary[],
+  filter: SidebarRecentFilter = "all"
 ): DbConversationSummary[] {
   const next: DbConversationSummary[] = []
   for (const conv of conversations) {
     if (conv.pinned_at != null) continue
     if (!showCompleted && conv.status === "completed") continue
-    if (conv.kind !== "chat" && !openFolderIds.has(conv.folder_id)) continue
+    const isChat = conv.kind === "chat"
+    if (!isChat && !openFolderIds.has(conv.folder_id)) continue
+    // The user's "just chats" / "just folder sessions" narrowing. Same split
+    // the Chat and Folders sections use, so the two views always agree.
+    if (filter === "chats" && !isChat) continue
+    if (filter === "folders" && isChat) continue
     next.push(conv)
   }
   next.sort(

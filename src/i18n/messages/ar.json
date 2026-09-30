@@ -1081,9 +1081,9 @@
       "sandboxMode_read-only": "قراءة فقط",
       "sandboxMode_workspace-write": "الكتابة في مساحة العمل",
       "sandboxMode_danger-full-access": "وصول كامل (بدون عزل)",
-      "sandboxModeReadOnlyAcpWarning": "لم يعد محوّل ACP يوفّر بيئة معزولة للقراءة فقط، لذا تعمل جلسات MaxCode بصلاحية الكتابة في مساحة العمل مهما كان الاختيار هنا. يختار MaxCode أشد إعداد متاح — إذ يُعرض عليك كل تصعيد للصلاحيات للموافقة — لكن التعديلات داخل مساحة العمل لم تعد تحتاج موافقة. أما جلسات codex CLI وبيئة التطوير فما زالت تحترم وضع القراءة فقط.",
+      "sandboxModeReadOnlyAcpWarning": "لا يوفّر codex-acp من 1.7 إلى 1.13 بيئة معزولة للقراءة فقط، لذا تعمل جلسة MaxCode على هذه الإصدارات بصلاحية الكتابة في مساحة العمل مهما كان الاختيار هنا، مع بقاء كل تصعيد للصلاحيات معروضاً عليك للموافقة. أعاد codex-acp 2.0 هذه البيئة، فحدّث المحوّل إن كان المثبّت أقدم. أما جلسات codex CLI وبيئة التطوير فتحترم وضع القراءة فقط دائماً.",
       "sandboxModeHint": "على Windows، تُخفَّض الكتابة في مساحة العمل إلى قراءة فقط ما لم تُفعَّل بيئة العزل التجريبية الخاصة بـ codex.",
-      "sandboxModeSeedsPresetHint": "يربط MaxCode هذا أيضاً بإعداد الموافقة الذي تبدأ به الجلسة، فهو — بخلاف سياسة الموافقة — يؤثر على الطلبات العادية. لاحظ أن الإعداد الافتراضي للمحوّل صار يجعل نموذجاً يفرز طلبات تصعيد الصلاحيات ولا يمرّر إلا ما يراه غير آمن؛ اختر «طلب الموافقة» في مربع الكتابة لمراجعتها كلها بنفسك. ويظل إعداد مربع الكتابة هو الغالب دائماً.",
+      "sandboxModeSeedsPresetHint": "يربط MaxCode هذا أيضاً بإعداد الموافقة الذي تبدأ به الجلسة، فهو — بخلاف سياسة الموافقة — يؤثر على الطلبات العادية. القراءة فقط تبدأ بإعداد «Read-only». ومع سياسة الموافقة never يبدأ الوصول الكامل بإعداد «Full access» والكتابة في مساحة العمل بإعداد «Auto review»، حيث يفرز نموذجٌ طلبات التصعيد ولا يمرّر إلا ما يراه غير آمن. ومع أي سياسة موافقة أخرى تبدأ الكتابة في مساحة العمل والوصول الكامل بإعداد «Workspace access» الذي يعرض عليك كل تصعيد للصلاحيات في codex-acp 2.0 وما بعده، وبإعداد «Auto review» في المحوّلات الأقدم. وإن لم يُضبط يبقى الإعداد الافتراضي للمحوّل «Auto review». ويظل إعداد مربع الكتابة هو الغالب دائماً.",
       "writableRootsLabel": "مجلدات إضافية قابلة للكتابة",
       "writableRootsHint": "مسار مطلق واحد في كل سطر، إضافةً إلى مجلد العمل.",
       "sandboxRootsRelativeError": "يجب أن يكون مسارًا مطلقًا — يحسم codex المسارات النسبية داخل ~/.codex: {path}",
@@ -1365,7 +1365,7 @@
     },
     "zcode": {
       "configManagement": "وقت تشغيل ZCode",
-      "configDescription": "يأتي MaxCode بمحوّط zcode-acp مدمج؛ كل ما تحتاجه هو وقت تشغيل ZCode (تطبيق ZCode لسطح المكتب أو واجهة سطر الأوامر المستقلة). مزودو الخدمة وتسجيل الدخول يعيشون في تطبيق ZCode (~/.zcode) ويُستخدمون كما هم. يمكن ضبط مفاتيح التشغيل الاختيارية (ZCODE_CLI لتجاوز نقطة الدخول، وZCODE_MODE لوضع الأذونات، وZCODE_MODEL لتثبيت الاختيار) في محرّر متغيرات البيئة الخام أدناه."
+      "configDescription": "يستخدم MaxCode محوّل zcode-acp-server من William. ثبّت تطبيق ZCode لسطح المكتب أو واجهة سطر الأوامر وأعدّها أولاً؛ تتم مشاركة النماذج وبيانات تسجيل الدخول من ~/.zcode. استخدم ZCODE_BIN لتحديد مسار مخصص وZCODE_ACP_MODE لتحديد وضع الأذونات الأولي. تكون الموافقة على استخدام الأدوات مفعّلة افتراضيًا."
     },
     "authModeOfficialSubscription": "الاشتراك الرسمي",
     "authModeCustomEndpoint": "نقطة نهاية مخصصة",
@@ -1384,6 +1384,7 @@
       "haikuDefaultModel": "نموذج Haiku الافتراضي",
       "sonnetDefaultModel": "نموذج Sonnet الافتراضي",
       "opusDefaultModel": "نموذج Opus الافتراضي",
+      "fableDefaultModel": "نموذج Fable الافتراضي",
       "customModelOption": "معرّف النموذج المخصّص",
       "customModelOptionName": "اسم النموذج المخصّص",
       "customModelOptionDescription": "وصف النموذج المخصّص",
@@ -1576,7 +1577,9 @@
       "modeCustom": "pi مخصّص",
       "modeCustomHint": "شغّل بناء pi أو تثبيته أو غلافه الخاص بك.",
       "commandLabel": "أمر pi أو مساره",
-      "commandHint": "مسار مطلق، أو اسم أمر في PATH، أو نص غلاف (مثل ./pi-test.sh في monorepo).",
+      "commandHint": "استخدم مساراً مطلقاً أو اسم أمر في PATH.",
+      "relativeCommandPath": "استخدم مساراً مطلقاً لأمر Pi أو اسم أمر في PATH.",
+      "relativeAgentDir": "استخدم مساراً مطلقاً لمجلد وكيل Pi أو ~/...؛ تختلف المسارات النسبية حسب مجلد العمل.",
       "commandNotFound": "الأمر غير موجود",
       "validate": "تحقّق",
       "advanced": "متقدّم",
@@ -1616,7 +1619,14 @@
       "levelsEmptyError": "اختر مستوى واحدًا على الأقل — بدون أي مستوى يعود pi إلى Off.",
       "wireValuesTitle": "متقدم: القيم المرسلة إلى المزوّد",
       "wireValuesHint": "اتركه فارغًا لإرسال اسم المستوى كما هو. اضبطه عندما تتوقع نقطة النهاية صيغة أخرى — الواجهات على نمط Google تحتاج LOW / HIGH.",
-      "defaultLevelUnlisted": "هذا المستوى ليس ضمن القائمة أعلاه — سيخفّضه pi."
+      "defaultLevelUnlisted": "هذا المستوى ليس ضمن القائمة أعلاه — سيخفّضه pi.",
+      "modelLevels": "يوفّر {model}: {levels}.",
+      "modelNoThinking": "لا يملك {model} مستويات تفكير — يشغّله Pi دائمًا مع إيقاف التفكير.",
+      "levelClamped": "لا يوفّر {model} المستوى {level}، لذا يشغّله Pi بالمستوى {effective}. تظل النماذج التي توفّر {level} تستخدمه.",
+      "modelNotListed": "لا يعرض Pi هذا النموذج لهذا المزوّد. تحقّق من معرّف النموذج — لا يعرض Pi إلا المزوّدين الذين لديه مفتاح API أو تسجيل دخول لهم.",
+      "catalogUnavailable": "تعذّر سؤال Pi عن مستويات التفكير التي يوفّرها هذا النموذج.",
+      "configLoadFailed": "تعذّرت قراءة إعدادات Pi: {message}",
+      "runtimeTooOld": "إصدار Pi هذا قديم جدًا: يحتاج MaxCode إلى Pi {min} أو أحدث لفتح جلسة. حدّثه أولًا."
     },
     "addCustomAgent": "إضافة وكيل مخصص",
     "addCustomAgentHint": "سجّل أي وكيل متوافق مع ACP. اختر واحدًا من سجل ACP العام، أو الصق معلومات السجل الخاصة به.",
@@ -1999,7 +2009,12 @@
         "removeFromGroup": "بدون مجموعة",
         "newGroupAndMove": "مجموعة جديدة…",
         "dropToUngroup": "أفلِت هنا لإزالته من المجموعة"
-      }
+      },
+      "recentFilterAll": "الكل",
+      "recentFilterTitle": "عرض في الأحدث: {filter}",
+      "noRecentChats": "لا توجد محادثات دردشة حديثة",
+      "noRecentFolders": "لا توجد محادثات مجلدات حديثة",
+      "recentFilterMenuLabel": "عرض في الأحدث"
     },
     "conversation": {
       "reloadFailed": "فشل إعادة تحميل المحادثة: {message}",
@@ -3021,6 +3036,7 @@
           "turnFailedMaxTurnRequests": "بلغ {agent} الحد الأقصى لعدد الطلبات المسموح بها في هذه الجولة.",
           "turnFailedUnknown": "أنهى {agent} الجولة بسبب توقف غير معروف.",
           "turnFailedAuthRequired": "يحتاج {agent} إلى تسجيل دخولك من جديد قبل تنفيذ هذه الجولة. سجّل الدخول من الإعدادات ثم أعد إرسال الرسالة.",
+          "agentRuntimeOutdated": "{agent} قديم جدًا بالنسبة إلى هذا الإصدار من MaxCode. حدّثه، ثم أعد فتح هذه المحادثة.",
           "grokModelSwitchIncompatibleAgent": "لا يمكن لـ {agent} التبديل إلى هذا النموذج في محادثة قائمة. ابدأ جلسة جديدة لاستخدامه.",
           "turnFailedEmpty": "أنهى {agent} الجولة دون إنتاج أي رد.",
           "turnFailedEmptyProtocol": "أنتج {agent} مخرجات تعذّر على MaxCode تحليلها — قد لا يتوافق إصدار الوكيل مع البروتوكول.",
@@ -3047,7 +3063,9 @@
           "lineNoErrorWithDelay": "{retry}، {delay}",
           "httpStatus": " (HTTP {status})"
         },
-        "configOptionAdjusted": "ضبط {agent} {option} على {actual} بدلاً من {requested}"
+        "configOptionAdjusted": "ضبط {agent} {option} على {actual} بدلاً من {requested}",
+        "noticeTitle": "{agent}: {title}",
+        "pluginLoadFailedTitle": "تعذّر على {agent} تحميل {count} من الإضافات"
       },
       "connectionLifecycle": {
         "tasks": {
@@ -3704,7 +3722,22 @@
           "outputMissing": "اقتطع codex مُخرَج النص البرمجي وأزال الفاصل الخاص بهذا الأمر، لذا تعذّر نسب أي مُخرَج إليه.",
           "sharedWith": "يحتوي هذا المقطع أيضًا على مُخرَج {commands} — إذ اقتطع codex الفواصل الخاصة بها.",
           "truncated": "مقتطع"
-        }
+        },
+        "visualizeTitle": "تصوّر بياني",
+        "visualizeWide": "عريض",
+        "visualizeLoading": "جارٍ تحميل التصوّر البياني…",
+        "visualizeError": "تعذّر تحميل التصوّر البياني",
+        "visualizeReload": "إعادة التحميل",
+        "visualizeOpenFile": "فتح الملف",
+        "visualizeExpand": "عرض الكل",
+        "visualizeCollapse": "عرض أقل",
+        "visualizeScriptsOn": "البرامج النصية مفعّلة",
+        "visualizeScriptsOff": "تفعيل البرامج النصية",
+        "visualizeScriptsHint": "تشغيل البرامج النصية للتصوّر البياني ليصبح تفاعليًا. يعمل داخل بيئة معزولة ولا يمكنه الوصول إلى الشبكة أو ملفاتك.",
+        "visualizeFrameTitle": "تصوّر بياني من Codex",
+        "htmlPreviewOpen": "معاينة",
+        "htmlPreviewOpenAria": "معاينة {name}",
+        "htmlPreviewHide": "إخفاء المعاينة"
       },
       "conversationFind": {
         "title": "البحث في المحادثة",
@@ -4256,13 +4289,14 @@
     "agentTypeRequired": "نوع الوكيل مطلوب.",
     "agentTypeImmutableHint": "لا يمكن تغيير نوع الوكيل بعد الإنشاء.",
     "model": "النموذج",
-    "modelPlaceholderCodex": "gpt-6-sol / gpt-6-luna",
+    "modelPlaceholderCodex": "gpt-6.1-sol / gpt-6-luna",
     "modelPlaceholderGemini": "gemini-3-pro-preview",
     "claudeMainModel": "النموذج الرئيسي",
     "claudeReasoningModel": "نموذج الاستدلال (التفكير)",
     "claudeHaikuDefaultModel": "نموذج Haiku الافتراضي",
     "claudeSonnetDefaultModel": "نموذج Sonnet الافتراضي",
     "claudeOpusDefaultModel": "نموذج Opus الافتراضي",
+    "claudeFableDefaultModel": "نموذج Fable الافتراضي",
     "claudeCustomModelOption": "معرّف النموذج المخصّص",
     "claudeCustomModelOptionName": "اسم النموذج المخصّص",
     "claudeCustomModelOptionDescription": "وصف النموذج المخصّص",

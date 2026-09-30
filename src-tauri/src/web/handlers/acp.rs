@@ -968,9 +968,21 @@ pub async fn acp_update_pi_config(
     Ok(Json(()))
 }
 
-pub async fn acp_load_pi_config() -> Result<Json<acp_commands::PiConfigProjection>, AppCommandError>
-{
-    Ok(Json(acp_commands::load_pi_config_core()))
+pub async fn acp_load_pi_config(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<acp_commands::PiConfigProjection>, AppCommandError> {
+    let config = acp_commands::load_pi_config_for_db(&state.db)
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    Ok(Json(config))
+}
+
+pub async fn acp_list_pi_model_capabilities(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<acp_commands::PiModelCatalog>, AppCommandError> {
+    Ok(Json(
+        acp_commands::list_pi_model_catalog_core(&state.db, &state.data_dir).await,
+    ))
 }
 
 pub async fn acp_load_deepseek_model_catalog(

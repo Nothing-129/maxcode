@@ -25,7 +25,7 @@ describe("MaxCode contract: selected September runtime fixes", () => {
     expect(listener).toContain("bind_unix_socket(&socket_path).await?")
     expect(listener).not.toContain("tauri::")
     const registry = source("src-tauri/src/acp/registry.rs")
-    expect(registry).toContain('package: "@xai-official/grok@1.0.41"')
+    expect(registry).toContain('package: "@xai-official/grok@1.0.44"')
     expect(registry).toContain('package: "@qoder-ai/qodercli@1.1.49"')
   })
 })

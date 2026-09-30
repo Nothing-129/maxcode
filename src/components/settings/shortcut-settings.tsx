@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { Keyboard, RotateCcw } from "lucide-react"
+import { RotateCcw } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import { useIsMac } from "@/hooks/use-is-mac"
@@ -99,28 +99,25 @@ export function ShortcutSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="w-full space-y-4 p-3 md:p-4">
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Keyboard className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">{t("sectionTitle")}</h2>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                resetShortcuts()
-                setRecordingAction(null)
-                toast.success(t("toasts.reset"))
-              }}
-              disabled={isDefault}
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              {t("resetDefault")}
-            </Button>
-          </div>
+      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
+        <div className="flex items-start justify-between gap-3">
+          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              resetShortcuts()
+              setRecordingAction(null)
+              toast.success(t("toasts.reset"))
+            }}
+            disabled={isDefault}
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            {t("resetDefault")}
+          </Button>
+        </div>
 
+        <section className="rounded-xl border bg-card p-4 space-y-4">
           <p className="text-xs text-muted-foreground leading-5">
             {t("recordInstruction")}
           </p>

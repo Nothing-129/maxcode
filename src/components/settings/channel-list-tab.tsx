@@ -290,7 +290,7 @@ export function ChannelListTab() {
                           : status === "connecting"
                             ? "bg-yellow-500 animate-pulse"
                             : status === "error"
-                              ? "bg-red-500"
+                              ? "bg-destructive"
                               : "bg-gray-400"
                       }`}
                     />

@@ -12,6 +12,8 @@ import type {
   OpenCodeCatalogProvider,
 } from "@/lib/types"
 
+const PRICING_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000
+
 /** Shared by the inline amount and expanded cost details. */
 export function useComposerCostEstimate(
   buckets: ConversationBillingUsage[] | null
@@ -23,16 +25,43 @@ export function useComposerCostEstimate(
   useEffect(() => {
     if (!hasBuckets) return
     let active = true
-    opencodeProviderCatalog().then(
-      (value) => {
-        if (active) setCatalog(value)
-      },
-      () => {
-        if (active) setFailed(true)
+    let pending = false
+    let lastAttempt: number | null = null
+    const maybeRefresh = () => {
+      if (!active || pending || document.hidden) return
+      if (
+        lastAttempt != null &&
+        Date.now() - lastAttempt < PRICING_CHECK_INTERVAL_MS
+      ) {
+        return
       }
-    )
+      lastAttempt = Date.now()
+      pending = true
+      // The backend shares a six-hour disk cache across windows. Keep the
+      // current estimate while refreshing or when the network is unavailable.
+      void opencodeProviderCatalog()
+        .then(
+          (value) => {
+            if (active) {
+              setCatalog(value)
+              setFailed(false)
+            }
+          },
+          () => {
+            if (active) setFailed(true)
+          }
+        )
+        .finally(() => {
+          pending = false
+        })
+    }
+    maybeRefresh()
+    const interval = setInterval(maybeRefresh, PRICING_CHECK_INTERVAL_MS)
+    document.addEventListener("visibilitychange", maybeRefresh)
     return () => {
       active = false
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", maybeRefresh)
     }
   }, [hasBuckets])
   const estimate =

@@ -62,13 +62,17 @@ export interface AttachTransportHost {
 }
 
 interface ActiveSub {
+  subscriptionId: string
   connectionId: string
   /**
-   * Highest `seq` consumed for this subscription. Updated on every
-   * snapshot / replay / event delivery. Used as `since_seq` when
+   * Highest `seq` successfully consumed for this subscription. Updated after
+   * snapshot / replay / event handlers return. Used as `since_seq` when
    * re-attaching after a reconnect.
    */
   lastAppliedSeq: number | undefined
+  recovering: boolean
+  failures: number
+  retryTimer: ReturnType<typeof setTimeout> | null
   handlers: AttachHandlers
 }
 
@@ -90,19 +94,26 @@ export class WebEventStream implements EventStream {
     handlers: AttachHandlers
   ): EventStreamSubscription {
     const subscriptionId = randomUUID()
-    this.subs.set(subscriptionId, {
+    const sub: ActiveSub = {
+      subscriptionId,
       connectionId,
       lastAppliedSeq: options.sinceSeq,
+      recovering: false,
+      failures: 0,
+      retryTimer: null,
       handlers,
-    })
+    }
+    this.subs.set(subscriptionId, sub)
     // If the WS is already open, send the attach frame immediately;
     // otherwise the `onWsReady` hook will replay it on next open.
     if (this.host.isWsOpen()) {
       this.sendAttach(subscriptionId)
     }
     return {
-      subscriptionId,
-      detach: () => this.detach(subscriptionId),
+      get subscriptionId() {
+        return sub.subscriptionId
+      },
+      detach: () => this.detach(sub.subscriptionId),
     }
   }
 
@@ -126,26 +137,32 @@ export class WebEventStream implements EventStream {
 
     switch (frame.type) {
       case "snapshot":
-        sub.lastAppliedSeq = frame.event_seq
-        safeInvoke("onSnapshot", () =>
-          sub.handlers.onSnapshot(frame.snapshot, frame.event_seq)
+        this.deliver(sub, "onSnapshot", frame.event_seq, () =>
+          sub.handlers.onSnapshot(
+            frame.snapshot,
+            frame.event_seq,
+            sub.recovering ? { recoverFromHandlerError: true } : undefined
+          )
         )
         break
       case "replay":
-        sub.lastAppliedSeq = frame.high_water_seq
-        safeInvoke("onReplay", () =>
+        if (sub.recovering) return
+        this.deliver(sub, "onReplay", frame.high_water_seq, () =>
           sub.handlers.onReplay(frame.events, frame.high_water_seq)
         )
         break
       case "event":
-        sub.lastAppliedSeq = frame.envelope.seq
-        safeInvoke("onEvent", () => sub.handlers.onEvent(frame.envelope))
+        if (sub.recovering) return
+        this.deliver(sub, "onEvent", frame.envelope.seq, () =>
+          sub.handlers.onEvent(frame.envelope)
+        )
         break
       case "detached":
         // Server unilaterally ended the sub. Remove from local map BEFORE
         // calling the user handler so any synchronous re-attach inside the
         // handler observes a clean slate (new subId, no leftover entry).
         this.subs.delete(frame.subscription_id)
+        this.clearRetry(sub)
         safeInvoke("onDetached", () => sub.handlers.onDetached(frame.reason))
         break
     }
@@ -154,6 +171,7 @@ export class WebEventStream implements EventStream {
   destroy(): void {
     this.unbindWsReady?.()
     this.unbindWsReady = null
+    for (const sub of this.subs.values()) this.clearRetry(sub)
     this.subs.clear()
     // Do NOT send detach frames here — destroy() is called when the
     // transport is going away (logout, remote-workspace switch), so the
@@ -161,7 +179,10 @@ export class WebEventStream implements EventStream {
   }
 
   private detach(subscriptionId: string): void {
-    if (!this.subs.delete(subscriptionId)) return
+    const sub = this.subs.get(subscriptionId)
+    if (!sub) return
+    this.subs.delete(subscriptionId)
+    this.clearRetry(sub)
     // Best-effort: send detach so the server can free its forwarder task
     // immediately rather than wait for the next event drop. If the WS is
     // closed, the forwarder dies on its own when the broadcast receiver
@@ -172,6 +193,57 @@ export class WebEventStream implements EventStream {
         subscription_id: subscriptionId,
       })
     }
+  }
+
+  private deliver(
+    sub: ActiveSub,
+    name: string,
+    seq: number,
+    handler: () => void
+  ): void {
+    if (safeInvoke(name, handler)) {
+      // A callback may detach synchronously. Never revive its subscription.
+      if (this.subs.get(sub.subscriptionId) !== sub) return
+      sub.lastAppliedSeq = seq
+      sub.recovering = false
+      sub.failures = 0
+    } else if (this.subs.get(sub.subscriptionId) === sub) {
+      this.recover(sub)
+    }
+  }
+
+  private recover(sub: ActiveSub): void {
+    const oldId = sub.subscriptionId
+    this.clearRetry(sub)
+    this.subs.delete(oldId)
+    sub.subscriptionId = randomUUID()
+    sub.lastAppliedSeq = undefined
+    sub.recovering = true
+    sub.failures += 1
+    this.subs.set(sub.subscriptionId, sub)
+
+    // A handler may have applied only part of a replay or event. Replaying
+    // from either cursor can duplicate effects or skip data, so hydrate a
+    // full snapshot. Rotate the wire id to reject the old forwarder's queued
+    // events AND detached frames while the replacement is being established.
+    if (!this.host.isWsOpen()) return
+    this.host.sendFrame({ action: "detach", subscription_id: oldId })
+    if (sub.failures === 1) {
+      this.sendAttach(sub.subscriptionId)
+      return
+    }
+    // A consistently failing snapshot must not create a tight request loop.
+    // Reconnects can retry immediately; otherwise back off up to 30 seconds.
+    const delay = Math.min(1_000 * 2 ** Math.min(sub.failures - 2, 5), 30_000)
+    sub.retryTimer = setTimeout(() => {
+      sub.retryTimer = null
+      if (this.host.isWsOpen()) this.sendAttach(sub.subscriptionId)
+    }, delay)
+  }
+
+  private clearRetry(sub: ActiveSub): void {
+    if (sub.retryTimer !== null) clearTimeout(sub.retryTimer)
+    sub.retryTimer = null
   }
 
   private sendAttach(subscriptionId: string): void {
@@ -186,8 +258,9 @@ export class WebEventStream implements EventStream {
   }
 
   private reattachAll(): void {
-    for (const subscriptionId of this.subs.keys()) {
-      this.sendAttach(subscriptionId)
+    for (const sub of this.subs.values()) {
+      this.clearRetry(sub)
+      this.sendAttach(sub.subscriptionId)
     }
   }
 }
@@ -204,10 +277,12 @@ function isAttachFrame(frame: unknown): frame is ServerAttachFrame {
   )
 }
 
-function safeInvoke(name: string, fn: () => void): void {
+function safeInvoke(name: string, fn: () => void): boolean {
   try {
     fn()
+    return true
   } catch (err) {
     console.error(`[WebEventStream] ${name} handler threw:`, err)
+    return false
   }
 }

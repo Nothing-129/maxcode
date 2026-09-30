@@ -119,7 +119,7 @@ describe("StatusBarUpdate — direct update action", () => {
       "hidden",
       "group-hover:inline"
     )
-    expect(button).toHaveClass("rounded-full", "bg-[#3ca1ef]", "text-white")
+    expect(button).toHaveClass("rounded-full", "bg-[#216ae4]", "text-white")
     expect(startUpdate).not.toHaveBeenCalled()
     expect(toastInfo).not.toHaveBeenCalled()
     fireEvent.click(button)

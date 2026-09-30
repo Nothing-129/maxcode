@@ -30,8 +30,16 @@ describe("official agent runtime updates", () => {
     expect(connection).toContain(
       "agent_auto_updates::managed_runtime(agent_type)"
     )
-    expect(connection).toContain(
-      "agent_auto_updates::managed_runtime(AgentType::Pi)"
+    const managed = connection.indexOf(
+      "agent_auto_updates::managed_runtime(agent_type)"
+    )
+    const preflight = connection.indexOf(
+      "pi_launch_preflight(&launch_env, cwd)"
+    )
+    expect(managed).toBeGreaterThan(0)
+    expect(preflight).toBeGreaterThan(managed)
+    expect(connection.slice(managed, preflight)).toContain(
+      "merged_env.iter().cloned().collect()"
     )
     const worker = source("src-tauri/src/commands/agent_auto_updates.rs")
     for (const name of [

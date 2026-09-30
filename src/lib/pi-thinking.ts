@@ -75,6 +75,45 @@ export function levelsFromMap(
 }
 
 /**
+ * The levels pi offers for one model — `getSupportedThinkingLevels` whole: a model
+ * that does not declare `reasoning` has `off` and nothing else.
+ */
+export function supportedLevels(model: {
+  reasoning: boolean
+  thinkingLevelMap: PiThinkingLevelMap | null | undefined
+}): PiThinkingLevel[] {
+  return model.reasoning ? levelsFromMap(model.thinkingLevelMap) : ["off"]
+}
+
+/**
+ * The level pi actually runs a model at when asked for `level` — pi-ai's
+ * `clampThinkingLevel`: the level itself when the model has it, else the nearest
+ * HIGHER level it has, else the nearest lower one.
+ *
+ * pi applies it to the one global `defaultThinkingLevel` whenever it selects a
+ * model, without rewriting the saved value — so a level one model lacks is still
+ * what every model that has it runs at.
+ */
+export function clampThinkingLevel(
+  level: PiThinkingLevel,
+  available: readonly PiThinkingLevel[]
+): PiThinkingLevel {
+  if (available.includes(level)) return level
+  const requested = PI_THINKING_LEVELS.indexOf(level)
+  for (let index = requested; index < PI_THINKING_LEVELS.length; index++) {
+    if (available.includes(PI_THINKING_LEVELS[index])) {
+      return PI_THINKING_LEVELS[index]
+    }
+  }
+  for (let index = requested - 1; index >= 0; index--) {
+    if (available.includes(PI_THINKING_LEVELS[index])) {
+      return PI_THINKING_LEVELS[index]
+    }
+  }
+  return available[0] ?? "off"
+}
+
+/**
  * Project a stored model definition into the panel's editable state.
  *
  * Wire values that merely restate the implicit default are folded back to "unset" so the

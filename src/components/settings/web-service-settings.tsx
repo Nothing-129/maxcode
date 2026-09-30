@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useId, useRef, useState } from "react"
 import {
   AlertTriangle,
   Check,
@@ -14,6 +14,7 @@ import {
 import { QRCodeSVG } from "qrcode.react"
 import { useTranslations } from "next-intl"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import {
   Dialog,
@@ -112,8 +113,13 @@ function AddressBar({
             </SelectContent>
           </Select>
         ) : (
-          <div className="flex h-9 min-w-0 flex-1 items-center rounded-4xl border border-input bg-input/30 px-3">
-            <code className="truncate text-sm select-all">{address}</code>
+          <div
+            data-settings-input-group=""
+            className="flex h-9 min-w-0 flex-1 items-center rounded-4xl border border-input bg-input/30 px-3 text-sm"
+          >
+            <code className="truncate text-[length:inherit] select-all">
+              {address}
+            </code>
           </div>
         )}
         <button
@@ -212,6 +218,7 @@ function TokenEditor({
   placeholder: string
 }) {
   const t = useTranslations("WebServiceSettings")
+  const inputId = useId()
   const [copied, markCopied] = useCopiedFlag()
   const [revealed, setRevealed] = useState(false)
 
@@ -224,9 +231,18 @@ function TokenEditor({
 
   return (
     <div className="space-y-1.5">
-      <div className="text-xs font-medium text-muted-foreground">{label}</div>
-      <div className="group relative flex items-center rounded-md border bg-muted/40 px-3 py-2">
+      <label
+        htmlFor={inputId}
+        className="block text-xs font-medium text-muted-foreground"
+      >
+        {label}
+      </label>
+      <div
+        data-settings-input-group
+        className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 md:text-sm"
+      >
         <input
+          id={inputId}
           type={revealed ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -234,7 +250,7 @@ function TokenEditor({
           placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
-          className="min-w-0 flex-1 bg-transparent font-mono text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed"
+          className="h-full min-w-0 flex-1 bg-transparent py-1 font-mono text-[length:inherit] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
         />
         <div className="ml-2 flex shrink-0 items-center gap-1">
           {!disabled && (
@@ -528,9 +544,9 @@ export function WebServiceSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="space-y-6 p-3 md:p-4">
+      <div data-settings-page="" className="space-y-6 p-3 md:p-4">
         <div>
-          <h3 className="text-lg font-medium">{t("sectionTitle")}</h3>
+          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
           <p className="text-sm text-muted-foreground">
             {t("sectionDescription")}
           </p>
@@ -558,7 +574,7 @@ export function WebServiceSettings() {
           {/* Port config */}
           <div className="flex items-center gap-4">
             <label className="w-20 text-sm font-medium">{t("port")}</label>
-            <input
+            <Input
               type="number"
               value={port}
               onChange={(e) => {
@@ -568,7 +584,7 @@ export function WebServiceSettings() {
               disabled={isRunning}
               min={1024}
               max={65535}
-              className="flex h-9 w-32 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="w-32"
             />
           </div>
 
@@ -660,7 +676,7 @@ export function WebServiceSettings() {
           >
             {t("publicShareUrlLabel")}
           </label>
-          <input
+          <Input
             id="public-share-url"
             type="url"
             value={publicShareUrl}
@@ -671,7 +687,7 @@ export function WebServiceSettings() {
             disabled={!configLoaded || publicShareSaving}
             placeholder={t("publicShareUrlPlaceholder")}
             spellCheck={false}
-            className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 font-mono text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="font-mono"
           />
           <p className="text-xs text-muted-foreground">
             {t("publicShareUrlHint")}

@@ -68,8 +68,6 @@ fn command(agent: AgentType) -> &'static str {
         registry::AgentDistribution::Npx { cmd, .. }
         | registry::AgentDistribution::Binary { cmd, .. }
         | registry::AgentDistribution::Uvx { cmd, .. } => cmd,
-        // Auto-update never manages a bundled adapter (see `prepare`).
-        registry::AgentDistribution::Bundled { .. } => "node",
     }
 }
 fn valid_version(version: &str) -> bool {
@@ -139,9 +137,6 @@ fn runtime_is_current(agent: AgentType, latest: Option<&str>) -> bool {
 }
 fn install_identity(agent: AgentType) -> String {
     match registry::get_agent_meta(agent).distribution {
-        registry::AgentDistribution::Bundled { version, file, .. } => {
-            format!("bundled:{version}:{file}")
-        }
         registry::AgentDistribution::Npx { package, cmd, .. } => format!(
             "npm:{}:{cmd}",
             super::agent_updates::npm_package_name(package).unwrap_or(package)
@@ -334,11 +329,6 @@ async fn prepare(agent: AgentType, version: &str) -> Result<Installed, String> {
     let root = root(agent).ok_or("Missing local data directory")?;
     let identity = install_identity(agent);
     let result = match registry::get_agent_meta(agent).distribution {
-        // Bundled adapters never auto-update: their version is tied to the
-        // MaxCode binary that carries them.
-        registry::AgentDistribution::Bundled { .. } => {
-            return Err("bundled adapters update with MaxCode".into())
-        }
         registry::AgentDistribution::Npx { .. } => {
             prepare_at(agent, version, &root, Path::new("npm")).await
         }
@@ -866,6 +856,12 @@ pub async fn run(db: AppDatabase, manager: ConnectionManager, emitter: EventEmit
             report(agent, "updated", Some(&installed.version), None);
             pending.remove(&key);
             due.insert(key, Instant::now() + CHECK_INTERVAL);
+            // Release activation/session locks before the best-effort live query.
+            drop(_connections);
+            drop(_install);
+            if agent == AgentType::Codex {
+                super::acp::resync_codex_generated_catalog().await;
+            }
         }
         tokio::time::sleep(Duration::from_secs(60)).await;
     }
@@ -935,6 +931,8 @@ chmod +x "$prefix/bin/codex"
             Some(("@earendil-works/pi-coding-agent", "pi", "PI_ACP_PI_COMMAND"))
         );
         assert!(vendor_runtime(AgentType::Grok).is_none());
+        // ZCode's desktop/standalone runtime stays managed by the user.
+        assert!(vendor_runtime(AgentType::Zcode).is_none());
         let previous: Installed =
             serde_json::from_str(r#"{"directory":"legacy","version":"1.12.0"}"#).unwrap();
         assert!(previous.runtime_version.is_none());
@@ -950,6 +948,51 @@ chmod +x "$prefix/bin/codex"
         ] {
             assert!(!newer(local, remote));
         }
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn zcode_update_installs_and_verifies_the_npm_cli_entry() {
+        use std::os::unix::fs::PermissionsExt;
+        let root = tempfile::tempdir().unwrap();
+        let npm = root.path().join("fake-npm");
+        std::fs::write(
+            &npm,
+            r#"#!/bin/sh
+set -eu
+case "$*" in *--registry=https://registry.npmjs.org*) ;; *) exit 9 ;; esac
+case "$*" in *zcode-acp-server@0.48.0*) ;; *) exit 8 ;; esac
+for arg in "$@"; do
+  case "$arg" in --prefix=*) prefix="${arg#--prefix=}" ;; esac
+done
+mkdir -p "$prefix/bin" "$prefix/lib/node_modules/zcode-acp-server/dist"
+cat > "$prefix/lib/node_modules/zcode-acp-server/dist/cli.js" <<'BIN'
+#!/bin/sh
+test "$1" = --version
+printf 'zcode-acp-server 0.48.0\n'
+BIN
+chmod +x "$prefix/lib/node_modules/zcode-acp-server/dist/cli.js"
+ln -s ../lib/node_modules/zcode-acp-server/dist/cli.js "$prefix/bin/zcode-acp-server"
+"#,
+        )
+        .unwrap();
+        std::fs::set_permissions(&npm, std::fs::Permissions::from_mode(0o755)).unwrap();
+
+        let installed = prepare_at(AgentType::Zcode, "0.48.0", root.path(), &npm)
+            .await
+            .unwrap();
+        let prefix = root.path().join(&installed.directory);
+        let bin = staged_command(AgentType::Zcode, &prefix, &installed.version);
+        assert_eq!(bin, prefix.join("bin/zcode-acp-server"));
+        assert!(bin.canonicalize().unwrap().ends_with("dist/cli.js"));
+        assert_eq!(installed.version, "0.48.0");
+        assert_eq!(
+            installed.identity.as_deref(),
+            Some("npm:zcode-acp-server:zcode-acp-server")
+        );
+        assert!(installed.runtime_version.is_none());
+        assert!(!prefix.join("runtime").exists());
+        assert!(!root.path().join("active.json").exists());
     }
     #[cfg(unix)]
     #[tokio::test]

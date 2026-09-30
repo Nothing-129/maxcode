@@ -54,6 +54,11 @@ export function MarkdownImageProvider({
   )
 }
 
+/** Resolve local previews against the transcript that contains them. */
+export function useTranscriptRoot(): string | null {
+  return useContext(LocalImageContext)?.root ?? null
+}
+
 function LocalMarkdownImage({
   source,
   alt,

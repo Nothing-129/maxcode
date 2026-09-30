@@ -226,6 +226,9 @@ export type ThreadRenderItem =
       /** The call's lifecycle, so a `/compact` still running reads as
        *  compacting and its summary streams. */
       state?: ToolCallState
+      /** The compaction call's id — the event's own name wherever the live
+       *  and history channels agree on one (see `dedupeCompactionItems`). */
+      callId?: string
     }
 
 /**
@@ -545,17 +548,19 @@ function isEmptyTurnItem(item: ThreadRenderItem): boolean {
 
 /**
  * When a resolved group's ONLY meaningful content is a single context-compaction
- * tool-call part, return that part's `_meta` and retained summary (so the caller
- * can hoist it to a standalone `"compaction"` divider item); otherwise `null`.
- * Empty text parts are ignored so a bare compaction turn still qualifies. Scoped
- * to assistant groups with no user resources/images. A compaction part always
- * carries a truthy `_meta` (`contextCompaction` as the boolean marker or the
- * 1.3.0+ versioned object), so a non-null return is unambiguous.
+ * tool-call part, return that part's `_meta`, retained summary and call id (so
+ * the caller can hoist it to a standalone `"compaction"` divider item);
+ * otherwise `null`. Empty text parts are ignored so a bare compaction turn
+ * still qualifies. Scoped to assistant groups with no user resources/images. A
+ * compaction part always carries a truthy `_meta` (`contextCompaction` as the
+ * boolean marker or the 1.3.0+ versioned object), so a non-null return is
+ * unambiguous.
  */
 export function compactionOnlyPart(group: ResolvedMessageGroup): {
   meta: Record<string, unknown> | null
   summary: string | null
   state: ToolCallState
+  callId: string
 } | null {
   if (group.role !== "assistant") return null
   if (group.resources.length > 0 || group.images.length > 0) return null
@@ -571,6 +576,7 @@ export function compactionOnlyPart(group: ResolvedMessageGroup): {
     meta: only.meta ?? null,
     summary: contextCompactionSummary(only.meta, only.output),
     state: only.state,
+    callId: only.toolCallId,
   }
 }
 
@@ -1197,6 +1203,7 @@ export function MessageListView({
           meta: compaction.meta,
           summary: compaction.summary,
           state: compaction.state,
+          callId: compaction.callId,
         }
       }
       return {

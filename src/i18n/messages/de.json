@@ -1081,9 +1081,9 @@
       "sandboxMode_read-only": "Nur lesen",
       "sandboxMode_workspace-write": "Workspace-Schreibzugriff",
       "sandboxMode_danger-full-access": "Vollzugriff (keine Sandbox)",
-      "sandboxModeReadOnlyAcpWarning": "Der ACP-Adapter liefert keine schreibgeschützte Sandbox mehr, daher laufen MaxCode-Sitzungen unabhängig von dieser Einstellung mit Schreibrecht im Arbeitsbereich. MaxCode wählt die strengste verfügbare Voreinstellung – jede Rechteausweitung kommt zu dir zur Freigabe –, doch Änderungen innerhalb des Arbeitsbereichs brauchen keine mehr. codex-CLI- und IDE-Sitzungen beachten „schreibgeschützt“ weiterhin.",
+      "sandboxModeReadOnlyAcpWarning": "codex-acp 1.7–1.13 liefern keine schreibgeschützte Sandbox: Mit diesen Adapterversionen läuft eine MaxCode-Sitzung unabhängig von dieser Einstellung mit Schreibrecht im Arbeitsbereich, wobei jede Rechteausweitung weiterhin zu dir zur Freigabe kommt. codex-acp 2.0 hat sie wiederhergestellt – aktualisiere den Adapter, falls ein älterer installiert ist. codex-CLI- und IDE-Sitzungen beachten „schreibgeschützt“ immer.",
       "sandboxModeHint": "Unter Windows wird Workspace-Schreibzugriff auf Nur-Lesen herabgestuft, sofern die experimentelle Windows-Sandbox von codex nicht aktiviert ist.",
-      "sandboxModeSeedsPresetHint": "MaxCode bildet dies auch auf die Start-Freigabe-Voreinstellung der Sitzung ab, wirkt sich also – anders als die Freigaberichtlinie – auf gewöhnliche Anfragen aus. Beachte: Bei der Standard-Voreinstellung des Adapters sichtet jetzt ein Modell die Rechteausweitungen vor und leitet nur weiter, was es für unsicher hält; wähle im Eingabefeld „Um Freigabe bitten“, um jede selbst zu prüfen. Die Voreinstellung im Eingabefeld hat immer Vorrang.",
+      "sandboxModeSeedsPresetHint": "MaxCode bildet dies auch auf die Start-Freigabe-Voreinstellung der Sitzung ab, wirkt sich also – anders als die Freigaberichtlinie – auf gewöhnliche Anfragen aus. Schreibgeschützt startet in „Read-only“. Mit der Freigaberichtlinie never startet Vollzugriff in „Full access“ und Schreibrecht im Arbeitsbereich in „Auto review“, wo ein Modell die Rechteausweitungen vorsichtet und nur weiterleitet, was es für unsicher hält. Mit jeder anderen Freigaberichtlinie starten Schreibrecht im Arbeitsbereich und Vollzugriff ab codex-acp 2.0 in „Workspace access“, das dir jede Rechteausweitung vorlegt, bei älteren Adaptern in „Auto review“. Ohne Einstellung bleibt die Adaptervorgabe „Auto review“. Die Voreinstellung im Eingabefeld hat immer Vorrang.",
       "writableRootsLabel": "Zusätzliche beschreibbare Ordner",
       "writableRootsHint": "Ein absoluter Pfad pro Zeile, zusätzlich zum Arbeitsverzeichnis.",
       "sandboxRootsRelativeError": "Muss ein absoluter Pfad sein – codex löst relative Angaben unter ~/.codex auf: {path}",
@@ -1365,7 +1365,7 @@
     },
     "zcode": {
       "configManagement": "ZCode-Runtime",
-      "configDescription": "MaxCode bringt den zcode-acp-Adapter selbst mit; benötigt wird nur die ZCode-Runtime (die ZCode-Desktop-App oder die eigenständige CLI). Anbieter und Anmeldung liegen in der ZCode-App (~/.zcode) und werden automatisch übernommen. Optionale Startparameter (ZCODE_CLI Entry-Override, ZCODE_MODE Berechtigungsmodus, ZCODE_MODEL feste Auswahl) lassen sich im rohen Umgebungsvariablen-Editor unten setzen."
+      "configDescription": "MaxCode verwendet Williams Adapter zcode-acp-server. Installiere und konfiguriere zuerst die ZCode-Desktop-App oder CLI; Modelle und Anmeldedaten werden aus ~/.zcode übernommen. ZCODE_BIN legt einen eigenen Programmpfad fest, ZCODE_ACP_MODE den anfänglichen Berechtigungsmodus. Werkzeugaufrufe erfordern standardmäßig eine Bestätigung."
     },
     "authModeOfficialSubscription": "Offizielles Abonnement",
     "authModeCustomEndpoint": "Benutzerdefinierter Endpunkt",
@@ -1384,6 +1384,7 @@
       "haikuDefaultModel": "Standard-Haiku-Modell",
       "sonnetDefaultModel": "Standard-Sonnet-Modell",
       "opusDefaultModel": "Standard-Opus-Modell",
+      "fableDefaultModel": "Standard-Fable-Modell",
       "customModelOption": "Benutzerdefinierte Modell-ID",
       "customModelOptionName": "Name des benutzerdefinierten Modells",
       "customModelOptionDescription": "Beschreibung des benutzerdefinierten Modells",
@@ -1576,7 +1577,9 @@
       "modeCustom": "Eigenes pi",
       "modeCustomHint": "Führe deinen eigenen pi-Build, deine Installation oder einen Wrapper aus.",
       "commandLabel": "pi-Befehl oder -Pfad",
-      "commandHint": "Ein absoluter Pfad, ein Befehlsname im PATH oder ein Wrapper-Skript (z. B. ./pi-test.sh eines Monorepos).",
+      "commandHint": "Verwende einen absoluten Pfad oder einen Befehlsnamen aus PATH.",
+      "relativeCommandPath": "Verwende einen absoluten Pi-Befehlspfad oder einen Befehlsnamen aus PATH.",
+      "relativeAgentDir": "Verwende ein absolutes Pi-Agent-Verzeichnis oder ~/...; relative Pfade hängen vom Arbeitsverzeichnis ab.",
       "commandNotFound": "Befehl nicht gefunden",
       "validate": "Prüfen",
       "advanced": "Erweitert",
@@ -1616,7 +1619,14 @@
       "levelsEmptyError": "Wähle mindestens eine Stufe — ohne eine fällt pi auf Off zurück.",
       "wireValuesTitle": "Erweitert: an den Anbieter gesendete Werte",
       "wireValuesHint": "Leer lassen, um den Stufennamen unverändert zu senden. Setze einen Wert, wenn dein Endpunkt etwas anderes erwartet — Google-artige Backends erwarten LOW / HIGH.",
-      "defaultLevelUnlisted": "Diese Stufe steht nicht in der Liste oben — pi würde sie begrenzen."
+      "defaultLevelUnlisted": "Diese Stufe steht nicht in der Liste oben — pi würde sie begrenzen.",
+      "modelLevels": "{model} bietet: {levels}.",
+      "modelNoThinking": "{model} hat keine Denkstufen — Pi führt es immer ohne Denken aus.",
+      "levelClamped": "{model} bietet {level} nicht an, daher führt Pi es mit {effective} aus. Modelle, die {level} anbieten, nutzen es weiterhin.",
+      "modelNotListed": "Pi listet dieses Modell für diesen Anbieter nicht auf. Prüfe die Modell-ID — Pi listet nur Anbieter, für die ein API-Schlüssel oder eine Anmeldung vorliegt.",
+      "catalogUnavailable": "Pi konnte nicht gefragt werden, welche Denkstufen dieses Modell anbietet.",
+      "configLoadFailed": "Die Pi-Einstellungen konnten nicht gelesen werden: {message}",
+      "runtimeTooOld": "Dieses Pi ist zu alt: MaxCode benötigt Pi {min} oder neuer, um eine Sitzung zu öffnen. Aktualisiere es zuerst."
     },
     "addCustomAgent": "Eigenen Agenten hinzufügen",
     "addCustomAgentHint": "Registriere jeden ACP-kompatiblen Agenten. Wähle einen aus der öffentlichen ACP-Registry oder füge seine Registry-Informationen ein.",
@@ -1999,7 +2009,12 @@
         "removeFromGroup": "Keine Gruppe",
         "newGroupAndMove": "Neue Gruppe…",
         "dropToUngroup": "Hier ablegen, um aus der Gruppe zu entfernen"
-      }
+      },
+      "recentFilterAll": "Alle",
+      "recentFilterTitle": "In „Zuletzt“ anzeigen: {filter}",
+      "noRecentChats": "Keine letzten Chats",
+      "noRecentFolders": "Keine letzten Ordner-Unterhaltungen",
+      "recentFilterMenuLabel": "In „Zuletzt“ anzeigen"
     },
     "conversation": {
       "reloadFailed": "Konversation konnte nicht neu geladen werden: {message}",
@@ -3021,6 +3036,7 @@
           "turnFailedMaxTurnRequests": "{agent} hat die maximale Anzahl zulässiger Anfragen für diese Runde erreicht.",
           "turnFailedUnknown": "{agent} hat die Runde mit einem unbekannten Stoppgrund beendet.",
           "turnFailedAuthRequired": "{agent} benötigt eine erneute Anmeldung, bevor diese Runde ausgeführt werden kann. Melde dich in den Einstellungen an und sende die Nachricht erneut.",
+          "agentRuntimeOutdated": "{agent} ist für diese Version von MaxCode zu alt. Aktualisiere es und öffne diese Unterhaltung dann erneut.",
           "grokModelSwitchIncompatibleAgent": "{agent} kann in einer bestehenden Unterhaltung nicht zu diesem Modell wechseln. Starte eine neue Sitzung, um es zu verwenden.",
           "turnFailedEmpty": "{agent} hat die Runde ohne jegliche Antwort beendet.",
           "turnFailedEmptyProtocol": "{agent} hat eine Ausgabe erzeugt, die MaxCode nicht auswerten konnte — die Agent-Version passt möglicherweise nicht zum Protokoll.",
@@ -3047,7 +3063,9 @@
           "lineNoErrorWithDelay": "{retry}, {delay}",
           "httpStatus": " (HTTP {status})"
         },
-        "configOptionAdjusted": "{agent} hat {option} auf {actual} statt {requested} gesetzt"
+        "configOptionAdjusted": "{agent} hat {option} auf {actual} statt {requested} gesetzt",
+        "noticeTitle": "{agent}: {title}",
+        "pluginLoadFailedTitle": "{agent} konnte {count, plural, one {# Plugin} other {# Plugins}} nicht laden"
       },
       "connectionLifecycle": {
         "tasks": {
@@ -3704,7 +3722,22 @@
           "outputMissing": "Codex hat die Skriptausgabe gekürzt und dabei das Trennzeichen dieses Befehls entfernt, sodass ihm keine Ausgabe zugeordnet werden konnte.",
           "sharedWith": "Enthält auch die Ausgabe von {commands} – codex hat deren Trennzeichen abgeschnitten.",
           "truncated": "gekürzt"
-        }
+        },
+        "visualizeTitle": "Visualisierung",
+        "visualizeWide": "Breit",
+        "visualizeLoading": "Visualisierung wird geladen…",
+        "visualizeError": "Die Visualisierung konnte nicht geladen werden",
+        "visualizeReload": "Neu laden",
+        "visualizeOpenFile": "Datei öffnen",
+        "visualizeExpand": "Alles anzeigen",
+        "visualizeCollapse": "Weniger anzeigen",
+        "visualizeScriptsOn": "Skripte aktiv",
+        "visualizeScriptsOff": "Skripte aktivieren",
+        "visualizeScriptsHint": "Führt die Skripte der Visualisierung aus, damit sie interaktiv ist. Sie läuft in einer Sandbox und hat keinen Zugriff auf das Netzwerk oder deine Dateien.",
+        "visualizeFrameTitle": "Codex-Visualisierung",
+        "htmlPreviewOpen": "Vorschau",
+        "htmlPreviewOpenAria": "Vorschau von {name}",
+        "htmlPreviewHide": "Vorschau ausblenden"
       },
       "conversationFind": {
         "title": "Unterhaltung durchsuchen",
@@ -4256,13 +4289,14 @@
     "agentTypeRequired": "Agententyp ist erforderlich.",
     "agentTypeImmutableHint": "Der Agententyp kann nach der Erstellung nicht mehr geändert werden.",
     "model": "Modell",
-    "modelPlaceholderCodex": "gpt-6-sol / gpt-6-luna",
+    "modelPlaceholderCodex": "gpt-6.1-sol / gpt-6-luna",
     "modelPlaceholderGemini": "gemini-3-pro-preview",
     "claudeMainModel": "Hauptmodell",
     "claudeReasoningModel": "Reasoning-Modell (Thinking)",
     "claudeHaikuDefaultModel": "Standard Haiku-Modell",
     "claudeSonnetDefaultModel": "Standard Sonnet-Modell",
     "claudeOpusDefaultModel": "Standard Opus-Modell",
+    "claudeFableDefaultModel": "Standard Fable-Modell",
     "claudeCustomModelOption": "Benutzerdefinierte Modell-ID",
     "claudeCustomModelOptionName": "Name des benutzerdefinierten Modells",
     "claudeCustomModelOptionDescription": "Beschreibung des benutzerdefinierten Modells",

@@ -14,7 +14,7 @@ describe("resolveDefaultAgent", () => {
     ).toEqual({ agentType: "codex", provisional: false })
   })
 
-  it("does not offer ZCode on a new conversation", () => {
+  it("keeps ZCode available as a remembered or sole new-conversation agent", () => {
     expect(
       resolveDefaultAgent({
         lastSelected: "zcode",
@@ -23,7 +23,7 @@ describe("resolveDefaultAgent", () => {
         sortedTypes: ["zcode", "grok"],
         fresh: true,
       })
-    ).toEqual({ agentType: "grok", provisional: false })
+    ).toEqual({ agentType: "zcode", provisional: false })
     expect(
       resolveDefaultAgent({
         lastSelected: "zcode",
@@ -32,7 +32,7 @@ describe("resolveDefaultAgent", () => {
         sortedTypes: ["zcode"],
         fresh: true,
       })
-    ).toEqual({ agentType: "codex", provisional: false })
+    ).toEqual({ agentType: "zcode", provisional: false })
   })
 
   it("keeps the existing folder default before any user selection", () => {

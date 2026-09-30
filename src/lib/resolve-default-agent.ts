@@ -56,7 +56,7 @@ export interface ResolveDefaultAgentResult {
  *   5. `MAINTAINED_AGENT_TYPES[0]` — final fallback when even the sorted list
  *      isn't available yet (cold start).
  *
- * Agents omitted from the new-conversation picker (currently ZCode) are
+ * Agents omitted from the new-conversation picker are
  * skipped at every step, including a remembered or inherited choice.
  *
  * The result is marked `provisional: true` for cases 3 and 4 when `fresh`

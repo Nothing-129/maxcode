@@ -19,9 +19,17 @@ export type AttachDetachReason =
  *
  * `eventSeq` / `highWaterSeq` are the high-water mark after the initial
  * frame; subsequent `onEvent` envelopes have `envelope.seq > highWaterSeq`.
+ * Handlers apply state synchronously. If one throws, delivery pauses until
+ * a replacement snapshot repairs the partial state; repeated failures back
+ * off. This does not catch errors in work deferred to a timer or promise.
  */
 export interface AttachHandlers {
-  onSnapshot(snapshot: LiveSessionSnapshot, eventSeq: number): void
+  /** Recovery snapshots may repair partially applied state at the same seq. */
+  onSnapshot(
+    snapshot: LiveSessionSnapshot,
+    eventSeq: number,
+    options?: { recoverFromHandlerError: boolean }
+  ): void
   onReplay(events: EventEnvelope[], highWaterSeq: number): void
   onEvent(envelope: EventEnvelope): void
   onDetached(reason: AttachDetachReason): void
@@ -38,7 +46,7 @@ export interface AttachOptions {
 }
 
 export interface EventStreamSubscription {
-  /** Server-assigned subscription id (echoed by every related frame). */
+  /** Current wire id, echoed by the server; may change during recovery. */
   readonly subscriptionId: string
   /**
    * Cancel this subscription. Idempotent — calling twice is a no-op. Sends

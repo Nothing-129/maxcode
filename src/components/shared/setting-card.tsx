@@ -125,7 +125,10 @@ export function SettingRow({
             {title}
           </Label>
           {description ? (
-            <span className="text-xs leading-5 text-muted-foreground">
+            <span
+              data-settings-description=""
+              className="text-xs leading-5 text-muted-foreground"
+            >
               {description}
             </span>
           ) : null}

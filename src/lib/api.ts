@@ -823,6 +823,61 @@ export async function acpUpdatePiConfig(params: {
  * `settings.json` model keys plus the provider names present in `auth.json`
  * (sorted). Missing files surface as `null` / an empty list.
  */
+export async function loadPiConfig(): Promise<{
+  defaultProvider: string | null
+  defaultModel: string | null
+  defaultThinkingLevel: string | null
+  authProviders: string[]
+  /** Custom/self-hosted providers defined in `models.json`, sorted by id. Used
+   * to rehydrate the custom-provider form and detect a custom `defaultProvider`. */
+  customProviders: {
+    id: string
+    baseUrl: string
+    api: string
+    /** Models the provider defines, sorted by id. `reasoning: null` means the
+     * entry never declared one — distinct from an explicit `false`. */
+    models: {
+      id: string
+      reasoning: boolean | null
+      thinkingLevelMap: Record<string, string | null>
+    }[]
+  }[]
+}> {
+  return getTransport().call("acp_load_pi_config", {})
+}
+
+/** One built-in model's thinking capability, as pi's own registry reports it. */
+export interface PiModelCapability {
+  provider: string
+  id: string
+  reasoning: boolean
+  thinkingLevelMap: Record<string, string | null>
+}
+
+/**
+ * Whether pi answered the catalog query, and if not, why — `models` is empty
+ * unless this is `ok`. An `ok` list covers only providers pi has credentials for.
+ */
+export type PiCatalogStatus =
+  | "ok"
+  | "not_found"
+  | "relative_path"
+  | "failed"
+  | "timed_out"
+
+export interface PiModelCatalog {
+  status: PiCatalogStatus
+  models: PiModelCapability[]
+}
+
+/**
+ * pi's built-in model catalog, asked of the configured pi runtime (offline — no
+ * session, no prompt, no network).
+ */
+export async function listPiModelCapabilities(): Promise<PiModelCatalog> {
+  return getTransport().call("acp_list_pi_model_capabilities", {})
+}
+
 /**
  * Read the DeepSeek Harness model catalog — `llm-deepseek.models` in
  * `$DSH_HOME/settings.yaml` — for the settings panel. A missing document is
@@ -846,29 +901,6 @@ export async function updateDeepSeekModelCatalog(
   models: DeepSeekCatalogModel[] | null
 ): Promise<void> {
   return getTransport().call("acp_update_deepseek_model_catalog", { models })
-}
-
-export async function loadPiConfig(): Promise<{
-  defaultProvider: string | null
-  defaultModel: string | null
-  defaultThinkingLevel: string | null
-  authProviders: string[]
-  /** Custom/self-hosted providers defined in `models.json`, sorted by id. Used
-   * to rehydrate the custom-provider form and detect a custom `defaultProvider`. */
-  customProviders: {
-    id: string
-    baseUrl: string
-    api: string
-    /** Models the provider defines, sorted by id. `reasoning: null` means the
-     * entry never declared one — distinct from an explicit `false`. */
-    models: {
-      id: string
-      reasoning: boolean | null
-      thinkingLevelMap: Record<string, string | null>
-    }[]
-  }[]
-}> {
-  return getTransport().call("acp_load_pi_config", {})
 }
 
 /**

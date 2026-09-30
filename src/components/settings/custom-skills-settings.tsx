@@ -22,6 +22,7 @@ import {
 import { AgentIcon } from "@/components/agent-icon"
 import { DirectoryBrowserDialog } from "@/components/shared/directory-browser-dialog"
 import { Button } from "@/components/ui/button"
+import { SettingsError } from "@/components/shared/settings-section"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -630,9 +631,7 @@ export function CustomSkillsBody({
   return (
     <div className="flex flex-col h-full min-h-0">
       {loadError && (
-        <div className="mb-3 shrink-0 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
-          {loadError}
-        </div>
+        <SettingsError className="mb-3 shrink-0">{loadError}</SettingsError>
       )}
 
       {/* Even when empty, the matrix renders its toolbar (New / Import CTA). */}
@@ -914,9 +913,9 @@ export function CustomSkillsBody({
                     {t("importFromAgent.loading")}
                   </div>
                 ) : agentImportError ? (
-                  <div className="p-3 text-xs text-red-400">
+                  <SettingsError className="m-3">
                     {agentImportError}
-                  </div>
+                  </SettingsError>
                 ) : agentImportUnsupported ? (
                   <div className="flex h-[20rem] items-center justify-center px-6 text-center text-sm text-muted-foreground">
                     {t("importFromAgent.unsupported")}

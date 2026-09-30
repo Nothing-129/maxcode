@@ -1,5 +1,10 @@
 "use client"
 
+import { SettingsError } from "@/components/shared/settings-section"
+
+import { SettingRow } from "@/components/shared/setting-card"
+import { SettingsGroup } from "@/components/shared/settings-group"
+
 import {
   useCallback,
   useEffect,
@@ -341,10 +346,10 @@ export function SystemNetworkSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="w-full space-y-4 p-3 md:p-4">
+      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
           <div className="flex items-center justify-between">
-            <h1 className="text-sm font-semibold">{t("sectionTitle")}</h1>
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
             <Button
               variant="ghost"
               className="size-5 rounded-full"
@@ -358,40 +363,44 @@ export function SystemNetworkSettings() {
           </p>
         </section>
 
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Wifi className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("proxyTitle")}</h2>
-          </div>
-
+        <SettingsGroup
+          heading={
+            <div className="flex items-center gap-2">
+              <Wifi className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{t("proxyTitle")}</h2>
+            </div>
+          }
+        >
           <p className="text-xs text-muted-foreground leading-5">
             {t("proxyDescription")}
           </p>
 
           {loadError && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs text-red-400">
+            <SettingsError>
               {t("loadFailed", { message: loadError })}
-            </div>
+            </SettingsError>
           )}
 
-          <label className="inline-flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={enabled}
-              disabled={saving}
-              onChange={(event) => {
-                const next = event.target.checked
-                if (next && !proxyUrl.trim()) {
-                  setProxyUrlError(t("proxyRequired"))
-                  return
-                }
-                setProxyUrlError(null)
-                setEnabled(next)
-                saveProxySettings(next, proxyUrl, noProxy)
-              }}
-            />
-            {t("enableProxy")}
-          </label>
+          <SettingRow
+            title={t("enableProxy")}
+            htmlFor="system-proxy-enabled"
+            control={
+              <Switch
+                id="system-proxy-enabled"
+                checked={enabled}
+                disabled={saving}
+                onCheckedChange={(next) => {
+                  if (next && !proxyUrl.trim()) {
+                    setProxyUrlError(t("proxyRequired"))
+                    return
+                  }
+                  setProxyUrlError(null)
+                  setEnabled(next)
+                  saveProxySettings(next, proxyUrl, noProxy)
+                }}
+              />
+            }
+          />
 
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
@@ -448,14 +457,16 @@ export function SystemNetworkSettings() {
               })}
             </p>
           </div>
-        </section>
+        </SettingsGroup>
 
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("titleModelTitle")}</h2>
-          </div>
-
+        <SettingsGroup
+          heading={
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{t("titleModelTitle")}</h2>
+            </div>
+          }
+        >
           <p className="text-xs text-muted-foreground leading-5">
             {t("titleModelDescription")}
           </p>
@@ -706,14 +717,16 @@ export function SystemNetworkSettings() {
               {savingTitleModel ? t("saving") : t("save")}
             </Button>
           </div>
-        </section>
+        </SettingsGroup>
 
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Languages className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("languageTitle")}</h2>
-          </div>
-
+        <SettingsGroup
+          heading={
+            <div className="flex items-center gap-2">
+              <Languages className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{t("languageTitle")}</h2>
+            </div>
+          }
+        >
           <p className="text-xs text-muted-foreground leading-5">
             {t("languageDescription")}
           </p>
@@ -758,7 +771,7 @@ export function SystemNetworkSettings() {
               </SelectContent>
             </Select>
           </div>
-        </section>
+        </SettingsGroup>
 
         <BackupSettings />
       </div>

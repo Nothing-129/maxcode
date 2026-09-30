@@ -15,14 +15,15 @@ This file provides guidance to Code Agent when working with code in this reposit
 
 ## 智能体维护范围
 
-- 仅维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 六种智能体。
-- 设置、创建会话的智能体目录及后台自动更新仅面向这六种；隐藏新增自定义智能体入口。
+- 仅维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity、ZCode 七种智能体。
+- 设置、创建会话的智能体目录及后台自动更新仅面向这七种；隐藏新增自定义智能体入口。
 - 其他智能体的实现和历史数据暂时保留；上游集成跳过其专属适配、版本和界面改动。
-- 共用功能仅吸收对上述六种有价值的部分，不恢复其他智能体入口。
+- 共用功能仅吸收对上述七种有价值的部分，不恢复其他智能体入口。
+- ZCode 使用 William 的 `zcode-acp-server` npm 适配器，不恢复自研内嵌协议桥。
 
 ## 项目概述
 
-MaxCode 是一个多智能体编码工作台，它将六种智能体（Claude Code、Codex CLI、Grok、Pi、DeepSeek、Google Antigravity）统一到一个工作区中，支持会话聚合和多智能体协作，支持桌面安装，服务器/Docker 部署。
+MaxCode 是一个多智能体编码工作台，它将七种智能体（Claude Code、Codex CLI、Grok、Pi、DeepSeek、Google Antigravity、ZCode）统一到一个工作区中，支持会话聚合和多智能体协作，支持桌面安装，服务器/Docker 部署。
 
 ## 技术栈
 

@@ -193,6 +193,7 @@ export function SettingsShell({
 
   const navContent = (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="px-2 pb-3 text-lg font-semibold">{t("title")}</div>
       <label className="settings-search">
         <Search aria-hidden="true" className="size-3.5" />
         <input
@@ -206,7 +207,7 @@ export function SettingsShell({
         {t("preferences")}
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        <nav className="space-y-1">
+        <nav className="space-y-0.5">
           {filteredNavItems.map((item) => {
             const Icon = item.icon
             const translationKey = `nav.${item.labelKey}` as const
@@ -252,6 +253,7 @@ export function SettingsShell({
                 variant="ghost"
                 size="icon"
                 className="h-8 w-8"
+                aria-label={t("title")}
                 onClick={() => setNavOpen(true)}
               >
                 <Menu className="h-4 w-4" />
@@ -269,8 +271,7 @@ export function SettingsShell({
         {!isMobile && (
           <aside
             className={cn(
-              "flex min-h-0 shrink-0 flex-col px-2 py-3",
-              onBack ? "w-[16.75rem] bg-sidebar" : "w-56 border-r"
+              "flex min-h-0 w-[17.75rem] shrink-0 flex-col border-r border-border/60 bg-sidebar px-2 py-3"
             )}
           >
             {onBack && (

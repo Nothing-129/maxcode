@@ -509,7 +509,7 @@ const FolderPicker = memo(function FolderPicker({
         // button's icon breathing room; paired with the row's `pl-2` it lands the
         // folder icon on the same column as the centered "+" icon.
         className={cn(
-          "min-w-0 gap-0.5 px-1.5",
+          "min-w-0 shrink gap-0.5 px-1.5",
           !editable && "cursor-default opacity-60 hover:bg-transparent"
         )}
       >

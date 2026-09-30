@@ -95,8 +95,8 @@ describe("MaxCode contract: selected upstream runtime integration", () => {
       "proxy-loopback.contract.rs"
     )
     const registry = source("src-tauri/src/acp/registry.rs")
-    expect(registry).toContain("claude-agent-acp@0.81.1")
-    expect(registry).toContain("codex-acp@1.13.1")
+    expect(registry).toContain("claude-agent-acp@0.84.0")
+    expect(registry).toContain("codex-acp@2.0.1")
     const cargo = source("src-tauri/Cargo.toml")
     const dependency = cargo.split("agent-client-protocol =")[1]?.split("\n")[0]
     expect(dependency).not.toContain("unstable_end_turn_token_usage")

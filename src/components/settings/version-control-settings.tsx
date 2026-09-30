@@ -431,9 +431,9 @@ export function VersionControlSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="w-full space-y-4 p-3 md:p-4">
+      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
-          <h1 className="text-sm font-semibold">{t("sectionTitle")}</h1>
+          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
           <p className="text-xs text-muted-foreground">
             {t("sectionDescription")}
           </p>
@@ -458,8 +458,8 @@ export function VersionControlSettings() {
                   </>
                 ) : (
                   <>
-                    <XCircle className="h-3.5 w-3.5 text-red-500" />
-                    <span className="text-red-600 dark:text-red-400 font-medium">
+                    <XCircle className="h-3.5 w-3.5 text-destructive" />
+                    <span className="text-destructive font-medium">
                       {t("gitNotFound")}
                     </span>
                   </>

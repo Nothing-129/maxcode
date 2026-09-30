@@ -1,5 +1,8 @@
 "use client"
 
+import { SettingRow } from "@/components/shared/setting-card"
+import { SettingsGroup } from "@/components/shared/settings-group"
+
 import { APPEARANCE_CUSTOMIZATION_ENABLED } from "@/lib/appearance-policy"
 import { LayoutGrid, Monitor, Moon, Sun, Type } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -58,79 +61,80 @@ export function AppearanceSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div className="w-full space-y-4 p-3 md:p-4">
+      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
+        <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
         {/* ===== Theme Mode ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Sun className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("sectionTitle")}</h2>
-          </div>
-
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("sectionDescription")}
-          </p>
-
-          <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("themeMode")}
-            </label>
-            <Select
-              value={theme ?? "system"}
-              onValueChange={(value) => {
-                setTheme(value as ThemeMode)
-              }}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder={t("placeholder")} />
-              </SelectTrigger>
-              <SelectContent align="start">
-                <SelectItem value="system">
-                  <span className="inline-flex items-center gap-2">
-                    <Monitor className="h-3.5 w-3.5" />
-                    {t("system")}
-                  </span>
-                </SelectItem>
-                <SelectItem value="light">
-                  <span className="inline-flex items-center gap-2">
-                    <Sun className="h-3.5 w-3.5" />
-                    {t("light")}
-                  </span>
-                </SelectItem>
-                <SelectItem value="dark">
-                  <span className="inline-flex items-center gap-2">
-                    <Moon className="h-3.5 w-3.5" />
-                    {t("dark")}
-                  </span>
-                </SelectItem>
-              </SelectContent>
-            </Select>
-            <p
-              className="text-2xs text-muted-foreground"
-              suppressHydrationWarning
-            >
-              {t("currentTheme", { theme: resolvedThemeLabel })}
-            </p>
-          </div>
-        </section>
+        <SettingsGroup
+          heading={
+            <div className="flex items-center gap-2">
+              <Sun className="h-4 w-4 text-muted-foreground" />
+              <h2 className="text-sm font-semibold">{t("themeMode")}</h2>
+            </div>
+          }
+        >
+          <SettingRow
+            title={t("themeMode")}
+            description={
+              <span suppressHydrationWarning>
+                {t("currentTheme", { theme: resolvedThemeLabel })}
+              </span>
+            }
+            htmlFor="appearance-theme-mode"
+            control={
+              <Select
+                value={theme ?? "system"}
+                onValueChange={(value) => {
+                  setTheme(value as ThemeMode)
+                }}
+              >
+                <SelectTrigger id="appearance-theme-mode" className="w-56">
+                  <SelectValue placeholder={t("placeholder")} />
+                </SelectTrigger>
+                <SelectContent align="start">
+                  <SelectItem value="system">
+                    <span className="inline-flex items-center gap-2">
+                      <Monitor className="h-3.5 w-3.5" />
+                      {t("system")}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="light">
+                    <span className="inline-flex items-center gap-2">
+                      <Sun className="h-3.5 w-3.5" />
+                      {t("light")}
+                    </span>
+                  </SelectItem>
+                  <SelectItem value="dark">
+                    <span className="inline-flex items-center gap-2">
+                      <Moon className="h-3.5 w-3.5" />
+                      {t("dark")}
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            }
+          />
+        </SettingsGroup>
 
         {/* ===== Theme Color ===== */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <span
-              className="size-4 rounded-full border"
-              style={{ backgroundColor: THEME_COLOR_PREVIEW[themeColor] }}
-              aria-hidden
-            />
-            <h2 className="text-sm font-semibold">
-              {t("themeColor.sectionTitle")}
-            </h2>
-          </div>
-
+        <SettingsGroup
+          heading={
+            <div className="flex items-center gap-2">
+              <span
+                className="size-4 rounded-full border"
+                style={{ backgroundColor: THEME_COLOR_PREVIEW[themeColor] }}
+                aria-hidden
+              />
+              <h2 className="text-sm font-semibold">
+                {t("themeColor.sectionTitle")}
+              </h2>
+            </div>
+          }
+        >
           <p className="text-xs text-muted-foreground leading-5">
             {t("themeColor.sectionDescription")}
           </p>
 
-          <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             {(APPEARANCE_CUSTOMIZATION_ENABLED
               ? THEME_COLORS
               : SELECTABLE_THEME_COLORS
@@ -166,7 +170,7 @@ export function AppearanceSettings() {
               color: t(`themeColor.options.${themeColor}`),
             })}
           </p>
-        </section>
+        </SettingsGroup>
 
         {APPEARANCE_CUSTOMIZATION_ENABLED && (
           <>
@@ -174,14 +178,16 @@ export function AppearanceSettings() {
             <CustomStyleSection />
 
             {/* ===== Zoom Level ===== */}
-            <section className="rounded-xl border bg-card p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <Type className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold">
-                  {t("zoomLevel.sectionTitle")}
-                </h2>
-              </div>
-
+            <SettingsGroup
+              heading={
+                <div className="flex items-center gap-2">
+                  <Type className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">
+                    {t("zoomLevel.sectionTitle")}
+                  </h2>
+                </div>
+              }
+            >
               <p className="text-xs text-muted-foreground leading-5">
                 {t("zoomLevel.sectionDescription")}
               </p>
@@ -211,7 +217,7 @@ export function AppearanceSettings() {
                   {t("zoomLevel.current", { zoom: zoomLevel })}
                 </p>
               </div>
-            </section>
+            </SettingsGroup>
 
             {/* ===== Fonts ===== */}
             <FontSettingsSection />
@@ -224,14 +230,16 @@ export function AppearanceSettings() {
             <WorkspaceBackgroundSection />
 
             {/* ===== New conversation — mode selection area ===== */}
-            <section className="rounded-xl border bg-card p-4 space-y-4">
-              <div className="flex items-center gap-2">
-                <LayoutGrid className="h-4 w-4 text-muted-foreground" />
-                <h2 className="text-sm font-semibold">
-                  {t("welcomePanel.sectionTitle")}
-                </h2>
-              </div>
-
+            <SettingsGroup
+              heading={
+                <div className="flex items-center gap-2">
+                  <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold">
+                    {t("welcomePanel.sectionTitle")}
+                  </h2>
+                </div>
+              }
+            >
               <p className="text-xs text-muted-foreground leading-5">
                 {t("welcomePanel.sectionDescription")}
               </p>
@@ -247,7 +255,7 @@ export function AppearanceSettings() {
                   {t("welcomePanel.showQuickActions")}
                 </span>
               </label>
-            </section>
+            </SettingsGroup>
           </>
         )}
       </div>

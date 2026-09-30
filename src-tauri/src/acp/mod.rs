@@ -2,6 +2,7 @@
 pub const AGENT_NPM_REGISTRY: &str = "https://npm.aifalao.net";
 
 pub mod agent_mentions;
+pub mod air_contract;
 pub mod agent_process;
 pub mod agent_session;
 pub mod antigravity_login;
@@ -9,6 +10,7 @@ pub mod background_watch;
 pub mod binary_cache;
 pub mod chat_authoring;
 pub mod codex_catalog_source;
+pub mod codex_context;
 pub mod codex_goal;
 pub mod codex_model_catalog;
 pub mod connection;

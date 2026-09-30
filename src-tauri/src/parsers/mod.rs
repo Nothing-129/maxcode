@@ -1011,6 +1011,46 @@ pub fn merge_context_window_stats(
     }
 }
 
+/// `_meta` key claiming that a context-compaction call's result IS the summary
+/// the agent kept of the history it dropped.
+///
+/// The live reader stamps it on every call it translates from the ACP
+/// compaction lifecycle (`acp::connection::session_compaction_event`); a history
+/// parser stamps it through [`attach_compaction_summary`] on a divider whose
+/// summary its transcript still holds. Codeg-namespaced (like
+/// `codeg.delegation`) rather than nested in `contextCompaction`, whose members
+/// are the adapters' reserved vocabulary. The frontend twin is
+/// `COMPACTION_SUMMARY_META_KEY` in `src/lib/context-compaction.ts`, which shows
+/// a compaction call's output as its summary only under this claim.
+pub(crate) const COMPACTION_SUMMARY_META_KEY: &str = "codeg.compactionSummary";
+
+/// Hand a synthesized compaction divider — the `_meta.contextCompaction`
+/// ToolUse and its paired ToolResult that every parser emits for a compaction —
+/// the summary its agent retained, so the reopened divider opens onto the same
+/// "Summary" the live one does: the result carries the text, the call carries
+/// the claim.
+///
+/// Returns `false`, touching nothing, unless `blocks` is such a pair still
+/// waiting for its summary; a divider takes exactly one.
+pub(crate) fn attach_compaction_summary(blocks: &mut [ContentBlock], summary: String) -> bool {
+    let [ContentBlock::ToolUse {
+        meta: Some(serde_json::Value::Object(meta)),
+        ..
+    }, ContentBlock::ToolResult { output_preview, .. }] = blocks
+    else {
+        return false;
+    };
+    if !meta.contains_key("contextCompaction") || output_preview.is_some() {
+        return false;
+    }
+    meta.insert(
+        COMPACTION_SUMMARY_META_KEY.to_string(),
+        serde_json::Value::Bool(true),
+    );
+    *output_preview = Some(summary);
+    true
+}
+
 /// Relocate orphaned tool_result blocks to the turn that contains their matching tool_use.
 ///
 /// After `group_into_turns` splits assistant rounds, async tool execution can cause

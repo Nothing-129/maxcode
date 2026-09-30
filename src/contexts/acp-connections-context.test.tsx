@@ -18,8 +18,14 @@ import { subscribe } from "@/lib/platform"
 import { saveConfigPreference } from "@/lib/selector-prefs-storage"
 import { CONNECTION_KEEPALIVE_INTERVAL_MS } from "@/lib/constants"
 import type { AttachHandlers } from "@/lib/transport/types"
+import {
+  resetAppWorkspaceStore,
+  useAppWorkspaceStore,
+} from "@/stores/app-workspace-store"
 import type {
+  DbConversationSummary,
   EventEnvelope,
+  FolderDetail,
   LiveSessionSnapshot,
   SessionConfigOptionInfo,
   UserMessageBlock,
@@ -48,6 +54,7 @@ const h = vi.hoisted(() => {
     acpConnect: vi.fn(),
     acpDisconnect: vi.fn(),
     acpGetSessionSnapshot: vi.fn(),
+    openSettingsWindow: vi.fn(async () => {}),
     // Historical spy name retained for the read-only liveness probe tests.
     acpTouchConnection: vi.fn(),
     acpActiveTouchConnection: vi.fn(),
@@ -124,6 +131,7 @@ vi.mock("@/lib/api", () => ({
   acpConnect: h.acpConnect,
   acpDisconnect: h.acpDisconnect,
   acpGetSessionSnapshot: h.acpGetSessionSnapshot,
+  openSettingsWindow: h.openSettingsWindow,
   acpPrompt: vi.fn(),
   acpSetMode: vi.fn(),
   acpSetConfigOption: vi.fn(),
@@ -218,6 +226,8 @@ beforeEach(() => {
   h.acpCancel.mockReset()
   h.acpCancel.mockResolvedValue(undefined)
   h.tCalls.length = 0
+  h.toastError.mockClear()
+  h.openSettingsWindow.mockClear()
 })
 
 function latestAttachHandlers(): AttachHandlers {
@@ -571,6 +581,110 @@ describe("AcpConnectionsProvider preview-tab release (disconnectIfIdle)", () => 
     // Left in the store, still streaming: the idle sweep reclaims it once the
     // turn settles (the tab is gone, so nothing else keeps it alive).
     expect(h.store!.getConnection(TAB)?.status).toBe("prompting")
+  })
+
+  describe("a turn that finishes after its tab went away", () => {
+    // No tab owns TAB any more — the notification is the only way the user
+    // learns this turn finished, so it must still say which session it was,
+    // not name the window's active folder ("x").
+    function seedConversation(id: number, externalId: string) {
+      useAppWorkspaceStore.setState({
+        allFolders: [
+          { id: 7, name: "api", alias: null, kind: "regular" },
+        ] as unknown as FolderDetail[],
+        conversations: [
+          {
+            id,
+            folder_id: 7,
+            title: "Fix the flaky upload test",
+            agent_type: "claude_code",
+            external_id: externalId,
+          },
+        ] as unknown as DbConversationSummary[],
+      })
+    }
+
+    async function finishTurnAfterRelease(
+      handlers: AttachHandlers,
+      seq: number
+    ) {
+      emitAcpEvent(handlers, {
+        seq,
+        connection_id: "spawned-conn",
+        type: "status_changed",
+        status: "prompting",
+      })
+      await act(async () => {
+        await h.actions!.disconnectIfIdle(TAB)
+      })
+      h.notifyDesktop.mockClear()
+      emitAcpEvent(handlers, {
+        seq: seq + 1,
+        connection_id: "spawned-conn",
+        type: "turn_complete",
+        session_id: "sess-1",
+        stop_reason: "end_turn",
+      })
+    }
+
+    const namesTheSession = () =>
+      expect(h.notifyDesktop).toHaveBeenCalledWith(
+        "turn_complete",
+        expect.objectContaining({
+          title: "Fix the flaky upload test",
+          redactedTitle: "api - MaxCode",
+          body: "api · notificationTurnComplete",
+        })
+      )
+
+    afterEach(() => {
+      resetAppWorkspaceStore()
+    })
+
+    it("names the conversation it connected to, even after a /clear", async () => {
+      // Claude `/clear` re-points the row at its new transcript while the ACP
+      // session keeps its id: the two no longer match, the row id still does.
+      seedConversation(42, "transcript-after-clear")
+      const handlers = await connectOwner()
+      emitAcpEvent(handlers, {
+        seq: 1,
+        connection_id: "spawned-conn",
+        type: "session_started",
+        session_id: "sess-1",
+      })
+      emitAcpEvent(handlers, {
+        seq: 2,
+        connection_id: "spawned-conn",
+        type: "transcript_rolled_over",
+        transcript_id: "transcript-after-clear",
+      })
+
+      await finishTurnAfterRelease(handlers, 3)
+
+      namesTheSession()
+    })
+
+    it("names a new conversation by the row its first send linked", async () => {
+      seedConversation(43, "sess-1")
+      h.acpFindConnectionForConversation.mockResolvedValue(null)
+      await mountProvider()
+      await act(async () => {
+        // A draft connects before it has a row.
+        await h.actions!.connect(TAB, "claude_code", "/tmp/x")
+      })
+      const handlers = latestAttachHandlers()
+      emitAcpEvent(handlers, {
+        seq: 1,
+        connection_id: "spawned-conn",
+        type: "conversation_linked",
+        conversation_id: 43,
+        folder_id: 7,
+      })
+
+      await finishTurnAfterRelease(handlers, 2)
+
+      namesTheSession()
+    })
   })
 
   it("keeps an owner with outstanding background work alive", async () => {
@@ -3268,6 +3382,59 @@ describe("empty-turn error diagnostics", () => {
       code: "turn_failed_auth_required",
     })
 
+    expect(h.store!.getConnection(TAB)!.error).toBe(
+      "backendErrors.turnFailedAuthRequired"
+    )
+  })
+
+  it("offers Sign in once on an owned auth failure and opens that agent's settings", async () => {
+    const handlers = await connectOwner()
+    const error: EventEnvelope = {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "error",
+      message: "credentials expired",
+      agent_type: "claude_code",
+      code: "turn_failed_auth_required",
+    }
+    emitAcpEvent(handlers, error)
+    emitAcpEvent(handlers, error)
+
+    expect(h.toastError).toHaveBeenCalledTimes(1)
+    const calls = h.toastError.mock.calls as unknown as Array<
+      [string, { action: { label: string; onClick: () => void } }]
+    >
+    const options = calls[0][1]
+    expect(options.action.label).toBe("sessionFailure.action.login")
+    await act(async () => options.action.onClick())
+    expect(h.openSettingsWindow).toHaveBeenCalledWith("agents", {
+      agentType: "claude_code",
+    })
+    expect(h.store!.getConnection(TAB)!.error).toBe(
+      "backendErrors.turnFailedAuthRequired"
+    )
+  })
+
+  it("does not expose credential controls to a viewer", async () => {
+    h.acpFindConnectionForConversation.mockResolvedValue({
+      connection_id: "owner-conn",
+      event_seq: 0,
+    })
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x", "sess-1", 42)
+    })
+    expect(h.store!.getConnection(TAB)?.isViewer).toBe(true)
+    emitAcpEvent(latestAttachHandlers(), {
+      seq: 1,
+      connection_id: "owner-conn",
+      type: "error",
+      message: "credentials expired",
+      agent_type: "claude_code",
+      code: "turn_failed_auth_required",
+    })
+    expect(h.toastError).not.toHaveBeenCalled()
+    expect(h.openSettingsWindow).not.toHaveBeenCalled()
     expect(h.store!.getConnection(TAB)!.error).toBe(
       "backendErrors.turnFailedAuthRequired"
     )

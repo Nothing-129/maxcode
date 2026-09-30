@@ -14,12 +14,20 @@ function agentEntry(agent: string, next: string): string {
 
 describe("MaxCode contract: reviewed built-in agent version catalog", () => {
   it.each([
+    [
+      "ClaudeCode",
+      "Codex",
+      "0.84.0",
+      "@agentclientprotocol/claude-agent-acp@0.84.0",
+    ],
+    ["Codex", "Gemini", "2.0.1", "@agentclientprotocol/codex-acp@2.0.1"],
+    ["Pi", "Grok", "0.0.34", "pi-acp@0.0.34"],
     ["Gemini", "OpenClaw", "0.59.0", "@google/gemini-cli@0.59.0"],
     ["OpenClaw", "Cline", "2026.9.3", "openclaw@2026.9.3"],
     ["Hermes", "CodeBuddy", "0.21.1", "hermes-agent@0.21.1"],
     ["CodeBuddy", "KimiCode", "2.149.0", "@tencent-ai/codebuddy-code@2.149.0"],
     ["KimiCode", "Pi", "0.42.0", "@moonshot-ai/kimi-code@0.42.0"],
-    ["Grok", "Cursor", "1.0.41", "@xai-official/grok@1.0.41"],
+    ["Grok", "Cursor", "1.0.44", "@xai-official/grok@1.0.44"],
     ["Qoder", "Antigravity", "1.1.49", "@qoder-ai/qodercli@1.1.49"],
   ])(
     "pins %s before %s at the reviewed release",
