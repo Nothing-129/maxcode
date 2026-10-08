@@ -160,13 +160,17 @@ describe("mobile session recovery", () => {
       "src/components/chat/composer-connection-status.tsx",
       "utf8"
     )
-    expect(status.slice(0, status.indexOf("<PopoverContent"))).toContain(
-      'role="status"'
+    const inlineStatus = status.slice(
+      status.indexOf("<PopoverTrigger"),
+      status.indexOf("<PopoverContent")
     )
+    expect(inlineStatus).toContain('role="status"')
     expect(status).toContain(
       'disconnected: { Icon: HeartOff, className: "text-red-500" }'
     )
-    expect(status).toMatch(/statusKey === "disconnected"\s*\? "text-red-500"/)
+    // Rendered composer contracts verify which states turn red; this guard
+    // only checks that the inline status retains a visible alarm style.
+    expect(inlineStatus).toContain('"text-red-500"')
     expect(
       readFileSync(
         "src/components/conversations/conversation-detail-panel.tsx",

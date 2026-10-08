@@ -844,7 +844,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "codeg"
-version = "0.30.25"
+version = "0.30.26"
 dependencies = [
  "aes-gcm",
  "agent-client-protocol",
@@ -877,6 +877,7 @@ dependencies = [
  "libc",
  "minisign-verify",
  "notify",
+ "percent-encoding",
  "portable-pty",
  "prost",
  "qrcode",
@@ -906,6 +907,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "url",
  "urlencoding",
  "uuid",
  "walkdir",

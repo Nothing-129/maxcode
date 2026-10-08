@@ -12,6 +12,7 @@
  */
 
 import { isCodexGrepNoMatchEnvelope } from "@/lib/codex-command-action"
+import { EXIT_ONE_LINE, isGrepNoMatchCommandResult } from "@/lib/grep-no-match"
 import { normalizeToolName } from "@/lib/tool-call-normalization"
 
 const SEARCH_BINS = new Set([
@@ -45,6 +46,13 @@ export interface SearchNoMatchProbe {
 
 export function isSearchNoMatchResult(probe: SearchNoMatchProbe): boolean {
   if (!probe.isError) return false
+  if (probe.output?.trim() === EXIT_ONE_LINE) {
+    const name = normalizeToolName(probe.toolName)
+    return (
+      (name === "bash" || name === "exec_command") &&
+      isGrepNoMatchCommandResult(probe.input, probe.output)
+    )
+  }
   if (!toolCanBeSearchMiss(probe.toolName, probe.input)) return false
   return resultLooksLikeNoMatch(probe.output)
 }

@@ -12,12 +12,13 @@ import { NextIntlClientProvider } from "next-intl"
 import { toast } from "sonner"
 import type { ComponentProps } from "react"
 import type { Editor } from "@tiptap/core"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { RichComposerHandle } from "./composer/rich-composer"
 import { serializeDocToText } from "./composer/to-prompt-blocks"
 import {
   clearMessageInputDraftV2,
+  saveMessageInputDraftV2,
   loadMessageInputDraftV2,
 } from "@/lib/message-input-draft"
 import {
@@ -1462,6 +1463,50 @@ describe("MessageInput mid-turn send (live-feedback channel)", () => {
     await waitFor(() => expect(screen.queryByTitle(MI.queueMessage)).toBeNull())
   })
 
+  it.each([
+    ["native", false],
+    ["pull", false],
+    ["native", true],
+    ["pull", true],
+  ] as const)(
+    "preserves edits during a %s steer (turn ended: %s)",
+    async (steerChannel, turnEnded) => {
+      const user = userEvent.setup()
+      const { isNoActiveTurnRejection } = await import("@/lib/turn-busy")
+      vi.mocked(isNoActiveTurnRejection).mockReturnValue(turnEnded)
+      let finish: () => void = () => {}
+      const onSteer = vi.fn(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            finish = () =>
+              turnEnded ? reject(new Error("no active turn")) : resolve()
+          })
+      )
+      const onEnqueue = vi.fn()
+      const editor = await mountPrompting({
+        onSteer,
+        onEnqueue,
+        steerChannel,
+      })
+      typeDraft(editor, "original instruction")
+      const label =
+        steerChannel === "native" ? MI.steerIntoTurn : MI.steerAsNote
+      await user.click(screen.getByLabelText(label))
+      await user.click(await screen.findByRole("menuitem", { name: label }))
+      typeDraft(editor, " additional instruction")
+      await act(async () => finish())
+      expect(serializeDocToText(editor.state.doc)).toContain(
+        "additional instruction"
+      )
+      if (turnEnded) {
+        expect(onEnqueue).toHaveBeenCalledWith(
+          expect.objectContaining({ displayText: "original instruction" }),
+          null
+        )
+      }
+    }
+  )
+
   it("falls back to the queue when the turn ends in the race window", async () => {
     const user = userEvent.setup()
     const { isNoActiveTurnRejection } = await import("@/lib/turn-busy")
@@ -2022,5 +2067,129 @@ describe("MessageInput composer box sizing (#746)", () => {
       editorRoot.compareDocumentPosition(actionRow!) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
+  })
+})
+
+describe("tab-activation auto-focus", () => {
+  afterEach(() => cleanup())
+  const draftKey = "test:tab-activation-focus"
+  // The browser's answer to the primary-pointer query. Every other query
+  // keeps the setup's desktop answer. `setPointer` changes it mid-session the
+  // way docking a 2-in-1 does, telling whoever listens.
+  let pointerCoarse = false
+  const pointerListeners = new Set<() => void>()
+  function setPointer(coarse: boolean) {
+    pointerCoarse = coarse
+    pointerListeners.forEach((listener) => listener())
+  }
+  beforeEach(() => {
+    const desktop = window.matchMedia
+    vi.spyOn(window, "matchMedia").mockImplementation((query) =>
+      query === "(pointer: coarse)"
+        ? ({
+            media: query,
+            get matches() {
+              return pointerCoarse
+            },
+            addEventListener: (_type: string, listener: () => void) =>
+              pointerListeners.add(listener),
+            removeEventListener: (_type: string, listener: () => void) =>
+              pointerListeners.delete(listener),
+          } as unknown as MediaQueryList)
+        : desktop(query)
+    )
+  })
+  afterEach(() => {
+    vi.mocked(window.matchMedia).mockRestore()
+    pointerListeners.clear()
+    pointerCoarse = false
+    clearMessageInputDraftV2(draftKey)
+  })
+
+  const composer = (isActive: boolean) => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <MessageInput
+        onSend={vi.fn()}
+        promptCapabilities={CAPS}
+        draftStorageKey={draftKey}
+        isActive={isActive}
+      />
+    </NextIntlClientProvider>
+  )
+  const nextFrame = () =>
+    act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+    })
+  async function mountReady(isActive: boolean, coarse: boolean) {
+    setPointer(coarse)
+    saveMessageInputDraftV2(draftKey, {
+      type: "doc",
+      content: [
+        { type: "paragraph", content: [{ type: "text", text: "draft" }] },
+      ],
+    })
+    const view = render(composer(isActive))
+    await waitFor(
+      () =>
+        expect(
+          view.container.querySelector('[role="textbox"]')?.textContent
+        ).toBe("draft"),
+      { timeout: 5000 }
+    )
+    return view
+  }
+
+  describe.each([
+    ["coarse", "leaves the composer unfocused", true, false],
+    ["fine", "focuses the composer", false, true],
+  ] as const)(
+    "on a %s pointer, tab activation %s",
+    (_pointer, _outcome, coarse, focused) => {
+      it("when the session opens in an active tab", async () => {
+        const { container } = await mountReady(true, coarse)
+        await nextFrame() // Tiptap's deferred DOM focus
+        const editor = container.querySelector('[role="textbox"]')
+        expect(document.activeElement).toBe(focused ? editor : document.body)
+      })
+
+      it("when switching to a session already open in the background", async () => {
+        const { container, rerender } = await mountReady(false, coarse)
+        // Still in the background, the composer holds no focus, so whatever
+        // the assertion below sees is the switch's doing.
+        await nextFrame() // Tiptap's deferred DOM focus, were one scheduled
+        expect(document.activeElement).toBe(document.body)
+
+        rerender(composer(true))
+        await nextFrame() // the auto-focus effect's own frame
+        await nextFrame() // Tiptap's deferred DOM focus
+        const editor = container.querySelector('[role="textbox"]')
+        expect(document.activeElement).toBe(focused ? editor : document.body)
+      })
+    }
+  )
+
+  // Passing through a tab, activating it and moving on before a frame is
+  // drawn, must not leave the caret in a composer that is no longer active.
+  // In a tiled group that composer is still on screen.
+  it("drops the pending focus when the tab goes inactive before its frame", async () => {
+    const { rerender } = await mountReady(false, false)
+    rerender(composer(true))
+    rerender(composer(false))
+    await nextFrame() // the auto-focus effect's own frame
+    await nextFrame() // Tiptap's deferred DOM focus
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  // A pointer change is not a reason to focus. The session stays as it was,
+  // with no caret and no keyboard, until the user taps the composer.
+  it("leaves focus alone when the pointer turns fine mid-session", async () => {
+    await mountReady(true, true)
+    await nextFrame() // Tiptap's deferred DOM focus, were one scheduled
+    expect(document.activeElement).toBe(document.body)
+
+    act(() => setPointer(false))
+    await nextFrame() // an auto-focus effect's own frame, were one scheduled
+    await nextFrame() // Tiptap's deferred DOM focus
+    expect(document.activeElement).toBe(document.body)
   })
 })

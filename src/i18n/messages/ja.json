@@ -3029,7 +3029,7 @@
           "downloadFailed": "{agent} のダウンロードに失敗しました: {message}",
           "sessionLoadResourceNotFound": "{agent} セッションの読み込みに失敗しました。再読み込みして再試行するか、新しい会話を開始してください。",
           "sessionLoadUnavailable": "{agent} はこのセッションを復元できませんでした。セッションが終了したか、エージェントが停止した可能性があります。再読み込みして再試行するか、新しい会話を開始してください。",
-          "sessionLoadBusy": "この履歴は、そこから分岐したセッションが開いたままにしています。そのセッションを閉じてから再読み込みしてください。",
+          "sessionLoadBusy": "このセッションは別の場所で開かれています。別の {agent} クライアント（デスクトップアプリ、CLI、IDE 拡張機能）で開いている場合は、そちらで閉じるかそのクライアントを終了してから再読み込みしてください。ここから分岐した直後なら、1 分ほどしてから再読み込みしてください。",
           "sessionArchived": "以前のセッションは {agent} 側でアーカイブされています。ターミナルで {command} を実行して復元してから再読み込みするか、新しい会話を開始してください。",
           "turnFailedRefusal": "{agent} がこのターンの続行を拒否しました。バックエンドまたはゲートウェイのエラーが原因の可能性があります。エージェントのログを確認してください。",
           "turnFailedMaxTokens": "{agent} がこのターンの最大トークン数に達しました。",
@@ -5259,7 +5259,9 @@
     "deliverPrBackDeleteWorktree": "プッシュ後に worktree を削除",
     "deliverPrBackSubmit": "push",
     "deliverPrBackDone": "プルリクエストに push しました",
-    "deliverPrBackDoneMr": "マージリクエストに push しました"
+    "deliverPrBackDoneMr": "マージリクエストに push しました",
+    "agentNoDefaultHint": "タスク設定に既定のエージェントがありません — 選択中のエージェントをこのタスクに保存します",
+    "agentInheritedUnavailableHint": "タスク設定の {agent} は利用できません — 選択中のエージェントをこのタスクに保存します"
   },
   "CustomSkillsSettings": {
     "loading": "カスタムスキルを読み込み中…",

@@ -5,6 +5,7 @@ pub mod cline;
 pub mod codebuddy;
 pub mod codex;
 pub mod codex_code_mode;
+mod codex_desktop_attachments;
 pub mod cursor;
 pub mod deepseek;
 pub mod gemini;
@@ -15,8 +16,8 @@ pub mod openclaw;
 pub mod opencode;
 pub mod pi;
 pub mod qoder;
-pub mod zcode;
 mod summary_cache;
+pub mod zcode;
 
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -249,7 +250,10 @@ pub fn external_transcript_sources() -> Vec<ExternalSource> {
             // read-only connection so WAL frames survive), never the sibling
             // provider config or credentials under `~/.zcode/v2`.
             agent: "zcode",
-            root: zcode::resolve_zcode_data_root().join("cli").join("db").join("db.sqlite"),
+            root: zcode::resolve_zcode_data_root()
+                .join("cli")
+                .join("db")
+                .join("db.sqlite"),
             is_file: true,
             sqlite: true,
             include_top: None,

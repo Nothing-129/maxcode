@@ -2,9 +2,9 @@
 pub const AGENT_NPM_REGISTRY: &str = "https://npm.aifalao.net";
 
 pub mod agent_mentions;
-pub mod air_contract;
 pub mod agent_process;
 pub mod agent_session;
+pub mod air_contract;
 pub mod antigravity_login;
 pub mod background_watch;
 pub mod binary_cache;
@@ -24,6 +24,7 @@ pub mod fork;
 pub mod host_tools_policy;
 pub mod idle_sweep;
 pub mod internal_bus;
+pub mod js_text;
 pub mod lifecycle;
 pub mod manager;
 pub mod opencode_catalog;
@@ -35,6 +36,7 @@ pub mod question;
 pub mod registry;
 pub mod remote_registry;
 pub mod scratch_dir;
+pub mod service_error;
 pub mod session_info;
 pub mod session_state;
 pub mod session_title;

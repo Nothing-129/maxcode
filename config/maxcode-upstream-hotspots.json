@@ -2,6 +2,73 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.selected-upstream-20261008",
+      "category": "runtime",
+      "description": "Eight reviewed upstream repairs: linear transcript-tail memory; coarse-pointer composer focus without subscriptions; task saves its shown maintained agent; Grok catalogs preserve model/effort and deduplicate; Claude 0.86 and Codex 2.1.1 preserve writer-lock, parent-close, custom answers, attachment/history and background command semantics; pending steering preserves edited text/images; silent search pipelines retain real errors. Electron, seven-agent catalog, Codex steering gates and uncertain queued delivery protection remain unchanged.",
+      "origins": [
+        "f0e6a520",
+        "d93f359b",
+        "1c452ed5",
+        "d60820c9",
+        "09caedd5",
+        "6bd62250",
+        "78402121",
+        "6d0257b2",
+        "2e5b46b4",
+        "8f9fc05d",
+        "3b29d2f4"
+      ],
+      "paths": [
+        "src-tauri/src/acp/background_watch.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/question.rs",
+        "src-tauri/src/acp/service_error.rs",
+        "src-tauri/src/acp/js_text.rs",
+        "src-tauri/src/acp/session_state.rs",
+        "src-tauri/src/acp/types.rs",
+        "src-tauri/src/web/event_bridge.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/codex_desktop_attachments.rs",
+        "src/components/chat/message-input.tsx",
+        "src/components/tasks/task-editor-dialog.tsx",
+        "src/hooks/use-is-coarse-pointer.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/lib/search-no-match.ts",
+        "src/lib/grep-no-match.ts",
+        "src/lib/ask-question.ts",
+        "src/lib/background-task.ts",
+        "src/stores/conversation-runtime-store.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-runtime-20261008.contract.test.ts",
+        "src/maxcode-contracts/composer-focus-draft.contract.test.tsx",
+        "src/maxcode-contracts/task-shown-agent.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "web.mobile-live-recovery",
+      "category": "runtime",
+      "description": "Mobile wake and reuse catch up retained sessions without restarting the agent, including replies completed during an event gap. Server transport loss overrides stale agent connection indicators and reconnects only the WebSocket. TCP/application-ready deadlines, fresh readiness waits, bounded wake heartbeat deadlines and offline signals prevent invisible zombie links. WebSocket control responses never await the bounded event queue drained by their own task; snapshots precede live events.",
+      "origins": ["worktree-2026-10-02"],
+      "paths": [
+        "src/lib/transport/web-transport.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/stores/conversation-runtime-store.ts",
+        "src/components/chat/composer-connection-status.tsx",
+        "src/components/connection/web-connection-guard.tsx",
+        "src-tauri/src/web/ws.rs",
+        "src/maxcode-contracts/mobile-ws-control-recovery.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-websocket-health.contract.test.ts",
+        "src/maxcode-contracts/mobile-transport-status.contract.test.tsx",
+        "src/maxcode-contracts/mobile-session-catchup.contract.test.tsx",
+        "src/maxcode-contracts/mobile-ws-control-recovery.contract.test.ts"
+      ]
+    },
+    {
       "id": "runtime.upstream-recommended-20260930",
       "category": "runtime",
       "description": "Claude/Codex AIR sparse updates preserve tool identity without replaying frame output, local complete edit inputs and every hunk, permission shape gates and prompt admission. Codex search usage does not inflate context and Grok follow-ups preserve admitted prompts.",
@@ -1553,7 +1620,7 @@
     {
       "id": "desktop.differential-updates",
       "category": "platform",
-      "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready; an explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
+      "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready, including native Squirrel signature validation on macOS. Installed ad-hoc apps cannot opt into automatic installation; validation failure keeps the backend running and clears the install action. An explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "electron/",

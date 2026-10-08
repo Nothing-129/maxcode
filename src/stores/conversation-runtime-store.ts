@@ -46,7 +46,11 @@ import {
 import { collapseLiveCollabBlocks } from "@/lib/collab-collapse"
 import { kimiTodoWriteEntries } from "@/lib/plan-parse"
 import { toErrorMessage } from "@/lib/app-error"
-import { BACKGROUND_TASK_MARKER } from "@/lib/background-agent"
+import {
+  BACKGROUND_TASK_MARKER,
+  isAsyncLaunchAckText,
+  parseBackgroundTaskMarker,
+} from "@/lib/background-agent"
 import { imageCardLabel } from "@/lib/image-tool-label"
 
 /**
@@ -313,6 +317,9 @@ type Action =
        * it, and a late-resolving partial could momentarily replace it).
        */
       preserveLive?: boolean
+      /** A fresh settled session snapshot proved the live completion was lost.
+       *  Release its in-flight buffers atomically with a settled disk reply. */
+      settleMissedTurn?: boolean
       /**
        * Live turns this response supersedes, by id. Set only by a fork: it
        * re-points the row at a session whose history stops at the chosen turn,
@@ -1913,6 +1920,23 @@ function userTurnContentKey(turn: MessageTurn): string {
   )
 }
 
+function lastMatchingUserTurnIndex(
+  turns: MessageTurn[],
+  prompt: MessageTurn
+): number {
+  const contentKey = userTurnContentKey(prompt)
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const turn = turns[i]!
+    if (
+      turn.role === "user" &&
+      (turn.id === prompt.id || userTurnContentKey(turn) === contentKey)
+    ) {
+      return i
+    }
+  }
+  return -1
+}
+
 /**
  * The same key for a mid-turn steered message, whose persisted copy is a user
  * turn carrying exactly what was sent (see `suppressPersistedSteeredPrompts`).
@@ -1950,6 +1974,14 @@ function steeredContentKey(
  * is `matched` but not `changed` — callers must treat it as handled (NOT queue
  * it), or an idempotent re-settle would be buffered and later re-applied over a
  * newer result. `turns` keeps its original reference when nothing changed.
+ *
+ * Only a sub-agent's launch card is rewritten: one still showing its launch ack,
+ * or the marker a cold parse or an earlier settlement left there — the same
+ * cards `AgentToolCallPart` reads a lifecycle from. A background shell's
+ * notification names the `Bash` call that started it as well, so its
+ * settlement matches that command card, which shows the command and its launch
+ * notice rather than a lifecycle: it is `matched` (handled, never queued) and
+ * left as it is, as the cold parse leaves it.
  */
 function applyBackgroundSettlementToTurns(
   turns: MessageTurn[],
@@ -1973,7 +2005,10 @@ function applyBackgroundSettlementToTurns(
         block.tool_use_id === settlement.toolUseId
       ) {
         matched = true
-        if (block.output_preview !== marker) {
+        const isLaunchCard =
+          isAsyncLaunchAckText(block.output_preview) ||
+          parseBackgroundTaskMarker(block.output_preview) !== null
+        if (isLaunchCard && block.output_preview !== marker) {
           turnChanged = true
           changed = true
           return { ...block, output_preview: marker }
@@ -2071,10 +2106,13 @@ function reducer(
       // `preserveLive` and keep every live buffer; a settled (non-in-flight) load
       // replaces them authoritatively.
       const detailIsInFlight = action.detail.in_flight_user_turn_id != null
+      const settleMissedTurn =
+        action.settleMissedTurn === true && !detailIsInFlight
       const isActivelyInteracting =
-        current.syncState === "awaiting_persist" ||
-        action.preserveLive === true ||
-        detailIsInFlight
+        !settleMissedTurn &&
+        (current.syncState === "awaiting_persist" ||
+          action.preserveLive === true ||
+          detailIsInFlight)
       const keepAllLiveBuffers =
         action.preserveLive === true || detailIsInFlight
       const dropIds = action.dropLiveTurnIds?.length
@@ -2122,6 +2160,18 @@ function reducer(
             ? {}
             : { localTurns: [] }
           : { localTurns: [], optimisticTurns: [], liveMessage: null }),
+        ...(settleMissedTurn
+          ? {
+              syncState: "idle" as const,
+              activeTurnToken: null,
+              seenUserMessageIds: new Set([
+                ...(current.seenUserMessageIds ?? []),
+                ...current.optimisticTurns
+                  .filter((turn) => turn.role === "user")
+                  .map((turn) => turn.id),
+              ]),
+            }
+          : {}),
         // Applied AFTER the blanket rules above so a fork's targeted removal
         // survives `preserveLive` (which is what a fork asks for: keep
         // everything except the turns it just invalidated).
@@ -2950,6 +3000,14 @@ export interface RuntimeActions {
    * client is a pure viewer of it (never touches an owner's in-memory reply).
    */
   syncViewerDetail: (conversationId: number) => void
+  /** Recover a reply omitted by a settled reconnect snapshot. The caller
+   *  proves its connection has not advanced to another turn while disk flushes. */
+  recoverSettledDetail: (
+    conversationId: number,
+    isCurrent: () => boolean,
+    expectedPrompt?: MessageTurn,
+    onRecovered?: () => void
+  ) => () => void
   syncTurnMetadata: (
     dbConversationId: number,
     runtimeConversationId?: number
@@ -4067,7 +4125,20 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
   // open AND a pure viewer, so the owner's in-flight/just-completed reply is
   // never touched. Never sets `detailLoading` — a passive background sync must
   // not flash a spinner over the content the viewer is already reading.
-  const syncViewerDetail = (nudgedConversationId: number): void => {
+  const syncViewerDetail = (
+    nudgedConversationId: number,
+    recovery?: {
+      isCurrent: () => boolean
+      externalId: string | null
+      turnToken: string | null
+      liveMessageId: string | null
+      optimisticIds: ReadonlySet<string>
+      expectedPrompt: MessageTurn | null
+      assistantBaseline: number
+      detail: DbConversationDetail | null
+      onRecovered?: () => void
+    }
+  ): void => {
     // The nudge carries a positive DB id; map it to the runtime session key,
     // which may be a virtual negative id for a draft-originated tab (issue: the
     // `dbConversationId` fetch fallback below is unreachable without this).
@@ -4076,8 +4147,20 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       nudgedConversationId
     )
     if (conversationId == null) return
+    const isEligible = (current: ConversationRuntimeSession): boolean =>
+      recovery
+        ? recovery.isCurrent() &&
+          current.externalId === recovery.externalId &&
+          (current.activeTurnToken === null ||
+            current.activeTurnToken === recovery.turnToken) &&
+          (current.liveMessage === null ||
+            current.liveMessage.id === recovery.liveMessageId) &&
+          current.optimisticTurns.every((turn) =>
+            recovery.optimisticIds.has(turn.id)
+          )
+        : isPureViewerSession(current)
     const session = get().byConversationId.get(conversationId)
-    if (!session || !isPureViewerSession(session)) return
+    if (!session || !isEligible(session)) return
 
     const active = viewerDetailSyncCancels.get(conversationId)
     if (active) {
@@ -4108,7 +4191,7 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       // The session vanished (tab closed) or started driving its own turn
       // (a local send / live stream) between ticks — stop; it is no longer a
       // pure viewer this poll may refetch under.
-      if (!cur || !isPureViewerSession(cur)) {
+      if (!cur || !isEligible(cur)) {
         cancel()
         return
       }
@@ -4125,7 +4208,7 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
         .then((detail) => {
           if (cancelled) return
           const cur2 = get().byConversationId.get(conversationId)
-          if (!cur2 || !isPureViewerSession(cur2)) {
+          if (!cur2 || !isEligible(cur2)) {
             cancel()
             return
           }
@@ -4146,8 +4229,36 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
           // Any other settled tail (assistant reply, or no turns) means there is
           // nothing more to wait for.
           const lastTurn = detail.turns[detail.turns.length - 1]
+          // A settled snapshot can race a transcript that has not written even
+          // the new prompt yet. An old assistant tail (or empty parse) is not
+          // evidence that THIS round persisted. Match the known prompt and
+          // require its following reply to be beyond the captured history.
+          // Counts are global, so this also works for a windowed transcript;
+          // an already-present partial reply can grow in place without a byte
+          // watermark or turn-count increase.
+          const assistantCount =
+            (detail.assistant_turns_before_offset ?? 0) +
+            detail.turns.filter((turn) => turn.role === "assistant").length
+          const recoveredPromptIndex = recovery?.expectedPrompt
+            ? lastMatchingUserTurnIndex(detail.turns, recovery.expectedPrompt)
+            : -1
+          const recoveredReply = !recovery
+            ? true
+            : recovery.expectedPrompt
+              ? recoveredPromptIndex >= 0 &&
+                detail.turns
+                  .slice(recoveredPromptIndex + 1)
+                  .some((turn) => turn.role === "assistant") &&
+                assistantCount > recovery.assistantBaseline
+              : detail.turns.some((turn) => turn.role === "assistant") &&
+                recovery.detail !== null &&
+                (turnsTotalOf(detail) > turnsTotalOf(recovery.detail) ||
+                  (detail.transcript_watermark ?? 0) >
+                    (recovery.detail.transcript_watermark ?? 0))
           const replyPending =
-            detail.in_flight_user_turn_id != null || lastTurn?.role === "user"
+            detail.in_flight_user_turn_id != null ||
+            lastTurn?.role === "user" ||
+            !recoveredReply
           // Skip a no-op dispatch (identical transcript) so a multi-tick poll
           // doesn't re-render the message list on every attempt. Compare the
           // cheap byte watermark + FULL-transcript turn count rather than
@@ -4170,16 +4281,21 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
           // turn IN PLACE (OpenCode/Gemini): its final read shares the partial's
           // null watermark and turn count, so `changed` alone would suppress it
           // and the poll would then stop, freezing the viewer on the partial.
-          if (isLatest && (changed || !replyPending)) {
+          if (
+            isLatest &&
+            (recovery ? !replyPending : changed || !replyPending)
+          ) {
             dispatch({
               type: "FETCH_DETAIL_SUCCESS",
               conversationId,
               detail,
               preserveLive: false,
+              settleMissedTurn: recovery !== undefined,
             })
+            recovery?.onRecovered?.()
           }
           if (
-            (replyPending || nudged) &&
+            (replyPending || nudged || (recovery && !isLatest)) &&
             n + 1 < VIEWER_DETAIL_SYNC_DELAYS_MS.length
           ) {
             timer = setTimeout(
@@ -4206,7 +4322,14 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
         })
     }
 
-    attempt(0)
+    if (recovery) {
+      // TurnComplete can precede the CLI's final transcript flush. Keep the
+      // observed reply on screen through that margin, and never commit a
+      // trailing user-only/in-flight parse during this recovery.
+      timer = setTimeout(() => attempt(0), VIEWER_DETAIL_SYNC_DELAYS_MS[1])
+    } else {
+      attempt(0)
+    }
   }
 
   const syncTurnMetadata = (
@@ -4418,6 +4541,55 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
     refetchDetail,
     loadOlderTurns,
     syncViewerDetail,
+    recoverSettledDetail: (
+      conversationId,
+      isCurrent,
+      expectedPrompt,
+      onRecovered
+    ) => {
+      const session = get().byConversationId.get(conversationId)
+      if (!session) return () => {}
+      // A recovery must replace an earlier viewer poll, whose eligibility
+      // excludes the very live buffers this missed completion needs to settle.
+      const prompt =
+        expectedPrompt ??
+        [...session.optimisticTurns]
+          .reverse()
+          .find((turn) => turn.role === "user") ??
+        session.detail?.turns.find(
+          (turn) => turn.id === session.detail?.in_flight_user_turn_id
+        ) ??
+        null
+      const persistedPromptIndex = session.detail?.turns.findIndex(
+        (turn) => turn.id === session.detail?.in_flight_user_turn_id
+      )
+      const historyTurns =
+        persistedPromptIndex !== undefined && persistedPromptIndex >= 0
+          ? session.detail!.turns.slice(0, persistedPromptIndex)
+          : (session.detail?.turns ?? [])
+      const assistantBaseline =
+        (session.historyAssistantBaseline ??
+          (session.detail?.assistant_turns_before_offset ?? 0) +
+            historyTurns.filter((turn) => turn.role === "assistant").length) +
+        session.localTurns.filter((turn) => turn.role === "assistant").length
+      const recovery = {
+        isCurrent,
+        externalId: session.externalId,
+        turnToken: session.activeTurnToken,
+        liveMessageId: session.liveMessage?.id ?? null,
+        optimisticIds: new Set(session.optimisticTurns.map((turn) => turn.id)),
+        expectedPrompt: prompt,
+        assistantBaseline,
+        detail: session.detail,
+        onRecovered,
+      }
+      const retry = () => {
+        cancelViewerDetailSync(conversationId)
+        syncViewerDetail(conversationId, recovery)
+      }
+      retry()
+      return retry
+    },
     syncTurnMetadata,
     completeTurn: (conversationId, liveMessage) => {
       // Deliberately NO refetchDetail here (tried and reverted — see git

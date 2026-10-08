@@ -46,6 +46,12 @@ vi.mock("@/contexts/acp-connections-context", () => ({
   useConnectionStore: () => fake.store,
   useAcpActions: () => fake.actions,
 }))
+vi.mock("@/lib/transport/web-connection-store", () => ({
+  subscribeWebConnection: () => () => {},
+  getWebConnectionSnapshot: () => "connected",
+  getWebConnectionServerSnapshot: () => "connected",
+  reconnectWebNow: vi.fn(),
+}))
 
 import { ComposerConnectionStatus } from "./composer-connection-status"
 

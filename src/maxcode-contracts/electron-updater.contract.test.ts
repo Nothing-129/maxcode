@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest"
 
 const require = createRequire(import.meta.url)
 const { createDesktopUpdater } = require("../../electron/updater.cjs")
+const { supportsMacUpdates } = require("../../electron/update-signature.cjs")
 const {
   GITHUB_SLOW_MS,
   UPDATE_MIRROR,
@@ -30,13 +31,18 @@ const mirrorFeed = {
 
 function fixture(
   enabled = true,
-  probe: (url: string) => Promise<number | null> = async () => 50
+  probe: (url: string) => Promise<number | null> = async () => 50,
+  nativeMac = false
 ) {
   let finish!: () => void
   let fail!: (error: Error) => void
   const events: Array<{ seq: number; status: string }> = []
   const order: string[] = []
+  const nativeUpdater = Object.assign(new EventEmitter(), {
+    checkForUpdates: vi.fn(),
+  })
   const updater = Object.assign(new EventEmitter(), {
+    nativeUpdater: nativeMac ? nativeUpdater : undefined,
     previousBlockmapBaseUrlOverride: null as string | null,
     setFeedURL: vi.fn(),
     checkForUpdates: vi.fn(async () => {
@@ -71,6 +77,7 @@ function fixture(
   return {
     controller,
     updater,
+    nativeUpdater,
     events,
     beforeInstall,
     order,
@@ -80,6 +87,65 @@ function fixture(
 }
 
 describe("MaxCode contract: Electron differential update lifecycle", () => {
+  it("waits for native macOS validation before offering restart or stopping the backend", async () => {
+    const f = fixture(true, async () => 50, true)
+    f.controller.start()
+    await vi.waitFor(() =>
+      expect(f.updater.downloadUpdate).toHaveBeenCalledOnce()
+    )
+    f.updater.emit("update-downloaded", { version: "0.30.7" })
+    expect(f.controller.snapshot().status).toBe("downloading")
+    f.finish()
+    await vi.waitFor(() =>
+      expect(f.nativeUpdater.checkForUpdates).toHaveBeenCalledOnce()
+    )
+    await expect(f.controller.restart()).rejects.toThrow(
+      "No verified desktop update"
+    )
+    expect(f.beforeInstall).not.toHaveBeenCalled()
+    await f.controller.check()
+    expect(f.updater.downloadUpdate).toHaveBeenCalledOnce()
+    f.nativeUpdater.emit("update-downloaded")
+    await vi.waitFor(() =>
+      expect(f.controller.snapshot().status).toBe("ready_to_restart")
+    )
+    expect(f.nativeUpdater.listenerCount("error")).toBe(0)
+    await f.controller.restart()
+    await vi.waitFor(() =>
+      expect(f.updater.quitAndInstall).toHaveBeenCalledOnce()
+    )
+  })
+
+  it("clears macOS signature failures without showing an install button or restarting the app", async () => {
+    const f = fixture(true, async () => 50, true)
+    const error = new Error("Code signature did not pass validation")
+    f.nativeUpdater.checkForUpdates.mockImplementation(() => {
+      f.updater.emit("error", error)
+      f.nativeUpdater.emit("error", error)
+    })
+    f.updater.downloadUpdate.mockImplementation(async () => {
+      f.updater.emit("update-downloaded", { version: "0.30.7" })
+    })
+    f.controller.start()
+    await vi.waitFor(() =>
+      expect(f.controller.snapshot()).toMatchObject({
+        status: "error",
+        error: error.message,
+      })
+    )
+    expect(f.events.some((event) => event.status === "ready_to_restart")).toBe(
+      false
+    )
+    expect(f.nativeUpdater.listenerCount("update-downloaded")).toBe(0)
+    expect(f.nativeUpdater.listenerCount("error")).toBe(0)
+    expect(f.beforeInstall).not.toHaveBeenCalled()
+    expect(f.updater.quitAndInstall).not.toHaveBeenCalled()
+    await f.controller.check()
+    await vi.waitFor(() =>
+      expect(f.nativeUpdater.checkForUpdates).toHaveBeenCalledTimes(4)
+    )
+  })
+
   it("automatically downloads stable updates after checking but never installs without a click", async () => {
     const { controller, updater } = fixture()
     expect(updater).toMatchObject({
@@ -247,6 +313,43 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
       "No verified desktop update"
     )
     expect(installed.beforeInstall).not.toHaveBeenCalled()
+  })
+})
+
+describe("MaxCode contract: installed macOS update signature", () => {
+  const inspect = (stderr: string, status = 0) =>
+    vi.fn(() => ({ stdout: "", stderr, status }))
+  it("rejects ad-hoc and unreadable signatures even when a package opted into updates", () => {
+    expect(
+      supportsMacUpdates(
+        "/Applications/maxcode.app",
+        inspect("Signature=adhoc\nTeamIdentifier=not set")
+      )
+    ).toBe(false)
+    expect(
+      supportsMacUpdates("/Applications/maxcode.app", inspect("", 1))
+    ).toBe(false)
+    expect(
+      supportsMacUpdates("/Applications/maxcode.app", () => {
+        throw new Error("codesign unavailable")
+      })
+    ).toBe(false)
+  })
+  it("allows Developer ID signatures with a team identifier", () => {
+    expect(
+      supportsMacUpdates(
+        "/Applications/maxcode.app",
+        inspect(
+          "Authority=Developer ID Application: Example (TEAM123)\nTeamIdentifier=TEAM123"
+        )
+      )
+    ).toBe(true)
+    expect(
+      supportsMacUpdates(
+        "/Applications/maxcode.app",
+        inspect("Authority=Apple Development: Example\nTeamIdentifier=TEAM123")
+      )
+    ).toBe(false)
   })
 })
 

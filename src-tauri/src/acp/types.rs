@@ -681,16 +681,19 @@ pub enum AcpEvent {
     /// into the same deltas without advertising anything to it.
     AsyncTask { delta: AsyncTaskDelta },
     /// `session/load` failed in a way codeg cannot paper over — the agent has
-    /// no record of this `session_id`, the session/process died, or it is
-    /// archived. Emitted instead of silently falling back to `session/new`, so
-    /// the frontend can surface the failure with reload / new-conversation
-    /// actions.
+    /// no record of this `session_id`, the session/process died, it is
+    /// archived, or another client holds it open. Emitted instead of silently
+    /// falling back to `session/new`, so the frontend can surface the failure
+    /// with reload / new-conversation actions.
     SessionLoadFailed {
         session_id: String,
         message: String,
         /// Stable machine-readable identifier: `"resource_not_found"` for
-        /// JSON-RPC -32002, or `"session_unavailable"` / `"session_archived"`
-        /// matched on the wire message. See `classify_session_load_failure`.
+        /// JSON-RPC -32002, `"session_busy"` for codex-acp's typed
+        /// `data.reason: "thread_active_writer"` (2.1.0+; matched on the wire
+        /// message before that), or `"session_unavailable"` /
+        /// `"session_archived"` matched on the wire message. See
+        /// `classify_session_load_error`.
         code: String,
     },
     /// Available slash commands updated
@@ -859,8 +862,10 @@ pub enum AcpEvent {
 /// transcript mid-`#870`-hold and both double-renders the held turn and races
 /// the file's own last write.
 /// `tool_use_id` is the launching `tool_use`/`tool_result` block's id (Claude's
-/// SDK-level `toolu_…`), NOT `task_id`; `None` for a background shell (its
-/// notification carries no tool-use-id and it has no marker card to flip).
+/// SDK-level `toolu_…`), NOT `task_id`. A background shell's notification names
+/// its `Bash` call too, whose card has no marker to flip, so the frontend leaves
+/// it alone; `None` when the notification names no call (an MCP call moved to
+/// the background).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BackgroundSettledInfo {
     pub task_id: String,
@@ -1003,21 +1008,21 @@ pub struct SessionModeStateInfo {
     pub available_modes: Vec<SessionModeInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionConfigSelectOptionInfo {
     pub value: String,
     pub name: String,
     pub description: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionConfigSelectGroupInfo {
     pub group: String,
     pub name: String,
     pub options: Vec<SessionConfigSelectOptionInfo>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionConfigSelectInfo {
     pub current_value: String,
     pub options: Vec<SessionConfigSelectOptionInfo>,
@@ -1026,19 +1031,19 @@ pub struct SessionConfigSelectInfo {
 
 /// An on/off toggle config option (ACP's boolean `SessionConfigOption`). Cline
 /// 3.0.50+ ships one as `auto_approve` ("Auto-approve tools").
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionConfigBooleanInfo {
     pub current_value: bool,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SessionConfigKindInfo {
     Select(SessionConfigSelectInfo),
     Boolean(SessionConfigBooleanInfo),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionConfigOptionInfo {
     pub id: String,
     pub name: String,
@@ -1081,6 +1086,21 @@ pub struct GrokModelSpec {
     /// it, and the caller falls back to
     /// [`crate::parsers::infer_context_window_max_tokens`].
     pub context_window: Option<u64>,
+}
+
+/// Grok's model catalog as its `_x.ai/models/update` broadcast states it: the
+/// list a session's model picker should offer, plus each model's spec.
+/// Backend-internal — NOT serialized onto the wire.
+#[derive(Debug, Clone)]
+pub struct GrokModelCatalog {
+    /// The picker's model rows in catalog order — `value` is the model id and
+    /// `name` its display name. No description: the rows a handshake's
+    /// `x.ai/sessionConfig` yields carry none, and the picker must read the
+    /// same whichever of the two built it.
+    pub models: Vec<SessionConfigSelectOptionInfo>,
+    /// Per-model specs, parsed exactly as a handshake's `models` are. Each
+    /// `default` here is the bare catalog default, not a session's own effort.
+    pub specs: std::collections::HashMap<String, GrokModelSpec>,
 }
 
 /// Read-only snapshot of the modes + config_options an agent advertises

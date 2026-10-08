@@ -117,7 +117,7 @@ describe("WebConnectionGuard", () => {
     expect(screen.queryByText("Connection lost")).not.toBeInTheDocument()
   })
 
-  it("probes immediately on network restore while reconnecting", () => {
+  it("leaves automatic wake recovery to the transport without restarting its handshake", () => {
     renderGuard()
     act(() => store.setState("reconnecting"))
     store.reconnectWebNow.mockClear()
@@ -125,7 +125,7 @@ describe("WebConnectionGuard", () => {
     act(() => {
       window.dispatchEvent(new Event("online"))
     })
-    expect(store.reconnectWebNow).toHaveBeenCalledTimes(1)
+    expect(store.reconnectWebNow).not.toHaveBeenCalled()
   })
 
   it("does not nudge on network events while connected", () => {

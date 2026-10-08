@@ -67,6 +67,7 @@ import type {
   ContentBlock,
   ConversationConnectionInfo,
   EventEnvelope,
+  MessageTurn,
   PlanEntryInfo,
   PermissionOptionInfo,
   PendingQuestionState,
@@ -3611,6 +3612,22 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const attachSubscriptionsRef = useRef(
     new Map<string, EventStreamSubscription>()
   )
+  // A turn identity survives its prompting -> connected edge. Harmless usage
+  // or selector events may advance seq while disk recovery is pending; a new
+  // turn must invalidate that recovery even if it finishes before HTTP returns.
+  const promptGenerationsRef = useRef(new Map<string, number>())
+  const settledRecoveriesRef = useRef(
+    new Map<
+      string,
+      {
+        connectionId: string
+        sessionId: string | null
+        promptGeneration: number
+        expectedPrompt?: MessageTurn
+        retry?: () => void
+      }
+    >()
+  )
 
   // contextKey → how many times an entry has been REKEYed OUT of it (orphan
   // rescue moving a connection to its canonical key). `connect()` samples this
@@ -3912,6 +3929,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       flushTimersRef.current.delete(contextKey)
     }
     streamingQueuesRef.current.delete(contextKey)
+    settledRecoveriesRef.current.delete(contextKey)
   }, [])
 
   /** The same, for every connection at once. */
@@ -3977,9 +3995,21 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       // the panel and the runtime-store-driven message list then re-render off a
       // consistent snapshot (not relying on React batching to reconcile the two).
       const mirrorLiveMessage = (key: string) => {
+        const nextConn = next.get(key)
+        const prevConn = prev.get(key)
+        if (
+          nextConn?.status === "prompting" &&
+          (prevConn?.status !== "prompting" ||
+            nextConn.liveMessage?.id !== prevConn.liveMessage?.id)
+        ) {
+          promptGenerationsRef.current.set(
+            key,
+            (promptGenerationsRef.current.get(key) ?? 0) + 1
+          )
+          settledRecoveriesRef.current.delete(key)
+        }
         const sink = liveMessageSinksRef.current.get(key)
         if (!sink) return
-        const nextConn = next.get(key)
         if (!nextConn || nextConn.liveMessage == null) return
         if (nextConn.liveMessage === prev.get(key)?.liveMessage) return
         sink(nextConn.liveMessage, nextConn.status === "prompting")
@@ -4726,10 +4756,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             //    deliberately replaces the `refetchDetail` this used to do: that
             //    refetch re-parsed the still-open transcript mid-#870-hold,
             //    double-rendering the held turn AND racing the file's last
-            //    write. Entries with
-            //    no `tool_use_id` (background shells) have no marker card and are
-            //    skipped. The store queues a settlement whose launch turn hasn't
-            //    promoted yet and applies it at COMPLETE_TURN.
+            //    write. A background shell's notification names its `Bash` call
+            //    too, and the store leaves that command card as it is (see
+            //    `applyBackgroundSettlementToTurns`); entries with no
+            //    `tool_use_id` (an MCP call moved to the background) are
+            //    skipped. The store queues a settlement whose launch turn
+            //    hasn't promoted yet and applies it at COMPLETE_TURN.
             const conversationId = getConversationIdByExternalIdFromStore(
               e.session_id
             )
@@ -5288,7 +5320,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           flushStreamingQueue(contextKey)
           // Localize via the stable `code` field ("resource_not_found" —
           // JSON-RPC -32002 — plus "session_unavailable" and
-          // "session_archived", both matched on the wire message). Fall back
+          // "session_archived", both matched on the wire message, and
+          // "session_busy", read from codex-acp's typed error reason). Fall back
           // to the raw agent message so an unknown future code still surfaces
           // something intelligible rather than getting swallowed.
           const nc = storeRef.current.connections.get(contextKey)
@@ -5334,7 +5367,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
                 })
               // Unlike its neighbours this one is temporary and self-clearing,
               // so the message says what holds the session rather than what
-              // went wrong: the fork took the lock, closing it gives it back.
+              // went wrong, and what frees it. Two things can hold it: another
+              // Codex client with the same session open (the app, the CLI or an
+              // IDE extension), where freeing it can take quitting that client
+              // because closing its tab does not always unload the thread; or
+              // a fork codeg just made from it, which closes the parent and
+              // leaves codex to unload it about a minute later.
               case "session_busy":
                 return t("backendErrors.sessionLoadBusy", {
                   agent: agentLabel,
@@ -5561,12 +5599,96 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // outcome there, not a flush.
           flushStreamingQueue(contextKey)
           const patch = denormalizeSnapshot(snapshot)
+          const before = storeRef.current.connections.get(contextKey)
           dispatch({
             type: "HYDRATE_FROM_SNAPSHOT",
             contextKey,
             patch,
             recoverFromHandlerError: options?.recoverFromHandlerError,
           })
+          const hydrated = storeRef.current.connections.get(contextKey)
+          const pendingRecovery = settledRecoveriesRef.current.get(contextKey)
+          const promptGeneration =
+            promptGenerationsRef.current.get(contextKey) ?? 0
+          const settledOldTurn =
+            before?.status === "prompting" &&
+            hydrated !== before &&
+            (patch.eventSeq > before.lastAppliedSeq ||
+              (patch.eventSeq === before.lastAppliedSeq &&
+                options?.recoverFromHandlerError))
+          const retrySameTurn =
+            pendingRecovery?.connectionId === patch.connectionId &&
+            pendingRecovery.sessionId === hydrated?.sessionId &&
+            pendingRecovery.promptGeneration === promptGeneration
+          // A large reconnect gap yields a snapshot, not replay. The backend
+          // clears live_message at TurnComplete, so this snapshot can settle
+          // the status but cannot supply the reply's missed trailing content.
+          // Repair from the persisted transcript only when THIS fresh snapshot
+          // actually settled the old turn; a stale or foreign snapshot must
+          // never release another turn's optimistic state.
+          if (
+            (settledOldTurn || retrySameTurn) &&
+            patch.status !== "prompting" &&
+            patch.liveMessage === null &&
+            hydrated?.connectionId === patch.connectionId &&
+            hydrated.status === patch.status &&
+            hydrated.lastAppliedSeq === patch.eventSeq
+          ) {
+            const sessionId = patch.sessionId ?? before?.sessionId
+            const runtimeId = sessionId
+              ? getConversationIdByExternalIdFromStore(sessionId)
+              : null
+            if (runtimeId !== null) {
+              const recovery =
+                retrySameTurn && pendingRecovery
+                  ? pendingRecovery
+                  : {
+                      connectionId: patch.connectionId,
+                      sessionId: hydrated.sessionId,
+                      promptGeneration,
+                      expectedPrompt: before?.pendingUserMessage
+                        ? ({
+                            id: before.pendingUserMessage.messageId,
+                            role: "user",
+                            blocks: contentBlocksFromUserMessage(
+                              before.pendingUserMessage.blocks
+                            ),
+                            timestamp: "",
+                          } satisfies MessageTurn)
+                        : undefined,
+                    }
+              settledRecoveriesRef.current.set(contextKey, recovery)
+              if (retrySameTurn && pendingRecovery?.retry) {
+                pendingRecovery.retry()
+              } else {
+                recovery.retry = useConversationRuntimeStore
+                  .getState()
+                  .actions.recoverSettledDetail(
+                    runtimeId,
+                    () => {
+                      const current =
+                        storeRef.current.connections.get(contextKey)
+                      return (
+                        current?.connectionId === recovery.connectionId &&
+                        current.sessionId === recovery.sessionId &&
+                        current.status !== "prompting" &&
+                        (promptGenerationsRef.current.get(contextKey) ?? 0) ===
+                          recovery.promptGeneration
+                      )
+                    },
+                    recovery.expectedPrompt,
+                    () => {
+                      if (
+                        settledRecoveriesRef.current.get(contextKey) ===
+                        recovery
+                      ) {
+                        settledRecoveriesRef.current.delete(contextKey)
+                      }
+                    }
+                  )
+              }
+            }
+          }
           surfaceSnapshotErrorDetailsRef.current(contextKey, patch)
           lastActivityRef.current.set(contextKey, Date.now())
           // Recover delegation bindings the snapshot carries but the transient
@@ -6333,6 +6455,21 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             existing.status !== "disconnected" &&
             existing.status !== "error"
           ) {
+            // A successful liveness probe only proves the agent still exists.
+            // Mobile wake can retain an OPEN socket whose old subscription
+            // missed the completed reply. Replace the subscription with this
+            // surface's applied cursor so attach replays the gap (or hydrates
+            // a fresh snapshot) without restarting the agent.
+            flushStreamingQueue(contextKey)
+            const cursor = storeRef.current.connections.get(contextKey)
+            teardownAttachSubscription(contextKey)
+            setupAttachSubscription(
+              contextKey,
+              existing.connectionId,
+              settledRecoveriesRef.current.has(contextKey)
+                ? undefined
+                : cursor?.lastAppliedSeq
+            )
             return
           }
           if (

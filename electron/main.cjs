@@ -609,7 +609,10 @@ if (!app.requestSingleInstanceLock()) {
           app.isPackaged &&
           !smokeTest &&
           (process.platform === "darwin"
-            ? require("./package.json").desktopUpdates === true
+            ? require("./package.json").desktopUpdates === true &&
+              require("./update-signature.cjs").supportsMacUpdates(
+                path.resolve(process.execPath, "../../..")
+              )
             : process.platform === "win32" || Boolean(process.env.APPIMAGE)),
         emit: (state) => {
           for (const window of windows) {

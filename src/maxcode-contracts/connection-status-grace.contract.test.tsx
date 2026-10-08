@@ -14,6 +14,12 @@ vi.mock("@/contexts/acp-connections-context", () => ({
   useConnectionStore: () => f.store,
   useAcpActions: () => ({ reconnect: vi.fn(), getReconnectInfo: () => null }),
 }))
+vi.mock("@/lib/transport/web-connection-store", () => ({
+  subscribeWebConnection: () => () => {},
+  getWebConnectionSnapshot: () => "connected",
+  getWebConnectionServerSnapshot: () => "connected",
+  reconnectWebNow: vi.fn(),
+}))
 import { ComposerConnectionStatus } from "@/components/chat/composer-connection-status"
 
 beforeEach(() => {

@@ -23,6 +23,12 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { isConnectionBusy } from "@/lib/connection-teardown"
+import {
+  getWebConnectionServerSnapshot,
+  getWebConnectionSnapshot,
+  reconnectWebNow,
+  subscribeWebConnection,
+} from "@/lib/transport/web-connection-store"
 import { cn } from "@/lib/utils"
 
 // Connection-only states. The session "prompting" state is intentionally
@@ -95,10 +101,19 @@ function DetailRow({ label, value }: { label: string; value: string }) {
  */
 export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   const t = useTranslations("Folder.statusBar.connection")
+  const tWeb = useTranslations("WebConnection")
   const store = useConnectionStore()
   const { reconnect, getReconnectInfo } = useAcpActions()
   const [open, setOpen] = useState(false)
   const [pending, setPending] = useState(false)
+  const webStatus = useSyncExternalStore(
+    subscribeWebConnection,
+    getWebConnectionSnapshot,
+    getWebConnectionServerSnapshot
+  )
+  const transportUnavailable = webStatus !== "connected"
+  const transportDisconnected =
+    webStatus === "reconnecting" || webStatus === "unauthorized"
 
   const subscribeConn = useCallback(
     (cb: () => void) => {
@@ -131,7 +146,16 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   )
   const status = conn?.status ?? (connectPending ? "connecting" : null)
 
-  const statusKey = toConnStatus(status)
+  // ACP entries retain their last status when the browser loses the server.
+  // The transport must take precedence over that stale connected/prompting
+  // value, otherwise the composer falsely looks healthy on a suspended phone.
+  const statusKey = transportUnavailable
+    ? webStatus === "unauthorized"
+      ? "error"
+      : webStatus === "connecting"
+        ? "connecting"
+        : "disconnected"
+    : toConnStatus(status)
   // Switching/resuming can briefly pass through any non-connected state.
   // Delay inline status changes; the popover and accessible label stay truthful.
   const [alarm, setAlarm] = useState({ tabId, statusKey, confirmed: false })
@@ -148,12 +172,21 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
     return () => clearTimeout(timer)
   }, [tabId, statusKey])
 
-  const statusLabel = t(statusKey)
+  const statusLabel =
+    webStatus === "connecting"
+      ? t("connecting")
+      : transportDisconnected
+        ? tWeb(
+            webStatus === "unauthorized"
+              ? "sessionExpiredTitle"
+              : "disconnectedTitle"
+          )
+        : t(statusKey)
   const agentType = conn?.agentType ?? connectPending?.agentType ?? null
   const agentLabel = agentType ? getAgentLabel(agentType) : null
   const titleText = !agentLabel
     ? statusLabel
-    : statusKey === "error" && conn?.error
+    : !transportUnavailable && statusKey === "error" && conn?.error
       ? t("tooltipError", { agent: agentLabel, error: conn.error })
       : t("tooltip", { agent: agentLabel, status: statusLabel })
 
@@ -172,7 +205,9 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   const detailAgentLabel = detailAgentType
     ? getAgentLabel(detailAgentType)
     : null
-  const detailStatusKey = toDetailStatus(status)
+  const detailStatusLabel = transportUnavailable
+    ? statusLabel
+    : t(toDetailStatus(status))
   const workingDir =
     conn?.workingDir ??
     connectPending?.workingDir ??
@@ -183,15 +218,24 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   // detaches and re-attaches, leaving the owner's agent alone — so only the
   // former is worth warning about.
   const destructive =
+    !transportUnavailable &&
     !conn?.isViewer &&
     isConnectionBusy({
       status: conn?.status ?? null,
       backgroundOutstanding: conn?.backgroundOutstanding ?? 0,
     })
-  const canReconnect = reconnectInfo !== null
+  const canReconnect =
+    !!tabId && (transportUnavailable || reconnectInfo !== null)
+  const reconnectPending = pending && !transportUnavailable
 
   const handleReconnect = useCallback(() => {
     if (!tabId) return
+    if (transportUnavailable) {
+      // Restore only the browser/server link; restarting ACP would interrupt
+      // the agent's work even though it may already have finished the reply.
+      reconnectWebNow()
+      return
+    }
     setPending(true)
     void reconnect(tabId)
       .catch(() => {
@@ -199,7 +243,7 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
         // action); the status icon flipping to `error` is the local signal.
       })
       .finally(() => setPending(false))
-  }, [reconnect, tabId])
+  }, [reconnect, tabId, transportUnavailable])
 
   // The trigger keeps the native `title` (hover tooltip) it had as a plain span,
   // so the detail is still one hover away now that a click opens the popover.
@@ -221,7 +265,7 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
               role="status"
               className={cn(
                 "text-2xs",
-                statusKey === "disconnected"
+                statusKey === "disconnected" || transportDisconnected
                   ? "text-red-500"
                   : "text-muted-foreground"
               )}
@@ -246,11 +290,19 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
           </span>
           <span className="flex shrink-0 items-center gap-1 text-xs text-muted-foreground">
             <Icon className={cn("size-3", className)} />
-            {t(detailStatusKey)}
+            {detailStatusLabel}
           </span>
         </div>
 
-        {conn?.error ? (
+        {transportDisconnected ? (
+          <p className="text-2xs leading-snug text-muted-foreground">
+            {tWeb(
+              webStatus === "unauthorized"
+                ? "sessionExpiredDescription"
+                : "reconnectingDescription"
+            )}
+          </p>
+        ) : !transportUnavailable && conn?.error ? (
           <p className="max-h-24 overflow-auto rounded-md bg-destructive/10 px-2 py-1 text-2xs leading-snug break-words text-destructive">
             {conn.error}
           </p>
@@ -284,11 +336,15 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
           size="xs"
           variant="outline"
           className="w-full"
-          disabled={!canReconnect || pending}
+          disabled={!canReconnect || reconnectPending}
           onClick={handleReconnect}
         >
-          <RefreshCw className={cn(pending && "animate-spin")} />
-          {pending ? t("reconnecting") : t("reconnect")}
+          <RefreshCw className={cn(reconnectPending && "animate-spin")} />
+          {reconnectPending
+            ? t("reconnecting")
+            : transportUnavailable
+              ? tWeb("reconnectNow")
+              : t("reconnect")}
         </Button>
 
         {!canReconnect ? (

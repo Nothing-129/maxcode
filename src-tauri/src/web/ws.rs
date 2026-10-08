@@ -6,6 +6,7 @@ use axum::{
     extract::{Extension, WebSocketUpgrade},
     response::IntoResponse,
 };
+use futures::{Sink, SinkExt};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
@@ -73,10 +74,10 @@ async fn handle_ws_connection(
     // transports use the attach protocol.
     let mut global_rx = state.event_broadcaster.subscribe();
 
-    // Outbound channel funnels every server-→-client frame through one
-    // sender so the WS write side has a single owner. Per-attach forwarder
-    // tasks push `Event`/`Detached` frames here; the main loop pushes
-    // `Snapshot`/`Replay`/`Pong` directly.
+    // Per-attach forwarders enqueue `Event`/`Detached` frames here. The main
+    // loop owns the socket and sends its own control responses directly:
+    // awaiting a send to this bounded queue from its only receiver would
+    // deadlock when a backgrounded mobile client fills the queue.
     let (outbound_tx, mut outbound_rx) = mpsc::channel::<ServerMsg>(OUTBOUND_CAPACITY);
 
     // Cleanup channel: forwarders signal `(subscription_id, epoch)` here
@@ -162,7 +163,7 @@ async fn handle_ws_connection(
                 }
             }
 
-            // Outbound queue (per-attach forwarders + main-loop direct sends).
+            // Outbound queue from per-attach forwarders.
             outgoing = outbound_rx.recv() => {
                 match outgoing {
                     Some(msg) => {
@@ -221,14 +222,17 @@ async fn handle_ws_connection(
                     Some(Ok(Message::Text(text))) => {
                         match serde_json::from_str::<ClientMsg>(&text) {
                             Ok(cmsg) => {
-                                handle_client_msg(
+                                if handle_client_msg(
                                     cmsg,
+                                    &mut socket,
                                     &state,
                                     &outbound_tx,
                                     &cleanup_tx,
                                     &mut subscriptions,
                                     &mut next_epoch,
-                                ).await;
+                                ).await.is_err() {
+                                    break;
+                                }
                             }
                             Err(e) => {
                                 tracing::warn!("[WS][WARN] malformed client message: {e}");
@@ -251,14 +255,31 @@ async fn handle_ws_connection(
     }
 }
 
-async fn handle_client_msg(
+async fn send_server_msg<S>(socket: &mut S, msg: &ServerMsg) -> Result<(), S::Error>
+where
+    S: Sink<Message> + Unpin,
+{
+    match serde_json::to_string(msg) {
+        Ok(text) => socket.send(Message::Text(text.into())).await,
+        Err(e) => {
+            tracing::warn!("[WS][WARN] failed to serialize ServerMsg: {e}");
+            Ok(())
+        }
+    }
+}
+
+async fn handle_client_msg<S>(
     msg: ClientMsg,
+    socket: &mut S,
     state: &Arc<AppState>,
     outbound_tx: &mpsc::Sender<ServerMsg>,
     cleanup_tx: &mpsc::Sender<(String, u64)>,
     subscriptions: &mut HashMap<String, ActiveSubscription>,
     next_epoch: &mut u64,
-) {
+) -> Result<(), S::Error>
+where
+    S: Sink<Message> + Unpin,
+{
     match msg {
         ClientMsg::Attach {
             subscription_id,
@@ -285,9 +306,7 @@ async fn handle_client_msg(
                     // Send the initial frame (snapshot or replay) BEFORE
                     // spawning the forwarder so the client sees state
                     // before the first live event.
-                    if outbound_tx.send(outcome.initial_msg).await.is_err() {
-                        return;
-                    }
+                    send_server_msg(socket, &outcome.initial_msg).await?;
                     // Allocate a fresh epoch for this spawn. wrapping_add is
                     // defensive — u64 overflow per WS session is impossible
                     // in practice (would require ~10^19 attaches on one
@@ -306,12 +325,14 @@ async fn handle_client_msg(
                     subscriptions.insert(subscription_id, ActiveSubscription { handle, epoch });
                 }
                 Err(reason) => {
-                    let _ = outbound_tx
-                        .send(ServerMsg::Detached {
+                    send_server_msg(
+                        socket,
+                        &ServerMsg::Detached {
                             subscription_id,
                             reason,
-                        })
-                        .await;
+                        },
+                    )
+                    .await?;
                 }
             }
         }
@@ -321,10 +342,15 @@ async fn handle_client_msg(
             }
         }
         ClientMsg::Ping => {
-            let _ = outbound_tx.send(ServerMsg::Pong).await;
+            send_server_msg(socket, &ServerMsg::Pong).await?;
         }
     }
+    Ok(())
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/mobile-ws-control-recovery.contract.rs"]
+mod mobile_ws_control_recovery_contract;
 
 #[cfg(test)]
 mod tests {

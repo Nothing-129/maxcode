@@ -432,11 +432,34 @@ pub async fn emit_with_state_gated<F>(
 where
     F: FnOnce(&SessionState) -> bool,
 {
+    emit_with_state_built(state, emitter, |s| gate(&*s).then_some(payload)).await
+}
+
+/// Like [`emit_with_state_gated`], but the payload itself is BUILT under the
+/// same write lock, from the state it is about to be applied to: `None` aborts
+/// with no event, no seq bump and no broadcast, and returns `false`.
+///
+/// For a read-modify-emit that another task can write in the middle of. Built
+/// from a copy read under an earlier lock, the event would re-emit whatever it
+/// read and undo the other writer's change. A Grok model picker is the case:
+/// Grok's model catalog broadcast refreshes it from the connection's dispatch
+/// task while the conversation loop applies the user's own picks to it.
+///
+/// `build` may also update backend-internal fields the event's reducer does not
+/// own, and those updates stand even when it returns `None`.
+pub async fn emit_with_state_built<F>(
+    state: &Arc<RwLock<SessionState>>,
+    emitter: &EventEmitter,
+    build: F,
+) -> bool
+where
+    F: FnOnce(&mut SessionState) -> Option<AcpEvent>,
+{
     let (envelope_arc, stream, evicted) = {
         let mut s = state.write().await;
-        if !gate(&s) {
+        let Some(payload) = build(&mut s) else {
             return false;
-        }
+        };
         s.apply_event(&payload);
         s.event_seq += 1;
         let envelope = Arc::new(EventEnvelope {

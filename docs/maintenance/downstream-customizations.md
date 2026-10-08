@@ -24,6 +24,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 10 月 8 日八项修复 | 线性历史读取、手机聚焦、任务保存所示智能体、Grok 目录广播、Claude 0.86/Codex 2.1.1 兼容、插话保留编辑及搜索管道无匹配；保留 Electron、七智能体、Codex 插话门控和不确定投递保护 | `f0e6a520` 至 `3b29d2f4`，详见本次评审 | `runtime.selected-upstream-20261008` |
 | 9 月 30 日上游稳定性 | Claude/Codex AIR 稀疏更新、Read/审批/插件提示，Codex 搜索上下文与历史思考、压缩摘要，Grok 后台跟进；保留完整工具输入、全部 hunk 和权限门控 | `9d9ce6b0`、`2db8a81b`、`b35282c6`、`757bd8e0`、`58f0fd0e`、`9243c7df` | `runtime.upstream-recommended-20260930`、`history.claude-compaction-compatible` |
 | Codex 模型目录 | GPT-6.1 Sol 及官方优先级；安装和托管更新刷新自有目录，保留用户目录、默认、自定义和排除模型 | `155916e6`、`worktree-2026-09-30` | `agents.codex-catalog-refresh-20260930` |
 | Pi 运行时与思考 | 离线能力、实际 profile 和原生 selector；保留七档偏好、自定义映射、旧 .33 补丁及托管 CLI | `9cbd5b96` 至 `b9d9e6b6` | `agents.pi-runtime-thinking-20260930` |
@@ -62,6 +63,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
 | 手机设置 | 右上角分类菜单显示在设置页之上，可切换分类、点击空白或 Escape 关闭；保留设置及工作区草稿，隐藏后台工作区抽屉并在返回时恢复 | `worktree-2026-09-10` | `settings.mobile-category-navigation` |
 | 移动端 | 恢复前台及网络重连后检查并恢复当前会话，连接中、未连接、连接错误均持续 3 秒才显示；状态或会话变化重新计时，已连接立即恢复，持续掉线保留红色提示 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
+| 手机消息恢复 | 唤醒复用会话时补齐遗漏事件及已完成回复；服务器断联覆盖滞留的智能体“已连接”状态，重连只恢复消息链路。连接及应用就绪均有超时，唤醒缩短心跳期限，服务器控制响应不等待自身负责排空的事件队列 | `worktree-2026-10-02` | `web.mobile-live-recovery` |
 | 会话 | Pi 启动横幅（pi 版本 / Context / Skills）不进入对话：实时流直接丢弃，与完成后的持久化转写保持一致，不再先显示后消失 | `worktree-2026-09-11` | `chat.pi-startup-banner-suppressed` |
 | 对话选择 | Codex 参考样式：加重问题标题、浅灰选项底色与细边框、选中加深描边及反色编号、底部操作分隔；保留显式提交与键盘选择 | `worktree-2026-09-10` | `chat.reference-question-picker` |
 | 消息超链接 | 可点击的 Markdown 超链接显示小手光标，流式生成中未完成的链接保持不可点击样式 | `worktree-2026-09-15` | `chat.markdown-link-cursor` |

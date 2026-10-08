@@ -84,6 +84,29 @@ function createDesktopUpdater({
   let checking = null
   let downloading = null
   let restarting = false
+  const nativeUpdater = platform === "darwin" ? updater.nativeUpdater : null
+  const verifyMacUpdate = () =>
+    new Promise((resolve, reject) => {
+      const cleanup = () => {
+        nativeUpdater.removeListener("update-downloaded", ready)
+        nativeUpdater.removeListener("error", failed)
+      }
+      const ready = () => {
+        cleanup()
+        resolve()
+      }
+      const failed = (error) => {
+        cleanup()
+        reject(error)
+      }
+      nativeUpdater.once("update-downloaded", ready)
+      nativeUpdater.once("error", failed)
+      try {
+        nativeUpdater.checkForUpdates()
+      } catch (error) {
+        failed(error)
+      }
+    })
   const snapshot = () => ({ ...state })
   const transition = (next) => {
     state = { ...next, seq: state.seq + 1 }
@@ -145,6 +168,8 @@ function createDesktopUpdater({
     if (restarting) {
       failure(error)
       onInstallError?.(error)
+    } else if (state.status === "ready_to_restart") {
+      failure(error)
     }
   })
   updater.on("update-available", (update) => {
@@ -171,6 +196,9 @@ function createDesktopUpdater({
     })
   })
   updater.on("update-downloaded", (update) => {
+    // On macOS this event only means the ZIP passed its digest check.
+    // Squirrel's signature validation runs separately, before we offer install.
+    if (nativeUpdater || !enabled || state.status !== "downloading") return
     transition({ status: "ready_to_restart", version: update.version })
   })
 
@@ -234,6 +262,13 @@ function createDesktopUpdater({
               }
               transition({ ...state, version: available.version })
               await updater.downloadUpdate()
+              if (nativeUpdater) {
+                await verifyMacUpdate()
+                transition({
+                  status: "ready_to_restart",
+                  version: available.version,
+                })
+              }
               return
             } catch (error) {
               lastError = error

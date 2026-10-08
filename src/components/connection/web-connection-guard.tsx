@@ -65,27 +65,6 @@ export function WebConnectionGuard() {
     }
   }, [state])
 
-  // Fast recovery on network restore / tab wake. Backoff caps at 32s, but the
-  // browser signals the instant connectivity returns (`online`) or the tab
-  // becomes visible after sleep — probe right away instead of waiting out the
-  // remaining backoff (sleep/wake and Wi‑Fi flaps are the common triggers).
-  // Guarded to "reconnecting" so a healthy link is never torn down; the store
-  // accessors are no-ops off web, so this is inert on desktop/SSR.
-  useEffect(() => {
-    const nudgeIfReconnecting = () => {
-      if (getWebConnectionSnapshot() === "reconnecting") reconnectWebNow()
-    }
-    const onVisible = () => {
-      if (document.visibilityState === "visible") nudgeIfReconnecting()
-    }
-    window.addEventListener("online", nudgeIfReconnecting)
-    document.addEventListener("visibilitychange", onVisible)
-    return () => {
-      window.removeEventListener("online", nudgeIfReconnecting)
-      document.removeEventListener("visibilitychange", onVisible)
-    }
-  }, [])
-
   const showReconnecting = state === "reconnecting" && graceElapsed
   const showUnauthorized = state === "unauthorized" && !isElectron()
   const showDesktopUnauthorized = state === "unauthorized" && isElectron()

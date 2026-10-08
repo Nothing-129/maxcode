@@ -3,12 +3,14 @@ const path = require("node:path")
 const fs = require("node:fs")
 const { version } = require("../package.json")
 const release = process.env.CODEG_ELECTRON_RELEASE === "1"
-// Unsigned local macOS builds can still poll the project's own update feed:
-// electron-updater verifies downloads against the published yml digests, and
-// replacing an ad-hoc app with an official signed one needs no local signing.
-// Opt in explicitly so the default local DMG keeps the historical
-// updates-off behavior.
-const localUpdates = process.env.CODEG_ELECTRON_UPDATES === "1"
+// Local updates require an explicit signing identity; the runtime also checks
+// the installed signature. Squirrel cannot replace an ad-hoc signed app.
+const localUpdates =
+  process.env.CODEG_ELECTRON_UPDATES === "1" &&
+  Boolean(
+    process.env.CSC_LINK ||
+    (process.env.CSC_NAME && process.env.CSC_NAME !== "-")
+  )
 const { updateFeed } = require("./update-config.cjs")
 
 module.exports = {

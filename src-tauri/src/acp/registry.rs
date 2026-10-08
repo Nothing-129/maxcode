@@ -1409,9 +1409,13 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // MaxCode restores canonical inputs before rendering (no diffPatch opt-in).
             // Background count_tokens can delay the first prompt/model switch
             // on endpoints that do not answer counting requests (upstream #1192).
+            // 0.85–0.86 (reviewed upstream 78402121, 6d0257b2, 2e5b46b4):
+            // reclaim parked questions before steering and on turn completion;
+            // keep background Bash output and saved model aliases. 0.86.0
+            // bundles Claude Code 2.1.287 and removes the session/new count burst.
             distribution: AgentDistribution::Npx {
-                version: "0.84.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.84.0",
+                version: "0.86.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.86.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2057,9 +2061,13 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // The bundled catalog adds GPT-6.1 Sol and follows Codex priority,
             // rather than file order. Installation refreshes only our generated
             // catalog from its intent sidecar, preserving user catalogs/defaults.
+            // 2.1.1 (reviewed upstream 6bd62250): typed writer-lock failures,
+            // parent session close after fork, custom-answer history, service
+            // error messages and Desktop attachment envelopes. Native steering
+            // remains gated by the promptRequired lifecycle contract.
             distribution: AgentDistribution::Npx {
-                version: "2.0.1",
-                package: "@agentclientprotocol/codex-acp@2.0.1",
+                version: "2.1.1",
+                package: "@agentclientprotocol/codex-acp@2.1.1",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
@@ -3130,8 +3138,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.84.0",
-            "@agentclientprotocol/claude-agent-acp@0.84.0",
+            "0.86.0",
+            "@agentclientprotocol/claude-agent-acp@0.86.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3166,8 +3174,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "2.0.1",
-            "@agentclientprotocol/codex-acp@2.0.1",
+            "2.1.1",
+            "@agentclientprotocol/codex-acp@2.1.1",
             Some("20.0.0"),
         );
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));

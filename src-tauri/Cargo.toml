@@ -1,6 +1,6 @@
 [package]
 name = "codeg"
-version = "0.30.25"
+version = "0.30.26"
 description = "Agent Code Generation App"
 authors = ["feitao"]
 edition = "2021"
@@ -73,6 +73,9 @@ zip = "2"
 regex = "1"
 portable-pty = "0.8"
 urlencoding = "2"
+# Codex Desktop attachment links: preserve URL and per-component encoding.
+url = "2"
+percent-encoding = "2"
 sea-orm = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros"] }
 sea-orm-migration = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls"] }
 # Synchronous read-only access to agent-native SQLite session stores (the

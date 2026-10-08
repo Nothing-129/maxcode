@@ -18,7 +18,8 @@ use crate::parsers::codex_code_mode::{
     CodeModeScript, ScriptStatus, Separator, CODEX_SCRIPT_TOOL_NAME,
 };
 use crate::parsers::{
-    folder_name_from_path, title_from_user_text, truncate_str, AgentParser, ParseError,
+    codex_desktop_attachments, folder_name_from_path, title_from_user_text, truncate_str,
+    AgentParser, ParseError,
 };
 
 pub struct CodexParser {
@@ -566,7 +567,8 @@ impl CodexParser {
                                     continue;
                                 }
 
-                                let visible_text = strip_internal_agent_routes(raw_text);
+                                let visible_text =
+                                    strip_internal_agent_routes(&decode_user_text(raw_text));
                                 let has_images = payload
                                     .get("images")
                                     .and_then(|v| v.as_array())
@@ -690,8 +692,9 @@ impl CodexParser {
                                 message_count += 1;
                                 has_real_user = true;
                                 if title.is_none() {
-                                    title = extract_codex_text_content(payload)
-                                        .and_then(|t| extract_codex_title_candidate(&t, false));
+                                    title = extract_codex_text_content(payload).and_then(|t| {
+                                        extract_codex_title_candidate(&decode_user_text(&t), false)
+                                    });
                                     if title.is_some() {
                                         title_source_ordinal = Some(record_ordinal);
                                     }
@@ -3479,7 +3482,7 @@ impl CodexParser {
                                     continue;
                                 }
 
-                                let normalized = strip_blocked_resource_mentions(&text);
+                                let normalized = normalize_user_text(&text);
                                 if title.is_none() {
                                     title = extract_codex_title_candidate(&normalized, true);
                                     if title.is_some() {
@@ -5412,14 +5415,11 @@ fn reconcile_turn_usage(turns: &mut [MessageTurn], recorded: &TurnUsage) {
     // Prefer a turn that already reports usage — it is one the transcript
     // itself tied to a model call, so the recovered tokens land beside spend
     // that really happened rather than on an unrelated bubble.
-    let target = turns
-        .iter()
-        .rposition(|t| t.usage.is_some())
-        .or_else(|| {
-            turns.iter().rposition(|t| {
-                matches!(t.role, TurnRole::Assistant) && !is_codex_compaction_divider(&t.blocks)
-            })
-        });
+    let target = turns.iter().rposition(|t| t.usage.is_some()).or_else(|| {
+        turns.iter().rposition(|t| {
+            matches!(t.role, TurnRole::Assistant) && !is_codex_compaction_divider(&t.blocks)
+        })
+    });
     if let Some(turn) = target.and_then(|i| turns.get_mut(i)) {
         turn.usage = Some(match turn.usage {
             Some(ref existing) => codex_usage_add(existing, &missing),
@@ -5964,7 +5964,7 @@ struct UserTurnFingerprint {
 impl UserTurnFingerprint {
     /// Mirrors the detail parser's `event_msg`/`user_message` arm.
     fn from_event_message(payload: &serde_json::Value) -> Self {
-        let text = strip_blocked_resource_mentions(
+        let text = normalize_user_text(
             payload
                 .get("message")
                 .and_then(|m| m.as_str())
@@ -6009,10 +6009,7 @@ impl UserTurnFingerprint {
                 }
             }
         }
-        Self::new(
-            strip_blocked_resource_mentions(&text_parts.join("\n")),
-            images,
-        )
+        Self::new(normalize_user_text(&text_parts.join("\n")), images)
     }
 
     fn new(text: String, images: Vec<(String, String)>) -> Self {
@@ -6493,8 +6490,8 @@ fn rename_compaction_divider(divider: &mut UnifiedMessage, id: &str) {
 /// text (`output_text`, `input_text`, `text`, `summary_text`, …); an item with
 /// neither is skipped rather than voiding the record.
 ///
-/// `strip_blocked_resource_mentions` is applied to user text only. It collapses
-/// runs of whitespace, which is right for a typed prompt (and is what the
+/// [`normalize_user_text`] is applied to user text only. It collapses runs of
+/// whitespace, which is right for a typed prompt (and is what the
 /// `event_msg.user_message` arm does) but would mangle indentation in assistant
 /// markdown — the `event_msg.agent_message` arm passes its text through
 /// verbatim, and this must match it.
@@ -6535,7 +6532,7 @@ fn extract_response_item_message_blocks(
 
     let joined = text_parts.join("\n");
     let text = if is_user {
-        strip_blocked_resource_mentions(&joined)
+        normalize_user_text(&joined)
     } else {
         joined
     };
@@ -6606,7 +6603,7 @@ fn extract_response_item_user_image_blocks(
         return None;
     }
 
-    let text = strip_blocked_resource_mentions(&text_parts.join("\n"));
+    let text = normalize_user_text(&text_parts.join("\n"));
     if !text.is_empty() {
         blocks.insert(0, ContentBlock::Text { text });
     }
@@ -6618,6 +6615,32 @@ fn extract_response_item_user_image_blocks(
     }
 
     Some(blocks)
+}
+
+/// A user record's raw text with a Codex Desktop attachment envelope read back
+/// into the files it lists ([`codex_desktop_attachments::rewrite`]); any other
+/// text as it is.
+///
+/// Applied once, to the text as the record holds it, wherever a parser reads a
+/// user record: through [`normalize_user_text`] for turn text and the dedup
+/// fingerprints, and directly where the summary parser titles off a record's
+/// own text. Never to text that has been cleaned or trimmed already: the
+/// whitespace cleanup can turn a near miss (`#  Files …`) into an envelope,
+/// and a title decoded at a second pass would then disagree with the bubble.
+fn decode_user_text(raw: &str) -> std::borrow::Cow<'_, str> {
+    match codex_desktop_attachments::rewrite(raw) {
+        Some(text) => std::borrow::Cow::Owned(text),
+        None => std::borrow::Cow::Borrowed(raw),
+    }
+}
+
+/// A user record's text as the transcript shows it: [`decode_user_text`], then
+/// [`strip_blocked_resource_mentions`]. Both parsers' turn text and the dedup
+/// fingerprints the summary parser keeps in step with the detail parser's
+/// blocks go through this one function, so a record decodes the same on every
+/// path that compares or counts it.
+fn normalize_user_text(raw: &str) -> String {
+    strip_blocked_resource_mentions(&decode_user_text(raw))
 }
 
 fn strip_blocked_resource_mentions(input: &str) -> String {
@@ -7653,6 +7676,7 @@ mod tests {
 
     use std::collections::HashMap;
 
+    use super::codex_compacted_summary;
     use super::codex_line_ordinal;
     use super::codex_parent_thread_id;
     use super::completed_mcp_call;
@@ -7676,7 +7700,6 @@ mod tests {
     use super::BudgetedSink;
     use super::CodexParser;
     use super::RolloutFileName;
-    use super::codex_compacted_summary;
     use super::CODEX_COMPACTION_SUMMARY_PREFIX;
     use super::CODEX_COMPACTION_TOOL_NAME;
     use super::CODEX_PLAN_APPROVAL_PROMPT;
@@ -8726,7 +8749,12 @@ mod tests {
             )
         };
         let searched_report = |ts: &str| {
-            usage_count_line(ts, [522_480, 450_432, 7_798], [579_422, 501_952, 8_158], WINDOW)
+            usage_count_line(
+                ts,
+                [522_480, 450_432, 7_798],
+                [579_422, 501_952, 8_158],
+                WINDOW,
+            )
         };
         let first_turn = vec![
             rollout_line(
@@ -8762,14 +8790,22 @@ mod tests {
             ),
         ];
         let reading = |lines: &[String], tag: &str| {
-            let stats = parse_lines(lines, tag).session_stats.expect("session stats");
-            (stats.context_window_used_tokens, stats.context_window_usage_percent)
+            let stats = parse_lines(lines, tag)
+                .session_stats
+                .expect("session stats");
+            (
+                stats.context_window_used_tokens,
+                stats.context_window_usage_percent,
+            )
         };
 
         let (used, percent) = reading(&first_turn, "ws-846-searched");
         assert_eq!(used, Some(57_302), "the reading before the search stands");
         let percent = percent.expect("percent");
-        assert!((percent - 57_302.0 / WINDOW as f64 * 100.0).abs() < 1e-9, "{percent}");
+        assert!(
+            (percent - 57_302.0 / WINDOW as f64 * 100.0).abs() < 1e-9,
+            "{percent}"
+        );
 
         // Older codex restates the latest report as the next request opens; a
         // restatement of the report set aside is set aside with it.
@@ -9818,6 +9854,199 @@ mod tests {
         let _ = fs::remove_file(path);
     }
 
+    /// Parse `content` as a rollout with both parsers. The file is removed
+    /// before returning.
+    fn parse_both(
+        tag: &str,
+        content: &str,
+    ) -> (crate::models::ConversationSummary, ConversationDetail) {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time ok")
+            .as_nanos();
+        let path: PathBuf = env::temp_dir().join(format!("codeg-codex-{tag}-{nanos}.jsonl"));
+        fs::write(&path, content).expect("write test jsonl");
+        let parser = CodexParser::new();
+        let summary = parser
+            .parse_jsonl_summary(&path)
+            .expect("parse summary ok")
+            .expect("summary present");
+        let detail = parser
+            .parse_conversation_detail(&path, tag)
+            .expect("parse detail ok");
+        let _ = fs::remove_file(path);
+        (summary, detail)
+    }
+
+    /// The text of a turn made of one text block.
+    fn sole_text(turn: &MessageTurn) -> &str {
+        match turn.blocks.as_slice() {
+            [ContentBlock::Text { text }] => text,
+            other => panic!("expected one text block, got {other:?}"),
+        }
+    }
+
+    /// A Codex Desktop rollout (0.104, both channels) whose opening message
+    /// attaches a file: the envelope's list becomes the file's link, the
+    /// request follows it, and the title is read off that same text.
+    #[test]
+    fn desktop_attachment_envelope_renders_as_file_links() {
+        let envelope = "\\n# Files mentioned by the user:\\n\\n## eslint.config.mjs: /Users/me/app/eslint.config.mjs\\n\\n## My request for Codex:\\n这是什么\\n";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-02-23T10:52:45Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-1\",\"cwd\":\"/Users/me/app\",\"originator\":\"Codex Desktop\"}}}}\n",
+                "{{\"timestamp\":\"2026-02-23T10:52:50Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"{env}\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-02-23T10:52:50Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"{env}\",\"images\":[],\"local_images\":[],\"text_elements\":[]}}}}\n",
+                "{{\"timestamp\":\"2026-02-23T10:52:55Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"A lint config.\"}}}}\n"
+            ),
+            env = envelope
+        );
+        let (summary, detail) = parse_both("desk-1", &content);
+
+        assert_eq!(detail.turns.len(), 2);
+        assert!(matches!(detail.turns[0].role, TurnRole::User));
+        assert_eq!(
+            sole_text(&detail.turns[0]),
+            "[eslint.config.mjs](file:///Users/me/app/eslint.config.mjs)\n这是什么"
+        );
+        assert_eq!(
+            summary.title.as_deref(),
+            Some("eslint.config.mjs\n这是什么")
+        );
+        assert_eq!(summary.title, detail.summary.title);
+        assert_eq!(summary.message_count, detail.summary.message_count);
+    }
+
+    /// The same message from a current codex (0.159): no `user_message` event,
+    /// so the turn is the promoted `response_item`. A request left blank (an
+    /// image sent on its own) is the links alone.
+    #[test]
+    fn desktop_attachment_envelope_decodes_on_the_promoted_response_item() {
+        let envelope = "\\n# Files mentioned by the user:\\n\\n## shot.png: /Users/me/Desktop/shot 1.png\\nImage attachment: true\\n\\n## My request:\\n";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-10-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-2\",\"cwd\":\"/Users/me/app\",\"originator\":\"Codex Desktop\"}}}}\n",
+                "{{\"timestamp\":\"2026-10-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_started\",\"turn_id\":\"t1\"}}}}\n",
+                "{{\"timestamp\":\"2026-10-01T10:00:01Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"{env}\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-10-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"item_completed\",\"thread_id\":\"desk-2\",\"turn_id\":\"t1\",\"item\":{{\"type\":\"UserMessage\",\"id\":\"u1\",\"content\":[{{\"type\":\"text\",\"text\":\"{env}\",\"text_elements\":[]}}]}}}}}}\n",
+                "{{\"timestamp\":\"2026-10-01T10:00:02Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{{\"type\":\"output_text\",\"text\":\"A screenshot.\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-10-01T10:00:03Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"task_complete\",\"turn_id\":\"t1\"}}}}\n"
+            ),
+            env = envelope
+        );
+        let (summary, detail) = parse_both("desk-2", &content);
+
+        assert_eq!(detail.turns.len(), 2);
+        assert!(matches!(detail.turns[0].role, TurnRole::User));
+        assert_eq!(
+            sole_text(&detail.turns[0]),
+            "[shot.png](file:///Users/me/Desktop/shot%201.png)"
+        );
+        assert_eq!(summary.title.as_deref(), Some("shot.png"));
+        assert_eq!(summary.title, detail.summary.title);
+        assert_eq!(summary.message_count, detail.summary.message_count);
+    }
+
+    /// An image sent with nothing typed. The summary parser titles off the
+    /// record's own text, not off the detail parser's blocks, so it decodes
+    /// that text itself; otherwise this session would be titled with the raw
+    /// envelope while its bubble showed the file.
+    #[test]
+    fn desktop_attachment_envelope_with_a_blank_request_titles_alike() {
+        let envelope = "\\n# Files mentioned by the user:\\n\\n## image.png: /Users/me/image.png\\nImage attachment: true\\n\\n## My request:\\n";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-5\",\"cwd\":\"/tmp/demo\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"{env}\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:02Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"ok\"}}}}\n"
+            ),
+            env = envelope
+        );
+        let (summary, detail) = parse_both("desk-5", &content);
+        assert_eq!(
+            sole_text(&detail.turns[0]),
+            "[image.png](file:///Users/me/image.png)"
+        );
+        assert_eq!(summary.title.as_deref(), Some("image.png"));
+        assert_eq!(summary.title, detail.summary.title);
+    }
+
+    /// Text that becomes an envelope only once whitespace is cleaned up
+    /// (`#  Files`, two spaces) is not one: decoding happens once, on the
+    /// record's raw text, so the bubble and both parsers' titles all keep it as
+    /// text rather than the title decoding it on a second pass.
+    #[test]
+    fn a_text_that_needs_cleanup_to_look_like_an_envelope_stays_text() {
+        let text = "#  Files mentioned by the user:\\n## a: /a\\n## My request:\\nx";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-6\",\"cwd\":\"/tmp/demo\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"{text}\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:02Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"ok\"}}}}\n"
+            ),
+            text = text
+        );
+        let (summary, detail) = parse_both("desk-6", &content);
+        let shown = "# Files mentioned by the user:\n## a: /a\n## My request:\nx";
+        assert_eq!(sole_text(&detail.turns[0]), shown);
+        assert_eq!(summary.title.as_deref(), Some(shown));
+        assert_eq!(summary.title, detail.summary.title);
+    }
+
+    /// A message codex wrote to both channels with an image is deduped by
+    /// content; the envelope must decode the same way on both, in the detail
+    /// parser's blocks and the summary parser's fingerprints alike, or it would
+    /// render and count twice.
+    #[test]
+    fn desktop_attachment_envelope_with_an_image_dedups_across_channels() {
+        let envelope = "# Files pasted by the user:\\n\\n## \\\"notes\\\": /Users/me/.codex/attachments/a/pasted-text.txt\\n\\n## My request:\\nsummarize this";
+        let image = "data:image/png;base64,AAAA";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-3\",\"cwd\":\"/tmp/demo\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"response_item\",\"payload\":{{\"type\":\"message\",\"role\":\"user\",\"content\":[{{\"type\":\"input_text\",\"text\":\"{env}\"}},{{\"type\":\"input_image\",\"image_url\":\"{img}\"}}]}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"{env}\",\"images\":[\"{img}\"]}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:02Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"ok\"}}}}\n"
+            ),
+            env = envelope,
+            img = image
+        );
+        let (summary, detail) = parse_both("desk-3", &content);
+
+        assert_eq!(detail.turns.len(), 2, "one user turn, not two");
+        match detail.turns[0].blocks.as_slice() {
+            [ContentBlock::Text { text }, ContentBlock::Image { .. }] => assert_eq!(
+                text,
+                "[notes](file:///Users/me/.codex/attachments/a/pasted-text.txt)\nsummarize this"
+            ),
+            other => panic!("expected the decoded text and the image, got {other:?}"),
+        }
+        assert_eq!(summary.message_count, 2);
+        assert_eq!(summary.message_count, detail.summary.message_count);
+        assert_eq!(summary.title, detail.summary.title);
+    }
+
+    /// Text that merely LOOKS like an envelope is not touched: a list line
+    /// that is not `## <name>: <absolute path>` leaves the message as typed.
+    #[test]
+    fn a_near_miss_envelope_stays_the_text_it_was() {
+        let text =
+            "# Files mentioned by the user:\\n\\n## notes: see the wiki\\n\\n## My request:\\ngo";
+        let content = format!(
+            concat!(
+                "{{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{{\"id\":\"desk-4\",\"cwd\":\"/tmp/demo\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"user_message\",\"message\":\"{text}\"}}}}\n",
+                "{{\"timestamp\":\"2026-03-01T10:00:02Z\",\"type\":\"event_msg\",\"payload\":{{\"type\":\"agent_message\",\"message\":\"ok\"}}}}\n"
+            ),
+            text = text
+        );
+        let (_, detail) = parse_both("desk-4", &content);
+        assert_eq!(
+            sole_text(&detail.turns[0]),
+            "# Files mentioned by the user:\n\n## notes: see the wiki\n\n## My request:\ngo"
+        );
+    }
+
     #[test]
     fn parse_summary_goal_null_clear_adds_no_synthetic_count() {
         // A `thread_goal_updated` with `goal: null` (or a blank objective) carries
@@ -10821,7 +11050,10 @@ mod tests {
         lines.extend(announced_reasoning(
             "2026-09-24T07:21:02Z",
             "rs_1",
-            &["**Checking directory usage**", "**Checking repository changes**"],
+            &[
+                "**Checking directory usage**",
+                "**Checking repository changes**",
+            ],
         ));
         lines.extend(announced_reasoning(
             "2026-09-24T07:21:12Z",
@@ -10833,7 +11065,10 @@ mod tests {
         lines.extend(announced_reasoning(
             "2026-09-24T07:21:20Z",
             "rs_4",
-            &["**Reviewing disk usage snapshot**", "**Measuring temporary storage usage**"],
+            &[
+                "**Reviewing disk usage snapshot**",
+                "**Measuring temporary storage usage**",
+            ],
         ));
         // A tool call is visible and ends the run; its own announcement follows.
         lines.extend([
@@ -10990,7 +11225,9 @@ mod tests {
 
         assert_eq!(
             thinking_texts(&detail),
-            vec!["**Assessing execution capabilities**\n\n**Determining the next step**".to_string()]
+            vec![
+                "**Assessing execution capabilities**\n\n**Determining the next step**".to_string()
+            ]
         );
 
         let _ = fs::remove_file(path);
@@ -15200,22 +15437,58 @@ mod tests {
     #[test]
     fn a_compaction_draws_the_live_divider_and_opens_onto_its_handoff() {
         let content = jsonl(&[
-            record("2026-09-29T00:00:00Z", "session_meta", serde_json::json!({"id": "cmp-2", "cwd": "/tmp/demo", "cli_version": "0.156.1"})),
-            record("2026-09-29T00:00:01Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t1"})),
-            record("2026-09-29T00:00:02Z", "response_item", serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "look at /private/tmp"}]})),
+            record(
+                "2026-09-29T00:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "cmp-2", "cwd": "/tmp/demo", "cli_version": "0.156.1"}),
+            ),
+            record(
+                "2026-09-29T00:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:00:02Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "look at /private/tmp"}]}),
+            ),
             assistant_item("2026-09-29T00:00:03Z", "It holds 40 stale folders."),
             token_count("2026-09-29T00:00:04Z", 1000, 100),
-            record("2026-09-29T00:00:05Z", "event_msg", serde_json::json!({"type": "task_complete", "turn_id": "t1"})),
-            record("2026-09-29T00:01:00Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t2"})),
+            record(
+                "2026-09-29T00:00:05Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:01:00Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t2"}),
+            ),
             token_count("2026-09-29T00:01:01Z", 1000, 100),
             assistant_item("2026-09-29T00:01:40Z", HANDOFF),
-            record("2026-09-29T00:01:40.100Z", "token_usage_record", serde_json::json!({"thread_id": "cmp-2", "turn_id": "t2"})),
+            record(
+                "2026-09-29T00:01:40.100Z",
+                "token_usage_record",
+                serde_json::json!({"thread_id": "cmp-2", "turn_id": "t2"}),
+            ),
             token_count("2026-09-29T00:01:40.200Z", 2400, 180),
             compacted("2026-09-29T00:01:40.300Z", HANDOFF),
-            record("2026-09-29T00:01:40.400Z", "event_msg", serde_json::json!({"type": "thread_settings_applied"})),
+            record(
+                "2026-09-29T00:01:40.400Z",
+                "event_msg",
+                serde_json::json!({"type": "thread_settings_applied"}),
+            ),
             token_count("2026-09-29T00:01:40.500Z", 2400, 180),
-            record("2026-09-29T00:01:40.600Z", "event_msg", serde_json::json!({"type": "item_completed", "turn_id": "t2", "item": {"type": "ContextCompaction", "id": "01a0eaed-d00a-7480"}})),
-            record("2026-09-29T00:01:41Z", "event_msg", serde_json::json!({"type": "task_complete", "turn_id": "t2"})),
+            record(
+                "2026-09-29T00:01:40.600Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "turn_id": "t2", "item": {"type": "ContextCompaction", "id": "01a0eaed-d00a-7480"}}),
+            ),
+            record(
+                "2026-09-29T00:01:41Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t2"}),
+            ),
         ]);
         let detail = parse_rollout("compaction-handoff", &content, "cmp-2");
 
@@ -15238,7 +15511,10 @@ mod tests {
         assert_eq!(turn_usage_total(&detail), 2580);
         // The sidebar entry counts what the conversation renders: the prompt
         // and the reply, not the handoff.
-        assert_eq!(summary_of("compaction-handoff-sum", &content).message_count, 2);
+        assert_eq!(
+            summary_of("compaction-handoff-sum", &content).message_count,
+            2
+        );
     }
 
     /// An automatic compaction mid-turn. The compaction's own model call thinks
@@ -15249,29 +15525,93 @@ mod tests {
     #[test]
     fn a_mid_turn_compaction_keeps_its_own_thinking_out_of_the_reply() {
         let content = jsonl(&[
-            record("2026-09-29T00:00:00Z", "session_meta", serde_json::json!({"id": "cmp-3", "cwd": "/tmp/demo", "cli_version": "0.153.4"})),
-            record("2026-09-29T00:00:01Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t1"})),
-            record("2026-09-29T00:00:02Z", "response_item", serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "fix the race"}]})),
-            record("2026-09-29T00:00:03Z", "event_msg", serde_json::json!({"type": "item_completed", "item": {"type": "Reasoning", "id": "rs_1", "summary_text": ["**Looking at the lock**"]}})),
-            record("2026-09-29T00:00:03.100Z", "response_item", serde_json::json!({"type": "reasoning", "id": "rs_1", "summary": [{"type": "summary_text", "text": "**Looking at the lock**"}]})),
-            record("2026-09-29T00:00:04Z", "response_item", serde_json::json!({"type": "function_call", "name": "shell", "call_id": "c1", "arguments": "{\"command\":[\"rg\",\"lock\"]}"})),
-            record("2026-09-29T00:00:05Z", "response_item", serde_json::json!({"type": "function_call_output", "call_id": "c1", "output": "src/lock.rs:1"})),
-            record("2026-09-29T00:00:05.100Z", "token_usage_record", serde_json::json!({"turn_id": "t1"})),
+            record(
+                "2026-09-29T00:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "cmp-3", "cwd": "/tmp/demo", "cli_version": "0.153.4"}),
+            ),
+            record(
+                "2026-09-29T00:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:00:02Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "fix the race"}]}),
+            ),
+            record(
+                "2026-09-29T00:00:03Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "item": {"type": "Reasoning", "id": "rs_1", "summary_text": ["**Looking at the lock**"]}}),
+            ),
+            record(
+                "2026-09-29T00:00:03.100Z",
+                "response_item",
+                serde_json::json!({"type": "reasoning", "id": "rs_1", "summary": [{"type": "summary_text", "text": "**Looking at the lock**"}]}),
+            ),
+            record(
+                "2026-09-29T00:00:04Z",
+                "response_item",
+                serde_json::json!({"type": "function_call", "name": "shell", "call_id": "c1", "arguments": "{\"command\":[\"rg\",\"lock\"]}"}),
+            ),
+            record(
+                "2026-09-29T00:00:05Z",
+                "response_item",
+                serde_json::json!({"type": "function_call_output", "call_id": "c1", "output": "src/lock.rs:1"}),
+            ),
+            record(
+                "2026-09-29T00:00:05.100Z",
+                "token_usage_record",
+                serde_json::json!({"turn_id": "t1"}),
+            ),
             token_count("2026-09-29T00:00:05.200Z", 1000, 100),
             // The compaction's model call: its thinking, then its handoff.
-            record("2026-09-29T00:00:30Z", "response_item", serde_json::json!({"type": "reasoning", "id": "rs_c", "summary": [{"type": "summary_text", "text": "**Preparing concise handoff summary**"}]})),
+            record(
+                "2026-09-29T00:00:30Z",
+                "response_item",
+                serde_json::json!({"type": "reasoning", "id": "rs_c", "summary": [{"type": "summary_text", "text": "**Preparing concise handoff summary**"}]}),
+            ),
             assistant_item("2026-09-29T00:00:40Z", HANDOFF),
-            record("2026-09-29T00:00:40.100Z", "token_usage_record", serde_json::json!({"turn_id": "t1"})),
+            record(
+                "2026-09-29T00:00:40.100Z",
+                "token_usage_record",
+                serde_json::json!({"turn_id": "t1"}),
+            ),
             token_count("2026-09-29T00:00:40.200Z", 2400, 180),
             compacted("2026-09-29T00:00:40.300Z", HANDOFF),
-            record("2026-09-29T00:00:40.400Z", "world_state", serde_json::json!({"full": true})),
-            record("2026-09-29T00:00:40.500Z", "turn_context", serde_json::json!({"turn_id": "t1", "model": "gpt-6"})),
-            record("2026-09-29T00:00:40.700Z", "event_msg", serde_json::json!({"type": "item_completed", "item": {"type": "ContextCompaction", "id": "cmp-item"}})),
-            record("2026-09-29T00:00:50Z", "event_msg", serde_json::json!({"type": "item_completed", "item": {"type": "Reasoning", "id": "rs_2", "summary_text": ["**Resuming the fix**"]}})),
-            record("2026-09-29T00:00:50.100Z", "response_item", serde_json::json!({"type": "reasoning", "id": "rs_2", "summary": [{"type": "summary_text", "text": "**Resuming the fix**"}]})),
+            record(
+                "2026-09-29T00:00:40.400Z",
+                "world_state",
+                serde_json::json!({"full": true}),
+            ),
+            record(
+                "2026-09-29T00:00:40.500Z",
+                "turn_context",
+                serde_json::json!({"turn_id": "t1", "model": "gpt-6"}),
+            ),
+            record(
+                "2026-09-29T00:00:40.700Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "item": {"type": "ContextCompaction", "id": "cmp-item"}}),
+            ),
+            record(
+                "2026-09-29T00:00:50Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "item": {"type": "Reasoning", "id": "rs_2", "summary_text": ["**Resuming the fix**"]}}),
+            ),
+            record(
+                "2026-09-29T00:00:50.100Z",
+                "response_item",
+                serde_json::json!({"type": "reasoning", "id": "rs_2", "summary": [{"type": "summary_text", "text": "**Resuming the fix**"}]}),
+            ),
             assistant_item("2026-09-29T00:01:00Z", "Fixed the race."),
             token_count("2026-09-29T00:01:00.100Z", 3500, 260),
-            record("2026-09-29T00:01:01Z", "event_msg", serde_json::json!({"type": "task_complete", "turn_id": "t1"})),
+            record(
+                "2026-09-29T00:01:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t1"}),
+            ),
         ]);
         let detail = parse_rollout("compaction-midturn", &content, "cmp-3");
 
@@ -15307,8 +15647,13 @@ mod tests {
             .blocks
             .iter()
             .any(|block| matches!(block, ContentBlock::ToolUse { tool_use_id: Some(id), .. } if id == "c1"))));
-        assert_eq!(texts.last(), Some(&("assistant", Some("Fixed the race.".into()))));
-        assert!(!texts.iter().any(|(_, text)| text.as_deref() == Some(HANDOFF)));
+        assert_eq!(
+            texts.last(),
+            Some(&("assistant", Some("Fixed the race.".into())))
+        );
+        assert!(!texts
+            .iter()
+            .any(|(_, text)| text.as_deref() == Some(HANDOFF)));
         // The thinking card that went away had the compaction's round billed
         // to it; that spend stays in the conversation, on the reply before.
         assert_eq!(turn_usage_total(&detail), 3760);
@@ -15317,7 +15662,10 @@ mod tests {
             .filter_map(|turn| turn.usage.as_ref())
             .map(|usage| usage.input_tokens + usage.output_tokens)
             .sum();
-        assert_eq!(before_divider, 2580, "both rounds before the divider stay there");
+        assert_eq!(
+            before_divider, 2580,
+            "both rounds before the divider stay there"
+        );
     }
 
     /// Codex before ~0.137 wrote no handoff record at all: the summary exists
@@ -15326,14 +15674,42 @@ mod tests {
     #[test]
     fn an_older_compaction_opens_onto_the_summary_its_record_restates() {
         let content = jsonl(&[
-            record("2026-05-31T10:00:00Z", "session_meta", serde_json::json!({"id": "cmp-4", "cwd": "/tmp/demo", "cli_version": "0.133.0"})),
-            record("2026-05-31T10:00:01Z", "event_msg", serde_json::json!({"type": "user_message", "message": "run the tests"})),
-            record("2026-05-31T10:00:02Z", "event_msg", serde_json::json!({"type": "agent_message", "message": "Running them."})),
-            record("2026-05-31T10:00:03Z", "response_item", serde_json::json!({"type": "function_call", "name": "shell", "call_id": "c1", "arguments": "{\"command\":[\"make\",\"test\"]}"})),
-            record("2026-05-31T10:00:04Z", "response_item", serde_json::json!({"type": "function_call_output", "call_id": "c1", "output": "ok"})),
+            record(
+                "2026-05-31T10:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "cmp-4", "cwd": "/tmp/demo", "cli_version": "0.133.0"}),
+            ),
+            record(
+                "2026-05-31T10:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "user_message", "message": "run the tests"}),
+            ),
+            record(
+                "2026-05-31T10:00:02Z",
+                "event_msg",
+                serde_json::json!({"type": "agent_message", "message": "Running them."}),
+            ),
+            record(
+                "2026-05-31T10:00:03Z",
+                "response_item",
+                serde_json::json!({"type": "function_call", "name": "shell", "call_id": "c1", "arguments": "{\"command\":[\"make\",\"test\"]}"}),
+            ),
+            record(
+                "2026-05-31T10:00:04Z",
+                "response_item",
+                serde_json::json!({"type": "function_call_output", "call_id": "c1", "output": "ok"}),
+            ),
             compacted("2026-05-31T10:00:05Z", HANDOFF),
-            record("2026-05-31T10:00:06Z", "event_msg", serde_json::json!({"type": "context_compacted"})),
-            record("2026-05-31T10:00:07Z", "event_msg", serde_json::json!({"type": "agent_message", "message": "All green."})),
+            record(
+                "2026-05-31T10:00:06Z",
+                "event_msg",
+                serde_json::json!({"type": "context_compacted"}),
+            ),
+            record(
+                "2026-05-31T10:00:07Z",
+                "event_msg",
+                serde_json::json!({"type": "agent_message", "message": "All green."}),
+            ),
         ]);
         let detail = parse_rollout("compaction-legacy", &content, "cmp-4");
 
@@ -15343,7 +15719,10 @@ mod tests {
         );
         let texts = turn_texts(&detail);
         assert_eq!(texts.first(), Some(&("user", Some("run the tests".into()))));
-        assert_eq!(texts.last(), Some(&("assistant", Some("All green.".into()))));
+        assert_eq!(
+            texts.last(),
+            Some(&("assistant", Some("All green.".into())))
+        );
     }
 
     /// The text fallback only looks at what was written since the previous
@@ -15353,14 +15732,34 @@ mod tests {
     fn the_text_fallback_never_reaches_past_the_previous_compaction() {
         let call = |ts: &str, id: &str| {
             [
-                record(ts, "response_item", serde_json::json!({"type": "function_call", "name": "shell", "call_id": id, "arguments": "{\"command\":[\"ls\"]}"})),
-                record(ts, "response_item", serde_json::json!({"type": "function_call_output", "call_id": id, "output": "ok"})),
+                record(
+                    ts,
+                    "response_item",
+                    serde_json::json!({"type": "function_call", "name": "shell", "call_id": id, "arguments": "{\"command\":[\"ls\"]}"}),
+                ),
+                record(
+                    ts,
+                    "response_item",
+                    serde_json::json!({"type": "function_call_output", "call_id": id, "output": "ok"}),
+                ),
             ]
         };
         let mut records = vec![
-            record("2026-09-29T00:00:00Z", "session_meta", serde_json::json!({"id": "cmp-6", "cwd": "/tmp/demo"})),
-            record("2026-09-29T00:00:01Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t1"})),
-            record("2026-09-29T00:00:02Z", "response_item", serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "q1"}]})),
+            record(
+                "2026-09-29T00:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "cmp-6", "cwd": "/tmp/demo"}),
+            ),
+            record(
+                "2026-09-29T00:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:00:02Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "q1"}]}),
+            ),
             // A real reply that happens to read exactly like a later summary.
             assistant_item("2026-09-29T00:00:03Z", HANDOFF),
         ];
@@ -15404,14 +15803,38 @@ mod tests {
     #[test]
     fn the_handoff_is_recognized_by_its_text_when_adjacency_breaks() {
         let content = jsonl(&[
-            record("2026-09-29T00:00:00Z", "session_meta", serde_json::json!({"id": "cmp-5", "cwd": "/tmp/demo"})),
-            record("2026-09-29T00:00:01Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t1"})),
-            record("2026-09-29T00:00:02Z", "response_item", serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]})),
+            record(
+                "2026-09-29T00:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "cmp-5", "cwd": "/tmp/demo"}),
+            ),
+            record(
+                "2026-09-29T00:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:00:02Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}),
+            ),
             assistant_item("2026-09-29T00:00:03Z", "Hello."),
-            record("2026-09-29T00:00:04Z", "event_msg", serde_json::json!({"type": "task_complete", "turn_id": "t1"})),
-            record("2026-09-29T00:01:00Z", "event_msg", serde_json::json!({"type": "task_started", "turn_id": "t2"})),
+            record(
+                "2026-09-29T00:00:04Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-09-29T00:01:00Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t2"}),
+            ),
             assistant_item("2026-09-29T00:01:40Z", HANDOFF),
-            record("2026-09-29T00:01:40.100Z", "some_future_accounting", serde_json::json!({"turn_id": "t2"})),
+            record(
+                "2026-09-29T00:01:40.100Z",
+                "some_future_accounting",
+                serde_json::json!({"turn_id": "t2"}),
+            ),
             compacted("2026-09-29T00:01:40.300Z", HANDOFF),
         ]);
         let detail = parse_rollout("compaction-text", &content, "cmp-5");
@@ -15993,3 +16416,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/codex-desktop-history.contract.rs"]
+mod maxcode_codex_desktop_history_contract;

@@ -2403,8 +2403,10 @@ export interface ToolCallImageWire {
  * launch card in-memory (rewriting its `[[codeg-background-task]]` marker via
  * `resolveBackgroundTask`) instead of a `refetchDetail` — which double-rendered
  * the #870-held turn and raced the transcript's last write. `tool_use_id` is
- * the launching tool call's id (`toolu_…`), NOT `task_id`; absent for a
- * background shell (no marker card to flip).
+ * the launching tool call's id (`toolu_…`), NOT `task_id`. A background shell's
+ * notification names its `Bash` call too, whose card has no marker to flip (the
+ * store leaves it alone); absent when the notification names no call (an MCP
+ * call moved to the background).
  */
 export interface BackgroundSettledInfo {
   task_id: string
@@ -2668,8 +2670,10 @@ export type AcpEvent =
        * `"session_unavailable"`, `"session_archived"`, or `"session_busy"`.
        *
        * The first three mean the session is gone. `"session_busy"` does not —
-       * another live session holds it (codex keeps the parent thread's writer
-       * after a fork), and it clears when that one closes.
+       * another live holder has it open (another Codex client — the app, the
+       * CLI or an IDE extension — or, for about a minute after a fork, the
+       * forking session, until codex unloads the parent it closed), and it
+       * clears when that one lets go.
        */
       code: string
     }

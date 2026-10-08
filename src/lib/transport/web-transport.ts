@@ -56,12 +56,19 @@ const WS_PONG_TIMEOUT_MS = 8_000
 // tighter deadline: if the socket is alive the pong is instant, and if it
 // is a zombie the user is already looking at a stuck transcript.
 const WS_WAKE_PONG_TIMEOUT_MS = 3_000
+// Bound both the TCP handshake and the application-ready frame. Heartbeats
+// cannot protect a socket that never reaches __ready__ in the first place.
+const WS_CONNECT_TIMEOUT_MS = 8_000
 
 // Connection health of the web transport, surfaced to React via
 // `subscribeConnection`/`getConnectionSnapshot` so a single global dialog can
 // reflect it. Distinct from the per-ACP-agent `ConnectionStatus` — this is
 // the browser↔server transport link, not an agent session.
-export type WebConnState = "connected" | "reconnecting" | "unauthorized"
+export type WebConnState =
+  | "connected"
+  | "connecting"
+  | "reconnecting"
+  | "unauthorized"
 
 interface WebEvent {
   channel: string
@@ -78,6 +85,9 @@ export class WebTransport implements Transport {
   private wsFailCount = 0
   private readyPromise!: Promise<void>
   private readyResolve!: () => void
+  private readyResolved = true
+  private wsConnectTimer: ReturnType<typeof setTimeout> | null = null
+  private wsConnectDeadlineAt = 0
   // Tracks whether `__ready__` has ever arrived on this transport instance.
   // The first arrival is the initial connect; subsequent arrivals are
   // reconnects (after `onclose` reset the promise). Reconnect callbacks
@@ -97,9 +107,9 @@ export class WebTransport implements Transport {
   private wsOpen = false
   private wsReadyCallbacks = new Set<() => void>()
   private eventStreamInstance: WebEventStream | null = null
-  // Connection-health state machine. Starts "connected" so SSR/first paint
-  // never flashes the dialog; the first real transition comes from `onclose`
-  // (→ reconnecting) or a 401 (→ unauthorized). `connListeners` are React
+  // Starts neutral for SSR, then reports connecting while the first socket
+  // waits for __ready__. Failed/replacement sockets report reconnecting;
+  // a definitive 401 reports unauthorized. `connListeners` are React
   // `useSyncExternalStore` subscribers notified on every state change.
   private connState: WebConnState = "connected"
   private connListeners = new Set<() => void>()
@@ -120,6 +130,7 @@ export class WebTransport implements Transport {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null
   private pongTimer: ReturnType<typeof setTimeout> | null = null
   private awaitingPong = false
+  private pongDeadlineAt = 0
   private unbindWakeListeners: (() => void) | null = null
 
   constructor(baseUrl: string) {
@@ -128,6 +139,10 @@ export class WebTransport implements Transport {
   }
 
   private resetReady() {
+    // Keep callers already waiting on a lost connection attached to the next
+    // one, instead of stranding them on an abandoned promise until timeout.
+    if (!this.readyResolved) return
+    this.readyResolved = false
     this.readyPromise = new Promise<void>((resolve) => {
       this.readyResolve = resolve
     })
@@ -377,11 +392,25 @@ export class WebTransport implements Transport {
     // moved on and corrupt the state machine / schedule a duplicate backoff.
     this.teardownWs()
     this.bindWakeListeners()
+    this.setConnState(
+      this.connState === "connected" && !this.hasReadiedOnce
+        ? "connecting"
+        : "reconnecting"
+    )
 
     const wsUrl = this.baseUrl.replace(/^http/, "ws") + "/ws/events"
-    this.ws = new WebSocket(wsUrl, buildCodegWebSocketProtocols(token))
+    const ws = new WebSocket(wsUrl, buildCodegWebSocketProtocols(token))
+    this.ws = ws
+    this.wsConnectDeadlineAt = Date.now() + WS_CONNECT_TIMEOUT_MS
+    this.wsConnectTimer = setTimeout(() => {
+      if (this.ws !== ws || this.destroyed) return
+      this.teardownWs()
+      this.setConnState("reconnecting")
+      this.scheduleReconnect()
+    }, WS_CONNECT_TIMEOUT_MS)
 
-    this.ws.onopen = () => {
+    ws.onopen = () => {
+      if (this.ws !== ws || this.destroyed) return
       this.wsOpen = true
       // NB: connection health is NOT flipped to "connected" here. `onopen`
       // only means the socket is physically up; the application-level
@@ -404,7 +433,8 @@ export class WebTransport implements Transport {
       }
     }
 
-    this.ws.onmessage = (msg) => {
+    ws.onmessage = (msg) => {
+      if (this.ws !== ws || this.destroyed) return
       try {
         const parsed = JSON.parse(msg.data) as unknown
         // Any well-formed inbound frame proves the link is alive — streaming
@@ -427,6 +457,8 @@ export class WebTransport implements Transport {
         }
         const event = parsed as WebEvent
         if (event.channel === WS_READY_CHANNEL) {
+          this.clearConnectWait()
+          this.readyResolved = true
           this.readyResolve()
           // Application-level ready: the link is fully usable again. Reset the
           // backoff counter and clear the reconnect dialog. Reset happens here
@@ -463,9 +495,11 @@ export class WebTransport implements Transport {
       }
     }
 
-    this.ws.onclose = () => {
+    ws.onclose = () => {
+      if (this.ws !== ws || this.destroyed) return
       this.ws = null
       this.wsOpen = false
+      this.clearConnectWait()
       this.stopHeartbeat()
       // New subscribers (and any concurrent subscribe() calls in flight)
       // must wait for the next connection's `__ready__` before resolving.
@@ -480,8 +514,8 @@ export class WebTransport implements Transport {
       this.scheduleReconnect()
     }
 
-    this.ws.onerror = () => {
-      this.ws?.close()
+    ws.onerror = () => {
+      if (this.ws === ws) ws.close()
     }
 
     return true
@@ -570,6 +604,7 @@ export class WebTransport implements Transport {
   // Shared by connectWs (pre-rebuild), reconnectNow, markUnauthorized, and
   // destroy. Idempotent — a no-op when there's no live socket.
   private teardownWs() {
+    this.clearConnectWait()
     if (this.ws) {
       this.ws.onopen = null
       this.ws.onmessage = null
@@ -585,6 +620,13 @@ export class WebTransport implements Transport {
     }
     this.wsOpen = false
     this.stopHeartbeat()
+    this.resetReady()
+  }
+
+  private clearConnectWait() {
+    if (this.wsConnectTimer !== null) clearTimeout(this.wsConnectTimer)
+    this.wsConnectTimer = null
+    this.wsConnectDeadlineAt = 0
   }
 
   // ── Heartbeat / zombie-socket recovery ──────────────────────────────────
@@ -599,6 +641,7 @@ export class WebTransport implements Transport {
       this.pongTimer = null
     }
     this.awaitingPong = false
+    this.pongDeadlineAt = 0
   }
 
   private startHeartbeat() {
@@ -618,16 +661,40 @@ export class WebTransport implements Transport {
 
   /**
    * Send `{action:"ping"}` and arm a pong deadline. No-op when the socket
-   * isn't application-ready / OPEN, or when a ping is already in flight.
+   * isn't application-ready. Wake probes shorten an existing ping deadline.
    * A send failure (zombie OPEN socket that throws) is treated as a miss.
    */
   private sendHeartbeat(pongTimeoutMs: number) {
-    if (this.destroyed || this.awaitingPong) return
+    if (this.destroyed) return
     if (this.connState !== "connected") return
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      this.reconnectNow()
+      return
+    }
+    if (this.awaitingPong) {
+      // A background ping may still own an eight-second timer when the tab
+      // wakes. Shorten it: repeated wake signals must not extend the deadline.
+      if (pongTimeoutMs === WS_WAKE_PONG_TIMEOUT_MS) {
+        this.pongDeadlineAt = Math.min(
+          this.pongDeadlineAt,
+          Date.now() + pongTimeoutMs
+        )
+        if (this.pongTimer !== null) clearTimeout(this.pongTimer)
+        if (this.pongDeadlineAt <= Date.now()) {
+          this.handleHeartbeatMiss()
+          return
+        }
+        this.pongTimer = setTimeout(
+          () => this.handleHeartbeatMiss(),
+          this.pongDeadlineAt - Date.now()
+        )
+      }
+      return
+    }
     // Arm the deadline BEFORE send so a synchronous pong (tests, in-process
     // mocks) still cancels it. sendWsFrame false / throw is a miss.
     this.awaitingPong = true
+    this.pongDeadlineAt = Date.now() + pongTimeoutMs
     this.pongTimer = setTimeout(() => {
       this.handleHeartbeatMiss()
     }, pongTimeoutMs)
@@ -654,7 +721,10 @@ export class WebTransport implements Transport {
    */
   private probeLivenessOnWake() {
     if (this.destroyed || this.connState === "unauthorized") return
-    if (this.connState === "reconnecting") {
+    if (this.connState === "reconnecting" || this.connState === "connecting") {
+      // Multiple wake signals must not close a replacement still completing
+      // its bounded handshake. Expired watchdogs may be suspended with the tab.
+      if (this.ws && Date.now() < this.wsConnectDeadlineAt) return
       this.reconnectNow()
       return
     }
@@ -677,13 +747,22 @@ export class WebTransport implements Transport {
       this.probeLivenessOnWake()
     }
     const onOnline = () => this.probeLivenessOnWake()
+    const onOffline = () => {
+      if (!this.destroyed && this.connState !== "unauthorized") {
+        this.reconnectNow()
+      }
+    }
     document.addEventListener("visibilitychange", onVisible)
     window.addEventListener("pageshow", onPageShow)
+    window.addEventListener("focus", onVisible)
     window.addEventListener("online", onOnline)
+    window.addEventListener("offline", onOffline)
     this.unbindWakeListeners = () => {
       document.removeEventListener("visibilitychange", onVisible)
       window.removeEventListener("pageshow", onPageShow)
+      window.removeEventListener("focus", onVisible)
       window.removeEventListener("online", onOnline)
+      window.removeEventListener("offline", onOffline)
     }
   }
 
