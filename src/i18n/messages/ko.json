@@ -2199,6 +2199,11 @@
         "openUsage": "세션 통계 및 토큰 사용량 보기"
       },
       "tokens": {
+        "contextUsage": "컨텍스트 사용량",
+        "used": "사용됨",
+        "sessionTokenUsage": "세션 누적 토큰",
+        "sessionUsageNote": "모든 턴의 누적 사용량이며 현재 컨텍스트 사용량과는 다릅니다.",
+        "closeDetails": "사용량 상세 닫기",
         "contextWindowUsageAria": "컨텍스트 윈도우 사용량",
         "contextWindow": "컨텍스트 윈도우",
         "usedMax": "사용 / 최대",
@@ -2270,6 +2275,10 @@
       "closeAll": "모두 닫기",
       "openInCode": "VS Code에서 열기",
       "openInCodeFailed": "VS Code에서 열지 못했습니다",
+      "openInFinder": "Finder에서 열기",
+      "openInExplorer": "파일 탐색기에서 열기",
+      "openInFileManager": "파일 관리자에서 열기",
+      "openInFileManagerFailed": "파일 관리자에서 열 수 없습니다",
       "preview": "미리보기",
       "editSource": "소스 편집",
       "maximize": "최대화",

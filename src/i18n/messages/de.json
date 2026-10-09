@@ -2199,6 +2199,11 @@
         "openUsage": "Sitzungsstatistik und Token-Nutzung anzeigen"
       },
       "tokens": {
+        "contextUsage": "Kontextnutzung",
+        "used": "Verwendet",
+        "sessionTokenUsage": "Kumulierte Sitzungstokens",
+        "sessionUsageNote": "Kumulierte Nutzung aller Runden, getrennt von der aktuellen Kontextnutzung.",
+        "closeDetails": "Nutzungsdetails schließen",
         "contextWindowUsageAria": "Kontextfenster-Nutzung",
         "contextWindow": "Kontextfenster",
         "usedMax": "Verwendet / Max",
@@ -2270,6 +2275,10 @@
       "closeAll": "Alle schließen",
       "openInCode": "In VS Code öffnen",
       "openInCodeFailed": "In VS Code öffnen fehlgeschlagen",
+      "openInFinder": "In Finder öffnen",
+      "openInExplorer": "Im Datei-Explorer öffnen",
+      "openInFileManager": "Im Dateimanager öffnen",
+      "openInFileManagerFailed": "Öffnen im Dateimanager fehlgeschlagen",
       "preview": "Vorschau",
       "editSource": "Quelle bearbeiten",
       "maximize": "Maximieren",

@@ -2199,6 +2199,11 @@
         "openUsage": "عرض إحصاءات الجلسات واستخدام الرموز"
       },
       "tokens": {
+        "contextUsage": "استخدام السياق",
+        "used": "المستخدم",
+        "sessionTokenUsage": "رموز الجلسة التراكمية",
+        "sessionUsageNote": "الاستخدام التراكمي لجميع الأدوار، منفصل عن استخدام السياق الحالي.",
+        "closeDetails": "إغلاق تفاصيل الاستخدام",
         "contextWindowUsageAria": "استخدام نافذة السياق",
         "contextWindow": "نافذة السياق",
         "usedMax": "المستخدم / الحد الأقصى",
@@ -2270,6 +2275,10 @@
       "closeAll": "إغلاق الكل",
       "openInCode": "فتح في VS Code",
       "openInCodeFailed": "فشل الفتح في VS Code",
+      "openInFinder": "فتح في Finder",
+      "openInExplorer": "فتح في مستكشف الملفات",
+      "openInFileManager": "فتح في مدير الملفات",
+      "openInFileManagerFailed": "تعذر الفتح في مدير الملفات",
       "preview": "معاينة",
       "editSource": "تحرير المصدر",
       "maximize": "تكبير",

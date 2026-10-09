@@ -191,6 +191,7 @@ interface MessageInputProps {
   onSend: (draft: PromptDraft, modeId?: string | null) => void
   placeholder?: string
   defaultPath?: string
+  /** Blocks sending while the connection is unavailable; drafting stays enabled. */
   disabled?: boolean
   autoFocus?: boolean
   onFocus?: () => void
@@ -493,8 +494,8 @@ export function MessageInput({
   // wherever a prompt is written.
   const attach = useComposerAttachments({
     editorRef,
-    disabled,
     promptCapabilities,
+    allowImagesBeforeReady: disabled,
     attachmentTabId,
     logLabel: "MessageInput",
   })
@@ -1205,7 +1206,6 @@ export function MessageInput({
   }, [selectionPlainText, t])
 
   const handleContextCut = useCallback(async () => {
-    if (disabled) return
     const editor = editorRef.current?.getEditor()
     if (!editor) return
     // Capture the range up front so the post-write delete targets exactly what
@@ -1219,14 +1219,13 @@ export function MessageInput({
       remove: () => editor.chain().focus().deleteRange({ from, to }).run(),
       onWriteFailed: () => toast.error(t("clipboardWriteFailed")),
     })
-  }, [disabled, selectionPlainText, t])
+  }, [selectionPlainText, t])
 
   const handleContextSelectAll = useCallback(() => {
-    if (disabled) return
     const editor = editorRef.current?.getEditor()
     if (!editor) return
     editor.chain().focus().selectAll().run()
-  }, [disabled])
+  }, [])
 
   // A right click over the text picks up the token under the pointer first — an
   // address, a link, a path, a word — and selects it, so Cut/Copy and the
@@ -1284,7 +1283,6 @@ export function MessageInput({
   // inside the menu-click / keydown user gesture, so the async Clipboard API has
   // the activation it needs.
   const handleContextPaste = useCallback(async () => {
-    if (disabled) return
     const editor = editorRef.current?.getEditor()
     if (!editor) return
     let text = ""
@@ -1325,21 +1323,20 @@ export function MessageInput({
     if (readBlocked) {
       toast.error(t("pasteUnavailable"))
     }
-  }, [disabled, attach, t])
+  }, [attach, t])
 
   // Bridges the composer's Ctrl/⌘+Shift+V key to the plain-text paste above.
-  // Returns whether the shortcut was consumed: when disabled or when the async
-  // clipboard read is available we take over (return true) so the composer
+  // Returns whether the shortcut was consumed: when the async clipboard read
+  // is available we take over (return true) so the composer
   // suppresses the browser's native rich paste; in a non-secure context (no
   // `readText`) we return false so the browser's own "paste and match style"
   // still works. The read runs inside this keydown gesture, so its activation
   // is preserved.
   const handlePlainPasteShortcut = useCallback((): boolean => {
-    if (disabled) return true
     if (!clipboardReadSupported) return false
     void handleContextPaste()
     return true
-  }, [disabled, clipboardReadSupported, handleContextPaste])
+  }, [clipboardReadSupported, handleContextPaste])
 
   useEffect(() => {
     if (!attachmentTabId) return
@@ -1506,9 +1503,8 @@ export function MessageInput({
   }
 
   const handleSend = useCallback(() => {
-    // The editor stays editable while `disabled` (the agent is busy) so the user
-    // can keep typing, but a plain send is blocked — only enqueue / queue-edit
-    // save go through. Mirrors the legacy textarea's keydown guard.
+    // Draft editing stays available before the connection is ready, but plain
+    // sends are blocked. Queue edits and mid-turn enqueue remain local actions.
     if (disabled && !isPrompting && !isEditingQueueItem) return
     // An image whose web/remote upload hasn't settled has no server-side uri
     // yet — the transport would strip its base64 and the backend would have
@@ -1718,7 +1714,7 @@ export function MessageInput({
   const chromeFocus = useComposerChromeFocus(editorRef)
 
   const hasImageAttachments = imageAttachments.length > 0
-  const showDragActive = attach.isDragActive && !disabled
+  const showDragActive = attach.isDragActive
 
   const renderInlineConfigOption = (option: SessionConfigOptionInfo) => {
     // On/off options flip in place — a dropdown for a binary choice is a
@@ -2161,9 +2157,7 @@ export function MessageInput({
                   <ComposerImageThumbnails
                     attachments={imageAttachments}
                     onRemove={attach.removeAttachment}
-                    onMarkup={
-                      disabled ? undefined : attach.replaceImageAttachment
-                    }
+                    onMarkup={attach.replaceImageAttachment}
                   />
                 }
               />
@@ -2203,7 +2197,6 @@ export function MessageInput({
               <div className="flex shrink-0 items-end justify-between gap-1 px-2 pb-2">
                 <div className="flex min-w-0 flex-1 items-end gap-1">
                   <ComposerAddMenu
-                    disabled={disabled}
                     attachments={attach}
                     shortcuts={menuShortcuts}
                     slashCommands={slashCommands}
@@ -2302,7 +2295,7 @@ export function MessageInput({
               </>
             )}
             <ContextMenuItem
-              disabled={disabled || !contextSelectionActive}
+              disabled={!contextSelectionActive}
               onSelect={() => void handleContextCut()}
             >
               <Scissors className="size-4" />
@@ -2316,7 +2309,6 @@ export function MessageInput({
               {t("copy")}
             </ContextMenuItem>
             <ContextMenuItem
-              disabled={disabled}
               onSelect={() => {
                 void handleContextPaste()
               }}
@@ -2324,16 +2316,13 @@ export function MessageInput({
               <ClipboardPaste className="size-4" />
               {t("pasteAsPlainText")}
             </ContextMenuItem>
-            <ContextMenuItem
-              disabled={disabled}
-              onSelect={() => handleContextSelectAll()}
-            >
+            <ContextMenuItem onSelect={() => handleContextSelectAll()}>
               <TextSelect className="size-4" />
               {t("selectAll")}
             </ContextMenuItem>
             <ContextMenuSeparator />
             <ContextMenuSub>
-              <ContextMenuSubTrigger disabled={disabled}>
+              <ContextMenuSubTrigger>
                 <MessageSquareText className="size-4" />
                 {t("quickMessages")}
               </ContextMenuSubTrigger>

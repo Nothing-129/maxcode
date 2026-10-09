@@ -2199,6 +2199,11 @@
         "openUsage": "View session stats & token usage"
       },
       "tokens": {
+        "contextUsage": "Context usage",
+        "used": "Used",
+        "sessionTokenUsage": "Session token usage",
+        "sessionUsageNote": "Cumulative across all turns; separate from current context usage.",
+        "closeDetails": "Close usage details",
         "contextWindowUsageAria": "Context window usage",
         "contextWindow": "Context Window",
         "usedMax": "Used / Max",
@@ -2270,6 +2275,10 @@
       "closeAll": "Close All",
       "openInCode": "Open in VS Code",
       "openInCodeFailed": "Failed to open in VS Code",
+      "openInFinder": "Open in Finder",
+      "openInExplorer": "Open in File Explorer",
+      "openInFileManager": "Open in File Manager",
+      "openInFileManagerFailed": "Unable to open in file manager",
       "preview": "Preview",
       "editSource": "Edit Source",
       "maximize": "Maximize",

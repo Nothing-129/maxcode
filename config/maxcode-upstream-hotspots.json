@@ -2,6 +2,33 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "files.tab-file-manager",
+      "category": "product",
+      "description": "Desktop file tab menus reveal the selected file, including Word documents, in Finder/File Explorer/the system file manager. The action uses the selected tab path, reports failures, and is hidden in web mode or without a path.",
+      "origins": ["worktree-2026-10-08"],
+      "paths": [
+        "src/components/files/file-workspace-tab-bar.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/file-tab-file-manager.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.connection-draft-editing",
+      "category": "product",
+      "description": "Connection and session-initialization readiness only gate sending: text, clipboard operations, image paste/drop/pick, markup and draft insertion remain available. Images can be staged before capabilities arrive and use the negotiated encoding when sent; button and keyboard sends stay blocked until ready.",
+      "origins": ["worktree-2026-10-08"],
+      "paths": [
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/composer/use-composer-attachments.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-connection-draft.contract.test.tsx"
+      ]
+    },
+    {
       "id": "runtime.selected-upstream-20261008",
       "category": "runtime",
       "description": "Eight reviewed upstream repairs: linear transcript-tail memory; coarse-pointer composer focus without subscriptions; task saves its shown maintained agent; Grok catalogs preserve model/effort and deduplicate; Claude 0.86 and Codex 2.1.1 preserve writer-lock, parent-close, custom answers, attachment/history and background command semantics; pending steering preserves edited text/images; silent search pipelines retain real errors. Electron, seven-agent catalog, Codex steering gates and uncertain queued delivery protection remain unchanged.",
@@ -1282,9 +1309,13 @@
     {
       "id": "composer.usage-popover",
       "category": "product",
-      "description": "Composer usage popover separates context capacity from session token totals with a prominent percentage, thin progress bar, spaced aligned definition rows and a subtle total row; cache hit rate uses cache reads divided by input plus cache reads and writes, excluding output, with -- for zero input; width fits narrow viewports.",
-      "origins": ["worktree-2026-09-09"],
-      "paths": ["src/components/chat/composer-context-usage.tsx"],
+      "description": "Composer usage details use a reference-style context headline, used/capacity text, capacity bar, explicit close control and colored session token legend/stacked bar. Session totals are explicitly cumulative and never presented as system/tool/MCP/skill context breakdown. Cache hit rate excludes output. The panel fits narrow viewports and scrolls within available height.",
+      "origins": ["worktree-2026-09-09", "worktree-2026-10-09"],
+      "paths": [
+        "src/components/chat/composer-context-usage.tsx",
+        "src/components/chat/composer-usage-details.tsx",
+        "src/i18n/messages/"
+      ],
       "contracts": [
         "src/maxcode-contracts/composer-usage-popover.contract.test.tsx"
       ]

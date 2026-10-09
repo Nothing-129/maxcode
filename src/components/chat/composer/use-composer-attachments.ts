@@ -87,6 +87,8 @@ export interface ComposerAttachmentsOptions {
   disabled?: boolean
   /** Decides whether images may be attached at all, and how they are encoded. */
   promptCapabilities: Pick<PromptCapabilitiesInfo, "image" | "embedded_context">
+  /** Stage image drafts before the connection advertises its capabilities. */
+  allowImagesBeforeReady?: boolean
   /** Groups uploads with the session/tab that owns them (quota + cleanup). */
   attachmentTabId?: string | null
   logLabel?: LogLabel
@@ -164,6 +166,7 @@ export function useComposerAttachments({
   editorRef,
   disabled = false,
   promptCapabilities,
+  allowImagesBeforeReady = false,
   attachmentTabId = null,
   logLabel = "Composer",
 }: ComposerAttachmentsOptions): ComposerAttachments {
@@ -175,8 +178,12 @@ export function useComposerAttachments({
   // agent can receive them in ANY form — either as a native ACP image block
   // (`image`) or as an embedded resource blob (`embedded_context`, what an
   // agent that advertises `image: false` but `embeddedContext: true` takes).
+  // A connecting host may also stage images before capabilities arrive; the
+  // final prompt encoding still uses the negotiated capabilities at send time.
   const canAttachImages =
-    promptCapabilities.image || promptCapabilities.embedded_context
+    allowImagesBeforeReady ||
+    promptCapabilities.image ||
+    promptCapabilities.embedded_context
 
   const [attachments, setAttachments] = useState<InputAttachment[]>([])
   const embeddedPayloadsRef = useRef<Map<string, PromptInputBlock>>(new Map())

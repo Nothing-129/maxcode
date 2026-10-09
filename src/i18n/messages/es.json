@@ -2199,6 +2199,11 @@
         "openUsage": "Ver estadísticas de sesiones y uso de tokens"
       },
       "tokens": {
+        "contextUsage": "Uso del contexto",
+        "used": "Usado",
+        "sessionTokenUsage": "Tokens acumulados de la sesión",
+        "sessionUsageNote": "Uso acumulado de todos los turnos, separado del contexto actual.",
+        "closeDetails": "Cerrar detalles de uso",
         "contextWindowUsageAria": "Uso de la ventana de contexto",
         "contextWindow": "Ventana de contexto",
         "usedMax": "Usado / Máx",
@@ -2270,6 +2275,10 @@
       "closeAll": "Cerrar todo",
       "openInCode": "Abrir en VS Code",
       "openInCodeFailed": "No se pudo abrir en VS Code",
+      "openInFinder": "Abrir en Finder",
+      "openInExplorer": "Abrir en el Explorador de archivos",
+      "openInFileManager": "Abrir en el gestor de archivos",
+      "openInFileManagerFailed": "No se pudo abrir en el gestor de archivos",
       "preview": "Vista previa",
       "editSource": "Editar fuente",
       "maximize": "Maximizar",

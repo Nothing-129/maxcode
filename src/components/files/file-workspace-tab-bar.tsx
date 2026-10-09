@@ -2,7 +2,14 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Reorder } from "motion/react"
-import { FileText, GitCompare, Maximize2, Minimize2, X } from "lucide-react"
+import {
+  FileText,
+  FolderOpen,
+  GitCompare,
+  Maximize2,
+  Minimize2,
+  X,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import {
@@ -15,6 +22,7 @@ import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
 import { useLongPressDrag } from "@/hooks/use-long-press-drag"
 import { openInCode } from "@/lib/api"
 import { toErrorMessage } from "@/lib/app-error"
+import { isLocalDesktop, revealItemInDir } from "@/lib/platform"
 import { cn, handleMiddleClickClose } from "@/lib/utils"
 import { VSCodeIcon } from "@/components/vscode-icon"
 import {
@@ -78,6 +86,29 @@ export function FileWorkspaceTabBar() {
     [t]
   )
 
+  const handleRevealInFileManager = useCallback(
+    (path: string) => {
+      void revealItemInDir(path).catch((error) => {
+        toast.error(t("openInFileManagerFailed"), {
+          description: toErrorMessage(error),
+        })
+      })
+    },
+    [t]
+  )
+
+  const platform =
+    typeof navigator === "undefined"
+      ? ""
+      : `${navigator.platform} ${navigator.userAgent}`.toLowerCase()
+  const fileManagerText = t(
+    platform.includes("mac")
+      ? "openInFinder"
+      : platform.includes("win")
+        ? "openInExplorer"
+        : "openInFileManager"
+  )
+
   const activeFileIndex = fileTabs.findIndex(
     (tab) => tab.id === activeFileTabId
   )
@@ -136,6 +167,8 @@ export function FileWorkspaceTabBar() {
           closeOthersText={t("closeOthers")}
           closeAllText={t("closeAll")}
           openInCodeText={t("openInCode")}
+          fileManagerText={fileManagerText}
+          canRevealInFileManager={isLocalDesktop()}
           isCoarsePointer={isCoarsePointer}
           isTouchSorting={touchSortingTabId === tab.id}
           onSwitch={switchFileTab}
@@ -143,6 +176,7 @@ export function FileWorkspaceTabBar() {
           onCloseOthers={closeOtherFileTabs}
           onCloseAll={closeAllFileTabs}
           onOpenInCode={handleOpenInCode}
+          onRevealInFileManager={handleRevealInFileManager}
           onTouchSortingStart={setTouchSortingTabId}
           onTouchSortingEnd={handleTouchSortingEnd}
         />
@@ -208,6 +242,8 @@ interface FileWorkspaceTabItemProps {
   closeOthersText: string
   closeAllText: string
   openInCodeText: string
+  fileManagerText: string
+  canRevealInFileManager: boolean
   isCoarsePointer: boolean
   isTouchSorting: boolean
   onSwitch: (tabId: string) => void
@@ -215,6 +251,7 @@ interface FileWorkspaceTabItemProps {
   onCloseOthers: (tabId: string) => void
   onCloseAll: () => void
   onOpenInCode: (path: string) => void
+  onRevealInFileManager: (path: string) => void
   onTouchSortingStart: (tabId: string) => void
   onTouchSortingEnd: () => void
 }
@@ -229,6 +266,8 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
   closeOthersText,
   closeAllText,
   openInCodeText,
+  fileManagerText,
+  canRevealInFileManager,
   isCoarsePointer,
   isTouchSorting,
   onSwitch,
@@ -236,6 +275,7 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
   onCloseOthers,
   onCloseAll,
   onOpenInCode,
+  onRevealInFileManager,
   onTouchSortingStart,
   onTouchSortingEnd,
 }: FileWorkspaceTabItemProps) {
@@ -412,6 +452,14 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
                 <VSCodeIcon />
                 {openInCodeText}
               </ContextMenuItem>
+              {canRevealInFileManager && (
+                <ContextMenuItem
+                  onSelect={() => onRevealInFileManager(openInCodePath)}
+                >
+                  <FolderOpen />
+                  {fileManagerText}
+                </ContextMenuItem>
+              )}
               <ContextMenuSeparator />
             </>
           ) : null}

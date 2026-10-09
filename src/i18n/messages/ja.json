@@ -2199,6 +2199,11 @@
         "openUsage": "セッション統計とトークン使用量を表示"
       },
       "tokens": {
+        "contextUsage": "コンテキスト使用量",
+        "used": "使用済み",
+        "sessionTokenUsage": "セッション累計トークン",
+        "sessionUsageNote": "全ターンの累計使用量です。現在のコンテキスト使用量とは別の値です。",
+        "closeDetails": "使用量の詳細を閉じる",
         "contextWindowUsageAria": "コンテキストウィンドウ使用率",
         "contextWindow": "コンテキストウィンドウ",
         "usedMax": "使用 / 最大",
@@ -2270,6 +2275,10 @@
       "closeAll": "すべて閉じる",
       "openInCode": "VS Code で開く",
       "openInCodeFailed": "VS Code で開けませんでした",
+      "openInFinder": "Finderで開く",
+      "openInExplorer": "エクスプローラーで開く",
+      "openInFileManager": "ファイルマネージャーで開く",
+      "openInFileManagerFailed": "ファイルマネージャーで開けません",
       "preview": "プレビュー",
       "editSource": "ソースを編集",
       "maximize": "最大化",

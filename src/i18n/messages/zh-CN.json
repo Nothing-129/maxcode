@@ -2199,6 +2199,11 @@
         "openUsage": "查看会话统计与 Token 用量"
       },
       "tokens": {
+        "contextUsage": "上下文用量",
+        "used": "已使用",
+        "sessionTokenUsage": "会话累计 Token",
+        "sessionUsageNote": "统计所有回合的累计用量，与当前上下文占用不同。",
+        "closeDetails": "关闭用量详情",
         "contextWindowUsageAria": "上下文窗口使用率",
         "contextWindow": "上下文窗口",
         "usedMax": "已用 / 上限",
@@ -2270,6 +2275,10 @@
       "closeAll": "关闭所有",
       "openInCode": "在 VS Code 中打开",
       "openInCodeFailed": "无法在 VS Code 中打开",
+      "openInFinder": "在访达中打开",
+      "openInExplorer": "在资源管理器中打开",
+      "openInFileManager": "在文件管理器中打开",
+      "openInFileManagerFailed": "无法在文件管理器中打开",
       "preview": "预览",
       "editSource": "编辑源码",
       "maximize": "最大化",

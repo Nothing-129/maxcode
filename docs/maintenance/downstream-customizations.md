@@ -24,6 +24,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 文件标签 | 桌面 Word 等文件标签菜单提供“在访达中打开”，定位并选中文件；Windows/Linux 使用对应文件管理器文案，网页及无路径标签隐藏入口，失败显示提示 | `worktree-2026-10-08` | `files.tab-file-manager` |
 | 10 月 8 日八项修复 | 线性历史读取、手机聚焦、任务保存所示智能体、Grok 目录广播、Claude 0.86/Codex 2.1.1 兼容、插话保留编辑及搜索管道无匹配；保留 Electron、七智能体、Codex 插话门控和不确定投递保护 | `f0e6a520` 至 `3b29d2f4`，详见本次评审 | `runtime.selected-upstream-20261008` |
 | 9 月 30 日上游稳定性 | Claude/Codex AIR 稀疏更新、Read/审批/插件提示，Codex 搜索上下文与历史思考、压缩摘要，Grok 后台跟进；保留完整工具输入、全部 hunk 和权限门控 | `9d9ce6b0`、`2db8a81b`、`b35282c6`、`757bd8e0`、`58f0fd0e`、`9243c7df` | `runtime.upstream-recommended-20260930`、`history.claude-compaction-compatible` |
 | Codex 模型目录 | GPT-6.1 Sol 及官方优先级；安装和托管更新刷新自有目录，保留用户目录、默认、自定义和排除模型 | `155916e6`、`worktree-2026-09-30` | `agents.codex-catalog-refresh-20260930` |
@@ -75,6 +76,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
 | 会话费用刷新 | 回复结束后同步累计计费用量；定价目录缓存 6 小时，前台定时检查、回到前台补查，离线保留旧价格，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10`、`worktree-2026-09-30` | `composer.conversation-cost` |
+| 上下文用量详情 | 参考式大号百分比、已用/容量横条、关闭按钮和彩色累计 Token 明细；累计统计与当前上下文分开标注，未知分类不伪造，窄屏自适应并限高滚动 | `worktree-2026-10-09` | `composer.usage-popover` |
 | 会话指标 | 中文回合数显示为「回合2」；状态栏美元费用有金额后才显示，并固定显示两位小数；无金额时隐藏费用及分隔符，详情保留更高精度 | `worktree-2026-09-09` | `composer.metric-layout`、`composer.conversation-cost` |
 | 桌面角标 | macOS Electron Dock 显示侧栏可见会话的未读数，读完清除 | `worktree-2026-09-09` | `desktop.electron-dock-badge` |
 | 会话状态 | 参考图样式：执行中为 12px 灰色细环，未读为 8px 实心蓝点 | `worktree-2026-09-09` | `conversations.reference-status-indicators` |

@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useSyncExternalStore } from "react"
+import { useCallback, useState, useSyncExternalStore } from "react"
 import {
   ComposerCostDetails,
   useComposerCostEstimate,
@@ -12,6 +12,7 @@ import { useTabStore } from "@/contexts/tab-context"
 import { useConversationRuntimeStore } from "@/stores/conversation-runtime-store"
 import { formatTokenCount } from "@/lib/token-format"
 import { formatContextWindowPercent } from "@/lib/context-window"
+import { ComposerUsageDetails } from "./composer-usage-details"
 import {
   Popover,
   PopoverContent,
@@ -31,6 +32,7 @@ const ICON_CIRCUMFERENCE = 2 * Math.PI * ICON_RADIUS
  * every loaded/tiled composer shows its own context, not the active one's.
  */
 export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
+  const [open, setOpen] = useState(false)
   const t = useTranslations("Folder.statusBar.tokens")
   const store = useConnectionStore()
   // This tab's own conversation → its per-conversation session stats, read
@@ -112,42 +114,7 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
 
   const dashOffset = ICON_CIRCUMFERENCE * (1 - (contextPercent ?? 0) / 100)
 
-  const rows: {
-    key:
-      | "input"
-      | "output"
-      | "cacheRead"
-      | "cacheWrite"
-      | "cacheHitRate"
-      | "total"
-    value: number | null
-  }[] = []
-  if (hasUsage) {
-    // Normalized input excludes cache reads/writes; output is not part of
-    // the input-token cache hit rate.
-    const inputTotal =
-      usage.input_tokens +
-      usage.cache_read_input_tokens +
-      usage.cache_creation_input_tokens
-    rows.push(
-      { key: "input", value: usage.input_tokens },
-      { key: "output", value: usage.output_tokens },
-      { key: "cacheRead", value: usage.cache_read_input_tokens },
-      { key: "cacheWrite", value: usage.cache_creation_input_tokens },
-      {
-        key: "cacheHitRate",
-        value:
-          inputTotal > 0
-            ? (usage.cache_read_input_tokens / inputTotal) * 100
-            : null,
-      }
-    )
-  }
-  if (total != null) {
-    rows.push({ key: "total", value: total })
-  }
-
-  const hasTokenSection = rows.length > 0
+  const hasTokenSection = hasUsage || total != null
 
   if (!hasContext && !hasTokenSection) return null
 
@@ -160,7 +127,7 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
     : `${t("tokenUsage")}: ${formatTokenCount(total ?? 0)}`
 
   return (
-    <Popover>
+    <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
           title={triggerTitle}
@@ -232,75 +199,19 @@ export function ComposerContextUsage({ tabId }: { tabId: string | null }) {
         side="top"
         align="end"
         sideOffset={10}
-        className="w-64 max-w-[calc(100vw-2rem)] gap-4 rounded-2xl p-4 text-xs shadow-lg ring-foreground/5"
+        aria-label={hasContext ? t("contextUsage") : t("sessionTokenUsage")}
+        className="w-90 max-w-[calc(100vw-2rem)] max-h-[var(--radix-popover-content-available-height)] gap-0 overflow-y-auto rounded-2xl p-5 text-sm shadow-lg ring-foreground/10"
       >
-        {hasContext ? (
-          <section className="space-y-3" aria-label={t("contextWindow")}>
-            <div className="flex items-center justify-between gap-4">
-              <span className="font-medium text-muted-foreground">
-                {t("contextWindow")}
-              </span>
-              <span className="shrink-0 text-xl font-semibold tracking-tight tabular-nums">
-                {formatContextWindowPercent(contextPercent)}
-              </span>
-            </div>
-            <div
-              role="progressbar"
-              aria-label={t("contextWindowUsageAria")}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              aria-valuenow={contextPercent ?? 0}
-              className="h-1 overflow-hidden rounded-full bg-foreground/[0.06]"
-            >
-              <div
-                className="h-full rounded-full bg-foreground/40"
-                style={{ width: `${contextPercent ?? 0}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between gap-4 leading-5 text-muted-foreground">
-              <span>{t("usedMax")}</span>
-              <span className="shrink-0 tabular-nums">
-                {contextUsed == null || contextMax == null
-                  ? "--"
-                  : `${formatTokenCount(contextUsed)} / ${formatTokenCount(contextMax)}`}
-              </span>
-            </div>
-          </section>
-        ) : null}
-        {hasTokenSection ? (
-          <section
-            aria-label={t("tokenUsage")}
-            className={
-              hasContext ? "border-t border-foreground/[0.06] pt-4" : ""
-            }
-          >
-            <h3 className="mb-3 font-medium text-muted-foreground">
-              {t("tokenUsage")}
-            </h3>
-            <dl className="space-y-2">
-              {rows.map((row) => (
-                <div
-                  key={row.key}
-                  className={`flex items-center justify-between gap-4 leading-5 ${
-                    row.key === "total"
-                      ? "-mx-2 rounded-lg bg-foreground/[0.04] px-2 py-1.5 font-medium"
-                      : "text-muted-foreground"
-                  }`}
-                >
-                  <dt>{t(row.key)}</dt>
-                  <dd className="shrink-0 tabular-nums text-foreground">
-                    {row.value == null
-                      ? "--"
-                      : row.key === "cacheHitRate"
-                        ? `${row.value.toFixed(1)}%`
-                        : formatTokenCount(row.value)}
-                  </dd>
-                </div>
-              ))}
-            </dl>
-          </section>
-        ) : null}
-        <ComposerCostDetails cost={cost} />
+        <ComposerUsageDetails
+          contextPercent={contextPercent}
+          contextUsed={contextUsed}
+          contextMax={contextMax}
+          usage={usage ?? null}
+          total={total ?? null}
+          onClose={() => setOpen(false)}
+        >
+          <ComposerCostDetails cost={cost} />
+        </ComposerUsageDetails>
       </PopoverContent>
     </Popover>
   )
