@@ -453,7 +453,7 @@ async function runSmoke(window) {
     localStorage.setItem('electron-smoke-preference', 'preserved')
     const child = window.open('', 'electron-smoke-child')
     if (!child) throw new Error('Named child window reservation failed')
-    child.location.href = '/workspace?electronSmoke=child'
+    child.location.href = '/settings/agents?electronSmoke=child'
     const childDeadline = Date.now() + 10000
     while (Date.now() < childDeadline && !child.maxcodeElectron) {
       await new Promise(resolve => setTimeout(resolve, 100))
@@ -462,6 +462,14 @@ async function runSmoke(window) {
       typeof await child.maxcodeElectron.isMaximized() !== 'boolean' ||
       localStorage.getItem('electron-smoke-preference') !== 'preserved') {
       throw new Error('Child bridge or shared preferences failed')
+    }
+    const agentResponse = await child.fetch('/api/acp_list_agents', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + child.maxcodeElectron.token },
+      signal: AbortSignal.timeout(30000)
+    })
+    const agents = await agentResponse.json()
+    if (!agentResponse.ok || !Array.isArray(agents) || agents.length !== 7) {
+      throw new Error('Settings agent catalog failed')
     }
     await child.maxcodeElectron.closeWindow()
     const closeDeadline = Date.now() + 5000
@@ -484,7 +492,7 @@ async function runSmoke(window) {
     })
     return { workspace: true, authenticatedHttp: true, authenticatedWebSocket: true,
       electronUpdateCapabilities: true,
-      nativeChildWindows: true, sharedPreferences: true,
+      nativeChildWindows: true, settingsAgentCatalog: true, sharedPreferences: true,
       sandbox: typeof window.require === 'undefined', platform: bridge.platform }
   })()`)
   // Exercise the same same-origin <a download> path used by backup/file

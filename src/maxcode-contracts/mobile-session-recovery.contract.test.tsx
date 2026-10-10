@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs"
 const f = vi.hoisted(() => ({
   connect: vi.fn(async () => {}),
   disconnect: vi.fn(async () => {}),
+  releaseSurface: vi.fn(async () => {}),
   touchActivity: vi.fn(),
   setActiveKey: vi.fn(),
   markConnectPending: vi.fn(),
@@ -88,6 +89,7 @@ describe("mobile session recovery", () => {
     )
     expect(f.disconnect).not.toHaveBeenCalled()
     h.unmount()
+    expect(f.releaseSurface).toHaveBeenCalledWith("mobile-tab")
     expect(f.unsubscribe).toHaveBeenCalledTimes(1)
     f.connect.mockClear()
     await act(async () => window.dispatchEvent(new Event("online")))

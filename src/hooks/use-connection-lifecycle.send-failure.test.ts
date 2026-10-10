@@ -43,6 +43,7 @@ vi.mock("@/contexts/acp-connections-context", () => ({
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),
+    releaseSurface: vi.fn().mockResolvedValue(undefined),
   }),
 }))
 

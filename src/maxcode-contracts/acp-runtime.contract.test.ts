@@ -22,6 +22,7 @@ function connection(
     isViewer: false,
     isDelegationChild: false,
     backgroundOutstanding: 0,
+    asyncTasks: [],
     pendingPermission: null,
     pendingQuestion: null,
     pendingAskQuestion: null,
@@ -31,8 +32,8 @@ function connection(
 }
 
 describe("MaxCode contract: bounded ACP connection lifecycle", () => {
-  it("keeps two recent idle owners truly warm for ten minutes", () => {
-    expect(MAX_IDLE_WARM_CONNECTIONS).toBe(2)
+  it("keeps ten recent idle owners truly warm for ten minutes without open panes", () => {
+    expect(MAX_IDLE_WARM_CONNECTIONS).toBe(10)
     expect(IDLE_WARM_CONNECTION_TTL_MS).toBe(10 * 60 * 1000)
 
     const now = 1_000_000
@@ -40,24 +41,77 @@ describe("MaxCode contract: bounded ACP connection lifecycle", () => {
     const activity = new Map<string, number>()
     for (let index = 1; index <= MAX_IDLE_WARM_CONNECTIONS + 2; index += 1) {
       connections.set(`tab-${index}`, connection(`conn-${index}`))
-      activity.set(`tab-${index}`, now - (4 - index) * 1_000)
+      activity.set(
+        `tab-${index}`,
+        now - (MAX_IDLE_WARM_CONNECTIONS + 2 - index) * 1_000
+      )
     }
 
     expect(
       selectIdleWarmConnectionPlan(
         connections,
-        new Set(connections.keys()),
+        new Set(),
         `tab-${MAX_IDLE_WARM_CONNECTIONS + 2}`,
         activity,
-        now
+        now,
+        MAX_IDLE_WARM_CONNECTIONS,
+        IDLE_WARM_CONNECTION_TTL_MS,
+        new Set(connections.keys())
       )
     ).toEqual({
-      warm: [
-        { connectionId: "conn-3", contextKeys: ["tab-3"] },
-        { connectionId: "conn-2", contextKeys: ["tab-2"] },
-      ],
+      warm: Array.from({ length: 10 }, (_, offset) => ({
+        connectionId: `conn-${11 - offset}`,
+        contextKeys: [`tab-${11 - offset}`],
+      })),
       evictions: [{ connectionId: "conn-1", contextKeys: ["tab-1"] }],
     })
+  })
+
+  it("expires a replaced pane even when the warm pool is not full", () => {
+    const now = 1_000_000
+    const plan = selectIdleWarmConnectionPlan(
+      new Map([["replaced", connection("old")]]),
+      new Set(),
+      null,
+      new Map([["replaced", now - IDLE_WARM_CONNECTION_TTL_MS - 1]]),
+      now,
+      MAX_IDLE_WARM_CONNECTIONS,
+      IDLE_WARM_CONNECTION_TTL_MS,
+      new Set(["replaced"])
+    )
+    expect(plan).toEqual({
+      warm: [],
+      evictions: [{ connectionId: "old", contextKeys: ["replaced"] }],
+    })
+  })
+
+  it.each([
+    { status: "prompting" },
+    { backgroundOutstanding: 1 },
+    { pendingPermission: {} },
+    { pendingQuestion: {} },
+    { pendingAskQuestion: {} },
+    { pendingPlanApproval: {} },
+    { isViewer: true },
+    { isDelegationChild: true },
+    { asyncTasks: [{ id: "task", status: "running" }] },
+  ])("never reclaims a protected replaced connection: %j", (overrides) => {
+    const plan = selectIdleWarmConnectionPlan(
+      new Map([
+        [
+          "replaced",
+          connection("protected", overrides as Partial<ConnectionState>),
+        ],
+      ]),
+      new Set(),
+      null,
+      new Map([["replaced", 0]]),
+      IDLE_WARM_CONNECTION_TTL_MS + 1,
+      0,
+      IDLE_WARM_CONNECTION_TTL_MS,
+      new Set(["replaced"])
+    )
+    expect(plan).toEqual({ warm: [], evictions: [] })
   })
 
   it("protects active work and deduplicates shared backend connections", () => {
@@ -99,6 +153,10 @@ describe("MaxCode contract: bounded ACP connection lifecycle", () => {
     expect(lifecycle).toContain(
       'args.preserveIdleOwner && args.status === "connected"'
     )
+    expect(lifecycle).toContain(
+      "releaseSurfaceRef.current(contextKeyRef.current)"
+    )
+    expect(panel).toContain("releaseSurface(replacedTabId)")
   })
 
   it("keeps cold probes read-only and reaps wedged Connecting processes", () => {

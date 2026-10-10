@@ -3171,6 +3171,10 @@
         "sendEmail": "Send email"
       },
       "messageQueue": {
+        "waitingConnection": "Waiting for connection — messages will send automatically when ready.",
+        "connectionSlow": "Connection is taking longer. Your messages are kept and have not been sent.",
+        "connectionFailed": "Connection failed. Your messages are kept and have not been sent.",
+        "reconnect": "Reconnect",
         "steerItemNow": "Append to current turn",
         "steerItemNowHint": "Send into the current turn without stopping the reply",
         "adjustDirection": "Adjust direction",

@@ -68,7 +68,8 @@ describe("isConnectionReady", () => {
       connectedCwd,
       intendedCwd,
       connectedAgent,
-      selectedAgent
+      selectedAgent,
+      true
     )
 
   it("is ready when connected AND the connection cwd matches the intended cwd", () => {

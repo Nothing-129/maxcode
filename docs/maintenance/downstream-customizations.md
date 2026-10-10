@@ -24,6 +24,8 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 连接中提交 | 会话及欢迎页连接中可回车入队，消息可编辑、删除；初始化完成后顺序自动发送，慢连接及失败保留消息并提供重连，预览标签自动固定 | `worktree-2026-10-10` | `chat.connection-submit-queue` |
+| 设置加载 | npm 元数据探测限时并终止卡住的命令，七种智能体版本并发探测；Electron 安装包冒烟验证设置子窗口加载智能体目录 | `worktree-2026-10-10` | `settings.agent-probe-deadline` |
 | 文件标签 | 桌面 Word 等文件标签菜单提供“在访达中打开”，定位并选中文件；Windows/Linux 使用对应文件管理器文案，网页及无路径标签隐藏入口，失败显示提示 | `worktree-2026-10-08` | `files.tab-file-manager` |
 | 10 月 8 日八项修复 | 线性历史读取、手机聚焦、任务保存所示智能体、Grok 目录广播、Claude 0.86/Codex 2.1.1 兼容、插话保留编辑及搜索管道无匹配；保留 Electron、七智能体、Codex 插话门控和不确定投递保护 | `f0e6a520` 至 `3b29d2f4`，详见本次评审 | `runtime.selected-upstream-20261008` |
 | 9 月 30 日上游稳定性 | Claude/Codex AIR 稀疏更新、Read/审批/插件提示，Codex 搜索上下文与历史思考、压缩摘要，Grok 后台跟进；保留完整工具输入、全部 hunk 和权限门控 | `9d9ce6b0`、`2db8a81b`、`b35282c6`、`757bd8e0`、`58f0fd0e`、`9243c7df` | `runtime.upstream-recommended-20260930`、`history.claude-compaction-compatible` |
@@ -116,7 +118,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 智能体 | ACP 注册/预检，Codex、Grok、Pi、DeepSeek Harness、Claude Code 专用模型生成 MMDD｜类型｜主题 标题，Grok 历史 plan/图片读取兼容 | `108154e4`、`53144985`、`bb6949f5`、`16941c88` | `agents.acp-compatibility-and-titles` |
 | 智能体 | 设置页对已开启智能体联网检测发布版本，结果写入侧栏徽标和详情里的「版本状态」分类（不另设更新卡片）；npm 查询实际 ACP 包，其余受支持智能体查询 ACP 注册表；缓存 6 小时并支持在版本状态中强制检查，失败和未知版本不误报最新，npm 新版在版本状态中点升级即按该版本安装，自定义版本仍走输入对话框 | `worktree-2026-09-10` | `settings.agent-online-updates` |
 | 智能体 | OpenCode 六个平台的固定版本下载均保留 SHA256 校验；1.18.30 的六个摘要直接从官方 GitHub Release 资产流式计算，不能采用上游空摘要 | `1bf8a772`、`25882257`、`worktree-2026-09-07`、`worktree-2026-09-15` | `agents.opencode-verified-distribution` |
-| 智能体 | 活跃连接保活、最近 2 个连接真热续期 10 分钟、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
+| 智能体 | 活跃连接保活、最近 10 个空闲连接保温 10 分钟（切换或替换面板后仍保留）、冷连接只读探测、繁忙保护、Connecting 看门狗和后台空闲页面卸载；备份恢复读取实际会话状态，保护锁定会话与未退出进程 | `2c859b2a`、当前工作区 | `agents.bounded-connection-lifecycle` |
 | 设置 | Pi `max` 思考级别及十种语言标签 | `e1fda1d3` | `settings.pi-maximum-thinking` |
 | 附件 | 单文件上传与拖放上限 100 MiB，HTTP multipart 额外预留开销，图片回填支持一张满额图片 | 当前工作区 | `attachments.hundred-mib-upload` |
 | Android | 多服务器连接、安全令牌存储、健康检查、WebView 引导、OPPO 状态栏安全区和列表细节；本地附件兼容单 URI 与 ClipData 多选返回 | `bddabc51`、当前工作区 | `android.webview-client` |

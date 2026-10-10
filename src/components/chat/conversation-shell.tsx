@@ -116,6 +116,7 @@ interface ConversationShellProps {
    *  active tab only). Threaded straight through to the composer. */
   showActiveFlow?: boolean
   queue?: QueuedMessage[]
+  onReconnect?: () => Promise<void>
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
@@ -197,6 +198,7 @@ export function ConversationShell({
   isActive,
   showActiveFlow,
   queue,
+  onReconnect,
   onEnqueue,
   onQueueReorder,
   onQueueEdit,
@@ -365,6 +367,8 @@ export function ConversationShell({
               isActive={isActive}
               showActiveFlow={showActiveFlow}
               queue={queue}
+              connectionError={error}
+              onReconnect={onReconnect}
               onEnqueue={onEnqueue}
               onQueueReorder={onQueueReorder}
               onQueueEdit={onQueueEdit}

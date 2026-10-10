@@ -3171,6 +3171,10 @@
         "sendEmail": "Enviar correo"
       },
       "messageQueue": {
+        "waitingConnection": "Esperando conexión. Los mensajes se enviarán automáticamente cuando esté lista.",
+        "connectionSlow": "La conexión está tardando. Tus mensajes se conservan y aún no se han enviado.",
+        "connectionFailed": "La conexión falló. Tus mensajes se conservan y aún no se han enviado.",
+        "reconnect": "Reconectar",
         "steerItemNow": "Añadir al turno actual",
         "steerItemNowHint": "Enviar al turno actual sin detener la respuesta",
         "adjustDirection": "Cambiar dirección",

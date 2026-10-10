@@ -3171,6 +3171,10 @@
         "sendEmail": "メールを送信"
       },
       "messageQueue": {
+        "waitingConnection": "接続待ちです。準備ができ次第、自動送信します。",
+        "connectionSlow": "接続に時間がかかっています。メッセージは保持され、まだ送信されていません。",
+        "connectionFailed": "接続に失敗しました。メッセージは保持され、まだ送信されていません。",
+        "reconnect": "再接続",
         "steerItemNow": "現在のターンに追加",
         "steerItemNowHint": "応答を停止せずにこのメッセージを現在のターンに追加",
         "adjustDirection": "方向を調整",

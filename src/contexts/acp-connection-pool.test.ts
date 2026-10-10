@@ -4,10 +4,7 @@ import {
   selectIdleWarmConnectionPlan,
   type ConnectionState,
 } from "@/contexts/acp-connections-context"
-import {
-  IDLE_WARM_CONNECTION_TTL_MS,
-  MAX_IDLE_WARM_CONNECTIONS,
-} from "@/lib/constants"
+import { IDLE_WARM_CONNECTION_TTL_MS } from "@/lib/constants"
 
 function connection(
   connectionId: string,
@@ -19,6 +16,7 @@ function connection(
     isViewer: false,
     isDelegationChild: false,
     backgroundOutstanding: 0,
+    asyncTasks: [],
     pendingPermission: null,
     pendingQuestion: null,
     pendingAskQuestion: null,
@@ -28,11 +26,11 @@ function connection(
 }
 
 describe("idle warm connection LRU", () => {
-  it("keeps two background idle owners in addition to the active connection", () => {
+  it("keeps ten background idle owners in addition to the active connection", () => {
     const connections = new Map<string, ConnectionState>()
     const activity = new Map<string, number>()
     const open = new Set<string>()
-    for (let index = 1; index <= 4; index += 1) {
+    for (let index = 1; index <= 12; index += 1) {
       const key = `tab-${index}`
       connections.set(key, connection(`conn-${index}`))
       activity.set(key, index)
@@ -42,7 +40,7 @@ describe("idle warm connection LRU", () => {
     const evictions = selectIdleWarmConnectionEvictions(
       connections,
       open,
-      "tab-4",
+      "tab-12",
       activity
     )
 
@@ -51,7 +49,7 @@ describe("idle warm connection LRU", () => {
     ])
   })
 
-  it("touches only the two recent warm slots and expires old candidates", () => {
+  it("honors a two-slot budget and expires old candidates", () => {
     const now = 1_000_000
     const connections = new Map<string, ConnectionState>([
       ["newest", connection("newest")],
@@ -73,7 +71,7 @@ describe("idle warm connection LRU", () => {
         null,
         activity,
         now,
-        MAX_IDLE_WARM_CONNECTIONS
+        2
       )
     ).toEqual({
       warm: [

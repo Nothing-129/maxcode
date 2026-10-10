@@ -84,6 +84,7 @@ describe("MaxCode contract: connection readiness only gates sending", () => {
               embedded_context: false,
             }}
             onSend={onSend}
+            onCancel={() => {}}
             attachmentTabId="connection-draft-contract"
           />
         </NextIntlClientProvider>

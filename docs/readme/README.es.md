@@ -1,8 +1,8 @@
 # MaxCode
 
-[![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
+[![Release](https://img.shields.io/github/v/release/spacering-net/codeg)](https://github.com/spacering-net/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
-[![License](https://img.shields.io/github/license/xintaofei/codeg)](../../LICENSE)
+[![License](https://img.shields.io/github/license/spacering-net/codeg)](../../LICENSE)
 
 <p>
   <a href="../../README.md">English</a> |
@@ -112,19 +112,19 @@ Aléjate del escritorio, no de tu trabajo. Los clientes nativos de iOS y Android
 
 ## 📦 Instalación y ejecución
 
-**Escritorio** — descarga el instalador para macOS, Windows o Linux desde [Releases](https://github.com/xintaofei/codeg/releases) y sigue la [Instalación](https://docs.codeg.app/getting-started/installation).
+**Escritorio** — descarga el instalador para macOS, Windows o Linux desde [Releases](https://github.com/spacering-net/codeg/releases) y sigue la [Instalación](https://docs.codeg.app/getting-started/installation).
 
 **Servidor** — ejecuta MaxCode sin interfaz y accede desde cualquier navegador. En Linux o macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
 ```
 
 En Windows, con PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/xintaofei/codeg/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/spacering-net/codeg/main/install.ps1 | iex
 $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg\web"; codeg-server
 ```
 

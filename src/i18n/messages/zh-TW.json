@@ -3171,6 +3171,10 @@
         "sendEmail": "傳送郵件"
       },
       "messageQueue": {
+        "waitingConnection": "等待連線，連線就緒後自動傳送",
+        "connectionSlow": "連線等待較久，訊息已保留，尚未傳送",
+        "connectionFailed": "連線失敗，訊息已保留，尚未傳送",
+        "reconnect": "重新連線",
         "steerItemNow": "追加到目前回合",
         "steerItemNowHint": "不主動停止目前回覆，將這則訊息追加到目前回合",
         "adjustDirection": "調整方向",

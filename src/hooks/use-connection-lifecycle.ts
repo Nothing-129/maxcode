@@ -164,6 +164,7 @@ export function useConnectionLifecycle({
     touchActivity,
     markConnectPending,
     clearConnectPending,
+    releaseSurface,
   } = useAcpActions()
   const { addTask, updateTask, removeTask } = useTaskContext()
   const conn = useConnection(contextKey)
@@ -472,32 +473,25 @@ export function useConnectionLifecycle({
   useEffect(() => {
     preserveIdleOwnerOnUnmountRef.current = preserveIdleOwnerOnUnmount
   }, [preserveIdleOwnerOnUnmount])
+  const releaseSurfaceRef = useRef(releaseSurface)
+  useEffect(() => {
+    releaseSurfaceRef.current = releaseSurface
+  }, [releaseSurface])
 
-  // Clean up on unmount (e.g. tab closed): disconnect the ACP connection
-  // so it doesn't leak, and remove lingering tasks.
-  // However, if the agent is actively prompting (generating a response),
-  // keep it alive so it can finish in the background — the idle sweep
-  // will clean it up once it transitions back to "connected".
+  // Replacing a pane releases its UI, not its owned agent session. The provider
+  // keeps recent owners in the bounded warm pool and protects unfinished work.
+  // Viewers still detach; a transient reparent preserves either attachment.
   useEffect(() => {
     return () => {
-      // Owners keep a prompting agent alive in the background to finish the
-      // turn (the idle sweep reclaims it once it returns to "connected"), and
-      // likewise while background work is still outstanding (async sub-agents
-      // / background shells) — disconnecting kills the agent CLI and the
-      // background work with it. Both sweeps already exempt such connections;
-      // once the work settles (or the max-age valve expires it) outstanding
-      // drops to 0 and the normal idle sweep reclaims the connection.
-      // Viewers are different: disconnect() only DETACHES them (it never
-      // acpDisconnects — that belongs to the owner), so tearing a viewer down
-      // mid-turn is safe and leaves the owner's agent untouched. And it's
-      // necessary: the idle sweep skips viewers, so a viewer left attached
-      // here would leak its WS subscription until the whole provider unmounts.
-      if (
+      const transientUnmount = isTransientUnmountRef.current?.() === true
+      if (!transientUnmount && !isViewerRef.current) {
+        releaseSurfaceRef.current(contextKeyRef.current).catch(() => {})
+      } else if (
         shouldDisconnectOnUnmount({
           status: statusRef.current,
           isViewer: isViewerRef.current,
           backgroundOutstanding: backgroundOutstandingRef.current,
-          transientUnmount: isTransientUnmountRef.current?.() === true,
+          transientUnmount,
           preserveIdleOwner: preserveIdleOwnerOnUnmountRef.current === true,
         })
       ) {

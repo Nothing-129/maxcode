@@ -18,6 +18,14 @@ MaxCode 在上游 Codeg 之上维护自己的功能和交互约定。Git 只能�
 
 ## 推荐集成流程
 
+上游主仓库为 [spacering-net/codeg](https://github.com/spacering-net/codeg)。
+已有克隆可用以下命令更新 `upstream`，并保持禁止向上游推送：
+
+```bash
+git remote set-url upstream https://github.com/spacering-net/codeg.git
+git config remote.upstream.pushurl DISABLED
+```
+
 始终从干净的 `main` 创建临时集成分支，不直接在 `main` 合并：
 
 ```bash

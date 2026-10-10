@@ -41,8 +41,8 @@ import { useForgeRefreshStore } from "@/stores/forge-refresh-store"
 
 const REMOTE: ForgeRemote = {
   server_host: "github.com",
-  owner_repo: "xintaofei/codeg",
-  remote_url: "https://github.com/xintaofei/codeg.git",
+  owner_repo: "spacering-net/codeg",
+  remote_url: "https://github.com/spacering-net/codeg.git",
   provider: "github",
   supported: true,
 }
@@ -150,7 +150,7 @@ function issue(number: number, title: string): ForgeIssueRow {
     author: "octocat",
     author_avatar: "https://avatars.githubusercontent.com/u/583231",
     updated_at: null,
-    html_url: `https://github.com/xintaofei/codeg/issues/${number}`,
+    html_url: `https://github.com/spacering-net/codeg/issues/${number}`,
     is_pr: false,
     comments: 0,
   }
@@ -486,8 +486,8 @@ describe("repoWebUrl", () => {
     // A browser cannot open either of these; the coordinates are all there is.
     for (const url of ["git@github.com:o/r.git", "ssh://git@github.com/o/r"]) {
       expect(
-        repoWebUrl(at({ remote_url: url, owner_repo: "xintaofei/codeg" }))
-      ).toBe("https://github.com/xintaofei/codeg")
+        repoWebUrl(at({ remote_url: url, owner_repo: "spacering-net/codeg" }))
+      ).toBe("https://github.com/spacering-net/codeg")
     }
   })
 })
@@ -788,13 +788,15 @@ describe("ForgePage header", () => {
     mount()
     // The host is the same for every row on the page; it only ever pushed the
     // part that identifies the project out of view. It survives in the tooltip.
-    const repo = await screen.findByRole("button", { name: /xintaofei\/codeg/ })
-    expect(repo).toHaveAccessibleName("xintaofei/codeg")
+    const repo = await screen.findByRole("button", {
+      name: /spacering-net\/codeg/,
+    })
+    expect(repo).toHaveAccessibleName("spacering-net/codeg")
     expect(repo).toHaveAttribute(
       "title",
-      "Open the repository · github.com/xintaofei/codeg"
+      "Open the repository · github.com/spacering-net/codeg"
     )
-    expect(screen.queryByText("github.com/xintaofei/codeg")).toBeNull()
+    expect(screen.queryByText("github.com/spacering-net/codeg")).toBeNull()
   })
 
   /** WHERE the list comes from is one fact read in two halves — you pick the
@@ -804,7 +806,7 @@ describe("ForgePage header", () => {
     listing()
     mount()
     const repo = await screen.findByRole("button", {
-      name: /xintaofei\/codeg/,
+      name: /spacering-net\/codeg/,
     })
     const folder = screen.getByRole("button", {
       name: /codeg/,
@@ -823,7 +825,7 @@ describe("ForgePage header", () => {
       await screen.findByRole("button", { name: /codeg/, expanded: false })
     ).toBeInTheDocument()
     expect(
-      screen.queryByRole("button", { name: /xintaofei\/codeg/ })
+      screen.queryByRole("button", { name: /spacering-net\/codeg/ })
     ).toBeNull()
   })
 

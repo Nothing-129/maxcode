@@ -1,8 +1,8 @@
 # MaxCode
 
-[![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
+[![Release](https://img.shields.io/github/v/release/spacering-net/codeg)](https://github.com/spacering-net/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
-[![License](https://img.shields.io/github/license/xintaofei/codeg)](../../LICENSE)
+[![License](https://img.shields.io/github/license/spacering-net/codeg)](../../LICENSE)
 
 <p>
   <a href="../../README.md">English</a> |
@@ -112,19 +112,19 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📦 التثبيت والتشغيل
 
-**سطح المكتب** — نزّل المثبّت الخاص بـ macOS أو Windows أو Linux من [Releases](https://github.com/xintaofei/codeg/releases)، ثم اتبع [التثبيت](https://docs.codeg.app/getting-started/installation).
+**سطح المكتب** — نزّل المثبّت الخاص بـ macOS أو Windows أو Linux من [Releases](https://github.com/spacering-net/codeg/releases)، ثم اتبع [التثبيت](https://docs.codeg.app/getting-started/installation).
 
 **الخادم** — شغّل MaxCode بلا واجهة وادخل إليه من أي متصفح. على Linux أو macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
 ```
 
 على Windows، في PowerShell:
 
 ```powershell
-irm https://raw.githubusercontent.com/xintaofei/codeg/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/spacering-net/codeg/main/install.ps1 | iex
 $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg\web"; codeg-server
 ```
 

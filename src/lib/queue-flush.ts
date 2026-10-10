@@ -50,8 +50,9 @@ export function shouldQueueDirectSend(
 
 /**
  * Whether the live connection is ready to accept a send for THIS tab: connected,
- * its established cwd matches the tab's intended working dir, AND it belongs to
- * the agent the tab currently has selected.
+ * initialized, its established cwd matches the intended working dir, and it
+ * belongs to the selected agent. `connected` arrives before session setup;
+ * only the backend's selectors_ready signal permits queue delivery.
  *
  * Bare `connStatus === "connected"` is insufficient. A chat draft that just
  * retargeted into folderless mode (or any tab mid-reconnect) can read a stale
@@ -76,10 +77,12 @@ export function isConnectionReady(
   connectedWorkingDir: string | null | undefined,
   intendedWorkingDir: string | null | undefined,
   connectedAgentType: string | null | undefined,
-  selectedAgentType: string | null | undefined
+  selectedAgentType: string | null | undefined,
+  selectorsReady: boolean
 ): boolean {
   return (
     connStatus === "connected" &&
+    selectorsReady &&
     (connectedWorkingDir ?? null) === (intendedWorkingDir ?? null) &&
     (connectedAgentType == null || connectedAgentType === selectedAgentType)
   )

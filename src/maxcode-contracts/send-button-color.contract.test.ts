@@ -26,7 +26,10 @@ describe("MaxCode send button color", () => {
     expect(send).toContain("enabled:hover:bg-[#216ae4]/90")
     expect(send).toContain("disabled:bg-secondary")
     expect(send).toContain("disabled:text-muted-foreground")
-    expect(send).toContain("disabled={disabled || !hasSendableContent}")
+    expect(send).toContain(
+      "(disabled && !(queueWhileUnavailable && onEnqueue)) ||"
+    )
+    expect(send).toContain("!hasSendableContent")
   })
   it("uses the same update blue in light and dark modes", () => {
     const update = source("src/components/layout/status-bar-update.tsx")

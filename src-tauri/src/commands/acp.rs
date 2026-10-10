@@ -29,6 +29,7 @@ use crate::web::event_bridge::EventEmitter;
 
 const ACP_AGENTS_UPDATED_EVENT: &str = "app://acp-agents-updated";
 const NPM_PREFIX_TIMEOUT: Duration = Duration::from_millis(1500);
+const NPM_LIST_TIMEOUT: Duration = Duration::from_secs(3);
 
 static NPM_GLOBAL_PREFIX_CACHE: tokio::sync::OnceCell<PathBuf> = tokio::sync::OnceCell::const_new();
 
@@ -747,11 +748,16 @@ async fn npm_list_version(
     if let Some(p) = prefix {
         cmd.arg(format!("--prefix={}", p.display()));
     }
-    // `kill_on_drop` so a caller that bounds this with `tokio::time::timeout`
-    // (e.g. env diagnostics) actually terminates a hung `npm list` child rather
-    // than orphaning it. No effect on the normal path, which awaits to completion.
+    // Settings and status reads must not wait indefinitely for npm (including
+    // Windows .cmd shims). A failed metadata probe falls back to the CLI probe.
     cmd.kill_on_drop(true);
-    let output = cmd.output().await.ok()?;
+    let output = match tokio::time::timeout(NPM_LIST_TIMEOUT, cmd.output()).await {
+        Ok(output) => output.ok()?,
+        Err(_) => {
+            tracing::warn!("[ACP] npm version metadata probe timed out for {package_name}");
+            return None;
+        }
+    };
     let stdout = String::from_utf8_lossy(&output.stdout);
     let json: serde_json::Value = serde_json::from_str(&stdout).ok()?;
     let version = json
@@ -11134,11 +11140,85 @@ pub(crate) async fn acp_get_agent_status_core(
     })
 }
 
+// Probe installations concurrently after resolving NPX commands with one
+// request-local prefix cache. Seven slow CLIs must not add up to the HTTP
+// transport's 60-second deadline. Configuration reads and DB writes below keep
+// their existing order; only independent version probes run together.
+async fn list_agent_installation(
+    agent_type: AgentType,
+    recorded_version: Option<String>,
+    resolved: Option<PathBuf>,
+) -> (bool, &'static str, Option<String>) {
+    let platform = registry::current_platform();
+    let meta = registry::get_agent_meta(agent_type);
+    match &meta.distribution {
+        registry::AgentDistribution::Npx { package, .. } => {
+            let version =
+                npx_displayed_version(agent_type, resolved.as_ref(), package, recorded_version)
+                    .await;
+            (true, "npx", version)
+        }
+        registry::AgentDistribution::Binary {
+            platforms,
+            cmd,
+            dir_entry,
+            ..
+        } => {
+            let mut detected = binary_cache::detect_installed_version(agent_type, cmd)
+                .ok()
+                .flatten();
+            // Mirror the status path: a system install counts as installed
+            // (cached probes — no per-list subprocess after the first
+            // call). Without this, the list would also persist
+            // `installed_version = None` over the detected value.
+            if detected.is_none() {
+                if dir_entry.is_some() {
+                    detected = system_dir_agent_version(cmd).await;
+                } else if let Some(bin) = resolve_system_agent_binary(cmd) {
+                    detected = system_probed_version(agent_type, &bin, None).await;
+                }
+            }
+            (
+                platforms.iter().any(|p| p.platform == platform),
+                "binary",
+                detected,
+            )
+        }
+        registry::AgentDistribution::Uvx {
+            cmd, system_cmd, ..
+        } => {
+            // Mirror the status path (shared helper, launch-order parity).
+            let version = uvx_displayed_version(agent_type, cmd, *system_cmd).await;
+            (
+                uvx_agent_launchable(agent_type, *system_cmd),
+                "uvx",
+                version,
+            )
+        }
+    }
+}
+
+async fn probe_agent_installations(
+    inputs: Vec<(AgentType, Option<String>, Option<PathBuf>)>,
+) -> HashMap<AgentType, (bool, &'static str, Option<String>)> {
+    let probes = inputs
+        .into_iter()
+        .map(|(agent_type, recorded_version, resolved)| async move {
+            (
+                agent_type,
+                list_agent_installation(agent_type, recorded_version, resolved).await,
+            )
+        });
+    futures::future::join_all(probes)
+        .await
+        .into_iter()
+        .collect()
+}
+
 async fn acp_list_agents_with_disabled(
     db: &AppDatabase,
     include_disabled: bool,
 ) -> Result<Vec<AcpAgentInfo>, AcpError> {
-    let platform = registry::current_platform();
     let agent_types: Vec<_> = registry::all_acp_agents()
         .into_iter()
         .filter(|agent| registry::is_maintained_agent(*agent))
@@ -11163,67 +11243,34 @@ async fn acp_list_agents_with_disabled(
         .await
         .map_err(|e| AcpError::protocol(e.to_string()))?;
 
-    let mut agents = Vec::new();
     let mut npx_resolver = NpxCommandResolver::default();
+    let mut probes = Vec::new();
+    for &agent_type in &agent_types {
+        let setting = settings_map.get(&agent_type);
+        if !include_disabled && setting.is_some_and(|setting| !setting.enabled) {
+            continue;
+        }
+        let resolved = match registry::get_agent_meta(agent_type).distribution {
+            registry::AgentDistribution::Npx { cmd, .. } => {
+                npx_resolver.resolve_for_list(agent_type, cmd).await
+            }
+            _ => None,
+        };
+        let recorded_version = setting.and_then(|m| m.installed_version.clone());
+        probes.push((agent_type, recorded_version, resolved));
+    }
+    let mut installations = probe_agent_installations(probes).await;
+
+    let mut agents = Vec::new();
     for (idx, agent_type) in agent_types.into_iter().enumerate() {
         let setting = settings_map.get(&agent_type);
         if !include_disabled && setting.is_some_and(|setting| !setting.enabled) {
             continue;
         }
         let meta = registry::get_agent_meta(agent_type);
-        let (available, dist_type, local_installed_version) = match &meta.distribution {
-            registry::AgentDistribution::Npx { cmd, package, .. } => {
-                // Keep the list path bounded: each list request probes npm
-                // global prefix at most once, then reuses the result across
-                // all NPX agents in the loop.
-                let resolved = npx_resolver.resolve_for_list(agent_type, cmd).await;
-                let version = npx_displayed_version(
-                    agent_type,
-                    resolved.as_ref(),
-                    package,
-                    setting.and_then(|m| m.installed_version.clone()),
-                )
-                .await;
-                (true, "npx", version)
-            }
-            registry::AgentDistribution::Binary {
-                platforms,
-                cmd,
-                dir_entry,
-                ..
-            } => {
-                let mut detected = binary_cache::detect_installed_version(agent_type, cmd)
-                    .ok()
-                    .flatten();
-                // Mirror the status path: a system install counts as installed
-                // (cached probes — no per-list subprocess after the first
-                // call). Without this, the list would also persist
-                // `installed_version = None` over the detected value.
-                if detected.is_none() {
-                    if dir_entry.is_some() {
-                        detected = system_dir_agent_version(cmd).await;
-                    } else if let Some(bin) = resolve_system_agent_binary(cmd) {
-                        detected = system_probed_version(agent_type, &bin, None).await;
-                    }
-                }
-                (
-                    platforms.iter().any(|p| p.platform == platform),
-                    "binary",
-                    detected,
-                )
-            }
-            registry::AgentDistribution::Uvx {
-                cmd, system_cmd, ..
-            } => {
-                // Mirror the status path (shared helper, launch-order parity).
-                let version = uvx_displayed_version(agent_type, cmd, *system_cmd).await;
-                (
-                    uvx_agent_launchable(agent_type, *system_cmd),
-                    "uvx",
-                    version,
-                )
-            }
-        };
+        let (available, dist_type, local_installed_version) = installations
+            .remove(&agent_type)
+            .expect("every listed agent has an installation probe");
 
         let mut env = setting
             .and_then(|m| m.env_json.as_deref())
@@ -19311,3 +19358,7 @@ model = "gpt"
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/upstream-codex-catalog-20260930.contract.rs"]
 mod maxcode_upstream_codex_catalog_20260930_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/settings-agent-probe-deadline.contract.rs"]
+mod maxcode_settings_agent_probe_deadline_contract;

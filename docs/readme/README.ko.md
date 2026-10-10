@@ -1,8 +1,8 @@
 # MaxCode
 
-[![Release](https://img.shields.io/github/v/release/xintaofei/codeg)](https://github.com/xintaofei/codeg/releases)
+[![Release](https://img.shields.io/github/v/release/spacering-net/codeg)](https://github.com/spacering-net/codeg/releases)
 [![Docs](https://img.shields.io/badge/docs-docs.codeg.app-3451b2)](https://docs.codeg.app)
-[![License](https://img.shields.io/github/license/xintaofei/codeg)](../../LICENSE)
+[![License](https://img.shields.io/github/license/spacering-net/codeg)](../../LICENSE)
 
 <p>
   <a href="../../README.md">English</a> |
@@ -112,19 +112,19 @@ Claude Code · Codex · Gemini · OpenClaw · OpenCode · Cline · Hermes · Cod
 
 ## 📦 설치 및 실행
 
-**데스크톱** — [Releases](https://github.com/xintaofei/codeg/releases)에서 macOS, Windows, Linux용 설치 프로그램을 내려받은 뒤 [설치](https://docs.codeg.app/getting-started/installation) 안내를 따르세요.
+**데스크톱** — [Releases](https://github.com/spacering-net/codeg/releases)에서 macOS, Windows, Linux용 설치 프로그램을 내려받은 뒤 [설치](https://docs.codeg.app/getting-started/installation) 안내를 따르세요.
 
 **서버** — MaxCode를 헤드리스로 실행하고 어떤 브라우저에서든 접속합니다. Linux 또는 macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/xintaofei/codeg/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/spacering-net/codeg/main/install.sh | bash
 CODEG_STATIC_DIR=/usr/local/share/codeg/web codeg-server
 ```
 
 Windows(PowerShell):
 
 ```powershell
-irm https://raw.githubusercontent.com/xintaofei/codeg/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/spacering-net/codeg/main/install.ps1 | iex
 $env:CODEG_STATIC_DIR="$env:LOCALAPPDATA\codeg\web"; codeg-server
 ```
 

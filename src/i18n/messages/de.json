@@ -3171,6 +3171,10 @@
         "sendEmail": "E-Mail senden"
       },
       "messageQueue": {
+        "waitingConnection": "Warte auf Verbindung. Nachrichten werden automatisch gesendet, sobald sie bereit ist.",
+        "connectionSlow": "Die Verbindung dauert länger. Deine Nachrichten bleiben erhalten und wurden noch nicht gesendet.",
+        "connectionFailed": "Verbindung fehlgeschlagen. Deine Nachrichten bleiben erhalten und wurden noch nicht gesendet.",
+        "reconnect": "Erneut verbinden",
         "steerItemNow": "Zum laufenden Durchgang hinzufügen",
         "steerItemNowHint": "Diese Nachricht senden, ohne die laufende Antwort zu stoppen",
         "adjustDirection": "Richtung ändern",

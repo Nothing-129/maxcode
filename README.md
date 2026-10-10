@@ -2,7 +2,7 @@
 
 MaxCode 是一个多智能体编码工作台，支持 Claude Code、Codex、Gemini、OpenCode 等智能体，将会话管理、多智能体协作和代码操作集中在同一个界面中。可作为桌面应用、独立服务器或 Docker 容器运行。
 
-本项目基于 [Codeg](https://github.com/xintaofei/codeg) 二次开发，主要改进会话体验、智能体兼容性和桌面运行方式。
+本项目基于 [Codeg](https://github.com/spacering-net/codeg) 二次开发，主要改进会话体验、智能体兼容性和桌面运行方式。
 
 ## 主要功能
 
@@ -37,6 +37,6 @@ corepack pnpm desktop:dev
 
 ## 鸣谢与许可
 
-感谢 [Codeg](https://github.com/xintaofei/codeg) 及其贡献者，以及项目使用的 [Agent Client Protocol](https://agentclientprotocol.com)、[Superpowers](https://github.com/obra/superpowers)、[OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) 和 [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)。
+感谢 [Codeg](https://github.com/spacering-net/codeg) 及其贡献者，以及项目使用的 [Agent Client Protocol](https://agentclientprotocol.com)、[Superpowers](https://github.com/obra/superpowers)、[OfficeCLI](https://github.com/iOfficeAI/OfficeCLI) 和 [scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)。
 
 本项目遵循 [Apache-2.0](./LICENSE) 许可证。

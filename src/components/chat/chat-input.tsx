@@ -19,6 +19,7 @@ import {
   type ComposerInjectContent,
 } from "@/components/chat/message-input"
 import { MessageQueueDisplay } from "@/components/chat/message-queue-display"
+import { QueueConnectionStatus } from "@/components/chat/queue-connection-status"
 import { cn } from "@/lib/utils"
 
 interface ChatInputProps {
@@ -48,6 +49,8 @@ interface ChatInputProps {
    *  tab when tiled across multiple sessions; passed through to MessageInput. */
   showActiveFlow?: boolean
   queue?: QueuedMessage[]
+  connectionError?: string | null
+  onReconnect?: () => Promise<void>
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
@@ -121,6 +124,8 @@ export const ChatInput = memo(function ChatInput({
   isActive,
   showActiveFlow,
   queue,
+  connectionError,
+  onReconnect,
   onEnqueue,
   onQueueReorder,
   onQueueEdit,
@@ -160,6 +165,10 @@ export const ChatInput = memo(function ChatInput({
   // and is bounded: `selectors_ready` fires on every establishment path whether
   // or not the agent has any commands, so this can never hang on a spinner.
   const commandsLoading = isConnecting || selectorsLoading
+  const connectionUnavailable =
+    (!isConnected && !isPrompting) || selectorsLoading
+  const queueWhileUnavailable =
+    !allowOfflineCompose && !!onEnqueue && connectionUnavailable
 
   // The workspace owns safe-area insets; adding them here doubles the phone
   // gutter when the keyboard closes. Keep only a small visual gap below the dock.
@@ -178,6 +187,13 @@ export const ChatInput = memo(function ChatInput({
         if (event.pointerType !== "mouse") event.stopPropagation()
       }}
     >
+      <QueueConnectionStatus
+        waiting={!!queue?.length && connectionUnavailable && !isPrompting}
+        failed={
+          status === "error" || status === "disconnected" || !!connectionError
+        }
+        onReconnect={onReconnect}
+      />
       {queue &&
         queue.length > 0 &&
         onQueueReorder &&
@@ -223,6 +239,7 @@ export const ChatInput = memo(function ChatInput({
             ? false
             : (!isConnected && !isPrompting) || selectorsLoading
         }
+        queueWhileUnavailable={queueWhileUnavailable}
         isPrompting={isPrompting}
         onCancel={onCancel}
         modes={modes}

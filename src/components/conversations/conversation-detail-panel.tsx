@@ -92,6 +92,11 @@ import {
   shouldRejectDuplicateCreate,
 } from "@/lib/queue-flush"
 import { TurnBusyError, isNoActiveTurnRejection } from "@/lib/turn-busy"
+import { prepareQueuedPrompt } from "@/lib/queued-prompt"
+import {
+  getWebConnectionSnapshot,
+  reconnectWebNow,
+} from "@/lib/transport/web-connection-store"
 import { toErrorMessage } from "@/lib/app-error"
 import { userPromptHistory } from "@/lib/composer-history"
 import {
@@ -724,7 +729,8 @@ const ConversationTabView = memo(function ConversationTabView({
     conn.connectedWorkingDir,
     workingDirForConnection,
     conn.agentType,
-    selectedAgent
+    selectedAgent,
+    conn.selectorsReady
   )
   // Read by the queue auto-flush's deferred timer, which must not act on a
   // readiness reading captured a tick ago.
@@ -732,8 +738,8 @@ const ConversationTabView = memo(function ConversationTabView({
   useEffect(() => {
     connectionReadyRef.current = connectionReady
   }, [connectionReady])
-  // Present "connecting" to the composer while connected-but-not-ready, so it
-  // disables its send affordance instead of inviting a submit handleSend rejects.
+  // Present "connecting" while connected-but-not-ready: the composer accepts
+  // local queue submissions and only delivers them after initialization.
   // While the live connection still belongs to a different agent, present the
   // selected agent's real state: "disconnected" when it isn't installed (the
   // install banner explains why), otherwise "connecting" (the switch is in
@@ -784,6 +790,68 @@ const ConversationTabView = memo(function ConversationTabView({
         { agent: getAgentLabel(selectedAgent) }
       )
     : (autoConnectError ?? agentConnectError)
+
+  const handleEnqueue = useCallback(
+    (draft: PromptDraft, modeId: string | null) => {
+      mqEnqueue(draft, modeId, {
+        adoptSendTimeMode: !connectionReady && modeId == null,
+      })
+      // Queued work must keep its own tab when another preview is opened.
+      if (ownTab && !ownTab.isPinned) pinTab(tabId)
+    },
+    [mqEnqueue, connectionReady, ownTab, pinTab, tabId]
+  )
+  const handleQueueReconnect = useCallback(async () => {
+    if (getWebConnectionSnapshot() !== "connected") {
+      reconnectWebNow()
+      return
+    }
+    try {
+      if (isChatDraft && !workingDir) {
+        if (prepareChatDirPendingRef.current) return
+        prepareChatDirPendingRef.current = true
+        try {
+          const res = await createChatDir()
+          if (mountedRef.current) {
+            setAgentConnectError(null)
+            setChatDraftWorkingDir(tabId, res.path)
+          }
+        } finally {
+          prepareChatDirPendingRef.current = false
+        }
+        return
+      }
+      if (awaitingHistoricalSessionId || !canAutoConnect) return
+      const remembered = acpActions.getReconnectInfo(tabId)
+      if (
+        remembered?.agentType === selectedAgent &&
+        remembered.workingDir === workingDirForConnection
+      ) {
+        await acpActions.reconnect(tabId)
+      } else {
+        await acpActions.connect(
+          tabId,
+          selectedAgent,
+          workingDirForConnection,
+          selectedAgent === "cline" ? undefined : externalId,
+          dbConvIdRef.current ?? undefined
+        )
+      }
+    } catch (error) {
+      toast.error(toErrorMessage(error))
+    }
+  }, [
+    acpActions,
+    tabId,
+    isChatDraft,
+    workingDir,
+    setChatDraftWorkingDir,
+    awaitingHistoricalSessionId,
+    canAutoConnect,
+    selectedAgent,
+    workingDirForConnection,
+    externalId,
+  ])
 
   useEffect(() => {
     if (connSessionId) {
@@ -1093,9 +1161,8 @@ const ConversationTabView = memo(function ConversationTabView({
       // before any await. A folderless chat draft is NOT special-cased here:
       // its first send takes the exact same gated, inline path as a normal new
       // conversation (the new-tab branch below just creates the row via
-      // createChatConversation, reusing this eager dir). The composer is gated
-      // on `connected` for chat drafts too, so by the time we get here the agent
-      // is live and the prompt is delivered inline — never parked in the queue.
+      // createChatConversation, reusing this eager dir). Connection-time local
+      // submissions arrive here later, once the queue can safely flush.
       const sendOwnTab = ownTab
 
       if (!hasPersistedConversation && !canAutoConnect) {
@@ -1106,31 +1173,37 @@ const ConversationTabView = memo(function ConversationTabView({
       // `connStatus === "connected"` is not enough: a chat draft mid-reconnect can
       // read a stale "connected" for the old cwd, and an inline send then would
       // deliver to the wrong workspace. Same predicate the flush effect uses.
+      if (!connectionReady && !opts?.fromQueueFlush) {
+        handleEnqueue(draft, selectedModeIdArg ?? null)
+        return
+      }
       if (!connectionReady) return
+
+      if (opts?.fromQueueFlush) {
+        draft = prepareQueuedPrompt(draft, conn.promptCapabilities)
+      }
 
       const fromQueueFlush = opts?.fromQueueFlush ?? false
       // Preserve FIFO: a direct send issued while the queue is non-empty joins
       // the tail rather than racing ahead of the queued items. Read the
       // queue length synchronously (it reflects a same-tick bounce requeue).
-      if (shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength())) {
+      if (
+        shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength()) ||
+        (!fromQueueFlush && runtimeSyncState === "awaiting_persist")
+      ) {
         mqEnqueue(draft, selectedModeIdArg ?? null)
         return
       }
 
-      // Single-flight the unbound new-tab create. A second direct submit fired
-      // before the first create resolves (a double Enter / double click) would
-      // otherwise append an optimistic turn it can never deliver: the
-      // createConversationPendingRef guard further down returns AFTER the
-      // optimistic append. Reject the duplicate here, before any optimistic
-      // mutation. Only the unbound path (no persisted id yet) is single-flighted,
-      // so persisted sends keep their concurrent queued-send behavior. Applies
-      // equally to chat and normal new conversations.
+      // Single-flight the unbound create before any optimistic mutation. A new
+      // direct submission joins the queue until the first row has been created.
       if (
         shouldRejectDuplicateCreate(
           dbConvIdRef.current != null,
           createConversationPendingRef.current
         )
       ) {
+        if (!fromQueueFlush) mqEnqueue(draft, selectedModeIdArg ?? null)
         return
       }
 
@@ -1333,7 +1406,11 @@ const ConversationTabView = memo(function ConversationTabView({
           setSyncState(effectiveConversationId, "idle")
           setHasSentMessage(false)
           const draftText = draft.displayText.trim()
-          if (draftText) {
+          if (fromQueueFlush) {
+            mqRequeueFront(draft, selectedModeIdArg ?? null, {
+              flushBlocked: true,
+            })
+          } else if (draftText) {
             saveMessageInputDraft(
               buildNewConversationDraftStorageKey(tabId),
               draftText
@@ -1357,6 +1434,9 @@ const ConversationTabView = memo(function ConversationTabView({
       bindConversationTab,
       canAutoConnect,
       connectionReady,
+      conn.promptCapabilities,
+      handleEnqueue,
+      runtimeSyncState,
       effectiveConversationId,
       folderId,
       hasPersistedConversation,
@@ -2308,11 +2388,11 @@ const ConversationTabView = memo(function ConversationTabView({
           />
         </>
       }
-      status={connStatus}
+      status={composerConnStatus}
       promptCapabilities={conn.promptCapabilities}
       defaultPath={workingDirForConnection}
       agentName={getAgentLabel(selectedAgent)}
-      error={conn.error}
+      error={conn.error ?? composerBlockedMessage}
       claudeApiRetry={conn.claudeApiRetry}
       sessionFailures={conn.sessionFailures}
       onSessionFailureAction={
@@ -2378,7 +2458,12 @@ const ConversationTabView = memo(function ConversationTabView({
       isActive={isActive}
       showActiveFlow={showActiveFlow}
       queue={msgQueue}
-      onEnqueue={mqEnqueue}
+      onEnqueue={
+        canAutoConnect || awaitingHistoricalSessionId
+          ? handleEnqueue
+          : undefined
+      }
+      onReconnect={handleQueueReconnect}
       onQueueReorder={mqReorder}
       onQueueEdit={handleQueueEdit}
       onQueueDelete={mqRemove}
@@ -2460,9 +2545,8 @@ const ConversationTabView = memo(function ConversationTabView({
                 </div>
               ) : null}
               <ChatInput
-                // composerConnStatus (not connStatus): a chat draft mid-reconnect
-                // reads "connecting" until the connection's cwd matches, so the
-                // send affordance stays disabled until handleSend would accept it.
+                // Keep submissions local until the selected agent/workspace
+                // connection has finished initializing.
                 status={composerConnStatus}
                 promptCapabilities={conn.promptCapabilities}
                 defaultPath={workingDirForConnection}
@@ -2484,6 +2568,17 @@ const ConversationTabView = memo(function ConversationTabView({
                 draftStorageKey={draftStorageKey}
                 isActive={isActive}
                 showActiveFlow={showActiveFlow}
+                queue={msgQueue}
+                onEnqueue={
+                  canAutoConnect || awaitingHistoricalSessionId
+                    ? handleEnqueue
+                    : undefined
+                }
+                onReconnect={handleQueueReconnect}
+                connectionError={conn.error ?? composerBlockedMessage}
+                onQueueReorder={mqReorder}
+                onQueueEdit={handleQueueEdit}
+                onQueueDelete={mqRemove}
                 onAddFeedback={
                   feedback.featureEnabled ? feedback.openDialog : undefined
                 }
@@ -2664,25 +2759,20 @@ export function ConversationDetailPanel() {
     if (!workingDir) return null
     return { workingDir, folderId: activeTab.folderId }
   }, [tabs, activeTabId, folder?.path])
-  const { disconnectIfIdle } = useAcpActions()
+  const { releaseSurface } = useAcpActions()
   const { addTask, updateTask } = useTaskContext()
   const [reloadByTabId, setReloadByTabId] = useState<Record<string, number>>({})
   const [detailsOpen, setDetailsOpen] = useState(false)
 
   const exportLabels = useExportLabels()
 
-  // Release the old connection as soon as a preview tab is replaced (the next
-  // single-click in the sidebar takes its slot) instead of waiting for a sweep.
-  // Idle-gated on purpose: the replaced tab may hold a session that is still
-  // working — often one the user only clicked in to watch — and disconnecting
-  // an owner mid-turn kills the agent CLI, which lands in the transcript as an
-  // interrupted request. Busy owners keep running; the idle sweep reclaims them
-  // once they settle.
+  // Preview replacement also releases a surface that may already have shed
+  // its heavy UI. Retain the owned session under the same bounded warm budget.
   useEffect(() => {
     return onPreviewTabReplaced((replacedTabId) => {
-      disconnectIfIdle(replacedTabId).catch(() => {})
+      releaseSurface(replacedTabId).catch(() => {})
     })
-  }, [onPreviewTabReplaced, disconnectIfIdle])
+  }, [onPreviewTabReplaced, releaseSurface])
 
   // Background turn_complete handler: for conversations not open in tabs.
   // Subscribes via the context's primary `acp://event` listener (single

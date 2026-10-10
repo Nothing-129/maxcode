@@ -2,6 +2,39 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.connection-submit-queue",
+      "category": "product",
+      "description": "Workspace composers accept local submissions while connecting or initializing, preserve full drafts in a per-tab editable queue, pin preview tabs, show waiting/slow/failure status and reconnect, and auto-send FIFO only after selectors_ready with matching agent/cwd. Repeated submissions cannot duplicate staged attachments; queued image encoding follows negotiated capabilities.",
+      "origins": ["worktree-2026-10-10"],
+      "paths": [
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/queue-connection-status.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/lib/queue-flush.ts",
+        "src/lib/queued-prompt.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/connection-submit-queue.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "settings.agent-probe-deadline",
+      "category": "runtime",
+      "description": "Settings and enabled-agent lists resolve npm prefix once per request and probe independent agent installations concurrently. Every npm metadata subprocess has a 3s deadline and kill-on-drop; metadata failures retain CLI version fallback. Packaged Electron smoke verifies the seven-agent catalog from a settings child window.",
+      "origins": ["worktree-2026-10-10"],
+      "paths": [
+        "src-tauri/src/commands/acp.rs",
+        "electron/main.cjs",
+        "src/maxcode-contracts/settings-agent-probe-deadline.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/settings-agent-probe-deadline.contract.test.ts"
+      ]
+    },
+    {
       "id": "files.tab-file-manager",
       "category": "product",
       "description": "Desktop file tab menus reveal the selected file, including Word documents, in Finder/File Explorer/the system file manager. The action uses the selected tab path, reports failures, and is hidden in web mode or without a path.",
@@ -17,7 +50,7 @@
     {
       "id": "chat.connection-draft-editing",
       "category": "product",
-      "description": "Connection and session-initialization readiness only gate sending: text, clipboard operations, image paste/drop/pick, markup and draft insertion remain available. Images can be staged before capabilities arrive and use the negotiated encoding when sent; button and keyboard sends stay blocked until ready.",
+      "description": "Connection and session-initialization readiness only gate sending: text, clipboard operations, image paste/drop/pick, markup and draft insertion remain available. Images can be staged before capabilities arrive and use the negotiated encoding when sent; surfaces without a local queue keep button and keyboard sends blocked until ready.",
       "origins": ["worktree-2026-10-08"],
       "paths": [
         "src/components/chat/chat-input.tsx",
@@ -2226,10 +2259,16 @@
     {
       "id": "agents.bounded-connection-lifecycle",
       "category": "runtime",
-      "description": "The active surface and two recent idle owners receive true keepalives for ten minutes, colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped. Backup restore uses authoritative session state and treats locked sessions and unreaped children as live.",
-      "origins": ["2c859b2a", "worktree-2026-08-31", "worktree-2026-09-07"],
+      "description": "The active surface and ten recent idle owners receive true keepalives for ten minutes, including sessions whose panes were replaced. Pane release retains owners independently of the visible pane list; viewers detach and explicit disconnects still stop owners. Colder probes stay read-only, heavy hidden idle tab trees unmount independently, busy work is protected, and wedged startup processes are reaped. Backup restore uses authoritative session state and treats locked sessions and unreaped children as live.",
+      "origins": [
+        "2c859b2a",
+        "worktree-2026-08-31",
+        "worktree-2026-09-07",
+        "worktree-2026-10-10"
+      ],
       "paths": [
         "src/lib/constants.ts",
+        "src/hooks/use-connection-lifecycle.ts",
         "src/lib/conversation-tab-retention.ts",
         "src/contexts/acp-connections-context.tsx",
         "src/components/conversations/conversation-detail-panel.tsx",

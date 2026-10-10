@@ -193,6 +193,8 @@ interface MessageInputProps {
   defaultPath?: string
   /** Blocks sending while the connection is unavailable; drafting stays enabled. */
   disabled?: boolean
+  /** Accept a local queue submission while the connection is unavailable. */
+  queueWhileUnavailable?: boolean
   autoFocus?: boolean
   onFocus?: () => void
   className?: string
@@ -376,6 +378,7 @@ export function MessageInput({
   placeholder,
   defaultPath,
   disabled = false,
+  queueWhileUnavailable = false,
   autoFocus = false,
   onFocus,
   className,
@@ -1502,10 +1505,24 @@ export function MessageInput({
     draftStorageKey: effectiveDraftStorageKey,
   }
 
+  // Editor clearing is synchronous, but attachment state takes a render. Lock
+  // until that render commits so rapid Enter/clicks cannot enqueue images twice.
+  const submissionLockedRef = useRef(false)
+  useEffect(() => {
+    submissionLockedRef.current = false
+  })
+
   const handleSend = useCallback(() => {
     // Draft editing stays available before the connection is ready, but plain
     // sends are blocked. Queue edits and mid-turn enqueue remain local actions.
-    if (disabled && !isPrompting && !isEditingQueueItem) return
+    if (submissionLockedRef.current) return
+    if (
+      disabled &&
+      !isPrompting &&
+      !isEditingQueueItem &&
+      !(queueWhileUnavailable && onEnqueue)
+    )
+      return
     // An image whose web/remote upload hasn't settled has no server-side uri
     // yet — the transport would strip its base64 and the backend would have
     // nothing to hydrate. Block ALL three branches below (send / enqueue /
@@ -1517,6 +1534,7 @@ export function MessageInput({
     }
     const draft = buildDraft()
     if (!draft) return
+    submissionLockedRef.current = true
 
     // Edit mode: save back to queue item
     if (isEditingQueueItem && onSaveQueueEdit) {
@@ -1526,8 +1544,11 @@ export function MessageInput({
     }
 
     // Prompting mode: enqueue instead of sending
-    if (isPrompting && onEnqueue) {
+    if ((isPrompting || (disabled && queueWhileUnavailable)) && onEnqueue) {
       onEnqueue(draft, showModeSelector ? effectiveModeId : null)
+      if (effectiveDraftStorageKey) {
+        clearMessageInputDraftV2(effectiveDraftStorageKey)
+      }
       resetComposer()
       return
     }
@@ -1539,6 +1560,7 @@ export function MessageInput({
     resetComposer()
   }, [
     disabled,
+    queueWhileUnavailable,
     hasUploadingImage,
     tAttach,
     buildDraft,
@@ -2021,10 +2043,13 @@ export function MessageInput({
     // MaxCode 发送钮：32px 正圆、白色上箭头；可用时使用统一操作蓝色 #216AE4。
     <Button
       onClick={handleSend}
-      disabled={disabled || !hasSendableContent}
+      disabled={
+        (disabled && !(queueWhileUnavailable && onEnqueue)) ||
+        !hasSendableContent
+      }
       size="icon"
       className="h-8 w-8 rounded-full enabled:bg-[#216ae4] enabled:text-white enabled:hover:bg-[#216ae4]/90 disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground"
-      title={t("send")}
+      title={t(disabled && queueWhileUnavailable ? "queueMessage" : "send")}
     >
       <ArrowUp className="size-4" strokeWidth={2.5} />
     </Button>

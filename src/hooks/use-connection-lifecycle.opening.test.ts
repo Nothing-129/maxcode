@@ -18,6 +18,8 @@
 import { act, renderHook } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
+const releaseSurface = vi.hoisted(() => vi.fn(async () => {}))
+
 vi.mock("next-intl", () => ({
   useTranslations: () => (key: string, params?: Record<string, unknown>) =>
     params ? `${key}:${JSON.stringify(params)}` : key,
@@ -30,6 +32,7 @@ vi.mock("@/contexts/acp-connections-context", () => ({
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),
+    releaseSurface,
   }),
 }))
 
@@ -111,7 +114,18 @@ describe("useConnectionLifecycle opening legs", () => {
     conn.status = null
     conn.selectorsReady = false
     conn.hasCachedSelectors = false
+    releaseSurface.mockClear()
   })
+
+  it.each(["connected", "prompting", "connecting"])(
+    "releases an unmounted %s owner to the provider's warm pool",
+    (status) => {
+      conn.status = status
+      const { unmount } = renderLifecycle(false)
+      unmount()
+      expect(releaseSurface).toHaveBeenCalledWith("ctx-1")
+    }
+  )
 
   it("reports the historical-session wait as a status-bar task and as loading selectors", () => {
     const { result } = renderLifecycle(true)

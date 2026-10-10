@@ -12,6 +12,8 @@ import {
 import {
   CONNECTION_IDLE_TIMEOUT_MS,
   IDLE_SWEEP_INTERVAL_MS,
+  IDLE_WARM_CONNECTION_TTL_MS,
+  MAX_IDLE_WARM_CONNECTIONS,
 } from "@/lib/constants"
 import { parsePermissionToolCall } from "@/lib/permission-request"
 import { subscribe } from "@/lib/platform"
@@ -256,83 +258,196 @@ function hydrateSnapshot(
 }
 
 describe("active keepalive vs background liveness", () => {
-  it("touches the active and two LRU warm connections while probing overflow read-only", async () => {
+  it.each(["open", "replaced"])(
+    "touches the active and ten warm owners with %s panes, and reclaims LRU overflow",
+    async (surface) => {
+      vi.useFakeTimers()
+      try {
+        await mountProvider()
+        const keys = ["active-conn"]
+        for (let index = 0; index <= MAX_IDLE_WARM_CONNECTIONS + 1; index++) {
+          const key = index === 0 ? "active-conn" : `background-${index}`
+          h.acpConnect.mockResolvedValueOnce(key)
+          vi.setSystemTime(1_000 + index * 1_000)
+          await act(async () => {
+            await h.actions!.connect(key, "codex", `/tmp/${key}`)
+          })
+          emitAcpEvent(latestAttachHandlers(), {
+            seq: 1,
+            connection_id: key,
+            type: "status_changed",
+            status: "connected",
+          })
+          if (index > 0) {
+            keys.push(key)
+            if (surface === "replaced") {
+              await act(async () => {
+                await h.actions!.releaseSurface(key)
+              })
+            }
+          }
+        }
+        act(() => {
+          h.actions!.setActiveKey("active-conn")
+          h.actions!.registerOpenTabKeys(
+            new Set(surface === "open" ? keys : ["active-conn"])
+          )
+        })
+        h.acpTouchConnection.mockClear()
+        h.acpActiveTouchConnection.mockClear()
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(CONNECTION_KEEPALIVE_INTERVAL_MS)
+        })
+        expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("active-conn")
+        for (let index = 2; index <= MAX_IDLE_WARM_CONNECTIONS + 1; index++) {
+          expect(h.acpActiveTouchConnection).toHaveBeenCalledWith(
+            `background-${index}`
+          )
+        }
+        expect(h.acpActiveTouchConnection).not.toHaveBeenCalledWith(
+          "background-1"
+        )
+        expect(h.acpTouchConnection).toHaveBeenCalledWith("background-1")
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(IDLE_SWEEP_INTERVAL_MS)
+        })
+        expect(h.acpDisconnect).toHaveBeenCalledTimes(1)
+        expect(h.acpDisconnect).toHaveBeenCalledWith("background-1")
+        expect(h.store!.getConnection("background-1")).toBeUndefined()
+        expect(h.store!.getConnection("background-2")?.status).toBe("connected")
+      } finally {
+        vi.useRealTimers()
+      }
+    }
+  )
+
+  async function connectIdleOwner() {
+    h.acpFindConnectionForConversation.mockResolvedValue(null)
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "codex", "/tmp/x", "sess-1", 42)
+    })
+    emitAcpEvent(latestAttachHandlers(), {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "status_changed",
+      status: "connected",
+    })
+    h.actions!.setActiveKey("other")
+    await h.actions!.releaseSurface(TAB)
+  }
+
+  it("reuses a recently replaced owner without spawning another agent", async () => {
     vi.useFakeTimers()
     try {
-      h.acpConnect
-        .mockResolvedValueOnce("active-conn")
-        .mockResolvedValueOnce("background-1")
-        .mockResolvedValueOnce("background-2")
-        .mockResolvedValueOnce("background-3")
-      await mountProvider()
-      vi.setSystemTime(1_000)
+      await connectIdleOwner()
       await act(async () => {
-        await h.actions!.connect("active-tab", "claude_code", "/tmp/a")
+        await vi.advanceTimersByTimeAsync(2 * IDLE_SWEEP_INTERVAL_MS)
+        await h.actions!.connect(TAB, "codex", "/tmp/x", "sess-1", 42)
       })
-      emitAcpEvent(latestAttachHandlers(), {
-        seq: 1,
-        connection_id: "active-conn",
-        type: "status_changed",
-        status: "connected",
-      })
-      vi.setSystemTime(2_000)
-      await act(async () => {
-        await h.actions!.connect("background-1", "claude_code", "/tmp/b1")
-      })
-      emitAcpEvent(latestAttachHandlers(), {
-        seq: 1,
-        connection_id: "background-1",
-        type: "status_changed",
-        status: "connected",
-      })
-      vi.setSystemTime(3_000)
-      await act(async () => {
-        await h.actions!.connect("background-2", "claude_code", "/tmp/b2")
-      })
-      emitAcpEvent(latestAttachHandlers(), {
-        seq: 1,
-        connection_id: "background-2",
-        type: "status_changed",
-        status: "connected",
-      })
-      vi.setSystemTime(4_000)
-      await act(async () => {
-        await h.actions!.connect("background-3", "claude_code", "/tmp/b3")
-      })
-      emitAcpEvent(latestAttachHandlers(), {
-        seq: 1,
-        connection_id: "background-3",
-        type: "status_changed",
-        status: "connected",
-      })
-      act(() => {
-        h.actions!.setActiveKey("active-tab")
-        h.actions!.registerOpenTabKeys(
-          new Set([
-            "active-tab",
-            "background-1",
-            "background-2",
-            "background-3",
-          ])
-        )
-      })
-      h.acpTouchConnection.mockClear()
-      h.acpActiveTouchConnection.mockClear()
-
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(CONNECTION_KEEPALIVE_INTERVAL_MS)
-      })
-
-      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("active-conn")
-      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("background-2")
-      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("background-3")
-      expect(h.acpActiveTouchConnection).not.toHaveBeenCalledWith(
-        "background-1"
-      )
-      expect(h.acpTouchConnection).toHaveBeenCalledWith("background-1")
+      expect(h.acpDisconnect).not.toHaveBeenCalled()
+      expect(h.acpConnect).toHaveBeenCalledTimes(1)
+      expect(h.acpActiveTouchConnection).toHaveBeenCalledWith("spawned-conn")
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it("expires a replaced owner after ten minutes despite keepalive touches", async () => {
+    vi.useFakeTimers()
+    try {
+      await connectIdleOwner()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          IDLE_WARM_CONNECTION_TTL_MS + IDLE_SWEEP_INTERVAL_MS
+        )
+      })
+      expect(h.acpDisconnect).toHaveBeenCalledWith("spawned-conn")
+      expect(h.store!.getConnection(TAB)).toBeUndefined()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("still honors an explicit disconnect of a warm owner", async () => {
+    await connectIdleOwner()
+    await act(async () => {
+      await h.actions!.disconnect(TAB)
+    })
+    expect(h.acpDisconnect).toHaveBeenCalledWith("spawned-conn")
+    expect(h.store!.getConnection(TAB)).toBeUndefined()
+  })
+
+  it("reclaims a released active pane even when no new pane takes focus", async () => {
+    vi.useFakeTimers()
+    try {
+      await connectIdleOwner()
+      h.actions!.setActiveKey(TAB)
+      await h.actions!.releaseSurface(TAB)
+      expect(h.store!.getActiveKey()).toBeNull()
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(
+          IDLE_WARM_CONNECTION_TTL_MS + IDLE_SWEEP_INTERVAL_MS
+        )
+      })
+      expect(h.acpDisconnect).toHaveBeenCalledWith("spawned-conn")
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it.each(["owner", "viewer"])(
+    "handles a surface released while its %s connection is still pending",
+    async (kind) => {
+      let resolvePending!: (value: never) => void
+      const pending = new Promise<never>((resolve) => {
+        resolvePending = resolve
+      })
+      if (kind === "owner") {
+        h.acpFindConnectionForConversation.mockResolvedValue(null)
+        h.acpConnect.mockReturnValueOnce(pending)
+      } else {
+        h.acpFindConnectionForConversation.mockReturnValueOnce(pending)
+      }
+      await mountProvider()
+      let connecting!: Promise<void>
+      await act(async () => {
+        connecting = h.actions!.connect(TAB, "codex", "/tmp/x", "sess-1", 42)
+      })
+      await act(async () => {
+        await h.actions!.releaseSurface(TAB)
+        resolvePending(
+          (kind === "owner"
+            ? "spawned-conn"
+            : { connection_id: "owner", event_seq: 0 }) as never
+        )
+        await connecting
+      })
+      expect(h.acpDisconnect).not.toHaveBeenCalled()
+      if (kind === "owner") {
+        expect(h.store!.getConnection(TAB)?.connectionId).toBe("spawned-conn")
+      } else {
+        expect(h.store!.getConnection(TAB)).toBeUndefined()
+        expect(h.attach.mock.results[0].value.detach).toHaveBeenCalled()
+      }
+    }
+  )
+
+  it("detaches a released viewer without killing its owner's agent", async () => {
+    h.acpFindConnectionForConversation.mockResolvedValue({
+      connection_id: "owner",
+      event_seq: 0,
+    })
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "codex", "/tmp/x", "sess-1", 42)
+      await h.actions!.releaseSurface(TAB)
+    })
+    expect(h.acpDisconnect).not.toHaveBeenCalled()
+    expect(h.store!.getConnection(TAB)).toBeUndefined()
+    expect(h.attach.mock.results[0].value.detach).toHaveBeenCalled()
   })
 })
 

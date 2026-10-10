@@ -3171,6 +3171,10 @@
         "sendEmail": "메일 보내기"
       },
       "messageQueue": {
+        "waitingConnection": "연결 대기 중입니다. 준비되면 자동으로 전송됩니다.",
+        "connectionSlow": "연결이 지연되고 있습니다. 메시지는 보관되었으며 아직 전송되지 않았습니다.",
+        "connectionFailed": "연결에 실패했습니다. 메시지는 보관되었으며 아직 전송되지 않았습니다.",
+        "reconnect": "다시 연결",
         "steerItemNow": "현재 턴에 추가",
         "steerItemNowHint": "응답을 중지하지 않고 이 메시지를 현재 턴에 추가",
         "adjustDirection": "방향 조정",

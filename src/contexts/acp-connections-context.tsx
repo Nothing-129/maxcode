@@ -466,7 +466,8 @@ function selectIdleWarmConnectionCandidates(
   connections: ReadonlyMap<string, ConnectionState>,
   openTabKeys: ReadonlySet<string>,
   activeKey: string | null,
-  lastActivity: ReadonlyMap<string, number>
+  lastActivity: ReadonlyMap<string, number>,
+  retainedOwnerKeys: ReadonlySet<string> = new Set()
 ): IdleWarmConnectionCandidate[] {
   type Group = IdleWarmConnectionEviction & {
     hasOpenTab: boolean
@@ -489,7 +490,8 @@ function selectIdleWarmConnectionCandidates(
       groups.set(conn.connectionId, group)
     }
     group.contextKeys.push(contextKey)
-    group.hasOpenTab ||= openTabKeys.has(contextKey)
+    group.hasOpenTab ||=
+      openTabKeys.has(contextKey) || retainedOwnerKeys.has(contextKey)
     group.hasOwner ||= !conn.isViewer && !conn.isDelegationChild
     group.lastActive = Math.max(
       group.lastActive,
@@ -501,6 +503,7 @@ function selectIdleWarmConnectionCandidates(
       conn.isViewer ||
       conn.isDelegationChild ||
       conn.backgroundOutstanding > 0 ||
+      liveAsyncTasks(conn.asyncTasks).length > 0 ||
       conn.pendingPermission != null ||
       conn.pendingQuestion != null ||
       conn.pendingAskQuestion != null ||
@@ -533,13 +536,15 @@ export function selectIdleWarmConnectionPlan(
   lastActivity: ReadonlyMap<string, number>,
   now: number,
   maxWarm = MAX_IDLE_WARM_CONNECTIONS,
-  warmTtlMs = IDLE_WARM_CONNECTION_TTL_MS
+  warmTtlMs = IDLE_WARM_CONNECTION_TTL_MS,
+  retainedOwnerKeys: ReadonlySet<string> = new Set()
 ): IdleWarmConnectionPlan {
   const candidates = selectIdleWarmConnectionCandidates(
     connections,
     openTabKeys,
     activeKey,
-    lastActivity
+    lastActivity,
+    retainedOwnerKeys
   )
   const warm = candidates
     .filter((group) => now - group.lastActive <= warmTtlMs)
@@ -3259,6 +3264,8 @@ export interface AcpActionsValue {
    * stop.
    */
   disconnectIfIdle(contextKey: string): Promise<void>
+  /** Keep an owned session warm after its pane disappears; viewers detach. */
+  releaseSurface(contextKey: string): Promise<void>
   disconnectAll(): Promise<void>
   sendPrompt(
     contextKey: string,
@@ -3644,6 +3651,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   // Open tab keys — updated by child TabProvider via registerOpenTabKeys
   const openTabKeysRef = useRef(new Set<string>())
+  // Session lifetime is independent of the pane list: navigation replaces
+  // panes, but recently visited owners still participate in the warm budget.
+  const retainedOwnerKeysRef = useRef(new Set<string>())
+  const releaseSurfaceRef = useRef<
+    ((contextKey: string) => Promise<void>) | null
+  >(null)
   // Backend ids currently being LRU/idle-evicted. Teardown is async, so a slow
   // disconnect must not be issued again on the next timer tick.
   const evictingConnectionIdsRef = useRef(new Set<string>())
@@ -3975,7 +3988,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         action.type !== "BATCH_TOOL_CALL_UPDATES"
       ) {
         for (const key of prev.keys()) {
-          if (!next.has(key)) discardStreamingKey(key)
+          if (!next.has(key)) {
+            discardStreamingKey(key)
+            if (retainedOwnerKeysRef.current.delete(key)) {
+              if (action.type === "REKEY_CONNECTION") {
+                retainedOwnerKeysRef.current.add(action.toKey)
+              }
+            }
+          }
         }
       }
 
@@ -5931,6 +5951,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       // Land the final queued words before `disconnected` rejects new deltas.
       flushStreamingQueue(contextKey)
       dispatch({ type: "STATUS_CHANGED", contextKey, status: "disconnected" })
+      retainedOwnerKeysRef.current.delete(contextKey)
       return true
     },
     [
@@ -5942,7 +5963,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   )
 
   // ── Active/true-warm keepalive + read-only liveness reconciliation ──
-  // The active surface and the two recent, TTL-bounded warm owners refresh the
+  // The active surface and recent, TTL-bounded warm owners refresh the
   // backend idle clock. Every other open tab is still probed so a missed
   // terminal event cannot strand its local state, but those probes never make
   // cold background agents immortal.
@@ -5956,7 +5977,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           currentOpenTabKeys,
           currentActiveKey,
           lastActivityRef.current,
-          Date.now()
+          Date.now(),
+          MAX_IDLE_WARM_CONNECTIONS,
+          IDLE_WARM_CONNECTION_TTL_MS,
+          retainedOwnerKeysRef.current
         ).warm.map((group) => group.connectionId)
       )
       const checks = new Map<
@@ -5982,6 +6006,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       }
       if (currentActiveKey) consider(currentActiveKey)
       for (const contextKey of currentOpenTabKeys) consider(contextKey)
+      for (const contextKey of retainedOwnerKeysRef.current)
+        consider(contextKey)
       for (const [connectionId, group] of checks) {
         const check = group.shouldTouch
           ? acpTouchConnection(connectionId).catch(() => true)
@@ -6000,8 +6026,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   }, [heldOpenKeys, isConnectionLiveOnBackend, markConnectionGone])
 
   // ── Idle + warm-LRU sweep timer ──
-  // Closed surfaces retain the one-minute local timeout. Open tabs may keep at
-  // most MAX_IDLE_WARM_CONNECTIONS background owner processes for
+  // Open and recently replaced panes may keep at most
+  // MAX_IDLE_WARM_CONNECTIONS background owner processes for
   // IDLE_WARM_CONNECTION_TTL_MS after their latest event/activity; overflow
   // and expired slots are disconnected while tabs and transcripts remain.
   // Busy, interaction-blocked, viewer and delegation connections are protected.
@@ -6016,7 +6042,10 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         currentOpenTabKeys,
         currentActiveKey,
         lastActivityRef.current,
-        now
+        now,
+        MAX_IDLE_WARM_CONNECTIONS,
+        IDLE_WARM_CONNECTION_TTL_MS,
+        retainedOwnerKeysRef.current
       )
       const warmIds = new Set(warmPlan.warm.map((group) => group.connectionId))
       for (const group of warmPlan.evictions) {
@@ -6083,6 +6112,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             conn.isViewer ||
             conn.isDelegationChild ||
             conn.backgroundOutstanding > 0 ||
+            liveAsyncTasks(conn.asyncTasks).length > 0 ||
             conn.pendingPermission != null ||
             conn.pendingQuestion != null ||
             conn.pendingAskQuestion != null ||
@@ -6828,6 +6858,16 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // so this is the one place that consumes it.
         const wasAbandoned = abandonedKeysRef.current.has(contextKey)
         connectingKeysRef.current.delete(contextKey)
+        // A pane may disappear while discovery/spawn is still awaiting. An
+        // owner stays warm; a late viewer attachment must detach immediately.
+        if (retainedOwnerKeysRef.current.has(contextKey)) {
+          const conn = storeRef.current.connections.get(contextKey)
+          if (conn?.isViewer) {
+            void releaseSurfaceRef.current?.(contextKey).catch(() => {})
+          } else if (!conn) {
+            retainedOwnerKeysRef.current.delete(contextKey)
+          }
+        }
         // Drop the overlay even if CONNECTION_CREATED already replaced it in
         // `getConnection` — a failed/abandoned connect has no map entry, and
         // leaving the placeholder would stick the composer on "connecting".
@@ -6893,6 +6933,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(
     async (contextKey: string): Promise<boolean> => {
+      retainedOwnerKeysRef.current.delete(contextKey)
       pendingConnectRequestsRef.current.delete(contextKey)
       // An in-flight connect() must abandon its result whether or not it has
       // already put an entry in the store. It awaits several times after that
@@ -6985,6 +7026,27 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     },
     [disconnect]
   )
+
+  const releaseSurface = useCallback(
+    async (contextKey: string) => {
+      if (storeRef.current.activeKey === contextKey) setActiveKey(null)
+      const conn = storeRef.current.connections.get(contextKey)
+      if (conn?.isDelegationChild) return
+      if (
+        conn?.isViewer ||
+        conn?.status === "disconnected" ||
+        conn?.status === "error"
+      ) {
+        await disconnect(contextKey)
+        return
+      }
+      if (!conn && !connectingKeysRef.current.has(contextKey)) return
+      retainedOwnerKeysRef.current.add(contextKey)
+      lastActivityRef.current.set(contextKey, Date.now())
+    },
+    [disconnect, setActiveKey]
+  )
+  releaseSurfaceRef.current = releaseSurface
 
   const reapplyConfig = useCallback(
     async (contextKey: string): Promise<boolean> => {
@@ -7167,6 +7229,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     // didn't visit.
     reverseMapRef.current.clear()
     lastActivityRef.current.clear()
+    retainedOwnerKeysRef.current.clear()
     // Same reuse hazard as the caches below, on a clock: a delta queued just
     // before this would otherwise dispatch up to STREAM_FLUSH_MAX_MS later,
     // into whatever now holds its contextKey. `dispatch` repeats this for
@@ -7513,6 +7576,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       disconnectIfIdle,
+      releaseSurface,
       disconnectAll,
       sendPrompt,
       setMode,
@@ -7542,6 +7606,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       connect,
       disconnect,
       disconnectIfIdle,
+      releaseSurface,
       disconnectAll,
       sendPrompt,
       setMode,
