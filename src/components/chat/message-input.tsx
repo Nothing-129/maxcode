@@ -1977,10 +1977,11 @@ export function MessageInput({
       <div className="flex items-center gap-1.5">
         <Button
           onClick={onCancel}
-          variant="default"
+          variant="outline"
           size="icon"
-          className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
+          className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-accent"
           title={t("cancel")}
+          aria-label={t("cancel")}
         >
           <Square className="size-3.5 fill-current" strokeWidth={0} />
         </Button>
@@ -2031,10 +2032,11 @@ export function MessageInput({
     ) : (
       <Button
         onClick={onCancel}
-        variant="default"
+        variant="outline"
         size="icon"
-        className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
+        className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-accent"
         title={t("cancel")}
+        aria-label={t("cancel")}
       >
         <Square className="size-3.5 fill-current" strokeWidth={0} />
       </Button>

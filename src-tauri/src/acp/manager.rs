@@ -2291,6 +2291,7 @@ impl ConnectionManager {
                     // Inheriting (not forcing) keeps an auto-titled sibling
                     // eligible for later backfills.
                     let title_locked = current.title_locked;
+                    let model_config = current.model_config.clone();
                     // The sibling keeps the original's sidebar routing (a forked
                     // chat conversation must stay in the Chat group). `Delegate`
                     // is unreachable here — children are never forked from the
@@ -2365,6 +2366,7 @@ impl ConnectionManager {
                         status: Set(ConversationStatus::PendingReview),
                         kind: Set(sibling_kind),
                         model: Set(None),
+                        model_config: Set(model_config),
                         git_branch: Set(git_branch),
                         external_id: Set(Some(original_session_id)),
                         parent_id: Set(None),

@@ -103,6 +103,7 @@ export function SettingRow({
   return (
     <div
       data-setting-row=""
+      data-settings-search-label={typeof title === "string" ? title : undefined}
       className={cn("flex flex-col gap-2 p-3", className)}
     >
       {/* With an explanation under the title the control aligns to the title

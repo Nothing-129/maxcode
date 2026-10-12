@@ -57,6 +57,9 @@
       "logs": "Laufzeitprotokolle"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "Suchergebnisse ({count})",
+    "searchEmpty": "Keine passenden Einstellungen. Versuchen Sie ein anderes Suchwort.",
+    "searchTargetUnavailable": "Diese Option ist derzeit nicht verfügbar. Prüfen Sie den Ladestatus oder die Voraussetzungen.",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "{field} kopiert"
     },
     "conversationCard": {
+      "moreActions": "Weitere Aktionen",
       "closePane": "Bereich schließen",
       "restorePaneDraft": "Letzten ungesendeten Entwurf wiederherstellen",
       "folderZone": "Bereich {name}",

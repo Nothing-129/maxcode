@@ -127,6 +127,9 @@ export function SettingsSection({
       <Collapsible open={expanded} onOpenChange={onOpenChange} asChild>
         <section
           data-settings-section=""
+          data-settings-search-label={
+            typeof title === "string" ? title : undefined
+          }
           data-settings-option={control ? "" : undefined}
           className={cn("overflow-hidden rounded-xl border bg-card", className)}
         >
@@ -192,6 +195,7 @@ export function SettingsSection({
   return (
     <section
       data-settings-section=""
+      data-settings-search-label={typeof title === "string" ? title : undefined}
       data-settings-option={control ? "" : undefined}
       className={cn("space-y-3 rounded-xl border bg-card p-4", className)}
     >

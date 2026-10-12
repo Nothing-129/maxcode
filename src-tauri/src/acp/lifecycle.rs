@@ -35,11 +35,11 @@ use tokio::sync::RwLock;
 /// Per-connection worker queue depth. Sized for the **filtered** event set
 /// only (see `is_lifecycle_relevant`) — high-frequency events (ContentDelta,
 /// ToolCall*, PermissionRequest) are dropped at the dispatcher and never
-/// enter the queue. The remaining 7 event types arrive at most a handful
+/// enter the queue. The remaining event types arrive at most a handful
 /// of times per turn, so 64 slots is comfortable headroom for a sustained
 /// SQLite stall without forcing the dispatcher to block on `send`.
 /// (SessionStarted, TurnComplete, ConversationLinked, NativeSessionTitle,
-/// TranscriptRolledOver, Disconnected, Error.)
+/// TranscriptRolledOver, Disconnected, Error, SessionConfigOptions, SelectorsReady.)
 const WORKER_QUEUE_CAPACITY: usize = 64;
 
 /// Whether an event needs to reach the per-connection worker. Mirrors the
@@ -67,6 +67,8 @@ fn is_lifecycle_relevant(event: &AcpEvent) -> bool {
         AcpEvent::SessionStarted { .. }
             | AcpEvent::TurnComplete { .. }
             | AcpEvent::ConversationLinked { .. }
+            | AcpEvent::SessionConfigOptions { .. }
+            | AcpEvent::SelectorsReady
             | AcpEvent::NativeSessionTitle { .. }
             | AcpEvent::TranscriptRolledOver { .. }
             | AcpEvent::StatusChanged {
@@ -135,11 +137,33 @@ struct CachedConn {
     emitter: EventEmitter,
 }
 
+async fn persist_model_config_event(
+    db: &DatabaseConnection,
+    manager: &ConnectionManager,
+    cached_state: &mut Option<Arc<RwLock<SessionState>>>,
+    connection_id: &str,
+) -> Result<(), DbError> {
+    if let Some((state, _)) = manager.get_state_and_emitter(connection_id).await {
+        *cached_state = Some(state);
+    }
+    // Retain this Arc independently of the terminal-status cache: observing
+    // historical selectors must not create a prompt/status transition. It
+    // also lets a queued final selection survive process cleanup.
+    if let Some(state) = cached_state {
+        super::conversation_model_config::persist_state(db, state).await?;
+    }
+    Ok(())
+}
+
 /// Backoff schedule for `handle_event` DB writes. Most transient
 /// SQLite contention clears within the first retry; the third gives a
 /// final chance before we fall back to "log loudly and move on".
 const HANDLE_EVENT_RETRY_BACKOFFS: &[Duration] =
     &[Duration::from_millis(100), Duration::from_millis(500)];
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/conversation-model-lifecycle.contract.rs"]
+mod model_memory_contracts;
 
 /// Wrap `handle_event` with a small backoff retry. Most failures here
 /// are transient SQLite "database is locked" errors that clear within a
@@ -1520,6 +1544,7 @@ async fn connection_worker_loop(
     // 1-entry HashMap so we can reuse `handle_terminal_event` (also keeps the
     // existing test surface intact — tests still drive a `&mut HashMap`).
     let mut cache: HashMap<String, CachedConn> = HashMap::new();
+    let mut model_config_state = None;
     // True once we've already invoked `handle_terminal_event` +
     // `forward_disconnect_to_broker` for this connection. Terminal `Error`
     // and `Disconnected` ARE both expected on the genuine teardown path
@@ -1538,6 +1563,28 @@ async fn connection_worker_loop(
                 conversation_id, ..
             } => {
                 try_cache_link(&mut cache, &manager, &connection_id, *conversation_id).await;
+                if let Err(e) = persist_model_config_event(
+                    &db,
+                    &manager,
+                    &mut model_config_state,
+                    &connection_id,
+                )
+                .await
+                {
+                    tracing::error!("[lifecycle] persist conversation model config: {e}");
+                }
+            }
+            AcpEvent::SessionConfigOptions { .. } | AcpEvent::SelectorsReady => {
+                if let Err(e) = persist_model_config_event(
+                    &db,
+                    &manager,
+                    &mut model_config_state,
+                    &connection_id,
+                )
+                .await
+                {
+                    tracing::error!("[lifecycle] persist conversation model config: {e}");
+                }
             }
             AcpEvent::StatusChanged {
                 status: ConnectionStatus::Disconnected,

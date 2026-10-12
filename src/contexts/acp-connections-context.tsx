@@ -6686,18 +6686,30 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // regressed when the snapshot path replaced the event path on tab
         // re-open (the snapshot frame doesn't carry a `session_modes` event,
         // so the apply-on-event hook never fired).
-        const savedPrefs = getSavedPrefsForConnect(agentType)
+        // Historical model/thinking choices belong to the conversation in
+        // SQLite. Neither connect nor the post-spawn replay may substitute
+        // another conversation's most recent global choices.
+        const restoringConversation =
+          sessionId != null || conversationId != null
+        const savedPrefs = getSavedPrefsForConnect(
+          agentType,
+          restoringConversation
+        )
         const connectionId = await acpConnect(
           agentType,
           workingDir,
           sessionId,
           savedPrefs.modeId,
-          savedPrefs.configValues
+          savedPrefs.configValues,
+          conversationId
         )
         // Spawn takes seconds. The composer can show the cached catalog in
         // that window and accept a pick; re-read prefs so a change made
         // while `acpConnect` was in flight still lands on the live session.
-        const latestPrefs = getSavedPrefsForConnect(agentType)
+        const latestPrefs = getSavedPrefsForConnect(
+          agentType,
+          restoringConversation
+        )
 
         // If disconnect was requested while connect was in flight, tear down
         // immediately instead of registering the connection — but tear down

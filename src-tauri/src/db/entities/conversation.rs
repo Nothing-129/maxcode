@@ -53,6 +53,10 @@ pub struct Model {
     pub status: ConversationStatus,
     pub kind: ConversationKind,
     pub model: Option<String>,
+    /// Confirmed model and thinking selector values for this conversation,
+    /// keyed by the adapter's config-option ids. Legacy rows restore the
+    /// native session first, then acquire this snapshot when selectors settle.
+    pub model_config: Option<String>,
     pub git_branch: Option<String>,
     pub external_id: Option<String>,
     pub parent_id: Option<i32>,

@@ -57,6 +57,9 @@
       "logs": "Journaux d'exécution"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "Résultats ({count})",
+    "searchEmpty": "Aucun réglage correspondant. Essayez un autre mot-clé.",
+    "searchTargetUnavailable": "Cette option est indisponible. Vérifiez le chargement de la page ou les conditions requises.",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "{field} copié"
     },
     "conversationCard": {
+      "moreActions": "Autres actions",
       "closePane": "Fermer le volet",
       "restorePaneDraft": "Restaurer le dernier brouillon non envoyé",
       "folderZone": "Division {name}",

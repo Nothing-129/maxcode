@@ -18,6 +18,7 @@
  */
 
 import type { SessionConfigOptionInfo, SessionModeStateInfo } from "@/lib/types"
+import { getCachedSelectors } from "@/lib/selectors-cache-storage"
 
 const STORAGE_KEY = "codeg:selector-prefs"
 
@@ -137,21 +138,47 @@ export function getSavedModeId(agentType: string): string | null {
  * `preferred_config_values`). Null/empty fields are normalized so the
  * call site can pass the result through unchanged.
  *
+ * When restoring a conversation, model/thinking defaults are excluded;
+ * the backend restores that conversation's confirmed SQLite snapshot.
+ * Other selector defaults retain their existing behavior.
+ *
  * The backend applies these on the freshly-attached session before any
  * `session_modes` / `session_config_options` event is emitted, so the
  * frontend never needs to "intercept event and overwrite, then sync back".
  */
-export function getSavedPrefsForConnect(agentType: string): {
+export function getSavedPrefsForConnect(
+  agentType: string,
+  restoringConversation = false
+): {
   modeId: string | null
   configValues: Record<string, string> | null
 } {
   const all = readAll()
   const prefs = all[agentType]
   if (!prefs) return { modeId: null, configValues: null }
-  const configValues =
+  let configValues =
     prefs.configValues && Object.keys(prefs.configValues).length > 0
       ? healLegacyValues(prefs.configValues)
       : null
+  if (restoringConversation && configValues) {
+    const conversationIds = new Set([
+      "model",
+      "reasoning_effort",
+      "thought_level",
+      "thinking_level",
+      "effort",
+      "thinking",
+    ])
+    for (const option of getCachedSelectors(agentType)?.configOptions ?? []) {
+      if (option.category === "model" || option.category === "thought_level") {
+        conversationIds.add(option.id)
+      }
+    }
+    configValues = Object.fromEntries(
+      Object.entries(configValues).filter(([id]) => !conversationIds.has(id))
+    )
+    if (Object.keys(configValues).length === 0) configValues = null
+  }
   return {
     modeId: prefs.modeId ?? null,
     configValues,

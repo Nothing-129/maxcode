@@ -1,5 +1,6 @@
 import { type ReactElement } from "react"
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest"
 
@@ -356,30 +357,21 @@ describe("SidebarConversationCard pin action", () => {
   })
 })
 
-// The hover-reveal icon buttons live in the row's right slot as siblings of the
-// clickable row button (never nested). They carry only an aria-label (icon, no
-// text), so getByLabelText addresses them unambiguously — distinct from the
-// context-menu items, which are matched by getByText. CSS hides them until
-// hover, but fireEvent dispatches directly on the node regardless of
-// pointer-events, so the wiring is testable without a real pointer.
-describe("SidebarConversationCard hover quick actions", () => {
+describe("SidebarConversationCard actions menu", () => {
   beforeEach(() => {
     onTogglePin.mockClear()
     onStatusChange.mockClear()
+    onSelect.mockClear()
     localStorage.clear()
   })
 
-  function renderCard(
-    c: DbConversationSummary,
-    { withPin = true }: { withPin?: boolean } = {}
-  ) {
+  function renderCard(c: DbConversationSummary, withPin = true) {
     return renderWithIntl(
       <SidebarConversationCard
         conversation={c}
         isSelected={false}
         timeLabel="5m"
         onSelect={onSelect}
-        onDoubleClick={onDoubleClick}
         onRename={onRename}
         onDelete={onDelete}
         onStatusChange={onStatusChange}
@@ -388,63 +380,76 @@ describe("SidebarConversationCard hover quick actions", () => {
     )
   }
 
-  it("pins an unpinned conversation via the hover pin button", () => {
-    const { getByLabelText } = renderCard(conv(1)) // pinned_at: null
-    fireEvent.click(getByLabelText("Pin"))
-    expect(onTogglePin).toHaveBeenCalledWith(1, true)
-  })
+  async function openActions() {
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "More actions" }))
+    return user
+  }
 
-  it("unpins a pinned conversation via the hover pin button", () => {
-    const pinned: DbConversationSummary = {
-      ...conv(2),
-      pinned_at: new Date(NOW).toISOString(),
+  it.each([false, true])(
+    "toggles pinning from the menu (pinned=%s)",
+    async (pinned) => {
+      renderCard({
+        ...conv(2),
+        pinned_at: pinned ? new Date(NOW).toISOString() : null,
+      })
+      const user = await openActions()
+      await user.click(
+        screen.getByRole("menuitem", {
+          name: pinned ? "Unpin" : "Pin",
+          exact: true,
+        })
+      )
+      expect(onTogglePin).toHaveBeenCalledWith(2, !pinned)
+      expect(onSelect).not.toHaveBeenCalled()
     }
-    const { getByLabelText } = renderCard(pinned)
-    fireEvent.click(getByLabelText("Unpin"))
-    expect(onTogglePin).toHaveBeenCalledWith(2, false)
-  })
+  )
 
-  it("completes the conversation via the title hover button", () => {
-    const { getByLabelText, queryByLabelText } = renderCard(conv(3))
-    fireEvent.click(getByLabelText("Mark as completed"))
+  it("completes a conversation without selecting it", async () => {
+    renderCard(conv(3))
+    const user = await openActions()
+    await user.click(
+      screen.getByRole("menuitem", { name: "Mark as completed" })
+    )
     expect(onStatusChange).toHaveBeenCalledWith(3, "completed")
     expect(onSelect).not.toHaveBeenCalled()
-    expect(queryByLabelText("Reopen")).toBeNull()
   })
 
-  it("does not add completed text or a reopen button", () => {
-    const { queryByText, queryByLabelText } = renderCard({
-      ...conv(4),
-      status: "completed",
-    })
-    expect(queryByText("Completed")).toBeNull()
-    expect(queryByLabelText("Reopen")).toBeNull()
+  it("does not offer completion or reopen for a completed conversation", async () => {
+    renderCard({ ...conv(4), status: "completed" })
+    await openActions()
+    expect(
+      screen.queryByRole("menuitem", { name: "Mark as completed" })
+    ).toBeNull()
+    expect(screen.queryByRole("menuitem", { name: "Reopen" })).toBeNull()
   })
 
-  it("keeps completion available when pinning is unavailable", () => {
-    const { queryByLabelText } = renderCard(conv(5), { withPin: false })
-    expect(queryByLabelText("Pin")).toBeNull()
-    expect(queryByLabelText("Mark as completed")).not.toBeNull()
+  it("keeps completion available when pinning is unavailable", async () => {
+    renderCard(conv(5), false)
+    await openActions()
+    expect(
+      screen.queryByRole("menuitem", { name: "Pin", exact: true })
+    ).toBeNull()
+    expect(
+      screen.getByRole("menuitem", { name: "Mark as completed" })
+    ).toBeVisible()
   })
 
-  it("hides both hover quick actions for a delegation sub-session (parent_id set)", () => {
-    // A sub-session has a parent — pinning it to the root Pinned section or
-    // hand-toggling its status doesn't fit, so neither hover button renders even
-    // though onTogglePin is supplied.
-    const child: DbConversationSummary = { ...conv(6), parent_id: 1 }
-    const { queryByLabelText } = renderCard(child)
-    expect(queryByLabelText("Pin")).toBeNull()
-    expect(queryByLabelText("Unpin")).toBeNull()
-    expect(queryByLabelText("Mark as completed")).toBeNull()
-    expect(queryByLabelText("Reopen")).toBeNull()
+  it("omits root-only actions for delegated sub-sessions", () => {
+    renderCard({ ...conv(6), parent_id: 1 })
+    expect(screen.queryByRole("button", { name: "More actions" })).toBeNull()
   })
 
-  it("keeps completion but hides the status menu despite old preferences", () => {
+  it("keeps completion available despite old status preferences", async () => {
     void saveConversationStatusActions(false)
-    const { getByText, queryByLabelText, queryByText } = renderCard(conv(7))
-    expect(queryByLabelText("Mark as completed")).not.toBeNull()
-    fireEvent.contextMenu(getByText("conv-7"))
-    expect(queryByText("Status")).toBeNull()
+    renderCard(conv(7))
+    await openActions()
+    expect(
+      screen.getByRole("menuitem", { name: "Mark as completed" })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("menuitem", { name: "Status", exact: true })
+    ).toBeNull()
   })
 })
 

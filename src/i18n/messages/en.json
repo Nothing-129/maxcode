@@ -57,6 +57,9 @@
       "logs": "Runtime Logs"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "Search results ({count})",
+    "searchEmpty": "No matching settings. Try another keyword.",
+    "searchTargetUnavailable": "This option is currently unavailable. Check the page’s loading state or prerequisites.",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "Copied {field}"
     },
     "conversationCard": {
+      "moreActions": "More actions",
       "closePane": "Close pane",
       "restorePaneDraft": "Restore last unsent draft",
       "folderZone": "{name} split",

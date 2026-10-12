@@ -57,6 +57,9 @@
       "logs": "執行日誌"
     },
     "searchSettings": "搜尋設定…",
+    "searchResults": "搜尋結果（{count}）",
+    "searchEmpty": "找不到符合的設定，請嘗試其他關鍵字。",
+    "searchTargetUnavailable": "此選項暫時無法使用，請檢查頁面載入狀態或所需條件。",
     "loading": "正在載入設定…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "已複製{field}"
     },
     "conversationCard": {
+      "moreActions": "更多操作",
       "closePane": "關閉分區",
       "restorePaneDraft": "還原上次未傳送的草稿",
       "folderZone": "{name} 分區",

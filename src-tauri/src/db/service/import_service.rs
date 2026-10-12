@@ -502,6 +502,7 @@ async fn import_one(
         // loop runs are never import targets, so every imported row is regular.
         kind: Set(conversation::ConversationKind::Regular),
         model: Set(summary.model.clone()),
+        model_config: Set(None),
         git_branch: Set(summary.git_branch.clone()),
         external_id: Set(Some(summary.id.clone())),
         parent_id: Set(None),
@@ -984,6 +985,7 @@ mod tests {
             status: Set(conversation::ConversationStatus::Completed),
             kind: Set(conversation::ConversationKind::Delegate),
             model: Set(None),
+            model_config: Set(None),
             git_branch: Set(None),
             external_id: Set(Some("child-ext".to_string())),
             parent_id: Set(Some(parent_id)),
@@ -1282,6 +1284,7 @@ mod tests {
             status: Set(conversation::ConversationStatus::Completed),
             kind: Set(conversation::ConversationKind::Delegate),
             model: Set(None),
+            model_config: Set(None),
             git_branch: Set(None),
             external_id: Set(Some("child-ext".to_string())),
             parent_id: Set(Some(parent_id)),

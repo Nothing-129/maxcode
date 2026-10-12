@@ -57,6 +57,9 @@
       "logs": "运行日志"
     },
     "searchSettings": "搜索设置…",
+    "searchResults": "搜索结果（{count}）",
+    "searchEmpty": "没有找到匹配的设置，请尝试其他关键词。",
+    "searchTargetUnavailable": "该选项暂不可用，请检查页面加载状态或所需条件。",
     "loading": "正在加载设置…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "已复制{field}"
     },
     "conversationCard": {
+      "moreActions": "更多操作",
       "closePane": "关闭分区",
       "restorePaneDraft": "恢复上次未发送的草稿",
       "folderZone": "{name} 分区",

@@ -709,12 +709,14 @@ const ConversationTabView = memo(function ConversationTabView({
       )
     : conn.modes
   const effectiveConfigOptions = useCachedCatalog
-    ? applySavedConfigPreferences(
-        selectedAgent,
-        (connIsForOtherAgent ? null : conn.configOptions) ??
-          cachedSelectors?.configOptions ??
-          null
-      )
+    ? dbConvIdRef.current || externalId
+      ? null
+      : applySavedConfigPreferences(
+          selectedAgent,
+          (connIsForOtherAgent ? null : conn.configOptions) ??
+            cachedSelectors?.configOptions ??
+            null
+        )
     : conn.configOptions
   // The live connection is ready for THIS tab only when it's connected AND its
   // cwd matches the tab's intended working dir. A just-retargeted chat draft (or

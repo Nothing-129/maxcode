@@ -252,6 +252,10 @@ pub struct SessionState {
     // 身份
     pub connection_id: String,
     pub conversation_id: Option<i32>,
+    /// Conversation whose model selectors are being restored, before the
+    /// first prompt performs the normal guarded ConversationLinked bind.
+    /// Internal only; does not claim that the agent's session is already linked.
+    pub model_config_conversation_id: Option<i32>,
     pub external_id: Option<String>,
     /// Wall-clock instant `external_id` last CHANGED value (SessionStarted
     /// for a new/loaded/forked session). The transcript watcher uses this as
@@ -666,6 +670,7 @@ impl SessionState {
         Self {
             connection_id,
             conversation_id: None,
+            model_config_conversation_id: None,
             external_id: None,
             external_id_changed_at: None,
             agent_type,

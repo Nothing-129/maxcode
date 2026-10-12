@@ -109,6 +109,7 @@ async fn create_inner(
         status: Set(conversation::ConversationStatus::InProgress),
         kind: Set(kind),
         model: Set(None),
+        model_config: Set(None),
         git_branch: Set(git_branch),
         external_id: Set(None),
         parent_id: Set(parent_id),
@@ -973,6 +974,7 @@ struct CarriedOverRow {
     status: conversation::ConversationStatus,
     kind: ConversationKind,
     model: Option<String>,
+    model_config: Option<String>,
     git_branch: Option<String>,
     parent_id: Option<i32>,
     message_count: i32,
@@ -1002,6 +1004,7 @@ impl CarriedOverRow {
             },
             kind: row.kind.clone(),
             model: row.model.clone(),
+            model_config: row.model_config.clone(),
             git_branch: row.git_branch.clone(),
             // Carried so the `kind == Delegate ⟺ parent_id IS NOT NULL`
             // invariant survives, and so a preserved child stays inside its
@@ -1030,6 +1033,7 @@ impl CarriedOverRow {
             status: Set(self.status),
             kind: Set(self.kind),
             model: Set(self.model),
+            model_config: Set(self.model_config),
             git_branch: Set(self.git_branch),
             external_id: Set(Some(external_id)),
             parent_id: Set(self.parent_id),

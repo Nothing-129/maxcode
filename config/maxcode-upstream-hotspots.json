@@ -2,6 +2,63 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.conversation-model-memory",
+      "category": "product",
+      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy.",
+      "origins": ["worktree-2026-10-12"],
+      "paths": [
+        "src-tauri/src/acp/conversation_model_config.rs",
+        "src-tauri/src/acp/mod.rs",
+        "src/maxcode-contracts/conversation-model-memory.contract.rs",
+        "src/maxcode-contracts/conversation-model-lifecycle.contract.rs",
+        "src-tauri/src/acp/lifecycle.rs",
+        "src-tauri/src/acp/session_state.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/web/handlers/acp.rs",
+        "src-tauri/src/db/entities/conversation.rs",
+        "src-tauri/src/db/migration/m20261012_000001_conversation_model_config.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src-tauri/src/db/service/conversation_service.rs",
+        "src-tauri/src/db/service/import_service.rs",
+        "src/lib/api.ts",
+        "src/lib/selector-prefs-storage.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-model-memory.contract.test.ts"
+      ]
+    },
+    {
+      "id": "settings.option-search",
+      "category": "product",
+      "description": "Settings search indexes reachable option labels, descriptions and keywords in all ten locales, shows category context and an empty state, and focuses/highlights the selected option after lazy loading. It preserves drafts, remote query parameters, static-export routes and mobile navigation; lookup never toggles setting values or revives hidden categories/unmaintained agents.",
+      "origins": ["worktree-2026-10-11"],
+      "paths": [
+        "src/components/settings/settings-shell.tsx",
+        "src/components/settings/settings-search.ts",
+        "src/components/settings/shortcut-settings.tsx",
+        "src/components/shared/setting-card.tsx",
+        "src/components/shared/settings-section.tsx",
+        "src/app/globals.css",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/settings-search.contract.test.tsx"]
+    },
+    {
+      "id": "conversations.persistent-sidebar-status",
+      "category": "product",
+      "description": "Sidebar running, unread and timestamp indicators remain visible on hover and while a separate ellipsis menu offers pin/unpin and completion. The menu is reachable by keyboard and touch, never selects the conversation through bubbling, and retains root-only action rules and context-menu access.",
+      "origins": ["worktree-2026-10-11"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-persistent-status.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.connection-submit-queue",
       "category": "product",
       "description": "Workspace composers accept local submissions while connecting or initializing, preserve full drafts in a per-tab editable queue, pin preview tabs, show waiting/slow/failure status and reconnect, and auto-send FIFO only after selectors_ready with matching agent/cwd. Repeated submissions cannot duplicate staged attachments; queued image encoding follows negotiated capabilities.",
@@ -1599,8 +1656,8 @@
     {
       "id": "conversations.title-completion-only",
       "category": "product",
-      "description": "Remove manual status switching and status-color settings; retain the original running spinner and unread indicators, title hover and title menu completion actions, existing completed-conversation filtering and unchanged titles.",
-      "origins": ["worktree-2026-09-08"],
+      "description": "Remove manual status switching and status-color settings; retain the original running spinner and unread indicators, sidebar overflow and title menu completion actions, existing completed-conversation filtering and unchanged titles.",
+      "origins": ["worktree-2026-09-08", "worktree-2026-10-11"],
       "paths": [
         "src/components/conversations/conversation-detail-header.tsx",
         "src/components/conversations/sidebar-conversation-card.tsx",
@@ -2348,11 +2405,12 @@
     {
       "id": "appearance.send-button-brand-color",
       "category": "product",
-      "description": "Send, running stop and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
+      "description": "Send and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Both running stop actions use a neutral outlined circle with theme-aware muted background and foreground square, distinct from blue sends, with an accessible stop label. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
       "origins": [
         "worktree-2026-09-09",
         "worktree-2026-09-18",
-        "worktree-2026-09-26"
+        "worktree-2026-09-26",
+        "worktree-2026-10-11"
       ],
       "paths": [
         "src/components/chat/message-input.tsx",

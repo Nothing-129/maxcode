@@ -21,6 +21,7 @@ import {
   Info,
   MessageSquare,
   ChevronRight,
+  Ellipsis,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useImeGuard } from "@/hooks/use-ime-guard"
@@ -58,6 +59,12 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConversationTitleLabel } from "./conversation-title-label"
@@ -269,6 +276,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const [renameValue, setRenameValue] = useState("")
   const [attachTabId, setAttachTabId] = useState<string | null>(null)
   const [hoverOpen, setHoverOpen] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   const selectConversation = useCallback(() => {
     onSelect(conversation.id, conversation.agent_type, conversation.folder_id)
@@ -314,6 +322,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   // value only the context menu reads. This snapshot drives the DISABLED STATE
   // only; the click re-resolves (see `handleAttachToSession`).
   const handleMenuOpenChange = useCallback((open: boolean) => {
+    setMenuOpen(open)
     if (!open) return
     // The context menu takes the row over; drop the details bubble so the two
     // don't stack on the same spot.
@@ -386,8 +395,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
           both are `asChild` Slots, so their props merge onto the row div
           below. */}
       <HoverCard
-        open={hoverOpen}
-        onOpenChange={setHoverOpen}
+        open={hoverOpen && !menuOpen}
+        onOpenChange={(open) => setHoverOpen(open && !menuOpen)}
         openDelay={HOVER_CARD_OPEN_DELAY_MS}
         closeDelay={HOVER_CARD_CLOSE_DELAY_MS}
       >
@@ -601,7 +610,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     </button>
                   )}
 
-                  {/* Timestamp/unread indicator swaps to pin and completion actions on hover. */}
+                  {/* Status stays in its own slot while the adjacent actions menu opens. */}
                   <div
                     className={cn(
                       "flex h-full shrink-0 items-center pr-[0.375rem]",
@@ -609,11 +618,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     )}
                   >
                     <span
-                      className={cn(
-                        "flex items-center",
-                        // Keep metadata visible for rows without hover actions.
-                        showHoverActions && "group-hover:hidden"
-                      )}
+                      data-conversation-status=""
+                      className="flex items-center"
                     >
                       {isRunning ? (
                         <span
@@ -664,60 +670,47 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         </span>
                       ) : null}
                     </span>
-                    {/* Hover quick actions — roots only (sub-sessions opt out above).
-                    Default /90 is the lightest muted shade that still clears the
-                    3:1 non-text-contrast bar over the row's hover background; hover
-                    deepens to full foreground. The folder ⋯ button shares this
-                    exact palette so all action icons stay a consistent two colors.
-                    Each button is justify-end so its 14px glyph flushes to the
-                    slot's right edge (0.75rem) — the same edge the default
-                    time/status badge fills — instead of sitting ~5px in as a
-                    centred icon in a transparent box would. */}
                     {showHoverActions && (
-                      <div className="hidden items-center gap-px group-hover:flex">
-                        {onTogglePin && (
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onTogglePin(conversation.id, !isPinned)
-                            }}
-                            title={isPinned ? t("unpin") : t("pin")}
-                            aria-label={isPinned ? t("unpin") : t("pin")}
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-end rounded-[0.375rem]",
-                              "cursor-pointer outline-none transition-colors duration-150",
-                              "text-muted-foreground/90 hover:text-sidebar-foreground"
-                            )}
+                      <DropdownMenu onOpenChange={handleMenuOpenChange}>
+                        <DropdownMenuTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={t("moreActions")}
+                            title={t("moreActions")}
+                            onPointerDown={(event) => event.stopPropagation()}
+                            onClick={(event) => event.stopPropagation()}
+                            className="ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
                           >
-                            {isPinned ? (
-                              <PinOff className="h-[0.875rem] w-[0.875rem]" />
-                            ) : (
-                              <Pin className="h-[0.875rem] w-[0.875rem]" />
-                            )}
-                          </button>
-                        )}
-                        {showDoneAction && (
-                          <button
-                            type="button"
-                            tabIndex={-1}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              onStatusChange(conversation.id, "completed")
-                            }}
-                            title={t("markCompleted")}
-                            aria-label={t("markCompleted")}
-                            className={cn(
-                              "flex h-6 w-6 shrink-0 items-center justify-end rounded-[0.375rem]",
-                              "cursor-pointer outline-none transition-colors duration-150",
-                              "text-muted-foreground/90 hover:text-sidebar-foreground"
-                            )}
-                          >
-                            <CheckCircle2 className="h-[0.875rem] w-[0.875rem]" />
-                          </button>
-                        )}
-                      </div>
+                            <Ellipsis className="size-3.5" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          {onTogglePin && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                onTogglePin(conversation.id, !isPinned)
+                              }
+                            >
+                              {isPinned ? <PinOff /> : <Pin />}
+                              {isPinned ? t("unpin") : t("pin")}
+                            </DropdownMenuItem>
+                          )}
+                          {showDoneAction && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                onStatusChange(conversation.id, "completed")
+                              }
+                            >
+                              <CheckCircle2 />
+                              {t("markCompleted")}
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     )}
                   </div>
                 </div>

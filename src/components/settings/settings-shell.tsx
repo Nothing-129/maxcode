@@ -3,6 +3,8 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
@@ -34,6 +36,12 @@ import { detectEnvironment } from "@/lib/transport/detect"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
+import {
+  SETTINGS_SEARCH_ENTRIES,
+  findSettingTarget,
+  searchSettings,
+  type SettingSearchResult,
+} from "./settings-search"
 
 interface SettingsNavItem {
   href: string
@@ -137,12 +145,56 @@ export function SettingsShell({
   onBack,
 }: SettingsShellProps) {
   const t = useTranslations("SettingsShell")
+  const translate = useTranslations()
   const pathname = usePathname()
   const router = useRouter()
   const normalizedPathname = normalizePath(activePath ?? pathname)
   const isMobile = useIsMobile()
   const [navOpen, setNavOpen] = useState(false)
   const [query, setQuery] = useState("")
+  const contentRef = useRef<HTMLDivElement>(null)
+  const [searchTarget, setSearchTarget] = useState<{ id: string } | null>(
+    () => {
+      if (typeof window === "undefined") return null
+      const id = new URLSearchParams(window.location.search).get("setting")
+      return id ? { id } : null
+    }
+  )
+  const [missingTarget, setMissingTarget] = useState<string | null>(null)
+  const web = detectEnvironment() === "web"
+  const visibleNavItems = SETTINGS_NAV_ITEMS.filter(
+    (item) => !(item.labelKey === "web_service" && web)
+  )
+  const searchEntries = useMemo<SettingSearchResult[]>(() => {
+    const navItems = SETTINGS_NAV_ITEMS.filter(
+      (item) => !(item.labelKey === "web_service" && web)
+    )
+    const pages = navItems.map((item) => ({
+      id: `page-${item.labelKey}`,
+      page: item.href.split("/").pop()!,
+      label: t(`nav.${item.labelKey}`),
+      category: t(`nav.${item.labelKey}`),
+      description: "",
+    }))
+    const settings = SETTINGS_SEARCH_ENTRIES.flatMap((entry) => {
+      const category = navItems.find(
+        (item) => item.href === `/settings/${entry.page}`
+      )
+      if (!category || (entry.desktopOnly && web)) return []
+      return [
+        {
+          ...entry,
+          label: entry.title ?? translate(entry.titleKey!),
+          description: entry.descriptionKey
+            ? translate(entry.descriptionKey)
+            : "",
+          category: t(`nav.${category.labelKey}`),
+        },
+      ]
+    })
+    return [...pages, ...settings]
+  }, [t, translate, web])
+  const results = searchSettings(searchEntries, query)
 
   useEffect(() => {
     const previous = document.title
@@ -153,8 +205,10 @@ export function SettingsShell({
   }, [t])
 
   const navigateTo = useCallback(
-    (href: string) => {
+    (href: string, settingId?: string) => {
       if (typeof window === "undefined") return
+      setMissingTarget(null)
+      setSearchTarget(settingId ? { id: settingId } : null)
 
       if (onNavigate) {
         onNavigate(href)
@@ -169,8 +223,11 @@ export function SettingsShell({
       }
 
       // Preserve query parameters when navigating between settings pages.
-      const search = window.location.search
-      const fullTarget = search ? `${target}${search}` : target
+      const params = new URLSearchParams(window.location.search)
+      if (settingId) params.set("setting", settingId)
+      else params.delete("setting")
+      const search = params.toString()
+      const fullTarget = search ? `${target}?${search}` : target
 
       if (isWindowsRuntime()) {
         window.location.assign(fullTarget)
@@ -183,13 +240,73 @@ export function SettingsShell({
     [router, setNavOpen, onNavigate]
   )
 
-  const filteredNavItems = SETTINGS_NAV_ITEMS.filter(
-    (item) =>
-      !(item.labelKey === "web_service" && detectEnvironment() === "web") &&
-      t(`nav.${item.labelKey}`)
-        .toLocaleLowerCase()
-        .includes(query.trim().toLocaleLowerCase())
-  )
+  useEffect(() => {
+    const root = contentRef.current
+    const entry = searchEntries.find((item) => item.id === searchTarget?.id)
+    if (
+      !root ||
+      !entry ||
+      navOpen ||
+      normalizedPathname !== `/settings/${entry.page}`
+    )
+      return
+    let target: HTMLElement | null = null
+    let oldTabIndex: string | null = null
+    let highlightTimer: ReturnType<typeof setTimeout> | undefined
+    const reveal = () => {
+      if (target) return
+      const found = findSettingTarget(root, entry)
+      if (!found) return
+      target = found
+      observer.disconnect()
+      clearTimeout(deadline)
+      // These are navigation/disclosure controls only. Never activate a
+      // setting's switch, submit button, or editable value while locating it.
+      if (entry.agentType || entry.tab) found.click()
+      found
+        .querySelector<HTMLElement>(
+          '[data-slot="collapsible-trigger"][data-state="closed"]'
+        )
+        ?.click()
+      oldTabIndex = found.getAttribute("tabindex")
+      found.setAttribute("tabindex", "-1")
+      found.setAttribute("data-settings-search-highlight", "")
+      found.scrollIntoView({ block: "center", behavior: "auto" })
+      found.focus({ preventScroll: true })
+      highlightTimer = setTimeout(
+        () => found.removeAttribute("data-settings-search-highlight"),
+        3000
+      )
+    }
+    const observer = new MutationObserver(reveal)
+    const deadline = setTimeout(() => {
+      observer.disconnect()
+      setMissingTarget(entry.id)
+    }, 10000)
+    observer.observe(root, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["hidden", "inert", "data-state"],
+    })
+    // Wait until route changes and drawer focus restoration have committed.
+    const frame = requestAnimationFrame(reveal)
+    return () => {
+      cancelAnimationFrame(frame)
+      clearTimeout(deadline)
+      clearTimeout(highlightTimer)
+      observer.disconnect()
+      if (target) {
+        target.removeAttribute("data-settings-search-highlight")
+        if (oldTabIndex === null) target.removeAttribute("tabindex")
+        else target.setAttribute("tabindex", oldTabIndex)
+      }
+    }
+  }, [searchTarget, searchEntries, normalizedPathname, navOpen])
+
+  const openResult = (result: SettingSearchResult) => {
+    navigateTo(`/settings/${result.page}`, result.id)
+  }
 
   const navContent = (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -199,40 +316,83 @@ export function SettingsShell({
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.nativeEvent.isComposing || event.keyCode === 229) return
+            if (event.key === "Escape" && query) {
+              event.preventDefault()
+              event.stopPropagation()
+              setQuery("")
+            } else if (event.key === "Enter" && results[0]) {
+              event.preventDefault()
+              openResult(results[0])
+            }
+          }}
           placeholder={t("searchSettings")}
           aria-label={t("searchSettings")}
         />
       </label>
       <div className="px-2 pb-2 text-xs text-muted-foreground">
-        {t("preferences")}
+        {query.trim()
+          ? t("searchResults", { count: results.length })
+          : t("preferences")}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         <nav className="space-y-0.5">
-          {filteredNavItems.map((item) => {
-            const Icon = item.icon
-            const translationKey = `nav.${item.labelKey}` as const
-            const active =
-              normalizedPathname === item.href ||
-              normalizedPathname.startsWith(`${item.href}/`)
-            return (
-              <Button
-                key={item.href}
-                variant={active ? "secondary" : "ghost"}
-                size="sm"
-                className={cn(
-                  "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal"
-                )}
-                type="button"
-                onClick={() => navigateTo(item.href)}
-                aria-current={active ? "page" : undefined}
+          {query.trim() ? (
+            results.length ? (
+              results.map((result) => (
+                <button
+                  key={result.id}
+                  type="button"
+                  onClick={() => openResult(result)}
+                  className="flex w-full flex-col gap-1 rounded-lg px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                >
+                  <span className="text-sm font-medium">{result.label}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {result.category}
+                  </span>
+                  {result.description && (
+                    <span className="line-clamp-2 text-xs text-muted-foreground">
+                      {result.description}
+                    </span>
+                  )}
+                </button>
+              ))
+            ) : (
+              <p
+                role="status"
+                className="px-2 py-4 text-sm text-muted-foreground"
               >
-                <span className="inline-flex items-center gap-2.5">
-                  <Icon className="h-3.5 w-3.5" />
-                  {t(translationKey)}
-                </span>
-              </Button>
+                {t("searchEmpty")}
+              </p>
             )
-          })}
+          ) : (
+            visibleNavItems.map((item) => {
+              const Icon = item.icon
+              const translationKey = `nav.${item.labelKey}` as const
+              const active =
+                normalizedPathname === item.href ||
+                normalizedPathname.startsWith(`${item.href}/`)
+              return (
+                <Button
+                  key={item.href}
+                  variant={active ? "secondary" : "ghost"}
+                  size="sm"
+                  className={cn(
+                    "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal"
+                  )}
+                  type="button"
+                  onClick={() => navigateTo(item.href)}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span className="inline-flex items-center gap-2.5">
+                    <Icon className="h-3.5 w-3.5" />
+                    {t(translationKey)}
+                  </span>
+                </Button>
+              )
+            })
+          )}
         </nav>
       </ScrollArea>
     </div>
@@ -328,7 +488,16 @@ export function SettingsShell({
               </Button>
             </div>
           )}
+          {missingTarget === searchTarget?.id && (
+            <p
+              role="status"
+              className="px-4 py-2 text-sm text-muted-foreground"
+            >
+              {t("searchTargetUnavailable")}
+            </p>
+          )}
           <div
+            ref={contentRef}
             className={cn(
               "settings-content min-h-0 w-full flex-1",
               onBack && "pt-0"

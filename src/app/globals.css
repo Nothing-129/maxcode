@@ -3566,3 +3566,11 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   margin-inline: 0.25rem;
   opacity: 0.4;
 }
+
+/* A settings search result receives focus without activating its control. */
+[data-settings-surface] [data-settings-search-highlight] {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+  border-radius: var(--radius);
+  scroll-margin-block: 1rem;
+}

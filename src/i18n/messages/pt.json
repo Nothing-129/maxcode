@@ -57,6 +57,9 @@
       "logs": "Registros de execução"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "Resultados ({count})",
+    "searchEmpty": "Nenhuma configuração encontrada. Tente outra palavra-chave.",
+    "searchTargetUnavailable": "Esta opção está indisponível. Verifique o carregamento da página ou os requisitos.",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "{field} copiado"
     },
     "conversationCard": {
+      "moreActions": "Mais ações",
       "closePane": "Fechar painel",
       "restorePaneDraft": "Restaurar último rascunho não enviado",
       "folderZone": "Divisão {name}",

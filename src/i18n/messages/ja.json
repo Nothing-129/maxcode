@@ -57,6 +57,9 @@
       "logs": "実行ログ"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "検索結果（{count}）",
+    "searchEmpty": "一致する設定がありません。別のキーワードをお試しください。",
+    "searchTargetUnavailable": "この項目は現在利用できません。読み込み状態や必要な条件をご確認ください。",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "{field}をコピーしました"
     },
     "conversationCard": {
+      "moreActions": "その他の操作",
       "closePane": "ペインを閉じる",
       "restorePaneDraft": "最後の未送信の下書きを復元",
       "folderZone": "{name} 分割",

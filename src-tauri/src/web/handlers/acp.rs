@@ -88,6 +88,8 @@ pub struct AcpConnectParams {
     pub working_dir: Option<String>,
     pub session_id: Option<String>,
     #[serde(default)]
+    pub conversation_id: Option<i32>,
+    #[serde(default)]
     pub preferred_mode_id: Option<String>,
     #[serde(default)]
     pub preferred_config_values: Option<BTreeMap<String, String>>,
@@ -116,6 +118,17 @@ pub async fn acp_connect(
         .await
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
 
+    let (conversation, preferred_config_values) =
+        crate::acp::conversation_model_config::preferences_for_connect(
+            &db.conn,
+            params.agent_type,
+            params.conversation_id,
+            params.session_id.as_deref(),
+            params.preferred_config_values.unwrap_or_default(),
+        )
+        .await
+        .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+
     let emitter = state.emitter.clone();
     let connection_id = manager
         .spawn_agent(
@@ -126,10 +139,33 @@ pub async fn acp_connect(
             "web".to_string(),
             emitter,
             params.preferred_mode_id,
-            params.preferred_config_values.unwrap_or_default(),
+            preferred_config_values,
         )
         .await
         .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+
+    if let (Some(conversation), Some((session, _))) = (
+        conversation,
+        manager.get_state_and_emitter(&connection_id).await,
+    ) {
+        {
+            let mut session = session.write().await;
+            if session
+                .conversation_id
+                .is_some_and(|id| id != conversation.id)
+            {
+                return Err(AppCommandError::task_execution_failed(
+                    "connection belongs to another conversation".to_string(),
+                ));
+            }
+            session.model_config_conversation_id = Some(conversation.id);
+        }
+        // A reused live connection may already be ready and emit no further
+        // selector events. Fresh connections persist after SelectorsReady.
+        crate::acp::conversation_model_config::persist_state(&db.conn, &session)
+            .await
+            .map_err(|e| AppCommandError::task_execution_failed(e.to_string()))?;
+    }
 
     Ok(Json(connection_id))
 }

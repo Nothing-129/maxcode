@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { SidebarConversationCard } from "@/components/conversations/sidebar-conversation-card"
@@ -99,11 +100,11 @@ describe("MaxCode: cancelled tasks have no error badge", () => {
   })
 })
 
-it("retains title hover completion without adding a title label", () => {
+it("retains menu completion without adding a title label", async () => {
+  const user = userEvent.setup()
   const { container } = mount("pending_review")
-  const button = screen.getByRole("button", { name: "Mark as completed" })
-  expect(button.parentElement).toHaveClass("hidden", "group-hover:flex")
-  fireEvent.click(button)
+  await user.click(screen.getByRole("button", { name: "More actions" }))
+  await user.click(screen.getByRole("menuitem", { name: "Mark as completed" }))
   expect(completeConversation).toHaveBeenCalledWith(1, "completed")
   expect(screen.getByText("Stopped task")).toBeInTheDocument()
   expect(screen.queryByText("Completed")).toBeNull()

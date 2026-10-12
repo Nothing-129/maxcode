@@ -57,6 +57,9 @@
       "logs": "سجلات التشغيل"
     },
     "searchSettings": "Search settings…",
+    "searchResults": "نتائج البحث ({count})",
+    "searchEmpty": "لم يتم العثور على إعدادات مطابقة. جرّب كلمة أخرى.",
+    "searchTargetUnavailable": "هذا الخيار غير متاح حاليًا. تحقق من تحميل الصفحة أو المتطلبات.",
     "loading": "Loading settings…"
   },
   "AppearanceSettings": {
@@ -2091,6 +2094,7 @@
       "copiedField": "تم نسخ {field}"
     },
     "conversationCard": {
+      "moreActions": "المزيد من الإجراءات",
       "closePane": "إغلاق الجزء",
       "restorePaneDraft": "استعادة آخر مسودة غير مرسلة",
       "folderZone": "قسم {name}",
