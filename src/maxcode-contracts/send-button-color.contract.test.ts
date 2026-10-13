@@ -9,8 +9,9 @@ describe("MaxCode send button color", () => {
     ]
     expect(stops).toHaveLength(2)
     for (const [stop] of stops) {
-      expect(stop).toContain('variant="outline"')
-      expect(stop).toContain("bg-muted text-foreground hover:bg-accent")
+      expect(stop).toContain(
+        "bg-[#dc2626] text-white hover:bg-[#b91c1c] dark:hover:bg-[#ef4444]"
+      )
       expect(stop).not.toContain("#216ae4")
       expect(stop).toContain('title={t("cancel")}')
       expect(stop).toContain('aria-label={t("cancel")}')

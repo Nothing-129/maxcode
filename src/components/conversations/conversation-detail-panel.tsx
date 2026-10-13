@@ -24,6 +24,7 @@ import {
   useAcpActions,
   useAcpEvent,
 } from "@/contexts/acp-connections-context"
+import { useConversationSelectorPreview } from "@/hooks/use-conversation-selector-preview"
 import { useAcpAgents } from "@/hooks/use-acp-agents"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -708,9 +709,18 @@ const ConversationTabView = memo(function ConversationTabView({
           null
       )
     : conn.modes
+  const historicalConfigPreview = useConversationSelectorPreview({
+    agentType: selectedAgent,
+    workingDir: workingDirForConnection,
+    conversationId: dbConversationId,
+    ready: !useCachedCatalog,
+    configOptions: conn.configOptions,
+  })
+  const configOptionsReadOnly =
+    Boolean(dbConversationId != null || externalId) && useCachedCatalog
   const effectiveConfigOptions = useCachedCatalog
-    ? dbConvIdRef.current || externalId
-      ? null
+    ? dbConversationId != null || externalId
+      ? historicalConfigPreview
       : applySavedConfigPreferences(
           selectedAgent,
           (connIsForOtherAgent ? null : conn.configOptions) ??
@@ -1640,13 +1650,14 @@ const ConversationTabView = memo(function ConversationTabView({
 
   const handleConfigOptionChange = useCallback(
     (configId: string, valueId: string) => {
+      if (configOptionsReadOnly) return
       // Persist even when the new tab has no live connection yet so the
       // picker can change during spawn; connect() re-reads prefs after.
       saveConfigPreference(selectedAgent, configId, valueId)
       setSelectorPrefsEpoch((epoch) => epoch + 1)
       handleSetConfigOption(configId, valueId)
     },
-    [handleSetConfigOption, selectedAgent]
+    [handleSetConfigOption, selectedAgent, configOptionsReadOnly]
   )
 
   const handleModeChange = useCallback(
@@ -2427,7 +2438,11 @@ const ConversationTabView = memo(function ConversationTabView({
       modes={connectionModes}
       configOptions={connectionConfigOptions}
       modeLoading={modeLoading}
-      configOptionsLoading={configOptionsLoading}
+      configOptionsLoading={
+        configOptionsLoading ||
+        (configOptionsReadOnly && !historicalConfigPreview)
+      }
+      configOptionsReadOnly={configOptionsReadOnly}
       selectorsLoading={selectorsLoading}
       selectedModeId={selectedModeId}
       onModeChange={handleModeChange}
@@ -2559,7 +2574,11 @@ const ConversationTabView = memo(function ConversationTabView({
                 modes={connectionModes}
                 configOptions={connectionConfigOptions}
                 modeLoading={modeLoading}
-                configOptionsLoading={configOptionsLoading}
+                configOptionsLoading={
+                  configOptionsLoading ||
+                  (configOptionsReadOnly && !historicalConfigPreview)
+                }
+                configOptionsReadOnly={configOptionsReadOnly}
                 selectorsLoading={selectorsLoading}
                 selectedModeId={selectedModeId}
                 onModeChange={handleModeChange}

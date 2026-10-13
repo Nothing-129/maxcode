@@ -11134,7 +11134,9 @@ pub(crate) async fn acp_get_agent_status_core(
     Ok(crate::acp::types::AcpAgentStatus {
         agent_type,
         available,
-        enabled: setting.map(|m| m.enabled).unwrap_or(true),
+        enabled: setting
+            .map(|m| m.enabled)
+            .unwrap_or_else(|| agent_setting_service::default_enabled(agent_type)),
         installed_version,
         is_acp_adapter: registry::acp_adapter_relation(agent_type).is_some(),
     })
@@ -11247,7 +11249,11 @@ async fn acp_list_agents_with_disabled(
     let mut probes = Vec::new();
     for &agent_type in &agent_types {
         let setting = settings_map.get(&agent_type);
-        if !include_disabled && setting.is_some_and(|setting| !setting.enabled) {
+        if !include_disabled
+            && !setting
+                .map(|m| m.enabled)
+                .unwrap_or_else(|| agent_setting_service::default_enabled(agent_type))
+        {
             continue;
         }
         let resolved = match registry::get_agent_meta(agent_type).distribution {
@@ -11264,7 +11270,11 @@ async fn acp_list_agents_with_disabled(
     let mut agents = Vec::new();
     for (idx, agent_type) in agent_types.into_iter().enumerate() {
         let setting = settings_map.get(&agent_type);
-        if !include_disabled && setting.is_some_and(|setting| !setting.enabled) {
+        if !include_disabled
+            && !setting
+                .map(|m| m.enabled)
+                .unwrap_or_else(|| agent_setting_service::default_enabled(agent_type))
+        {
             continue;
         }
         let meta = registry::get_agent_meta(agent_type);
@@ -11397,7 +11407,9 @@ async fn acp_list_agents_with_disabled(
                 .custom_id()
                 .and_then(crate::acp::custom_registry::source_of)
                 .map(|s| s.as_str().to_string()),
-            enabled: setting.map(|m| m.enabled).unwrap_or(true),
+            enabled: setting
+                .map(|m| m.enabled)
+                .unwrap_or_else(|| agent_setting_service::default_enabled(agent_type)),
             sort_order,
             installed_version: local_installed_version,
             host_tools_agent_mode: !crate::acp::host_tools_policy::HostToolsPolicy::from_env(&env)

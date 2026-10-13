@@ -33,6 +33,7 @@ interface ChatInputProps {
   modes?: SessionModeInfo[]
   configOptions?: SessionConfigOptionInfo[]
   modeLoading?: boolean
+  configOptionsReadOnly?: boolean
   configOptionsLoading?: boolean
   selectorsLoading?: boolean
   selectedModeId?: string | null
@@ -111,6 +112,7 @@ export const ChatInput = memo(function ChatInput({
   modes,
   configOptions,
   modeLoading = false,
+  configOptionsReadOnly = false,
   configOptionsLoading = false,
   selectorsLoading = false,
   selectedModeId,
@@ -245,6 +247,7 @@ export const ChatInput = memo(function ChatInput({
         modes={modes}
         configOptions={configOptions}
         modeLoading={modeLoading}
+        configOptionsReadOnly={configOptionsReadOnly}
         configOptionsLoading={configOptionsLoading}
         selectedModeId={selectedModeId}
         onModeChange={onModeChange}

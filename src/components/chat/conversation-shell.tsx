@@ -82,6 +82,7 @@ interface ConversationShellProps {
   modes?: SessionModeInfo[]
   configOptions?: SessionConfigOptionInfo[]
   modeLoading?: boolean
+  configOptionsReadOnly?: boolean
   configOptionsLoading?: boolean
   selectorsLoading?: boolean
   selectedModeId?: string | null
@@ -179,6 +180,7 @@ export function ConversationShell({
   modes,
   configOptions,
   modeLoading = false,
+  configOptionsReadOnly = false,
   configOptionsLoading = false,
   selectorsLoading = false,
   selectedModeId,
@@ -354,6 +356,7 @@ export function ConversationShell({
               modes={modes}
               configOptions={configOptions}
               modeLoading={modeLoading}
+              configOptionsReadOnly={configOptionsReadOnly}
               configOptionsLoading={configOptionsLoading}
               selectorsLoading={selectorsLoading}
               selectedModeId={selectedModeId}

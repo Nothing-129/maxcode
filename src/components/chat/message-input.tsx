@@ -203,6 +203,7 @@ interface MessageInputProps {
   modes?: SessionModeInfo[]
   configOptions?: SessionConfigOptionInfo[]
   modeLoading?: boolean
+  configOptionsReadOnly?: boolean
   configOptionsLoading?: boolean
   selectedModeId?: string | null
   onModeChange?: (modeId: string) => void
@@ -388,6 +389,7 @@ export function MessageInput({
   configOptions,
   modeLoading = false,
   configOptionsLoading = false,
+  configOptionsReadOnly = false,
   selectedModeId,
   onModeChange,
   onConfigOptionChange,
@@ -1800,6 +1802,8 @@ export function MessageInput({
           return (
             <div
               key={option.id}
+              inert={configOptionsReadOnly}
+              aria-disabled={configOptionsReadOnly}
               data-composer-config={option.id}
               className="flex min-w-0 items-end"
             >
@@ -1977,9 +1981,9 @@ export function MessageInput({
       <div className="flex items-center gap-1.5">
         <Button
           onClick={onCancel}
-          variant="outline"
+          variant="default"
           size="icon"
-          className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-accent"
+          className="h-8 w-8 rounded-full bg-[#dc2626] text-white hover:bg-[#b91c1c] dark:hover:bg-[#ef4444]"
           title={t("cancel")}
           aria-label={t("cancel")}
         >
@@ -2032,9 +2036,9 @@ export function MessageInput({
     ) : (
       <Button
         onClick={onCancel}
-        variant="outline"
+        variant="default"
         size="icon"
-        className="h-8 w-8 rounded-full bg-muted text-foreground hover:bg-accent"
+        className="h-8 w-8 rounded-full bg-[#dc2626] text-white hover:bg-[#b91c1c] dark:hover:bg-[#ef4444]"
         title={t("cancel")}
         aria-label={t("cancel")}
       >
@@ -2291,14 +2295,19 @@ export function MessageInput({
                             <SelectorLoadingChip label={t("loadingMode")} />
                           )}
                           {collapsedSettings.length > 0 && (
-                            <SessionSelectorsPanel
-                              settings={collapsedSettings}
-                              settingsLabel={t("agentSettings")}
-                              recommendedLabel={t("recommendedBadge")}
-                              onAfterSelect={() =>
-                                setCollapsedSelectorsOpen(false)
-                              }
-                            />
+                            <div
+                              inert={configOptionsReadOnly}
+                              aria-disabled={configOptionsReadOnly}
+                            >
+                              <SessionSelectorsPanel
+                                settings={collapsedSettings}
+                                settingsLabel={t("agentSettings")}
+                                recommendedLabel={t("recommendedBadge")}
+                                onAfterSelect={() =>
+                                  setCollapsedSelectorsOpen(false)
+                                }
+                              />
+                            </div>
                           )}
                         </PopoverContent>
                       </Popover>

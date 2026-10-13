@@ -4,7 +4,7 @@
     {
       "id": "chat.conversation-model-memory",
       "category": "product",
-      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy.",
+      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
       "origins": ["worktree-2026-10-12"],
       "paths": [
         "src-tauri/src/acp/conversation_model_config.rs",
@@ -22,11 +22,17 @@
         "src-tauri/src/db/service/import_service.rs",
         "src/lib/api.ts",
         "src/lib/selector-prefs-storage.ts",
+        "src/hooks/use-conversation-selector-preview.ts",
+        "src/components/chat/chat-input.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/lib/selectors-cache-storage.ts",
+        "src/components/chat/message-input.tsx",
         "src/contexts/acp-connections-context.tsx",
         "src/components/conversations/conversation-detail-panel.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/conversation-model-memory.contract.test.ts"
+        "src/maxcode-contracts/conversation-model-memory.contract.test.ts",
+        "src/maxcode-contracts/conversation-selector-preview.contract.test.tsx"
       ]
     },
     {
@@ -497,9 +503,14 @@
     {
       "id": "agents.zcode-community-acp-adapter",
       "category": "runtime",
-      "description": "ZCode uses william0wang/zcode-acp through the reviewed zcode-acp-server npm package and executable at 0.48.0 with Node >=22, following the shared npm install, version and update paths instead of an embedded translator. Restore ZCode in settings and new-session selectors, with its own configuration guidance rather than an incompatible generic JSON editor. Default ZCODE_ACP_MODE to build to retain tool approvals. On ZCode session/new, explicitly set and confirm the actual mode through ACP config options instead of trusting the lazy yolo advertisement or adapter config defaults: saved choices precede launch environment, then build. On load/resume, force a supported mode reset after model preferences to clear hidden native planEnabled state; honor explicit supported preferences and otherwise use build, never an unrequested advertised edit/yolo base mode. A failed reset prevents session readiness. Migrate legacy runtime/mode environment overrides and model/reasoning selections while prioritizing modern settings; invalid legacy values retain safe defaults. Temporarily disable ZCode session/fork because the reviewed adapter response does not match ACP, preserving other agents' capability gates and ZCode load/resume. Preserve the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the read-only SQLite history parser with ZCODE_HOME then legacy ZCODE_DATA_BASE_DIR resolution, and single-hop ACP UUID aliases from v2/acp-lazy-sessions.json to canonical sess_ history ids; missing, malformed or unused aliases remain not-found and native lists retain their ids. Preserve native assistant provider/model fields and tool error status/text. Native image file parts retain image-only turns via data URLs or artifacts under the same data root and session, with an 8 MiB decoded-image cap, bounded artifact reads, no cross-session or symlink traversal, and visible unavailable-image placeholders. Keep structured auto-titles via supports_dedicated_auto_title, the theme-aware icon, and the maintained-catalog identity; upstream merges must not restore the retired local adapter or remove the community package configuration and ZCode i18n section. Keep ZCode mode changes and restored preferences on the confirmed config-option channel, synchronizing actual mode state and reporting rejected choices. Temporarily remove Plan from both selector channels and reject explicit Plan requests before the ACP wire because adapter 0.48.0 hides the native planEnabled flag; migrate saved/launch Plan to build. This only gates MaxCode mode controls: native EnterPlanMode tools and slash commands remain an upstream reporting limitation. Map selected or legacy data roots to native ZCODE_STORAGE_DIR and ZCODE_SESSION_DB_PATH while preserving explicit overrides, so runtime history and bridge aliases stay together. When the running adapter exposes the canonical bigmodel-api provider alongside stale builtin:bigmodel choices, project GLM model choices onto the canonical registry id, deduplicate labels, and use that id for explicit changes and saved preference replay. On rejected ZCode config changes, restore confirmed selectors so the UI does not show a false selection.",
-      "origins": ["feat/zcode-agent", "worktree-2026-09-26"],
+      "description": "ZCode uses william0wang/zcode-acp through the reviewed zcode-acp-server npm package and executable at 0.48.0 with Node >=22, following the shared npm install, version and update paths instead of an embedded translator. Restore ZCode in settings and new-session selectors, with its own configuration guidance rather than an incompatible generic JSON editor. New ZCode settings default to disabled; preserve saved enable/disable choices and use the same default for status and enabled selectors when settings are absent. Default ZCODE_ACP_MODE to build to retain tool approvals. On ZCode session/new, explicitly set and confirm the actual mode through ACP config options instead of trusting the lazy yolo advertisement or adapter config defaults: saved choices precede launch environment, then build. On load/resume, force a supported mode reset after model preferences to clear hidden native planEnabled state; honor explicit supported preferences and otherwise use build, never an unrequested advertised edit/yolo base mode. A failed reset prevents session readiness. Migrate legacy runtime/mode environment overrides and model/reasoning selections while prioritizing modern settings; invalid legacy values retain safe defaults. Temporarily disable ZCode session/fork because the reviewed adapter response does not match ACP, preserving other agents' capability gates and ZCode load/resume. Preserve the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the read-only SQLite history parser with ZCODE_HOME then legacy ZCODE_DATA_BASE_DIR resolution, and single-hop ACP UUID aliases from v2/acp-lazy-sessions.json to canonical sess_ history ids; missing, malformed or unused aliases remain not-found and native lists retain their ids. Preserve native assistant provider/model fields and tool error status/text. Native image file parts retain image-only turns via data URLs or artifacts under the same data root and session, with an 8 MiB decoded-image cap, bounded artifact reads, no cross-session or symlink traversal, and visible unavailable-image placeholders. Keep structured auto-titles via supports_dedicated_auto_title, the theme-aware icon, and the maintained-catalog identity; upstream merges must not restore the retired local adapter or remove the community package configuration and ZCode i18n section. Keep ZCode mode changes and restored preferences on the confirmed config-option channel, synchronizing actual mode state and reporting rejected choices. Temporarily remove Plan from both selector channels and reject explicit Plan requests before the ACP wire because adapter 0.48.0 hides the native planEnabled flag; migrate saved/launch Plan to build. This only gates MaxCode mode controls: native EnterPlanMode tools and slash commands remain an upstream reporting limitation. Map selected or legacy data roots to native ZCODE_STORAGE_DIR and ZCODE_SESSION_DB_PATH while preserving explicit overrides, so runtime history and bridge aliases stay together. When the running adapter exposes the canonical bigmodel-api provider alongside stale builtin:bigmodel choices, project GLM model choices onto the canonical registry id, deduplicate labels, and use that id for explicit changes and saved preference replay. On rejected ZCode config changes, restore confirmed selectors so the UI does not show a false selection.",
+      "origins": [
+        "feat/zcode-agent",
+        "worktree-2026-09-26",
+        "worktree-2026-10-12"
+      ],
       "paths": [
+        "src-tauri/src/db/service/agent_setting_service.rs",
         "src-tauri/src/acp/registry.rs",
         "src-tauri/src/acp/connection.rs",
         "src-tauri/src/acp/preflight.rs",
@@ -523,6 +534,7 @@
         "src/i18n/messages/"
       ],
       "contracts": [
+        "src/maxcode-contracts/zcode-default-disabled.contract.test.ts",
         "src/maxcode-contracts/zcode-agent.contract.test.ts",
         "src/maxcode-contracts/zcode-model-registry.contract.test.ts",
         "src/maxcode-contracts/maintained-agents.contract.test.ts"
@@ -2405,12 +2417,13 @@
     {
       "id": "appearance.send-button-brand-color",
       "category": "product",
-      "description": "Send and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Both running stop actions use a neutral outlined circle with theme-aware muted background and foreground square, distinct from blue sends, with an accessible stop label. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
+      "description": "Send and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Both running stop actions use a solid #DC2626 circle and white square, distinct from blue sends, with an accessible stop label. Hover uses #B91C1C in light mode and #EF4444 in dark mode to maintain icon and surface contrast. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
       "origins": [
         "worktree-2026-09-09",
         "worktree-2026-09-18",
         "worktree-2026-09-26",
-        "worktree-2026-10-11"
+        "worktree-2026-10-11",
+        "worktree-2026-10-12"
       ],
       "paths": [
         "src/components/chat/message-input.tsx",

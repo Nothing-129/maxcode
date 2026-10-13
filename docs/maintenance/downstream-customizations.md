@@ -12,6 +12,7 @@
 
 维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。
 2026-09-26 将 ZCode 切换为社区 ACP 适配器，并恢复设置与新会话入口。
+2026-10-12 起 ZCode 新配置默认关闭，保留已有启用或关闭选择；状态查询及新会话列表共用该默认值。独立契约：`src/maxcode-contracts/zcode-default-disabled.contract.test.ts`。
 其他智能体保留历史数据、解析器和适配代码，但不出现在设置或新会话目录中，
 不执行后台自动更新，也不吸收其专属上游变更。新增自定义智能体入口隐藏。
 下方早期版本目录记录仅作为历史来源，不代表当前维护范围。
@@ -24,7 +25,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
-| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
+| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
 | 设置选项搜索 | 搜索现有设置项名称、说明与关键词，显示所属栏目及无结果提示；懒加载后定位高亮，保留草稿、远程参数与移动导航，不修改设置值或恢复隐藏入口 | `worktree-2026-10-11` | `settings.option-search` |
 | 会话状态常驻 | 悬停和打开操作菜单时保持运行中、未读及时间提示；置顶和完成收进独立菜单，支持键盘与触屏且不误选会话 | `worktree-2026-10-11` | `conversations.persistent-sidebar-status` |
 | 连接中提交 | 会话及欢迎页连接中可回车入队，消息可编辑、删除；初始化完成后顺序自动发送，慢连接及失败保留消息并提供重连，预览标签自动固定 | `worktree-2026-10-10` | `chat.connection-submit-queue` |
@@ -46,10 +47,10 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | Office 预览清理 | 同步发出终止信号、异步回收，关闭时不依赖任务调度 | `65588b03` | `runtime.office-watch-immediate-reap` |
 | 待回答提问卡 | 正常布局中折叠，保留选择；新问题和提交失败自动展开，沿用现有问题卡视觉 | `d3c3ecd6`、`3d81d7cc` | `chat.pending-question-collapse` |
 | 模型显示名称 | 按连接所属智能体记录名称，历史回复与会话详情统一；只改显示，不改原始模型 ID 和费用 | `78c9313b` | `chat.agent-model-display-labels` |
-| 操作按钮颜色 | 发送和正常更新按钮使用 `#216AE4`，深浅色一致；两种运行中停止按钮使用随主题适配的中性灰底、细描边和前景色方块，并提供无障碍标签；保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26`、`worktree-2026-10-11` | `appearance.send-button-brand-color` |
+| 操作按钮颜色 | 发送和正常更新按钮使用 `#216AE4`；两种运行中停止按钮使用实心红底 `#DC2626` 和白色方块，浅色悬停加深为 `#B91C1C`、深色悬停提亮为 `#EF4444`，提供无障碍标签；保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26`、`worktree-2026-10-11`、`worktree-2026-10-12` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
-| ZCode 智能体 | 恢复设置与新会话入口，配置区展示社区适配器专属说明；使用 william0wang/zcode-acp 的 npm 包与命令 `zcode-acp-server`，评审版本 0.48.0、要求 Node 22，沿用统一 npm 安装、版本与更新流程；默认 `ZCODE_ACP_MODE=build`，新建会话通过 ACP 配置项同步并确认实际权限模式（已保存选择优先，其次环境变量，再回退 build），界面展示确认值；0.48.0 无法报告独立的 planEnabled 状态，暂时移除 MaxCode 手动 Plan 入口并在发送前拦截该模式，旧 Plan 偏好转为 build；载入/恢复在模型偏好之后强制确认基础权限模式，无显式偏好用 build，有显式支持的选择则保留，确认失败不得进入就绪状态；原生 EnterPlanMode 工具和斜杠命令仍属上游状态回报限制；兼容迁移旧运行时/模式环境变量、模型与思考偏好且新配置优先；因 0.48.0 的 fork 响应不符合 ACP 暂停 ZCode 分叉，保留载入/恢复和其他智能体的能力判断；删除自研内嵌适配器，独立安装的 ZCode 运行时由社区适配器驱动；SQLite 历史只读，数据根优先 `ZCODE_HOME`、兼容 `ZCODE_DATA_BASE_DIR`，通过 `v2/acp-lazy-sessions.json` 将 ACP UUID 解析为原生 `sess_` ID，保留原生列表与旧会话；保留原生 assistant 的模型字段与工具失败状态、错误正文；图片历史支持原生 file part 的 data URL 与同数据根、同会话 artifact，单张解码后上限 8 MiB，限制文件读取并拒绝跨会话与符号链接，缺失或超限图片显示占位且保留纯图片消息；保留供应商 CLI 探测、i18n 和随主题变色的图标；侧栏标题沿用结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题；后续与恢复时的模式选择以适配器确认值为准，拒绝切换沿用提示；数据目录同步到原生存储环境变量，保留显式覆盖 | `feat/zcode-agent`、`worktree-2026-09-26` | `agents.zcode-community-acp-adapter` |
+| ZCode 智能体 | 新配置默认关闭，保留已有启用或关闭选择；状态查询与新会话列表共用默认值；恢复设置与新会话入口，配置区展示社区适配器专属说明；使用 william0wang/zcode-acp 的 npm 包与命令 `zcode-acp-server`，评审版本 0.48.0、要求 Node 22，沿用统一 npm 安装、版本与更新流程；默认 `ZCODE_ACP_MODE=build`，新建会话通过 ACP 配置项同步并确认实际权限模式（已保存选择优先，其次环境变量，再回退 build），界面展示确认值；0.48.0 无法报告独立的 planEnabled 状态，暂时移除 MaxCode 手动 Plan 入口并在发送前拦截该模式，旧 Plan 偏好转为 build；载入/恢复在模型偏好之后强制确认基础权限模式，无显式偏好用 build，有显式支持的选择则保留，确认失败不得进入就绪状态；原生 EnterPlanMode 工具和斜杠命令仍属上游状态回报限制；兼容迁移旧运行时/模式环境变量、模型与思考偏好且新配置优先；因 0.48.0 的 fork 响应不符合 ACP 暂停 ZCode 分叉，保留载入/恢复和其他智能体的能力判断；删除自研内嵌适配器，独立安装的 ZCode 运行时由社区适配器驱动；SQLite 历史只读，数据根优先 `ZCODE_HOME`、兼容 `ZCODE_DATA_BASE_DIR`，通过 `v2/acp-lazy-sessions.json` 将 ACP UUID 解析为原生 `sess_` ID，保留原生列表与旧会话；保留原生 assistant 的模型字段与工具失败状态、错误正文；图片历史支持原生 file part 的 data URL 与同数据根、同会话 artifact，单张解码后上限 8 MiB，限制文件读取并拒绝跨会话与符号链接，缺失或超限图片显示占位且保留纯图片消息；保留供应商 CLI 探测、i18n 和随主题变色的图标；侧栏标题沿用结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题；后续与恢复时的模式选择以适配器确认值为准，拒绝切换沿用提示；数据目录同步到原生存储环境变量，保留显式覆盖 | `feat/zcode-agent`、`worktree-2026-09-26`、`worktree-2026-10-12` | `agents.zcode-community-acp-adapter` |
 | 科学技能状态 | 保留历史智能体状态，同时为维护范围内有技能目录的 Grok、DeepSeek、Antigravity 和 ZCode 补齐状态行；不引入其他智能体的新入口 | `45b9a7ec`、`b66f35eb`、`worktree-2026-09-23` | `skills.science-maintained-status` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |

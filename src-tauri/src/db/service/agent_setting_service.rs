@@ -25,7 +25,7 @@ pub struct AgentSettingsUpdate {
     pub model_provider_id: Option<i32>,
 }
 
-fn default_enabled(agent_type: AgentType) -> bool {
+pub(crate) fn default_enabled(agent_type: AgentType) -> bool {
     matches!(
         agent_type,
         AgentType::ClaudeCode
@@ -43,7 +43,6 @@ fn default_enabled(agent_type: AgentType) -> bool {
             | AgentType::DeepSeek
             | AgentType::Qoder
             | AgentType::Antigravity
-            | AgentType::Zcode
             // A user who just registered a custom agent wants to use it.
             | AgentType::Custom(_)
     )

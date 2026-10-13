@@ -750,6 +750,26 @@ const AUTO_APPROVE_OPTION: SessionConfigOptionInfo = {
 describe("MessageInput boolean config options", () => {
   afterEach(() => cleanup())
 
+  it("shows historical preview values as inert until restoration completes", async () => {
+    const { container } = renderInput({
+      configOptions: [AUTO_APPROVE_OPTION],
+      configOptionsReadOnly: true,
+    })
+    const inline = container.querySelector(
+      '[data-composer-config="auto_approve"]'
+    )
+    expect(inline).toHaveAttribute("inert")
+    expect(inline).toHaveAttribute("aria-disabled", "true")
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: MSGS.agentSettings }))
+    const popover = await screen.findByRole("dialog", {
+      name: MSGS.agentSettings,
+    })
+    expect(
+      popover.querySelector('[inert][aria-disabled="true"]')
+    ).not.toBeNull()
+  })
+
   it("renders the inline chip as a toggle and flips it on click", async () => {
     const user = userEvent.setup()
     const onConfigOptionChange = vi.fn()

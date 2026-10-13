@@ -57,7 +57,7 @@ function isConfigOption(value: unknown): value is SessionConfigOptionInfo {
   return false
 }
 
-function isCachedSelectors(value: unknown): value is CachedSelectors {
+export function isCachedSelectors(value: unknown): value is CachedSelectors {
   if (!isRecord(value)) return false
   if (value.modes != null && !isModeState(value.modes)) return false
   if (value.configOptions != null) {
