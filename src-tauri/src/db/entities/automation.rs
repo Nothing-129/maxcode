@@ -11,6 +11,8 @@ pub enum TriggerKind {
     Schedule,
     #[sea_orm(string_value = "manual")]
     Manual,
+    #[sea_orm(string_value = "message")]
+    Message,
 }
 
 /// Where a fired run executes relative to the target folder. `worktree_per_run`
@@ -43,7 +45,7 @@ pub struct Model {
     /// after every fire so a restart catch-up fires at most once.
     pub next_run_at: Option<DateTimeUtc>,
     pub agent_type: String,
-    /// Target root repo folder. `None` = folderless (reserved; v1 requires a folder).
+    /// Target project folder. `None` = a folderless chat.
     pub root_folder_id: Option<i32>,
     pub isolation: IsolationMode,
     /// Verbatim git ref (branch-tree `fullName`, not a display label).

@@ -176,3 +176,23 @@ pub async fn automation_cancel_run(
         .map_err(AppCommandError::from)?;
     Ok(Json(()))
 }
+
+pub async fn automation_listener_status(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<GetAutomationParams>,
+) -> Result<Json<crate::models::AutomationListenerInfo>, AppCommandError> {
+    Ok(Json(
+        core::automation_listener_status_core(&state.db, params.id)
+            .await
+            .map_err(AppCommandError::from)?,
+    ))
+}
+pub async fn automation_restart_listener(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<GetAutomationParams>,
+) -> Result<Json<()>, AppCommandError> {
+    core::automation_restart_listener_core(&state.db, &state.emitter, params.id)
+        .await
+        .map_err(AppCommandError::from)?;
+    Ok(Json(()))
+}

@@ -1359,6 +1359,7 @@ mod tests {
                 status: "completed".into(),
                 kind: crate::db::entities::conversation::ConversationKind::Regular,
                 model: Some(" hermes-model ".into()),
+                model_config: None,
                 git_branch: None,
                 external_id: None,
                 message_count: turns.len() as u32,

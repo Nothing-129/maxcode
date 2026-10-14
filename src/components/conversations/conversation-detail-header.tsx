@@ -5,7 +5,7 @@ import { openConversationFind } from "@/lib/conversation-find-events"
 import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
 import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
 
-import { memo, useCallback, useState } from "react"
+import { memo, useCallback, useEffect, useRef, useState } from "react"
 import {
   Check,
   Copy,
@@ -26,12 +26,14 @@ import {
   createConversationShare,
   deleteConversation,
   getWebServiceConfig,
+  getConversationSharePreview,
   revokeConversationShare,
   updateWebServiceConfig,
   updateConversationPinned,
   updateConversationStatus,
   updateConversationTitle,
   type WebServiceConfig,
+  type ConversationShareRoundPreview,
 } from "@/lib/api"
 import {
   buildConversationShareUrl,
@@ -40,11 +42,13 @@ import {
   type ConversationShareAddressSource,
 } from "@/lib/conversation-share"
 import { formatConversationTitle } from "@/lib/conversation-title"
+import { OPEN_CONVERSATION_SHARE_EVENT } from "@/lib/conversation-share-events"
+import { splitShareUserText } from "@/lib/conversation-share-content"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { getRuntimeSession } from "@/stores/conversation-runtime-store"
-import type { ConversationStatus } from "@/lib/types"
+import type { ConversationShareOptions, ConversationStatus } from "@/lib/types"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -79,6 +83,7 @@ import {
   type ActiveSessionDetails,
 } from "./active-session-details"
 import { SessionDetailsDialog } from "./session-details-dialog"
+import { ConversationShareOptionsEditor } from "./conversation-share-options"
 
 interface ConversationDetailHeaderProps {
   tabId: string
@@ -178,6 +183,17 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const [sharePublicUrlInput, setSharePublicUrlInput] = useState("")
   const [sharePublicUrlInvalid, setSharePublicUrlInvalid] = useState(false)
   const [shareConfig, setShareConfig] = useState<WebServiceConfig | null>(null)
+  const [shareRounds, setShareRounds] = useState<
+    ConversationShareRoundPreview[]
+  >([])
+  const [shareOptions, setShareOptions] = useState<ConversationShareOptions>({})
+  const [shareExists, setShareExists] = useState(false)
+  const shareRequest = useRef(0)
+  const canCreateShare =
+    !shareLoading &&
+    shareConfig != null &&
+    shareRounds.length > 0 &&
+    shareOptions.rounds?.length !== 0
 
   const persisted = conversationId != null
   const displayTitle =
@@ -283,11 +299,16 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       target: { id: number; title: string },
       publicShareUrl: string | null
     ) => {
+      const request = shareRequest.current
       setShareNeedsPublicUrl(false)
       setShareError(false)
       setShareLoading(true)
       try {
-        const share = await createConversationShare(target.id)
+        const share = await createConversationShare(target.id, shareOptions)
+        if (request !== shareRequest.current) return
+        if (share.version !== 2)
+          throw new Error("Share content selection is unavailable")
+        setShareExists(true)
         const runtimeUrl = getServerBaseUrl()
         const resolved = resolveConversationShareAddress({
           publicShareUrl,
@@ -297,17 +318,19 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         setShareAddressSource(resolved.source)
         setShareUrl(buildConversationShareUrl(resolved.baseUrl, share.token))
       } catch (err) {
+        if (request !== shareRequest.current) return
         console.error("[ConversationDetailHeader] create share:", err)
         setShareError(true)
       } finally {
-        setShareLoading(false)
+        if (request === shareRequest.current) setShareLoading(false)
       }
     },
-    []
+    [shareOptions]
   )
 
   const handleShareOpen = useCallback(() => {
     if (conversationId == null) return
+    const request = ++shareRequest.current
     const target = { id: conversationId, title: displayTitle }
     setShareTarget(target)
     setShareUrl("")
@@ -318,11 +341,29 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setSharePublicUrlInput("")
     setSharePublicUrlInvalid(false)
     setShareConfig(null)
+    setShareOptions({})
+    setShareRounds([])
+    setShareExists(false)
     setShareLoading(true)
     void (async () => {
       try {
-        const config = await getWebServiceConfig()
+        const [config, preview] = await Promise.all([
+          getWebServiceConfig(),
+          getConversationSharePreview(target.id),
+        ])
+        if (request !== shareRequest.current) return
+        if (preview.version !== 2)
+          throw new Error("Share content selection is unavailable")
         setShareConfig(config)
+        setShareRounds(
+          preview.rounds.map((round) => ({
+            ...round,
+            preview: splitShareUserText(round.preview)
+              .text.replace(/\s+/g, " ")
+              .slice(0, 120),
+          }))
+        )
+        setShareExists(preview.active_share)
         const runtimeUrl = getServerBaseUrl()
         const resolved = resolveConversationShareAddress({
           publicShareUrl: config.publicShareUrl,
@@ -332,21 +373,35 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           resolved?.source === "configured_public" ||
           resolved?.source === "runtime_public"
         ) {
-          await createShareLink(target, config.publicShareUrl)
           return
         }
         setShareNeedsPublicUrl(true)
       } catch (err) {
+        if (request !== shareRequest.current) return
         console.error("[ConversationDetailHeader] prepare share:", err)
         setShareError(true)
       } finally {
-        setShareLoading(false)
+        if (request === shareRequest.current) setShareLoading(false)
       }
     })()
-  }, [conversationId, createShareLink, displayTitle])
+  }, [conversationId, displayTitle])
+
+  useEffect(() => {
+    const handleShareRequest = (event: Event) => {
+      if ((event as CustomEvent<string>).detail === tabId) handleShareOpen()
+    }
+    window.addEventListener(OPEN_CONVERSATION_SHARE_EVENT, handleShareRequest)
+    return () => {
+      window.removeEventListener(
+        OPEN_CONVERSATION_SHARE_EVENT,
+        handleShareRequest
+      )
+    }
+  }, [handleShareOpen, tabId])
 
   const handleSavePublicUrlAndShare = useCallback(async () => {
-    if (shareTarget == null || shareConfig == null) return
+    if (shareTarget == null || shareConfig == null || !canCreateShare) return
+    const request = shareRequest.current
     const publicShareUrl =
       normalizeConversationPublicShareUrl(sharePublicUrlInput)
     if (!publicShareUrl) {
@@ -360,23 +415,31 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         ...shareConfig,
         publicShareUrl,
       })
+      if (request !== shareRequest.current) return
       setShareConfig(savedConfig)
       await createShareLink(
         shareTarget,
         savedConfig.publicShareUrl ?? publicShareUrl
       )
     } catch (err) {
+      if (request !== shareRequest.current) return
       console.error("[ConversationDetailHeader] save public share URL:", err)
       setShareError(true)
     } finally {
-      setShareLoading(false)
+      if (request === shareRequest.current) setShareLoading(false)
     }
-  }, [createShareLink, shareConfig, sharePublicUrlInput, shareTarget])
+  }, [
+    canCreateShare,
+    createShareLink,
+    shareConfig,
+    sharePublicUrlInput,
+    shareTarget,
+  ])
 
   const handleUseLocalShareAddress = useCallback(() => {
-    if (shareTarget == null) return
+    if (shareTarget == null || !canCreateShare) return
     void createShareLink(shareTarget, null)
-  }, [createShareLink, shareTarget])
+  }, [canCreateShare, createShareLink, shareTarget])
 
   const handleCopyShare = useCallback(async () => {
     if (!shareUrl) return
@@ -384,21 +447,29 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setShareCopied(copied)
   }, [shareUrl])
 
+  const handleCloseShare = useCallback(() => {
+    shareRequest.current += 1
+    setShareTarget(null)
+  }, [])
+
   const handleRevokeShare = useCallback(async () => {
     if (shareTarget == null) return
+    const request = shareRequest.current
     setShareLoading(true)
     setShareError(false)
     try {
       await revokeConversationShare(shareTarget.id)
-      setShareTarget(null)
+      if (request !== shareRequest.current) return
+      handleCloseShare()
       setShareUrl("")
     } catch (err) {
+      if (request !== shareRequest.current) return
       console.error("[ConversationDetailHeader] revoke share:", err)
       setShareError(true)
     } finally {
-      setShareLoading(false)
+      if (request === shareRequest.current) setShareLoading(false)
     }
-  }, [shareTarget])
+  }, [handleCloseShare, shareTarget])
 
   const handleTitleDrag = useConversationDrag(tabId, title)
 
@@ -568,7 +639,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       <Dialog
         open={shareTarget != null}
         onOpenChange={(open) => {
-          if (!open) setShareTarget(null)
+          if (!open) handleCloseShare()
         }}
       >
         <DialogContent>
@@ -583,8 +654,16 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           {shareLoading && !shareUrl && !shareNeedsPublicUrl ? (
             <div className="flex items-center justify-center gap-2 py-5 text-sm text-muted-foreground">
               <Loader2 className="size-4 animate-spin" />
-              {t("shareCreating")}
+              {shareConfig ? t("shareCreating") : t("sharePreparing")}
             </div>
+          ) : null}
+          {shareConfig && !shareUrl ? (
+            <ConversationShareOptionsEditor
+              disabled={shareLoading}
+              rounds={shareRounds}
+              options={shareOptions}
+              onChange={setShareOptions}
+            />
           ) : null}
           {shareNeedsPublicUrl && !shareUrl ? (
             <div className="space-y-2">
@@ -653,25 +732,53 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           {shareError ? (
             <p className="text-sm text-destructive">{t("shareFailed")}</p>
           ) : null}
+          {shareExists && !shareUrl ? (
+            <Button
+              variant="outline"
+              disabled={shareLoading}
+              onClick={handleRevokeShare}
+            >
+              <Link2Off className="size-4" />
+              {t("shareRevoke")}
+            </Button>
+          ) : null}
           {shareNeedsPublicUrl && !shareUrl ? (
             <DialogFooter>
               <Button
                 type="button"
                 variant="outline"
-                disabled={shareLoading}
+                disabled={!canCreateShare}
                 onClick={handleUseLocalShareAddress}
               >
                 {t("shareUseLocalAddress")}
               </Button>
               <Button
                 type="button"
-                disabled={shareLoading}
+                disabled={!canCreateShare}
                 onClick={() => void handleSavePublicUrlAndShare()}
               >
                 {shareLoading ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : null}
                 {t("shareSavePublicUrl")}
+              </Button>
+            </DialogFooter>
+          ) : !shareUrl ? (
+            <DialogFooter>
+              <Button variant="outline" onClick={handleCloseShare}>
+                {t("cancel")}
+              </Button>
+              <Button
+                disabled={!canCreateShare}
+                onClick={() => {
+                  if (shareTarget && canCreateShare)
+                    void createShareLink(
+                      shareTarget,
+                      shareConfig?.publicShareUrl ?? null
+                    )
+                }}
+              >
+                {t("shareCreateLink")}
               </Button>
             </DialogFooter>
           ) : (
@@ -685,7 +792,19 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
                 <Link2Off className="size-4" />
                 {t("shareRevoke")}
               </Button>
-              <Button type="button" onClick={() => setShareTarget(null)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={shareLoading}
+                onClick={() => {
+                  setShareUrl("")
+                  setShareCopied(false)
+                  setShareError(false)
+                }}
+              >
+                {t("shareEditContent")}
+              </Button>
+              <Button type="button" onClick={handleCloseShare}>
                 {t("shareDone")}
               </Button>
             </DialogFooter>

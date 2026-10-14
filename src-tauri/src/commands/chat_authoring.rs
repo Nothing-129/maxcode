@@ -231,6 +231,8 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             Err(note) => return AuthoringOutcome::rejected(KIND_AUTOMATION, note),
         };
         let config = AutomationConfig {
+            session_mode: Default::default(),
+            message_trigger: None,
             action: spec.action,
             prompt_blocks,
             display_text: spec.prompt.clone(),

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: read-only conversation sharing", () => {
-  it("exposes sharing only inside the conversation actions menu", () => {
+  it("exposes desktop sharing inside the conversation actions menu", () => {
     const header = source(
       "src/components/conversations/conversation-detail-header.tsx"
     )

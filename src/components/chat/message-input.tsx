@@ -1983,7 +1983,7 @@ export function MessageInput({
           onClick={onCancel}
           variant="default"
           size="icon"
-          className="h-8 w-8 rounded-full bg-[#dc2626] text-white hover:bg-[#b91c1c] dark:hover:bg-[#ef4444]"
+          className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
           title={t("cancel")}
           aria-label={t("cancel")}
         >
@@ -2038,7 +2038,7 @@ export function MessageInput({
         onClick={onCancel}
         variant="default"
         size="icon"
-        className="h-8 w-8 rounded-full bg-[#dc2626] text-white hover:bg-[#b91c1c] dark:hover:bg-[#ef4444]"
+        className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
         title={t("cancel")}
         aria-label={t("cancel")}
       >

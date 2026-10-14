@@ -12,6 +12,8 @@ import {
 import { CanvasPage, CanvasPageTitle } from "@/components/canvas/canvas-page"
 import { ForgeChromeActions } from "@/components/forge/forge-chrome-actions"
 import { ForgePage, ForgePageTitle } from "@/components/forge/forge-page"
+import { TasksChromeActions } from "@/components/tasks/tasks-chrome-actions"
+import { TasksPage, TasksPageTitle } from "@/components/tasks/tasks-page"
 import {
   TokenUsagePage,
   TokenUsagePageTitle,
@@ -26,6 +28,7 @@ import {
  */
 const WORKBENCH_ROUTES: Partial<Record<WorkbenchRouteId, ComponentType>> = {
   automations: AutomationsPage,
+  tasks: TasksPage,
   forge: ForgePage,
   tokenUsage: TokenUsagePage,
   canvas: CanvasPage,
@@ -36,6 +39,7 @@ const WORKBENCH_ROUTES: Partial<Record<WorkbenchRouteId, ComponentType>> = {
 const WORKBENCH_ROUTE_STRIPS: Partial<Record<WorkbenchRouteId, ComponentType>> =
   {
     automations: AutomationsPageTitle,
+    tasks: TasksPageTitle,
     forge: ForgePageTitle,
     tokenUsage: TokenUsagePageTitle,
     canvas: CanvasPageTitle,
@@ -57,6 +61,7 @@ const WORKBENCH_ROUTE_CHROME_ACTIONS: Partial<
   Record<WorkbenchRouteId, ComponentType<WorkbenchChromeActionsProps>>
 > = {
   forge: ForgeChromeActions,
+  tasks: TasksChromeActions,
 }
 
 /**

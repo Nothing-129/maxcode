@@ -7,6 +7,7 @@ import {
   PanelRight,
   Search,
   Settings,
+  Share2,
   SquarePen,
   SquareTerminal,
 } from "lucide-react"
@@ -20,7 +21,8 @@ import { useSearchDialog } from "@/contexts/search-dialog-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useAuxPanelContext } from "@/contexts/aux-panel-context"
 import { useTerminalContext } from "@/contexts/terminal-context"
-import { useTabActions } from "@/contexts/tab-context"
+import { useTabActions, useTabStore } from "@/contexts/tab-context"
+import { openConversationShare } from "@/lib/conversation-share-events"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { WorkbenchRouteChromeActions } from "@/components/workbench/workbench-content"
 import {
@@ -49,6 +51,10 @@ export function FolderTitleBar() {
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const { isConversations, openConversations } = useWorkbenchRoute()
+  const shareTabId = useTabStore((s) => {
+    const tab = s.tabs.find((tab) => tab.id === s.activeTabId)
+    return tab?.conversationId != null ? tab.id : null
+  })
 
   const handleOpenSettings = useCallback(() => {
     openSettingsWindow().catch((err) => {
@@ -117,6 +123,18 @@ export function FolderTitleBar() {
             <SquarePen />
             {tCard("newConversation")}
           </DropdownMenuItem>
+          {isConversations && (
+            <DropdownMenuItem
+              className="min-h-11"
+              disabled={shareTabId == null}
+              onSelect={() => {
+                if (shareTabId != null) openConversationShare(shareTabId)
+              }}
+            >
+              <Share2 />
+              {tCard("shareConversation")}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="min-h-11"

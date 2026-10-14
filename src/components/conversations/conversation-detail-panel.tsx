@@ -709,10 +709,16 @@ const ConversationTabView = memo(function ConversationTabView({
           null
       )
     : conn.modes
+  const storedModelConfig = useAppWorkspaceStore(
+    (state) =>
+      state.conversations.find((item) => item.id === dbConversationId)
+        ?.model_config
+  )
   const historicalConfigPreview = useConversationSelectorPreview({
     agentType: selectedAgent,
     workingDir: workingDirForConnection,
     conversationId: dbConversationId,
+    persistedValues: detail?.summary.model_config ?? storedModelConfig,
     ready: !useCachedCatalog,
     configOptions: conn.configOptions,
   })

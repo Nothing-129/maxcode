@@ -88,6 +88,10 @@ pub enum AutomationAction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AutomationConfig {
     #[serde(default)]
+    pub session_mode: AutomationSessionMode,
+    #[serde(default)]
+    pub message_trigger: Option<AutomationMessageTrigger>,
+    #[serde(default)]
     pub action: AutomationAction,
     #[serde(default)]
     pub prompt_blocks: Vec<serde_json::Value>,
@@ -99,4 +103,45 @@ pub struct AutomationConfig {
     pub config_values: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub label_snapshot: Option<serde_json::Value>,
+}
+
+/// Reuse is explicit and restricted to folderless chats, so a worktree is never
+/// silently substituted and older saved automations keep their original behavior.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationSessionMode {
+    #[default]
+    NewPerRun,
+    ReuseChat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum AutomationMessageScope {
+    AtMe,
+    Sender,
+    Group,
+    AllDirect,
+    AllGroup,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AutomationMessageTrigger {
+    pub scope: AutomationMessageScope,
+    #[serde(default)]
+    pub target: String,
+    #[serde(default)]
+    pub profile: String,
+    #[serde(default)]
+    pub keywords: String,
+    #[serde(default)]
+    pub batch_minutes: u32,
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AutomationListenerInfo {
+    pub state: String,
+    pub error: Option<String>,
+    pub pending_count: u64,
+    pub last_received_at: Option<DateTime<Utc>>,
 }

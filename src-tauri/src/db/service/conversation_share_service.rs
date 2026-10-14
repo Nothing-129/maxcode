@@ -75,6 +75,18 @@ fn new_token() -> String {
     uuid::Uuid::new_v4().simple().to_string()
 }
 
+pub async fn has_active_share(
+    conn: &DatabaseConnection,
+    conversation_id: i32,
+) -> Result<bool, DbError> {
+    Ok(conversation_share::Entity::find()
+        .filter(conversation_share::Column::ConversationId.eq(conversation_id))
+        .filter(conversation_share::Column::RevokedAt.is_null())
+        .one(conn)
+        .await?
+        .is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

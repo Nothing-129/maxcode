@@ -24,6 +24,10 @@ import {
   effectiveSelections,
   snapshotLabels,
 } from "./agent-config-section"
+import {
+  AutomationMessageSettings,
+  DEFAULT_MESSAGE_TRIGGER,
+} from "./automation-message-settings"
 import { AutomationBranchPicker } from "./automation-branch-picker"
 import {
   ComposerInvocationsPopup,
@@ -45,6 +49,8 @@ import type {
   AutomationDraft,
   AutomationIsolation,
   AutomationTriggerKind,
+  AutomationSessionMode,
+  AutomationMessageTrigger,
   PromptInputBlock,
 } from "@/lib/types"
 
@@ -61,6 +67,7 @@ interface AutomationEditorProps {
 }
 
 const CRON_PRESETS = [
+  { key: "presetEvery10Minutes" as const, cron: "*/10 * * * *" },
   { key: "presetHourly" as const, cron: "0 * * * *" },
   { key: "presetDaily" as const, cron: "0 9 * * *" },
   { key: "presetWeekdays" as const, cron: "0 9 * * 1-5" },
@@ -87,6 +94,13 @@ export function AutomationEditor({
   const [action, setAction] = useState<AutomationAction>(
     automation?.config?.action ?? "launch_session"
   )
+  const [sessionMode, setSessionMode] = useState<AutomationSessionMode>(
+    automation?.config?.session_mode ?? "new_per_run"
+  )
+  const [messageTrigger, setMessageTrigger] =
+    useState<AutomationMessageTrigger>(
+      automation?.config?.message_trigger ?? DEFAULT_MESSAGE_TRIGGER
+    )
   const [agentType, setAgentType] = useState<AgentType>(
     automation?.agent_type ?? "claude_code"
   )
@@ -95,7 +109,9 @@ export function AutomationEditor({
   // even before the user types — defaultText applies without firing onChange).
   const [prompt, setPrompt] = useState(automation?.config?.display_text ?? "")
   const [folderId, setFolderId] = useState<number | null>(
-    automation?.root_folder_id ?? folders[0]?.id ?? null
+    automation
+      ? automation.root_folder_id
+      : (folders.find((f) => f.kind !== "chat")?.id ?? null)
   )
   const [isolation, setIsolation] = useState<AutomationIsolation>(
     automation?.isolation ?? "shared_in_root"
@@ -145,7 +161,13 @@ export function AutomationEditor({
     () => folders.filter((f) => f.parent_id == null && f.kind === "regular"),
     [folders]
   )
-  const selectableFolders = action === "enqueue_task" ? projectFolders : folders
+  const selectableFolders = useMemo(
+    () =>
+      action === "enqueue_task"
+        ? projectFolders
+        : folders.filter((f) => f.kind !== "chat"),
+    [action, projectFolders, folders]
+  )
 
   // A folder is selected but its path hasn't resolved yet (folders list still
   // hydrating, or the folder was removed): the agent-options probe would fall
@@ -199,22 +221,16 @@ export function AutomationEditor({
     }
   }, [cron, timezone, trigger])
 
-  // Backfill the default folder once the workspace folders finish hydrating — a
-  // new (or template-seeded) automation opened before they load would otherwise
-  // keep folderId null and block submit on errorFolder. Guarding on
-  // `automation?.root_folder_id == null` (rather than `!automation`) also covers
-  // a template draft seeded with a null folder, while never overriding the
-  // folder of an existing automation being edited (its folderId is non-null, so
-  // the `folderId == null` guard already short-circuits).
+  // Only task boards require a project; null is an intentional chat target.
   useEffect(() => {
     if (
+      action === "enqueue_task" &&
       folderId == null &&
-      automation?.root_folder_id == null &&
       selectableFolders.length > 0
     ) {
       setFolderId(selectableFolders[0].id)
     }
-  }, [selectableFolders, folderId, automation])
+  }, [action, selectableFolders, folderId])
 
   const submit = async () => {
     setError(null)
@@ -222,8 +238,15 @@ export function AutomationEditor({
     const displayText = (editorRef.current?.getText() ?? prompt).trim()
     if (!name.trim()) return setError(t("errorName"))
     if (!displayText) return setError(t("errorPrompt"))
+    if (
+      trigger === "message" &&
+      (messageTrigger.scope === "sender" || messageTrigger.scope === "group") &&
+      !messageTrigger.target.trim()
+    )
+      return setError(t("errorMessageTarget"))
     if (trigger === "schedule" && !cron.trim()) return setError(t("errorCron"))
-    if (folderId == null) return setError(t("errorFolder"))
+    if (action === "enqueue_task" && folderId == null)
+      return setError(t("errorFolder"))
     // Folder selected but its path is still resolving; the probe would be global.
     // The Save button is disabled in this state, so this is a race-safety net —
     // bail silently and let it re-enable once the path resolves.
@@ -282,13 +305,23 @@ export function AutomationEditor({
         timezone,
         agent_type: persistedAgentType,
         root_folder_id: folderId,
-        isolation: enqueue ? "worktree_per_run" : isolation,
+        isolation: enqueue
+          ? "worktree_per_run"
+          : folderId == null
+            ? "shared_in_root"
+            : isolation,
         branch:
-          !enqueue && isolation === "shared_in_root" && branch.trim()
+          !enqueue &&
+          folderId != null &&
+          isolation === "shared_in_root" &&
+          branch.trim()
             ? branch.trim()
             : null,
         is_remote_branch:
-          !enqueue && isolation === "shared_in_root" && branch.trim()
+          !enqueue &&
+          folderId != null &&
+          isolation === "shared_in_root" &&
+          branch.trim()
             ? isRemoteBranch
             : false,
         config: fellBackToSubstitute
@@ -296,6 +329,8 @@ export function AutomationEditor({
               // Preserve the original agent's saved config verbatim; only the
               // user-editable prompt is refreshed.
               action,
+              session_mode: enqueue ? "new_per_run" : sessionMode,
+              message_trigger: trigger === "message" ? messageTrigger : null,
               prompt_blocks: blocks,
               display_text: displayText,
               mode_id: automation.config?.mode_id ?? null,
@@ -305,6 +340,8 @@ export function AutomationEditor({
             }
           : {
               action,
+              session_mode: enqueue ? "new_per_run" : sessionMode,
+              message_trigger: trigger === "message" ? messageTrigger : null,
               prompt_blocks: blocks,
               display_text: displayText,
               mode_id,
@@ -440,6 +477,10 @@ export function AutomationEditor({
               aria-pressed={action === opt.value}
               onClick={() => {
                 setAction(opt.value)
+                if (opt.value === "enqueue_task") {
+                  setSessionMode("new_per_run")
+                  if (trigger === "message") setTrigger("schedule")
+                }
                 // The board only accepts project roots; drop a now-invalid
                 // folder selection instead of saving a doomed draft.
                 if (
@@ -470,6 +511,51 @@ export function AutomationEditor({
         ) : null}
       </div>
 
+      {action === "launch_session" && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("sessionMode")}
+          </h3>
+          <div
+            role="group"
+            aria-label={t("sessionMode")}
+            className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
+          >
+            {(["new_per_run", "reuse_chat"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={sessionMode === mode}
+                disabled={trigger === "message" && mode === "new_per_run"}
+                onClick={() => {
+                  setSessionMode(mode)
+                  if (mode === "reuse_chat") {
+                    setFolderId(null)
+                    setBranch("")
+                    setIsRemoteBranch(false)
+                  }
+                }}
+                className={cn(
+                  "rounded-md px-3 py-1 text-xs font-medium disabled:opacity-50",
+                  sessionMode === mode
+                    ? "bg-background text-foreground shadow-sm"
+                    : "text-muted-foreground"
+                )}
+              >
+                {t(mode === "reuse_chat" ? "sessionReuse" : "sessionNew")}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {t(
+              sessionMode === "reuse_chat"
+                ? "sessionReuseHint"
+                : "sessionNewHint"
+            )}
+          </p>
+        </div>
+      )}
+
       {/* Target — where the run happens: workspace folder, isolation, branch. */}
       <div className="flex flex-col gap-2">
         <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
@@ -480,12 +566,24 @@ export function AutomationEditor({
             variant="field"
             folders={selectableFolders}
             value={folderId}
+            disabled={trigger === "message"}
+            allLabel={action === "launch_session" ? t("targetChat") : undefined}
+            onSelectAll={
+              action === "launch_session"
+                ? () => {
+                    setFolderId(null)
+                    setBranch("")
+                    setIsRemoteBranch(false)
+                  }
+                : undefined
+            }
             // A branch belongs to a specific repo, so switching folders must drop
             // the previous folder's branch (else it'd be saved against the new
             // one). Done in this user-action handler, not a folderId effect, so
             // the initial hydrate/backfill never wipes a seeded branch on edit.
             onChange={(id) => {
               setFolderId(id)
+              setSessionMode("new_per_run")
               setBranch("")
               setIsRemoteBranch(false)
             }}
@@ -498,7 +596,9 @@ export function AutomationEditor({
               sits after it. Ticking the checkbox switches to worktree isolation
               and hides the picker. Enqueued tasks mint their own worktree in
               the work-task engine, so neither control applies. */}
-          {action === "launch_session" && isolation === "shared_in_root" ? (
+          {action === "launch_session" &&
+          folderId != null &&
+          isolation === "shared_in_root" ? (
             <AutomationBranchPicker
               folderPath={folderPath}
               value={branch}
@@ -515,7 +615,7 @@ export function AutomationEditor({
             />
           ) : null}
 
-          {action === "launch_session" ? (
+          {action === "launch_session" && folderId != null ? (
             <Label className="h-7 text-xs font-normal text-muted-foreground">
               <Checkbox
                 checked={isolation === "worktree_per_run"}
@@ -531,7 +631,9 @@ export function AutomationEditor({
         </div>
         {/* Running in the folder shares the user's working tree (and any
             concurrent shared run); surface that trade-off where it's chosen. */}
-        {action === "launch_session" && isolation === "shared_in_root" ? (
+        {action === "launch_session" &&
+        folderId != null &&
+        isolation === "shared_in_root" ? (
           <p className="text-xs text-muted-foreground">
             {t("isolationSharedCaveat")}
           </p>
@@ -552,13 +654,24 @@ export function AutomationEditor({
             [
               { value: "schedule", label: t("triggerSchedule") },
               { value: "manual", label: t("triggerManual") },
+              ...(action === "launch_session"
+                ? [{ value: "message", label: t("triggerMessage") }]
+                : []),
             ] as Array<{ value: AutomationTriggerKind; label: string }>
           ).map((opt) => (
             <button
               key={opt.value}
               type="button"
               aria-pressed={trigger === opt.value}
-              onClick={() => setTrigger(opt.value)}
+              onClick={() => {
+                setTrigger(opt.value)
+                if (opt.value === "message") {
+                  setSessionMode("reuse_chat")
+                  setFolderId(null)
+                  setBranch("")
+                  setIsRemoteBranch(false)
+                }
+              }}
               className={cn(
                 "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                 trigger === opt.value
@@ -570,6 +683,13 @@ export function AutomationEditor({
             </button>
           ))}
         </div>
+
+        {trigger === "message" && (
+          <AutomationMessageSettings
+            value={messageTrigger}
+            onChange={setMessageTrigger}
+          />
+        )}
 
         {trigger === "schedule" ? (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">

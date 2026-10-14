@@ -159,11 +159,12 @@ describe("Sidebar — fixed nav region", () => {
     expect(getByText("New chat")).toBeTruthy()
   })
 
-  it("omits Tasks and Repository dashboard from sidebar navigation", () => {
-    const { queryByRole } = renderSidebar()
-    expect(
-      queryByRole("button", { name: enMessages.Folder.sidebar.tasks })
-    ).toBeNull()
+  it("opens Tasks and omits Repository dashboard from sidebar navigation", () => {
+    const { getByRole, queryByRole } = renderSidebar()
+    fireEvent.click(
+      getByRole("button", { name: enMessages.Folder.sidebar.tasks })
+    )
+    expect(spies.setRoute).toHaveBeenCalledWith("tasks")
     expect(
       queryByRole("button", { name: enMessages.Folder.sidebar.forge })
     ).toBeNull()

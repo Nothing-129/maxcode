@@ -1212,6 +1212,10 @@ fn conv_to_summary(r: conversation::Model) -> DbConversationSummary {
         status,
         kind: r.kind.clone(),
         model: r.model,
+        model_config: r
+            .model_config
+            .as_deref()
+            .and_then(|raw| serde_json::from_str(raw).ok()),
         git_branch: r.git_branch,
         external_id: r.external_id,
         message_count: r.message_count as u32,

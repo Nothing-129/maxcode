@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => {
   return {
     openProjectBootWindow: vi.fn(() => Promise.resolve()),
     setRoute: vi.fn(),
+    attentionCount: 3,
   }
 })
 
@@ -22,7 +23,7 @@ vi.mock("@/contexts/automations-view-context", () => ({
 }))
 
 vi.mock("@/contexts/tasks-view-context", () => ({
-  useTasksView: () => ({ attentionCount: 0 }),
+  useTasksView: () => ({ attentionCount: mocks.attentionCount }),
 }))
 
 vi.mock("@/contexts/workbench-route-context", () => ({
@@ -67,10 +68,12 @@ async function clickItem(name: string | RegExp) {
 // "Automations" carries a failure-count badge inside the row (2, per the mock),
 // so its accessible name is the label plus that number — matched by prefix.
 const AUTOMATIONS_ROW = /^Automations/
+const TASKS_ROW = new RegExp(`^${enMessages.Folder.sidebar.tasks}`)
 const FORGE_ROW = "Repository panel"
 
 beforeEach(() => {
   vi.clearAllMocks()
+  mocks.attentionCount = 3
 })
 
 describe("QuickActionsDropdown", () => {
@@ -85,6 +88,7 @@ describe("QuickActionsDropdown", () => {
       "Clone Repository",
       "Project Boot",
       AUTOMATIONS_ROW,
+      TASKS_ROW,
       FORGE_ROW,
     ]) {
       expect(await screen.findByRole("menuitem", { name: label })).toBeVisible()
@@ -116,7 +120,7 @@ describe("QuickActionsDropdown", () => {
   it("does not expose retired desktop features", async () => {
     await mountAndOpen()
 
-    // The remaining six still render, so this is a targeted removal rather
+    // The workspace and navigation rows still render, so this is a targeted removal rather
     // than the menu failing to open. The navigation rows in particular are
     // platform-neutral route switches and must survive off the desktop.
     expect(
@@ -139,6 +143,10 @@ describe("QuickActionsDropdown", () => {
     expect(mocks.setRoute).toHaveBeenCalledWith("automations")
 
     await reopen()
+    await clickItem(TASKS_ROW)
+    expect(mocks.setRoute).toHaveBeenCalledWith("tasks")
+
+    await reopen()
     await clickItem("Project Boot")
     expect(mocks.openProjectBootWindow).toHaveBeenCalled()
 
@@ -155,6 +163,21 @@ describe("QuickActionsDropdown", () => {
     await reopen()
     await clickItem("Clone Repository")
     expect(await screen.findByText("CLONE-DIALOG")).toBeVisible()
+  })
+
+  it("shows the attention count beside tasks", async () => {
+    await mountAndOpen()
+    expect(
+      within(screen.getByRole("menuitem", { name: TASKS_ROW })).getByText("3")
+    ).toBeVisible()
+  })
+
+  it("keeps tasks reachable with no attention badge", async () => {
+    mocks.attentionCount = 0
+    await mountAndOpen()
+    expect(
+      screen.getByRole("menuitem", { name: enMessages.Folder.sidebar.tasks })
+    ).toBeVisible()
   })
 })
 

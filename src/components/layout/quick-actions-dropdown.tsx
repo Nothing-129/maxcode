@@ -6,6 +6,7 @@ import {
   FolderOpenDot,
   GamepadDirectional,
   LayoutTemplate,
+  ListTodo,
   Map as MapIcon,
   Rocket,
   Zap,
@@ -21,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAutomationsView } from "@/contexts/automations-view-context"
+import { useTasksView } from "@/contexts/tasks-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { openProjectBootWindow } from "@/lib/api"
 import { CloneDialog } from "./clone-dialog"
@@ -54,6 +56,7 @@ export function QuickActionsDropdown() {
   const tSidebar = useTranslations("Folder.sidebar")
 
   const { unseenFailures } = useAutomationsView()
+  const { attentionCount } = useTasksView()
   const { setRoute } = useWorkbenchRoute()
 
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)
@@ -130,6 +133,15 @@ export function QuickActionsDropdown() {
             {unseenFailures > 0 && (
               <span className="inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
                 {unseenFailures}
+              </span>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => setRoute("tasks")}>
+            <ListTodo />
+            <span className="min-w-0 flex-1 truncate">{tSidebar("tasks")}</span>
+            {attentionCount > 0 && (
+              <span className="inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-primary/10 px-1 font-mono text-[0.625rem] font-medium leading-none text-primary">
+                {attentionCount}
               </span>
             )}
           </DropdownMenuItem>

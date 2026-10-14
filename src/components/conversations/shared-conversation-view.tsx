@@ -1,7 +1,7 @@
 "use client"
 /* eslint-disable @next/next/no-img-element -- shared snapshots carry data URLs that Next Image cannot optimize */
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { Bot, CalendarDays, Loader2, LockKeyhole } from "lucide-react"
 import { useTranslations } from "next-intl"
 
@@ -13,6 +13,13 @@ import {
 } from "@/components/ai-elements/reasoning"
 import { getAgentLabel } from "@/lib/custom-agents"
 import { readConversationShareToken } from "@/lib/conversation-share"
+import {
+  groupConversationShareRounds,
+  mergeShareTextBlocks,
+  splitShareUserText,
+  type ConversationShareRound,
+} from "@/lib/conversation-share-content"
+import { Button } from "@/components/ui/button"
 import type {
   ContentBlock,
   MessageTurn,
@@ -34,12 +41,11 @@ function Block({
   block: ContentBlock
   role: MessageTurn["role"]
 }) {
+  const t = useTranslations("Folder.conversationCard")
   switch (block.type) {
     case "text":
       return role === "user" ? (
-        <div className="whitespace-pre-wrap break-words text-sm">
-          {block.text}
-        </div>
+        <UserText text={block.text} />
       ) : (
         <div className="prose prose-sm max-w-none break-words dark:prose-invert">
           <MessageResponse linkMode="public">{block.text}</MessageResponse>
@@ -76,7 +82,7 @@ function Block({
                   block.is_error ? "text-destructive" : "text-muted-foreground"
                 )}
               >
-                {block.is_error ? "Tool error" : "Tool result"}
+                {block.is_error ? t("shareToolError") : t("shareToolResult")}
               </summary>
               <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">
                 {block.output_preview}
@@ -129,33 +135,79 @@ function Block({
   }
 }
 
-function Turn({ turn }: { turn: MessageTurn }) {
+function UserText({ text }: { text: string }) {
   const t = useTranslations("Folder.conversationCard")
-  const roleLabel =
-    turn.role === "user"
-      ? t("shareRoleUser")
-      : turn.role === "assistant"
-        ? t("shareRoleAssistant")
-        : t("shareRoleSystem")
+  const content = splitShareUserText(text)
   return (
-    <article
-      className={cn(
-        "space-y-2",
-        turn.role === "user" &&
-          "ml-auto max-w-[85%] rounded-2xl bg-secondary px-4 py-3"
-      )}
-    >
-      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-        <span>{roleLabel}</span>
-        <time dateTime={turn.timestamp}>
-          {new Date(turn.timestamp).toLocaleString()}
-        </time>
-      </div>
-      <div className="space-y-3">
-        {turn.blocks.map((block, index) => (
-          <Block key={index} block={block} role={turn.role} />
-        ))}
-      </div>
+    <div className="space-y-2 text-sm leading-7">
+      <div className="whitespace-pre-wrap break-words">{content.text}</div>
+      {content.metadata ? (
+        <details className="text-xs text-muted-foreground">
+          <summary className="cursor-pointer">
+            {t("shareSessionDetails")}
+          </summary>
+          <pre className="mt-2 whitespace-pre-wrap break-all font-sans">
+            {content.metadata}
+          </pre>
+        </details>
+      ) : null}
+    </div>
+  )
+}
+
+function SharedRound({ round }: { round: ConversationShareRound }) {
+  const t = useTranslations("Folder.conversationCard")
+  const [processOpen, setProcessOpen] = useState(false)
+  const replyBlocks = round.replies.flatMap((turn) => turn.blocks)
+  const isExecution = (block: ContentBlock) =>
+    ["tool_use", "tool_result", "thinking", "plan"].includes(block.type)
+  const process = replyBlocks.filter(isExecution)
+  const answer = mergeShareTextBlocks(
+    replyBlocks.filter((block) => !isExecution(block))
+  )
+  return (
+    <article className="min-w-0 space-y-6" data-share-round={round.number}>
+      {round.user ? (
+        <div className="ml-auto space-y-2 rounded-2xl bg-secondary px-4 py-3 md:max-w-[85%]">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+            <span className="font-medium">{t("shareRoleUser")}</span>
+            <time dateTime={round.user.timestamp}>
+              {new Date(round.user.timestamp).toLocaleString()}
+            </time>
+          </div>
+          {round.user.blocks.map((block, index) => (
+            <Block key={index} block={block} role="user" />
+          ))}
+        </div>
+      ) : null}
+      {answer.length || process.length ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+            <Bot className="size-3.5" />
+            {t("shareRoleAssistant")}
+          </div>
+          {answer.map((block, index) => (
+            <Block key={index} block={block} role="assistant" />
+          ))}
+          {process.length ? (
+            <details
+              className="rounded-xl border border-border/60 px-3 py-2 text-sm"
+              onToggle={(event) => setProcessOpen(event.currentTarget.open)}
+            >
+              <summary className="cursor-pointer text-muted-foreground">
+                {t("shareExecution", { count: process.length })}
+              </summary>
+              {processOpen ? (
+                <div className="mt-3 space-y-3">
+                  {process.map((block, index) => (
+                    <Block key={index} block={block} role="assistant" />
+                  ))}
+                </div>
+              ) : null}
+            </details>
+          ) : null}
+        </div>
+      ) : null}
     </article>
   )
 }
@@ -166,6 +218,40 @@ export function SharedConversationView() {
     null
   )
   const [error, setError] = useState(false)
+  const [visibleRounds, setVisibleRounds] = useState(10)
+  const rounds = useMemo(() => {
+    if (!snapshot) return []
+    const options = snapshot.version >= 2 ? snapshot.share_options : undefined
+    const turns = snapshot.turns
+      .map((turn) => ({
+        ...turn,
+        blocks: turn.blocks.flatMap((block): ContentBlock[] => {
+          if (block.type === "tool_result" && options?.includeTools !== true) {
+            return (block.images ?? []).map((image) => ({
+              type: "image",
+              data: image.data,
+              mime_type: image.mime_type,
+            }))
+          }
+          if (
+            block.type === "tool_use" ||
+            block.type === "tool_result" ||
+            block.type === "plan"
+          )
+            return options?.includeTools === true ? [block] : []
+          if (block.type === "thinking")
+            return options?.includeThinking === true ? [block] : []
+          if (
+            block.type === "image_generation" &&
+            options?.includeTools !== true
+          )
+            return [{ ...block, revised_prompt: null }]
+          return [block]
+        }),
+      }))
+      .filter((turn) => turn.blocks.length > 0)
+    return groupConversationShareRounds(turns)
+  }, [snapshot])
 
   useEffect(() => {
     const token = readConversationShareToken(window.location.hash)
@@ -224,9 +310,12 @@ export function SharedConversationView() {
   return (
     <main className="min-h-dvh bg-background text-foreground">
       <header className="sticky top-0 z-10 border-b bg-background/90 backdrop-blur">
-        <div className="mx-auto flex max-w-4xl items-start justify-between gap-4 px-5 py-4">
+        <div className="mx-auto flex max-w-3xl items-start justify-between gap-3 px-4 py-4 sm:px-6">
           <div className="min-w-0">
-            <h1 className="truncate text-lg font-semibold">
+            <p className="mb-1 text-[11px] font-medium tracking-wide text-muted-foreground">
+              MaxCode · {t("shareRoundCount", { count: rounds.length })}
+            </p>
+            <h1 className="line-clamp-2 text-base font-semibold sm:text-lg">
               {snapshot.title || t("untitledConversation")}
             </h1>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
@@ -247,10 +336,30 @@ export function SharedConversationView() {
           </span>
         </div>
       </header>
-      <div className="mx-auto max-w-4xl space-y-8 px-5 py-8">
-        {snapshot.turns.map((turn) => (
-          <Turn key={`${turn.role}-${turn.id}`} turn={turn} />
+      <div className="mx-auto max-w-3xl space-y-10 px-4 py-6 sm:px-6 sm:py-10">
+        {rounds.slice(0, visibleRounds).map((round) => (
+          <SharedRound key={round.number} round={round} />
         ))}
+        {rounds.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground">
+            {t("shareEmpty")}
+          </p>
+        ) : null}
+        {visibleRounds < rounds.length ? (
+          <div className="flex justify-center border-t pt-6">
+            <Button
+              variant="outline"
+              onClick={() => setVisibleRounds((count) => count + 10)}
+            >
+              {t("shareLoadMore", {
+                count: Math.min(10, rounds.length - visibleRounds),
+              })}
+            </Button>
+          </div>
+        ) : null}
+        <p className="border-t pt-6 text-center text-xs leading-5 text-muted-foreground">
+          {t("shareSnapshotHint")}
+        </p>
       </div>
     </main>
   )

@@ -37,6 +37,7 @@ import { useAutomationsView } from "@/contexts/automations-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
+import { MessageListenerPanel } from "./message-listener-panel"
 import { AutomationEditor } from "./automation-editor"
 import {
   templateToDraft,
@@ -96,6 +97,7 @@ import {
   automationDelete,
   automationMarkSeen,
   automationRunNow,
+  getFolderConversation,
   automationRuns,
   automationSetEnabled,
   automationUpdate,
@@ -1060,7 +1062,10 @@ function AutomationDetail({
           <div className="flex gap-2">
             <Button
               size="sm"
-              className="h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]"
+              className={cn(
+                "h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]",
+                automation.trigger_kind === "message" && "hidden"
+              )}
               onClick={() => run(() => automationRunNow(automation.id))}
               disabled={busy}
             >
@@ -1092,6 +1097,8 @@ function AutomationDetail({
                     {automation.cron}
                   </span>
                 </span>
+              ) : automation.trigger_kind === "message" ? (
+                t("triggerMessage")
               ) : (
                 t("manual")
               )}
@@ -1109,9 +1116,18 @@ function AutomationDetail({
                 {labels?.agent_label ?? automation.agent_type}
               </span>
             </StatItem>
+            {config?.action !== "enqueue_task" && (
+              <StatItem icon={<Clock />} label={t("sessionMode")}>
+                {config?.session_mode === "reuse_chat"
+                  ? t("sessionReuse")
+                  : t("sessionNew")}
+              </StatItem>
+            )}
             <StatItem icon={<Folder />} label={t("folder")}>
               <span className="block truncate">
-                {labels?.folder_label ?? folderName}
+                {automation.root_folder_id == null
+                  ? t("targetChat")
+                  : (labels?.folder_label ?? folderName)}
               </span>
             </StatItem>
             {config?.action === "enqueue_task" ? (
@@ -1120,7 +1136,7 @@ function AutomationDetail({
               <StatItem icon={<SquareKanban />} label={t("sectionAction")}>
                 {t("actionEnqueueTask")}
               </StatItem>
-            ) : (
+            ) : automation.root_folder_id != null ? (
               <StatItem icon={<GitBranch />} label={t("isolation")}>
                 <span className="block">
                   {automation.isolation === "worktree_per_run"
@@ -1134,7 +1150,7 @@ function AutomationDetail({
                   ) : null}
                 </span>
               </StatItem>
-            )}
+            ) : null}
             {isSchedule ? (
               <StatItem icon={<Clock />} label={t("nextRun")}>
                 {automation.next_run_at
@@ -1171,6 +1187,14 @@ function AutomationDetail({
             ) : null}
           </div>
         </Section>
+
+        {automation.trigger_kind === "message" && (
+          <MessageListenerPanel
+            automation={automation}
+            busy={busy}
+            onRun={() => run(() => automationRunNow(automation.id))}
+          />
+        )}
 
         <Section title={t("sectionPrompt")}>
           <p className="whitespace-pre-wrap text-sm text-foreground/90">
@@ -1240,15 +1264,23 @@ function RunHistory({
     }
   }, [load])
 
-  const viewConversation = (r: AutomationRun) => {
-    // Worktree runs live in their own folder; shared runs in the automation's
-    // root. Bail rather than open folderId 0 (a structurally broken tab) if
-    // neither resolves. openConversations() also covers re-selecting the
-    // already-active tab, which wouldn't change activeTabId.
-    const folderId = r.worktree_folder_id ?? automation.root_folder_id
-    if (r.conversation_id == null || folderId == null) return
-    openConversations()
-    openTab(folderId, r.conversation_id, automation.agent_type)
+  const viewConversation = async (r: AutomationRun) => {
+    if (r.conversation_id == null) return
+    try {
+      // Chat runs own a hidden folder. Resolve it from the conversation so
+      // history remains navigable after a reload or a target change.
+      const detail = await getFolderConversation(r.conversation_id, {
+        tailTurns: 1,
+      })
+      openConversations()
+      openTab(
+        detail.summary.folder_id,
+        r.conversation_id,
+        automation.agent_type
+      )
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e))
+    }
   }
 
   const cancel = async (r: AutomationRun) => {

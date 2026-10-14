@@ -9,8 +9,8 @@
 //! - Authentication matrix on a representative protected endpoint
 //! - Public endpoint (`get_system_language_settings`) reachable without token
 //! - DB-backed endpoints (`load_folder_history`, `list_open_folders`) return
-//!   the expected JSON shape. `list_folders` is NOT one of them — it parses
-//!   the real home directory and ignores the test DB entirely.
+//!   the expected JSON shape. Authentication probes use `list_open_folders`,
+//!   keeping them isolated from the real home directory scanned by `list_folders`.
 //!
 //! WebSocket attach is covered separately by the WebSocket integration tests.
 
@@ -52,7 +52,7 @@ async fn build_test_server() -> (TestServer, tempfile::TempDir, tempfile::TempDi
 #[tokio::test]
 async fn protected_endpoint_rejects_missing_token() {
     let (server, _data, _static) = build_test_server().await;
-    let resp = server.post("/api/list_folders").json(&json!({})).await;
+    let resp = server.post("/api/list_open_folders").json(&json!({})).await;
     assert_eq!(resp.status_code(), 401);
 }
 
@@ -60,7 +60,7 @@ async fn protected_endpoint_rejects_missing_token() {
 async fn protected_endpoint_rejects_wrong_token() {
     let (server, _data, _static) = build_test_server().await;
     let resp = server
-        .post("/api/list_folders")
+        .post("/api/list_open_folders")
         .add_header("authorization", "Bearer wrong-token")
         .json(&json!({}))
         .await;
@@ -71,7 +71,7 @@ async fn protected_endpoint_rejects_wrong_token() {
 async fn protected_endpoint_accepts_correct_token() {
     let (server, _data, _static) = build_test_server().await;
     let resp = server
-        .post("/api/list_folders")
+        .post("/api/list_open_folders")
         .add_header("authorization", format!("Bearer {TEST_TOKEN}"))
         .json(&json!({}))
         .await;

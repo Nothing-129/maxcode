@@ -11,6 +11,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import enMessages from "@/i18n/messages/en.json"
 import {
   automationRunNow,
+  automationRuns,
+  getFolderConversation,
   automationSetEnabled,
   automationDelete,
 } from "@/lib/api"
@@ -21,6 +23,7 @@ import {
 } from "@/stores/app-workspace-store"
 
 // ── Context + side-effect mocks ────────────────────────────────────────────
+const openTab = vi.fn()
 const refetch = vi.fn().mockResolvedValue(undefined)
 let automations: Automation[] = []
 
@@ -31,7 +34,7 @@ vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({ openConversations: vi.fn() }),
 }))
 vi.mock("@/contexts/tab-context", () => ({
-  useTabActions: () => ({ openTab: vi.fn() }),
+  useTabActions: () => ({ openTab }),
 }))
 vi.mock("@/lib/platform", () => ({
   subscribe: vi.fn().mockResolvedValue(() => {}),
@@ -46,6 +49,7 @@ vi.mock("@/lib/api", () => ({
   automationSetEnabled: vi.fn(),
   automationCancelRun: vi.fn(),
   automationRuns: vi.fn().mockResolvedValue([]),
+  getFolderConversation: vi.fn(),
 }))
 
 // Stub the heavy editor (AgentSelector / config probing) — surface only the
@@ -308,5 +312,63 @@ describe("AutomationsPage (master-detail)", () => {
       screen.getByRole("button", { name: enMessages.Automations.edit })
     )
     expect(screen.getByTestId("editor-name")).toHaveTextContent("Nightly sweep")
+  })
+})
+
+describe("Chat automation history", () => {
+  it("shows Chat and opens the run's hidden folder after reloading", async () => {
+    automations = [{ ...FIXTURE, root_folder_id: null, branch: null }]
+    vi.mocked(automationRuns).mockResolvedValueOnce([
+      {
+        id: 1,
+        automation_id: 7,
+        status: "succeeded",
+        trigger: "manual",
+        conversation_id: 42,
+        worktree_folder_id: null,
+        scheduled_for: null,
+        started_at: null,
+        ended_at: null,
+        stop_reason: null,
+        error: null,
+        summary: null,
+        created_at: "2026-10-13T09:00:00Z",
+      },
+    ])
+    vi.mocked(getFolderConversation).mockResolvedValueOnce({
+      summary: {
+        id: 42,
+        folder_id: 99,
+        title: "Chat run",
+        title_locked: true,
+        agent_type: "claude_code",
+        status: "completed",
+        kind: "chat",
+        model: null,
+        git_branch: null,
+        external_id: null,
+        message_count: 1,
+        child_count: 0,
+        created_at: "2026-10-13T09:00:00Z",
+        updated_at: "2026-10-13T09:00:00Z",
+        pinned_at: null,
+      },
+      turns: [],
+    })
+    renderPage()
+    expect(
+      screen.getByText(enMessages.Automations.targetChat)
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByText(enMessages.Automations.isolation)
+    ).not.toBeInTheDocument()
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: enMessages.Automations.viewConversation,
+      })
+    )
+    await waitFor(() =>
+      expect(openTab).toHaveBeenCalledWith(99, 42, "claude_code")
+    )
   })
 })

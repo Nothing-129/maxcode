@@ -1,6 +1,10 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { loadSortMode, loadShowRecent } from "@/lib/sidebar-view-mode-storage"
+import {
+  loadSortMode,
+  loadShowRecent,
+  loadNavItemVisibility,
+} from "@/lib/sidebar-view-mode-storage"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Ref } from "react"
@@ -47,6 +51,9 @@ const spies = vi.hoisted(() => ({
 const mockState = vi.hoisted(() => ({
   activeFolder: { id: 7, path: "/x" } as { id: number; path: string } | null,
   isMobile: false,
+  isCoarsePointer: false,
+  attentionCount: 0,
+  routeId: "conversations",
 }))
 
 // The conversation list is irrelevant here, but the stub still fulfils the imperative
@@ -100,13 +107,13 @@ vi.mock("@/contexts/automations-view-context", () => ({
 vi.mock("@/contexts/tasks-view-context", () => ({
   useTasksView: () => ({
     tasks: [],
-    attentionCount: 0,
+    attentionCount: mockState.attentionCount,
     refetch: async () => {},
   }),
 }))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({
-    routeId: "conversations",
+    routeId: mockState.routeId,
     isConversations: true,
     setRoute: spies.setRoute,
     openConversations: spies.openConversations,
@@ -120,6 +127,9 @@ vi.mock("@/hooks/use-shortcut-settings", () => ({
 }))
 vi.mock("@/hooks/use-mobile", () => ({
   useIsMobile: () => mockState.isMobile,
+}))
+vi.mock("@/hooks/use-is-coarse-pointer", () => ({
+  useIsCoarsePointer: () => mockState.isCoarsePointer,
 }))
 vi.mock("@/hooks/use-appearance", () => ({
   useZoomLevel: () => ({ zoomLevel: 100, setZoomLevel: () => {} }),
@@ -151,6 +161,11 @@ describe("sidebar tools beside search", () => {
     resetConversationUnreadStore()
     spies.scrollToActive.mockClear()
     mockState.isMobile = false
+    mockState.isCoarsePointer = false
+    mockState.attentionCount = 0
+    mockState.routeId = "conversations"
+    spies.setRoute.mockClear()
+    spies.toggleSidebar.mockClear()
   })
 
   it("groups search, locate and overflow in that order and locates the active conversation", () => {
@@ -169,6 +184,49 @@ describe("sidebar tools beside search", () => {
     expect(
       screen.queryByRole("button", { name: "Mark all as read" })
     ).toBeNull()
+  })
+
+  it.each([
+    [false, false, false],
+    [true, false, true],
+    [false, true, true],
+  ])(
+    "opens tasks and collapses touch navigation (mobile %s, coarse %s)",
+    (mobile, coarse, shouldCollapse) => {
+      mockState.isMobile = mobile
+      mockState.isCoarsePointer = coarse
+      mockState.attentionCount = 2
+      mockState.routeId = "tasks"
+      renderSidebar()
+      const tasks = screen.getByTitle(enMessages.Folder.sidebar.tasks)
+      expect(tasks).toHaveAttribute("aria-current", "page")
+      expect(within(tasks).getByText("2")).toBeVisible()
+      fireEvent.click(tasks)
+      expect(spies.setRoute).toHaveBeenCalledWith("tasks")
+      expect(spies.toggleSidebar).toHaveBeenCalledTimes(shouldCollapse ? 1 : 0)
+    }
+  )
+
+  it("lets users hide and restore tasks through navigation preferences", async () => {
+    const user = userEvent.setup()
+    renderSidebar()
+    expect(screen.getByTitle(enMessages.Folder.sidebar.tasks)).toBeVisible()
+    await user.click(screen.getByRole("button", { name: "View options" }))
+    await user.hover(
+      screen.getByRole("menuitem", {
+        name: enMessages.Folder.sidebar.navigationItems,
+      })
+    )
+    const toggle = await screen.findByRole("menuitemcheckbox", {
+      name: enMessages.Folder.sidebar.tasks,
+    })
+    act(() => toggle.focus())
+    await user.keyboard("{Enter}")
+    expect(screen.queryByTitle(enMessages.Folder.sidebar.tasks)).toBeNull()
+    expect(loadNavItemVisibility()).toEqual({ tasks: false })
+    await user.keyboard("{Enter}")
+    expect(screen.getByTitle(enMessages.Folder.sidebar.tasks)).toBeVisible()
+    expect(loadNavItemVisibility()).toEqual({ tasks: true })
   })
 
   it("right-aligns desktop tools in the top row after a draggable flexible spacer", () => {

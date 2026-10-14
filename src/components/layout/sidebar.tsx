@@ -13,6 +13,7 @@ import {
   Menu,
   ListChevronsDownUp,
   ListChevronsUpDown,
+  ListTodo,
   Search,
   Zap,
 } from "lucide-react"
@@ -26,6 +27,7 @@ import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useAutomationsView } from "@/contexts/automations-view-context"
+import { useTasksView } from "@/contexts/tasks-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import {
   SidebarConversationList,
@@ -113,7 +115,7 @@ function SidebarNavButton({
   active,
   trailing,
 }: {
-  icon: "compose" | "clock"
+  icon: "compose" | "clock" | "tasks"
   label: string
   onClick: () => void
   active?: boolean
@@ -152,6 +154,7 @@ export function Sidebar() {
   const { activeFolder } = useActiveFolder()
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
+  const { attentionCount } = useTasksView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
@@ -434,6 +437,14 @@ export function Sidebar() {
                 <Zap className="text-muted-foreground" />
                 {t("automations")}
               </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={isNavItemVisible(navItems, "tasks")}
+                onCheckedChange={(value) => handleSetNavItem("tasks", value)}
+                onSelect={(event) => event.preventDefault()}
+              >
+                <ListTodo className="text-muted-foreground" />
+                {t("tasks")}
+              </DropdownMenuCheckboxItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSeparator />
@@ -526,7 +537,7 @@ export function Sidebar() {
           }
         />
         {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
-        {/* Automations respects the saved visibility preference and closes the
+        {/* Route navigation respects the saved visibility preference and closes the
             sidebar after navigation on touch layouts. */}
         {isNavItemVisible(navItems, "automations") && (
           <SidebarNavButton
@@ -541,6 +552,24 @@ export function Sidebar() {
               unseenFailures > 0 ? (
                 <span className="ml-auto inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
                   {unseenFailures}
+                </span>
+              ) : null
+            }
+          />
+        )}
+        {isNavItemVisible(navItems, "tasks") && (
+          <SidebarNavButton
+            icon="tasks"
+            label={t("tasks")}
+            active={routeId === "tasks"}
+            onClick={() => {
+              if (collapseOnNavigate) toggle()
+              setRoute("tasks")
+            }}
+            trailing={
+              attentionCount > 0 ? (
+                <span className="ml-auto inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-primary/10 px-1 font-mono text-[0.625rem] font-medium leading-none text-primary">
+                  {attentionCount}
                 </span>
               ) : null
             }

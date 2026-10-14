@@ -54,6 +54,10 @@ pub fn build_router(
             post(handlers::conversation_share::create_conversation_share),
         )
         .route(
+            "/get_conversation_share_preview",
+            post(handlers::conversation_share::get_conversation_share_preview),
+        )
+        .route(
             "/revoke_conversation_share",
             post(handlers::conversation_share::revoke_conversation_share),
         )
@@ -1394,6 +1398,8 @@ pub fn build_router(
             post(handlers::quick_messages::quick_messages_reorder),
         )
         // ─── Automations ───
+        .route("/automation_listener_status", post(handlers::automation::automation_listener_status))
+        .route("/automation_restart_listener", post(handlers::automation::automation_restart_listener))
         .route(
             "/automation_list",
             post(handlers::automation::automation_list),

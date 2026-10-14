@@ -74,11 +74,7 @@ export function useOptionalWorkbenchRoute(): WorkbenchRouteContextValue | null {
 export function WorkbenchRouteProvider({ children }: { children: ReactNode }) {
   const [routeId, setRouteId] = useState<WorkbenchRouteId>("conversations")
 
-  // Retired task links must not leave the conversation surface hidden.
-  const setRoute = useCallback(
-    (id: WorkbenchRouteId) => setRouteId(id === "tasks" ? "conversations" : id),
-    []
-  )
+  const setRoute = useCallback((id: WorkbenchRouteId) => setRouteId(id), [])
   const openConversations = useCallback(() => setRouteId("conversations"), [])
 
   const value = useMemo<WorkbenchRouteContextValue>(

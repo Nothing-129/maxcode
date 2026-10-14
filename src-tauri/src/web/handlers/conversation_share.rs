@@ -19,17 +19,29 @@ pub struct ConversationIdParams {
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateConversationShareParams {
+    pub conversation_id: i32,
+    #[serde(default)]
+    pub options: share_commands::ConversationShareOptions,
+}
+
+#[derive(Deserialize)]
 pub struct SharedConversationParams {
     pub token: String,
 }
 
 pub async fn create_conversation_share(
     Extension(state): Extension<Arc<AppState>>,
-    Json(params): Json<ConversationIdParams>,
+    Json(params): Json<CreateConversationShareParams>,
 ) -> Result<Json<share_commands::ConversationShareInfo>, AppCommandError> {
     Ok(Json(
-        share_commands::create_conversation_share_core(&state.db.conn, params.conversation_id)
-            .await?,
+        share_commands::create_conversation_share_core(
+            &state.db.conn,
+            params.conversation_id,
+            params.options,
+        )
+        .await?,
     ))
 }
 
@@ -39,6 +51,16 @@ pub async fn revoke_conversation_share(
 ) -> Result<Json<serde_json::Value>, AppCommandError> {
     share_commands::revoke_conversation_share_core(&state.db.conn, params.conversation_id).await?;
     Ok(Json(serde_json::json!(null)))
+}
+
+pub async fn get_conversation_share_preview(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<ConversationIdParams>,
+) -> Result<Json<share_commands::ConversationSharePreview>, AppCommandError> {
+    Ok(Json(
+        share_commands::get_conversation_share_preview_core(&state.db.conn, params.conversation_id)
+            .await?,
+    ))
 }
 
 /// Public capability endpoint. POST is intentional: the share token lives in

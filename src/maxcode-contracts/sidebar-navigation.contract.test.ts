@@ -8,7 +8,7 @@ describe("sidebar navigation scope", () => {
     expect(zhCN.Folder.sidebar.automations).toBe("自动任务")
   })
 
-  it("uses 14px labels at default zoom for both navigation actions", () => {
+  it("uses 14px labels at default zoom for navigation actions", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     const navButton = sidebar.slice(
       sidebar.indexOf("function SidebarNavButton("),
@@ -39,12 +39,12 @@ describe("sidebar navigation scope", () => {
     )
   })
 
-  it("excludes tasks and repository dashboard regardless of saved visibility", () => {
+  it("restores tasks while keeping repository dashboard out of the sidebar", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
-    for (const route of ["tasks", "forge"]) {
-      expect(sidebar).not.toContain(`label={t("${route}")}`)
-      expect(sidebar).not.toContain(`setRoute("${route}")`)
-    }
+    expect(sidebar).not.toContain('label={t("forge")}')
+    expect(sidebar).not.toContain('setRoute("forge")')
+    expect(sidebar).toContain('label={t("tasks")}')
+    expect(sidebar).toContain('setRoute("tasks")')
     expect(sidebar).toContain('label={t("newChat")}')
     expect(sidebar).toContain('label={t("automations")}')
     expect(sidebar).toContain("<SidebarConversationList")

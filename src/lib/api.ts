@@ -21,6 +21,7 @@ import type {
   Automation,
   AutomationRun,
   AutomationDraft,
+  AutomationListenerInfo,
   DeepSeekCatalogModel,
   DeepSeekModelCatalog,
   ForgeChangeDetail,
@@ -2277,15 +2278,38 @@ export async function getFolderConversationTurns(
 }
 
 export interface ConversationShareInfo {
+  version: number
   token: string
   shared_at: string
 }
 
+export interface ConversationShareRoundPreview {
+  number: number
+  preview: string
+}
+
+/** Authenticated preview also verifies that the server supports content selection. */
+export async function getConversationSharePreview(
+  conversationId: number
+): Promise<{
+  version: number
+  rounds: ConversationShareRoundPreview[]
+  active_share: boolean
+}> {
+  return getTransport().call("get_conversation_share_preview", {
+    conversationId,
+  })
+}
+
 /** Create or refresh the immutable snapshot behind a conversation's link. */
 export async function createConversationShare(
-  conversationId: number
+  conversationId: number,
+  options: import("./types").ConversationShareOptions = {}
 ): Promise<ConversationShareInfo> {
-  return getTransport().call("create_conversation_share", { conversationId })
+  return getTransport().call("create_conversation_share", {
+    conversationId,
+    options,
+  })
 }
 
 /** Burn the active capability token; an old link can never be re-enabled. */
@@ -5532,4 +5556,13 @@ export function acpAgentAutoUpdateStatus(
   agentType: AgentType
 ): Promise<AgentAutoUpdateStatus> {
   return getTransport().call("acp_agent_auto_update_status", { agentType })
+}
+
+export async function automationListenerStatus(
+  id: number
+): Promise<AutomationListenerInfo> {
+  return getTransport().call("automation_listener_status", { id })
+}
+export async function automationRestartListener(id: number): Promise<void> {
+  return getTransport().call("automation_restart_listener", { id })
 }

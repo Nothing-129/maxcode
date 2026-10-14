@@ -824,6 +824,9 @@ async fn cleanup_children(state: &AppState) {
         state.chat_channel_manager.stop_all(),
     )
     .await;
+    if let Some(engine) = codeg_lib::automation::engine() {
+        engine.listeners.stop_all().await;
+    }
     state.terminal_manager.kill_all();
     codeg_lib::office_watch::stop_all_office_watches();
     // A connection being established holds a read lock while waiting for its

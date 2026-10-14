@@ -16,8 +16,8 @@ pub mod work_task;
 
 pub use agent::AgentType;
 pub use automation::{
-    AutomationAction, AutomationConfig, AutomationDraft, AutomationInfo, AutomationRunInfo,
-    AutomationRunStatus, IsolationMode, TriggerKind,
+    AutomationAction, AutomationConfig, AutomationDraft, AutomationInfo, AutomationListenerInfo,
+    AutomationRunInfo, AutomationRunStatus, IsolationMode, TriggerKind,
 };
 pub use canvas::{CanvasMutation, CanvasNode, CanvasSnapshot};
 #[allow(unused_imports)]

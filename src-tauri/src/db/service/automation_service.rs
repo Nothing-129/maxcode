@@ -193,6 +193,44 @@ fn validate_draft(draft: &AutomationDraft) -> Result<(), DbError> {
             "a target folder is required to enqueue tasks".into(),
         ));
     }
+    if cfg.session_mode == crate::models::automation::AutomationSessionMode::ReuseChat
+        && (draft.root_folder_id.is_some()
+            || cfg.action != crate::models::AutomationAction::LaunchSession)
+    {
+        return Err(DbError::Validation(
+            "reusing a session requires a chat target".into(),
+        ));
+    }
+    if draft.trigger_kind == TriggerKind::Message {
+        if cfg.session_mode != crate::models::automation::AutomationSessionMode::ReuseChat {
+            return Err(DbError::Validation(
+                "message listeners require a reusable chat".into(),
+            ));
+        }
+        let source = cfg.message_trigger.as_ref().ok_or_else(|| {
+            DbError::Validation("message listener configuration is required".into())
+        })?;
+        use crate::models::automation::AutomationMessageScope;
+        if matches!(
+            source.scope,
+            AutomationMessageScope::Sender | AutomationMessageScope::Group
+        ) && source.target.trim().is_empty()
+        {
+            return Err(DbError::Validation(
+                "a sender or group target is required".into(),
+            ));
+        }
+        if source.profile.contains(',') {
+            return Err(DbError::Validation(
+                "choose a single DingTalk account for each listener".into(),
+            ));
+        }
+        if source.batch_minutes > 1440 {
+            return Err(DbError::Validation(
+                "message batching must be within one day".into(),
+            ));
+        }
+    }
     // A remote branch is resolved by minting a per-run worktree that tracks it;
     // it can't be checked out in the shared root tree (the engine would refuse
     // at fire time). Reject the combination at save so the misconfiguration
@@ -312,6 +350,30 @@ pub async fn update(
 ) -> Result<AutomationInfo, DbError> {
     validate_draft(&draft)?;
     let row = find_active(conn, id).await?;
+    let old_cfg: AutomationConfig = serde_json::from_str(&row.config).unwrap_or_default();
+    let new_cfg: AutomationConfig =
+        serde_json::from_value(draft.config.clone()).unwrap_or_default();
+    if row.trigger_kind == TriggerKind::Message {
+        if let Some(old_source) = &old_cfg.message_trigger {
+            let old_key = crate::automation::messages::source_key(old_source);
+            let new_key = new_cfg
+                .message_trigger
+                .as_ref()
+                .map(crate::automation::messages::source_key);
+            if draft.trigger_kind != TriggerKind::Message
+                || new_key.as_deref() != Some(old_key.as_str())
+            {
+                let (pending, _) =
+                    super::automation_runtime_service::queue_status(conn, id, &old_key).await?;
+                if pending > 0 {
+                    return Err(DbError::Validation(
+                        "process pending messages before changing the listener scope or trigger"
+                            .into(),
+                    ));
+                }
+            }
+        }
+    }
     let now = Utc::now();
     let next_run_at = next_run_for(&draft, now)?;
     let config_str = serde_json::to_string(&draft.config)

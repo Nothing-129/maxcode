@@ -46,6 +46,7 @@ mod m20260830_000001_canvas_node;
 mod m20260831_000001_canvas_node_group_grid;
 mod m20260831_000001_conversation_share;
 mod m20261012_000001_conversation_model_config;
+mod m20261013_000001_automation_message;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -98,6 +99,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260831_000001_conversation_share::Migration),
             Box::new(m20260831_000001_canvas_node_group_grid::Migration),
             Box::new(m20261012_000001_conversation_model_config::Migration),
+            Box::new(m20261013_000001_automation_message::Migration),
         ]
     }
 }

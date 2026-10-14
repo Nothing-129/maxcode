@@ -51,6 +51,10 @@ async fn history_keeps_its_own_pair_across_database_reopen_and_other_conversatio
     save_model_config(&db.conn, second, &pair("gpt-6.1-sol", "high"))
         .await
         .unwrap();
+    let summary = conversation_service::get_by_id(&db.conn, first).await.unwrap();
+    let json = serde_json::to_value(&summary).unwrap();
+    assert_eq!(json["model_config"]["model"], "gpt-5.6");
+    assert_eq!(json["model_config"]["reasoning_effort"], "medium");
     // Reading preferences alone must work with no agent process or browser storage.
     db.conn.close().await.unwrap();
     let reopened = sea_orm::Database::connect(format!(

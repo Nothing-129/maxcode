@@ -4,15 +4,16 @@ import { SidebarNavigationIcon } from "@/components/layout/sidebar-navigation-ic
 import { source } from "./contract-source"
 
 describe("sidebar reference icons", () => {
-  it("renders thin decorative compose and clock drawings", () => {
+  it("renders thin decorative compose, clock and task drawings", () => {
     const { container } = render(
       <>
         <SidebarNavigationIcon name="compose" />
         <SidebarNavigationIcon name="clock" />
+        <SidebarNavigationIcon name="tasks" />
       </>
     )
     const icons = container.querySelectorAll("svg")
-    expect(icons).toHaveLength(2)
+    expect(icons).toHaveLength(3)
     for (const icon of icons) {
       expect(icon.getAttribute("stroke-width")).toBe("1.25")
       expect(icon.getAttribute("aria-hidden")).toBe("true")
@@ -26,6 +27,7 @@ describe("sidebar reference icons", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     expect(sidebar).toContain('icon="compose"')
     expect(sidebar).toContain('icon="clock"')
+    expect(sidebar).toContain('icon="tasks"')
     const folders = source(
       "src/components/conversations/sidebar-conversation-list.tsx"
     )

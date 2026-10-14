@@ -119,3 +119,38 @@ pub async fn automation_cancel_run_core(run_id: i32) -> Result<(), DbError> {
         .ok_or_else(|| DbError::Validation("automation engine not running".to_string()))?;
     engine.cancel_run(run_id).await.map_err(DbError::Validation)
 }
+
+pub async fn automation_listener_status_core(
+    db: &AppDatabase,
+    id: i32,
+) -> Result<crate::models::AutomationListenerInfo, DbError> {
+    let auto = automation_service::get(&db.conn, id).await?;
+    if let Some(engine) = crate::automation::engine() {
+        return engine
+            .listeners
+            .status(db, &auto)
+            .await
+            .map_err(DbError::Validation);
+    }
+    Ok(crate::models::AutomationListenerInfo {
+        state: "stopped".into(),
+        ..Default::default()
+    })
+}
+pub async fn automation_restart_listener_core(
+    db: &AppDatabase,
+    emitter: &EventEmitter,
+    id: i32,
+) -> Result<(), DbError> {
+    let auto = automation_service::get(&db.conn, id).await?;
+    if !auto.enabled || auto.trigger_kind != crate::models::TriggerKind::Message {
+        return Err(DbError::Validation(
+            "enable a message automation before restarting its listener".into(),
+        ));
+    }
+    let engine = crate::automation::engine()
+        .ok_or_else(|| DbError::Validation("automation engine not running".into()))?;
+    engine.listeners.restart(id).await;
+    engine.listeners.sync(db, emitter).await;
+    Ok(())
+}

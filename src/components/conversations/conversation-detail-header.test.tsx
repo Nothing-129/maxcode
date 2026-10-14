@@ -18,10 +18,20 @@ const h = vi.hoisted(() => ({
   updateConversationStatus: vi.fn(async () => {}),
   updateConversationPinned: vi.fn(async () => {}),
   createConversationShare: vi.fn(async () => ({
+    version: 2,
     token: "0123456789abcdef0123456789abcdef",
     shared_at: "2026-08-31T00:00:00Z",
   })),
   revokeConversationShare: vi.fn(async () => {}),
+  sharePreview: {
+    version: 2,
+    rounds: [
+      { number: 1, preview: "First question" },
+      { number: 2, preview: "Second question" },
+    ],
+    active_share: false,
+  },
+  getConversationSharePreview: vi.fn(async () => h.sharePreview),
   webServiceConfig: {
     token: "server-token",
     port: 3080,
@@ -55,6 +65,12 @@ const h = vi.hoisted(() => ({
   openNewConversationTab: vi.fn(),
   updateConversationLocal: vi.fn(),
   refreshConversations: vi.fn(),
+  activeTabId: "tab-a",
+  tabs: [{ id: "tab-a", conversationId: 1 }] as {
+    id: string
+    conversationId: number | null
+  }[],
+  isConversations: true,
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -65,6 +81,7 @@ vi.mock("@/lib/api", () => ({
   createConversationShare: h.createConversationShare,
   revokeConversationShare: h.revokeConversationShare,
   getWebServiceConfig: h.getWebServiceConfig,
+  getConversationSharePreview: h.getConversationSharePreview,
   updateWebServiceConfig: h.updateWebServiceConfig,
   getWebServerStatus: h.getWebServerStatus,
   startWebServer: h.startWebServer,
@@ -75,8 +92,18 @@ vi.mock("@/lib/transport", () => ({
   isRemoteDesktopMode: () => false,
 }))
 vi.mock("@/contexts/tab-context", () => ({
-  useTabStore: (selector: (s: { archivedPaneDrafts: unknown[] }) => unknown) =>
-    selector({ archivedPaneDrafts: [] }),
+  useTabStore: (
+    selector: (s: {
+      archivedPaneDrafts: unknown[]
+      tabs: typeof h.tabs
+      activeTabId: string
+    }) => unknown
+  ) =>
+    selector({
+      archivedPaneDrafts: [],
+      tabs: h.tabs,
+      activeTabId: h.activeTabId,
+    }),
   useTabActions: () => ({
     closeTab: h.closeTab,
     closePane: vi.fn(),
@@ -92,6 +119,34 @@ vi.mock("@/hooks/use-conversation-drag", () => ({
 // exercise rename/delete targeting, so a bare stub context is enough.
 vi.mock("@/contexts/sidebar-context", () => ({
   useSidebarContext: () => ({ isOpen: true, toggle: vi.fn(), close: vi.fn() }),
+}))
+vi.mock("@/contexts/active-folder-context", () => ({
+  useActiveFolder: () => ({ activeFolder: { id: 1, path: "/a" } }),
+}))
+vi.mock("@/hooks/use-is-active-chat-mode", () => ({
+  useIsActiveChatMode: () => false,
+}))
+vi.mock("@/contexts/aux-panel-context", () => ({
+  useAuxPanelContext: () => ({ toggle: vi.fn() }),
+}))
+vi.mock("@/contexts/terminal-context", () => ({
+  useTerminalContext: () => ({ toggle: vi.fn() }),
+}))
+vi.mock("@/contexts/search-dialog-context", () => ({
+  useSearchDialog: () => ({ setOpen: vi.fn() }),
+}))
+vi.mock("@/contexts/workbench-route-context", () => ({
+  useWorkbenchRoute: () => ({
+    isConversations: h.isConversations,
+    openConversations: vi.fn(),
+  }),
+}))
+vi.mock("@/components/workbench/workbench-content", () => ({
+  WorkbenchRouteChromeActions: () => null,
+}))
+vi.mock("@/components/layout/mobile-frontend-refresh", () => ({
+  MobileFrontendRefresh: () => null,
+  MobileFrontendRefreshItem: () => null,
 }))
 vi.mock("@/stores/app-workspace-store", () => {
   const state = {
@@ -116,6 +171,7 @@ vi.mock("@/components/chat/conversation-context-bar", () => ({
 }))
 
 import { ConversationDetailHeader } from "./conversation-detail-header"
+import { FolderTitleBar } from "@/components/layout/folder-title-bar"
 
 type Props = ComponentProps<typeof ConversationDetailHeader>
 
@@ -146,12 +202,163 @@ function withIntl(ui: ReactElement) {
 describe("ConversationDetailHeader dialog target snapshot", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    h.activeTabId = "tab-a"
+    h.tabs = [{ id: "tab-a", conversationId: 1 }]
+    h.isConversations = true
+    h.sharePreview = {
+      version: 2,
+      rounds: [
+        { number: 1, preview: "First question" },
+        { number: 2, preview: "Second question" },
+      ],
+      active_share: false,
+    }
     h.webServiceConfig = {
       token: "server-token",
       port: 3080,
       autoStart: false,
       publicShareUrl: null,
     }
+  })
+
+  it("shares the active conversation from the mobile tools menu with other panes mounted", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
+    h.tabs.push({ id: "tab-b", conversationId: 2 })
+    h.activeTabId = "tab-b"
+    const { rerender, getByRole, findByLabelText, getAllByRole } = render(
+      withIntl(
+        <>
+          <FolderTitleBar />
+          <ConversationDetailHeader {...A} />
+          <ConversationDetailHeader {...B} />
+        </>
+      )
+    )
+
+    await user.click(getByRole("button", { name: "Workspace tools" }))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await waitFor(() =>
+      expect(getByRole("button", { name: "Create share link" })).toBeEnabled()
+    )
+    expect(h.createConversationShare).not.toHaveBeenCalled()
+    await user.click(getByRole("button", { name: "Create share link" }))
+    expect(await findByLabelText("Share link")).toHaveValue(
+      "https://maxcode.example.com/share#0123456789abcdef0123456789abcdef"
+    )
+    expect(h.createConversationShare).toHaveBeenCalledOnce()
+    expect(h.createConversationShare).toHaveBeenCalledWith(2, {})
+    expect(getAllByRole("dialog")).toHaveLength(1)
+
+    // The opened share remains bound to B after the active pane changes to A.
+    h.activeTabId = "tab-a"
+    rerender(
+      withIntl(
+        <>
+          <FolderTitleBar />
+          <ConversationDetailHeader {...A} />
+          <ConversationDetailHeader {...B} />
+        </>
+      )
+    )
+    await user.click(getByRole("button", { name: "Stop sharing" }))
+    await waitFor(() => {
+      expect(h.revokeConversationShare).toHaveBeenCalledOnce()
+      expect(h.revokeConversationShare).toHaveBeenCalledWith(2)
+    })
+  })
+
+  it("disables mobile sharing for a draft and enables it after persistence", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.tabs = [{ id: "tab-a", conversationId: null }]
+    const { rerender, getByRole } = render(withIntl(<FolderTitleBar />))
+    await user.click(getByRole("button", { name: "Workspace tools" }))
+    expect(
+      getByRole("menuitem", { name: "Share conversation" })
+    ).toHaveAttribute("aria-disabled", "true")
+    expect(h.createConversationShare).not.toHaveBeenCalled()
+
+    h.tabs = [{ id: "tab-a", conversationId: 1 }]
+    rerender(withIntl(<FolderTitleBar />))
+    expect(
+      getByRole("menuitem", { name: "Share conversation" })
+    ).not.toHaveAttribute("aria-disabled", "true")
+
+    h.tabs = []
+    rerender(withIntl(<FolderTitleBar />))
+    expect(
+      getByRole("menuitem", { name: "Share conversation" })
+    ).toHaveAttribute("aria-disabled", "true")
+  })
+
+  it("omits mobile conversation sharing on other workbench pages", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.isConversations = false
+    const { getByRole, queryByRole } = render(withIntl(<FolderTitleBar />))
+    await user.click(getByRole("button", { name: "Workspace tools" }))
+    expect(queryByRole("menuitem", { name: "Share conversation" })).toBeNull()
+  })
+
+  it("publishes only the chosen rounds with independent explicit execution options", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
+    const { getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await waitFor(() =>
+      expect(getByRole("button", { name: "Create share link" })).toBeEnabled()
+    )
+    expect(
+      getByRole("checkbox", { name: "Include tool logs" })
+    ).not.toBeChecked()
+    expect(
+      getByRole("checkbox", { name: "Include thinking" })
+    ).not.toBeChecked()
+    await user.selectOptions(getByRole("combobox"), "selected")
+    await user.click(getByRole("checkbox", { name: /Round 1/ }))
+    await user.click(getByRole("checkbox", { name: /Round 2/ }))
+    expect(getByRole("button", { name: "Create share link" })).toBeDisabled()
+    await user.click(getByRole("checkbox", { name: /Round 2/ }))
+    await user.click(getByRole("checkbox", { name: "Include tool logs" }))
+    await user.click(getByRole("checkbox", { name: "Include thinking" }))
+    await user.click(getByRole("button", { name: "Create share link" }))
+    await waitFor(() =>
+      expect(h.createConversationShare).toHaveBeenCalledWith(1, {
+        rounds: [2],
+        includeTools: true,
+        includeThinking: true,
+      })
+    )
+  })
+
+  it("can revoke an existing link before publishing new content", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.sharePreview.active_share = true
+    const { getByLabelText, getByRole, findByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await user.click(await findByRole("button", { name: "Stop sharing" }))
+    await waitFor(() =>
+      expect(h.revokeConversationShare).toHaveBeenCalledWith(1)
+    )
+    expect(h.createConversationShare).not.toHaveBeenCalled()
+  })
+
+  it("does not publish through a server that cannot confirm content selection", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.sharePreview.version = 1
+    const { getByLabelText, getByRole, findByText } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await findByText(/Could not create the share link/)
+    expect(getByRole("button", { name: "Create share link" })).toBeDisabled()
+    expect(h.createConversationShare).not.toHaveBeenCalled()
   })
 
   it("deletes the conversation the dialog was opened for, even after the active tab switches", async () => {
@@ -234,6 +441,10 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await user.click(getByLabelText("More actions"))
     await user.click(getByRole("menuitem", { name: "Share conversation" }))
 
+    await waitFor(() => {
+      expect(getByRole("button", { name: "Create share link" })).toBeEnabled()
+    })
+    await user.click(getByRole("button", { name: "Create share link" }))
     await waitFor(() => {
       expect(h.createConversationShare).toHaveBeenCalledTimes(2)
       expect(getByLabelText("Share link")).toHaveValue(

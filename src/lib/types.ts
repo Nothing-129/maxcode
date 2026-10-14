@@ -318,7 +318,14 @@ export interface ConversationDetail {
   transcript_watermark?: number | null
 }
 
-/** Public, path-free snapshot returned only after presenting a share token. */
+export interface ConversationShareOptions {
+  includeTools?: boolean
+  includeThinking?: boolean
+  /** One-based conversation rounds; omitted means all rounds. */
+  rounds?: number[]
+}
+
+/** Public snapshot returned only after presenting a share token. */
 export interface SharedConversationSnapshot {
   version: number
   title: string | null
@@ -329,6 +336,7 @@ export interface SharedConversationSnapshot {
   updated_at: string
   shared_at: string
   turns: MessageTurn[]
+  share_options?: ConversationShareOptions
   session_stats?: SessionStats | null
 }
 
@@ -499,6 +507,7 @@ export interface DbConversationSummary {
   /** Mirrors `conversation.kind` — drives sidebar visibility and grouping. */
   kind: ConversationKind
   model: string | null
+  model_config?: Record<string, string> | null
   git_branch: string | null
   external_id: string | null
   message_count: number
@@ -1488,7 +1497,7 @@ export interface AgentDelegationDefaults {
 // Mirrors src-tauri/src/models/automation.rs. Wire form is snake_case (serde
 // default), matching AgentDelegationDefaults.
 
-export type AutomationTriggerKind = "schedule" | "manual"
+export type AutomationTriggerKind = "schedule" | "manual" | "message"
 export type AutomationIsolation = "worktree_per_run" | "shared_in_root"
 export type AutomationRunStatus =
   | "running"
@@ -1514,7 +1523,30 @@ export type AutomationAction = "launch_session" | "enqueue_task"
 /** The captured composer snapshot stored in `automation.config`. `mode_id` +
  *  `config_values` are exactly AgentDelegationDefaults; the model rides inside
  *  `config_values["model"]`, never as its own field. */
+export type AutomationSessionMode = "new_per_run" | "reuse_chat"
+export type AutomationMessageScope =
+  | "at-me"
+  | "sender"
+  | "group"
+  | "all-direct"
+  | "all-group"
+export interface AutomationMessageTrigger {
+  scope: AutomationMessageScope
+  target: string
+  profile: string
+  keywords: string
+  batch_minutes: number
+}
+export interface AutomationListenerInfo {
+  state: "starting" | "listening" | "error" | "stopped"
+  error: string | null
+  pending_count: number
+  last_received_at: string | null
+}
+
 export interface AutomationConfig {
+  session_mode?: AutomationSessionMode
+  message_trigger?: AutomationMessageTrigger | null
   action?: AutomationAction
   prompt_blocks: PromptInputBlock[]
   display_text: string

@@ -40,6 +40,9 @@ pub struct DbConversationSummary {
     /// (serialized as "regular" | "chat" | "loop" | "delegate").
     pub kind: ConversationKind,
     pub model: Option<String>,
+    /// Confirmed per-conversation selectors, available before agent startup.
+    #[serde(default)]
+    pub model_config: Option<std::collections::BTreeMap<String, String>>,
     pub git_branch: Option<String>,
     pub external_id: Option<String>,
     pub message_count: u32,

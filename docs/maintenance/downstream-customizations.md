@@ -8,6 +8,11 @@
 `769610c626f1`，下游 `HEAD` 为 `d2ac1390c974`，相差 81 个下游提交、425 个已提交
 差异文件，另将当时工作区中的新增功能一并纳入。审计时没有尚未合并的上游提交。
 
+2026-10-13 待办恢复：已拉取上游 `aff1e6c2`，运行 `pnpm upstream:impact`
+并逐项评审工作台路由、导航及 Forge 任务入口差异。按上游接回保留的待办看板、
+列表、任务设置与 Issue/PR 任务操作，不进行全量上游合并。沿用当前任务执行后端、
+七智能体目录、Electron/HTTP 运行方式、侧栏样式和消息新开对话草稿行为。
+
 ## 智能体维护范围
 
 维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。
@@ -25,7 +30,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
-| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
+| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话；缓存缺失时从对话摘要中的 SQLite 配置显示模型与思考等级，无需等待智能体启动 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
 | 设置选项搜索 | 搜索现有设置项名称、说明与关键词，显示所属栏目及无结果提示；懒加载后定位高亮，保留草稿、远程参数与移动导航，不修改设置值或恢复隐藏入口 | `worktree-2026-10-11` | `settings.option-search` |
 | 会话状态常驻 | 悬停和打开操作菜单时保持运行中、未读及时间提示；置顶和完成收进独立菜单，支持键盘与触屏且不误选会话 | `worktree-2026-10-11` | `conversations.persistent-sidebar-status` |
 | 连接中提交 | 会话及欢迎页连接中可回车入队，消息可编辑、删除；初始化完成后顺序自动发送，慢连接及失败保留消息并提供重连，预览标签自动固定 | `worktree-2026-10-10` | `chat.connection-submit-queue` |
@@ -47,7 +52,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | Office 预览清理 | 同步发出终止信号、异步回收，关闭时不依赖任务调度 | `65588b03` | `runtime.office-watch-immediate-reap` |
 | 待回答提问卡 | 正常布局中折叠，保留选择；新问题和提交失败自动展开，沿用现有问题卡视觉 | `d3c3ecd6`、`3d81d7cc` | `chat.pending-question-collapse` |
 | 模型显示名称 | 按连接所属智能体记录名称，历史回复与会话详情统一；只改显示，不改原始模型 ID 和费用 | `78c9313b` | `chat.agent-model-display-labels` |
-| 操作按钮颜色 | 发送和正常更新按钮使用 `#216AE4`；两种运行中停止按钮使用实心红底 `#DC2626` 和白色方块，浅色悬停加深为 `#B91C1C`、深色悬停提亮为 `#EF4444`，提供无障碍标签；保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26`、`worktree-2026-10-11`、`worktree-2026-10-12` | `appearance.send-button-brand-color` |
+| 操作按钮颜色 | 发送、两种运行中停止和正常更新按钮恢复统一使用 `#216AE4`，深浅色一致，白色图标及 90% 不透明度悬停；停止保留方块图标与无障碍标签，保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26`、`worktree-2026-10-11`、`worktree-2026-10-12`、`worktree-2026-10-13` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
 | ZCode 智能体 | 新配置默认关闭，保留已有启用或关闭选择；状态查询与新会话列表共用默认值；恢复设置与新会话入口，配置区展示社区适配器专属说明；使用 william0wang/zcode-acp 的 npm 包与命令 `zcode-acp-server`，评审版本 0.48.0、要求 Node 22，沿用统一 npm 安装、版本与更新流程；默认 `ZCODE_ACP_MODE=build`，新建会话通过 ACP 配置项同步并确认实际权限模式（已保存选择优先，其次环境变量，再回退 build），界面展示确认值；0.48.0 无法报告独立的 planEnabled 状态，暂时移除 MaxCode 手动 Plan 入口并在发送前拦截该模式，旧 Plan 偏好转为 build；载入/恢复在模型偏好之后强制确认基础权限模式，无显式偏好用 build，有显式支持的选择则保留，确认失败不得进入就绪状态；原生 EnterPlanMode 工具和斜杠命令仍属上游状态回报限制；兼容迁移旧运行时/模式环境变量、模型与思考偏好且新配置优先；因 0.48.0 的 fork 响应不符合 ACP 暂停 ZCode 分叉，保留载入/恢复和其他智能体的能力判断；删除自研内嵌适配器，独立安装的 ZCode 运行时由社区适配器驱动；SQLite 历史只读，数据根优先 `ZCODE_HOME`、兼容 `ZCODE_DATA_BASE_DIR`，通过 `v2/acp-lazy-sessions.json` 将 ACP UUID 解析为原生 `sess_` ID，保留原生列表与旧会话；保留原生 assistant 的模型字段与工具失败状态、错误正文；图片历史支持原生 file part 的 data URL 与同数据根、同会话 artifact，单张解码后上限 8 MiB，限制文件读取并拒绝跨会话与符号链接，缺失或超限图片显示占位且保留纯图片消息；保留供应商 CLI 探测、i18n 和随主题变色的图标；侧栏标题沿用结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题；后续与恢复时的模式选择以适配器确认值为准，拒绝切换沿用提示；数据目录同步到原生存储环境变量，保留显式覆盖 | `feat/zcode-agent`、`worktree-2026-09-26`、`worktree-2026-10-12` | `agents.zcode-community-acp-adapter` |
@@ -79,7 +84,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 消息 | Codex 后续建议标记渲染为按钮，点击追加到当前输入框；只读页面显示标签，代码示例保持原文 | `worktree-2026-09-11` | `chat.codex-followup-controls` |
 | 消息 | 历史回复正文到操作按钮保持连续悬停区域，悬停/键盘聚焦时抬高实际虚拟行层级（悬停优先），按钮不被下一条消息的透明间距遮挡，提示气泡打开时保持操作区可见及层级，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
 | 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
-| 待办 | 移除待办全部界面入口及 Issue/PR 任务操作，旧路由回到对话；保留消息新开对话 | `worktree-2026-09-10` | `tasks.no-ui-entry-points` |
+| 待办 | 恢复侧栏和快捷菜单入口、实时待处理角标、看板/列表及任务设置，以及 Issue/PR 启动、重新触发和任务状态跳转；尊重导航显隐偏好，手机/触屏导航后收起侧栏；消息操作继续新开未发送对话 | `worktree-2026-10-13` | `tasks.workbench-entry-points` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
 | 会话费用刷新 | 回复结束后同步累计计费用量；定价目录缓存 6 小时，前台定时检查、回到前台补查，离线保留旧价格，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10`、`worktree-2026-09-30` | `composer.conversation-cost` |
 | 上下文用量详情 | 参考式大号百分比、已用/容量横条、关闭按钮和彩色累计 Token 明细；累计统计与当前上下文分开标注，未知分类不伪造，窄屏自适应并限高滚动 | `worktree-2026-10-09` | `composer.usage-popover` |
@@ -93,7 +98,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 消息 | 已发消息的复制按钮旁提供修改图标，点击即停止当前回复并将原文填入、聚焦底部输入框；修改后由用户正常发送 | `worktree-2026-09-08` | `messages.edit-sent-message` |
 | 侧边栏 | “最近”栏目新建入口与“聊天”一致，始终新建不绑定当前文件夹的聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
-| 侧边栏 | 移除待办任务与仓库面板导航入口，保留新对话（简体中文固定文案）、自动化及会话列表；文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08` | `workspace.sidebar-navigation` |
+| 侧边栏 | 保留新对话（简体中文固定文案）、自动任务、待办任务及会话列表，仓库面板不加入侧栏；待办和自动任务支持显隐设置；待办导航及文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08`、`worktree-2026-10-13` | `workspace.sidebar-navigation` |
 | 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；旧 Tauri 壳与兼容 CI 已退役 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
 | 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap；GitHub 过慢或不可达时走 maxcode-update.aifalao.net | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
@@ -199,6 +204,10 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 手机端对话标题栏直接显示带框铅笔图标的新建对话按钮，隐藏标题旁的会话操作菜单；沿用当前项目与智能体。最右侧工作区操作菜单使用横向三个点图标。新建按钮与导航按钮统一使用 ghost 样式和 rounded-xl 圆角，操作图标为 18px，左侧菜单图标为视觉补偿放大至 20px、线宽设为 1.8；左侧侧边栏、右侧新建和设置三个按钮统一使用 32px 宽、44px 高的点击区域，缩小图标之间的留白。契约：`mobile-header-new-conversation.contract.test.ts`。
 
+手机端最右侧三个点的工作区菜单提供“分享会话”，复用桌面分享弹窗和公开地址、复制链接、停止分享流程；只针对当前已保存会话，草稿和无会话时禁用，其他工作台页面隐藏。请求按窗格 tabId 定位，多个窗格挂载时只打开目标会话的弹窗；弹窗打开后切换会话不改变分享或撤销的目标。契约：`mobile-conversation-sharing.contract.test.ts`；热点：`conversations.read-only-sharing`。
+
+分享前先预览并选择全部或指定轮次，再主动创建链接；工具日志和思考过程各自默认关闭，后端在写入快照时过滤，旧快照也在公开读取时按默认范围过滤。系统消息、内部消息 ID、工具元数据和图片本地 URI 不进入公开响应，工具结果中的图片仍作为正文图片保留。已存在的链接可直接停止分享，无需先重新发布。公开页面按提问轮次合并助手片段，每轮只显示一次身份，复制的会话信息折叠在提问之后，执行详情按需展开，长会话每次加载十轮。完整性契约：`conversation-share-content.contract.test.tsx`、`conversation-share-content.contract.rs`；热点：`conversations.read-only-sharing`。
+
 ### 回复文件变更汇总卡片
 
 - 来源：`worktree-2026-09-11`；热点：`chat.reply-artifacts-summary`。
@@ -229,3 +238,21 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 | 输入历史 | 文档整体首尾的 ↑/↓ 召回当前会话提示词；保留草稿徽标、附件、IME、菜单及队列编辑。 | `chat.sent-prompt-history` |
 | 流式更新 | 按连接独立自适应刷新，断连丢弃旧增量、迁移前完成刷新；保留唤醒恢复、归属、实际到达时间及费用统计。 | `runtime.connection-streaming-cadence` |
 | 运行时 | 私有短临时目录与 socket 路径限额、精确识别自带提问工具的一次授权、Grok 1.0.34。 | `runtime.upstream-socket-ask-20260919` |
+
+
+### 自动化复用聊天与消息触发（2026-10-13）
+
+自动化编辑器支持“每次新建会话”和“继续同一聊天”。复用限定于聊天目标，
+通过持久化绑定恢复同一原生智能体会话；历史配置保持每次新建的默认行为。
+“钉钉新消息”使用 `dws event +listen-im` 实时事件进程，可立即处理或从首条
+待处理消息起按选定分钟数合并处理。无消息或聊天正忙时不创建运行记录。
+
+消息在 SQLite inbox 按自动化、监听范围和稳定消息 ID 去重，并以事务认领到
+运行记录；失败或中断批次不自动重放，避免重复业务操作。存在待处理消息时
+不得更换监听范围或触发方式。订阅失败需要显式重新连接；关闭服务、禁用或
+删除自动化时干净停止事件进程。监听依赖服务主机已安装并登录 `dws`，仅在
+服务运行期间接收事件，不承诺停机期间的历史消息补齐。
+
+契约：`automation-reuse-messages.contract.test.ts`、
+`automation-reuse-messages.contract.rs`、`automation-chat-editor.contract.test.tsx`、
+`automation-message-listener-ui.contract.test.tsx`；热点：`automation.reuse-message-listener`。

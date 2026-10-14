@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo } from "react"
 import type { SessionConfigOptionInfo } from "@/lib/types"
-import { isCachedSelectors } from "@/lib/selectors-cache-storage"
+import {
+  getCachedSelectors,
+  isCachedSelectors,
+} from "@/lib/selectors-cache-storage"
 
 const STORAGE_KEY = "codeg:conversation-selector-previews:v1"
 const MAX_ENTRIES = 32
@@ -29,6 +32,37 @@ function readPreviews(): Map<string, SessionConfigOptionInfo[]> {
   }
 }
 
+/** Build read-only labels from persisted values, never another chat's current values. */
+export function persistedSelectorPreview(
+  values: Record<string, string> | null | undefined,
+  catalog: SessionConfigOptionInfo[] | null
+): SessionConfigOptionInfo[] | null {
+  if (!values || Object.keys(values).length === 0) return null
+  return Object.entries(values).map(([id, value]) => {
+    const option = catalog?.find((item) => item.id === id)
+    const kind = option?.kind
+    const label =
+      kind?.type === "select"
+        ? ([
+            ...kind.options,
+            ...(kind.groups ?? []).flatMap((group) => group.options),
+          ].find((item) => item.value === value)?.name ?? value)
+        : value
+    return {
+      id,
+      name: option?.name ?? id,
+      category:
+        option?.category ?? (id === "model" ? "model" : "thought_level"),
+      kind: {
+        type: "select",
+        current_value: value,
+        options: [{ value, name: label }],
+        groups: [],
+      },
+    }
+  })
+}
+
 /** Display only: SQLite/native session restoration remains authoritative. */
 export function useConversationSelectorPreview({
   agentType,
@@ -36,11 +70,13 @@ export function useConversationSelectorPreview({
   conversationId,
   ready,
   configOptions,
+  persistedValues,
 }: {
   agentType: string
   workingDir: string | undefined
   conversationId: number | null
   ready: boolean
+  persistedValues?: Record<string, string> | null
   configOptions: SessionConfigOptionInfo[] | null
 }): SessionConfigOptionInfo[] | null {
   // Origin-scoped storage + workspace + agent prevent unrelated histories
@@ -69,5 +105,11 @@ export function useConversationSelectorPreview({
       // Private mode / full storage must never block opening the conversation.
     }
   }, [key, ready, configOptions])
-  return ready ? configOptions : preview
+  return ready
+    ? configOptions
+    : (preview ??
+        persistedSelectorPreview(
+          persistedValues,
+          getCachedSelectors(agentType)?.configOptions ?? null
+        ))
 }

@@ -2,9 +2,65 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "automation.reuse-message-listener",
+      "category": "product",
+      "description": "Automations offer reusable folderless chats and real DingTalk message triggers with immediate or batched dispatch. Durable native session binding, scoped message deduplication and transactional inbox claims survive restarts. Empty inboxes and busy chats do not create runs; failed executions are not automatically replayed. UI exposes scope, batching, account, pending count, listener status, explicit reconnect and pending-message processing.",
+      "origins": [
+        "worktree-2026-10-13"
+      ],
+      "paths": [
+        "src-tauri/src/automation/",
+        "src-tauri/src/models/automation.rs",
+        "src-tauri/src/models/mod.rs",
+        "src-tauri/src/db/entities/automation.rs",
+        "src-tauri/src/db/entities/automation_message.rs",
+        "src-tauri/src/db/entities/mod.rs",
+        "src-tauri/src/db/service/automation_service.rs",
+        "src-tauri/src/db/service/automation_runtime_service.rs",
+        "src-tauri/src/db/service/mod.rs",
+        "src-tauri/src/db/migration/m20261013_000001_automation_message.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src-tauri/src/commands/automation.rs",
+        "src-tauri/src/commands/chat_authoring.rs",
+        "src-tauri/src/web/handlers/automation.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src/components/automations/",
+        "src/lib/api.ts",
+        "src/lib/types.ts",
+        "src/i18n/messages/",
+        "src/maxcode-contracts/automation-reuse-messages.contract.rs",
+        "src/maxcode-contracts/automation-message-stream.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-chat-editor.contract.test.tsx",
+        "src/maxcode-contracts/automation-message-listener-ui.contract.test.tsx",
+        "src/maxcode-contracts/automation-reuse-messages.contract.test.ts"
+      ]
+    },
+    {
+      "id": "automation.chat-target",
+      "category": "product",
+      "description": "Session automations can target Chat without a project or Git branch. Each run creates a fresh hidden chat folder and chat conversation; history resolves the actual conversation folder. Task-board automations still require a project.",
+      "origins": [
+        "worktree-2026-10-13"
+      ],
+      "paths": [
+        "src/components/automations/automation-editor.tsx",
+        "src/components/automations/automations-page.tsx",
+        "src-tauri/src/automation/engine.rs",
+        "src/maxcode-contracts/automation-chat.contract.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-chat.contract.test.ts",
+        "src/maxcode-contracts/automation-chat-editor.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.conversation-model-memory",
       "category": "product",
-      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
+      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Conversation summaries expose confirmed model_config for cold clients and evicted previews. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
       "origins": ["worktree-2026-10-12"],
       "paths": [
         "src-tauri/src/acp/conversation_model_config.rs",
@@ -23,6 +79,8 @@
         "src/lib/api.ts",
         "src/lib/selector-prefs-storage.ts",
         "src/hooks/use-conversation-selector-preview.ts",
+        "src/lib/types.ts",
+        "src-tauri/src/models/conversation.rs",
         "src/components/chat/chat-input.tsx",
         "src/components/chat/conversation-shell.tsx",
         "src/lib/selectors-cache-storage.ts",
@@ -1148,12 +1206,14 @@
       "contracts": ["src/maxcode-contracts/question-picker.contract.test.tsx"]
     },
     {
-      "id": "tasks.no-ui-entry-points",
+      "id": "tasks.workbench-entry-points",
       "category": "product",
-      "description": "Work task UI is retired: no sidebar or quick-menu navigation, no registered task page/title/settings, and no Issue/PR start, retrigger or task-status navigation. Legacy task routes resolve to conversations. Message actions retain the normal new-chat draft flow.",
-      "origins": ["worktree-2026-09-10"],
+      "description": "Work tasks are available through the sidebar and quick menu with live attention badges, a registered board/list page, title and settings controls, and Issue/PR start, retrigger and task-status navigation. Sidebar visibility preferences and mobile/coarse-pointer collapse remain supported. Message actions retain the normal new-chat draft flow; task selectors stay within the seven maintained agents and Electron/server transport.",
+      "origins": ["worktree-2026-10-13"],
       "paths": [
         "src/components/workbench/workbench-content.tsx",
+        "src/components/tasks/tasks-page.tsx",
+        "src/components/tasks/tasks-chrome-actions.tsx",
         "src/contexts/workbench-route-context.tsx",
         "src/components/layout/quick-actions-dropdown.tsx",
         "src/components/layout/sidebar.tsx",
@@ -1162,7 +1222,7 @@
         "src/components/forge/forge-issue-detail-sheet.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/no-task-entry-points.contract.test.tsx"
+        "src/maxcode-contracts/task-entry-points.contract.test.tsx"
       ]
     },
     {
@@ -1809,8 +1869,8 @@
     {
       "id": "workspace.sidebar-navigation",
       "category": "product",
-      "description": "Sidebar navigation omits Tasks and Repository dashboard regardless of saved visibility, retaining New chat (新建对话 in Simplified Chinese), Automations (自动任务) and conversation history. Both fixed navigation actions use 14px labels at default zoom. Folder, Recent and Chats new-conversation actions all navigate to conversations and collapse the sidebar on mobile or coarse-pointer layouts.",
-      "origins": ["worktree-2026-09-08"],
+      "description": "Sidebar navigation includes New chat (新建对话 in Simplified Chinese), Automations (自动任务), Tasks and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions use 14px labels at default zoom. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
+      "origins": ["worktree-2026-09-08", "worktree-2026-10-13"],
       "paths": [
         "src/components/layout/sidebar.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
@@ -2082,16 +2142,28 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Sharing is available only in the conversation actions menu, with no standalone header share button. Conversation owners can publish a path-free immutable snapshot behind a revocable capability link; shared thinking stays collapsed by default with the desktop interaction, an explicit public origin wins over Web, LAN, and loopback fallbacks, while shared Markdown opens external links without mounting workspace-only actions and keeps local targets inert.",
-      "origins": ["worktree-2026-08-31", "worktree-2026-09-08"],
+      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking independently excluded unless opted in. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds, merge adjacent text, fold copied session metadata, lazily mount one execution section per round, and load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
+      "origins": [
+        "worktree-2026-08-31",
+        "worktree-2026-09-08",
+        "worktree-2026-10-13"
+      ],
       "paths": [
         "src/components/ai-elements/markdown-link.tsx",
         "src/components/ai-elements/message.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/conversation-share-options.tsx",
+        "src/components/layout/folder-title-bar.tsx",
         "src/components/conversations/shared-conversation-view.tsx",
         "src/components/settings/web-service-settings.tsx",
         "src/app/share/",
         "src/lib/conversation-share.ts",
+        "src/lib/conversation-share-events.ts",
+        "src/lib/conversation-share-content.ts",
+        "src/lib/api.ts",
+        "src/lib/types.ts",
+        "src/i18n/messages/",
+        "src/maxcode-contracts/conversation-share-content.contract.rs",
         "src-tauri/src/commands/conversation_share.rs",
         "src-tauri/src/web/handlers/conversation_share.rs",
         "src-tauri/src/web/router.rs",
@@ -2102,6 +2174,8 @@
       ],
       "contracts": [
         "src/maxcode-contracts/conversation-sharing.contract.test.ts",
+        "src/maxcode-contracts/mobile-conversation-sharing.contract.test.ts",
+        "src/maxcode-contracts/conversation-share-content.contract.test.tsx",
         "src/maxcode-contracts/public-share-link-rendering.contract.test.ts"
       ]
     },
@@ -2417,13 +2491,14 @@
     {
       "id": "appearance.send-button-brand-color",
       "category": "product",
-      "description": "Send and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Both running stop actions use a solid #DC2626 circle and white square, distinct from blue sends, with an accessible stop label. Hover uses #B91C1C in light mode and #EF4444 in dark mode to maintain icon and surface contrast. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
+      "description": "Send, both running stop actions and normal update actions use #216AE4 with white icons and 90% opacity hover in both light and dark modes. Stop actions retain their square icon and accessible label. Disabled sends retain muted paint and existing sendability gating; failed updates retain destructive styling.",
       "origins": [
         "worktree-2026-09-09",
         "worktree-2026-09-18",
         "worktree-2026-09-26",
         "worktree-2026-10-11",
-        "worktree-2026-10-12"
+        "worktree-2026-10-12",
+        "worktree-2026-10-13"
       ],
       "paths": [
         "src/components/chat/message-input.tsx",
