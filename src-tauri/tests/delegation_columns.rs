@@ -27,6 +27,7 @@ async fn delegation_columns_round_trip() {
         status: Set(conversation::ConversationStatus::InProgress),
         kind: Set(conversation::ConversationKind::Delegate),
         model: Set(None),
+        model_config: Set(None),
         git_branch: Set(None),
         external_id: Set(None),
         parent_id: Set(Some(42)),
