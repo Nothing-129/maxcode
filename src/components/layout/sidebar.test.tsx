@@ -91,8 +91,8 @@ vi.mock("@/contexts/automations-view-context", () => ({
     refetch: async () => {},
   }),
 }))
-vi.mock("@/contexts/tasks-view-context", () => ({
-  useTasksView: () => ({
+vi.mock("@/contexts/todos-view-context", () => ({
+  useTodosView: () => ({
     tasks: [],
     attentionCount: 0,
     refetch: async () => {},

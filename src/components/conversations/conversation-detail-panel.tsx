@@ -1325,6 +1325,11 @@ const ConversationTabView = memo(function ConversationTabView({
       ).slice(0, 80)
       const chatSend = sendOwnTab?.isChat === true
       const chatExistingDir = sendOwnTab?.workingDir
+      // Keep the draft's originating scope even if the todo view has switched
+      // personal/team mode before its first message is sent.
+      const todoOrigins = sendOwnTab?.todoOrigins?.map((origin) => ({
+        ...origin,
+      }))
 
       void (async () => {
         try {
@@ -1336,7 +1341,8 @@ const ConversationTabView = memo(function ConversationTabView({
             const res = await createChatConversation(
               selectedAgent,
               title,
-              chatExistingDir
+              chatExistingDir,
+              todoOrigins
             )
             newConversationId = res.conversationId
             sendFolderId = res.folderId
@@ -1370,7 +1376,8 @@ const ConversationTabView = memo(function ConversationTabView({
             newConversationId = await createConversation(
               folderId,
               selectedAgent,
-              title
+              title,
+              todoOrigins
             )
             dbConvIdRef.current = newConversationId
             // Set external ID on the stable virtual session (no migration needed —

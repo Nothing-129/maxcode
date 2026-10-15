@@ -2,9 +2,11 @@
 
 const FOLDER_EXPANDED_KEY = "workspace:sidebar-folder-expanded"
 const FOLDER_GROUP_EXPANDED_KEY = "workspace:sidebar-folder-group-expanded"
+const TODO_GROUP_EXPANDED_KEY = "workspace:sidebar-todo-group-expanded"
 const SHOW_COMPLETED_KEY = "workspace:sidebar-show-completed"
 const SHOW_WORKTREES_KEY = "workspace:sidebar-show-worktrees"
 const SHOW_RECENT_KEY = "workspace:sidebar-show-recent"
+const SHOW_TODOS_KEY = "workspace:sidebar-show-todos"
 const RECENT_FILTER_KEY = "workspace:sidebar-recent-filter"
 const NAV_ITEMS_KEY = "workspace:sidebar-nav-items"
 const SORT_MODE_KEY = "workspace:sidebar-sort-mode"
@@ -26,7 +28,12 @@ export const DEFAULT_RECENT_FILTER: SidebarRecentFilter = "all"
 
 /** The reorderable top-level sidebar sections. "Pinned" is deliberately absent:
  *  it is a transient override bucket and always stays on top. */
-export const SIDEBAR_SECTION_IDS = ["folders", "chats", "recent"] as const
+export const SIDEBAR_SECTION_IDS = [
+  "folders",
+  "chats",
+  "recent",
+  "todos",
+] as const
 
 export type SidebarSectionId = (typeof SIDEBAR_SECTION_IDS)[number]
 
@@ -48,8 +55,7 @@ export type SidebarSectionKey = (typeof SIDEBAR_SECTION_KEYS)[number]
  */
 export type SidebarSectionOrder = readonly SidebarSectionId[]
 
-/** Folders, then Chat, then Recent — the historical layout with the (newest)
- *  Recent section appended at the bottom. */
+/** Preserve the historical section order and append new todo groups. */
 export const DEFAULT_SECTION_ORDER: SidebarSectionOrder = SIDEBAR_SECTION_IDS
 
 /** Collapsed state of the top-level sidebar sections. Absent key = expanded
@@ -59,6 +65,7 @@ export interface SidebarSectionCollapsed {
   folders?: boolean
   chats?: boolean
   recent?: boolean
+  todos?: boolean
 }
 
 /**
@@ -108,7 +115,7 @@ function isSectionId(value: unknown): value is SidebarSectionId {
  * - anything else (corrupt / absent) → {@link DEFAULT_SECTION_ORDER}.
  */
 export function normalizeSectionOrder(value: unknown): SidebarSectionOrder {
-  if (value === "chats-first") return ["chats", "folders", "recent"]
+  if (value === "chats-first") return ["chats", "folders", "recent", "todos"]
   if (value === "folders-first") return DEFAULT_SECTION_ORDER
   if (!Array.isArray(value)) return DEFAULT_SECTION_ORDER
   const seen = new Set<SidebarSectionId>()
@@ -203,6 +210,31 @@ export function saveFolderGroupExpanded(state: Record<number, boolean>): void {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(FOLDER_GROUP_EXPANDED_KEY, JSON.stringify(state))
+  } catch {
+    /* ignore */
+  }
+}
+
+export function loadTodoGroupExpanded(): Record<string, boolean> {
+  if (typeof window === "undefined") return {}
+  try {
+    const parsed = JSON.parse(
+      localStorage.getItem(TODO_GROUP_EXPANDED_KEY) ?? "{}"
+    ) as unknown
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+      return {}
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([, value]) => typeof value === "boolean")
+    )
+  } catch {
+    return {}
+  }
+}
+
+export function saveTodoGroupExpanded(state: Record<string, boolean>): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(TODO_GROUP_EXPANDED_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -308,6 +340,25 @@ export function saveShowRecent(value: boolean): void {
   if (typeof window === "undefined") return
   try {
     localStorage.setItem(SHOW_RECENT_KEY, String(value))
+  } catch {
+    /* ignore */
+  }
+}
+
+/** Whether conversations created from assigned todos are grouped in the list. */
+export function loadShowTodos(): boolean {
+  if (typeof window === "undefined") return true
+  try {
+    return localStorage.getItem(SHOW_TODOS_KEY) !== "false"
+  } catch {
+    return true
+  }
+}
+
+export function saveShowTodos(value: boolean): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(SHOW_TODOS_KEY, String(value))
   } catch {
     /* ignore */
   }

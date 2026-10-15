@@ -174,6 +174,7 @@ export function ForgeIssueRowItem({
   row,
   link,
   compact = false,
+  showLegacyTasks = false,
   onOpenDetail,
   onStart,
 }: {
@@ -181,6 +182,8 @@ export function ForgeIssueRowItem({
   link: ForgeTaskLink | null
   /** Phone width: fewer labels, since the title has to stay readable. */
   compact?: boolean
+  /** Historical AI work tasks are retained but not exposed in the product. */
+  showLegacyTasks?: boolean
   /** Opens the right-side detail panel on this item. */
   onOpenDetail: () => void
   onStart: () => void
@@ -274,58 +277,59 @@ export function ForgeIssueRowItem({
           </span>
         ) : null}
 
-        {link == null ? (
-          <Button
-            type="button"
-            size="sm"
-            variant="secondary"
-            className={ROW_ACTION}
-            onClick={onStart}
-          >
-            {/* Outline, like every other glyph on the row — a solid triangle
-                was the one filled shape in the list and pulled the eye off the
-                titles it sits beside. */}
-            <CirclePlay className={ROW_ACTION_GLYPH} aria-hidden />
-            {t("start")}
-          </Button>
-        ) : (
-          // Two sibling controls, never one nested in the other: an interactive
-          // element inside a button folds its text into the outer button's
-          // accessible name, and keyboard activation of the inner one is left
-          // to whatever the browser decides. Siblings also drop the
-          // stopPropagation / manual Enter-and-Space handling a real button
-          // gives for free.
-          <div className="flex items-center gap-1.5">
+        {showLegacyTasks &&
+          (link == null ? (
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              onClick={() => setRoute("tasks")}
-              title={t("viewTask")}
-              className={cn(
-                ROW_ACTION,
-                active ? CHIP_FILL.active : CHIP_FILL.settled
-              )}
+              variant="secondary"
+              className={ROW_ACTION}
+              onClick={onStart}
             >
-              {/* The sidebar's own to-do glyph, so "Running" reads as the
+              {/* Outline, like every other glyph on the row — a solid triangle
+                was the one filled shape in the list and pulled the eye off the
+                titles it sits beside. */}
+              <CirclePlay className={ROW_ACTION_GLYPH} aria-hidden />
+              {t("start")}
+            </Button>
+          ) : (
+            // Two sibling controls, never one nested in the other: an interactive
+            // element inside a button folds its text into the outer button's
+            // accessible name, and keyboard activation of the inner one is left
+            // to whatever the browser decides. Siblings also drop the
+            // stopPropagation / manual Enter-and-Space handling a real button
+            // gives for free.
+            <div className="flex items-center gap-1.5">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => setRoute("tasks")}
+                title={t("viewTask")}
+                className={cn(
+                  ROW_ACTION,
+                  active ? CHIP_FILL.active : CHIP_FILL.settled
+                )}
+              >
+                {/* The sidebar's own to-do glyph, so "Running" reads as the
                   status of a WORK TASK rather than of the issue itself — and so
                   the chip looks like the place it navigates to. Decoration:
                   the accessible name stays the status word. */}
-              <ListTodo className={ROW_ACTION_GLYPH} aria-hidden />
-              {tTasks(statusLabelKey(link.status))}
-            </Button>
-            {terminal ? (
-              <button
-                type="button"
-                onClick={onStart}
-                className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-              >
-                <RotateCcw className="size-3" aria-hidden />
-                {t("retrigger")}
-              </button>
-            ) : null}
-          </div>
-        )}
+                <ListTodo className={ROW_ACTION_GLYPH} aria-hidden />
+                {tTasks(statusLabelKey(link.status))}
+              </Button>
+              {terminal ? (
+                <button
+                  type="button"
+                  onClick={onStart}
+                  className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                >
+                  <RotateCcw className="size-3" aria-hidden />
+                  {t("retrigger")}
+                </button>
+              ) : null}
+            </div>
+          ))}
       </div>
     </div>
   )

@@ -1,5 +1,5 @@
 import { type ComponentProps, type ReactElement } from "react"
-import { render, waitFor } from "@testing-library/react"
+import { act, render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi, beforeEach } from "vitest"
@@ -71,6 +71,12 @@ const h = vi.hoisted(() => ({
     conversationId: number | null
   }[],
   isConversations: true,
+  setRoute: vi.fn(),
+  requestCreateTodo: vi.fn(),
+}))
+
+vi.mock("@/lib/todo-compose-events", () => ({
+  requestCreateTodo: h.requestCreateTodo,
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -136,9 +142,11 @@ vi.mock("@/contexts/search-dialog-context", () => ({
   useSearchDialog: () => ({ setOpen: vi.fn() }),
 }))
 vi.mock("@/contexts/workbench-route-context", () => ({
+  useOptionalWorkbenchRoute: () => ({ setRoute: h.setRoute }),
   useWorkbenchRoute: () => ({
     isConversations: h.isConversations,
     openConversations: vi.fn(),
+    setRoute: h.setRoute,
   }),
 }))
 vi.mock("@/components/workbench/workbench-content", () => ({
@@ -193,7 +201,19 @@ const B: Props = {
 
 function withIntl(ui: ReactElement) {
   return (
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <NextIntlClientProvider
+      locale="en"
+      messages={{
+        ...enMessages,
+        Todos: {
+          ...enMessages.Todos,
+          addConversation: "Add conversation to todo",
+          shareAndCreate: "Share and create todo",
+          conversationShareDescription:
+            "Choose the conversation content to attach to the todo.",
+        },
+      }}
+    >
       {ui}
     </NextIntlClientProvider>
   )
@@ -474,5 +494,177 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     })
     expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
     expect(h.webServiceConfig.publicShareUrl).toBeNull()
+  })
+
+  it("creates a todo with the selected conversation snapshot after a tab switch", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { rerender, getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
+    await waitFor(() =>
+      expect(
+        getByRole("button", { name: "Share and create todo" })
+      ).toBeEnabled()
+    )
+    expect(h.getWebServiceConfig).not.toHaveBeenCalled()
+    expect(
+      getByRole("checkbox", { name: "Include tool logs" })
+    ).not.toBeChecked()
+    expect(
+      getByRole("checkbox", { name: "Include thinking" })
+    ).not.toBeChecked()
+
+    await user.selectOptions(getByRole("combobox"), "selected")
+    await user.click(getByRole("checkbox", { name: /Round 1/ }))
+    rerender(withIntl(<ConversationDetailHeader {...B} />))
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+
+    expect(h.requestCreateTodo).toHaveBeenCalledWith({
+      text: "See conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      conversationId: 1,
+      shareOptions: { rounds: [2] },
+    })
+    expect(h.setRoute).not.toHaveBeenCalled()
+    expect(h.createConversationShare).toHaveBeenCalledWith(1, { rounds: [2] })
+    expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
+  })
+
+  it("prefills a share link from the normal share dialog using the runtime address", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByLabelText, getByRole, findByLabelText } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await findByLabelText("Public share address")
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+
+    expect(h.requestCreateTodo).toHaveBeenCalledWith({
+      text: "See conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      conversationId: 1,
+      shareOptions: {},
+    })
+    expect(h.createConversationShare).toHaveBeenCalledWith(1, {})
+    expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
+    expect(h.setRoute).not.toHaveBeenCalled()
+  })
+
+  it("reuses the existing share URL when prefilling a todo", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
+    const { getByLabelText, getByRole, findByLabelText } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
+    await waitFor(() =>
+      expect(getByRole("button", { name: "Create share link" })).toBeEnabled()
+    )
+    await user.click(getByRole("button", { name: "Create share link" }))
+    await findByLabelText("Share link")
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+    expect(h.createConversationShare).toHaveBeenCalledTimes(1)
+    expect(h.requestCreateTodo).toHaveBeenCalledWith({
+      text: "See conversation: https://maxcode.example.com/share#0123456789abcdef0123456789abcdef",
+      conversationId: 1,
+      shareOptions: {},
+    })
+  })
+
+  it("does not open the todo editor when sharing fails and allows retry", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
+    await waitFor(() =>
+      expect(
+        getByRole("button", { name: "Share and create todo" })
+      ).toBeEnabled()
+    )
+    h.createConversationShare.mockRejectedValueOnce(new Error("Offline"))
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await waitFor(() =>
+      expect(
+        getByRole("button", { name: "Share and create todo" })
+      ).toBeEnabled()
+    )
+    expect(h.requestCreateTodo).not.toHaveBeenCalled()
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await waitFor(() => expect(h.requestCreateTodo).toHaveBeenCalledTimes(1))
+  })
+
+  it("ignores a late share result after the share dialog closes", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
+    await waitFor(() =>
+      expect(
+        getByRole("button", { name: "Share and create todo" })
+      ).toBeEnabled()
+    )
+    let finish!: (share: {
+      version: number
+      token: string
+      shared_at: string
+    }) => void
+    h.createConversationShare.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await waitFor(() =>
+      expect(h.createConversationShare).toHaveBeenCalledTimes(1)
+    )
+    await user.click(getByRole("button", { name: "Cancel" }))
+    await act(async () => {
+      finish({
+        version: 2,
+        token: "0123456789abcdef0123456789abcdef",
+        shared_at: "2026-10-15T00:00:00Z",
+      })
+    })
+    await waitFor(() =>
+      expect(getByLabelText("More actions")).toBeInTheDocument()
+    )
+    expect(h.requestCreateTodo).not.toHaveBeenCalled()
+  })
+
+  it("rejects an empty selected sharing scope before handing off a todo draft", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
+    await waitFor(() =>
+      expect(
+        getByRole("button", { name: "Share and create todo" })
+      ).toBeEnabled()
+    )
+    await user.selectOptions(getByRole("combobox"), "selected")
+    await user.click(getByRole("checkbox", { name: /Round 1/ }))
+    await user.click(getByRole("checkbox", { name: /Round 2/ }))
+    expect(
+      getByRole("button", { name: "Share and create todo" })
+    ).toBeDisabled()
+    expect(h.requestCreateTodo).not.toHaveBeenCalled()
   })
 })

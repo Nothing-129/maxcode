@@ -44,8 +44,8 @@ const MOVE_BUTTON_CLASS = cn(
  * and hover styling all keep working) with `onSelect` prevented — reordering
  * several sections in a row must not slam the menu shut after the first move.
  *
- * `hiddenSections` dims the sections currently switched off (today only
- * "Recent"). They stay listed and stay reorderable: hiding is a separate
+ * `hiddenSections` dims the sections currently switched off (Recent or Todos).
+ * They stay listed and stay reorderable: hiding is a separate
  * preference, so a hidden section keeps the slot it will reappear in.
  */
 export function SidebarSectionOrderControl({
@@ -81,7 +81,9 @@ export function SidebarSectionOrderControl({
       ? t("sectionFolders")
       : id === "chats"
         ? t("sectionChats")
-        : t("sectionRecent")
+        : id === "todos"
+          ? t("sectionTodos")
+          : t("sectionRecent")
 
   const move = (id: SidebarSectionId, delta: number, viaKeyboard: boolean) => {
     if (viaKeyboard) pendingFocusRef.current = id

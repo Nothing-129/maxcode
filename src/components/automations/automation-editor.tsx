@@ -468,7 +468,8 @@ export function AutomationEditor({
           {(
             [
               { value: "launch_session", label: t("actionLaunchSession") },
-              { value: "enqueue_task", label: t("actionEnqueueTask") },
+              // Existing enqueue_task automations remain readable; new ones
+              // use regular sessions while the old AI task board is hidden.
             ] as Array<{ value: AutomationAction; label: string }>
           ).map((opt) => (
             <button

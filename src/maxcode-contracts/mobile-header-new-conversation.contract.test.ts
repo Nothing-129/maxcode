@@ -16,7 +16,9 @@ describe("MaxCode contract: mobile header new conversation", () => {
     const newChat = buttons.find((button) =>
       button.includes("onClick={handleNewConversation}")
     )!
-    expect(header).toMatch(/\{displayTitle\}\s*<\/span>\s*<DropdownMenu>/)
+    expect(header).toMatch(
+      /\{displayTitle\}\s*<\/span>(?:\s*\{canLinkTodo && \([\s\S]*?\)\})?\s*<DropdownMenu>/
+    )
     expect(newChat).not.toContain("md:hidden")
     expect(newChat).toContain("<Button")
     expect(newChat).toContain('variant="ghost"')

@@ -64,6 +64,7 @@ import {
 import {
   AlertCircle,
   CheckIcon,
+  ClipboardPlus,
   CopyIcon,
   Loader2,
   Plus,
@@ -71,6 +72,7 @@ import {
   MessageSquarePlus,
 } from "lucide-react"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
+import { useTodoFromMessage } from "./use-todo-from-message"
 import { Button } from "@/components/ui/button"
 import { useTranslations } from "next-intl"
 import {
@@ -816,6 +818,30 @@ const UserMessageNewChatButton = memo(function UserMessageNewChatButton({
   )
 })
 
+const UserMessageTodoButton = memo(function UserMessageTodoButton({
+  parts,
+}: {
+  parts: AdaptedContentPart[]
+}) {
+  const t = useTranslations("Todos")
+  const getText = useCallback(
+    () => unescapeComposerText(extractTextFromParts(parts)),
+    [parts]
+  )
+  const addTodo = useTodoFromMessage(getText)
+  if (!addTodo || !getText().trim()) return null
+  return (
+    <MessageAction
+      tooltip={t("addMessage")}
+      className="opacity-0 group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-14"
+      onClick={addTodo}
+      size="icon-xs"
+    >
+      <ClipboardPlus size={12} />
+    </MessageAction>
+  )
+})
+
 /**
  * Flag the thread's last rendered element, which is where the backend's tail
  * fork would land — a user message or a compaction divider after the newest
@@ -926,6 +952,7 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
             (part) => part.type !== "text" || part.text.trim().length > 0
           ) ? (
             <div className="group/user-msg relative flex w-fit ml-auto max-w-full items-start gap-1 max-md:mb-6">
+              <UserMessageTodoButton parts={group.parts} />
               <UserMessageNewChatButton parts={group.parts} />
               <UserMessageCopyButton parts={group.parts} />
               <SentMessageEditButton

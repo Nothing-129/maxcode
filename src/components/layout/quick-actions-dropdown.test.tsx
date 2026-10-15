@@ -22,8 +22,8 @@ vi.mock("@/contexts/automations-view-context", () => ({
   useAutomationsView: () => ({ unseenFailures: 2 }),
 }))
 
-vi.mock("@/contexts/tasks-view-context", () => ({
-  useTasksView: () => ({ attentionCount: mocks.attentionCount }),
+vi.mock("@/contexts/todos-view-context", () => ({
+  useTodosView: () => ({ attentionCount: mocks.attentionCount }),
 }))
 
 vi.mock("@/contexts/workbench-route-context", () => ({

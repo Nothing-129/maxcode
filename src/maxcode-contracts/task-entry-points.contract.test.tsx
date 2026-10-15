@@ -11,7 +11,7 @@ import {
   WorkbenchRouteChromeActions,
   useHasWorkbenchRouteStrip,
 } from "@/components/workbench/workbench-content"
-import { OPEN_TASK_SETTINGS_EVENT } from "@/components/tasks/tasks-chrome-actions"
+import { OPEN_TODO_TEAMS_EVENT } from "@/components/todos/todos-chrome-actions"
 import enMessages from "@/i18n/messages/en.json"
 import { source } from "./contract-source"
 
@@ -19,16 +19,16 @@ const state = vi.hoisted(() => ({
   viewMode: "board" as "board" | "list",
   setViewMode: vi.fn(),
 }))
-vi.mock("@/contexts/tasks-view-context", () => ({
-  useTasksView: () => ({
-    tasks: [{ id: 1 }],
+vi.mock("@/contexts/todos-view-context", () => ({
+  useTodosView: () => ({
+    state: { todos: [{ id: "new-todo" }] },
     viewMode: state.viewMode,
     setViewMode: state.setViewMode,
   }),
 }))
-vi.mock("@/components/tasks/tasks-page", () => ({
-  TasksPage: () => <div>Task board</div>,
-  TasksPageTitle: () => <h1>Tasks</h1>,
+vi.mock("@/components/todos/todos-page", () => ({
+  TodosPage: () => <div>Task board</div>,
+  TodosPageTitle: () => <h1>Tasks</h1>,
 }))
 vi.mock("@/components/automations/automations-page", () => ({
   AutomationsPage: () => null,
@@ -81,7 +81,7 @@ function mount() {
   fireEvent.click(screen.getByRole("button", { name: "Open tasks" }))
 }
 
-describe("MaxCode: restored work-task entry points", () => {
+describe("MaxCode: independent todo entry points", () => {
   beforeEach(() => {
     state.viewMode = "board"
     state.setViewMode.mockClear()
@@ -103,12 +103,12 @@ describe("MaxCode: restored work-task entry points", () => {
   })
 
   it.each(["board", "list"] as const)(
-    "exposes the view switch and task settings in %s mode",
+    "exposes the view switch and team controls in %s mode",
     (mode) => {
       state.viewMode = mode
       mount()
       const label =
-        enMessages.Tasks[
+        enMessages.Todos[
           mode === "board" ? "viewSwitchToList" : "viewSwitchToBoard"
         ]
       fireEvent.click(screen.getByRole("button", { name: label }))
@@ -116,14 +116,14 @@ describe("MaxCode: restored work-task entry points", () => {
         mode === "board" ? "list" : "board"
       )
       const openSettings = vi.fn()
-      window.addEventListener(OPEN_TASK_SETTINGS_EVENT, openSettings)
+      window.addEventListener(OPEN_TODO_TEAMS_EVENT, openSettings)
       try {
         fireEvent.click(
-          screen.getByRole("button", { name: enMessages.Tasks.settingsTitle })
+          screen.getByRole("button", { name: enMessages.Todos.teams })
         )
         expect(openSettings).toHaveBeenCalledOnce()
       } finally {
-        window.removeEventListener(OPEN_TASK_SETTINGS_EVENT, openSettings)
+        window.removeEventListener(OPEN_TODO_TEAMS_EVENT, openSettings)
       }
     }
   )

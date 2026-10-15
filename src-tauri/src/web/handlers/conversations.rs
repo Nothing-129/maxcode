@@ -252,6 +252,8 @@ pub struct CreateConversationParams {
     pub folder_id: i32,
     pub agent_type: AgentType,
     pub title: Option<String>,
+    #[serde(default)]
+    pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
 }
 
 pub async fn create_conversation(
@@ -259,6 +261,8 @@ pub async fn create_conversation(
     Json(params): Json<CreateConversationParams>,
 ) -> Result<Json<i32>, AppCommandError> {
     let db = &state.db;
+    let origins =
+        crate::todo::conversation_groups::validate_origins(&db.conn, &params.todo_origins).await?;
     let result = conv_commands::create_conversation_core(
         &db.conn,
         params.folder_id,
@@ -266,6 +270,17 @@ pub async fn create_conversation(
         params.title,
     )
     .await?;
+    if let Err(error) =
+        crate::todo::conversation_groups::link_origins(&db.conn, result, &origins).await
+    {
+        if let Err(cleanup) =
+            conv_commands::delete_conversation_with_cleanup_core(&state.emitter, &db.conn, result)
+                .await
+        {
+            tracing::error!(conversation_id = result, reason = %cleanup.message, "Cannot clean up conversation after todo association failure");
+        }
+        return Err(error);
+    }
     conv_commands::emit_conversation_upsert(&state.emitter, &db.conn, result).await;
     Ok(Json(result))
 }
@@ -278,12 +293,17 @@ pub struct CreateChatConversationParams {
     /// Reuse an eagerly-created scratch dir (from `create_chat_dir`) instead of
     /// minting a new one, so the ACP cwd stays put across the first send.
     pub existing_dir: Option<String>,
+    #[serde(default)]
+    pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
 }
 
 pub async fn create_chat_conversation(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<CreateChatConversationParams>,
 ) -> Result<Json<conv_commands::CreateChatConversationResult>, AppCommandError> {
+    let origins =
+        crate::todo::conversation_groups::validate_origins(&state.db.conn, &params.todo_origins)
+            .await?;
     let result = conv_commands::create_chat_conversation_core(
         &state.db.conn,
         &state.data_dir,
@@ -292,6 +312,24 @@ pub async fn create_chat_conversation(
         params.existing_dir.as_deref(),
     )
     .await?;
+    if let Err(error) = crate::todo::conversation_groups::link_origins(
+        &state.db.conn,
+        result.conversation_id,
+        &origins,
+    )
+    .await
+    {
+        if let Err(cleanup) = conv_commands::delete_conversation_with_cleanup_core(
+            &state.emitter,
+            &state.db.conn,
+            result.conversation_id,
+        )
+        .await
+        {
+            tracing::error!(conversation_id = result.conversation_id, reason = %cleanup.message, "Cannot clean up chat after todo association failure");
+        }
+        return Err(error);
+    }
     conv_commands::emit_conversation_upsert(&state.emitter, &state.db.conn, result.conversation_id)
         .await;
     Ok(Json(result))

@@ -5,6 +5,7 @@ import {
   ArrowUpToLine,
   BrainCog,
   CheckIcon,
+  ClipboardPlus,
   Coins,
   CopyIcon,
   MessageSquarePlus,
@@ -21,6 +22,7 @@ import {
 import { useMessageScroll } from "@/components/message/message-scroll-context"
 import { useModelLabel } from "@/components/message/model-label-context"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
+import { useTodoFromMessage } from "./use-todo-from-message"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
 import { formatTokenCount } from "@/lib/token-format"
 import { cn, copyTextToClipboard } from "@/lib/utils"
@@ -92,6 +94,7 @@ export function TurnStats({
   // Reuse the live timer's elapsed-unit strings for the standalone fallback.
   const tLive = useTranslations("Folder.chat.liveTurnStats")
   const tTasks = useTranslations("Tasks")
+  const tTodos = useTranslations("Todos")
   const scroll = useMessageScroll()
   const modelLabel = useModelLabel()
   const [isCopied, setIsCopied] = useState(false)
@@ -160,6 +163,7 @@ export function TurnStats({
 
   const getMessageText = useCallback(() => copyText ?? "", [copyText])
   const handleNewChat = useNewChatFromMessage(getMessageText)
+  const handleAddTodo = useTodoFromMessage(getMessageText)
 
   const handleCopy = useCallback(async () => {
     if (isCopied || !hasCopy) return
@@ -229,6 +233,21 @@ export function TurnStats({
             <TooltipContent side="top">
               {tTasks("newChatFromMessage")}
             </TooltipContent>
+          </Tooltip>
+        )}
+        {hasCopy && handleAddTodo && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={handleAddTodo}
+                className={iconButtonClass}
+                aria-label={tTodos("addMessage")}
+              >
+                <ClipboardPlus aria-hidden="true" className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top">{tTodos("addMessage")}</TooltipContent>
           </Tooltip>
         )}
         {onForkFromHere && (

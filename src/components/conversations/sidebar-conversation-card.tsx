@@ -22,6 +22,7 @@ import {
   MessageSquare,
   ChevronRight,
   Ellipsis,
+  Link2,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useImeGuard } from "@/hooks/use-ime-guard"
@@ -220,6 +221,7 @@ interface SidebarConversationCardProps {
   onStatusChange: (id: number, status: ConversationStatus) => Promise<void>
   onNewConversation?: (folderId: number) => void
   onTogglePin?: (id: number, nextPinned: boolean) => void
+  onLinkTodo?: (id: number, title: string) => void
   /** Delegation-tree nesting depth (0 = root). Drives the per-level indent. */
   depth?: number
   /**
@@ -258,6 +260,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   onNewConversation,
   onStatusChange,
   onTogglePin,
+  onLinkTodo,
   depth = 0,
   railFrom = 0,
   hasChildren = false,
@@ -270,6 +273,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const ime = useImeGuard()
   const tSidebar = useTranslations("Folder.sidebar")
   const tDetails = useTranslations("Folder.sessionDetails")
+  const tTodos = useTranslations("Todos")
   const [renameOpen, setRenameOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
@@ -383,7 +387,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions =
-    !isSubsession && (Boolean(onTogglePin) || showDoneAction)
+    !isSubsession &&
+    (Boolean(onTogglePin) || showDoneAction || Boolean(onLinkTodo))
   const showFolderMeta = Boolean(folderLabel)
 
   return (
@@ -689,6 +694,20 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           align="end"
                           onClick={(event) => event.stopPropagation()}
                         >
+                          {onLinkTodo && !isSubsession && (
+                            <DropdownMenuItem
+                              onSelect={() =>
+                                onLinkTodo(
+                                  conversation.id,
+                                  formatConversationTitle(conversation.title) ||
+                                    t("untitledConversation")
+                                )
+                              }
+                            >
+                              <Link2 />
+                              {tTodos("linkConversation")}
+                            </DropdownMenuItem>
+                          )}
                           {onTogglePin && (
                             <DropdownMenuItem
                               onSelect={() =>
@@ -718,6 +737,20 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
             </HoverCardTrigger>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            {onLinkTodo && !isSubsession && (
+              <ContextMenuItem
+                onSelect={() =>
+                  onLinkTodo(
+                    conversation.id,
+                    formatConversationTitle(conversation.title) ||
+                      t("untitledConversation")
+                  )
+                }
+              >
+                <Link2 className="size-4" />
+                {tTodos("linkConversation")}
+              </ContextMenuItem>
+            )}
             {onNewConversation && (
               <>
                 <ContextMenuItem

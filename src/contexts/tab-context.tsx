@@ -246,11 +246,15 @@ export interface TabContextValue {
       folderDefaultAgent?: TabItem["agentType"] | null
       targetGroup?: string
       forceAgent?: TabItem["agentType"]
+      freshDraft?: boolean
+      draftTabId?: string
     }
   ) => OpenedDraftTarget | null
   openChatModeTab: (options?: {
     targetGroup?: string
     forceAgent?: TabItem["agentType"]
+    freshDraft?: boolean
+    draftTabId?: string
   }) => OpenedDraftTarget | null
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: TabItem["agentType"]) => void

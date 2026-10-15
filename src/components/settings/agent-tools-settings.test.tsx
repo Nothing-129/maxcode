@@ -95,7 +95,7 @@ beforeEach(() => {
 })
 
 describe("AgentToolsSettingsSection", () => {
-  it("shows one switch per tool, each reflecting its own endpoint", async () => {
+  it("shows the four supported tool switches without exposing the historical task writer", async () => {
     primeBackend({ feedback: true, sessionInfo: false, workTasks: true })
 
     renderWithIntl()
@@ -116,10 +116,9 @@ describe("AgentToolsSettingsSection", () => {
       "data-state",
       "unchecked"
     )
-    expect(screen.getByLabelText(LABELS.workTasks)).toHaveAttribute(
-      "data-state",
-      "checked"
-    )
+    expect(screen.getAllByRole("switch")).toHaveLength(4)
+    expect(screen.queryByLabelText(LABELS.workTasks)).not.toBeInTheDocument()
+    expect(screen.queryByText(LABELS.workTasks)).not.toBeInTheDocument()
   })
 
   it("saves only the group the user changed", async () => {
@@ -140,8 +139,8 @@ describe("AgentToolsSettingsSection", () => {
     expect(mockSetChat).not.toHaveBeenCalled()
   })
 
-  it("writes both create-from-chat flags together and primes the feedback cache", async () => {
-    primeBackend()
+  it("preserves the loaded historical task flag when saving automation changes and primes the feedback cache", async () => {
+    primeBackend({ workTasks: true })
 
     renderWithIntl()
 
@@ -152,7 +151,7 @@ describe("AgentToolsSettingsSection", () => {
     await waitFor(() => {
       expect(mockSetChat).toHaveBeenCalledWith({
         automations_enabled: true,
-        work_tasks_enabled: false,
+        work_tasks_enabled: true,
       })
     })
     expect(mockSetFeedback).toHaveBeenCalledWith({ enabled: true })

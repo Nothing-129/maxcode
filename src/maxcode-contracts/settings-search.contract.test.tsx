@@ -184,9 +184,7 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
       en.SettingsShell.searchEmpty
     )
     fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" })
-    expect(
-      screen.getByRole("button", { name: "General", exact: true })
-    ).toBeVisible()
+    expect(screen.getByRole("button", { name: "General" })).toBeVisible()
   })
 
   it("preserves remote context and uses a query parameter for direct navigation", () => {
@@ -312,7 +310,7 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
       if (mobile)
         await userEvent
           .setup()
-          .click(screen.getByRole("button", { name: "Settings", exact: true }))
+          .click(screen.getByRole("button", { name: "Settings" }))
       search("Network Proxy")
       fireEvent.click(searchResult("Network Proxy"))
       const proxy = await screen.findByLabelText("Proxy address")

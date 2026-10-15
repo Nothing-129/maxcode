@@ -22,7 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAutomationsView } from "@/contexts/automations-view-context"
-import { useTasksView } from "@/contexts/tasks-view-context"
+import { useTodosView } from "@/contexts/todos-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { openProjectBootWindow } from "@/lib/api"
 import { CloneDialog } from "./clone-dialog"
@@ -56,7 +56,7 @@ export function QuickActionsDropdown() {
   const tSidebar = useTranslations("Folder.sidebar")
 
   const { unseenFailures } = useAutomationsView()
-  const { attentionCount } = useTasksView()
+  const { attentionCount } = useTodosView()
   const { setRoute } = useWorkbenchRoute()
 
   const [folderDialogOpen, setFolderDialogOpen] = useState(false)

@@ -645,21 +645,34 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
         );
     } else {
         match codeg_lib::web::load_web_service_config(&state.db.conn).await {
-            Ok(config) if config.auto_start => {
-                if let Err(error) = codeg_lib::web::do_start_web_server_with_state(
-                    state.clone(),
-                    static_dir,
-                    None,
-                    None,
-                    None,
+            Ok(config) => {
+                let hosted_team = match codeg_lib::todo::hosted_team_service_required(
+                    &state.db.conn,
+                    config.public_share_url.as_deref(),
                 )
                 .await
                 {
-                    // A busy public port must not prevent the desktop from opening.
-                    tracing::warn!("[WEB] Could not auto-start public Web service: {error}");
+                    Ok(required) => required,
+                    Err(error) => {
+                        tracing::warn!("[WEB] Could not inspect hosted teams: {error}");
+                        false
+                    }
+                };
+                if config.auto_start || hosted_team {
+                    if let Err(error) = codeg_lib::web::do_start_web_server_with_state(
+                        state.clone(),
+                        static_dir,
+                        None,
+                        None,
+                        None,
+                    )
+                    .await
+                    {
+                        // A busy public port must not prevent the desktop from opening.
+                        tracing::warn!("[WEB] Could not auto-start public Web service: {error}");
+                    }
                 }
             }
-            Ok(_) => {}
             Err(error) => tracing::warn!("[WEB] Could not load Web service settings: {error}"),
         }
     }

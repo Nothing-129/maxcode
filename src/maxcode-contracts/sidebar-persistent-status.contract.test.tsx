@@ -92,9 +92,7 @@ describe("MaxCode: sidebar status persists beside actions", () => {
       await user.hover(more)
       await user.click(more)
       expect(status).toBeVisible()
-      await user.click(
-        screen.getByRole("menuitem", { name: "Pin", exact: true })
-      )
+      await user.click(screen.getByRole("menuitem", { name: "Pin" }))
       expect(onTogglePin).toHaveBeenCalledWith(91, true)
       expect(onSelect).not.toHaveBeenCalled()
       expect(status).toBeVisible()

@@ -12,6 +12,7 @@ import {
 import { TurnBusyError, isTurnInProgressRejection } from "./turn-busy"
 import type { FolderThemeColor } from "./theme-presets"
 import type { FollowUpIntent } from "./task-follow-up"
+import type { TodoOrigin } from "./todos"
 import type {
   LeakedTempReclaim,
   LeakedTempScan,
@@ -3287,12 +3288,14 @@ export async function createHyperframesProject(params: {
 export async function createConversation(
   folderId: number,
   agentType: AgentType,
-  title?: string
+  title?: string,
+  todoOrigins?: TodoOrigin[]
 ): Promise<number> {
   return getTransport().call("create_conversation", {
     folderId,
     agentType,
     title: title ?? null,
+    ...(todoOrigins?.length ? { todoOrigins } : {}),
   })
 }
 
@@ -3307,12 +3310,14 @@ export async function createChatConversation(
   title?: string,
   // Reuse a scratch dir already minted by `createChatDir` (eager connect) so the
   // ACP cwd never moves across the first send; omit to let the backend mint one.
-  existingDir?: string
+  existingDir?: string,
+  todoOrigins?: TodoOrigin[]
 ): Promise<CreateChatConversationResult> {
   return getTransport().call("create_chat_conversation", {
     agentType,
     title: title ?? null,
     existingDir: existingDir ?? null,
+    ...(todoOrigins?.length ? { todoOrigins } : {}),
   })
 }
 

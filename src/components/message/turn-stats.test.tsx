@@ -4,6 +4,18 @@ import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
 
+const todoActions = vi.hoisted(() => ({
+  setRoute: vi.fn(),
+  requestCreateTodo: vi.fn(),
+}))
+
+vi.mock("@/contexts/workbench-route-context", () => ({
+  useOptionalWorkbenchRoute: () => ({ setRoute: todoActions.setRoute }),
+}))
+vi.mock("@/lib/todo-compose-events", () => ({
+  requestCreateTodo: todoActions.requestCreateTodo,
+}))
+
 // The new-chat action pulls workbench-route + tab-store contexts that this
 // unit test doesn't mount; stub it to a no-op handler.
 vi.mock("./use-new-chat-from-message", () => ({
@@ -16,7 +28,13 @@ import enMessages from "@/i18n/messages/en.json"
 
 function renderStats(ui: ReactNode) {
   return render(
-    <NextIntlClientProvider locale="en" messages={enMessages}>
+    <NextIntlClientProvider
+      locale="en"
+      messages={{
+        ...enMessages,
+        Todos: { addMessage: "Add message to todo" },
+      }}
+    >
       <MessageScrollProvider value={{ scrollToIndex: vi.fn() }}>
         {ui}
       </MessageScrollProvider>
@@ -25,6 +43,40 @@ function renderStats(ui: ReactNode) {
 }
 
 const jumpLabel = enMessages.Folder.chat.messageList.jumpToPreviousUserMessage
+
+describe("TurnStats todo action", () => {
+  it("opens a todo draft containing the finalized assistant Markdown", async () => {
+    renderStats(<TurnStats copyText={"## Changes\n\n- Fix login"} />)
+    await userEvent.click(screen.getByLabelText("Add message to todo"))
+    expect(todoActions.requestCreateTodo).toHaveBeenCalledWith({
+      text: "## Changes\n\n- Fix login",
+    })
+    expect(todoActions.setRoute).not.toHaveBeenCalled()
+  })
+
+  it("does not offer unfinished output or tool-only replies as todo text", () => {
+    const { rerender } = renderStats(
+      <TurnStats copyText="Partial output" isResponseComplete={false} />
+    )
+    expect(
+      screen.queryByLabelText("Add message to todo")
+    ).not.toBeInTheDocument()
+    rerender(
+      <NextIntlClientProvider
+        locale="en"
+        messages={{
+          ...enMessages,
+          Todos: { addMessage: "Add message to todo" },
+        }}
+      >
+        <TurnStats copyText="" duration_ms={1_000} />
+      </NextIntlClientProvider>
+    )
+    expect(
+      screen.queryByLabelText("Add message to todo")
+    ).not.toBeInTheDocument()
+  })
+})
 
 describe("TurnStats jump-to-previous-user gating", () => {
   it("shows the jump button for a duration-only turn (no token usage)", () => {

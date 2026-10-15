@@ -96,25 +96,7 @@ pub async fn create_conversation_share_core(
     conversation_id: i32,
     options: ConversationShareOptions,
 ) -> Result<ConversationShareInfo, AppCommandError> {
-    let (detail, _) = get_folder_conversation_core(conn, conversation_id).await?;
-    let shared_at = Utc::now();
-    let turns = select_share_turns(detail.turns, &options)?;
-    // Deliberately construct a public DTO instead of serializing
-    // DbConversationDetail: folder ids, external ids, branch names and local
-    // origin paths have no place in a transcript-only share.
-    let snapshot = SharedConversationSnapshot {
-        version: SHARE_SNAPSHOT_VERSION,
-        title: detail.summary.title,
-        agent_type: detail.summary.agent_type,
-        model: detail.summary.model,
-        message_count: turns.len() as u32,
-        created_at: detail.summary.created_at,
-        updated_at: detail.summary.updated_at,
-        shared_at,
-        turns,
-        share_options: options,
-        session_stats: None,
-    };
+    let snapshot = build_conversation_share_snapshot(conn, conversation_id, options).await?;
     let snapshot_json = serde_json::to_string(&snapshot).map_err(|err| {
         AppCommandError::task_execution_failed("Failed to serialize conversation share")
             .with_detail(err.to_string())
@@ -126,6 +108,34 @@ pub async fn create_conversation_share_core(
         version: SHARE_SNAPSHOT_VERSION,
         token: row.token,
         shared_at: row.updated_at,
+    })
+}
+
+/// Build a transcript without publishing it locally. Team todos publish this
+/// selected snapshot on the team's host together with the task transaction.
+pub(crate) async fn build_conversation_share_snapshot(
+    conn: &sea_orm::DatabaseConnection,
+    conversation_id: i32,
+    options: ConversationShareOptions,
+) -> Result<SharedConversationSnapshot, AppCommandError> {
+    let (detail, _) = get_folder_conversation_core(conn, conversation_id).await?;
+    let shared_at = Utc::now();
+    let turns = select_share_turns(detail.turns, &options)?;
+    // Deliberately construct a public DTO instead of serializing
+    // DbConversationDetail: folder ids, external ids, branch names and local
+    // origin paths have no place in a transcript-only share.
+    Ok(SharedConversationSnapshot {
+        version: SHARE_SNAPSHOT_VERSION,
+        title: detail.summary.title,
+        agent_type: detail.summary.agent_type,
+        model: detail.summary.model,
+        message_count: turns.len() as u32,
+        created_at: detail.summary.created_at,
+        updated_at: detail.summary.updated_at,
+        shared_at,
+        turns,
+        share_options: options,
+        session_stats: None,
     })
 }
 
@@ -148,13 +158,24 @@ pub async fn get_shared_conversation_core(
     }
     let row = conversation_share_service::find_active_by_token(conn, token)
         .await
-        .map_err(AppCommandError::from)?
-        .ok_or_else(|| AppCommandError::not_found("Shared conversation not found"))?;
-    let mut snapshot: SharedConversationSnapshot = serde_json::from_str(&row.snapshot_json)
-        .map_err(|err| {
+        .map_err(AppCommandError::from)?;
+    let snapshot_json = match row {
+        Some(row) => row.snapshot_json,
+        None => crate::todo::shared_snapshot_json(conn, token)
+            .await?
+            .ok_or_else(|| AppCommandError::not_found("Shared conversation not found"))?,
+    };
+    let snapshot: SharedConversationSnapshot =
+        serde_json::from_str(&snapshot_json).map_err(|err| {
             AppCommandError::database_error("Shared conversation snapshot is invalid")
                 .with_detail(err.to_string())
         })?;
+    Ok(sanitize_shared_snapshot(snapshot))
+}
+
+pub(crate) fn sanitize_shared_snapshot(
+    mut snapshot: SharedConversationSnapshot,
+) -> SharedConversationSnapshot {
     // Legacy links included all execution data. An absent opt-in defaults to
     // clean content at the public boundary, even before owners republish.
     if snapshot.version < SHARE_SNAPSHOT_VERSION {
@@ -164,7 +185,7 @@ pub async fn get_shared_conversation_core(
     snapshot.message_count = snapshot.turns.len() as u32;
     snapshot.session_stats = None;
     snapshot.version = SHARE_SNAPSHOT_VERSION;
-    Ok(snapshot)
+    snapshot
 }
 
 fn select_share_turns(

@@ -291,6 +291,7 @@ function mount(
   const view = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <ForgeIssueDetailSheet
+        showLegacyTasks
         row={item}
         link={link}
         folderId={handlers.folderId === undefined ? 7 : handlers.folderId}
@@ -687,6 +688,7 @@ describe("ForgeIssueDetailSheet", () => {
       view.rerender(
         <NextIntlClientProvider locale="en" messages={enMessages}>
           <ForgeIssueDetailSheet
+            showLegacyTasks
             row={row({ number: 43, title: "Another one" })}
             link={null}
             folderId={7}
@@ -714,6 +716,7 @@ describe("ForgeIssueDetailSheet", () => {
       view.rerender(
         <NextIntlClientProvider locale="en" messages={enMessages}>
           <ForgeIssueDetailSheet
+            showLegacyTasks
             row={row({ title: "Login times out (edited)" })}
             link={null}
             folderId={7}
@@ -1512,6 +1515,7 @@ describe("ForgeIssueDetailSheet tabs", () => {
     view.rerender(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <ForgeIssueDetailSheet
+          showLegacyTasks
           row={row({ is_pr: true, number: 43, title: "Another change" })}
           link={null}
           folderId={7}
@@ -2549,6 +2553,7 @@ describe("ForgeIssueDetailSheet conversation rail", () => {
     view.rerender(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <ForgeIssueDetailSheet
+          showLegacyTasks
           row={row({ number: 43, title: "Another one" })}
           link={null}
           folderId={7}
@@ -2598,6 +2603,7 @@ describe("ForgeIssueDetailSheet conversation rail", () => {
     const panel = (item: ForgeIssueRow | null, folderId: number) => (
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <ForgeIssueDetailSheet
+          showLegacyTasks
           row={item}
           link={null}
           folderId={folderId}

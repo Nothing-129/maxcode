@@ -2,12 +2,130 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "todos.confirmed-compose",
+      "category": "product",
+      "description": "Message and conversation-share todo actions open a workspace-level prefilled editor without navigating away from the current conversation. Message text is prefilled directly; whole-conversation actions first publish or reuse the selected conversation share link and prefill it as localized conversation-reference text plus the URL as content. Todo creation occurs only after explicit Save; Cancel creates no todo. Late or failed share responses never open an editor for another conversation. The buffered handoff keeps literal content and chosen conversation snapshot options, and source navigation supersedes stale create requests.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": [
+        "src/components/todos/",
+        "src/components/message/use-todo-from-message.ts",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/app/workspace/layout.tsx",
+        "src/lib/todo-compose-events.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-compose-confirmation.contract.test.tsx",
+        "src/maxcode-contracts/todo-message-handoff.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.deadlines-priority",
+      "category": "product",
+      "description": "Independent human todos support optional date-only deadlines and low/normal/high/urgent priority in personal and team scopes. Local calendar days determine today/overdue filters; completed tasks are never overdue. Host-side completed filtering runs before counting and pagination, with query identity and offline caches scoped to the chosen filter. Both board and exact source details edit and display these fields with revision conflict handling.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": [
+        "src-tauri/src/todo/",
+        "src-tauri/src/db/migration/m20261015_000001_todo_schedule.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src/lib/todos.ts",
+        "src/lib/todo-schedule.ts",
+        "src/maxcode-contracts/todo-schedule.contract.rs",
+        "src/contexts/todos-view-context.tsx",
+        "src/components/todos/",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-schedule.contract.test.tsx",
+        "src/maxcode-contracts/todo-completed-pagination.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.sidebar-conversation-groups",
+      "category": "product",
+      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation keeps its established reuse behavior. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
+      "origins": ["worktree-2026-10-14"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-conversation-grouping.ts",
+        "src/components/conversations/sidebar-section-header.tsx",
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/layout/sidebar-section-order-control.tsx",
+        "src/lib/sidebar-view-mode-storage.ts",
+        "src/hooks/use-todo-conversation-groups.ts",
+        "src/hooks/use-conversation-todo-sources.ts",
+        "src/components/todos/",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/lib/todo-compose-events.ts",
+        "src/lib/todo-conversation-events.ts",
+        "src/lib/todos.ts",
+        "src/components/todos/use-new-chat-from-todo.ts",
+        "src/components/todos/todo-card.tsx",
+        "src/stores/tab-store.ts",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/chat/conversation-context-bar.tsx",
+        "src/lib/api.ts",
+        "src-tauri/src/todo/",
+        "src-tauri/src/db/migration/m20261014_000003_todo_conversation_links.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src-tauri/src/web/handlers/conversations.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/router.rs",
+        "src/i18n/messages/",
+        "src/maxcode-contracts/todo-conversation-groups.contract.rs",
+        "src/maxcode-contracts/todo-conversation-sources.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-conversation-origin.contract.test.tsx",
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx",
+        "src/maxcode-contracts/todo-conversation-links.contract.test.tsx",
+        "src/maxcode-contracts/todo-source-navigation.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.personal-team-collaboration",
+      "category": "product",
+      "description": "Independent personal and host-owned team todos use member names/avatars and equal task permissions. Scope preferences persist; invitation codes bind the public host address and team capability, separate from instance credentials. Tasks support optional generated titles, assignment, atomic claim, completion and revision conflicts. Board columns separate unclaimed, others claims, my claims and completed. Only completed tasks use server pagination and full-collection search; unfinished tasks remain unbounded. Message actions seed todo content, conversation More/share uploads a selected sanitized snapshot to the team host, and todo-to-chat inserts an unsent draft in the last explicitly selected new-conversation folder, unaffected by history focus or startup recovery. Offline state never borrows another scope or completed query data. Only the creator needs to keep its host online.",
+      "origins": ["worktree-2026-10-14"],
+      "paths": [
+        "src/components/todos/",
+        "src/lib/todos.ts",
+        "src/lib/todo-compose-events.ts",
+        "src/lib/last-new-conversation-context-storage.ts",
+        "src/stores/tab-store.ts",
+        "src/contexts/todos-view-context.tsx",
+        "src-tauri/src/todo/",
+        "src-tauri/src/db/migration/m20261014_000001_team_todo.rs",
+        "src-tauri/src/db/migration/m20261014_000002_todo_completed_pagination.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src-tauri/src/lib.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/handlers/mod.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/commands/conversation_share.rs",
+        "src/components/message/use-todo-from-message.ts",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/turn-stats.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/i18n/messages/",
+        "src/maxcode-contracts/team-todo.contract.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src/components/settings/agent-tools-settings.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/independent-todos.contract.test.ts",
+        "src/maxcode-contracts/todo-message-handoff.contract.test.tsx",
+        "src/maxcode-contracts/todo-last-new-folder.contract.test.tsx",
+        "src/maxcode-contracts/todo-completed-pagination.contract.test.tsx"
+      ]
+    },
+    {
       "id": "automation.reuse-message-listener",
       "category": "product",
       "description": "Automations offer reusable folderless chats and real DingTalk message triggers with immediate or batched dispatch. Durable native session binding, scoped message deduplication and transactional inbox claims survive restarts. Empty inboxes and busy chats do not create runs; failed executions are not automatically replayed. UI exposes scope, batching, account, pending count, listener status, explicit reconnect and pending-message processing.",
-      "origins": [
-        "worktree-2026-10-13"
-      ],
+      "origins": ["worktree-2026-10-13"],
       "paths": [
         "src-tauri/src/automation/",
         "src-tauri/src/models/automation.rs",
@@ -42,9 +160,7 @@
       "id": "automation.chat-target",
       "category": "product",
       "description": "Session automations can target Chat without a project or Git branch. Each run creates a fresh hidden chat folder and chat conversation; history resolves the actual conversation folder. Task-board automations still require a project.",
-      "origins": [
-        "worktree-2026-10-13"
-      ],
+      "origins": ["worktree-2026-10-13"],
       "paths": [
         "src/components/automations/automation-editor.tsx",
         "src/components/automations/automations-page.tsx",
@@ -60,7 +176,7 @@
     {
       "id": "chat.conversation-model-memory",
       "category": "product",
-      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Conversation summaries expose confirmed model_config for cold clients and evicted previews. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
+      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Conversation summaries expose confirmed model_config for cold clients and evicted previews. Previews store only selected labels in separate per-conversation entries, never synchronously parse or rewrite all full model catalogs on reopen. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
       "origins": ["worktree-2026-10-12"],
       "paths": [
         "src-tauri/src/acp/conversation_model_config.rs",
@@ -1208,22 +1324,22 @@
     {
       "id": "tasks.workbench-entry-points",
       "category": "product",
-      "description": "Work tasks are available through the sidebar and quick menu with live attention badges, a registered board/list page, title and settings controls, and Issue/PR start, retrigger and task-status navigation. Sidebar visibility preferences and mobile/coarse-pointer collapse remain supported. Message actions retain the normal new-chat draft flow; task selectors stay within the seven maintained agents and Electron/server transport.",
-      "origins": ["worktree-2026-10-13"],
+      "description": "The tasks route opens the independent human todo board/list and member-specific attention badge. The former AI work-task page, Forge start/retrigger/status controls and new automation enqueue controls remain hidden; implementation and historical data are retained. Personal/team switching changes only todo scope, without changing projects, conversations or agent settings.",
+      "origins": ["worktree-2026-10-13", "worktree-2026-10-14"],
       "paths": [
         "src/components/workbench/workbench-content.tsx",
-        "src/components/tasks/tasks-page.tsx",
-        "src/components/tasks/tasks-chrome-actions.tsx",
         "src/contexts/workbench-route-context.tsx",
         "src/components/layout/quick-actions-dropdown.tsx",
         "src/components/layout/sidebar.tsx",
         "src/components/forge/forge-page.tsx",
         "src/components/forge/forge-issue-row.tsx",
-        "src/components/forge/forge-issue-detail-sheet.tsx"
+        "src/components/forge/forge-issue-detail-sheet.tsx",
+        "src/components/todos/",
+        "src/contexts/todos-view-context.tsx",
+        "src/app/workspace/layout.tsx",
+        "src/components/automations/automation-editor.tsx"
       ],
-      "contracts": [
-        "src/maxcode-contracts/task-entry-points.contract.test.tsx"
-      ]
+      "contracts": ["src/maxcode-contracts/task-entry-points.contract.test.tsx"]
     },
     {
       "id": "messages.action-hover-continuity",
@@ -1597,7 +1713,7 @@
     {
       "id": "chat.column-width-drag",
       "category": "product",
-      "description": "Real conversation views (not the new-chat welcome page, read-only or shared surfaces) offer an edge handle that stays invisible until hovered, resizes the centered content column live with symmetric growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
+      "description": "Real conversation views (not the new-chat welcome page, read-only or shared surfaces) offer an edge handle whose visual and pointer hit area are limited to a centered 120px segment, with no resize activation above or below. It stays invisible until hovered, resizes the centered content column live with symmetric growth, clamps to 40-80rem, persists debounced with pre-hydration application, syncs across windows, and resets to the 48rem default on double-click or Enter. Desktop layouts only; mobile keeps a full-width column regardless of stored preference.",
       "origins": ["worktree-2026-09-15"],
       "paths": [
         "src/lib/chat-column-width.ts",

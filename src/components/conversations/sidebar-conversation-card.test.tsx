@@ -397,7 +397,6 @@ describe("SidebarConversationCard actions menu", () => {
       await user.click(
         screen.getByRole("menuitem", {
           name: pinned ? "Unpin" : "Pin",
-          exact: true,
         })
       )
       expect(onTogglePin).toHaveBeenCalledWith(2, !pinned)
@@ -427,9 +426,7 @@ describe("SidebarConversationCard actions menu", () => {
   it("keeps completion available when pinning is unavailable", async () => {
     renderCard(conv(5), false)
     await openActions()
-    expect(
-      screen.queryByRole("menuitem", { name: "Pin", exact: true })
-    ).toBeNull()
+    expect(screen.queryByRole("menuitem", { name: "Pin" })).toBeNull()
     expect(
       screen.getByRole("menuitem", { name: "Mark as completed" })
     ).toBeVisible()
@@ -447,9 +444,7 @@ describe("SidebarConversationCard actions menu", () => {
     expect(
       screen.getByRole("menuitem", { name: "Mark as completed" })
     ).toBeVisible()
-    expect(
-      screen.queryByRole("menuitem", { name: "Status", exact: true })
-    ).toBeNull()
+    expect(screen.queryByRole("menuitem", { name: "Status" })).toBeNull()
   })
 })
 

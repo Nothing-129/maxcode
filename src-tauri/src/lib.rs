@@ -40,6 +40,7 @@ pub mod process;
 mod session_title;
 pub mod supervise;
 mod terminal;
+pub mod todo;
 pub mod turn_timings;
 pub mod update;
 pub mod web;

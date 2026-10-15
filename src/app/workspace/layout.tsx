@@ -1,5 +1,6 @@
 "use client"
 
+import { TodoComposeDialog } from "@/components/todos/todo-compose-dialog"
 import { InAppSettings } from "@/components/settings/in-app-settings"
 import {
   Suspense,
@@ -33,7 +34,7 @@ import { TabProvider, useTabStore, useTabActions } from "@/contexts/tab-context"
 import { SidebarProvider, useSidebarContext } from "@/contexts/sidebar-context"
 import { SearchDialogProvider } from "@/contexts/search-dialog-context"
 import { AutomationsViewProvider } from "@/contexts/automations-view-context"
-import { TasksViewProvider } from "@/contexts/tasks-view-context"
+import { TodosViewProvider } from "@/contexts/todos-view-context"
 import {
   WorkbenchRouteProvider,
   useWorkbenchRoute,
@@ -1232,8 +1233,9 @@ function WorkspaceLayoutInner({ children }: { children: React.ReactNode }) {
                           <TerminalProvider>
                             <SearchDialogProvider>
                               <AutomationsViewProvider>
-                                <TasksViewProvider>
+                                <TodosViewProvider>
                                   <WorkbenchRouteProvider>
+                                    <TodoComposeDialog />
                                     <WorkbenchRouteConversationSync />
                                     <ConversationUnreadSync />
                                     {/* Inside WorkbenchRouteProvider: the
@@ -1248,7 +1250,7 @@ function WorkspaceLayoutInner({ children }: { children: React.ReactNode }) {
                                       </InAppSettings>
                                     </UpdateProvider>
                                   </WorkbenchRouteProvider>
-                                </TasksViewProvider>
+                                </TodosViewProvider>
                               </AutomationsViewProvider>
                             </SearchDialogProvider>
                           </TerminalProvider>

@@ -122,7 +122,9 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
         ? t("sectionChats")
         : section === "recent"
           ? t("sectionRecent")
-          : t("sectionFolders")
+          : section === "todos"
+            ? t("sectionTodos")
+            : t("sectionFolders")
   // "Recent" gets the same right-edge affordance as "Chats": it is a section
   // people scan to resume work, so "start a new one" belongs at its head too.
   // Both sections start a folderless chat and share the same action label.

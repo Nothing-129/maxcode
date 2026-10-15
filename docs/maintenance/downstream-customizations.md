@@ -13,6 +13,13 @@
 列表、任务设置与 Issue/PR 任务操作，不进行全量上游合并。沿用当前任务执行后端、
 七智能体目录、Electron/HTTP 运行方式、侧栏样式和消息新开对话草稿行为。
 
+
+2026-10-14 独立待办：个人版/团队版仅切换待办范围；旧 AI 待办与 Forge 任务操作重新隐藏，旧数据和执行实现保留。新待办采用独立表和组件，团队由创建者本机托管，通过含公网地址的团队码加入，成员填写名称和头像且对待办同权。领取、分配和手动完成替代 AI 执行状态，消息悬浮操作与会话标题菜单可转待办，会话分享快照由团队宿主托管。
+
+待办新建对话默认沿用上一次主动新建会话的文件夹；查看历史和启动恢复不会覆盖该记录，已删除目录回退到当前有效目录或聊天模式。只有已完成待办按服务端每页 20 条分页，搜索覆盖全部已完成记录，个人和团队均适用；其他状态完整查询，翻页或断线不借用其他页、搜索条件或范围的数据。独立契约：`todo-last-new-folder.contract.test.tsx`、`todo-completed-pagination.contract.test.tsx`。
+
+侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
+
 ## 智能体维护范围
 
 维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。
@@ -30,7 +37,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
-| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话；缓存缺失时从对话摘要中的 SQLite 配置显示模型与思考等级，无需等待智能体启动 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
+| 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话，仅保存已选值和名称，按对话单独读写以避免同步处理完整模型目录；缓存缺失时从对话摘要中的 SQLite 配置显示模型与思考等级，无需等待智能体启动 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
 | 设置选项搜索 | 搜索现有设置项名称、说明与关键词，显示所属栏目及无结果提示；懒加载后定位高亮，保留草稿、远程参数与移动导航，不修改设置值或恢复隐藏入口 | `worktree-2026-10-11` | `settings.option-search` |
 | 会话状态常驻 | 悬停和打开操作菜单时保持运行中、未读及时间提示；置顶和完成收进独立菜单，支持键盘与触屏且不误选会话 | `worktree-2026-10-11` | `conversations.persistent-sidebar-status` |
 | 连接中提交 | 会话及欢迎页连接中可回车入队，消息可编辑、删除；初始化完成后顺序自动发送，慢连接及失败保留消息并提供重连，预览标签自动固定 | `worktree-2026-10-10` | `chat.connection-submit-queue` |
@@ -83,8 +90,10 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 消息文件链接 | 文件名按容器宽度完整换行，兼容手机；按真实路径、特殊文件名和复合扩展名匹配 VSCode Icons 原生彩色图标，离线资源支持明暗主题，保留紧凑输入框徽标 | `worktree-2026-09-11` | `chat.file-link-presentation` |
 | 消息 | Codex 后续建议标记渲染为按钮，点击追加到当前输入框；只读页面显示标签，代码示例保持原文 | `worktree-2026-09-11` | `chat.codex-followup-controls` |
 | 消息 | 历史回复正文到操作按钮保持连续悬停区域，悬停/键盘聚焦时抬高实际虚拟行层级（悬停优先），按钮不被下一条消息的透明间距遮挡，提示气泡打开时保持操作区可见及层级，保留原消息间距 | `worktree-2026-09-10` | `messages.action-hover-continuity` |
-| 消息 | 消息操作直接打开新对话并带入原文草稿，保留项目和智能体，不创建待办、不自动发送 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
-| 待办 | 恢复侧栏和快捷菜单入口、实时待处理角标、看板/列表及任务设置，以及 Issue/PR 启动、重新触发和任务状态跳转；尊重导航显隐偏好，手机/触屏导航后收起侧栏；消息操作继续新开未发送对话 | `worktree-2026-10-13` | `tasks.workbench-entry-points` |
+| 消息 | 消息的新对话操作带入原文草稿并保留项目和智能体，不自动发送；相邻的独立待办操作可另行创建待办 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
+| 待办入口 | 侧栏和快捷菜单打开独立的新待办；旧 AI 待办、Forge 任务按钮和新自动化入队入口隐藏，历史数据保留；导航显隐偏好及手机收起行为保留 | `worktree-2026-10-14` | `tasks.workbench-entry-points` |
+| 团队待办 | 个人/团队范围隔离并记忆，创建者本机托管，团队码加入、头像名称、成员同权、领取/指定/完成、空标题自动生成及对话双向联动；待办新对话沿用上次新建目录，已完成服务端分页与跨页搜索；独立成员凭据与分享快照，离线不串数据 | `worktree-2026-10-14` | `todos.personal-team-collaboration` |
+| 待办会话分组 | 侧边栏按已分配待办归组从待办新建的本机会话；草稿来源记忆及首次保存关联、个人/团队范围切换、独立于已完成分页、复用现有会话卡片与手机导航 | `worktree-2026-10-14` | `todos.sidebar-conversation-groups` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
 | 会话费用刷新 | 回复结束后同步累计计费用量；定价目录缓存 6 小时，前台定时检查、回到前台补查，离线保留旧价格，无需切换会话即可更新输入框底部金额 | `worktree-2026-09-10`、`worktree-2026-09-30` | `composer.conversation-cost` |
 | 上下文用量详情 | 参考式大号百分比、已用/容量横条、关闭按钮和彩色累计 Token 明细；累计统计与当前上下文分开标注，未知分类不伪造，窄屏自适应并限高滚动 | `worktree-2026-10-09` | `composer.usage-popover` |
@@ -256,3 +265,7 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 契约：`automation-reuse-messages.contract.test.ts`、
 `automation-reuse-messages.contract.rs`、`automation-chat-editor.contract.test.tsx`、
 `automation-message-listener-ui.contract.test.tsx`；热点：`automation.reuse-message-listener`。
+
+待办截止日期和优先级（`todos.deadlines-priority`）：新建与编辑均可选填截止日期、低/普通/高/紧急优先级，个人和团队同样支持。截止日期按查看者本地日历当天结束计算，已完成不标逾期。看板和列表支持今天到期、逾期、紧急筛选；已完成筛选先在宿主数据库执行再统计及分页，离线缓存不混用不同筛选条件。来源待办详情保持相同编辑及版本冲突规则。独立契约：`todo-schedule.contract.test.tsx`、`todo-schedule.contract.rs`。
+
+待办创建确认（`todos.confirmed-compose`）：消息“一键添加待办”和整个对话的分享待办入口在当前对话上打开预填的创建弹窗，不跳转看板；用户可调整内容、标题、指定人、截止日期及优先级。整个对话入口先生成或复用所选范围的分享链接，并以“详情见对话：链接”（随界面语言翻译）预填待办内容；单条消息仍填入消息原文。仅点击保存后创建待办，取消不创建待办。分享失败或关闭后的迟到响应不会打开错误的创建弹窗。弹窗由工作区常驻组件承接，重复打开重新初始化草稿。独立契约：`todo-compose-confirmation.contract.test.tsx`、`todo-message-handoff.contract.test.tsx`。

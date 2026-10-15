@@ -83,6 +83,8 @@ import {
   saveFolderExpanded,
   loadFolderGroupExpanded,
   saveFolderGroupExpanded,
+  loadTodoGroupExpanded,
+  saveTodoGroupExpanded,
   loadRecentFilter,
   loadSectionCollapsed,
   saveRecentFilter,
@@ -124,6 +126,8 @@ import {
   locateEntry,
   reconcileLayout,
   computeStickyState,
+  compareByCreatedAtDesc,
+  compareByUpdatedAtDesc,
   flatIndexOfConversation,
   folderHeaderFlatIndices,
   formatRelative,
@@ -144,11 +148,19 @@ import {
   type SidebarEntry,
   type SidebarLayout,
   type SidebarRow,
+  type SidebarTodoConversationGroup,
 } from "./sidebar-conversation-grouping"
 import { useSidebarConversationDrag } from "@/hooks/use-sidebar-conversation-drag"
 import { useSubsessionSync } from "@/hooks/use-subsession-sync"
 import { SidebarSectionHeader } from "./sidebar-section-header"
 import { SidebarFolderGroupHeader } from "./sidebar-folder-group-header"
+import { SidebarTodoGroupHeader } from "./sidebar-todo-group-header"
+import { useTodoConversationGroups } from "@/hooks/use-todo-conversation-groups"
+import { useOptionalTodosView } from "@/contexts/todos-view-context"
+import {
+  TodoConversationLinkDialog,
+  type TodoConversationLinkTarget,
+} from "@/components/todos/todo-conversation-link-dialog"
 import { ConversationManageDialog } from "./conversation-manage-dialog"
 import { CloneDialog } from "@/components/layout/clone-dialog"
 import { WorkspaceFolderDialog } from "@/components/layout/workspace-folder-dialog"
@@ -939,13 +951,13 @@ export interface SidebarConversationListHandle {
   /**
    * Open / close every collapsible group in the list at once, driven by the
    * sidebar header's toggle. "Every" is literal: the folder groups (plus each
-   * container's worktree children and its root sub-group) AND all four
-   * top-level section headers — Pinned, Folders, Chat, Recent. Any header left
+   * container's worktree children and its root sub-group) AND all five
+   * top-level section headers — Pinned, Folders, Chat, Recent, Todos. Any header left
    * standing open is what makes the button read as broken, and the flat
    * sections in particular own conversation rows directly, with no folder in
    * between, so nothing else would have closed them.
    *
-   * Collapsed therefore bottoms out at four header rows and nothing else. That
+   * Collapsed therefore bottoms out at the visible section headers. That
    * is the intent, not an overshoot — `expandAll` restores the folder groups
    * underneath, since section collapse and per-folder collapse are stored
    * separately and neither erases the other.
@@ -966,6 +978,7 @@ export interface SidebarConversationListProps {
    *  `sectionOrder`. Defaults to off here; the Sidebar passes the user's
    *  preference, whose product default is ON. */
   showRecent?: boolean
+  showTodos?: boolean
 }
 
 export function SidebarConversationList({
@@ -975,6 +988,7 @@ export function SidebarConversationList({
   sectionOrder = DEFAULT_SECTION_ORDER,
   showWorktrees = false,
   showRecent = false,
+  showTodos = false,
   onNavigate,
 }: SidebarConversationListProps & {
   ref?: Ref<SidebarConversationListHandle>
@@ -983,6 +997,29 @@ export function SidebarConversationList({
   const tCommon = useTranslations("Folder.common")
   const tFolderDropdown = useTranslations("Folder.folderNameDropdown")
   const tFileTree = useTranslations("Folder.fileTreeTab")
+  const tTodos = useTranslations("Todos")
+  const tTodosRef = useRef(tTodos)
+  tTodosRef.current = tTodos
+  const todoView = useOptionalTodosView()
+  const todoStateRef = useRef(todoView?.state)
+  todoStateRef.current = todoView?.state
+  const [todoLinkTarget, setTodoLinkTarget] =
+    useState<TodoConversationLinkTarget | null>(null)
+  const handleLinkTodo = useCallback((id: number, title: string) => {
+    const state = todoStateRef.current
+    if (!state || (state.mode === "team" && !state.active_team_id)) return
+    setTodoLinkTarget({
+      conversationId: id,
+      title,
+      scopeId:
+        state.mode === "personal" ? "personal" : (state.active_team_id ?? ""),
+      scopeName:
+        state.mode === "personal"
+          ? tTodosRef.current("personalMode")
+          : (state.teams.find((team) => team.id === state.active_team_id)
+              ?.name ?? tTodosRef.current("teamMode")),
+    })
+  }, [])
   const { resolvedTheme } = useTheme()
   const { themeColor: appThemeColor } = useThemeColor()
   const { createTerminalInDirectory } = useTerminalContext()
@@ -990,6 +1027,7 @@ export function SidebarConversationList({
   const folders = useAppWorkspaceStore((s) => s.folders)
   const allFolders = useAppWorkspaceStore((s) => s.allFolders)
   const conversations = useAppWorkspaceStore((s) => s.conversations)
+  const linkedTodoGroups = useTodoConversationGroups()
   const unreadIds = useConversationUnreadStore((s) => s.unreadIds)
   // Live HEAD branch per folder, for the container repos' "root" sub-group
   // labels. Safe to subscribe to from a list this hot: `applyGitHead` is
@@ -1116,6 +1154,17 @@ export function SidebarConversationList({
   const foldersExpanded = !sectionCollapsed.folders
   const chatsExpanded = !sectionCollapsed.chats
   const recentExpanded = !sectionCollapsed.recent
+  const todosExpanded = !sectionCollapsed.todos
+  const [todoGroupExpanded, setTodoGroupExpanded] = useState<
+    Record<string, boolean>
+  >({})
+  const toggleTodoGroup = useCallback((id: string) => {
+    setTodoGroupExpanded((previous) => {
+      const next = { ...previous, [id]: !(previous[id] ?? true) }
+      saveTodoGroupExpanded(next)
+      return next
+    })
+  }, [])
   // Session-only, like folder paging: collapsing/reopening Chat starts from a
   // compact first page instead of preserving a long, previously-expanded list.
   const [chatLimit, setChatLimit] = useState(CHAT_PAGE_SIZE)
@@ -1268,6 +1317,7 @@ export function SidebarConversationList({
 
     setFolderExpanded(loadFolderExpanded())
     setFolderGroupExpanded(loadFolderGroupExpanded())
+    setTodoGroupExpanded(loadTodoGroupExpanded())
     setSectionCollapsed(loadSectionCollapsed())
     setRecentFilter(loadRecentFilter())
     setConversationExpanded(new Set(loadConversationExpanded()))
@@ -1446,6 +1496,28 @@ export function SidebarConversationList({
     if (showCompleted) return base
     return base.filter((c) => c.status !== "completed")
   }, [conversations, showCompleted])
+
+  const todoGroups = useMemo<SidebarTodoConversationGroup[]>(() => {
+    const byId = new Map(
+      conversations.map((conversation) => [conversation.id, conversation])
+    )
+    const compare =
+      sortMode === "updated" ? compareByUpdatedAtDesc : compareByCreatedAtDesc
+    return linkedTodoGroups.flatMap(({ todo, conversation_ids }) => {
+      if (todo.assignee_id == null || todo.status === "unclaimed") return []
+      const children = [...new Set(conversation_ids)]
+        .map((id) => byId.get(id))
+        .filter(
+          (conversation): conversation is DbConversationSummary =>
+            conversation != null &&
+            (showCompleted || conversation.status !== "completed")
+        )
+        .sort(compare)
+      return children.length > 0
+        ? [{ id: todo.id, title: todo.title, conversations: children }]
+        : []
+    })
+  }, [linkedTodoGroups, conversations, showCompleted, sortMode])
 
   // Flat "Chat" bucket: folderless chat-mode conversations, most-recently-updated
   // first, with reference reuse (so an unrelated status event doesn't rebuild it
@@ -1664,6 +1736,10 @@ export function SidebarConversationList({
         recentConversations,
         recentExpanded,
         showRecent,
+        showTodos,
+        todoGroups,
+        todosExpanded,
+        todoGroupExpanded,
         recentLimit,
         folderPageSize: FOLDER_PAGE_SIZE,
         folderLimitById,
@@ -1690,6 +1766,10 @@ export function SidebarConversationList({
       recentConversations,
       recentExpanded,
       showRecent,
+      showTodos,
+      todoGroups,
+      todosExpanded,
+      todoGroupExpanded,
       recentLimit,
       folderLimitById,
       sectionOrder,
@@ -1762,6 +1842,12 @@ export function SidebarConversationList({
       // Folder GROUPS are collapsible headers too — leaving one closed is
       // exactly the "the button did nothing" case this control exists to avoid.
       setAllGroupsCollapsed(false)
+      setTodoGroupExpanded((previous) => {
+        const next = { ...previous }
+        for (const group of todoGroups) next[group.id] = true
+        saveTodoGroupExpanded(next)
+        return next
+      })
       // Expand every container's root sub-group too (session-only state).
       setRootGroupCollapsed((prev) => (prev.size === 0 ? prev : new Set()))
       setAllSectionsCollapsed(false)
@@ -1779,6 +1865,12 @@ export function SidebarConversationList({
       setFolderLimitById((prev) => (Object.keys(prev).length === 0 ? prev : {}))
       setChatLimit(CHAT_PAGE_SIZE)
       setAllGroupsCollapsed(true)
+      setTodoGroupExpanded((previous) => {
+        const next = { ...previous }
+        for (const group of todoGroups) next[group.id] = false
+        saveTodoGroupExpanded(next)
+        return next
+      })
       setAllSectionsCollapsed(true)
     },
   }))
@@ -3137,6 +3229,24 @@ export function SidebarConversationList({
         />
       )
     }
+    if (row.kind === "todo-group") {
+      return (
+        <SidebarTodoGroupHeader
+          id={row.id}
+          title={row.title}
+          count={row.count}
+          expanded={row.expanded}
+          onToggle={toggleTodoGroup}
+        />
+      )
+    }
+    if (row.kind === "todos-empty") {
+      return (
+        <div className="px-[0.5rem] py-[0.375rem] text-[0.75rem] text-muted-foreground/70">
+          {t("noAssignedTodoConversations")}
+        </div>
+      )
+    }
     if (row.kind === "group-empty") {
       // Folderless hint at the member indent (depth 1), so it reads as being
       // INSIDE the group rather than as another top-level row.
@@ -3413,7 +3523,10 @@ export function SidebarConversationList({
         >
           <SubsessionAncestorRails
             depth={row.depth}
-            from={folderRailFrom(parent, row.recent)}
+            from={folderRailFrom(
+              parent,
+              row.recent || row.todoId ? true : undefined
+            )}
           />
           <span className="relative flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
@@ -3449,8 +3562,19 @@ export function SidebarConversationList({
         onStatusChange={handleStatusChange}
         onNewConversation={handleNewConversationForFolder}
         onTogglePin={handleTogglePin}
+        onLinkTodo={
+          todoView?.state &&
+          (todoView.state.mode === "personal" ||
+            todoView.state.active_team_id) &&
+          conv.parent_id == null
+            ? handleLinkTodo
+            : undefined
+        }
         depth={row.depth}
-        railFrom={folderRailFrom(conv, row.recent)}
+        railFrom={folderRailFrom(
+          conv,
+          row.recent || row.todoId ? true : undefined
+        )}
         hasChildren={conv.child_count > 0}
         expanded={conversationExpanded.has(conv.id)}
         onToggleExpand={toggleConversation}
@@ -3469,6 +3593,8 @@ export function SidebarConversationList({
   // prefix to stay distinct from its canonical twin.
   const rowKey = (row: SidebarRow): string => {
     if (row.kind === "section") return `section-${row.section}`
+    if (row.kind === "todo-group") return `todo-group-${row.id}`
+    if (row.kind === "todos-empty") return "todos-empty"
     if (row.kind === "folder-group") return `foldergroup-${row.groupId}`
     if (row.kind === "group-empty") return `groupempty-${row.groupId}`
     if (row.kind === "folder") return `folder-${row.folderId}`
@@ -3480,7 +3606,11 @@ export function SidebarConversationList({
     if (row.kind === "recent-empty") return "recent-empty"
     if (row.kind === "recent-more") return "recent-more"
     if (row.kind === "folder-more") return `folder-more-${row.folderId}`
-    const prefix = row.recent ? "recent-" : ""
+    const prefix = row.todoId
+      ? `todo-${row.todoId}-`
+      : row.recent
+        ? "recent-"
+        : ""
     if (row.kind === "subsession-loading") {
       return `${prefix}subloading-${row.parentId}`
     }
@@ -3489,6 +3619,13 @@ export function SidebarConversationList({
 
   return (
     <div className="relative flex flex-col flex-1 min-h-0">
+      {todoLinkTarget && (
+        <TodoConversationLinkDialog
+          key={`${todoLinkTarget.conversationId}:${todoLinkTarget.scopeId}`}
+          target={todoLinkTarget}
+          onClose={() => setTodoLinkTarget(null)}
+        />
+      )}
       {(loading || refreshing) && (
         // z-20 keeps the refresh spinner above the sticky header overlay (z-10),
         // which lives in a later sibling and would otherwise paint over it.

@@ -48,7 +48,9 @@ describe("desktop Web service for phone access", () => {
     expect(server).toContain(
       "Arc::new(codeg_lib::web::shutdown::ShutdownSignal::new())"
     )
-    expect(server).toContain("Ok(config) if config.auto_start")
+    expect(server).toContain("if config.auto_start || hosted_team")
+    expect(server).toContain("codeg_lib::todo::hosted_team_service_required(")
+    expect(server).toContain("config.public_share_url.as_deref()")
     expect(server).toContain("codeg_lib::web::do_start_web_server_with_state(")
     expect(server).toContain(
       "codeg_lib::web::do_stop_web_server(&state.web_server_state).await"

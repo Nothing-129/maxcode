@@ -41,6 +41,7 @@ import {
   saveLastActiveContext,
   clearLastActiveContext,
 } from "@/lib/last-active-context-storage"
+import { saveLastNewConversationContext } from "@/lib/last-new-conversation-context-storage"
 import {
   buildNewConversationDraftStorageKey,
   clearMessageInputDraftV2,
@@ -48,6 +49,7 @@ import {
   sweepOrphanDraftKeys,
 } from "@/lib/message-input-draft"
 import { discardAskSelectionPrompts } from "@/lib/ask-selection-handoff"
+import type { TodoOrigin } from "@/lib/todos"
 import { pushClosedTab, snapshotConversationTab } from "@/lib/closed-tab-stack"
 import type {
   AgentType,
@@ -114,6 +116,8 @@ export interface TabItemInternal {
    * composer hides the branch picker and shows the "no-folder" chip.
    */
   isChat?: boolean
+  /** Device-local provenance captured when a todo opens this unsent draft. */
+  todoOrigins?: TodoOrigin[]
 }
 
 /** Device-local folder binding used by the trailing catch-all split. Real
@@ -298,16 +302,27 @@ export interface TabStoreState {
        *  agent (e.g. "ask about this selection" continues the conversation the
        *  text came from), not merely suggest one. */
       forceAgent?: AgentType
+      /** Automatic startup recovery must not replace explicit folder memory. */
+      rememberContext?: boolean
+      /** Todo entry points always need a new unsent conversation. */
+      freshDraft?: boolean
+      /** Folder selectors retarget their own draft, even in another split. */
+      draftTabId?: string
     }
   ) => OpenedDraftTarget | null
   openChatModeTab: (options?: {
     targetGroup?: string
     /** See `openNewConversationTab`'s `forceAgent`. */
     forceAgent?: AgentType
+    /** See `openNewConversationTab`'s `rememberContext`. */
+    rememberContext?: boolean
+    freshDraft?: boolean
+    draftTabId?: string
   }) => OpenedDraftTarget | null
   setChatDraftWorkingDir: (tabId: string, workingDir: string) => void
   confirmDraftAgent: (tabId: string, agentType: AgentType) => void
   setDraftAgentFromFallback: (tabId: string, agentType: AgentType) => void
+  addDraftTodoOrigins: (tabId: string, origins: TodoOrigin[]) => void
   bindConversationTab: (
     tabId: string,
     conversationId: number,
@@ -552,7 +567,8 @@ function sameDerivedTab(a: TabItemInternal, b: TabItemInternal): boolean {
     a.workingDir === b.workingDir &&
     a.status === b.status &&
     a.agentTypeProvisional === b.agentTypeProvisional &&
-    a.isChat === b.isChat
+    a.isChat === b.isChat &&
+    a.todoOrigins === b.todoOrigins
   )
 }
 
@@ -724,6 +740,29 @@ interface FolderTargetPlan {
   groupFolder: Record<string, number>
 }
 
+function reusableDraft(
+  st: Pick<
+    TabStoreState,
+    "rawTabs" | "activeTabId" | "groupOf" | "groupLayout"
+  >,
+  targetGroup: string,
+  options?: { freshDraft?: boolean; draftTabId?: string }
+): TabItemInternal | undefined {
+  if (options?.freshDraft) return undefined
+  if (options?.draftTabId) {
+    return st.rawTabs.find(
+      (tab) => tab.id === options.draftTabId && tab.conversationId == null
+    )
+  }
+  const inGroup = (tab: TabItemInternal) =>
+    tab.conversationId == null &&
+    groupOfTab(st.groupOf, st.groupLayout, tab.id) === targetGroup
+  return (
+    st.rawTabs.find((tab) => tab.id === st.activeTabId && inGroup(tab)) ??
+    st.rawTabs.find(inGroup)
+  )
+}
+
 /** Resolve a folder target, creating the final "Other" split when both folder
  * slots are already occupied. The plan is applied atomically with the tab write
  * so the new leaf is never normalized away while empty. */
@@ -809,6 +848,41 @@ interface PersistedDraft {
   isChat?: boolean
   workingDir?: string
   agentType?: AgentType
+  todoOrigins?: TodoOrigin[]
+}
+
+function sanitizeTodoOrigins(value: unknown): TodoOrigin[] {
+  if (!Array.isArray(value)) return []
+  const normalizeId = (id: unknown) => {
+    if (typeof id !== "string") return null
+    const normalized = id.trim().toLowerCase()
+    if (
+      !/^(?:[a-f0-9]{32}|[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12})$/.test(
+        normalized
+      )
+    ) {
+      return null
+    }
+    return normalized.replace(/-/g, "")
+  }
+  const seen = new Set<string>()
+  const origins: TodoOrigin[] = []
+  for (const entry of value) {
+    if (typeof entry !== "object" || entry === null) continue
+    const origin = entry as Record<string, unknown>
+    const scope =
+      typeof origin.scope_id === "string" &&
+      origin.scope_id.trim() === "personal"
+        ? "personal"
+        : normalizeId(origin.scope_id)
+    const todoId = normalizeId(origin.todo_id)
+    if (!scope || !todoId) continue
+    const key = JSON.stringify([scope, todoId])
+    if (seen.has(key)) continue
+    seen.add(key)
+    origins.push({ scope_id: scope, todo_id: todoId })
+  }
+  return origins
 }
 
 function sanitizeDrafts(value: unknown): PersistedDraft[] {
@@ -824,6 +898,7 @@ function sanitizeDrafts(value: unknown): PersistedDraft[] {
       typeof e.index === "number" && Number.isFinite(e.index) && e.index >= 0
         ? Math.floor(e.index)
         : out.length
+    const todoOrigins = sanitizeTodoOrigins(e.todoOrigins)
     out.push({
       id: e.id,
       group: e.group,
@@ -836,6 +911,7 @@ function sanitizeDrafts(value: unknown): PersistedDraft[] {
       ...(typeof e.agentType === "string" && e.agentType.length > 0
         ? { agentType: e.agentType as AgentType }
         : {}),
+      ...(todoOrigins.length > 0 ? { todoOrigins } : {}),
     })
   }
   return out
@@ -926,6 +1002,7 @@ function persistGroupState() {
         ? { workingDir: tab.workingDir }
         : {}),
       ...(tab.agentTypeProvisional ? {} : { agentType: tab.agentType }),
+      ...(tab.todoOrigins?.length ? { todoOrigins: tab.todoOrigins } : {}),
     })
   })
   const selection: Record<string, string> = {}
@@ -1002,6 +1079,7 @@ function mergeRestoredDrafts(restored: TabItemInternal[]): {
       workingDir: draft.workingDir,
       agentTypeProvisional: resolved.provisional,
       ...(draft.isChat === true ? { isChat: true } : {}),
+      ...(draft.todoOrigins?.length ? { todoOrigins: draft.todoOrigins } : {}),
     }
     tabs.splice(Math.min(draft.index, tabs.length), 0, tab)
     groupOf[draft.id] = draft.group
@@ -1191,6 +1269,9 @@ function enforceFolderZoneSingleTabs(): TabStoreState {
 
   if (removeIds.size === 0) return st
 
+  // A folder slot still shows only its latest tab. Preserve any displaced
+  // unsent documents, including independently opened todos, for recovery.
+  archivePaneDrafts(st.rawTabs.filter((tab) => removeIds.has(tab.id)))
   const groupOf = { ...st.groupOf }
   for (const tab of st.rawTabs) {
     if (!removeIds.has(tab.id)) continue
@@ -2234,11 +2315,14 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     // (hidden) chat folder. Never pile a second conversation into a
     // per-conversation chat folder — start a fresh folderless chat draft
     // instead. Single choke point for every "new conversation" entry point.
-    if (
-      useAppWorkspaceStore.getState().allFolders.find((f) => f.id === folderId)
-        ?.kind === "chat"
-    ) {
+    const folder = useAppWorkspaceStore
+      .getState()
+      .allFolders.find((f) => f.id === folderId)
+    if (folder?.kind === "chat") {
       return get().openChatModeTab({
+        rememberContext: options?.rememberContext,
+        freshDraft: options?.freshDraft,
+        draftTabId: options?.draftTabId,
         ...(options?.targetGroup != null
           ? { targetGroup: options.targetGroup }
           : {}),
@@ -2247,11 +2331,18 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
           : {}),
       })
     }
+    const requestedDraft = options?.draftTabId
+      ? get().rawTabs.find(
+          (tab) => tab.id === options.draftTabId && tab.conversationId == null
+        )
+      : undefined
+    if (options?.draftTabId && !requestedDraft) return null
     const inheritFromActive = options?.inheritFromActive === true
     let inherit: AgentType | null = null
     if (inheritFromActive) {
       const st = get()
-      const activeTab = st.rawTabs.find((t) => t.id === st.activeTabId)
+      const activeTab =
+        requestedDraft ?? st.rawTabs.find((t) => t.id === st.activeTabId)
       if (
         activeTab &&
         (activeTab.conversationId != null || !activeTab.agentTypeProvisional)
@@ -2270,21 +2361,19 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
 
     const tabId = makeNewConversationTabId()
     const prevState = get()
-    // Per-group draft singleton: reuse the target group's existing draft tab
-    // (regardless of folder), so each group carries at most one draft.
+    // Normal entry points reuse a draft; todos explicitly create their own.
+    // With several independent drafts, a selector must retain its own target.
+    const requestedGroup = requestedDraft
+      ? groupOfTab(prevState.groupOf, prevState.groupLayout, requestedDraft.id)
+      : undefined
     const targetPlan = planTargetGroupForFolder(
       prevState,
       folderId,
-      options?.targetGroup
+      options?.targetGroup ?? requestedGroup
     )
     if (targetPlan == null) return null
     const { targetGroup } = targetPlan
-    const existingTab = prevState.rawTabs.find(
-      (t) =>
-        t.conversationId == null &&
-        groupOfTab(prevState.groupOf, prevState.groupLayout, t.id) ===
-          targetGroup
-    )
+    const existingTab = reusableDraft(prevState, targetGroup, options)
 
     if (!existingTab) {
       const newTab: TabItemInternal = {
@@ -2307,6 +2396,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       })
       recomputeTabs()
       runtime.activateConversationPane()
+      if (folder && options?.rememberContext !== false) {
+        saveLastNewConversationContext({ kind: "folder", folderId })
+      }
       return { tabId, agentType: targetAgent, folderId }
     }
 
@@ -2315,11 +2407,24 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     const agentChanged = existingTab.agentType !== targetAgent
     const provisionalChanged =
       (existingTab.agentTypeProvisional ?? false) !== provisional
+    const groupChanged =
+      groupOfTab(prevState.groupOf, prevState.groupLayout, existingTab.id) !==
+      targetGroup
+    if (groupChanged) {
+      set({
+        groupOf: { ...prevState.groupOf, [existingTab.id]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
+        activeTabId: existingTab.id,
+      })
+      recomputeTabs()
+    }
+    const settledState = get()
 
     if (folderChanged || agentChanged) {
       set({
         draftRetargetRequests: [
-          ...prevState.draftRetargetRequests,
+          ...settledState.draftRetargetRequests,
           {
             tabId: existingTab.id,
             expectedAgent: existingTab.agentType,
@@ -2333,7 +2438,7 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       focusTab(existingTab.id)
     } else if (workingDirChanged || provisionalChanged) {
       set({
-        rawTabs: prevState.rawTabs.map((tab) =>
+        rawTabs: settledState.rawTabs.map((tab) =>
           tab.id === existingTab.id
             ? { ...tab, workingDir, agentTypeProvisional: provisional }
             : tab
@@ -2345,6 +2450,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
       focusTab(existingTab.id)
     }
     runtime.activateConversationPane()
+    if (folder && options?.rememberContext !== false) {
+      saveLastNewConversationContext({ kind: "folder", folderId })
+    }
     // Every branch above leaves the tab on `targetAgent` in `folderId` — either
     // already there, or once its queued retarget lands.
     return { tabId: existingTab.id, agentType: targetAgent, folderId }
@@ -2352,8 +2460,15 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
 
   openChatModeTab: (options) => {
     const st = get()
+    const requestedDraft = options?.draftTabId
+      ? st.rawTabs.find(
+          (tab) => tab.id === options.draftTabId && tab.conversationId == null
+        )
+      : undefined
+    if (options?.draftTabId && !requestedDraft) return null
     // Inherit the agent like openNewConversationTab's inherit path.
-    const activeTab = st.rawTabs.find((x) => x.id === st.activeTabId)
+    const activeTab =
+      requestedDraft ?? st.rawTabs.find((x) => x.id === st.activeTabId)
     const inherit =
       activeTab &&
       (activeTab.conversationId != null || !activeTab.agentTypeProvisional)
@@ -2366,26 +2481,36 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         ? { agentType: options.forceAgent, provisional: false }
         : resolveAgentForFolder(0, inherit, null, true)
 
-    // Per-group draft singleton — all draft handling below is scoped to the
-    // target group. Capture its existing draft (if any) up front so a stale
-    // ACP session can be torn down after we flip it to chat mode.
-    const targetPlan = planTargetGroupForFolder(st, 0, options?.targetGroup)
+    const requestedGroup = requestedDraft
+      ? groupOfTab(st.groupOf, st.groupLayout, requestedDraft.id)
+      : undefined
+    const targetPlan = planTargetGroupForFolder(
+      st,
+      0,
+      options?.targetGroup ?? requestedGroup
+    )
     if (targetPlan == null) return null
     const { targetGroup } = targetPlan
-    const inTargetGroup = (t: TabItemInternal) =>
-      groupOfTab(st.groupOf, st.groupLayout, t.id) === targetGroup
-    const existingDraft = st.rawTabs.find(
-      (t) => t.conversationId == null && inTargetGroup(t)
-    )
+    const existingDraft = reusableDraft(st, targetGroup, options)
     const needsDisconnect =
       existingDraft != null &&
       !(existingDraft.isChat && existingDraft.folderId === 0)
 
     const tabId = makeNewConversationTabId()
+    if (
+      existingDraft &&
+      groupOfTab(st.groupOf, st.groupLayout, existingDraft.id) !== targetGroup
+    ) {
+      set({
+        groupOf: { ...st.groupOf, [existingDraft.id]: targetGroup },
+        groupLayout: targetPlan.groupLayout,
+        groupFolder: targetPlan.groupFolder,
+        activeTabId: existingDraft.id,
+      })
+      recomputeTabs()
+    }
     const prevState = get()
-    const existingTab = prevState.rawTabs.find(
-      (t) => t.conversationId == null && inTargetGroup(t)
-    )
+    const existingTab = existingDraft
 
     if (!existingTab) {
       const newTab: TabItemInternal = {
@@ -2474,6 +2599,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
           ? targetAgent
           : existingTab.agentType
         : targetAgent
+    if (options?.rememberContext !== false) {
+      saveLastNewConversationContext({ kind: "chat" })
+    }
     return {
       tabId: existingTab ? existingTab.id : tabId,
       agentType: settledAgent,
@@ -2534,6 +2662,27 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     })
     if (next.every((t, i) => t === prev[i])) return
     set({ rawTabs: next })
+    recomputeTabs()
+  },
+
+  addDraftTodoOrigins: (tabId, origins) => {
+    const prev = get().rawTabs
+    const target = prev.find((tab) => tab.id === tabId)
+    if (!target || target.conversationId != null) return
+    const todoOrigins = sanitizeTodoOrigins([
+      ...(target.todoOrigins ?? []),
+      ...origins,
+    ])
+    if (
+      JSON.stringify(todoOrigins) === JSON.stringify(target.todoOrigins ?? [])
+    ) {
+      return
+    }
+    set({
+      rawTabs: prev.map((tab) =>
+        tab.id === tabId ? { ...tab, todoOrigins } : tab
+      ),
+    })
     recomputeTabs()
   },
 
@@ -3066,23 +3215,25 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
   recoverActiveContext: () => {
     const hint = loadLastActiveContext()
     if (hint?.isChat) {
-      get().openChatModeTab()
+      get().openChatModeTab({ rememberContext: false })
       return
     }
     const folders = useAppWorkspaceStore.getState().folders
     if (hint) {
       const f = folders.find((x) => x.id === hint.folderId)
       if (f) {
-        get().openNewConversationTab(f.id, f.path)
+        get().openNewConversationTab(f.id, f.path, { rememberContext: false })
         return
       }
     }
     const first = folders[0]
     if (first) {
-      get().openNewConversationTab(first.id, first.path)
+      get().openNewConversationTab(first.id, first.path, {
+        rememberContext: false,
+      })
       return
     }
-    get().openChatModeTab()
+    get().openChatModeTab({ rememberContext: false })
   },
 
   consumePreviewReplaced: () => {
@@ -3286,6 +3437,7 @@ export function useTabActions() {
       setChatDraftWorkingDir: s.setChatDraftWorkingDir,
       confirmDraftAgent: s.confirmDraftAgent,
       setDraftAgentFromFallback: s.setDraftAgentFromFallback,
+      addDraftTodoOrigins: s.addDraftTodoOrigins,
       bindConversationTab: s.bindConversationTab,
       setTabRuntimeConversationId: s.setTabRuntimeConversationId,
       reorderTabs: s.reorderTabs,
@@ -3441,7 +3593,7 @@ function applyRemoteSnapshot(change: TabsChanged) {
   })
 
   const folders = useAppWorkspaceStore.getState().folders
-  // Keep every device-local draft (one per split group) that's a folderless
+  // Keep every independent device-local draft that's a folderless
   // chat draft or whose real folder still exists. Never yank the user off an
   // in-progress draft.
   const nextTabs = [...remoteTabs, ...unsyncedLocal]

@@ -150,7 +150,9 @@ describe("GeneralSettings", () => {
     expect(screen.getByLabelText("Ask user question")).toBeInTheDocument()
     expect(screen.getByLabelText("Get session info")).toBeInTheDocument()
     expect(screen.getByLabelText("Create automations")).toBeInTheDocument()
-    expect(screen.getByLabelText("Create to-do tasks")).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText("Create to-do tasks")
+    ).not.toBeInTheDocument()
   })
 
   /**

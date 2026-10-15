@@ -2,10 +2,9 @@
 
 /**
  * The extra tools codeg hands an agent inside a conversation, as one panel:
- * live feedback, ask-user-question, get-session-info, and the two
- * create-from-chat writers. All five are injected by `codeg-mcp` when an agent
- * starts, so what the user is really deciding here is one thing — how much of
- * the app an agent may reach from a conversation.
+ * live feedback, ask-user-question, get-session-info, and automation creation.
+ * The historical work-task writer flag is retained in persisted settings,
+ * while its switch stays hidden with the retired AI task board.
  *
  * They used to be four sections, each with its own heading, description, card
  * and Save bar: four times the chrome for five switches, which is what made
@@ -24,7 +23,6 @@ import { useTranslations } from "next-intl"
 import {
   CalendarClock,
   HelpCircle,
-  ListTodo,
   MessageSquare,
   MessageSquarePlus,
   Wrench,
@@ -105,13 +103,6 @@ const TOOL_ROWS = [
     icon: CalendarClock,
     label: "automationsLabel",
     hint: "automationsHint",
-  },
-  {
-    key: "workTasks",
-    id: "agent-tools-work-tasks",
-    icon: ListTodo,
-    label: "workTasksLabel",
-    hint: "workTasksHint",
   },
 ] as const satisfies ReadonlyArray<{
   key: keyof AgentToolValues

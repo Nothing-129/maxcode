@@ -7,28 +7,82 @@ import {
   isCachedSelectors,
 } from "@/lib/selectors-cache-storage"
 
-const STORAGE_KEY = "codeg:conversation-selector-previews:v1"
+const STORAGE_KEY = "codeg:conversation-selector-previews:v2"
 const MAX_ENTRIES = 32
 
-function readPreviews(): Map<string, SessionConfigOptionInfo[]> {
+function entryKey(key: string): string {
+  return `${STORAGE_KEY}:${key}`
+}
+
+// These previews are inert until restoration completes. Keeping the entire
+// model catalog here multiplies it by the number of chats for no UI benefit.
+export function compactSelectorPreview(
+  options: SessionConfigOptionInfo[]
+): SessionConfigOptionInfo[] {
+  return options.map((option) => {
+    const kind = option.kind
+    if (kind.type !== "select") return option
+    const selected =
+      kind.options.find((item) => item.value === kind.current_value) ??
+      kind.groups
+        ?.flatMap((group) => group.options)
+        .find((item) => item.value === kind.current_value)
+    return {
+      ...option,
+      kind: {
+        ...kind,
+        options: [
+          {
+            value: kind.current_value,
+            name: selected?.name ?? kind.current_value,
+          },
+        ],
+        groups: [],
+      },
+    }
+  })
+}
+
+function readPreview(key: string): SessionConfigOptionInfo[] | null {
   try {
-    const entries: unknown = JSON.parse(
-      localStorage.getItem(STORAGE_KEY) ?? "[]"
+    const value: unknown = JSON.parse(
+      localStorage.getItem(entryKey(key)) ?? "null"
     )
-    if (!Array.isArray(entries)) return new Map()
-    return new Map(
-      entries
-        .filter(
-          (entry): entry is [string, SessionConfigOptionInfo[]] =>
-            Array.isArray(entry) &&
-            typeof entry[0] === "string" &&
-            Array.isArray(entry[1]) &&
-            isCachedSelectors({ modes: null, configOptions: entry[1] })
-        )
-        .slice(-MAX_ENTRIES)
-    )
+    return Array.isArray(value) &&
+      isCachedSelectors({ modes: null, configOptions: value })
+      ? value
+      : null
   } catch {
-    return new Map()
+    return null
+  }
+}
+
+function writePreview(key: string, options: SessionConfigOptionInfo[]): void {
+  try {
+    const payload = JSON.stringify(compactSelectorPreview(options))
+    if (localStorage.getItem(entryKey(key)) === payload) return
+    let index: unknown
+    try {
+      index = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]")
+    } catch {
+      index = []
+    }
+    const keys = Array.isArray(index)
+      ? index.filter(
+          (item): item is string => typeof item === "string" && item !== key
+        )
+      : []
+    keys.push(key)
+    localStorage.setItem(entryKey(key), payload)
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(keys.slice(-MAX_ENTRIES)))
+    for (const evicted of keys.slice(0, -MAX_ENTRIES)) {
+      localStorage.removeItem(entryKey(evicted))
+    }
+    // v1 duplicated full catalogs in one large blob. Do not parse it on the
+    // opening path; existing SQLite values already cover cold-client display.
+    localStorage.removeItem("codeg:conversation-selector-previews:v1")
+  } catch {
+    // Storage denial/quota must not prevent the live connection from opening.
   }
 }
 
@@ -86,24 +140,12 @@ export function useConversationSelectorPreview({
       ? null
       : JSON.stringify([workingDir ?? "", agentType, conversationId])
   const preview = useMemo(
-    () => (key && !ready ? (readPreviews().get(key) ?? null) : null),
+    () => (key && !ready ? readPreview(key) : null),
     [key, ready]
   )
   useEffect(() => {
     if (!key || !ready || configOptions == null) return
-    const entries = readPreviews()
-    if (JSON.stringify(entries.get(key)) === JSON.stringify(configOptions))
-      return
-    entries.delete(key)
-    entries.set(key, configOptions)
-    try {
-      localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify([...entries].slice(-MAX_ENTRIES))
-      )
-    } catch {
-      // Private mode / full storage must never block opening the conversation.
-    }
+    writePreview(key, configOptions)
   }, [key, ready, configOptions])
   return ready
     ? configOptions

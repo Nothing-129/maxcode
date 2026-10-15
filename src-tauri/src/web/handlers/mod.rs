@@ -33,6 +33,7 @@ pub mod science;
 pub mod session_info;
 pub mod system_settings;
 pub mod terminal;
+pub mod todo;
 pub mod token_usage;
 pub mod ui_preferences;
 mod upload_jail;

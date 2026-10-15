@@ -7,12 +7,16 @@ import {
   loadSectionCollapsed,
   loadSectionOrder,
   loadShowRecent,
+  loadShowTodos,
+  loadTodoGroupExpanded,
   loadSortMode,
   moveSectionInOrder,
   normalizeSectionOrder,
   saveRecentFilter,
   saveSectionOrder,
   saveShowRecent,
+  saveShowTodos,
+  saveTodoGroupExpanded,
   type SidebarRecentFilter,
 } from "./sidebar-view-mode-storage"
 
@@ -23,11 +27,9 @@ const RECENT_FILTER_KEY = "workspace:sidebar-recent-filter"
 
 describe("normalizeSectionOrder", () => {
   it("passes a complete order through unchanged", () => {
-    expect(normalizeSectionOrder(["recent", "chats", "folders"])).toEqual([
-      "recent",
-      "chats",
-      "folders",
-    ])
+    expect(
+      normalizeSectionOrder(["recent", "chats", "folders", "todos"])
+    ).toEqual(["recent", "chats", "folders", "todos"])
   })
 
   it("appends missing sections in default order", () => {
@@ -37,13 +39,14 @@ describe("normalizeSectionOrder", () => {
       "chats",
       "folders",
       "recent",
+      "todos",
     ])
   })
 
   it("drops unknown entries and repeats", () => {
     expect(
       normalizeSectionOrder(["recent", "bogus", "recent", 7, null, "chats"])
-    ).toEqual(["recent", "chats", "folders"])
+    ).toEqual(["recent", "chats", "folders", "todos"])
   })
 
   it("migrates the legacy two-way strings, preserving the user's choice", () => {
@@ -51,6 +54,7 @@ describe("normalizeSectionOrder", () => {
       "chats",
       "folders",
       "recent",
+      "todos",
     ])
     expect(normalizeSectionOrder("folders-first")).toEqual(
       DEFAULT_SECTION_ORDER
@@ -103,18 +107,18 @@ describe("section-order persistence", () => {
 
   it("round-trips through localStorage", () => {
     saveSectionOrder(["recent", "folders", "chats"])
-    expect(loadSectionOrder()).toEqual(["recent", "folders", "chats"])
+    expect(loadSectionOrder()).toEqual(["recent", "folders", "chats", "todos"])
   })
 
   it("defaults to Folders → Chat → Recent with nothing stored", () => {
-    expect(loadSectionOrder()).toEqual(["folders", "chats", "recent"])
+    expect(loadSectionOrder()).toEqual(["folders", "chats", "recent", "todos"])
   })
 
   it("migrates a legacy bare string left by an older build", () => {
     // The old format was not JSON, so the loader must survive the parse failure
     // rather than resetting the user's preference.
     localStorage.setItem(SECTION_ORDER_KEY, "chats-first")
-    expect(loadSectionOrder()).toEqual(["chats", "folders", "recent"])
+    expect(loadSectionOrder()).toEqual(["chats", "folders", "recent", "todos"])
   })
 
   it("falls back to the default for corrupt JSON", () => {
@@ -136,6 +140,23 @@ describe("loadShowRecent", () => {
     expect(loadShowRecent()).toBe(false)
     saveShowRecent(true)
     expect(loadShowRecent()).toBe(true)
+  })
+})
+
+describe("todo-group preferences", () => {
+  beforeEach(() => localStorage.clear())
+
+  it("shows the new section by default and remembers hiding it", () => {
+    expect(loadShowTodos()).toBe(true)
+    saveShowTodos(false)
+    expect(loadShowTodos()).toBe(false)
+    saveShowTodos(true)
+    expect(loadShowTodos()).toBe(true)
+  })
+
+  it("remembers each todo group's disclosure independently", () => {
+    saveTodoGroupExpanded({ assigned: false, other: true })
+    expect(loadTodoGroupExpanded()).toEqual({ assigned: false, other: true })
   })
 })
 

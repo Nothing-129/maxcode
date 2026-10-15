@@ -1,12 +1,13 @@
-import { beforeEach, expect, it } from "vitest"
+import { beforeEach, expect, it, vi } from "vitest"
 import { renderHook } from "@testing-library/react"
 import {
+  compactSelectorPreview,
   persistedSelectorPreview,
   useConversationSelectorPreview,
 } from "@/hooks/use-conversation-selector-preview"
 import type { SessionConfigOptionInfo } from "@/lib/types"
 
-const storageKey = "codeg:conversation-selector-previews:v1"
+const storageKey = "codeg:conversation-selector-previews:v2"
 const options = (model: string, effort: string): SessionConfigOptionInfo[] =>
   [
     ["model", model],
@@ -135,4 +136,74 @@ it("uses catalog labels without borrowing another conversation's values or permi
     ["model", "gpt-5.6"],
     ["reasoning_effort", "medium"],
   ])
+})
+
+it("stores only selected labels and reads no other conversation catalogs on reopen", () => {
+  const large = options("model-999", "high")
+  if (large[0].kind.type !== "select") throw new Error("expected select")
+  large[0].kind.options = Array.from({ length: 2000 }, (_, i) => ({
+    value: `model-${i}`,
+    name: `Model ${i}`,
+  }))
+  const live = renderHook(useConversationSelectorPreview, {
+    initialProps: { ...base, configOptions: large },
+  })
+  expect(live.result.current).toBe(large)
+  live.unmount()
+  const key = `${storageKey}:${JSON.stringify([base.workingDir, base.agentType, 1])}`
+  expect(localStorage.getItem(key)!.length).toBeLessThan(1000)
+  const read = vi.spyOn(Storage.prototype, "getItem")
+  const reopened = renderHook(useConversationSelectorPreview, {
+    initialProps: { ...base, ready: false },
+  })
+  expect(reopened.result.current).toEqual(compactSelectorPreview(large))
+  expect(
+    read.mock.calls.filter(([name]) => name.startsWith(storageKey))
+  ).toEqual([[key]])
+  read.mockRestore()
+})
+
+it("preserves a grouped selected label and boolean while compacting", () => {
+  const catalog = options("grouped", "high")
+  if (catalog[0].kind.type !== "select") throw new Error("expected select")
+  catalog[0].kind.options = []
+  catalog[0].kind.groups = [
+    {
+      group: "provider",
+      name: "Provider",
+      options: [{ value: "grouped", name: "My model" }],
+    },
+  ]
+  catalog.push({
+    id: "toggle",
+    name: "Toggle",
+    kind: { type: "boolean", current_value: true },
+  })
+  const compact = compactSelectorPreview(catalog)
+  expect(compact[0].kind).toEqual({
+    type: "select",
+    current_value: "grouped",
+    options: [{ value: "grouped", name: "My model" }],
+    groups: [],
+  })
+  expect(compact[2]).toEqual(catalog[2])
+})
+
+it("skips the legacy aggregate on cold open and falls back to saved database values", () => {
+  const legacyKey = "codeg:conversation-selector-previews:v1"
+  localStorage.setItem(legacyKey, "obsolete full catalogs")
+  const read = vi.spyOn(Storage.prototype, "getItem")
+  const hook = renderHook(useConversationSelectorPreview, {
+    initialProps: {
+      ...base,
+      ready: false,
+      persistedValues: { model: "gpt-5.6" },
+    },
+  })
+  expect(hook.result.current?.[0].kind.current_value).toBe("gpt-5.6")
+  expect(read.mock.calls.some(([key]) => key === legacyKey)).toBe(false)
+  read.mockRestore()
+  hook.unmount()
+  renderHook(useConversationSelectorPreview, { initialProps: base })
+  expect(localStorage.getItem(legacyKey)).toBeNull()
 })

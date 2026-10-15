@@ -421,7 +421,7 @@ export function ConversationShell({
         </div>
       )}
 
-      {/* 列右缘拖宽抓手（全高热区，含 composer 段）：定位依赖 root 的
+      {/* 列右缘拖宽抓手（仅中间 120px 热区）：定位依赖 root 的
           relative 且宽度 === 列包含块宽度。欢迎页经 columnResize 关闭。 */}
       {columnResize ? <ChatColumnResizeHandle /> : null}
     </div>

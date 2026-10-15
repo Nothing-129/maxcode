@@ -47,6 +47,10 @@ mod m20260831_000001_canvas_node_group_grid;
 mod m20260831_000001_conversation_share;
 mod m20261012_000001_conversation_model_config;
 mod m20261013_000001_automation_message;
+mod m20261014_000001_team_todo;
+mod m20261014_000002_todo_completed_pagination;
+mod m20261014_000003_todo_conversation_links;
+mod m20261015_000001_todo_schedule;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -100,6 +104,10 @@ impl MigratorTrait for Migrator {
             Box::new(m20260831_000001_canvas_node_group_grid::Migration),
             Box::new(m20261012_000001_conversation_model_config::Migration),
             Box::new(m20261013_000001_automation_message::Migration),
+            Box::new(m20261014_000001_team_todo::Migration),
+            Box::new(m20261014_000002_todo_completed_pagination::Migration),
+            Box::new(m20261014_000003_todo_conversation_links::Migration),
+            Box::new(m20261015_000001_todo_schedule::Migration),
         ]
     }
 }

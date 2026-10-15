@@ -27,7 +27,7 @@ import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useAutomationsView } from "@/contexts/automations-view-context"
-import { useTasksView } from "@/contexts/tasks-view-context"
+import { useTodosView } from "@/contexts/todos-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import {
   SidebarConversationList,
@@ -62,6 +62,7 @@ import {
   loadNavItemVisibility,
   loadShowCompleted,
   loadShowRecent,
+  loadShowTodos,
   loadShowWorktrees,
   loadSortMode,
   loadSectionOrder,
@@ -69,6 +70,7 @@ import {
   saveNavItemVisibility,
   saveShowCompleted,
   saveShowRecent,
+  saveShowTodos,
   saveShowWorktrees,
   saveSortMode,
   saveSectionOrder,
@@ -82,9 +84,6 @@ import {
 } from "@/lib/sidebar-view-mode-storage"
 import { cn } from "@/lib/utils"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
-
-const NO_HIDDEN_SECTIONS: ReadonlySet<SidebarSectionId> = new Set()
-const RECENT_HIDDEN: ReadonlySet<SidebarSectionId> = new Set(["recent"])
 
 // Keyboard-shortcut hint at the trailing edge of the New chat row.
 // Mirrors the folder count badge exactly — same chip (0.9375rem height,
@@ -154,7 +153,7 @@ export function Sidebar() {
   const { activeFolder } = useActiveFolder()
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
-  const { attentionCount } = useTasksView()
+  const { attentionCount } = useTodosView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
@@ -193,6 +192,7 @@ export function Sidebar() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [showWorktrees, setShowWorktrees] = useState(true)
   const [showRecent, setShowRecent] = useState(true)
+  const [showTodos, setShowTodos] = useState(true)
   // Empty = every nav row shown, which is also the hydrated default — so the
   // pre-hydration render matches for a user who never hid one.
   const [navItems, setNavItems] = useState<SidebarNavItemVisibility>({})
@@ -212,7 +212,10 @@ export function Sidebar() {
     : t("expandAllGroups")
 
   const viewOptionsLabel = t("viewOptions")
-  const hiddenSections = showRecent ? NO_HIDDEN_SECTIONS : RECENT_HIDDEN
+  const hiddenSections = new Set<SidebarSectionId>([
+    ...(!showRecent ? (["recent"] as const) : []),
+    ...(!showTodos ? (["todos"] as const) : []),
+  ])
 
   useEffect(() => {
     // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
@@ -220,6 +223,7 @@ export function Sidebar() {
     setShowCompleted(loadShowCompleted())
     setShowWorktrees(loadShowWorktrees())
     setShowRecent(loadShowRecent())
+    setShowTodos(loadShowTodos())
     setNavItems(loadNavItemVisibility())
     setSortMode(loadSortMode())
     setSectionOrder(loadSectionOrder())
@@ -228,6 +232,11 @@ export function Sidebar() {
   const handleSetShowCompleted = useCallback((value: boolean) => {
     setShowCompleted(value)
     saveShowCompleted(value)
+  }, [])
+
+  const handleSetShowTodos = useCallback((value: boolean) => {
+    setShowTodos(value)
+    saveShowTodos(value)
   }, [])
 
   const handleSetShowWorktrees = useCallback((value: boolean) => {
@@ -418,6 +427,13 @@ export function Sidebar() {
               >
                 {t("showRecent")}
               </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem
+                checked={showTodos}
+                onCheckedChange={handleSetShowTodos}
+                onSelect={(event) => event.preventDefault()}
+              >
+                {t("showTodos")}
+              </DropdownMenuCheckboxItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuSub>
@@ -597,6 +613,7 @@ export function Sidebar() {
           showCompleted={showCompleted}
           showWorktrees={showWorktrees}
           showRecent={showRecent}
+          showTodos={showTodos}
           sortMode={sortMode}
           sectionOrder={sectionOrder}
           onNavigate={collapseOnNavigate ? toggle : undefined}

@@ -33,6 +33,21 @@ pub fn build_router(
 
     let api = Router::new()
         .route("/health", post(health_check))
+        .route("/todo_call", post(handlers::todo::todo_call))
+        .route("/todo_search", post(handlers::todo::todo_search))
+        .route("/todo_origin_call", post(handlers::todo::todo_origin_call))
+        .route(
+            "/todo_conversation_link",
+            post(handlers::todo::todo_conversation_link),
+        )
+        .route(
+            "/todo_conversation_sources",
+            post(handlers::todo::todo_conversation_sources),
+        )
+        .route(
+            "/todo_conversation_groups",
+            post(handlers::todo::todo_conversation_groups),
+        )
         // Debug endpoint: operator-facing snapshot of `EventBusMetrics`
         // (emit volume, lag/eviction counts, attach decision counts).
         // Sits behind the same auth middleware as every other route.
@@ -1398,8 +1413,14 @@ pub fn build_router(
             post(handlers::quick_messages::quick_messages_reorder),
         )
         // ─── Automations ───
-        .route("/automation_listener_status", post(handlers::automation::automation_listener_status))
-        .route("/automation_restart_listener", post(handlers::automation::automation_restart_listener))
+        .route(
+            "/automation_listener_status",
+            post(handlers::automation::automation_listener_status),
+        )
+        .route(
+            "/automation_restart_listener",
+            post(handlers::automation::automation_restart_listener),
+        )
         .route(
             "/automation_list",
             post(handlers::automation::automation_list),
@@ -1739,6 +1760,21 @@ pub fn build_router(
     // The login page needs to read the user's preferred language before
     // authenticating so it can render in their chosen locale.
     let public_api = Router::new()
+        .route(
+            "/team_todo_call",
+            post(handlers::todo::team_todo_call).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+        )
+        .route("/team_todo_join", post(handlers::todo::team_todo_join))
+        .route("/team_todo_lookup", post(handlers::todo::team_todo_lookup))
+        .route("/team_todo_search", post(handlers::todo::team_todo_search))
+        .route(
+            "/team_todo_origin_call",
+            post(handlers::todo::team_todo_origin_call),
+        )
+        .route(
+            "/team_todo_details",
+            post(handlers::todo::team_todo_details),
+        )
         .route(
             "/shared_conversation",
             post(handlers::conversation_share::get_shared_conversation),

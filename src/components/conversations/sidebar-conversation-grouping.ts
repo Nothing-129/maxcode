@@ -915,6 +915,26 @@ export interface ConversationRow {
    * Absent — never `false` — so existing row-shape assertions are unaffected.
    */
   recent?: true
+  /** A duplicate under its originating todo, separate from folder/recent rows. */
+  todoId?: string
+}
+
+export interface SidebarTodoConversationGroup {
+  id: string
+  title: string
+  conversations: readonly DbConversationSummary[]
+}
+
+export interface TodoGroupHeaderRow {
+  kind: "todo-group"
+  id: string
+  title: string
+  count: number
+  expanded: boolean
+}
+
+export interface TodosEmptyRow {
+  kind: "todos-empty"
 }
 
 export interface EmptyHintRow {
@@ -1007,11 +1027,12 @@ export interface FolderMoreRow {
 }
 
 /**
- * A collapsible section heading. Four exist: "pinned" (always on top, shown only
- * when there are pinned conversations) plus the three user-reorderable ones —
+ * A collapsible section heading: "pinned" (always on top, shown only
+ * when there are pinned conversations) plus the user-reorderable ones —
  * "folders" (wraps the whole folder list), "chats" (a flat list of folderless
  * chat-mode conversations), and "recent" (a flat, folder-agnostic list of the
- * newest conversations, shown only when the user keeps it enabled). All live in
+ * newest conversations), and "todos" (conversation groups from assigned todos).
+ * Recent and Todos can be hidden. All live in
  * the same flat row array so the single Virtualizer windows them like any other
  * row — there is no separate, un-virtualized list.
  */
@@ -1066,6 +1087,7 @@ export interface SubsessionLoadingRow {
    *  concern as {@link ConversationRow.recent}: one expanded parent listed in
    *  both its folder and Recent produces two placeholders. */
   recent?: true
+  todoId?: string
 }
 
 export type SidebarRow =
@@ -1083,6 +1105,8 @@ export type SidebarRow =
   | RecentMoreRow
   | FolderMoreRow
   | SubsessionLoadingRow
+  | TodoGroupHeaderRow
+  | TodosEmptyRow
 
 const MAX_RENDER_DEPTH = 32
 
@@ -1144,10 +1168,12 @@ function pushConversationRow(
   childrenLoading: ReadonlySet<number>,
   // Tags this row — and its whole subtree — as a Recent-section copy. See
   // {@link ConversationRow.recent}.
-  recent = false
+  recent = false,
+  todoId?: string
 ): void {
   const row: ConversationRow = { kind: "conversation", conversation, depth }
   if (recent) row.recent = true
+  if (todoId) row.todoId = todoId
   rows.push(row)
   if (
     depth >= MAX_RENDER_DEPTH ||
@@ -1169,6 +1195,7 @@ function pushConversationRow(
       depth: depth + 1,
     }
     if (recent) loadingRow.recent = true
+    if (todoId) loadingRow.todoId = todoId
     rows.push(loadingRow)
     return
   }
@@ -1182,7 +1209,8 @@ function pushConversationRow(
       conversationExpanded,
       childrenByParent,
       childrenLoading,
-      recent
+      recent,
+      todoId
     )
   }
 }
@@ -1313,6 +1341,11 @@ export function buildRows(args: {
   /** Collapsed state of each folder group, keyed by group id. Absent key =
    *  expanded (the default), mirroring `folderExpanded`. Optional. */
   groupExpanded?: Record<number, boolean>
+  /** Assigned todos with locally created conversations, queried without paging. */
+  todoGroups?: readonly SidebarTodoConversationGroup[]
+  showTodos?: boolean
+  todosExpanded?: boolean
+  todoGroupExpanded?: Readonly<Record<string, boolean>>
 }): SidebarRow[] {
   const {
     pinned,
@@ -1339,6 +1372,10 @@ export function buildRows(args: {
     rootGroupCollapsed = EMPTY_EXPANDED,
     layout,
     groupExpanded = EMPTY_GROUP_EXPANDED,
+    todoGroups = [],
+    showTodos = false,
+    todosExpanded = true,
+    todoGroupExpanded = {},
   } = args
   const rows: SidebarRow[] = []
 
@@ -1569,12 +1606,50 @@ export function buildRows(args: {
     }
   }
 
+  const pushTodos = () => {
+    rows.push({
+      kind: "section",
+      section: "todos",
+      expanded: todosExpanded,
+      count: todoGroups.length,
+    })
+    if (!todosExpanded) return
+    if (todoGroups.length === 0) {
+      rows.push({ kind: "todos-empty" })
+      return
+    }
+    for (const group of todoGroups) {
+      const expanded = todoGroupExpanded[group.id] ?? true
+      rows.push({
+        kind: "todo-group",
+        id: group.id,
+        title: group.title,
+        count: group.conversations.length,
+        expanded,
+      })
+      if (!expanded) continue
+      for (const conversation of group.conversations) {
+        pushConversationRow(
+          rows,
+          conversation,
+          1,
+          conversationExpanded,
+          childrenByParent,
+          childrenLoading,
+          false,
+          group.id
+        )
+      }
+    }
+  }
+
   // Normalized (not consumed raw) so a truncated / repeated / unknown-entry
   // order can never drop a section off the sidebar or emit one twice.
   for (const section of normalizeSectionOrder(sectionOrder)) {
     if (section === "folders") pushFolders()
     else if (section === "chats") pushChats()
-    else if (showRecent) pushRecent()
+    else if (section === "recent" && showRecent) pushRecent()
+    else if (section === "todos" && showTodos) pushTodos()
   }
 
   return rows
@@ -1586,10 +1661,10 @@ export function buildRows(args: {
  * drive `VirtualizerHandle.scrollToIndex` — off-screen virtualized rows are not
  * in the DOM, so a querySelector-based lookup no longer works.
  *
- * A conversation listed in Recent occupies two rows; the CANONICAL one (its
+ * A conversation listed in Recent or Todos occupies several rows; the canonical one (its
  * folder / Chat / Pinned row) always wins, whichever comes first in the array,
  * so "locate the active conversation" lands where the conversation actually
- * lives. A Recent row is the answer only when it is the sole occurrence — e.g.
+ * lives. A duplicate row is the answer only when it is the sole occurrence — e.g.
  * the conversation's own section is collapsed.
  */
 export function flatIndexOfConversation(
@@ -1597,7 +1672,7 @@ export function flatIndexOfConversation(
   id: number,
   agentType: string
 ): number {
-  let recentMatch = -1
+  let duplicateMatch = -1
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     if (
@@ -1605,11 +1680,11 @@ export function flatIndexOfConversation(
       row.conversation.id === id &&
       row.conversation.agent_type === agentType
     ) {
-      if (!row.recent) return i
-      if (recentMatch < 0) recentMatch = i
+      if (!row.recent && !row.todoId) return i
+      if (duplicateMatch < 0) duplicateMatch = i
     }
   }
-  return recentMatch
+  return duplicateMatch
 }
 
 // ── Sticky folder header (floating overlay) ─────────────────────────────────
@@ -1644,7 +1719,12 @@ export function buildOwnerHeaderIndex(rows: readonly SidebarRow[]): Int32Array {
   for (let i = 0; i < rows.length; i++) {
     const kind = rows[i].kind
     if (kind === "folder") current = i
-    else if (kind === "section" || kind === "folder-group") current = -1
+    else if (
+      kind === "section" ||
+      kind === "folder-group" ||
+      kind === "todo-group"
+    )
+      current = -1
     out[i] = current
   }
   return out

@@ -112,6 +112,7 @@ import {
   forgeSetItemState,
   forgeSettingsGet,
   forgeTabCount,
+  workTaskCreateFromForge,
   workTaskLookupBySource,
 } from "@/lib/api"
 
@@ -1479,9 +1480,8 @@ describe("ForgePage detail panel", () => {
     )
   })
 
-  /** Same rule the rows themselves follow, and for the same reason: the panel
-   *  carries its own copy of a row numbered against a repository the page has
-   *  stopped showing, and its footer offers "Start" on it. */
+  /** The panel carries its own repository-scoped item, so it must close when
+   *  that repository stops being the page's current context. */
   it("closes when the folder changes", async () => {
     useAppWorkspaceStore.setState({
       folders: [
@@ -1513,11 +1513,8 @@ describe("ForgePage detail panel", () => {
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
   })
 
-  /** The end of that same road: the LAST project folder goes, so there is no
-   *  folder to fall back to. That path used to exit the resolution effect
-   *  before any of the clean-up ran, leaving the panel mounted over a page that
-   *  had gone back to "pick a folder" — with a "Start" whose dialog is gated on
-   *  a folder, and so did nothing at all when pressed. */
+  /** When the last project leaves, there is no repository context for the
+   *  remaining discussion and issue actions either. */
   it("closes when the last folder leaves the workspace", async () => {
     vi.mocked(forgeListIssues).mockResolvedValue(
       listOf([withBody(1, "row from codeg", "body")])
@@ -1536,15 +1533,9 @@ describe("ForgePage detail panel", () => {
     ).not.toBeInTheDocument()
   })
 
-  /**
-   * The panel outliving its row must not cost the item its TASK.
-   *
-   * The chip lookup asks about the rows on screen and replaces the whole map
-   * with the answer, so an item the panel is still showing after a page turn
-   * lost its entry — and the footer fell back from a live status chip to
-   * "Start", offering to trigger work that was already running.
-   */
-  it("keeps the panel's task chip after its row leaves the page", async () => {
+  /** Legacy task records may still be looked up, but they must not expose the
+   *  retired task controls or replace the discussion kept open across pages. */
+  it("keeps the panel discussion after pagination without exposing historical task controls", async () => {
     const user = userEvent.setup()
     const keyOf = (number: number) =>
       buildForgeSourceKey({
@@ -1573,9 +1564,10 @@ describe("ForgePage detail panel", () => {
     mount()
     await openDetail("a row")
     const panel = screen.getByRole("dialog")
+    expect(within(panel).getByTestId("markdown")).toHaveTextContent("body")
     expect(
-      await within(panel).findByRole("button", { name: "Running" })
-    ).toBeInTheDocument()
+      within(panel).queryByRole("button", { name: "Running" })
+    ).not.toBeInTheDocument()
 
     // Page two: #1 is gone from the list, and the panel deliberately stays.
     vi.mocked(forgeListIssues).mockResolvedValue(
@@ -1584,24 +1576,21 @@ describe("ForgePage detail panel", () => {
     await user.click(screen.getByRole("button", { name: "Next page" }))
     await screen.findByText("another row")
 
-    expect(within(panel).getByRole("button", { name: "Running" })).toBeVisible()
+    expect(within(panel).getByTestId("markdown")).toHaveTextContent("body")
+    expect(within(panel).getByRole("heading", { name: "a row" })).toBeVisible()
+    expect(within(panel).getByText("· #1")).toBeInTheDocument()
+    expect(
+      within(panel).queryByRole("button", { name: "Running" })
+    ).not.toBeInTheDocument()
     expect(
       within(panel).queryByRole("button", { name: "Start" })
     ).not.toBeInTheDocument()
+    expect(workTaskCreateFromForge).not.toHaveBeenCalled()
   })
 
-  /**
-   * A chip lookup that comes back LATE must not undo a newer one.
-   *
-   * Three things fire the lookup — the rows changing, a `work-task://changed`
-   * event, and the trigger dialog — so two are routinely in flight at once,
-   * and the answer replaces the whole map. Without a generation counter the
-   * slower request wins whatever order they were SENT in, so an answer to a
-   * question about last page's rows erases this page's links. The row then
-   * reads a missing link as "never handled" and offers "Start" for work that
-   * is already running, which is how a duplicate task gets created.
-   */
-  it("ignores a task-link answer a newer lookup already overtook", async () => {
+  /** A delayed legacy task lookup cannot change the visible page or revive
+   *  task controls after the reader has moved to another page. */
+  it("keeps the current page and hides task controls when stale task lookups arrive", async () => {
     const user = userEvent.setup()
     const keyOf = (number: number) =>
       buildForgeSourceKey({
@@ -1662,25 +1651,30 @@ describe("ForgePage detail panel", () => {
     await user.click(screen.getByRole("button", { name: "Next page" }))
     await screen.findByText("another row")
 
-    // Page two's lookup answers first, so #2 wears its chip.
+    await waitFor(() =>
+      expect(parked.some((entry) => entry.keys.includes(keyOf(2)))).toBe(true)
+    )
+    // Page two's lookup answers first. Its task remains hidden.
     for (const entry of parked) await answer(entry)
     expect(
-      await screen.findByRole("button", { name: "Running" })
-    ).toBeInTheDocument()
+      screen.queryByRole("button", { name: "Running" })
+    ).not.toBeInTheDocument()
 
-    // Page one's finally comes back. It never asked about #2, so honoring it
-    // would blank the chip that is on screen.
+    // A stale answer for page one must leave the current item on screen.
     for (const entry of stale) await answer(entry)
-    expect(screen.getByRole("button", { name: "Running" })).toBeVisible()
+    expect(screen.getByRole("button", { name: "another row" })).toBeVisible()
+    expect(screen.queryByRole("button", { name: "a row" })).toBeNull()
+    expect(lastQuery().page).toBe(2)
+    expect(
+      screen.queryByRole("button", { name: "Running" })
+    ).not.toBeInTheDocument()
     expect(
       screen.queryByRole("button", { name: "Start" })
     ).not.toBeInTheDocument()
+    expect(workTaskCreateFromForge).not.toHaveBeenCalled()
   })
 
-  /** "Start" inside the panel triggers the item the panel is open on, and
-   *  leaves the panel standing: the dialog opens over it, and closing it comes
-   *  back to a footer that now carries the new task's chip. */
-  it("triggers the panel's own item from its footer", async () => {
+  it("retains the selected item's discussion and repository actions without the retired task trigger", async () => {
     vi.mocked(forgeListIssues).mockResolvedValue(
       listOf([
         withBody(1, "first row", "one"),
@@ -1688,17 +1682,25 @@ describe("ForgePage detail panel", () => {
       ])
     )
     mount()
-    const user = await openDetail("second row")
+    await openDetail("second row")
 
     const panel = screen.getByRole("dialog")
-    await user.click(within(panel).getByRole("button", { name: "Start" }))
-
-    // The trigger dialog opens on #2 — the panel's item, not the first row,
-    // and not whatever the list happens to start with. Its heading is
-    // `#number · title`, so the number is what proves WHICH item was handed on.
     expect(
-      await screen.findByRole("heading", { name: "#2 · second row" })
-    ).toBeInTheDocument()
+      within(panel).getByRole("heading", { name: "second row" })
+    ).toBeVisible()
+    expect(within(panel).getByTestId("markdown")).toHaveTextContent("two")
+    expect(within(panel).getByText("· #2")).toBeInTheDocument()
+    expect(within(panel).getByRole("link")).toHaveAttribute(
+      "href",
+      "https://github.com/spacering-net/codeg/issues/2"
+    )
+    expect(
+      within(panel).queryByRole("button", { name: "Start" })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("heading", { name: "#2 · second row" })
+    ).not.toBeInTheDocument()
+    expect(workTaskCreateFromForge).not.toHaveBeenCalled()
   })
 })
 

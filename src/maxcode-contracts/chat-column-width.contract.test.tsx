@@ -206,28 +206,53 @@ describe("MaxCode chat column width", () => {
 
     // 休息态唯一视觉是渐隐细线（2×120px，峰值前景 30%，渐变由
     // .chat-column-edge-line 提供），opacity-0；hover / 拖动 / 键盘聚焦才
-    // 浮现，且竖线跟随指针垂直位置。
+    // 浮现，且竖线固定在热区内。
     const visuals = handle.querySelectorAll(":scope > span")
     expect(visuals.length).toBe(1)
     const line = visuals[0]
     expect(line.className).toContain("chat-column-edge-line")
-    expect(line.className).toContain("h-[120px]")
+    expect(line.className).toContain("h-full")
     expect(line.className).toContain("w-[2px]")
     expect(line.className).toContain("opacity-0")
     expect(handle.querySelector(".inset-y-0")).toBeNull()
 
-    const handleSource = readFileSync(
-      "src/components/chat/chat-column-resize-handle.tsx",
-      "utf8"
-    )
-    expect(handleSource).toContain("onPointerEnter")
-    expect(handleSource).toContain("trackPointerY")
-    // 离开热区后线必须原地淡出，top 不得回中（否则顶部/底部挪开时会在中间
-    // 闪出一段淡出中的线）：位置状态与显隐状态分离。
-    expect(handleSource).toContain("setLineVisible(false)")
-    expect(handleSource).toContain("top: lineY ??")
+    fireEvent.pointerEnter(handle)
+    expect(line).toHaveClass("opacity-100")
+    fireEvent.pointerLeave(handle)
+    expect(line).toHaveClass("opacity-0")
     const css = readFileSync("src/app/globals.css", "utf8")
     expect(css).toMatch(/\.chat-column-edge-line\s*\{[^}]*var\(--foreground\)/)
+  })
+
+  it("limits the visual and pointer hit area to the centered 120px segment", () => {
+    renderWorkspace()
+    const handle = screen.getByRole("separator")
+    // 事件直接绑定在居中的短抓手上；上下区域属于容器，不得有全高热区。
+    expect(handle).toHaveClass(
+      "absolute",
+      "top-1/2",
+      "h-[120px]",
+      "max-h-full",
+      "-translate-y-1/2"
+    )
+    expect(handle).not.toHaveClass("inset-y-0", "h-full")
+    const line = handle.querySelector("span")!
+    expect(line).toHaveClass("h-full", "pointer-events-none")
+
+    const container = handle.parentElement!
+    fireEvent(container, pointerEvent("pointerdown", 600))
+    fireEvent(container, pointerEvent("pointermove", 656))
+    expect(columnVar()).toBe("48rem")
+    expect(line).toHaveClass("opacity-0")
+
+    // 从中间抓手开始后，指针移出短热区仍可继续完成拖动。
+    fireEvent(handle, pointerEvent("pointerdown", 600))
+    fireEvent.pointerLeave(handle)
+    fireEvent(handle, pointerEvent("pointermove", 656))
+    expect(columnVar()).toBe("55rem")
+    expect(line).toHaveClass("opacity-100")
+    fireEvent(handle, pointerEvent("pointerup", 656))
+    expect(line).toHaveClass("opacity-0")
   })
 
   it("synchronizes width changed from another window", () => {

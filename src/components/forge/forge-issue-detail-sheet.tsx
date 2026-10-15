@@ -2331,12 +2331,15 @@ export function ForgeIssueDetailSheet({
   onStart,
   onRowUpdated,
   onCommentPosted,
+  showLegacyTasks = false,
 }: {
   /** The item on show, or `null` when the panel is closed. Held by the page so
    *  a list refresh re-renders the panel with the item's fresh copy. */
   row: ForgeIssueRow | null
   /** Latest task for this item, if any — the footer's action depends on it. */
   link: ForgeTaskLink | null
+  /** Historical AI work tasks remain available only to compatibility tests. */
+  showLegacyTasks?: boolean
   /** Which folder's repository the item belongs to — the only coordinate the
    *  comment fetch needs that the row does not carry (the backend derives the
    *  repository from this folder's own remote). `null` while no folder is
@@ -2840,49 +2843,51 @@ export function ForgeIssueDetailSheet({
             </Button>
           ) : null}
 
-          <div className="ms-auto flex items-center gap-1.5">
-            {link == null ? (
-              <Button
-                type="button"
-                size="sm"
-                className={ROW_ACTION}
-                onClick={onStart}
-              >
-                <CirclePlay className={ROW_ACTION_GLYPH} aria-hidden />
-                {t("start")}
-              </Button>
-            ) : (
-              // Siblings, never nested — same reason as on the row: a button
-              // inside a button folds its text into the outer one's accessible
-              // name and leaves keyboard activation to the browser.
-              <>
-                {terminal ? (
-                  <button
-                    type="button"
-                    onClick={onStart}
-                    className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
-                  >
-                    <RotateCcw className="size-3" aria-hidden />
-                    {t("retrigger")}
-                  </button>
-                ) : null}
+          {showLegacyTasks && (
+            <div className="ms-auto flex items-center gap-1.5">
+              {link == null ? (
                 <Button
                   type="button"
                   size="sm"
-                  variant="ghost"
-                  onClick={() => setRoute("tasks")}
-                  title={t("viewTask")}
-                  className={cn(
-                    ROW_ACTION,
-                    active ? CHIP_FILL.active : CHIP_FILL.settled
-                  )}
+                  className={ROW_ACTION}
+                  onClick={onStart}
                 >
-                  <ListTodo className={ROW_ACTION_GLYPH} aria-hidden />
-                  {tTasks(statusLabelKey(link.status))}
+                  <CirclePlay className={ROW_ACTION_GLYPH} aria-hidden />
+                  {t("start")}
                 </Button>
-              </>
-            )}
-          </div>
+              ) : (
+                // Siblings, never nested — same reason as on the row: a button
+                // inside a button folds its text into the outer one's accessible
+                // name and leaves keyboard activation to the browser.
+                <>
+                  {terminal ? (
+                    <button
+                      type="button"
+                      onClick={onStart}
+                      className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    >
+                      <RotateCcw className="size-3" aria-hidden />
+                      {t("retrigger")}
+                    </button>
+                  ) : null}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setRoute("tasks")}
+                    title={t("viewTask")}
+                    className={cn(
+                      ROW_ACTION,
+                      active ? CHIP_FILL.active : CHIP_FILL.settled
+                    )}
+                  >
+                    <ListTodo className={ROW_ACTION_GLYPH} aria-hidden />
+                    {tTasks(statusLabelKey(link.status))}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </DrawerContent>
 

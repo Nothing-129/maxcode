@@ -74,6 +74,7 @@ function mount(
   render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <ForgeIssueRowItem
+        showLegacyTasks
         row={item}
         link={taskLink}
         compact={compact}
@@ -217,6 +218,7 @@ describe("ForgeIssueRowItem", () => {
     const { container } = render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <ForgeIssueRowItem
+          showLegacyTasks
           row={row()}
           link={null}
           onOpenDetail={onOpenDetail}

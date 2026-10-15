@@ -8,9 +8,11 @@ import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import {
   Check,
+  ClipboardPlus,
   Copy,
   Info,
   Link2Off,
+  Link2,
   Loader2,
   Pencil,
   Pin,
@@ -22,6 +24,15 @@ import {
 import { useTranslations } from "next-intl"
 import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useImeGuard } from "@/hooks/use-ime-guard"
+import { useOptionalWorkbenchRoute } from "@/contexts/workbench-route-context"
+import { requestCreateTodo } from "@/lib/todo-compose-events"
+import { useOptionalTodosView } from "@/contexts/todos-view-context"
+import { ConversationTodoSourceBadges } from "@/components/todos/conversation-todo-source-badges"
+import {
+  TodoConversationLinkDialog,
+  type TodoConversationLinkTarget,
+} from "@/components/todos/todo-conversation-link-dialog"
+import type { TodoOrigin } from "@/lib/todos"
 import {
   createConversationShare,
   deleteConversation,
@@ -99,6 +110,8 @@ interface ConversationDetailHeaderProps {
   status: ConversationStatus | undefined
 }
 
+const EMPTY_TODO_ORIGINS: TodoOrigin[] = []
+
 /**
  * Conversation detail header (inline on desktop, in the nav row on mobile): the owning folder name + the
  * conversation title on the left with a desktop overflow menu, and a new-chat
@@ -128,6 +141,15 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const ime = useImeGuard()
   const tConv = useTranslations("Folder.conversation")
   const tDetails = useTranslations("Folder.sessionDetails")
+  const tTodos = useTranslations("Todos")
+  const todosView = useOptionalTodosView()
+  const draftOrigins = useTabStore(
+    (state) =>
+      state.rawTabs?.find((tab) => tab.id === tabId)?.todoOrigins ??
+      EMPTY_TODO_ORIGINS
+  )
+  const workbenchRoute = useOptionalWorkbenchRoute()
+  const setRoute = workbenchRoute?.setRoute
   const { closeTab, closePane, restorePaneDraft, openNewConversationTab } =
     useTabActions()
   const hasArchivedDraft = useTabStore((s) => s.archivedPaneDrafts.length > 0)
@@ -144,6 +166,16 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   // must target that key; the runtime store resolves the fetchable DB id from
   // it. Rename/pin/status/delete act on `conversationId` (the DB row).
   const runtimeId = runtimeConversationId ?? conversationId
+  const storedParentId = useAppWorkspaceStore(
+    (state) =>
+      state.conversations.find(
+        (conversation) => conversation.id === conversationId
+      )?.parent_id ?? null
+  )
+  const canLinkTodo =
+    storedParentId == null &&
+    (runtimeId == null ||
+      getRuntimeSession(runtimeId)?.detail?.summary.parent_id == null)
   // Narrow reactive read: a primitive-derived boolean that doesn't change on
   // streaming tokens, so the header stays inert mid-turn.
   const isPinned = useAppWorkspaceStore(
@@ -154,6 +186,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   )
 
   const [details, setDetails] = useState<ActiveSessionDetails | null>(null)
+  const [linkTarget, setLinkTarget] =
+    useState<TodoConversationLinkTarget | null>(null)
   // Snapshot the action target when a dialog OPENS. The header is a SINGLE
   // instance reused across active tabs (see conversation-detail-panel), and the
   // global tab-switch / close-tab shortcuts still fire while a dialog is open —
@@ -174,6 +208,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     title: string
   } | null>(null)
   const [shareUrl, setShareUrl] = useState("")
+  const [shareForTodo, setShareForTodo] = useState(false)
   const [shareError, setShareError] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
   const [shareCopied, setShareCopied] = useState(false)
@@ -194,6 +229,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     shareConfig != null &&
     shareRounds.length > 0 &&
     shareOptions.rounds?.length !== 0
+  const canCreateTodo =
+    !shareLoading && shareRounds.length > 0 && shareOptions.rounds?.length !== 0
 
   const persisted = conversationId != null
   const displayTitle =
@@ -328,63 +365,77 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     [shareOptions]
   )
 
-  const handleShareOpen = useCallback(() => {
-    if (conversationId == null) return
-    const request = ++shareRequest.current
-    const target = { id: conversationId, title: displayTitle }
-    setShareTarget(target)
-    setShareUrl("")
-    setShareError(false)
-    setShareCopied(false)
-    setShareAddressSource(null)
-    setShareNeedsPublicUrl(false)
-    setSharePublicUrlInput("")
-    setSharePublicUrlInvalid(false)
-    setShareConfig(null)
-    setShareOptions({})
-    setShareRounds([])
-    setShareExists(false)
-    setShareLoading(true)
-    void (async () => {
-      try {
-        const [config, preview] = await Promise.all([
-          getWebServiceConfig(),
-          getConversationSharePreview(target.id),
-        ])
-        if (request !== shareRequest.current) return
-        if (preview.version !== 2)
-          throw new Error("Share content selection is unavailable")
-        setShareConfig(config)
-        setShareRounds(
-          preview.rounds.map((round) => ({
-            ...round,
-            preview: splitShareUserText(round.preview)
-              .text.replace(/\s+/g, " ")
-              .slice(0, 120),
-          }))
-        )
-        setShareExists(preview.active_share)
-        const runtimeUrl = getServerBaseUrl()
-        const resolved = resolveConversationShareAddress({
-          publicShareUrl: config.publicShareUrl,
-          runtimeUrl,
-        })
-        if (
-          resolved?.source === "configured_public" ||
-          resolved?.source === "runtime_public"
-        ) {
-          return
+  const handleOpenShareMode = useCallback(
+    (forTodo = false) => {
+      if (conversationId == null) return
+      const request = ++shareRequest.current
+      const target = { id: conversationId, title: displayTitle }
+      setShareTarget(target)
+      setShareForTodo(forTodo)
+      setShareUrl("")
+      setShareError(false)
+      setShareCopied(false)
+      setShareAddressSource(null)
+      setShareNeedsPublicUrl(false)
+      setSharePublicUrlInput("")
+      setSharePublicUrlInvalid(false)
+      setShareConfig(null)
+      setShareOptions({})
+      setShareRounds([])
+      setShareExists(false)
+      setShareLoading(true)
+      void (async () => {
+        try {
+          const [config, preview] = await Promise.all([
+            forTodo ? Promise.resolve(null) : getWebServiceConfig(),
+            getConversationSharePreview(target.id),
+          ])
+          if (request !== shareRequest.current) return
+          if (preview.version !== 2)
+            throw new Error("Share content selection is unavailable")
+          setShareConfig(config)
+          setShareRounds(
+            preview.rounds.map((round) => ({
+              ...round,
+              preview: splitShareUserText(round.preview)
+                .text.replace(/\s+/g, " ")
+                .slice(0, 120),
+            }))
+          )
+          setShareExists(preview.active_share)
+          if (!config) return
+          const runtimeUrl = getServerBaseUrl()
+          const resolved = resolveConversationShareAddress({
+            publicShareUrl: config.publicShareUrl,
+            runtimeUrl,
+          })
+          if (
+            resolved?.source === "configured_public" ||
+            resolved?.source === "runtime_public"
+          ) {
+            return
+          }
+          setShareNeedsPublicUrl(true)
+        } catch (err) {
+          if (request !== shareRequest.current) return
+          console.error("[ConversationDetailHeader] prepare share:", err)
+          setShareError(true)
+        } finally {
+          if (request === shareRequest.current) setShareLoading(false)
         }
-        setShareNeedsPublicUrl(true)
-      } catch (err) {
-        if (request !== shareRequest.current) return
-        console.error("[ConversationDetailHeader] prepare share:", err)
-        setShareError(true)
-      } finally {
-        if (request === shareRequest.current) setShareLoading(false)
-      }
-    })()
-  }, [conversationId, displayTitle])
+      })()
+    },
+    [conversationId, displayTitle]
+  )
+
+  const handleShareOpen = useCallback(
+    () => handleOpenShareMode(),
+    [handleOpenShareMode]
+  )
+  const handleTodoShareOpen = useCallback(
+    () => handleOpenShareMode(true),
+    [handleOpenShareMode]
+  )
 
   useEffect(() => {
     const handleShareRequest = (event: Event) => {
@@ -452,6 +503,53 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setShareTarget(null)
   }, [])
 
+  const handleShareAndCreateTodo = useCallback(async () => {
+    if (!shareTarget || !canCreateTodo || !setRoute) return
+    const request = shareRequest.current
+    const target = shareTarget
+    const options = shareOptions
+    setShareLoading(true)
+    setShareError(false)
+    try {
+      let link = shareUrl
+      if (!link) {
+        const config = shareConfig ?? (await getWebServiceConfig())
+        if (request !== shareRequest.current) return
+        const address = resolveConversationShareAddress({
+          publicShareUrl: config.publicShareUrl,
+          runtimeUrl: getServerBaseUrl(),
+        })
+        if (!address) throw new Error("Share server address is unavailable")
+        const share = await createConversationShare(target.id, options)
+        if (request !== shareRequest.current) return
+        if (share.version !== 2)
+          throw new Error("Share content selection is unavailable")
+        link = buildConversationShareUrl(address.baseUrl, share.token)
+      }
+      requestCreateTodo({
+        text: tTodos("conversationLinkContent", { url: link }),
+        conversationId: target.id,
+        shareOptions: options,
+      })
+      handleCloseShare()
+    } catch (err) {
+      if (request !== shareRequest.current) return
+      console.error("[ConversationDetailHeader] prepare todo share:", err)
+      setShareError(true)
+    } finally {
+      if (request === shareRequest.current) setShareLoading(false)
+    }
+  }, [
+    canCreateTodo,
+    handleCloseShare,
+    setRoute,
+    shareConfig,
+    shareOptions,
+    shareTarget,
+    shareUrl,
+    tTodos,
+  ])
+
   const handleRevokeShare = useCallback(async () => {
     if (shareTarget == null) return
     const request = shareRequest.current
@@ -506,6 +604,12 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         >
           {displayTitle}
         </span>
+        {canLinkTodo && (
+          <ConversationTodoSourceBadges
+            conversationId={conversationId}
+            draftOrigins={draftOrigins}
+          />
+        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -572,6 +676,46 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               <DesktopChromeIcon name="share" />
               {t("shareConversation")}
             </DropdownMenuItem>
+            {setRoute && (
+              <DropdownMenuItem
+                disabled={!persisted}
+                onSelect={handleTodoShareOpen}
+              >
+                <ClipboardPlus className="h-4 w-4" />
+                {tTodos("addConversation")}
+              </DropdownMenuItem>
+            )}
+            {todosView && canLinkTodo && (
+              <DropdownMenuItem
+                disabled={
+                  !persisted ||
+                  !todosView.state ||
+                  (todosView.state.mode === "team" &&
+                    !todosView.state.active_team_id)
+                }
+                onSelect={() => {
+                  const state = todosView.state
+                  if (conversationId == null || !state) return
+                  setLinkTarget({
+                    conversationId,
+                    title: displayTitle,
+                    scopeId:
+                      state.mode === "personal"
+                        ? "personal"
+                        : (state.active_team_id ?? ""),
+                    scopeName:
+                      state.mode === "personal"
+                        ? tTodos("personalMode")
+                        : (state.teams.find(
+                            (team) => team.id === state.active_team_id
+                          )?.name ?? tTodos("teamMode")),
+                  })
+                }}
+              >
+                <Link2 className="size-4" />
+                {tTodos("linkConversation")}
+              </DropdownMenuItem>
+            )}
             {status !== "completed" && (
               <DropdownMenuItem
                 disabled={!persisted}
@@ -635,6 +779,13 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {linkTarget && (
+        <TodoConversationLinkDialog
+          key={`${linkTarget.conversationId}:${linkTarget.scopeId}`}
+          target={linkTarget}
+          onClose={() => setLinkTarget(null)}
+        />
+      )}
 
       <Dialog
         open={shareTarget != null}
@@ -644,11 +795,15 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{t("shareDialogTitle")}</DialogTitle>
+            <DialogTitle>
+              {shareForTodo ? tTodos("addConversation") : t("shareDialogTitle")}
+            </DialogTitle>
             <DialogDescription>
-              {t("shareDialogDescription", {
-                title: shareTarget?.title ?? "",
-              })}
+              {shareForTodo
+                ? tTodos("conversationShareDescription")
+                : t("shareDialogDescription", {
+                    title: shareTarget?.title ?? "",
+                  })}
             </DialogDescription>
           </DialogHeader>
           {shareLoading && !shareUrl && !shareNeedsPublicUrl ? (
@@ -657,7 +812,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {shareConfig ? t("shareCreating") : t("sharePreparing")}
             </div>
           ) : null}
-          {shareConfig && !shareUrl ? (
+          {(shareForTodo || shareConfig) && !shareUrl ? (
             <ConversationShareOptionsEditor
               disabled={shareLoading}
               rounds={shareRounds}
@@ -732,7 +887,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           {shareError ? (
             <p className="text-sm text-destructive">{t("shareFailed")}</p>
           ) : null}
-          {shareExists && !shareUrl ? (
+          {shareExists && !shareUrl && !shareForTodo ? (
             <Button
               variant="outline"
               disabled={shareLoading}
@@ -742,8 +897,32 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               {t("shareRevoke")}
             </Button>
           ) : null}
-          {shareNeedsPublicUrl && !shareUrl ? (
+          {shareForTodo ? (
             <DialogFooter>
+              <Button variant="outline" onClick={handleCloseShare}>
+                {t("cancel")}
+              </Button>
+              <Button
+                disabled={!canCreateTodo}
+                onClick={handleShareAndCreateTodo}
+              >
+                <ClipboardPlus className="size-4" />
+                {tTodos("shareAndCreate")}
+              </Button>
+            </DialogFooter>
+          ) : shareNeedsPublicUrl && !shareUrl ? (
+            <DialogFooter className="sm:flex-wrap">
+              {setRoute && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canCreateTodo}
+                  onClick={handleShareAndCreateTodo}
+                >
+                  <ClipboardPlus className="size-4" />
+                  {tTodos("shareAndCreate")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
@@ -764,10 +943,21 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               </Button>
             </DialogFooter>
           ) : !shareUrl ? (
-            <DialogFooter>
+            <DialogFooter className="sm:flex-wrap">
               <Button variant="outline" onClick={handleCloseShare}>
                 {t("cancel")}
               </Button>
+              {setRoute && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canCreateTodo}
+                  onClick={handleShareAndCreateTodo}
+                >
+                  <ClipboardPlus className="size-4" />
+                  {tTodos("shareAndCreate")}
+                </Button>
+              )}
               <Button
                 disabled={!canCreateShare}
                 onClick={() => {
@@ -782,7 +972,18 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               </Button>
             </DialogFooter>
           ) : (
-            <DialogFooter>
+            <DialogFooter className="sm:flex-wrap">
+              {setRoute && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!canCreateTodo}
+                  onClick={handleShareAndCreateTodo}
+                >
+                  <ClipboardPlus className="size-4" />
+                  {tTodos("shareAndCreate")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
