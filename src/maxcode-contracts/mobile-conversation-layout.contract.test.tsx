@@ -3,6 +3,26 @@ import { chooseComposerUsageDisplayMode } from "@/components/chat/composer-gener
 import { source } from "./contract-source"
 
 describe("MaxCode: mobile conversation layout", () => {
+  it("exposes copy, new-chat, todo and image-download actions without hover on touch", () => {
+    const list = source("src/components/message/message-list-view.tsx")
+    expect(list.match(/className="maxcode-user-message-action /g)).toHaveLength(
+      3
+    )
+    for (const file of ["user-image-attachments", "generated-images-block"]) {
+      expect(source(`src/components/message/${file}.tsx`)).toContain(
+        'className="maxcode-touch-image-action '
+      )
+    }
+    const touch = source("src/app/globals.css").match(
+      /@media \(hover: none\), \(pointer: coarse\)\s*\{([\s\S]*?)\n\}/
+    )?.[1]
+    expect(touch).toMatch(/\.maxcode-user-message-action,/)
+    expect(touch).toMatch(/\.maxcode-touch-image-action,/)
+    expect(touch).toMatch(/opacity:\s*1;/)
+    expect(touch).toMatch(/flex-wrap:\s*wrap;/)
+    expect(touch).toMatch(/height:\s*auto;/)
+  })
+
   it("gives mobile user bubbles room without inline action buttons taking width", () => {
     expect(source("src/components/ai-elements/message.tsx")).toContain(
       "max-w-[92%] md:max-w-[82%]"

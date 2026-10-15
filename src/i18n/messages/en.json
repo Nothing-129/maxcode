@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "Search",
       "dialogTitleWithFolder": "Search — {name}",
+      "searchScope": "Search scope",
+      "allFolders": "All folders",
       "tabConversations": "Conversations",
       "tabFiles": "Files",
       "placeholder": "Search conversations...",
@@ -6005,6 +6007,10 @@
     "markupSend": "Save image"
   },
   "Todos": {
+    "addAttachments": "Add files / images",
+    "attachmentHint": "Paste files or images into the content, or select files. Total attachment limit: 100 MB.",
+    "attachmentTooLarge": "Attachments exceed the 100 MB total limit.",
+    "removeAttachment": "Remove {name}",
     "title": "Todos",
     "colUnclaimed": "Unclaimed",
     "colClaimed": "Claimed",
@@ -6113,6 +6119,10 @@
     "filter_today": "Due today",
     "filter_overdue": "Overdue",
     "filter_urgent": "Urgent",
-    "conversationLinkContent": "See conversation: {url}"
+    "conversationLinkContent": "See conversation: {url}",
+    "newConversationForTodo": "New conversation from {title}",
+    "chooseConversationFolder": "Choose conversation folder",
+    "chooseConversationFolderHint": "This todo has no linked conversation with a valid folder. Choose a folder to start the conversation.",
+    "confirmConversationFolder": "Choose and create"
   }
 }

@@ -756,6 +756,7 @@ function reusableDraft(
   }
   const inGroup = (tab: TabItemInternal) =>
     tab.conversationId == null &&
+    !tab.todoOrigins?.length &&
     groupOfTab(st.groupOf, st.groupLayout, tab.id) === targetGroup
   return (
     st.rawTabs.find((tab) => tab.id === st.activeTabId && inGroup(tab)) ??
@@ -2361,7 +2362,8 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
 
     const tabId = makeNewConversationTabId()
     const prevState = get()
-    // Normal entry points reuse a draft; todos explicitly create their own.
+    // Ordinary entry points reuse only ordinary drafts. Todo-origin drafts
+    // retain their own body and associations until explicitly resumed.
     // With several independent drafts, a selector must retain its own target.
     const requestedGroup = requestedDraft
       ? groupOfTab(prevState.groupOf, prevState.groupLayout, requestedDraft.id)
@@ -2696,6 +2698,12 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
     workingDir
   ) => {
     const prevState = get()
+    const draft = prevState.rawTabs.find((tab) => tab.id === tabId)
+    if (draft && draft.conversationId == null) {
+      // The row now owns this conversation. Retire both draft versions and
+      // pending idle writes before a later new conversation can adopt them.
+      clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tabId))
+    }
     const nextTabs = prevState.rawTabs.flatMap((tab) => {
       if (tab.id === tabId) {
         const nextTab: TabItemInternal = {

@@ -492,7 +492,7 @@ const FolderPicker = memo(function FolderPicker({
         className={cn(
           "flex shrink-0 items-center rounded-sm text-sm outline-none transition-colors",
           editable
-            ? "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            ? "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-1 focus-visible:ring-[#216ae4]"
             : "cursor-default text-muted-foreground"
         )}
       >

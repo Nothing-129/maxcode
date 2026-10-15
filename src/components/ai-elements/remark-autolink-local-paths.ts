@@ -203,7 +203,9 @@ function decodeCitationAttribute(value: string): string {
  * kept as inert prose so their path-looking interior can never become a wrong
  * relative link.
  */
-function parseCodexFileCitation(raw: string): string | null {
+function parseCodexFileCitation(
+  raw: string
+): { path: string; label: string } | null {
   if (!raw.startsWith(CODEX_FILE_CITATION_START) || !raw.endsWith("}")) {
     return null
   }
@@ -223,13 +225,20 @@ function parseCodexFileCitation(raw: string): string | null {
   }
 
   const path = attrs.get("path")
-  if (!path || attrs.get("purpose") !== "output" || /[\0\r\n]/.test(path)) {
+  if (
+    !path ||
+    !["output", "source"].includes(attrs.get("purpose") ?? "") ||
+    /[\0\r\n]/.test(path)
+  ) {
     return null
   }
   // A drive letter is a path, not a URI scheme. Everything else with a scheme
   // is not a local file and must not enter the trusted codeg://file route.
   if (URL_SCHEME.test(path) && !DRIVE_PREFIX.test(path)) return null
-  return path
+  const label = [citationLabel(path), attrs.get("sheet"), attrs.get("range")]
+    .filter(Boolean)
+    .join(" · ")
+  return { path, label }
 }
 
 function citationLabel(path: string): string {
@@ -310,12 +319,12 @@ function splitTextValue(value: string): TextOrLink[] | null {
     }
 
     const raw = value.slice(citationStart, end + 1)
-    const path = parseCodexFileCitation(raw)
-    if (path) {
+    const citation = parseCodexFileCitation(raw)
+    if (citation) {
       parts.push({
         type: "link",
-        url: buildFilePathReferenceUri(path),
-        children: [{ type: "text", value: citationLabel(path) }],
+        url: buildFilePathReferenceUri(citation.path),
+        children: [{ type: "text", value: citation.label }],
       })
     } else {
       parts.push({ type: "text", value: raw })

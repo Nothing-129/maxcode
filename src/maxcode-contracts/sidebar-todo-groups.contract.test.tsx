@@ -22,7 +22,7 @@ import {
   resetAppWorkspaceStore,
   useAppWorkspaceStore,
 } from "@/stores/app-workspace-store"
-import { resetTabStore } from "@/stores/tab-store"
+import { resetTabStore, useTabStore } from "@/stores/tab-store"
 import { resetConversationUnreadStore } from "@/stores/conversation-unread-store"
 import type {
   TodoConversationGroup,
@@ -36,6 +36,7 @@ const host = vi.hoisted(() => ({
   state: null as TodoState | null,
   enabled: true,
   groups: vi.fn<() => Promise<TodoConversationGroupsState>>(),
+  origin: vi.fn(),
 }))
 vi.mock("@/contexts/todos-view-context", () => ({
   useOptionalTodosView: () => (host.enabled ? { state: host.state } : null),
@@ -43,6 +44,7 @@ vi.mock("@/contexts/todos-view-context", () => ({
 vi.mock("@/lib/todos", async (original) => ({
   ...(await original<typeof import("@/lib/todos")>()),
   todoConversationGroups: host.groups,
+  todoOriginCall: host.origin,
 }))
 vi.mock("virtua", () => ({
   Virtualizer: ({
@@ -162,6 +164,7 @@ beforeEach(() => {
   resetConversationUnreadStore()
   host.enabled = true
   host.state = state()
+  host.origin.mockReset()
   host.groups.mockReset()
   host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
   const folder: FolderDetail = {
@@ -195,6 +198,162 @@ afterEach(() => {
 })
 
 describe("sidebar conversations grouped by their originating assigned todos", () => {
+  it("starts an unsent linked conversation from the group header using its latest folder", async () => {
+    const id = "20da561085a74c658a43a162b1e2d69c"
+    const current = useAppWorkspaceStore.getState()
+    const other = {
+      ...current.allFolders[0],
+      id: 2,
+      path: "/projects/other",
+      name: "Other",
+    }
+    useAppWorkspaceStore.setState({
+      allFolders: [...current.allFolders, other],
+      folders: [...current.folders, other],
+      conversations: [
+        conversation(1),
+        {
+          ...conversation(2),
+          folder_id: 2,
+          updated_at: "2026-10-15T12:00:00Z",
+        },
+      ],
+    })
+    host.state!.todos = [
+      {
+        id,
+        title: "Todo",
+        content: "Review package",
+        status: "claimed",
+        assignee_id: "me",
+        creator_id: "me",
+        revision: 1,
+        source_url: null,
+        created_at: "2026-10-15T00:00:00Z",
+        updated_at: "2026-10-15T00:00:00Z",
+      },
+    ]
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group(id, [1, 2], { title: "Release review" })],
+    })
+    const navigate = vi.fn()
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <WorkbenchRouteProvider>
+          <SidebarConversationList showTodos onNavigate={navigate} />
+        </WorkbenchRouteProvider>
+      </NextIntlClientProvider>
+    )
+    const button = await screen.findByRole("button", {
+      name: "New conversation from Release review",
+    })
+    const toggle = document.querySelector(
+      `[data-todo-group-id="${id}"] button`
+    )!
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    fireEvent.click(button)
+    const store = useTabStore.getState()
+    const draft = store.rawTabs.find((tab) => tab.id === store.activeTabId)!
+    expect(draft).toMatchObject({
+      folderId: 2,
+      workingDir: other.path,
+      conversationId: null,
+      todoOrigins: [{ scope_id: "personal", todo_id: id }],
+    })
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(navigate).toHaveBeenCalledTimes(1)
+  })
+
+  it("requires folder confirmation without a valid sibling folder and creates nothing on cancel", async () => {
+    const id = "20da561085a74c658a43a162b1e2d69c"
+    const current = useAppWorkspaceStore.getState()
+    useAppWorkspaceStore.setState({
+      conversations: [{ ...conversation(1), folder_id: 999 }],
+    })
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group(id, [1], { title: "Choose a folder" })],
+    })
+    host.origin.mockResolvedValue({
+      todo: { id, content: "Task body", source_url: null },
+    })
+    render(sidebar())
+    const button = await screen.findByRole("button", {
+      name: "New conversation from Choose a folder",
+    })
+    fireEvent.click(button)
+    await screen.findByRole("dialog", {
+      name: enMessages.Todos.chooseConversationFolder,
+    })
+    expect(useTabStore.getState().rawTabs).toHaveLength(0)
+    expect(
+      screen.getByRole("button", {
+        name: enMessages.Todos.confirmConversationFolder,
+      })
+    ).toBeDisabled()
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+    expect(useTabStore.getState().rawTabs).toHaveLength(0)
+    fireEvent.click(button)
+    await screen.findByRole("dialog", {
+      name: enMessages.Todos.chooseConversationFolder,
+    })
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: enMessages.Todos.chooseConversationFolder,
+      }),
+      { target: { value: String(current.allFolders[0].id) } }
+    )
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: enMessages.Todos.confirmConversationFolder,
+      })
+    )
+    const store = useTabStore.getState()
+    expect(
+      store.rawTabs.find((tab) => tab.id === store.activeTabId)
+    ).toMatchObject({
+      folderId: 1,
+      conversationId: null,
+      todoOrigins: [{ scope_id: "personal", todo_id: id }],
+    })
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument()
+  })
+
+  it("loads a completed todo beyond the board page before opening its linked draft", async () => {
+    const id = "20da561085a74c658a43a162b1e2d69c"
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [
+        group(id, [1], { title: "Old completed task", status: "completed" }),
+      ],
+    })
+    host.origin.mockResolvedValue({
+      todo: {
+        id,
+        content: "Complete the final review",
+        source_url: "https://example.test/share#source",
+      },
+    })
+    render(sidebar())
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "New conversation from Old completed task",
+      })
+    )
+    await waitFor(() => {
+      const store = useTabStore.getState()
+      expect(
+        store.rawTabs.find((tab) => tab.id === store.activeTabId)?.todoOrigins
+      ).toEqual([{ scope_id: "personal", todo_id: id }])
+    })
+    expect(host.origin).toHaveBeenCalledWith({
+      origin: { scope_id: "personal", todo_id: id },
+      action: "get",
+    })
+  })
+
   it("keeps canonical folder navigation and sticky ownership when a todo copy comes first", () => {
     const parent = { ...conversation(1), child_count: 1 }
     const child = { ...conversation(5), parent_id: 1 }

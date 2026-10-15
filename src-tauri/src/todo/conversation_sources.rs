@@ -441,11 +441,7 @@ pub async fn origin_call(
             .trim()
             .is_empty()
     {
-        let content = required(
-            request.operation.content.as_deref(),
-            "todo content",
-            250_000,
-        )?;
+        let content = required_todo_content(request.operation.content.as_deref())?;
         request.operation.title =
             Some(crate::session_title::generate_todo_title(conn, &content).await);
     }

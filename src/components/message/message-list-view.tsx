@@ -800,7 +800,7 @@ const UserMessageCopyButton = memo(function UserMessageCopyButton({
   return (
     <MessageAction
       tooltip={isCopied ? t("copied") : t("copyMessage")}
-      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-0"
+      className="maxcode-user-message-action opacity-0 group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-0"
       onClick={handleCopy}
       size="icon-xs"
     >
@@ -823,7 +823,7 @@ const UserMessageNewChatButton = memo(function UserMessageNewChatButton({
   return (
     <MessageAction
       tooltip={t("newChatFromMessage")}
-      className="opacity-0 group-hover/user-msg:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-7"
+      className="maxcode-user-message-action opacity-0 group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-7"
       onClick={newChat}
       size="icon-xs"
     >
@@ -847,7 +847,7 @@ const UserMessageTodoButton = memo(function UserMessageTodoButton({
   return (
     <MessageAction
       tooltip={t("addMessage")}
-      className="opacity-0 group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-14"
+      className="maxcode-user-message-action maxcode-user-todo-action opacity-0 group-hover/user-msg:opacity-100 group-focus-within/user-msg:opacity-100 focus-visible:opacity-100 transition-opacity self-end max-md:absolute max-md:top-full max-md:right-14"
       onClick={addTodo}
       size="icon-xs"
     >

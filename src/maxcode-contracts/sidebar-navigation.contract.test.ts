@@ -3,9 +3,10 @@ import zhCN from "@/i18n/messages/zh-CN.json"
 import { source } from "./contract-source"
 
 describe("sidebar navigation scope", () => {
-  it("labels the Simplified Chinese navigation actions 新建对话 and 自动任务", () => {
-    expect(zhCN.Folder.sidebar.newChat).toBe("新建对话")
+  it("labels the Simplified Chinese navigation actions 新对话 and 自动任务", () => {
+    expect(zhCN.Folder.sidebar.newChat).toBe("新对话")
     expect(zhCN.Folder.sidebar.automations).toBe("自动任务")
+    expect(zhCN.Folder.sidebar.tasks).toBe("待办")
   })
 
   it("uses 14px labels at default zoom for navigation actions", () => {
@@ -16,6 +17,25 @@ describe("sidebar navigation scope", () => {
     )
     expect(navButton).toContain(
       "text-[0.875rem] leading-5 text-sidebar-foreground"
+    )
+  })
+
+  it("keeps the three actions in one compact button row without a task count", () => {
+    const sidebar = source("src/components/layout/sidebar.tsx")
+    expect(sidebar).toContain(
+      'data-sidebar-actions className="flex items-center gap-1"'
+    )
+    expect(sidebar).toContain("h-8 min-w-0 flex-1")
+    expect(sidebar).toContain(
+      "justify-center gap-1.5 rounded-lg bg-sidebar-accent/20"
+    )
+    expect(sidebar).not.toContain("attentionCount")
+    const row = sidebar.slice(sidebar.indexOf("<div data-sidebar-actions"))
+    expect(row.indexOf('icon="compose"')).toBeLessThan(
+      row.indexOf('icon="clock"')
+    )
+    expect(row.indexOf('icon="clock"')).toBeLessThan(
+      row.indexOf('icon="tasks"')
     )
   })
 

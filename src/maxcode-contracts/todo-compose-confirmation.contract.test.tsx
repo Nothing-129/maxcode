@@ -61,6 +61,9 @@ describe("MaxCode: one-click todos require editor confirmation in place", () => 
     mount()
     await user.click(screen.getByLabelText(en.Todos.addMessage))
     expect(screen.getByRole("dialog", { name: "New todo" })).toBeInTheDocument()
+    expect(
+      screen.queryByText(en.Folder.conversationCard.shareScope)
+    ).not.toBeInTheDocument()
     expect(screen.getByLabelText("Todo content")).toHaveValue(content)
     expect(screen.getByTestId("current-conversation")).toBeInTheDocument()
     expect(creates()).toHaveLength(0)
@@ -93,18 +96,22 @@ describe("MaxCode: one-click todos require editor confirmation in place", () => 
     expect(setRoute).not.toHaveBeenCalled()
   })
 
-  it("prefills the conversation share link but waits for confirmation before creating a todo", async () => {
+  it("prefills the captured conversation title and body reference but waits for confirmation", async () => {
     const user = userEvent.setup()
     mount()
     act(() =>
       requestCreateTodo({
-        text: "See conversation: https://share.example.com/share#conversation",
+        title: "Release planning",
+        text: "Release planning\n\nSee conversation: https://share.example.com/share#conversation",
         conversationId: 42,
         shareOptions: { includeTools: false },
       })
     )
     expect(screen.getByLabelText("Todo content")).toHaveValue(
-      "See conversation: https://share.example.com/share#conversation"
+      "Release planning\n\nSee conversation: https://share.example.com/share#conversation"
+    )
+    expect(screen.getByLabelText("Title (optional)")).toHaveValue(
+      "Release planning"
     )
     expect(creates()).toHaveLength(0)
     await waitFor(() =>
@@ -115,8 +122,9 @@ describe("MaxCode: one-click todos require editor confirmation in place", () => 
     expect(creates()[0][0]).toEqual(
       expect.objectContaining({
         action: "create",
+        title: "Release planning",
         content:
-          "See conversation: https://share.example.com/share#conversation",
+          "Release planning\n\nSee conversation: https://share.example.com/share#conversation",
         conversation_id: 42,
         share_options: { includeTools: false },
       })

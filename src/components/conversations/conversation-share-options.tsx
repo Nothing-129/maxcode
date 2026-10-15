@@ -18,13 +18,15 @@ export function ConversationShareOptionsEditor({
 }) {
   const t = useTranslations("Folder.conversationCard")
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">{t("shareContentHint")}</p>
-      <label className="flex items-center justify-between gap-3 text-sm font-medium">
+    <div className="min-w-0 w-full space-y-4">
+      <p className="text-sm text-muted-foreground wrap-anywhere">
+        {t("shareContentHint")}
+      </p>
+      <label className="flex min-w-0 flex-wrap items-center justify-between gap-3 text-sm font-medium">
         {t("shareScope")}
         <select
           disabled={disabled}
-          className="max-w-[65%] rounded-lg border bg-background px-3 py-2 text-sm"
+          className="outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 min-w-0 max-w-full basis-full rounded-lg border bg-background px-3 py-2 text-sm sm:max-w-[65%] sm:basis-auto"
           value={options.rounds ? "selected" : "all"}
           onChange={(event) =>
             onChange({
@@ -43,16 +45,16 @@ export function ConversationShareOptionsEditor({
         </select>
       </label>
       {options.rounds && (
-        <fieldset className="max-h-56 space-y-1 overflow-y-auto overscroll-contain rounded-xl border p-2">
+        <fieldset className="min-w-0 max-h-56 w-full space-y-1 overflow-x-hidden overflow-y-auto overscroll-contain rounded-xl border p-2">
           <legend className="sr-only">{t("shareSelectRounds")}</legend>
           {rounds.map((round) => (
             <label
               key={round.number}
-              className="flex cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-muted"
+              className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-muted"
             >
               <Checkbox
                 disabled={disabled}
-                className="mt-0.5"
+                className="mt-0.5 shrink-0"
                 checked={options.rounds!.includes(round.number)}
                 onCheckedChange={(checked) =>
                   onChange({
@@ -65,11 +67,11 @@ export function ConversationShareOptionsEditor({
                   })
                 }
               />
-              <span className="min-w-0 text-sm">
+              <span className="min-w-0 flex-1 text-sm">
                 <span className="font-medium">
                   {t("shareRound", { number: round.number })}
                 </span>
-                <span className="mt-0.5 block line-clamp-2 break-words text-xs text-muted-foreground">
+                <span className="mt-0.5 line-clamp-2 wrap-anywhere text-xs text-muted-foreground">
                   {round.preview || t("shareAttachment")}
                 </span>
               </span>

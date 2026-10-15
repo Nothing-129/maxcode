@@ -46,7 +46,7 @@ export interface MarkedScreenshot {
 
 const TOOL_BUTTON = cn(
   "inline-flex h-full items-center gap-1.5 rounded-xl border border-transparent px-2.5 text-sm font-medium text-foreground/60 transition-all outline-none",
-  "hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 [&_svg]:size-4 [&_svg]:shrink-0",
+  "hover:text-foreground focus-visible:ring-1 focus-visible:ring-[#216ae4] [&_svg]:size-4 [&_svg]:shrink-0",
   "aria-pressed:bg-background aria-pressed:text-foreground dark:aria-pressed:border-input dark:aria-pressed:bg-input/30"
 )
 

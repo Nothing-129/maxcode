@@ -33,9 +33,17 @@ pub fn build_router(
 
     let api = Router::new()
         .route("/health", post(health_check))
-        .route("/todo_call", post(handlers::todo::todo_call))
+        .route(
+            "/todo_call",
+            post(handlers::todo::todo_call)
+                .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
+        )
         .route("/todo_search", post(handlers::todo::todo_search))
-        .route("/todo_origin_call", post(handlers::todo::todo_origin_call))
+        .route(
+            "/todo_origin_call",
+            post(handlers::todo::todo_origin_call)
+                .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
+        )
         .route(
             "/todo_conversation_link",
             post(handlers::todo::todo_conversation_link),
@@ -1770,14 +1778,16 @@ pub fn build_router(
     let public_api = Router::new()
         .route(
             "/team_todo_call",
-            post(handlers::todo::team_todo_call).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+            post(handlers::todo::team_todo_call)
+                .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
         )
         .route("/team_todo_join", post(handlers::todo::team_todo_join))
         .route("/team_todo_lookup", post(handlers::todo::team_todo_lookup))
         .route("/team_todo_search", post(handlers::todo::team_todo_search))
         .route(
             "/team_todo_origin_call",
-            post(handlers::todo::team_todo_origin_call),
+            post(handlers::todo::team_todo_origin_call)
+                .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
         )
         .route(
             "/team_todo_details",

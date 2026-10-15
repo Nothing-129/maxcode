@@ -221,20 +221,96 @@
       ]
     },
     {
+      "id": "todos.paste-attachments",
+      "category": "product",
+      "description": "Todo editors paste and select files/images, persist portable attachments with content for personal and remote team todos, preview raster images and download files, with a 100 MiB combined attachment limit. Title generation and conversation text exclude binary payloads.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": [
+        "src/maxcode-contracts/todo-attachments.contract.rs",
+        "src/lib/todo-attachments.ts",
+        "src/lib/todos.ts",
+        "src/components/todos/",
+        "src-tauri/src/todo/",
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/web/router.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/todo-attachments.contract.test.tsx"]
+    },
+    {
+      "id": "forms.subtle-focus",
+      "category": "product",
+      "description": "App-wide form focus uses thin blue boundaries, including native login/canvas/question inputs, native selects and settings overrides. Shared buttons, tabs, calendar, toggles and local focus overrides use a single 1px keyboard-focus ring instead of stacked outlines or 3px halos. Pointer selector suppression and invalid-state feedback remain available.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": [
+        "src/components/ui/input.tsx",
+        "src/components/ui/textarea.tsx",
+        "src/components/ui/select.tsx",
+        "src/components/ui/input-group.tsx",
+        "src/components/ui/combobox.tsx",
+        "src/components/settings/web-service-settings.tsx",
+        "src/app/globals.css",
+        "src/components/ui/tabs.tsx",
+        "src/components/ui/slider.tsx",
+        "src/components/ui/switch.tsx",
+        "src/components/ui/calendar.tsx",
+        "src/components/ui/radio-group.tsx",
+        "src/components/ui/badge.tsx",
+        "src/components/ui/button.tsx",
+        "src/components/ui/checkbox.tsx",
+        "src/components/tasks/task-settings-dialog.tsx",
+        "src/components/chat/conversation-context-bar.tsx",
+        "src/components/chat/quick-actions.tsx",
+        "src/components/chat/collapsed-overlay-chip.tsx",
+        "src/components/chat/composer/image-markup-dialog.tsx",
+        "src/components/forge/forge-new-issue-dialog.tsx",
+        "src/app/login/page.tsx",
+        "src/components/canvas/add-node-menu.tsx",
+        "src/components/canvas/nodes/region-node.tsx",
+        "src/components/chat/question-dialog.tsx",
+        "src/components/todos/todo-conversation-folder-dialog.tsx",
+        "src/components/conversations/conversation-share-options.tsx",
+        "src/components/conversations/search-command-dialog.tsx",
+        "src/components/chat/ask-question-card.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/form-focus.contract.test.tsx"]
+    },
+    {
+      "id": "search.global-default-scope",
+      "category": "product",
+      "description": "Conversation search defaults to all folders on every open, allows explicit folder selection, and ignores obsolete responses after scope changes. File search retains its explicitly displayed active-folder scope.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": [
+        "src/components/conversations/search-command-dialog.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": ["src/maxcode-contracts/search-scope.contract.test.tsx"]
+    },
+    {
+      "id": "todos.blue-theme",
+      "category": "product",
+      "description": "Todo surfaces and portalled editors, team dialogs and menus use send-button blue #216ae4 for primary actions and focus. Personal/team scope switches expose pressed state and use a solid blue selected button with white text.",
+      "origins": ["worktree-2026-10-15"],
+      "paths": ["src/components/todos/", "src/app/globals.css"],
+      "contracts": ["src/maxcode-contracts/todo-theme.contract.test.tsx"]
+    },
+    {
       "id": "todos.confirmed-compose",
       "category": "product",
-      "description": "Message and conversation-share todo actions open a workspace-level prefilled editor without navigating away from the current conversation. Message text is prefilled directly; whole-conversation actions first publish or reuse the selected conversation share link and prefill it as localized conversation-reference text plus the URL as content. Todo creation occurs only after explicit Save; Cancel creates no todo. Late or failed share responses never open an editor for another conversation. The buffered handoff keeps literal content and chosen conversation snapshot options, and source navigation supersedes stale create requests.",
+      "description": "Message and conversation-share todo actions open a workspace-level prefilled editor without navigating away from the current conversation. Message text is prefilled directly; whole-conversation actions first publish or reuse the selected conversation share link and prefill the captured conversation title into the todo title and body, followed by localized conversation-reference text plus the URL. Todo creation occurs only after explicit Save; Cancel creates no todo. Late or failed share responses never open an editor for another conversation. The buffered handoff keeps literal content and chosen conversation snapshot options, and source navigation supersedes stale create requests. Conversation sharing dialogs constrain grid and flex children, wrap long previews and action buttons, and keep scope controls and confirmation reachable in narrow windows and with enlarged fonts.",
       "origins": ["worktree-2026-10-15"],
       "paths": [
         "src/components/todos/",
         "src/components/message/use-todo-from-message.ts",
         "src/components/conversations/conversation-detail-header.tsx",
         "src/app/workspace/layout.tsx",
-        "src/lib/todo-compose-events.ts"
+        "src/lib/todo-compose-events.ts",
+        "src/components/conversations/conversation-share-options.tsx"
       ],
       "contracts": [
         "src/maxcode-contracts/todo-compose-confirmation.contract.test.tsx",
-        "src/maxcode-contracts/todo-message-handoff.contract.test.tsx"
+        "src/maxcode-contracts/todo-message-handoff.contract.test.tsx",
+        "src/maxcode-contracts/todo-share-options.contract.test.tsx"
       ]
     },
     {
@@ -261,7 +337,7 @@
     {
       "id": "todos.sidebar-conversation-groups",
       "category": "product",
-      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation keeps its established reuse behavior. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
+      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. A successfully saved todo conversation retires both text and rich-text draft caches, including pending writes; composer-key changes cancel stale debounce timers. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation reuses only ordinary drafts and never inherits a parked todo draft's origins. Explicit folder/chat selectors keep their own draft and its origins. Todo group headers offer a new-conversation action that uses the most recently active linked conversation's live folder, requiring an explicit folder selection when no linked conversation has a live folder. Canceling folder selection creates no draft. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
       "origins": ["worktree-2026-10-14"],
       "paths": [
         "src/components/conversations/sidebar-conversation-list.tsx",
@@ -293,13 +369,16 @@
         "src-tauri/src/web/router.rs",
         "src/i18n/messages/",
         "src/maxcode-contracts/todo-conversation-groups.contract.rs",
-        "src/maxcode-contracts/todo-conversation-sources.contract.rs"
+        "src/maxcode-contracts/todo-conversation-sources.contract.rs",
+        "src/components/chat/message-input.tsx",
+        "src/lib/message-input-draft.ts"
       ],
       "contracts": [
         "src/maxcode-contracts/todo-conversation-origin.contract.test.tsx",
         "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx",
         "src/maxcode-contracts/todo-conversation-links.contract.test.tsx",
-        "src/maxcode-contracts/todo-source-navigation.contract.test.tsx"
+        "src/maxcode-contracts/todo-source-navigation.contract.test.tsx",
+        "src/maxcode-contracts/composer-focus-draft.contract.test.tsx"
       ]
     },
     {
@@ -1563,12 +1642,14 @@
     {
       "id": "messages.action-hover-continuity",
       "category": "product",
-      "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons without increasing message spacing. The actual Virtua item stacking context is raised on column hover or keyboard focus, with hover above retained focus, so the following item's transparent padding cannot intercept buttons. Open portalled tooltips keep their owning actions visible and raised when their arrows overlap a trigger edge.",
+      "description": "Historical reply actions keep a continuous hover target from text through the gutter to the buttons without increasing message spacing. The actual Virtua item stacking context is raised on column hover or keyboard focus, with hover above retained focus, so the following item's transparent padding cannot intercept buttons. Open portalled tooltips keep their owning actions visible and raised when their arrows overlap a trigger edge. Touch and coarse-pointer devices show message-to-todo actions and sidebar todo new-conversation buttons without hover, including landscape widths, and reserve historical reply action space so subsequent messages cannot cover the buttons.",
       "origins": ["worktree-2026-09-10"],
       "paths": [
         "src/app/globals.css",
         "src/components/message/turn-stats.tsx",
-        "src/components/message/virtualized-message-thread.tsx"
+        "src/components/message/virtualized-message-thread.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/conversations/sidebar-todo-group-header.tsx"
       ],
       "contracts": [
         "src/maxcode-contracts/message-action-hover.contract.test.tsx"
@@ -1674,7 +1755,7 @@
     {
       "id": "chat.mobile-conversation-layout",
       "category": "product",
-      "description": "Mobile hides the conversation search menu entry and sent-message edit button even on interaction, and disables in-conversation search shortcuts and menu events. Desktop retains search and edit. Mobile user bubbles allow 92% width and place copy/task actions below the bubble without consuming text width; desktop keeps 82% and inline actions. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats.",
+      "description": "Mobile hides the conversation search menu entry and sent-message edit button even on interaction, and disables in-conversation search shortcuts and menu events. Desktop retains search and edit. Mobile user bubbles allow 92% width and place copy/task actions below the bubble without consuming text width; desktop keeps 82% and inline actions. Composer measures available row space, hides cost before context and restores them when space returns, including sessions without generation stats. Touch devices reveal user copy/new-chat/todo and image-download actions without hover, and reply action rows wrap without overlapping the following message. Overlay keyboards resize and reposition both the workspace and portalled dialogs using VisualViewport; pinch zoom and already-resized native shells retain browser/native behavior.",
       "origins": ["worktree-2026-09-09"],
       "paths": [
         "src/components/ai-elements/message.tsx",
@@ -1683,10 +1764,17 @@
         "src/components/message/conversation-find.tsx",
         "src/components/message/sent-message-edit-button.tsx",
         "src/components/chat/composer-context-usage.tsx",
-        "src/components/chat/composer-generation-stats.tsx"
+        "src/components/chat/composer-generation-stats.tsx",
+        "src/components/message/user-image-attachments.tsx",
+        "src/components/message/generated-images-block.tsx",
+        "src/hooks/use-mobile-visual-viewport.ts",
+        "src/app/workspace/layout.tsx",
+        "src/components/ui/dialog.tsx",
+        "src/app/globals.css"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-conversation-layout.contract.test.tsx"
+        "src/maxcode-contracts/mobile-conversation-layout.contract.test.tsx",
+        "src/maxcode-contracts/mobile-chat-viewport.contract.test.tsx"
       ]
     },
     {
@@ -2204,7 +2292,7 @@
     {
       "id": "workspace.sidebar-navigation",
       "category": "product",
-      "description": "Sidebar navigation includes New chat (新建对话 in Simplified Chinese), Automations (自动任务), Tasks and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions use 14px labels at default zoom. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
+      "description": "Sidebar navigation includes New chat (新对话 in Simplified Chinese), Automations (自动任务), Tasks (待办) and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions are equal-width borderless rounded buttons with a subtle background in one horizontal row with 14px labels at default zoom; Tasks has no count badge. Shortcut hints do not consume label space. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
       "origins": ["worktree-2026-09-08", "worktree-2026-10-13"],
       "paths": [
         "src/components/layout/sidebar.tsx",
@@ -2595,8 +2683,8 @@
     {
       "id": "messages.local-paths-and-artifacts",
       "category": "product",
-      "description": "Plain local artifact paths become safe file references and binary artifacts open or reveal through the desktop host.",
-      "origins": ["7ca7b5b3", "06bb8457", "c283e981"],
+      "description": "Plain local artifact paths become safe file references and binary artifacts open or reveal through the desktop host. Codex source/output citations retain exact paths and spreadsheet location labels.",
+      "origins": ["7ca7b5b3", "06bb8457", "c283e981", "worktree-2026-10-15"],
       "paths": [
         "src/components/ai-elements/remark-autolink-local-paths.ts",
         "src/components/ai-elements/message.tsx",
@@ -2604,7 +2692,10 @@
         "src/lib/language-detect.ts",
         "electron/preload.cjs"
       ],
-      "contracts": ["src/maxcode-contracts/local-paths.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/local-paths.contract.test.ts",
+        "src/maxcode-contracts/codex-file-citations.contract.test.tsx"
+      ]
     },
     {
       "id": "messages.system-font-and-duration",

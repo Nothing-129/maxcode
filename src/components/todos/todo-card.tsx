@@ -1,5 +1,7 @@
 "use client"
 
+import { todoContentSummary } from "@/lib/todo-attachments"
+
 import {
   Check,
   ExternalLink,
@@ -156,7 +158,7 @@ export function TodoCard({
           {todo.title}
         </h3>
         <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground wrap-anywhere">
-          {todo.content}
+          {todoContentSummary(todo.content)}
         </p>
       </button>
       <div className="mt-2">
@@ -215,7 +217,7 @@ export function TodoCard({
               <MoreHorizontal className="size-3.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="todo-theme">
             <DropdownMenuItem onSelect={onEdit} disabled={disabled}>
               {t("edit")}
             </DropdownMenuItem>

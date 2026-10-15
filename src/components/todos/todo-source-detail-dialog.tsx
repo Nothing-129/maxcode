@@ -1,5 +1,8 @@
 "use client"
 
+import { parseTodoContent } from "@/lib/todo-attachments"
+import { TodoAttachments } from "./todo-attachments"
+
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
@@ -173,7 +176,7 @@ export function TodoSourceDetailDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
-        className="min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
+        className="todo-theme min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
         showCloseButton={!busy}
       >
         <DialogHeader>
@@ -212,8 +215,11 @@ export function TodoSourceDetailDialog({
                 />
                 <TodoSchedule todo={todo} />
                 <div className="max-h-80 overflow-auto whitespace-pre-wrap text-sm leading-6 wrap-anywhere">
-                  {todo.content}
+                  {parseTodoContent(todo.content).text}
                 </div>
+                <TodoAttachments
+                  files={parseTodoContent(todo.content).attachments}
+                />
                 {todo.source_url && (
                   <BrowserLink
                     href={todo.source_url}

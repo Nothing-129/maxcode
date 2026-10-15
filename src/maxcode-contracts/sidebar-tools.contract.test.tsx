@@ -191,7 +191,7 @@ describe("sidebar tools beside search", () => {
     [true, false, true],
     [false, true, true],
   ])(
-    "opens tasks and collapses touch navigation (mobile %s, coarse %s)",
+    "opens tasks without a count badge and collapses touch navigation (mobile %s, coarse %s)",
     (mobile, coarse, shouldCollapse) => {
       mockState.isMobile = mobile
       mockState.isCoarsePointer = coarse
@@ -200,7 +200,8 @@ describe("sidebar tools beside search", () => {
       renderSidebar()
       const tasks = screen.getByTitle(enMessages.Folder.sidebar.tasks)
       expect(tasks).toHaveAttribute("aria-current", "page")
-      expect(within(tasks).getByText("2")).toBeVisible()
+      expect(tasks.textContent).toBe(enMessages.Folder.sidebar.tasks)
+      expect(within(tasks).queryByText("2")).not.toBeInTheDocument()
       fireEvent.click(tasks)
       expect(spies.setRoute).toHaveBeenCalledWith("tasks")
       expect(spies.toggleSidebar).toHaveBeenCalledTimes(shouldCollapse ? 1 : 0)

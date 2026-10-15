@@ -135,7 +135,7 @@ export const GeneratedImagesBlock = memo(function GeneratedImagesBlock({
                 e.stopPropagation()
                 void download(image)
               }}
-              className="absolute right-1 top-1 rounded-full bg-background/80 p-1 text-foreground/80 opacity-0 shadow-sm transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
+              className="maxcode-touch-image-action absolute right-1 top-1 rounded-full bg-background/80 p-1 text-foreground/80 opacity-0 shadow-sm transition-opacity hover:bg-background hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100"
               aria-label={t("downloadImage")}
               title={t("downloadImage")}
             >

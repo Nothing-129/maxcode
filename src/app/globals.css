@@ -3126,6 +3126,18 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   cursor: grabbing !important;
 }
 
+/* VisualViewport shrinks for the browser keyboard even when layout viewport
+   and fixed inset:0 do not. Shared variables also reach portalled dialogs. */
+.maxcode-visible-viewport {
+  top: var(--maxcode-visual-viewport-top, 0px);
+  bottom: auto;
+  height: var(--maxcode-visual-viewport-height, 100%);
+}
+
+.maxcode-visible-viewport > [data-slot="dialog-content"] {
+  max-height: calc(var(--maxcode-visual-viewport-height, 100dvh) - 2rem);
+}
+
 /* Historical reply actions occupy the existing inter-message gutter instead
    of adding another 32px of blank space. The last reply keeps its normal row
    height so its actions remain inside the scroll viewport above the composer. */
@@ -3147,6 +3159,28 @@ div.monaco-diff-editor.side-by-side .editor.modified {
    Radix marks the trigger as either `delayed-open` or `instant-open`. */
 .maxcode-turn-actions:has([data-slot="tooltip-trigger"][data-state$="-open"]) {
   opacity: 1;
+}
+
+/* Touch screens cannot reveal message-to-todo actions by hovering. Keep reply
+   actions in normal flow so the next virtualized message cannot cover them. */
+@media (hover: none), (pointer: coarse) {
+  .maxcode-turn-actions,
+  .maxcode-user-todo-action,
+  .maxcode-user-message-action,
+  .maxcode-touch-image-action,
+  .maxcode-todo-new-conversation {
+    opacity: 1;
+  }
+
+  .maxcode-turn-actions {
+    flex-wrap: wrap;
+  }
+
+  .maxcode-chat-column[data-thread-tail="false"] .maxcode-turn-actions {
+    height: auto;
+    min-height: 2rem;
+    margin-bottom: 0;
+  }
 }
 
 /* Virtua's layout containment makes EACH item a stacking context: raising
@@ -3354,8 +3388,8 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   color: var(--muted-foreground);
 }
 [data-settings-surface] .settings-search:focus-within {
-  outline: 2px solid var(--ring);
-  outline-offset: 2px;
+  outline: 1px solid #216ae4;
+  outline-offset: -1px;
 }
 [data-settings-surface] .settings-search input {
   width: 100%;
@@ -3500,7 +3534,7 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
 [data-settings-surface] [data-slot="input"]:focus-visible,
 [data-settings-surface] [data-slot="textarea"]:focus-visible,
 [data-settings-surface] [data-settings-input-group]:focus-within {
-  border-color: var(--ring);
+  border-color: #216ae4;
 }
 [data-settings-surface] [data-slot="switch"] {
   width: 2rem;
@@ -3529,7 +3563,7 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   font-size: 0.8125rem;
 }
 [data-settings-surface] [data-slot="select-trigger"]:focus-visible {
-  border-color: var(--ring);
+  border-color: #216ae4;
 }
 [data-settings-surface] [data-slot][aria-invalid="true"] {
   border-color: var(--destructive);
@@ -3569,8 +3603,18 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
 
 /* A settings search result receives focus without activating its control. */
 [data-settings-surface] [data-settings-search-highlight] {
-  outline: 2px solid var(--ring);
-  outline-offset: -2px;
+  outline: 1px solid #216ae4;
+  outline-offset: -1px;
   border-radius: var(--radius);
   scroll-margin-block: 1rem;
+}
+
+/* Todo surfaces include portalled dialogs and menus so their actions stay blue. */
+.todo-theme {
+  --primary: #216ae4;
+  --primary-foreground: #ffffff;
+  --ring: #216ae4;
+  --secondary: color-mix(in srgb, #216ae4 12%, var(--background));
+  --secondary-foreground: #216ae4;
+  --accent: color-mix(in srgb, #216ae4 12%, var(--background));
 }

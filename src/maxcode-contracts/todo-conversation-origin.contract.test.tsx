@@ -1,7 +1,11 @@
 import { act, render, renderHook, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { TodoConversationButton } from "@/components/todos/todo-card"
-import { useNewChatFromTodo } from "@/components/todos/use-new-chat-from-todo"
+import {
+  useNewChatFromTodo,
+  openTodoConversationDraft,
+  todoConversationContext,
+} from "@/components/todos/use-new-chat-from-todo"
 import { useNewChatFromMessage } from "@/components/message/use-new-chat-from-message"
 import { createChatConversation, createConversation } from "@/lib/api"
 import {
@@ -13,10 +17,11 @@ import {
   buildNewConversationDraftStorageKey,
   loadMessageInputDraftV2,
   saveMessageInputDraft,
+  saveMessageInputDraftV2,
 } from "@/lib/message-input-draft"
 import { leafIds } from "@/lib/tab-group-layout"
 import type { Todo, TodoOrigin, TodoState } from "@/lib/todos"
-import type { FolderDetail } from "@/lib/types"
+import type { FolderDetail, DbConversationSummary } from "@/lib/types"
 import {
   resetAppWorkspaceStore,
   useAppWorkspaceStore,
@@ -138,13 +143,15 @@ describe("MaxCode: conversations retain the todos they were created from", () =>
       .getState()
       .openNewConversationTab(1, folder.path)!
     useTabStore.getState().addDraftTodoOrigins(target.tabId, [team])
-    useTabStore.getState().openNewConversationTab(2, otherFolder.path)
+    useTabStore
+      .getState()
+      .openNewConversationTab(2, otherFolder.path, { draftTabId: target.tabId })
     await act(async () => {
       useTabStore.getState().consumeDraftRetargets()
     })
     expect(activeDraft()).toMatchObject({ folderId: 2, todoOrigins: [team] })
     useTabStore.getState().confirmDraftAgent(target.tabId, "grok")
-    useTabStore.getState().openChatModeTab()
+    useTabStore.getState().openChatModeTab({ draftTabId: target.tabId })
     expect(activeDraft()).toMatchObject({ isChat: true, todoOrigins: [team] })
   })
 
@@ -318,11 +325,12 @@ describe("MaxCode: conversations retain the todos they were created from", () =>
       .getState()
       .openNewConversationTab(2, otherFolder.path, {
         inheritFromActive: true,
+        draftTabId: second.tabId,
       })!
     expect(retargeted.tabId).toBe(second.tabId)
     await act(async () => useTabStore.getState().consumeDraftRetargets())
     useTabStore.getState().confirmDraftAgent(second.tabId, "grok")
-    useTabStore.getState().openChatModeTab()
+    useTabStore.getState().openChatModeTab({ draftTabId: second.tabId })
     expect(activeDraft()).toMatchObject({
       id: second.tabId,
       isChat: true,
@@ -448,6 +456,44 @@ describe("MaxCode: conversations retain the todos they were created from", () =>
     ).toEqual({ kind: "legacyMarkdown", markdown: "Task B body" })
   })
 
+  it("retires both draft versions when the todo conversation is saved, without touching another draft", () => {
+    const target = useTabStore
+      .getState()
+      .openNewConversationTab(1, folder.path, { freshDraft: true })!
+    useTabStore.getState().addDraftTodoOrigins(target.tabId, [personal])
+    const key = buildNewConversationDraftStorageKey(target.tabId)
+    saveMessageInputDraft(key, "Old todo text")
+    saveMessageInputDraftV2(key, {
+      type: "doc",
+      content: [
+        {
+          type: "paragraph",
+          content: [{ type: "text", text: "Sent todo body" }],
+        },
+      ],
+    })
+    const other = useTabStore
+      .getState()
+      .openNewConversationTab(2, otherFolder.path, { freshDraft: true })!
+    const otherKey = buildNewConversationDraftStorageKey(other.tabId)
+    saveMessageInputDraft(otherKey, "Other unsent message")
+    useTabStore
+      .getState()
+      .bindConversationTab(target.tabId, 70, "codex", "Todo conversation")
+    expect(loadMessageInputDraftV2(key)).toBeNull()
+    expect(loadMessageInputDraftV2(otherKey)).toEqual({
+      kind: "legacyMarkdown",
+      markdown: "Other unsent message",
+    })
+    useTabStore.setState({ activeTabId: target.tabId })
+    const fresh = useTabStore
+      .getState()
+      .openNewConversationTab(2, otherFolder.path, { freshDraft: true })!
+    expect(
+      loadMessageInputDraftV2(buildNewConversationDraftStorageKey(fresh.tabId))
+    ).toBeNull()
+  })
+
   it("does not carry old provenance into a new draft or reassign an existing row", () => {
     const target = useTabStore
       .getState()
@@ -476,6 +522,156 @@ describe("MaxCode: conversations retain the todos they were created from", () =>
       title: "Chat review",
       existingDir: "/scratch",
       todoOrigins: [team],
+    })
+  })
+
+  it("does not reuse a todo-origin folder draft for an ordinary new conversation", () => {
+    const store = useTabStore.getState()
+    const source = store.openNewConversationTab(1, folder.path, {
+      freshDraft: true,
+    })!
+    store.addDraftTodoOrigins(source.tabId, [team])
+    saveMessageInputDraft(
+      buildNewConversationDraftStorageKey(source.tabId),
+      "Existing todo work"
+    )
+    const ordinary = useTabStore
+      .getState()
+      .openNewConversationTab(1, folder.path)!
+    expect(ordinary.tabId).not.toBe(source.tabId)
+    expect(activeDraft().todoOrigins ?? []).toEqual([])
+    expect(
+      useTabStore.getState().rawTabs.find((tab) => tab.id === source.tabId)
+        ?.todoOrigins
+    ).toEqual([team])
+    expect(
+      loadMessageInputDraftV2(buildNewConversationDraftStorageKey(source.tabId))
+    ).toEqual({ kind: "legacyMarkdown", markdown: "Existing todo work" })
+  })
+
+  it("does not reuse a todo-origin chat draft for an ordinary new chat", () => {
+    const source = useTabStore.getState().openChatModeTab({ freshDraft: true })!
+    useTabStore.getState().addDraftTodoOrigins(source.tabId, [personal])
+    const ordinary = useTabStore.getState().openChatModeTab()!
+    expect(ordinary.tabId).not.toBe(source.tabId)
+    expect(activeDraft().todoOrigins ?? []).toEqual([])
+    expect(
+      useTabStore.getState().rawTabs.find((tab) => tab.id === source.tabId)
+        ?.todoOrigins
+    ).toEqual([personal])
+  })
+
+  it("does not inherit a parked todo origin when opening a message in a normal conversation", () => {
+    const source = useTabStore
+      .getState()
+      .openNewConversationTab(1, folder.path, { freshDraft: true })!
+    useTabStore.getState().addDraftTodoOrigins(source.tabId, [team])
+    const { result } = renderHook(() =>
+      useNewChatFromMessage(() => "Ordinary message")
+    )
+    act(() => result.current())
+    expect(activeDraft().id).not.toBe(source.tabId)
+    expect(activeDraft().todoOrigins ?? []).toEqual([])
+  })
+
+  it("uses the newest linked conversation's folder instead of the last global folder", () => {
+    useAppWorkspaceStore.setState({
+      conversations: [
+        {
+          id: 10,
+          folder_id: 1,
+          kind: "regular",
+          updated_at: "2026-10-15T10:00:00Z",
+        },
+        {
+          id: 20,
+          folder_id: 2,
+          kind: "regular",
+          updated_at: "2026-10-15T11:00:00Z",
+        },
+      ] as DbConversationSummary[],
+    })
+    openTodoConversationDraft(
+      { text: "Todo work", origins: [team], conversationIds: [10, 20] },
+      mocks.setRoute
+    )
+    expect(activeDraft()).toMatchObject({
+      folderId: 2,
+      workingDir: otherFolder.path,
+      todoOrigins: [team],
+    })
+    expect(
+      loadMessageInputDraftV2(
+        buildNewConversationDraftStorageKey(activeDraft().id)
+      )
+    ).toEqual({ kind: "legacyMarkdown", markdown: "Todo work" })
+  })
+
+  it("skips missing folders and keeps linked chat conversations in chat mode", () => {
+    const conversations = [
+      {
+        id: 30,
+        folder_id: 999,
+        kind: "regular",
+        updated_at: "2026-10-15T12:00:00Z",
+      },
+      {
+        id: 20,
+        folder_id: 2,
+        kind: "regular",
+        updated_at: "2026-10-15T11:00:00Z",
+      },
+      {
+        id: 10,
+        folder_id: 1,
+        kind: "regular",
+        updated_at: "2026-10-15T10:00:00Z",
+      },
+    ] as DbConversationSummary[]
+    expect(
+      todoConversationContext([10, 20, 30], conversations, [
+        folder,
+        otherFolder,
+      ])
+    ).toEqual({ kind: "folder", folderId: 2 })
+    useAppWorkspaceStore.setState({
+      conversations: [
+        ...conversations,
+        {
+          id: 40,
+          folder_id: 400,
+          kind: "chat",
+          updated_at: "2026-10-15T13:00:00Z",
+        } as DbConversationSummary,
+      ],
+    })
+    openTodoConversationDraft(
+      { text: "Chat task", origins: [personal], conversationIds: [10, 40] },
+      mocks.setRoute
+    )
+    expect(activeDraft()).toMatchObject({
+      isChat: true,
+      folderId: 0,
+      todoOrigins: [personal],
+    })
+  })
+
+  it("requires a chosen folder when a sidebar todo has no valid linked chats", () => {
+    saveLastNewConversationContext({ kind: "folder", folderId: 2 })
+    const draft = {
+      text: "First chat",
+      origins: [personal],
+      conversationIds: [999],
+    }
+    expect(openTodoConversationDraft(draft, mocks.setRoute)).toBe(false)
+    expect(useTabStore.getState().rawTabs).toHaveLength(0)
+    expect(mocks.setRoute).not.toHaveBeenCalled()
+    expect(
+      openTodoConversationDraft({ ...draft, folderId: 1 }, mocks.setRoute)
+    ).toBe(true)
+    expect(activeDraft()).toMatchObject({
+      folderId: 1,
+      todoOrigins: [personal],
     })
   })
 

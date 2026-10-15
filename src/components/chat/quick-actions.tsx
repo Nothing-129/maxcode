@@ -522,7 +522,7 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
           // re-asserts the 3px accent focus ring at higher specificity — without
           // it the 1px selected ring (emitted after the base `focus-visible`
           // rule) would swallow the keyboard focus indicator on the active tab.
-          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-[3px] data-[state=active]:focus-visible:ring-ring/50"
+          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-1 data-[state=active]:focus-visible:ring-[#216ae4]"
         >
           {t("tabs.coding")}
         </TabsTrigger>
@@ -533,7 +533,7 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
           // re-asserts the 3px accent focus ring at higher specificity — without
           // it the 1px selected ring (emitted after the base `focus-visible`
           // rule) would swallow the keyboard focus indicator on the active tab.
-          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-[3px] data-[state=active]:focus-visible:ring-ring/50"
+          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-1 data-[state=active]:focus-visible:ring-[#216ae4]"
         >
           {t("tabs.office")}
         </TabsTrigger>
@@ -544,7 +544,7 @@ export function QuickActions({ onSelect, agentType }: QuickActionsProps) {
           // re-asserts the 3px accent focus ring at higher specificity — without
           // it the 1px selected ring (emitted after the base `focus-visible`
           // rule) would swallow the keyboard focus indicator on the active tab.
-          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-[3px] data-[state=active]:focus-visible:ring-ring/50"
+          className="data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:ring-1 data-[state=active]:ring-border/50 data-[state=active]:focus-visible:ring-1 data-[state=active]:focus-visible:ring-[#216ae4]"
         >
           {t("tabs.research")}
         </TabsTrigger>

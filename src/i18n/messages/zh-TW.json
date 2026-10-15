@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "搜尋",
       "dialogTitleWithFolder": "搜尋 — {name}",
+      "searchScope": "搜尋範圍",
+      "allFolders": "所有資料夾",
       "tabConversations": "會話",
       "tabFiles": "檔案",
       "placeholder": "搜尋會話...",
@@ -6005,6 +6007,10 @@
     "markupSend": "儲存圖片"
   },
   "Todos": {
+    "addAttachments": "新增檔案 / 圖片",
+    "attachmentHint": "可在內容中貼上檔案、圖片，或選擇檔案，附件總大小不得超過 100 MB。",
+    "attachmentTooLarge": "附件總大小不得超過 100 MB。",
+    "removeAttachment": "移除 {name}",
     "title": "待辦",
     "viewSwitchToList": "切換為清單檢視",
     "viewSwitchToBoard": "切換為看板檢視",
@@ -6113,6 +6119,10 @@
     "filter_today": "今天到期",
     "filter_overdue": "已逾期",
     "filter_urgent": "緊急",
-    "conversationLinkContent": "詳情見對話：{url}"
+    "conversationLinkContent": "詳情見對話：{url}",
+    "newConversationForTodo": "從「{title}」新增對話",
+    "chooseConversationFolder": "選擇對話資料夾",
+    "chooseConversationFolderHint": "此待辦尚未關聯有效資料夾，請選擇資料夾後新增對話。",
+    "confirmConversationFolder": "選擇並新增"
   }
 }

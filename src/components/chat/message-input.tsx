@@ -621,13 +621,28 @@ export function MessageInput({
     writeDraftNow()
   }, [writeDraftNow])
 
+  const previousDraftStorageKeyRef = useRef(effectiveDraftStorageKey)
   useEffect(() => {
+    const previousKey = previousDraftStorageKeyRef.current
+    previousDraftStorageKeyRef.current = effectiveDraftStorageKey
+    if (
+      previousKey?.startsWith("draft:") &&
+      effectiveDraftStorageKey?.startsWith("conv:")
+    ) {
+      // The first send bound this same conversation. Preserve any follow-up
+      // already typed while its row was being created under the new key.
+      writeDraftNow()
+    }
     return () => {
+      // A timer captures its draft key but reads the current editor later.
+      // Cancel it on identity changes so another conversation's document can
+      // never be persisted under the previous draft's key.
       if (draftSaveTimerRef.current != null && typeof window !== "undefined") {
         window.clearTimeout(draftSaveTimerRef.current)
+        draftSaveTimerRef.current = null
       }
     }
-  }, [])
+  }, [effectiveDraftStorageKey, writeDraftNow])
 
   // One-time hydration once the editor is ready: a queue-edit payload, else a v2
   // draft document (or a legacy v1 Markdown draft migrated forward). Guarded so

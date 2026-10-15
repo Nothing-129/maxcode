@@ -1,5 +1,7 @@
 "use client"
 
+import { todoContentSummary } from "@/lib/todo-attachments"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -146,7 +148,7 @@ export function TodosPage() {
   }, [sourceOrigin, state, scope, busy, mutate, t, invalidateSource])
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="todo-theme flex h-full min-h-0 flex-col">
       {state ? (
         <TodosWorkspace
           key={todoScopeKey(state)}
@@ -268,7 +270,7 @@ function TodosWorkspace({
         (todo.status === "completed" && completedPagination
           ? true
           : !query ||
-            `${todo.title}\n${todo.content}\n${members.get(todo.assignee_id ?? "")?.name ?? ""}`
+            `${todo.title}\n${todoContentSummary(todo.content)}\n${members.get(todo.assignee_id ?? "")?.name ?? ""}`
               .toLocaleLowerCase()
               .includes(query))
       )
@@ -392,11 +394,17 @@ function TodosWorkspace({
   return (
     <>
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
-        <div className="flex rounded-xl bg-muted/70 p-0.5">
+        <div className="flex gap-1 rounded-full border border-primary/15 bg-primary/5 p-1">
           <Button
             size="sm"
-            variant={state.mode === "personal" ? "secondary" : "ghost"}
-            className="h-7 text-xs"
+            variant={state.mode === "personal" ? "default" : "ghost"}
+            aria-pressed={state.mode === "personal"}
+            className={cn(
+              "h-7 text-xs",
+              state.mode === "personal"
+                ? "shadow-sm hover:bg-primary/90"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+            )}
             disabled={busy}
             onClick={() => void act({ action: "set_mode", mode: "personal" })}
           >
@@ -404,8 +412,14 @@ function TodosWorkspace({
           </Button>
           <Button
             size="sm"
-            variant={state.mode === "team" ? "secondary" : "ghost"}
-            className="h-7 text-xs"
+            variant={state.mode === "team" ? "default" : "ghost"}
+            aria-pressed={state.mode === "team"}
+            className={cn(
+              "h-7 text-xs",
+              state.mode === "team"
+                ? "shadow-sm hover:bg-primary/90"
+                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+            )}
             disabled={busy}
             onClick={() => void act({ action: "set_mode", mode: "team" })}
           >
@@ -426,7 +440,7 @@ function TodosWorkspace({
             >
               <SelectValue placeholder={t("selectTeam")} />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="todo-theme">
               {state.teams.map((team) => (
                 <SelectItem key={team.id} value={team.id}>
                   {team.name}
@@ -482,7 +496,7 @@ function TodosWorkspace({
           >
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="todo-theme">
             {(["all", "today", "overdue", "urgent"] as const).map((value) => (
               <SelectItem key={value} value={value}>
                 {t(`filter_${value}`)}
@@ -503,7 +517,7 @@ function TodosWorkspace({
             >
               <SelectValue />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="todo-theme">
               <SelectItem value="all">{t("allStatuses")}</SelectItem>
               {TODO_COLUMNS.map((column) => (
                 <SelectItem key={column} value={column}>
@@ -660,7 +674,7 @@ function TodosWorkspace({
       )}
       {detail && (
         <Dialog open onOpenChange={(open) => !open && setDetailId(null)}>
-          <DialogContent className="min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0">
+          <DialogContent className="todo-theme min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0">
             <DialogHeader>
               <DialogTitle className="wrap-anywhere">
                 {detail.title}
@@ -725,7 +739,7 @@ function TodosWorkspace({
           onOpenChange={(open) => !open && !busy && setDeleteId(null)}
         >
           <DialogContent
-            className="min-w-0 grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
+            className="todo-theme min-w-0 grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
             showCloseButton={!busy}
           >
             <DialogHeader>

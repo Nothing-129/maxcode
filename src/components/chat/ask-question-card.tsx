@@ -275,7 +275,7 @@ export function AskQuestionCard({
   // ring keeps the visually hidden single-choice controls keyboard-visible.
   const cardClass = (selected: boolean) =>
     cn(
-      "group flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 font-normal transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring/50",
+      "group flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 font-normal transition-colors has-[:focus-visible]:border-[#216ae4]",
       selected
         ? "border-foreground/35 bg-foreground/10"
         : "border-border/50 bg-muted/70",
@@ -319,7 +319,7 @@ export function AskQuestionCard({
     // typed answer.
     const inputType = q.is_secret ? "password" : "text"
     const inputClass =
-      "w-full rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm outline-none focus:border-ring disabled:cursor-not-allowed disabled:opacity-60"
+      "w-full rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm outline-none focus:border-[#216ae4] disabled:cursor-not-allowed disabled:opacity-60"
 
     // Free-text question (no options — codex elicitation and MCP-server forms
     // ask open questions this way): the text input IS the answer field, always

@@ -1876,7 +1876,7 @@
       "collapseAllGroups": "折叠全部分组",
       "newConversation": "新建会话",
       "newConversationShort": "新建",
-      "newChat": "新建对话",
+      "newChat": "新对话",
       "search": "搜索",
       "noConversationsFound": "未找到会话。",
       "importLocalSessions": "导入本地会话",
@@ -1993,7 +1993,7 @@
       "noFolders": "没有打开的文件夹",
       "newChatAction": "新建聊天",
       "automations": "自动任务",
-      "tasks": "待办任务",
+      "tasks": "待办",
       "loadingSubsessions": "正在加载子会话…",
       "forge": "仓库面板",
       "canvas": "无限会话",
@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "搜索",
       "dialogTitleWithFolder": "搜索 — {name}",
+      "searchScope": "搜索范围",
+      "allFolders": "所有文件夹",
       "tabConversations": "会话",
       "tabFiles": "文件",
       "placeholder": "搜索会话...",
@@ -6005,6 +6007,10 @@
     "markupSend": "保存图片"
   },
   "Todos": {
+    "addAttachments": "添加文件 / 图片",
+    "attachmentHint": "可在内容中粘贴文件、图片，或选择文件，附件总大小不超过 100 MB。",
+    "attachmentTooLarge": "附件总大小不能超过 100 MB。",
+    "removeAttachment": "移除 {name}",
     "title": "待办",
     "colUnclaimed": "待领取",
     "colClaimed": "已领取",
@@ -6113,6 +6119,10 @@
     "filter_today": "今天到期",
     "filter_overdue": "已逾期",
     "filter_urgent": "紧急",
-    "conversationLinkContent": "详情见对话：{url}"
+    "conversationLinkContent": "详情见对话：{url}",
+    "newConversationForTodo": "从“{title}”新建对话",
+    "chooseConversationFolder": "选择会话文件夹",
+    "chooseConversationFolderHint": "该待办没有关联到有效文件夹，请选择一个文件夹后再新建对话。",
+    "confirmConversationFolder": "选择并新建"
   }
 }

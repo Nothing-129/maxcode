@@ -47,7 +47,7 @@ describe("MaxCode contract: selector focus after pointer selection", () => {
       'html[data-input-modality="pointer"] [data-selector-control]:focus-visible'
     )
     expect(source("src/components/ui/button.tsx")).toContain(
-      "focus-visible:ring-[3px]"
+      "focus-visible:ring-1"
     )
   })
 })

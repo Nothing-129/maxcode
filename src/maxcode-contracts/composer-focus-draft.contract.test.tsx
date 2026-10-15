@@ -9,6 +9,7 @@ import type { RichComposerHandle } from "@/components/chat/composer/rich-compose
 import { serializeDocToText } from "@/components/chat/composer/to-prompt-blocks"
 import {
   clearMessageInputDraftV2,
+  loadMessageInputDraftV2,
   saveMessageInputDraftV2,
 } from "@/lib/message-input-draft"
 
@@ -469,4 +470,74 @@ describe("MaxCode attachments edited during steering", () => {
         )
     }
   )
+})
+
+describe("submitted todo draft cleanup", () => {
+  const oldKey = "draft:todo-submitted-test"
+  const rowKey = "conv:todo-submitted-test"
+  const newKey = "draft:other-folder-test"
+  afterEach(() => {
+    cleanup()
+    for (const key of [oldKey, rowKey, newKey]) clearMessageInputDraftV2(key)
+  })
+  const doc = (text: string) => ({
+    type: "doc",
+    content: [{ type: "paragraph", content: [{ type: "text", text }] }],
+  })
+
+  it("does not resurrect a retired draft through a timer after the row key changes", async () => {
+    saveMessageInputDraftV2(oldKey, doc("Todo content"))
+    const tree = (key: string) => (
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <MessageInput
+          onSend={vi.fn()}
+          promptCapabilities={CAPS}
+          draftStorageKey={key}
+        />
+      </NextIntlClientProvider>
+    )
+    const view = render(tree(oldKey))
+    await waitFor(() =>
+      expect(composerHandle.current?.getText()).toBe("Todo content")
+    )
+    act(() => composerHandle.current!.setText("Pending editor change"))
+    // The server row was created: this key is no longer a draft.
+    clearMessageInputDraftV2(oldKey)
+    view.rerender(tree(rowKey))
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 350))
+    })
+    expect(loadMessageInputDraftV2(oldKey)).toBeNull()
+    expect(JSON.stringify(loadMessageInputDraftV2(rowKey))).toContain(
+      "Pending editor change"
+    )
+  })
+
+  it("starts another folder's new composer empty after sending imported todo content", async () => {
+    const send = vi.fn()
+    saveMessageInputDraftV2(oldKey, doc("Imported task to send once"))
+    const view = renderInput({ onSend: send, draftStorageKey: oldKey })
+    await waitFor(() =>
+      expect(composerHandle.current?.getText()).toBe(
+        "Imported task to send once"
+      )
+    )
+    await userEvent.click(
+      view.container.querySelector<HTMLButtonElement>(
+        `button[title="${enMessages.Folder.chat.messageInput.send}"]`
+      )!
+    )
+    expect(send).toHaveBeenCalledTimes(1)
+    expect(loadMessageInputDraftV2(oldKey)).toBeNull()
+    view.unmount()
+    renderInput({ draftStorageKey: newKey })
+    await waitFor(() =>
+      expect(composerHandle.current?.getEditor()).toBeTruthy()
+    )
+    await act(async () => {
+      await new Promise((resolve) => requestAnimationFrame(resolve))
+    })
+    expect(composerHandle.current?.getText()).toBe("")
+    expect(loadMessageInputDraftV2(newKey)).toBeNull()
+  })
 })

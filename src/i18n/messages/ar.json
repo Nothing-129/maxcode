@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "بحث",
       "dialogTitleWithFolder": "بحث — {name}",
+      "searchScope": "نطاق البحث",
+      "allFolders": "كل المجلدات",
       "tabConversations": "المحادثات",
       "tabFiles": "الملفات",
       "placeholder": "البحث في المحادثات...",
@@ -6005,6 +6007,10 @@
     "markupSend": "حفظ الصورة"
   },
   "Todos": {
+    "addAttachments": "إضافة ملفات / صور",
+    "attachmentHint": "الصق ملفات أو صورًا في المحتوى، أو اختر ملفات. الحد الإجمالي للمرفقات: 100 ميغابايت.",
+    "attachmentTooLarge": "تجاوزت المرفقات الحد الإجمالي البالغ 100 ميغابايت.",
+    "removeAttachment": "إزالة {name}",
     "title": "المهام",
     "viewSwitchToList": "التبديل إلى عرض القائمة",
     "viewSwitchToBoard": "التبديل إلى عرض اللوحة",
@@ -6113,6 +6119,10 @@
     "filter_today": "تستحق اليوم",
     "filter_overdue": "متأخرة",
     "filter_urgent": "عاجلة",
-    "conversationLinkContent": "للتفاصيل، راجع المحادثة: {url}"
+    "conversationLinkContent": "للتفاصيل، راجع المحادثة: {url}",
+    "newConversationForTodo": "محادثة جديدة من {title}",
+    "chooseConversationFolder": "اختر مجلد المحادثة",
+    "chooseConversationFolderHint": "لا توجد محادثة مرتبطة بهذه المهمة في مجلد صالح. اختر مجلدًا لبدء المحادثة.",
+    "confirmConversationFolder": "اختيار وإنشاء"
   }
 }

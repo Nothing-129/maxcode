@@ -525,7 +525,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await user.click(getByRole("button", { name: "Share and create todo" }))
 
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
-      text: "See conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      title: "conv-a",
+      text: "conv-a\n\nSee conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: { rounds: [2] },
     })
@@ -545,7 +546,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await user.click(getByRole("button", { name: "Share and create todo" }))
 
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
-      text: "See conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      title: "conv-a",
+      text: "conv-a\n\nSee conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: {},
     })
@@ -570,7 +572,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await user.click(getByRole("button", { name: "Share and create todo" }))
     expect(h.createConversationShare).toHaveBeenCalledTimes(1)
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
-      text: "See conversation: https://maxcode.example.com/share#0123456789abcdef0123456789abcdef",
+      title: "conv-a",
+      text: "conv-a\n\nSee conversation: https://maxcode.example.com/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: {},
     })

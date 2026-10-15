@@ -52,15 +52,16 @@ export function SearchCommandDialog({
   const showStatus = useConversationStatusDisplay()
   const dateFnsLocale =
     locale === "zh-CN" ? zhCN : locale === "zh-TW" ? zhTW : enUS
-  const { activeFolder: folder, activeFolderId } = useActiveFolder()
+  const { activeFolder: folder } = useActiveFolder()
+  const folders = useAppWorkspaceStore((s) => s.allFolders)
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null)
   const allConversations = useAppWorkspaceStore((s) => s.conversations)
-  const folderId = activeFolderId ?? 0
   const conversations = useMemo(
     () =>
-      activeFolderId == null
-        ? []
-        : allConversations.filter((c) => c.folder_id === activeFolderId),
-    [allConversations, activeFolderId]
+      selectedFolderId == null
+        ? allConversations
+        : allConversations.filter((c) => c.folder_id === selectedFolderId),
+    [allConversations, selectedFolderId]
   )
   const { openTab } = useTabActions()
   const { openConversations } = useWorkbenchRoute()
@@ -106,45 +107,37 @@ export function SearchCommandDialog({
     [allFiles, query]
   )
 
-  const doSearch = useCallback(
-    async (q: string, agent: AgentType | null) => {
-      if (!q.trim() && !agent) {
-        setResults([])
-        setSearching(false)
-        return
-      }
-      setSearching(true)
+  // Cancel obsolete searches when the scope, query, tab or dialog changes.
+  useEffect(() => {
+    if (!open || activeTab !== "conversations") return
+    let canceled = false
+    setResults([])
+    setSearching(Boolean(query.trim() || agentFilter))
+    debounceRef.current = setTimeout(async () => {
+      if (!query.trim() && !agentFilter) return
       try {
         const data = await listAllConversations({
-          folder_ids: folderId > 0 ? [folderId] : null,
-          search: q.trim() || null,
-          agent_type: agent,
+          folder_ids: selectedFolderId == null ? null : [selectedFolderId],
+          search: query.trim() || null,
+          agent_type: agentFilter,
         })
-        setResults(data)
+        if (!canceled) setResults(data)
       } catch {
-        setResults([])
+        if (!canceled) setResults([])
       } finally {
-        setSearching(false)
+        if (!canceled) setSearching(false)
       }
-    },
-    [folderId]
-  )
-
-  // Debounced search on query change (conversations tab only)
-  useEffect(() => {
-    if (activeTab !== "conversations") return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      doSearch(query, agentFilter)
     }, 300)
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+      canceled = true
+      clearTimeout(debounceRef.current)
     }
-  }, [query, agentFilter, doSearch, activeTab])
+  }, [open, query, agentFilter, selectedFolderId, activeTab])
 
   // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
+      setSelectedFolderId(null)
       setQuery("")
       setAgentFilter(null)
       setResults([])
@@ -192,7 +185,7 @@ export function SearchCommandDialog({
   return (
     <CommandDialog
       title={
-        folder
+        activeTab === "files" && folder
           ? t("dialogTitleWithFolder", { name: folder.name })
           : t("dialogTitle")
       }
@@ -210,7 +203,40 @@ export function SearchCommandDialog({
       }}
     >
       {/* Folder context header */}
-      {folder && (
+      {activeTab === "conversations" && (
+        <div className="flex items-center gap-2 border-b px-4 py-2.5">
+          <Folder className="w-4 h-4 shrink-0 text-muted-foreground" />
+          <label
+            htmlFor="conversation-search-scope"
+            className="text-sm shrink-0"
+          >
+            {t("dialogTitle")}
+          </label>
+          <select
+            id="conversation-search-scope"
+            aria-label={t("searchScope")}
+            className="outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm"
+            value={selectedFolderId ?? "all"}
+            onChange={(event) => {
+              setSelectedFolderId(
+                event.target.value === "all" ? null : Number(event.target.value)
+              )
+              setAgentFilter(null)
+              inputRef.current?.focus()
+            }}
+          >
+            <option value="all">{t("allFolders")}</option>
+            {(folders ?? [])
+              .filter((item) => item.kind !== "chat")
+              .map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} — {item.path}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+      {activeTab === "files" && folder && (
         <div className="flex items-center gap-2 border-b px-4 py-2.5">
           <Folder className="w-4 h-4 shrink-0 text-muted-foreground" />
           <span className="text-sm font-medium truncate">

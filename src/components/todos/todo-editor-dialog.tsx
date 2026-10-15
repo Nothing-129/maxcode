@@ -1,8 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Loader2 } from "lucide-react"
+import { Loader2, Paperclip } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -28,6 +28,20 @@ import { toErrorMessage } from "@/lib/app-error"
 import { randomUUID } from "@/lib/utils"
 import type { Todo, TodoMember } from "./board-columns"
 
+import {
+  filesFromClipboard,
+  clipboardHasText,
+  imageFilesFromClipboardApi,
+} from "@/lib/clipboard-images"
+import { TodoAttachments } from "./todo-attachments"
+import {
+  parseTodoContent,
+  serializeTodoContent,
+  readTodoAttachment,
+  todoAttachmentBytes,
+  TODO_ATTACHMENT_MAX_BYTES,
+} from "@/lib/todo-attachments"
+
 type TodoDraft = NonNullable<ReturnType<typeof consumePendingTodoDraft>>
 
 export function TodoEditorDialog({
@@ -50,8 +64,15 @@ export function TodoEditorDialog({
   onReload?: () => void
 }) {
   const t = useTranslations("Todos")
-  const [title, setTitle] = useState(todo?.title ?? "")
-  const [content, setContent] = useState(todo?.content ?? draft?.text ?? "")
+  const [title, setTitle] = useState(todo?.title ?? draft?.title ?? "")
+  const [initialContent] = useState(() =>
+    parseTodoContent(todo?.content ?? draft?.text ?? "")
+  )
+  const [content, setContent] = useState(initialContent.text)
+  const [attachments, setAttachments] = useState(initialContent.attachments)
+  const [readingFiles, setReadingFiles] = useState(false)
+  const readingRef = useRef(false)
+  const fileInput = useRef<HTMLInputElement>(null)
   const [assignee, setAssignee] = useState(todo?.assignee_id ?? "__none__")
   const [dueDate, setDueDate] = useState(todo?.due_date ?? "")
   const [priority, setPriority] = useState<TodoPriority | "__none__">(
@@ -63,9 +84,42 @@ export function TodoEditorDialog({
   const hasConflict =
     !!todo && !!latestTodo && todo.revision !== latestTodo.revision
 
+  async function addFiles(source: File[] | Promise<File[]>) {
+    if (readingRef.current || saving || disabled) return
+    readingRef.current = true
+    setReadingFiles(true)
+    setError(null)
+    try {
+      const files = await source
+      if (!files.length) return
+      if (
+        todoAttachmentBytes(attachments) +
+          files.reduce((sum, file) => sum + file.size, 0) >
+        TODO_ATTACHMENT_MAX_BYTES
+      ) {
+        setError(t("attachmentTooLarge"))
+        return
+      }
+      const added = await Promise.all(files.map(readTodoAttachment))
+      setAttachments((current) => [...current, ...added])
+    } catch (cause) {
+      setError(toErrorMessage(cause))
+    } finally {
+      readingRef.current = false
+      setReadingFiles(false)
+    }
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault()
-    if (!content.trim() || saving || disabled || hasConflict) return
+    if (
+      (!content.trim() && !attachments.length) ||
+      readingRef.current ||
+      saving ||
+      disabled ||
+      hasConflict
+    )
+      return
     setSaving(true)
     setError(null)
     try {
@@ -73,7 +127,7 @@ export function TodoEditorDialog({
         due_date: dueDate || null,
         priority: priority === "__none__" ? null : priority,
         title: title.trim(),
-        content: content.trim(),
+        content: serializeTodoContent(content, attachments),
         assignee_id: assignee === "__none__" ? null : assignee,
       }
       await onSubmit(
@@ -105,10 +159,13 @@ export function TodoEditorDialog({
   }
 
   return (
-    <Dialog open onOpenChange={(open) => !open && !saving && onClose()}>
+    <Dialog
+      open
+      onOpenChange={(open) => !open && !saving && !readingFiles && onClose()}
+    >
       <DialogContent
-        className="min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
-        showCloseButton={!saving}
+        className="todo-theme min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
+        showCloseButton={!saving && !readingFiles}
       >
         <DialogHeader>
           <DialogTitle>{t(todo ? "editTodo" : "newTodo")}</DialogTitle>
@@ -135,11 +192,62 @@ export function TodoEditorDialog({
               id="todo-content"
               value={content}
               onChange={(event) => setContent(event.target.value)}
+              onPaste={(event) => {
+                const files = filesFromClipboard(event.clipboardData)
+                if (files.length) {
+                  event.preventDefault()
+                  void addFiles(files)
+                } else if (
+                  !readingRef.current &&
+                  !clipboardHasText(event.clipboardData)
+                ) {
+                  void addFiles(imageFilesFromClipboardApi())
+                }
+              }}
               placeholder={t("contentPlaceholder")}
               className="min-h-40 min-w-0 field-sizing-fixed resize-y"
-              required
+              required={!attachments.length}
               autoFocus
               disabled={saving || disabled}
+            />
+          </div>
+          <div className="space-y-2">
+            <input
+              ref={fileInput}
+              type="file"
+              multiple
+              hidden
+              aria-label={t("addAttachments")}
+              onChange={(event) => {
+                void addFiles(Array.from(event.target.files ?? []))
+                event.target.value = ""
+              }}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={saving || disabled || readingFiles}
+              onClick={() => fileInput.current?.click()}
+            >
+              {readingFiles ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <Paperclip className="size-4" />
+              )}
+              {t("addAttachments")}
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              {t("attachmentHint")}
+            </p>
+            <TodoAttachments
+              files={attachments}
+              disabled={saving || disabled || readingFiles}
+              onRemove={(index) =>
+                setAttachments((current) =>
+                  current.filter((_, i) => i !== index)
+                )
+              }
             />
           </div>
           <div className="space-y-2">
@@ -152,7 +260,7 @@ export function TodoEditorDialog({
               <SelectTrigger id="todo-assignee" className="min-w-0 w-full">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="todo-theme">
                 <SelectItem value="__none__">{t("unassigned")}</SelectItem>
                 {members.map((member) => (
                   <SelectItem key={member.id} value={member.id}>
@@ -190,7 +298,7 @@ export function TodoEditorDialog({
                 <SelectTrigger id="todo-priority" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="todo-theme">
                   <SelectItem value="__none__">{t("noPriority")}</SelectItem>
                   {(["low", "normal", "high", "urgent"] as const).map(
                     (value) => (
@@ -221,7 +329,7 @@ export function TodoEditorDialog({
                 variant="outline"
                 size="sm"
                 onClick={onReload}
-                disabled={saving}
+                disabled={saving || readingFiles}
               >
                 {t("reloadLatest")}
               </Button>
@@ -237,13 +345,19 @@ export function TodoEditorDialog({
               type="button"
               variant="outline"
               onClick={onClose}
-              disabled={saving}
+              disabled={saving || readingFiles}
             >
               {t("cancel")}
             </Button>
             <Button
               type="submit"
-              disabled={!content.trim() || saving || disabled || hasConflict}
+              disabled={
+                (!content.trim() && !attachments.length) ||
+                readingFiles ||
+                saving ||
+                disabled ||
+                hasConflict
+              }
             >
               {saving && <Loader2 className="size-4 animate-spin" />}
               {t(saving ? "saving" : "save")}

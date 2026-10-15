@@ -239,7 +239,7 @@ function TokenEditor({
       </label>
       <div
         data-settings-input-group
-        className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50 md:text-sm"
+        className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:border-[#216ae4] focus-within:ring-0 md:text-sm"
       >
         <input
           id={inputId}

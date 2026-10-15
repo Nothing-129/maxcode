@@ -71,7 +71,7 @@ function DialogContent({
   return (
     <DialogPortal>
       <DialogOverlay />
-      <div className="pointer-events-none fixed inset-0 z-50 grid place-items-center p-4">
+      <div className="maxcode-visible-viewport pointer-events-none fixed inset-0 z-50 grid place-items-center p-4">
         <DialogPrimitive.Content
           data-slot="dialog-content"
           ref={setNode}

@@ -225,7 +225,7 @@ export function AddNodeMenu({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("searchConversations")}
-              className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded-lg border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded-lg border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
               onKeyDown={(e) => e.stopPropagation()}
             />
             <div className="max-h-64 overflow-y-auto">

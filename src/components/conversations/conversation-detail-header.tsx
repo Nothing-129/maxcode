@@ -527,7 +527,11 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         link = buildConversationShareUrl(address.baseUrl, share.token)
       }
       requestCreateTodo({
-        text: tTodos("conversationLinkContent", { url: link }),
+        title: target.title,
+        text: [
+          target.title,
+          tTodos("conversationLinkContent", { url: link }),
+        ].join("\n\n"),
         conversationId: target.id,
         shareOptions: options,
       })
@@ -793,7 +797,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           if (!open) handleCloseShare()
         }}
       >
-        <DialogContent>
+        <DialogContent className="min-w-0 grid-cols-1 overflow-x-hidden [&>*]:min-w-0 [&_[data-slot=dialog-footer]]:flex-wrap [&_[data-slot=dialog-footer]>button]:h-auto [&_[data-slot=dialog-footer]>button]:min-h-9 [&_[data-slot=dialog-footer]>button]:min-w-0 [&_[data-slot=dialog-footer]>button]:whitespace-normal">
           <DialogHeader>
             <DialogTitle>
               {shareForTodo ? tTodos("addConversation") : t("shareDialogTitle")}

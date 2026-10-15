@@ -89,7 +89,7 @@ export function ConversationTodoSourceBadges({
         onClick={() => open(first)}
         title={tooltip(first)}
         aria-label={label(first)}
-        className="flex h-6 max-w-32 min-w-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 text-xs text-primary outline-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring"
+        className="todo-theme flex h-6 max-w-32 min-w-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 text-xs text-primary outline-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ListTodo className="size-3 shrink-0" aria-hidden />
         <span className="min-w-0 truncate">
@@ -101,13 +101,13 @@ export function ConversationTodoSourceBadges({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="h-6 rounded-md bg-primary/10 px-1.5 text-xs text-primary"
+              className="todo-theme h-6 rounded-md bg-primary/10 px-1.5 text-xs text-primary"
               aria-label={t("moreSourceTodos", { count: sources.length - 1 })}
             >
               +{sources.length - 1}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="max-w-72">
+          <DropdownMenuContent align="start" className="todo-theme max-w-72">
             {sources.slice(1).map((source) => (
               <DropdownMenuItem
                 key={`${source.origin.scope_id}:${source.origin.todo_id}`}

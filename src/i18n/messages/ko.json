@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "검색",
       "dialogTitleWithFolder": "검색 — {name}",
+      "searchScope": "검색 범위",
+      "allFolders": "모든 폴더",
       "tabConversations": "대화",
       "tabFiles": "파일",
       "placeholder": "대화 검색...",
@@ -6005,6 +6007,10 @@
     "markupSend": "이미지 저장"
   },
   "Todos": {
+    "addAttachments": "파일 / 이미지 추가",
+    "attachmentHint": "내용에 파일이나 이미지를 붙여넣거나 파일을 선택하세요. 첨부 파일은 총 100 MB까지 가능합니다.",
+    "attachmentTooLarge": "첨부 파일의 총 크기는 100 MB를 초과할 수 없습니다.",
+    "removeAttachment": "{name} 제거",
     "title": "할 일",
     "viewSwitchToList": "목록 보기로 전환",
     "viewSwitchToBoard": "보드 보기로 전환",
@@ -6113,6 +6119,10 @@
     "filter_today": "오늘 마감",
     "filter_overdue": "기한 초과",
     "filter_urgent": "긴급",
-    "conversationLinkContent": "자세한 내용은 대화를 확인하세요: {url}"
+    "conversationLinkContent": "자세한 내용은 대화를 확인하세요: {url}",
+    "newConversationForTodo": "{title}에서 새 대화",
+    "chooseConversationFolder": "대화 폴더 선택",
+    "chooseConversationFolderHint": "이 할 일에는 유효한 폴더의 대화가 없습니다. 폴더를 선택해 주세요.",
+    "confirmConversationFolder": "선택하고 만들기"
   }
 }

@@ -154,6 +154,10 @@ import { useSidebarConversationDrag } from "@/hooks/use-sidebar-conversation-dra
 import { useSubsessionSync } from "@/hooks/use-subsession-sync"
 import { SidebarSectionHeader } from "./sidebar-section-header"
 import { SidebarFolderGroupHeader } from "./sidebar-folder-group-header"
+import { openTodoConversationDraft } from "@/components/todos/use-new-chat-from-todo"
+import { TodoConversationFolderDialog } from "@/components/todos/todo-conversation-folder-dialog"
+import { todoConversationText } from "@/components/todos/board-columns"
+import { todoOriginCall } from "@/lib/todos"
 import { SidebarTodoGroupHeader } from "./sidebar-todo-group-header"
 import { useTodoConversationGroups } from "@/hooks/use-todo-conversation-groups"
 import { useOptionalTodosView } from "@/contexts/todos-view-context"
@@ -1518,6 +1522,60 @@ export function SidebarConversationList({
         : []
     })
   }, [linkedTodoGroups, conversations, showCompleted, sortMode])
+
+  const [todoFolderDraft, setTodoFolderDraft] = useState<
+    Parameters<typeof openTodoConversationDraft>[0] | null
+  >(null)
+  const [creatingTodoId, setCreatingTodoId] = useState<string | null>(null)
+  const creatingTodo = useRef(false)
+  const todoActionMounted = useRef(true)
+  useEffect(() => {
+    todoActionMounted.current = true
+    return () => {
+      todoActionMounted.current = false
+    }
+  }, [])
+  const handleNewTodoConversation = useCallback(
+    async (id: string) => {
+      const state = todoStateRef.current
+      const scope =
+        state?.mode === "personal" ? "personal" : state?.active_team_id
+      if (!state || !scope || creatingTodo.current) return
+      const conversationIds =
+        linkedTodoGroups.find((group) => group.todo.id === id)
+          ?.conversation_ids ?? []
+      const origin = { scope_id: scope, todo_id: id }
+      creatingTodo.current = true
+      setCreatingTodoId(id)
+      try {
+        const cached = state.todos.find((todo) => todo.id === id)
+        const todo =
+          cached ?? (await todoOriginCall({ origin, action: "get" })).todo
+        if (!todoActionMounted.current) return
+        if (!todo) throw new Error(tTodosRef.current("todoUnavailable"))
+        const draft = {
+          text: todoConversationText(todo),
+          origins: [origin],
+          conversationIds,
+        }
+        if (openTodoConversationDraft(draft, openConversations)) {
+          onNavigate?.()
+        } else {
+          setTodoFolderDraft(draft)
+        }
+      } catch (error) {
+        toast.error(
+          tTodosRef.current("operationFailed", {
+            reason: toErrorMessage(error),
+          })
+        )
+      } finally {
+        creatingTodo.current = false
+        if (todoActionMounted.current) setCreatingTodoId(null)
+      }
+    },
+    [linkedTodoGroups, openConversations, onNavigate]
+  )
 
   // Flat "Chat" bucket: folderless chat-mode conversations, most-recently-updated
   // first, with reference reuse (so an unrelated status event doesn't rebuild it
@@ -3237,6 +3295,9 @@ export function SidebarConversationList({
           count={row.count}
           expanded={row.expanded}
           onToggle={toggleTodoGroup}
+          onNewConversation={handleNewTodoConversation}
+          creating={creatingTodoId === row.id}
+          disabled={creatingTodoId !== null}
         />
       )
     }
@@ -3619,6 +3680,22 @@ export function SidebarConversationList({
 
   return (
     <div className="relative flex flex-col flex-1 min-h-0">
+      {todoFolderDraft && (
+        <TodoConversationFolderDialog
+          onClose={() => setTodoFolderDraft(null)}
+          onConfirm={(folderId) => {
+            if (
+              openTodoConversationDraft(
+                { ...todoFolderDraft, folderId },
+                openConversations
+              )
+            ) {
+              setTodoFolderDraft(null)
+              onNavigate?.()
+            }
+          }}
+        />
+      )}
       {todoLinkTarget && (
         <TodoConversationLinkDialog
           key={`${todoLinkTarget.conversationId}:${todoLinkTarget.scopeId}`}

@@ -178,7 +178,7 @@ export const RegionNode = memo(function RegionNode({
               if (e.key === "Escape") endRename()
             }}
             placeholder={fallbackName}
-            className="nodrag min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 py-0.5 text-[13px] font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="nodrag min-w-0 flex-1 rounded-md border border-input bg-background px-1.5 py-0.5 text-[13px] font-semibold outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
           />
         ) : (
           <span

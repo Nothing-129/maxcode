@@ -600,7 +600,7 @@ function TaskSettingsBody({
                           onClick={() => setMergeStrategy(opt.value)}
                           className={cn(
                             "flex gap-2 rounded-lg border p-2.5 text-left transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#216ae4]",
                             active
                               ? "border-primary/60 bg-primary/5"
                               : "border-border/70 bg-background hover:bg-accent/40"

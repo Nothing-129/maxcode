@@ -224,7 +224,7 @@ export function ForgeNewIssueDialog({
                               : [...held, label.name]
                           )
                         }
-                        className="rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50"
+                        className="rounded-full outline-none focus-visible:ring-1 focus-visible:ring-[#216ae4] disabled:opacity-50"
                       >
                         <ForgeLabelChip
                           label={label}

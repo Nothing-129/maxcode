@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "検索",
       "dialogTitleWithFolder": "検索 — {name}",
+      "searchScope": "検索範囲",
+      "allFolders": "すべてのフォルダー",
       "tabConversations": "会話",
       "tabFiles": "ファイル",
       "placeholder": "会話を検索...",
@@ -6005,6 +6007,10 @@
     "markupSend": "画像を保存"
   },
   "Todos": {
+    "addAttachments": "ファイル・画像を追加",
+    "attachmentHint": "内容にファイルや画像を貼り付けるか、ファイルを選択できます。添付は合計 100 MB まで。",
+    "attachmentTooLarge": "添付ファイルの合計が 100 MB を超えています。",
+    "removeAttachment": "{name} を削除",
     "title": "ToDo",
     "viewSwitchToList": "リスト表示に切り替え",
     "viewSwitchToBoard": "ボード表示に切り替え",
@@ -6113,6 +6119,10 @@
     "filter_today": "今日期限",
     "filter_overdue": "期限超過",
     "filter_urgent": "緊急",
-    "conversationLinkContent": "詳細は会話を参照：{url}"
+    "conversationLinkContent": "詳細は会話を参照：{url}",
+    "newConversationForTodo": "「{title}」から新しい会話",
+    "chooseConversationFolder": "会話のフォルダーを選択",
+    "chooseConversationFolderHint": "このタスクには有効なフォルダーの会話がありません。フォルダーを選択してください。",
+    "confirmConversationFolder": "選択して作成"
   }
 }

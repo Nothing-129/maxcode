@@ -20,6 +20,12 @@ use crate::commands::conversation_share::{
 
 const PERSONAL: &str = "personal";
 const MAX_SHARE_BYTES: usize = 24 * 1024 * 1024;
+const TODO_ATTACHMENT_MAX_BYTES: usize = 100 * 1024 * 1024;
+// Base64 expansion plus text, filenames and JSON framing.
+const TODO_CONTENT_MAX_BYTES: usize = 140 * 1024 * 1024;
+pub(crate) const TODO_REQUEST_MAX_BYTES: usize = 200 * 1024 * 1024;
+// Team responses contain multiple todos, independently of conversation snapshots.
+const TODO_RESPONSE_MAX_BYTES: usize = 512 * 1024 * 1024;
 
 pub mod conversation_groups;
 pub mod conversation_sources;
@@ -282,6 +288,55 @@ fn required(value: Option<&str>, label: &str, max: usize) -> Result<String, AppC
     }
     Ok(value.to_string())
 }
+fn required_todo_content(value: Option<&str>) -> Result<String, AppCommandError> {
+    let value = value.unwrap_or_default().trim();
+    if value.is_empty() || value.len() > TODO_CONTENT_MAX_BYTES {
+        return Err(AppCommandError::invalid_input("Enter valid todo content"));
+    }
+    if let Some((_, encoded)) = value.rsplit_once("<!-- maxcode-todo-attachments:v1 -->\n") {
+        #[derive(Deserialize)]
+        struct Attachment<'a> {
+            #[serde(borrow)]
+            data: std::borrow::Cow<'a, str>,
+            #[serde(borrow, rename = "name")]
+            _name: std::borrow::Cow<'a, str>,
+        }
+        if let Ok(files) = serde_json::from_str::<Vec<Attachment<'_>>>(encoded) {
+            if todo_text_content(value).chars().count() > 250_000 {
+                return Err(AppCommandError::invalid_input("Enter valid todo content"));
+            }
+            let mut total = 0usize;
+            for file in files {
+                let data = file
+                    .data
+                    .split_once(";base64,")
+                    .ok_or_else(|| AppCommandError::invalid_input("Invalid todo attachment"))?
+                    .1;
+                let padding = data.len() - data.trim_end_matches('=').len();
+                if data.len() % 4 != 0 || padding > 2 {
+                    return Err(AppCommandError::invalid_input("Invalid todo attachment"));
+                }
+                total += data.len() / 4 * 3 - padding;
+                if total > TODO_ATTACHMENT_MAX_BYTES {
+                    return Err(AppCommandError::invalid_input(
+                        "Attachments exceed the 100 MB total limit",
+                    ));
+                }
+            }
+            return Ok(value.to_owned());
+        }
+    }
+    required(Some(value), "todo content", 250_000)
+}
+
+/// Keep embedded attachment bytes out of title generation and model prompts.
+pub(crate) fn todo_text_content(content: &str) -> &str {
+    content
+        .split("<!-- maxcode-todo-attachments:v1 -->\n")
+        .next()
+        .unwrap_or(content)
+}
+
 fn todo_title(request: &TodoRequest, content: &str) -> Result<String, AppCommandError> {
     if !request
         .title
@@ -292,7 +347,7 @@ fn todo_title(request: &TodoRequest, content: &str) -> Result<String, AppCommand
     {
         return required(request.title.as_deref(), "todo title", 200);
     }
-    let redacted = crate::session_title::redact_title_input(content);
+    let redacted = crate::session_title::redact_title_input(todo_text_content(content));
     Ok(redacted
         .lines()
         .map(str::trim)
@@ -615,7 +670,7 @@ async fn remote_json<T: serde::de::DeserializeOwned>(
 ) -> Result<T, AppCommandError> {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(300))
         .build()
         .map_err(|_| AppCommandError::network("Cannot connect to team"))?;
     let mut response = client
@@ -635,7 +690,7 @@ async fn remote_json<T: serde::de::DeserializeOwned>(
         .await
         .map_err(|_| AppCommandError::network("Team response was interrupted"))?
     {
-        if data.len() + chunk.len() > MAX_SHARE_BYTES {
+        if data.len() + chunk.len() > TODO_RESPONSE_MAX_BYTES {
             return Err(AppCommandError::network("Team response is too large"));
         }
         data.extend_from_slice(&chunk);
@@ -689,7 +744,7 @@ pub async fn call(
         ));
     }
     if matches!(request.action.as_str(), "create" | "update") {
-        let content = required(request.content.as_deref(), "todo content", 250_000)?;
+        let content = required_todo_content(request.content.as_deref())?;
         if request
             .title
             .as_deref()
@@ -1070,7 +1125,7 @@ async fn mutate(
     let txn = conn.begin().await.map_err(error_db)?;
     let now = Utc::now().to_rfc3339();
     if request.action == "create" {
-        let content = required(request.content.as_deref(), "todo content", 250_000)?;
+        let content = required_todo_content(request.content.as_deref())?;
         let title = todo_title(request, &content)?;
         validate_assignee(&txn, scope, &request.assignee_id).await?;
         let id = new_id();
@@ -1122,7 +1177,7 @@ async fn mutate(
             .ok_or_else(|| AppCommandError::invalid_input("Todo revision is required"))?;
         let updated=match request.action.as_str() {
             "update"=>{
-                let content=required(request.content.as_deref(),"todo content",250_000)?;
+                let content=required_todo_content(request.content.as_deref())?;
                 let title=todo_title(request,&content)?;
                 validate_assignee(&txn,scope,&request.assignee_id).await?;
                 execute(&txn,"UPDATE maxcode_todo_item SET due_date=?,priority=?,title=?,content=?,assignee_id=?,status=CASE WHEN status='completed' THEN status WHEN ? IS NULL THEN 'unclaimed' ELSE 'claimed' END,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![request.due_date.clone().into(),request.priority.clone().into(),title.into(),content.into(),request.assignee_id.clone().into(),request.assignee_id.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?
@@ -1168,3 +1223,7 @@ mod contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/todo-schedule.contract.rs"]
 mod schedule_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/todo-attachments.contract.rs"]
+mod attachment_contract;

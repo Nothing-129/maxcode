@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "Suchen",
       "dialogTitleWithFolder": "Suchen — {name}",
+      "searchScope": "Suchbereich",
+      "allFolders": "Alle Ordner",
       "tabConversations": "Konversationen",
       "tabFiles": "Dateien",
       "placeholder": "Konversationen suchen...",
@@ -6005,6 +6007,10 @@
     "markupSend": "Bild speichern"
   },
   "Todos": {
+    "addAttachments": "Dateien / Bilder hinzufügen",
+    "attachmentHint": "Dateien oder Bilder in den Inhalt einfügen oder auswählen. Anhänge: insgesamt maximal 100 MB.",
+    "attachmentTooLarge": "Anhänge überschreiten das Gesamtlimit von 100 MB.",
+    "removeAttachment": "{name} entfernen",
     "title": "Aufgaben",
     "viewSwitchToList": "Zur Listenansicht wechseln",
     "viewSwitchToBoard": "Zur Boardansicht wechseln",
@@ -6113,6 +6119,10 @@
     "filter_today": "Heute fällig",
     "filter_overdue": "Überfällig",
     "filter_urgent": "Dringend",
-    "conversationLinkContent": "Details im Gespräch: {url}"
+    "conversationLinkContent": "Details im Gespräch: {url}",
+    "newConversationForTodo": "Neues Gespräch aus {title}",
+    "chooseConversationFolder": "Gesprächsordner wählen",
+    "chooseConversationFolderHint": "Diese Aufgabe hat kein verknüpftes Gespräch mit gültigem Ordner. Wählen Sie einen Ordner.",
+    "confirmConversationFolder": "Wählen und erstellen"
   }
 }

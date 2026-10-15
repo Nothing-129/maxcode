@@ -147,7 +147,7 @@ import {
   adoptLegacyNewConversationDraft,
   buildConversationDraftStorageKey,
   buildNewConversationDraftStorageKey,
-  clearMessageInputDraft,
+  clearMessageInputDraftV2,
   saveMessageInputDraft,
 } from "@/lib/message-input-draft"
 import {
@@ -1348,6 +1348,7 @@ const ConversationTabView = memo(function ConversationTabView({
             newConversationId = res.conversationId
             sendFolderId = res.folderId
             dbConvIdRef.current = newConversationId
+            clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tabId))
             setExternalId(effectiveConversationId, sessionIdRef.current ?? null)
             // Bind the DB id BEFORE the prompt goes out. The mirror effect
             // below also binds, but only after a re-render — this closes that
@@ -1381,6 +1382,7 @@ const ConversationTabView = memo(function ConversationTabView({
               todoOrigins
             )
             dbConvIdRef.current = newConversationId
+            clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tabId))
             // Set external ID on the stable virtual session (no migration needed —
             // effectiveConversationId never changes, so the session stays in place).
             // DB persistence of external_id is now backend-driven from
@@ -1404,7 +1406,6 @@ const ConversationTabView = memo(function ConversationTabView({
               effectiveConversationId
             )
           }
-          clearMessageInputDraft(buildNewConversationDraftStorageKey(tabId))
           refreshConversations()
 
           // Now that the row exists, kick off the actual prompt with the

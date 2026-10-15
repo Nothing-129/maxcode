@@ -27,7 +27,6 @@ import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useAutomationsView } from "@/contexts/automations-view-context"
-import { useTodosView } from "@/contexts/todos-view-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import {
   SidebarConversationList,
@@ -85,28 +84,16 @@ import {
 import { cn } from "@/lib/utils"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
 
-// Keyboard-shortcut hint at the trailing edge of the New chat row.
-// Mirrors the folder count badge exactly — same chip (0.9375rem height,
-// 0.3125rem radius, bg-primary/10, text-primary, 0.625rem text) per the request
-// to match it. That pairing is also solidly legible (text-primary on
-// primary/10 ≈ 14:1 light / 11:1 dark), unlike the muted-on-muted kbd it
-// replaces (4.34:1). Revealed only on hover / keyboard focus of its row (each
-// row is a `group`); font-mono renders the shortcut glyphs cleanly.
+// Reveal the shortcut below the button without taking space from its label.
 const SHORTCUT_BADGE_CLASS = cn(
-  "ml-auto inline-flex h-[0.9375rem] shrink-0 items-center justify-center",
+  "pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 inline-flex h-[0.9375rem] items-center justify-center",
   "rounded-[0.3125rem] bg-primary/10 px-[0.25rem]",
   "font-mono text-[0.625rem] font-medium leading-none text-primary",
   "opacity-0 transition-opacity duration-150",
   "group-hover:opacity-100 group-focus-visible:opacity-100"
 )
 
-/**
- * A fixed top-of-sidebar action / route row. `active` marks the row as the
- * current workbench route (selected styling); `trailing` carries a shortcut hint
- * or a count badge. Extracting this keeps every fixed nav item — and any future
- * route — on one geometry instead of copy-pasting the className. Each row is a
- * `group` so a `group-hover`-revealed trailing element works.
- */
+/** Compact action button shared by the fixed sidebar navigation. */
 function SidebarNavButton({
   icon,
   label,
@@ -127,17 +114,17 @@ function SidebarNavButton({
       title={label}
       aria-current={active ? "page" : undefined}
       className={cn(
-        // Match navigation and history rows with a quiet, rounded rectangle.
-        "group flex h-7 w-full items-center gap-2.5 rounded-lg pl-2.5 pr-2.5",
+        // Equal-width buttons keep the three actions on a single compact row.
+        "group relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent/20 px-0.5",
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
         "transition-colors duration-150 hover:bg-sidebar-accent",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-        active && "bg-sidebar-primary/8"
+        active && "bg-sidebar-primary/10"
       )}
     >
       <SidebarNavigationIcon
         name={icon}
-        className="size-4 shrink-0 text-sidebar-foreground/75"
+        className="size-3.5 shrink-0 text-sidebar-foreground/75"
       />
       <span className="truncate">{label}</span>
       {trailing}
@@ -153,7 +140,6 @@ export function Sidebar() {
   const { activeFolder } = useActiveFolder()
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
-  const { attentionCount } = useTodosView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
@@ -526,71 +512,59 @@ export function Sidebar() {
         {sidebarTools}
       </div>
 
-      {/* Fixed actions above the scrollable list. `shrink-0` keeps them pinned —
-          they never scroll with the conversation list. Rows are `rounded-full`
-          like the conversation pills, and the icon/text geometry matches the
-          folder header: a 0.875rem icon + 0.875rem label at a 0.4375rem gap, with
-          the row's pl-[0.4375rem] (atop the container's px-1.5) placing the icon
-          center on the same 0.875rem rail axis as the folder/conversation icons in
-          the list below. Each row is a `group` so its shortcut hint reveals on
-          hover / keyboard focus. */}
+      {/* Fixed action buttons stay above the scrollable conversation list. */}
       <div className="flex shrink-0 flex-col gap-0.5 px-1.5 pt-1.5">
         {!isMobile && (
           <div className="mb-3 flex h-8 items-center justify-between px-2 text-base font-semibold text-sidebar-foreground">
             <SidebarWordmark />
           </div>
         )}
-        <SidebarNavButton
-          icon="compose"
-          label={t("newChat")}
-          onClick={handleNewConversation}
-          trailing={
-            newConversationShortcutLabel ? (
-              <kbd className={SHORTCUT_BADGE_CLASS}>
-                {newConversationShortcutLabel}
-              </kbd>
-            ) : null
-          }
-        />
-        {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
-        {/* Route navigation respects the saved visibility preference and closes the
-            sidebar after navigation on touch layouts. */}
-        {isNavItemVisible(navItems, "automations") && (
+        <div data-sidebar-actions className="flex items-center gap-1">
           <SidebarNavButton
-            icon="clock"
-            label={t("automations")}
-            active={routeId === "automations"}
-            onClick={() => {
-              if (collapseOnNavigate) toggle()
-              setRoute("automations")
-            }}
+            icon="compose"
+            label={t("newChat")}
+            onClick={handleNewConversation}
             trailing={
-              unseenFailures > 0 ? (
-                <span className="ml-auto inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
-                  {unseenFailures}
-                </span>
+              newConversationShortcutLabel ? (
+                <kbd className={SHORTCUT_BADGE_CLASS}>
+                  {newConversationShortcutLabel}
+                </kbd>
               ) : null
             }
           />
-        )}
-        {isNavItemVisible(navItems, "tasks") && (
-          <SidebarNavButton
-            icon="tasks"
-            label={t("tasks")}
-            active={routeId === "tasks"}
-            onClick={() => {
-              if (collapseOnNavigate) toggle()
-              setRoute("tasks")
-            }}
-            trailing={
-              attentionCount > 0 ? (
-                <span className="ml-auto inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-primary/10 px-1 font-mono text-[0.625rem] font-medium leading-none text-primary">
-                  {attentionCount}
-                </span>
-              ) : null
-            }
-          />
-        )}
+          {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
+          {/* Route navigation respects the saved visibility preference and closes the
+              sidebar after navigation on touch layouts. */}
+          {isNavItemVisible(navItems, "automations") && (
+            <SidebarNavButton
+              icon="clock"
+              label={t("automations")}
+              active={routeId === "automations"}
+              onClick={() => {
+                if (collapseOnNavigate) toggle()
+                setRoute("automations")
+              }}
+              trailing={
+                unseenFailures > 0 ? (
+                  <span className="absolute -right-1 -top-1 inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
+                    {unseenFailures}
+                  </span>
+                ) : null
+              }
+            />
+          )}
+          {isNavItemVisible(navItems, "tasks") && (
+            <SidebarNavButton
+              icon="tasks"
+              label={t("tasks")}
+              active={routeId === "tasks"}
+              onClick={() => {
+                if (collapseOnNavigate) toggle()
+                setRoute("tasks")
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* On touch layouts, clicking a conversation card auto-closes the sidebar

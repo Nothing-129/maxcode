@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "Rechercher",
       "dialogTitleWithFolder": "Rechercher — {name}",
+      "searchScope": "Portée de recherche",
+      "allFolders": "Tous les dossiers",
       "tabConversations": "Conversations",
       "tabFiles": "Fichiers",
       "placeholder": "Rechercher des conversations...",
@@ -6005,6 +6007,10 @@
     "markupSend": "Enregistrer l’image"
   },
   "Todos": {
+    "addAttachments": "Ajouter des fichiers / images",
+    "attachmentHint": "Collez des fichiers ou images dans le contenu, ou sélectionnez des fichiers. Limite totale : 100 Mo.",
+    "attachmentTooLarge": "Les pièces jointes dépassent la limite totale de 100 Mo.",
+    "removeAttachment": "Supprimer {name}",
     "title": "À faire",
     "viewSwitchToList": "Passer à la vue en liste",
     "viewSwitchToBoard": "Passer à la vue tableau",
@@ -6113,6 +6119,10 @@
     "filter_today": "Pour aujourd’hui",
     "filter_overdue": "En retard",
     "filter_urgent": "Urgentes",
-    "conversationLinkContent": "Voir la conversation : {url}"
+    "conversationLinkContent": "Voir la conversation : {url}",
+    "newConversationForTodo": "Nouvelle conversation depuis {title}",
+    "chooseConversationFolder": "Choisir le dossier de conversation",
+    "chooseConversationFolderHint": "Cette tâche n’a pas de conversation liée à un dossier valide. Choisissez un dossier.",
+    "confirmConversationFolder": "Choisir et créer"
   }
 }

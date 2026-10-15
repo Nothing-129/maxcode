@@ -2169,6 +2169,8 @@
     "search": {
       "dialogTitle": "Buscar",
       "dialogTitleWithFolder": "Buscar — {name}",
+      "searchScope": "Escopo da pesquisa",
+      "allFolders": "Todas as pastas",
       "tabConversations": "Conversas",
       "tabFiles": "Arquivos",
       "placeholder": "Buscar conversas...",
@@ -6005,6 +6007,10 @@
     "markupSend": "Salvar imagem"
   },
   "Todos": {
+    "addAttachments": "Adicionar arquivos / imagens",
+    "attachmentHint": "Cole arquivos ou imagens no conteúdo, ou selecione arquivos. Limite total: 100 MB.",
+    "attachmentTooLarge": "Os anexos excedem o limite total de 100 MB.",
+    "removeAttachment": "Remover {name}",
     "title": "Pendências",
     "viewSwitchToList": "Mudar para lista",
     "viewSwitchToBoard": "Mudar para quadro",
@@ -6113,6 +6119,10 @@
     "filter_today": "Vencem hoje",
     "filter_overdue": "Atrasadas",
     "filter_urgent": "Urgentes",
-    "conversationLinkContent": "Veja a conversa: {url}"
+    "conversationLinkContent": "Veja a conversa: {url}",
+    "newConversationForTodo": "Nova conversa de {title}",
+    "chooseConversationFolder": "Escolher pasta da conversa",
+    "chooseConversationFolderHint": "Esta tarefa não tem conversas vinculadas a uma pasta válida. Escolha uma pasta.",
+    "confirmConversationFolder": "Escolher e criar"
   }
 }

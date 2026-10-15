@@ -20,6 +20,8 @@
 
 侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
 
+2026-10-15 待办附件：新建和编辑内容支持粘贴或选择文件、图片，支持图片预览、下载及移除；附件总大小限制为 100 MiB。附件以版本化内容尾部封装随个人/团队待办持久化，纯文本待办格式保持兼容；列表摘要和新建对话只传递正文及附件名称，标题模型不接收附件字节。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`。
+
 ## 2026-10-15 上游 v0.35.2 选择性集成
 
 评审上游 `e2a7d3d77`，从 `main` 建立临时集成分支，并在修改前运行
@@ -146,7 +148,7 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 会话 | 分享入口仅保留在三个点菜单内，顶部不显示独立分享按钮；以可撤销能力链接分享不含本地元数据路径的只读会话快照，显式公网地址优先、Web/局域网/本机地址依次回退；公开 Markdown 仅开放外部链接，正文中的本地目标保持只读 | 当前工作区 | `conversations.read-only-sharing` |
 | 侧边栏 | 完成会话默认隐藏、分区/工作树/分页、文件夹拖动稳定性、新建及重开文件夹排序 | `108154e4`、`bae6751c`、`9eaecc27`、`2245d322`、`7ca7b5b3`、`16941c88`、当前工作区 | `conversations.sidebar-folder-interactions` |
 | 导航 | 固定宽度可滚动标签、触控板拖动阈值、移动端导航收起、正文原生选择 | `7a445edf`、`f60fecca`、`eb9cee07`、`7ca7b5b3` | `navigation.tabs-touch-and-selection` |
-| 消息 | 普通本地路径自动变成文件引用，安装包等二进制产物可打开或在文件管理器显示 | `7ca7b5b3`、`06bb8457`、`c283e981` | `messages.local-paths-and-artifacts` |
+| 消息 | 普通本地路径自动变成文件引用，安装包等二进制产物可打开或在文件管理器显示；Codex 来源和产物引用显示文件名及工作表/单元格位置 | `7ca7b5b3`、`06bb8457`、`c283e981` | `messages.local-paths-and-artifacts` |
 | 消息 | 系统字体默认值及代理未提供耗时时的“提示到完成”耗时推导 | `d61af64a` | `messages.system-font-and-duration` |
 | Web | 同步事件/回放/快照处理失败后更换订阅并拉取完整快照，隔离旧帧；连续失败退避重试，清理时取消定时器；恢复允许修复相同序号状态，拒绝更旧快照 | `worktree-2026-09-26` | `web.event-handler-snapshot-recovery` |
 | Web | 断线不清凭证、健康探测退避重连、恢复订阅、仅有凭证的 401 判定会话过期 | `352bc868`、`2c859b2a` | `web.auth-and-session-recovery` |
@@ -291,3 +293,17 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 待办截止日期和优先级（`todos.deadlines-priority`）：新建与编辑均可选填截止日期、低/普通/高/紧急优先级，个人和团队同样支持。截止日期按查看者本地日历当天结束计算，已完成不标逾期。看板和列表支持今天到期、逾期、紧急筛选；已完成筛选先在宿主数据库执行再统计及分页，离线缓存不混用不同筛选条件。来源待办详情保持相同编辑及版本冲突规则。独立契约：`todo-schedule.contract.test.tsx`、`todo-schedule.contract.rs`。
 
 待办创建确认（`todos.confirmed-compose`）：消息“一键添加待办”和整个对话的分享待办入口在当前对话上打开预填的创建弹窗，不跳转看板；用户可调整内容、标题、指定人、截止日期及优先级。整个对话入口先生成或复用所选范围的分享链接，并以“详情见对话：链接”（随界面语言翻译）预填待办内容；单条消息仍填入消息原文。仅点击保存后创建待办，取消不创建待办。分享失败或关闭后的迟到响应不会打开错误的创建弹窗。弹窗由工作区常驻组件承接，重复打开重新初始化草稿。独立契约：`todo-compose-confirmation.contract.test.tsx`、`todo-message-handoff.contract.test.tsx`。
+
+待办对话分享弹窗限制网格与子项最小宽度，分享范围选项及底部按钮可换行，长文件名预览限制为两行；窄窗口与放大字号时保持纵向滚动且不产生横向裁切。单条消息入口直接预填原文，不进入对话分享范围选择。验证：`todo-share-options.contract.test.tsx`、`todo-compose-confirmation.contract.test.tsx`，并使用实际浏览器检查内容宽度和按钮可达性。
+
+整段对话创建待办时，原标题默认带入待办标题，并在待办内容首行保留原标题，空行后附“详情见对话：分享链接”；使用打开分享窗口时固定的会话标题，切换会话不串标题。用户可修改或清空标题再保存；单条消息入口仍只预填消息原文。
+
+普通新建对话、聊天及消息转新对话，不再复用带待办来源的草稿，避免将旧待办关联误带入普通会话。原待办草稿内容与来源继续保留；只有指定 `draftTabId` 的目录/聊天模式选择器才重定向同一草稿。取消创建待办不会写入会话关联，既有合法关联也不会被取消操作清除。回归契约：`todo-conversation-origin.contract.test.tsx`。
+
+侧边栏待办分组标题旁支持直接新建独立会话草稿，沿用该待办下最近活跃关联会话的有效文件夹；无有效关联会话时必须先选择文件夹，确认后才创建草稿，取消不创建。选择不受侧边栏排序、已完成显示开关或当前焦点文件夹影响。任务正文与来源写入独立未发送草稿，首次发送后才保存会话及待办关联。
+
+待办新会话首次创建数据库记录后，同时清理原草稿键的文本与富文本版本、内存缓存和待落盘内容；包括异步创建完成时原面板已卸载的情况。输入框草稿键切换时取消旧键的延迟保存，避免旧草稿清理后又被计时器写回。其他未发送草稿和已保存对话的来源关联保留。独立契约：`todo-conversation-origin.contract.test.tsx`、`composer-focus-draft.contract.test.tsx`。
+
+手机待办验收：触屏或粗指针设备无需悬停即可看到用户消息的“添加到待办”、回复操作行及待办分组的“＋”（含横屏宽度）；历史回复为操作行保留高度，避免被后续虚拟列表条目遮挡。桌面鼠标继续悬停显示。独立契约：`message-action-hover.contract.test.tsx`。
+
+手机对话适配：用户消息的复制、转新对话及图片下载按钮在触屏上直接显示；回复操作行可换行并占据实际高度。工作区与通用弹窗跟随 VisualViewport 的键盘可视高度和偏移，关闭键盘恢复原布局；双指缩放和已处理键盘的原生壳不重复调整。保留移动端隐藏消息编辑与会话内搜索的既定规则。契约：`mobile-conversation-layout.contract.test.tsx`、`mobile-chat-viewport.contract.test.tsx`。

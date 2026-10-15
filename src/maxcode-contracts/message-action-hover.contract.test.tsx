@@ -46,6 +46,26 @@ vi.mock("virtua", async () => {
 import { VirtualizedMessageThread } from "@/components/message/virtualized-message-thread"
 
 describe("historical message action hover continuity", () => {
+  it("keeps todo actions discoverable on touch screens and reserves reply action space", () => {
+    const css = source("src/app/globals.css")
+    const touch = css.match(
+      /@media \(hover: none\), \(pointer: coarse\)\s*\{([\s\S]*?)\n\}/
+    )?.[1]
+    expect(touch).toBeDefined()
+    expect(touch).toMatch(
+      /\.maxcode-turn-actions,\s*\.maxcode-user-todo-action,\s*\.maxcode-user-message-action,\s*\.maxcode-touch-image-action,\s*\.maxcode-todo-new-conversation\s*\{\s*opacity:\s*1;/
+    )
+    expect(touch).toMatch(
+      /\[data-thread-tail="false"\] \.maxcode-turn-actions\s*\{[^}]*margin-bottom:\s*0;/
+    )
+    expect(source("src/components/message/message-list-view.tsx")).toContain(
+      "maxcode-user-todo-action opacity-0"
+    )
+    expect(
+      source("src/components/conversations/sidebar-todo-group-header.tsx")
+    ).toContain('className="maxcode-todo-new-conversation ')
+  })
+
   it("covers the gap and buttons without consuming extra message spacing", () => {
     const css = source("src/app/globals.css")
     const row = css.match(

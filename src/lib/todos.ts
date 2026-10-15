@@ -192,9 +192,13 @@ export type TodoRequest = TodoAction &
 
 /** All team networking stays in the local backend; credentials never enter UI. */
 export async function todoCall(request: TodoRequest): Promise<TodoState> {
-  const state = await getTransport().call<TodoState>("todo_call", {
-    ...request,
-  })
+  const state = await getTransport().call<TodoState>(
+    "todo_call",
+    {
+      ...request,
+    },
+    { timeoutMs: 330_000 }
+  )
   if (state.mode === "personal" && typeof window !== "undefined") {
     return {
       ...state,
@@ -243,7 +247,8 @@ export async function todoOriginCall(
     "todo_origin_call",
     {
       ...request,
-    }
+    },
+    { timeoutMs: 330_000 }
   )
   if (
     result.mode === "personal" &&

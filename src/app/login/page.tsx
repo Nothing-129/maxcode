@@ -69,7 +69,7 @@ export default function LoginPage() {
               onChange={(e) => setToken(e.target.value)}
               placeholder={t("tokenPlaceholder")}
               autoFocus
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
             />
           </div>
 
@@ -78,7 +78,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={!token || loading}
-            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50"
           >
             {loading ? t("connecting") : t("connect")}
           </button>
