@@ -1514,7 +1514,7 @@ pub async fn stop_workspace_state_stream_core(
             let _ =
                 entry
                     .full_subscribers
-                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
+                    .try_update(Ordering::AcqRel, Ordering::Acquire, |count| {
                         count.checked_sub(1)
                     });
         }

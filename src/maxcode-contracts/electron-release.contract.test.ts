@@ -1,5 +1,16 @@
 // @vitest-environment node
 import { createRequire } from "node:module"
+import { spawnSync } from "node:child_process"
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { parse } from "yaml"
 import { describe, expect, it } from "vitest"
 import { source, sourceExists } from "./contract-source"
@@ -26,6 +37,92 @@ const installers = (value: string) => [
 ]
 
 describe("MaxCode contract: Electron release and retired shell isolation", () => {
+  it.skipIf(process.platform === "win32").each([
+    {
+      name: "retries a transient Apple lookup failure",
+      failures: 1,
+      code: 68,
+      signature: 0,
+      attempts: 2,
+      status: 0,
+    },
+    {
+      name: "fails after three unsuccessful Apple lookups",
+      failures: 9,
+      code: 68,
+      signature: 0,
+      attempts: 3,
+      status: 68,
+    },
+    {
+      name: "fails immediately for other validation errors",
+      failures: 1,
+      code: 65,
+      signature: 0,
+      attempts: 1,
+      status: 65,
+    },
+    {
+      name: "never retries an invalid application signature",
+      failures: 0,
+      code: 68,
+      signature: 65,
+      attempts: 0,
+      status: 65,
+    },
+  ])("$name", ({ failures, code, signature, attempts, status }) => {
+    const workflow = parse(source(".github/workflows/release.yml"))
+    const step = workflow.jobs["build-electron"].steps.find(
+      (entry: { name?: string }) =>
+        entry.name === "Verify signed and notarized macOS application"
+    )
+    const directory = mkdtempSync(join(tmpdir(), "maxcode-notarization-"))
+    try {
+      const bin = join(directory, "bin")
+      const counter = join(directory, "attempts")
+      const assessment = join(directory, "assessed")
+      mkdirSync(bin)
+      mkdirSync(join(directory, "electron/dist/mac/maxcode.app"), {
+        recursive: true,
+      })
+      writeFileSync(counter, "0\n")
+      const command = (name: string, body: string) =>
+        writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`, {
+          mode: 0o755,
+        })
+      command("codesign", 'exit "$TEST_SIGNATURE_STATUS"')
+      command(
+        "xcrun",
+        `read -r count < "$TEST_COUNTER"
+count=$((count + 1))
+echo "$count" > "$TEST_COUNTER"
+if [ "$count" -le "$TEST_FAILURES" ]; then exit "$TEST_FAILURE_CODE"; fi`
+      )
+      command("sleep", "exit 0")
+      command("spctl", 'touch "$TEST_ASSESSMENT"')
+      const result = spawnSync("bash", ["-c", step.run], {
+        cwd: directory,
+        encoding: "utf8",
+        timeout: 5000,
+        env: {
+          ...process.env,
+          PATH: `${bin}:${process.env.PATH}`,
+          TEST_COUNTER: counter,
+          TEST_ASSESSMENT: assessment,
+          TEST_FAILURES: String(failures),
+          TEST_FAILURE_CODE: String(code),
+          TEST_SIGNATURE_STATUS: String(signature),
+        },
+      })
+      expect(result.error).toBeUndefined()
+      expect(result.status, result.stderr).toBe(status)
+      expect(Number(readFileSync(counter, "utf8"))).toBe(attempts)
+      expect(existsSync(assessment)).toBe(status === 0)
+    } finally {
+      rmSync(directory, { recursive: true, force: true })
+    }
+  })
+
   it("uses runtime-neutral release job names and upload patterns", () => {
     const workflow = parse(source(".github/workflows/release.yml"))
     const desktop = workflow.jobs["build-electron"]

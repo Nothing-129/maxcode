@@ -309,7 +309,20 @@ jobs:
           apps=(electron/dist/mac*/maxcode.app)
           test "${#apps[@]}" -eq 1
           codesign --verify --deep --strict --verbose=2 "${apps[0]}"
-          xcrun stapler validate "${apps[0]}"
+          # Apple ticket lookup can lose its network connection (error 68).
+          # Retry that failure only, keeping validation mandatory.
+          for attempt in 1 2 3; do
+            if xcrun stapler validate "${apps[0]}"; then
+              break
+            else
+              result=$?
+            fi
+            if [[ "$result" -ne 68 || "$attempt" -eq 3 ]]; then
+              exit "$result"
+            fi
+            echo "Apple ticket validation failed (68); retrying ($attempt/3)"
+            sleep "$((attempt * 10))"
+          done
           spctl --assess --type execute --verbose=2 "${apps[0]}"
       - name: Smoke test packaged application (Linux)
         if: runner.os == 'Linux'

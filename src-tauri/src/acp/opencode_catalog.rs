@@ -285,7 +285,11 @@ mod tests {
     fn pricing_cache_expires_after_six_hours_but_remains_an_offline_fallback() {
         let directory = tempfile::tempdir().unwrap();
         write_cache(directory.path(), &bundled_catalog());
-        let file = std::fs::File::open(cache_path(directory.path())).unwrap();
+        // Windows requires a writable handle to update file timestamps.
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(cache_path(directory.path()))
+            .unwrap();
         file.set_modified(SystemTime::now() - Duration::from_secs(5 * 60 * 60))
             .unwrap();
         assert!(read_cache(directory.path(), true).is_some());
