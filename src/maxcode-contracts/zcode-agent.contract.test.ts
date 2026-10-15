@@ -137,7 +137,7 @@ describe("MaxCode contract: ZCode agent (community npm ACP adapter)", () => {
   it("aggregates history from the ZCode SQLite session store", () => {
     expect(parsers).toContain("pub mod zcode;")
     expect(parsers).toContain(
-      "AgentType::Zcode => Box::new(zcode::ZcodeParser::new())"
+      "AgentType::Zcode => Box::new(zcode::ZcodeParser::for_env(env))"
     )
     expect(parserFile).toMatch(
       /join\("cli"\)\s*\.join\("db"\)\s*\.join\("db.sqlite"\)/
@@ -157,7 +157,10 @@ describe("MaxCode contract: ZCode agent (community npm ACP adapter)", () => {
   })
 
   it("resolves community ACP aliases against the same configurable data root", () => {
-    expect(parserFile).toContain('std::env::var_os("ZCODE_HOME")')
+    expect(parserFile).toContain('env.var_os("ZCODE_HOME")')
+    expect(parserFile).toContain(
+      "mod maxcode_zcode_relocated_history_contract;"
+    )
     expect(parserFile).toContain('join("v2").join("acp-lazy-sessions.json")')
     expect(parserFile).toContain('get("zcodeSid")')
     expect(parserFile).toContain("resolve_session_alias(conversation_id)")

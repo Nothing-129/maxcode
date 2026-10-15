@@ -420,6 +420,7 @@ const ConversationTabView = memo(function ConversationTabView({
   const mountedRef = useRef(true)
   const selectedAgentRef = useRef(selectedAgent)
   const createConversationPendingRef = useRef(false)
+  const [creatingConversation, setCreatingConversation] = useState(false)
   // Single-flight guard for the eager scratch-dir prepare (on chat-mode select).
   const prepareChatDirPendingRef = useRef(false)
   const sessionIdRef = useRef<string | null>(null)
@@ -681,7 +682,6 @@ const ConversationTabView = memo(function ConversationTabView({
   useEffect(() => {
     isViewerRef.current = conn.isViewer
   }, [conn.isViewer])
-  const isConnecting = connStatus === "connecting"
   // The tab's connection is keyed by a stable tabId, but agent switching is
   // async — and for a not-installed target, connect()'s preflight throws BEFORE
   // it tears down the old connection. So `conn` can still describe the PREVIOUS
@@ -1319,6 +1319,7 @@ const ConversationTabView = memo(function ConversationTabView({
       // depends on the flush-on-connect queue to deliver its first prompt.
       if (createConversationPendingRef.current) return
       createConversationPendingRef.current = true
+      setCreatingConversation(true)
       const title = getPromptDraftDisplayText(
         draft,
         sharedT("attachedResources")
@@ -1446,6 +1447,7 @@ const ConversationTabView = memo(function ConversationTabView({
           }
         } finally {
           createConversationPendingRef.current = false
+          setCreatingConversation(false)
         }
       })()
     },
@@ -1629,6 +1631,7 @@ const ConversationTabView = memo(function ConversationTabView({
     (nextAgentType: AgentType) => {
       if (nextAgentType === selectedAgentRef.current) return
       if (dbConvIdRef.current) return
+      if (createConversationPendingRef.current) return
 
       setDraftAgentType(nextAgentType)
       setModeId(getSavedModeId(nextAgentType))
@@ -1652,6 +1655,7 @@ const ConversationTabView = memo(function ConversationTabView({
     (nextAgentType: AgentType) => {
       if (nextAgentType === selectedAgentRef.current) return
       if (dbConvIdRef.current) return
+      if (createConversationPendingRef.current) return
 
       setDraftAgentType(nextAgentType)
       setModeId(getSavedModeId(nextAgentType))
@@ -2550,7 +2554,9 @@ const ConversationTabView = memo(function ConversationTabView({
                     )
                   }}
                   onOpenAgentsSettings={handleOpenAgentsSettings}
-                  disabled={isConnecting || dbConversationId != null}
+                  // Drafts remain switchable while connecting; saved
+                  // conversations retain the agent they were created with.
+                  disabled={dbConversationId != null || creatingConversation}
                 />
               </div>
               {composerBlockedMessage ? (
@@ -2645,7 +2651,8 @@ const ConversationTabView = memo(function ConversationTabView({
                 )
               }}
               onOpenAgentsSettings={handleOpenAgentsSettings}
-              disabled={isConnecting || dbConversationId != null}
+              // Same draft/saved rule as the welcome-mode picker above.
+              disabled={dbConversationId != null || creatingConversation}
             />
             {composerBlockedMessage ? (
               <div className="mt-2 flex w-full items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
@@ -3142,6 +3149,7 @@ export function ConversationDetailPanel() {
             tileTabRefs.current.delete(tab.id)
           }
         }}
+        data-tile-scroll-item=""
         className={cn(
           canTileG
             ? cn(

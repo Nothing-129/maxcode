@@ -10,6 +10,8 @@ import { HtmlPreview } from "@/components/files/html-preview"
 import { ImagePreview } from "@/components/files/image-preview"
 import { MarkdownDocumentPreview } from "@/components/files/markdown-document-preview"
 import { OfficePreview } from "@/components/files/office-preview"
+import { PdfPreview } from "@/components/files/pdf-preview"
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss"
 import { UnifiedDiffPreview } from "@/components/diff/unified-diff-preview"
 import {
   Drawer,
@@ -122,6 +124,7 @@ export function FileViewerDrawer({
   onOpenChange: (open: boolean) => void
 }) {
   const t = useTranslations("Folder.fileViewer")
+  useHistoryBackDismiss(open, () => onOpenChange(false))
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">
@@ -454,6 +457,9 @@ function FileViewerContent({
   // the two surfaces can never disagree about what a tab holds.
   if (tab.language === "image") {
     return <ImagePreview key={tab.id} tab={tab} />
+  }
+  if (tab.language === "pdf") {
+    return <PdfPreview key={tab.id} tab={tab} />
   }
   if (tab.language === "office") {
     return (

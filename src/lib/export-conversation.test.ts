@@ -57,6 +57,7 @@ function makeLabels(): ExportLabels {
     system: "System",
     toolResult: "Tool result",
     toolError: "Tool error",
+    turnFailed: "Turn failed",
     statusLabels: {},
   }
 }
@@ -190,6 +191,40 @@ describe("exportAsHtml", () => {
     ])
     expect(new TextDecoder().decode(mocks.saveFile.mock.calls[0][1])).toContain(
       "hello"
+    )
+  })
+})
+
+describe("a failed turn", () => {
+  function dataWithFailure(): ExportConversationData {
+    const data = makeData()
+    data.turns.push({
+      id: "t2",
+      role: "system",
+      blocks: [{ type: "turn_error", message: "API Error: 503\n<overloaded>" }],
+      timestamp: "2026-05-27T00:00:01Z",
+    })
+    return data
+  }
+
+  async function exported(
+    run: (data: ExportConversationData) => Promise<unknown>
+  ): Promise<string> {
+    mocks.desktop = true
+    mocks.saveFile.mockResolvedValue("/Users/me/out")
+    await run(dataWithFailure())
+    return new TextDecoder().decode(mocks.saveFile.mock.calls[0][1])
+  }
+
+  it("exports to Markdown as a labeled quote", async () => {
+    expect(await exported(exportAsMarkdown)).toContain(
+      "> **Turn failed**\n>\n> API Error: 503\n> <overloaded>"
+    )
+  })
+
+  it("exports to HTML as a labeled, escaped line", async () => {
+    expect(await exported(exportAsHtml)).toContain(
+      '<div class="turn-error"><strong>Turn failed</strong><br>API Error: 503<br>&lt;overloaded&gt;</div>'
     )
   })
 })

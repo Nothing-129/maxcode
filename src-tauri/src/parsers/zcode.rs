@@ -28,9 +28,13 @@ const ZCODE_MAX_IMAGE_ARTIFACT_BYTES: usize = ZCODE_MAX_INLINE_IMAGE_BYTES * 4 /
 /// PARENT of `.zcode` (default `$HOME`). Both the SQLite session store and
 /// the bridge's durable ACP aliases must resolve against the same root.
 pub(crate) fn resolve_zcode_data_root() -> PathBuf {
+    resolve_zcode_data_root_for_env(&super::AgentEnv::inherited())
+}
+
+pub(crate) fn resolve_zcode_data_root_for_env(env: &super::AgentEnv) -> PathBuf {
     resolve_zcode_data_root_from(
-        std::env::var_os("ZCODE_HOME"),
-        std::env::var_os("ZCODE_DATA_BASE_DIR"),
+        env.var_os("ZCODE_HOME"),
+        env.var_os("ZCODE_DATA_BASE_DIR"),
         dirs::home_dir(),
     )
 }
@@ -83,8 +87,12 @@ pub struct ZcodeParser {
 
 impl ZcodeParser {
     pub fn new() -> Self {
+        Self::for_env(&super::AgentEnv::inherited())
+    }
+
+    pub fn for_env(env: &super::AgentEnv) -> Self {
         Self {
-            db_path: resolve_zcode_data_root()
+            db_path: resolve_zcode_data_root_for_env(env)
                 .join("cli")
                 .join("db")
                 .join("db.sqlite"),
@@ -1111,3 +1119,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/zcode-relocated-history.contract.rs"]
+mod maxcode_zcode_relocated_history_contract;

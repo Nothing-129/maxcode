@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest"
 import {
   isHiddenPath,
   isOfficeOwnerFile,
+  isPdfFile,
   languageFromPath,
   shouldOpenWithSystemApp,
 } from "./language-detect"
@@ -190,7 +191,6 @@ describe("shouldOpenWithSystemApp", () => {
     ["src-tauri/target/release/bundle/macos/Codeg.app"],
     ["dist/tool.zip"],
     ["assets/演示视频.mp4"],
-    ["output/pdf/云客 CRM 开放平台接口文档.pdf"],
     ["~/Downloads/Installer.pkg"],
     ["C:\\Users\\a\\setup.exe"],
     // Case-insensitive extension match.
@@ -200,6 +200,7 @@ describe("shouldOpenWithSystemApp", () => {
   })
 
   it.each([
+    ["output/pdf/云客 CRM 开放平台接口文档.pdf"],
     // Everything the app previews itself: text/code, images, office.
     ["src/app.ts"],
     ["README.md"],
@@ -317,5 +318,32 @@ describe("isOfficeOwnerFile", () => {
     expect(isOfficeOwnerFile("")).toBe(false)
     expect(isOfficeOwnerFile(null)).toBe(false)
     expect(isOfficeOwnerFile(undefined)).toBe(false)
+  })
+})
+
+describe("isPdfFile", () => {
+  it.each([
+    ["report.pdf"],
+    ["/abs/docs/report.pdf"],
+    ["C:\\Users\\me\\Report.PDF"],
+    ["archive.tar.pdf"],
+  ])("%s -> pdf", (path) => {
+    expect(isPdfFile(path)).toBe(true)
+  })
+
+  it.each([
+    ["report.pdf.txt"],
+    ["pdf"],
+    [".pdf/notes.md"],
+    ["docs.pdf/readme"],
+    ["report.docx"],
+  ])("%s -> not pdf", (path) => {
+    expect(isPdfFile(path)).toBe(false)
+  })
+
+  it("treats empty and nullish input as not a pdf", () => {
+    expect(isPdfFile("")).toBe(false)
+    expect(isPdfFile(null)).toBe(false)
+    expect(isPdfFile(undefined)).toBe(false)
   })
 })

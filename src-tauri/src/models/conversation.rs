@@ -164,6 +164,13 @@ pub struct DbConversationDetail {
     /// its send-time history baseline between global and window coordinates.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assistant_turns_before_offset: Option<usize>,
+    /// User turns in `full[0..turns_offset)`. The message navigator counts
+    /// and numbers every message of the conversation, including the ones
+    /// above the loaded window; this is what it adds to the window's own.
+    /// Absent from servers that predate it (and from legacy full responses),
+    /// which also tells the client the outline endpoint isn't there.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_turns_before_offset: Option<usize>,
     /// Structural fingerprint of `full[0..turns_offset)` (see
     /// `commands::turn_window::prefix_fingerprint`), as a fixed-width 16-hex
     /// string — a u64 JSON number would be rounded past 2^53-1 by JS.
@@ -187,6 +194,9 @@ pub struct ConversationTurnsPage {
     pub turns_offset: usize,
     pub turns_total: usize,
     pub assistant_turns_before_offset: usize,
+    /// User turns in `full[0..turns_offset)` — the window's new
+    /// `user_turns_before_offset` after a successful prepend.
+    pub user_turns_before_offset: usize,
     /// Fingerprint of `full[0..turns_offset)` — adopted by the client as its
     /// new window fingerprint after a successful prepend.
     pub prefix_hash: String,
@@ -197,6 +207,21 @@ pub struct ConversationTurnsPage {
     pub prefix_hash_before_index: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncovered_prefix_max_ts: Option<DateTime<Utc>>,
+}
+
+/// The message navigator's view of the history ABOVE the loaded window:
+/// `full[0..min(beforeIndex, total))`, one entry per turn (so `turns[i]` is
+/// global turn `i`), each reduced to what the navigator reads — see
+/// `commands::turn_window::nav_outline_turns` for exactly what survives.
+/// Every turn keeps its id, role and timestamp, so the client can fingerprint
+/// any prefix of it and check it against its window before using it.
+#[derive(Debug, Clone, Serialize)]
+pub struct ConversationOutline {
+    pub turns: Vec<MessageTurn>,
+    pub turns_total: usize,
+    /// Fingerprint of `full[0..turns.len())` — equal to the client's window
+    /// fingerprint when the outline was cut at the window start.
+    pub prefix_hash: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

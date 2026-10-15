@@ -59,6 +59,7 @@ import {
   useWorkspaceView,
 } from "@/contexts/workspace-context"
 import { useWorkspaceBackground, useZoomLevel } from "@/hooks/use-appearance"
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss"
 import { FILL_MODE_STYLE } from "@/lib/workspace-background"
 import { TerminalPanel } from "@/components/terminal/terminal-panel"
 import { AuxPanel } from "@/components/layout/aux-panel"
@@ -518,11 +519,17 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
 
 function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
   const { mode, activePane } = useWorkspaceView()
+  const { activateConversationPane } = useWorkspaceActions()
   const { isConversations } = useWorkbenchRoute()
   const hasRouteStrip = useHasWorkbenchRouteStrip()
 
   const showConversation =
     mode === "conversation" || activePane === "conversation"
+
+  useHistoryBackDismiss(
+    isConversations && !showConversation,
+    activateConversationPane
+  )
 
   return (
     <div className="relative h-full min-h-0 overflow-hidden">
@@ -582,6 +589,10 @@ function MobileFolderWorkspaceShell({
     toggle: toggleAux,
   } = useAuxPanelContext()
   const { isOpen: terminalOpen, toggle: toggleTerminal } = useTerminalContext()
+
+  useHistoryBackDismiss(sidebarRestored && sidebarOpen, toggleSidebar)
+  useHistoryBackDismiss(auxRestored && auxOpen, toggleAux)
+  useHistoryBackDismiss(terminalOpen, toggleTerminal)
 
   return (
     <div className="flex flex-1 min-h-0 overflow-hidden">

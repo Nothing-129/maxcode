@@ -1,8 +1,18 @@
 "use client"
 
-import { Code, ExternalLink, Eye } from "lucide-react"
+import { useMemo } from "react"
+import { Code, Download, ExternalLink, Eye } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { toast } from "sonner"
 import { openPath } from "@/lib/platform"
+import {
+  downloadWorkspaceFile,
+  isWorkspaceFileApiAvailable,
+  WORKSPACE_DOWNLOAD_CANCELLED,
+} from "@/lib/api"
+import { toErrorMessage } from "@/lib/app-error"
+import { findOwningFolder, splitAbsPath } from "@/lib/file-open-target"
+import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { isHtmlPreviewable } from "@/lib/language-detect"
 import {
   useWorkspaceActions,
@@ -23,9 +33,21 @@ import { cn } from "@/lib/utils"
  */
 export function FileWorkspaceHeader() {
   const t = useTranslations("Folder.fileWorkspace")
+  const tFileTree = useTranslations("Folder.fileTreeTab")
   const { activeFileTab, activeFileTabId, previewFileTabIds } =
     useWorkspaceFileTabs()
   const { toggleFileTabPreview } = useWorkspaceActions()
+  const allFolders = useAppWorkspaceStore((s) => s.allFolders)
+  const activeAbsPath = activeFileTab?.path ?? null
+  const downloadTarget = useMemo(() => {
+    if (!activeAbsPath) return null
+    const owning = findOwningFolder(activeAbsPath, allFolders)
+    if (owning) return { rootPath: owning.rootPath, path: owning.relPath }
+    // Agent outputs outside registered folders are still readable through
+    // their own directory, just as when opening the preview.
+    const io = splitAbsPath(activeAbsPath)
+    return io ? { rootPath: io.rootPath, path: io.ioPath } : null
+  }, [activeAbsPath, allFolders])
 
   if (!activeFileTab) return null
 
@@ -45,6 +67,37 @@ export function FileWorkspaceHeader() {
     canPreview && activeFileTabId
       ? previewFileTabIds.has(activeFileTabId)
       : false
+  const canDownload =
+    activeFileTab.kind === "file" &&
+    downloadTarget !== null &&
+    isWorkspaceFileApiAvailable()
+
+  const handleDownload = () => {
+    if (!downloadTarget) return
+    const name = activeFileTab.title
+    void (async () => {
+      try {
+        const result = await downloadWorkspaceFile(
+          downloadTarget.rootPath,
+          downloadTarget.path,
+          name
+        )
+        // The shared HTTP path hands progress to the browser/Electron
+        // download manager. Only a completed native save needs a toast.
+        if (result.status === "started") return
+        if (result.status === WORKSPACE_DOWNLOAD_CANCELLED) return
+        if (result.savedPath) {
+          toast.success(tFileTree("toasts.downloadSaved", { name }), {
+            description: result.savedPath,
+          })
+        }
+      } catch (error) {
+        toast.error(tFileTree("toasts.downloadFailed", { name }), {
+          description: toErrorMessage(error),
+        })
+      }
+    })()
+  }
 
   const actionBtn =
     "flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-primary/8 transition-colors"
@@ -78,6 +131,17 @@ export function FileWorkspaceHeader() {
         )}
       </div>
       <div className="flex shrink-0 items-center gap-0.5">
+        {canDownload && (
+          <button
+            type="button"
+            onClick={handleDownload}
+            className={actionBtn}
+            aria-label={tFileTree("download")}
+            title={tFileTree("download")}
+          >
+            <Download className="h-4 w-4" />
+          </button>
+        )}
         {canPreview && activeFileTabId && (
           <button
             type="button"

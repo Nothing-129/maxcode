@@ -2057,7 +2057,8 @@
         "assistant": "アシスタント",
         "system": "システム",
         "toolResult": "結果",
-        "toolError": "エラー"
+        "toolError": "エラー",
+        "turnFailed": "ターン失敗"
       },
       "moreActions": "その他の操作"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "ライブプレビューを開始できませんでした",
       "officeWatchRetry": "再試行",
       "officeServerInstallHint": "OfficeCLI はサーバーホストにインストールする必要があります。サーバーで次のコマンドを実行してから再試行してください：",
-      "officeRemoteDesktopUnsupported": "リモートデスクトップウィンドウではライブプレビューを利用できません。Office ファイルをプレビューするには、サーバーの Web UI でこのワークスペースを開いてください。"
+      "officeRemoteDesktopUnsupported": "リモートデスクトップウィンドウではライブプレビューを利用できません。Office ファイルをプレビューするには、サーバーの Web UI でこのワークスペースを開いてください。",
+      "pdfDocument": "PDF ドキュメント",
+      "pdfZoomIn": "拡大",
+      "pdfZoomOut": "縮小",
+      "pdfZoomReset": "ズームをリセット",
+      "pdfFitWidth": "幅に合わせる",
+      "pdfPageNumber": "ページ番号",
+      "pdfFind": "ドキュメント内を検索",
+      "pdfFindPrevious": "前の一致",
+      "pdfFindNext": "次の一致",
+      "pdfFindNoMatches": "一致なし",
+      "pdfPasswordPrompt": "この PDF はパスワードで保護されています。開くにはパスワードを入力してください。",
+      "pdfPasswordIncorrect": "パスワードが正しくありません。もう一度お試しください。",
+      "pdfPassword": "パスワード",
+      "pdfPasswordSubmit": "開く",
+      "pdfInvalid": "このファイルは有効な PDF ではないか、破損しています。",
+      "pdfLoadFailed": "この PDF を表示できません: {message}"
     },
     "fileViewer": {
       "title": "ファイルプレビュー",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} ステップ",
         "processedFor": "処理済み {duration}",
         "showMore": "もっと見る",
-        "showLess": "折りたたむ"
+        "showLess": "折りたたむ",
+        "turnFailed": "このターンは失敗しました：{message}"
       },
       "liveTurnStats": {
         "waiting": "応答を待機中",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex ビジュアライゼーション",
         "htmlPreviewOpen": "プレビュー",
         "htmlPreviewOpenAria": "{name} をプレビュー",
-        "htmlPreviewHide": "プレビューを閉じる"
+        "htmlPreviewHide": "プレビューを閉じる",
+        "agentEffortLabel": "思考の強度",
+        "allowLarge": "サイズ上限超過"
       },
       "conversationFind": {
         "title": "会話内を検索",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "メッセージ {count}",
         "fileCount": "{count, plural, one {# 個のファイル} other {# 個のファイル}}",
         "remove": "削除",
-        "noDiffDataAvailable": "{filePath} の差分データがありません"
+        "noDiffDataAvailable": "{filePath} の差分データがありません",
+        "loadingEarlier": "以前のメッセージを読み込み中…",
+        "loadEarlier": "以前のメッセージを読み込む"
       },
       "replyArtifacts": {
         "editedFiles": "{count} 個のファイルを編集",

@@ -281,26 +281,30 @@ mod tests {
 
     #[tokio::test]
     async fn perform_attaches_to_an_in_flight_download_without_busy() {
-        let db = crate::db::test_helpers::fresh_in_memory_db().await;
-        let dir = tempfile::tempdir().unwrap();
-        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        // The test host may itself be an Electron-owned backend.
+        temp_env::async_with_vars([("CODEG_RUNTIME", Some("standalone"))], async {
+            let db = crate::db::test_helpers::fresh_in_memory_db().await;
+            let dir = tempfile::tempdir().unwrap();
+            let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
 
-        // Simulate a download already in flight (what the first request's
-        // `try_begin` would have set).
-        let (started, _) = update_state::try_begin(&state.update_state, &state.emitter);
-        assert!(started);
+            // Simulate a download already in flight (what the first request's
+            // `try_begin` would have set).
+            let (started, _) = update_state::try_begin(&state.update_state, &state.emitter);
+            assert!(started);
 
-        // A second concurrent perform must return the live snapshot and attach —
-        // never a `busy` error, and without driving a second download. `try_begin`
-        // short-circuits before the op-lock or any network is touched.
-        let result = perform_impl(state.clone())
-            .await
-            .expect("second perform attaches instead of erroring");
-        assert_eq!(result.status, update_state::AppUpdateLifecycle::Downloading);
+            // A second concurrent perform must return the live snapshot and attach —
+            // never a `busy` error, and without driving a second download. `try_begin`
+            // short-circuits before the op-lock or any network is touched.
+            let result = perform_impl(state.clone())
+                .await
+                .expect("second perform attaches instead of erroring");
+            assert_eq!(result.status, update_state::AppUpdateLifecycle::Downloading);
 
-        // The op-lock was never taken on the attach path, so a follow-up restart
-        // could still acquire it.
-        assert!(state.system_op_lock.try_lock().is_ok());
+            // The op-lock was never taken on the attach path, so a follow-up restart
+            // could still acquire it.
+            assert!(state.system_op_lock.try_lock().is_ok());
+        })
+        .await;
     }
 
     #[tokio::test]
@@ -325,68 +329,80 @@ mod tests {
 
     #[tokio::test]
     async fn restart_rejected_when_no_staged_update() {
-        let db = crate::db::test_helpers::fresh_in_memory_db().await;
-        let dir = tempfile::tempdir().unwrap();
-        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        // The test host may itself be an Electron-owned backend.
+        temp_env::async_with_vars([("CODEG_RUNTIME", Some("standalone"))], async {
+            let db = crate::db::test_helpers::fresh_in_memory_db().await;
+            let dir = tempfile::tempdir().unwrap();
+            let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
 
-        // Fresh state is Idle — nothing is staged, so a (stale) restart click
-        // must be rejected rather than rebooting into whatever is on disk.
-        let err = restart_impl(state.clone()).unwrap_err();
-        assert!(err.message.contains("No staged update"));
-        // State untouched and the lock is free for a later legitimate op.
-        assert_eq!(
-            update_state::snapshot(&state.update_state).status,
-            update_state::AppUpdateLifecycle::Idle
-        );
-        assert!(state.system_op_lock.try_lock().is_ok());
+            // Fresh state is Idle — nothing is staged, so a (stale) restart click
+            // must be rejected rather than rebooting into whatever is on disk.
+            let err = restart_impl(state.clone()).unwrap_err();
+            assert!(err.message.contains("No staged update"));
+            // State untouched and the lock is free for a later legitimate op.
+            assert_eq!(
+                update_state::snapshot(&state.update_state).status,
+                update_state::AppUpdateLifecycle::Idle
+            );
+            assert!(state.system_op_lock.try_lock().is_ok());
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn restart_attaches_when_another_window_already_claimed_it() {
-        let db = crate::db::test_helpers::fresh_in_memory_db().await;
-        let dir = tempfile::tempdir().unwrap();
-        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        // The test host may itself be an Electron-owned backend.
+        temp_env::async_with_vars([("CODEG_RUNTIME", Some("standalone"))], async {
+            let db = crate::db::test_helpers::fresh_in_memory_db().await;
+            let dir = tempfile::tempdir().unwrap();
+            let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
 
-        // Model another window winning the restart race without actually
-        // scheduling a process exit in this test.
-        assert!(update_state::try_claim_rollback(
-            &state.update_state,
-            &state.emitter
-        ));
-        let result =
-            restart_impl(state.clone()).expect("an already-scheduled restart should be idempotent");
+            // Model another window winning the restart race without actually
+            // scheduling a process exit in this test.
+            assert!(update_state::try_claim_rollback(
+                &state.update_state,
+                &state.emitter
+            ));
+            let result = restart_impl(state.clone())
+                .expect("an already-scheduled restart should be idempotent");
 
-        assert!(!result.need_restart);
-        assert_eq!(
-            update_state::snapshot(&state.update_state).status,
-            update_state::AppUpdateLifecycle::Restarting
-        );
-        assert!(state.system_op_lock.try_lock().is_ok());
+            assert!(!result.need_restart);
+            assert_eq!(
+                update_state::snapshot(&state.update_state).status,
+                update_state::AppUpdateLifecycle::Restarting
+            );
+            assert!(state.system_op_lock.try_lock().is_ok());
+        })
+        .await;
     }
 
     #[tokio::test]
     async fn rollback_rejected_when_update_staged() {
-        let db = crate::db::test_helpers::fresh_in_memory_db().await;
-        let dir = tempfile::tempdir().unwrap();
-        let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
+        // The test host may itself be an Electron-owned backend.
+        temp_env::async_with_vars([("CODEG_RUNTIME", Some("standalone"))], async {
+            let db = crate::db::test_helpers::fresh_in_memory_db().await;
+            let dir = tempfile::tempdir().unwrap();
+            let state = Arc::new(AppState::new_for_test(db, dir.path().to_path_buf()));
 
-        // An upgrade is staged awaiting restart. A stale rollback (e.g. a
-        // confirm dialog opened while idle in another window) must be rejected
-        // and must NOT flip the staged state to `restarting`.
-        update_state::set_ready(
-            &state.update_state,
-            &state.emitter,
-            Some("1.2.3".into()),
-            Some(2000),
-            Some(30),
-            None,
-        );
-        let err = rollback_impl(state.clone()).await.unwrap_err();
-        assert!(err.message.contains("Cannot roll back"));
-        assert_eq!(
-            update_state::snapshot(&state.update_state).status,
-            update_state::AppUpdateLifecycle::ReadyToRestart
-        );
-        assert!(state.system_op_lock.try_lock().is_ok());
+            // An upgrade is staged awaiting restart. A stale rollback (e.g. a
+            // confirm dialog opened while idle in another window) must be rejected
+            // and must NOT flip the staged state to `restarting`.
+            update_state::set_ready(
+                &state.update_state,
+                &state.emitter,
+                Some("1.2.3".into()),
+                Some(2000),
+                Some(30),
+                None,
+            );
+            let err = rollback_impl(state.clone()).await.unwrap_err();
+            assert!(err.message.contains("Cannot roll back"));
+            assert_eq!(
+                update_state::snapshot(&state.update_state).status,
+                update_state::AppUpdateLifecycle::ReadyToRestart
+            );
+            assert!(state.system_op_lock.try_lock().is_ok());
+        })
+        .await;
     }
 }

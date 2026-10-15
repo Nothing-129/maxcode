@@ -100,6 +100,10 @@ import {
   upsertAsyncTask,
 } from "@/lib/async-tasks"
 import { contentBlocksFromUserMessage } from "@/lib/user-message-blocks"
+import {
+  isFailedTurnVerdict,
+  rejectedPromptText,
+} from "@/lib/acp-error-presentation"
 import { getAgentLabel } from "@/lib/custom-agents"
 import {
   localizeConfigOptionLabel,
@@ -267,6 +271,16 @@ export type LiveContentBlock =
       createdAt: string
       blocks?: ContentBlock[] | null
     }
+  /**
+   * The turn FAILED: the adapter's typed terminal record, the prompt the agent
+   * rejected, or codeg's verdict that nothing came back. Not agent output:
+   * like a steer it closes the reply, and it renders as a `system` turn of its
+   * own holding a `turn_error` block — what a reload draws from the agent's
+   * own record of the failure (`parsers::turn_error_message`). At most one per
+   * turn (see `TURN_FAILED`); `fromAgent` is whether `message` is the agent's
+   * own words rather than codeg's verdict.
+   */
+  | { type: "turn_error"; message: string; fromAgent: boolean }
 
 export interface LiveMessage {
   id: string
@@ -856,6 +870,13 @@ type Action =
       /** What the user sent, when it was more than plain text — see the
        *  `steering` block. Absent for a text-only steer. */
       blocks?: ContentBlock[] | null
+    }
+  | {
+      type: "TURN_FAILED"
+      contextKey: string
+      message: string
+      /** The agent's own words, as opposed to codeg's verdict. */
+      fromAgent: boolean
     }
   | {
       type: "CLAUDE_API_RETRY"
@@ -3007,6 +3028,47 @@ function connectionsReducer(
       return next
     }
 
+    case "TURN_FAILED": {
+      const conn = state.get(action.contextKey)
+      if (!conn) return state
+      // Same out-of-turn guard as STEERING_MESSAGE: with no running turn there
+      // is nothing to close, and appending would graft the line onto the
+      // PREVIOUS turn's completed liveMessage.
+      if (conn.status !== "prompting") return state
+      const message = action.message.trim()
+      if (!message) return state
+      const prev = ensureLiveMessage(conn.liveMessage)
+      const current = prev.content.find((block) => block.type === "turn_error")
+      // One account per turn. The agent's own words win over codeg's verdict
+      // whichever arrives first; otherwise the later account replaces the
+      // earlier (a revised record), and a replay changes nothing.
+      if (current) {
+        if (current.fromAgent && !action.fromAgent) return state
+        if (
+          current.message === message &&
+          current.fromAgent === action.fromAgent
+        ) {
+          return state
+        }
+      }
+      const next = new Map(state)
+      next.set(action.contextKey, {
+        ...conn,
+        liveMessage: {
+          ...prev,
+          content: [
+            ...prev.content.filter((block) => block.type !== "turn_error"),
+            {
+              type: "turn_error" as const,
+              message,
+              fromAgent: action.fromAgent,
+            },
+          ],
+        },
+      })
+      return next
+    }
+
     case "CLAUDE_API_RETRY": {
       const conn = state.get(action.contextKey)
       if (!conn) return state
@@ -3186,6 +3248,13 @@ export interface ConnectPendingInfo {
   workingDir: string | null
 }
 
+export interface ConnectErrorInfo {
+  agentType: AgentType
+  title: string
+  detail: string | null
+  opensAgentSettings: boolean
+}
+
 interface InternalStore {
   connections: ConnectionsMap
   activeKey: string | null
@@ -3201,6 +3270,7 @@ export interface ConnectionStoreApi {
    *  returned object is reference-stable for the lifetime of that connect, so
    *  it is safe as a `useSyncExternalStore` snapshot. */
   getConnectPending(key: string): ConnectPendingInfo | undefined
+  getConnectError(key: string): ConnectErrorInfo | undefined
   getActiveKey(): string | null
   subscribeKey(key: string, cb: () => void): () => void
   subscribeActiveKey(cb: () => void): () => void
@@ -3686,6 +3756,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   // disconnect / send paths read `storeRef.current.connections` and never see
   // these, so a hung spawn cannot be mistaken for a live backend id.
   const pendingConnectsRef = useRef(new Map<string, ConnectionState>())
+  const connectErrorsRef = useRef(new Map<string, ConnectErrorInfo>())
   const pendingConnectRequestsRef = useRef(new Map<string, ConnectRequest>())
   // Last params `connect()` was called with, per contextKey — kept AFTER the
   // connection is gone (teardown removes the store entry entirely, so a
@@ -3881,6 +3952,15 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const notifyActiveKeyListeners = useCallback(() => {
     for (const cb of storeRef.current.activeKeyListeners) cb()
   }, [])
+
+  const setConnectError = useCallback(
+    (key: string, error: ConnectErrorInfo | null) => {
+      if (error) connectErrorsRef.current.set(key, error)
+      else if (!connectErrorsRef.current.delete(key)) return
+      notifyKeyListeners(key)
+    },
+    [notifyKeyListeners]
+  )
 
   const dropConnectPending = useCallback(
     (contextKey: string) => {
@@ -4089,6 +4169,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       },
       getConnectPending(key: string) {
         return pendingConnectsRef.current.get(key)
+      },
+      getConnectError(key: string) {
+        return connectErrorsRef.current.get(key)
       },
       getActiveKey() {
         return storeRef.current.activeKey
@@ -4991,6 +5074,22 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           // reducer). Rendering + action buttons live in
           // `SessionFailureBanner`; resolution is inferred at turn/prompt
           // boundaries (STATUS_CHANGED).
+          // Preserve the AIR banner and also close this failed round in the transcript.
+          // Reject stale revisions before they can amend the visible account.
+          if (e.record.severity !== "warning" && !e.record.resolved) {
+            const stored = storeRef.current.connections
+              .get(contextKey)
+              ?.sessionFailures.find((record) => record.id === e.record.id)
+            if (!stored || e.record.revision > stored.revision) {
+              flushStreamingQueue(contextKey)
+              dispatch({
+                type: "TURN_FAILED",
+                contextKey,
+                message: e.record.title.trim() || t("eventErrorTitle"),
+                fromAgent: Boolean(e.record.title.trim()),
+              })
+            }
+          }
           dispatch({
             type: "SESSION_FAILURE",
             contextKey,
@@ -5254,6 +5353,25 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
                 return e.message
             }
           })()
+          // A verdict that the turn FAILED, or a prompt the agent rejected (no
+          // code: the message is the agent's own), closes the turn with the
+          // failure line (see `TURN_FAILED`). Store state, so even when
+          // `quiet`; outside a turn the reducer ignores it.
+          if (isFailedTurnVerdict(e.code)) {
+            dispatch({
+              type: "TURN_FAILED",
+              contextKey,
+              message: localizedMessage,
+              fromAgent: false,
+            })
+          } else if (!e.code) {
+            dispatch({
+              type: "TURN_FAILED",
+              contextKey,
+              message: rejectedPromptText(e.message),
+              fromAgent: true,
+            })
+          }
 
           // Backend-supplied diagnostic evidence (agent stderr tail, unparsed
           // update counts), already redacted and bounded there. It rides its
@@ -6367,6 +6485,8 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       lastConnectParamsRef.current.set(contextKey, request)
       if (connectingKeysRef.current.has(contextKey)) {
         pendingConnectRequestsRef.current.set(contextKey, request)
+        markConnectPending(contextKey, agentType, workingDir ?? null)
+        setConnectError(contextKey, null)
         return
       }
       connectingKeysRef.current.add(contextKey)
@@ -6374,6 +6494,14 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       // preflight, discovery, and `acpConnect` (spawn takes seconds); without
       // this overlay the composer reads a missing entry as "disconnected".
       markConnectPending(contextKey, agentType, workingDir ?? null)
+      setConnectError(contextKey, null)
+      const isSuperseded = () => {
+        const pending = pendingConnectRequestsRef.current.get(contextKey)
+        return (
+          abandonedKeysRef.current.has(contextKey) ||
+          (pending != null && !sameConnectRequest(pending, request))
+        )
+      }
 
       // Declared outside the try so the catch below can still tell whether this
       // agent is an ACP adapter when picking its "not installed" wording.
@@ -6387,6 +6515,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         try {
           configuredAgent = await acpGetAgentStatus(agentType)
         } catch (error) {
+          if (isSuperseded()) throw error
           const reason = t("unableReadAgentConfig", {
             message: normalizeErrorMessage(error),
           })
@@ -6402,6 +6531,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           throw createAlertedError(reason)
         }
 
+        if (isSuperseded()) return
         const blocked = resolveConnectBlockState(configuredAgent)
         if (blocked.kind !== "none") {
           const failedTitle = t("connectFailedTitle", {
@@ -6826,7 +6956,19 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         const pendingRequest = pendingConnectRequestsRef.current.get(contextKey)
         const superseded =
           pendingRequest != null && !sameConnectRequest(pendingRequest, request)
-        if (!superseded && !isAlertedError(err)) {
+        if (!superseded && !abandonedKeysRef.current.has(contextKey)) {
+          setConnectError(contextKey, {
+            agentType,
+            title: t("connectFailedTitle", { agent: getAgentLabel(agentType) }),
+            detail: normalizeErrorMessage(err),
+            opensAgentSettings: isAlertedError(err),
+          })
+        }
+        if (
+          !superseded &&
+          !abandonedKeysRef.current.has(contextKey) &&
+          !isAlertedError(err)
+        ) {
           const message = normalizeErrorMessage(err)
           const agentLabel = getAgentLabel(agentType)
           // Backend safety net: if the agent turned out to be not
@@ -6930,6 +7072,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       isConnectionReferencedLocally,
       localOwnerKeyOf,
       markConnectPending,
+      setConnectError,
       markConnectionGone,
       releaseConnectionRoute,
       resolveConnectBlockState,
@@ -6945,6 +7088,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
 
   const disconnect = useCallback(
     async (contextKey: string): Promise<boolean> => {
+      setConnectError(contextKey, null)
       retainedOwnerKeysRef.current.delete(contextKey)
       pendingConnectRequestsRef.current.delete(contextKey)
       // An in-flight connect() must abandon its result whether or not it has
@@ -7014,6 +7158,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       captureIdentityBeforeRemoval,
       dispatch,
       dropConnectPending,
+      setConnectError,
       releaseConnectionRoute,
       teardownAttachSubscription,
     ]
@@ -7226,6 +7371,16 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
   const disconnectAll = useCallback(async () => {
     const promises: Promise<void>[] = []
     pendingConnectRequestsRef.current.clear()
+    // A preflight/spawn can finish after REMOVE_ALL. It must not re-register
+    // its old backend connection or publish an error under a recycled key.
+    for (const contextKey of connectingKeysRef.current) {
+      abandonedKeysRef.current.add(contextKey)
+    }
+    // Failed preflights have no connection entry, yet still own a visible
+    // per-key error. Reset them too when switching backend or signing out.
+    for (const contextKey of connectErrorsRef.current.keys()) {
+      setConnectError(contextKey, null)
+    }
     for (const [contextKey, conn] of storeRef.current.connections) {
       // Viewers attach to a connection another client owns — detach our
       // read-only subscription but never acpDisconnect (that would kill the
@@ -7258,7 +7413,12 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
     pendingConnectsRef.current.clear()
     await Promise.all(promises)
     dispatch({ type: "REMOVE_ALL" })
-  }, [discardStreamingQueues, dispatch, teardownAttachSubscription])
+  }, [
+    discardStreamingQueues,
+    dispatch,
+    setConnectError,
+    teardownAttachSubscription,
+  ])
 
   const sendPrompt = useCallback(
     async (

@@ -2,6 +2,225 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.selected-upstream-20261015",
+      "category": "runtime",
+      "description": "Selected v0.35.2 shared runtime fixes stop empty feedback polling, deliver structured continuation hints, avoid turnCompanion duplication, cancel startup handshakes and all owned terminals, and read maintained agent history from saved environment paths including ZCode. Reviewed Claude ACP 0.90.0, Codex ACP 2.2.2, Grok 1.0.52 and Antigravity 1.4.0 preserve seven-agent scope, native steering gates, AIR accounting, ZCode mode/fork restrictions and per-conversation model/thinking precedence.",
+      "origins": [
+        "3991581a4",
+        "128a0a7df",
+        "214fc91fd",
+        "fba9639b4",
+        "70d7fe59b",
+        "6495ac167",
+        "6bf1aedfb",
+        "68c13c930",
+        "8214e7a60",
+        "8131bc1b6",
+        "22e70a051",
+        "fa38e5349",
+        "8b95fc1c9",
+        "e86fd9bfc",
+        "bd30df7c7",
+        "001ee7282"
+      ],
+      "paths": [
+        "src-tauri/src/acp/background_watch.rs",
+        "src-tauri/src/acp/codex_model_catalog.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/delegation/companion.rs",
+        "src-tauri/src/acp/delegation/tool_schema.json",
+        "src-tauri/src/acp/event_stream.rs",
+        "src-tauri/src/acp/fork.rs",
+        "src-tauri/src/acp/lifecycle.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/session_state.rs",
+        "src-tauri/src/acp/session_title.rs",
+        "src-tauri/src/acp/terminal_runtime.rs",
+        "src-tauri/src/parsers/agent_env.rs",
+        "src-tauri/src/parsers/mod.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/grok.rs",
+        "src-tauri/src/parsers/pi.rs",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src-tauri/src/parsers/antigravity.rs",
+        "src-tauri/src/parsers/zcode.rs",
+        "src-tauri/src/db/service/agent_setting_service.rs",
+        "src-tauri/src/db/service/import_service.rs",
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/backup/external.rs",
+        "src-tauri/src/commands/session_info.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src-tauri/src/models/message.rs",
+        "src-tauri/src/web/handlers/conversations.rs",
+        "src/maxcode-contracts/upstream-runtime-20261015.contract.rs",
+        "src/maxcode-contracts/upstream-runtime-feedback-20261015.contract.rs",
+        "src/maxcode-contracts/upstream-runtime-watch-20261015.contract.rs",
+        "src/maxcode-contracts/zcode-relocated-history.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-runtime-20261015.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.startup-agent-switch-20261015",
+      "category": "product",
+      "description": "Draft agent pickers remain available during startup while saved conversations stay bound. The latest parked request wins, failures remain visible only for that selected agent, and old connections never receive its config or prompts. Preserve editable FIFO queues, agent/cwd/selectors-ready delivery gates, unsent todo drafts, warm owners and per-conversation model memory. Streaming tile internals avoid row-scroller layout measurements and agent capsules scroll natively.",
+      "origins": [
+        "47970b146",
+        "3b722ddd7",
+        "b56b41f86",
+        "f2c8ad2eb",
+        "809efc7a1",
+        "99424aba8"
+      ],
+      "paths": [
+        "src/contexts/acp-connections-context.tsx",
+        "src/hooks/use-connection.ts",
+        "src/hooks/use-connection-lifecycle.ts",
+        "src/components/canvas/canvas-conversation-surface.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/conversations/tile-scroll-container.tsx",
+        "src/components/message/agent-capsule.tsx",
+        "src/lib/queue-flush.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-connections-20261015.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "files.pdf-office-download-20261015",
+      "category": "product",
+      "description": "PDFs open in the shared read-only file viewer on Electron and web with local worker/fonts/decoders, safe links and a 100 MB byte budget. Preview headers download workspace and external output files while preserving existing HTML actions and system opening for other binary artifacts. Office previews retain reading state across tab switches, renew identity-scoped holds, allow bounded cold starts and kill queued/starting servers synchronously on exit through the Electron HTTP opaque sandbox.",
+      "origins": [
+        "3f72c4dc0",
+        "15a0ab423",
+        "ae1138579",
+        "67d28ae2a",
+        "e8a244d2e",
+        "5aa469e45",
+        "7603f93f6",
+        "1bafdaca8"
+      ],
+      "paths": [
+        "src/components/files/file-viewer-drawer.tsx",
+        "src/components/files/file-workspace-header.tsx",
+        "src/components/files/file-workspace-panel.tsx",
+        "src/components/files/kept-office-previews.tsx",
+        "src/components/files/office-preview.tsx",
+        "src/components/files/pdf-preview.tsx",
+        "src/components/files/pdf-viewer.tsx",
+        "src/contexts/workspace-context.tsx",
+        "src/lib/language-detect.ts",
+        "src/lib/pdfjs.ts",
+        "src/lib/api.ts",
+        "src/hooks/use-open-file-tabs-watch.ts",
+        "src-tauri/src/office_watch/",
+        "src-tauri/src/commands/office_tools.rs",
+        "src-tauri/src/web/handlers/office_tools.rs",
+        "src-tauri/src/web/handlers/office_watch_proxy.rs",
+        "src-tauri/src/web/handlers/office_watch_shim.js",
+        "src-tauri/src/web/router.rs",
+        "package.json"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-files-20261015.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.full-history-rail-20261015",
+      "category": "product",
+      "description": "The existing overflow-only desktop message tick rail covers seam-verified history above the loaded window and pages to an earlier selection before jumping. Preserve the rail appearance, loaded question/answer previews, mobile hiding, stale-request isolation and failed-tool exclusion, without restoring the retired navigator card. Upward programmatic jumps release bottom-following while jumps already at the tail keep it. Older servers retain loaded-window navigation.",
+      "origins": ["dd1f4dcc1", "e5a91ed6c"],
+      "paths": [
+        "src/components/message/conversation-message-rail.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/use-message-nav-jump.ts",
+        "src/components/message/message-nav-entries.ts",
+        "src/components/message/virtualized-message-thread.tsx",
+        "src/hooks/use-conversation-outline.ts",
+        "src/stores/conversation-runtime-store.ts",
+        "src/lib/session-files.ts",
+        "src/lib/api.ts",
+        "src/lib/types.ts",
+        "src-tauri/src/commands/turn_window.rs",
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/models/conversation.rs",
+        "src-tauri/src/web/handlers/conversations.rs",
+        "src-tauri/src/web/router.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-navigation-20261015.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "web.offline-mobile-provider-groups-20261015",
+      "category": "platform",
+      "description": "A single PWA registration caches route shells and assets per frontend build ID, preserves real HTTP responses and active caches after failed installs, and never registers in Electron. Mobile back dismisses existing overlays one layer at a time without leaving the workspace. Delegation defaults group model choices by provider and expose only maintained agents while retaining saved probe/cache semantics.",
+      "origins": [
+        "9e40a3b3d",
+        "9a0807c60",
+        "d3d583d6a",
+        "21c6cbdc1",
+        "29c19cd53",
+        "121447324",
+        "caec647e9",
+        "1812751fa",
+        "937154140",
+        "4f5d681b8",
+        "0381623fb"
+      ],
+      "paths": [
+        "public/sw.js",
+        "src/components/pwa-register.tsx",
+        "src/lib/service-worker.ts",
+        "src/hooks/use-history-back-dismiss.ts",
+        "src/app/workspace/layout.tsx",
+        "src/components/files/file-viewer-drawer.tsx",
+        "src/components/message/sub-agent-session-dialog.tsx",
+        "src/components/message/subagent-session-dialog.tsx",
+        "src/components/settings/delegation-agent-defaults.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-platform-20261015.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.reviewed-acp-rendering-20261015",
+      "category": "product",
+      "description": "Reviewed maintained-agent protocol rendering preserves failed rounds as system lines in live/history/export without shifting reply alignment, shows Claude Read allow_large, WebFetch offset and child effort, and parses native answered/declined question sentences with complete multi-select labels. Structured continuation hints never become answers. Existing notification privacy, replay silence, billing and agent restrictions remain enforced.",
+      "origins": [
+        "22e70a051",
+        "8b95fc1c9",
+        "bd30df7c7",
+        "53d94faa8",
+        "6270fa271",
+        "d10b8448d",
+        "8016ad140"
+      ],
+      "paths": [
+        "src/components/message/agent-tool-call.tsx",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/turn-error-part.tsx",
+        "src/components/message/ask-question-result-card.tsx",
+        "src/lib/adapters/ai-elements-adapter.ts",
+        "src/lib/acp-error-presentation.ts",
+        "src/lib/ask-question.ts",
+        "src/lib/feedback-check.ts",
+        "src/lib/export-conversation.ts",
+        "src/lib/use-export-labels.ts",
+        "src/stores/conversation-runtime-store.ts",
+        "src/contexts/acp-connections-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-protocol-20261015.contract.test.tsx"
+      ]
+    },
+    {
       "id": "todos.confirmed-compose",
       "category": "product",
       "description": "Message and conversation-share todo actions open a workspace-level prefilled editor without navigating away from the current conversation. Message text is prefilled directly; whole-conversation actions first publish or reuse the selected conversation share link and prefill it as localized conversation-reference text plus the URL as content. Todo creation occurs only after explicit Save; Cancel creates no todo. Late or failed share responses never open an editor for another conversation. The buffered handoff keeps literal content and chosen conversation snapshot options, and source navigation supersedes stale create requests.",

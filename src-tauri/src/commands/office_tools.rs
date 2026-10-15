@@ -1394,17 +1394,49 @@ pub async fn start_office_watch(
     root_path: String,
     path: String,
 ) -> Result<crate::office_watch::OfficeWatchStarted, AppCommandError> {
-    crate::office_watch::start_office_watch_core(root_path, path)
-        .await
-        .map_err(Into::into)
+    crate::office_watch::start_office_watch_core(
+        root_path,
+        path,
+        crate::office_watch::WatchHolder::Desktop,
+    )
+    .await
+    .map_err(Into::into)
 }
 
 /// Release one reference to the watch preview for an office file; kills the
-/// server when the last viewer goes away.
-pub async fn stop_office_watch(root_path: String, path: String) -> Result<(), AppCommandError> {
-    crate::office_watch::stop_office_watch_core(root_path, path)
-        .await
-        .map_err(Into::into)
+/// server when the last viewer goes away. `cap` names the watch the caller
+/// acquired: a release for one that has since been replaced is a no-op.
+pub async fn stop_office_watch(
+    root_path: String,
+    path: String,
+    cap: Option<String>,
+) -> Result<(), AppCommandError> {
+    crate::office_watch::stop_office_watch_core(
+        root_path,
+        path,
+        cap,
+        None,
+        crate::office_watch::WatchHolder::Desktop,
+    )
+    .await
+    .map_err(Into::into)
+}
+
+/// Whether the watch named by `cap` is still the live one serving an office
+/// file (see `crate::office_watch::renew_office_watch_core`; a desktop
+/// window's references never lapse, so for it this only asks).
+pub async fn renew_office_watch(
+    root_path: String,
+    path: String,
+    cap: String,
+) -> Result<bool, AppCommandError> {
+    Ok(crate::office_watch::renew_office_watch_core(
+        &root_path,
+        &path,
+        &cap,
+        None,
+        crate::office_watch::WatchHolder::Desktop,
+    ))
 }
 
 #[cfg(test)]

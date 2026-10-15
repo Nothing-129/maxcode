@@ -141,6 +141,12 @@ fn enum_spec_for(key: &str) -> Option<EnumSpec> {
 /// against the 0.159.2 binary: each field below rejects both `"yes"` and `null`
 /// (bar the ignored `supports_parallel_tool_calls`), no boolean-typed key sits
 /// outside this list, and every enum set above is unchanged.
+///
+/// 0.160.1 (codex-acp 2.2.1 moves `@openai/codex` ^0.159.1 → ^0.160.1) ships
+/// the bundled catalog byte for byte as 0.159.3 did and adds no `ModelInfo`
+/// field. Re-probed against the 0.160.1 binary: every field here and every
+/// enum set above behaves as on 0.159.3. Its one new key is nested — see
+/// [`model_messages_override_is_safe`].
 const BOOL_FIELDS: &[&str] = &[
     "use_responses_lite",
     "supported_in_api",
@@ -166,8 +172,13 @@ const BOOL_FIELDS: &[&str] = &[
 /// - `default_reasoning_level` must name one of the clone base's supported
 ///   efforts (codex 0.147 accepts it leniently, but older codex is strict and
 ///   the meaningful values are per-model anyway);
+/// - `model_messages` must be an object (or `null`) whose plain-text members
+///   are strings (see [`model_messages_override_is_safe`]);
 /// - every other field passes through (unknown keys are ignored by codex).
 fn sanitized_override(key: &str, value: &Value, base: Option<&Map<String, Value>>) -> bool {
+    if key == "model_messages" {
+        return model_messages_override_is_safe(value);
+    }
     if let Some(spec) = enum_spec_for(key) {
         if value.is_null() {
             return spec.nullable;
@@ -198,6 +209,41 @@ fn sanitized_override(key: &str, value: &Value, base: Option<&Map<String, Value>
             .unwrap_or(false);
     }
     true
+}
+
+/// The `ModelMessages` members that hold plain text. codex parses each as an
+/// optional string, so `null` is fine and anything else is not.
+const MODEL_MESSAGES_TEXT_FIELDS: &[&str] = &[
+    "content_filter_guidance",
+    "persistent_instructions",
+    "instructions_template",
+];
+
+/// Whether a `model_messages` override is safe to write: `null`, or an object
+/// whose plain-text members are strings.
+///
+/// codex parses the whole `model_messages` object strictly, and 0.160 added a
+/// member to it: `content_filter_guidance`, the developer note it sends after
+/// a content filter blocks a response. 0.159.3 ignored the key; 0.160.1 takes
+/// a number there for `invalid type: integer 42, expected a string` and
+/// rejects the WHOLE catalog, every model with it (probed with a temporary
+/// `model_catalog_json`; a string and `null` both load). The other two
+/// members, and the object itself, were already that strict: a number in
+/// `persistent_instructions` or `instructions_template`, or a string for
+/// `model_messages`, rejects the catalog on 0.159.3 as on 0.160.1. The editor
+/// offers no control for any of this, so only an imported or hand-edited
+/// override can carry one, which is the input these checks exist for. The
+/// nested message tables beyond those members pass through as before.
+fn model_messages_override_is_safe(value: &Value) -> bool {
+    match value {
+        Value::Null => true,
+        Value::Object(members) => MODEL_MESSAGES_TEXT_FIELDS.iter().all(|field| {
+            members
+                .get(*field)
+                .is_none_or(|text| text.is_null() || text.is_string())
+        }),
+        _ => false,
+    }
 }
 
 /// One user-configured **custom** codex model, stored compactly. Heavy
@@ -708,7 +754,7 @@ mod tests {
         assert_eq!(
             models.len(),
             11,
-            "snapshot should carry codex 0.159.2's catalog"
+            "snapshot should carry the catalog codex 0.159.2–0.160.1 ships"
         );
         // 0.158.0 deleted gpt-5.4 outright (it had shipped hidden, as a
         // retirement stub) rather than hiding it any further.
@@ -1130,6 +1176,68 @@ mod tests {
             x.get("supports_reasoning_summary_parameter").unwrap(),
             &Value::Bool(false)
         );
+    }
+
+    /// codex parses `model_messages` strictly: 0.160.1 rejects the whole
+    /// catalog for a number in its new `content_filter_guidance`, and a number
+    /// in `persistent_instructions` / `instructions_template` or a string for
+    /// the object itself already did on 0.159.3 (probed on both binaries). Such
+    /// an override is dropped and the clone keeps its base's messages; a
+    /// well-typed one, or `null`, still lands.
+    #[test]
+    fn expand_drops_a_model_messages_override_codex_would_reject() {
+        let custom = |slug: &str, messages: Value| CodexCustomEntry {
+            slug: slug.into(),
+            display_name: None,
+            context_window: None,
+            base: "gpt-5.6-sol".into(),
+            overrides: Map::from_iter([("model_messages".into(), messages)]),
+        };
+        let config = CodexModelConfig {
+            customs: vec![
+                custom(
+                    "gw/guidance-number",
+                    serde_json::json!({ "content_filter_guidance": 42 }),
+                ),
+                custom(
+                    "gw/instructions-number",
+                    serde_json::json!({ "persistent_instructions": 42 }),
+                ),
+                custom("gw/messages-string", Value::String("x".into())),
+                custom(
+                    "gw/guidance-text",
+                    serde_json::json!({
+                        "content_filter_guidance": "Explain the block briefly.",
+                        "persistent_instructions": null
+                    }),
+                ),
+                custom("gw/messages-null", Value::Null),
+            ],
+            ..Default::default()
+        };
+        let snapshot = snap();
+        let base_messages = snapshot
+            .iter()
+            .find(|m| m.get("slug").and_then(Value::as_str) == Some("gpt-5.6-sol"))
+            .and_then(|m| m.get("model_messages"))
+            .cloned()
+            .expect("gpt-5.6-sol ships model_messages");
+        let cat = expand_to_catalog(&config, &snapshot);
+        for slug in [
+            "gw/guidance-number",
+            "gw/instructions-number",
+            "gw/messages-string",
+        ] {
+            let x = find(&cat, slug).expect("present");
+            assert_eq!(x.get("model_messages"), Some(&base_messages), "{slug}");
+        }
+        let x = find(&cat, "gw/guidance-text").expect("present");
+        assert_eq!(
+            x["model_messages"]["content_filter_guidance"],
+            Value::String("Explain the block briefly.".into())
+        );
+        let x = find(&cat, "gw/messages-null").expect("present");
+        assert_eq!(x.get("model_messages"), Some(&Value::Null));
     }
 
     #[test]

@@ -16,7 +16,7 @@
  *      NOT bleed into the chat context.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
 
@@ -36,9 +36,14 @@ import {
   type AgentType,
   type SessionConfigOptionInfo,
 } from "@/lib/types"
-import { getAgentLabel, isCustomAgentType } from "@/lib/custom-agents"
+import { getAgentLabel } from "@/lib/custom-agents"
+import { MAINTAINED_AGENT_TYPES } from "@/lib/maintained-agents"
+import {
+  deriveModelGroups,
+  modelListGroups,
+  type ModelOptionGroup,
+} from "@/lib/model-config-groups"
 import { describeAgentOptions } from "@/lib/api"
-import { useAllAcpAgents } from "@/hooks/use-acp-agents"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
 import { toErrorMessage } from "@/lib/app-error"
 
@@ -55,24 +60,6 @@ const DEFAULT_SENTINEL = "__codeg_default__"
 // CLI). 250ms is below the threshold of feeling laggy while comfortably
 // absorbing a mid-click reconsideration.
 const TAB_SWITCH_DEBOUNCE_MS = 250
-
-const BUILTIN_AGENT_TYPES: AgentType[] = [
-  "claude_code",
-  "codex",
-  "open_code",
-  "gemini",
-  "open_claw",
-  "cline",
-  "hermes",
-  "code_buddy",
-  "kimi_code",
-  "pi",
-  "grok",
-  "cursor",
-  "deepseek",
-  "qoder",
-  "antigravity",
-]
 
 interface CachedSnapshot {
   snapshot: AgentOptionsSnapshot
@@ -107,17 +94,7 @@ export function DelegationAgentDefaultsPanel({
   disabled,
 }: DelegationAgentDefaultsPanelProps) {
   const t = useTranslations("AcpAgentSettings.multiAgent")
-  // Custom ACP agents are delegation targets too (codeg-mcp advertises them
-  // in `delegate_to_agent`'s enum), so they get a defaults tab after the
-  // built-ins. The list mirrors what the agent registry currently holds.
-  const { agents } = useAllAcpAgents()
-  const agentTypes = useMemo<AgentType[]>(
-    () => [
-      ...BUILTIN_AGENT_TYPES,
-      ...agents.map((a) => a.agent_type).filter(isCustomAgentType),
-    ],
-    [agents]
-  )
+  const agentTypes = MAINTAINED_AGENT_TYPES
   const [selectedAgent, setSelectedAgent] = useState<AgentType>("claude_code")
   // Snapshot and the agent it was probed from, in ONE state value: the tab
   // switch below is debounced, so for that whole window `selectedAgent` is
@@ -407,6 +384,40 @@ function ModeRow({
   )
 }
 
+/**
+ * The agent's own default as the "Agent default" hint names it. It keeps the
+ * option's unstripped name, which already carries the provider when the agent
+ * writes names as `Provider/model`. A bare name that another option also uses
+ * (two providers both listing `glm-5` under `provider/glm-5` ids) is
+ * qualified with the provider header its row is grouped under. A value the
+ * agent does not list reads as itself.
+ *
+ * The backend ships the flat `options` for grouped selects too, so this
+ * lookup covers both shapes.
+ */
+function agentDefaultHintLabel(
+  option: SessionConfigOptionInfo,
+  value: string
+): string {
+  if (option.kind.type !== "select") return value
+  const options = option.kind.options
+  const own = options.find((o) => o.value === value)
+  if (!own) return value
+  const sharedName = options.some(
+    (o) => o.value !== value && o.name === own.name
+  )
+  if (!sharedName) return own.name
+  for (const group of deriveModelGroups(option) ?? []) {
+    const row = group.options.find((o) => o.value === value)
+    if (!row) continue
+    // A stripped row's own name already starts with its header.
+    return group.name !== null && row.name === own.name
+      ? `${group.name}/${own.name}`
+      : own.name
+  }
+  return own.name
+}
+
 interface ConfigOptionRowProps {
   option: SessionConfigOptionInfo
   overrideValue: string | null
@@ -423,13 +434,26 @@ function ConfigOptionRow({
   const t = useTranslations("AcpAgentSettings.multiAgent")
   if (option.kind.type !== "select") return null
 
-  const allOptions =
-    option.kind.groups.length > 0
-      ? option.kind.groups.flatMap((g) => g.options)
-      : option.kind.options
+  // Same grouping the composer's model picker uses (`modelListGroups`):
+  // values carrying a `provider/` prefix group under their provider, with
+  // the shared provider prefix stripped from each row. Some agents serve
+  // ids as `provider/model` (two providers can offer the SAME model id), so
+  // a flat list of bare model names is ambiguous — here the provider becomes
+  // a group header and the rows stay clean. Non-model options keep their
+  // server groups, else render flat — behavior unchanged for them.
+  const groups: ModelOptionGroup[] = modelListGroups(option)
   const agentDefault = option.kind.current_value
-  const agentDefaultLabel =
-    allOptions.find((o) => o.value === agentDefault)?.name ?? agentDefault
+  // The hint names the agent's own default with the provider in it — no
+  // group header stands beside the hint to supply it.
+  const agentDefaultLabel = agentDefaultHintLabel(option, agentDefault)
+  // The sentinel/trigger resolve against the RENDERED rows so the selected
+  // model shows its prefix-stripped name, exactly as the composer's selector
+  // shows it. In the open list the group headers name the provider; the hint
+  // names the default's.
+  const agentDefaultRenderedLabel =
+    groups
+      .flatMap((group) => group.options)
+      .find((o) => o.value === agentDefault)?.name ?? agentDefaultLabel
   // When no override exists, the trigger shows the Default sentinel item
   // so the user can tell "I'm inheriting" apart from "I picked the
   // agent's current default explicitly" — the latter would stick to that
@@ -454,27 +478,32 @@ function ConfigOptionRow({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value={DEFAULT_SENTINEL}>
-            {t("defaultOptionLabel", { value: agentDefaultLabel })}
+            {t("defaultOptionLabel", { value: agentDefaultRenderedLabel })}
           </SelectItem>
-          {option.kind.groups.length > 0
-            ? option.kind.groups.map((group) => (
-                <SelectGroup key={group.group}>
-                  <SelectLabel>{group.name}</SelectLabel>
-                  {group.options.map((item) => (
-                    <SelectItem
-                      key={`${group.group}-${item.value}`}
-                      value={item.value}
-                    >
-                      {item.name}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              ))
-            : option.kind.options.map((item) => (
-                <SelectItem key={item.value} value={item.value}>
+          {groups.map((group) =>
+            group.name === null ? (
+              group.options.map((item) => (
+                <SelectItem
+                  key={`${group.key}-${item.value}`}
+                  value={item.value}
+                >
                   {item.name}
                 </SelectItem>
-              ))}
+              ))
+            ) : (
+              <SelectGroup key={group.key}>
+                <SelectLabel>{group.name}</SelectLabel>
+                {group.options.map((item) => (
+                  <SelectItem
+                    key={`${group.key}-${item.value}`}
+                    value={item.value}
+                  >
+                    {item.name}
+                  </SelectItem>
+                ))}
+              </SelectGroup>
+            )
+          )}
         </SelectContent>
       </Select>
     </div>

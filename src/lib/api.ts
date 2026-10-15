@@ -53,6 +53,7 @@ import type {
   WorkTaskTemplate,
   ConversationSummary,
   ConversationDetail,
+  ConversationOutline,
   ConversationTurnsPage,
   DbConversationDetail,
   FolderInfo,
@@ -1808,16 +1809,55 @@ export async function officecliRenderHtml(
 export async function startOfficeWatch(
   rootPath: string,
   path: string
-): Promise<{ port: number; cap: string }> {
-  return getTransport().call("start_office_watch", { rootPath, path })
+): Promise<{ port: number; cap: string; hold?: string }> {
+  return getTransport().call(
+    "start_office_watch",
+    { rootPath, path },
+    { timeoutMs: 150_000 }
+  )
 }
 
-/** Release one reference to an office file's watch preview server. */
+/**
+ * Release one reference to an office file's watch preview server. `cap` and
+ * `hold` are what {@link startOfficeWatch} returned: when that watch is gone
+ * (stopped with its folder, say) the release is a no-op instead of taking a
+ * reference from whatever watch serves the file now, and a web page's release
+ * takes only its own hold.
+ */
 export async function stopOfficeWatch(
   rootPath: string,
-  path: string
+  path: string,
+  cap?: string,
+  hold?: string
 ): Promise<void> {
-  return getTransport().call("stop_office_watch", { rootPath, path })
+  return getTransport().call("stop_office_watch", {
+    rootPath,
+    path,
+    cap,
+    hold,
+  })
+}
+
+/**
+ * Renew this window's hold on the watch named by `cap`, and say whether it is
+ * still the live one serving the file — false once it was stopped, crashed,
+ * or replaced by a new one. A web page's hold lapses when the page goes quiet
+ * (the server can't tell a closed browser from one that just isn't talking),
+ * so a preview renews on a timer, naming its `hold`; one that lapsed meanwhile
+ * comes back. A desktop window's never lapses, and for it this only asks.
+ */
+export async function renewOfficeWatch(
+  rootPath: string,
+  path: string,
+  cap: string,
+  hold?: string
+): Promise<boolean> {
+  return getTransport().call("renew_office_watch", {
+    rootPath,
+    path,
+    cap,
+    hold,
+  })
 }
 
 export async function getSystemProxySettings(): Promise<SystemProxySettings> {
@@ -2318,6 +2358,17 @@ export async function revokeConversationShare(
   conversationId: number
 ): Promise<void> {
   return getTransport().call("revoke_conversation_share", { conversationId })
+}
+
+/** Fetch the message navigator's outline of the history before `beforeIndex`. */
+export async function getFolderConversationOutline(
+  conversationId: number,
+  beforeIndex: number
+): Promise<ConversationOutline> {
+  return getTransport().call("get_folder_conversation_outline", {
+    conversationId,
+    beforeIndex,
+  })
 }
 
 export async function removeFolderFromHistory(path: string): Promise<void> {

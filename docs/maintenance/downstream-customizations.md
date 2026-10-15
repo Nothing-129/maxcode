@@ -20,6 +20,28 @@
 
 侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
 
+## 2026-10-15 上游 v0.35.2 选择性集成
+
+评审上游 `e2a7d3d77`，从 `main` 建立临时集成分支，并在修改前运行
+`pnpm upstream:impact`。相对上次记录的 `aff1e6c27`，新增 81 条提交记录
+（66 条非合并提交）、225 个变化文件，其中 125 个与下游定制重叠。保留工作区
+原有待办、表单焦点、分享和搜索改动，按提交块评审和适配，不做全量合并。
+
+| 范围 | 吸收结果与下游边界 | 保护项 |
+| --- | --- | --- |
+| ACP 与连接 | 反馈防空轮询、结构化继续指引、大图伴随回合去重、握手取消和终端清理；草稿启动中允许切换智能体，最后选择生效，错误与配置归属所选智能体；保留发送队列、会话模型记忆、暖连接和 ZCode 门控 | `runtime.selected-upstream-20261015`、`chat.startup-agent-switch-20261015` |
+| 历史目录 | 按保存的环境变量读取六种维护智能体的数据目录；ZCode 同时保留自定义目录、原生数据库与别名兼容 | `runtime.selected-upstream-20261015` |
+| 协议与版本 | Claude ACP 0.90.0、Codex ACP 2.2.2、Grok 1.0.52、Antigravity 1.4.0；补审中间适配，失败回合以系统行进入实时、历史及导出，原生问答支持完整多选标签 | `runtime.selected-upstream-20261015`、`chat.reviewed-acp-rendering-20261015` |
+| PDF 与下载 | 现有文件栏和抽屉内只读查看 PDF，资源随静态导出打包，保持安全链接路由；预览头可下载工作区外产物，其他二进制产物仍可系统打开 | `files.pdf-office-download-20261015` |
+| Office | 切换标签保留预览、阅读位置和租约；冷启动有界等待，退出同步终止已经启动和尚在启动的进程；沿用 Electron HTTP 与 opaque sandbox | `files.pdf-office-download-20261015` |
+| 会话导航 | 现有左侧横条覆盖全历史，校验 outline 与分页指纹后加载跳转；保留问答摘要、溢出显隐和手机隐藏，不恢复旧导航卡片；向上跳转解除自动跟随底部 | `chat.full-history-rail-20261015` |
+| PWA 与手机 | 唯一 SW 注册入口按 frontend build ID 隔离缓存，缓存启动页，失败安装不破坏活动缓存，Electron 排除；返回手势按层关闭现有查看器 | `web.offline-mobile-provider-groups-20261015` |
+| 委托默认模型 | 按提供商分组并在默认值提示中标出渠道，目录仅显示七种维护智能体 | `web.offline-mobile-provider-groups-20261015` |
+
+本次不吸收 Forge 自动扫描/入队、维护范围外智能体专属更新、旧 Tauri
+浏览器和原生远程工作区实现，也不引入新的待办执行入口。Pi、DeepSeek、ZCode
+保持已审版本与现有适配器；发布版本号不随上游 Codeg 版本改变。
+
 ## 智能体维护范围
 
 维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。

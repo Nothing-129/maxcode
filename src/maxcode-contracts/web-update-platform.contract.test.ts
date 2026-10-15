@@ -13,7 +13,13 @@ describe("MaxCode contract: resilient web installation", () => {
     expect(value.icons?.some((icon) => icon.purpose === "any")).toBe(true)
     expect(value.icons?.some((icon) => icon.purpose === "maskable")).toBe(true)
     expect(source("src/components/pwa-register.tsx")).toContain(
-      'navigator.serviceWorker.register("/sw.js", { scope: "/" })'
+      "registerAppServiceWorker()"
+    )
+    expect(source("src/lib/service-worker.ts")).toContain(
+      "if (isElectron()) return false"
+    )
+    expect(source("src/lib/service-worker.ts")).toContain(
+      "NEXT_PUBLIC_FRONTEND_BUILD_ID"
     )
     expect(sourceExists("public/sw.js")).toBe(true)
   })

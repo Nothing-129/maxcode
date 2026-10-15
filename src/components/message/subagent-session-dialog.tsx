@@ -32,6 +32,7 @@ import { Loader2 } from "lucide-react"
 
 import { AgentIcon } from "@/components/agent-icon"
 import { ContentPartsRenderer } from "@/components/message/content-parts-renderer"
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss"
 import {
   Drawer,
   DrawerContent,
@@ -115,6 +116,7 @@ export function SubagentSessionDialog({
 }: Props) {
   const t = useTranslations("Folder.chat.contentParts")
   const sharedT = useTranslations("Folder.chat.shared")
+  useHistoryBackDismiss(open, () => onOpenChange(false))
   const [messages, setMessages] = useState<AdaptedMessage[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Only the FIRST load blanks the body: a refresh that lands mid-read must not

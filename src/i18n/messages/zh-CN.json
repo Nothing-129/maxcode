@@ -2057,7 +2057,8 @@
         "assistant": "助手",
         "system": "系统",
         "toolResult": "结果",
-        "toolError": "错误"
+        "toolError": "错误",
+        "turnFailed": "本轮失败"
       },
       "moreActions": "更多操作"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "无法启动实时预览",
       "officeWatchRetry": "重试",
       "officeServerInstallHint": "OfficeCLI 需安装在服务器主机上。请在服务器上运行以下命令后重试：",
-      "officeRemoteDesktopUnsupported": "远程桌面窗口暂不支持实时预览。请在服务器的 Web 界面中打开此工作区来预览 Office 文件。"
+      "officeRemoteDesktopUnsupported": "远程桌面窗口暂不支持实时预览。请在服务器的 Web 界面中打开此工作区来预览 Office 文件。",
+      "pdfDocument": "PDF 文档",
+      "pdfZoomIn": "放大",
+      "pdfZoomOut": "缩小",
+      "pdfZoomReset": "重置缩放",
+      "pdfFitWidth": "适合宽度",
+      "pdfPageNumber": "页码",
+      "pdfFind": "在文档中查找",
+      "pdfFindPrevious": "上一个匹配项",
+      "pdfFindNext": "下一个匹配项",
+      "pdfFindNoMatches": "无匹配项",
+      "pdfPasswordPrompt": "此 PDF 受密码保护，请输入密码以打开。",
+      "pdfPasswordIncorrect": "密码错误，请重试。",
+      "pdfPassword": "密码",
+      "pdfPasswordSubmit": "打开",
+      "pdfInvalid": "此文件不是有效的 PDF，或已损坏。",
+      "pdfLoadFailed": "无法显示此 PDF：{message}"
     },
     "fileViewer": {
       "title": "文件预览",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} 个步骤",
         "processedFor": "已处理 {duration}",
         "showMore": "展开",
-        "showLess": "收起"
+        "showLess": "收起",
+        "turnFailed": "本轮失败：{message}"
       },
       "liveTurnStats": {
         "waiting": "等待响应",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex 可视化",
         "htmlPreviewOpen": "预览",
         "htmlPreviewOpenAria": "预览 {name}",
-        "htmlPreviewHide": "收起预览"
+        "htmlPreviewHide": "收起预览",
+        "agentEffortLabel": "思考强度",
+        "allowLarge": "超出大小限制"
       },
       "conversationFind": {
         "title": "搜索当前对话",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "消息 {count}",
         "fileCount": "{count} 个文件",
         "remove": "移除",
-        "noDiffDataAvailable": "未找到 {filePath} 的差异数据"
+        "noDiffDataAvailable": "未找到 {filePath} 的差异数据",
+        "loadingEarlier": "正在加载更早的消息…",
+        "loadEarlier": "加载更早的消息"
       },
       "replyArtifacts": {
         "editedFiles": "已编辑 {count} 个文件",

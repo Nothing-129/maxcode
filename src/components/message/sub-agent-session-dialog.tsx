@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/drawer"
 import { type AgentType } from "@/lib/types"
 import { getAgentLabel } from "@/lib/custom-agents"
+import { useHistoryBackDismiss } from "@/hooks/use-history-back-dismiss"
 
 interface Props {
   open: boolean
@@ -63,6 +64,7 @@ export function SubAgentSessionDialog({
   kickoffTask,
 }: Props) {
   const t = useTranslations("Folder.chat.delegation")
+  useHistoryBackDismiss(open, () => onOpenChange(false))
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange} swipeDirection="right">

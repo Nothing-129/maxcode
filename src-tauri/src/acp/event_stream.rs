@@ -491,6 +491,8 @@ fn content_block_size(block: &crate::models::message::ContentBlock) -> usize {
     match block {
         // `{"type":"text","text":…}` / `{"type":"thinking","text":…}`
         CB::Text { text } | CB::Thinking { text } => 32 + json_str_len(text),
+        // `{"type":"turn_error","message":…}`
+        CB::TurnError { message } => 40 + json_str_len(message),
         CB::Image {
             data,
             mime_type,
@@ -981,6 +983,9 @@ mod tests {
                 },
                 ContentBlock::Thinking {
                     text: "思考\n".repeat(100),
+                },
+                ContentBlock::TurnError {
+                    message: "stream \"disconnected\"\n".repeat(50),
                 },
                 ContentBlock::Image {
                     data: "AAAA".repeat(32),

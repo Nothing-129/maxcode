@@ -15,7 +15,7 @@ MaxCode 是一个多智能体编码工作台，支持 Claude Code、Codex、Gemi
 
 **桌面端**：从 [MaxCode Releases](https://github.com/Nothing-129/maxcode/releases) 下载对应系统的安装包。当前桌面端使用 Electron，旧 Tauri 版本需手动安装新版。
 
-**源码运行**：准备 Node.js 22.12+、项目指定版本的 pnpm 和 Rust 工具链后执行：
+**源码运行**：准备 Node.js 22.13+、项目指定版本的 pnpm 和 Rust 工具链后执行：
 
 ```bash
 git clone https://github.com/Nothing-129/maxcode.git

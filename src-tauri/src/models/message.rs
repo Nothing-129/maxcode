@@ -166,6 +166,13 @@ pub enum ContentBlock {
     Thinking {
         text: String,
     },
+    /// The turn FAILED, in the agent's own words ("stream disconnected before
+    /// completion: …", "API Error: 503 …"). Never agent prose: a parser puts it
+    /// alone in a `System` turn closing the round, where the live view draws
+    /// the failure the adapter reported (`parsers::turn_error_message`).
+    TurnError {
+        message: String,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

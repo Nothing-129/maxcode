@@ -11,6 +11,7 @@ use walkdir::WalkDir;
 use crate::acp::agent_mentions::{
     contains_only_internal_agent_routes, strip_internal_agent_routes,
 };
+use crate::acp::js_text::is_js_whitespace;
 use crate::models::*;
 use crate::parsers::codex_code_mode::{
     extract_chunk_ids, extract_shell_session_ids, is_code_mode_call, parse_code_mode_script,
@@ -18,7 +19,7 @@ use crate::parsers::codex_code_mode::{
     CodeModeScript, ScriptStatus, Separator, CODEX_SCRIPT_TOOL_NAME,
 };
 use crate::parsers::{
-    codex_desktop_attachments, folder_name_from_path, title_from_user_text, truncate_str,
+    codex_desktop_attachments, folder_name_from_path, title_from_user_text, truncate_str, AgentEnv,
     AgentParser, ParseError,
 };
 
@@ -204,8 +205,15 @@ impl Default for CodexParser {
 
 impl CodexParser {
     pub fn new() -> Self {
-        let base_dir = resolve_codex_home_dir().join("sessions");
-        Self { base_dir }
+        Self::for_env(&AgentEnv::inherited())
+    }
+
+    /// The history of the Codex launched with `env`. `session_index.jsonl`
+    /// (the thread-name index) is read from the same home.
+    pub fn for_env(env: &AgentEnv) -> Self {
+        Self {
+            base_dir: resolve_codex_home_dir_for_env(env).join("sessions"),
+        }
     }
 
     /// Test-only constructor that lets callers point the parser at a fixture
@@ -397,10 +405,9 @@ impl CodexParser {
             let thread_name = value
                 .get("thread_name")
                 .and_then(serde_json::Value::as_str)
-                .map(str::trim)
-                .filter(|name| !name.is_empty());
+                .and_then(codex_thread_title);
             if let (Some(id), Some(name)) = (session_id, thread_name) {
-                titles.insert(id.to_string(), truncate_str(name, 100));
+                titles.insert(id.to_string(), name);
             }
         }
 
@@ -652,10 +659,9 @@ impl CodexParser {
                                     .or_else(|| payload.get("threadName"))
                                     .or_else(|| payload.get("name"))
                                     .and_then(|n| n.as_str())
-                                    .map(str::trim)
-                                    .filter(|n| !n.is_empty())
+                                    .and_then(codex_thread_title)
                                 {
-                                    title = Some(truncate_str(name, 100));
+                                    title = Some(name);
                                     title_from_thread_name = true;
                                 }
                             }
@@ -841,7 +847,13 @@ impl CodexParser {
 }
 
 pub(crate) fn resolve_codex_home_dir() -> PathBuf {
-    resolve_codex_home_dir_from(std::env::var_os("CODEX_HOME"), dirs::home_dir())
+    resolve_codex_home_dir_for_env(&AgentEnv::inherited())
+}
+
+/// The home of the Codex launched with `env`: its `CODEX_HOME`, else
+/// `~/.codex`.
+pub(crate) fn resolve_codex_home_dir_for_env(env: &AgentEnv) -> PathBuf {
+    resolve_codex_home_dir_from(env.var_os("CODEX_HOME"), dirs::home_dir())
 }
 
 fn resolve_codex_home_dir_from(
@@ -3674,11 +3686,28 @@ impl CodexParser {
                                     .or_else(|| payload.get("threadName"))
                                     .or_else(|| payload.get("name"))
                                     .and_then(|n| n.as_str())
-                                    .map(str::trim)
-                                    .filter(|n| !n.is_empty())
+                                    .and_then(codex_thread_title)
                                 {
-                                    title = Some(truncate_str(name, 100));
+                                    title = Some(name);
                                     title_from_thread_name = true;
+                                }
+                            }
+                            "task_complete" => {
+                                // A FAILED turn closes on the error that ended
+                                // it, the record's only trace of the failure
+                                // (codex persists no `error` event). An
+                                // interrupted turn closes on `turn_aborted`
+                                // instead and is no failure.
+                                if let Some(failure) =
+                                    codex_turn_failure(payload).and_then(|message| {
+                                        super::turn_error_message(
+                                            format!("turn-error-{}", messages.len()),
+                                            &message,
+                                            timestamp,
+                                        )
+                                    })
+                                {
+                                    messages.push(failure);
                                 }
                             }
                             "item_completed" => {
@@ -5210,7 +5239,7 @@ impl CodexParser {
             title,
             started_at: first_timestamp.unwrap_or_else(Utc::now),
             ended_at: last_timestamp,
-            message_count: turns.len() as u32,
+            message_count: super::message_turn_count(&turns),
             model,
             git_branch,
             parent_id,
@@ -5264,29 +5293,11 @@ fn extract_total_tokens_from_usage(usage: &serde_json::Value) -> Option<u64> {
 }
 
 fn extract_turn_usage_from_codex_usage(usage: &serde_json::Value) -> Option<TurnUsage> {
-    let input_tokens = usage
-        .get("input_tokens")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let output_tokens = usage
-        .get("output_tokens")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-    let cache_read_input_tokens = usage
-        .get("cached_input_tokens")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(0);
-
-    if input_tokens == 0 && output_tokens == 0 && cache_read_input_tokens == 0 {
+    let counters = codex_usage_counters(usage);
+    if codex_usage_is_zero(&counters) {
         return None;
     }
-
-    Some(TurnUsage {
-        input_tokens: input_tokens.saturating_sub(cache_read_input_tokens),
-        output_tokens,
-        cache_creation_input_tokens: 0,
-        cache_read_input_tokens,
-    })
+    Some(counters)
 }
 
 /// A codex usage payload read as raw counters, keeping zeros.
@@ -5295,15 +5306,28 @@ fn extract_turn_usage_from_codex_usage(usage: &serde_json::Value) -> Option<Turn
 /// so it collapses an all-zero payload to `None`. The running-total arithmetic
 /// below needs the opposite: a cumulative counter that legitimately still reads
 /// zero is a real datapoint, not an absent one.
+///
+/// Codex's `input_tokens` is the WHOLE prompt. It includes the tokens read from
+/// the prompt cache (`cached_input_tokens`) and the tokens written to it
+/// (`cache_write_input_tokens`, which some providers and gateways report and
+/// OpenAI's API leaves at 0), while codeg's four counters are disjoint. So
+/// both are split out of the input rather than counted as fresh input;
+/// codex-acp 2.2.0 made the same correction to its own `TokenCount`. A real
+/// rollout on codeg's bound provider reads `input 19915, cached 17152, write
+/// 2304`: 459 fresh.
+///
+/// The write is capped at what the input has left after the read, so a provider
+/// that over-reports it cannot make the counters add up to more than the input
+/// did before the split.
 fn codex_usage_counters(usage: &serde_json::Value) -> TurnUsage {
     let field = |name: &str| usage.get(name).and_then(|v| v.as_u64()).unwrap_or(0);
+    let input = field("input_tokens");
     let cache_read = field("cached_input_tokens");
+    let cache_write = field("cache_write_input_tokens").min(input.saturating_sub(cache_read));
     TurnUsage {
-        // Codex reports `input_tokens` *inclusive* of the cached prefix, so the
-        // cached part is split out rather than counted twice.
-        input_tokens: field("input_tokens").saturating_sub(cache_read),
+        input_tokens: input.saturating_sub(cache_read).saturating_sub(cache_write),
         output_tokens: field("output_tokens"),
-        cache_creation_input_tokens: 0,
+        cache_creation_input_tokens: cache_write,
         cache_read_input_tokens: cache_read,
     }
 }
@@ -5825,6 +5849,78 @@ fn turn_collaboration_mode(value: &serde_json::Value) -> Option<&str> {
         .get("collaboration_mode")?
         .get("mode")?
         .as_str()
+}
+
+/// The title a codex thread name reads as: exactly what the live path makes
+/// of the same name, so the session index, a rollout's `thread_name_updated`
+/// and `session_info_update.title` all title the row with one string.
+///
+/// codex stores a name as it was given, only trimmed (`thread/name/set` runs
+/// `codex_core::util::normalize_thread_name`), and codex-acp's `/rename` hands
+/// it the raw argument: `/rename   Fix  the\nflaky\ttest` puts
+/// `"Fix  the\nflaky\ttest"` in `session_index.jsonl`. codex-acp publishes a
+/// name through [`codex_acp_session_title`], on a rename echo and on
+/// `session/load` alike, and the live path then normalizes that through
+/// `acp::session_title::native_title_from_session_info`. Reading the raw name
+/// had every live title and every list or detail load rewrite the row with
+/// the other spelling, and the list path forwards each rewrite to the chat
+/// channels. Taking both steps here agrees by construction.
+fn codex_thread_title(name: &str) -> Option<String> {
+    crate::acp::session_title::native_title_from_session_info(Some(&codex_acp_session_title(name)))
+}
+
+/// Whether a session-index name is one `load_thread_name_index` takes; backup
+/// restore merges the index by the same test (`ExternalSource::indexes`).
+pub(crate) fn is_usable_thread_name(name: &str) -> bool {
+    codex_thread_title(name).is_some()
+}
+
+/// `MAX_SESSION_TITLE_LENGTH` of codex-acp's `SessionTitle.ts`: UTF-16 units,
+/// the ellipsis included.
+const CODEX_ACP_TITLE_MAX_UNITS: usize = 256;
+
+/// codex-acp's `normalizeSessionTitle` (`SessionTitle.ts`), which makes every
+/// `session_info_update.title` it publishes (a `session/list` title is not cut
+/// since 2.2.2, but codeg never lists): whitespace runs collapsed to one
+/// space, then a title over 256 UTF-16 units cut to 255, never through a
+/// surrogate pair, and ended with "…". The cut cannot be left to codeg's own
+/// 100-character one: it comes first, and the archive markers the live path
+/// strips afterwards can pull it inside the characters codeg keeps.
+fn codex_acp_session_title(name: &str) -> String {
+    let collapsed = name
+        .split(is_js_whitespace)
+        .filter(|word| !word.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    if collapsed.encode_utf16().count() <= CODEX_ACP_TITLE_MAX_UNITS {
+        return collapsed;
+    }
+    let mut units = 0;
+    let kept: String = collapsed
+        .chars()
+        .take_while(|c| {
+            units += c.len_utf16();
+            units < CODEX_ACP_TITLE_MAX_UNITS
+        })
+        .collect();
+    format!("{}…", kept.trim_end_matches(is_js_whitespace))
+}
+
+/// What a failed turn died of, from the `error` its closing `task_complete`
+/// carries (`{"message", "codex_error_info"}` as of 0.160). Read the way
+/// codex-acp titles the live failure record with the same message
+/// ([`crate::acp::service_error`]), so the line a reload draws is the line the
+/// turn showed live.
+fn codex_turn_failure(payload: &serde_json::Value) -> Option<String> {
+    let error = payload.get("error")?;
+    let message = error
+        .get("message")
+        .and_then(serde_json::Value::as_str)
+        .or_else(|| error.as_str())?;
+    Some(
+        crate::acp::service_error::readable_service_error_message(message)
+            .unwrap_or_else(|| message.to_string()),
+    )
 }
 
 fn extract_codex_title_candidate(input: &str, fallback_attached: bool) -> Option<String> {
@@ -6737,6 +6833,7 @@ fn group_into_turns(messages: Vec<UnifiedMessage>) -> Vec<MessageTurn> {
 
 #[cfg(test)]
 mod tests {
+    use super::codex_usage_counters;
 
     /// codex-acp 1.8.0 forks BY REFERENCE: the child's rollout carries no
     /// history, only `forked_from_id` + `forked_from_ordinal_exclusive`. Read
@@ -8150,6 +8247,169 @@ mod tests {
         assert_eq!(detail.summary.title.as_deref(), Some("Makefile 文件的作用"));
     }
 
+    /// Thread names paired with the `session_info_update.title` codex-acp
+    /// 2.2.2 publishes for each. The second column is the output of the
+    /// adapter's own `SessionTitle.ts` run in Node, not a hand-written
+    /// expectation: it collapses JavaScript's `\s`, which is not Rust's
+    /// whitespace (U+0085 stays, U+FEFF goes), and cuts at 256 UTF-16 units.
+    fn adapter_published_titles() -> Vec<(String, Option<String>)> {
+        let cut = |kept: String| Some(format!("{kept}…"));
+        vec![
+            (
+                "Fix  the\nflaky\ttest".into(),
+                Some("Fix the flaky test".into()),
+            ),
+            (
+                "  Fix the flaky\n test  ".into(),
+                Some("Fix the flaky test".into()),
+            ),
+            ("a\u{A0}b\u{3000}c".into(), Some("a b c".into())),
+            ("a\u{85}b".into(), Some("a\u{85}b".into())),
+            ("\u{85}a b\u{85}".into(), Some("\u{85}a b\u{85}".into())),
+            ("a\u{FEFF}b".into(), Some("a b".into())),
+            (
+                "\u{2028}Line\u{2029}sep\u{2028}".into(),
+                Some("Line sep".into()),
+            ),
+            (" \n\t ".into(), None),
+            ("x".repeat(300), cut("x".repeat(255))),
+            ("名字".repeat(70), Some("名字".repeat(70))),
+            ("\u{1F600}".repeat(130), cut("\u{1F600}".repeat(127))),
+            (
+                "[archived] Old  thread".into(),
+                Some("[archived] Old thread".into()),
+            ),
+            ("a \u{200B} b".into(), Some("a \u{200B} b".into())),
+            ("a\u{180E}b".into(), Some("a\u{180E}b".into())),
+            ("a\u{0B}b\u{0C}c".into(), Some("a b c".into())),
+            ("a\u{2000}\u{200A}b".into(), Some("a b".into())),
+            (
+                "a\u{1680}b\u{202F}c\u{205F}d".into(),
+                Some("a b c d".into()),
+            ),
+            // The cut comes before codeg strips archive markers, so markers
+            // can pull it inside the 100 characters codeg keeps.
+            (
+                format!("{}{}", "[archived] ".repeat(15), "x".repeat(100)),
+                cut(format!("{}{}", "[archived] ".repeat(15), "x".repeat(90))),
+            ),
+            (
+                format!("{}{}", "[archived] ".repeat(6), "\u{1F600}".repeat(100)),
+                cut(format!(
+                    "{}{}",
+                    "[archived] ".repeat(6),
+                    "\u{1F600}".repeat(94)
+                )),
+            ),
+            (
+                format!("{} b{}", "a".repeat(254), "c".repeat(10)),
+                cut("a".repeat(254)),
+            ),
+            (
+                format!("{}\u{1F600}z", "a".repeat(254)),
+                cut("a".repeat(254)),
+            ),
+            ("a".repeat(256), Some("a".repeat(256))),
+        ]
+    }
+
+    /// The port reproduces the adapter's string exactly, row by row.
+    #[test]
+    fn a_thread_name_is_published_as_codex_acp_publishes_it() {
+        for (name, published) in adapter_published_titles() {
+            assert_eq!(
+                super::codex_acp_session_title(&name),
+                published.unwrap_or_default(),
+                "{name:?}"
+            );
+        }
+    }
+
+    /// The live path titles a codex session by what codex-acp publishes; the
+    /// parser by the name codex stored, which codex only trims. Unless both
+    /// read the same, every live title and every list or detail load rewrites
+    /// the row with the other spelling.
+    #[test]
+    fn a_thread_name_reads_as_its_live_title() {
+        for (name, published) in adapter_published_titles() {
+            assert_eq!(
+                super::codex_thread_title(&name),
+                crate::acp::session_title::native_title_from_session_info(published.as_deref()),
+                "{name:?}"
+            );
+        }
+        assert_eq!(
+            super::codex_thread_title("Fix  the\nflaky\ttest").as_deref(),
+            Some("Fix the flaky test")
+        );
+        assert_eq!(
+            super::codex_thread_title("a\u{85}b").as_deref(),
+            Some("a\u{85}b")
+        );
+        assert_eq!(super::codex_thread_title(" \n\t "), None);
+    }
+
+    /// `/rename   Fix  the\nflaky\ttest   ` sent through codex-acp 2.2.2
+    /// published `Fix the flaky test`, and codex appended this line to its
+    /// index, verbatim from that run.
+    #[test]
+    fn an_indexed_thread_name_reads_as_its_live_title() {
+        let conversation_id = "01a12422-f8e0-72a2-aa87-729556ccabd1";
+        let (_temp_dir, parser, index_path) = write_index_title_fixture(conversation_id);
+        fs::write(
+            &index_path,
+            "{\"id\":\"01a12422-f8e0-72a2-aa87-729556ccabd1\",\"thread_name\":\"Fix  the\\nflaky\\ttest\",\"updated_at\":\"2026-10-10T04:47:19.375134Z\"}\n",
+        )
+        .expect("write index");
+
+        let indexed = parser.load_thread_name_index();
+        assert_eq!(
+            indexed.get(conversation_id).map(String::as_str),
+            Some("Fix the flaky test")
+        );
+        let summaries = parser.list_conversations().expect("list conversations");
+        assert_eq!(summaries[0].title.as_deref(), Some("Fix the flaky test"));
+        let detail = parser
+            .get_conversation(conversation_id)
+            .expect("get conversation");
+        assert_eq!(detail.summary.title.as_deref(), Some("Fix the flaky test"));
+    }
+
+    #[test]
+    fn a_rollout_thread_name_reads_as_its_live_title() {
+        let conversation_id = "rollout-multiline-thread-name";
+        let (_temp_dir, parser, _index_path) = write_index_title_fixture(conversation_id);
+        let rollout_path = parser
+            .base_dir
+            .join("2026")
+            .join("08")
+            .join("15")
+            .join(format!(
+                "rollout-2026-08-15T16-00-00-{conversation_id}.jsonl"
+            ));
+        let mut rollout = fs::read_to_string(&rollout_path).expect("read rollout");
+        rollout.push_str(
+            &serde_json::json!({
+                "timestamp": "2026-08-15T08:00:02Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "thread_name_updated",
+                    "thread_name": "Fix  the\nflaky\ttest"
+                }
+            })
+            .to_string(),
+        );
+        rollout.push('\n');
+        fs::write(&rollout_path, rollout).expect("append rollout title");
+
+        let summaries = parser.list_conversations().expect("list conversations");
+        assert_eq!(summaries[0].title.as_deref(), Some("Fix the flaky test"));
+        let detail = parser
+            .get_conversation(conversation_id)
+            .expect("get conversation");
+        assert_eq!(detail.summary.title.as_deref(), Some("Fix the flaky test"));
+    }
+
     #[test]
     fn skips_agents_instructions_title_candidate() {
         let input =
@@ -8574,6 +8834,88 @@ mod tests {
         assert_eq!(parsed.output_tokens, 16);
         assert_eq!(parsed.cache_creation_input_tokens, 0);
         assert_eq!(parsed.cache_read_input_tokens, 80);
+    }
+
+    #[test]
+    fn a_cache_write_is_split_out_of_codex_input() {
+        // A `last_token_usage` codex wrote for gpt-5.6-terra on codeg's bound
+        // provider: the 19 915 input tokens are 17 152 cache reads, 2 304
+        // cache writes and only 459 fresh ones.
+        let usage = serde_json::json!({
+            "input_tokens": 19_915,
+            "cached_input_tokens": 17_152,
+            "cache_write_input_tokens": 2_304,
+            "output_tokens": 2_095,
+            "reasoning_output_tokens": 0,
+            "total_tokens": 22_010
+        });
+        let parsed = extract_turn_usage_from_codex_usage(&usage).expect("usage");
+        assert_eq!(parsed.input_tokens, 459);
+        assert_eq!(parsed.cache_creation_input_tokens, 2_304);
+        assert_eq!(parsed.cache_read_input_tokens, 17_152);
+        assert_eq!(parsed.output_tokens, 2_095);
+        // The split moves tokens between columns; the total is untouched.
+        assert_eq!(
+            parsed.input_tokens
+                + parsed.cache_creation_input_tokens
+                + parsed.cache_read_input_tokens
+                + parsed.output_tokens,
+            22_010
+        );
+        assert_eq!(codex_usage_counters(&usage), parsed);
+    }
+
+    #[test]
+    fn an_over_reported_codex_cache_write_cannot_inflate_the_input() {
+        let usage = serde_json::json!({
+            "input_tokens": 100,
+            "cached_input_tokens": 80,
+            "cache_write_input_tokens": 50,
+            "output_tokens": 1
+        });
+        let parsed = codex_usage_counters(&usage);
+        assert_eq!(parsed.input_tokens, 0);
+        assert_eq!(parsed.cache_creation_input_tokens, 20);
+        assert_eq!(parsed.cache_read_input_tokens, 80);
+    }
+
+    #[test]
+    fn a_codex_session_with_cache_writes_reports_them_per_turn() {
+        // Two rounds on a provider that writes the prompt cache. The rounds are
+        // differenced off the cumulative counter, so the write column has to
+        // come through that arithmetic too, not only the single-payload path.
+        let content = concat!(
+            "{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"cache-write-1\",\"cwd\":\"/tmp/demo\"}}\n",
+            "{\"timestamp\":\"2026-03-01T10:00:01Z\",\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-5.6-terra\"}}\n",
+            "{\"timestamp\":\"2026-03-01T10:00:02Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"message\":\"working\"}}\n",
+            "{\"timestamp\":\"2026-03-01T10:00:03Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":19915,\"cached_input_tokens\":17152,\"cache_write_input_tokens\":2304,\"output_tokens\":2095,\"reasoning_output_tokens\":0,\"total_tokens\":22010},\"last_token_usage\":{\"input_tokens\":19915,\"cached_input_tokens\":17152,\"cache_write_input_tokens\":2304,\"output_tokens\":2095,\"reasoning_output_tokens\":0,\"total_tokens\":22010}}}}\n",
+            "{\"timestamp\":\"2026-03-01T10:00:13Z\",\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":51592,\"cached_input_tokens\":45056,\"cache_write_input_tokens\":5632,\"output_tokens\":3706,\"reasoning_output_tokens\":0,\"total_tokens\":55298},\"last_token_usage\":{\"input_tokens\":31677,\"cached_input_tokens\":27904,\"cache_write_input_tokens\":3328,\"output_tokens\":1611,\"reasoning_output_tokens\":0,\"total_tokens\":33288}}}}\n"
+        );
+        let detail = parse_rollout("cache-write", content, "cache-write-1");
+
+        assert_eq!(turn_usage_total(&detail), 55_298);
+        let written: u64 = detail
+            .turns
+            .iter()
+            .filter_map(|t| t.usage.as_ref())
+            .map(|u| u.cache_creation_input_tokens)
+            .sum();
+        assert_eq!(written, 5_632);
+        let fresh: u64 = detail
+            .turns
+            .iter()
+            .filter_map(|t| t.usage.as_ref())
+            .map(|u| u.input_tokens)
+            .sum();
+        assert_eq!(fresh, 51_592 - 45_056 - 5_632);
+
+        let total = detail
+            .session_stats
+            .expect("session stats")
+            .total_usage
+            .expect("total usage");
+        assert_eq!(total.cache_creation_input_tokens, 5_632);
+        assert_eq!(total.input_tokens, 51_592 - 45_056 - 5_632);
     }
 
     #[test]
@@ -15426,6 +15768,153 @@ mod tests {
         )
     }
 
+    /// A turn that FAILED closes on codex's own account of why — the `error`
+    /// of its `task_complete`, the only trace the rollout keeps — as a
+    /// `System` turn holding one `TurnError`: never a reply, so it neither puts
+    /// the error in the model's mouth nor shifts any reply count. A clean close
+    /// and an interrupt (`turn_aborted`) add nothing.
+    #[test]
+    fn a_failed_turn_closes_on_codex_s_account_of_the_failure() {
+        let failure = "unexpected status 521 <unknown status code>: error code: 521";
+        let content = jsonl(&[
+            record(
+                "2026-10-10T00:00:00Z",
+                "session_meta",
+                serde_json::json!({"id": "fail-1", "cwd": "/tmp/demo", "cli_version": "0.160.1"}),
+            ),
+            record(
+                "2026-10-10T00:00:01Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-10-10T00:00:02Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "hi"}]}),
+            ),
+            record(
+                "2026-10-10T00:00:03Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t1", "last_agent_message": null, "error": {"message": failure, "codex_error_info": {"http_connection_failed": {"http_status_code": 521}}}}),
+            ),
+            record(
+                "2026-10-10T00:01:00Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t2"}),
+            ),
+            record(
+                "2026-10-10T00:01:01Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "again"}]}),
+            ),
+            assistant_item("2026-10-10T00:01:02Z", "Hi!"),
+            record(
+                "2026-10-10T00:01:03Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t2", "last_agent_message": "Hi!"}),
+            ),
+            record(
+                "2026-10-10T00:02:00Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t3"}),
+            ),
+            record(
+                "2026-10-10T00:02:01Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "stop"}]}),
+            ),
+            record(
+                "2026-10-10T00:02:02Z",
+                "event_msg",
+                serde_json::json!({"type": "turn_aborted", "turn_id": "t3", "reason": "interrupted"}),
+            ),
+        ]);
+        let detail = parse_rollout("failed-turn", &content, "fail-1");
+
+        assert_eq!(
+            turn_texts(&detail),
+            vec![
+                ("user", Some("hi".into())),
+                ("system", None),
+                ("user", Some("again".into())),
+                ("assistant", Some("Hi!".into())),
+                ("user", Some("stop".into())),
+            ]
+        );
+        assert!(
+            matches!(
+                detail.turns[1].blocks.as_slice(),
+                [ContentBlock::TurnError { message }] if message == failure
+            ),
+            "{:?}",
+            detail.turns[1].blocks
+        );
+        // A line, not a message: the count stays the conversation's.
+        assert_eq!(detail.summary.message_count, 4);
+    }
+
+    /// codex keeps a provider's error envelope verbatim as the turn error,
+    /// while codex-acp titles the live failure with its `error.message` only
+    /// (`readableServiceErrorMessage`); the reload must read it the same way
+    /// or the line changes on reopen. Both `task_complete` records are
+    /// verbatim from codex-acp 2.2.2 / codex 0.160.1 failing two turns against
+    /// a provider answering 400, whose live records were titled "The model is
+    /// not supported with this account." and "probe: model does not exist".
+    #[test]
+    fn a_failed_turn_reads_a_provider_error_as_codex_acp_does() {
+        let content = [
+            record(
+                "2026-10-10T07:29:27.200Z",
+                "session_meta",
+                serde_json::json!({"id": "fail-2", "cwd": "/tmp/demo"}),
+            )
+            .to_string(),
+            record(
+                "2026-10-10T07:29:27.210Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "01a124b7-7c9d-7592-ba13-fb11c73b79bb"}),
+            )
+            .to_string(),
+            record(
+                "2026-10-10T07:29:27.220Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "FAIL400ENV please"}]}),
+            )
+            .to_string(),
+            r#"{"timestamp":"2026-10-10T07:29:27.271Z","ordinal":8,"type":"event_msg","payload":{"type":"task_complete","turn_id":"01a124b7-7c9d-7592-ba13-fb11c73b79bb","last_agent_message":null,"error":{"message":"{\"type\": \"error\", \"status\": 400, \"error\": {\"type\": \"invalid_request_error\", \"message\": \"The model is not supported with this account.\"}}","codex_error_info":"other"},"started_at":1791617367,"completed_at":1791617367,"duration_ms":68}}"#.to_string(),
+            record(
+                "2026-10-10T07:29:29.250Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "01a124b7-84d1-7763-bf6d-fef72a40b02c"}),
+            )
+            .to_string(),
+            record(
+                "2026-10-10T07:29:29.260Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "FAIL400TEXT please"}]}),
+            )
+            .to_string(),
+            r#"{"timestamp":"2026-10-10T07:29:29.317Z","ordinal":14,"type":"event_msg","payload":{"type":"task_complete","turn_id":"01a124b7-84d1-7763-bf6d-fef72a40b02c","last_agent_message":null,"error":{"message":"probe: model does not exist","codex_error_info":"other"},"started_at":1791617369,"completed_at":1791617369,"duration_ms":16}}"#.to_string(),
+        ]
+        .join("\n");
+        let detail = parse_rollout("failed-envelope", &content, "fail-2");
+        let lines: Vec<&str> = detail
+            .turns
+            .iter()
+            .filter_map(|turn| match turn.blocks.as_slice() {
+                [ContentBlock::TurnError { message }] => Some(message.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            lines,
+            vec![
+                "The model is not supported with this account.",
+                "probe: model does not exist"
+            ]
+        );
+    }
+
     const HANDOFF: &str = "## Task and status\nUser asked to clean /private/tmp.\n\n## Next\n- Confirm before deleting.";
 
     /// A `/compact` as codex 0.152+ writes it: its own turn, whose handoff the
@@ -16413,6 +16902,18 @@ mod tests {
         assert_eq!(
             turn_texts(&detail),
             vec![("assistant", Some("still readable".into()))]
+        );
+    }
+
+    /// #948: built with an agent's launch env, the parser reads where THAT
+    /// env puts the agent's files, not where codeg's own environment does.
+    #[test]
+    fn for_env_reads_the_home_of_the_launch_env() {
+        let env = crate::parsers::AgentEnv::with_overrides(&[("CODEX_HOME", "/relocated/codex")]);
+        // `session_index.jsonl` is read from the sessions dir's parent.
+        assert_eq!(
+            super::CodexParser::for_env(&env).base_dir,
+            std::path::PathBuf::from("/relocated/codex").join("sessions")
         );
     }
 }

@@ -2057,7 +2057,8 @@
         "assistant": "Assistent",
         "system": "System",
         "toolResult": "Ergebnis",
-        "toolError": "Fehler"
+        "toolError": "Fehler",
+        "turnFailed": "Runde fehlgeschlagen"
       },
       "moreActions": "Weitere Aktionen"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "Live-Vorschau konnte nicht gestartet werden",
       "officeWatchRetry": "Erneut versuchen",
       "officeServerInstallHint": "OfficeCLI muss auf dem Server-Host installiert sein. Führe diesen Befehl dort aus und versuche es erneut:",
-      "officeRemoteDesktopUnsupported": "Die Live-Vorschau ist in einem Remote-Desktop-Fenster nicht verfügbar. Öffne diesen Arbeitsbereich in der Web-Oberfläche des Servers, um Office-Dateien anzusehen."
+      "officeRemoteDesktopUnsupported": "Die Live-Vorschau ist in einem Remote-Desktop-Fenster nicht verfügbar. Öffne diesen Arbeitsbereich in der Web-Oberfläche des Servers, um Office-Dateien anzusehen.",
+      "pdfDocument": "PDF-Dokument",
+      "pdfZoomIn": "Vergrößern",
+      "pdfZoomOut": "Verkleinern",
+      "pdfZoomReset": "Zoom zurücksetzen",
+      "pdfFitWidth": "An Breite anpassen",
+      "pdfPageNumber": "Seitenzahl",
+      "pdfFind": "Im Dokument suchen",
+      "pdfFindPrevious": "Vorheriger Treffer",
+      "pdfFindNext": "Nächster Treffer",
+      "pdfFindNoMatches": "Keine Treffer",
+      "pdfPasswordPrompt": "Dieses PDF ist passwortgeschützt. Geben Sie das Passwort ein, um es zu öffnen.",
+      "pdfPasswordIncorrect": "Falsches Passwort. Bitte erneut versuchen.",
+      "pdfPassword": "Passwort",
+      "pdfPasswordSubmit": "Öffnen",
+      "pdfInvalid": "Diese Datei ist kein gültiges PDF oder ist beschädigt.",
+      "pdfLoadFailed": "Dieses PDF kann nicht angezeigt werden: {message}"
     },
     "fileViewer": {
       "title": "Dateivorschau",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} Schritte",
         "processedFor": "Verarbeitet in {duration}",
         "showMore": "Mehr anzeigen",
-        "showLess": "Weniger anzeigen"
+        "showLess": "Weniger anzeigen",
+        "turnFailed": "Runde fehlgeschlagen: {message}"
       },
       "liveTurnStats": {
         "waiting": "Warte auf Antwort",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex-Visualisierung",
         "htmlPreviewOpen": "Vorschau",
         "htmlPreviewOpenAria": "Vorschau von {name}",
-        "htmlPreviewHide": "Vorschau ausblenden"
+        "htmlPreviewHide": "Vorschau ausblenden",
+        "agentEffortLabel": "Aufwand",
+        "allowLarge": "Über dem Größenlimit"
       },
       "conversationFind": {
         "title": "Unterhaltung durchsuchen",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "Nachrichten {count}",
         "fileCount": "{count, plural, one {# Datei} other {# Dateien}}",
         "remove": "Entfernen",
-        "noDiffDataAvailable": "Keine Diff-Daten verfügbar für {filePath}"
+        "noDiffDataAvailable": "Keine Diff-Daten verfügbar für {filePath}",
+        "loadingEarlier": "Frühere Nachrichten werden geladen…",
+        "loadEarlier": "Frühere Nachrichten laden"
       },
       "replyArtifacts": {
         "editedFiles": "{count} Dateien bearbeitet",

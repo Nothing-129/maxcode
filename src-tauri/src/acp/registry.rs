@@ -1414,8 +1414,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // keep background Bash output and saved model aliases. 0.86.0
             // bundles Claude Code 2.1.287 and removes the session/new count burst.
             distribution: AgentDistribution::Npx {
-                version: "0.86.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.86.0",
+                // Reviewed 22e70a05 / fa38e534 / 8b95fc1c / e86fd9bf / bd30df7c:
+                // CLI 2.1.296; queued-command history, stable transcript titles,
+                // fork settings parity and canonical Bash/Grep/Read inputs.
+                version: "0.90.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.90.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2066,12 +2069,14 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // error messages and Desktop attachment envelopes. Native steering
             // remains gated by the promptRequired lifecycle contract.
             distribution: AgentDistribution::Npx {
-                version: "2.1.1",
-                package: "@agentclientprotocol/codex-acp@2.1.1",
+                // Reviewed 8b95fc1c: app-server crash classification, thread names,
+                // cache-write accounting and strict owned catalog validation.
+                version: "2.2.2",
+                package: "@agentclientprotocol/codex-acp@2.2.2",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
-                node_required: Some("20.0.0"),
+                node_required: Some("20.3.0"),
             },
         },
         AgentType::Gemini => AcpAgentMeta {
@@ -2419,8 +2424,9 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // 1.0.44: reviewed stable npm release; keep agent stdio, root-level
             // permission flags and connection-scope setup notification handling.
             distribution: AgentDistribution::Npx {
-                version: "1.0.44",
-                package: "@xai-official/grok@1.0.44",
+                // Reviewed 001ee728: background task labels name the original command.
+                version: "1.0.52",
+                package: "@xai-official/grok@1.0.52",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
@@ -2755,7 +2761,9 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // still covered only the other five targets), so on an Intel Mac
             // anything older 404s the same way.
             distribution: AgentDistribution::Binary {
-                version: "1.2.1",
+                // Reviewed 001ee728: family model selector plus thinking_level;
+                // replay saved variant IDs only while the flat session list offers them.
+                version: "1.4.0",
                 // Never resolvable on PATH (there is no standalone CLI by
                 // this name); it exists because `Binary` requires one, and
                 // for dir-tree agents `installed_binary_path` ignores it in
@@ -2772,32 +2780,32 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.2.1-darwin-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.0-darwin-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "darwin-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.2.1-darwin-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.0-darwin-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.2.1-linux-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.0-linux-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.2.1-linux-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.0-linux-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.2.1-windows-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.0-windows-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.2.1-windows-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.0-windows-x86_64.zip",
                         sha256: None,
                     },
                 ],
@@ -2921,7 +2929,7 @@ mod tests {
                 dir_entry,
                 ..
             } => {
-                assert_eq!(version, "1.2.1");
+                assert_eq!(version, "1.4.0");
                 assert_eq!(cmd, "agy_acp_server");
                 let entry = dir_entry.expect("antigravity must use dir-tree extraction");
                 assert_eq!(entry.unix, "agy_acp_server.par");
@@ -2931,7 +2939,7 @@ mod tests {
                 assert!(platforms.iter().any(|p| p.platform == "darwin-x86_64"));
                 for platform in platforms {
                     assert!(
-                        platform.url.contains("/agy-acp-server-1.2.1-"),
+                        platform.url.contains("/agy-acp-server-1.4.0-"),
                         "{} URL lost the release name: {}",
                         platform.platform,
                         platform.url
@@ -3138,8 +3146,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.86.0",
-            "@agentclientprotocol/claude-agent-acp@0.86.0",
+            "0.90.0",
+            "@agentclientprotocol/claude-agent-acp@0.90.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3174,15 +3182,15 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "2.1.1",
-            "@agentclientprotocol/codex-acp@2.1.1",
-            Some("20.0.0"),
+            "2.2.2",
+            "@agentclientprotocol/codex-acp@2.2.2",
+            Some("20.3.0"),
         );
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.44",
-            "@xai-official/grok@1.0.44",
+            "1.0.52",
+            "@xai-official/grok@1.0.52",
             Some("20.0.0"),
         );
         assert_npx_version(

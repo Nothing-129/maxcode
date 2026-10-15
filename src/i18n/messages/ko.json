@@ -2057,7 +2057,8 @@
         "assistant": "어시스턴트",
         "system": "시스템",
         "toolResult": "결과",
-        "toolError": "오류"
+        "toolError": "오류",
+        "turnFailed": "턴 실패"
       },
       "moreActions": "추가 작업"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "실시간 미리보기를 시작할 수 없습니다",
       "officeWatchRetry": "다시 시도",
       "officeServerInstallHint": "OfficeCLI는 서버 호스트에 설치해야 합니다. 서버에서 다음 명령을 실행한 후 다시 시도하세요:",
-      "officeRemoteDesktopUnsupported": "원격 데스크톱 창에서는 실시간 미리보기를 사용할 수 없습니다. Office 파일을 미리 보려면 서버의 웹 UI에서 이 작업 공간을 여세요."
+      "officeRemoteDesktopUnsupported": "원격 데스크톱 창에서는 실시간 미리보기를 사용할 수 없습니다. Office 파일을 미리 보려면 서버의 웹 UI에서 이 작업 공간을 여세요.",
+      "pdfDocument": "PDF 문서",
+      "pdfZoomIn": "확대",
+      "pdfZoomOut": "축소",
+      "pdfZoomReset": "확대/축소 초기화",
+      "pdfFitWidth": "너비에 맞추기",
+      "pdfPageNumber": "페이지 번호",
+      "pdfFind": "문서에서 찾기",
+      "pdfFindPrevious": "이전 일치 항목",
+      "pdfFindNext": "다음 일치 항목",
+      "pdfFindNoMatches": "일치 항목 없음",
+      "pdfPasswordPrompt": "이 PDF는 비밀번호로 보호되어 있습니다. 열려면 비밀번호를 입력하세요.",
+      "pdfPasswordIncorrect": "비밀번호가 올바르지 않습니다. 다시 시도하세요.",
+      "pdfPassword": "비밀번호",
+      "pdfPasswordSubmit": "열기",
+      "pdfInvalid": "이 파일은 유효한 PDF가 아니거나 손상되었습니다.",
+      "pdfLoadFailed": "이 PDF를 표시할 수 없습니다: {message}"
     },
     "fileViewer": {
       "title": "파일 미리보기",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count}개 단계",
         "processedFor": "처리 완료 {duration}",
         "showMore": "더보기",
-        "showLess": "접기"
+        "showLess": "접기",
+        "turnFailed": "이번 턴 실패: {message}"
       },
       "liveTurnStats": {
         "waiting": "응답 대기 중",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex 시각화",
         "htmlPreviewOpen": "미리보기",
         "htmlPreviewOpenAria": "{name} 미리보기",
-        "htmlPreviewHide": "미리보기 닫기"
+        "htmlPreviewHide": "미리보기 닫기",
+        "agentEffortLabel": "사고 강도",
+        "allowLarge": "크기 제한 초과"
       },
       "conversationFind": {
         "title": "대화에서 검색",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "메시지 {count}",
         "fileCount": "{count, plural, one {#개 파일} other {#개 파일}}",
         "remove": "제거",
-        "noDiffDataAvailable": "{filePath}에 대한 diff 데이터가 없습니다"
+        "noDiffDataAvailable": "{filePath}에 대한 diff 데이터가 없습니다",
+        "loadingEarlier": "이전 메시지를 불러오는 중…",
+        "loadEarlier": "이전 메시지 불러오기"
       },
       "replyArtifacts": {
         "editedFiles": "파일 {count}개 편집됨",

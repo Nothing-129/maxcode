@@ -1007,7 +1007,16 @@ async fn diag_cmd_probe(cmd: &str, version_args: &[&str]) -> CmdProbe {
     }
 }
 
-/// Major version from `v20.11.1` / `20.11.1`.
+/// Compare complete versions so diagnostics agree with the launch preflight.
+fn node_meets_requirement(current: &str, required: &str) -> Option<bool> {
+    use crate::acp::preflight::parse_node_version;
+    if let (Some(cur), Some(req)) = (parse_node_version(current), parse_node_version(required)) {
+        return Some(cur >= req);
+    }
+    Some(parse_node_major(current)? >= parse_node_major(required)?)
+}
+
+/// Major version from `v20.11.1` / `20.11.1` (fallback for incomplete versions).
 fn parse_node_major(v: &str) -> Option<u64> {
     v.trim()
         .trim_start_matches('v')
@@ -1355,14 +1364,12 @@ fn compute_verdict(inp: &DiagInputs) -> DiagnosticsVerdict {
     }
 
     if let (Some(req), Some(ver)) = (agent.node_required.as_deref(), inp.node.version.as_deref()) {
-        if let (Some(rmaj), Some(nmaj)) = (parse_node_major(req), parse_node_major(ver)) {
-            if nmaj < rmaj {
-                return diag_verdict(
-                    DiagLevel::Fail,
-                    "node_too_old",
-                    "The active Node.js is older than this agent requires.",
-                );
-            }
+        if node_meets_requirement(ver, req) == Some(false) {
+            return diag_verdict(
+                DiagLevel::Fail,
+                "node_too_old",
+                "The active Node.js is older than this agent requires.",
+            );
         }
     }
 
@@ -1657,9 +1664,7 @@ fn build_report(
                 .node
                 .version
                 .as_deref()
-                .and_then(parse_node_major)
-                .zip(parse_node_major(req))
-                .map(|(n, r)| n >= r)
+                .and_then(|ver| node_meets_requirement(ver, req))
                 .unwrap_or(true);
             checks.push(diag_check(
                 "node_required",
@@ -1907,6 +1912,40 @@ mod diagnostics_tests {
         a.resolve_npx = Some("/x/codex-acp".to_string()); // resolves, but node too old
         inp.agent = Some(a);
         assert_eq!(compute_verdict(&inp).code, "node_too_old");
+    }
+
+    // The floor is a full version, and diagnostics must read it the way the
+    // launch preflight does: codex-acp 2.2 needs 20.3.0 (`AbortSignal.any`),
+    // so a Node 20.2 that resolves the command is still too old.
+    #[test]
+    fn verdict_node_too_old_within_the_required_major() {
+        let mut inp = base_inputs();
+        inp.node.version = Some("v20.2.0".to_string());
+        let mut a = agent_installed_unresolved();
+        a.node_required = Some("20.3.0".to_string());
+        a.resolve_npx = Some("/x/codex-acp".to_string());
+        inp.agent = Some(a);
+        assert_eq!(compute_verdict(&inp).code, "node_too_old");
+
+        inp.node.version = Some("v20.3.0".to_string());
+        assert_eq!(compute_verdict(&inp).code, "ok");
+    }
+
+    #[test]
+    fn node_requirement_compares_whole_versions() {
+        assert_eq!(node_meets_requirement("v20.2.0", "20.3.0"), Some(false));
+        assert_eq!(node_meets_requirement("v20.3.0", "20.3.0"), Some(true));
+        assert_eq!(node_meets_requirement("v20.19.1", "20.3.0"), Some(true));
+        assert_eq!(node_meets_requirement("v22.18.0", "22.19.0"), Some(false));
+        assert_eq!(node_meets_requirement("v24.0.0", "22.19.0"), Some(true));
+        assert_eq!(
+            node_meets_requirement("v22.0.0-nightly", "22.0.0"),
+            Some(true)
+        );
+        // A version without its patch still compares by major.
+        assert_eq!(node_meets_requirement("v20", "20.3.0"), Some(true));
+        assert_eq!(node_meets_requirement("v18", "20.3.0"), Some(false));
+        assert_eq!(node_meets_requirement("unknown", "20.3.0"), None);
     }
 
     #[test]

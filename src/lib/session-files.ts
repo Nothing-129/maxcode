@@ -750,7 +750,7 @@ function extractUserMessage(turn: MessageTurn): string {
 }
 
 /** Results can arrive in another assistant sub-turn; correlate by call id. */
-function collectFailedToolIds(turns: MessageTurn[]): Set<string> {
+function collectFailedToolIds(turns: readonly MessageTurn[]): Set<string> {
   const failed = new Set<string>()
   for (const turn of turns) {
     for (const block of turn.blocks) {
@@ -774,8 +774,84 @@ function isFailedToolUse(
   return block.status === "failed" || failedIds.has(block.tool_use_id ?? "")
 }
 
+/** One file written by one of a turn's tool calls, before it joins a group. */
+interface TurnFileChange {
+  /** The group-independent part of `FileChangeStat.id`. */
+  idPrefix: string
+  toolUseId: string | null
+  path: string
+  additions: number
+  deletions: number
+  diff: string | null
+}
+
+/**
+ * Per-turn-object memo of `turnFileChanges`. Parsing a tool call's input and
+ * building its diff is the expensive part of grouping, and the message
+ * navigator regroups the whole conversation (history above the loaded window
+ * included) on every streaming update while it is open. Keyed by identity,
+ * which is sound because a turn is never edited in place: every update
+ * (metadata backfill, background-task settlement, a refetch) replaces the
+ * turn object, and the streaming turn is rebuilt per batch.
+ */
+const turnFileChangesCache = new WeakMap<MessageTurn, TurnFileChange[]>()
+
+function turnFileChanges(turn: MessageTurn): TurnFileChange[] {
+  const cached = turnFileChangesCache.get(turn)
+  if (cached) return cached
+
+  const changes: TurnFileChange[] = []
+  for (const block of turn.blocks) {
+    if (block.type !== "tool_use" || block.status === "failed") continue
+
+    const normalized = normalizeToolName(block.tool_name)
+    if (!WRITE_OPS.has(normalized)) continue
+
+    const filePaths = extractFilePaths(block.input_preview)
+    if (filePaths.length === 0) continue
+
+    for (const [fileIndex, filePath] of filePaths.entries()) {
+      const normalizedPath = normalizePath(filePath)
+      const diff = computeLineDiff(
+        normalized,
+        block.input_preview,
+        normalizedPath
+      )
+      const toolOutput = findToolResultOutput(turn.blocks, block.tool_use_id)
+      const diffChunk = buildDiffChunk(
+        normalized,
+        block.input_preview,
+        normalizedPath,
+        toolOutput
+      )
+
+      changes.push({
+        idPrefix: `${turn.id}:${block.tool_use_id ?? "tool"}:${fileIndex}`,
+        toolUseId: block.tool_use_id,
+        path: normalizedPath,
+        additions: diff?.additions ?? 0,
+        deletions: diff?.deletions ?? 0,
+        diff: diffChunk?.trim() ? diffChunk.trim() : null,
+      })
+    }
+  }
+  turnFileChangesCache.set(turn, changes)
+  return changes
+}
+
+/**
+ * Group the files each user message led to: one group per user turn, holding
+ * the edit/write/apply_patch changes of the assistant turns that follow it.
+ *
+ * The message navigator also runs this over the backend's outline of the
+ * history above the loaded window (`nav_outline_turns` in
+ * `src-tauri/src/commands/turn_window.rs`), which keeps only what this reads.
+ * Reading more of a turn here means keeping more of it there; the shared
+ * vector in `src-tauri/tests/fixtures/nav_outline_vector.json` fails both
+ * sides' tests until they agree again.
+ */
 export function extractSessionFilesGrouped(
-  turns: MessageTurn[],
+  turns: readonly MessageTurn[],
   opts: { includeEmpty?: boolean } = {}
 ): UserMessageGroup[] {
   const { includeEmpty = false } = opts
@@ -808,39 +884,17 @@ export function extractSessionFilesGrouped(
 
     if (turn.role !== "assistant") continue
 
-    for (const block of turn.blocks) {
-      if (block.type !== "tool_use") continue
-
-      const normalized = normalizeToolName(block.tool_name)
-      if (!WRITE_OPS.has(normalized)) continue
-      if (isFailedToolUse(block, failedIds)) continue
-
-      const filePaths = extractFilePaths(block.input_preview)
-      if (filePaths.length === 0) continue
-
-      for (const [fileIndex, filePath] of filePaths.entries()) {
-        const normalizedPath = normalizePath(filePath)
-        const diff = computeLineDiff(
-          normalized,
-          block.input_preview,
-          normalizedPath
-        )
-        const toolOutput = findToolResultOutput(turn.blocks, block.tool_use_id)
-        const diffChunk = buildDiffChunk(
-          normalized,
-          block.input_preview,
-          normalizedPath,
-          toolOutput
-        )
-
-        currentFiles.push({
-          id: `${turn.id}:${block.tool_use_id ?? "tool"}:${fileIndex}:${currentFiles.length}`,
-          path: normalizedPath,
-          additions: diff?.additions ?? 0,
-          deletions: diff?.deletions ?? 0,
-          diff: diffChunk?.trim() ? diffChunk.trim() : null,
-        })
-      }
+    for (const change of turnFileChanges(turn)) {
+      // Failure may arrive in a later sub-turn after this immutable turn was
+      // memoized. Apply that transcript-wide evidence after the cached parse.
+      if (failedIds.has(change.toolUseId ?? "")) continue
+      currentFiles.push({
+        id: `${change.idPrefix}:${currentFiles.length}`,
+        path: change.path,
+        additions: change.additions,
+        deletions: change.deletions,
+        diff: change.diff,
+      })
     }
   }
 

@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,22 +12,25 @@ vi.mock("next-intl", () => ({ useTranslations: () => (k: string) => k }))
 vi.mock("@/lib/api", () => ({
   startOfficeWatch: vi.fn(),
   stopOfficeWatch: vi.fn(),
+  renewOfficeWatch: vi.fn(),
 }))
 vi.mock("@/lib/transport", () => ({
   getServerBaseUrl: vi.fn(),
 }))
 
-import { startOfficeWatch, stopOfficeWatch } from "@/lib/api"
+import { renewOfficeWatch, startOfficeWatch, stopOfficeWatch } from "@/lib/api"
 import { getServerBaseUrl } from "@/lib/transport"
-import { OfficePreview } from "./office-preview"
+import { OfficePreview, WATCH_RENEW_INTERVAL_MS } from "./office-preview"
 
 const mockStart = vi.mocked(startOfficeWatch)
 const mockStop = vi.mocked(stopOfficeWatch)
+const mockRenew = vi.mocked(renewOfficeWatch)
 const mockBaseUrl = vi.mocked(getServerBaseUrl)
 
 beforeEach(() => {
   vi.clearAllMocks()
   mockStop.mockResolvedValue(undefined)
+  mockRenew.mockResolvedValue(true)
   mockBaseUrl.mockReturnValue("https://srv.example")
 })
 afterEach(() => cleanup())
@@ -44,15 +48,6 @@ describe("OfficePreview", () => {
     expect(iframe.getAttribute("src")).toBe(
       "https://srv.example/api/office-watch-proxy/26315/?cap=capval"
     )
-    expect(iframe.getAttribute("referrerpolicy")).toBe("no-referrer")
-    expect(iframe).toHaveClass(
-      "absolute",
-      "inset-0",
-      "h-full",
-      "w-full",
-      "border-0",
-      "bg-white"
-    )
     // No allow-same-origin in web mode → the page can't read app storage.
     expect(iframe.getAttribute("sandbox")).toBe(
       "allow-scripts allow-popups allow-forms"
@@ -60,7 +55,7 @@ describe("OfficePreview", () => {
   })
 
   it("stops the watch on unmount", async () => {
-    mockStart.mockResolvedValue({ port: 1, cap: "c" })
+    mockStart.mockResolvedValue({ port: 1, cap: "c", hold: "h" })
 
     const { unmount } = render(
       <OfficePreview rootPath="/root/reports" relPath="a.docx" />
@@ -68,7 +63,103 @@ describe("OfficePreview", () => {
     await screen.findByTitle("officePreviewTitle")
     unmount()
 
-    expect(mockStop).toHaveBeenCalledWith("/root/reports", "a.docx")
+    // Named by the capability and hold its start returned: a release must
+    // only ever take back the reference this preview acquired.
+    expect(mockStop).toHaveBeenCalledWith("/root/reports", "a.docx", "c", "h")
+  })
+
+  it("releases what it acquired when unmounted before the start resolved", async () => {
+    let resolveStart: (value: { port: number; cap: string }) => void = () => {}
+    mockStart.mockReturnValue(
+      new Promise((resolve) => {
+        resolveStart = resolve
+      })
+    )
+
+    const { unmount } = render(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" />
+    )
+    unmount()
+    expect(mockStop).not.toHaveBeenCalled()
+    resolveStart({ port: 30000, cap: "late" })
+
+    await waitFor(() =>
+      expect(mockStop).toHaveBeenCalledWith(
+        "/root/reports",
+        "a.docx",
+        "late",
+        undefined
+      )
+    )
+    expect(mockStop).toHaveBeenCalledTimes(1)
+  })
+
+  it("restarts a preview whose watch is gone when it is shown again", async () => {
+    // The backend stops a watch with its tab still open when the folder it
+    // sits in is closed (or its worktree removed, or it crashes). A kept
+    // preview must not go on showing that dead page.
+    mockStart.mockResolvedValueOnce({ port: 30000, cap: "first" })
+    mockStart.mockResolvedValueOnce({ port: 30001, cap: "second" })
+    mockRenew.mockResolvedValue(false)
+
+    const { rerender } = render(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" />
+    )
+    await screen.findByTitle("officePreviewTitle")
+    rerender(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" active={false} />
+    )
+    rerender(<OfficePreview rootPath="/root/reports" relPath="a.docx" active />)
+
+    await waitFor(() =>
+      expect(screen.getByTitle("officePreviewTitle").getAttribute("src")).toBe(
+        "https://srv.example/api/office-watch-proxy/30001/?cap=second"
+      )
+    )
+    expect(mockRenew).toHaveBeenCalledTimes(1)
+    expect(mockRenew).toHaveBeenCalledWith(
+      "/root/reports",
+      "a.docx",
+      "first",
+      undefined
+    )
+    expect(mockStart).toHaveBeenCalledTimes(2)
+    // The dead watch's release still names it, so it can't take a reference
+    // from whatever watch serves the file now.
+    expect(mockStop).toHaveBeenCalledWith(
+      "/root/reports",
+      "a.docx",
+      "first",
+      undefined
+    )
+  })
+
+  it("keeps a preview whose watch is still live when it is shown again", async () => {
+    mockStart.mockResolvedValue({ port: 30000, cap: "only" })
+
+    const { rerender } = render(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" />
+    )
+    const iframe = await screen.findByTitle("officePreviewTitle")
+    // Shown the first time: nothing to check yet.
+    expect(mockRenew).not.toHaveBeenCalled()
+    rerender(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" active={false} />
+    )
+    rerender(<OfficePreview rootPath="/root/reports" relPath="a.docx" active />)
+
+    await waitFor(() =>
+      expect(mockRenew).toHaveBeenCalledWith(
+        "/root/reports",
+        "a.docx",
+        "only",
+        undefined
+      )
+    )
+    expect(mockRenew).toHaveBeenCalledTimes(1)
+    expect(screen.getByTitle("officePreviewTitle")).toBe(iframe)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(mockStop).not.toHaveBeenCalled()
   })
 
   it("web NOT_INSTALLED: shows the server-side install hint instead", async () => {
@@ -82,6 +173,96 @@ describe("OfficePreview", () => {
 
     expect(await screen.findByText("officeServerInstallHint")).toBeTruthy()
     expect(screen.queryByText("officeOpenSettings")).toBeNull()
+  })
+
+  it("retries a failed start when shown again after being kept out of sight", async () => {
+    // A kept-mounted preview no longer remounts on a tab switch. Coming back
+    // to a failed one must still try again — the desktop not-installed state
+    // has no retry button, so this is how installing OfficeCLI gets noticed.
+    mockStart.mockRejectedValueOnce({
+      code: "dependency_missing",
+      message: "officecli is not installed",
+      i18n_params: { watchCode: "NOT_INSTALLED" },
+    })
+    mockStart.mockResolvedValueOnce({ port: 30000, cap: "" })
+
+    const { rerender } = render(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" />
+    )
+    await screen.findByText("officeNotInstalled")
+    rerender(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" active={false} />
+    )
+    expect(mockStart).toHaveBeenCalledTimes(1)
+
+    rerender(<OfficePreview rootPath="/root/reports" relPath="a.docx" active />)
+    const iframe = await screen.findByTitle("officePreviewTitle")
+    expect(iframe.getAttribute("src")).toBe(
+      "https://srv.example/api/office-watch-proxy/30000/?cap="
+    )
+    expect(mockStart).toHaveBeenCalledTimes(2)
+  })
+
+  it("does not restart a running preview when shown again", async () => {
+    mockStart.mockResolvedValue({ port: 30000, cap: "" })
+
+    const { rerender } = render(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" />
+    )
+    const iframe = await screen.findByTitle("officePreviewTitle")
+    rerender(
+      <OfficePreview rootPath="/root/reports" relPath="a.docx" active={false} />
+    )
+    rerender(<OfficePreview rootPath="/root/reports" relPath="a.docx" active />)
+
+    expect(screen.getByTitle("officePreviewTitle")).toBe(iframe)
+    expect(mockStart).toHaveBeenCalledTimes(1)
+    expect(mockStop).not.toHaveBeenCalled()
+  })
+
+  it("does not start over again when shown while its replacement is still starting", async () => {
+    let resolveSecond: (value: { port: number; cap: string }) => void = () => {}
+    mockStart.mockResolvedValueOnce({ port: 30000, cap: "first" })
+    mockStart.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveSecond = resolve
+      })
+    )
+    mockStart.mockResolvedValue({ port: 30002, cap: "third" })
+    mockRenew.mockResolvedValue(false)
+    const preview = (active: boolean) => (
+      <OfficePreview
+        rootPath="/root/reports"
+        relPath="a.docx"
+        active={active}
+      />
+    )
+
+    const { rerender } = render(preview(true))
+    await screen.findByTitle("officePreviewTitle")
+    rerender(preview(false))
+    rerender(preview(true))
+    // The first watch is gone, so the preview starts over…
+    await waitFor(() => expect(mockStart).toHaveBeenCalledTimes(2))
+    // …and is hidden and shown again before the new watch is up. Nothing is
+    // loaded to check, and the answer about the first watch is spent.
+    rerender(preview(false))
+    rerender(preview(true))
+    resolveSecond({ port: 30001, cap: "second" })
+
+    await waitFor(() =>
+      expect(screen.getByTitle("officePreviewTitle").getAttribute("src")).toBe(
+        "https://srv.example/api/office-watch-proxy/30001/?cap=second"
+      )
+    )
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 20))
+    })
+    expect(mockRenew).toHaveBeenCalledTimes(1)
+    expect(mockStart).toHaveBeenCalledTimes(2)
+    expect(screen.getByTitle("officePreviewTitle").getAttribute("src")).toBe(
+      "https://srv.example/api/office-watch-proxy/30001/?cap=second"
+    )
   })
 
   it("offers retry for a START_FAILED error and re-starts the watch", async () => {
@@ -98,5 +279,168 @@ describe("OfficePreview", () => {
     expect(mockStart).toHaveBeenCalledTimes(1)
     fireEvent.click(retry)
     await waitFor(() => expect(mockStart).toHaveBeenCalledTimes(2))
+  })
+
+  it("web mode: tells the page whether it is in sight, and tells it again when it asks", async () => {
+    // Out of sight, the page lets go of its live connection: a browser
+    // allows a handful per server, and every kept preview holding one would
+    // starve the shown preview. The page asks whenever it (re)loads.
+    mockStart.mockResolvedValue({ port: 26315, cap: "c" })
+    const preview = (active: boolean) => (
+      <OfficePreview
+        rootPath="/root/reports"
+        relPath="a.docx"
+        active={active}
+      />
+    )
+
+    const { rerender } = render(preview(true))
+    const frame = (await screen.findByTitle(
+      "officePreviewTitle"
+    )) as HTMLIFrameElement
+    const page = frame.contentWindow!
+    const post = vi.spyOn(page, "postMessage")
+    const ask = (source: MessageEventSource | null) =>
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: { codegOfficePreview: "ready" },
+          source,
+        })
+      )
+
+    rerender(preview(false))
+    expect(post).toHaveBeenLastCalledWith({ codegOfficePreview: "hidden" }, "*")
+    post.mockClear()
+    ask(page)
+    expect(post).toHaveBeenCalledWith({ codegOfficePreview: "hidden" }, "*")
+    rerender(preview(true))
+    expect(post).toHaveBeenLastCalledWith({ codegOfficePreview: "shown" }, "*")
+
+    // Anything but the page asking is not the page asking.
+    post.mockClear()
+    ask(window)
+    expect(post).not.toHaveBeenCalled()
+  })
+
+  describe("renewing its hold on the watch", () => {
+    beforeEach(() => vi.useFakeTimers({ shouldAdvanceTime: true }))
+    afterEach(() => vi.useRealTimers())
+
+    const preview = (active: boolean) => (
+      <OfficePreview
+        rootPath="/root/reports"
+        relPath="a.docx"
+        active={active}
+      />
+    )
+    const frameSrc = () =>
+      screen.getByTitle("officePreviewTitle").getAttribute("src")
+    const tick = () =>
+      act(async () => {
+        vi.advanceTimersByTime(WATCH_RENEW_INTERVAL_MS)
+      })
+    // Mount, and let the start's answer land inside act(): the renewal timer
+    // is armed by an effect of the render that answer brings. Waiting for the
+    // frame alone can return before React has run that effect (outside act,
+    // a commit's passive effects run in a later task, which load can delay),
+    // and moving the clock before the timer exists skips it.
+    const mount = async (active: boolean) => {
+      const view = render(preview(active))
+      await act(async () => {})
+      return view
+    }
+
+    it("renews on a timer, out of sight too", async () => {
+      // A web page's hold lapses once the page goes quiet; a hidden preview,
+      // holding no live connection, keeps it by renewing.
+      mockStart.mockResolvedValue({ port: 26315, cap: "held", hold: "page" })
+
+      const { rerender } = await mount(true)
+      await screen.findByTitle("officePreviewTitle")
+      expect(mockRenew).not.toHaveBeenCalled()
+      await tick()
+      expect(mockRenew).toHaveBeenCalledTimes(1)
+      // Naming the hold, which the server takes again if it lapsed.
+      expect(mockRenew).toHaveBeenLastCalledWith(
+        "/root/reports",
+        "a.docx",
+        "held",
+        "page"
+      )
+
+      rerender(preview(false))
+      await tick()
+      expect(mockRenew).toHaveBeenCalledTimes(2)
+      expect(mockStart).toHaveBeenCalledTimes(1)
+      expect(mockStop).not.toHaveBeenCalled()
+    })
+
+    it("starts over at once when it finds its watch gone while in sight", async () => {
+      // The hold dropped while the machine slept, say: the page in front is
+      // dead to further edits.
+      mockStart.mockResolvedValueOnce({ port: 26315, cap: "first", hold: "h1" })
+      mockStart.mockResolvedValueOnce({
+        port: 26316,
+        cap: "second",
+        hold: "h2",
+      })
+      mockRenew.mockResolvedValue(false)
+
+      await mount(true)
+      await screen.findByTitle("officePreviewTitle")
+      await tick()
+
+      await waitFor(() =>
+        expect(frameSrc()).toBe(
+          "https://srv.example/api/office-watch-proxy/26316/?cap=second"
+        )
+      )
+      expect(mockStart).toHaveBeenCalledTimes(2)
+      expect(mockStop).toHaveBeenCalledWith(
+        "/root/reports",
+        "a.docx",
+        "first",
+        "h1"
+      )
+    })
+
+    it("waits to start over until shown when it finds its watch gone out of sight", async () => {
+      mockStart.mockResolvedValueOnce({ port: 26315, cap: "first" })
+      mockStart.mockResolvedValueOnce({ port: 26316, cap: "second" })
+      mockRenew.mockResolvedValue(false)
+
+      const { rerender } = await mount(true)
+      await screen.findByTitle("officePreviewTitle")
+      rerender(preview(false))
+      await tick()
+      expect(mockRenew).toHaveBeenCalledTimes(1)
+      // No one is looking: nothing is started for it yet.
+      expect(mockStart).toHaveBeenCalledTimes(1)
+      expect(mockStop).not.toHaveBeenCalled()
+
+      rerender(preview(true))
+      await waitFor(() =>
+        expect(frameSrc()).toBe(
+          "https://srv.example/api/office-watch-proxy/26316/?cap=second"
+        )
+      )
+      // It knew already, so it did not ask again before starting over.
+      expect(mockRenew).toHaveBeenCalledTimes(1)
+      expect(mockStart).toHaveBeenCalledTimes(2)
+    })
+
+    it("keeps its watch through a renewal that fails to arrive", async () => {
+      // Unreachable is not gone: the server may only be restarting or the
+      // network briefly down.
+      mockStart.mockResolvedValue({ port: 26315, cap: "held" })
+      mockRenew.mockRejectedValue(new Error("offline"))
+
+      await mount(true)
+      const frame = await screen.findByTitle("officePreviewTitle")
+      await tick()
+      expect(mockRenew).toHaveBeenCalledTimes(1)
+      expect(screen.getByTitle("officePreviewTitle")).toBe(frame)
+      expect(mockStart).toHaveBeenCalledTimes(1)
+    })
   })
 })

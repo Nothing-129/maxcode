@@ -8,7 +8,7 @@
 
 ## 运行
 
-先安装 Node.js 22.12+、项目指定的 pnpm 和 Rust 工具链，在项目根目录执行：
+先安装 Node.js 22.13+、项目指定的 pnpm 和 Rust 工具链，在项目根目录执行：
 
 ```bash
 corepack pnpm install

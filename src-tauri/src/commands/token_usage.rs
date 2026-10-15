@@ -104,7 +104,9 @@ const TOP_CONVERSATIONS: usize = 8;
 ///   counted via cumulative-counter deltas; Claude `Task` sub-agent transcripts
 ///   counted against the session that launched them; and facts anchored at the
 ///   turn's own timestamp instead of its last tool result.
-const FACT_SCHEMA_VERSION: &str = "2";
+/// * `3` — Codex cache-write tokens are split from fresh input, requiring
+///   previously indexed sessions to be parsed again. Total tokens are unchanged.
+const FACT_SCHEMA_VERSION: &str = "3";
 
 const FACT_SCHEMA_VERSION_KEY: &str = "token_usage_fact_schema_version";
 
@@ -1380,6 +1382,7 @@ mod tests {
             turns_total: None,
             user_turns_total: None,
             assistant_turns_before_offset: None,
+            user_turns_before_offset: None,
             prefix_hash: None,
             uncovered_prefix_max_ts: None,
         }

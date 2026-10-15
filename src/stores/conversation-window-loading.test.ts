@@ -105,6 +105,9 @@ function windowedDetail(
     assistant_turns_before_offset: FULL.slice(0, offset).filter(
       (t) => t.role === "assistant"
     ).length,
+    user_turns_before_offset: FULL.slice(0, offset).filter(
+      (t) => t.role === "user"
+    ).length,
     prefix_hash: hashPrefix(offset),
     uncovered_prefix_max_ts: offset > 0 ? FULL[offset - 1].timestamp : null,
     ...overrides,
@@ -122,6 +125,9 @@ function page(
     turns_total: FULL.length,
     assistant_turns_before_offset: FULL.slice(0, start).filter(
       (t) => t.role === "assistant"
+    ).length,
+    user_turns_before_offset: FULL.slice(0, start).filter(
+      (t) => t.role === "user"
     ).length,
     prefix_hash: hashPrefix(start),
     prefix_hash_before_index: hashPrefix(end),
@@ -288,6 +294,8 @@ describe("loadOlderTurns", () => {
     expect(d?.turns_offset).toBe(2)
     expect(d?.prefix_hash).toBe(hashPrefix(2))
     expect(d?.assistant_turns_before_offset).toBe(1)
+    // The navigator's count of messages above the window follows the page.
+    expect(d?.user_turns_before_offset).toBe(1)
     expect(session()?.loadingOlderTurns).toBe(false)
   })
 
@@ -446,6 +454,127 @@ describe("loadOlderTurns", () => {
     await flush()
     const ids = session()?.detail?.turns.map((t) => t.id)
     expect(ids).toEqual(["turn-2", "turn-3", "turn-4", "turn-5"])
+  })
+})
+
+describe("loadOlderTurnsThrough", () => {
+  function deferredPage() {
+    let resolve: (p: ConversationTurnsPage) => void = () => {}
+    const promise = new Promise<ConversationTurnsPage>((r) => {
+      resolve = r
+    })
+    return { promise, resolve }
+  }
+
+  it("resolves at once when the target is already loaded", async () => {
+    seed({ detail: windowedDetail(2) })
+    await expect(actions().loadOlderTurnsThrough(CID, 2)).resolves.toBe(true)
+    expect(mockGetTurns).not.toHaveBeenCalled()
+  })
+
+  it("pages the target in, with at least a normal page of context", async () => {
+    seed({ detail: windowedDetail(4) })
+    mockGetTurns.mockResolvedValue(page(0, 4))
+    await expect(actions().loadOlderTurnsThrough(CID, 2)).resolves.toBe(true)
+    expect(mockGetTurns).toHaveBeenCalledTimes(1)
+    expect(mockGetTurns).toHaveBeenCalledWith(CID, 4, OLDER_TURNS_PAGE_SIZE)
+    expect(session()?.detail?.turns_offset).toBe(0)
+    expect(session()?.loadingOlderTurns).toBe(false)
+  })
+
+  it("asks for the whole distance to a far target", async () => {
+    // A window 400 turns down the transcript, target at 10: one request for
+    // everything in between (the server clamps it if it has to).
+    seed({
+      detail: windowedDetail(4, {
+        turns_offset: 400,
+        turns_total: 402,
+        prefix_hash: "00000000000000aa",
+      }),
+    })
+    mockGetTurns.mockResolvedValue(
+      page(0, 4, {
+        turns_offset: 10,
+        turns_total: 402,
+        prefix_hash: "00000000000000bb",
+        prefix_hash_before_index: "00000000000000aa",
+      })
+    )
+    await expect(actions().loadOlderTurnsThrough(CID, 10)).resolves.toBe(true)
+    expect(mockGetTurns).toHaveBeenCalledWith(CID, 400, 390)
+    expect(session()?.detail?.turns_offset).toBe(10)
+  })
+
+  it("keeps paging until it gets there", async () => {
+    seed({ detail: windowedDetail(4) })
+    // The server hands back less than asked for (its clamp), twice.
+    mockGetTurns
+      .mockResolvedValueOnce(page(2, 4))
+      .mockResolvedValueOnce(page(0, 2))
+    await expect(actions().loadOlderTurnsThrough(CID, 0)).resolves.toBe(true)
+    expect(mockGetTurns).toHaveBeenNthCalledWith(
+      1,
+      CID,
+      4,
+      OLDER_TURNS_PAGE_SIZE
+    )
+    expect(mockGetTurns).toHaveBeenNthCalledWith(
+      2,
+      CID,
+      2,
+      OLDER_TURNS_PAGE_SIZE
+    )
+    expect(session()?.detail?.turns.map((t) => t.id)).toEqual(
+      FULL.map((t) => t.id)
+    )
+  })
+
+  it("waits out a page already in flight instead of giving up", async () => {
+    seed({ detail: windowedDetail(4) })
+    const first = deferredPage()
+    mockGetTurns
+      .mockReturnValueOnce(first.promise)
+      .mockResolvedValueOnce(page(0, 2))
+    // The near-top trigger fired first.
+    actions().loadOlderTurns(CID)
+    const reveal = actions().loadOlderTurnsThrough(CID, 0)
+    await flush()
+    expect(mockGetTurns).toHaveBeenCalledTimes(1)
+    first.resolve(page(2, 4))
+    await expect(reveal).resolves.toBe(true)
+    expect(mockGetTurns).toHaveBeenCalledTimes(2)
+    expect(session()?.detail?.turns_offset).toBe(0)
+  })
+
+  it("gives up on a broken seam, which resets the window", async () => {
+    seed({ detail: windowedDetail(4) })
+    mockGetTurns.mockResolvedValue(
+      page(0, 4, { prefix_hash_before_index: "00000000000000ff" })
+    )
+    mockGet.mockResolvedValue(windowedDetail(4))
+    await expect(actions().loadOlderTurnsThrough(CID, 0)).resolves.toBe(false)
+    expect(mockGetTurns).toHaveBeenCalledTimes(1)
+    expect(mockGet).toHaveBeenCalledWith(CID, { fromIndex: 4 })
+  })
+
+  it("gives up on a failed page", async () => {
+    seed({ detail: windowedDetail(4) })
+    mockGetTurns.mockRejectedValue(new Error("offline"))
+    await expect(actions().loadOlderTurnsThrough(CID, 0)).resolves.toBe(false)
+    expect(mockGetTurns).toHaveBeenCalledTimes(1)
+    expect(session()?.loadingOlderTurns).toBe(false)
+  })
+
+  it("gives up while a detail load is in flight", async () => {
+    seed({ detail: windowedDetail(4), detailLoading: true })
+    await expect(actions().loadOlderTurnsThrough(CID, 0)).resolves.toBe(false)
+    expect(mockGetTurns).not.toHaveBeenCalled()
+  })
+
+  it("gives up without a windowed detail", async () => {
+    seed({})
+    await expect(actions().loadOlderTurnsThrough(CID, 0)).resolves.toBe(false)
+    expect(mockGetTurns).not.toHaveBeenCalled()
   })
 })
 

@@ -23,7 +23,7 @@ pub use canvas::{CanvasMutation, CanvasNode, CanvasSnapshot};
 #[allow(unused_imports)]
 pub use chat_channel::{ChannelStatusInfo, ChatChannelInfo, ChatChannelMessageLogInfo};
 pub use conversation::{
-    AgentConversationCount, AgentStats, ConversationDetail, ConversationSummary,
+    AgentConversationCount, AgentStats, ConversationDetail, ConversationOutline, ConversationSummary,
     ConversationTurnsPage, DbConversationDetail, DbConversationSummary, FolderInfo,
     GenerationStats, ImportFolderOutcome, ImportResult, ImportSelectedResult, ScanFolder,
     ScanResult, ScanSession, ScanSessionStatus, SelectedSessionKey, SessionStats, SidebarData,

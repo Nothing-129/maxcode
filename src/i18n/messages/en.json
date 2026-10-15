@@ -2057,7 +2057,8 @@
         "assistant": "Assistant",
         "system": "System",
         "toolResult": "Result",
-        "toolError": "Error"
+        "toolError": "Error",
+        "turnFailed": "Turn failed"
       },
       "moreActions": "More actions"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "Couldn't start the live preview",
       "officeWatchRetry": "Retry",
       "officeServerInstallHint": "OfficeCLI must be installed on the server host. Run this command there, then retry:",
-      "officeRemoteDesktopUnsupported": "Live preview isn't available in a remote-desktop window. Open this workspace in the server's web UI to preview Office files."
+      "officeRemoteDesktopUnsupported": "Live preview isn't available in a remote-desktop window. Open this workspace in the server's web UI to preview Office files.",
+      "pdfDocument": "PDF document",
+      "pdfZoomIn": "Zoom in",
+      "pdfZoomOut": "Zoom out",
+      "pdfZoomReset": "Reset zoom",
+      "pdfFitWidth": "Fit to width",
+      "pdfPageNumber": "Page number",
+      "pdfFind": "Find in document",
+      "pdfFindPrevious": "Previous match",
+      "pdfFindNext": "Next match",
+      "pdfFindNoMatches": "No matches",
+      "pdfPasswordPrompt": "This PDF is password protected. Enter its password to open it.",
+      "pdfPasswordIncorrect": "Incorrect password. Try again.",
+      "pdfPassword": "Password",
+      "pdfPasswordSubmit": "Open",
+      "pdfInvalid": "This file is not a valid PDF, or it is damaged.",
+      "pdfLoadFailed": "Couldn't display this PDF: {message}"
     },
     "fileViewer": {
       "title": "File preview",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} steps",
         "processedFor": "Processed {duration}",
         "showMore": "Show more",
-        "showLess": "Show less"
+        "showLess": "Show less",
+        "turnFailed": "Turn failed: {message}"
       },
       "liveTurnStats": {
         "waiting": "Waiting for response",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex visualization",
         "htmlPreviewOpen": "Preview",
         "htmlPreviewOpenAria": "Preview {name}",
-        "htmlPreviewHide": "Hide preview"
+        "htmlPreviewHide": "Hide preview",
+        "agentEffortLabel": "Effort",
+        "allowLarge": "Over size limit"
       },
       "conversationFind": {
         "title": "Find in conversation",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "Messages {count}",
         "fileCount": "{count, plural, one {# file} other {# files}}",
         "remove": "Remove",
-        "noDiffDataAvailable": "No diff data available for {filePath}"
+        "noDiffDataAvailable": "No diff data available for {filePath}",
+        "loadingEarlier": "Loading earlier messages…",
+        "loadEarlier": "Load earlier messages"
       },
       "replyArtifacts": {
         "editedFiles": "Edited {count} files",

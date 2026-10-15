@@ -2057,7 +2057,8 @@
         "assistant": "助手",
         "system": "系統",
         "toolResult": "結果",
-        "toolError": "錯誤"
+        "toolError": "錯誤",
+        "turnFailed": "本輪失敗"
       },
       "moreActions": "更多操作"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "無法啟動即時預覽",
       "officeWatchRetry": "重試",
       "officeServerInstallHint": "OfficeCLI 需安裝在伺服器主機上。請在伺服器上執行以下指令後重試：",
-      "officeRemoteDesktopUnsupported": "遠端桌面視窗暫不支援即時預覽。請在伺服器的 Web 介面中開啟此工作區以預覽 Office 檔案。"
+      "officeRemoteDesktopUnsupported": "遠端桌面視窗暫不支援即時預覽。請在伺服器的 Web 介面中開啟此工作區以預覽 Office 檔案。",
+      "pdfDocument": "PDF 文件",
+      "pdfZoomIn": "放大",
+      "pdfZoomOut": "縮小",
+      "pdfZoomReset": "重設縮放",
+      "pdfFitWidth": "符合寬度",
+      "pdfPageNumber": "頁碼",
+      "pdfFind": "在文件中尋找",
+      "pdfFindPrevious": "上一個相符項目",
+      "pdfFindNext": "下一個相符項目",
+      "pdfFindNoMatches": "無相符項目",
+      "pdfPasswordPrompt": "此 PDF 受密碼保護，請輸入密碼以開啟。",
+      "pdfPasswordIncorrect": "密碼錯誤，請再試一次。",
+      "pdfPassword": "密碼",
+      "pdfPasswordSubmit": "開啟",
+      "pdfInvalid": "此檔案不是有效的 PDF，或已損毀。",
+      "pdfLoadFailed": "無法顯示此 PDF：{message}"
     },
     "fileViewer": {
       "title": "檔案預覽",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} 個步驟",
         "processedFor": "已處理 {duration}",
         "showMore": "展開",
-        "showLess": "收合"
+        "showLess": "收合",
+        "turnFailed": "本輪失敗：{message}"
       },
       "liveTurnStats": {
         "waiting": "等待回應",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "Codex 視覺化",
         "htmlPreviewOpen": "預覽",
         "htmlPreviewOpenAria": "預覽 {name}",
-        "htmlPreviewHide": "收起預覽"
+        "htmlPreviewHide": "收起預覽",
+        "agentEffortLabel": "思考強度",
+        "allowLarge": "超出大小限制"
       },
       "conversationFind": {
         "title": "搜尋目前對話",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "訊息 {count}",
         "fileCount": "{count} 個檔案",
         "remove": "移除",
-        "noDiffDataAvailable": "找不到 {filePath} 的差異資料"
+        "noDiffDataAvailable": "找不到 {filePath} 的差異資料",
+        "loadingEarlier": "正在載入更早的訊息…",
+        "loadEarlier": "載入更早的訊息"
       },
       "replyArtifacts": {
         "editedFiles": "已編輯 {count} 個檔案",

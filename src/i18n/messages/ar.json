@@ -2057,7 +2057,8 @@
         "assistant": "المساعد",
         "system": "النظام",
         "toolResult": "النتيجة",
-        "toolError": "خطأ"
+        "toolError": "خطأ",
+        "turnFailed": "فشلت الجولة"
       },
       "moreActions": "إجراءات إضافية"
     },
@@ -2443,7 +2444,23 @@
       "officeWatchFailed": "تعذّر بدء المعاينة المباشرة",
       "officeWatchRetry": "إعادة المحاولة",
       "officeServerInstallHint": "يجب تثبيت OfficeCLI على مضيف الخادم. شغّل هذا الأمر هناك ثم أعد المحاولة:",
-      "officeRemoteDesktopUnsupported": "المعاينة المباشرة غير متاحة في نافذة سطح المكتب البعيد. افتح مساحة العمل هذه في واجهة الويب الخاصة بالخادم لمعاينة ملفات Office."
+      "officeRemoteDesktopUnsupported": "المعاينة المباشرة غير متاحة في نافذة سطح المكتب البعيد. افتح مساحة العمل هذه في واجهة الويب الخاصة بالخادم لمعاينة ملفات Office.",
+      "pdfDocument": "مستند PDF",
+      "pdfZoomIn": "تكبير",
+      "pdfZoomOut": "تصغير",
+      "pdfZoomReset": "إعادة تعيين التكبير",
+      "pdfFitWidth": "ملاءمة العرض",
+      "pdfPageNumber": "رقم الصفحة",
+      "pdfFind": "البحث في المستند",
+      "pdfFindPrevious": "التطابق السابق",
+      "pdfFindNext": "التطابق التالي",
+      "pdfFindNoMatches": "لا توجد تطابقات",
+      "pdfPasswordPrompt": "ملف PDF هذا محمي بكلمة مرور. أدخل كلمة المرور لفتحه.",
+      "pdfPasswordIncorrect": "كلمة المرور غير صحيحة. حاول مرة أخرى.",
+      "pdfPassword": "كلمة المرور",
+      "pdfPasswordSubmit": "فتح",
+      "pdfInvalid": "هذا الملف ليس ملف PDF صالحًا، أو أنه تالف.",
+      "pdfLoadFailed": "تعذّر عرض ملف PDF هذا: {message}"
     },
     "fileViewer": {
       "title": "معاينة الملف",
@@ -3493,7 +3510,8 @@
         "activitySteps": "{count} خطوات",
         "processedFor": "تمت المعالجة خلال {duration}",
         "showMore": "عرض المزيد",
-        "showLess": "طي"
+        "showLess": "طي",
+        "turnFailed": "فشلت هذه الجولة: {message}"
       },
       "liveTurnStats": {
         "waiting": "في انتظار الرد",
@@ -3776,7 +3794,9 @@
         "visualizeFrameTitle": "تصوّر بياني من Codex",
         "htmlPreviewOpen": "معاينة",
         "htmlPreviewOpenAria": "معاينة {name}",
-        "htmlPreviewHide": "إخفاء المعاينة"
+        "htmlPreviewHide": "إخفاء المعاينة",
+        "agentEffortLabel": "مستوى التفكير",
+        "allowLarge": "تجاوز حد الحجم"
       },
       "conversationFind": {
         "title": "البحث في المحادثة",
@@ -3795,7 +3815,9 @@
         "collapsedSummary": "الرسائل {count}",
         "fileCount": "{count, plural, one {# ملف} other {# ملفات}}",
         "remove": "إزالة",
-        "noDiffDataAvailable": "لا توجد بيانات diff متاحة لـ {filePath}"
+        "noDiffDataAvailable": "لا توجد بيانات diff متاحة لـ {filePath}",
+        "loadingEarlier": "جارٍ تحميل الرسائل السابقة…",
+        "loadEarlier": "تحميل الرسائل السابقة"
       },
       "replyArtifacts": {
         "editedFiles": "تم تعديل {count} ملفات",

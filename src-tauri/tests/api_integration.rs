@@ -435,7 +435,9 @@ async fn get_folder_conversation_accepts_turn_window_params() {
     assert_eq!(body["turns_offset"], 0);
     assert_eq!(body["turns_total"], 0);
     assert_eq!(body["assistant_turns_before_offset"], 0);
+    assert_eq!(body["user_turns_before_offset"], 0);
     assert!(body["prefix_hash"].is_string());
+    let window_prefix_hash = body["prefix_hash"].clone();
 
     // No params → legacy full response: none of the window fields serialize.
     let resp = server
@@ -446,6 +448,7 @@ async fn get_folder_conversation_accepts_turn_window_params() {
     assert_eq!(resp.status_code(), 200);
     let body = resp.json::<Value>();
     assert!(body.get("turns_offset").is_none());
+    assert!(body.get("user_turns_before_offset").is_none());
     assert!(body.get("prefix_hash").is_none());
 
     // Both selectors → invalid input.
@@ -469,8 +472,22 @@ async fn get_folder_conversation_accepts_turn_window_params() {
     assert_eq!(resp.status_code(), 200);
     let body = resp.json::<Value>();
     assert_eq!(body["turns_total"], 0);
+    assert_eq!(body["user_turns_before_offset"], 0);
     assert!(body["prefix_hash"].is_string());
     assert!(body["prefix_hash_before_index"].is_string());
+
+    // The navigator's outline of the history above the window: the prefix it
+    // covers fingerprints like the window's own prefix hash.
+    let resp = server
+        .post("/api/get_folder_conversation_outline")
+        .add_header("authorization", format!("Bearer {TEST_TOKEN}"))
+        .json(&json!({ "conversationId": conv_id, "beforeIndex": 0 }))
+        .await;
+    assert_eq!(resp.status_code(), 200);
+    let body = resp.json::<Value>();
+    assert_eq!(body["turns"], json!([]));
+    assert_eq!(body["turns_total"], 0);
+    assert_eq!(body["prefix_hash"], window_prefix_hash);
 }
 
 #[tokio::test]

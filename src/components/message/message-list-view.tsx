@@ -2,8 +2,11 @@
 
 import {
   ConversationMessageRail,
-  buildMessageRailEntries,
+  buildHistoryMessageRailEntries,
+  type MessageRailEntry,
 } from "./conversation-message-rail"
+import { useConversationOutline } from "@/hooks/use-conversation-outline"
+import { useMessageNavJump } from "./use-message-nav-jump"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   isLiveTurnId,
@@ -17,6 +20,7 @@ import { ContextCompactionCard } from "./context-compaction-card"
 import { SentMessageEditButton } from "./sent-message-edit-button"
 import { CollapsibleUserMessage } from "./collapsible-user-message"
 import { CollapsibleSystemMessage } from "./collapsible-system-message"
+import { ContentPartsRenderer } from "./content-parts-renderer"
 import {
   contextCompactionSummary,
   isContextCompactionMeta,
@@ -548,6 +552,16 @@ function isEmptyTurnItem(item: ThreadRenderItem): boolean {
   return true
 }
 
+/** A `system` group that is nothing but a failed turn's line
+ *  (`TurnErrorPart`): the parsers write one per failed round, and so does the
+ *  live stream. */
+export function isTurnErrorGroup(group: ResolvedMessageGroup): boolean {
+  return (
+    group.parts.length > 0 &&
+    group.parts.every((part) => part.type === "turn-error")
+  )
+}
+
 /**
  * When a resolved group's ONLY meaningful content is a single context-compaction
  * tool-call part, return that part's `_meta`, retained summary and call id (so
@@ -856,6 +870,10 @@ export function markThreadTail(items: ThreadRenderItem[]): void {
   for (let idx = items.length - 1; idx >= 0; idx--) {
     const item = items[idx]
     if (item.kind === "turn" && isEmptyTurnItem(item)) continue
+    // Nor is a failed round's closing line where a fork lands: a tail fork
+    // keeps everything up to the reply before it — the failure is nothing the
+    // agent carries on from — so that reply is still the thread's tail.
+    if (item.kind === "turn" && isTurnErrorGroup(item.group)) continue
     if (item.kind === "turn") item.isThreadTail = true
     break
   }
@@ -922,6 +940,11 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   isThreadTail?: boolean
 }) {
   if (group.role === "system") {
+    // A failed turn's line is the agent's account of the failure, not a
+    // message the system sent: it closes the round in place, unboxed.
+    if (isTurnErrorGroup(group)) {
+      return <ContentPartsRenderer parts={group.parts} role="system" />
+    }
     return <CollapsibleSystemMessage parts={group.parts} />
   }
 
@@ -1116,7 +1139,8 @@ export function MessageListView({
   )
   const hasOlderTurns = isWindowedDetail(detail) && detail.turns_offset > 0
   const loadingOlderTurns = session?.loadingOlderTurns ?? false
-  const { loadOlderTurns } = useConversationRuntimeActions()
+  const { loadOlderTurns, loadOlderTurnsThrough } =
+    useConversationRuntimeActions()
   const handleLoadOlder = useCallback(() => {
     loadOlderTurns(conversationId)
   }, [loadOlderTurns, conversationId])
@@ -1511,9 +1535,58 @@ export function MessageListView({
 
   const [threadOverflows, setThreadOverflows] = useState(false)
   const [visibleThreadIndex, setVisibleThreadIndex] = useState(0)
+  const threadIndexByTurnId = useMemo(() => {
+    const indices = new Map<string, number>()
+    if (!showMessageNav) return indices
+    for (const [index, item] of threadItems.entries()) {
+      if (item.kind === "turn" && item.group.role === "user") {
+        indices.set(item.group.id, index)
+      }
+    }
+    return indices
+  }, [showMessageNav, threadItems])
+  const windowedDetail = isWindowedDetail(detail) ? detail : null
+  // The count doubles as the server's outline capability flag. Older
+  // servers keep the existing rail over the loaded window, with no fetch.
+  const earlierUserCount = showMessageNav
+    ? (windowedDetail?.user_turns_before_offset ?? 0)
+    : 0
+  const earlierOutline = useConversationOutline({
+    fetchId: session?.dbConversationId ?? conversationId,
+    offset: windowedDetail?.turns_offset ?? 0,
+    prefixHash: windowedDetail?.prefix_hash ?? null,
+    enabled:
+      showMessageNav && threadOverflows && isActive && earlierUserCount > 0,
+  })
+  const earlierOutlineState = earlierOutline.state
   const railEntries = useMemo(
-    () => (showMessageNav ? buildMessageRailEntries(threadItems) : []),
-    [showMessageNav, threadItems]
+    () =>
+      showMessageNav
+        ? buildHistoryMessageRailEntries(
+            threadItems,
+            earlierOutlineState.status === "ready"
+              ? earlierOutlineState.turns
+              : null,
+            earlierUserCount
+          )
+        : [],
+    [showMessageNav, threadItems, earlierOutlineState, earlierUserCount]
+  )
+  const { select: selectNavEntry, revealingTurnId } = useMessageNavJump({
+    conversationId,
+    threadIndexByTurnId,
+    scrollApiRef,
+    smooth: true,
+    loadOlderTurnsThrough,
+  })
+  const selectRailEntry = useCallback(
+    (entry: MessageRailEntry) =>
+      selectNavEntry({
+        threadIndex: entry.threadIndex,
+        turnIndex: entry.turnIndex ?? null,
+        turnId: entry.id,
+      }),
+    [selectNavEntry]
   )
 
   const hasRenderableContent = threadItems.length > 0 || Boolean(liveMessage)
@@ -1648,6 +1721,15 @@ export function MessageListView({
             entries={railEntries}
             visibleIndex={visibleThreadIndex}
             scrollApiRef={scrollApiRef}
+            onSelect={selectRailEntry}
+            revealingTurnId={revealingTurnId}
+            earlier={
+              earlierOutlineState.status === "loading" ||
+              earlierOutlineState.status === "error"
+                ? earlierOutlineState.status
+                : null
+            }
+            onRetryEarlier={earlierOutline.retry}
           />
         )}
         {/* Plan and sub-agent overlays share the top edge. */}
