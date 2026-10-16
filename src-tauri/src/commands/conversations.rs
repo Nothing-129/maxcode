@@ -1269,6 +1269,7 @@ pub async fn get_folder_conversation_core(
         parsed_title,
         parsed_model,
         transcript_watermark,
+        source_timestamps,
     ) = if let Some(ref ext_id) = summary.external_id {
         let at = summary.agent_type;
         let eid = ext_id.clone();
@@ -1304,6 +1305,7 @@ pub async fn get_folder_conversation_core(
                         d.summary.title,
                         d.summary.model,
                         d.transcript_watermark,
+                        d.source_timestamps,
                     ))
                 }
                 Err(crate::parsers::ParseError::ConversationNotFound(_)) => {
@@ -1345,12 +1347,13 @@ pub async fn get_folder_conversation_core(
                                         d.summary.title,
                                         d.summary.model,
                                         d.transcript_watermark,
+                                        d.source_timestamps,
                                     ));
                                 }
                             }
                         }
                     }
-                    Ok((vec![], None, None, None, None, None))
+                    Ok((vec![], None, None, None, None, None, false))
                 }
                 Err(e) => Err(parse_error_to_app_error(e)),
             }
@@ -1363,7 +1366,7 @@ pub async fn get_folder_conversation_core(
             .with_detail(e.to_string())
         })??
     } else {
-        (vec![], None, None, None, None, None)
+        (vec![], None, None, None, None, None, false)
     };
 
     // If we resolved a different external_id (e.g. ACP UUID → parser branch ID,
@@ -1446,6 +1449,7 @@ pub async fn get_folder_conversation_core(
     inject_delegation_meta(&mut turns, &children);
 
     let mut detail = DbConversationDetail {
+        source_timestamps,
         billing_usage: None,
         summary,
         turns,
@@ -1545,9 +1549,10 @@ const MAX_IN_FLIGHT_WALK_USER_TURNS: usize = 32;
 /// over the turns this turn produced — those persisted at/after `started_at`,
 /// comparing at most [`MAX_IN_FLIGHT_WALK_USER_TURNS`] user turns of them — and
 /// keeping the EARLIEST user turn whose content matches. The tail itself is the
-/// prompt only for Claude/Codex, which write the assistant turn on completion;
-/// OpenCode and Gemini persist a partial reply mid-stream (which a parser may
-/// split), and a message the user sends mid-turn is written after the prompt as
+/// prompt only until the first reply record lands. Codex persists completed
+/// commentary messages while its round is still running; other parsers also
+/// persist partial replies mid-stream. A message the user sends mid-turn lands
+/// after the prompt as
 /// a user turn of its own. Earliest, because the agent writes the prompt before
 /// anything it produces in reply, so a mid-turn message repeating the prompt's
 /// own words cannot take the stamp from it.
@@ -1557,7 +1562,10 @@ const MAX_IN_FLIGHT_WALK_USER_TURNS: usize = 32;
 /// never fires — every turn in hand is at/after `started_at`, which a parser
 /// stamping parse instants makes routine — the walk saw the whole transcript
 /// and earliest means nothing, so a second matching copy leaves it unable to
-/// say which round it is in: it then stamps nothing rather than guess.
+/// say which round it is in: it then stamps nothing rather than guess. Parsers
+/// that prove every record has an original timestamp do not need this fallback:
+/// the recency bound alone excludes prior rounds, including in the first round
+/// where completed commentary messages may already follow the running prompt.
 ///
 /// A recency check then disambiguates: the in-flight prompt was persisted by the
 /// agent CLI at/after `started_at` (the agent — a local subprocess sharing this
@@ -1591,10 +1599,11 @@ const MAX_IN_FLIGHT_WALK_USER_TURNS: usize = 32;
 /// could hide a *completed* reply in the end-of-turn race (the agent may persist
 /// the final assistant row before the backend processes `TurnComplete` and clears
 /// the live state, after which an attaching client's snapshot can't recover it).
-fn apply_in_flight_message_id(
+pub(crate) fn apply_in_flight_message_id(
     turns: &mut [MessageTurn],
     pending: &crate::acp::session_state::PendingUserMessage,
     started_at: Option<chrono::DateTime<chrono::Utc>>,
+    source_timestamps: bool,
 ) -> Option<String> {
     let n = turns.len();
     if n == 0 {
@@ -1701,7 +1710,12 @@ fn apply_in_flight_message_id(
         }
     }
     let target_idx = target_idx?;
+    // With original record times, the strict recency bound already excludes
+    // older rounds even in a first-round transcript with no older turn. Codex
+    // persists completed commentary messages DURING that round. Only parsers
+    // using parse-time fallbacks need completion as an ambiguity backstop.
     if !gate_fired
+        && !source_timestamps
         && (matched > 1
             || turns[target_idx + 1..].iter().any(|turn| {
                 matches!(turn.role, TurnRole::Assistant) && turn.completed_at.is_some()
@@ -1867,8 +1881,12 @@ pub async fn get_folder_conversation_with_live_core(
         .pending_user_message_for_conversation(conversation_id)
         .await
     {
-        detail.in_flight_user_turn_id =
-            apply_in_flight_message_id(&mut detail.turns, &pending, started_at);
+        detail.in_flight_user_turn_id = apply_in_flight_message_id(
+            &mut detail.turns,
+            &pending,
+            started_at,
+            detail.source_timestamps,
+        );
     }
     if let Some(req) = window {
         apply_turn_window(&mut detail, req);
@@ -2650,6 +2668,16 @@ fn parse_error_to_app_error(error: ParseError) -> AppCommandError {
 mod tests {
     use super::*;
     use crate::db::test_helpers::{fresh_in_memory_db, seed_folder};
+
+    // Existing fixtures exercise the conservative path used by parsers that
+    // cannot prove their timestamps came from source records.
+    fn apply_in_flight_message_id(
+        turns: &mut [MessageTurn],
+        pending: &crate::acp::session_state::PendingUserMessage,
+        started_at: Option<chrono::DateTime<chrono::Utc>>,
+    ) -> Option<String> {
+        super::apply_in_flight_message_id(turns, pending, started_at, false)
+    }
 
     /// Serializes every test that touches the process-global [`IMPORT_GUARD`].
     ///
@@ -6762,6 +6790,7 @@ mod tests {
             },
             turns,
             session_stats: None,
+            source_timestamps: false,
             transcript_watermark: Some(123),
             in_flight_user_turn_id: None,
             turns_offset: None,

@@ -2,6 +2,21 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.mobile-running-transcript-dedup",
+      "category": "runtime",
+      "description": "A phone attaching during the first Codex round reconciles persisted commentary with the live snapshot once. Original record timestamps permit first-round live correlation despite completed commentary messages; missing timestamps and older identical prompts remain conservative. Timestamp provenance stays internal to the server.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src-tauri/src/commands/conversations.rs",
+        "src-tauri/src/models/conversation.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src/stores/conversation-runtime-store.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-running-transcript.contract.test.ts"
+      ]
+    },
+    {
       "id": "todos.sidebar-context-completion",
       "category": "product",
       "description": "Sidebar todo headings offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses.",

@@ -3274,6 +3274,7 @@ impl CodexParser {
         // [`ResponseItemPromotion`] for why the gate is per-segment.
         let mut promotion = ResponseItemPromotion::new();
         let mut pending_promotions: Vec<PendingPromotedMessage> = Vec::new();
+        let mut source_timestamps = true;
         // Ordinals of the two in-loop decisions that promoted records can
         // legitimately override, recorded so they can be replayed POSITIONALLY
         // once the survivors are known — never "does a user exist anywhere",
@@ -3305,6 +3306,9 @@ impl CodexParser {
             // are all positional properties of the raw stream.
             let record_ordinal =
                 promotion.note_record(msg_type, promotion_payload_type(msg_type, &value));
+            // Commentary completion ends a message, not the running round.
+            // Correlation can trust recency only without parse-time fallbacks.
+            source_timestamps &= parse_codex_timestamp(&value).is_some();
 
             if let Some(ts_str) = value.get("timestamp").and_then(|t| t.as_str()) {
                 if let Ok(ts) = ts_str.parse::<DateTime<Utc>>() {
@@ -5251,6 +5255,7 @@ impl CodexParser {
             summary,
             turns,
             session_stats,
+            source_timestamps,
             transcript_watermark: None,
         })
     }
@@ -16921,3 +16926,7 @@ mod tests {
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/codex-desktop-history.contract.rs"]
 mod maxcode_codex_desktop_history_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/mobile-running-transcript.contract.rs"]
+mod mobile_running_transcript_contract;

@@ -1376,6 +1376,7 @@ mod tests {
             },
             turns,
             session_stats: stats,
+            source_timestamps: false,
             transcript_watermark: None,
             in_flight_user_turn_id: None,
             turns_offset: None,

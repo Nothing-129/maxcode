@@ -105,6 +105,10 @@ pub struct SessionStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConversationDetail {
+    /// True only when every parsed record has a source timestamp (no parse-time
+    /// fallback). Internal evidence for safe first-round live correlation.
+    #[serde(skip)]
+    pub source_timestamps: bool,
     pub summary: ConversationSummary,
     pub turns: Vec<MessageTurn>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -129,6 +133,10 @@ pub struct ConversationBillingUsage {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DbConversationDetail {
+    /// True only when every parsed record has a source timestamp (no parse-time
+    /// fallback). Internal evidence for safe first-round live correlation.
+    #[serde(skip)]
+    pub source_timestamps: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub billing_usage: Option<Vec<ConversationBillingUsage>>,
     pub summary: DbConversationSummary,

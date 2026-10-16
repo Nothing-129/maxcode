@@ -120,6 +120,7 @@ impl AgentParser for AcpNativeParser {
             session_stats,
             // Not a single-file byte-watermark store; the background-overlay
             // hand-off this field drives is Claude-only.
+            source_timestamps: false,
             transcript_watermark: None,
         })
     }

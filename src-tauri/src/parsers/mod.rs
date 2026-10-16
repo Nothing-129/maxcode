@@ -1762,6 +1762,7 @@ mod route_sanitizer_tests {
                 summary: self.summary.clone(),
                 turns: self.turns.clone(),
                 session_stats: None,
+                source_timestamps: false,
                 transcript_watermark: None,
             })
         }

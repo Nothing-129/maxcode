@@ -894,6 +894,7 @@ fn parse_detail(path: &Path, conversation_id: &str) -> Result<ConversationDetail
         },
         turns,
         session_stats,
+        source_timestamps: false,
         transcript_watermark: Some(transcript_watermark),
     })
 }
