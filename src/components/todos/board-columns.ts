@@ -1,4 +1,3 @@
-import { todoContentSummary } from "@/lib/todo-attachments"
 import type { TodoState } from "@/lib/todos"
 
 export type Todo = TodoState["todos"][number]
@@ -37,7 +36,5 @@ export function groupTodos(todos: Todo[], selfId: string | null) {
 }
 
 export function todoConversationText(todo: Todo): string {
-  return [todoContentSummary(todo.content), todo.source_url]
-    .filter(Boolean)
-    .join("\n\n")
+  return [todo.content, todo.source_url].filter(Boolean).join("\n\n")
 }

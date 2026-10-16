@@ -51,6 +51,8 @@ mod m20261014_000001_team_todo;
 mod m20261014_000002_todo_completed_pagination;
 mod m20261014_000003_todo_conversation_links;
 mod m20261015_000001_todo_schedule;
+mod m20261016_000001_todo_attachment;
+mod m20261016_000002_remove_embedded_todo_attachments;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -108,6 +110,8 @@ impl MigratorTrait for Migrator {
             Box::new(m20261014_000002_todo_completed_pagination::Migration),
             Box::new(m20261014_000003_todo_conversation_links::Migration),
             Box::new(m20261015_000001_todo_schedule::Migration),
+            Box::new(m20261016_000001_todo_attachment::Migration),
+            Box::new(m20261016_000002_remove_embedded_todo_attachments::Migration),
         ]
     }
 }

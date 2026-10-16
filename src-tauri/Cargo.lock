@@ -844,7 +844,7 @@ checksum = "1c133bc6a41be0d194c306b5506d15e6feeea7b1d6604bd3f8310dfb2ca96486"
 
 [[package]]
 name = "codeg"
-version = "0.30.35"
+version = "0.30.36"
 dependencies = [
  "aes-gcm",
  "agent-client-protocol",
@@ -863,6 +863,7 @@ dependencies = [
  "futures",
  "futures-lite",
  "futures-util",
+ "hmac",
  "http",
  "http-body",
  "iana-time-zone",

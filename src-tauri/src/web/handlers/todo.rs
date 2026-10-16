@@ -158,3 +158,147 @@ pub async fn team_todo_details(
         sources::member_details(&state.db.conn, request).await?,
     ))
 }
+
+pub async fn todo_storage_config(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(request): Json<todo::storage::ConfigRequest>,
+) -> Result<Response, AppCommandError> {
+    Ok(no_store(
+        todo::storage::configure(&state.db.conn, request).await?,
+    ))
+}
+
+async fn read_attachment(
+    mut multipart: axum::extract::Multipart,
+) -> Result<(String, String, Vec<u8>, String, String), AppCommandError> {
+    let mut scope = String::new();
+    let mut content = String::new();
+    let mut file = None;
+    while let Some(field) = multipart
+        .next_field()
+        .await
+        .map_err(|_| AppCommandError::invalid_input("Invalid attachment upload"))?
+    {
+        match field.name() {
+            Some("scope_id") => {
+                scope = field
+                    .text()
+                    .await
+                    .map_err(|_| AppCommandError::invalid_input("Invalid scope"))?
+            }
+            Some("content") => {
+                content = field
+                    .text()
+                    .await
+                    .map_err(|_| AppCommandError::invalid_input("Invalid content"))?
+            }
+            Some("file") => {
+                if file.is_some() {
+                    return Err(AppCommandError::invalid_input("Upload one file at a time"));
+                }
+                let name = field.file_name().unwrap_or("file").to_string();
+                let mime = field
+                    .content_type()
+                    .unwrap_or("application/octet-stream")
+                    .to_string();
+                let bytes = field.bytes().await.map_err(|_| {
+                    AppCommandError::invalid_input("Attachment exceeds the upload limit")
+                })?;
+                file = Some((name, mime, bytes.to_vec()));
+            }
+            _ => return Err(AppCommandError::invalid_input("Unknown attachment field")),
+        }
+        if scope.len() > 80 || content.len() > 1024 * 1024 {
+            return Err(AppCommandError::invalid_input(
+                "Attachment metadata is too large",
+            ));
+        }
+    }
+    let (name, mime, bytes) =
+        file.ok_or_else(|| AppCommandError::invalid_input("Choose a file"))?;
+    Ok((name, mime, bytes, scope, content))
+}
+pub async fn todo_attachment_upload(
+    Extension(state): Extension<Arc<AppState>>,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AppCommandError> {
+    let (name, mime, bytes, scope, content) = read_attachment(multipart).await?;
+    Ok(no_store(
+        todo::storage::upload_local(&state.db.conn, &scope, name, mime, bytes, &content).await?,
+    ))
+}
+pub async fn team_todo_attachment_upload(
+    Extension(state): Extension<Arc<AppState>>,
+    headers: axum::http::HeaderMap,
+    multipart: axum::extract::Multipart,
+) -> Result<Response, AppCommandError> {
+    // Authenticate before reading the upload body. The token determines scope.
+    let token = headers
+        .get("X-MaxCode-Team-Token")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default();
+    let scope = todo::storage::member_scope(&state.db.conn, token).await?;
+    let (name, mime, bytes, _, content) = read_attachment(multipart).await?;
+    Ok(no_store(
+        todo::storage::upload_host(&state.db.conn, &scope, name, mime, bytes, &content).await?,
+    ))
+}
+pub async fn todo_attachment_read(
+    Extension(state): Extension<Arc<AppState>>,
+    axum::extract::Path(id): axum::extract::Path<String>,
+) -> Result<Response, AppCommandError> {
+    use sea_orm::ConnectionTrait;
+    if id.len() != 32 || !id.bytes().all(|c| c.is_ascii_hexdigit()) {
+        return Err(AppCommandError::not_found("Attachment not found"));
+    }
+    let row = state
+        .db
+        .conn
+        .query_one(sea_orm::Statement::from_sql_and_values(
+            sea_orm::DbBackend::Sqlite,
+            "SELECT name,mime FROM maxcode_todo_attachment WHERE id=? AND scope_id='personal'",
+            [id.clone().into()],
+        ))
+        .await
+        .map_err(|_| AppCommandError::database_error("Cannot read attachment metadata"))?
+        .ok_or_else(|| AppCommandError::not_found("Attachment not found"))?;
+    let name: String = row
+        .try_get("", "name")
+        .map_err(|_| AppCommandError::not_found("Attachment not found"))?;
+    let mime: String = row
+        .try_get("", "mime")
+        .map_err(|_| AppCommandError::not_found("Attachment not found"))?;
+    let file = tokio::fs::File::open(todo::storage::local_root().join(id))
+        .await
+        .map_err(|_| AppCommandError::not_found("Attachment not found"))?;
+    let mut res = Response::new(axum::body::Body::from_stream(
+        tokio_util::io::ReaderStream::new(file),
+    ));
+    res.headers_mut().insert(
+        header::CONTENT_TYPE,
+        HeaderValue::from_str(&mime)
+            .map_err(|_| AppCommandError::invalid_input("Invalid content type"))?,
+    );
+    let disposition = if mime.starts_with("image/") {
+        "inline"
+    } else {
+        "attachment"
+    };
+    res.headers_mut().insert(
+        header::CONTENT_DISPOSITION,
+        HeaderValue::from_str(&format!(
+            "{disposition}; filename*=UTF-8''{}",
+            urlencoding::encode(&name)
+        ))
+        .map_err(|_| AppCommandError::invalid_input("Invalid filename"))?,
+    );
+    res.headers_mut().insert(
+        "X-Content-Type-Options",
+        HeaderValue::from_static("nosniff"),
+    );
+    res.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(res)
+}

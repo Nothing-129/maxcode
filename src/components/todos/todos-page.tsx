@@ -1,6 +1,6 @@
 "use client"
 
-import { todoContentSummary } from "@/lib/todo-attachments"
+import { TodoMarkdown } from "./todo-markdown"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
@@ -270,7 +270,7 @@ function TodosWorkspace({
         (todo.status === "completed" && completedPagination
           ? true
           : !query ||
-            `${todo.title}\n${todoContentSummary(todo.content)}\n${members.get(todo.assignee_id ?? "")?.name ?? ""}`
+            `${todo.title}\n${todo.content}\n${members.get(todo.assignee_id ?? "")?.name ?? ""}`
               .toLocaleLowerCase()
               .includes(query))
       )
@@ -654,6 +654,11 @@ function TodosWorkspace({
       )}
       {editor && (
         <TodoEditorDialog
+          scopeId={
+            state?.mode === "team"
+              ? (state.active_team_id ?? undefined)
+              : "personal"
+          }
           key={
             editor.todo ? `${editor.todo.id}:${editor.todo.revision}` : "new"
           }
@@ -686,7 +691,7 @@ function TodosWorkspace({
             <TodoAssignee member={members.get(detail.assignee_id ?? "")} />
             <TodoSchedule todo={detail} />
             <div className="max-h-80 overflow-auto whitespace-pre-wrap text-sm leading-6 wrap-anywhere">
-              {detail.content}
+              <TodoMarkdown content={detail.content} />
             </div>
             {detail.source_url && (
               <BrowserLink

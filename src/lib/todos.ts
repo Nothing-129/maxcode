@@ -150,6 +150,7 @@ type TodoAction =
   | { action: "set_mode"; mode: TodoMode; team_id?: string }
   | {
       action: "create_team"
+      minio_config?: import("./todo-storage").TodoMinioConfig
       name: string
       member_name: string
       avatar: string

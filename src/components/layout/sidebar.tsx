@@ -115,7 +115,7 @@ function SidebarNavButton({
       aria-current={active ? "page" : undefined}
       className={cn(
         // Equal-width buttons keep the three actions on a single compact row.
-        "group relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent/20 px-0.5",
+        "group relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent/35 px-0.5",
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
         "transition-colors duration-150 hover:bg-sidebar-accent",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",

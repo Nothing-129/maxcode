@@ -20,7 +20,7 @@
 
 侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
 
-2026-10-15 待办附件：新建和编辑内容支持粘贴或选择文件、图片，支持图片预览、下载及移除；附件总大小限制为 100 MiB。附件以版本化内容尾部封装随个人/团队待办持久化，纯文本待办格式保持兼容；列表摘要和新建对话只传递正文及附件名称，标题模型不接收附件字节。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`。
+2026-10-16 待办 Markdown 与对象存储：编辑器支持 Markdown 和实时预览，粘贴图片/文件先上传再在光标处插入 URL；团队创建者配置 MinIO 的 S3 API、Bucket、访问密钥、Region 及带 Bucket/CDN 映射的可匿名读取文件地址。密钥仅通过宿主凭据存储保存；成员上传由成员令牌确定团队范围。个人附件保存在上传目录的 `todo-attachments/` 下，数据库只记文件元信息，链接为随机 ID 的读取地址。个人本地文件引用合计限制 100 MiB；团队 MinIO 附件取消应用层大小限制。启动迁移会删除旧数据库内嵌附件，保留待办正文及现有 Markdown URL；不再读取或转换旧附件，并拒绝旧客户端写回该格式。旧文件 URL 不随 MinIO 配置变化重写；未引用的已上传对象不自动删除，可由存储管理员按保留策略维护。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`、`todo-minio-settings.contract.test.tsx`、`todo-minio.contract.rs`。
 
 ## 2026-10-15 上游 v0.35.2 选择性集成
 

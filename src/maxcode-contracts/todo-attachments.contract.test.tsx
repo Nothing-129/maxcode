@@ -1,19 +1,29 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
-import { describe, expect, it, vi } from "vitest"
-import { readFileSync } from "node:fs"
+import { beforeEach, describe, expect, it, vi } from "vitest"
 import { TodoEditorDialog } from "@/components/todos/todo-editor-dialog"
-import { TodoAttachments } from "@/components/todos/todo-attachments"
-import {
-  parseTodoContent,
-  serializeTodoContent,
-  todoContentSummary,
-  TODO_ATTACHMENT_MAX_BYTES,
-} from "@/lib/todo-attachments"
+import { TodoMarkdown } from "@/components/todos/todo-markdown"
+import { TODO_ATTACHMENT_MAX_BYTES } from "@/lib/todo-storage"
+import { uploadTodoFile, todoFileMarkdown } from "@/lib/todo-storage"
 import en from "@/i18n/messages/en.json"
 
-function mount(content = "", onSubmit = vi.fn().mockResolvedValue(undefined)) {
+vi.mock("@/lib/todo-storage", async (original) => ({
+  ...(await original<typeof import("@/lib/todo-storage")>()),
+  uploadTodoFile: vi.fn(),
+}))
+beforeEach(() => {
+  vi.mocked(uploadTodoFile)
+    .mockReset()
+    .mockImplementation(async (_, file) => ({
+      name: file.name,
+      url: `https://minio.test/bucket/${encodeURIComponent(file.name)}`,
+      size: file.size,
+      mime: file.type,
+    }))
+})
+function mount(content = "", scopeId = "personal") {
+  const submit = vi.fn().mockResolvedValue(undefined)
   render(
     <NextIntlClientProvider locale="en" messages={en}>
       <TodoEditorDialog
@@ -22,11 +32,12 @@ function mount(content = "", onSubmit = vi.fn().mockResolvedValue(undefined)) {
         members={[]}
         disabled={false}
         onClose={vi.fn()}
-        onSubmit={onSubmit}
+        onSubmit={submit}
+        scopeId={scopeId}
       />
     </NextIntlClientProvider>
   )
-  return onSubmit
+  return submit
 }
 function paste(files: File[]) {
   fireEvent.paste(screen.getByLabelText("Todo content"), {
@@ -34,114 +45,146 @@ function paste(files: File[]) {
   })
 }
 
-describe("MaxCode todo attachments", () => {
-  it("pastes mixed files, previews images and saves portable bytes only on Save", async () => {
-    const submit = mount("Keep this text")
-    paste([
-      new File(["image"], "shot.png", { type: "image/png" }),
-      new File(["document"], "notes.txt", { type: "text/plain" }),
-    ])
-    await screen.findByRole("img", { name: "shot.png" })
-    expect(screen.getByRole("link", { name: "notes.txt" })).toHaveAttribute(
-      "download",
-      "notes.txt"
+describe("MaxCode todo Markdown and URL attachments", () => {
+  it("uploads to the captured team scope, inserts images at the cursor and previews inline", async () => {
+    const submit = mount("before after", "team-a")
+    const textarea = screen.getByLabelText(
+      "Todo content"
+    ) as HTMLTextAreaElement
+    textarea.setSelectionRange(7, 7)
+    const image = new File(["image"], "shot.png", { type: "image/png" })
+    paste([image])
+    expect(
+      await screen.findByRole("img", { name: "shot.png" })
+    ).toHaveAttribute("src", "https://minio.test/bucket/shot.png")
+    expect(uploadTodoFile).toHaveBeenCalledWith("team-a", image, "before after")
+    expect(textarea.value).toBe(
+      "before \n![shot.png](https://minio.test/bucket/shot.png)\nafter"
     )
-    expect(submit).not.toHaveBeenCalled()
+    expect(
+      screen.queryByRole("button", { name: "Remove shot.png" })
+    ).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole("button", { name: "Save" }))
-    const saved = parseTodoContent(submit.mock.calls[0][0].content)
-    expect(saved.text).toBe("Keep this text")
-    expect(saved.attachments.map((file) => file.name)).toEqual([
-      "shot.png",
-      "notes.txt",
-    ])
-    expect(saved.attachments[1].data).toBe(
-      "data:text/plain;base64,ZG9jdW1lbnQ="
+    expect(submit.mock.calls[0][0].content).toBe(textarea.value.trim())
+    expect(submit.mock.calls[0][0].content).not.toMatch(
+      /base64|maxcode-todo-attachments/
     )
   })
-
-  it("supports attachment-only todos and keeps bytes after backend whitespace trimming", async () => {
+  it("inserts a normal file as a Markdown link and permits file-only todos", async () => {
     const submit = mount()
-    paste([new File(["hello"], "a.txt", { type: "text/plain" })])
-    await screen.findByRole("link", { name: "a.txt" })
+    paste([new File(["document"], "notes.txt", { type: "text/plain" })])
+    expect(
+      await screen.findByRole("link", { name: "notes.txt" })
+    ).toHaveAttribute("href", "https://minio.test/bucket/notes.txt")
     await userEvent.click(screen.getByRole("button", { name: "Save" }))
-    const content = submit.mock.calls[0][0].content.trim()
-    expect(parseTodoContent(content).attachments).toHaveLength(1)
-    expect(todoContentSummary(content)).toBe("a.txt")
-  })
-
-  it("loads saved attachments and removes them without changing text", async () => {
-    const content = serializeTodoContent("Original", [
-      { name: "saved.txt", data: "data:text/plain;base64,YQ==" },
-    ])
-    const submit = mount(content)
-    expect(screen.getByLabelText("Todo content")).toHaveValue("Original")
-    await userEvent.click(
-      screen.getByRole("button", { name: "Remove saved.txt" })
+    expect(submit.mock.calls[0][0].content).toBe(
+      "[notes.txt](https://minio.test/bucket/notes.txt)"
     )
-    await userEvent.click(screen.getByRole("button", { name: "Save" }))
-    expect(submit.mock.calls[0][0].content).toBe("Original")
   })
-
-  it("rejects oversized files and leaves existing text untouched", async () => {
+  it("retains original text when upload fails, without inserting an unusable URL", async () => {
+    mount("Keep this")
+    vi.mocked(uploadTodoFile).mockRejectedValueOnce(
+      new Error("MinIO unavailable")
+    )
+    paste([new File(["x"], "fail.png", { type: "image/png" })])
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "MinIO unavailable"
+    )
+    expect(screen.getByLabelText("Todo content")).toHaveValue("Keep this")
+    expect(screen.queryByRole("img")).not.toBeInTheDocument()
+  })
+  it("keeps successfully uploaded files in the draft if a later file fails", async () => {
+    mount()
+    vi.mocked(uploadTodoFile)
+      .mockResolvedValueOnce({
+        name: "first.txt",
+        url: "https://minio.test/first.txt",
+        size: 1,
+        mime: "text/plain",
+      })
+      .mockRejectedValueOnce(new Error("Failed second file"))
+    paste([new File(["a"], "first.txt"), new File(["b"], "second.txt")])
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Failed second file"
+    )
+    expect(screen.getByLabelText("Todo content")).toHaveValue(
+      "\n[first.txt](https://minio.test/first.txt)\n"
+    )
+  })
+  it("rejects more than 100 MiB before uploading", async () => {
+    expect(TODO_ATTACHMENT_MAX_BYTES).toBe(100 * 1024 * 1024)
     mount("Existing")
-    const oversized = new File([], "large.bin")
-    Object.defineProperty(oversized, "size", {
+    const file = new File([], "large.bin")
+    Object.defineProperty(file, "size", {
       value: TODO_ATTACHMENT_MAX_BYTES + 1,
     })
-    paste([oversized])
+    paste([file])
     expect(await screen.findByRole("alert")).toHaveTextContent(
       en.Todos.attachmentTooLarge
     )
-    expect(screen.getByLabelText("Todo content")).toHaveValue("Existing")
-    expect(screen.queryByRole("link")).not.toBeInTheDocument()
+    expect(uploadTodoFile).not.toHaveBeenCalled()
   })
-
-  it("keeps Save disabled while reading and allows selecting files", async () => {
+  it("disables saving while uploading and supports the file picker", async () => {
     mount("Text")
-    const input = screen.getByLabelText(en.Todos.addAttachments, {
-      selector: "input",
-    })
-    fireEvent.change(input, {
-      target: { files: [new File(["test"], "selected.txt")] },
-    })
+    let finish!: (value: Awaited<ReturnType<typeof uploadTodoFile>>) => void
+    vi.mocked(uploadTodoFile).mockReturnValueOnce(
+      new Promise((resolve) => {
+        finish = resolve
+      })
+    )
+    fireEvent.change(
+      screen.getByLabelText(en.Todos.addAttachments, { selector: "input" }),
+      { target: { files: [new File(["test"], "selected.txt")] } }
+    )
     expect(screen.getByRole("button", { name: "Save" })).toBeDisabled()
+    await waitFor(() => expect(uploadTodoFile).toHaveBeenCalled())
+    finish({
+      name: "selected.txt",
+      url: "https://minio.test/selected.txt",
+      size: 4,
+      mime: "text/plain",
+    })
     await waitFor(() =>
       expect(screen.getByRole("button", { name: "Save" })).toBeEnabled()
     )
+  })
+  it("keeps Markdown formatting visible while editing and uses safe link rendering", () => {
+    mount("## Heading\n\n**Bold**\n\n[unsafe](javascript:alert%281%29)")
+    expect(screen.getByRole("heading", { name: "Heading" })).toBeInTheDocument()
+    expect(screen.getByText("Bold").tagName).toBe("STRONG")
     expect(
-      screen.getByRole("link", { name: "selected.txt" })
-    ).toBeInTheDocument()
+      screen.queryByRole("link", { name: "unsafe" })
+    ).not.toBeInTheDocument()
   })
-
-  it("preserves ordinary text and malformed envelopes, and never previews active formats", () => {
-    expect(parseTodoContent("normal text")).toEqual({
-      text: "normal text",
-      attachments: [],
+  it("allows MinIO team uploads above the personal size limit", async () => {
+    mount("Team upload", "team-a")
+    const file = new File(["large"], "large.bin")
+    Object.defineProperty(file, "size", {
+      value: TODO_ATTACHMENT_MAX_BYTES + 1,
     })
-    const literal = "text\n<!-- maxcode-todo-attachments:v1 -->\ninvalid"
-    expect(parseTodoContent(literal).text).toBe(literal)
-    render(
-      <NextIntlClientProvider locale="en" messages={en}>
-        <TodoAttachments
-          files={[{ name: "page.html", data: "data:text/html;base64,YQ==" }]}
-        />
-      </NextIntlClientProvider>
-    )
-    expect(screen.queryByRole("img")).not.toBeInTheDocument()
-    expect(screen.getByRole("link", { name: "page.html" })).toHaveAttribute(
-      "download"
-    )
+    fireEvent.paste(screen.getByLabelText("Todo content"), {
+      clipboardData: { files: [file], items: [], getData: () => "" },
+    })
+    await waitFor(() => expect(uploadTodoFile).toHaveBeenCalled())
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
-
-  it("supports file-kind clipboard items and leaves plain text paste to the textarea", async () => {
+  it("saves existing Markdown URLs without uploading again", async () => {
+    const content = "Original\n\n[report](https://minio.test/bucket/report.txt)"
+    const submit = mount(content, "team-a")
+    await userEvent.click(screen.getByRole("button", { name: "Save" }))
+    await waitFor(() => expect(submit).toHaveBeenCalled())
+    expect(submit.mock.calls[0][0].content).toBe(content)
+    expect(uploadTodoFile).not.toHaveBeenCalled()
+  })
+  it("supports Linux file-kind clipboard items without hijacking ordinary text", async () => {
     mount("Text")
     const textarea = screen.getByLabelText("Todo content")
-    const nativePaste = new Event("paste", { bubbles: true, cancelable: true })
-    Object.defineProperty(nativePaste, "clipboardData", {
+    const event = new Event("paste", { bubbles: true, cancelable: true })
+    Object.defineProperty(event, "clipboardData", {
       value: { files: [], getData: () => "plain text" },
     })
-    fireEvent(textarea, nativePaste)
-    expect(nativePaste.defaultPrevented).toBe(false)
+    fireEvent(textarea, event)
+    expect(event.defaultPrevented).toBe(false)
     const file = new File(["linux"], "linux.txt", { type: "text/plain" })
     fireEvent.paste(textarea, {
       clipboardData: {
@@ -154,50 +197,21 @@ describe("MaxCode todo attachments", () => {
       await screen.findByRole("link", { name: "linux.txt" })
     ).toBeInTheDocument()
   })
-
-  it("allows a combined 100 MiB and rejects one extra byte, including saved attachments", async () => {
-    expect(TODO_ATTACHMENT_MAX_BYTES).toBe(100 * 1024 * 1024)
-    mount(
-      serializeTodoContent("Text", [
-        { name: "existing.txt", data: "data:text/plain;base64,YQ==" },
-      ])
-    )
-    const oversized = new File([], "over.bin")
-    Object.defineProperty(oversized, "size", {
-      value: TODO_ATTACHMENT_MAX_BYTES,
+  it("escapes filenames and URL parentheses without breaking Markdown", () => {
+    const markdown = todoFileMarkdown({
+      name: "[demo](1).png",
+      url: "https://minio.test/(1).png",
+      size: 1,
+      mime: "image/png",
     })
-    paste([oversized])
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      en.Todos.attachmentTooLarge
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <TodoMarkdown content={markdown} />
+      </NextIntlClientProvider>
     )
-    const exact = new File(["bytes"], "exact.bin")
-    Object.defineProperty(exact, "size", {
-      value: TODO_ATTACHMENT_MAX_BYTES - 1,
-    })
-    paste([exact])
-    expect(
-      await screen.findByRole("link", { name: "exact.bin" })
-    ).toBeInTheDocument()
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
-  })
-
-  it("keeps payloads out of title models and permits attachment sizes on local and team routes", () => {
-    const title = readFileSync("src-tauri/src/session_title.rs", "utf8")
-    expect(title).toContain(
-      "redact_title_input(crate::todo::todo_text_content(content))"
+    expect(screen.getByRole("img")).toHaveAttribute(
+      "src",
+      "https://minio.test/%281%29.png"
     )
-    const router = readFileSync("src-tauri/src/web/router.rs", "utf8")
-    for (const handler of [
-      "todo_call",
-      "todo_origin_call",
-      "team_todo_call",
-      "team_todo_origin_call",
-    ]) {
-      expect(router).toMatch(
-        new RegExp(
-          `post\\(handlers::todo::${handler}\\)\\s*\\.layer\\(DefaultBodyLimit::max`
-        )
-      )
-    }
   })
 })

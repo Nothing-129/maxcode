@@ -21,14 +21,13 @@ use crate::commands::conversation_share::{
 const PERSONAL: &str = "personal";
 const MAX_SHARE_BYTES: usize = 24 * 1024 * 1024;
 const TODO_ATTACHMENT_MAX_BYTES: usize = 100 * 1024 * 1024;
-// Base64 expansion plus text, filenames and JSON framing.
-const TODO_CONTENT_MAX_BYTES: usize = 140 * 1024 * 1024;
 pub(crate) const TODO_REQUEST_MAX_BYTES: usize = 200 * 1024 * 1024;
 // Team responses contain multiple todos, independently of conversation snapshots.
 const TODO_RESPONSE_MAX_BYTES: usize = 512 * 1024 * 1024;
 
 pub mod conversation_groups;
 pub mod conversation_sources;
+pub mod storage;
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TodoMember {
@@ -88,6 +87,8 @@ pub struct TodoState {
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct TodoRequest {
     pub action: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub minio_config: Option<storage::MinioConfig>,
     #[serde(default)]
     pub completed_page: Option<u64>,
     #[serde(default)]
@@ -289,52 +290,14 @@ fn required(value: Option<&str>, label: &str, max: usize) -> Result<String, AppC
     Ok(value.to_string())
 }
 fn required_todo_content(value: Option<&str>) -> Result<String, AppCommandError> {
-    let value = value.unwrap_or_default().trim();
-    if value.is_empty() || value.len() > TODO_CONTENT_MAX_BYTES {
-        return Err(AppCommandError::invalid_input("Enter valid todo content"));
-    }
-    if let Some((_, encoded)) = value.rsplit_once("<!-- maxcode-todo-attachments:v1 -->\n") {
-        #[derive(Deserialize)]
-        struct Attachment<'a> {
-            #[serde(borrow)]
-            data: std::borrow::Cow<'a, str>,
-            #[serde(borrow, rename = "name")]
-            _name: std::borrow::Cow<'a, str>,
-        }
-        if let Ok(files) = serde_json::from_str::<Vec<Attachment<'_>>>(encoded) {
-            if todo_text_content(value).chars().count() > 250_000 {
-                return Err(AppCommandError::invalid_input("Enter valid todo content"));
-            }
-            let mut total = 0usize;
-            for file in files {
-                let data = file
-                    .data
-                    .split_once(";base64,")
-                    .ok_or_else(|| AppCommandError::invalid_input("Invalid todo attachment"))?
-                    .1;
-                let padding = data.len() - data.trim_end_matches('=').len();
-                if data.len() % 4 != 0 || padding > 2 {
-                    return Err(AppCommandError::invalid_input("Invalid todo attachment"));
-                }
-                total += data.len() / 4 * 3 - padding;
-                if total > TODO_ATTACHMENT_MAX_BYTES {
-                    return Err(AppCommandError::invalid_input(
-                        "Attachments exceed the 100 MB total limit",
-                    ));
-                }
-            }
-            return Ok(value.to_owned());
-        }
+    let value = value.unwrap_or_default();
+    // Old clients must not reintroduce the removed database attachment format.
+    if value.contains("<!-- maxcode-todo-attachments:v1 -->") {
+        return Err(AppCommandError::invalid_input(
+            "Embedded todo attachments are no longer supported",
+        ));
     }
     required(Some(value), "todo content", 250_000)
-}
-
-/// Keep embedded attachment bytes out of title generation and model prompts.
-pub(crate) fn todo_text_content(content: &str) -> &str {
-    content
-        .split("<!-- maxcode-todo-attachments:v1 -->\n")
-        .next()
-        .unwrap_or(content)
 }
 
 fn todo_title(request: &TodoRequest, content: &str) -> Result<String, AppCommandError> {
@@ -347,7 +310,7 @@ fn todo_title(request: &TodoRequest, content: &str) -> Result<String, AppCommand
     {
         return required(request.title.as_deref(), "todo title", 200);
     }
-    let redacted = crate::session_title::redact_title_input(todo_text_content(content));
+    let redacted = crate::session_title::redact_title_input(content);
     Ok(redacted
         .lines()
         .map(str::trim)
@@ -728,6 +691,7 @@ pub async fn call(
         join_team(conn, &request, &url).await?;
         request.action = "state".to_string();
     }
+    request.minio_config = None;
     let (mode, active) = selected(conn).await?;
     let all_teams = teams(conn, &url).await?;
     let displayed = all_teams.iter().map(|team| team.team.clone()).collect();
@@ -843,6 +807,12 @@ async fn create_team(
     conn: &DatabaseConnection,
     request: &TodoRequest,
 ) -> Result<(), AppCommandError> {
+    if let Some(config) = &request.minio_config {
+        storage::validate_config(config)?;
+        if config.secret_key.is_empty() {
+            return Err(AppCommandError::invalid_input("Enter the MinIO secret key"));
+        }
+    }
     let name = required(request.name.as_deref(), "team name", 80)?;
     let member_name = required(request.member_name.as_deref(), "member name", 80)?;
     let avatar = request.avatar.as_deref().unwrap_or_default();
@@ -862,7 +832,11 @@ async fn create_team(
             vec![op.into()],
         )
         .await?;
-        select_team(conn, &field::<String>(&row[0], "id")?).await?;
+        let existing_id = field::<String>(&row[0], "id")?;
+        if let Some(config) = &request.minio_config {
+            storage::save_config(&existing_id, config.clone())?;
+        }
+        select_team(conn, &existing_id).await?;
         return Ok(());
     }
     execute(
@@ -880,10 +854,13 @@ async fn create_team(
     execute(
         &txn,
         "UPDATE maxcode_todo_preferences SET mode='team', active_team_id=? WHERE id=1",
-        vec![id.into()],
+        vec![id.clone().into()],
     )
     .await?;
     txn.commit().await.map_err(error_db)?;
+    if let Some(config) = &request.minio_config {
+        storage::save_config(&id, config.clone())?;
+    }
     Ok(())
 }
 async fn join_team(
@@ -1121,6 +1098,15 @@ async fn mutate(
     }
     if matches!(request.action.as_str(), "create" | "update") {
         validate_schedule(request)?;
+    }
+    if matches!(request.action.as_str(), "create" | "update") {
+        storage::validate_content_size(
+            conn,
+            scope,
+            request.content.as_deref().unwrap_or_default(),
+            0,
+        )
+        .await?;
     }
     let txn = conn.begin().await.map_err(error_db)?;
     let now = Utc::now().to_rfc3339();

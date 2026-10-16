@@ -57,6 +57,11 @@ export function TodoComposeDialog() {
   }
   return (
     <TodoEditorDialog
+      scopeId={
+        state?.mode === "team"
+          ? (state.active_team_id ?? undefined)
+          : "personal"
+      }
       key={request.id}
       todo={null}
       draft={request.draft}

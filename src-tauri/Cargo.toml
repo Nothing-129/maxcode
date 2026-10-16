@@ -1,6 +1,6 @@
 [package]
 name = "codeg"
-version = "0.30.35"
+version = "0.30.36"
 description = "Agent Code Generation App"
 authors = ["feitao"]
 edition = "2021"
@@ -114,6 +114,7 @@ qrcode = "0.14"
 image = { version = "0.25", default-features = false, features = ["png", "webp", "jpeg", "gif"] }
 include_dir = "0.7"
 sha2 = "0.10"
+hmac = "0.12"
 aes-gcm = { version = "0.10", features = ["stream"] }
 argon2 = "0.5"
 tempfile = "3"

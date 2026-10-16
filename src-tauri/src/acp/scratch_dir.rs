@@ -263,15 +263,14 @@ pub fn scratch_root() -> PathBuf {
 /// this module's own docs warn about.
 fn sweep_roots() -> Vec<PathBuf> {
     let mut roots = vec![scratch_root()];
-    for candidate in [
-        std::env::temp_dir().join(SCRATCH_NAMESPACE),
-        #[cfg(unix)]
-        short_root(),
-    ] {
+    let mut add_root = |candidate| {
         if !roots.contains(&candidate) {
             roots.push(candidate);
         }
-    }
+    };
+    add_root(std::env::temp_dir().join(SCRATCH_NAMESPACE));
+    #[cfg(unix)]
+    add_root(short_root());
     roots
 }
 

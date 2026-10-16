@@ -33,14 +33,9 @@ import {
   clipboardHasText,
   imageFilesFromClipboardApi,
 } from "@/lib/clipboard-images"
-import { TodoAttachments } from "./todo-attachments"
-import {
-  parseTodoContent,
-  serializeTodoContent,
-  readTodoAttachment,
-  todoAttachmentBytes,
-  TODO_ATTACHMENT_MAX_BYTES,
-} from "@/lib/todo-attachments"
+import { TodoMarkdown } from "./todo-markdown"
+import { uploadTodoFile, todoFileMarkdown } from "@/lib/todo-storage"
+import { TODO_ATTACHMENT_MAX_BYTES } from "@/lib/todo-storage"
 
 type TodoDraft = NonNullable<ReturnType<typeof consumePendingTodoDraft>>
 
@@ -53,6 +48,7 @@ export function TodoEditorDialog({
   disabled,
   latestTodo,
   onReload,
+  scopeId = "personal",
 }: {
   todo: Todo | null
   draft: TodoDraft | null
@@ -62,14 +58,17 @@ export function TodoEditorDialog({
   disabled: boolean
   latestTodo?: Todo
   onReload?: () => void
+  scopeId?: string
 }) {
   const t = useTranslations("Todos")
   const [title, setTitle] = useState(todo?.title ?? draft?.title ?? "")
-  const [initialContent] = useState(() =>
-    parseTodoContent(todo?.content ?? draft?.text ?? "")
-  )
-  const [content, setContent] = useState(initialContent.text)
-  const [attachments, setAttachments] = useState(initialContent.attachments)
+  const [content, setContent] = useState(todo?.content ?? draft?.text ?? "")
+  const contentRef = useRef(content)
+  const textarea = useRef<HTMLTextAreaElement>(null)
+  function updateContent(value: string) {
+    contentRef.current = value
+    setContent(value)
+  }
   const [readingFiles, setReadingFiles] = useState(false)
   const readingRef = useRef(false)
   const fileInput = useRef<HTMLInputElement>(null)
@@ -86,34 +85,48 @@ export function TodoEditorDialog({
 
   async function addFiles(source: File[] | Promise<File[]>) {
     if (readingRef.current || saving || disabled) return
+    const start = textarea.current?.selectionStart ?? contentRef.current.length
+    const end = textarea.current?.selectionEnd ?? start
     readingRef.current = true
     setReadingFiles(true)
     setError(null)
+    let cursor = start
+    let selectionEnd = end
     try {
       const files = await source
-      if (!files.length) return
       if (
-        todoAttachmentBytes(attachments) +
-          files.reduce((sum, file) => sum + file.size, 0) >
-        TODO_ATTACHMENT_MAX_BYTES
+        scopeId === "personal" &&
+        files.reduce((sum, file) => sum + file.size, 0) >
+          TODO_ATTACHMENT_MAX_BYTES
       ) {
-        setError(t("attachmentTooLarge"))
-        return
+        throw new Error(t("attachmentTooLarge"))
       }
-      const added = await Promise.all(files.map(readTodoAttachment))
-      setAttachments((current) => [...current, ...added])
+      for (const file of files) {
+        const uploaded = await uploadTodoFile(scopeId, file, contentRef.current)
+        const markdown = "\n" + todoFileMarkdown(uploaded) + "\n"
+        const current = contentRef.current
+        updateContent(
+          current.slice(0, cursor) + markdown + current.slice(selectionEnd)
+        )
+        cursor += markdown.length
+        selectionEnd = cursor
+      }
     } catch (cause) {
       setError(toErrorMessage(cause))
     } finally {
       readingRef.current = false
       setReadingFiles(false)
+      requestAnimationFrame(() => {
+        textarea.current?.focus()
+        textarea.current?.setSelectionRange(cursor, cursor)
+      })
     }
   }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault()
     if (
-      (!content.trim() && !attachments.length) ||
+      !content.trim() ||
       readingRef.current ||
       saving ||
       disabled ||
@@ -127,7 +140,7 @@ export function TodoEditorDialog({
         due_date: dueDate || null,
         priority: priority === "__none__" ? null : priority,
         title: title.trim(),
-        content: serializeTodoContent(content, attachments),
+        content: contentRef.current.trim(),
         assignee_id: assignee === "__none__" ? null : assignee,
       }
       await onSubmit(
@@ -164,7 +177,7 @@ export function TodoEditorDialog({
       onOpenChange={(open) => !open && !saving && !readingFiles && onClose()}
     >
       <DialogContent
-        className="todo-theme min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
+        className="todo-theme min-w-0 max-w-4xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
         showCloseButton={!saving && !readingFiles}
       >
         <DialogHeader>
@@ -188,28 +201,40 @@ export function TodoEditorDialog({
           </div>
           <div className="space-y-2">
             <Label htmlFor="todo-content">{t("contentLabel")}</Label>
-            <Textarea
-              id="todo-content"
-              value={content}
-              onChange={(event) => setContent(event.target.value)}
-              onPaste={(event) => {
-                const files = filesFromClipboard(event.clipboardData)
-                if (files.length) {
-                  event.preventDefault()
-                  void addFiles(files)
-                } else if (
-                  !readingRef.current &&
-                  !clipboardHasText(event.clipboardData)
-                ) {
-                  void addFiles(imageFilesFromClipboardApi())
-                }
-              }}
-              placeholder={t("contentPlaceholder")}
-              className="min-h-40 min-w-0 field-sizing-fixed resize-y"
-              required={!attachments.length}
-              autoFocus
-              disabled={saving || disabled}
-            />
+            <div className="grid min-w-0 gap-3 rounded-xl border p-3 md:grid-cols-2">
+              <Textarea
+                ref={textarea}
+                id="todo-content"
+                value={content}
+                onChange={(event) => updateContent(event.target.value)}
+                onPaste={(event) => {
+                  const files = filesFromClipboard(event.clipboardData)
+                  if (files.length) {
+                    event.preventDefault()
+                    void addFiles(files)
+                  } else if (
+                    !readingRef.current &&
+                    !clipboardHasText(event.clipboardData)
+                  ) {
+                    void addFiles(imageFilesFromClipboardApi())
+                  }
+                }}
+                placeholder={t("contentPlaceholder")}
+                className="min-h-64 min-w-0 field-sizing-fixed resize-y font-mono text-sm"
+                required
+                autoFocus
+                disabled={saving || disabled || readingFiles}
+              />
+              <div
+                className="min-w-0 max-h-96 overflow-auto"
+                aria-label={t("markdownPreview")}
+              >
+                <p className="mb-2 text-xs text-muted-foreground">
+                  {t("markdownPreview")}
+                </p>
+                <TodoMarkdown content={content} />
+              </div>
+            </div>
           </div>
           <div className="space-y-2">
             <input
@@ -238,17 +263,10 @@ export function TodoEditorDialog({
               {t("addAttachments")}
             </Button>
             <p className="text-xs text-muted-foreground">
-              {t("attachmentHint")}
+              {t(
+                scopeId === "personal" ? "attachmentHint" : "teamAttachmentHint"
+              )}
             </p>
-            <TodoAttachments
-              files={attachments}
-              disabled={saving || disabled || readingFiles}
-              onRemove={(index) =>
-                setAttachments((current) =>
-                  current.filter((_, i) => i !== index)
-                )
-              }
-            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="todo-assignee">{t("assigneeLabel")}</Label>
@@ -352,7 +370,7 @@ export function TodoEditorDialog({
             <Button
               type="submit"
               disabled={
-                (!content.trim() && !attachments.length) ||
+                !content.trim() ||
                 readingFiles ||
                 saving ||
                 disabled ||

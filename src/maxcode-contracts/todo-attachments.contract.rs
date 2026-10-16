@@ -1,16 +1,11 @@
-//! Attachment bytes must round-trip through the same storage used by team members.
+//! Markdown URLs persist; obsolete embedded bytes are removed.
 use super::*;
 use crate::db::test_helpers::fresh_in_memory_db;
 
 #[tokio::test]
-async fn attachment_content_survives_create_reload_and_update() {
+async fn markdown_urls_survive_create_reload_and_update() {
     let db = fresh_in_memory_db().await;
-    // Larger than the former 250k text limit, as ordinary screenshots often are.
-    let data = "YWFh".repeat(100_000);
-    let content = format!(
-        "Review screenshot\n\n<!-- maxcode-todo-attachments:v1 -->\n{}",
-        serde_json::json!([{ "name": "shot.png", "data": format!("data:image/png;base64,{data}") }])
-    );
+    let content = "Review screenshot\n\n![shot](https://files.example.test/shot.png)".to_string();
     let result = call(
         &db.conn,
         TodoRequest {
@@ -48,33 +43,77 @@ async fn attachment_content_survives_create_reload_and_update() {
     .await
     .unwrap();
     assert_eq!(reloaded.todos[0].content, content);
-    assert_eq!(todo_text_content(&content).trim(), "Review screenshot");
 }
 
 #[test]
-fn attachment_only_content_never_becomes_a_title_prompt() {
-    assert_eq!(
-        todo_text_content("<!-- maxcode-todo-attachments:v1 -->\n[{\"data\":\"SECRET_BYTES\"}]"),
-        ""
-    );
-    assert_eq!(todo_text_content("normal todo"), "normal todo");
+fn old_clients_cannot_write_embedded_attachments() {
+    assert!(required_todo_content(Some("Text\n<!-- maxcode-todo-attachments:v1 -->\n[]")).is_err());
+    assert!(required_todo_content(Some(&"x".repeat(250_001))).is_err());
 }
 
-#[test]
-fn full_100_mib_attachment_is_accepted_but_one_extra_byte_is_rejected() {
-    let encoded = STANDARD.encode(vec![0u8; TODO_ATTACHMENT_MAX_BYTES]);
-    let mut content = format!(
-        "<!-- maxcode-todo-attachments:v1 -->\n[{{\"name\":\"large.bin\",\"data\":\"data:application/octet-stream;base64,{encoded}\"}}]"
-    );
-    drop(encoded);
-    assert!(required_todo_content(Some(&content)).is_ok());
-    content.pop();
-    content.push_str(
-        ",{\"name\":\"extra.bin\",\"data\":\"data:application/octet-stream;base64,YQ==\"}]",
-    );
-    assert!(required_todo_content(Some(&content)).is_err());
-    const {
-        assert!(TODO_REQUEST_MAX_BYTES > TODO_CONTENT_MAX_BYTES + MAX_SHARE_BYTES);
-        assert!(TODO_RESPONSE_MAX_BYTES > 2 * TODO_CONTENT_MAX_BYTES);
+#[tokio::test]
+async fn migration_removes_only_embedded_tails_and_preserves_url_metadata() {
+    use crate::db::migration::Migrator;
+    use sea_orm_migration::MigratorTrait;
+    let db = fresh_in_memory_db().await;
+    Migrator::down(&db.conn, Some(1)).await.unwrap();
+    let markdown = "![new](https://files.example.test/new.png)";
+    for (id, scope, body) in [
+        ("text", "personal", format!("{markdown}\n\n<!-- maxcode-todo-attachments:v1 -->\n[{{\"name\":\"old\",\"data\":\"data:text/plain;base64,YQ==\"}}]")),
+        ("only", "team-a", "<!-- maxcode-todo-attachments:v1 -->\n[]".into()),
+        ("new", "personal", markdown.into()),
+    ] {
+        db.conn.execute(Statement::from_sql_and_values(
+            DbBackend::Sqlite,
+            "INSERT INTO maxcode_todo_item (id,scope_id,title,content,status,creator_id,revision,created_at,updated_at) VALUES (?,?,'Keep title',?,'unclaimed','personal',7,'before','before')",
+            vec![id.into(), scope.into(), body.into()],
+        )).await.unwrap();
     }
+    db.conn.execute_unprepared("INSERT INTO maxcode_todo_attachment VALUES ('new','personal','new.png','https://files.example.test/new.png',123,'image/png','before')").await.unwrap();
+    Migrator::up(&db.conn, None).await.unwrap();
+    for (id, expected, revision) in [
+        ("text", markdown, 8i64),
+        ("only", "", 8),
+        ("new", markdown, 7),
+    ] {
+        let row = db
+            .conn
+            .query_one(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "SELECT content,title,revision,updated_at FROM maxcode_todo_item WHERE id=?",
+                [id.into()],
+            ))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.try_get::<String>("", "content").unwrap(), expected);
+        assert_eq!(row.try_get::<String>("", "title").unwrap(), "Keep title");
+        assert_eq!(row.try_get::<i64>("", "revision").unwrap(), revision);
+        assert_eq!(
+            row.try_get::<String>("", "updated_at").unwrap() == "before",
+            id == "new"
+        );
+    }
+    assert!(db
+        .conn
+        .query_one(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT id FROM maxcode_todo_attachment WHERE id='new'"
+        ))
+        .await
+        .unwrap()
+        .is_some());
+    // Re-running the destructive migration is harmless once its marker is gone.
+    Migrator::down(&db.conn, Some(1)).await.unwrap();
+    Migrator::up(&db.conn, None).await.unwrap();
+    let row = db
+        .conn
+        .query_one(Statement::from_string(
+            DbBackend::Sqlite,
+            "SELECT revision FROM maxcode_todo_item WHERE id='text'",
+        ))
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(row.try_get::<i64>("", "revision").unwrap(), 8);
 }

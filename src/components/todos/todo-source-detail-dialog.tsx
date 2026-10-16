@@ -1,7 +1,6 @@
 "use client"
 
-import { parseTodoContent } from "@/lib/todo-attachments"
-import { TodoAttachments } from "./todo-attachments"
+import { TodoMarkdown } from "./todo-markdown"
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
@@ -161,6 +160,7 @@ export function TodoSourceDetailDialog({
     return (
       <TodoEditorDialog
         key={`${editing.id}:${editing.revision}`}
+        scopeId={origin.scope_id}
         todo={editing}
         latestTodo={todo ?? undefined}
         draft={null}
@@ -215,11 +215,8 @@ export function TodoSourceDetailDialog({
                 />
                 <TodoSchedule todo={todo} />
                 <div className="max-h-80 overflow-auto whitespace-pre-wrap text-sm leading-6 wrap-anywhere">
-                  {parseTodoContent(todo.content).text}
+                  <TodoMarkdown content={todo.content} />
                 </div>
-                <TodoAttachments
-                  files={parseTodoContent(todo.content).attachments}
-                />
                 {todo.source_url && (
                   <BrowserLink
                     href={todo.source_url}

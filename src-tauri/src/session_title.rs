@@ -646,7 +646,7 @@ pub(crate) async fn generate_manual_title(
 /// Todos use the same configured lightweight model but need a plain task
 /// label, rather than the date-prefixed conversation title format.
 pub(crate) async fn generate_todo_title(conn: &DatabaseConnection, content: &str) -> String {
-    let seed = redact_title_input(crate::todo::todo_text_content(content));
+    let seed = redact_title_input(content);
     let fallback = seed
         .lines()
         .map(str::trim)

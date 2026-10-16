@@ -20,6 +20,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { useTodosView } from "@/contexts/todos-view-context"
 import { toErrorMessage } from "@/lib/app-error"
 import { randomUUID } from "@/lib/utils"
+import { emptyMinioConfig } from "@/lib/todo-storage"
+import { TodoMinioFields, TodoMinioSettings } from "./todo-minio-settings"
 
 async function avatarFromFile(file: File): Promise<string> {
   const bitmap = await createImageBitmap(file)
@@ -49,6 +51,7 @@ export function TodoTeamsDialog({
   const t = useTranslations("Todos")
   const { state, mutate, busy } = useTodosView()
   const [tab, setTab] = useState<"create" | "join">("create")
+  const [minio, setMinio] = useState(emptyMinioConfig)
   const [teamName, setTeamName] = useState("")
   const [memberName, setMemberName] = useState("")
   const [code, setCode] = useState("")
@@ -98,6 +101,7 @@ export function TodoTeamsDialog({
               name: teamName.trim(),
               member_name: memberName.trim(),
               avatar,
+              minio_config: minio,
             }
           : {
               action: "join_team",
@@ -201,6 +205,16 @@ export function TodoTeamsDialog({
             {t("joinTeam")}
           </Button>
         </div>
+        {activeTeam?.is_local && (
+          <details className="min-w-0 rounded-xl border p-3">
+            <summary className="cursor-pointer text-sm font-medium">
+              {t("minioTitle")} · {activeTeam.name}
+            </summary>
+            <div className="mt-3">
+              <TodoMinioSettings key={activeTeam.id} scopeId={activeTeam.id} />
+            </div>
+          </details>
+        )}
         <form
           onSubmit={(event) => void submit(event)}
           className="min-w-0 space-y-4 [&>*]:min-w-0"
@@ -234,6 +248,14 @@ export function TodoTeamsDialog({
                 className="min-h-20 min-w-0 w-full field-sizing-fixed text-xs"
               />
             </div>
+          )}
+          {tab === "create" && (
+            <TodoMinioFields
+              value={minio}
+              onChange={setMinio}
+              disabled={disabled}
+              prefix="create-minio"
+            />
           )}
           <div className="space-y-2">
             <Label htmlFor="todo-member-name">{t("memberName")}</Label>

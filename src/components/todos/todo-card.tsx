@@ -1,12 +1,12 @@
 "use client"
 
-import { todoContentSummary } from "@/lib/todo-attachments"
-
 import {
   Check,
   ExternalLink,
   MessageSquarePlus,
   MoreHorizontal,
+  RotateCcw,
+  UserPlus,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -158,7 +158,7 @@ export function TodoCard({
           {todo.title}
         </h3>
         <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground wrap-anywhere">
-          {todoContentSummary(todo.content)}
+          {todo.content}
         </p>
       </button>
       <div className="mt-2">
@@ -186,20 +186,10 @@ export function TodoCard({
       </div>
       <div
         className={cn(
-          "mt-3 flex items-center gap-1 border-t border-border/40 pt-2",
+          "mt-4 flex items-center gap-1 border-t border-border/40 pt-3",
           list && "mt-0 shrink-0 border-0 pt-0"
         )}
       >
-        <Button
-          size="sm"
-          variant={action === "reopen" ? "ghost" : "secondary"}
-          className="h-7 text-xs"
-          disabled={disabled}
-          onClick={() => onAction(action)}
-        >
-          {t(action)}
-        </Button>
-        <span className="flex-1" />
         {todo.source_url && (
           <BrowserLink
             href={todo.source_url}
@@ -239,6 +229,23 @@ export function TodoCard({
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        <span className="flex-1" />
+        <Button
+          size="sm"
+          variant={action === "reopen" ? "outline" : "default"}
+          className="ml-2 rounded-md text-xs"
+          disabled={disabled}
+          onClick={() => onAction(action)}
+        >
+          {action === "complete" ? (
+            <Check className="size-3.5" aria-hidden="true" />
+          ) : action === "claim" ? (
+            <UserPlus className="size-3.5" aria-hidden="true" />
+          ) : (
+            <RotateCcw className="size-3.5" aria-hidden="true" />
+          )}
+          {t(action)}
+        </Button>
       </div>
     </article>
   )

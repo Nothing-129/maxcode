@@ -34,6 +34,15 @@ pub fn build_router(
     let api = Router::new()
         .route("/health", post(health_check))
         .route(
+            "/todo_storage_config",
+            post(handlers::todo::todo_storage_config),
+        )
+        .route(
+            "/todo_attachment_upload",
+            post(handlers::todo::todo_attachment_upload)
+                .layer(DefaultBodyLimit::disable()),
+        )
+        .route(
             "/todo_call",
             post(handlers::todo::todo_call)
                 .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
@@ -1776,6 +1785,15 @@ pub fn build_router(
     // The login page needs to read the user's preferred language before
     // authenticating so it can render in their chosen locale.
     let public_api = Router::new()
+        .route(
+            "/todo_attachment/{id}",
+            get(handlers::todo::todo_attachment_read),
+        )
+        .route(
+            "/team_todo_attachment",
+            post(handlers::todo::team_todo_attachment_upload)
+                .layer(DefaultBodyLimit::disable()),
+        )
         .route(
             "/team_todo_call",
             post(handlers::todo::team_todo_call)

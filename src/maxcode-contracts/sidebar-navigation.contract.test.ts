@@ -27,7 +27,7 @@ describe("sidebar navigation scope", () => {
     )
     expect(sidebar).toContain("h-8 min-w-0 flex-1")
     expect(sidebar).toContain(
-      "justify-center gap-1.5 rounded-lg bg-sidebar-accent/20"
+      "justify-center gap-1.5 rounded-lg bg-sidebar-accent/35"
     )
     expect(sidebar).not.toContain("attentionCount")
     const row = sidebar.slice(sidebar.indexOf("<div data-sidebar-actions"))

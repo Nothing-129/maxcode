@@ -223,19 +223,29 @@
     {
       "id": "todos.paste-attachments",
       "category": "product",
-      "description": "Todo editors paste and select files/images, persist portable attachments with content for personal and remote team todos, preview raster images and download files, with a 100 MiB combined attachment limit. Title generation and conversation text exclude binary payloads.",
-      "origins": ["worktree-2026-10-15"],
+      "description": "Todo bodies are Markdown with live preview. Pasted or selected files upload first and insert URL Markdown at the cursor; new payloads never embed base64. Creator-only MinIO settings keep credentials on the host, members upload via scoped capability tokens, team files use permanent readable object URLs, and personal files live on disk. A 100 MiB referenced-file aggregate limit applies only to personal local storage; team MinIO uploads have no application size cap. A startup migration deletes legacy embedded attachments while preserving todo text and Markdown URLs; legacy writes are rejected.",
+      "origins": [
+        "worktree-2026-10-15"
+      ],
       "paths": [
         "src/maxcode-contracts/todo-attachments.contract.rs",
-        "src/lib/todo-attachments.ts",
         "src/lib/todos.ts",
         "src/components/todos/",
         "src-tauri/src/todo/",
         "src-tauri/src/session_title.rs",
         "src-tauri/src/web/router.rs",
-        "src/i18n/messages/"
+        "src/i18n/messages/",
+        "src/lib/todo-storage.ts",
+        "src-tauri/src/todo/storage.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/db/migration/m20261016_000001_todo_attachment.rs",
+        "src-tauri/src/db/migration/m20261016_000002_remove_embedded_todo_attachments.rs",
+        "src/maxcode-contracts/todo-minio.contract.rs"
       ],
-      "contracts": ["src/maxcode-contracts/todo-attachments.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/todo-attachments.contract.test.tsx",
+        "src/maxcode-contracts/todo-minio-settings.contract.test.tsx"
+      ]
     },
     {
       "id": "forms.subtle-focus",
@@ -285,6 +295,14 @@
         "src/i18n/messages/"
       ],
       "contracts": ["src/maxcode-contracts/search-scope.contract.test.tsx"]
+    },
+    {
+      "id": "todos.completion-action-label",
+      "category": "product",
+      "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a rectangular primary action with an icon on the right. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": ["src/components/todos/todo-card.tsx", "src/i18n/messages/"],
+      "contracts": ["src/maxcode-contracts/todo-completion-label.contract.test.tsx"]
     },
     {
       "id": "todos.blue-theme",
@@ -2292,7 +2310,7 @@
     {
       "id": "workspace.sidebar-navigation",
       "category": "product",
-      "description": "Sidebar navigation includes New chat (新对话 in Simplified Chinese), Automations (自动任务), Tasks (待办) and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions are equal-width borderless rounded buttons with a subtle background in one horizontal row with 14px labels at default zoom; Tasks has no count badge. Shortcut hints do not consume label space. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
+      "description": "Sidebar navigation includes New chat (新对话 in Simplified Chinese), Automations (自动任务), Tasks (待办) and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions are equal-width borderless rounded buttons with a subtle 35%-opacity sidebar-accent background in one horizontal row with 14px labels at default zoom; Tasks has no count badge. Shortcut hints do not consume label space. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
       "origins": ["worktree-2026-09-08", "worktree-2026-10-13"],
       "paths": [
         "src/components/layout/sidebar.tsx",
