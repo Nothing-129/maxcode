@@ -1,5 +1,11 @@
 # MaxCode 下游功能清单
 
+2026-10-16 手机文本选择：触屏或触控笔长按仅保留浏览器原生菜单和选择手柄，避免与 MaxCode 选区工具栏重叠；混合设备切回鼠标后恢复快捷工具栏。独立契约：`mobile-selection-menu.contract.test.tsx`。
+
+2026-10-16 会话菜单统一：侧栏对话标题右键与三个点直接打开同一份完整菜单，菜单顺序、禁用状态和操作保持一致；保留未完成主会话的“标记完成”，三个点支持键盘打开。独立契约：`conversation-menu-parity.contract.test.tsx`。
+
+已完成待办的看板和列表显示本地完成时间，独立字段不随编辑改变；重新打开时清空，再次完成时重记。旧记录未知时间显示“—”。契约：`todo-completion-time.contract.test.tsx`、`todo-completion-time.contract.rs`。
+
 本清单以 `upstream/main` 为上游基线，综合检查 `upstream/main..HEAD` 的非发布提交
 以及当前工作区改动。机器可读、决定合并阻塞范围的权威版本是
 `config/maxcode-upstream-hotspots.json`；本文用于评审和维护。
@@ -307,3 +313,5 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 手机待办验收：触屏或粗指针设备无需悬停即可看到用户消息的“添加到待办”、回复操作行及待办分组的“＋”（含横屏宽度）；历史回复为操作行保留高度，避免被后续虚拟列表条目遮挡。桌面鼠标继续悬停显示。独立契约：`message-action-hover.contract.test.tsx`。
 
 手机对话适配：用户消息的复制、转新对话及图片下载按钮在触屏上直接显示；回复操作行可换行并占据实际高度。工作区与通用弹窗跟随 VisualViewport 的键盘可视高度和偏移，关闭键盘恢复原布局；双指缩放和已处理键盘的原生壳不重复调整。保留移动端隐藏消息编辑与会话内搜索的既定规则。契约：`mobile-conversation-layout.contract.test.tsx`、`mobile-chat-viewport.contract.test.tsx`。
+
+待办创建信息（`todos.creation-metadata`）：看板卡片、列表及看板/来源详情均展示创建人和创建时间；创建人与指定人独立匹配，成员资料缺失时显示创建人 ID。时间按界面语言与查看者时区显示。独立契约：`todo-creation-metadata.contract.test.tsx`。

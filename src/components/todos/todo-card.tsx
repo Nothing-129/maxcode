@@ -8,7 +8,7 @@ import {
   RotateCcw,
   UserPlus,
 } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useFormatter, useTranslations } from "next-intl"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { BrowserLink } from "@/components/ui/browser-link"
 import { Button } from "@/components/ui/button"
@@ -45,6 +45,76 @@ export function TodoAssignee({ member }: { member?: TodoMember }) {
       )}
       <span className="truncate">{member?.name ?? t("unassigned")}</span>
     </span>
+  )
+}
+
+export function TodoCreationInfo({
+  todo,
+  creator,
+}: {
+  todo: Todo
+  creator?: TodoMember
+}) {
+  const t = useTranslations("Todos")
+  const format = useFormatter()
+  const createdAt = new Date(todo.created_at)
+  const validDate = !Number.isNaN(createdAt.getTime())
+  return (
+    <dl className="grid min-w-0 gap-1 text-xs text-muted-foreground">
+      <div className="flex min-w-0 gap-1.5">
+        <dt className="shrink-0">{t("creator")}</dt>
+        <dd className="min-w-0 wrap-anywhere">
+          {creator?.name || todo.creator_id}
+        </dd>
+      </div>
+      <div className="flex min-w-0 flex-wrap gap-x-1.5">
+        <dt className="shrink-0">{t("createdAt")}</dt>
+        <dd>
+          {validDate ? (
+            <time dateTime={todo.created_at}>
+              {format.dateTime(createdAt, {
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </time>
+          ) : (
+            todo.created_at || "—"
+          )}
+        </dd>
+      </div>
+    </dl>
+  )
+}
+
+export function TodoCompletionInfo({ todo }: { todo: Todo }) {
+  const t = useTranslations("Todos")
+  const format = useFormatter()
+  if (todo.status !== "completed") return null
+  const completedAt = todo.completed_at ? new Date(todo.completed_at) : null
+  return (
+    <dl className="mt-1 flex flex-wrap gap-x-1.5 text-xs text-muted-foreground">
+      <dt>{t("completedAt")}</dt>
+      <dd>
+        {completedAt && !Number.isNaN(completedAt.getTime()) ? (
+          <time dateTime={todo.completed_at!}>
+            {format.dateTime(completedAt, {
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+              year: "numeric",
+              month: "2-digit",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </time>
+        ) : (
+          "—"
+        )}
+      </dd>
+    </dl>
   )
 }
 
@@ -111,6 +181,7 @@ export function TodoConversationButton({ todo }: { todo: Todo }) {
 export function TodoCard({
   todo,
   member,
+  creator,
   selfId,
   disabled,
   list = false,
@@ -121,6 +192,7 @@ export function TodoCard({
 }: {
   todo: Todo
   member?: TodoMember
+  creator?: TodoMember
   selfId: string | null
   disabled: boolean
   list?: boolean
@@ -161,6 +233,10 @@ export function TodoCard({
           {todo.content}
         </p>
       </button>
+      <div className={cn("mt-3 min-w-0", list && "mt-0")}>
+        <TodoCreationInfo todo={todo} creator={creator} />
+        <TodoCompletionInfo todo={todo} />
+      </div>
       <div className="mt-2">
         <TodoSchedule todo={todo} />
       </div>

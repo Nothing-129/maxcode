@@ -22,13 +22,25 @@ fn binding_key(id: i32) -> String {
 }
 fn session_target(auto: &AutomationInfo) -> String {
     // Reuse is chat-only. Changing the agent starts a separate native session;
-    // prompt, schedule and model edits do not lose the current chat's history.
+    // prompt, schedule and model edits preserve today's chat history.
     auto.agent_type.clone()
 }
 pub async fn reusable_conversation(
     conn: &DatabaseConnection,
     auto: &AutomationInfo,
 ) -> Result<Option<DbConversationSummary>, DbError> {
+    reusable_conversation_at(conn, auto, Utc::now()).await
+}
+
+async fn reusable_conversation_at(
+    conn: &DatabaseConnection,
+    auto: &AutomationInfo,
+    now: DateTime<Utc>,
+) -> Result<Option<DbConversationSummary>, DbError> {
+    let timezone = auto
+        .timezone
+        .parse::<chrono_tz::Tz>()
+        .map_err(|e| DbError::Validation(format!("invalid automation timezone: {e}")))?;
     let Some(value) = app_metadata_service::get_value(conn, &binding_key(auto.id)).await? else {
         return Ok(None);
     };
@@ -47,10 +59,23 @@ pub async fn reusable_conversation(
     {
         return Ok(None);
     }
-    conversation_service::get_by_id(conn, binding.conversation_id)
-        .await
-        .map(Some)
+    let conversation = conversation_service::get_by_id(conn, binding.conversation_id).await?;
+    // Use creation time, not last activity: frequent runs must not extend a
+    // chat across midnight. This also handles bindings saved before daily reuse.
+    if conversation
+        .created_at
+        .with_timezone(&timezone)
+        .date_naive()
+        != now.with_timezone(&timezone).date_naive()
+    {
+        return Ok(None);
+    }
+    Ok(Some(conversation))
 }
+
+#[cfg(test)]
+#[path = "../../../../src/maxcode-contracts/automation-daily-chat.contract.rs"]
+mod maxcode_automation_daily_chat_contract;
 pub async fn bind_conversation(
     conn: &DatabaseConnection,
     auto: &AutomationInfo,

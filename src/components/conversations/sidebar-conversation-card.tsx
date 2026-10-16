@@ -60,12 +60,6 @@ import {
   HoverCardContent,
   HoverCardTrigger,
 } from "@/components/ui/hover-card"
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConversationTitleLabel } from "./conversation-title-label"
@@ -386,9 +380,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isPinned = conversation.pinned_at != null
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
-  const showHoverActions =
-    !isSubsession &&
-    (Boolean(onTogglePin) || showDoneAction || Boolean(onLinkTodo))
+  const showHoverActions = !isSubsession
   const showFolderMeta = Boolean(folderLabel)
 
   return (
@@ -676,60 +668,35 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       ) : null}
                     </span>
                     {showHoverActions && (
-                      <DropdownMenu onOpenChange={handleMenuOpenChange}>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={t("moreActions")}
-                            title={t("moreActions")}
-                            onPointerDown={(event) => event.stopPropagation()}
-                            onClick={(event) => event.stopPropagation()}
-                            className="ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
-                          >
-                            <Ellipsis className="size-3.5" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent
-                          align="end"
-                          onClick={(event) => event.stopPropagation()}
-                        >
-                          {onLinkTodo && !isSubsession && (
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                onLinkTodo(
-                                  conversation.id,
-                                  formatConversationTitle(conversation.title) ||
-                                    t("untitledConversation")
-                                )
-                              }
-                            >
-                              <Link2 />
-                              {tTodos("linkConversation")}
-                            </DropdownMenuItem>
-                          )}
-                          {onTogglePin && (
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                onTogglePin(conversation.id, !isPinned)
-                              }
-                            >
-                              {isPinned ? <PinOff /> : <Pin />}
-                              {isPinned ? t("unpin") : t("pin")}
-                            </DropdownMenuItem>
-                          )}
-                          {showDoneAction && (
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                onStatusChange(conversation.id, "completed")
-                              }
-                            >
-                              <CheckCircle2 />
-                              {t("markCompleted")}
-                            </DropdownMenuItem>
-                          )}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label={t("moreActions")}
+                        title={t("moreActions")}
+                        aria-haspopup="menu"
+                        aria-expanded={menuOpen}
+                        data-state={menuOpen ? "open" : "closed"}
+                        onPointerDown={(event) => event.stopPropagation()}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          // Open the row's actual context menu, just like the
+                          // folder menu, so both entry points stay identical.
+                          const rect =
+                            event.currentTarget.getBoundingClientRect()
+                          event.currentTarget.dispatchEvent(
+                            new MouseEvent("contextmenu", {
+                              bubbles: true,
+                              cancelable: true,
+                              button: 2,
+                              clientX: rect.left,
+                              clientY: rect.bottom,
+                            })
+                          )
+                        }}
+                        className="ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+                      >
+                        <Ellipsis className="size-3.5" />
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -776,6 +743,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   <Pin className="h-4 w-4" />
                 )}
                 {isPinned ? t("unpin") : t("pin")}
+              </ContextMenuItem>
+            )}
+            {showDoneAction && (
+              <ContextMenuItem
+                onSelect={() => onStatusChange(conversation.id, "completed")}
+              >
+                <CheckCircle2 className="size-4" />
+                {t("markCompleted")}
               </ContextMenuItem>
             )}
             <ContextMenuItem onSelect={() => setDetailsOpen(true)}>

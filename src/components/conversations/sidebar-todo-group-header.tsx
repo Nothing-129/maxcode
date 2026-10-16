@@ -1,8 +1,14 @@
 "use client"
 
 import { memo } from "react"
-import { ChevronRight, ListTodo, Plus, Loader2 } from "lucide-react"
+import { ChevronRight, ListTodo, Plus, Loader2, Check } from "lucide-react"
 import { useTranslations } from "next-intl"
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu"
 import { cn } from "@/lib/utils"
 
 export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
@@ -11,6 +17,8 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   count,
   expanded,
   onToggle,
+  onComplete,
+  completing = false,
   onNewConversation,
   creating = false,
   disabled = false,
@@ -20,12 +28,14 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   count: number
   expanded: boolean
   onToggle: (id: string) => void
+  onComplete?: (id: string) => void
+  completing?: boolean
   onNewConversation?: (id: string) => void
   creating?: boolean
   disabled?: boolean
 }) {
   const t = useTranslations("Todos")
-  return (
+  const header = (
     <div
       className="group/todo-header flex h-[2rem] min-w-0 items-center"
       data-todo-group-id={id}
@@ -67,5 +77,17 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         </button>
       )}
     </div>
+  )
+  if (!onComplete) return header
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem disabled={completing} onSelect={() => onComplete(id)}>
+          <Check className="size-4" />
+          {t("complete")}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
   )
 })

@@ -387,6 +387,29 @@ describe("existing conversation links remain local and target the captured todo 
 })
 
 describe("conversation source badges identify exact persisted or draft origins", () => {
+  it.each([1, null])(
+    "hides the entire source badge group below the desktop breakpoint (conversation %s)",
+    async (conversationId) => {
+      h.sources = [source(), source()]
+      const { container } = render(
+        intl(
+          <ConversationTodoSourceBadges
+            conversationId={conversationId}
+            draftOrigins={[origin, { scope_id: "personal", todo_id: "draft" }]}
+          />
+        )
+      )
+      const more = await screen.findByRole("button", {
+        name: enMessages.Todos.moreSourceTodos.replace("{count}", "1"),
+      })
+      const wrapper = container.firstElementChild!
+      expect(wrapper).toHaveClass("hidden", "md:flex")
+      expect(wrapper).not.toHaveClass("flex")
+      expect(wrapper).toContainElement(more)
+      expect(wrapper.querySelectorAll("button")).toHaveLength(2)
+    }
+  )
+
   it("opens an inactive team's completed source directly", async () => {
     h.state = state("team-b")
     h.sources = [source()]

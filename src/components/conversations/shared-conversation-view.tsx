@@ -221,30 +221,20 @@ export function SharedConversationView() {
   const [visibleRounds, setVisibleRounds] = useState(10)
   const rounds = useMemo(() => {
     if (!snapshot) return []
-    const options = snapshot.version >= 2 ? snapshot.share_options : undefined
     const turns = snapshot.turns
       .map((turn) => ({
         ...turn,
         blocks: turn.blocks.flatMap((block): ContentBlock[] => {
-          if (block.type === "tool_result" && options?.includeTools !== true) {
+          if (block.type === "tool_result") {
             return (block.images ?? []).map((image) => ({
               type: "image",
               data: image.data,
               mime_type: image.mime_type,
             }))
           }
-          if (
-            block.type === "tool_use" ||
-            block.type === "tool_result" ||
-            block.type === "plan"
-          )
-            return options?.includeTools === true ? [block] : []
-          if (block.type === "thinking")
-            return options?.includeThinking === true ? [block] : []
-          if (
-            block.type === "image_generation" &&
-            options?.includeTools !== true
-          )
+          if (block.type === "tool_use" || block.type === "plan") return []
+          if (block.type === "thinking") return []
+          if (block.type === "image_generation")
             return [{ ...block, revised_prompt: null }]
           return [block]
         }),

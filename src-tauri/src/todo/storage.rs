@@ -60,6 +60,14 @@ pub fn validate_config(config: &MinioConfig) -> Result<(), AppCommandError> {
 fn config_key(scope: &str) -> String {
     format!("todo-minio:{scope}")
 }
+pub(super) fn remove_config(scope: &str) {
+    if crate::keyring_store::get_token(&config_key(scope)).is_none() {
+        return;
+    }
+    if let Err(error) = crate::keyring_store::delete_token(&config_key(scope)) {
+        tracing::warn!("Cannot remove retired team storage credentials: {error}");
+    }
+}
 fn load_config(scope: &str) -> Result<MinioConfig, AppCommandError> {
     crate::keyring_store::get_token(&config_key(scope))
         .and_then(|raw| serde_json::from_str(&raw).ok())

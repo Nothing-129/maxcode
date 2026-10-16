@@ -319,10 +319,10 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(queryByRole("menuitem", { name: "Share conversation" })).toBeNull()
   })
 
-  it("publishes only the chosen rounds with independent explicit execution options", async () => {
+  it("publishes only the chosen rounds without offering execution options", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
-    const { getByLabelText, getByRole } = render(
+    const { getByLabelText, getByRole, queryByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
     await user.click(getByLabelText("More actions"))
@@ -330,25 +330,17 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await waitFor(() =>
       expect(getByRole("button", { name: "Create share link" })).toBeEnabled()
     )
-    expect(
-      getByRole("checkbox", { name: "Include tool logs" })
-    ).not.toBeChecked()
-    expect(
-      getByRole("checkbox", { name: "Include thinking" })
-    ).not.toBeChecked()
+    expect(queryByRole("checkbox", { name: "Include tool logs" })).toBeNull()
+    expect(queryByRole("checkbox", { name: "Include thinking" })).toBeNull()
     await user.selectOptions(getByRole("combobox"), "selected")
     await user.click(getByRole("checkbox", { name: /Round 1/ }))
     await user.click(getByRole("checkbox", { name: /Round 2/ }))
     expect(getByRole("button", { name: "Create share link" })).toBeDisabled()
     await user.click(getByRole("checkbox", { name: /Round 2/ }))
-    await user.click(getByRole("checkbox", { name: "Include tool logs" }))
-    await user.click(getByRole("checkbox", { name: "Include thinking" }))
     await user.click(getByRole("button", { name: "Create share link" }))
     await waitFor(() =>
       expect(h.createConversationShare).toHaveBeenCalledWith(1, {
         rounds: [2],
-        includeTools: true,
-        includeThinking: true,
       })
     )
   })
@@ -498,7 +490,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
 
   it("creates a todo with the selected conversation snapshot after a tab switch", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
-    const { rerender, getByLabelText, getByRole } = render(
+    const { rerender, getByLabelText, getByRole, queryByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
 
@@ -512,12 +504,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
       ).toBeEnabled()
     )
     expect(h.getWebServiceConfig).not.toHaveBeenCalled()
-    expect(
-      getByRole("checkbox", { name: "Include tool logs" })
-    ).not.toBeChecked()
-    expect(
-      getByRole("checkbox", { name: "Include thinking" })
-    ).not.toBeChecked()
+    expect(queryByRole("checkbox", { name: "Include tool logs" })).toBeNull()
+    expect(queryByRole("checkbox", { name: "Include thinking" })).toBeNull()
 
     await user.selectOptions(getByRole("combobox"), "selected")
     await user.click(getByRole("checkbox", { name: /Round 1/ }))

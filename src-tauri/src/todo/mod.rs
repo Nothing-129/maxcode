@@ -58,6 +58,8 @@ pub struct TodoItem {
     pub source_url: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub completed_at: Option<String>,
 }
 #[derive(Clone, Serialize, Deserialize)]
 pub struct TodoCompletedPagination {
@@ -208,6 +210,7 @@ fn todo_item(row: &QueryResult) -> Result<TodoItem, AppCommandError> {
         source_url: field(row, "source_url")?,
         created_at: field(row, "created_at")?,
         updated_at: field(row, "updated_at")?,
+        completed_at: field(row, "completed_at")?,
     })
 }
 fn valid_due_date(value: &str) -> bool {
@@ -691,6 +694,10 @@ pub async fn call(
         join_team(conn, &request, &url).await?;
         request.action = "state".to_string();
     }
+    if matches!(request.action.as_str(), "remove_team" | "dissolve_team") {
+        remove_team(conn, &request).await?;
+        request.action = "state".to_string();
+    }
     request.minio_config = None;
     let (mode, active) = selected(conn).await?;
     let all_teams = teams(conn, &url).await?;
@@ -803,6 +810,66 @@ pub async fn call(
     }
     Ok(result)
 }
+// Local instance operation only: remote member capabilities cannot remove teams.
+async fn remove_team(
+    conn: &DatabaseConnection,
+    request: &TodoRequest,
+) -> Result<(), AppCommandError> {
+    let id = required(request.team_id.as_deref(), "team id", 80)?;
+    let txn = conn.begin().await.map_err(error_db)?;
+    let found = rows(
+        &txn,
+        "SELECT name,is_local FROM maxcode_todo_team WHERE id=?",
+        vec![id.clone().into()],
+    )
+    .await?;
+    let row = found
+        .first()
+        .ok_or_else(|| AppCommandError::not_found("Team not found"))?;
+    let local = field::<i64>(row, "is_local")? == 1;
+    if local != (request.action == "dissolve_team") {
+        return Err(AppCommandError::invalid_input(
+            "Hosted teams must be dissolved; joined teams can only be removed locally",
+        ));
+    }
+    if local && request.name.as_deref() != Some(field::<String>(row, "name")?.as_str()) {
+        return Err(AppCommandError::invalid_input(
+            "Enter the team name to confirm dissolution",
+        ));
+    }
+    // Remove scoped records, retaining conversations and external MinIO objects.
+    for (table, column) in [
+        ("maxcode_todo_conversation_link", "scope_id"),
+        ("maxcode_todo_share", "scope_id"),
+        ("maxcode_todo_attachment", "scope_id"),
+        ("maxcode_todo_item", "scope_id"),
+        ("maxcode_todo_member", "team_id"),
+        ("maxcode_todo_team", "id"),
+    ] {
+        execute(
+            &txn,
+            &format!("DELETE FROM {table} WHERE {column}=?"),
+            vec![id.clone().into()],
+        )
+        .await?;
+    }
+    // Keep a joined team's stable join key so rejoining restores the same member.
+    if local {
+        execute(
+            &txn,
+            "DELETE FROM maxcode_todo_join_attempt WHERE team_id=?",
+            vec![id.clone().into()],
+        )
+        .await?;
+    }
+    execute(&txn, "UPDATE maxcode_todo_preferences SET mode='personal',active_team_id=NULL WHERE active_team_id=?", vec![id.clone().into()]).await?;
+    txn.commit().await.map_err(error_db)?;
+    if local {
+        storage::remove_config(&id);
+    }
+    Ok(())
+}
+
 async fn create_team(
     conn: &DatabaseConnection,
     request: &TodoRequest,
@@ -1109,6 +1176,12 @@ async fn mutate(
         .await?;
     }
     let txn = conn.begin().await.map_err(error_db)?;
+    // A previously authenticated request may arrive after team dissolution.
+    if scope != PERSONAL && rows(&txn,
+        "SELECT m.id FROM maxcode_todo_member m JOIN maxcode_todo_team t ON t.id=m.team_id WHERE t.id=? AND t.is_local=1 AND m.id=?",
+        vec![scope.into(), self_id.into()]).await?.is_empty() {
+        return Err(AppCommandError::permission_denied("Team membership no longer exists"));
+    }
     let now = Utc::now().to_rfc3339();
     if request.action == "create" {
         let content = required_todo_content(request.content.as_deref())?;
@@ -1173,8 +1246,8 @@ async fn mutate(
                 if n==1 {execute(&txn,"DELETE FROM maxcode_todo_share WHERE todo_id=? AND scope_id=?",vec![id.clone().into(),scope.into()]).await?;}n
             },
             "claim"=>execute(&txn,"UPDATE maxcode_todo_item SET status='claimed',assignee_id=?,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status='unclaimed' AND assignee_id IS NULL",vec![self_id.into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
-            "complete"=>execute(&txn,"UPDATE maxcode_todo_item SET status='completed',revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status!='completed'",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
-            "release"|"reopen"=>execute(&txn,"UPDATE maxcode_todo_item SET status='unclaimed',assignee_id=NULL,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "complete"=>execute(&txn,"UPDATE maxcode_todo_item SET status='completed',revision=revision+1,completed_at=?,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status!='completed'",vec![now.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "release"|"reopen"=>execute(&txn,"UPDATE maxcode_todo_item SET status='unclaimed',assignee_id=NULL,completed_at=NULL,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
             _=>unreachable!(),
         };
         if updated != 1 {
@@ -1213,3 +1286,11 @@ mod schedule_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/todo-attachments.contract.rs"]
 mod attachment_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/todo-completion-time.contract.rs"]
+mod completion_time_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/todo-team-removal.contract.rs"]
+mod removal_contract;

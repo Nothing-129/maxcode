@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import enMessages from "@/i18n/messages/en.json"
+import { ConversationShareOptionsEditor } from "@/components/conversations/conversation-share-options"
 import { SharedConversationView } from "@/components/conversations/shared-conversation-view"
 import {
   groupConversationShareRounds,
@@ -83,6 +84,22 @@ describe("MaxCode contract: readable and selective conversation sharing", () => 
     window.history.replaceState(null, "", "/")
   })
 
+  it("offers round selection without execution sharing controls", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <ConversationShareOptionsEditor
+          rounds={[{ number: 1, preview: "Question" }]}
+          options={{}}
+          onChange={vi.fn()}
+        />
+      </NextIntlClientProvider>
+    )
+    expect(screen.getByRole("combobox")).toBeEnabled()
+    expect(screen.queryByRole("checkbox")).toBeNull()
+    expect(screen.queryByText("Include tool logs")).toBeNull()
+    expect(screen.queryByText("Include thinking")).toBeNull()
+  })
+
   it("groups every assistant fragment into the owning user round without mutating the transcript", () => {
     const input = mixed()
     const rounds = groupConversationShareRounds(input)
@@ -119,19 +136,13 @@ describe("MaxCode contract: readable and selective conversation sharing", () => 
     expect(screen.queryByText(/Execution details/)).toBeNull()
   })
 
-  it("places explicitly shared execution in one lazy collapsed section per round", async () => {
-    const user = userEvent.setup()
+  it("excludes execution even when an existing snapshot opted in", async () => {
     show(snapshot(mixed(), { includeTools: true, includeThinking: true }))
-    const execution = await screen.findByText("Execution details · 2 items")
+    await screen.findByText("Final answer", { exact: false })
+    expect(screen.queryByText(/Execution details/)).toBeNull()
+    expect(screen.queryByText("Shell")).toBeNull()
     expect(screen.queryByText("PRIVATE COMMAND")).toBeNull()
     expect(screen.queryByText("PRIVATE THINKING")).toBeNull()
-    await user.click(execution)
-    await screen.findByText("Shell")
-    expect(screen.getAllByText(/Execution details/)).toHaveLength(1)
-    await user.click(screen.getByText("Shell"))
-    expect(screen.getByText("PRIVATE COMMAND")).toBeVisible()
-    await user.click(screen.getByText("Thought", { exact: true }))
-    expect(await screen.findByText("PRIVATE THINKING")).toBeVisible()
   })
 
   it("keeps meaningful images while omitting legacy tool output", async () => {

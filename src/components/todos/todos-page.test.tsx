@@ -263,6 +263,7 @@ describe("independent todo board", () => {
         /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
       )
       await user.click(screen.getByRole("button", { name: "Teams" }))
+      await user.click(screen.getByRole("button", { name: "Create team" }))
       expect(screen.getByLabelText("Team name")).toBeInTheDocument()
     } finally {
       vi.unstubAllGlobals()
@@ -444,7 +445,7 @@ describe("independent todo board", () => {
       act(() => requestCreateTodo({ text: "Keep this conversation draft" }))
       renderPage()
       await user.click(await screen.findByRole("button", { name: "Join team" }))
-      const joining = screen.getAllByRole("button", { name: "Join team" })[1]
+      const joining = screen.getByRole("button", { name: "Join team" })
       await user.type(
         screen.getByLabelText("Team code"),
         "maxcode-team:example"

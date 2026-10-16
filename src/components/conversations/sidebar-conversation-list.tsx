@@ -1507,7 +1507,24 @@ export function SidebarConversationList({
     )
     const compare =
       sortMode === "updated" ? compareByUpdatedAtDesc : compareByCreatedAtDesc
-    return linkedTodoGroups.flatMap(({ todo, conversation_ids }) => {
+    const groups = new Map(
+      linkedTodoGroups.map((group) => [group.todo.id, group])
+    )
+    const myTodoIds = new Set<string>()
+    const state = todoView?.state
+    if (state?.self_id) {
+      // Unfinished tasks are unpaginated. Keep my tasks visible even before
+      // their first conversation, or when all their conversations are hidden.
+      for (const todo of state.todos) {
+        if (todo.status !== "claimed" || todo.assignee_id !== state.self_id)
+          continue
+        myTodoIds.add(todo.id)
+        if (!groups.has(todo.id)) {
+          groups.set(todo.id, { todo, conversation_ids: [] })
+        }
+      }
+    }
+    return [...groups.values()].flatMap(({ todo, conversation_ids }) => {
       if (todo.assignee_id == null || todo.status === "unclaimed") return []
       const children = [...new Set(conversation_ids)]
         .map((id) => byId.get(id))
@@ -1517,11 +1534,17 @@ export function SidebarConversationList({
             (showCompleted || conversation.status !== "completed")
         )
         .sort(compare)
-      return children.length > 0
+      return children.length > 0 || myTodoIds.has(todo.id)
         ? [{ id: todo.id, title: todo.title, conversations: children }]
         : []
     })
-  }, [linkedTodoGroups, conversations, showCompleted, sortMode])
+  }, [
+    linkedTodoGroups,
+    todoView?.state,
+    conversations,
+    showCompleted,
+    sortMode,
+  ])
 
   const [todoFolderDraft, setTodoFolderDraft] = useState<
     Parameters<typeof openTodoConversationDraft>[0] | null
@@ -1575,6 +1598,44 @@ export function SidebarConversationList({
       }
     },
     [linkedTodoGroups, openConversations, onNavigate]
+  )
+
+  const [completingTodoId, setCompletingTodoId] = useState<string | null>(null)
+  const completingTodo = useRef(false)
+  const handleCompleteTodo = useCallback(
+    async (id: string) => {
+      const state = todoStateRef.current
+      const scope =
+        state?.mode === "personal" ? "personal" : state?.active_team_id
+      if (!scope || completingTodo.current) return
+      const origin = { scope_id: scope, todo_id: id }
+      completingTodo.current = true
+      setCompletingTodoId(id)
+      try {
+        // Group summaries omit revisions and may outlive the board page.
+        // Capture the scope before fetching the current revision for this write.
+        const { todo } = await todoOriginCall({ origin, action: "get" })
+        if (!todo) throw new Error(tTodosRef.current("todoUnavailable"))
+        if (todo.status !== "completed") {
+          await todoOriginCall({
+            origin,
+            action: "complete",
+            revision: todo.revision,
+          })
+        }
+        await todoView?.refetch()
+      } catch (error) {
+        toast.error(
+          tTodosRef.current("operationFailed", {
+            reason: toErrorMessage(error),
+          })
+        )
+      } finally {
+        completingTodo.current = false
+        if (todoActionMounted.current) setCompletingTodoId(null)
+      }
+    },
+    [todoView]
   )
 
   // Flat "Chat" bucket: folderless chat-mode conversations, most-recently-updated
@@ -3295,6 +3356,15 @@ export function SidebarConversationList({
           count={row.count}
           expanded={row.expanded}
           onToggle={toggleTodoGroup}
+          onComplete={
+            (
+              todoView?.state?.todos.find((todo) => todo.id === row.id) ??
+              linkedTodoGroups.find((group) => group.todo.id === row.id)?.todo
+            )?.status === "completed"
+              ? undefined
+              : handleCompleteTodo
+          }
+          completing={completingTodoId !== null}
           onNewConversation={handleNewTodoConversation}
           creating={creatingTodoId === row.id}
           disabled={creatingTodoId !== null}

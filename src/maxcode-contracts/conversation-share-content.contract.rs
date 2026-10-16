@@ -80,7 +80,7 @@ fn default_snapshot_contains_readable_content_and_images_without_execution_or_lo
 }
 
 #[test]
-fn tools_and_thinking_require_independent_explicit_opt_ins() {
+fn execution_is_excluded_even_with_explicit_opt_ins() {
     for (tools, thinking) in [(false, false), (true, false), (false, true), (true, true)] {
         let options = ConversationShareOptions {
             include_tools: tools,
@@ -89,9 +89,9 @@ fn tools_and_thinking_require_independent_explicit_opt_ins() {
         };
         let json =
             serde_json::to_string(&select_share_turns(execution(), &options).unwrap()).unwrap();
-        assert_eq!(json.contains("PRIVATE_COMMAND"), tools);
-        assert_eq!(json.contains("PRIVATE_OUTPUT"), tools);
-        assert_eq!(json.contains("PRIVATE_THINKING"), thinking);
+        assert!(!json.contains("PRIVATE_COMMAND"));
+        assert!(!json.contains("PRIVATE_OUTPUT"));
+        assert!(!json.contains("PRIVATE_THINKING"));
         assert!(!json.contains("PRIVATE_SYSTEM"));
         assert!(!json.contains("private-tool-id"));
         assert!(!json.contains("file:///private/"));
@@ -150,7 +150,7 @@ fn an_empty_or_execution_only_selection_is_rejected() {
 }
 
 #[tokio::test]
-async fn legacy_public_links_are_filtered_and_explicit_new_opt_ins_survive_reads() {
+async fn legacy_and_opted_in_public_links_are_filtered_on_read() {
     let db = fresh_in_memory_db().await;
     let folder = folder_service::add_folder(&db.conn, "/tmp/share-content-contract")
         .await
@@ -196,7 +196,7 @@ async fn legacy_public_links_are_filtered_and_explicit_new_opt_ins_survive_reads
     };
     let mut explicit = snapshot;
     explicit.version = 2;
-    explicit.turns = select_share_turns(execution(), &options).unwrap();
+    explicit.turns = execution();
     explicit.share_options = options;
     let second = conversation_share_service::publish(
         &db.conn,
@@ -210,8 +210,10 @@ async fn legacy_public_links_are_filtered_and_explicit_new_opt_ins_survive_reads
         .await
         .unwrap();
     let json = serde_json::to_string(&public).unwrap();
-    assert!(json.contains("PRIVATE_THINKING"));
-    assert!(json.contains("PRIVATE_COMMAND"));
+    assert!(!public.share_options.include_tools);
+    assert!(!public.share_options.include_thinking);
+    assert!(!json.contains("PRIVATE_THINKING"));
+    assert!(!json.contains("PRIVATE_COMMAND"));
     assert!(!json.contains("PRIVATE_SYSTEM"));
     assert!(!json.contains("private-agent-id"));
 }

@@ -26,6 +26,7 @@ export interface Todo {
   source_url: string | null
   created_at: string
   updated_at: string
+  completed_at?: string | null
 }
 
 export interface TodoTeam {
@@ -146,6 +147,8 @@ interface TodoCompletedQuery {
 }
 
 type TodoAction =
+  | { action: "remove_team"; team_id: string }
+  | { action: "dissolve_team"; team_id: string; name: string }
   | { action: "state" }
   | { action: "set_mode"; mode: TodoMode; team_id?: string }
   | {

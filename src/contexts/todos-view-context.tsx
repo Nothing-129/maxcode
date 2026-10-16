@@ -177,7 +177,9 @@ export function TodosViewProvider({ children }: { children: ReactNode }) {
       if (
         request.action === "set_mode" ||
         request.action === "create_team" ||
-        request.action === "join_team"
+        request.action === "join_team" ||
+        request.action === "remove_team" ||
+        request.action === "dissolve_team"
       ) {
         completedQuery.current = { page: 1, search: "", filter: "all" }
         setScheduleFilterState("all")

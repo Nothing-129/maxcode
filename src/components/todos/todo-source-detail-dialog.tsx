@@ -27,7 +27,12 @@ import {
   type TodoRequest,
 } from "@/lib/todos"
 import { TODO_COLUMN_LABELS, todoColumn } from "./board-columns"
-import { TodoAssignee, TodoConversationButton, TodoSchedule } from "./todo-card"
+import {
+  TodoAssignee,
+  TodoConversationButton,
+  TodoCreationInfo,
+  TodoSchedule,
+} from "./todo-card"
 import { TodoEditorDialog } from "./todo-editor-dialog"
 
 /** Exact task details are independent of the board's current completed page. */
@@ -211,6 +216,12 @@ export function TodoSourceDetailDialog({
                 <TodoAssignee
                   member={detail.members.find(
                     (member) => member.id === todo.assignee_id
+                  )}
+                />
+                <TodoCreationInfo
+                  todo={todo}
+                  creator={detail.members.find(
+                    (member) => member.id === todo.creator_id
                   )}
                 />
                 <TodoSchedule todo={todo} />

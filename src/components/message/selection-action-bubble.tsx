@@ -130,6 +130,10 @@ export function SelectionActionBubble({
   // unmount the button before its click ever lands. Frozen until the next press
   // outside the bubble.
   const pressedInsideRef = useRef(false)
+  // Touch/pen selection already has the browser's native action menu. Keep
+  // that menu and its selection handles, rather than stacking our toolbar on
+  // top. Track the actual pointer so hybrid devices still support the mouse.
+  const selectionPointerRef = useRef<string | null>(null)
 
   const apply = useCallback((next: SelectionState) => {
     if (sameState(stateRef.current, next)) return
@@ -145,6 +149,14 @@ export function SelectionActionBubble({
   }, [])
 
   const measure = useCallback((): SelectionState => {
+    const pointer = selectionPointerRef.current
+    if (
+      pointer === "touch" ||
+      pointer === "pen" ||
+      (pointer === null && window.matchMedia("(pointer: coarse)").matches)
+    ) {
+      return NO_SELECTION
+    }
     const container = containerRef.current
     if (!container) return NO_SELECTION
     const selection = window.getSelection()
@@ -215,6 +227,7 @@ export function SelectionActionBubble({
       apply(measure())
     }
     const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType) selectionPointerRef.current = event.pointerType
       // Pressing our own buttons must not tear the bubble down before `click`.
       // Only the PRIMARY button is armed: a right-click inside the bubble is
       // followed by `contextmenu`, never by `click`, so arming there would

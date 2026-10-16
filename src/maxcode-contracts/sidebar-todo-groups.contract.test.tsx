@@ -25,6 +25,7 @@ import {
 import { resetTabStore, useTabStore } from "@/stores/tab-store"
 import { resetConversationUnreadStore } from "@/stores/conversation-unread-store"
 import type {
+  Todo,
   TodoConversationGroup,
   TodoConversationGroupsState,
   TodoState,
@@ -37,9 +38,11 @@ const host = vi.hoisted(() => ({
   enabled: true,
   groups: vi.fn<() => Promise<TodoConversationGroupsState>>(),
   origin: vi.fn(),
+  refetch: vi.fn(),
 }))
 vi.mock("@/contexts/todos-view-context", () => ({
-  useOptionalTodosView: () => (host.enabled ? { state: host.state } : null),
+  useOptionalTodosView: () =>
+    host.enabled ? { state: host.state, refetch: host.refetch } : null,
 }))
 vi.mock("@/lib/todos", async (original) => ({
   ...(await original<typeof import("@/lib/todos")>()),
@@ -114,6 +117,22 @@ function group(
   }
 }
 
+function myTodo(id: string, overrides: Partial<Todo> = {}): Todo {
+  return {
+    id,
+    title: id,
+    content: "Task body",
+    status: "claimed",
+    assignee_id: "me",
+    creator_id: "me",
+    revision: 1,
+    source_url: null,
+    created_at: "2026-10-16T00:00:00Z",
+    updated_at: "2026-10-16T00:00:00Z",
+    ...overrides,
+  }
+}
+
 function conversation(id: number, status = "pending"): DbConversationSummary {
   return {
     id,
@@ -164,6 +183,7 @@ beforeEach(() => {
   resetConversationUnreadStore()
   host.enabled = true
   host.state = state()
+  host.refetch.mockReset()
   host.origin.mockReset()
   host.groups.mockReset()
   host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
@@ -198,6 +218,212 @@ afterEach(() => {
 })
 
 describe("sidebar conversations grouped by their originating assigned todos", () => {
+  it.each(["personal", "team-a"])(
+    "completes a linked todo outside the board page in %s without completing conversations",
+    async (scope) => {
+      host.state = state(scope)
+      host.groups.mockResolvedValue({
+        scope_key: scope === "personal" ? scope : `team:${scope}`,
+        groups: [group("Linked task", [1])],
+      })
+      host.origin.mockResolvedValue({
+        todo: myTodo("Linked task", { revision: 9 }),
+      })
+      render(sidebar())
+      const heading = await screen.findByText("Linked task")
+      fireEvent.contextMenu(heading)
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Mark completed" })
+      )
+      await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
+      expect(host.origin.mock.calls).toEqual([
+        [
+          {
+            origin: { scope_id: scope, todo_id: "Linked task" },
+            action: "get",
+          },
+        ],
+        [
+          {
+            origin: { scope_id: scope, todo_id: "Linked task" },
+            action: "complete",
+            revision: 9,
+          },
+        ],
+      ])
+      expect(useAppWorkspaceStore.getState().conversations[0].status).toBe(
+        "pending"
+      )
+    }
+  )
+
+  it("keeps the captured scope if the user switches teams during completion", async () => {
+    host.state = state("team-a")
+    host.state.todos = [myTodo("Task")]
+    let resolve!: (value: { todo: Todo }) => void
+    host.origin.mockImplementationOnce(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        })
+    )
+    host.origin.mockResolvedValue({
+      todo: myTodo("Task", { status: "completed" }),
+    })
+    const view = render(sidebar())
+    fireEvent.contextMenu(screen.getByText("Task"))
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Mark completed" })
+    )
+    await waitFor(() => expect(host.origin).toHaveBeenCalledTimes(1))
+    host.state = state("team-b")
+    view.rerender(sidebar())
+    await act(async () => resolve({ todo: myTodo("Task", { revision: 4 }) }))
+    await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
+    expect(host.origin).toHaveBeenLastCalledWith({
+      origin: { scope_id: "team-a", todo_id: "Task" },
+      action: "complete",
+      revision: 4,
+    })
+  })
+
+  it("allows retry after a completion conflict without changing local task state", async () => {
+    host.state!.todos = [myTodo("Retry task")]
+    host.origin
+      .mockResolvedValueOnce({ todo: myTodo("Retry task", { revision: 2 }) })
+      .mockRejectedValueOnce(new Error("Revision conflict"))
+      .mockResolvedValueOnce({ todo: myTodo("Retry task", { revision: 3 }) })
+      .mockResolvedValueOnce({
+        todo: myTodo("Retry task", { status: "completed" }),
+      })
+    render(sidebar())
+    fireEvent.contextMenu(screen.getByText("Retry task"))
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Mark completed" })
+    )
+    await waitFor(() => expect(host.origin).toHaveBeenCalledTimes(2))
+    expect(host.refetch).not.toHaveBeenCalled()
+    expect(host.state!.todos[0].status).toBe("claimed")
+    fireEvent.contextMenu(screen.getByText("Retry task"))
+    const retry = await screen.findByRole("menuitem", {
+      name: "Mark completed",
+    })
+    await waitFor(() => expect(retry).not.toHaveAttribute("data-disabled"))
+    fireEvent.click(retry)
+    await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
+    expect(host.origin).toHaveBeenLastCalledWith({
+      origin: { scope_id: "personal", todo_id: "Retry task" },
+      action: "complete",
+      revision: 3,
+    })
+  })
+
+  it("does not offer completion for an already completed todo", async () => {
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group("Done task", [1], { status: "completed" })],
+    })
+    render(sidebar())
+    fireEvent.contextMenu(await screen.findByText("Done task"))
+    expect(
+      screen.queryByRole("menuitem", { name: "Mark completed" })
+    ).not.toBeInTheDocument()
+    expect(host.origin).not.toHaveBeenCalled()
+  })
+
+  it("shows all four of my unfinished todos when only two have conversations", async () => {
+    host.state!.todos = ["First", "Second", "Third", "Fourth"].map((id) =>
+      myTodo(id)
+    )
+    host.state!.todos.push(
+      myTodo("Unclaimed", { status: "unclaimed", assignee_id: null }),
+      myTodo("Someone else's task", { assignee_id: "other" }),
+      myTodo("Completed page item", { status: "completed" })
+    )
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group("First", [1]), group("Second", [2])],
+    })
+    render(sidebar())
+    await waitFor(() => {
+      expect(
+        document.querySelector('[data-todo-group-id="First"] button')
+      ).toHaveTextContent("1")
+    })
+    expect(document.querySelectorAll("[data-todo-group-id]")).toHaveLength(4)
+    for (const id of ["Third", "Fourth"]) {
+      expect(
+        document.querySelector(`[data-todo-group-id="${id}"] button`)
+      ).toHaveTextContent(`${id}0`)
+      expect(
+        screen.getByRole("button", { name: `New conversation from ${id}` })
+      ).toBeEnabled()
+    }
+  })
+
+  it("keeps my todo heading when completed conversations are hidden and updates with assignment and scope", async () => {
+    host.state!.todos = [myTodo("My task")]
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group("My task", [1])],
+    })
+    useAppWorkspaceStore.setState({
+      conversations: [conversation(1, "completed")],
+    })
+    const view = render(sidebar(false))
+    await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
+    expect(
+      document.querySelector('[data-todo-group-id="My task"] button')
+    ).toHaveTextContent("My task0")
+
+    host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
+    host.state = { ...host.state!, todos: [myTodo("New task")] }
+    await act(async () => view.rerender(sidebar(false)))
+    expect(screen.getByText("New task")).toBeInTheDocument()
+    expect(screen.queryByText("My task")).not.toBeInTheDocument()
+
+    host.groups.mockResolvedValue({ scope_key: "team:another", groups: [] })
+    host.state = state("another")
+    host.state.todos = [myTodo("Team task")]
+    await act(async () => view.rerender(sidebar(false)))
+    expect(screen.getByText("Team task")).toBeInTheDocument()
+    expect(screen.queryByText("New task")).not.toBeInTheDocument()
+  })
+
+  it("offers folder selection and an unsent draft from a todo with no conversations", async () => {
+    const id = "20da561085a74c658a43a162b1e2d69c"
+    host.state!.todos = [myTodo(id, { title: "No conversations yet" })]
+    render(sidebar())
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "New conversation from No conversations yet",
+      })
+    )
+    await screen.findByRole("dialog", {
+      name: enMessages.Todos.chooseConversationFolder,
+    })
+    expect(useTabStore.getState().rawTabs).toHaveLength(0)
+    fireEvent.change(
+      screen.getByRole("combobox", {
+        name: enMessages.Todos.chooseConversationFolder,
+      }),
+      { target: { value: "1" } }
+    )
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: enMessages.Todos.confirmConversationFolder,
+      })
+    )
+    const store = useTabStore.getState()
+    expect(
+      store.rawTabs.find((tab) => tab.id === store.activeTabId)
+    ).toMatchObject({
+      folderId: 1,
+      conversationId: null,
+      todoOrigins: [{ scope_id: "personal", todo_id: id }],
+    })
+  })
+
   it("starts an unsent linked conversation from the group header using its latest folder", async () => {
     const id = "20da561085a74c658a43a162b1e2d69c"
     const current = useAppWorkspaceStore.getState()

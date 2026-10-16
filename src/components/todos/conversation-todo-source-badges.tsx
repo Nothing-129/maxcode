@@ -81,7 +81,7 @@ export function ConversationTodoSourceBadges({
   const first = sources[0]
   return (
     <span
-      className="flex min-w-0 shrink-0 items-center gap-1"
+      className="hidden min-w-0 shrink-0 items-center gap-1 md:flex"
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
       <button

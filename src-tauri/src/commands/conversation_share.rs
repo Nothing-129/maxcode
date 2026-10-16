@@ -120,6 +120,11 @@ pub(crate) async fn build_conversation_share_snapshot(
 ) -> Result<SharedConversationSnapshot, AppCommandError> {
     let (detail, _) = get_folder_conversation_core(conn, conversation_id).await?;
     let shared_at = Utc::now();
+    let options = ConversationShareOptions {
+        include_tools: false,
+        include_thinking: false,
+        ..options
+    };
     let turns = select_share_turns(detail.turns, &options)?;
     // Deliberately construct a public DTO instead of serializing
     // DbConversationDetail: folder ids, external ids, branch names and local
@@ -176,12 +181,10 @@ pub async fn get_shared_conversation_core(
 pub(crate) fn sanitize_shared_snapshot(
     mut snapshot: SharedConversationSnapshot,
 ) -> SharedConversationSnapshot {
-    // Legacy links included all execution data. An absent opt-in defaults to
-    // clean content at the public boundary, even before owners republish.
-    if snapshot.version < SHARE_SNAPSHOT_VERSION {
-        snapshot.share_options = ConversationShareOptions::default();
-    }
-    snapshot.turns = sanitize_share_turns(snapshot.turns, &snapshot.share_options);
+    // Execution sharing is unavailable, including for previously published links.
+    snapshot.share_options.include_tools = false;
+    snapshot.share_options.include_thinking = false;
+    snapshot.turns = sanitize_share_turns(snapshot.turns);
     snapshot.message_count = snapshot.turns.len() as u32;
     snapshot.session_stats = None;
     snapshot.version = SHARE_SNAPSHOT_VERSION;
@@ -216,7 +219,7 @@ fn select_share_turns(
             "Select valid conversation rounds",
         ));
     }
-    let selected = sanitize_share_turns(selected, options);
+    let selected = sanitize_share_turns(selected);
     if selected.is_empty() {
         return Err(AppCommandError::invalid_input(
             "No shareable conversation content",
@@ -225,10 +228,7 @@ fn select_share_turns(
     Ok(selected)
 }
 
-fn sanitize_share_turns(
-    turns: Vec<MessageTurn>,
-    options: &ConversationShareOptions,
-) -> Vec<MessageTurn> {
+fn sanitize_share_turns(turns: Vec<MessageTurn>) -> Vec<MessageTurn> {
     turns
         .into_iter()
         .filter_map(|mut turn| {
@@ -239,7 +239,7 @@ fn sanitize_share_turns(
                 .blocks
                 .into_iter()
                 .flat_map(|block| match block {
-                    ContentBlock::ToolResult { images, .. } if !options.include_tools => images
+                    ContentBlock::ToolResult { images, .. } => images
                         .into_iter()
                         .map(|image| ContentBlock::Image {
                             data: image.data,
@@ -247,21 +247,16 @@ fn sanitize_share_turns(
                             uri: None,
                         })
                         .collect::<Vec<_>>(),
-                    ContentBlock::ToolUse { .. } if !options.include_tools => vec![],
-                    ContentBlock::Thinking { .. } if !options.include_thinking => vec![],
+                    ContentBlock::ToolUse { .. } => vec![],
+                    ContentBlock::Thinking { .. } => vec![],
                     ContentBlock::Text { ref text } if text.trim().is_empty() => vec![],
                     ContentBlock::ImageGeneration { image: None, .. } => vec![],
-                    ContentBlock::ImageGeneration {
-                        image,
-                        revised_prompt,
-                    } => vec![ContentBlock::ImageGeneration {
-                        image,
-                        revised_prompt: if options.include_tools {
-                            revised_prompt
-                        } else {
-                            None
-                        },
-                    }],
+                    ContentBlock::ImageGeneration { image, .. } => {
+                        vec![ContentBlock::ImageGeneration {
+                            image,
+                            revised_prompt: None,
+                        }]
+                    }
                     _ => vec![block],
                 })
                 .collect();

@@ -79,33 +79,6 @@ export function ConversationShareOptionsEditor({
           ))}
         </fieldset>
       )}
-      <div className="space-y-3 rounded-xl bg-muted/50 p-3">
-        <label className="flex cursor-pointer items-center gap-3 text-sm">
-          <Checkbox
-            disabled={disabled}
-            checked={options.includeTools ?? false}
-            onCheckedChange={(checked) =>
-              onChange({ ...options, includeTools: checked === true })
-            }
-          />
-          {t("shareIncludeTools")}
-        </label>
-        <label className="flex cursor-pointer items-center gap-3 text-sm">
-          <Checkbox
-            disabled={disabled}
-            checked={options.includeThinking ?? false}
-            onCheckedChange={(checked) =>
-              onChange({ ...options, includeThinking: checked === true })
-            }
-          />
-          {t("shareIncludeThinking")}
-        </label>
-        {options.includeTools || options.includeThinking ? (
-          <p className="text-xs text-muted-foreground">
-            {t("shareExecutionHint")}
-          </p>
-        ) : null}
-      </div>
     </div>
   )
 }

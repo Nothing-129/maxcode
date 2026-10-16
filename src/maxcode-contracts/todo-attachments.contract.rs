@@ -56,7 +56,17 @@ async fn migration_removes_only_embedded_tails_and_preserves_url_metadata() {
     use crate::db::migration::Migrator;
     use sea_orm_migration::MigratorTrait;
     let db = fresh_in_memory_db().await;
-    Migrator::down(&db.conn, Some(1)).await.unwrap();
+    let rollback_steps = Migrator::migrations()
+        .iter()
+        .rev()
+        .position(|migration| {
+            migration.name() == "m20261016_000002_remove_embedded_todo_attachments"
+        })
+        .expect("attachment cleanup migration must be registered") as u32
+        + 1;
+    Migrator::down(&db.conn, Some(rollback_steps))
+        .await
+        .unwrap();
     let markdown = "![new](https://files.example.test/new.png)";
     for (id, scope, body) in [
         ("text", "personal", format!("{markdown}\n\n<!-- maxcode-todo-attachments:v1 -->\n[{{\"name\":\"old\",\"data\":\"data:text/plain;base64,YQ==\"}}]")),
@@ -104,7 +114,9 @@ async fn migration_removes_only_embedded_tails_and_preserves_url_metadata() {
         .unwrap()
         .is_some());
     // Re-running the destructive migration is harmless once its marker is gone.
-    Migrator::down(&db.conn, Some(1)).await.unwrap();
+    Migrator::down(&db.conn, Some(rollback_steps))
+        .await
+        .unwrap();
     Migrator::up(&db.conn, None).await.unwrap();
     let row = db
         .conn

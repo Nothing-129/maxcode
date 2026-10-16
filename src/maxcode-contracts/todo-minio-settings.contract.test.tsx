@@ -100,8 +100,9 @@ describe("Creator-managed MinIO settings", () => {
       "src/components/todos/todo-teams-dialog.tsx",
       "utf8"
     )
-    expect(ui).toContain("activeTeam?.is_local")
-    expect(ui).toContain("minio_config: minio")
+    expect(ui).toContain("{activeTeam.is_local && (")
+    expect(ui).toContain("<TodoMinioSettings")
+    expect(ui).toContain("scopeId={activeTeam.id}")
     const backend = readFileSync("src-tauri/src/todo/storage.rs", "utf8")
     expect(backend).toContain("config.secret_key.clear()")
     expect(backend).toContain("crate::keyring_store::set_token")

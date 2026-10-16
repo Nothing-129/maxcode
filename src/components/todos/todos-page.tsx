@@ -60,6 +60,7 @@ import {
   type TodoColumn,
 } from "./board-columns"
 import {
+  TodoCreationInfo,
   TodoSchedule,
   TodoAssignee,
   TodoCard,
@@ -325,6 +326,7 @@ function TodosWorkspace({
         key={todo.id}
         todo={todo}
         member={members.get(todo.assignee_id ?? "")}
+        creator={members.get(todo.creator_id)}
         selfId={state.self_id}
         disabled={!canWrite}
         list={list}
@@ -689,6 +691,10 @@ function TodosWorkspace({
               </DialogDescription>
             </DialogHeader>
             <TodoAssignee member={members.get(detail.assignee_id ?? "")} />
+            <TodoCreationInfo
+              todo={detail}
+              creator={members.get(detail.creator_id)}
+            />
             <TodoSchedule todo={detail} />
             <div className="max-h-80 overflow-auto whitespace-pre-wrap text-sm leading-6 wrap-anywhere">
               <TodoMarkdown content={detail.content} />

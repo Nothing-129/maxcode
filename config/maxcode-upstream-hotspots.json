@@ -2,6 +2,136 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "todos.sidebar-context-completion",
+      "category": "product",
+      "description": "Sidebar todo headings offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.mobile-hide-conversation-source-badges",
+      "category": "product",
+      "description": "Conversation title todo-source badges, including the additional sources menu, are hidden below the md breakpoint for saved conversations and drafts, preserving mobile title space. Desktop retains source navigation.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": ["src/components/todos/conversation-todo-source-badges.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/todo-conversation-links.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.team-removal",
+      "category": "product",
+      "description": "Joined teams can be removed locally even when offline without changing host membership. Hosted teams require exact-name confirmation to dissolve, remove only scoped records, revoke team capabilities and fall back to personal mode only when selected. Conversations and external MinIO objects are retained.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src/maxcode-contracts/todo-team-removal.contract.rs",
+        "src/components/todos/todo-teams-dialog.tsx",
+        "src/contexts/todos-view-context.tsx",
+        "src/lib/todos.ts",
+        "src-tauri/src/todo/mod.rs",
+        "src-tauri/src/todo/storage.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-team-management.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.sidebar-all-my-unfinished",
+      "category": "product",
+      "description": "The Todos sidebar includes every unfinished todo assigned to the current member in the selected personal or team scope, even with no linked conversations or when completed conversation filtering hides all children. Empty headings show zero and support creating an independent unsent draft after folder selection. Existing linked groups remain deduplicated and independent of completed board pagination.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.team-management-roster",
+      "category": "product",
+      "description": "Team management opens on a scoped member roster with avatars and self identity, compact copy invitations and explicit team selection. Create and join are separate views; optional MinIO configuration lives in host team settings, outside onboarding. Disconnected roster data is labeled.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src/components/todos/todo-teams-dialog.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-team-management.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.mobile-native-selection-menu",
+      "category": "product",
+      "description": "Touch and pen transcript selections retain the browser native menu and handles without a duplicate MaxCode selection toolbar; mouse selection retains custom actions, including on hybrid devices.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": ["src/components/message/selection-action-bubble.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/mobile-selection-menu.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.conversation-menu-parity",
+      "category": "product",
+      "description": "Conversation title right-click and ellipsis open the same full context menu, with identical ordering, disabled states and handlers; pending root conversations retain completion and keyboard activation remains available.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/conversation-menu-parity.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.completion-time",
+      "category": "product",
+      "description": "Completed todo cards and list rows show a dedicated localized completion timestamp. Edits preserve it, reopening clears it, and legacy unknown times stay unknown.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src/maxcode-contracts/todo-completion-time.contract.rs",
+        "src/components/todos/todo-card.tsx",
+        "src/lib/todos.ts",
+        "src-tauri/src/todo/mod.rs",
+        "src-tauri/src/db/migration/m20261016_000003_todo_completed_at.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-completion-time.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.creation-metadata",
+      "category": "product",
+      "description": "Todo board cards, list rows and both detail dialogs show the creator and localized creation time, resolving creators independently of assignees and retaining missing member IDs.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src/components/todos/todo-card.tsx",
+        "src/components/todos/todos-page.tsx",
+        "src/components/todos/todo-source-detail-dialog.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-creation-metadata.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "automation.daily-chat-reuse",
+      "category": "product",
+      "description": "Reusable automations keep one chat per calendar day in the configured task timezone. The first run after midnight creates a new chat while old history remains available. Chat creation time prevents sliding expiry and supports legacy bindings. Agent changes and deleted chats still start fresh.",
+      "origins": ["worktree-2026-10-16"],
+      "paths": [
+        "src-tauri/src/db/service/automation_runtime_service.rs",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-daily-chat.contract.test.ts"
+      ]
+    },
+    {
       "id": "runtime.selected-upstream-20261015",
       "category": "runtime",
       "description": "Selected v0.35.2 shared runtime fixes stop empty feedback polling, deliver structured continuation hints, avoid turnCompanion duplication, cancel startup handshakes and all owned terminals, and read maintained agent history from saved environment paths including ZCode. Reviewed Claude ACP 0.90.0, Codex ACP 2.2.2, Grok 1.0.52 and Antigravity 1.4.0 preserve seven-agent scope, native steering gates, AIR accounting, ZCode mode/fork restrictions and per-conversation model/thinking precedence.",
@@ -224,9 +354,7 @@
       "id": "todos.paste-attachments",
       "category": "product",
       "description": "Todo bodies are Markdown with live preview. Pasted or selected files upload first and insert URL Markdown at the cursor; new payloads never embed base64. Creator-only MinIO settings keep credentials on the host, members upload via scoped capability tokens, team files use permanent readable object URLs, and personal files live on disk. A 100 MiB referenced-file aggregate limit applies only to personal local storage; team MinIO uploads have no application size cap. A startup migration deletes legacy embedded attachments while preserving todo text and Markdown URLs; legacy writes are rejected.",
-      "origins": [
-        "worktree-2026-10-15"
-      ],
+      "origins": ["worktree-2026-10-15"],
       "paths": [
         "src/maxcode-contracts/todo-attachments.contract.rs",
         "src/lib/todos.ts",
@@ -302,7 +430,9 @@
       "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a rectangular primary action with an icon on the right. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
       "origins": ["worktree-2026-10-16"],
       "paths": ["src/components/todos/todo-card.tsx", "src/i18n/messages/"],
-      "contracts": ["src/maxcode-contracts/todo-completion-label.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/todo-completion-label.contract.test.tsx"
+      ]
     },
     {
       "id": "todos.blue-theme",
@@ -2583,7 +2713,7 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking independently excluded unless opted in. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds, merge adjacent text, fold copied session metadata, lazily mount one execution section per round, and load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
+      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking always excluded and their opt-in controls unavailable, including for existing links and requests that supply legacy flags. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds, merge adjacent text, fold copied session metadata, lazily mount one execution section per round, and load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
       "origins": [
         "worktree-2026-08-31",
         "worktree-2026-09-08",
