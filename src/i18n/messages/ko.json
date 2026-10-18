@@ -6007,6 +6007,12 @@
     "markupSend": "이미지 저장"
   },
   "Todos": {
+    "allowCodexImport": "전체 Codex 세션 가져오기 허용",
+    "allowCodexImportHint": "모든 대화를 공유할 때 사용할 수 있습니다. 할 일 구성원에게 전체 기록, 도구 호출 및 추론 기록이 제공됩니다. 프로젝트 파일과 인증 정보는 포함되지 않습니다.",
+    "importCodexConversation": "가져와서 계속하기",
+    "importCodexConversationHint": "이 컴퓨터의 프로젝트 폴더를 선택하세요. Codex 세션을 가져와 이 할 일에 연결합니다. 파일은 별도로 동기화해야 하며 실행 중인 명령은 이전할 수 없습니다.",
+    "confirmImportCodexConversation": "가져와서 열기",
+    "importingCodexConversation": "가져오는 중…",
     "dissolveTeam": "팀 해산",
     "removeTeamLocal": "이 기기에서 제거",
     "dissolveTeamHint": "“{name}” 팀을 해산할까요? 호스트의 팀원, 할 일, 공유 링크가 영구 삭제되어 모든 팀원이 접근할 수 없게 됩니다. 연결된 대화와 MinIO 파일은 유지됩니다. 되돌릴 수 없습니다.",

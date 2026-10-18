@@ -6007,6 +6007,12 @@
     "markupSend": "Bild speichern"
   },
   "Todos": {
+    "allowCodexImport": "Import der gesamten Codex-Sitzung erlauben",
+    "allowCodexImportHint": "Beim Teilen aller Runden verfügbar. Aufgabenmitglieder erhalten Verlauf, Werkzeugaufrufe und Denkprotokolle. Projektdateien und Zugangsdaten sind nicht enthalten.",
+    "importCodexConversation": "Importieren und fortsetzen",
+    "importCodexConversationHint": "Wählen Sie den lokalen Projektordner. Die Codex-Sitzung wird importiert und mit dieser Aufgabe verknüpft. Dateien separat synchronisieren; laufende Befehle können nicht übertragen werden.",
+    "confirmImportCodexConversation": "Importieren und öffnen",
+    "importingCodexConversation": "Wird importiert…",
     "dissolveTeam": "Team auflösen",
     "removeTeamLocal": "Von diesem Gerät entfernen",
     "dissolveTeamHint": "„{name}“ auflösen? Mitglieder, Aufgaben und Freigabelinks werden auf diesem Host dauerhaft gelöscht. Alle verlieren den Zugriff. Gespräche und MinIO-Dateien bleiben erhalten. Dies kann nicht rückgängig gemacht werden.",

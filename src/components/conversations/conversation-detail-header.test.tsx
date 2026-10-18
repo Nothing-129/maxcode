@@ -65,6 +65,7 @@ const h = vi.hoisted(() => ({
   openNewConversationTab: vi.fn(),
   updateConversationLocal: vi.fn(),
   refreshConversations: vi.fn(),
+  conversations: [] as { id: number; agent_type: string }[],
   activeTabId: "tab-a",
   tabs: [{ id: "tab-a", conversationId: 1 }] as {
     id: string
@@ -160,7 +161,9 @@ vi.mock("@/stores/app-workspace-store", () => {
   const state = {
     updateConversationLocal: h.updateConversationLocal,
     refreshConversations: h.refreshConversations,
-    conversations: [] as unknown[],
+    get conversations() {
+      return h.conversations
+    },
   }
   const useStore = (selector: (s: typeof state) => unknown) => selector(state)
   useStore.getState = () => state
@@ -222,6 +225,7 @@ function withIntl(ui: ReactElement) {
 describe("ConversationDetailHeader dialog target snapshot", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    h.conversations = []
     h.activeTabId = "tab-a"
     h.tabs = [{ id: "tab-a", conversationId: 1 }]
     h.isConversations = true
@@ -521,6 +525,37 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(h.setRoute).not.toHaveBeenCalled()
     expect(h.createConversationShare).toHaveBeenCalledWith(1, { rounds: [2] })
     expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
+  })
+
+  it("only includes native Codex recovery data after opting in to a full todo share", async () => {
+    h.conversations = [{ id: 1, agent_type: "codex" }]
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const { getByLabelText, getByRole } = render(
+      withIntl(<ConversationDetailHeader {...A} />)
+    )
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
+    const option = getByRole("checkbox", {
+      name: /Allow importing the full Codex session/,
+    })
+    await waitFor(() => expect(option).toBeEnabled())
+    expect(option).not.toBeChecked()
+    await user.click(option)
+    await user.selectOptions(getByRole("combobox"), "selected")
+    expect(option).toBeDisabled()
+    expect(option).not.toBeChecked()
+    await user.selectOptions(getByRole("combobox"), "all")
+    expect(option).toBeChecked()
+    await user.click(getByRole("button", { name: "Share and create todo" }))
+    expect(h.requestCreateTodo).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: 1,
+        shareOptions: {},
+        includeCodexSession: true,
+      })
+    )
   })
 
   it("prefills a share link from the normal share dialog using the runtime address", async () => {

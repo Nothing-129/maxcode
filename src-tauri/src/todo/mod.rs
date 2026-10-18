@@ -25,6 +25,7 @@ pub(crate) const TODO_REQUEST_MAX_BYTES: usize = 200 * 1024 * 1024;
 // Team responses contain multiple todos, independently of conversation snapshots.
 const TODO_RESPONSE_MAX_BYTES: usize = 512 * 1024 * 1024;
 
+pub mod codex_session;
 pub mod conversation_groups;
 pub mod conversation_sources;
 pub mod storage;
@@ -56,6 +57,8 @@ pub struct TodoItem {
     #[serde(default)]
     pub priority: Option<String>,
     pub source_url: Option<String>,
+    #[serde(default)]
+    pub codex_import_available: bool,
     pub created_at: String,
     pub updated_at: String,
     #[serde(default)]
@@ -135,6 +138,10 @@ pub struct TodoRequest {
     pub share_options: ConversationShareOptions,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snapshot: Option<SharedConversationSnapshot>,
+    #[serde(default)]
+    pub include_codex_session: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub codex_session: Option<codex_session::CodexSessionTransfer>,
 }
 #[derive(Deserialize, Serialize)]
 pub struct TeamMemberRequest {
@@ -208,6 +215,7 @@ fn todo_item(row: &QueryResult) -> Result<TodoItem, AppCommandError> {
         due_date: field(row, "due_date")?,
         priority: field(row, "priority")?,
         source_url: field(row, "source_url")?,
+        codex_import_available: field::<i64>(row, "codex_import_available")? != 0,
         created_at: field(row, "created_at")?,
         updated_at: field(row, "updated_at")?,
         completed_at: field(row, "completed_at")?,
@@ -729,6 +737,18 @@ pub async fn call(
     if request.action == "create" {
         // Ignore externally supplied snapshots at this boundary. Only a locally
         // authorized conversation lookup may produce the uploaded transcript.
+        request.codex_session = None;
+        if request.include_codex_session {
+            if request.share_options.rounds.is_some() {
+                return Err(AppCommandError::invalid_input(
+                    "Import requires sharing the complete Codex session",
+                ));
+            }
+            let id = request
+                .conversation_id
+                .ok_or_else(|| AppCommandError::invalid_input("Choose a Codex conversation"))?;
+            request.codex_session = Some(codex_session::export(conn, id).await?);
+        }
         request.snapshot = match request.conversation_id.take() {
             Some(id) => Some(
                 conversation_share::build_conversation_share_snapshot(
@@ -742,6 +762,7 @@ pub async fn call(
         };
     } else {
         request.snapshot = None;
+        request.codex_session = None;
         request.conversation_id = None;
     }
     let read = request.action == "state";
@@ -1214,14 +1235,38 @@ async fn mutate(
             }
             let token = new_id();
             source_url = Some(format!("{origin}/share#{token}"));
-            execute(&txn,"INSERT INTO maxcode_todo_share (token,todo_id,scope_id,snapshot_json) VALUES (?,?,?,?)",vec![token.into(),id.clone().into(),scope.into(),data.into()]).await?;
+            let native = request
+                .codex_session
+                .as_ref()
+                .map(|transfer| {
+                    if snapshot.agent_type != crate::models::AgentType::Codex
+                        || request.share_options.rounds.is_some()
+                    {
+                        return Err(AppCommandError::invalid_input(
+                            "Import requires a complete Codex session",
+                        ));
+                    }
+                    transfer.validate()?;
+                    serde_json::to_string(transfer)
+                        .map_err(|_| AppCommandError::invalid_input("Invalid Codex session"))
+                })
+                .transpose()?;
+            execute(&txn,"INSERT INTO maxcode_todo_share (token,todo_id,scope_id,snapshot_json,codex_session_json) VALUES (?,?,?,?,?)",vec![token.into(),id.clone().into(),scope.into(),data.into(),native.into()]).await?;
         }
         let status = if request.assignee_id.is_some() {
             "claimed"
         } else {
             "unclaimed"
         };
-        let inserted = execute(&txn,"INSERT INTO maxcode_todo_item (id,scope_id,title,content,status,assignee_id,creator_id,source_url,created_at,updated_at,operation_id,due_date,priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(scope_id,creator_id,operation_id) DO NOTHING",vec![id.into(),scope.into(),title.into(),content.into(),status.into(),request.assignee_id.clone().into(),self_id.into(),source_url.into(),now.clone().into(),now.into(),operation_id(request)?.into(),request.due_date.clone().into(),request.priority.clone().into()]).await?;
+        let inserted = execute(&txn,"INSERT INTO maxcode_todo_item (id,scope_id,title,content,status,assignee_id,creator_id,source_url,created_at,updated_at,operation_id,due_date,priority) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(scope_id,creator_id,operation_id) DO NOTHING",vec![id.clone().into(),scope.into(),title.into(),content.into(),status.into(),request.assignee_id.clone().into(),self_id.into(),source_url.into(),now.clone().into(),now.into(),operation_id(request)?.into(),request.due_date.clone().into(),request.priority.clone().into()]).await?;
+        if inserted == 1 && request.codex_session.is_some() && request.snapshot.is_some() {
+            execute(
+                &txn,
+                "UPDATE maxcode_todo_item SET codex_import_available=1 WHERE id=? AND scope_id=?",
+                vec![id.into(), scope.into()],
+            )
+            .await?;
+        }
         if inserted == 0 {
             // Includes any newly prepared snapshot: replays never publish an
             // orphan share or create another task.

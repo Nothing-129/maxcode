@@ -1,5 +1,7 @@
 "use client"
 
+import { TodoImportConversationButton } from "./todo-import-conversation-button"
+
 import {
   Check,
   ExternalLink,
@@ -276,6 +278,7 @@ export function TodoCard({
             <ExternalLink className="size-3.5" />
           </BrowserLink>
         )}
+        <TodoImportConversationButton todo={todo} />
         <TodoConversationButton todo={todo} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

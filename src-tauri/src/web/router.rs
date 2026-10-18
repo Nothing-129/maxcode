@@ -39,13 +39,16 @@ pub fn build_router(
         )
         .route(
             "/todo_attachment_upload",
-            post(handlers::todo::todo_attachment_upload)
-                .layer(DefaultBodyLimit::disable()),
+            post(handlers::todo::todo_attachment_upload).layer(DefaultBodyLimit::disable()),
         )
         .route(
             "/todo_call",
             post(handlers::todo::todo_call)
                 .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
+        )
+        .route(
+            "/todo_import_codex_session",
+            post(handlers::todo::todo_import_codex_session),
         )
         .route("/todo_search", post(handlers::todo::todo_search))
         .route(
@@ -1791,8 +1794,7 @@ pub fn build_router(
         )
         .route(
             "/team_todo_attachment",
-            post(handlers::todo::team_todo_attachment_upload)
-                .layer(DefaultBodyLimit::disable()),
+            post(handlers::todo::team_todo_attachment_upload).layer(DefaultBodyLimit::disable()),
         )
         .route(
             "/team_todo_call",
@@ -1801,6 +1803,10 @@ pub fn build_router(
         )
         .route("/team_todo_join", post(handlers::todo::team_todo_join))
         .route("/team_todo_lookup", post(handlers::todo::team_todo_lookup))
+        .route(
+            "/team_todo_codex_session",
+            post(handlers::todo::team_todo_codex_session),
+        )
         .route("/team_todo_search", post(handlers::todo::team_todo_search))
         .route(
             "/team_todo_origin_call",

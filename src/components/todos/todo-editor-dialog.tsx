@@ -159,6 +159,9 @@ export function TodoEditorDialog({
                 ? {
                     conversation_id: draft.conversationId,
                     share_options: draft.shareOptions,
+                    ...(draft.includeCodexSession
+                      ? { include_codex_session: true }
+                      : {}),
                   }
                 : {}),
             }

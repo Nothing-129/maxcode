@@ -406,6 +406,9 @@ pub const PI_MIN_RUNTIME_VERSION: &str = "0.81.0";
 /// the published 1.3.0 tarball (zero hits, same as 1.1.9) — so it stays
 /// `None` until a release implements the opt-in — then this is a one-line
 /// flip plus tests.
+/// MaxCode's private 2.2.2 compatibility copy is gated separately by an
+/// explicit initialize marker in `codex_steering`; an unmodified Codex
+/// adapter still has no version-only opt-in here.
 ///
 /// Honoring the opt-in is necessary but not sufficient: the ACTIVE path must
 /// also keep the owning `session/prompt` in flight across the steered work

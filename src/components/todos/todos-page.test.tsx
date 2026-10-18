@@ -374,6 +374,7 @@ describe("independent todo board", () => {
         text: "",
         conversationId: 42,
         shareOptions: { includeTools: false },
+        includeCodexSession: true,
       })
     )
     renderPage()
@@ -392,6 +393,7 @@ describe("independent todo board", () => {
       assignee_id: null,
       conversation_id: 42,
       share_options: { includeTools: false },
+      include_codex_session: true,
     })
   })
 

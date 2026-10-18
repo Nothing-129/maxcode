@@ -99,6 +99,7 @@ const TRIGGER_CLASS: Record<FolderSelectVariant, string> = {
 }
 
 interface FolderSelectProps {
+  id?: string
   folders: readonly FolderSelectOption[]
   /** The chosen folder id, or `null` for "no choice yet" / "all folders". */
   value: number | null
@@ -131,6 +132,7 @@ interface FolderSelectProps {
  * indistinguishable.
  */
 export function FolderSelect({
+  id,
   folders,
   value,
   onChange,
@@ -184,6 +186,7 @@ export function FolderSelect({
       >
         <PopoverTrigger asChild>
           <Button
+            id={id}
             type="button"
             variant={variant === "field" ? "outline" : "ghost"}
             size="sm"
@@ -225,7 +228,10 @@ export function FolderSelect({
         </PopoverTrigger>
       </SelectorTooltip>
       <PopoverContent align="start" className="w-72 overflow-hidden p-0">
-        <Command className="rounded-2xl">
+        <Command
+          className="rounded-2xl"
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <CommandInput placeholder={t("searchFolder")} />
           <CommandList>
             <CommandEmpty>{t("noFolders")}</CommandEmpty>

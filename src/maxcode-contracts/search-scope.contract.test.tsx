@@ -50,7 +50,14 @@ vi.mock("@/stores/app-workspace-store", () => ({
       conversations: workspace.conversations,
       allFolders: [
         { id: 1, name: "backend", path: "/backend", kind: "project" },
-        { id: 2, name: "frontend", path: "/frontend", kind: "project" },
+        {
+          id: 2,
+          name: "frontend",
+          alias: "Website",
+          path: "/frontend",
+          kind: "project",
+        },
+        { id: 3, name: "Hidden chat", path: "/chat", kind: "chat" },
       ],
     }),
 }))
@@ -84,8 +91,8 @@ describe("conversation search scope contract", () => {
   it("searches globally despite an active folder and supports explicit folders", async () => {
     const user = userEvent.setup()
     renderDialog()
-    const scope = screen.getByRole("combobox", { name: "Search scope" })
-    expect(scope).toHaveValue("all")
+    const scope = screen.getByRole("button", { name: "Search" })
+    expect(scope).toHaveTextContent("All folders")
     expect(screen.getByRole("button", { name: "Grok" })).toBeVisible()
     await user.type(
       screen.getByPlaceholderText(enMessages.Folder.search.placeholder),
@@ -98,7 +105,8 @@ describe("conversation search scope contract", () => {
         agent_type: null,
       })
     )
-    await user.selectOptions(scope, "2")
+    await user.click(scope)
+    await user.click(screen.getByText("Website"))
     await waitFor(() =>
       expect(listAllConversations).toHaveBeenLastCalledWith({
         folder_ids: [2],
@@ -106,7 +114,8 @@ describe("conversation search scope contract", () => {
         agent_type: null,
       })
     )
-    await user.selectOptions(scope, "all")
+    await user.click(scope)
+    await user.click(screen.getByText("All folders"))
     await waitFor(() =>
       expect(listAllConversations).toHaveBeenLastCalledWith({
         folder_ids: null,
@@ -116,13 +125,45 @@ describe("conversation search scope contract", () => {
     )
   })
 
+  it("reserves space beside the folder selector for the dialog close button", () => {
+    renderDialog()
+    const scope = screen.getByRole("button", { name: "Search" })
+    const close = screen.getByRole("button", { name: "Close" })
+
+    expect(scope.parentElement).toHaveClass("min-w-0", "pr-16")
+    expect(scope.parentElement).not.toContainElement(close)
+    expect(close).toBeVisible()
+  })
+
+  it("shows and searches folder remarks in the app menu and supports keyboard selection", async () => {
+    const user = userEvent.setup()
+    renderDialog()
+    await user.click(screen.getByRole("button", { name: "Search" }))
+    expect(screen.getByText("Website")).toBeVisible()
+    expect(screen.getByText("/frontend")).toBeVisible()
+    expect(screen.queryByText("Hidden chat")).not.toBeInTheDocument()
+    const search = screen.getByPlaceholderText(
+      enMessages.Folder.conversationContextBar.searchFolder
+    )
+    await user.type(search, "Website")
+    expect(screen.queryByText("backend")).not.toBeInTheDocument()
+    await user.keyboard("{ArrowDown}{Enter}")
+    expect(screen.getByRole("button", { name: "Search" })).toHaveTextContent(
+      "Website"
+    )
+    expect(
+      screen.queryByPlaceholderText(
+        enMessages.Folder.conversationContextBar.searchFolder
+      )
+    ).not.toBeInTheDocument()
+    expect(screen.getByRole("dialog")).toBeVisible()
+  })
+
   it("restores all folders after closing and reopening", async () => {
     const user = userEvent.setup()
     const view = renderDialog()
-    await user.selectOptions(
-      screen.getByRole("combobox", { name: "Search scope" }),
-      "2"
-    )
+    await user.click(screen.getByRole("button", { name: "Search" }))
+    await user.click(screen.getByText("Website"))
     const dialog = (open: boolean) => (
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <SearchCommandDialog open={open} onOpenChange={() => {}} />
@@ -130,8 +171,8 @@ describe("conversation search scope contract", () => {
     )
     view.rerender(dialog(false))
     view.rerender(dialog(true))
-    expect(screen.getByRole("combobox", { name: "Search scope" })).toHaveValue(
-      "all"
+    expect(screen.getByRole("button", { name: "Search" })).toHaveTextContent(
+      "All folders"
     )
   })
 })

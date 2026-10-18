@@ -33,6 +33,7 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command"
+import { FolderSelect } from "@/components/shared/folder-select"
 import { cn } from "@/lib/utils"
 import { formatConversationTitle } from "@/lib/conversation-title"
 
@@ -204,40 +205,34 @@ export function SearchCommandDialog({
     >
       {/* Folder context header */}
       {activeTab === "conversations" && (
-        <div className="flex items-center gap-2 border-b px-4 py-2.5">
-          <Folder className="w-4 h-4 shrink-0 text-muted-foreground" />
+        <div className="flex min-w-0 items-center gap-2 border-b py-2.5 pl-4 pr-16">
           <label
             htmlFor="conversation-search-scope"
-            className="text-sm shrink-0"
+            className="shrink-0 text-sm"
           >
             {t("dialogTitle")}
           </label>
-          <select
+          <FolderSelect
             id="conversation-search-scope"
-            aria-label={t("searchScope")}
-            className="outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 min-w-0 flex-1 rounded-md border bg-background px-2 py-1 text-sm"
-            value={selectedFolderId ?? "all"}
-            onChange={(event) => {
-              setSelectedFolderId(
-                event.target.value === "all" ? null : Number(event.target.value)
-              )
+            folders={(folders ?? []).filter((item) => item.kind !== "chat")}
+            value={selectedFolderId}
+            onChange={(folderId) => {
+              setSelectedFolderId(folderId)
               setAgentFilter(null)
-              inputRef.current?.focus()
             }}
-          >
-            <option value="all">{t("allFolders")}</option>
-            {(folders ?? [])
-              .filter((item) => item.kind !== "chat")
-              .map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.name} — {item.path}
-                </option>
-              ))}
-          </select>
+            allLabel={t("allFolders")}
+            onSelectAll={() => {
+              setSelectedFolderId(null)
+              setAgentFilter(null)
+            }}
+            title={t("searchScope")}
+            variant="field"
+            className="h-8 max-w-none flex-1 rounded-md text-sm focus-visible:border-[#216ae4] focus-visible:ring-0"
+          />
         </div>
       )}
       {activeTab === "files" && folder && (
-        <div className="flex items-center gap-2 border-b px-4 py-2.5">
+        <div className="flex min-w-0 items-center gap-2 border-b py-2.5 pl-4 pr-16">
           <Folder className="w-4 h-4 shrink-0 text-muted-foreground" />
           <span className="text-sm font-medium truncate">
             {t("dialogTitleWithFolder", { name: folder.name })}

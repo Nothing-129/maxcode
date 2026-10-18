@@ -24,6 +24,7 @@ export interface Todo {
   due_date?: string | null
   priority?: TodoPriority | null
   source_url: string | null
+  codex_import_available?: boolean
   created_at: string
   updated_at: string
   completed_at?: string | null
@@ -172,6 +173,7 @@ type TodoAction =
       assignee_id: string | null
       conversation_id?: number
       share_options?: ConversationShareOptions
+      include_codex_session?: boolean
       operation_id?: string
     }
   | {
@@ -277,4 +279,13 @@ export function todoScopeKey(
   return state.mode === "personal"
     ? "personal"
     : `team:${state.active_team_id ?? "none"}`
+}
+
+export function todoImportCodexSession(request: {
+  origin: TodoOrigin
+  folder_id: number
+}): Promise<import("./types").DbConversationSummary> {
+  return getTransport().call("todo_import_codex_session", request, {
+    timeoutMs: 330_000,
+  })
 }

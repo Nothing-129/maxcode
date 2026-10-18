@@ -31,6 +31,14 @@ fn reviewed_pins_leave_unreviewed_agents_and_runtime_gates_alone() {
         advertised.as_object(),
         Some(&peer)
     ));
+    // MaxCode's reviewed private copy proves the idle lifecycle separately;
+    // the unmodified npm adapter above must remain on pull feedback.
+    let safe = json!({"steering":{"supported":true,"maxcodePromptRequired":1}});
+    assert!(synthesize_native_steering(
+        AgentType::Codex,
+        safe.as_object(),
+        Some(&peer)
+    ));
     let caps = serde_json::from_value(json!({"sessionCapabilities":{"fork":{}}})).unwrap();
     assert!(!supports_session_fork(AgentType::Zcode, &caps));
 }

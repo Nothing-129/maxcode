@@ -2366,7 +2366,7 @@ const ConversationTabView = memo(function ConversationTabView({
     [effectiveConversationId]
   )
   const canSteerQueue =
-    selectedAgent === "claude_code" &&
+    selectedAgent === "codex" &&
     !connIsForOtherAgent &&
     feedback.featureEnabled &&
     feedback.steerAvailable &&

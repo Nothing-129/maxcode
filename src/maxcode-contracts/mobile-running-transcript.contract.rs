@@ -6,7 +6,7 @@ use crate::commands::conversations::apply_in_flight_message_id;
 fn fixture(missing_timestamp: bool) -> ConversationDetail {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("running.jsonl");
-    let mut lines = vec![
+    let mut lines = [
         serde_json::json!({"timestamp": "2026-10-16T11:09:49Z", "type": "session_meta",
             "payload": {"id": "running", "cwd": "/work"}}),
         serde_json::json!({"timestamp": "2026-10-16T11:09:50Z", "type": "response_item",

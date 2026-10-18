@@ -1,0 +1,88 @@
+// Reviewed methods from @agentclientprotocol/codex-acp 2.2.2 (Apache-2.0).
+// Surrounding harness supplies the app-server and ACP dependencies.
+const logger = { log() {}, error() {} };
+class RequestError extends Error {}
+class Agent {
+  initialize() {
+    return {
+      steering: {
+          supported: true
+        }
+    };
+  }
+  async executeOrQueueSteeringRequest(params) {
+    const queue = this.getSteeringQueue(params.sessionId);
+    try {
+      return await queue.enqueue(params);
+    } catch (error62) {
+      if (error62 instanceof RequestError) {
+        throw error62;
+      }
+      logger.error(`Steering request for session ${params.sessionId} failed`, error62);
+      return { outcome: "failed" };
+    } finally {
+      if (queue.isIdle && this.steeringQueues.get(params.sessionId) === queue) {
+        this.steeringQueues.delete(params.sessionId);
+      }
+    }
+  }
+  async performSteeringRequest(params) {
+    logger.log("Steering session requested", {
+      sessionId: params.sessionId,
+      prompt: params.prompt
+    });
+    const sessionState = this.getSessionState(params.sessionId);
+    this.assertSteerInputSupported(params, sessionState);
+    const turnId = await this.getSteerableTurnId(sessionState);
+    if (turnId) {
+      const injected = await this.injectSteerIntoActiveTurn(params, turnId, sessionState);
+      if (injected) {
+        logger.log("Steering session injected", { sessionId: params.sessionId, turnId });
+        return { outcome: "injected" };
+      }
+    }
+    return await this.startNewTurnFromSteering(params);
+  }
+  async injectSteerIntoActiveTurn(params, turnId, sessionState) {
+    try {
+      await this.runWithProcessCheck(() => this.codexAcpClient.steerTurn({
+        threadId: params.sessionId,
+        turnId,
+        prompt: params.prompt
+      }));
+      return true;
+    } catch (err) {
+      await this.codexAcpClient.waitForSessionNotifications(params.sessionId);
+      const turnStillActive = sessionState.currentTurnId === turnId;
+      if (turnStillActive && !this.isNoActiveTurnToSteerError(err)) {
+        throw err;
+      }
+      return false;
+    }
+  }
+  async getSteerableTurnId(sessionState) {
+    if (this.sessionIsClosing(sessionState.sessionId)) {
+      return null;
+    }
+    if (sessionState.currentTurnId) {
+      return sessionState.currentTurnId;
+    }
+    const pendingTurnStart = this.pendingTurnStarts.get(sessionState.sessionId);
+    if (!pendingTurnStart) {
+      return null;
+    }
+    return await pendingTurnStart.promise;
+  }
+  parseSessionSteerParams(params) {
+    const sessionId = params["sessionId"];
+    const prompt = params["prompt"];
+    if (typeof sessionId !== "string" || !Array.isArray(prompt)) {
+      throw RequestError.invalidParams();
+    }
+    return {
+      sessionId,
+      prompt
+    };
+  }
+  createSessionConfigOptions() {}
+}

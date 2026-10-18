@@ -6007,6 +6007,12 @@
     "markupSend": "Save image"
   },
   "Todos": {
+    "allowCodexImport": "Allow importing the full Codex session",
+    "allowCodexImportHint": "Available when sharing all rounds. Includes full history, tool calls and reasoning for todo members. Project files and credentials are not included.",
+    "importCodexConversation": "Import and continue",
+    "importCodexConversationHint": "Choose this computer’s project folder. The Codex session will be imported and linked to this todo. Sync project files separately; running commands cannot be transferred.",
+    "confirmImportCodexConversation": "Import and open",
+    "importingCodexConversation": "Importing…",
     "dissolveTeam": "Dissolve team",
     "removeTeamLocal": "Remove from this device",
     "dissolveTeamHint": "Dissolve “{name}”? This permanently deletes its members, todos and share links from this host. Everyone loses access. Conversations and files in MinIO are retained. This cannot be undone.",

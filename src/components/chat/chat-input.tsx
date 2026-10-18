@@ -56,7 +56,7 @@ interface ChatInputProps {
   onQueueReorder?: (items: QueuedMessage[]) => void
   onQueueEdit?: (id: string) => void
   onQueueDelete?: (id: string) => void
-  /** Claude-only, confirmed native delivery. Other agents retain cancellation. */
+  /** Codex with confirmed native delivery. Other agents retain cancellation. */
   onQueueSteer?: (id: string) => Promise<void>
   queueSteering?: boolean
   getSentHistory?: () => string[]
@@ -209,9 +209,7 @@ export const ChatInput = memo(function ChatInput({
             editingItemId={editingItemId ?? null}
             steering={queueSteering}
             onSteerItem={
-              isPrompting &&
-              agentType === "claude_code" &&
-              steerChannel === "native"
+              isPrompting && agentType === "codex" && steerChannel === "native"
                 ? onQueueSteer
                 : undefined
             }

@@ -6007,6 +6007,12 @@
     "markupSend": "保存图片"
   },
   "Todos": {
+    "allowCodexImport": "允许导入完整 Codex 会话",
+    "allowCodexImportHint": "仅支持分享全部轮次。待办成员可导入完整历史、工具调用和思考记录；不包含项目文件和登录凭据。",
+    "importCodexConversation": "导入并继续",
+    "importCodexConversationHint": "选择本机对应的项目目录，导入 Codex 会话并自动关联此待办。项目文件需另行同步，运行中的命令无法迁移。",
+    "confirmImportCodexConversation": "导入并打开",
+    "importingCodexConversation": "正在导入…",
     "dissolveTeam": "解散团队",
     "removeTeamLocal": "从本机移除",
     "dissolveTeamHint": "确定解散“{name}”吗？本机的团队成员、待办和分享链接将被永久删除，所有成员将无法访问。关联对话及 MinIO 中的文件会保留。此操作无法撤销。",

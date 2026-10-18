@@ -1362,6 +1362,7 @@ pub enum ConnectionCommand {
     /// so the oneshot can never hang.
     Steer {
         blocks: Vec<PromptInputBlock>,
+        admitted_turns_completed: u64,
         reply: tokio::sync::oneshot::Sender<Result<SteerOutcome, AcpError>>,
     },
     /// Stop one AIR async task (`_session/async_task/stop`; claude-agent-acp
@@ -2172,6 +2173,17 @@ async fn build_agent(
                     ensure_pi_acp_max_support(path)?;
                 }
             }
+            let codex_launch = if agent_type == AgentType::Codex {
+                resolved_command
+                    .as_deref()
+                    .and_then(|path| super::codex_steering::prepare(path, scratch))
+            } else {
+                None
+            };
+            let resolved_command = codex_launch
+                .as_ref()
+                .map(|(node, _)| node.clone())
+                .or(resolved_command);
             parts.push(
                 resolved_command
                     .map(|p| p.to_string_lossy().to_string())
@@ -2181,6 +2193,9 @@ async fn build_agent(
                             .to_string()
                     }),
             );
+            if let Some((_, script)) = codex_launch {
+                parts.push(script.to_string_lossy().into_owned());
+            }
             // Grok's root-level launch flags go BEFORE its `agent stdio`
             // subcommand (which rejects them):
             //  - `--no-auto-update`: codeg owns the pinned version, so suppress the
@@ -12296,7 +12311,15 @@ async fn run_conversation_loop(
                                         let _ = reply.send(landed);
                                     }
                                 }
-                                Some(ConnectionCommand::Steer { blocks, reply }) => {
+                                Some(ConnectionCommand::Steer { blocks, admitted_turns_completed, reply }) => {
+                                    // A command can wait behind another operation while a
+                                    // new prompt starts. Never redirect that later prompt.
+                                    let s = state.read().await;
+                                    if !s.turn_in_flight || s.turns_completed != admitted_turns_completed {
+                                        let _ = reply.send(Err(AcpError::NoActiveTurn));
+                                        continue;
+                                    }
+                                    drop(s);
                                     // Protocol round-trip only — the manager's
                                     // cancellation-shielded task records the
                                     // note + broadcasts `FeedbackSubmitted`
@@ -12634,7 +12657,7 @@ async fn run_conversation_loop(
                     let _ = reply.send(landed);
                 }
             }
-            Some(ConnectionCommand::Steer { blocks: _, reply }) => {
+            Some(ConnectionCommand::Steer { reply, .. }) => {
                 // Steering only means something for a RUNNING turn. Reply —
                 // never drop — so the manager's shielded task can't hang on
                 // the oneshot; the caller falls back to a normal prompt (the
@@ -15042,8 +15065,10 @@ fn synthesize_native_steering(
     agent_info: Option<&agent_client_protocol::schema::v1::Implementation>,
 ) -> bool {
     init_advertises_steering(meta)
-        && registry::steering_prompt_required_min_version(agent_type)
+        && (registry::steering_prompt_required_min_version(agent_type)
             .is_some_and(|min| steering_version_ok(agent_info, min))
+            || (agent_type == AgentType::Codex
+                && super::codex_steering::advertises_safe_steering(meta, agent_info)))
 }
 
 /// codex-acp 1.12.0 swapped the question and the short tab header between a
@@ -34953,6 +34978,7 @@ mod tests {
             self.cmd_tx
                 .send(ConnectionCommand::Steer {
                     blocks: vec![PromptInputBlock::Text { text: text.into() }],
+                    admitted_turns_completed: self.state.read().await.turns_completed,
                     reply,
                 })
                 .await
@@ -35030,6 +35056,30 @@ mod tests {
         claude.respond.notify_one();
         claude.until_question_sweeps(2).await;
         claude.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn a_steer_admitted_for_another_turn_never_reaches_the_agent() {
+        let mut agent = AskSweepLoop::start().await;
+        agent.open_turn("continue the current task").await;
+        let (reply, outcome) = oneshot::channel();
+        agent
+            .cmd_tx
+            .send(ConnectionCommand::Steer {
+                blocks: vec![PromptInputBlock::Text {
+                    text: "stale direction".into(),
+                }],
+                admitted_turns_completed: u64::MAX,
+                reply,
+            })
+            .await
+            .unwrap();
+        assert!(matches!(
+            outcome.await.unwrap(),
+            Err(AcpError::NoActiveTurn)
+        ));
+        assert!(agent.sweeps_at_steer.lock().unwrap().is_empty());
+        agent.shutdown().await;
     }
 
     /// A turn that ends sweeps a question still parked on its connection:

@@ -85,6 +85,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { copyTextToClipboard } from "@/lib/utils"
@@ -222,6 +223,12 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     ConversationShareRoundPreview[]
   >([])
   const [shareOptions, setShareOptions] = useState<ConversationShareOptions>({})
+  const [includeCodexSession, setIncludeCodexSession] = useState(false)
+  const shareIsCodex = useAppWorkspaceStore(
+    (state) =>
+      state.conversations.find((c) => c.id === shareTarget?.id)?.agent_type ===
+      "codex"
+  )
   const [shareExists, setShareExists] = useState(false)
   const shareRequest = useRef(0)
   const canCreateShare =
@@ -381,6 +388,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       setSharePublicUrlInvalid(false)
       setShareConfig(null)
       setShareOptions({})
+      setIncludeCodexSession(false)
       setShareRounds([])
       setShareExists(false)
       setShareLoading(true)
@@ -534,6 +542,9 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         ].join("\n\n"),
         conversationId: target.id,
         shareOptions: options,
+        ...(includeCodexSession && !options.rounds
+          ? { includeCodexSession: true }
+          : {}),
       })
       handleCloseShare()
     } catch (err) {
@@ -549,6 +560,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     setRoute,
     shareConfig,
     shareOptions,
+    includeCodexSession,
     shareTarget,
     shareUrl,
     tTodos,
@@ -823,6 +835,26 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               options={shareOptions}
               onChange={setShareOptions}
             />
+          ) : null}
+          {shareForTodo && shareIsCodex && !shareUrl ? (
+            <label className="flex min-w-0 items-start gap-3 rounded-xl border p-3">
+              <Checkbox
+                className="mt-0.5 shrink-0"
+                checked={includeCodexSession && !shareOptions.rounds}
+                disabled={shareLoading || !!shareOptions.rounds}
+                onCheckedChange={(checked) =>
+                  setIncludeCodexSession(checked === true)
+                }
+              />
+              <span className="min-w-0 space-y-1 text-sm">
+                <span className="block font-medium">
+                  {tTodos("allowCodexImport")}
+                </span>
+                <span className="block text-xs text-muted-foreground wrap-anywhere">
+                  {tTodos("allowCodexImportHint")}
+                </span>
+              </span>
+            </label>
           ) : null}
           {shareNeedsPublicUrl && !shareUrl ? (
             <div className="space-y-2">

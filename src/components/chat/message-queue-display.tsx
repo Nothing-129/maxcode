@@ -84,7 +84,7 @@ function QueueItem({
           title={t("steerItemNowHint")}
         >
           <Zap className="size-3.5" />
-          {t("steerItemNow")}
+          {t("adjustDirection")}
         </button>
       ) : onAdjustDirection ? (
         <button

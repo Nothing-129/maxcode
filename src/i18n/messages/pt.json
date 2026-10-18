@@ -6007,6 +6007,12 @@
     "markupSend": "Salvar imagem"
   },
   "Todos": {
+    "allowCodexImport": "Permitir importar toda a sessão do Codex",
+    "allowCodexImportHint": "Disponível ao compartilhar todas as rodadas. Os membros recebem o histórico completo, chamadas de ferramentas e raciocínio. Não inclui arquivos do projeto nem credenciais.",
+    "importCodexConversation": "Importar e continuar",
+    "importCodexConversationHint": "Escolha a pasta local do projeto. A sessão do Codex será importada e vinculada a esta tarefa. Sincronize os arquivos separadamente; comandos em execução não são transferidos.",
+    "confirmImportCodexConversation": "Importar e abrir",
+    "importingCodexConversation": "Importando…",
     "dissolveTeam": "Dissolver equipe",
     "removeTeamLocal": "Remover deste dispositivo",
     "dissolveTeamHint": "Dissolver “{name}”? Membros, tarefas e links compartilhados serão excluídos permanentemente do anfitrião. Todos perderão o acesso. Conversas e arquivos no MinIO serão mantidos. Esta ação não pode ser desfeita.",

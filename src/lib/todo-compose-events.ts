@@ -9,6 +9,7 @@ export interface TodoComposeDraft {
   text: string
   conversationId?: number
   shareOptions?: ConversationShareOptions
+  includeCodexSession?: boolean
 }
 
 // Buffer actions until their workspace dialog or destination page mounts.

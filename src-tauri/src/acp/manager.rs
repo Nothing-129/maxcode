@@ -3289,6 +3289,7 @@ impl ConnectionManager {
                 cmd_tx
                     .send(ConnectionCommand::Steer {
                         blocks: wire_blocks,
+                        admitted_turns_completed,
                         reply: reply_tx,
                     })
                     .await
@@ -8760,7 +8761,7 @@ mod tests {
     ) -> tokio::task::JoinHandle<Vec<PromptInputBlock>> {
         tokio::spawn(async move {
             match rx.recv().await {
-                Some(ConnectionCommand::Steer { blocks, reply }) => {
+                Some(ConnectionCommand::Steer { blocks, reply, .. }) => {
                     let _ = reply.send(outcome);
                     blocks
                 }

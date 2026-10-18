@@ -330,6 +330,59 @@ impl CodexParser {
         Ok(assembled.into_iter().map(|(_, line)| line).collect())
     }
 
+    /// Export a self-contained native history. Missing bases must fail rather
+    /// than silently transferring a truncated fork/revert.
+    pub(crate) fn export_rollout(&self, thread_id: &str) -> Result<String, ParseError> {
+        let path = self
+            .find_current_rollout(thread_id)
+            .ok_or_else(|| ParseError::ConversationNotFound(thread_id.to_string()))?;
+        let mut current = path.clone();
+        let mut visited = HashSet::new();
+        let mut total = 0u64;
+        loop {
+            if !visited.insert(current.clone()) || visited.len() > 64 {
+                return Err(ParseError::ConversationNotFound(
+                    "Invalid Codex history chain".into(),
+                ));
+            }
+            total += fs::metadata(&current)?.len();
+            if total > 24 * 1024 * 1024 {
+                return Err(ParseError::ConversationNotFound(
+                    "Codex history exceeds 24 MiB".into(),
+                ));
+            }
+            let lines = BufReader::new(fs::File::open(&current)?)
+                .lines()
+                .collect::<Result<Vec<_>, _>>()?;
+            match inherited_history_pointer(&lines) {
+                Some((_, id, _)) => {
+                    current = self
+                        .find_rollout_by_rollout_id(&id)
+                        .ok_or_else(|| ParseError::ConversationNotFound(id))?;
+                }
+                None => break,
+            }
+        }
+        let mut header_seen = false;
+        let mut output = String::new();
+        for line in self.rollout_lines(&path)? {
+            let value: serde_json::Value = serde_json::from_str(&line).map_err(|_| {
+                ParseError::ConversationNotFound(
+                    "Incomplete Codex history; retry after the turn ends".into(),
+                )
+            })?;
+            if value["type"] == "session_meta" {
+                if header_seen {
+                    continue;
+                }
+                header_seen = true;
+            }
+            output.push_str(&line);
+            output.push('\n');
+        }
+        Ok(output)
+    }
+
     /// Every rollout file under the sessions root, in traversal order.
     fn rollout_paths(&self) -> impl Iterator<Item = PathBuf> + '_ {
         WalkDir::new(&self.base_dir)

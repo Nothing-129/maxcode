@@ -76,20 +76,23 @@ function setup(
   }
 }
 
-describe("MaxCode Claude-only native queue delivery", () => {
-  it("appends Claude's queued attachment without cancellation and locks row actions until settled", async () => {
+describe("MaxCode agent-specific adjust direction", () => {
+  it("Codex appends a queued attachment without cancellation and locks actions until settled", async () => {
     let finish!: () => void
     const pending = new Promise<void>((resolve) => {
       finish = resolve
     })
     const steer = vi.fn(() => pending)
-    const actions = setup("claude_code", "native", steer)
+    const actions = setup("codex", "native", steer)
+    const buttons = screen.getAllByRole("button", { name: "Adjust direction" })
+    expect(buttons).toHaveLength(2)
     expect(
-      screen.queryByRole("button", { name: "Adjust direction" })
+      screen.queryByRole("button", { name: "Append to current turn" })
     ).toBeNull()
-    const buttons = screen.getAllByRole("button", {
-      name: "Append to current turn",
-    })
+    expect(buttons[0]).toHaveAttribute(
+      "title",
+      "Send into the current turn without stopping the reply"
+    )
     fireEvent.click(buttons[0])
     fireEvent.click(buttons[0])
     fireEvent.click(buttons[1])
@@ -108,24 +111,32 @@ describe("MaxCode Claude-only native queue delivery", () => {
     expect(buttons[0]).not.toBeDisabled()
   })
 
-  it.each<AgentType>(["codex", "grok", "pi", "deepseek", "antigravity"])(
-    "%s retains stop-and-prioritize even if a native callback is accidentally provided",
-    (agent) => {
-      const actions = setup(agent, "native")
-      expect(
-        screen.queryByRole("button", { name: "Append to current turn" })
-      ).toBeNull()
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Adjust direction" })[1]
-      )
-      expect(actions.onQueueReorder).toHaveBeenCalledWith([queue[1], queue[0]])
-      expect(actions.onCancel).toHaveBeenCalledOnce()
-      expect(actions.onQueueSteer).not.toHaveBeenCalled()
-    }
-  )
+  it.each<AgentType>([
+    "claude_code",
+    "grok",
+    "pi",
+    "deepseek",
+    "antigravity",
+    "zcode",
+  ])("%s keeps stop-and-prioritize even with a native callback", (agent) => {
+    const actions = setup(agent, "native")
+    const buttons = screen.getAllByRole("button", { name: "Adjust direction" })
+    expect(buttons).toHaveLength(2)
+    expect(buttons[1]).toHaveAttribute(
+      "title",
+      "Stop the current reply and send this message next"
+    )
+    expect(
+      screen.queryByRole("button", { name: "Append to current turn" })
+    ).toBeNull()
+    fireEvent.click(buttons[1])
+    expect(actions.onQueueReorder).toHaveBeenCalledWith([queue[1], queue[0]])
+    expect(actions.onCancel).toHaveBeenCalledOnce()
+    expect(actions.onQueueSteer).not.toHaveBeenCalled()
+  })
 
-  it("Claude without a confirmed native channel keeps the old action", () => {
-    const actions = setup("claude_code", "pull")
+  it("Codex without a confirmed native channel keeps the safe fallback", () => {
+    const actions = setup("codex", "pull")
     fireEvent.click(
       screen.getAllByRole("button", { name: "Adjust direction" })[0]
     )

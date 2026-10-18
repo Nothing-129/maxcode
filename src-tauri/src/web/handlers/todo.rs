@@ -302,3 +302,31 @@ pub async fn todo_attachment_read(
     );
     Ok(res)
 }
+
+pub async fn todo_import_codex_session(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(request): Json<todo::codex_session::ImportRequest>,
+) -> Result<Response, AppCommandError> {
+    let summary = todo::codex_session::import(&state.db.conn, request).await?;
+    emit_event(
+        &state.emitter,
+        "todo-conversation-links://changed",
+        serde_json::json!({"conversation_id":summary.id}),
+    );
+    crate::commands::conversations::emit_conversation_upsert(
+        &state.emitter,
+        &state.db.conn,
+        summary.id,
+    )
+    .await;
+    Ok(no_store(summary))
+}
+
+pub async fn team_todo_codex_session(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(request): Json<sources::TeamCodexSessionRequest>,
+) -> Result<Response, AppCommandError> {
+    Ok(no_store(
+        sources::member_codex_session(&state.db.conn, request).await?,
+    ))
+}

@@ -273,7 +273,8 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 | 范围 | 保留的下游行为 | 保护项 |
 | --- | --- | --- |
-| 队列追加 | 仅 Claude Code 已确认原生通道时追加到当前轮次；其余保留停止后优先发送。完整附件和队列持有的在途状态禁止降级为待读备注、重复发送或面板卸载丢失。 | `chat.claude-native-queued-steering` |
+| Codex 原生插话 | 对 codex-acp 2.2.2 在每次启动的临时目录生成兼容副本，保留原安装的模块和 Codex 路径；只有副本确认支持 `promptRequired` 才开启原生通道。轮次结束或请求所属轮次改变时交回主机处理，不自动另开轮次。原安装不修改；未知版本或兼容失败保留 MCP 待读备注。来源：`worktree-2026-10-17`。 | `chat.codex-native-steering` |
+| 队列追加 | 回复中按回车继续加入等待队列，每条消息只提供一个「调整方向」按钮：Codex 已确认原生通道时直接追加到当前轮次；其他六种智能体均沿用停止后优先发送，Codex 未确认原生通道时也保留原逻辑。投递期间锁定队列操作。完整附件和队列持有的在途状态禁止降级为待读备注、重复发送或面板卸载丢失。 | `chat.claude-native-queued-steering` |
 | 输入历史 | 文档整体首尾的 ↑/↓ 召回当前会话提示词；保留草稿徽标、附件、IME、菜单及队列编辑。 | `chat.sent-prompt-history` |
 | 流式更新 | 按连接独立自适应刷新，断连丢弃旧增量、迁移前完成刷新；保留唤醒恢复、归属、实际到达时间及费用统计。 | `runtime.connection-streaming-cadence` |
 | 运行时 | 私有短临时目录与 socket 路径限额、精确识别自带提问工具的一次授权、Grok 1.0.34。 | `runtime.upstream-socket-ask-20260919` |
@@ -315,3 +316,5 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 手机对话适配：用户消息的复制、转新对话及图片下载按钮在触屏上直接显示；回复操作行可换行并占据实际高度。工作区与通用弹窗跟随 VisualViewport 的键盘可视高度和偏移，关闭键盘恢复原布局；双指缩放和已处理键盘的原生壳不重复调整。保留移动端隐藏消息编辑与会话内搜索的既定规则。契约：`mobile-conversation-layout.contract.test.tsx`、`mobile-chat-viewport.contract.test.tsx`。
 
 待办创建信息（`todos.creation-metadata`）：看板卡片、列表及看板/来源详情均展示创建人和创建时间；创建人与指定人独立匹配，成员资料缺失时显示创建人 ID。时间按界面语言与查看者时区显示。独立契约：`todo-creation-metadata.contract.test.tsx`。
+
+待办 Codex 会话迁移（`todos.codex-session-import`）：将整个 Codex 对话添加到待办时，可显式勾选允许导入完整原生会话（仅全部轮次可用）。完整工具调用、思考及原生恢复记录保存在团队宿主，使用成员凭据读取，不进入公开分享快照。接收方在待办卡片、看板详情或来源详情点击“导入并继续”，选择本机项目后以新 UUID 保存到当前 Codex 配置的会话目录，并自动关联指定来源待办；同一待办与目录重复导入打开已有会话。只映射执行目录及身份，不替换消息正文内的路径，不迁移项目文件、凭据配置或正在运行的命令。迁移前会展开 fork/revert 引用历史，缺少依赖时拒绝导出；旧待办及未勾选的分享保持只读查看。契约：`todo-codex-import.contract.rs`、`todo-codex-import.contract.test.tsx`。

@@ -2,6 +2,48 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "todos.codex-session-import",
+      "category": "product",
+      "description": "Todo shares may explicitly include complete native Codex history. Recovery data stays member-scoped, separate from public transcript snapshots. Receivers select a local project, import to a fresh thread UUID and automatically link it to the captured todo origin. Repeated imports reuse the same local conversation per project.",
+      "origins": ["worktree-2026-10-18"],
+      "paths": [
+        "src-tauri/src/todo/",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/db/migration/m20261018_000001_todo_codex_session.rs",
+        "src-tauri/src/db/migration/mod.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/router.rs",
+        "src/components/todos/",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/lib/todos.ts",
+        "src/lib/todo-compose-events.ts",
+        "src/i18n/messages/",
+        "src/maxcode-contracts/todo-codex-import.contract.rs",
+        "src/maxcode-contracts/fixtures/codex-todo-native-session.jsonl"
+      ],
+      "contracts": ["src/maxcode-contracts/todo-codex-import.contract.test.tsx"]
+    },
+    {
+      "id": "chat.codex-native-steering",
+      "category": "runtime",
+      "description": "Codex ACP 2.2.2 runs a reviewed private scratch copy with promptRequired steering and owning-prompt checks. Only the patched initialize capability enables native delivery. Ended turns and queued requests whose owner changed return content to the host without detached turns; unknown packages retain pull feedback. Native Codex queued drafts preserve attachments and never cancel the running turn.",
+      "origins": ["worktree-2026-10-17"],
+      "paths": [
+        "src-tauri/src/acp/codex_steering.rs",
+        "src-tauri/src/acp/codex_catalog_source.rs",
+        "src-tauri/src/acp/mod.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src/components/chat/chat-input.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/maxcode-contracts/codex-native-steering.contract.rs",
+        "src/maxcode-contracts/fixtures/codex-steering-2.2.2.txt"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-native-steering.contract.test.ts"
+      ]
+    },
+    {
       "id": "chat.mobile-running-transcript-dedup",
       "category": "runtime",
       "description": "A phone attaching during the first Codex round reconciles persisted commentary with the live snapshot once. Original record timestamps permit first-round live correlation despite completed commentary messages; missing timestamps and older identical prompts remain conservative. Timestamp provenance stays internal to the server.",
@@ -431,10 +473,11 @@
     {
       "id": "search.global-default-scope",
       "category": "product",
-      "description": "Conversation search defaults to all folders on every open, allows explicit folder selection, and ignores obsolete responses after scope changes. File search retains its explicitly displayed active-folder scope.",
+      "description": "Conversation search defaults to all folders on every open, allows explicit folder selection, and ignores obsolete responses after scope changes. File search retains its explicitly displayed active-folder scope. The conversation scope uses the shared searchable in-app folder picker with alias-first labels and secondary paths rather than a native select. Both scope headers reserve right-side space for the dialog close button so it cannot overlap the folder selector or title.",
       "origins": ["worktree-2026-10-15"],
       "paths": [
         "src/components/conversations/search-command-dialog.tsx",
+        "src/components/shared/folder-select.tsx",
         "src/i18n/messages/"
       ],
       "contracts": ["src/maxcode-contracts/search-scope.contract.test.tsx"]
@@ -1294,8 +1337,14 @@
     {
       "id": "chat.claude-native-queued-steering",
       "category": "runtime",
-      "description": "Only Claude Code sessions with confirmed native steering append queued messages into the current turn. Other agents and non-native Claude keep stop-and-prioritize. Complete draft blocks refuse pull fallback; queue-owned claims survive panel remounts, block auto-flush and duplicate clicks, preserve attachments on failure and remove only confirmed deliveries.",
-      "origins": ["cc6e4876", "642b0b33", "52980d31", "worktree-2026-09-19"],
+      "description": "Enter keeps messages queued during a reply. Each queued message offers one Adjust direction action: Codex with confirmed native steering injects into the current turn; all other maintained agents retain stop-and-prioritize even if they advertise native steering. Codex without native capability retains the safe legacy fallback. Complete draft blocks refuse pull fallback; queue-owned claims survive panel remounts, block auto-flush and duplicate clicks, preserve attachments on failure and remove only confirmed deliveries.",
+      "origins": [
+        "cc6e4876",
+        "642b0b33",
+        "52980d31",
+        "worktree-2026-09-19",
+        "worktree-2026-10-17"
+      ],
       "paths": [
         "src/hooks/use-message-queue.ts",
         "src/components/chat/message-queue-display.tsx",
@@ -2809,6 +2858,7 @@
         "src/components/conversations/conversation-detail-panel.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/search-command-dialog.tsx",
+        "src/components/shared/folder-select.tsx",
         "src/i18n/messages/",
         "src/lib/conversation-drop-target.ts",
         "src/hooks/use-conversation-drag.ts",

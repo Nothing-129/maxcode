@@ -634,3 +634,59 @@ pub async fn sources(
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/todo-conversation-sources.contract.rs"]
 mod contract;
+
+#[derive(Deserialize, Serialize)]
+pub struct TeamCodexSessionRequest {
+    pub token: String,
+    pub todo_id: String,
+}
+
+async fn scoped_codex_session(
+    conn: &DatabaseConnection,
+    scope: &str,
+    todo_id: &str,
+) -> Result<super::codex_session::CodexSessionTransfer, AppCommandError> {
+    let found = rows(conn, "SELECT s.codex_session_json FROM maxcode_todo_share s JOIN maxcode_todo_item t ON t.id=s.todo_id AND t.scope_id=s.scope_id WHERE s.scope_id=? AND s.todo_id=? AND t.codex_import_available=1", vec![scope.into(),todo_id.into()]).await?;
+    let data: Option<String> = found
+        .first()
+        .map(|row| field(row, "codex_session_json"))
+        .transpose()?
+        .flatten();
+    let transfer: super::codex_session::CodexSessionTransfer =
+        serde_json::from_str(&data.ok_or_else(|| {
+            AppCommandError::not_found("This todo has no importable Codex session")
+        })?)
+        .map_err(|_| AppCommandError::invalid_input("Invalid Codex session data"))?;
+    transfer.validate()?;
+    Ok(transfer)
+}
+
+pub(super) async fn codex_session(
+    conn: &DatabaseConnection,
+    origin: &TodoOrigin,
+) -> Result<super::codex_session::CodexSessionTransfer, AppCommandError> {
+    let scope = local_scope(conn, &origin.scope_id).await?;
+    let id = normalized_id(&origin.todo_id)?;
+    match scope.remote() {
+        Some(team) => {
+            remote_json(
+                remote_url(team)?,
+                "team_todo_codex_session",
+                &TeamCodexSessionRequest {
+                    token: team.member_token.clone(),
+                    todo_id: id,
+                },
+            )
+            .await
+        }
+        None => scoped_codex_session(conn, &scope.id, &id).await,
+    }
+}
+
+pub async fn member_codex_session(
+    conn: &DatabaseConnection,
+    request: TeamCodexSessionRequest,
+) -> Result<super::codex_session::CodexSessionTransfer, AppCommandError> {
+    let scope = member_scope(conn, request.token).await?;
+    scoped_codex_session(conn, &scope.id, &normalized_id(&request.todo_id)?).await
+}

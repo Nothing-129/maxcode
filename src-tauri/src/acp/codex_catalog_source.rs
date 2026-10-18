@@ -95,7 +95,7 @@ enum CatalogSource {
     Adapter(PathBuf),
 }
 
-fn adapter_dir_for_command(command: &Path) -> Option<PathBuf> {
+pub(super) fn adapter_dir_for_command(command: &Path) -> Option<PathBuf> {
     if let Ok(real) = std::fs::canonicalize(command) {
         for parent in real.ancestors().skip(1) {
             if std::fs::read_to_string(parent.join("package.json"))

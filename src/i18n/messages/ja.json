@@ -6007,6 +6007,12 @@
     "markupSend": "画像を保存"
   },
   "Todos": {
+    "allowCodexImport": "Codex セッション全体のインポートを許可",
+    "allowCodexImportHint": "全ラウンドの共有時に利用できます。ToDo メンバーは履歴、ツール呼び出し、思考記録をインポートできます。プロジェクトファイルと認証情報は含まれません。",
+    "importCodexConversation": "インポートして続行",
+    "importCodexConversationHint": "この端末のプロジェクトフォルダーを選択してください。Codex セッションをインポートし、この ToDo に関連付けます。ファイルは別途同期が必要です。実行中のコマンドは移行できません。",
+    "confirmImportCodexConversation": "インポートして開く",
+    "importingCodexConversation": "インポート中…",
     "dissolveTeam": "チームを解散",
     "removeTeamLocal": "この端末から削除",
     "dissolveTeamHint": "「{name}」を解散しますか？ホスト上のメンバー、タスク、共有リンクが完全に削除され、全員がアクセスできなくなります。関連する会話と MinIO のファイルは保持されます。この操作は取り消せません。",

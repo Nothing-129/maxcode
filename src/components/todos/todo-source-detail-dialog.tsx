@@ -1,5 +1,7 @@
 "use client"
 
+import { TodoImportConversationButton } from "./todo-import-conversation-button"
+
 import { TodoMarkdown } from "./todo-markdown"
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -237,6 +239,7 @@ export function TodoSourceDetailDialog({
                   </BrowserLink>
                 )}
                 <DialogFooter className="min-w-0 sm:flex-wrap">
+                  <TodoImportConversationButton todo={todo} origin={origin} />
                   <TodoConversationButton todo={todo} />
                   <Button
                     variant="outline"
