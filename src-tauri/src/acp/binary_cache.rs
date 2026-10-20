@@ -37,7 +37,9 @@ pub(crate) fn cache_dir() -> Result<PathBuf, AcpError> {
     }
     let base = dirs::data_local_dir()
         .ok_or_else(|| AcpError::DownloadFailed("cannot determine data directory".into()))?;
-    Ok(base.join("app.codeg").join("acp-binaries"))
+    Ok(base
+        .join(crate::namespace::APP_DIRECTORY)
+        .join("acp-binaries"))
 }
 
 /// The pre-relocation root, when it is a DIFFERENT directory that still exists.
@@ -47,7 +49,9 @@ pub(crate) fn cache_dir() -> Result<PathBuf, AcpError> {
 /// read-through below is therefore a transient state that ends when
 /// [`migrate_legacy_root`] succeeds, never a steady-state dual root.
 pub(crate) fn legacy_cache_dir() -> Option<PathBuf> {
-    let legacy = dirs::cache_dir()?.join("app.codeg").join("acp-binaries");
+    let legacy = dirs::cache_dir()?
+        .join(crate::namespace::APP_DIRECTORY)
+        .join("acp-binaries");
     let current = cache_dir().ok()?;
     (legacy != current && legacy.is_dir()).then_some(legacy)
 }

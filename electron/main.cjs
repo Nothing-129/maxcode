@@ -21,7 +21,8 @@ const {
   externalUrl,
   isTrustedAppUrl,
   isTrustedUrl,
-  legacyDataDir,
+  desktopDataDir,
+  legacyImportSource,
   localPath,
   sanitizeStorage,
   startBackend,
@@ -583,7 +584,7 @@ if (!app.requestSingleInstanceLock()) {
         : process.env.CODEG_ELECTRON_STATIC_DIR || path.join(root, "out")
       const dataDir = smokeDir
         ? path.join(smokeDir, "data")
-        : legacyDataDir(app)
+        : desktopDataDir(app)
       try {
         preferences = sanitizeStorage(
           JSON.parse(fs.readFileSync(preferencesFile, "utf8"))
@@ -596,6 +597,7 @@ if (!app.requestSingleInstanceLock()) {
         staticDir: path.resolve(staticDir),
         dataDir,
         codegHome: smokeDir ? dataDir : undefined,
+        legacySource: smokeDir ? undefined : legacyImportSource(app),
         signal: startupAbort.signal,
         onExit: (error) => {
           if (!starting && !quitting) fatalError(error)

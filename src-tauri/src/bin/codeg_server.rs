@@ -19,6 +19,7 @@ fn main() -> ExitCode {
     codeg_lib::update::runtime::prime_self_exe();
 
     // Support --version flag
+    codeg_lib::namespace::normalize_environment();
     let args: Vec<String> = std::env::args().collect();
     if args.iter().any(|a| a == "--version" || a == "-V") {
         println!("{}", env!("CARGO_PKG_VERSION"));
@@ -108,6 +109,14 @@ fn main() -> ExitCode {
         .unwrap_or_else(|_| default_data_dir());
     let resolved_data_dir = codeg_lib::git_credential::absolutize(&resolved_data_dir);
     std::env::set_var("CODEG_DATA_DIR", &resolved_data_dir);
+    if let Some(source) = std::env::var_os("MAXCODE_LEGACY_DATA_DIR").filter(|v| !v.is_empty()) {
+        if let Err(error) =
+            codeg_lib::namespace::migrate_desktop_layout(&resolved_data_dir, &PathBuf::from(source))
+        {
+            eprintln!("[SERVER] Could not copy legacy MaxCode data: {error}");
+            return ExitCode::from(2);
+        }
+    }
 
     // Install the logging subscriber now that CODEG_DATA_DIR is pinned (the logs
     // dir resolves from it). Doing it here — before the first server diagnostic
@@ -181,7 +190,7 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
     let port: u16 = std::env::var("CODEG_PORT")
         .ok()
         .and_then(|v| v.parse().ok())
-        .unwrap_or(3080);
+        .unwrap_or(codeg_lib::web::DEFAULT_WEB_SERVICE_PORT);
     let host = if electron.is_some() {
         "127.0.0.1".to_string()
     } else {
@@ -236,6 +245,8 @@ async fn async_main(electron: Option<ElectronLaunch>) -> ExitCode {
     let db = codeg_lib::db::init_database(&data_dir, app_version)
         .await
         .expect("Failed to initialize database");
+    #[cfg(feature = "native-keyring")]
+    codeg_lib::keyring_store::import_legacy_credentials(&db.conn, &data_dir).await;
 
     // Logging phase 2: override the default level from the persisted
     // `logging.level` now that the DB is open. Phase 3 (wiring the emitter)
@@ -858,8 +869,8 @@ async fn cleanup_children(state: &AppState) {
 
 fn default_data_dir() -> PathBuf {
     dirs::data_dir()
-        .map(|d| d.join("codeg"))
-        .unwrap_or_else(|| PathBuf::from(".codeg-data"))
+        .map(|d| d.join("maxcode"))
+        .unwrap_or_else(|| PathBuf::from(".maxcode-data"))
 }
 
 #[cfg(test)]

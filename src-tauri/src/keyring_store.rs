@@ -1,5 +1,5 @@
 #[cfg(feature = "native-keyring")]
-const SERVICE_NAME: &str = "codeg";
+const SERVICE_NAME: &str = crate::namespace::KEYRING_SERVICE;
 
 fn token_key(account_id: &str) -> String {
     format!("github-token:{}", account_id)
@@ -55,8 +55,8 @@ fn tokens_file_path() -> std::path::PathBuf {
 fn tokens_file_path_for(env_value: Option<&str>) -> std::path::PathBuf {
     let dir = env_value.map(std::path::PathBuf::from).unwrap_or_else(|| {
         dirs::data_dir()
-            .map(|d| d.join("codeg"))
-            .unwrap_or_else(|| std::path::PathBuf::from(".codeg-data"))
+            .map(|d| d.join("maxcode"))
+            .unwrap_or_else(|| std::path::PathBuf::from(".maxcode-data"))
     });
     crate::git_credential::absolutize(&dir).join("tokens.json")
 }
@@ -336,3 +336,106 @@ mod tests {
         assert_eq!(mode_bits(&path), 0o600);
     }
 }
+
+/// Copy only credentials belonging to the imported database, once. Normal
+/// reads/deletes never fall back to Codeg, so signing out cannot resurrect it.
+#[cfg(feature = "native-keyring")]
+pub async fn import_legacy_credentials(
+    conn: &sea_orm::DatabaseConnection,
+    data_dir: &std::path::Path,
+) {
+    use sea_orm::EntityTrait;
+    if !data_dir.join(crate::namespace::MIGRATION_MARKER).is_file() {
+        return;
+    }
+    let mut keys = Vec::new();
+    if let Some(accounts) = crate::git_credential::load_github_accounts(conn).await {
+        keys.extend(
+            accounts
+                .accounts
+                .iter()
+                .map(|account| token_key(&account.id)),
+        );
+    }
+    match crate::db::entities::chat_channel::Entity::find()
+        .all(conn)
+        .await
+    {
+        Ok(channels) => keys.extend(channels.iter().map(|channel| channel_token_key(channel.id))),
+        Err(error) => {
+            tracing::warn!("Could not enumerate imported channel credentials: {error}");
+            return;
+        }
+    }
+    let copied = copy_credentials_once(
+        data_dir,
+        &keys,
+        |service, key| {
+            let entry = keyring::Entry::new(service, key).map_err(|e| e.to_string())?;
+            match entry.get_password() {
+                Ok(value) => Ok(Some(value)),
+                Err(keyring::Error::NoEntry) => Ok(None),
+                Err(error) => Err(error.to_string()),
+            }
+        },
+        |key, value| {
+            keyring::Entry::new(SERVICE_NAME, key)
+                .map_err(|e| e.to_string())?
+                .set_password(value)
+                .map_err(|e| e.to_string())
+        },
+    );
+    if let Err(error) = copied {
+        // No token is logged. Reauthentication is safer than a persistent
+        // read-through into a second application's credential namespace.
+        tracing::warn!("Legacy credential import incomplete; sign in again if needed: {error}");
+    }
+}
+
+#[cfg(any(feature = "native-keyring", test))]
+fn copy_credentials_once(
+    data_dir: &std::path::Path,
+    keys: &[String],
+    mut read: impl FnMut(&str, &str) -> Result<Option<String>, String>,
+    mut write: impl FnMut(&str, &str) -> Result<(), String>,
+) -> Result<(), String> {
+    let marker = data_dir.join(".maxcode-keyring-imported");
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    match options.open(marker) {
+        Ok(_) => (),
+        Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => return Ok(()),
+        Err(error) => return Err(error.to_string()),
+    }
+    // Mark before reading: a crash or a later deletion must never re-import a
+    // credential from Codeg. Errors require a deliberate new login.
+    let mut failures = 0;
+    for key in keys {
+        let result = (|| {
+            if read(crate::namespace::KEYRING_SERVICE, key)?.is_some() {
+                return Ok(());
+            }
+            if let Some(token) = read("codeg", key)? {
+                write(key, &token)?;
+            }
+            Ok::<_, String>(())
+        })();
+        if result.is_err() {
+            failures += 1;
+        }
+    }
+    if failures == 0 {
+        Ok(())
+    } else {
+        Err(format!("{failures} credential(s) need reauthentication"))
+    }
+}
+
+#[cfg(test)]
+#[path = "../../src/maxcode-contracts/product-credentials.contract.rs"]
+mod namespace_contract;

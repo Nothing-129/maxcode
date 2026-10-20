@@ -32,7 +32,7 @@ corepack pnpm electron:start --smoke-test
 
 开发入口使用静态导出，与安装包的资源加载方式一致，目前没有热更新。
 普通开发启动与安装版使用同一份 `codeg.db`；需要独立数据时设置
-`CODEG_DATA_DIR` 和 `CODEG_HOME` 为测试目录。`--smoke-test` 自动隔离数据。
+`MAXCODE_DATA_DIR` 和 `MAXCODE_HOME` 为测试目录。`--smoke-test` 自动隔离数据。
 
 开发时可通过 `CODEG_ELECTRON_BACKEND_PATH` 指定后端可执行文件，或通过
 `CODEG_ELECTRON_STATIC_DIR` 指定前端导出目录；安装版固定使用包内资源。
@@ -40,7 +40,7 @@ corepack pnpm electron:start --smoke-test
 ## 手机访问
 
 在桌面端「设置 → Web 服务」开启服务，手机连接同一局域网后打开该页显示的
-局域网 URL，并使用页面中的 Token 登录。端口默认 3080，也可沿用旧版保存的端口；
+局域网 URL，并使用页面中的 Token 登录。端口默认 3081，也可沿用旧版保存的端口；
 勾选自动启动后，下次打开桌面应用会恢复服务。电脑的局域网 IP 和端口保持不变时，
 手机原有 URL 可继续使用。
 
@@ -104,7 +104,10 @@ Electron 主进程启动仅绑定 `127.0.0.1` 的 Rust 服务，由操作系统�
 页面地址或浏览器持久存储。原生文件选择、通知、文件保存和系统打开操作通过
 受限 IPC 桥接；渲染器不开启 Node.js 集成。
 
-数据库默认沿用旧桌面端的 `app.codeg` 数据目录，`CODEG_HOME` 保持其独立含义。
+数据库默认使用独立的 `app.maxcode` 数据目录；私有目录默认 `~/.maxcode`。
+`MAXCODE_DATA_DIR`/`MAXCODE_HOME` 优先，显式的 `CODEG_*` 仍作为兼容别名。
+首次默认桌面启动会复制旧 MaxCode 数据，原目录不移动、不删除；详情见
+[Codeg 共存与迁移](../docs/maintenance/maxcode-codeg-coexistence.md)。
 Electron 自己的窗口偏好通过私有配置文件跨端口保存；旧 Tauri WebView 的
 localStorage 不会自动导入。备份恢复完成后通过 Electron 重启整个应用。
 
