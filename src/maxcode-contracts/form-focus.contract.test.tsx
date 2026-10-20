@@ -77,10 +77,14 @@ describe("subtle form focus", () => {
       "src/components/canvas/nodes/region-node.tsx",
       "src/components/chat/question-dialog.tsx",
       "src/components/conversations/conversation-share-options.tsx",
+    ]) {
+      expect(source(file), file).toContain("focus-visible:border-[#216ae4]")
+    }
+    for (const file of [
       "src/components/conversations/search-command-dialog.tsx",
       "src/components/todos/todo-conversation-folder-dialog.tsx",
     ]) {
-      expect(source(file), file).toContain("focus-visible:border-[#216ae4]")
+      expect(source(file), file).toContain("<FolderSelect")
     }
     const css = source("src/app/globals.css")
     expect(css).toContain(

@@ -1,21 +1,18 @@
-// Whether to auto-open a live preview when an agent produces an office file
-// (.docx/.xlsx/.pptx) in the workspace. Persisted in localStorage; defaults to
-// ON now that the file-lock contention that made it disruptive is fixed (the
-// preview uses a long-lived `officecli watch` server instead of re-reading the
-// file on every change).
+// Auto-preview is opt-in. The versioned key intentionally ignores legacy
+// preferences so existing installations also start disabled after upgrading.
 
 import { useEffect, useState } from "react"
 
-const AUTO_PREVIEW_KEY = "workspace:office-auto-preview"
+const AUTO_PREVIEW_KEY = "workspace:office-auto-preview:v2"
 const AUTO_PREVIEW_EVENT = "codeg:office-auto-preview-changed"
 
 export function loadOfficeAutoPreview(): boolean {
-  if (typeof window === "undefined") return true
+  if (typeof window === "undefined") return false
   try {
-    // Default ON: only an explicit "false" disables it.
-    return localStorage.getItem(AUTO_PREVIEW_KEY) !== "false"
+    // Only a manual opt-in under the new policy enables previews.
+    return localStorage.getItem(AUTO_PREVIEW_KEY) === "true"
   } catch {
-    return true
+    return false
   }
 }
 

@@ -287,7 +287,7 @@ pub fn registry_id_for(agent_type: AgentType) -> &'static str {
         AgentType::DeepSeek => "deepseek-acp",
         AgentType::Qoder => "qoder-cli",
         AgentType::Antigravity => "antigravity-acp",
-        AgentType::Zcode => "zcode-acp",
+        AgentType::Zcode => "codeg-zcode-acp",
         // A custom agent's registry id IS its identity.
         AgentType::Custom(id) => id,
     }
@@ -310,7 +310,7 @@ pub fn from_registry_id(id: &str) -> Option<AgentType> {
         "deepseek-acp" => Some(AgentType::DeepSeek),
         "qoder-cli" => Some(AgentType::Qoder),
         "antigravity-acp" => Some(AgentType::Antigravity),
-        "zcode-acp" => Some(AgentType::Zcode),
+        "codeg-zcode-acp" => Some(AgentType::Zcode),
         // Only ids the user has actually registered resolve. An unregistered
         // id must stay `None` so the ACP-registry picker still offers it as
         // "addable" rather than treating it as already supported.
@@ -2833,21 +2833,34 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             agent_type,
             supports_mcp: true,
             name: "ZCode",
-            description: "Z.ai's coding agent via william0wang's ZCode ACP adapter",
-            // The npm bin is dist/cli.js: its zcode-acp-server alias selects
-            // ACP stdio mode. The bridge resolves the separately installed
-            // ZCode CLI or desktop runtime and reuses ~/.zcode credentials.
-            // 0.53.2: reviewed native plan-state pushes and auto-compaction.
-            // Fork still returns forkedSessionId, not the ACP sessionId. Keep
-            // MaxCode fork/Plan gates and explicit build-mode confirmation until
-            // native-runtime mode transitions are verified end to end.
+            description: "Official ZCode runtime via the community ACP bridge",
+            // Validated end to end on Windows with ZCode CLI 0.16.9 and bridge
+            // 0.69.2. The bridge requires an existing official ZCode
+            // installation; zcode::resolve_runtime supplies explicit Node/CLI
+            // paths. Codeg owns history through its ACP transcript in this
+            // phase.
+            //
+            // Bridge 0.72.0 keeps everything codeg's launch and session handling
+            // rely on: `dist/cli.js`, the runtime selection (Bun re-exec unless
+            // `ZCODE_ACP_RUNTIME=node`) and the backend resolver are
+            // byte-identical to 0.69.2's, and `initialize` answers the same
+            // apart from the version. The mode gate still works as codeg drives
+            // it (`set_mode`, then `set_config_option("mode")` echoing the
+            // mode), and fork, attachments and MCP forwarding are unchanged.
+            // Since 0.69.3 a new session's placeholder reports the configured
+            // initial mode (the bridge config's `session.mode`, then
+            // `ZCODE_ACP_MODE`, else `yolo`) where it reported `yolo`
+            // regardless; codeg's gate confirms its own choice either way.
+            // 0.72.0 adds `usage` and `turnMs` to the `_zcode/turnState`
+            // notification that ends a turn, which codeg does not read. The
+            // rest (quota cards, CLIProxy, sandbox pacing when a workspace arms
+            // the sandbox) is opt-in and outside what codeg drives.
             distribution: AgentDistribution::Npx {
-                version: "0.53.2",
-                package: "zcode-acp-server@0.53.2",
+                version: "0.72.0",
+                package: "zcode-acp-server@0.72.0",
                 cmd: "zcode-acp-server",
-                args: &[],
-                // 保留旧适配器的审批行为；上游默认 yolo 会跳过工具确认。
-                env: &[("ZCODE_ACP_MODE", "build")],
+                args: &["server"],
+                env: &[],
                 node_required: Some("22.0.0"),
             },
         },
@@ -3143,8 +3156,8 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::Zcode,
-            "0.53.2",
-            "zcode-acp-server@0.53.2",
+            "0.72.0",
+            "zcode-acp-server@0.72.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3309,8 +3322,8 @@ mod tests {
             panic!("ZCode must use the npm distribution");
         };
         assert_eq!(cmd, "zcode-acp-server");
-        assert!(args.is_empty());
-        assert_eq!(env, &[("ZCODE_ACP_MODE", "build")]);
+        assert_eq!(args, &["server"]);
+        assert!(env.is_empty());
     }
 
     // OpenClaw rejects MCP server entries inside `mcpServers` (the empty `[]`

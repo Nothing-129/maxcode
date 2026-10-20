@@ -1655,8 +1655,11 @@ impl WatchState {
         crate::parsers::resolve_patch_line_numbers(&mut turns, Some(cwd));
         // Same last step as the detail parse, so an overlay turn carries the
         // same elapsed time the reply will show once it settles. An episode
-        // that opens mid-reply simply has no boundary for its first turn.
-        crate::parsers::backfill_turn_durations(&mut turns, &[]);
+        // opened by a `<task-notification>` was fed that record first, so its
+        // first turn is measured from the notification; one that opens
+        // mid-reply simply has no boundary for its first turn.
+        let turn_starts = episode.acc.chronological_turn_starts();
+        crate::parsers::backfill_turn_durations(&mut turns, &turn_starts);
         for (idx, mut turn) in turns.into_iter().enumerate() {
             turn.id = format!("bg-{}-{}", episode.start_offset, idx);
             let hash = hash_turn(&turn);
@@ -3182,6 +3185,31 @@ mod tests {
         // response is the rendered out-of-turn content.
         assert_eq!(turns.len(), 1);
         assert!(turns[0].id.starts_with("bg-"));
+    }
+
+    /// The overlay reply to a notification is timed from that notification,
+    /// as its settled copy is: the episode's accumulator is fed the initiator
+    /// itself, so the reply's first turn has a boundary to measure from.
+    #[test]
+    fn an_overlay_reply_to_a_notification_is_timed_from_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[&agent_ack("agent1")]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+        let _ = tick_now(&mut ws, &ledger); // consume the ack
+
+        write_lines(
+            &path,
+            &[
+                &notification("agent1", "completed"),
+                &assistant_text("a1", "Build finished cleanly."),
+            ],
+        );
+        let (turns, _, _, _) = unpack(tick_now(&mut ws, &ledger).expect("settle event"));
+        assert_eq!(turns.len(), 1);
+        // 03:47:00 (notification) → 03:47:08 (reply).
+        assert_eq!(turns[0].duration_ms, Some(8_000));
     }
 
     /// Real-shape notification of a task that settled while a turn ran (CLI

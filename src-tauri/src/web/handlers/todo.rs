@@ -330,3 +330,13 @@ pub async fn team_todo_codex_session(
         sources::member_codex_session(&state.db.conn, request).await?,
     ))
 }
+
+/// Member-scoped create with a stable operation ID and an exact item result.
+pub async fn team_todo_create(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(request): Json<sources::mcp::MemberCreateRequest>,
+) -> Result<Response, AppCommandError> {
+    let result = sources::mcp::member_create(&state.db.conn, request).await?;
+    emit_event(&state.emitter, "todos://changed", serde_json::json!({}));
+    Ok(no_store(result))
+}

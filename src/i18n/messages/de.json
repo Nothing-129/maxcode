@@ -1367,8 +1367,8 @@
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
     "zcode": {
-      "configManagement": "ZCode-Runtime",
-      "configDescription": "MaxCode verwendet Williams Adapter zcode-acp-server. Installiere und konfiguriere zuerst die ZCode-Desktop-App oder CLI; Modelle und Anmeldedaten werden aus ~/.zcode übernommen. ZCODE_BIN legt einen eigenen Programmpfad fest, ZCODE_ACP_MODE den anfänglichen Berechtigungsmodus. Werkzeugaufrufe erfordern standardmäßig eine Bestätigung."
+      "adapterInfo": "MaxCode startet {adapterPackage} als ACP-Brücke. Installiere zuerst ZCode und melde dich an; die vorhandene Laufzeit und Konfiguration werden verwendet.",
+      "runtimeHint": "Installiere zuerst ZCode und melde dich an. MaxCode installiert nur die ACP-Brücke. Bei Erkennungsproblemen gib mit ZCODE_BIN den CLI-Einstieg und mit ZCODE_NODE Node.js an. Modelle und Zugangsdaten werden in ZCode verwaltet."
     },
     "authModeOfficialSubscription": "Offizielles Abonnement",
     "authModeCustomEndpoint": "Benutzerdefinierter Endpunkt",
@@ -2135,6 +2135,7 @@
       "shareCreateLink": "Freigabelink erstellen",
       "shareEditContent": "Geteilte Inhalte ändern",
       "shareExecution": "Ausführungsdetails · {count} Einträge",
+      "shareProgress": "Fortschrittsmeldungen · {count} Einträge",
       "shareSessionDetails": "Sitzungsinformationen",
       "shareToolError": "Werkzeugfehler",
       "shareToolResult": "Werkzeugergebnis",

@@ -1367,8 +1367,8 @@
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
     "zcode": {
-      "configManagement": "وقت تشغيل ZCode",
-      "configDescription": "يستخدم MaxCode محوّل zcode-acp-server من William. ثبّت تطبيق ZCode لسطح المكتب أو واجهة سطر الأوامر وأعدّها أولاً؛ تتم مشاركة النماذج وبيانات تسجيل الدخول من ~/.zcode. استخدم ZCODE_BIN لتحديد مسار مخصص وZCODE_ACP_MODE لتحديد وضع الأذونات الأولي. تكون الموافقة على استخدام الأدوات مفعّلة افتراضيًا."
+      "adapterInfo": "يشغّل MaxCode الحزمة {adapterPackage} كجسر ACP. ثبّت ZCode الرسمي وسجّل الدخول أولاً؛ يستخدم بيئته وإعداداته الحالية.",
+      "runtimeHint": "ثبّت ZCode الرسمي وسجّل الدخول أولاً. يثبّت MaxCode جسر ACP فقط. إذا فشل الاكتشاف، حدّد مسار CLI عبر ZCODE_BIN ومسار Node.js عبر ZCODE_NODE. تُدار النماذج وبيانات الاعتماد في ZCode."
     },
     "authModeOfficialSubscription": "الاشتراك الرسمي",
     "authModeCustomEndpoint": "نقطة نهاية مخصصة",
@@ -2135,6 +2135,7 @@
       "shareCreateLink": "إنشاء رابط المشاركة",
       "shareEditContent": "تعديل المحتوى المشترك",
       "shareExecution": "تفاصيل التنفيذ · {count} عناصر",
+      "shareProgress": "تحديثات التقدم · {count} عناصر",
       "shareSessionDetails": "معلومات الجلسة",
       "shareToolError": "خطأ الأداة",
       "shareToolResult": "نتيجة الأداة",

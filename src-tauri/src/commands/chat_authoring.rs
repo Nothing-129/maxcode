@@ -178,6 +178,33 @@ fn text_prompt_blocks(prompt: &str) -> Result<Vec<serde_json::Value>, String> {
 
 #[async_trait]
 impl ChatAuthoringAccess for DbChatAuthoring {
+    async fn todo_call(
+        &self,
+        ctx: AuthoringContext,
+        request: crate::todo::conversation_sources::mcp::ToolRequest,
+    ) -> Result<serde_json::Value, AppCommandError> {
+        let tool = request.tool.clone();
+        let result = crate::todo::conversation_sources::mcp::call(
+            &self.db.conn,
+            ctx.conversation_id,
+            request,
+        )
+        .await?;
+        if tool == "link_todo_to_conversation" {
+            emit_event(
+                &self.emitter,
+                "todo-conversation-links://changed",
+                serde_json::json!({"conversation_id": ctx.conversation_id}),
+            );
+        } else if !matches!(
+            tool.as_str(),
+            "list_todo_scopes" | "list_todos" | "get_todo"
+        ) {
+            emit_event(&self.emitter, "todos://changed", serde_json::json!({}));
+        }
+        Ok(result)
+    }
+
     async fn create_automation(
         &self,
         ctx: AuthoringContext,

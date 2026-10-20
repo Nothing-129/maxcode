@@ -16,7 +16,6 @@ fn science_status_catalog_preserves_legacy_rows_and_covers_every_maintained_skil
         AgentType::Grok,
         AgentType::DeepSeek,
         AgentType::Antigravity,
-        AgentType::Zcode,
     ];
     let actual: Vec<_> = supported_agents()
         .into_iter()
@@ -34,6 +33,9 @@ fn science_status_catalog_preserves_legacy_rows_and_covers_every_maintained_skil
     {
         assert!(actual.contains(&agent), "missing maintained {agent:?}");
     }
+    // Upstream ZCode does not expose a shared skill store.
+    assert!(skill_storage_spec(AgentType::Zcode).is_none());
+    assert!(!actual.contains(&AgentType::Zcode));
     assert!(!actual.contains(&AgentType::Cursor));
     assert!(!actual.contains(&AgentType::Qoder));
 }

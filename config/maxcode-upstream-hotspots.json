@@ -2,9 +2,105 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.zcode-upstream-20261020",
+      "category": "runtime",
+      "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization, default-disabled and dedicated-title behavior. Electron and the seven-agent catalog remain the host boundaries.",
+      "origins": [
+        "610b2a36d",
+        "67d257faf",
+        "a71e06cb1",
+        "2d2d85a9e",
+        "1517ac94e",
+        "d08c488a1",
+        "55ed789f6",
+        "worktree-2026-10-20"
+      ],
+      "paths": [
+        "src-tauri/src/acp/zcode.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/mcp.rs",
+        "src-tauri/src/models/agent.rs",
+        "src-tauri/src/parsers/acp_native.rs",
+        "src-tauri/src/parsers/mod.rs",
+        "src-tauri/src/db/service/import_service.rs",
+        "src-tauri/src/db/service/agent_setting_service.rs",
+        "src-tauri/src/session_title.rs",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/components/agent-icon.tsx",
+        "docs/agents/zcode.md",
+        "src/maxcode-contracts/zcode-upstream.contract.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/zcode-upstream.contract.test.ts"]
+    },
+    {
+      "id": "runtime.install-detection-pi-trust-20261020",
+      "category": "runtime",
+      "description": "Missing npm launch commands clear stale installed versions and notify the composer; transient version failures keep launchable installs, while MaxCode bootstrap-runtime probes remain authoritative. Pi project MCP commands require explicit project trust.",
+      "origins": ["7dd0f9822", "b837329a1", "worktree-2026-10-20"],
+      "paths": [
+        "src-tauri/src/commands/acp.rs",
+        "src/maxcode-contracts/agent-install-detection.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-install-detection.contract.test.ts"
+      ]
+    },
+    {
+      "id": "runtime.unseen-reply-accounting-20261020",
+      "category": "runtime",
+      "description": "Mobile missed-turn recovery waits for every prompt in the promoted batch to reach disk before replacing reply heads, preserving queued followups, deduplication, generation time and billing. Prompt boundaries align long-open per-reply duration and usage despite repeated text or identical timestamps.",
+      "origins": ["92349d532", "23831d93b", "af51be137", "worktree-2026-10-20"],
+      "paths": [
+        "src/stores/conversation-runtime-store.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src-tauri/src/acp/background_watch.rs",
+        "src-tauri/src/parsers/claude.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-unseen-reply-accounting.contract.test.ts"
+      ]
+    },
+    {
+      "id": "todos.mcp-operations",
+      "category": "product",
+      "description": "Built-in MCP exposes human-owned personal/team todos separately from AI execution tasks. Explicit scopes, member-scoped remote creation, UUID deduplication, revision-guarded patches, token-derived local conversation links and live board refresh must survive upstream integration. Todo tools are available independently of delegation and never publish transcripts.",
+      "origins": ["worktree-2026-10-20"],
+      "paths": [
+        "src-tauri/src/todo/mcp.rs",
+        "src-tauri/src/todo/conversation_sources.rs",
+        "src-tauri/src/acp/chat_authoring.rs",
+        "src-tauri/src/commands/chat_authoring.rs",
+        "src-tauri/src/acp/delegation/",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/bin/codeg_mcp.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/router.rs",
+        "src/contexts/todos-view-context.tsx",
+        "src/maxcode-contracts/todo-mcp.contract.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/todo-mcp.contract.test.tsx"]
+    },
+    {
+      "id": "office.auto-preview-opt-in",
+      "category": "product",
+      "description": "Office auto-preview defaults off for both new and existing installations. Legacy preferences are ignored; only a manual opt-in using the versioned preference enables it.",
+      "origins": ["worktree-2026-10-20"],
+      "paths": [
+        "src/lib/office-preview-prefs.ts",
+        "src/components/settings/office-tools-settings.tsx",
+        "src/contexts/workspace-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/office-auto-preview.contract.test.tsx"
+      ]
+    },
+    {
       "id": "todos.codex-session-import",
       "category": "product",
-      "description": "Todo shares may explicitly include complete native Codex history. Recovery data stays member-scoped, separate from public transcript snapshots. Receivers select a local project, import to a fresh thread UUID and automatically link it to the captured todo origin. Repeated imports reuse the same local conversation per project.",
+      "description": "Todo shares may explicitly include complete native Codex history. Both share entry points expose the opt-in, including after a public link has been created. Recovery data stays member-scoped, separate from public transcript snapshots. Receivers select a local project, import to a fresh thread UUID and automatically link it to the captured todo origin. Repeated imports reuse the same local conversation per project.",
       "origins": ["worktree-2026-10-18"],
       "paths": [
         "src-tauri/src/todo/",
@@ -191,7 +287,7 @@
     {
       "id": "runtime.selected-upstream-20261015",
       "category": "runtime",
-      "description": "Selected v0.35.2 shared runtime fixes stop empty feedback polling, deliver structured continuation hints, avoid turnCompanion duplication, cancel startup handshakes and all owned terminals, and read maintained agent history from saved environment paths including ZCode. Reviewed Claude ACP 0.90.0, Codex ACP 2.2.2, Grok 1.0.52 and Antigravity 1.4.0 preserve seven-agent scope, native steering gates, AIR accounting, ZCode mode/fork restrictions and per-conversation model/thinking precedence.",
+      "description": "Selected v0.35.2 shared runtime fixes stop empty feedback polling, deliver structured continuation hints, avoid turnCompanion duplication, cancel startup handshakes and all owned terminals, and read maintained agent history from saved environment paths. Reviewed Claude ACP 0.90.0, Codex ACP 2.2.2, Grok 1.0.52 and Antigravity 1.4.0 preserve seven-agent scope, native steering gates, AIR accounting, per-conversation model/thinking precedence.",
       "origins": [
         "3991581a4",
         "128a0a7df",
@@ -233,7 +329,6 @@
         "src-tauri/src/parsers/pi.rs",
         "src-tauri/src/parsers/deepseek.rs",
         "src-tauri/src/parsers/antigravity.rs",
-        "src-tauri/src/parsers/zcode.rs",
         "src-tauri/src/db/service/agent_setting_service.rs",
         "src-tauri/src/db/service/import_service.rs",
         "src-tauri/src/commands/conversations.rs",
@@ -245,8 +340,7 @@
         "src-tauri/src/web/handlers/conversations.rs",
         "src/maxcode-contracts/upstream-runtime-20261015.contract.rs",
         "src/maxcode-contracts/upstream-runtime-feedback-20261015.contract.rs",
-        "src/maxcode-contracts/upstream-runtime-watch-20261015.contract.rs",
-        "src/maxcode-contracts/zcode-relocated-history.contract.rs"
+        "src/maxcode-contracts/upstream-runtime-watch-20261015.contract.rs"
       ],
       "contracts": [
         "src/maxcode-contracts/upstream-runtime-20261015.contract.test.ts"
@@ -485,7 +579,7 @@
     {
       "id": "todos.completion-action-label",
       "category": "product",
-      "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a rectangular primary action with an icon on the right. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
+      "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a muted ghost action with an icon on the right. Claim, complete and reopen avoid repeated solid primary fills and retain hover and keyboard focus feedback. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
       "origins": ["worktree-2026-10-16"],
       "paths": ["src/components/todos/todo-card.tsx", "src/i18n/messages/"],
       "contracts": [
@@ -543,8 +637,8 @@
     {
       "id": "todos.sidebar-conversation-groups",
       "category": "product",
-      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. A successfully saved todo conversation retires both text and rich-text draft caches, including pending writes; composer-key changes cancel stale debounce timers. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation reuses only ordinary drafts and never inherits a parked todo draft's origins. Explicit folder/chat selectors keep their own draft and its origins. Todo group headers offer a new-conversation action that uses the most recently active linked conversation's live folder, requiring an explicit folder selection when no linked conversation has a live folder. Canceling folder selection creates no draft. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
-      "origins": ["worktree-2026-10-14"],
+      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. A successfully saved todo conversation retires both text and rich-text draft caches, including pending writes; composer-key changes cancel stale debounce timers. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation reuses only ordinary drafts and never inherits a parked todo draft's origins. Explicit folder/chat selectors keep their own draft and its origins. Todo group headers offer a new-conversation action that uses the most recently active linked conversation's live folder, requiring an explicit folder selection when no linked conversation has a live folder. Canceling folder selection creates no draft. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search that defaults to the current member’s assigned/claimed tasks, filtering before pagination on both local and remote team hosts; personal scopes retain all personal tasks. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
+      "origins": ["worktree-2026-10-14", "worktree-2026-10-19"],
       "paths": [
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-conversation-grouping.ts",
@@ -1179,46 +1273,6 @@
       "contracts": ["src/maxcode-contracts/hbuilderx-theme.contract.test.tsx"]
     },
     {
-      "id": "agents.zcode-community-acp-adapter",
-      "category": "runtime",
-      "description": "ZCode uses william0wang/zcode-acp through the reviewed zcode-acp-server npm package and executable at 0.48.0 with Node >=22, following the shared npm install, version and update paths instead of an embedded translator. Restore ZCode in settings and new-session selectors, with its own configuration guidance rather than an incompatible generic JSON editor. New ZCode settings default to disabled; preserve saved enable/disable choices and use the same default for status and enabled selectors when settings are absent. Default ZCODE_ACP_MODE to build to retain tool approvals. On ZCode session/new, explicitly set and confirm the actual mode through ACP config options instead of trusting the lazy yolo advertisement or adapter config defaults: saved choices precede launch environment, then build. On load/resume, force a supported mode reset after model preferences to clear hidden native planEnabled state; honor explicit supported preferences and otherwise use build, never an unrequested advertised edit/yolo base mode. A failed reset prevents session readiness. Migrate legacy runtime/mode environment overrides and model/reasoning selections while prioritizing modern settings; invalid legacy values retain safe defaults. Temporarily disable ZCode session/fork because the reviewed adapter response does not match ACP, preserving other agents' capability gates and ZCode load/resume. Preserve the vendor-CLI adapter split in preflight (native zcode, shared ~/.zcode), the read-only SQLite history parser with ZCODE_HOME then legacy ZCODE_DATA_BASE_DIR resolution, and single-hop ACP UUID aliases from v2/acp-lazy-sessions.json to canonical sess_ history ids; missing, malformed or unused aliases remain not-found and native lists retain their ids. Preserve native assistant provider/model fields and tool error status/text. Native image file parts retain image-only turns via data URLs or artifacts under the same data root and session, with an 8 MiB decoded-image cap, bounded artifact reads, no cross-session or symlink traversal, and visible unavailable-image placeholders. Keep structured auto-titles via supports_dedicated_auto_title, the theme-aware icon, and the maintained-catalog identity; upstream merges must not restore the retired local adapter or remove the community package configuration and ZCode i18n section. Keep ZCode mode changes and restored preferences on the confirmed config-option channel, synchronizing actual mode state and reporting rejected choices. Temporarily remove Plan from both selector channels and reject explicit Plan requests before the ACP wire because adapter 0.48.0 hides the native planEnabled flag; migrate saved/launch Plan to build. This only gates MaxCode mode controls: native EnterPlanMode tools and slash commands remain an upstream reporting limitation. Map selected or legacy data roots to native ZCODE_STORAGE_DIR and ZCODE_SESSION_DB_PATH while preserving explicit overrides, so runtime history and bridge aliases stay together. When the running adapter exposes the canonical bigmodel-api provider alongside stale builtin:bigmodel choices, project GLM model choices onto the canonical registry id, deduplicate labels, and use that id for explicit changes and saved preference replay. On rejected ZCode config changes, restore confirmed selectors so the UI does not show a false selection.",
-      "origins": [
-        "feat/zcode-agent",
-        "worktree-2026-09-26",
-        "worktree-2026-10-12"
-      ],
-      "paths": [
-        "src-tauri/src/db/service/agent_setting_service.rs",
-        "src-tauri/src/acp/registry.rs",
-        "src-tauri/src/acp/connection.rs",
-        "src-tauri/src/acp/preflight.rs",
-        "src-tauri/src/acp/file_system_runtime.rs",
-        "src-tauri/src/commands/acp.rs",
-        "src-tauri/src/commands/agent_auto_updates.rs",
-        "src-tauri/src/commands/mcp.rs",
-        "src-tauri/src/models/agent.rs",
-        "src-tauri/src/parsers/zcode.rs",
-        "src-tauri/src/parsers/mod.rs",
-        "src-tauri/src/session_title.rs",
-        "src-tauri/src/session_title_tests.rs",
-        "src/components/agent-icon.tsx",
-        "src/components/chat/agent-selector.tsx",
-        "src/components/chat/agent-selector.test.tsx",
-        "src/components/settings/acp-agent-settings.tsx",
-        "src/lib/resolve-default-agent.ts",
-        "src/lib/resolve-default-agent.test.ts",
-        "src/lib/types.ts",
-        "src/lib/maintained-agents.ts",
-        "src/i18n/messages/"
-      ],
-      "contracts": [
-        "src/maxcode-contracts/zcode-default-disabled.contract.test.ts",
-        "src/maxcode-contracts/zcode-agent.contract.test.ts",
-        "src/maxcode-contracts/zcode-model-registry.contract.test.ts",
-        "src/maxcode-contracts/maintained-agents.contract.test.ts"
-      ]
-    },
-    {
       "id": "agents.claude-079-command-approval",
       "category": "runtime",
       "description": "Claude ACP 0.79 preserves explicit default-to-no approvals and command descriptions, renders bracket/brace/heredoc shell commands and normalizes PowerShell for live/history tools. Only Claude's adapter pin advances; six-agent scope, independent official CLI updates and native queue behavior remain intact.",
@@ -1395,14 +1449,19 @@
     {
       "id": "runtime.upstream-socket-ask-20260919",
       "category": "runtime",
-      "description": "Agent scratch and broker sockets respect Unix path budgets with private owned short roots, reject unsafe roots, and preserve existing Electron lifecycle. Only the exact injected codeg-mcp ask tool can bypass redundant approval, only allow-once and while enabled. Native queued drafts never downgrade to pull notes. Only Grok advances to 1.0.34; other catalog entries remain unchanged.",
+      "description": "Agent scratch and broker sockets respect Unix path budgets with private owned short roots, reject unsafe roots, and preserve existing Electron lifecycle. Only the exact injected codeg-mcp ask tool can bypass redundant approval, only allow-once and while enabled. Native queued drafts never downgrade to pull notes. Only Grok advances to 1.0.34; other catalog entries remain unchanged. Adopted temp directories survive sweeping; broker sockets stay outside every launch scratch root, including symlinked and foreign roots, while downstream ownership and symlink refusal remain enforced.",
       "origins": [
         "f7d36ea1",
         "b744d2e6",
         "0594b1d8",
         "a425e41d",
         "232cc34c",
-        "worktree-2026-09-19"
+        "worktree-2026-09-19",
+        "391f6ab00",
+        "b65cfd1ed",
+        "a3147f8d0",
+        "fc200620a",
+        "worktree-2026-10-20"
       ],
       "paths": [
         "src-tauri/src/acp/scratch_dir.rs",
@@ -1526,9 +1585,17 @@
     {
       "id": "chat.unified-code-card",
       "category": "product",
-      "description": "Chat code fences use one rounded neutral surface without a header/body divider, with compact language labels and action icons. Dark mode and workspace backgrounds preserve the unified surface while syntax colors, line numbers and copy/download actions remain available.",
-      "origins": ["worktree-2026-09-16"],
-      "paths": ["src/app/globals.css"],
+      "description": "Chat code fences use one rounded neutral surface without a header/body divider, with compact language labels and action icons. Dark mode and workspace backgrounds preserve the unified surface while syntax colors, line numbers and copy/download actions remain available. Streamdown 2.7 moves actions outside its header; compact targets apply to the real action container and retain the common neutral surface.",
+      "origins": [
+        "worktree-2026-09-16",
+        "b260371b0",
+        "950659fb8",
+        "worktree-2026-10-20"
+      ],
+      "paths": [
+        "src/app/globals.css",
+        "src/components/ai-elements/message.tsx"
+      ],
       "contracts": ["src/maxcode-contracts/chat-code-card.contract.test.ts"]
     },
     {
@@ -1685,6 +1752,20 @@
       "contracts": [
         "src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx",
         "src/maxcode-contracts/failed-file-writes.contract.test.ts"
+      ]
+    },
+    {
+      "id": "history.deepseek-rejected-prompts",
+      "category": "runtime",
+      "description": "A DeepSeek prompt rejected before the harness logs it remains in conversation history with its text, images, and rejection reason; subsequent turns retain their order.",
+      "origins": ["worktree-2026-10-19"],
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src/maxcode-contracts/deepseek-rejected-prompt.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/deepseek-rejected-prompt.contract.test.ts"
       ]
     },
     {
@@ -2777,7 +2858,7 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking always excluded and their opt-in controls unavailable, including for existing links and requests that supply legacy flags. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds, merge adjacent text, fold copied session metadata, lazily mount one execution section per round, and load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
+      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking always excluded and their opt-in controls unavailable, including for existing links and requests that supply legacy flags. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds and default to the last textual reply, retaining earlier text and explicit work preambles behind a closed process section. Complete leading AGENTS instruction and environment envelopes fold as session context without hiding a following user question. Legacy snapshots use message boundaries because they lack phase metadata; all text remains available for expansion, images remain inline, and pages load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
       "origins": [
         "worktree-2026-08-31",
         "worktree-2026-09-08",
@@ -3004,7 +3085,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, Claude Code, and ZCode without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",
@@ -3630,7 +3711,7 @@
     {
       "id": "agents.release-file-changes-20260930",
       "category": "runtime",
-      "description": "Claude ACP 0.84 AIR file calls omit text from rawInput in favor of standard Diff content; recover canonical Write/Edit input without overriding complete inputs. Codex ACP 2.x emits multiple hunks per file; retain every hunk in wire order and render/count all of them in live cards and persisted summaries. Project versioned AIR goal, permission, compaction and subagent metadata onto the existing consumers, retain Claude sparse tool identity without replaying terminal data, and recognize Codex plan-review requests without legacy metadata. Keep exact-patch and plan-file capabilities unadvertised until their consumers exist. Preserve ZCode fork and Plan gates with the 0.53.2 upgrade pending native-runtime transition validation.",
+      "description": "Claude ACP 0.84 AIR file calls omit text from rawInput in favor of standard Diff content; recover canonical Write/Edit input without overriding complete inputs. Codex ACP 2.x emits multiple hunks per file; retain every hunk in wire order and render/count all of them in live cards and persisted summaries. Project versioned AIR goal, permission, compaction and subagent metadata onto the existing consumers, retain Claude sparse tool identity without replaying terminal data, and recognize Codex plan-review requests without legacy metadata. Keep exact-patch and plan-file capabilities unadvertised until their consumers exist. ZCode follows the separately reviewed upstream implementation.",
       "origins": ["worktree-2026-09-30"],
       "paths": [
         "src-tauri/src/acp/connection.rs",
@@ -3645,7 +3726,7 @@
     {
       "id": "agents.reviewed-version-catalog",
       "category": "runtime",
-      "description": "Built-in agent install and automatic-update targets use the reviewed September catalog: Gemini 0.59.0, OpenClaw 2026.9.3, OpenCode 1.18.30, Hermes 0.21.1, CodeBuddy 2.149.0, Kimi 0.42.0, Grok 1.0.44 and Qoder 1.1.49, plus maintained Claude ACP 0.84.0, Codex ACP 2.0.1, Pi ACP 0.0.34 and ZCode ACP 0.53.2. DeepSeek 0.9.0 and Antigravity 1.2.1 remain stable.",
+      "description": "Built-in agent install and automatic-update targets use the reviewed September catalog: Gemini 0.59.0, OpenClaw 2026.9.3, OpenCode 1.18.30, Hermes 0.21.1, CodeBuddy 2.149.0, Kimi 0.42.0, Grok 1.0.44 and Qoder 1.1.49, plus maintained Claude ACP 0.84.0, Codex ACP 2.0.1, Pi ACP 0.0.34 and ZCode ACP 0.72.0 (upstream replacement, October 20). DeepSeek 0.9.0 and Antigravity 1.2.1 remain stable.",
       "origins": [
         "8c461154",
         "1055edc4",
@@ -3691,11 +3772,24 @@
     {
       "id": "skills.science-maintained-status",
       "category": "product",
-      "description": "Science skill status includes every maintained skill-capable agent, including Grok, DeepSeek, Antigravity and ZCode, while keeping historical rows and excluding unmaintained new agent columns.",
+      "description": "Science skill status includes every maintained skill-capable agent, including Grok, DeepSeek and Antigravity; ZCode follows upstream without a shared skill store, while keeping historical rows and excluding unmaintained new agent columns.",
       "origins": ["45b9a7ec", "b66f35eb", "worktree-2026-09-23"],
       "paths": ["src-tauri/src/commands/science.rs"],
       "contracts": [
         "src/maxcode-contracts/science-maintained-agents.contract.test.ts"
+      ]
+    },
+    {
+      "id": "todos.searchable-conversation-folder",
+      "category": "product",
+      "description": "Todo conversation folder selection uses the shared in-app searchable picker with alias-first labels, secondary truncated paths, and a full-width field. It excludes chat folders, requires an explicit valid selection before confirming, and retains browse, cancellation and busy-state behavior.",
+      "origins": ["worktree-2026-10-19"],
+      "paths": [
+        "src/components/todos/todo-conversation-folder-dialog.tsx",
+        "src/components/shared/folder-select.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-folder-picker.contract.test.tsx"
       ]
     }
   ],
@@ -3715,6 +3809,19 @@
       "description": "Legacy Tauri desktop shell, transparent desktop pet windows, native remote-workspace connection manager and launch-at-login settings.",
       "origins": ["worktree-2026-09-16"],
       "reason": "Explicitly discontinued after adopting Electron. Do not restore runtime plugins, IPC paths, legacy build/CI entries or these UI surfaces during upstream integration. Keep shared Rust business logic, historical data and the compatible server signing utility."
+    },
+    {
+      "id": "agents.zcode-community-acp-adapter",
+      "category": "runtime",
+      "status": "retired",
+      "description": "MaxCode-specific ZCode SQLite history, alias migration, default-disabled configuration, custom mode/model normalization and dedicated auto-title integration.",
+      "origins": [
+        "feat/zcode-agent",
+        "worktree-2026-09-26",
+        "worktree-2026-10-12",
+        "worktree-2026-10-20"
+      ],
+      "reason": "User explicitly replaced all MaxCode-specific ZCode behavior with the upstream implementation on 2026-10-20. Keep the upstream community adapter integration instead of restoring these customizations."
     }
   ]
 }

@@ -624,6 +624,16 @@ function batchStartCapture(
     }
   }
   const detail = current.detail
+  // No detail on a conversation that already has a row: its history exists
+  // but was never read — a tab kept hidden since the workspace restored loads
+  // its detail only when first shown, and a load can fail. Claiming index 0
+  // (the fresh chat's boundary, below) would put that whole history at the
+  // front of this batch, so claim nothing: the sync then reads the full
+  // transcript and aligns this batch from its end. A fresh chat streams under
+  // a virtual (negative) runtime id until its first send creates the row.
+  if (detail === null && current.conversationId > 0) {
+    return { baseline: null, boundaryIndex: null, boundaryHash: null }
+  }
   const turns = detail?.turns ?? []
   const inFlightId = detail?.in_flight_user_turn_id ?? null
   const cutoff =
@@ -632,7 +642,16 @@ function batchStartCapture(
       : -1
   // History within the window: everything, or up to and including the
   // in-flight prompt (a user turn — it never moves the assistant count).
-  const boundaryRel = cutoff === -1 ? turns.length : cutoff + 1
+  return captureAt(detail, cutoff === -1 ? turns.length : cutoff + 1)
+}
+
+/** The capture for a batch whose first turn lands at `boundaryRel` within
+ *  `detail`'s loaded turns. */
+function captureAt(
+  detail: DbConversationDetail | null,
+  boundaryRel: number
+): BatchStartCapture {
+  const turns = detail?.turns ?? []
   const offset = turnsOffsetOf(detail)
   const assistantsBefore = detail?.assistant_turns_before_offset ?? 0
   const baseline =
@@ -652,6 +671,37 @@ function batchStartCapture(
       ? null
       : extendPrefixFingerprint(seedHash, turns.slice(0, boundaryRel))
   return { baseline, boundaryIndex: offset + boundaryRel, boundaryHash }
+}
+
+/**
+ * Re-anchor a batch whose local turns a load just dropped — see the note in
+ * `FETCH_DETAIL_SUCCESS`. What remains of the batch is the prompt still in
+ * flight, which opens it from here: it lands where the loaded transcript ends,
+ * or sits there already when the load caught it, which the backend says by
+ * stamping it as the turn in flight (`apply_in_flight_message_id`). Anything
+ * else left over names no position, so the start becomes unknown.
+ *
+ * Only the stamp can tell. Matching the transcript's last turn by content (the
+ * viewer echo's dedup) cannot: a load that caught the PREVIOUS prompt before
+ * its reply flushed ends on that prompt too, and with the same words ("continue"
+ * twice) it would anchor the batch a round early — while the stamp's recency
+ * gate tells the two apart. Anchored at the end instead, the earlier reply that
+ * lands there later falls in the batch's empty leading round and is dropped.
+ */
+function recaptureBatchStart(
+  session: ConversationRuntimeSession
+): BatchStartCapture {
+  const prompt = session.optimisticTurns[0]
+  const detail = session.detail
+  if (session.localTurns.length > 0 || !prompt || !detail) {
+    return { baseline: null, boundaryIndex: null, boundaryHash: null }
+  }
+  const turns = detail.turns
+  const stamped =
+    detail.in_flight_user_turn_id === prompt.id
+      ? turns.findIndex((t) => t.role === "user" && t.id === prompt.id)
+      : -1
+  return captureAt(detail, stamped !== -1 ? stamped : turns.length)
 }
 
 interface BuiltStreamingTurns {
@@ -1621,276 +1671,283 @@ export function parseHoldsTheLatestRound(
 }
 
 /**
- * Align a fresh parse's assistant turns onto this session's completed local
- * assistant turns and emit the metadata (usage / duration / model /
- * completed_at) to backfill onto each.
+ * The assistant turns of each ROUND of `turns`, as positions into `turns`.
  *
- * The subtlety is history. `localTurns` holds ONLY turns completed in the
- * current session; persisted history lives in `detail`. The fresh parse
- * returns history + this session's turns in order, so the local turns line up
- * with the parse TAIL, past the `persistedAssistantCount` historical turns —
- * hence the slice below before any offset math.
+ * A round is what one user turn set off: every assistant turn after it, up to
+ * the next user turn. Round 0 holds the assistant turns before the first user
+ * turn — empty for an owner's batch, which opens on the prompt the user sent,
+ * and the whole reply where that prompt is not on this side (a viewer whose
+ * echo deduped against `detail`, the sub-agent adopt path). Empty rounds are
+ * kept, so there is always one round per user turn plus one, and two sequences
+ * can be paired round by round.
  *
- * That boundary is also what makes the "fold extra parser sub-turns into
- * local[0]" step correct. When the parser splits the current reply into MORE
- * sub-turns than the live stream did, the leading unmatched SESSION turns are
- * genuine sub-turns of local[0] and their stats must be summed in (so the
- * post-stream total matches a fresh reload). Folding the FULL parse instead —
- * the original bug — summed every historical turn's duration/usage into the
- * first reply after resuming a conversation; because {@link
- * conversationRuntimeReducer}'s PATCH_TURN_METADATA is first-write-wins, that
- * wrong value then stuck until a full reload cleared localTurns and rendered
- * each parsed turn directly.
+ * A `system` turn — a failed round's closing line — belongs to the round it
+ * closes and opens none.
+ */
+function assistantTurnRounds(turns: readonly MessageTurn[]): number[][] {
+  const rounds: number[][] = [[]]
+  turns.forEach((turn, index) => {
+    if (turn.role === "user") rounds.push([])
+    else if (turn.role === "assistant") rounds[rounds.length - 1].push(index)
+  })
+  return rounds
+}
+
+/**
+ * Where the parse leaves its first `count` assistant turns behind: the
+ * position right after the `count`-th one. `turns.length` when the parse holds
+ * fewer, so a detail/parse count skew (e.g. a transient in-flight partial in
+ * `detail`) leaves nothing to align instead of slicing in the wrong place.
+ */
+function positionPastAssistantTurns(
+  turns: readonly MessageTurn[],
+  count: number
+): number {
+  if (count <= 0) return 0
+  let seen = 0
+  for (let i = 0; i < turns.length; i++) {
+    if (turns[i].role === "assistant" && ++seen === count) return i + 1
+  }
+  return turns.length
+}
+
+type TurnStatsPatch = Pick<
+  TurnMetadataPatch,
+  "usage" | "duration_ms" | "model" | "completed_at"
+>
+
+/**
+ * Spread one round's parsed sub-turns over the same round's local assistant
+ * turns, keyed by local position into `out`.
  *
- * A parse that hasn't caught up yet (fewer session turns than local) head-
- * aligns the turns it does have and leaves the rest unpatched, so a later
- * local reply never inherits an earlier one's stats and the caller's retry can
- * pick up the complete parse rather than lock in a stale value.
+ * The live stream and the parser split a reply into sub-turns by different
+ * rules, so their counts rarely agree. Tail-align: the parse's last sub-turn
+ * lands on the round's last local turn, and a leading surplus (the parser split
+ * the reply finer) is summed into the round's FIRST local turn, so the round's
+ * local turns add up to the reply's parsed total — what the merged reply header
+ * shows, and what a fresh reload renders. A deficit (the live stream split the
+ * reply finer, or the parse holds only part of it so far) head-aligns: parsed
+ * sub-turns land on the earliest local turns and the rest stay unpatched for
+ * the caller's retry. Nothing ever crosses into a neighbouring round.
+ */
+function alignRoundStats(
+  localRound: readonly number[],
+  parsedRound: readonly MessageTurn[],
+  out: Map<number, TurnStatsPatch>
+): void {
+  const offset = parsedRound.length - localRound.length
+  for (let i = 0; i < localRound.length; i++) {
+    const parsedIdx = Math.max(offset, 0) + i
+    if (parsedIdx >= parsedRound.length) return
+    const matched = parsedRound[parsedIdx]
+    let usage = matched.usage
+    let duration = matched.duration_ms
+    let model = matched.model
+    // Roll the leading surplus into the round's first local turn. Only usage,
+    // duration and model aggregate: the rolled-in sub-turns all precede the
+    // matched one, so its completion time is already the latest.
+    for (let j = 0; i === 0 && j < offset; j++) {
+      const extra = parsedRound[j]
+      if (extra.usage) {
+        usage = usage
+          ? {
+              input_tokens: usage.input_tokens + extra.usage.input_tokens,
+              output_tokens: usage.output_tokens + extra.usage.output_tokens,
+              cache_creation_input_tokens:
+                usage.cache_creation_input_tokens +
+                extra.usage.cache_creation_input_tokens,
+              cache_read_input_tokens:
+                usage.cache_read_input_tokens +
+                extra.usage.cache_read_input_tokens,
+            }
+          : { ...extra.usage }
+      }
+      if (typeof extra.duration_ms === "number") {
+        duration = (duration ?? 0) + extra.duration_ms
+      }
+      if (!model && extra.model) model = extra.model
+    }
+    out.set(localRound[i], {
+      usage,
+      duration_ms: duration,
+      model,
+      completed_at: matched.completed_at,
+    })
+  }
+}
+
+/**
+ * Align a fresh parse onto this session's completed local turns and emit the
+ * metadata (usage / duration / model / completed_at, and the parser's name for
+ * the turn) to backfill onto each local assistant turn.
+ *
+ * History first. `localTurns` holds ONLY turns completed in the current
+ * session; persisted history lives in `detail`. The fresh parse returns history
+ * + this session's turns in order, so this session's turns are the parse past
+ * its first `persistedAssistantCount` assistant turns — hence the slice before
+ * anything is aligned. Folding the FULL parse instead — the original bug —
+ * summed every historical turn's duration/usage into the first reply after
+ * resuming a conversation; because {@link conversationRuntimeReducer}'s
+ * PATCH_TURN_METADATA is first-write-wins, that wrong value then stuck until a
+ * full reload cleared localTurns and rendered each parsed turn directly.
+ *
+ * The stats then align ROUND by round (`assistantTurnRounds`), each round
+ * spread by `alignRoundStats`. A reply is several sub-turns on both sides,
+ * split by different rules, and only a user turn says where one reply ends and
+ * the next begins. Aligning the session's sub-turns as one flat list instead
+ * rolled every surplus into the session's FIRST reply: right while a tab had
+ * produced one reply, but each later reply in a tab left open got only its
+ * last few parsed sub-turns — as many as the live stream had split it into —
+ * so an 87-minute Claude reply came out as its final seconds.
+ *
+ * Where the rounds pair up from depends on what the parse is known to start
+ * with (`parseOpensAtBatch`). From the START when it opens where `localTurns`
+ * does: a parse that has not caught up with the newest round leaves that round
+ * unpatched for the caller's retry rather than handing it an earlier reply's
+ * stats, which first-write-wins would lock in, and rounds the parse holds
+ * beyond the tab's are simply not this batch's yet. From the END when the
+ * parse may hold more at its front and holds more rounds than the tab: the
+ * sub-agent adopt path's reply has no prompt on this side while the parse is
+ * the child's whole transcript, so the parse's leading rounds fold into local
+ * round 0, as the flat alignment always did for it; where local round 0 is
+ * empty (a batch that opens on the user's prompt) they belong to no local
+ * reply and are dropped.
  *
  * `persistedAssistantCount` is the caller's send-time history baseline (see the
  * session's `historyAssistantBaseline`), so it is immune to a mid-stream detail
  * refetch folding this session's own partial into `detail`. `0` treats the
- * whole parse as this session's — correct when `localTurns` overlaps the parse
- * tail (the sub-agent adopt path) and identical to the pre-slice behavior.
+ * whole parse as this session's — a parse already cut at the batch boundary,
+ * and the sub-agent adopt path.
  */
 export function computeTurnMetadataPatches(params: {
-  localAssistantIndices: number[]
-  localTurns?: MessageTurn[]
-  parsedAssistantTurns: MessageTurn[]
+  /** This session's completed turns (`localTurns`), every role. */
+  localTurns: readonly MessageTurn[]
+  /** The fresh parse, every role: the full transcript, or the window that
+   *  opens at the batch boundary. */
+  parsedTurns: readonly MessageTurn[]
   persistedAssistantCount: number
   /**
+   * Whether `parsedTurns`, past the history above, opens exactly where
+   * `localTurns` does: the windowed response, or a full parse cut at the
+   * batch boundary. Rounds then pair from the START, which is right however
+   * far the transcript is behind or ahead — a prompt this tab has not taken
+   * in yet (another client's, say) only adds rounds at the end. Otherwise the
+   * parse may still hold earlier rounds at its front (the sub-agent adopt
+   * path, history that was never loaded) and rounds pair from the END.
+   */
+  parseOpensAtBatch: boolean
+  /**
    * Whether the LAST turn of the parse (any role) is an assistant turn — i.e.
-   * the reply that just completed has reached disk. Agents append the user
-   * prompt before the reply, so a trailing USER turn is the transcript telling
-   * us it is still behind. Only `source_turn_id` consults this; the stats keep
-   * their existing best-effort alignment.
+   * the reply that just completed has reached disk — or the line closing the
+   * failed round that just ended (see `parseHoldsTheLatestRound`). Agents
+   * append the user prompt before the reply, so a trailing USER turn is the
+   * transcript telling us it is still behind. Only `source_turn_id` consults
+   * this; a stats round the parse does not hold yet simply stays unpatched.
    */
   parseEndsWithAssistant: boolean
 }): TurnMetadataPatch[] {
-  const { localAssistantIndices, parsedAssistantTurns } = params
-  // Drop the persisted history at the front of the parse; only this session's
-  // turns can align to localTurns. Clamp so a detail/parse count skew (e.g. a
-  // transient in-flight partial in `detail`) can't slice past the end.
-  const historyBoundary = Math.min(
-    Math.max(params.persistedAssistantCount, 0),
-    parsedAssistantTurns.length
-  )
-  const sessionParsedTurns = parsedAssistantTurns.slice(historyBoundary)
-
-  const replyGroups = buildTurnMetadataReplyGroups(
-    localAssistantIndices,
-    params.localTurns,
-    sessionParsedTurns
-  )
-  if (replyGroups) {
-    return replyGroups.flatMap((group) =>
-      alignTurnMetadataGroup(
-        group.localAssistantIndices,
-        group.parsedAssistantTurns,
-        params.parseEndsWithAssistant
-      )
+  const { localTurns } = params
+  const sessionTurns = params.parsedTurns.slice(
+    positionPastAssistantTurns(
+      params.parsedTurns,
+      params.persistedAssistantCount
     )
-  }
-
-  return alignTurnMetadataGroup(
-    localAssistantIndices,
-    sessionParsedTurns,
-    params.parseEndsWithAssistant
   )
-}
 
-interface TurnMetadataReplyGroup {
-  localAssistantIndices: number[]
-  parsedAssistantTurns: MessageTurn[]
-}
+  const stats = new Map<number, TurnStatsPatch>()
+  const localRounds = assistantTurnRounds(localTurns)
+  const parsedRounds = assistantTurnRounds(sessionTurns).map((round) =>
+    round.map((index) => sessionTurns[index])
+  )
+  const surplus = parsedRounds.length - localRounds.length
+  const fromEnd = !params.parseOpensAtBatch && surplus > 0
+  // Whether every round holds as many parsed sub-turns as local ones — the
+  // naming gate below needs it on top of the flat count.
+  let everyRoundLinesUp = true
+  localRounds.forEach((localRound, r) => {
+    const parsedRound = fromEnd
+      ? r === 0
+        ? parsedRounds.slice(0, surplus + 1).flat()
+        : parsedRounds[r + surplus]
+      : (parsedRounds[r] ?? [])
+    if (parsedRound.length !== localRound.length) everyRoundLinesUp = false
+    alignRoundStats(localRound, parsedRound, stats)
+  })
 
-/**
- * Partition the batch at its user prompts before aligning parser sub-turns.
- * Claude commonly persists one assistant record for thinking and another for
- * text while the live stream emits one assistant turn for the whole reply.
- * Aligning the complete batch by count treats every extra parser record as an
- * extra slice of local[0], so later replies keep only their final sub-second
- * text slice. Prompt boundaries keep those slices with their own reply.
- */
-function buildTurnMetadataReplyGroups(
-  localAssistantIndices: number[],
-  localTurns: MessageTurn[] | undefined,
-  parsedAssistantTurns: MessageTurn[]
-): TurnMetadataReplyGroup[] | null {
-  if (!localTurns || localAssistantIndices.length === 0) return null
+  // The parser's name for each turn. Naming a turn is a POSITION claim, and
+  // counts alone can never establish one: a parser sub-turn split (surplus)
+  // and a transcript that hasn't flushed the newest reply yet (deficit) can
+  // cancel to any value including zero. Get identity from the transcript's
+  // shape instead, in two steps.
+  //
+  // 1. `parseEndsWithAssistant` says the reply that just completed is on
+  //    disk. Agents write the user prompt before the reply, so a trailing
+  //    USER turn means the parse is behind and NOTHING here can be placed —
+  //    locals [A,B] against parsed [A1,A2,A3] (A split three ways, B not
+  //    flushed) would otherwise call B the tail and name it "A3", forking at
+  //    A. The sync retries, so refusing costs a round, not the feature.
+  // 2. The parse holding exactly as many assistant turns as this session
+  //    streamed — in EVERY round, not just in total — is then the only shape
+  //    where each position is provably the same reply. A surplus is NOT
+  //    necessarily a sub-turn split the roll-in can attribute: it is equally
+  //    a turn this client never streamed (a Claude async sub-agent's
+  //    out-of-turn reply, a co-controlling client's prompt), and nothing here
+  //    can tell the two apart. Allowing the tail through on a surplus looked
+  //    safe and is not — locals [B] against parsed [B,C] names B with C's id.
+  //    Nor is the total enough on its own: a reply the parser split finer and
+  //    one the live stream split finer cancel out, and the straight-across
+  //    mapping then names the first reply's last turn after a sub-turn of the
+  //    second.
+  //
+  // The name is the matched sub-turn's, never the first of a rolled-in group:
+  // the stats are summed across the group, but a fork point is a position,
+  // and "keep everything up to and including this reply" means its last
+  // sub-turn. Unnamed simply means "fork from here" on that turn degrades to a
+  // tail fork, the feature's documented fallback. Turns are normally named by
+  // the sync that runs right after they complete, when the parse is 1:1; they
+  // go unnamed when that sync was cancelled by the next reply landing inside
+  // its 1.5s delay, or when a split/out-of-turn record leaves a surplus
+  // standing for the rest of the session. That is the accepted price: a fork
+  // one message off is worse than a fork at the tail, because only one of
+  // them is visible to the person who clicked.
+  const localAssistantIndices: number[] = []
+  localTurns.forEach((turn, index) => {
+    if (turn.role === "assistant") localAssistantIndices.push(index)
+  })
+  const sessionAssistantTurns = sessionTurns.filter(
+    (turn) => turn.role === "assistant"
+  )
+  const idIsPlaceable =
+    params.parseEndsWithAssistant &&
+    everyRoundLinesUp &&
+    sessionAssistantTurns.length === localAssistantIndices.length
 
-  const groups: Array<
-    TurnMetadataReplyGroup & { promptAt: number; promptIndex: number }
-  > = []
-  for (const assistantIndex of localAssistantIndices) {
-    let promptIndex = assistantIndex - 1
-    while (promptIndex >= 0 && localTurns[promptIndex]?.role !== "user") {
-      promptIndex -= 1
-    }
-    if (promptIndex < 0) return null
-
-    const promptAt = Date.parse(localTurns[promptIndex].timestamp)
-    if (!Number.isFinite(promptAt)) return null
-
-    const previous = groups[groups.length - 1]
-    if (previous?.promptIndex === promptIndex) {
-      previous.localAssistantIndices.push(assistantIndex)
-      continue
-    }
-    if (previous && promptAt <= previous.promptAt) return null
-    groups.push({
-      promptAt,
-      promptIndex,
-      localAssistantIndices: [assistantIndex],
-      parsedAssistantTurns: [],
-    })
-  }
-
-  let groupIndex = 0
-  for (const parsedTurn of parsedAssistantTurns) {
-    const parsedAt = Date.parse(parsedTurn.timestamp)
-    if (!Number.isFinite(parsedAt)) return null
-    while (
-      groupIndex + 1 < groups.length &&
-      parsedAt >= groups[groupIndex + 1].promptAt
-    ) {
-      groupIndex += 1
-    }
-    groups[groupIndex].parsedAssistantTurns.push(parsedTurn)
-  }
-
-  return groups
-}
-
-function alignTurnMetadataGroup(
-  localAssistantIndices: number[],
-  sessionParsedTurns: MessageTurn[],
-  parseEndsWithAssistant: boolean
-): TurnMetadataPatch[] {
-  const offset = sessionParsedTurns.length - localAssistantIndices.length
   const patches: TurnMetadataPatch[] = []
-
-  for (let i = 0; i < localAssistantIndices.length; i++) {
-    // Tail-align local turns to the session parse so a sub-turn split (parser
-    // emits MORE turns than the live stream did) folds its leading extras into
-    // local[0]. When the parse hasn't caught up to every local turn yet
-    // (offset < 0), `Math.max(offset, 0)` head-aligns instead: it maps the
-    // turns that ARE parsed onto the earliest locals and leaves the rest
-    // unpatched, rather than shifting a parsed turn onto a LATER local reply —
-    // which, with first-write-wins metadata, would lock a wrong value there.
-    const parsedIdx = Math.max(offset, 0) + i
-    let usageToApply: TurnUsage | null | undefined
-    let durationToApply: number | null | undefined
-    let modelToApply: string | null | undefined
-    // For the merged-sub-turn case (offset > 0), the latest completion is
-    // sessionParsedTurns[parsedIdx] (the sub-turn we matched); earlier
-    // rolled-in parsed turns precede it in time, so we don't aggregate
-    // completion timestamps.
-    let completedAtToApply: string | null | undefined
-    // The parser's name for this turn. Deliberately the MATCHED sub-turn and
-    // not the first of a rolled-in group: the stats above are summed across the
-    // group, but a fork point is a position, and "keep everything up to and
-    // including this reply" means the last sub-turn of it.
-    //
-    // Naming a turn is a POSITION claim, and counts alone can never establish
-    // one: `offset` conflates a parser sub-turn split (surplus) with a
-    // transcript that hasn't flushed the newest reply yet (deficit), and the
-    // two can cancel to any value including zero. Get identity from the
-    // transcript's shape instead, in two steps.
-    //
-    // 1. `parseEndsWithAssistant` says the reply that just completed is on
-    //    disk. Agents write the user prompt before the reply, so a trailing
-    //    USER turn means the parse is behind and NOTHING here can be placed —
-    //    locals [A,B] against parsed [A1,A2,A3] (A split three ways, B not
-    //    flushed) would otherwise call B the tail and name it "A3", forking at
-    //    A. The sync retries, so refusing costs a round, not the feature.
-    // 2. `offset === 0` — the parse holds exactly as many assistant turns as
-    //    this session streamed — is then the only shape where each position is
-    //    provably the same reply. A surplus is NOT necessarily a sub-turn
-    //    split the roll-in can attribute to local[0]: it is equally a turn
-    //    this client never streamed (a Claude async sub-agent's out-of-turn
-    //    reply, a co-controlling client's prompt), and nothing here can tell
-    //    the two apart. Allowing the tail through on a surplus looked safe and
-    //    is not — locals [B] against parsed [B,C] names B with C's id.
-    //
-    // Unnamed simply means "fork from here" on that turn degrades to a tail
-    // fork, the feature's documented fallback. Turns are normally named by the
-    // sync that runs right after they complete, when the parse is 1:1; they go
-    // unnamed when that sync was cancelled by the next reply landing inside
-    // its 1.5s delay, or when a split/out-of-turn record leaves a surplus
-    // standing for the rest of the session. That is the accepted price: a fork
-    // one message off is worse than a fork at the tail, because only one of
-    // them is visible to the person who clicked. Stats deliberately keep the
-    // old whole-batch alignment — a summed number in the wrong row is
-    // cosmetic.
-    let sourceTurnIdToApply: string | null | undefined
-    const idIsPlaceable = parseEndsWithAssistant && offset === 0
-
-    if (parsedIdx >= 0 && parsedIdx < sessionParsedTurns.length) {
-      const pt = sessionParsedTurns[parsedIdx]
-      usageToApply = pt.usage
-      durationToApply = pt.duration_ms
-      modelToApply = pt.model
-      completedAtToApply = pt.completed_at
-      if (idIsPlaceable) sourceTurnIdToApply = pt.id
-    }
-
-    // When the parser splits the response into more sub-turns than the live
-    // stream did (offset > 0), roll the leading unmatched SESSION turns'
-    // usage/duration into local[0] so that sum(local) equals sum(parsed) for
-    // this session. `sessionParsedTurns` already excludes history, so this
-    // never folds an older turn's stats in.
-    if (i === 0 && offset > 0) {
-      for (let j = 0; j < offset; j++) {
-        const extra = sessionParsedTurns[j]
-        if (extra.usage) {
-          if (!usageToApply) {
-            usageToApply = { ...extra.usage }
-          } else {
-            usageToApply = {
-              input_tokens:
-                usageToApply.input_tokens + extra.usage.input_tokens,
-              output_tokens:
-                usageToApply.output_tokens + extra.usage.output_tokens,
-              cache_creation_input_tokens:
-                usageToApply.cache_creation_input_tokens +
-                extra.usage.cache_creation_input_tokens,
-              cache_read_input_tokens:
-                usageToApply.cache_read_input_tokens +
-                extra.usage.cache_read_input_tokens,
-            }
-          }
-        }
-        if (typeof extra.duration_ms === "number") {
-          durationToApply = (durationToApply ?? 0) + extra.duration_ms
-        }
-        if (!modelToApply && extra.model) {
-          modelToApply = extra.model
-        }
-      }
-    }
-
+  localAssistantIndices.forEach((index, i) => {
+    const turnStats = stats.get(index)
+    const sourceTurnId = idIsPlaceable ? sessionAssistantTurns[i].id : undefined
     // `source_turn_id` counts as something worth emitting on its own: a turn
     // the parser recorded with no stats at all (a plain codex reply carries no
     // per-turn usage) still needs its name, or "fork from here" on it silently
     // degrades to a tail fork.
     if (
-      !usageToApply &&
-      !durationToApply &&
-      !modelToApply &&
-      !completedAtToApply &&
-      !sourceTurnIdToApply
-    )
-      continue
+      !turnStats?.usage &&
+      !turnStats?.duration_ms &&
+      !turnStats?.model &&
+      !turnStats?.completed_at &&
+      !sourceTurnId
+    ) {
+      return
+    }
     patches.push({
-      index: localAssistantIndices[i],
-      usage: usageToApply,
-      duration_ms: durationToApply,
-      model: modelToApply,
-      completed_at: completedAtToApply,
-      source_turn_id: sourceTurnIdToApply,
+      index,
+      usage: turnStats?.usage,
+      duration_ms: turnStats?.duration_ms,
+      model: turnStats?.model,
+      completed_at: turnStats?.completed_at,
+      source_turn_id: sourceTurnId,
     })
-  }
+  })
 
   return patches
 }
@@ -2218,6 +2275,22 @@ function reducer(
               ),
             }
           : {}),
+      }
+      // A load that drops replies the batch already held leaves the batch's
+      // anchor pointing at where THEY began, while what remains of the batch
+      // (a prompt still in flight, its reply to come) starts somewhere else:
+      // where this transcript now ends. A settled load clearing a send's
+      // earlier replies moves them into `detail`; a fork cuts the transcript
+      // back to its fork point, which may sit before the anchor, on it, or
+      // inside the batch. A sync paired from the old anchor would hand the
+      // next reply some other round's stats, so the batch is re-anchored on
+      // the transcript just loaded (`recaptureBatchStart`). A batch left with
+      // nothing at all is captured afresh by its next send anyway.
+      if (nextSession.localTurns.length < current.localTurns.length) {
+        const capture = recaptureBatchStart(nextSession)
+        nextSession.historyAssistantBaseline = capture.baseline
+        nextSession.batchBoundaryIndex = capture.boundaryIndex
+        nextSession.batchBoundaryPrefixHash = capture.boundaryHash
       }
 
       const nextByConversationId = new Map(state.byConversationId)
@@ -3061,6 +3134,14 @@ export interface RuntimeActions {
     conversationId: number,
     liveMessage?: LiveMessage | null
   ) => void
+  /**
+   * Record that the turn running in the conversations bound to agent session
+   * `externalId` ended while this client was not receiving its events (a
+   * reconnect's snapshot, or the connection gone). Their next `completeTurn`
+   * then reads the reply from the transcript instead of settling on the part
+   * that arrived before the gap. See `unseenTurnEnds`.
+   */
+  markTurnEndUnseen: (externalId: string) => void
   appendOptimisticTurn: (
     conversationId: number,
     turn: MessageTurn,
@@ -3222,6 +3303,8 @@ const olderPageRequests = new Map<number, Promise<boolean>>()
 // trailing USER turn (Claude/Codex append the assistant reply to the JSONL only
 // on completion, so a trailing user turn means the reply is still mid-flush).
 const VIEWER_DETAIL_SYNC_DELAYS_MS = [0, 300, 700, 1500, 2500] as const
+const VIEWER_DETAIL_SYNC_LOAD_WAIT_STEP_MS = 300
+const VIEWER_DETAIL_SYNC_LOAD_WAIT_CAP_MS = 30_000
 
 // ─── Post-turn metadata reparse ──────────────────────────────────────────
 // A settled reply can reach the ACP wire before its transcript metadata is
@@ -3239,6 +3322,95 @@ const viewerDetailSyncCancels = new Map<
 function cancelViewerDetailSync(conversationId: number): void {
   const cancel = viewerDetailSyncCancels.get(conversationId)
   if (cancel) cancel.cancel()
+}
+
+// ─── A turn that ended while this client was away ────────────────────────
+// `completeTurn` promotes the live copy of a reply and never reads the
+// transcript (see the note there): a client that applied every delta of the
+// turn already holds the whole reply. One that was not listening when the turn
+// ended does not — a phone that put the page in the background mid-reply, a
+// laptop that slept (#386). Its re-attach learns that the turn is over from a
+// SNAPSHOT (a gap too long to replay), and a finished turn's snapshot carries no
+// live message, because the backend drops it at TurnComplete; or the connection
+// is gone altogether, idle-swept while nobody watched. The prompting → idle edge
+// fires all the same, and what it promotes is only the part of the reply that
+// arrived before the socket dropped, settled as if it were the whole reply. No
+// later read ever brought in the rest: only reloading the page did.
+//
+// The connections layer is what can tell such an ending from a watched one, so
+// it marks the session (`markTurnEndUnseen`). Its next `completeTurn` still
+// promotes what it has, so the head of the reply stays on screen, and then
+// reads the reply from the transcript, polled: a reconnect can land just as the
+// turn ends, before the agent has written it.
+//
+// Keyed by runtime conversation id, consumed by `completeTurn`.
+const unseenTurnEnds = new Set<number>()
+const UNSEEN_TURN_RESYNC_DELAYS_MS = [
+  ...VIEWER_DETAIL_SYNC_DELAYS_MS,
+  6000,
+  10000,
+] as const
+const unseenTurnResyncCancels = new Map<number, () => void>()
+
+function cancelUnseenTurnResync(conversationId: number): void {
+  unseenTurnResyncCancels.get(conversationId)?.()
+}
+
+/**
+ * Whether a fresh read of the transcript holds everything `promoted` (what the
+ * promotion left in `localTurns`, all of which the read replaces) stood for,
+ * down to the reply of the turn that ended while this client was away.
+ *
+ * That reply is the last turn before any prompt the backend reports as still
+ * running — a queued follow-up can start one the moment the turn is promoted —
+ * and a user turn there means the agent has not written it yet. A reply there
+ * is not enough on its own: a transcript that has not recorded the ended round
+ * at all ends on an EARLIER round's reply, and loading it would take this
+ * round's prompt and partial reply off the screen. So every prompt the batch
+ * holds must be on disk too: counted from the batch's start where this window
+ * contains it; otherwise (start unknown, or the window was reset past it) the
+ * last prompt on disk must be the ended round's own. A batch holding no prompt
+ * is a reply whose prompt was already history — a viewer that attached
+ * mid-turn — and the reply follows it.
+ */
+function holdsUnseenTurnReply(
+  detail: DbConversationDetail,
+  batchBoundaryIndex: number | null,
+  promoted: MessageTurn[]
+): boolean {
+  const turns = detail.turns
+  const inFlightId = detail.in_flight_user_turn_id ?? null
+  const end =
+    inFlightId === null
+      ? turns.length
+      : turns.findIndex((t) => t.role === "user" && t.id === inFlightId)
+  if (end <= 0 || turns[end - 1].role === "user") return false
+  const prompts = promoted.filter((t) => t.role === "user")
+  const endedPrompt = prompts[prompts.length - 1]
+  if (!endedPrompt) return true
+  const start =
+    batchBoundaryIndex === null
+      ? -1
+      : batchBoundaryIndex - turnsOffsetOf(detail)
+  if (start >= 0) {
+    let onDisk = 0
+    for (let i = start; i < end; i++) {
+      if (turns[i].role === "user") onDisk++
+    }
+    return onDisk >= prompts.length
+  }
+  for (let i = end - 1; i >= 0; i--) {
+    if (turns[i].role !== "user") continue
+    return userTurnContentKey(turns[i]) === userTurnContentKey(endedPrompt)
+  }
+  return false
+}
+
+function holdsExactlyTurns(
+  turns: MessageTurn[],
+  ids: ReadonlySet<string>
+): boolean {
+  return turns.length === ids.size && turns.every((t) => ids.has(t.id))
 }
 
 // Resolve the RUNTIME-session key for a `conversation://changed` nudge, which
@@ -4260,6 +4432,8 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       optimisticIds: ReadonlySet<string>
       expectedPrompt: MessageTurn | null
       assistantBaseline: number
+      batchBoundaryIndex: number | null
+      promotedTurns: MessageTurn[]
       detail: DbConversationDetail | null
       onRecovered?: () => void
     }
@@ -4369,17 +4543,23 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
             : -1
           const recoveredReply = !recovery
             ? true
-            : recovery.expectedPrompt
-              ? recoveredPromptIndex >= 0 &&
-                detail.turns
-                  .slice(recoveredPromptIndex + 1)
-                  .some((turn) => turn.role === "assistant") &&
-                assistantCount > recovery.assistantBaseline
-              : detail.turns.some((turn) => turn.role === "assistant") &&
-                recovery.detail !== null &&
-                (turnsTotalOf(detail) > turnsTotalOf(recovery.detail) ||
-                  (detail.transcript_watermark ?? 0) >
-                    (recovery.detail.transcript_watermark ?? 0))
+            : !holdsUnseenTurnReply(
+                  detail,
+                  recovery.batchBoundaryIndex,
+                  recovery.promotedTurns
+                )
+              ? false
+              : recovery.expectedPrompt
+                ? recoveredPromptIndex >= 0 &&
+                  detail.turns
+                    .slice(recoveredPromptIndex + 1)
+                    .some((turn) => turn.role === "assistant") &&
+                  assistantCount > recovery.assistantBaseline
+                : detail.turns.some((turn) => turn.role === "assistant") &&
+                  recovery.detail !== null &&
+                  (turnsTotalOf(detail) > turnsTotalOf(recovery.detail) ||
+                    (detail.transcript_watermark ?? 0) >
+                      (recovery.detail.transcript_watermark ?? 0))
           const replyPending =
             detail.in_flight_user_turn_id != null ||
             lastTurn?.role === "user" ||
@@ -4417,6 +4597,7 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
               preserveLive: false,
               settleMissedTurn: recovery !== undefined,
             })
+            if (recovery) unseenTurnEnds.delete(conversationId)
             recovery?.onRecovered?.()
           }
           if (
@@ -4455,6 +4636,113 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
     } else {
       attempt(0)
     }
+  }
+
+  // Replace what `completeTurn` just promoted for a turn that ended while this
+  // client was away (see `unseenTurnEnds`) with the reply read from the
+  // transcript. Commits only a read that holds every round the promotion left,
+  // down to that reply (`holdsUnseenTurnReply`); gives up, keeping the head as
+  // before, when the transcript never gets there. Never sets `detailLoading`:
+  // the head of the reply stays on screen while this reads.
+  const resyncUnseenTurnEnd = (conversationId: number): void => {
+    cancelUnseenTurnResync(conversationId)
+    const session = get().byConversationId.get(conversationId)
+    if (!session) return
+
+    // Everything the promotion left in `localTurns` — this reply's head and the
+    // earlier rounds of the batch — is on disk once the read holds them all, and
+    // the read replaces all of it, so all of it goes. A turn of a NEW prompt (a
+    // queued follow-up sent the moment this one settled) is in
+    // `optimisticTurns` / `liveMessage`, and the commit keeps those.
+    const promoted = session.localTurns
+    const staleIds = new Set(promoted.map((t) => t.id))
+    const batchBoundaryIndex = session.batchBoundaryIndex
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    const cancel = (): void => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+      if (unseenTurnResyncCancels.get(conversationId) === cancel) {
+        unseenTurnResyncCancels.delete(conversationId)
+      }
+    }
+    unseenTurnResyncCancels.set(conversationId, cancel)
+
+    const retry = (n: number): void => {
+      if (n + 1 >= UNSEEN_TURN_RESYNC_DELAYS_MS.length) {
+        cancel()
+        return
+      }
+      timer = setTimeout(
+        () => attempt(n + 1),
+        UNSEEN_TURN_RESYNC_DELAYS_MS[n + 1]
+      )
+    }
+
+    let loadWaitedMs = 0
+    const attempt = (n: number): void => {
+      if (cancelled) return
+      const cur = get().byConversationId.get(conversationId)
+      // Gone (tab closed), or `localTurns` no longer what the promotion left: a
+      // load already replaced it (a reload), or a later turn was promoted on top
+      // of it, which a read taken now would show twice.
+      if (!cur || !holdsExactlyTurns(cur.localTurns, staleIds)) {
+        cancel()
+        return
+      }
+      // A load the view started is in flight; only its own result clears
+      // `detailLoading`, and reading now would void it. Wait for it, as
+      // `syncViewerDetail` does.
+      if (cur.detailLoading) {
+        if (loadWaitedMs >= VIEWER_DETAIL_SYNC_LOAD_WAIT_CAP_MS) {
+          cancel()
+          return
+        }
+        loadWaitedMs += VIEWER_DETAIL_SYNC_LOAD_WAIT_STEP_MS
+        timer = setTimeout(
+          () => attempt(n),
+          VIEWER_DETAIL_SYNC_LOAD_WAIT_STEP_MS
+        )
+        return
+      }
+      const fetchId = cur.dbConversationId ?? conversationId
+      if (fetchId <= 0) {
+        cancel()
+        return
+      }
+      const generation = bumpFetchGeneration(conversationId)
+      fetchDetailWindowed(fetchId, cur.detail)
+        .then((detail) => {
+          if (cancelled) return
+          const now = get().byConversationId.get(conversationId)
+          if (!now || !holdsExactlyTurns(now.localTurns, staleIds)) {
+            cancel()
+            return
+          }
+          // A later read owns the detail; this one may predate it.
+          if (
+            !isLatestGeneration(conversationId, generation) ||
+            !holdsUnseenTurnReply(detail, batchBoundaryIndex, promoted)
+          ) {
+            retry(n)
+            return
+          }
+          dispatch({
+            type: "FETCH_DETAIL_SUCCESS",
+            conversationId,
+            detail,
+            preserveLive: true,
+            dropLiveTurnIds: [...staleIds],
+          })
+          cancel()
+        })
+        .catch(() => {
+          if (!cancelled) retry(n)
+        })
+    }
+
+    attempt(0)
   }
 
   const syncTurnMetadata = (
@@ -4530,9 +4818,6 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
               }
             }
 
-            const parsedAssistantTurns = parsed.turns.filter(
-              (t) => t.role === "assistant"
-            )
             // Persisted history precedes this batch in the parse; the count
             // of leading parsed assistant turns that are history tells the
             // alignment where the batch starts so it never folds a historical
@@ -4550,8 +4835,8 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
             // the turn patches entirely (session stats are still safe: they
             // describe the full transcript regardless of the window).
             //
-            // LEGACY response (old server): today's math, verbatim — the
-            // global baseline over the full parse.
+            // LEGACY response (old server, or no boundary was captured): the
+            // full parse, cut below.
             const responseWindowed = isWindowedDetail(parsed)
             const boundaryHash = cur.batchBoundaryPrefixHash
             const windowVerified =
@@ -4559,17 +4844,40 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
               boundaryHash != null &&
               parsed.turns_offset === boundaryIndex &&
               parsed.prefix_hash === boundaryHash
-            const persistedAssistantCount = responseWindowed
-              ? 0
-              : (cur.historyAssistantBaseline ?? 0)
+            // A legacy response is the whole transcript. Cut it at the batch
+            // boundary too, so it opens where `localTurns` do, exactly like
+            // the window would: counting history replies alone leaves the
+            // prompt of a viewer batch whose echo deduped against `detail`
+            // at the front, one round more than the tab holds, and a parse a
+            // round behind then hands the first reply's stats to the newest.
+            // The cut is trusted only while the history before it still holds
+            // the `historyAssistantBaseline` replies it held at capture;
+            // otherwise the baseline alone (the old math) decides, aligning
+            // from the end.
+            const legacyCut =
+              !responseWindowed &&
+              boundaryIndex != null &&
+              boundaryIndex <= parsed.turns.length &&
+              parsed.turns
+                .slice(0, boundaryIndex)
+                .filter((t) => t.role === "assistant").length ===
+                (cur.historyAssistantBaseline ?? 0)
+            const parsedTurns =
+              legacyCut && boundaryIndex != null
+                ? parsed.turns.slice(boundaryIndex)
+                : parsed.turns
+            const persistedAssistantCount =
+              responseWindowed || legacyCut
+                ? 0
+                : (cur.historyAssistantBaseline ?? 0)
             const patches =
               responseWindowed && !windowVerified
                 ? []
                 : computeTurnMetadataPatches({
-                    localAssistantIndices,
                     localTurns: cur.localTurns,
-                    parsedAssistantTurns,
+                    parsedTurns,
                     persistedAssistantCount,
+                    parseOpensAtBatch: windowVerified || legacyCut,
                     parseEndsWithAssistant: parseHoldsTheLatestRound(
                       parsed.turns,
                       cur.localTurns
@@ -4707,10 +5015,13 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
         optimisticIds: new Set(session.optimisticTurns.map((turn) => turn.id)),
         expectedPrompt: prompt,
         assistantBaseline,
+        batchBoundaryIndex: session.batchBoundaryIndex,
+        promotedTurns: [...session.localTurns, ...session.optimisticTurns],
         detail: session.detail,
         onRecovered,
       }
       const retry = () => {
+        cancelUnseenTurnResync(conversationId)
         cancelViewerDetailSync(conversationId)
         syncViewerDetail(conversationId, recovery)
       }
@@ -4741,13 +5052,34 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       // the complete, correct render; a later cold detail fetch (opening the tab
       // again, etc.) reconciles it against the DB whenever that naturally
       // happens.
+      // A reconnect marks a reply whose tail never reached the live stream.
+      // Promote its observed head, then replace it only after the whole batch
+      // has persisted. Stop the older snapshot recovery so one poll owns it.
+      const unseen = unseenTurnEnds.delete(conversationId)
       dispatch({ type: "COMPLETE_TURN", conversationId, liveMessage })
+      if (unseen) {
+        cancelViewerDetailSync(conversationId)
+        resyncUnseenTurnEnd(conversationId)
+      }
       const completed = get().byConversationId.get(conversationId)
       const persistedId = completed?.dbConversationId ?? conversationId
       saveGenerationStats(
         persistedId,
         completed?.sessionStats?.generation_stats
       )
+    },
+    markTurnEndUnseen: (externalId) => {
+      for (const [conversationId, session] of get().byConversationId) {
+        if (session.externalId !== externalId) continue
+        // Only a session the coming promotion drains; one with no turn in its
+        // live buffers did not stream this one.
+        if (
+          session.liveMessage === null &&
+          session.optimisticTurns.length === 0
+        )
+          continue
+        unseenTurnEnds.add(conversationId)
+      }
     },
     appendOptimisticTurn: (conversationId, turn, turnToken) =>
       dispatch({
@@ -4799,6 +5131,12 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
     setSyncState: (conversationId, syncState) =>
       dispatch({ type: "SET_SYNC_STATE", conversationId, syncState }),
     migrateConversation: (fromConversationId, toConversationId) => {
+      if (
+        fromConversationId !== toConversationId &&
+        unseenTurnEnds.delete(fromConversationId)
+      ) {
+        unseenTurnEnds.add(toConversationId)
+      }
       dispatch({
         type: "MIGRATE_CONVERSATION",
         fromConversationId,
@@ -4830,9 +5168,15 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
       // also stop it on the next fire, but cancelling now drops the pending
       // timer immediately).
       cancelViewerDetailSync(conversationId)
+      unseenTurnEnds.delete(conversationId)
+      cancelUnseenTurnResync(conversationId)
       dispatch({ type: "REMOVE_CONVERSATION", conversationId })
     },
-    reset: () => dispatch({ type: "RESET" }),
+    reset: () => {
+      unseenTurnEnds.clear()
+      for (const cancel of [...unseenTurnResyncCancels.values()]) cancel()
+      dispatch({ type: "RESET" })
+    },
   }
 
   return {
@@ -4949,6 +5293,9 @@ export function resetConversationRuntimeStore(): void {
   olderPageRequests.clear()
   for (const poll of viewerDetailSyncCancels.values()) poll.cancel()
   viewerDetailSyncCancels.clear()
+  unseenTurnEnds.clear()
+  for (const cancel of [...unseenTurnResyncCancels.values()]) cancel()
+  unseenTurnResyncCancels.clear()
   for (const pending of pendingSessionReleases.values()) clearTimeout(pending)
   pendingSessionReleases.clear()
   timelineCache = new WeakMap()

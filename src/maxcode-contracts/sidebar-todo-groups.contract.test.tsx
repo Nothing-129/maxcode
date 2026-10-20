@@ -7,6 +7,7 @@ import {
   renderHook,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
@@ -403,11 +404,20 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
       name: enMessages.Todos.chooseConversationFolder,
     })
     expect(useTabStore.getState().rawTabs).toHaveLength(0)
-    fireEvent.change(
-      screen.getByRole("combobox", {
+    fireEvent.click(
+      screen.getByRole("button", {
         name: enMessages.Todos.chooseConversationFolder,
-      }),
-      { target: { value: "1" } }
+      })
+    )
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", {
+          name: enMessages.Todos.chooseConversationFolder,
+        })
+      ).getByText(
+        useAppWorkspaceStore.getState().allFolders[0].alias ||
+          useAppWorkspaceStore.getState().allFolders[0].name
+      )
     )
     fireEvent.click(
       screen.getByRole("button", {
@@ -493,7 +503,6 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
 
   it("requires folder confirmation without a valid sibling folder and creates nothing on cancel", async () => {
     const id = "20da561085a74c658a43a162b1e2d69c"
-    const current = useAppWorkspaceStore.getState()
     useAppWorkspaceStore.setState({
       conversations: [{ ...conversation(1), folder_id: 999 }],
     })
@@ -525,11 +534,20 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await screen.findByRole("dialog", {
       name: enMessages.Todos.chooseConversationFolder,
     })
-    fireEvent.change(
-      screen.getByRole("combobox", {
+    fireEvent.click(
+      screen.getByRole("button", {
         name: enMessages.Todos.chooseConversationFolder,
-      }),
-      { target: { value: String(current.allFolders[0].id) } }
+      })
+    )
+    fireEvent.click(
+      within(
+        screen.getByRole("dialog", {
+          name: enMessages.Todos.chooseConversationFolder,
+        })
+      ).getByText(
+        useAppWorkspaceStore.getState().allFolders[0].alias ||
+          useAppWorkspaceStore.getState().allFolders[0].name
+      )
     )
     fireEvent.click(
       screen.getByRole("button", {

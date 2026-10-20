@@ -4,13 +4,12 @@ import { describe, expect, it } from "vitest"
 import { AgentIcon } from "./agent-icon"
 
 describe("AgentIcon", () => {
-  it("renders the ZCode mark as a currentColor glyph pinned to the theme foreground", () => {
+  it("renders the upstream ZCode logo with its app icon plate", () => {
     const { container } = render(<AgentIcon agentType="zcode" />)
     const svg = container.querySelector("svg")
     expect(svg).not.toBeNull()
-    expect(svg).toHaveAttribute("fill", "currentColor")
+    expect(svg).toHaveAttribute("viewBox", "0 0 24 24")
     expect(svg?.querySelector("title")?.textContent).toBe("ZCode")
-    expect(svg?.querySelector("linearGradient")).toBeNull()
-    expect(container.firstElementChild).toHaveClass("text-foreground")
+    expect(svg?.querySelector("linearGradient")).not.toBeNull()
   })
 })

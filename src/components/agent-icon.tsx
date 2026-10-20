@@ -463,25 +463,45 @@ const CursorMonoIcon = memo(function CursorMonoIcon({
   )
 })
 
-// ZCode's official Z mark — the glyph from zai-org/ZCode
-// (packages/ui/src/assets/Z.svg). Filled with currentColor so the path
-// follows the theme at full strength, matching the other frameless mono
-// marks (sidebar rows, agent pills, status bar).
-const ZCODE_Z_PATH =
-  "M416.94 21L165.546 340H19L55.5693 293.581L138.137 190.103L138.141 190.098L233.312 68.0605L233.313 68.0615L270.394 21H416.94ZM282.514 293.771H390.497L354.052 339.998H207.856L220.612 323.807C235.554 304.84 258.368 293.771 282.514 293.771ZM227.134 21L220.756 29.0889C201.752 53.1885 172.752 67.252 142.061 67.252H43.9502L80.3965 21H227.134Z"
-
-const ZcodeMonoIcon = memo(function ZcodeMonoIcon({ size = "1em" }: IconProps) {
+const ZCodeColorIcon = memo(function ZCodeColorIcon({
+  size = "1em",
+}: IconProps) {
+  // ZCode's Z mark, white on a dark squircle like the official app icon
+  // (zai-org/ZCode public/logo/icons, also zcode.z.ai's favicon). The three
+  // paths are the logo inlined in zcode.z.ai's header, verbatim in its
+  // 256×218 viewBox; the transform scales the mark to the app icon's
+  // proportion (68.75% of the icon's width) and centers it in the 24-box. The
+  // plate keeps the app icon's top-to-bottom #151718 → #000000 gradient on the
+  // 5.3 corner of the other plated marks (Kimi Code, Pi).
+  const id = useId()
   return (
     <svg
-      fill="currentColor"
       height={size}
       style={baseSvgStyle}
-      viewBox="0 0 436 360"
+      viewBox="0 0 24 24"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>ZCode</title>
-      <path d={ZCODE_Z_PATH} />
+      <rect width="24" height="24" rx="5.3" fill={`url(#${id})`} />
+      <g fill="#FFFFFF" transform="translate(3.75 4.9831) scale(0.064453)">
+        <path d="M134.4 0.130152L116.48 25.6022C113.665 29.5699 109.054 32.0019 104.064 32.0019H6.3999V0C6.3999 0.130149 134.4 0.130152 134.4 0.130152Z" />
+        <path d="M256 0.130127L102.401 217.732H0L153.599 0.130127H256Z" />
+        <path d="M121.601 217.732L139.65 192.134C142.465 188.166 147.076 185.734 152.067 185.734H249.604V217.736H121.601V217.732Z" />
+      </g>
+      <defs>
+        <linearGradient
+          gradientUnits="userSpaceOnUse"
+          id={id}
+          x1="12"
+          x2="12"
+          y1="0"
+          y2="24"
+        >
+          <stop stopColor="#151718" />
+          <stop offset="1" stopColor="#000000" />
+        </linearGradient>
+      </defs>
     </svg>
   )
 })
@@ -497,6 +517,7 @@ const COLOR_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   kimi_code: KimiCodeColorIcon,
   pi: PiColorIcon,
   deepseek: DeepSeekColorIcon,
+  zcode: ZCodeColorIcon,
 }
 
 const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
@@ -508,7 +529,6 @@ const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   cursor: CursorMonoIcon,
   qoder: QoderMonoIcon,
   antigravity: AntigravityMonoIcon,
-  zcode: ZcodeMonoIcon,
 }
 
 // Per-agent color override for mono marks, layered on top of the default

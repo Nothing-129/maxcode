@@ -15,7 +15,7 @@ import { getAgentLabel } from "@/lib/custom-agents"
 import { readConversationShareToken } from "@/lib/conversation-share"
 import {
   groupConversationShareRounds,
-  mergeShareTextBlocks,
+  partitionShareReplies,
   splitShareUserText,
   type ConversationShareRound,
 } from "@/lib/conversation-share-content"
@@ -140,7 +140,9 @@ function UserText({ text }: { text: string }) {
   const content = splitShareUserText(text)
   return (
     <div className="space-y-2 text-sm leading-7">
-      <div className="whitespace-pre-wrap break-words">{content.text}</div>
+      {content.text ? (
+        <div className="whitespace-pre-wrap break-words">{content.text}</div>
+      ) : null}
       {content.metadata ? (
         <details className="text-xs text-muted-foreground">
           <summary className="cursor-pointer">
@@ -158,16 +160,22 @@ function UserText({ text }: { text: string }) {
 function SharedRound({ round }: { round: ConversationShareRound }) {
   const t = useTranslations("Folder.conversationCard")
   const [processOpen, setProcessOpen] = useState(false)
-  const replyBlocks = round.replies.flatMap((turn) => turn.blocks)
-  const isExecution = (block: ContentBlock) =>
-    ["tool_use", "tool_result", "thinking", "plan"].includes(block.type)
-  const process = replyBlocks.filter(isExecution)
-  const answer = mergeShareTextBlocks(
-    replyBlocks.filter((block) => !isExecution(block))
+  const { answer, process } = partitionShareReplies(round.replies)
+  const contextOnly = round.user?.blocks.every(
+    (block) =>
+      block.type === "text" &&
+      !splitShareUserText(block.text).text &&
+      !!splitShareUserText(block.text).metadata
   )
   return (
     <article className="min-w-0 space-y-6" data-share-round={round.number}>
-      {round.user ? (
+      {round.user && contextOnly ? (
+        <div className="rounded-xl border border-border/60 px-4 py-3">
+          {round.user.blocks.map((block, index) => (
+            <Block key={index} block={block} role="user" />
+          ))}
+        </div>
+      ) : round.user ? (
         <div className="ml-auto space-y-2 rounded-2xl bg-secondary px-4 py-3 md:max-w-[85%]">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             <span className="font-medium">{t("shareRoleUser")}</span>
@@ -195,7 +203,7 @@ function SharedRound({ round }: { round: ConversationShareRound }) {
               onToggle={(event) => setProcessOpen(event.currentTarget.open)}
             >
               <summary className="cursor-pointer text-muted-foreground">
-                {t("shareExecution", { count: process.length })}
+                {t("shareProgress", { count: process.length })}
               </summary>
               {processOpen ? (
                 <div className="mt-3 space-y-3">

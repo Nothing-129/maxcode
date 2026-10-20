@@ -5,7 +5,8 @@
 //! `get_session_info` (resolve a referenced session by id), plus the
 //! chat-authoring tools (`create_automation` / `create_work_task`), gated by the
 //! `--features` groups (`delegation` / `feedback` / `ask` / `sessions` /
-//! `tasks` / `automations` / `taskboard`).
+//! `tasks` / `automations` / `taskboard` / `todos`). The `todos` group handles
+//! human-owned personal/team todos, independently of AI work tasks.
 //!
 //! The agent's MCP config (injected by codeg via `load_mcp_servers_for_agent`)
 //! spawns this binary with three required flags:

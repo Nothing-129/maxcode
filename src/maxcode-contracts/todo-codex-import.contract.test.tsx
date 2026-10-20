@@ -101,7 +101,10 @@ it("captures the todo scope, requires a project and opens the imported native co
   fireEvent.click(screen.getByRole("button", { name: "Import and continue" }))
   const confirm = screen.getByRole("button", { name: "Import and open" })
   expect(confirm).toBeDisabled()
-  fireEvent.change(screen.getByRole("combobox"), { target: { value: "7" } })
+  fireEvent.click(
+    screen.getByRole("button", { name: "Choose conversation folder" })
+  )
+  fireEvent.click(screen.getByText("Project"))
   h.state.active_team_id = "team-b"
   fireEvent.click(confirm)
   fireEvent.click(screen.getByRole("button", { name: "Importing…" }))
@@ -132,7 +135,10 @@ it("uses an explicit source origin and leaves failed imports retryable", async (
   )
   render(view({ origin: { scope_id: "source-team", todo_id: todo.id } }))
   fireEvent.click(screen.getByRole("button", { name: "Import and continue" }))
-  fireEvent.change(screen.getByRole("combobox"), { target: { value: "7" } })
+  fireEvent.click(
+    screen.getByRole("button", { name: "Choose conversation folder" })
+  )
+  fireEvent.click(screen.getByText("Project"))
   fireEvent.click(screen.getByRole("button", { name: "Import and open" }))
   expect(await screen.findByRole("alert")).toHaveTextContent("Team is offline")
   expect(todoImportCodexSession).toHaveBeenCalledWith({

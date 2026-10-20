@@ -1,6 +1,14 @@
 import { useEffect } from "react"
 import { renderHook } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from "vitest"
 
 import { useHistoryBackDismiss } from "./use-history-back-dismiss"
 
@@ -21,7 +29,7 @@ const goBack = () => traverse(() => window.history.back())
 const goForward = () => traverse(() => window.history.forward())
 
 describe("useHistoryBackDismiss", () => {
-  let pushSpy: ReturnType<typeof vi.spyOn>
+  let pushSpy: MockInstance
 
   beforeEach(() => {
     // Each case starts on an entry without a marker. Earlier cases leave

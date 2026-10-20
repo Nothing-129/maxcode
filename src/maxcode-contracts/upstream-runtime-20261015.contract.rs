@@ -11,7 +11,7 @@ fn reviewed_pins_leave_unreviewed_agents_and_runtime_gates_alone() {
         (AgentType::Grok, "1.0.52", "20.0.0"),
         (AgentType::Pi, "0.0.34", "22.0.0"),
         (AgentType::DeepSeek, "0.9.0", "22.0.0"),
-        (AgentType::Zcode, "0.53.2", "22.0.0"),
+        (AgentType::Zcode, "0.72.0", "22.0.0"),
     ] {
         let AgentDistribution::Npx {
             version,
@@ -103,17 +103,6 @@ fn relocated_claude_history_uses_the_launch_env_without_changing_global_env() {
     assert!(rendered.contains("preserve my prompt"));
     assert!(rendered.contains("preserved reply"));
     assert_eq!(std::env::var_os("CLAUDE_CONFIG_DIR"), inherited);
-    let zcode = AgentEnv::from_overrides(BTreeMap::from([
-        ("ZCODE_HOME".into(), String::new()),
-        (
-            "ZCODE_DATA_BASE_DIR".into(),
-            dir.path().to_string_lossy().into_owned(),
-        ),
-    ]));
-    assert_eq!(
-        crate::parsers::zcode::resolve_zcode_data_root_for_env(&zcode),
-        dir.path().join(".zcode")
-    );
 }
 
 #[test]

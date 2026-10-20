@@ -148,6 +148,18 @@ impl AuthoringOutcome {
 /// [`crate::acp::work_task_tools::WorkTaskToolAccess`].
 #[async_trait]
 pub trait ChatAuthoringAccess: Send + Sync {
+    /// Session-authenticated personal/team todos. These do not schedule or
+    /// launch agents, so they are independent of the two execution feature flags.
+    async fn todo_call(
+        &self,
+        _ctx: AuthoringContext,
+        _request: crate::todo::conversation_sources::mcp::ToolRequest,
+    ) -> Result<serde_json::Value, crate::app_error::AppCommandError> {
+        Err(crate::app_error::AppCommandError::permission_denied(
+            "Todo tools unavailable",
+        ))
+    }
+
     async fn create_automation(
         &self,
         ctx: AuthoringContext,

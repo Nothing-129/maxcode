@@ -1801,6 +1801,11 @@ pub fn build_router(
             post(handlers::todo::team_todo_call)
                 .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
         )
+        .route(
+            "/team_todo_create",
+            post(handlers::todo::team_todo_create)
+                .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
+        )
         .route("/team_todo_join", post(handlers::todo::team_todo_join))
         .route("/team_todo_lookup", post(handlers::todo::team_todo_lookup))
         .route(

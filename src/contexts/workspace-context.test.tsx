@@ -1,5 +1,5 @@
 import { act, render, screen } from "@testing-library/react"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 import {
   WorkspaceProvider,
   useWorkspaceActions,
@@ -227,11 +227,11 @@ beforeEach(() => {
 })
 
 const mockedApi = api as unknown as {
-  getHomeDirectory: ReturnType<typeof vi.fn>
-  readFileForEdit: ReturnType<typeof vi.fn>
-  gitIsTracked: ReturnType<typeof vi.fn>
-  gitShowFile: ReturnType<typeof vi.fn>
-  saveFileContent: ReturnType<typeof vi.fn>
+  getHomeDirectory: Mock
+  readFileForEdit: Mock
+  gitIsTracked: Mock
+  gitShowFile: Mock
+  saveFileContent: Mock
 }
 
 // Tab identity under the unified model: file tabs are keyed by the
@@ -1993,8 +1993,8 @@ describe("applyExternalReload git base does not stale-write after close+reopen",
 describe("WorkspaceProvider office auto-preview", () => {
   beforeEach(() => {
     workspaceStoreMock.reset()
-    // Preference defaults ON; drop any "false" a prior test left behind.
-    localStorage.removeItem("workspace:office-auto-preview")
+    // These watcher tests explicitly opt in to automatic previews.
+    localStorage.setItem("workspace:office-auto-preview:v2", "true")
     vi.mocked(api.listDirectoryWithFiles).mockImplementation(async (root) =>
       ["report.pptx", "deck.pptx", "report.docx"].map((name) => ({
         name,
@@ -2221,7 +2221,7 @@ describe("WorkspaceProvider office auto-preview", () => {
   })
 
   it("does not auto-open when the preference is disabled", async () => {
-    localStorage.setItem("workspace:office-auto-preview", "false")
+    localStorage.setItem("workspace:office-auto-preview:v2", "false")
     renderWorkspace()
 
     await act(async () => {

@@ -6,7 +6,15 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react"
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest"
 
 import type { FileWorkspaceTab } from "@/contexts/workspace-context"
 
@@ -88,7 +96,7 @@ const pdfjs = vi.hoisted(() => {
     resolve: (doc: unknown) => void
     reject: (error: unknown) => void
     onPassword: ((update: (pw: string) => void, reason: number) => void) | null
-    destroy: ReturnType<typeof vi.fn>
+    destroy: Mock
   }
 
   const state = {

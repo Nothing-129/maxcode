@@ -836,7 +836,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               onChange={setShareOptions}
             />
           ) : null}
-          {shareForTodo && shareIsCodex && !shareUrl ? (
+          {shareIsCodex ? (
             <label className="flex min-w-0 items-start gap-3 rounded-xl border p-3">
               <Checkbox
                 className="mt-0.5 shrink-0"

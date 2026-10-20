@@ -30,7 +30,7 @@ use crate::acp::delegation::types::{
 use crate::acp::feedback::{PendingFeedback, SessionFeedbackAccess};
 use crate::acp::question::{QuestionOutcome, SessionQuestionAccess};
 #[cfg(unix)]
-use crate::acp::scratch_dir::SUN_PATH_CAP;
+use crate::acp::scratch_dir::{is_inside_sweep_scope, SUN_PATH_CAP};
 use crate::acp::session_info::{SessionInfo, SessionInfoAccess};
 use crate::acp::work_task_tools::{TaskReportAck, WorkTaskToolAccess};
 use crate::models::AgentType;
@@ -340,6 +340,20 @@ impl DelegationListener {
             }
             BrokerMessage::CreateWorkTask(req) => {
                 authoring_response(self.process_create_work_task(req).await)?
+            }
+            BrokerMessage::Todo(req) => {
+                let result = match self.authoring_context(&req.token).await {
+                    Some(ctx) => self.authoring.todo_call(ctx, req.request).await,
+                    None => Err(crate::app_error::AppCommandError::permission_denied(
+                        "invalid token",
+                    )),
+                };
+                BrokerResponse {
+                    outcome: match result {
+                        Ok(value) => serde_json::json!({"ok": true, "result": value}),
+                        Err(error) => serde_json::json!({"ok": false, "error": error}),
+                    },
+                }
             }
             BrokerMessage::Cancel(cancel) => {
                 self.process_cancel(cancel).await;
@@ -877,7 +891,10 @@ async fn bind_unix_socket(socket_path: &Path) -> std::io::Result<tokio::net::Uni
             crate::acp::scratch_dir::create_root(parent).map_err(|e| {
                 std::io::Error::new(
                     e.kind(),
-                    format!("cannot use {} for the delegation socket: {e}", parent.display()),
+                    format!(
+                        "cannot use {} for the delegation socket: {e}",
+                        parent.display()
+                    ),
                 )
             })?;
         } else {
@@ -905,7 +922,8 @@ fn short_socket_dir() -> PathBuf {
 /// codeg instances on the same machine don't collide.
 ///
 /// Unix: a `.sock` file inside `temp_dir`, falling back to a private per-user
-/// `/tmp` directory if the ambient directory exceeds the AF_UNIX path budget.
+/// `/tmp` directory if the ambient directory exceeds the AF_UNIX path budget
+/// or belongs to a disposable launch scratch directory.
 /// Windows: a named pipe address `\\.\pipe\codeg-delegation-<pid>`. Windows
 /// named pipes live in their own kernel namespace and ignore `temp_dir`; the
 /// argument is kept for signature parity across platforms.
@@ -913,15 +931,43 @@ fn short_socket_dir() -> PathBuf {
 pub fn default_socket_path(temp_dir: &Path) -> PathBuf {
     let name = format!("codeg-delegation-{}.sock", std::process::id());
     let preferred = temp_dir.join(&name);
-    if fits_sun_path(&preferred) {
+    // The guard gets the full `preferred` path rather than `temp_dir`: that is
+    // strictly stronger — it also refuses the corner where `temp_dir` IS a
+    // sweep root, whose socket inside would be just as deletable.
+    let in_sweep_scope = is_inside_sweep_scope(&preferred);
+    if fits_sun_path(&preferred) && !in_sweep_scope {
         return preferred;
     }
+    // No third candidate, because there is no third case to handle: this is
+    // `/tmp/codeg-` + at most 10 digits of euid + `/codeg-delegation-` + at
+    // most 10 digits of pid + `.sock` — 54 bytes at its absolute widest, or
+    // half the smallest `sun_path` any of these platforms has. It is also
+    // outside every sweep root by construction, which is the other half of
+    // what the guard above has to be able to promise about its result.
     let short = short_socket_dir().join(&name);
-    tracing::info!(
-        "[delegation] {} exceeds the AF_UNIX path budget; binding {} instead",
-        preferred.display(),
-        short.display(),
-    );
+    if !fits_sun_path(&preferred) {
+        tracing::info!(
+            "[delegation] {} is {} bytes, past the {}-byte AF_UNIX limit; \
+             binding {} instead",
+            preferred.display(),
+            preferred.as_os_str().len(),
+            SUN_PATH_CAP - 1,
+            short.display(),
+        );
+    }
+    if in_sweep_scope {
+        tracing::warn!(
+            "[delegation] TMPDIR {} sits inside codeg's per-launch scratch \
+             namespace (`<pid>-<8 hex>` directories codeg deletes wholesale when \
+             their launch ends or their owner dies), so the broker socket is bound \
+             at {} instead — bound there it would silently disappear with that \
+             directory. This usually happens when the app is launched from inside \
+             a codeg-managed session environment and inherits its scratch TMPDIR; \
+             if that was not intentional, restart it from a clean environment.",
+            temp_dir.display(),
+            short.display(),
+        );
+    }
     short
 }
 
@@ -938,6 +984,8 @@ mod tests {
         mock::MockSpawner, ConnectionSpawner, ResumedSpawn, SpawnerError,
     };
     use crate::acp::delegation::types::{DelegationError, DelegationOutcome, DelegationSuccess};
+    #[cfg(unix)]
+    use crate::acp::scratch_dir::short_root;
     use serde_json::json;
     use std::time::Duration;
     use tokio::io::duplex;
@@ -1082,9 +1130,19 @@ mod tests {
     struct StubAuthoring {
         automations: tokio::sync::Mutex<Vec<(AuthoringContext, NewAutomationSpec)>>,
         work_tasks: tokio::sync::Mutex<Vec<(AuthoringContext, NewWorkTaskSpec)>>,
+        todos: tokio::sync::Mutex<Vec<AuthoringContext>>,
     }
     #[async_trait]
     impl ChatAuthoringAccess for StubAuthoring {
+        async fn todo_call(
+            &self,
+            ctx: AuthoringContext,
+            _request: crate::todo::conversation_sources::mcp::ToolRequest,
+        ) -> Result<Value, crate::app_error::AppCommandError> {
+            self.todos.lock().await.push(ctx);
+            Ok(serde_json::json!({"scopes": []}))
+        }
+
         async fn create_automation(
             &self,
             ctx: AuthoringContext,
@@ -2314,6 +2372,47 @@ mod tests {
         assert!(authoring.automations.lock().await.is_empty());
     }
 
+    #[tokio::test]
+    async fn todo_broker_authenticates_and_resolves_current_conversation() {
+        let authoring = Arc::new(StubAuthoring::default());
+        let tokens = Arc::new(TokenRegistry::default());
+        tokens
+            .register(
+                "valid".into(),
+                TokenEntry {
+                    parent_connection_id: "parent".into(),
+                    working_dir: PathBuf::from("/repo"),
+                },
+            )
+            .await;
+        for token in ["invalid", "valid"] {
+            let listener = make_authoring_listener(tokens.clone(), authoring.clone(), Some(42));
+            let (mut client, mut server) = duplex(8 * 1024);
+            let task = tokio::spawn(async move { listener.serve_one(&mut server).await.unwrap() });
+            write_frame(
+                &mut client,
+                &BrokerMessage::Todo(super::super::transport::BrokerTodoRequest {
+                    token: token.into(),
+                    request: crate::todo::conversation_sources::mcp::ToolRequest {
+                        tool: "list_todo_scopes".into(),
+                        arguments: serde_json::json!({}),
+                    },
+                }),
+            )
+            .await
+            .unwrap();
+            let response: BrokerResponse = read_frame(&mut client).await.unwrap();
+            task.await.unwrap();
+            assert_eq!(response.outcome["ok"], token == "valid");
+            if token == "invalid" {
+                assert!(authoring.todos.lock().await.is_empty());
+            }
+        }
+        let calls = authoring.todos.lock().await;
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].conversation_id, Some(42));
+    }
+
     /// `CommitFeedback` marks the named ids delivered, scoped (via the token) to
     /// the parent connection — the companion sends this only after it delivers.
     #[tokio::test]
@@ -2540,6 +2639,66 @@ mod tests {
         server_task.await.unwrap();
         assert_eq!(resp.outcome["declined"], true);
         assert!(questions.registered.lock().await.is_empty());
+    }
+    #[cfg(unix)]
+    #[test]
+    fn a_temp_dir_inside_the_sweep_scope_falls_back_to_the_short_socket_dir() {
+        let ambient = short_root().join(format!("{}-deadbeef", std::process::id()));
+        assert!(is_inside_sweep_scope(&ambient));
+        let composed = ambient.join(format!("codeg-delegation-{}.sock", std::process::id()));
+        assert!(
+            fits_sun_path(&composed),
+            "the length budget must NOT be what refuses this: {}",
+            composed.display()
+        );
+
+        let path = default_socket_path(&ambient);
+        assert_eq!(path.parent(), Some(short_socket_dir().as_path()));
+        assert!(
+            !is_inside_sweep_scope(&path),
+            "the fallback itself must stay out of scope: {}",
+            path.display()
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_alias_into_a_launch_dir_falls_back_too() {
+        let holder = tempfile::tempdir_in("/tmp").expect("tempdir");
+        let leaf = holder.path().join("codeg-acp").join("4242-deadbeef");
+        std::fs::create_dir_all(&leaf).expect("create leaf");
+        let alias = holder.path().join("session-tmp");
+        std::os::unix::fs::symlink(&leaf, &alias).expect("symlink");
+
+        let path = default_socket_path(&alias);
+        assert_eq!(path.parent(), Some(short_socket_dir().as_path()));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn no_chosen_socket_path_is_ever_inside_the_sweep_scope() {
+        for temp_dir in [
+            // The ordinary short case, an over-long macOS one, a scratch
+            // directory of our own, the ambient scratch root, one under
+            // another codeg's root, and TMPDIR.
+            PathBuf::from("/tmp"),
+            PathBuf::from(format!("/var/folders/hl/{}/T", "z".repeat(30))),
+            short_root().join(format!("{}-deadbeef", std::process::id())),
+            std::env::temp_dir().join("codeg-acp").join("4242-deadbeef"),
+            PathBuf::from("/tmp/codeg-acp/4242-deadbeef"),
+            std::env::temp_dir(),
+        ] {
+            let path = default_socket_path(&temp_dir);
+            let parent = path
+                .parent()
+                .expect("a socket path always names a directory");
+            assert!(
+                !is_inside_sweep_scope(parent),
+                "{} would put the socket inside a sweep root: {}",
+                temp_dir.display(),
+                path.display()
+            );
+        }
     }
 }
 

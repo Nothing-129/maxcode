@@ -1329,7 +1329,7 @@ export const AGENT_COLORS: Record<BuiltinAgentType, string> = {
   deepseek: "bg-[#4D6BFE]",
   qoder: "bg-[#6C4CF1]",
   antigravity: "bg-[#1A73E8]",
-  zcode: "bg-[#3B5BFF]",
+  zcode: "bg-[#111827]",
 }
 
 // ACP connection status (matches Rust ConnectionStatus)
@@ -4029,6 +4029,7 @@ export type McpAppType =
   | "qoder"
   | "antigravity"
   | "pi"
+  | "zcode"
 
 export interface LocalMcpServer {
   id: string
@@ -4532,6 +4533,7 @@ export interface AdapterInfo {
   native_label: string
   /** Where the user's own vendor CLI was found. codeg never launches it. */
   native_path: string | null
+  native_required?: boolean
   /** Config dir both read, so installing the adapter needs no second login. */
   shared_config_dir: string
   docs_url: string

@@ -70,6 +70,11 @@ impl AgentType {
         matches!(self, AgentType::Custom(_))
     }
 
+    /// Whether MaxCode owns this agent's history as an ACP transcript.
+    pub fn uses_acp_transcript(&self) -> bool {
+        matches!(self, AgentType::Custom(_) | AgentType::Zcode)
+    }
+
     /// The custom agent's registry id, or `None` for a built-in.
     pub fn custom_id(&self) -> Option<&'static str> {
         match self {
@@ -176,7 +181,6 @@ pub fn is_valid_custom_agent_id(id: &str) -> bool {
                 | "deepseek"
                 | "qoder"
                 | "antigravity"
-                | "zcode"
         )
 }
 

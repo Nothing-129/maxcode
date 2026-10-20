@@ -31,3 +31,20 @@ fn a_preexisting_symlink_is_never_adopted_as_private_scratch() {
     assert!(read_sweep_root(&root).is_none());
     assert!(std::fs::read_dir(target).unwrap().next().is_none());
 }
+
+#[test]
+fn adopted_temp_directory_survives_while_unrelated_orphans_are_reclaimed() {
+    let holder = tempfile::tempdir_in("/tmp").unwrap();
+    let root = holder.path().join("codeg-acp");
+    create_root(&root).unwrap();
+    let adopted = root.join(new_dir_name(std::process::id()));
+    let orphan = root.join(new_dir_name(std::process::id()));
+    create_leaf(&adopted).unwrap();
+    create_leaf(&orphan).unwrap();
+    let alias = holder.path().join("adopted-temp");
+    std::os::unix::fs::symlink(&adopted, &alias).unwrap();
+    assert!(is_inside_sweep_scope(&alias));
+    sweep_own_orphans_in(&[root], &alias);
+    assert!(adopted.exists());
+    assert!(!orphan.exists());
+}
