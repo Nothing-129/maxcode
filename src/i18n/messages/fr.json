@@ -1367,8 +1367,8 @@
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
     "zcode": {
-      "configManagement": "Runtime ZCode",
-      "configDescription": "MaxCode utilise l’adaptateur zcode-acp-server de William. Installez et configurez d’abord l’application de bureau ou la CLI ZCode ; les modèles et identifiants sont partagés depuis ~/.zcode. Utilisez ZCODE_BIN pour un chemin personnalisé et ZCODE_ACP_MODE pour le mode initial des autorisations. L’approbation des outils est activée par défaut."
+      "adapterInfo": "MaxCode exécute {adapterPackage} comme passerelle ACP. Installez ZCode et connectez-vous d’abord ; son environnement et sa configuration existants sont utilisés.",
+      "runtimeHint": "Installez ZCode et connectez-vous d’abord. MaxCode installe uniquement la passerelle ACP. Si la détection échoue, indiquez l’entrée CLI avec ZCODE_BIN et Node.js avec ZCODE_NODE. Gérez modèles et identifiants dans ZCode."
     },
     "authModeOfficialSubscription": "Abonnement officiel",
     "authModeCustomEndpoint": "Endpoint personnalisé",

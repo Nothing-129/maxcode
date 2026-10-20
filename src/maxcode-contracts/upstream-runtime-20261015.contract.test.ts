@@ -12,7 +12,7 @@ describe("MaxCode reviewed upstream runtime October 15", () => {
     }
   })
 
-  it("keeps relocated history on the seven maintained native parsers", () => {
+  it("keeps relocated history on the maintained native parsers", () => {
     const parsers = source("src-tauri/src/parsers/mod.rs")
     for (const [agent, parser] of [
       ["ClaudeCode", "claude::ClaudeParser"],
@@ -21,7 +21,6 @@ describe("MaxCode reviewed upstream runtime October 15", () => {
       ["Pi", "pi::PiParser"],
       ["DeepSeek", "deepseek::DeepSeekParser"],
       ["Antigravity", "antigravity::AntigravityParser"],
-      ["Zcode", "zcode::ZcodeParser"],
     ]) {
       expect(parsers).toContain(
         `AgentType::${agent} => Box::new(${parser}::for_env(env))`

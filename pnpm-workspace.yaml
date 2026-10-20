@@ -2,7 +2,10 @@ packages:
   - electron
 
 overrides:
-  mermaid: ">=11.13.0"
+  # Keep the stylesheet and every renderer on the same patched KaTeX.
+  katex: ^0.19.0
+  # ansi-to-react uses the compatible factory/tlds API from linkify-it 5.
+  ansi-to-react>linkify-it: ^5.0.2
 
 allowBuilds:
   "@parcel/watcher": true

@@ -744,6 +744,371 @@ describe("syncTurnMetadata windowed gate", () => {
 })
 
 /**
+ * Which local reply each parsed round belongs to. A tab keeps every reply sent
+ * in it, and only the batch's start says where the parse's rounds line up with
+ * them: from that start when the parse is known to open there (the window, or
+ * a legacy parse cut at the boundary), from the end when it may still hold
+ * history (no boundary was captured).
+ */
+describe("syncTurnMetadata round anchoring", () => {
+  const usage = (input: number) => ({
+    input_tokens: input,
+    output_tokens: 0,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+  })
+  const reply = (
+    id: string,
+    secs: number,
+    duration_ms: number,
+    input: number
+  ): MessageTurn => ({
+    ...turn(id, "assistant", secs),
+    duration_ms,
+    usage: usage(input),
+    completed_at: ts(secs),
+  })
+  const legacy = (turns: MessageTurn[]): DbConversationDetail =>
+    windowedDetail(0, {
+      turns,
+      turns_offset: null,
+      turns_total: null,
+      assistant_turns_before_offset: null,
+      prefix_hash: null,
+      uncovered_prefix_max_ts: null,
+    })
+
+  it("cuts a legacy parse at the boundary, so a deduped viewer batch a round behind keeps its own stats", async () => {
+    vi.useFakeTimers()
+    // A viewer whose first prompt (turn-2) deduped against `detail`: the
+    // boundary sits right after it, and the tab holds that prompt's reply,
+    // the next prompt and its reply. The server ignores `fromIndex` and
+    // returns the whole transcript, which has not reached the next prompt.
+    seed({
+      localTurns: [
+        turn("live-r1", "assistant", 3),
+        turn("live-p2", "user", 4),
+        turn("live-r2", "assistant", 5),
+      ],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 3,
+      batchBoundaryPrefixHash: null,
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 5_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 600_000, 10),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(mockGet).toHaveBeenCalledWith(CID, { fromIndex: 3 })
+    expect(session()?.localTurns[0]?.duration_ms).toBe(600_000)
+    // Not the first reply's 10 minutes — first-write-wins would keep them.
+    expect(session()?.localTurns[2]?.duration_ms).toBeUndefined()
+    expect(session()?.localTurns[2]?.usage).toBeUndefined()
+  })
+
+  it("pairs the window from the batch's start when another client's prompt is already on disk", async () => {
+    vi.useFakeTimers()
+    seed({
+      localTurns: [
+        turn("live-a", "user", 6),
+        turn("live-b", "assistant", 7),
+        turn("live-c", "user", 8),
+        turn("live-d", "assistant", 9),
+      ],
+      historyAssistantBaseline: 3,
+      batchBoundaryIndex: 6,
+      batchBoundaryPrefixHash: hashPrefix(6),
+    })
+    mockGet.mockResolvedValue(
+      windowedDetail(6, {
+        turns: [
+          turn("turn-6", "user", 6),
+          reply("turn-7", 7, 100, 1),
+          turn("turn-8", "user", 8),
+          reply("turn-9", 9, 200, 2),
+          // Another client's prompt and the start of its reply.
+          turn("turn-10", "user", 10),
+          reply("turn-11", 11, 400, 4),
+        ],
+        turns_total: 12,
+      })
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(session()?.localTurns[1]?.duration_ms).toBe(100)
+    expect(session()?.localTurns[3]?.duration_ms).toBe(200)
+    expect(session()?.localTurns[3]?.usage?.input_tokens).toBe(2)
+  })
+
+  it("re-anchors on the in-flight prompt after a load drops replies the batch held", async () => {
+    vi.useFakeTimers()
+    // The batch began after [hp, ha] and has one finished round. The owner
+    // sends p2; a settled detail load that started before the send lands
+    // while p2 is in flight, moves the finished round into `detail` and
+    // drops it from `localTurns` — so the batch now starts at p2, not where
+    // its boundary still points.
+    seed({
+      detail: legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)]),
+      localTurns: [turn("live-p1", "user", 2), turn("live-l1", "assistant", 3)],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 2,
+      batchBoundaryPrefixHash: null,
+    })
+    actions().appendOptimisticTurn(CID, turn("opt-p2", "user", 4), "tok-2")
+    mockGet.mockResolvedValueOnce(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 5_000, 5),
+      ])
+    )
+    actions().refetchDetail(CID)
+    await flush()
+    expect(session()?.localTurns).toEqual([])
+    // p2 lands where the loaded transcript ends.
+    expect(session()?.batchBoundaryIndex).toBe(4)
+    expect(session()?.historyAssistantBaseline).toBe(2)
+
+    actions().completeTurn(CID, {
+      id: "r2",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+      startedAt: Date.parse(ts(5)),
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 5_000, 5),
+        turn("turn-4", "user", 4),
+        reply("turn-5", 5, 600_000, 60),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    const local = session()?.localTurns ?? []
+    const newest = local[local.length - 1]
+    expect(newest?.role).toBe("assistant")
+    expect(newest?.duration_ms).toBe(600_000)
+  })
+
+  it("re-anchors on a fork back to the batch's boundary", async () => {
+    vi.useFakeTimers()
+    // A fork back to [hp, ha] — exactly the batch's boundary — drops the old
+    // round from the transcript and from the tab. p2 was sent before the
+    // fork's reload landed. By the time p2's reply settles, another client's
+    // round is on disk too: paired from the end, it would take p2's place.
+    seed({
+      detail: legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)]),
+      localTurns: [
+        turn("live-old-p", "user", 2),
+        turn("live-old-a", "assistant", 3),
+      ],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 2,
+      batchBoundaryPrefixHash: null,
+    })
+    actions().appendOptimisticTurn(CID, turn("opt-p2", "user", 4), "tok-2")
+    mockGet.mockResolvedValueOnce(
+      legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)])
+    )
+    actions().refetchDetail(CID, {
+      preserveLive: true,
+      dropLiveTurnIds: ["live-old-p", "live-old-a"],
+    })
+    await flush()
+    expect(session()?.localTurns).toEqual([])
+    expect(session()?.batchBoundaryIndex).toBe(2)
+
+    actions().completeTurn(CID, {
+      id: "r2",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+      startedAt: Date.parse(ts(5)),
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("turn-2", "user", 4),
+        reply("turn-3", 5, 600_000, 60),
+        turn("turn-4", "user", 6),
+        reply("turn-5", 7, 5_000, 5),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    const local = session()?.localTurns ?? []
+    const newest = local[local.length - 1]
+    expect(newest?.role).toBe("assistant")
+    expect(newest?.duration_ms).toBe(600_000)
+  })
+
+  it("re-anchors past a fork that kept part of the batch", async () => {
+    vi.useFakeTimers()
+    // "Fork from here" on the batch's first reply: the forked transcript keeps
+    // that round, and the follow-up p2 went out before the fork's reload
+    // landed, inheriting the batch's old anchor at the round's start. Left
+    // there, p2's reply would be paired with the round the fork kept.
+    seed({
+      detail: legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)]),
+      localTurns: [turn("live-p1", "user", 2), turn("live-l1", "assistant", 3)],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 2,
+      batchBoundaryPrefixHash: null,
+    })
+    actions().appendOptimisticTurn(CID, turn("opt-p2", "user", 4), "tok-2")
+    mockGet.mockResolvedValueOnce(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 5_000, 5),
+      ])
+    )
+    actions().refetchDetail(CID, {
+      preserveLive: true,
+      dropLiveTurnIds: ["live-p1", "live-l1"],
+    })
+    await flush()
+    expect(session()?.batchBoundaryIndex).toBe(4)
+
+    actions().completeTurn(CID, {
+      id: "r2",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+      startedAt: Date.parse(ts(5)),
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 5_000, 5),
+        turn("turn-4", "user", 4),
+        reply("turn-5", 5, 600_000, 60),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    const local = session()?.localTurns ?? []
+    const newest = local[local.length - 1]
+    expect(newest?.role).toBe("assistant")
+    expect(newest?.duration_ms).toBe(600_000)
+  })
+
+  it("re-anchors on the in-flight prompt when the reload already holds it", async () => {
+    // The reload caught p2 on disk, stamped as the turn in flight: the batch
+    // opens on that turn, not after it.
+    seed({
+      detail: legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)]),
+      localTurns: [turn("live-p1", "user", 2), turn("live-l1", "assistant", 3)],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 2,
+      batchBoundaryPrefixHash: null,
+    })
+    actions().appendOptimisticTurn(CID, turn("opt-p2", "user", 4), "tok-2")
+    mockGet.mockResolvedValueOnce({
+      ...legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        turn("opt-p2", "user", 4),
+      ]),
+      in_flight_user_turn_id: "opt-p2",
+    })
+    actions().refetchDetail(CID, {
+      preserveLive: true,
+      dropLiveTurnIds: ["live-p1", "live-l1"],
+    })
+    await flush()
+    expect(session()?.batchBoundaryIndex).toBe(2)
+    expect(session()?.historyAssistantBaseline).toBe(1)
+  })
+
+  it("does not take an earlier identical prompt for the one in flight", async () => {
+    vi.useFakeTimers()
+    // "continue" twice. The reload caught p1 before its reply flushed and
+    // landed after p2 went out: its last turn is p1, with p2's very words.
+    // Only the in-flight stamp could place p2, and there is none.
+    const say = (id: string, secs: number): MessageTurn => ({
+      ...turn(id, "user", secs),
+      blocks: [{ type: "text", text: "continue" }],
+    })
+    seed({
+      detail: legacy([turn("turn-0", "user", 0), reply("turn-1", 1, 1_000, 1)]),
+      localTurns: [say("live-p1", 2), turn("live-l1", "assistant", 3)],
+      historyAssistantBaseline: 1,
+      batchBoundaryIndex: 2,
+      batchBoundaryPrefixHash: null,
+    })
+    actions().appendOptimisticTurn(CID, say("opt-p2", 4), "tok-2")
+    mockGet.mockResolvedValueOnce(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        say("turn-2", 2),
+      ])
+    )
+    actions().refetchDetail(CID)
+    await flush()
+    expect(session()?.batchBoundaryIndex).toBe(3)
+
+    actions().completeTurn(CID, {
+      id: "r2",
+      role: "assistant",
+      content: [{ type: "text", text: "done" }],
+      startedAt: Date.parse(ts(5)),
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 1_000, 1),
+        say("turn-2", 2),
+        reply("turn-3", 3, 5_000, 5),
+        say("turn-4", 4),
+        reply("turn-5", 5, 600_000, 60),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    const local = session()?.localTurns ?? []
+    const newest = local[local.length - 1]
+    expect(newest?.role).toBe("assistant")
+    expect(newest?.duration_ms).toBe(600_000)
+  })
+
+  it("aligns from the end when no boundary was captured", async () => {
+    vi.useFakeTimers()
+    // A prompt that reached a tab whose detail never loaded: no boundary, so
+    // the whole transcript comes back, history first.
+    seed({
+      localTurns: [turn("live-p", "user", 20), turn("live-r", "assistant", 21)],
+    })
+    mockGet.mockResolvedValue(
+      legacy([
+        turn("turn-0", "user", 0),
+        reply("turn-1", 1, 5_000, 1),
+        turn("turn-2", "user", 2),
+        reply("turn-3", 3, 7_000, 2),
+        turn("turn-4", "user", 20),
+        reply("turn-5", 21, 1_234, 3),
+      ])
+    )
+    actions().syncTurnMetadata(CID)
+    await vi.advanceTimersByTimeAsync(1600)
+    expect(mockGet).toHaveBeenCalledWith(CID, undefined)
+    expect(session()?.localTurns[1]?.duration_ms).toBe(1_234)
+  })
+})
+
+/**
  * The agent's transcript flush races the ACP turn-end that starts this sync,
  * and for a batched/compressed log (deepseek) it can lose that race by many
  * seconds. Everything the reply's footer shows — model, tokens, completion
@@ -957,12 +1322,28 @@ describe("batch boundary capture", () => {
   })
 
   it("captures the seed fingerprint when no detail exists yet (fresh chat)", () => {
-    seed({})
-    actions().appendOptimisticTurn(CID, turn("opt-1", "user", 10), "tok-1")
-    const s = session()
+    // A fresh chat streams under a virtual (negative) runtime id until its
+    // first send creates the row.
+    const DRAFT = -CID
+    useConversationRuntimeStore.setState({
+      byConversationId: new Map([[DRAFT, emptySession(DRAFT)]]),
+    })
+    actions().appendOptimisticTurn(DRAFT, turn("opt-1", "user", 10), "tok-1")
+    const s = useConversationRuntimeStore.getState().byConversationId.get(DRAFT)
     expect(s?.historyAssistantBaseline).toBe(0)
     expect(s?.batchBoundaryIndex).toBe(0)
     expect(s?.batchBoundaryPrefixHash).toBe(FNV_SEED_HEX)
+  })
+
+  it("claims no boundary when a persisted conversation's detail never loaded", () => {
+    // Its history exists but was not read (a tab kept hidden since the
+    // workspace restored), so no index can be the batch's start.
+    seed({})
+    actions().appendOptimisticTurn(CID, turn("opt-1", "user", 10), "tok-1")
+    const s = session()
+    expect(s?.historyAssistantBaseline).toBeNull()
+    expect(s?.batchBoundaryIndex).toBeNull()
+    expect(s?.batchBoundaryPrefixHash).toBeNull()
   })
 
   it("captures a null fingerprint under a legacy detail (gate disabled)", () => {

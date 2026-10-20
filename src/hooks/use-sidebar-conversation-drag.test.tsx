@@ -1,8 +1,10 @@
 import { fireEvent, render, screen } from "@testing-library/react"
-import { afterEach, describe, expect, it, vi } from "vitest"
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest"
 import type { DbConversationSummary } from "@/lib/types"
 import { useSidebarConversationDrag } from "./use-sidebar-conversation-drag"
 import { useTabStore } from "@/stores/tab-store"
+
+const realAction = useTabStore.getState().openConversationInGroup
 
 vi.mock("@/lib/conversation-drop-target", () => ({
   sidebarConversationDropTarget: (x: number) =>
@@ -14,7 +16,7 @@ const conversation = {
   agent_type: "codex",
   title: "Folder session",
 } as DbConversationSummary
-function Row({ onSelect }: { onSelect: ReturnType<typeof vi.fn> }) {
+function Row({ onSelect }: { onSelect: Mock }) {
   const down = useSidebarConversationDrag(onSelect)
   return (
     <button
@@ -41,6 +43,9 @@ function pointer(type: string, x: number, pointerType = "mouse") {
 afterEach(() => {
   vi.restoreAllMocks()
   useTabStore.getState().endTabDrag()
+  // Zustand copies the spied method into new state objects during a drag.
+  // Restoring the old object does not replace that copied Vitest 4 spy.
+  useTabStore.setState({ openConversationInGroup: realAction })
   // Consume any click guard installed by cancellation in this test.
   window.dispatchEvent(new MouseEvent("click", { detail: 1 }))
 })

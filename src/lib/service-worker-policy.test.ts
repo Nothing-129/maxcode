@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs"
 import path from "node:path"
-import { describe, expect, it, vi } from "vitest"
+import { describe, expect, it, vi, type Mock } from "vitest"
 
 /**
  * Behavior of public/sw.js itself, run against an in-memory Cache Storage
@@ -139,8 +139,8 @@ type Network = (
 interface Worker {
   storage: FakeCacheStorage
   fetch: ReturnType<typeof vi.fn<Network>>
-  skipWaiting: ReturnType<typeof vi.fn>
-  claim: ReturnType<typeof vi.fn>
+  skipWaiting: Mock
+  claim: Mock
   handlers: Map<string, (event: unknown) => void>
 }
 

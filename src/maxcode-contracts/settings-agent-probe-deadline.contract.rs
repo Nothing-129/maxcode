@@ -92,12 +92,12 @@ async fn settings_version_probes_run_together_instead_of_queueing() {
         Duration::from_secs(8),
         probe_agent_installations(vec![
             (AgentType::DeepSeek, None, Some(first_bin)),
-            (AgentType::Zcode, None, Some(second_bin)),
+            (AgentType::Hermes, None, Some(second_bin)),
         ]),
     )
     .await
     .expect("independent settings version probes must start together");
-    for agent in [AgentType::DeepSeek, AgentType::Zcode] {
+    for agent in [AgentType::DeepSeek, AgentType::Hermes] {
         assert_eq!(installations[&agent], (true, "npx", Some("1.2.3".into())));
     }
 }

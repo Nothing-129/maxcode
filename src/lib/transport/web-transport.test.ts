@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest"
 import { WebTransport } from "./web-transport"
 
 // Minimal controllable WebSocket stand-in: records instances and lets the test
@@ -62,7 +70,7 @@ function lastWs(): MockWebSocket {
   return MockWebSocket.instances[MockWebSocket.instances.length - 1]
 }
 
-let fetchMock: ReturnType<typeof vi.fn>
+let fetchMock: Mock
 const transports: WebTransport[] = []
 
 beforeEach(() => {

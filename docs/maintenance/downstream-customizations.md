@@ -28,6 +28,25 @@
 
 2026-10-16 待办 Markdown 与对象存储：编辑器支持 Markdown 和实时预览，粘贴图片/文件先上传再在光标处插入 URL；团队创建者配置 MinIO 的 S3 API、Bucket、访问密钥、Region 及带 Bucket/CDN 映射的可匿名读取文件地址。密钥仅通过宿主凭据存储保存；成员上传由成员令牌确定团队范围。个人附件保存在上传目录的 `todo-attachments/` 下，数据库只记文件元信息，链接为随机 ID 的读取地址。个人本地文件引用合计限制 100 MiB；团队 MinIO 附件取消应用层大小限制。启动迁移会删除旧数据库内嵌附件，保留待办正文及现有 Markdown URL；不再读取或转换旧附件，并拒绝旧客户端写回该格式。旧文件 URL 不随 MinIO 配置变化重写；未引用的已上传对象不自动删除，可由存储管理员按保留策略维护。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`、`todo-minio-settings.contract.test.tsx`、`todo-minio.contract.rs`。
 
+## 2026-10-20 选择性上游集成与 ZCode 替换
+
+评审固定上游 `a86f7a11a`。在 `main` 建立临时分支前保存原工作区快照，
+恢复原有待办、分享、DeepSeek 与 Office 改动后执行影响扫描；逐块移植选定提交，
+保留 Electron、七智能体范围与其他 MaxCode 交互。详见
+[本轮评审](./upstream-review-20261020.md)。
+
+| 范围 | 当前行为 | 保护项 |
+| --- | --- | --- |
+| 手机返回 | 等本批全部提示与回复落盘再补齐结束回复，保留排队后续、去重、耗时与计费 | `runtime.unseen-reply-accounting-20261020` |
+| 长会话统计 | 按提示边界对应耗时与用量；Claude 后台回合不计入此前空闲，恢复重复历史只读取一次 | `runtime.unseen-reply-accounting-20261020` |
+| 委托临时目录 | socket 避开所有 scratch 清理范围，处理别名和继承路径，清理保留当前采用的临时目录及原有权限防护 | `runtime.upstream-socket-ask-20260919` |
+| 安装状态与 Pi | npm 命令消失即清除幽灵安装状态；临时版本探测失败仍保留可启动安装；Pi 项目 MCP 配置纳入代码执行信任检查 | `runtime.install-detection-pi-trust-20261020` |
+| 前端依赖与渲染 | 更新编辑器、Markdown、公式、图表依赖及 Vitest/Vite，保留统一代码卡片与紧凑动作按钮，覆盖真实 Streamdown 输出 | `chat.unified-code-card` |
+| ZCode | 完整改用上游社区适配器 0.72.0、官方运行时/Node 发现、模式确认、独立 ACP 历史与 MCP 存储；移除旧原生数据库、别名、默认关闭、模型重映射和专属标题逻辑 | `agents.zcode-upstream-20261020` |
+
+`agents.zcode-community-acp-adapter` 已按用户要求退役。旧版描述仅作历史记录，
+不得恢复对应定制。历史文件保留在用户磁盘，本轮只移除旧解析代码，不清除外部数据。
+
 ## 2026-10-15 上游 v0.35.2 选择性集成
 
 评审上游 `e2a7d3d77`，从 `main` 建立临时集成分支，并在修改前运行
@@ -54,12 +73,12 @@
 
 维护 Claude Code、Codex、Grok、Pi、DeepSeek、Google Antigravity 和 ZCode。
 2026-09-26 将 ZCode 切换为社区 ACP 适配器，并恢复设置与新会话入口。
-2026-10-12 起 ZCode 新配置默认关闭，保留已有启用或关闭选择；状态查询及新会话列表共用该默认值。独立契约：`src/maxcode-contracts/zcode-default-disabled.contract.test.ts`。
+2026-10-20 起 ZCode 完整跟随上游集成，旧的默认关闭约定已退役。当前说明见 [ZCode](../agents/zcode.md)。
 其他智能体保留历史数据、解析器和适配代码，但不出现在设置或新会话目录中，
 不执行后台自动更新，也不吸收其专属上游变更。新增自定义智能体入口隐藏。
 下方早期版本目录记录仅作为历史来源，不代表当前维护范围。
 
-ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显示 GLM 模型；旧配置里重复的 `builtin:bigmodel` 值转换为可切换的注册表 ID，失败切换回显上次确认值。独立契约：`src/maxcode-contracts/zcode-model-registry.contract.test.ts`。
+ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考选项直接遵循上游 ACP 配置更新。
 
 2026-09-30 版本评审依据：[Claude ACP 0.84.0](https://github.com/agentclientprotocol/claude-agent-acp/releases/tag/v0.84.0)、[Codex ACP 2.0.1](https://github.com/agentclientprotocol/codex-acp/releases/tag/v2.0.1)、[Pi ACP 0.0.34](https://github.com/svkozak/pi-acp/releases/tag/v0.0.34)、[Grok 1.0.44 npm 元数据](https://registry.npmjs.org/@xai-official/grok/1.0.44)、[ZCode ACP 0.53.2](https://github.com/william0wang/zcode-acp/releases/tag/v0.53.2)。已比较发布包并检查五个新版的真实 ACP 初始化响应；初始化检查不涉及付费模型请求。ZCode 分叉响应仍使用 `forkedSessionId`，Plan 修复尚未经过原生运行时端到端验证，因此保留相关门控。Pi 0.0.33 的补丁继续按实际安装版本触发，新版不改写包文件。Claude/Codex 的 AIR 目标、审批、子智能体与压缩标记映射到现有消费者；Claude 稀疏更新保留工具身份而不重复终端输出。
 
@@ -92,8 +111,8 @@ ZCode 模型选择器对已确认的 `bigmodel-api` 注册表提供者统一显�
 | 操作按钮颜色 | 发送、两种运行中停止和正常更新按钮恢复统一使用 `#216AE4`，深浅色一致，白色图标及 90% 不透明度悬停；停止保留方块图标与无障碍标签，保留禁用与错误状态 | `worktree-2026-09-18`、`worktree-2026-09-26`、`worktree-2026-10-11`、`worktree-2026-10-12`、`worktree-2026-10-13` | `appearance.send-button-brand-color` |
 | 六种智能体上游适配 | Codex 1.12 / Claude 0.78 协议与推荐值、Grok 1.0.30、DeepSeek 代际恢复、草稿与连接提示、临时目录及缓存迁移；保留现有布局、计时和独立 CLI 自动更新 | `39506eb5`、`bd9b6038`、`d74eec45`、`b84e76c6`、`50fff85f`、`51ded76b`、`86b4bb7a`、`e4c38963`、`594024db`、`worktree-2026-09-17` | `agents.six-agent-upstream-20260917` |
 | 智能体维护范围 | 设置、选择器、旧缓存与自动更新保留七种（新增 ZCode），隐藏自定义新增入口 | `worktree-2026-09-17`、`feat/zcode-agent` | `agents.maintained-catalog` |
-| ZCode 智能体 | 新配置默认关闭，保留已有启用或关闭选择；状态查询与新会话列表共用默认值；恢复设置与新会话入口，配置区展示社区适配器专属说明；使用 william0wang/zcode-acp 的 npm 包与命令 `zcode-acp-server`，评审版本 0.48.0、要求 Node 22，沿用统一 npm 安装、版本与更新流程；默认 `ZCODE_ACP_MODE=build`，新建会话通过 ACP 配置项同步并确认实际权限模式（已保存选择优先，其次环境变量，再回退 build），界面展示确认值；0.48.0 无法报告独立的 planEnabled 状态，暂时移除 MaxCode 手动 Plan 入口并在发送前拦截该模式，旧 Plan 偏好转为 build；载入/恢复在模型偏好之后强制确认基础权限模式，无显式偏好用 build，有显式支持的选择则保留，确认失败不得进入就绪状态；原生 EnterPlanMode 工具和斜杠命令仍属上游状态回报限制；兼容迁移旧运行时/模式环境变量、模型与思考偏好且新配置优先；因 0.48.0 的 fork 响应不符合 ACP 暂停 ZCode 分叉，保留载入/恢复和其他智能体的能力判断；删除自研内嵌适配器，独立安装的 ZCode 运行时由社区适配器驱动；SQLite 历史只读，数据根优先 `ZCODE_HOME`、兼容 `ZCODE_DATA_BASE_DIR`，通过 `v2/acp-lazy-sessions.json` 将 ACP UUID 解析为原生 `sess_` ID，保留原生列表与旧会话；保留原生 assistant 的模型字段与工具失败状态、错误正文；图片历史支持原生 file part 的 data URL 与同数据根、同会话 artifact，单张解码后上限 8 MiB，限制文件读取并拒绝跨会话与符号链接，缺失或超限图片显示占位且保留纯图片消息；保留供应商 CLI 探测、i18n 和随主题变色的图标；侧栏标题沿用结构化自动生成，原生 `session.titleUpdated` 不能覆盖已结构化标题；后续与恢复时的模式选择以适配器确认值为准，拒绝切换沿用提示；数据目录同步到原生存储环境变量，保留显式覆盖 | `feat/zcode-agent`、`worktree-2026-09-26`、`worktree-2026-10-12` | `agents.zcode-community-acp-adapter` |
-| 科学技能状态 | 保留历史智能体状态，同时为维护范围内有技能目录的 Grok、DeepSeek、Antigravity 和 ZCode 补齐状态行；不引入其他智能体的新入口 | `45b9a7ec`、`b66f35eb`、`worktree-2026-09-23` | `skills.science-maintained-status` |
+| ZCode 智能体 | 上游 `zcode-acp-server@0.72.0` 集成，官方 CLI 与兼容 Node 发现、显式路径校验、模式确认、MCP 转发与独立 ACP 会话记录；不读取原生 SQLite 历史，不恢复旧模型/模式适配 | `610b2a36d` 至 `d08c488a1`、`worktree-2026-10-20` | `agents.zcode-upstream-20261020` |
+| 科学技能状态 | 保留历史智能体状态，同时为维护范围内有技能目录的 Grok、DeepSeek、Antigravity 补齐状态行；ZCode 跟随上游不声明共享技能目录；不引入其他智能体的新入口 | `45b9a7ec`、`b66f35eb`、`worktree-2026-09-23` | `skills.science-maintained-status` |
 | 会话代码块 | 标题与正文统一中性底色、无中间分隔线，缩小语言标签和操作图标；适配深色与工作区背景 | `worktree-2026-09-16` | `chat.unified-code-card` |
 | 工具卡片 | 带 `query` 参数的 MCP 调用保留真实工具名；仅在标题/类型明确为网页搜索（含 Codex `web search`/`open page`/`find in page`）时归类为 WebSearch，普通 `kind: "search"` 仍为本地 grep | `fc8cad0c`、`a47c68a9`、`worktree-2026-09-14` | `chat.query-bearing-mcp-names` |
 | 消息图片 | 回复里的本地 Markdown 图片在当前会话工作目录内联显示，文件链接徽章与自动路径链接保持不变 | `402d8b09`、`049ef608`、`worktree-2026-09-14` | `chat.local-markdown-images` |

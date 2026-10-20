@@ -14,7 +14,7 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 
 import enMessages from "@/i18n/messages/en.json"
 import type { ForgePanelSettings, ForgeSettingsStore } from "@/lib/types"
@@ -48,7 +48,7 @@ const STORED: ForgeSettingsStore = { global: GLOBAL, folders: {} }
 function mount(
   { folderId = null as number | null, onSaved = vi.fn() } = {} as {
     folderId?: number | null
-    onSaved?: ReturnType<typeof vi.fn>
+    onSaved?: Mock
   }
 ) {
   render(
@@ -68,7 +68,7 @@ function mount(
  *  form, and the Save button is the one thing that says the load is done. */
 async function mountLoaded(options?: {
   folderId?: number | null
-  onSaved?: ReturnType<typeof vi.fn>
+  onSaved?: Mock
 }) {
   const handles = mount(options)
   await waitFor(() =>

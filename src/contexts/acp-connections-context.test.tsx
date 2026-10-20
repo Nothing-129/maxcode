@@ -1,3 +1,4 @@
+import type { Mock, MockInstance } from "vitest"
 import { useEffect } from "react"
 import { act, cleanup, render } from "@testing-library/react"
 import { useTranslations } from "next-intl"
@@ -2288,6 +2289,205 @@ describe("AcpConnectionsProvider liveMessage sink (mirror out of React)", () => 
   })
 })
 
+// #386: a phone backgrounds the page mid-reply and the reply finishes before it
+// comes back. Its re-attach is answered with a snapshot (the gap is too long to
+// replay) that carries no live message, or finds the connection gone; either way
+// the turn's end and the rest of the reply never reach this client. The runtime
+// store must hear of it before the panel settles the turn on the head it has.
+describe("a turn that ended while this client was not listening", () => {
+  const SESSION = "sess-1"
+  let markTurnEndUnseen: MockInstance<(externalId: string) => void>
+
+  beforeEach(async () => {
+    const { useConversationRuntimeStore } =
+      await import("@/stores/conversation-runtime-store")
+    markTurnEndUnseen = vi.spyOn(
+      useConversationRuntimeStore.getState().actions,
+      "markTurnEndUnseen"
+    )
+  })
+
+  afterEach(() => {
+    markTurnEndUnseen.mockRestore()
+  })
+
+  /** An owner tab with a turn streaming; returns its attach handlers. */
+  async function streamingOwner(): Promise<AttachHandlers> {
+    await mountProvider()
+    await act(async () => {
+      await h.actions!.connect(TAB, "claude_code", "/tmp/x", SESSION)
+    })
+    const handlers = latestAttachHandlers()
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_started",
+      session_id: SESSION,
+    })
+    emitAcpEvent(handlers, {
+      seq: 2,
+      connection_id: "spawned-conn",
+      type: "status_changed",
+      status: "prompting",
+    })
+    emitAcpEvent(handlers, {
+      seq: 3,
+      connection_id: "spawned-conn",
+      type: "content_delta",
+      text: "Line 1. ",
+    })
+    return handlers
+  }
+
+  /** The re-attach's answer after the socket came back. */
+  function reattachSnapshot(
+    handlers: AttachHandlers,
+    status: "connected" | "prompting",
+    eventSeq: number
+  ) {
+    h.denormalizeSnapshot.mockReturnValue({
+      connectionId: "spawned-conn",
+      modes: null,
+      configOptions: null,
+      availableCommands: null,
+      usage: null,
+      liveMessage: null,
+      pendingPermission: null,
+      pendingAskQuestion: null,
+      pendingUserMessage: null,
+      promptCapabilities: null,
+      selectorsReady: false,
+      supportsFork: false,
+      configStale: false,
+      configStaleKind: null,
+      lastError: null,
+      activeDelegations: [],
+      sessionId: SESSION,
+      status,
+      eventSeq,
+    })
+    hydrateSnapshot(handlers, {
+      event_seq: eventSeq,
+    } as unknown as LiveSessionSnapshot)
+  }
+
+  it("marks the session when the snapshot finds the turn over, before the panel hears of it", async () => {
+    const handlers = await streamingOwner()
+    // The panel settles the turn on the re-render that the notification of the
+    // status leaving `prompting` triggers; the mark has to be in place by then.
+    let markedWhenNotified: boolean | null = null
+    const unsubscribe = h.store!.subscribeKey(TAB, () => {
+      if (h.store!.getConnection(TAB)?.status === "prompting") return
+      markedWhenNotified ??= markTurnEndUnseen.mock.calls.length > 0
+    })
+
+    reattachSnapshot(handlers, "connected", 157)
+    unsubscribe()
+
+    expect(h.store!.getConnection(TAB)!.status).toBe("connected")
+    expect(markTurnEndUnseen).toHaveBeenCalledTimes(1)
+    expect(markTurnEndUnseen).toHaveBeenCalledWith(SESSION)
+    expect(markedWhenNotified).toBe(true)
+  })
+
+  it("does not mark when the snapshot finds the turn still running", async () => {
+    // Back before the reply finished: the snapshot's live message holds all of
+    // it so far, and the turn's end arrives on the stream.
+    const handlers = await streamingOwner()
+
+    reattachSnapshot(handlers, "prompting", 84)
+
+    expect(h.store!.getConnection(TAB)!.status).toBe("prompting")
+    expect(markTurnEndUnseen).not.toHaveBeenCalled()
+  })
+
+  it("does not mark a turn whose end arrived on the stream", async () => {
+    const handlers = await streamingOwner()
+    emitAcpEvent(handlers, {
+      seq: 4,
+      connection_id: "spawned-conn",
+      type: "turn_complete",
+      session_id: SESSION,
+      stop_reason: "end_turn",
+    })
+    emitAcpEvent(handlers, {
+      seq: 5,
+      connection_id: "spawned-conn",
+      type: "status_changed",
+      status: "connected",
+    })
+    // A later re-attach finds nothing new.
+    reattachSnapshot(handlers, "connected", 5)
+
+    expect(h.store!.getConnection(TAB)!.status).toBe("connected")
+    expect(markTurnEndUnseen).not.toHaveBeenCalled()
+  })
+
+  it("marks the session when the re-attach finds the connection gone mid-turn", async () => {
+    // Away long enough for the idle sweep to take the finished connection.
+    const handlers = await streamingOwner()
+
+    act(() => {
+      handlers.onDetached("connection_gone")
+    })
+
+    expect(h.store!.getConnection(TAB)).toBeUndefined()
+    expect(markTurnEndUnseen).toHaveBeenCalledTimes(1)
+    expect(markTurnEndUnseen).toHaveBeenCalledWith(SESSION)
+  })
+
+  it("does not mark when the connection goes after its turn ended", async () => {
+    const handlers = await streamingOwner()
+    emitAcpEvent(handlers, {
+      seq: 4,
+      connection_id: "spawned-conn",
+      type: "status_changed",
+      status: "connected",
+    })
+
+    act(() => {
+      handlers.onDetached("connection_gone")
+    })
+
+    expect(markTurnEndUnseen).not.toHaveBeenCalled()
+  })
+
+  it("has the conversation read the reply from the transcript when it settles the turn", async () => {
+    // The whole hand-off, through the real runtime store: the tab's session is
+    // bound to this agent session and holds the head of the reply.
+    const { useConversationRuntimeStore, resetConversationRuntimeStore } =
+      await import("@/stores/conversation-runtime-store")
+    const { getFolderConversation } = await import("@/lib/api")
+    const read = vi.mocked(getFolderConversation)
+    read.mockClear()
+    resetConversationRuntimeStore()
+    const runtime = useConversationRuntimeStore.getState().actions
+    const CONVERSATION = -5
+    runtime.setExternalId(CONVERSATION, SESSION)
+    runtime.setDbConversationId(CONVERSATION, 42)
+    try {
+      const handlers = await streamingOwner()
+      h.actions!.registerLiveMessageSink(TAB, (liveMessage, isLive) =>
+        runtime.setLiveMessage(CONVERSATION, liveMessage, isLive)
+      )
+      // What the panel does on the prompting → idle edge.
+      const unsubscribe = h.store!.subscribeKey(TAB, () => {
+        if (h.store!.getConnection(TAB)?.status === "connected") {
+          runtime.completeTurn(CONVERSATION)
+        }
+      })
+
+      reattachSnapshot(handlers, "connected", 157)
+      unsubscribe()
+
+      expect(read).toHaveBeenCalledWith(42, { tailTurns: 120 })
+    } finally {
+      // Also stops the read's retry schedule (this suite's read rejects).
+      resetConversationRuntimeStore()
+    }
+  })
+})
+
 describe("out-of-turn wire guard + background activity", () => {
   async function mountOwnerConnection() {
     h.acpFindConnectionForConversation.mockResolvedValue(null)
@@ -4015,7 +4215,7 @@ describe("global acp://event listener is mount-once", () => {
   // async IPC, so that churn leaves two listeners live at once and each
   // envelope is delivered twice. The handler must be reached through a
   // latest-ref instead, so the subscription is registered exactly once.
-  let unlisten: ReturnType<typeof vi.fn>
+  let unlisten: Mock
 
   function mountDesktop() {
     return render(
@@ -4364,7 +4564,7 @@ describe("delegation-child attach: mid-turn hydration", () => {
 describe("routing survives every surface watching one connection", () => {
   const CHILD_VIEW = "task-conn-1" // transcript viewer: contextKey === connId
   const CONN = "task-conn-1"
-  let unlisten: ReturnType<typeof vi.fn>
+  let unlisten: Mock
 
   function mountDesktop() {
     return render(
@@ -4575,7 +4775,7 @@ describe("routing survives every surface watching one connection", () => {
 })
 
 describe("a `prompting` state whose connection is gone can always recover", () => {
-  let unlisten: ReturnType<typeof vi.fn>
+  let unlisten: Mock
 
   function mountDesktop() {
     return render(
@@ -4744,7 +4944,7 @@ describe("connect() teardown races", () => {
   // A second contextKey for the same session — what a tab close + sidebar
   // reopen produces, and what orphan rescue exists to reconcile.
   const RESCUE_TAB = "conv-1-claude_code-42-reopened"
-  let unlisten: ReturnType<typeof vi.fn>
+  let unlisten: Mock
 
   function mountDesktop() {
     return render(

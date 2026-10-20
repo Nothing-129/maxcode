@@ -1367,8 +1367,8 @@
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
     "zcode": {
-      "configManagement": "ZCode ランタイム",
-      "configDescription": "MaxCode は William の zcode-acp-server アダプターを使用します。先に ZCode デスクトップアプリまたは CLI をインストールして設定してください。モデルと認証情報は ~/.zcode から共有されます。実行ファイルのパスは ZCODE_BIN、初期権限モードは ZCODE_ACP_MODE で指定できます。既定ではツールの承認が必要です。"
+      "adapterInfo": "MaxCode は {adapterPackage} を ACP ブリッジとして起動します。先に公式 ZCode をインストールしてログインしてください。既存の実行環境と設定を使用します。",
+      "runtimeHint": "先に公式 ZCode をインストールしてログインしてください。MaxCode は ACP ブリッジのみをインストールします。自動検出に失敗した場合は ZCODE_BIN で CLI、ZCODE_NODE で Node.js を指定できます。モデルと認証情報は ZCode で管理します。"
     },
     "authModeOfficialSubscription": "公式サブスクリプション",
     "authModeCustomEndpoint": "カスタムエンドポイント",

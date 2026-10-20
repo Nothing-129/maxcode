@@ -1367,8 +1367,8 @@
       "rawEditorPlaceholder": "[providers.codeg]\ntype = \"kimi\"\nbase_url = \"https://api.moonshot.cn/v1\"\napi_key = \"sk-...\""
     },
     "zcode": {
-      "configManagement": "ZCode Runtime",
-      "configDescription": "MaxCode uses William’s zcode-acp-server adapter. Install and configure the ZCode desktop app or CLI first; models and credentials are shared from ~/.zcode. Use ZCODE_BIN for a custom runtime path and ZCODE_ACP_MODE for the initial permission mode. Tool approval is enabled by default."
+      "adapterInfo": "MaxCode runs {adapterPackage} as an ACP bridge. Install and sign in to official ZCode first; the bridge uses its runtime and existing configuration.",
+      "runtimeHint": "Install and sign in to official ZCode first. MaxCode installs only the ACP bridge. Use ZCODE_BIN for the CLI entry and ZCODE_NODE for Node.js if detection fails. Manage models and credentials in ZCode."
     },
     "authModeOfficialSubscription": "Official Subscription",
     "authModeCustomEndpoint": "Custom Endpoint",

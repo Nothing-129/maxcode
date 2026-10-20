@@ -229,187 +229,6 @@ fn merge_agent_env_with_color(
     merged.into_iter().collect()
 }
 
-/// Translate settings saved for MaxCode's retired ZCode adapter into the
-/// community adapter's launch variables and selector ids. This only changes
-/// the launch copy; the saved settings and their fingerprint stay intact.
-fn migrate_zcode_launch_settings(
-    env: &mut BTreeMap<String, String>,
-    preferred: &mut BTreeMap<String, String>,
-) {
-    if !env.contains_key("ZCODE_BIN") {
-        if let Some(path) = env
-            .get("ZCODE_CLI")
-            .map(|v| v.trim())
-            .filter(|v| !v.is_empty())
-        {
-            env.insert("ZCODE_BIN".to_string(), path.to_string());
-        }
-    }
-    if !env.contains_key("ZCODE_ACP_MODE") {
-        if let Some(mode) = env.get("ZCODE_MODE") {
-            let mode = match mode.trim() {
-                "build" | "edit" | "plan" | "yolo" => mode.trim(),
-                _ => "build",
-            };
-            env.insert("ZCODE_ACP_MODE".to_string(), mode.to_string());
-        }
-    }
-    // Empty removes a child env var and would restore the adapter's yolo
-    // default. Plan is also mapped to build until its separate native flag is
-    // represented by the pinned adapter (see zcode_supported_mode).
-    if env
-        .get("ZCODE_ACP_MODE")
-        .is_some_and(|v| v.trim().is_empty() || v.trim().eq_ignore_ascii_case("plan"))
-    {
-        env.insert("ZCODE_ACP_MODE".to_string(), "build".to_string());
-    }
-
-    if let Some(reasoning) = preferred.remove("reasoning") {
-        preferred.entry("thought".to_string()).or_insert(reasoning);
-    }
-    if let Some(model) = preferred.get_mut("model") {
-        if !model.contains('\\') && !model.starts_with("custom:") {
-            if let Some((provider, model_id)) = model.split_once('/') {
-                *model = format!("{provider}\\{model_id}");
-            }
-        }
-    }
-
-    let Some(raw) = env
-        .get("ZCODE_MODEL")
-        .filter(|v| v.trim_start().starts_with('{'))
-    else {
-        return;
-    };
-    let parsed = serde_json::from_str::<serde_json::Value>(raw).ok();
-    let pair = parsed.as_ref().and_then(|value| {
-        Some((
-            value.get("providerId")?.as_str()?,
-            value.get("modelId")?.as_str()?,
-        ))
-    });
-    if let Some((provider, model)) = pair.filter(|(p, m)| !p.is_empty() && !m.is_empty()) {
-        env.entry("ZCODE_PROVIDER".to_string())
-            .or_insert_with(|| provider.to_string());
-        env.insert("ZCODE_MODEL".to_string(), model.to_string());
-        if let Some(reasoning) = parsed
-            .as_ref()
-            .and_then(|value| value.get("reasoningLevel"))
-            .and_then(serde_json::Value::as_str)
-            .filter(|v| !v.is_empty())
-        {
-            preferred
-                .entry("thought".to_string())
-                .or_insert_with(|| reasoning.to_string());
-        }
-    } else {
-        // The old adapter ignored malformed JSON overrides. Do not pass one
-        // through as a literal model id to the new adapter.
-        env.insert("ZCODE_MODEL".to_string(), String::new());
-    }
-}
-
-/// Keep the bridge's aliases and the native CLI's database/artifacts under the
-/// same explicitly selected root. The native CLI does not derive storage from
-/// ZCODE_HOME or ZCODE_DATA_BASE_DIR; it has separate storage settings.
-/// Empty ZCODE_HOME means automatic, matching the history parser's fallback.
-/// This only prepares the launch copy and never creates or moves directories.
-fn prepare_zcode_storage_env(env: &mut BTreeMap<String, String>) {
-    let root = env
-        .get("ZCODE_HOME")
-        .filter(|value| !value.trim().is_empty())
-        .map(PathBuf::from)
-        .or_else(|| {
-            env.get("ZCODE_DATA_BASE_DIR")
-                .filter(|value| !value.is_empty())
-                .map(|base| PathBuf::from(base).join(".zcode"))
-        });
-    let Some(root) = root else {
-        return;
-    };
-    if env
-        .get("ZCODE_HOME")
-        .is_none_or(|value| value.trim().is_empty())
-    {
-        env.insert(
-            "ZCODE_HOME".to_string(),
-            root.to_string_lossy().into_owned(),
-        );
-    }
-    env.entry("ZCODE_STORAGE_DIR".to_string())
-        .or_insert_with(|| root.to_string_lossy().into_owned());
-    // Both spellings are supported by the native CLI. An explicit short alias
-    // must not compete with an injected long alias (including an empty value).
-    if !env.contains_key("ZCODE_SESSION_DB") {
-        env.entry("ZCODE_SESSION_DB_PATH".to_string())
-            .or_insert_with(|| {
-                root.join("cli")
-                    .join("db")
-                    .join("db.sqlite")
-                    .to_string_lossy()
-                    .into_owned()
-            });
-    }
-}
-
-fn zcode_new_session_mode(
-    preferred_mode: Option<&str>,
-    preferred: &BTreeMap<String, String>,
-    launch_env: &BTreeMap<String, String>,
-) -> String {
-    zcode_supported_mode(
-        preferred
-            .get("mode")
-            .map(String::as_str)
-            .filter(|mode| !mode.trim().is_empty())
-            .or(preferred_mode.filter(|mode| !mode.trim().is_empty()))
-            .or_else(|| {
-                launch_env
-                    .get("ZCODE_ACP_MODE")
-                    .map(String::as_str)
-                    .filter(|mode| !mode.trim().is_empty())
-            })
-            .unwrap_or("build"),
-    )
-    .to_string()
-}
-
-/// The pinned adapter reads only settings.mode.current. Native ZCode now
-/// enables Plan through a separate planEnabled flag while retaining that base
-/// mode, so sending plan succeeds but reports build/edit/yolo to ACP clients.
-/// Keep Plan unavailable until the adapter can report its real execution state.
-fn zcode_supported_mode(mode: &str) -> &str {
-    match mode.trim() {
-        mode if mode.eq_ignore_ascii_case("plan") => "build",
-        mode => mode,
-    }
-}
-
-fn confirmed_zcode_mode(
-    options: &[SessionConfigOption],
-    requested: &str,
-) -> Result<String, agent_client_protocol::Error> {
-    let mode = options
-        .iter()
-        .find(|option| option.id.to_string() == "mode")
-        .and_then(|option| match &option.kind {
-            SessionConfigKind::Select(select) => Some(select.current_value.to_string()),
-            _ => None,
-        })
-        .filter(|mode| matches!(mode.as_str(), "build" | "edit" | "yolo" | "auto"))
-        .ok_or_else(|| {
-            agent_client_protocol::util::internal_error(
-                "ZCode did not confirm a supported permission mode",
-            )
-        })?;
-    if mode == "yolo" && requested != "yolo" {
-        return Err(agent_client_protocol::util::internal_error(
-            "ZCode enabled yolo instead of the requested permission mode",
-        ));
-    }
-    Ok(mode)
-}
-
 /// Whether a Cursor launch gets the root `--force` (Run Everything) flag, from
 /// the panel's `CURSOR_FORCE` knob.
 ///
@@ -1658,17 +1477,16 @@ fn pi_runtime_outdated_message() -> String {
 /// Transcript directory for an agent that codeg must record itself, or `None`
 /// for agents with their own store parser.
 ///
-/// Only custom ACP agents are recorded: every built-in has a dedicated parser
-/// reading the agent's native transcript, and recording those too would double
-/// the storage while risking two disagreeing histories.
+/// Custom ACP agents and ZCode use Codeg-owned transcripts. Agents with
+/// native store parsers are excluded to avoid duplicate history.
 fn transcript_dir_for(agent_type: AgentType) -> Option<&'static str> {
     agent_type
-        .custom_id()
-        .map(|_| registry::registry_id_for(agent_type))
+        .uses_acp_transcript()
+        .then(|| registry::registry_id_for(agent_type))
 }
 
-/// Ensure a custom agent's transcript file exists with its header. No-op for
-/// built-ins, and idempotent per session (a reconnect keeps the original
+/// Ensure a Codeg-owned transcript exists with its header. No-op for agents
+/// with native stores, and idempotent per session (a reconnect keeps the original
 /// header, so the session's original cwd/start time survive).
 fn record_transcript_header(agent_type: AgentType, session_id: &str, cwd: &str) {
     drop(queue_transcript_header(agent_type, session_id, cwd, None));
@@ -2093,6 +1911,14 @@ async fn build_agent(
     let agent = match meta.distribution {
         AgentDistribution::Npx { cmd, args, env, .. } => {
             let mut merged_env = merge_agent_env(env, runtime_env, scratch);
+            let mut zcode_runtime = None;
+            if agent_type == AgentType::Zcode {
+                let runtime = crate::acp::zcode::resolve_runtime(runtime_env, cwd)
+                    .await
+                    .map_err(|error| AcpError::protocol(error.to_string()))?;
+                runtime.apply(&mut merged_env);
+                zcode_runtime = Some(runtime);
+            }
             if let Some((key, path)) =
                 crate::commands::agent_auto_updates::managed_runtime(agent_type)
             {
@@ -2184,15 +2010,25 @@ async fn build_agent(
                 .as_ref()
                 .map(|(node, _)| node.clone())
                 .or(resolved_command);
-            parts.push(
-                resolved_command
-                    .map(|p| p.to_string_lossy().to_string())
-                    .unwrap_or_else(|| {
-                        crate::process::normalized_program(cmd)
-                            .to_string_lossy()
-                            .to_string()
-                    }),
-            );
+            let bridge_command = resolved_command
+                .map(|p| p.to_string_lossy().into_owned())
+                .unwrap_or_else(|| {
+                    crate::process::normalized_program(cmd)
+                        .to_string_lossy()
+                        .into_owned()
+                });
+            if let Some(runtime) = zcode_runtime {
+                let entry = crate::acp::zcode::bridge_entry(Path::new(&bridge_command))
+                    .ok_or_else(|| {
+                        AcpError::protocol(crate::acp::zcode::bridge_entry_missing_message(
+                            &bridge_command,
+                        ))
+                    })?;
+                parts.push(runtime.node.to_string_lossy().into_owned());
+                parts.push(entry.to_string_lossy().into_owned());
+            } else {
+                parts.push(bridge_command);
+            }
             if let Some((_, script)) = codex_launch {
                 parts.push(script.to_string_lossy().into_owned());
             }
@@ -2550,51 +2386,6 @@ pub async fn spawn_agent_connection(
     delegation_injection: Option<DelegationInjection>,
     terminal_shell_config: TerminalShellRuntimeConfig,
 ) -> Result<tokio::sync::oneshot::Receiver<()>, AcpError> {
-    let mut preferred_config_values = preferred_config_values;
-    let launch_runtime_env = (agent_type == AgentType::Zcode).then(|| {
-        let mut env = runtime_env.clone();
-        for key in [
-            "ZCODE_CLI",
-            "ZCODE_BIN",
-            "ZCODE_MODE",
-            "ZCODE_ACP_MODE",
-            "ZCODE_MODEL",
-            "ZCODE_PROVIDER",
-            "ZCODE_NODE",
-            "ZCODE_HOME",
-            "ZCODE_DATA_BASE_DIR",
-            "ZCODE_STORAGE_DIR",
-            "ZCODE_SESSION_DB_PATH",
-            "ZCODE_SESSION_DB",
-        ] {
-            if !env.contains_key(key) {
-                if let Ok(value) = std::env::var(key) {
-                    env.insert(key.to_string(), value);
-                }
-            }
-        }
-        // The adapter otherwise probes `which node`, unavailable on a stock
-        // Windows host. Reuse MaxCode's platform-aware resolver, retaining any
-        // explicit user value (including an empty value).
-        if !env.contains_key("ZCODE_NODE") {
-            if let Some(node) = crate::commands::acp::resolve_command_on_path(if cfg!(windows) {
-                "node.exe"
-            } else {
-                "node"
-            }) {
-                env.insert(
-                    "ZCODE_NODE".to_string(),
-                    node.to_string_lossy().into_owned(),
-                );
-            }
-        }
-        migrate_zcode_launch_settings(&mut env, &mut preferred_config_values);
-        prepare_zcode_storage_env(&mut env);
-        env
-    });
-    let zcode_initial_mode = launch_runtime_env.as_ref().map(|env| {
-        zcode_new_session_mode(preferred_mode_id.as_deref(), &preferred_config_values, env)
-    });
     // Create the authoritative session state up front. Subsequent emit_with_state
     // calls write through this state and increment its seq counter so the first
     // event the frontend sees has seq=1, not the placeholder 0 from Phase 0.
@@ -2662,7 +2453,7 @@ pub async fn spawn_agent_connection(
     let scratch = crate::acp::scratch_dir::create();
     let agent = match build_agent(
         agent_type,
-        launch_runtime_env.as_ref().unwrap_or(&runtime_env),
+        &runtime_env,
         &launch_cwd,
         &stderr_tail,
         scratch.as_ref().map(|s| s.path()),
@@ -2827,7 +2618,6 @@ pub async fn spawn_agent_connection(
                     terminal_shell_config,
                     preferred_mode_id,
                     preferred_config_values,
-                    zcode_initial_mode,
                     delegation_injection,
                     fs_policy,
                     host_tools,
@@ -3610,11 +3400,14 @@ async fn emit_session_modes(
     modes: &Option<SessionModeState>,
 ) {
     if let Some(mode_state) = modes {
-        let mut modes = map_session_modes(mode_state);
-        if state.read().await.agent_type == AgentType::Zcode {
-            modes.available_modes.retain(|mode| mode.id != "plan");
-        }
-        emit_with_state(state, emitter, AcpEvent::SessionModes { modes }).await;
+        emit_with_state(
+            state,
+            emitter,
+            AcpEvent::SessionModes {
+                modes: map_session_modes(mode_state),
+            },
+        )
+        .await;
     }
 }
 
@@ -3746,82 +3539,6 @@ fn map_session_config_options(
         .iter()
         .filter_map(map_session_config_option)
         .collect()
-}
-
-/// The ZCode desktop registry calls the BigModel API-key provider
-/// `bigmodel-api`, while the adapter's legacy config.json still advertises
-/// `builtin:bigmodel`. The latter two model values fail at session/setModel
-/// even though the same models work under the registry id. Only apply this
-/// projection when the adapter itself has reported the registry id; otherwise
-/// a different ZCode installation keeps its own model vocabulary.
-fn zcode_registry_model_alias(value: &str) -> String {
-    value
-        .strip_prefix("builtin:bigmodel\\")
-        .map(|model| format!("bigmodel-api\\{model}"))
-        .unwrap_or_else(|| value.to_string())
-}
-
-fn normalize_zcode_model_options(options: &mut [SessionConfigOptionInfo]) {
-    let Some(model) = options.iter_mut().find(|option| option.id == "model") else {
-        return;
-    };
-    let SessionConfigKindInfo::Select(select) = &mut model.kind else {
-        return;
-    };
-    let registry_present = select.current_value.starts_with("bigmodel-api\\")
-        || select
-            .options
-            .iter()
-            .any(|option| option.value.starts_with("bigmodel-api\\"))
-        || select.groups.iter().any(|group| {
-            group
-                .options
-                .iter()
-                .any(|option| option.value.starts_with("bigmodel-api\\"))
-        });
-    if !registry_present {
-        return;
-    }
-    select.current_value = zcode_registry_model_alias(&select.current_value);
-    let mut seen = HashSet::new();
-    for option in &mut select.options {
-        option.value = zcode_registry_model_alias(&option.value);
-    }
-    select
-        .options
-        .retain(|option| seen.insert(option.value.clone()));
-    for group in &mut select.groups {
-        for option in &mut group.options {
-            option.value = zcode_registry_model_alias(&option.value);
-        }
-        group
-            .options
-            .retain(|option| seen.insert(option.value.clone()));
-    }
-    select.groups.retain(|group| !group.options.is_empty());
-}
-
-fn zcode_supported_model_value(options: &[SessionConfigOptionInfo], value: &str) -> String {
-    let alias = zcode_registry_model_alias(value);
-    if alias == value {
-        return alias;
-    }
-    let Some(model) = options.iter().find(|option| option.id == "model") else {
-        return value.to_string();
-    };
-    let SessionConfigKindInfo::Select(select) = &model.kind else {
-        return value.to_string();
-    };
-    let offered = select.options.iter().any(|option| option.value == alias)
-        || select
-            .groups
-            .iter()
-            .any(|group| group.options.iter().any(|option| option.value == alias));
-    if offered {
-        alias
-    } else {
-        value.to_string()
-    }
 }
 
 const PI_THINKING_LEVELS: [&str; 7] = ["off", "minimal", "low", "medium", "high", "xhigh", "max"];
@@ -4009,31 +3726,6 @@ async fn emit_session_config_options_values(
             }
         }
     }
-    if agent_type == AgentType::Zcode {
-        normalize_zcode_model_options(&mut mapped);
-        for option in mapped.iter_mut().filter(|option| option.id == "mode") {
-            if let SessionConfigKindInfo::Select(select) = &mut option.kind {
-                select.options.retain(|option| option.value != "plan");
-                for group in &mut select.groups {
-                    group.options.retain(|option| option.value != "plan");
-                }
-                select.groups.retain(|group| !group.options.is_empty());
-            }
-        }
-    }
-    // ZCode can acknowledge a mode change while keeping its previous mode.
-    // Its returned config value also owns the legacy mode snapshot, including
-    // when the user changed the ordinary config-option dropdown.
-    let confirmed_mode = (agent_type == AgentType::Zcode)
-        .then(|| {
-            mapped.iter().find_map(|option| match &option.kind {
-                SessionConfigKindInfo::Select(select) if option.id == "mode" => {
-                    Some(select.current_value.clone())
-                }
-                _ => None,
-            })
-        })
-        .flatten();
     emit_with_state(
         state,
         emitter,
@@ -4042,9 +3734,6 @@ async fn emit_session_config_options_values(
         },
     )
     .await;
-    if let Some(mode_id) = confirmed_mode {
-        emit_with_state(state, emitter, AcpEvent::ModeChanged { mode_id }).await;
-    }
 }
 
 async fn emit_selectors_ready(state: &Arc<RwLock<SessionState>>, emitter: &EventEmitter) {
@@ -5078,6 +4767,64 @@ async fn emit_grok_incompatible_agent_switch(
     .await;
 }
 
+/// ZCode session/new is a lazy placeholder. Confirm a mode before accepting
+/// the first prompt; loaded sessions do not pass through this path.
+async fn configure_new_zcode_session(
+    agent_type: AgentType,
+    cx: &ConnectionTo<Agent>,
+    session: &AgentSession,
+    handshake: &CancellationToken,
+    preferred_mode: Option<&str>,
+    preferred_config: &BTreeMap<String, String>,
+    initial_options: Option<Vec<SessionConfigOption>>,
+) -> Result<
+    (Option<Vec<SessionConfigOption>>, BTreeMap<String, String>),
+    agent_client_protocol::Error,
+> {
+    if agent_type != AgentType::Zcode {
+        return Ok((initial_options, preferred_config.clone()));
+    }
+    let available = session
+        .modes()
+        .as_ref()
+        .map(|modes| {
+            modes
+                .available_modes
+                .iter()
+                .map(|mode| mode.id.to_string())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    let mode = crate::acp::zcode::initial_mode(preferred_mode, preferred_config, &available);
+    let options = unless_cancelled(handshake, tokio::time::timeout(
+        std::time::Duration::from_secs(60),
+        set_session_config_option_inner(
+            cx, session.session_id(), agent_type, "mode".to_string(),
+            encode_config_option_value(false, &mode),
+        ),
+    ))
+    .await?
+    .map_err(|_| agent_client_protocol::util::internal_error(
+        "ZCode did not confirm the initial mode within 60 seconds; the session will not send a prompt",
+    ))??;
+    let actual = current_config_option_values(&map_session_config_options(&options));
+    if actual.get("mode") != Some(&mode) {
+        return Err(agent_client_protocol::util::internal_error(
+            "ZCode did not confirm the initial mode; the session will not send a prompt",
+        ));
+    }
+    let mut preferred = preferred_config.clone();
+    preferred.insert("mode".to_string(), mode);
+    Ok((Some(options), preferred))
+}
+
+fn mode_to_replay_after_gate(
+    agent_type: AgentType,
+    preferred_mode_id: Option<String>,
+) -> Option<String> {
+    preferred_mode_id.filter(|_| agent_type != AgentType::Zcode)
+}
+
 /// Emit the composer's session config-option selectors. For Grok this reads the
 /// synthesized `x.ai/sessionConfig` (parity path); for every other agent it runs
 /// the standard preference-application + schema-mapping pipeline unchanged.
@@ -5168,9 +4915,11 @@ fn effective_prompt_capabilities(
     capabilities: &agent_client_protocol::schema::v1::PromptCapabilities,
 ) -> PromptCapabilitiesInfo {
     PromptCapabilitiesInfo {
-        image: capabilities.image || agent_type == AgentType::Grok,
-        audio: capabilities.audio,
-        embedded_context: capabilities.embedded_context,
+        // ZCode attachments are outside the validated first integration.
+        image: agent_type != AgentType::Zcode
+            && (capabilities.image || agent_type == AgentType::Grok),
+        audio: agent_type != AgentType::Zcode && capabilities.audio,
+        embedded_context: agent_type != AgentType::Zcode && capabilities.embedded_context,
     }
 }
 
@@ -5178,7 +4927,7 @@ fn supports_session_fork(
     agent_type: AgentType,
     capabilities: &agent_client_protocol::schema::v1::AgentCapabilities,
 ) -> bool {
-    // zcode-acp-server 0.48.0 advertises fork but returns the backend's
+    // ZCode fork remains outside the validated upstream integration; the backend's
     // `forkedSessionId` instead of ACP's required `sessionId`. Keep the action
     // disabled until a compatible adapter response has been verified.
     agent_type != AgentType::Zcode && capabilities.session_capabilities.fork.is_some()
@@ -5666,32 +5415,8 @@ async fn send_resume_session(
 async fn send_new_session_capturing_models(
     cx: &ConnectionTo<Agent>,
     req: NewSessionRequest,
-    zcode_initial_mode: Option<&str>,
 ) -> Result<(NewSessionResponse, Option<serde_json::Value>), agent_client_protocol::Error> {
-    let (mut response, models): (NewSessionResponse, _) =
-        send_capturing_models(cx, AGENT_METHOD_NAMES.session_new, req).await?;
-    if let Some(mode) = zcode_initial_mode {
-        let mode = zcode_supported_mode(mode);
-        // zcode-acp-server 0.48.0 advertises yolo on every lazy session/new,
-        // before creating the backend session with its actual configured mode.
-        // Always apply the intended mode, even if that placeholder says it
-        // already matches. This also overrides the adapter config file, which
-        // otherwise takes precedence over MaxCode's ZCODE_ACP_MODE=build.
-        let options = set_session_config_option_inner(
-            cx,
-            &response.session_id,
-            "mode".to_string(),
-            encode_config_option_value(false, mode),
-        )
-        .await?;
-        let confirmed_mode = confirmed_zcode_mode(&options, mode)?;
-        if let Some(modes) = response.modes.as_mut() {
-            modes.current_mode_id =
-                agent_client_protocol::schema::v1::SessionModeId::new(confirmed_mode);
-        }
-        response.config_options = Some(options);
-    }
-    Ok((response, models))
+    send_capturing_models(cx, AGENT_METHOD_NAMES.session_new, req).await
 }
 
 /// Whether MCP servers forwarded over the ACP wire (`session/new.mcpServers`)
@@ -6306,7 +6031,6 @@ async fn run_connection(
     terminal_shell_config: TerminalShellRuntimeConfig,
     preferred_mode_id: Option<String>,
     preferred_config_values: BTreeMap<String, String>,
-    zcode_initial_mode: Option<String>,
     delegation_injection: Option<DelegationInjection>,
     fs_policy: FsAccessPolicy,
     host_tools: HostToolsPolicy,
@@ -6317,15 +6041,6 @@ async fn run_connection(
     // agent output, to attach evidence to the synthesized error.
     stderr_tail: Arc<StderrTail>,
 ) -> Result<(), AcpError> {
-    // New ZCode sessions use the resolved launch mode again after model replay.
-    // Resume/load retain explicit preferences and otherwise reset to build: a
-    // hidden native planEnabled flag must not be cleared into an unrequested
-    // edit/yolo base mode that the pinned adapter cannot distinguish from Plan.
-    let zcode_remaining_config_values = zcode_initial_mode.as_ref().map(|_| {
-        let mut values = preferred_config_values.clone();
-        values.remove("mode");
-        values
-    });
     let pending_perms: PendingPermissions =
         Arc::new(tokio::sync::Mutex::new(PermissionQueue::default()));
     // `terminal_base_env` already filtered to just the credential helper
@@ -7040,6 +6755,7 @@ async fn run_connection(
                             )
                             .await;
                             emit_session_modes(&state, &emitter_clone, session.modes()).await;
+
                             unless_cancelled(
                                 &handshake,
                                 apply_and_emit_session_config_options(
@@ -7480,7 +7196,6 @@ async fn run_connection(
                             send_new_session_capturing_models(
                                 &cx,
                                 build_new_session_request(agent_type, &cwd, mcp_servers.clone()),
-                                zcode_initial_mode.as_deref(),
                             ),
                         )
                         .await?
@@ -7495,6 +7210,11 @@ async fn run_connection(
                         let grok_model_specs = (agent_type == AgentType::Grok)
                             .then(|| parse_grok_model_specs(models_raw.as_ref()));
                         let mut session = AgentSession::attach(&cx, new_resp)?;
+                        let (initial_config_options, preferred_config_values) = configure_new_zcode_session(
+                            agent_type, &cx, &session, &handshake, preferred_mode_id.as_deref(),
+                            &preferred_config_values, initial_config_options,
+                        ).await?;
+                        let preferred_mode_id = mode_to_replay_after_gate(agent_type, preferred_mode_id.clone());
                         // Same conversation, new agent session: link the fresh
                         // transcript to the one the failed load was for, so the
                         // turns codeg already recorded keep rendering.
@@ -7518,6 +7238,12 @@ async fn run_connection(
                         )
                         .await;
                         emit_session_modes(&state, &emitter_clone, session.modes()).await;
+                        if agent_type == AgentType::Zcode {
+                            emit_with_state(&state, &emitter_clone, AcpEvent::ModeChanged {
+                                mode_id: preferred_config_values["mode"].clone(),
+                            }).await;
+                        }
+
                         unless_cancelled(
                             &handshake,
                             apply_and_emit_session_config_options(
@@ -7529,8 +7255,8 @@ async fn run_connection(
                                 grok_meta.as_ref(),
                                 grok_model_specs.as_ref(),
                                 models_raw.as_ref(),
-                                zcode_initial_mode.as_deref().or(preferred_mode_id.as_deref()),
-                                zcode_remaining_config_values.as_ref().unwrap_or(&preferred_config_values),
+                                preferred_mode_id.as_deref(),
+                                &preferred_config_values,
                                 initial_config_options.unwrap_or_default(),
                             ),
                         )
@@ -7586,7 +7312,6 @@ async fn run_connection(
                     send_new_session_capturing_models(
                         &cx,
                         build_new_session_request(agent_type, &cwd, mcp_servers.clone()),
-                        zcode_initial_mode.as_deref(),
                     ),
                 )
                 .await?
@@ -7601,6 +7326,11 @@ async fn run_connection(
                 let grok_model_specs = (agent_type == AgentType::Grok)
                     .then(|| parse_grok_model_specs(models_raw.as_ref()));
                 let mut session = AgentSession::attach(&cx, new_resp)?;
+                let (initial_config_options, preferred_config_values) = configure_new_zcode_session(
+                    agent_type, &cx, &session, &handshake, preferred_mode_id.as_deref(),
+                    &preferred_config_values, initial_config_options,
+                ).await?;
+                let preferred_mode_id = mode_to_replay_after_gate(agent_type, preferred_mode_id.clone());
                 record_transcript_header(agent_type, &sid, &cwd.to_string_lossy());
                 emit_with_state(
                     &state,
@@ -7611,6 +7341,12 @@ async fn run_connection(
                 )
                 .await;
                 emit_session_modes(&state, &emitter_clone, session.modes()).await;
+                if agent_type == AgentType::Zcode {
+                    emit_with_state(&state, &emitter_clone, AcpEvent::ModeChanged {
+                        mode_id: preferred_config_values["mode"].clone(),
+                    }).await;
+                }
+
                 unless_cancelled(
                     &handshake,
                     apply_and_emit_session_config_options(
@@ -7622,8 +7358,8 @@ async fn run_connection(
                         grok_meta.as_ref(),
                         grok_model_specs.as_ref(),
                         models_raw.as_ref(),
-                        zcode_initial_mode.as_deref().or(preferred_mode_id.as_deref()),
-                        zcode_remaining_config_values.as_ref().unwrap_or(&preferred_config_values),
+                        preferred_mode_id.as_deref(),
+                        &preferred_config_values,
                         initial_config_options.unwrap_or_default(),
                     ),
                 )
@@ -8592,21 +8328,9 @@ async fn set_session_mode(
     session_id: &SessionId,
     state: &Arc<RwLock<SessionState>>,
     emitter: &EventEmitter,
-    agent_type: AgentType,
+    _agent_type: AgentType,
     mode_id: String,
 ) -> Result<(), agent_client_protocol::Error> {
-    if agent_type == AgentType::Zcode {
-        return set_session_config_option(
-            cx,
-            session_id,
-            state,
-            emitter,
-            agent_type,
-            "mode".to_string(),
-            mode_id,
-        )
-        .await;
-    }
     let req = SetSessionModeRequest::new(session_id.clone(), mode_id.clone());
     cx.send_request_to(Agent, req).block_task().await?;
 
@@ -8625,25 +8349,6 @@ async fn set_session_config_option(
     config_id: String,
     value_id: String,
 ) -> Result<(), agent_client_protocol::Error> {
-    if agent_type == AgentType::Zcode
-        && config_id == "mode"
-        && value_id.trim().eq_ignore_ascii_case("plan")
-    {
-        return Err(agent_client_protocol::Error::invalid_params().data(
-            "ZCode Plan mode is unavailable because the ACP adapter cannot report its execution state",
-        ));
-    }
-    let value_id = if agent_type == AgentType::Zcode && config_id == "model" {
-        let offered = state
-            .read()
-            .await
-            .config_options
-            .clone()
-            .unwrap_or_default();
-        zcode_supported_model_value(&offered, &value_id)
-    } else {
-        value_id
-    };
     // An explicit set means someone has taken ownership of this option — the
     // user in the composer, or the post-establishment re-assert (already
     // drained). Either way the establishment-time value stops being the one to
@@ -8664,7 +8369,9 @@ async fn set_session_config_option(
         .and_then(|opts| opts.iter().find(|o| o.id == config_id))
         .is_some_and(|o| matches!(o.kind, SessionConfigKindInfo::Boolean(_)));
     let value = encode_config_option_value(is_boolean, &value_id);
-    let updated = set_session_config_option_inner(cx, session_id, config_id.clone(), value).await?;
+    let updated =
+        set_session_config_option_inner(cx, session_id, agent_type, config_id.clone(), value)
+            .await?;
     // Compare BEFORE emitting: the agent's answer is the only place a request and
     // its outcome are correlated. Once the option list is broadcast it is
     // indistinguishable from an unsolicited update.
@@ -9160,9 +8867,21 @@ fn order_preferred_config_values<'a>(
 async fn set_session_config_option_inner(
     cx: &ConnectionTo<Agent>,
     session_id: &SessionId,
+    agent_type: AgentType,
     config_id: String,
     value: SessionConfigOptionValue,
 ) -> Result<Vec<SessionConfigOption>, agent_client_protocol::Error> {
+    // Of the two ACP mode requests, only session/set_mode refreshes the
+    // bridge's plan-enabled mirror; set_config_option("mode") keeps reporting
+    // "plan" while that mirror is set (bridge 0.69.2 through 0.72.0). Send
+    // set_mode first for mode changes, then read the config response; the
+    // initial-mode gate still requires an exact confirmation before prompt.
+    if agent_type == AgentType::Zcode && config_id == "mode" {
+        if let Some(mode) = value.as_value_id() {
+            let req = SetSessionModeRequest::new(session_id.clone(), mode.to_string());
+            cx.send_request_to(Agent, req).block_task().await?;
+        }
+    }
     let req = SetSessionConfigOptionRequest::new(session_id.clone(), config_id, value);
     let response = cx.send_request_to(Agent, req).block_task().await?;
     Ok(response.config_options)
@@ -9224,11 +8943,9 @@ async fn send_goal_control(
 ///
 /// Returns the (possibly updated) list of config options that the caller
 /// should emit. Mode preferences normally trigger a `ModeChanged` event from
-/// `set_session_mode`; ZCode emits the confirmed mode with its returned config
-/// options. The caller's `emit_session_modes` precedes both, so the frontend
-/// converges before `SelectorsReady` fires. Optional preference failures are
-/// logged and skipped. ZCode's mandatory mode reset must succeed before startup
-/// because a restored native planEnabled flag is invisible to the adapter.
+/// `set_session_mode`. The caller emits modes before applying preferences so
+/// the frontend converges before `SelectorsReady`. Optional preference failures
+/// are logged and skipped.
 #[allow(clippy::too_many_arguments)]
 async fn apply_preferred_session_options(
     cx: &ConnectionTo<Agent>,
@@ -9241,29 +8958,6 @@ async fn apply_preferred_session_options(
     session_models: Option<&serde_json::Value>,
     initial_config_options: Vec<SessionConfigOption>,
 ) -> Result<Vec<SessionConfigOption>, agent_client_protocol::Error> {
-    // The legacy set_mode response has no confirmed mode. Replaying ZCode's
-    // saved choice through its standard config option gives us the real value
-    // on resume/load as well as on a later explicit mode change. A saved config
-    // choice wins when both old and new preference fields are present.
-    let zcode_preferences = (agent_type == AgentType::Zcode).then(|| {
-        let mut values = preferred_config_values.clone();
-        let mode = values
-            .get("mode")
-            .filter(|mode| !mode.trim().is_empty())
-            .cloned()
-            .or_else(|| {
-                preferred_mode_id
-                    .filter(|mode| !mode.trim().is_empty())
-                    .map(str::to_string)
-            })
-            .unwrap_or_else(|| "build".to_string());
-        values.insert("mode".to_string(), zcode_supported_mode(&mode).to_string());
-        values
-    });
-    let preferred_config_values = zcode_preferences
-        .as_ref()
-        .unwrap_or(preferred_config_values);
-    let preferred_mode_id = preferred_mode_id.filter(|_| agent_type != AgentType::Zcode);
     if let Some(pref_mode) = preferred_mode_id {
         let needs_apply = session
             .modes()
@@ -9315,17 +9009,7 @@ async fn apply_preferred_session_options(
     // so the model selector cannot move between ids mid-replay.
     let ordered = order_preferred_config_values(&options, preferred_config_values);
     for (config_id, requested_value) in ordered {
-        let projected = if agent_type == AgentType::Zcode && config_id == "model" {
-            let mut projected = map_session_config_options(&options);
-            normalize_zcode_model_options(&mut projected);
-            Some(projected)
-        } else {
-            None
-        };
-        let value_id = projected
-            .as_ref()
-            .map(|projected| zcode_supported_model_value(projected, requested_value))
-            .unwrap_or_else(|| requested_value.clone());
+        let value_id = requested_value;
         // Skip the round-trip when the agent's current value already matches.
         // Note: codex-acp advertises "mode" as a config option (so the match
         // check below normally fires), but we still do NOT skip when a
@@ -9335,14 +9019,9 @@ async fn apply_preferred_session_options(
         // with no advertised-list check (verified in the 1.7.0 bundle). So let
         // the agent decide.
         let advertised = options.iter().find(|o| o.id.to_string() == *config_id);
-        // A restored session can advertise build while its native planEnabled
-        // flag is still true. Reassert the base mode even when it appears to
-        // match: a successful native setMode clears that separate flag. Unlike
-        // optional selector preferences, failure here must prevent startup.
-        let force_zcode_mode = agent_type == AgentType::Zcode && config_id == "mode";
         let already_matches =
             advertised.is_some_and(|o| config_option_already_holds(o, value_id.as_str()));
-        if already_matches && !force_zcode_mode {
+        if already_matches {
             continue;
         }
         // …and skip a value the option's own advertisement rules out. Sending
@@ -9350,27 +9029,10 @@ async fn apply_preferred_session_options(
         // retired would otherwise fail on EVERY connect for good — see
         // `config_option_rejects_value` for why this is decided here, off the
         // agent's answer, rather than from the agent id or the registry pin.
-        let zcode_model_offered = projected.as_ref().is_some_and(|projected| {
-            projected.iter().any(|option| {
-                option.id == "model"
-                    && match &option.kind {
-                        SessionConfigKindInfo::Select(select) => {
-                            select.options.iter().any(|choice| choice.value == value_id)
-                                || select.groups.iter().any(|group| {
-                                    group.options.iter().any(|choice| choice.value == value_id)
-                                })
-                        }
-                        _ => false,
-                    }
-            })
-        });
-        if !force_zcode_mode
-            && !zcode_model_offered
-            && advertised.is_some_and(|o| {
-                config_option_rejects_value(o, value_id.as_str())
-                    && !session_model_list_offers(agent_type, o, &value_id, session_models)
-            })
-        {
+        if advertised.is_some_and(|o| {
+            config_option_rejects_value(o, value_id.as_str())
+                && !session_model_list_offers(agent_type, o, value_id, session_models)
+        }) {
             tracing::info!(
                 "[ACP] skipping preferred config '{config_id}'='{value_id}' on connect: \
                  the agent no longer offers that value"
@@ -9382,24 +9044,11 @@ async fn apply_preferred_session_options(
         // codeg has always sent (see the note above on unadvertised "mode").
         let is_boolean =
             advertised.is_some_and(|o| matches!(o.kind, SessionConfigKind::Boolean(_)));
-        let value = encode_config_option_value(is_boolean, &value_id);
-        match set_session_config_option_inner(cx, &session_id, config_id.clone(), value).await {
-            Ok(updated) => {
-                if force_zcode_mode {
-                    confirmed_zcode_mode(&updated, &value_id)?;
-                }
-                if agent_type == AgentType::Zcode {
-                    if let Some(rejection) = config_option_rejection(
-                        &map_session_config_options(&updated),
-                        config_id,
-                        &value_id,
-                    ) {
-                        emit_with_state(state, emitter, rejection).await;
-                    }
-                }
-                options = updated;
-            }
-            Err(e) if force_zcode_mode => return Err(e),
+        let value = encode_config_option_value(is_boolean, value_id);
+        match set_session_config_option_inner(cx, &session_id, agent_type, config_id.clone(), value)
+            .await
+        {
+            Ok(updated) => options = updated,
             Err(e) => tracing::error!(
                 "[ACP] failed to apply preferred config '{config_id}'='{value_id}' \
                  on connect: {e}"
@@ -9411,11 +9060,7 @@ async fn apply_preferred_session_options(
     // rewritten pick is never re-asserted against the agent's own verdict
     // (`config_option_rejection` already tells the user about those). See
     // `SessionState::asserted_config_values` for why this is retained at all.
-    let mut settled_options = map_session_config_options(&options);
-    if agent_type == AgentType::Zcode {
-        normalize_zcode_model_options(&mut settled_options);
-    }
-    let settled = current_config_option_values(&settled_options);
+    let settled = current_config_option_values(&map_session_config_options(&options));
     //
     // Assigned unconditionally, empty result included: establishment OWNS the
     // ledger. `SessionState` spans fork transitions, so merging into whatever
@@ -9424,14 +9069,8 @@ async fn apply_preferred_session_options(
     // refused once.
     state.write().await.asserted_config_values = preferred_config_values
         .iter()
-        .filter_map(|(config_id, value_id)| {
-            let value = if agent_type == AgentType::Zcode && config_id == "model" {
-                zcode_supported_model_value(&settled_options, value_id)
-            } else {
-                value_id.clone()
-            };
-            (settled.get(config_id) == Some(&value)).then(|| (config_id.clone(), value))
-        })
+        .filter(|(config_id, value_id)| settled.get(*config_id) == Some(*value_id))
+        .map(|(config_id, value_id)| (config_id.clone(), value_id.clone()))
         .collect();
 
     Ok(options)
@@ -12622,21 +12261,6 @@ async fn run_conversation_loop(
                         },
                     )
                     .await;
-                    // The composer applied this choice optimistically. A
-                    // rejected ZCode switch has no config update from the
-                    // adapter, so replay the last confirmed selectors to
-                    // remove the false checkmark in the dropdown.
-                    if agent_type == AgentType::Zcode {
-                        let confirmed_options = state.read().await.config_options.clone();
-                        if let Some(config_options) = confirmed_options {
-                            emit_with_state(
-                                state,
-                                emitter,
-                                AcpEvent::SessionConfigOptions { config_options },
-                            )
-                            .await;
-                        }
-                    }
                 }
             }
             Some(ConnectionCommand::GoalControl { action, reply }) => {
@@ -18205,6 +17829,13 @@ async fn emit_conversation_update(
                 .available_commands
                 .iter()
                 .filter(|cmd| !is_config_option_state_command(agent_type, cmd.meta.as_ref()))
+                .filter(|cmd| {
+                    agent_type != AgentType::Zcode
+                        || !matches!(
+                            cmd.name.as_str(),
+                            "auto" | "goal" | "fork" | "rewind" | "queue" | "steer"
+                        )
+                })
                 .filter(|cmd| seen.insert(cmd.name.clone()))
                 .map(|cmd| {
                     let input_hint = cmd.input.as_ref().map(|input| match input {
@@ -22489,786 +22120,6 @@ mod tests {
     }
 
     #[test]
-    fn zcode_model_selector_uses_registry_ids_for_legacy_bigmodel_choices() {
-        let raw: Vec<SessionConfigOption> = serde_json::from_value(serde_json::json!([{
-            "id": "model", "name": "Model", "category": "model", "type": "select",
-            "currentValue": "bigmodel-api\\GLM-5.3",
-            "options": [
-                {"value": "bigmodel-api\\GLM-5.3", "name": "GLM-5.3"},
-                {"value": "builtin:bigmodel\\GLM-5.3", "name": "GLM-5.3"},
-                {"value": "builtin:bigmodel\\GLM-5.3-Flash", "name": "GLM-5.3-Flash"}
-            ]
-        }]))
-        .unwrap();
-        let mut mapped = map_session_config_options(&raw);
-        normalize_zcode_model_options(&mut mapped);
-        let SessionConfigKindInfo::Select(select) = &mapped[0].kind else {
-            panic!("model must be select");
-        };
-        assert_eq!(
-            select
-                .options
-                .iter()
-                .map(|option| option.value.as_str())
-                .collect::<Vec<_>>(),
-            vec!["bigmodel-api\\GLM-5.3", "bigmodel-api\\GLM-5.3-Flash"]
-        );
-        assert_eq!(
-            zcode_supported_model_value(&mapped, "builtin:bigmodel\\GLM-5.3-Flash"),
-            "bigmodel-api\\GLM-5.3-Flash"
-        );
-        assert_eq!(
-            zcode_supported_model_value(&mapped, "builtin:bigmodel\\UNLISTED"),
-            "builtin:bigmodel\\UNLISTED"
-        );
-
-        let mut no_registry = map_session_config_options(&raw);
-        if let SessionConfigKindInfo::Select(select) = &mut no_registry[0].kind {
-            select.current_value = "builtin:bigmodel\\GLM-5.3".to_string();
-            select.options.remove(0);
-        }
-        let unchanged = no_registry.clone();
-        normalize_zcode_model_options(&mut no_registry);
-        assert_eq!(
-            serde_json::to_value(no_registry).unwrap(),
-            serde_json::to_value(unchanged).unwrap()
-        );
-    }
-
-    #[tokio::test]
-    async fn zcode_model_switch_sends_registry_id_and_keeps_confirmed_picker() {
-        let raw: Vec<SessionConfigOption> = serde_json::from_value(serde_json::json!([{
-            "id": "model", "name": "Model", "category": "model", "type": "select",
-            "currentValue": "bigmodel-api\\GLM-5.3",
-            "options": [
-                {"value": "bigmodel-api\\GLM-5.3", "name": "GLM-5.3"},
-                {"value": "builtin:bigmodel\\GLM-5.3", "name": "GLM-5.3"},
-                {"value": "builtin:bigmodel\\GLM-5.3-Flash", "name": "GLM-5.3-Flash"}
-            ]
-        }]))
-        .unwrap();
-        let (client_end, agent_end) = agent_client_protocol::Channel::duplex();
-        let response_options = raw.clone();
-        let agent = tokio::spawn(
-            Agent
-                .builder()
-                .on_receive_request(
-                    async move |req: SetSessionConfigOptionRequest,
-                                responder: Responder<
-                        agent_client_protocol::schema::v1::SetSessionConfigOptionResponse,
-                    >,
-                                _cx: ConnectionTo<Client>| {
-                        let wire = serde_json::to_value(&req).unwrap();
-                        assert_eq!(wire["configId"], "model");
-                        assert_eq!(wire["value"], "bigmodel-api\\GLM-5.3-Flash");
-                        let mut reply = response_options.clone();
-                        if let SessionConfigKind::Select(select) = &mut reply[0].kind {
-                            select.current_value = "bigmodel-api\\GLM-5.3-Flash".into();
-                        }
-                        responder.respond(
-                            serde_json::from_value(serde_json::json!({
-                                "configOptions": reply
-                            }))
-                            .unwrap(),
-                        )
-                    },
-                    on_receive_request!(),
-                )
-                .connect_to(agent_end),
-        );
-        let state = Arc::new(RwLock::new(SessionState::new(
-            "model-switch".to_string(),
-            AgentType::Zcode,
-            None,
-            "win".to_string(),
-            None,
-        )));
-        let test_state = Arc::clone(&state);
-        let result = Client
-            .builder()
-            .connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
-                emit_session_config_options_values(
-                    &test_state,
-                    &EventEmitter::Noop,
-                    AgentType::Zcode,
-                    raw,
-                )
-                .await;
-                set_session_config_option(
-                    &cx,
-                    &SessionId::new("model-session"),
-                    &test_state,
-                    &EventEmitter::Noop,
-                    AgentType::Zcode,
-                    "model".to_string(),
-                    "builtin:bigmodel\\GLM-5.3-Flash".to_string(),
-                )
-                .await?;
-                Ok(())
-            })
-            .await;
-        agent.abort();
-        result.expect("legacy picker choice switches through the registry id");
-        let options = state.read().await.config_options.clone().unwrap();
-        let SessionConfigKindInfo::Select(select) = &options[0].kind else {
-            panic!("model must be select");
-        };
-        assert_eq!(select.current_value, "bigmodel-api\\GLM-5.3-Flash");
-        assert_eq!(select.options.len(), 2);
-    }
-
-    #[test]
-    fn zcode_new_session_mode_uses_saved_choices_before_launch_defaults() {
-        let mut env = BTreeMap::new();
-        let mut preferred = BTreeMap::new();
-        assert_eq!(zcode_new_session_mode(None, &preferred, &env), "build");
-        env.insert("ZCODE_ACP_MODE".to_string(), "edit".to_string());
-        assert_eq!(zcode_new_session_mode(None, &preferred, &env), "edit");
-        assert_eq!(
-            zcode_new_session_mode(Some("plan"), &preferred, &env),
-            "build"
-        );
-        preferred.insert("mode".to_string(), "yolo".to_string());
-        assert_eq!(
-            zcode_new_session_mode(Some("plan"), &preferred, &env),
-            "yolo"
-        );
-        preferred.insert("mode".to_string(), String::new());
-        env.insert("ZCODE_ACP_MODE".to_string(), " ".to_string());
-        assert_eq!(zcode_new_session_mode(Some(""), &preferred, &env), "build");
-    }
-
-    #[tokio::test]
-    async fn zcode_new_session_confirms_mode_even_when_lazy_advertisement_matches() {
-        fn mode_options(mode: &str) -> Vec<SessionConfigOption> {
-            serde_json::from_value(serde_json::json!([{
-                "id": "mode", "name": "Mode", "category": "mode", "type": "select",
-                "currentValue": mode,
-                "options": [
-                    {"value": "build", "name": "Build"},
-                    {"value": "yolo", "name": "YOLO"},
-                    {"value": "plan", "name": "Plan"}
-                ]
-            }]))
-            .unwrap()
-        }
-
-        for (desired, confirmed, allowed) in [
-            (Some("build"), Some("build"), true),
-            (Some("yolo"), Some("yolo"), true),
-            (None, None, true),
-            (Some("plan"), Some("build"), true),
-            (Some("build"), Some("yolo"), false),
-            (Some("build"), None, false),
-        ] {
-            let (client_end, agent_end) = agent_client_protocol::Channel::duplex();
-            let mode_calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-            let recorded = Arc::clone(&mode_calls);
-            let agent = tokio::spawn(
-                Agent
-                    .builder()
-                    .on_receive_request(
-                        async |_req: NewSessionRequest,
-                               responder: Responder<NewSessionResponse>,
-                               _cx: ConnectionTo<Client>| {
-                            responder.respond(
-                                serde_json::from_value(serde_json::json!({
-                                    "sessionId": "lazy-session",
-                                    "modes": {
-                                        "currentModeId": "yolo",
-                                        "availableModes": [
-                                            {"id": "build", "name": "Build"},
-                                            {"id": "yolo", "name": "YOLO"}
-                                        ]
-                                    },
-                                    "configOptions": mode_options("yolo")
-                                }))
-                                .unwrap(),
-                            )
-                        },
-                        on_receive_request!(),
-                    )
-                    .on_receive_request(
-                        async move |req: SetSessionConfigOptionRequest,
-                                    responder: Responder<
-                            agent_client_protocol::schema::v1::SetSessionConfigOptionResponse,
-                        >,
-                                    _cx: ConnectionTo<Client>| {
-                            recorded.fetch_add(1, Ordering::SeqCst);
-                            let wire = serde_json::to_value(&req).unwrap();
-                            assert_eq!(wire["sessionId"], "lazy-session");
-                            assert_eq!(wire["configId"], "mode");
-                            assert_eq!(wire["value"], zcode_supported_mode(desired.unwrap()));
-                            responder.respond(
-                                serde_json::from_value(serde_json::json!({
-                                    "configOptions": confirmed.map(mode_options).unwrap_or_default()
-                                }))
-                                .unwrap(),
-                            )
-                        },
-                        on_receive_request!(),
-                    )
-                    .connect_to(agent_end),
-            );
-            let response = Client
-                .builder()
-                .connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
-                    let (response, _) = send_new_session_capturing_models(
-                        &cx,
-                        NewSessionRequest::new("/tmp"),
-                        desired,
-                    )
-                    .await?;
-                    Ok(response)
-                })
-                .await;
-            agent.abort();
-            assert_eq!(
-                mode_calls.load(Ordering::SeqCst),
-                usize::from(desired.is_some())
-            );
-            if allowed {
-                let response = response.expect("the confirmed mode establishes the session");
-                let expected = confirmed.unwrap_or("yolo");
-                assert_eq!(
-                    response.modes.unwrap().current_mode_id.to_string(),
-                    expected
-                );
-                assert!(config_option_already_holds(
-                    &response.config_options.unwrap()[0],
-                    expected
-                ));
-            } else {
-                response.expect_err("an absent mode or unexpected bypass must not allow a prompt");
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn zcode_mode_changes_and_restored_preferences_use_confirmed_config_values() {
-        #[derive(Clone, Copy, Debug)]
-        enum Path {
-            Legacy,
-            Config,
-            RestoreLegacy,
-            RestoreConfig,
-            RestoreBoth,
-            RestoreDefault,
-            RestoreFailure,
-        }
-
-        fn options(mode: &str) -> Vec<SessionConfigOption> {
-            serde_json::from_value(serde_json::json!([{
-                "id": "mode", "name": "Mode", "category": "mode", "type": "select",
-                "currentValue": mode,
-                "options": [
-                    {"value": "build", "name": "Build"},
-                    {"value": "edit", "name": "Edit"},
-                    {"value": "yolo", "name": "Yolo"},
-                    {"value": "plan", "name": "Plan"}
-                ]
-            }]))
-            .unwrap()
-        }
-
-        for (path, requested, confirmed) in [
-            (Path::Legacy, "edit", "build"),
-            (Path::Legacy, "edit", "edit"),
-            (Path::Config, "edit", "build"),
-            (Path::Config, "edit", "edit"),
-            (Path::RestoreLegacy, "plan", "build"),
-            (Path::RestoreConfig, "plan", "build"),
-            (Path::RestoreBoth, "edit", "edit"),
-            (Path::RestoreDefault, "build", "build"),
-            (Path::RestoreFailure, "build", "build"),
-        ] {
-            let (client_end, agent_end) = agent_client_protocol::Channel::duplex();
-            let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-            let recorded = Arc::clone(&calls);
-            // Captured native failure: session permission/mode said build but
-            // assistant metadata had planEnabled=true, and Write was denied
-            // with "Plan mode only allows read-only, non-destructive tools".
-            let hidden_plan = Arc::new(AtomicBool::new(true));
-            let backend_plan = Arc::clone(&hidden_plan);
-            // Only the standard config handler is installed. A regression to
-            // the unconfirmed legacy set_mode channel cannot pass this test.
-            let agent = tokio::spawn(
-                Agent
-                    .builder()
-                    .on_receive_request(
-                        async move |req: SetSessionConfigOptionRequest,
-                                    responder: Responder<
-                            agent_client_protocol::schema::v1::SetSessionConfigOptionResponse,
-                        >,
-                                    _cx: ConnectionTo<Client>| {
-                            recorded.fetch_add(1, Ordering::SeqCst);
-                            let wire = serde_json::to_value(&req).unwrap();
-                            assert_eq!(wire["sessionId"], "restored-session");
-                            assert_eq!(wire["configId"], "mode");
-                            assert_ne!(wire["value"], "plan");
-                            assert_eq!(wire["value"], zcode_supported_mode(requested));
-                            if matches!(path, Path::RestoreFailure) {
-                                return responder.respond_with_error(
-                                    agent_client_protocol::Error::internal_error()
-                                        .data("mode reset failed"),
-                                );
-                            }
-                            backend_plan.store(false, Ordering::SeqCst);
-                            responder.respond(
-                                serde_json::from_value(serde_json::json!({
-                                    "configOptions": options(confirmed)
-                                }))
-                                .unwrap(),
-                            )
-                        },
-                        on_receive_request!(),
-                    )
-                    .connect_to(agent_end),
-            );
-            let state = Arc::new(RwLock::new(SessionState::new(
-                "conn-mode".to_string(),
-                AgentType::Zcode,
-                None,
-                "win".to_string(),
-                None,
-            )));
-            let client_state = Arc::clone(&state);
-            let result = Client
-                .builder()
-                .connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
-                    // A hidden Plan flag over a yolo base must not resume as
-                    // yolo when the user supplied no explicit mode preference.
-                    let advertised_mode = if matches!(path, Path::RestoreDefault) {
-                        "yolo"
-                    } else {
-                        "build"
-                    };
-                    let response: NewSessionResponse = serde_json::from_value(serde_json::json!({
-                        "sessionId": "restored-session",
-                        "modes": {
-                            "currentModeId": advertised_mode,
-                            "availableModes": [
-                                {"id": "build", "name": "Build"},
-                                {"id": "edit", "name": "Edit"},
-                                {"id": "yolo", "name": "Yolo"},
-                                {"id": "plan", "name": "Plan"}
-                            ]
-                        },
-                        "configOptions": options(advertised_mode)
-                    }))
-                    .unwrap();
-                    let mut session = AgentSession::attach(&cx, response)?;
-                    let emitter = EventEmitter::Noop;
-                    emit_session_modes(&client_state, &emitter, session.modes()).await;
-                    match path {
-                        Path::Legacy => {
-                            set_session_mode(
-                                &cx,
-                                session.session_id(),
-                                &client_state,
-                                &emitter,
-                                AgentType::Zcode,
-                                requested.to_string(),
-                            )
-                            .await?;
-                        }
-                        Path::Config => {
-                            set_session_config_option(
-                                &cx,
-                                session.session_id(),
-                                &client_state,
-                                &emitter,
-                                AgentType::Zcode,
-                                "mode".to_string(),
-                                requested.to_string(),
-                            )
-                            .await?;
-                        }
-                        Path::RestoreLegacy
-                        | Path::RestoreConfig
-                        | Path::RestoreBoth
-                        | Path::RestoreDefault
-                        | Path::RestoreFailure => {
-                            let saved_mode = match path {
-                                Path::RestoreLegacy => Some(requested),
-                                Path::RestoreBoth => Some("plan"),
-                                _ => None,
-                            };
-                            let saved_config = if matches!(
-                                path,
-                                Path::RestoreLegacy | Path::RestoreDefault | Path::RestoreFailure
-                            ) {
-                                BTreeMap::new()
-                            } else {
-                                BTreeMap::from([("mode".to_string(), requested.to_string())])
-                            };
-                            apply_and_emit_session_config_options(
-                                &cx,
-                                &mut session,
-                                &client_state,
-                                &emitter,
-                                AgentType::Zcode,
-                                None,
-                                None,
-                                None,
-                                saved_mode,
-                                &saved_config,
-                                options(advertised_mode),
-                            )
-                            .await?;
-                        }
-                    }
-                    Ok(())
-                })
-                .await;
-            agent.abort();
-            if matches!(path, Path::RestoreFailure) {
-                result.expect_err("a failed reset cannot establish the session");
-                assert_eq!(calls.load(Ordering::SeqCst), 1);
-                assert!(state.read().await.config_options.is_none());
-                continue;
-            }
-            result.expect("mode request completes through the standard config channel");
-            assert_eq!(calls.load(Ordering::SeqCst), 1, "{path:?}");
-            assert!(!hidden_plan.load(Ordering::SeqCst), "{path:?}");
-            let state = state.read().await;
-            assert_eq!(state.current_mode.as_deref(), Some(confirmed), "{path:?}");
-            assert_eq!(state.modes.as_ref().unwrap().current_mode_id, confirmed);
-            assert!(state
-                .modes
-                .as_ref()
-                .unwrap()
-                .available_modes
-                .iter()
-                .all(|mode| mode.id != "plan"));
-            let SessionConfigKindInfo::Select(select) =
-                &state.config_options.as_ref().unwrap()[0].kind
-            else {
-                panic!("mode is a select");
-            };
-            assert_eq!(select.current_value, confirmed);
-            assert!(select.options.iter().all(|option| option.value != "plan"));
-            let events = state.recent_events_after(0).expect("mode events retained");
-            let mut rejections = 0;
-            for event in events {
-                match &event.payload {
-                    AcpEvent::ModeChanged { mode_id } => assert_eq!(mode_id, confirmed),
-                    AcpEvent::ConfigOptionRejected {
-                        config_id,
-                        requested_value,
-                        actual_value,
-                        ..
-                    } => {
-                        assert_eq!(config_id, "mode");
-                        assert_eq!(requested_value, zcode_supported_mode(requested));
-                        assert_eq!(actual_value, confirmed);
-                        rejections += 1;
-                    }
-                    _ => {}
-                }
-            }
-            assert_eq!(
-                rejections,
-                usize::from(zcode_supported_mode(requested) != confirmed),
-                "{path:?}"
-            );
-            if zcode_supported_mode(requested) != confirmed {
-                assert!(!state.asserted_config_values.contains_key("mode"));
-            }
-        }
-    }
-
-    #[tokio::test]
-    async fn zcode_plan_requests_never_reach_the_adapter() {
-        use futures::StreamExt;
-
-        let (client_end, agent_end) = agent_client_protocol::Channel::duplex();
-        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
-        let recorded = Arc::clone(&calls);
-        let agent = tokio::spawn(async move {
-            let agent_client_protocol::Channel { mut rx, tx } = agent_end;
-            while rx.next().await.is_some() {
-                recorded.fetch_add(1, Ordering::SeqCst);
-            }
-            drop(tx);
-        });
-        let result = tokio::time::timeout(
-            std::time::Duration::from_secs(2),
-            Client
-                .builder()
-                .connect_with(client_end, async |cx: ConnectionTo<Agent>| {
-                    let state = Arc::new(RwLock::new(SessionState::new(
-                        "conn-plan".to_string(),
-                        AgentType::Zcode,
-                        None,
-                        "win".to_string(),
-                        None,
-                    )));
-                    let sid = SessionId::new("s1");
-                    for requested in ["plan", " plan ", "PLAN", "Plan"] {
-                        set_session_mode(
-                            &cx,
-                            &sid,
-                            &state,
-                            &EventEmitter::Noop,
-                            AgentType::Zcode,
-                            requested.to_string(),
-                        )
-                        .await
-                        .expect_err("legacy mode must reject Plan before sending any ACP request");
-                        set_session_config_option(
-                            &cx,
-                            &sid,
-                            &state,
-                            &EventEmitter::Noop,
-                            AgentType::Zcode,
-                            "mode".to_string(),
-                            requested.to_string(),
-                        )
-                        .await
-                        .expect_err("config mode must reject Plan before sending any ACP request");
-                    }
-                    assert!(state.read().await.current_mode.is_none());
-                    Ok(())
-                }),
-        )
-        .await;
-        agent.abort();
-        result
-            .expect("no round-trip to the adapter")
-            .expect("client connection");
-        assert_eq!(calls.load(Ordering::SeqCst), 0);
-    }
-
-    #[tokio::test]
-    async fn zcode_plan_filter_preserves_other_agents_modes() {
-        let modes: SessionModeState = serde_json::from_value(serde_json::json!({
-            "currentModeId": "build",
-            "availableModes": [{"id":"build","name":"Build"},{"id":"plan","name":"Plan"}]
-        }))
-        .unwrap();
-        let options: Vec<SessionConfigOption> = serde_json::from_value(serde_json::json!([{
-            "id":"mode", "name":"Mode", "type":"select", "currentValue":"build",
-            "options":[{"value":"build","name":"Build"},{"value":"plan","name":"Plan"}]
-        }]))
-        .unwrap();
-        for agent_type in [AgentType::Zcode, AgentType::ClaudeCode, AgentType::Codex] {
-            let state = Arc::new(RwLock::new(SessionState::new(
-                "conn-mode-filter".to_string(),
-                agent_type,
-                None,
-                "win".to_string(),
-                None,
-            )));
-            emit_session_modes(&state, &EventEmitter::Noop, &Some(modes.clone())).await;
-            emit_session_config_options_values(
-                &state,
-                &EventEmitter::Noop,
-                agent_type,
-                options.clone(),
-            )
-            .await;
-            let state = state.read().await;
-            let expected_plan = agent_type != AgentType::Zcode;
-            assert_eq!(
-                state
-                    .modes
-                    .as_ref()
-                    .unwrap()
-                    .available_modes
-                    .iter()
-                    .any(|mode| mode.id == "plan"),
-                expected_plan
-            );
-            let SessionConfigKindInfo::Select(select) =
-                &state.config_options.as_ref().unwrap()[0].kind
-            else {
-                panic!("mode is a select");
-            };
-            assert_eq!(
-                select.options.iter().any(|option| option.value == "plan"),
-                expected_plan
-            );
-        }
-    }
-
-    #[test]
-    fn zcode_storage_env_aligns_native_storage_with_the_bridge_root() {
-        let root = PathBuf::from("fixture").join(".zcode");
-        let mut env = BTreeMap::from([
-            (
-                "ZCODE_HOME".to_string(),
-                root.to_string_lossy().into_owned(),
-            ),
-            ("ZCODE_DATA_BASE_DIR".to_string(), "old-root".to_string()),
-        ]);
-        prepare_zcode_storage_env(&mut env);
-        assert_eq!(PathBuf::from(&env["ZCODE_HOME"]), root);
-        assert_eq!(PathBuf::from(&env["ZCODE_STORAGE_DIR"]), root);
-        assert_eq!(
-            PathBuf::from(&env["ZCODE_SESSION_DB_PATH"]),
-            root.join("cli").join("db").join("db.sqlite")
-        );
-    }
-
-    #[test]
-    fn zcode_storage_env_maps_legacy_root_and_treats_empty_home_as_automatic() {
-        for home in [None, Some(""), Some("  ")] {
-            let mut env = BTreeMap::from([(
-                "ZCODE_DATA_BASE_DIR".to_string(),
-                "fixture-parent".to_string(),
-            )]);
-            if let Some(home) = home {
-                env.insert("ZCODE_HOME".to_string(), home.to_string());
-            }
-            prepare_zcode_storage_env(&mut env);
-            let root = PathBuf::from("fixture-parent").join(".zcode");
-            assert_eq!(PathBuf::from(&env["ZCODE_HOME"]), root);
-            assert_eq!(PathBuf::from(&env["ZCODE_STORAGE_DIR"]), root);
-            assert_eq!(
-                PathBuf::from(&env["ZCODE_SESSION_DB_PATH"]),
-                root.join("cli").join("db").join("db.sqlite")
-            );
-        }
-    }
-
-    #[test]
-    fn zcode_storage_env_preserves_explicit_storage_and_database_overrides() {
-        for value in ["custom-path", ""] {
-            for db_key in ["ZCODE_SESSION_DB_PATH", "ZCODE_SESSION_DB"] {
-                let mut env = BTreeMap::from([
-                    ("ZCODE_HOME".to_string(), "fixture/.zcode".to_string()),
-                    ("ZCODE_STORAGE_DIR".to_string(), value.to_string()),
-                    (db_key.to_string(), value.to_string()),
-                ]);
-                let expected = env.clone();
-                prepare_zcode_storage_env(&mut env);
-                assert_eq!(env, expected);
-            }
-        }
-    }
-
-    #[test]
-    fn zcode_storage_env_keeps_native_defaults_without_a_selected_root() {
-        for env in [
-            BTreeMap::new(),
-            BTreeMap::from([
-                ("ZCODE_HOME".to_string(), String::new()),
-                ("ZCODE_DATA_BASE_DIR".to_string(), String::new()),
-            ]),
-        ] {
-            let expected = env.clone();
-            let mut actual = env;
-            prepare_zcode_storage_env(&mut actual);
-            assert_eq!(actual, expected);
-        }
-    }
-
-    #[test]
-    fn zcode_legacy_launch_settings_preserve_model_and_reasoning() {
-        let mut env = BTreeMap::from([
-            ("ZCODE_CLI".to_string(), "/opt/ZCode/zcode.cjs".to_string()),
-            ("ZCODE_MODE".to_string(), "plan".to_string()),
-            (
-                "ZCODE_MODEL".to_string(),
-                r#"{"providerId":"provider-1","modelId":"org/model","reasoningLevel":"high"}"#
-                    .to_string(),
-            ),
-        ]);
-        let mut preferred = BTreeMap::from([
-            ("model".to_string(), "provider-1/org/model".to_string()),
-            ("reasoning".to_string(), "max".to_string()),
-        ]);
-        migrate_zcode_launch_settings(&mut env, &mut preferred);
-        assert_eq!(env["ZCODE_BIN"], "/opt/ZCode/zcode.cjs");
-        assert_eq!(env["ZCODE_ACP_MODE"], "build");
-        assert_eq!(env["ZCODE_PROVIDER"], "provider-1");
-        assert_eq!(env["ZCODE_MODEL"], "org/model");
-        assert_eq!(preferred["model"], "provider-1\\org/model");
-        assert_eq!(preferred["thought"], "max");
-        assert!(!preferred.contains_key("reasoning"));
-    }
-
-    #[test]
-    fn zcode_legacy_model_reasoning_becomes_a_session_preference() {
-        let mut env = BTreeMap::from([(
-            "ZCODE_MODEL".to_string(),
-            r#"{"providerId":"p","modelId":"m","reasoningLevel":"high"}"#.to_string(),
-        )]);
-        let mut preferred = BTreeMap::new();
-        migrate_zcode_launch_settings(&mut env, &mut preferred);
-        assert_eq!(preferred["thought"], "high");
-    }
-
-    #[test]
-    fn zcode_modern_settings_win_over_legacy_aliases() {
-        let mut env = BTreeMap::from([
-            ("ZCODE_CLI".to_string(), "/old/zcode.cjs".to_string()),
-            ("ZCODE_BIN".to_string(), "/new/zcode.cjs".to_string()),
-            ("ZCODE_MODE".to_string(), "yolo".to_string()),
-            ("ZCODE_ACP_MODE".to_string(), "build".to_string()),
-            ("ZCODE_PROVIDER".to_string(), "new-provider".to_string()),
-            ("ZCODE_MODEL".to_string(), "org/model".to_string()),
-        ]);
-        let expected_env = env.clone();
-        let mut preferred = BTreeMap::from([
-            ("model".to_string(), "new-provider\\org/model".to_string()),
-            ("reasoning".to_string(), "low".to_string()),
-            ("thought".to_string(), "high".to_string()),
-        ]);
-        migrate_zcode_launch_settings(&mut env, &mut preferred);
-        assert_eq!(env, expected_env);
-        assert_eq!(preferred["model"], "new-provider\\org/model");
-        assert_eq!(preferred["thought"], "high");
-        assert!(!preferred.contains_key("reasoning"));
-
-        env.insert(
-            "ZCODE_MODEL".to_string(),
-            r#"{"providerId":"old-provider","modelId":"m"}"#.to_string(),
-        );
-        migrate_zcode_launch_settings(&mut env, &mut preferred);
-        assert_eq!(env["ZCODE_PROVIDER"], "new-provider");
-        assert_eq!(env["ZCODE_MODEL"], "m");
-    }
-
-    #[test]
-    fn zcode_invalid_legacy_overrides_keep_safe_defaults() {
-        for model in ["{broken-json", r#"{"providerId":"p"}"#] {
-            let mut env = BTreeMap::from([
-                ("ZCODE_MODEL".to_string(), model.to_string()),
-                ("ZCODE_MODE".to_string(), "unknown".to_string()),
-                ("ZCODE_ACP_MODE".to_string(), String::new()),
-            ]);
-            let mut preferred = BTreeMap::new();
-            migrate_zcode_launch_settings(&mut env, &mut preferred);
-            assert_eq!(env["ZCODE_MODEL"], "");
-            assert_eq!(env["ZCODE_ACP_MODE"], "build");
-            assert!(!env.contains_key("ZCODE_PROVIDER"));
-            assert!(preferred.is_empty());
-        }
-    }
-
-    #[test]
-    fn zcode_fork_is_disabled_for_the_incompatible_adapter_response() {
-        let capabilities = serde_json::from_value(serde_json::json!({
-            "loadSession": true,
-            "sessionCapabilities": {"fork": {}, "resume": {}, "list": {}}
-        }))
-        .unwrap();
-        // Captured from zcode-acp-server 0.48.0 against the fixture backend.
-        let response = serde_json::json!({"forkedSessionId": "sess_child"});
-        assert!(
-            serde_json::from_value::<agent_client_protocol::schema::v1::ForkSessionResponse>(
-                response
-            )
-            .is_err()
-        );
-        assert!(!supports_session_fork(AgentType::Zcode, &capabilities));
-        assert!(capabilities.session_capabilities.resume.is_some());
-        assert!(capabilities.load_session);
-    }
-
-    #[test]
     fn session_fork_capability_remains_advertisement_gated_for_other_agents() {
         for advertised in [false, true] {
             let capabilities = serde_json::from_value(serde_json::json!({
@@ -23339,11 +22190,6 @@ mod tests {
         assert!(other.get("elicitation").is_none());
         assert_eq!(other["terminal"], serde_json::Value::Bool(true));
         assert_eq!(other["fs"]["readTextFile"], serde_json::Value::Bool(true));
-
-        // ZCode's forms use two fields per question; keep its supported
-        // request_permission fallback until that shape is handled end to end.
-        let zcode = caps_of(AgentType::Zcode);
-        assert!(zcode.get("elicitation").is_none());
     }
 
     #[test]
@@ -26412,7 +25258,6 @@ mod tests {
                         TerminalShellRuntimeConfig::new(),
                         None,
                         BTreeMap::new(),
-                        None,
                         None,
                         FsAccessPolicy::from_env(&cwd, agent_type, &BTreeMap::new()),
                         HostToolsPolicy::from_env(&BTreeMap::new()),
@@ -35511,3 +34356,7 @@ mod maxcode_upstream_runtime_20261008_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/upstream-runtime-20261015.contract.rs"]
 mod maxcode_upstream_runtime_20261015_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/zcode-upstream.contract.rs"]
+mod maxcode_zcode_upstream_contract;

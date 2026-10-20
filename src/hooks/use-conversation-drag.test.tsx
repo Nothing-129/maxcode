@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { useConversationDrag } from "./use-conversation-drag"
 import { useTabStore } from "@/stores/tab-store"
 
+const realAction = useTabStore.getState().dropTabInGroup
+
 vi.mock("@/lib/conversation-drop-target", () => ({
   conversationDropTarget: () => ({ gid: "target", direction: "right" }),
 }))
@@ -28,6 +30,9 @@ function pointer(type: string, x: number) {
 afterEach(() => {
   vi.restoreAllMocks()
   useTabStore.getState().endTabDrag()
+  // Zustand copies the spied method into new state objects during a drag.
+  // Restoring the old object does not replace that copied Vitest 4 spy.
+  useTabStore.setState({ dropTabInGroup: realAction })
 })
 
 describe("conversation title drag", () => {

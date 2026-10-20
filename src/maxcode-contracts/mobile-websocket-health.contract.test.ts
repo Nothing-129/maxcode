@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type Mock,
+} from "vitest"
 import { WebTransport } from "@/lib/transport/web-transport"
 
 class Socket {
@@ -31,7 +39,7 @@ class Socket {
 }
 
 let transport: WebTransport
-let fetchMock: ReturnType<typeof vi.fn>
+let fetchMock: Mock
 const socket = () => Socket.instances[Socket.instances.length - 1]
 const healthy = () => {
   socket().open()

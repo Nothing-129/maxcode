@@ -378,10 +378,8 @@ async fn uvx_displayed_version(
 }
 
 /// Packages whose stored version cannot establish that the runtime is usable.
-fn npx_requires_runtime_probe(agent_type: AgentType, package: &str) -> bool {
-    // 旧 ZCode 内置适配器曾把 0.1.0 写入数据库；迁移到 npm 后必须探测
-    // 实际命令，不能把旧记录当作新适配器已安装或作为其版本。
-    agent_type == AgentType::Zcode || npm_package_requires_scripts(package)
+fn npx_requires_runtime_probe(_agent_type: AgentType, package: &str) -> bool {
+    npm_package_requires_scripts(package)
 }
 
 /// Version shown for an npx agent. Packages with load-bearing lifecycle
@@ -5948,15 +5946,17 @@ pub(crate) fn pi_agent_dir_in_workspace(
 
 /// The `<cwd>/.pi/` entries whose mere presence makes a project "trust-requiring"
 /// for pi. Mirrors pi's own `TRUST_REQUIRING_PROJECT_CONFIG_RESOURCES`
-/// (`core/trust-manager.js`, verified against pi 0.80.2).
+/// (`core/trust-manager.js`, verified against pi 1.3.0, whose native MCP added
+/// `mcp.json`).
 ///
 /// This list is a mirror of another project's constant, so it can drift if pi
-/// adds a resource kind. It fails safe in both directions: under-detecting only
-/// means codeg stays quiet about resources pi would ignore anyway (pi's own
-/// non-interactive default is "don't load"), and over-detecting only costs one
-/// extra prompt. Neither direction can load a resource without the user's word.
-const PI_TRUST_REQUIRING_CONFIG_RESOURCES: [&str; 7] = [
+/// adds a resource kind, and the drift is not harmless. Over-detecting only
+/// costs one extra prompt, but a kind missing here lets a repository that ships
+/// only that kind past the launch gate under a grant nobody confirmed — and pi
+/// loads it, since the grant is in force.
+const PI_TRUST_REQUIRING_CONFIG_RESOURCES: [&str; 8] = [
     "settings.json",
+    "mcp.json",
     "extensions",
     "skills",
     "prompts",
@@ -5975,9 +5975,10 @@ pub struct PiProjectResource {
     pub kind: String,
     /// Whether loading this resource means executing repo-controlled code at pi
     /// startup, as opposed to feeding it repo-controlled text. `.pi/extensions`
-    /// are JS/TS modules whose top level runs immediately, and `.pi/settings.json`
-    /// can make pi install project packages — the approval UI must say so plainly
-    /// rather than describing all of these as "config".
+    /// are JS/TS modules whose top level runs immediately, `.pi/settings.json`
+    /// can make pi install project packages, and `.pi/mcp.json` names commands
+    /// pi starts as MCP servers — the approval UI must say so plainly rather
+    /// than describing all of these as "config".
     pub executes_code: bool,
 }
 
@@ -6019,8 +6020,9 @@ fn pi_project_trust_resources_with_home(cwd: &Path, home: &Path) -> Vec<PiProjec
                 path: path.to_string_lossy().to_string(),
                 kind: format!(".pi/{entry}"),
                 // Extensions are modules pi imports (top-level code runs); project
-                // settings can pull in and install project packages.
-                executes_code: matches!(entry, "extensions" | "settings.json"),
+                // settings can pull in and install project packages; a project
+                // MCP server is a command pi starts.
+                executes_code: matches!(entry, "extensions" | "settings.json" | "mcp.json"),
             });
         }
     }
@@ -8870,11 +8872,7 @@ pub(crate) fn skill_storage_spec(agent_type: AgentType) -> Option<SkillStorageSp
             global_dirs: vec![home_dir_or_default().join(".claude").join("skills")],
             project_rel_dirs: vec![".claude/skills"],
         }),
-        AgentType::Zcode => Some(SkillStorageSpec {
-            kind: SkillStorageKind::SkillDirectoryOnly,
-            global_dirs: vec![home_dir_or_default().join(".zcode").join("skills")],
-            project_rel_dirs: vec![".zcode/skills", ".agents/skills"],
-        }),
+        AgentType::Zcode => None,
         AgentType::Codex => Some(SkillStorageSpec {
             kind: SkillStorageKind::SkillDirectoryOrMarkdownFile,
             global_dirs: vec![
@@ -10735,14 +10733,25 @@ pub(crate) async fn cascade_update_model_provider(
     Ok(())
 }
 
-pub async fn acp_preflight(
+pub async fn acp_preflight_core(
+    db: &AppDatabase,
     agent_type: AgentType,
     force_refresh: Option<bool>,
 ) -> Result<PreflightResult, AcpError> {
     if force_refresh.unwrap_or(false) {
         preflight::clear_npm_env_cache();
     }
-    Ok(preflight::run_preflight(agent_type).await)
+    let runtime_env = if agent_type == AgentType::Zcode {
+        agent_setting_service::get_by_agent_type(&db.conn, agent_type)
+            .await
+            .map_err(|error| AcpError::protocol(error.to_string()))?
+            .and_then(|setting| setting.env_json)
+            .and_then(|value| serde_json::from_str::<BTreeMap<String, String>>(&value).ok())
+            .unwrap_or_default()
+    } else {
+        BTreeMap::new()
+    };
+    Ok(preflight::run_preflight_with_env(agent_type, &runtime_env).await)
 }
 
 /// Resolve the full runtime env every ACP spawn should receive — settings
@@ -12308,15 +12317,15 @@ pub(crate) async fn acp_detect_agent_local_version_core(
         return Ok(Some(version));
     }
 
-    // Binary agents and bootstrap/native npx agents validate the actual runtime,
-    // so `None` is authoritative: falling back to the DB would resurrect a
-    // removed or half-installed runtime as a phantom. Ordinary npx detection
-    // runs `npm list`, which can fail transiently, so those keep the DB value as
-    // a best-effort fallback.
+    // A missing binary or failed bootstrap runtime probe is authoritative.
+    // Ordinary npm metadata can fail transiently, so retain the stored version
+    // only while the actual launch command still resolves. A Node/prefix switch
+    // or an external uninstall must clear the phantom installed state too.
     let authoritative_none = match registry::get_agent_meta(agent_type).distribution {
         registry::AgentDistribution::Binary { .. } => true,
-        registry::AgentDistribution::Npx { package, .. } => {
+        registry::AgentDistribution::Npx { package, cmd, .. } => {
             npx_requires_runtime_probe(agent_type, package)
+                || (previous.is_some() && !is_cmd_available(cmd).await)
         }
         registry::AgentDistribution::Uvx { .. } => false,
     };
@@ -14551,6 +14560,26 @@ base_url = \"https://example.test/v1\"
         assert_eq!(by_kind.get(".pi/prompts"), Some(&false));
     }
 
+    /// pi 1.x starts a trusted project's `.pi/mcp.json` servers, and a stdio
+    /// server is a command it runs: a repo shipping only that file is gated.
+    #[test]
+    fn pi_trust_gates_a_project_mcp_config_that_runs_commands() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let ws = tmp.path().join("ws");
+        touch(&ws.join(".pi").join("mcp.json"));
+
+        let resources = pi_project_trust_resources(&ws);
+        assert_eq!(resources.len(), 1);
+        assert_eq!(resources[0].kind, ".pi/mcp.json");
+        assert!(resources[0].executes_code);
+
+        let agent_dir = tmp.path().join("agent");
+        let mut map = serde_json::Map::new();
+        map.insert(canonical_key(&ws), serde_json::Value::Bool(true));
+        write_json_object_pretty(&agent_dir.join("trust.json"), &map).unwrap();
+        assert!(launch_block_for(&agent_dir, &tmp.path().join("codeg-home"), &ws).is_some());
+    }
+
     /// A bare `.pi/` directory is not a project resource for pi, so codeg must not
     /// prompt about it (`hasTrustRequiringProjectResources` ignores it too).
     #[test]
@@ -15197,10 +15226,7 @@ base_url = \"https://example.test/v1\"
             home.path().to_string_lossy().into_owned(),
         );
         env.insert("PI_CODING_AGENT_DIR".to_string(), "~/custom-pi".to_string());
-        assert_eq!(
-            pi_agent_dir_for_env(&env),
-            home.path().join("custom-pi")
-        );
+        assert_eq!(pi_agent_dir_for_env(&env), home.path().join("custom-pi"));
         // pi's `normalizePath` takes the value verbatim: a padded value is a
         // different (here: relative) directory, not the trimmed one.
         env.insert(
@@ -17171,36 +17197,6 @@ wire_api = "chat"
 
         assert_eq!(version, None, "a DB version must not mask a broken runtime");
         let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[cfg(unix)]
-    #[tokio::test]
-    async fn zcode_status_probes_npm_adapter_instead_of_the_old_bundled_version() {
-        use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let command_path = dir.path().join("zcode-acp-server");
-        std::fs::write(&command_path, "#!/bin/sh\necho zcode-acp-server 0.48.0\n").unwrap();
-        std::fs::set_permissions(&command_path, std::fs::Permissions::from_mode(0o755)).unwrap();
-
-        let package = "zcode-acp-server@0.48.0";
-        let previous = Some("0.1.0".to_string());
-        assert_eq!(
-            npx_displayed_version(
-                AgentType::Zcode,
-                Some(&command_path),
-                package,
-                previous.clone(),
-            )
-            .await,
-            Some("0.48.0".to_string())
-        );
-        assert_eq!(
-            npx_displayed_version(AgentType::Zcode, None, package, previous).await,
-            None,
-            "the old bundled record must not make a missing npm adapter installed"
-        );
-        assert!(npx_requires_runtime_probe(AgentType::Zcode, package));
-        assert!(!npm_package_requires_scripts(package));
     }
 
     #[tokio::test]
@@ -19420,3 +19416,7 @@ mod maxcode_upstream_codex_catalog_20260930_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/settings-agent-probe-deadline.contract.rs"]
 mod maxcode_settings_agent_probe_deadline_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/agent-install-detection.contract.rs"]
+mod maxcode_agent_install_detection_contract;

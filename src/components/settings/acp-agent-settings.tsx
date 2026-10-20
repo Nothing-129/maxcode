@@ -767,6 +767,9 @@ export function inferGrokMode(
 export function importantEnvKeysByAgent(
   agentType: AgentType
 ): ImportantEnvKeys {
+  if (agentType === "zcode") {
+    return { apiBaseUrl: [], apiKey: [], model: [] }
+  }
   if (agentType === "claude_code") {
     return {
       apiBaseUrl: ["ANTHROPIC_BASE_URL", "OPENAI_BASE_URL", "API_BASE_URL"],
@@ -4069,6 +4072,25 @@ export function buildAcpAdapterCheck(
   // The English fallbacks mirror the four i18n messages one-for-one (they are
   // what renders if no translator is mounted), so each state keeps the detail
   // that state is about — above all, the path we found the vendor CLI at.
+  if (adapter.native_required) {
+    return {
+      check_id: "acp_adapter",
+      label: acpText("adapter.label", "ACP adapter"),
+      status: installed && sawNative ? "pass" : "warn",
+      message: acpText(
+        "zcode.adapterInfo",
+        "MaxCode runs {adapterPackage} as an ACP bridge. Install and sign in to the official ZCode runtime first; the bridge uses its existing configuration.",
+        values
+      ),
+      fixes: [
+        {
+          label: acpText("adapter.learnMore", "Learn more"),
+          kind: "open_url",
+          payload: adapter.docs_url,
+        },
+      ],
+    }
+  }
   const split = `MaxCode drives agents over ACP and the ${adapter.native_label} does not speak ACP, so MaxCode needs a separate adapter package, ${adapter.adapter_package}.`
   const coexist = `It ships its own runtime, never modifies or replaces your ${adapter.native_cmd} command, and reads the same ${adapter.shared_config_dir} — your existing sign-in and settings carry over.`
   const [key, fallback] = installed
@@ -8296,6 +8318,11 @@ export function AcpAgentSettings() {
 
                 <div className="space-y-2">
                   <label className="text-xs font-medium">{t("envVars")}</label>
+                  {selectedAgent.agent_type === "zcode" && (
+                    <p className="text-2xs text-muted-foreground">
+                      {t("zcode.runtimeHint")}
+                    </p>
+                  )}
                   <div className="relative group">
                     <Textarea
                       value={selectedDraft.envText}
@@ -11574,15 +11601,10 @@ supports_websockets = true`}
                       </Button>
                     </div>
                   </div>
-                ) : selectedAgent.agent_type === "zcode" ? (
-                  <SettingCard>
-                    <SettingRow
-                      icon={Plug}
-                      title={t("zcode.configManagement")}
-                      description={t("zcode.configDescription")}
-                    />
-                  </SettingCard>
-                ) : isCustomAgentType(selectedAgent.agent_type) ? (
+                ) : selectedAgent.agent_type ===
+                  "zcode" ? null : isCustomAgentType(
+                    selectedAgent.agent_type
+                  ) ? (
                   // A custom agent is driven purely by the ACP protocol: codeg
                   // knows nothing about its config file layout or auth model,
                   // so the generic "config management" editor below would be

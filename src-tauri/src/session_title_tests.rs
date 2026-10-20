@@ -593,7 +593,6 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
         AgentType::Pi,
         AgentType::DeepSeek,
         AgentType::ClaudeCode,
-        AgentType::Zcode,
     ] {
         let row = conversation_service::create(
             &db.conn,
@@ -700,7 +699,6 @@ async fn greeting_kickoff_calls_http_for_each_supported_agent(
         AgentType::DeepSeek,
         AgentType::Grok,
         AgentType::ClaudeCode,
-        AgentType::Zcode,
     ]
     .into_iter()
     .enumerate()
@@ -726,9 +724,7 @@ async fn greeting_kickoff_calls_http_for_each_supported_agent(
             assert!(prompt.contains(
                 "Greetings, thanks, introductions, and short questions must receive descriptive titles"
             ));
-            assert!(
-                prompt.contains("only when the supplied content has no interpretable meaning")
-            );
+            assert!(prompt.contains("only when the supplied content has no interpretable meaning"));
         }
         let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
         assert!(
