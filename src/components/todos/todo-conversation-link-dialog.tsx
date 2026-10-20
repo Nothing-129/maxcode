@@ -65,6 +65,7 @@ export function TodoConversationLinkDialog({
         setSearchError(null)
         void todoSearch({
           scope_id: target.scopeId,
+          only_mine: true,
           search: search.trim(),
           page,
           page_size: 20,

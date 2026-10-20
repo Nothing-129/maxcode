@@ -2,9 +2,43 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "todos.mcp-operations",
+      "category": "product",
+      "description": "Built-in MCP exposes human-owned personal/team todos separately from AI execution tasks. Explicit scopes, member-scoped remote creation, UUID deduplication, revision-guarded patches, token-derived local conversation links and live board refresh must survive upstream integration. Todo tools are available independently of delegation and never publish transcripts.",
+      "origins": ["worktree-2026-10-20"],
+      "paths": [
+        "src-tauri/src/todo/mcp.rs",
+        "src-tauri/src/todo/conversation_sources.rs",
+        "src-tauri/src/acp/chat_authoring.rs",
+        "src-tauri/src/commands/chat_authoring.rs",
+        "src-tauri/src/acp/delegation/",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/bin/codeg_mcp.rs",
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/router.rs",
+        "src/contexts/todos-view-context.tsx",
+        "src/maxcode-contracts/todo-mcp.contract.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/todo-mcp.contract.test.tsx"]
+    },
+    {
+      "id": "office.auto-preview-opt-in",
+      "category": "product",
+      "description": "Office auto-preview defaults off for both new and existing installations. Legacy preferences are ignored; only a manual opt-in using the versioned preference enables it.",
+      "origins": ["worktree-2026-10-20"],
+      "paths": [
+        "src/lib/office-preview-prefs.ts",
+        "src/components/settings/office-tools-settings.tsx",
+        "src/contexts/workspace-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/office-auto-preview.contract.test.tsx"
+      ]
+    },
+    {
       "id": "todos.codex-session-import",
       "category": "product",
-      "description": "Todo shares may explicitly include complete native Codex history. Recovery data stays member-scoped, separate from public transcript snapshots. Receivers select a local project, import to a fresh thread UUID and automatically link it to the captured todo origin. Repeated imports reuse the same local conversation per project.",
+      "description": "Todo shares may explicitly include complete native Codex history. Both share entry points expose the opt-in, including after a public link has been created. Recovery data stays member-scoped, separate from public transcript snapshots. Receivers select a local project, import to a fresh thread UUID and automatically link it to the captured todo origin. Repeated imports reuse the same local conversation per project.",
       "origins": ["worktree-2026-10-18"],
       "paths": [
         "src-tauri/src/todo/",
@@ -485,7 +519,7 @@
     {
       "id": "todos.completion-action-label",
       "category": "product",
-      "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a rectangular primary action with an icon on the right. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
+      "description": "Todo cards separate metadata from their footer actions: auxiliary tools on the left, a muted ghost action with an icon on the right. Claim, complete and reopen avoid repeated solid primary fills and retain hover and keyboard focus feedback. Chinese completion actions use 已完成; their button shape, icon and placement distinguish them from completed status labels.",
       "origins": ["worktree-2026-10-16"],
       "paths": ["src/components/todos/todo-card.tsx", "src/i18n/messages/"],
       "contracts": [
@@ -543,8 +577,8 @@
     {
       "id": "todos.sidebar-conversation-groups",
       "category": "product",
-      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. A successfully saved todo conversation retires both text and rich-text draft caches, including pending writes; composer-key changes cancel stale debounce timers. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation reuses only ordinary drafts and never inherits a parked todo draft's origins. Explicit folder/chat selectors keep their own draft and its origins. Todo group headers offer a new-conversation action that uses the most recently active linked conversation's live folder, requiring an explicit folder selection when no linked conversation has a live folder. Canceling folder selection creates no draft. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
-      "origins": ["worktree-2026-10-14"],
+      "description": "The reorderable, collapsible Todos sidebar section groups local conversations created from or explicitly linked to assigned todos. A successfully saved todo conversation retires both text and rich-text draft caches, including pending writes; composer-key changes cancel stale debounce timers. Todo entry points always open independent unsent drafts in the remembered folder, with isolated content and origins surviving restart and folder/agent changes. Bound split panes archive replaced drafts without dropping their contents. Normal conversation creation reuses only ordinary drafts and never inherits a parked todo draft's origins. Explicit folder/chat selectors keep their own draft and its origins. Todo group headers offer a new-conversation action that uses the most recently active linked conversation's live folder, requiring an explicit folder selection when no linked conversation has a live folder. Canceling folder selection creates no draft. Existing conversations can be linked or unlinked through captured conversation/scope targets and paged all-status search that defaults to the current member’s assigned/claimed tasks, filtering before pagination on both local and remote team hosts; personal scopes retain all personal tasks. Source badges resolve saved links across scopes and open the exact task details for editing/completion, independent of board pagination and current scope. Ordinary chats and shared source links are never inferred as associations. Task queries and writes forward only scoped tokens and todo data to the host, never local conversation IDs or content. Stale reads cannot mix conversation or task identities.",
+      "origins": ["worktree-2026-10-14", "worktree-2026-10-19"],
       "paths": [
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-conversation-grouping.ts",
@@ -1688,6 +1722,20 @@
       ]
     },
     {
+      "id": "history.deepseek-rejected-prompts",
+      "category": "runtime",
+      "description": "A DeepSeek prompt rejected before the harness logs it remains in conversation history with its text, images, and rejection reason; subsequent turns retain their order.",
+      "origins": ["worktree-2026-10-19"],
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/deepseek.rs",
+        "src/maxcode-contracts/deepseek-rejected-prompt.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/deepseek-rejected-prompt.contract.rs"
+      ]
+    },
+    {
       "id": "history.deepseek-versioned-logs",
       "category": "runtime",
       "description": "DeepSeek history loads v3 compressed and plaintext artifacts before legacy logs, retaining complete frames during concurrent writes. Persisted conversations must not appear empty after the harness changes its log filename.",
@@ -2777,7 +2825,7 @@
     {
       "id": "conversations.read-only-sharing",
       "category": "product",
-      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking always excluded and their opt-in controls unavailable, including for existing links and requests that supply legacy flags. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds, merge adjacent text, fold copied session metadata, lazily mount one execution section per round, and load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
+      "description": "Sharing lives in desktop conversation actions and the mobile rightmost tools menu, targeting only the active persisted conversation. Owners preview and explicitly publish all or selected one-based rounds, with tools and thinking always excluded and their opt-in controls unavailable, including for existing links and requests that supply legacy flags. The server filters stored snapshots before publishing and legacy snapshots at the public read boundary; system messages, workspace metadata, agent ids and image URIs are excluded, while images from tool results remain readable. An authenticated lightweight preview verifies content-selection support before publication and permits revocation without republishing. The target remains fixed across tab switches. Public pages group assistant fragments into user rounds and default to the last textual reply, retaining earlier text and explicit work preambles behind a closed process section. Complete leading AGENTS instruction and environment envelopes fold as session context without hiding a following user question. Legacy snapshots use message boundaries because they lack phase metadata; all text remains available for expansion, images remain inline, and pages load ten rounds at a time. Capability links remain revocable; public origins take precedence and public Markdown exposes only external links.",
       "origins": [
         "worktree-2026-08-31",
         "worktree-2026-09-08",
@@ -3696,6 +3744,19 @@
       "paths": ["src-tauri/src/commands/science.rs"],
       "contracts": [
         "src/maxcode-contracts/science-maintained-agents.contract.test.ts"
+      ]
+    },
+    {
+      "id": "todos.searchable-conversation-folder",
+      "category": "product",
+      "description": "Todo conversation folder selection uses the shared in-app searchable picker with alias-first labels, secondary truncated paths, and a full-width field. It excludes chat folders, requires an explicit valid selection before confirming, and retains browse, cancellation and busy-state behavior.",
+      "origins": ["worktree-2026-10-19"],
+      "paths": [
+        "src/components/todos/todo-conversation-folder-dialog.tsx",
+        "src/components/shared/folder-select.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-folder-picker.contract.test.tsx"
       ]
     }
   ],

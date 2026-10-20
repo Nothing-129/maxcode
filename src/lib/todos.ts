@@ -52,6 +52,7 @@ export type TodoSummary = Pick<Todo, "id" | "title" | "status" | "assignee_id">
 
 export interface TodoSearchRequest {
   scope_id: string
+  only_mine?: boolean
   search?: string
   page?: number
   page_size?: number

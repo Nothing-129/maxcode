@@ -10,6 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
+import { subscribe } from "@/lib/platform"
 import { toErrorMessage } from "@/lib/app-error"
 import {
   todoCall,
@@ -279,10 +280,23 @@ export function TodosViewProvider({ children }: { children: ReactNode }) {
     const refreshVisible = () => {
       if (document.visibilityState !== "hidden") void refetch()
     }
+    let disposed = false
+    let unlisten: (() => void) | undefined
+    void Promise.resolve()
+      .then(() =>
+        subscribe("todos://changed", () => !disposed && refreshVisible())
+      )
+      .then((dispose) => {
+        if (disposed) dispose?.()
+        else unlisten = dispose
+      })
+      .catch(() => {})
     const interval = window.setInterval(refreshVisible, 5_000)
     document.addEventListener("visibilitychange", refreshVisible)
     window.addEventListener("online", refreshVisible)
     return () => {
+      disposed = true
+      unlisten?.()
       invalidateReads()
       window.clearInterval(interval)
       document.removeEventListener("visibilitychange", refreshVisible)

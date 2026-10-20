@@ -558,6 +558,40 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     )
   })
 
+  it.each([false, true])(
+    "offers native recovery from the normal share dialog (link already created: %s)",
+    async (createLinkFirst) => {
+      h.conversations = [{ id: 1, agent_type: "codex" }]
+      h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
+      const user = userEvent.setup({ pointerEventsCheck: 0 })
+      const { getByLabelText, getByRole, findByLabelText } = render(
+        withIntl(<ConversationDetailHeader {...A} />)
+      )
+      await user.click(getByLabelText("More actions"))
+      await user.click(getByRole("menuitem", { name: "Share conversation" }))
+      const option = getByRole("checkbox", {
+        name: /Allow importing the full Codex session/,
+      })
+      await waitFor(() => expect(option).toBeEnabled())
+      expect(option).not.toBeChecked()
+      if (createLinkFirst) {
+        await user.click(getByRole("button", { name: "Create share link" }))
+        await findByLabelText("Share link")
+      }
+      await user.click(option)
+      await user.click(getByRole("button", { name: "Share and create todo" }))
+      expect(h.requestCreateTodo).toHaveBeenCalledWith(
+        expect.objectContaining({
+          conversationId: 1,
+          shareOptions: {},
+          includeCodexSession: true,
+        })
+      )
+      expect(h.createConversationShare).toHaveBeenCalledTimes(1)
+      expect(h.createConversationShare).toHaveBeenCalledWith(1, {})
+    }
+  )
+
   it("prefills a share link from the normal share dialog using the runtime address", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     const { getByLabelText, getByRole, findByLabelText } = render(

@@ -2135,6 +2135,7 @@
       "shareCreateLink": "Freigabelink erstellen",
       "shareEditContent": "Geteilte Inhalte ändern",
       "shareExecution": "Ausführungsdetails · {count} Einträge",
+      "shareProgress": "Fortschrittsmeldungen · {count} Einträge",
       "shareSessionDetails": "Sitzungsinformationen",
       "shareToolError": "Werkzeugfehler",
       "shareToolResult": "Werkzeugergebnis",

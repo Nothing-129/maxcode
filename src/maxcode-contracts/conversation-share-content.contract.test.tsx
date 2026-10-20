@@ -8,6 +8,7 @@ import { SharedConversationView } from "@/components/conversations/shared-conver
 import {
   groupConversationShareRounds,
   mergeShareTextBlocks,
+  partitionShareReplies,
   splitShareUserText,
 } from "@/lib/conversation-share-content"
 import type {
@@ -134,6 +135,94 @@ describe("MaxCode contract: readable and selective conversation sharing", () => 
     expect(screen.queryByText("PRIVATE THINKING")).toBeNull()
     expect(screen.queryByText("PRIVATE SYSTEM")).toBeNull()
     expect(screen.queryByText(/Execution details/)).toBeNull()
+  })
+
+  it("keeps the answer prominent and shows process text only after expansion", async () => {
+    const user = userEvent.setup()
+    show(snapshot(mixed()))
+    await screen.findByText("Final answer", { exact: true })
+    expect(screen.queryByText("Progress update")).toBeNull()
+    expect(screen.getByText("Second answer")).toBeVisible()
+    const summary = screen.getByText("Process updates · 1 items")
+    expect(summary.closest("details")).not.toHaveAttribute("open")
+    await user.click(summary)
+    expect(await screen.findByText("Progress update")).toBeVisible()
+    await user.click(summary)
+    await waitFor(() =>
+      expect(screen.queryByText("Progress update")).toBeNull()
+    )
+    expect(screen.getByText("Final answer")).toBeVisible()
+  })
+
+  it("folds work preambles even when sharing before a final answer exists", async () => {
+    const user = userEvent.setup()
+    const progress = "我先把已确认的方案保存到现有目录，再核对配置。"
+    show(
+      snapshot([
+        turn("user", [text("请保存方案")]),
+        turn("assistant", [text(progress)]),
+      ])
+    )
+    await screen.findByText("请保存方案")
+    expect(screen.queryByText(progress)).toBeNull()
+    await user.click(screen.getByText("Process updates · 1 items"))
+    expect(await screen.findByText(progress)).toBeVisible()
+  })
+
+  it("folds complete harness instructions without hiding the following question", async () => {
+    const user = userEvent.setup()
+    const instructions =
+      "# AGENTS.md instructions for /project\n\n<INSTRUCTIONS>\nRead the local rules.\n</INSTRUCTIONS>"
+    const environment =
+      "<environment_context>\nWorking directory: /project\n</environment_context>"
+    const original = `${instructions}\n${environment}\n\nWhat should we change?`
+    expect(splitShareUserText(original)).toEqual({
+      text: "What should we change?",
+      metadata: `${instructions}\n\n${environment}`,
+    })
+    expect(
+      splitShareUserText("Please explain # AGENTS.md instructions").metadata
+    ).toBeNull()
+    expect(
+      splitShareUserText("# AGENTS.md instructions\n<INSTRUCTIONS>unterminated")
+        .metadata
+    ).toBeNull()
+    const view = show(
+      snapshot([
+        turn("user", [text(instructions)]),
+        turn("user", [text("What should we change?")]),
+        turn("assistant", [text("The final recommendation.")]),
+      ])
+    )
+    await screen.findByText("The final recommendation.")
+    expect(screen.getAllByText("You", { exact: true })).toHaveLength(1)
+    expect(screen.getByText(/Read the local rules/)).not.toBeVisible()
+    await user.click(screen.getByText("Session information"))
+    expect(screen.getByText(/Read the local rules/)).toBeVisible()
+    expect(view.container.textContent).toContain("What should we change?")
+  })
+
+  it("preserves intermediate reply text and images without mutating source blocks", () => {
+    const image: ContentBlock = {
+      type: "image",
+      data: "base64",
+      mime_type: "image/png",
+    }
+    const input = [
+      turn("assistant", [text("Earlier explanation"), image]),
+      turn("assistant", [text("The final answer")]),
+    ]
+    const original = structuredClone(input)
+    expect(partitionShareReplies(input)).toEqual({
+      answer: [image, text("The final answer")],
+      process: [text("Earlier explanation")],
+    })
+    expect(input).toEqual(original)
+    expect(
+      partitionShareReplies([
+        turn("assistant", [text("A single complete answer")]),
+      ]).answer
+    ).toEqual([text("A single complete answer")])
   })
 
   it("excludes execution even when an existing snapshot opted in", async () => {

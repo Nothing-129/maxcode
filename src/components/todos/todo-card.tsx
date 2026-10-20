@@ -311,8 +311,8 @@ export function TodoCard({
         <span className="flex-1" />
         <Button
           size="sm"
-          variant={action === "reopen" ? "outline" : "default"}
-          className="ml-2 rounded-md text-xs"
+          variant="ghost"
+          className="ml-2 rounded-md text-xs text-muted-foreground"
           disabled={disabled}
           onClick={() => onAction(action)}
         >

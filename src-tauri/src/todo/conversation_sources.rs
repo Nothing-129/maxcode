@@ -6,6 +6,9 @@ use std::collections::HashMap;
 use super::conversation_groups::{link_origins, normalized_id, validate_origins, TodoOrigin};
 use super::*;
 
+#[path = "mcp.rs"]
+pub mod mcp;
+
 const MAX_DETAILS: usize = 100;
 
 #[derive(Clone, Deserialize, Serialize)]
@@ -18,6 +21,8 @@ pub struct TodoSummary {
 
 #[derive(Clone, Default, Deserialize, Serialize)]
 pub struct SearchQuery {
+    #[serde(default)]
+    pub only_mine: bool,
     pub search: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -259,12 +264,17 @@ async fn scoped_search(
     };
     let txn = conn.begin().await.map_err(error_db)?;
     let mut values = vec![scope.id.clone().into()];
-    let filter = if pagination.search.is_empty() {
+    let mut filter = if pagination.search.is_empty() {
         "FROM maxcode_todo_item t WHERE t.scope_id=?"
     } else {
         values.push(completed_search_pattern(&pagination.search).into());
         "FROM maxcode_todo_item t LEFT JOIN maxcode_todo_member m ON m.id=t.assignee_id AND m.team_id=t.scope_id WHERE t.scope_id=? AND (t.title || char(10) || t.content || char(10) || COALESCE(m.name,CASE WHEN t.scope_id='personal' AND t.assignee_id='personal' THEN '我' ELSE '' END)) LIKE ? ESCAPE '\\'"
-    };
+    }
+    .to_string();
+    if query.only_mine && scope.id != PERSONAL {
+        filter.push_str(" AND t.assignee_id=?");
+        values.push(scope.self_id.clone().into());
+    }
     let counted = rows(
         &txn,
         &format!("SELECT COUNT(*) AS total {filter}"),

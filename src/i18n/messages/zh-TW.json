@@ -2135,6 +2135,7 @@
       "shareCreateLink": "建立分享連結",
       "shareEditContent": "調整分享內容",
       "shareExecution": "執行過程 · {count} 項",
+      "shareProgress": "過程說明 · {count} 則",
       "shareSessionDetails": "工作階段資訊",
       "shareToolError": "工具錯誤",
       "shareToolResult": "工具結果",

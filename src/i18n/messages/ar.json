@@ -2135,6 +2135,7 @@
       "shareCreateLink": "إنشاء رابط المشاركة",
       "shareEditContent": "تعديل المحتوى المشترك",
       "shareExecution": "تفاصيل التنفيذ · {count} عناصر",
+      "shareProgress": "تحديثات التقدم · {count} عناصر",
       "shareSessionDetails": "معلومات الجلسة",
       "shareToolError": "خطأ الأداة",
       "shareToolResult": "نتيجة الأداة",

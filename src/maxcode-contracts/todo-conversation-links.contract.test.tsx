@@ -222,7 +222,7 @@ describe("existing conversation links remain local and target the captured todo 
     ).toBe(true)
   })
 
-  it("searches and pages all task states independently of board pagination", async () => {
+  it("defaults to own tasks for initial search, pagination, and text search", async () => {
     render(
       intl(
         <TodoConversationLinkDialog
@@ -237,12 +237,20 @@ describe("existing conversation links remain local and target the captured todo 
       )
     )
     await screen.findByText("Completed task outside current page")
+    expect(h.search).toHaveBeenLastCalledWith({
+      scope_id: "team-a",
+      only_mine: true,
+      search: "",
+      page: 1,
+      page_size: 20,
+    })
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.Todos.nextPage })
     )
     await waitFor(() =>
       expect(h.search).toHaveBeenCalledWith({
         scope_id: "team-a",
+        only_mine: true,
         page: 2,
         page_size: 20,
         search: "",
@@ -255,6 +263,7 @@ describe("existing conversation links remain local and target the captured todo 
     await waitFor(() =>
       expect(h.search).toHaveBeenCalledWith({
         scope_id: "team-a",
+        only_mine: true,
         page: 1,
         page_size: 20,
         search: "completed",
@@ -327,6 +336,7 @@ describe("existing conversation links remain local and target the captured todo 
     await waitFor(() => expect(screen.queryByRole("alert")).toBeNull())
     expect(h.search).toHaveBeenLastCalledWith({
       scope_id: "team-a",
+      only_mine: true,
       search: "match",
       page: 1,
       page_size: 20,

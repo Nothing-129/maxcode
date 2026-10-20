@@ -341,6 +341,20 @@ impl DelegationListener {
             BrokerMessage::CreateWorkTask(req) => {
                 authoring_response(self.process_create_work_task(req).await)?
             }
+            BrokerMessage::Todo(req) => {
+                let result = match self.authoring_context(&req.token).await {
+                    Some(ctx) => self.authoring.todo_call(ctx, req.request).await,
+                    None => Err(crate::app_error::AppCommandError::permission_denied(
+                        "invalid token",
+                    )),
+                };
+                BrokerResponse {
+                    outcome: match result {
+                        Ok(value) => serde_json::json!({"ok": true, "result": value}),
+                        Err(error) => serde_json::json!({"ok": false, "error": error}),
+                    },
+                }
+            }
             BrokerMessage::Cancel(cancel) => {
                 self.process_cancel(cancel).await;
                 // Empty ack — the companion only uses this to detect the
@@ -1082,9 +1096,19 @@ mod tests {
     struct StubAuthoring {
         automations: tokio::sync::Mutex<Vec<(AuthoringContext, NewAutomationSpec)>>,
         work_tasks: tokio::sync::Mutex<Vec<(AuthoringContext, NewWorkTaskSpec)>>,
+        todos: tokio::sync::Mutex<Vec<AuthoringContext>>,
     }
     #[async_trait]
     impl ChatAuthoringAccess for StubAuthoring {
+        async fn todo_call(
+            &self,
+            ctx: AuthoringContext,
+            _request: crate::todo::conversation_sources::mcp::ToolRequest,
+        ) -> Result<Value, crate::app_error::AppCommandError> {
+            self.todos.lock().await.push(ctx);
+            Ok(serde_json::json!({"scopes": []}))
+        }
+
         async fn create_automation(
             &self,
             ctx: AuthoringContext,
@@ -2312,6 +2336,47 @@ mod tests {
         assert_eq!(resp.outcome["created"], false);
         assert_eq!(resp.outcome["kind"], "automation");
         assert!(authoring.automations.lock().await.is_empty());
+    }
+
+    #[tokio::test]
+    async fn todo_broker_authenticates_and_resolves_current_conversation() {
+        let authoring = Arc::new(StubAuthoring::default());
+        let tokens = Arc::new(TokenRegistry::default());
+        tokens
+            .register(
+                "valid".into(),
+                TokenEntry {
+                    parent_connection_id: "parent".into(),
+                    working_dir: PathBuf::from("/repo"),
+                },
+            )
+            .await;
+        for token in ["invalid", "valid"] {
+            let listener = make_authoring_listener(tokens.clone(), authoring.clone(), Some(42));
+            let (mut client, mut server) = duplex(8 * 1024);
+            let task = tokio::spawn(async move { listener.serve_one(&mut server).await.unwrap() });
+            write_frame(
+                &mut client,
+                &BrokerMessage::Todo(super::super::transport::BrokerTodoRequest {
+                    token: token.into(),
+                    request: crate::todo::conversation_sources::mcp::ToolRequest {
+                        tool: "list_todo_scopes".into(),
+                        arguments: serde_json::json!({}),
+                    },
+                }),
+            )
+            .await
+            .unwrap();
+            let response: BrokerResponse = read_frame(&mut client).await.unwrap();
+            task.await.unwrap();
+            assert_eq!(response.outcome["ok"], token == "valid");
+            if token == "invalid" {
+                assert!(authoring.todos.lock().await.is_empty());
+            }
+        }
+        let calls = authoring.todos.lock().await;
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].conversation_id, Some(42));
     }
 
     /// `CommitFeedback` marks the named ids delivered, scoped (via the token) to

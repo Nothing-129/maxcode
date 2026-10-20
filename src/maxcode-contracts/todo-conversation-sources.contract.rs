@@ -143,6 +143,91 @@ async fn picker_search_includes_all_statuses_and_completed_pages_in_captured_sco
 }
 
 #[tokio::test]
+async fn own_task_search_filters_before_pagination_and_uses_member_identity() {
+    let db = fresh_in_memory_db().await;
+    let personal = item(&db.conn, "Personal unassigned", None).await;
+    let hosted = team(&db.conn, "Team").await;
+    let scope_id = hosted.active_team_id.unwrap();
+    let self_id = hosted.self_id.unwrap();
+    let token = member_token(&db.conn, &scope_id).await;
+    item(&db.conn, "Match unassigned", None).await;
+    let other = item(&db.conn, "Match other", Some(&self_id)).await;
+    execute(
+        &db.conn,
+        "UPDATE maxcode_todo_item SET assignee_id='another-member' WHERE id=?",
+        vec![other.id.into()],
+    )
+    .await
+    .unwrap();
+    for i in 0..3 {
+        let mine = item(&db.conn, &format!("Match mine {i}"), Some(&self_id)).await;
+        if i == 0 {
+            execute(
+                &db.conn,
+                "UPDATE maxcode_todo_item SET status='completed' WHERE id=?",
+                vec![mine.id.into()],
+            )
+            .await
+            .unwrap();
+        }
+    }
+    let query = SearchQuery {
+        only_mine: true,
+        search: Some("Match".to_string()),
+        page: Some(2),
+        page_size: Some(2),
+    };
+    let local = search(
+        &db.conn,
+        TodoSearchRequest {
+            scope_id: scope_id.clone(),
+            query: query.clone(),
+        },
+    )
+    .await
+    .unwrap();
+    let member = member_search(&db.conn, TeamTodoSearchRequest { token, query })
+        .await
+        .unwrap();
+    for result in [local, member] {
+        assert_eq!(result.pagination.total, 3);
+        assert_eq!(result.pagination.page, 2);
+        assert_eq!(result.todos.len(), 1);
+        assert!(result
+            .todos
+            .iter()
+            .all(|todo| todo.assignee_id.as_deref() == Some(self_id.as_str())));
+    }
+    let completed = search(
+        &db.conn,
+        TodoSearchRequest {
+            scope_id,
+            query: SearchQuery {
+                only_mine: true,
+                search: Some("mine 0".to_string()),
+                ..Default::default()
+            },
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(completed.todos[0].status, "completed");
+    let personal_result = search(
+        &db.conn,
+        TodoSearchRequest {
+            scope_id: PERSONAL.to_string(),
+            query: SearchQuery {
+                only_mine: true,
+                ..Default::default()
+            },
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(personal_result.todos[0].id, personal.id);
+}
+
+#[tokio::test]
 async fn manual_links_are_idempotent_and_sources_include_unassigned_across_scopes() {
     let db = fresh_in_memory_db().await;
     let dir = tempfile::tempdir().unwrap();
@@ -537,14 +622,30 @@ async fn remote_capabilities_use_member_token_and_never_upload_local_conversatio
     )
     .await
     .unwrap();
-    execute(&db.conn,"INSERT INTO maxcode_todo_team (id,name,url,is_local,self_id,member_token) VALUES (?,'Remote',?,0,?,?)",vec![team_id.clone().into(),format!("http://{address}").into(),hosted.self_id.unwrap().into(),token.clone().into()]).await.unwrap();
+    execute(&db.conn,"INSERT INTO maxcode_todo_team (id,name,url,is_local,self_id,member_token) VALUES (?,'Remote',?,0,?,?)",vec![team_id.clone().into(),format!("http://{address}").into(),hosted.self_id.clone().unwrap().into(),token.clone().into()]).await.unwrap();
+    let mine = item(&host_db.conn, "Remote mine", hosted.self_id.as_deref()).await;
+    let own = search(
+        &db.conn,
+        TodoSearchRequest {
+            scope_id: team_id.clone(),
+            query: SearchQuery {
+                only_mine: true,
+                ..Default::default()
+            },
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(own.pagination.total, 1);
+    assert_eq!(own.todos[0].id, mine.id);
+    assert_eq!(captured.lock().unwrap()[0]["only_mine"], true);
     let source = origin(&team_id, &todo);
     let picked = search(
         &db.conn,
         TodoSearchRequest {
             scope_id: team_id.clone(),
             query: SearchQuery {
-                search: Some("Remote".to_string()),
+                search: Some("Remote unassigned".to_string()),
                 ..Default::default()
             },
         },

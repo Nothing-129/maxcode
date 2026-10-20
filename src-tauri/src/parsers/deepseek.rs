@@ -1,11 +1,14 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::fs;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
+use crate::acp::types::UserMessageBlock;
 use crate::models::{
     AgentType, ContentBlock, ConversationDetail, ConversationSummary, GenerationStats, MessageTurn,
     SessionStats, TurnRole, TurnUsage,
@@ -172,11 +175,156 @@ pub(crate) fn resolve_deepseek_attachments_root_for_env(env: &AgentEnv) -> PathB
 /// the cached prefix once per step.
 pub struct DeepSeekParser {
     base_dir: PathBuf,
+    rejected_root: PathBuf,
     /// Root of the content-addressed attachment store (`$DSH_HOME/attachments/
     /// v1`), where the pixels behind an `image` content block live. Resolved
     /// separately from `base_dir`: `DEEPSEEK_ACP_SESSIONS_ROOT` moves the logs
     /// without moving the store.
     attachments_root: PathBuf,
+}
+
+/// DeepSeek rejects some prompts before adding them to its own event log. The
+/// visible user message would otherwise vanish as soon as the live turn ends.
+/// This small sidecar only records those rejected prompts; successful turns
+/// remain owned by the harness log.
+#[derive(Serialize, Deserialize)]
+struct RejectedPrompt {
+    message_id: String,
+    at: DateTime<Utc>,
+    blocks: Vec<UserMessageBlock>,
+    error: String,
+}
+
+fn rejected_prompt_path(root: &Path, session_id: &str) -> Option<PathBuf> {
+    crate::acp_transcript::transcript_path_in(root, "rejected-deepseek", session_id)
+}
+
+pub(crate) async fn record_rejected_prompt(
+    session_id: &str,
+    message_id: &str,
+    blocks: &[UserMessageBlock],
+    error: &str,
+) -> std::io::Result<()> {
+    record_rejected_prompt_in(
+        &crate::paths::codeg_acp_transcripts_root(),
+        session_id,
+        message_id,
+        blocks,
+        error,
+    )
+    .await
+}
+
+async fn record_rejected_prompt_in(
+    root: &Path,
+    session_id: &str,
+    message_id: &str,
+    blocks: &[UserMessageBlock],
+    error: &str,
+) -> std::io::Result<()> {
+    let path = rejected_prompt_path(root, session_id).ok_or_else(|| {
+        std::io::Error::new(std::io::ErrorKind::InvalidInput, "invalid session id")
+    })?;
+    let record = RejectedPrompt {
+        message_id: message_id.to_string(),
+        at: Utc::now(),
+        blocks: blocks.to_vec(),
+        error: error.to_string(),
+    };
+    let line = serde_json::to_vec(&record).map_err(std::io::Error::other)?;
+    tokio::task::spawn_blocking(move || {
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)?;
+        }
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(path)?;
+        file.write_all(&line)?;
+        file.write_all(b"\n")?;
+        file.sync_data()
+    })
+    .await
+    .map_err(std::io::Error::other)?
+}
+
+fn rejected_prompt_turns(root: &Path, session_id: &str) -> Vec<MessageTurn> {
+    let Some(path) = rejected_prompt_path(root, session_id) else {
+        return Vec::new();
+    };
+    let Ok(text) = fs::read_to_string(path) else {
+        return Vec::new();
+    };
+    let mut turns = Vec::new();
+    for record in text
+        .lines()
+        .filter_map(|line| serde_json::from_str::<RejectedPrompt>(line).ok())
+    {
+        if record.blocks.is_empty()
+            || turns
+                .iter()
+                .any(|turn: &MessageTurn| turn.id == record.message_id)
+        {
+            continue;
+        }
+        let blocks = record
+            .blocks
+            .into_iter()
+            .map(|block| match block {
+                UserMessageBlock::Text { text } => ContentBlock::Text { text },
+                UserMessageBlock::Image { data, mime_type } => ContentBlock::Image {
+                    data,
+                    mime_type,
+                    uri: None,
+                },
+            })
+            .collect();
+        let user_id = record.message_id;
+        turns.push(MessageTurn {
+            id: user_id.clone(),
+            role: TurnRole::User,
+            blocks,
+            timestamp: record.at,
+            usage: None,
+            duration_ms: None,
+            model: None,
+            completed_at: Some(record.at),
+            agent_message_id: None,
+        });
+        turns.push(MessageTurn {
+            id: format!("rejected-{user_id}"),
+            role: TurnRole::Assistant,
+            blocks: vec![ContentBlock::Text { text: record.error }],
+            timestamp: record.at,
+            usage: None,
+            duration_ms: None,
+            model: None,
+            completed_at: Some(record.at),
+            agent_message_id: None,
+        });
+    }
+    turns
+}
+
+fn rejected_first_title(turns: &[MessageTurn]) -> Option<String> {
+    turns
+        .iter()
+        .filter(|turn| matches!(&turn.role, TurnRole::User))
+        .find_map(|turn| {
+            turn.blocks.iter().find_map(|block| match block {
+                ContentBlock::Text { text } if !text.trim().is_empty() => {
+                    Some(title_from_user_text(text.trim()))
+                }
+                _ => None,
+            })
+        })
+}
+
+fn latest_timestamp(a: Option<DateTime<Utc>>, b: Option<DateTime<Utc>>) -> Option<DateTime<Utc>> {
+    match (a, b) {
+        (Some(a), Some(b)) => Some(a.max(b)),
+        (a, b) => a.or(b),
+    }
 }
 
 impl DeepSeekParser {
@@ -188,6 +336,7 @@ impl DeepSeekParser {
     pub fn for_env(env: &AgentEnv) -> Self {
         Self {
             base_dir: resolve_deepseek_sessions_root_for_env(env),
+            rejected_root: crate::paths::codeg_acp_transcripts_root(),
             attachments_root: resolve_deepseek_attachments_root_for_env(env),
         }
     }
@@ -205,6 +354,7 @@ impl DeepSeekParser {
     pub fn with_base_dir(base_dir: PathBuf) -> Self {
         let attachments_root = base_dir.join("attachments").join("v1");
         Self {
+            rejected_root: base_dir.join("codeg-acp-transcripts"),
             base_dir,
             attachments_root,
         }
@@ -215,6 +365,7 @@ impl DeepSeekParser {
         // bytes here would read (and base64) every attachment in every listed
         // session for a payload nobody looks at.
         let parsed = parse_session_log(session_dir, None)?;
+        let rejected = rejected_prompt_turns(&self.rejected_root, session_id);
         // Sub-agent sessions (spawned by an upstream harness delegation) are
         // not editor conversations; only the top-level depth is listed.
         if parsed.delegation_depth > 0 {
@@ -223,20 +374,26 @@ impl DeepSeekParser {
         // A session that never produced a user/assistant/tool event (only the
         // header + config records) is treated as empty, matching the
         // "metadata-only is not listed" rule of the other parsers.
-        if parsed.content_events == 0 {
+        if parsed.content_events == 0 && rejected.is_empty() {
             return None;
         }
-        let started_at = parsed.created_at.or(parsed.first_ts)?;
+        let started_at = parsed
+            .created_at
+            .or(parsed.first_ts)
+            .or_else(|| rejected.first().map(|turn| turn.timestamp))?;
 
         Some(ConversationSummary {
             id: session_id.to_string(),
             agent_type: AgentType::DeepSeek,
             folder_name: parsed.cwd.as_deref().map(folder_name_from_path),
             folder_path: parsed.cwd,
-            title: parsed.title.or(parsed.first_user_text),
+            title: parsed
+                .title
+                .or_else(|| rejected_first_title(&rejected))
+                .or(parsed.first_user_text),
             started_at,
-            ended_at: parsed.last_ts,
-            message_count: parsed.message_count,
+            ended_at: latest_timestamp(parsed.last_ts, rejected.last().map(|turn| turn.timestamp)),
+            message_count: parsed.message_count.saturating_add(rejected.len() as u32),
             model: parsed.model,
             git_branch: None,
             parent_id: None,
@@ -250,6 +407,12 @@ impl DeepSeekParser {
             parse_session_log(session_dir, Some(&self.attachments_root)).unwrap_or_default();
 
         let mut turns = parsed.turns;
+        let rejected = rejected_prompt_turns(&self.rejected_root, conversation_id);
+        let rejected_count = rejected.len() as u32;
+        let rejected_title = rejected_first_title(&rejected);
+        let rejected_last_ts = rejected.last().map(|turn| turn.timestamp);
+        turns.extend(rejected);
+        turns.sort_by_key(|turn| turn.timestamp);
         relocate_orphaned_tool_results(&mut turns);
         structurize_read_tool_output(&mut turns);
         resolve_patch_line_numbers(&mut turns, parsed.cwd.as_deref());
@@ -284,13 +447,13 @@ impl DeepSeekParser {
             agent_type: AgentType::DeepSeek,
             folder_name: parsed.cwd.as_deref().map(folder_name_from_path),
             folder_path: parsed.cwd,
-            title: parsed.title.or(parsed.first_user_text),
+            title: parsed.title.or(rejected_title).or(parsed.first_user_text),
             started_at: parsed
                 .created_at
                 .or(parsed.first_ts)
                 .unwrap_or_else(Utc::now),
-            ended_at: parsed.last_ts,
-            message_count: parsed.message_count,
+            ended_at: latest_timestamp(parsed.last_ts, rejected_last_ts),
+            message_count: parsed.message_count.saturating_add(rejected_count),
             model: parsed.model,
             git_branch: None,
             parent_id: None,
@@ -536,6 +699,10 @@ fn read_session_log_text(session_dir: &Path) -> Option<String> {
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/deepseek-versioned-history.contract.rs"]
 mod versioned_history_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/deepseek-rejected-prompt.contract.rs"]
+mod rejected_prompt_contract;
 
 /// Decode every complete Zstandard frame, KEEPING the prefix when the stream
 /// errors partway. The writer appends one frame per batch, so a concurrent

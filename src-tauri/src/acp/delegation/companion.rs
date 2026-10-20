@@ -135,11 +135,9 @@ pub fn err(id: Value, code: i64, message: impl Into<String>) -> JsonRpcResponse 
     }
 }
 
-/// Which tool groups this companion exposes. One `codeg-mcp` process can carry
-/// the delegation tools, the feedback tool, or both — gated independently so
-/// each feature can be toggled in settings without the other. Passed in via the
-/// `--features` arg at launch; a tool whose group is off is hidden from
-/// `tools/list` and rejected on `tools/call`.
+/// Tool groups passed through `--features` at launch. Disabled groups are hidden
+/// from `tools/list` and rejected on `tools/call`. The host selects groups from
+/// settings and the launch context; human-owned todos are enabled independently.
 #[derive(Debug, Clone, Copy)]
 pub struct CompanionFeatures {
     pub delegation: bool,
@@ -153,6 +151,8 @@ pub struct CompanionFeatures {
     pub automations: bool,
     /// `create_work_task` — queue a card on the work-task board from chat.
     pub taskboard: bool,
+    /// Human-owned personal/team todo operations.
+    pub todos: bool,
 }
 
 impl CompanionFeatures {
@@ -172,6 +172,7 @@ impl CompanionFeatures {
                 tasks: false,
                 automations: false,
                 taskboard: false,
+                todos: false,
             };
         };
         let mut f = Self {
@@ -182,6 +183,7 @@ impl CompanionFeatures {
             tasks: false,
             automations: false,
             taskboard: false,
+            todos: false,
         };
         for tok in s.split(',').map(str::trim).filter(|t| !t.is_empty()) {
             match tok {
@@ -192,6 +194,7 @@ impl CompanionFeatures {
                 "tasks" => f.tasks = true,
                 "automations" => f.automations = true,
                 "taskboard" => f.taskboard = true,
+                "todos" => f.todos = true,
                 _ => {}
             }
         }
@@ -211,6 +214,9 @@ impl CompanionFeatures {
             | "get_delegation_status"
             | "cancel_delegation"
             | "resume_delegation" => self.delegation,
+            name if crate::todo::conversation_sources::mcp::TOOL_NAMES.contains(&name) => {
+                self.todos
+            }
             _ => false,
         }
     }
@@ -785,6 +791,24 @@ async fn build_tools_call_spawn(
             let round_trip =
                 Box::pin(async move { client_create_work_task_round_trip(&socket, &req).await });
             register_and_spawn(inflight, id, None, round_trip, render_authoring_result).await
+        }
+        name if crate::todo::conversation_sources::mcp::TOOL_NAMES.contains(&name) => {
+            let request = crate::todo::conversation_sources::mcp::ToolRequest {
+                tool: name.to_string(),
+                arguments,
+            };
+            if let Err(error) = crate::todo::conversation_sources::mcp::validate(&request) {
+                return LineAction::Respond(err(id, -32602, error.message));
+            }
+            let req = super::transport::BrokerTodoRequest {
+                token: ctx.token.clone(),
+                request,
+            };
+            let round_trip =
+                Box::pin(
+                    async move { super::transport::client_todo_round_trip(&socket, &req).await },
+                );
+            register_and_spawn(inflight, id, None, round_trip, render_todo_result).await
         }
         other => LineAction::Respond(err(id, -32602, format!("unknown tool: {other}"))),
     }
@@ -1539,6 +1563,14 @@ pub fn render_task_ack(outcome: &Value) -> Value {
     })
 }
 
+fn render_todo_result(outcome: &Value) -> Value {
+    json!({
+        "content": [{"type": "text", "text": outcome.to_string()}],
+        "structuredContent": outcome,
+        "isError": outcome.get("ok").and_then(Value::as_bool) != Some(true),
+    })
+}
+
 /// Map a `create_automation` / `create_work_task` round-trip outcome (a
 /// serialized [`crate::acp::chat_authoring::AuthoringOutcome`]) into an MCP
 /// `tools/call` result.
@@ -1734,6 +1766,7 @@ mod tests {
             tasks: false,
             automations: false,
             taskboard: false,
+            todos: false,
         })
     }
 
@@ -2325,6 +2358,7 @@ mod tests {
         tasks: false,
         automations: false,
         taskboard: false,
+        todos: false,
     };
     const BOTH: CompanionFeatures = CompanionFeatures {
         delegation: true,
@@ -2334,6 +2368,7 @@ mod tests {
         tasks: false,
         automations: false,
         taskboard: false,
+        todos: false,
     };
     const ASK_ONLY: CompanionFeatures = CompanionFeatures {
         delegation: false,
@@ -2343,6 +2378,7 @@ mod tests {
         tasks: false,
         automations: false,
         taskboard: false,
+        todos: false,
     };
     const SESSIONS_ONLY: CompanionFeatures = CompanionFeatures {
         delegation: false,
@@ -2352,6 +2388,7 @@ mod tests {
         tasks: false,
         automations: false,
         taskboard: false,
+        todos: false,
     };
 
     fn list_tool_names(action: LineAction) -> Vec<String> {
@@ -2840,6 +2877,7 @@ mod tests {
         tasks: false,
         automations: true,
         taskboard: false,
+        todos: false,
     };
     const TASKBOARD_ONLY: CompanionFeatures = CompanionFeatures {
         delegation: false,
@@ -2849,6 +2887,7 @@ mod tests {
         tasks: false,
         automations: false,
         taskboard: true,
+        todos: false,
     };
 
     /// The two authoring groups gate independently: enabling one must not
@@ -2894,6 +2933,51 @@ mod tests {
         .to_string();
         let resp = unwrap_respond(dispatch_with_features(AUTOMATIONS_ONLY, &line).await);
         assert!(resp.error.unwrap().message.contains("unknown tool"));
+    }
+
+    #[tokio::test]
+    async fn todo_tools_list_dispatch_and_errors_are_independent() {
+        let features = CompanionFeatures::parse(Some("todos"));
+        let names = list_tool_names(
+            dispatch_with_features(
+                features,
+                r#"{"jsonrpc":"2.0","id":1,"method":"tools/list"}"#,
+            )
+            .await,
+        );
+        assert_eq!(
+            names.len(),
+            crate::todo::conversation_sources::mcp::TOOL_NAMES.len()
+        );
+        assert!(names.contains(&"create_todo".to_string()));
+        assert!(!names.contains(&"create_work_task".to_string()));
+        let line = json!({"jsonrpc":"2.0", "id":2, "method":"tools/call",
+        "params":{"name":"create_todo", "arguments":{
+            "scope_id":"personal", "title":"T", "content":"C",
+            "operation_id":"ee3e5fb1-a5ba-46b0-b789-c4158c392aa7"
+        }}})
+        .to_string();
+        assert!(matches!(
+            dispatch_with_features(features, &line).await,
+            LineAction::Spawn(_)
+        ));
+        assert!(
+            unwrap_respond(dispatch_with_features(TASKBOARD_ONLY, &line).await)
+                .error
+                .is_some()
+        );
+        let invalid = json!({"jsonrpc":"2.0", "id":3, "method":"tools/call",
+            "params":{"name":"delete_todo", "arguments":{"scope_id":"personal", "todo_id":"abc"}}})
+        .to_string();
+        assert!(
+            unwrap_respond(dispatch_with_features(features, &invalid).await)
+                .error
+                .is_some()
+        );
+        assert_eq!(
+            render_todo_result(&json!({"ok":false, "error":{"message":"conflict"}}))["isError"],
+            true
+        );
     }
 
     #[tokio::test]

@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useTranslations } from "next-intl"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { WorkspaceFolderDialog } from "@/components/layout/workspace-folder-dialog"
+import { FolderSelect } from "@/components/shared/folder-select"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -36,7 +37,7 @@ export function TodoConversationFolderDialog({
   const folders = useAppWorkspaceStore((state) => state.allFolders).filter(
     (folder) => folder.kind !== "chat"
   )
-  const [selected, setSelected] = useState("")
+  const [selected, setSelected] = useState<number | null>(null)
   const [browse, setBrowse] = useState(false)
   if (browse)
     return (
@@ -44,7 +45,7 @@ export function TodoConversationFolderDialog({
         open
         onOpenChange={setBrowse}
         onFolderOpened={(folder) => {
-          setSelected(String(folder.id))
+          setSelected(folder.id)
           setBrowse(false)
         }}
       />
@@ -58,20 +59,15 @@ export function TodoConversationFolderDialog({
             {description ?? t("chooseConversationFolderHint")}
           </DialogDescription>
         </DialogHeader>
-        <select
-          aria-label={t("chooseConversationFolder")}
-          disabled={busy}
+        <FolderSelect
+          folders={folders}
           value={selected}
-          onChange={(event) => setSelected(event.target.value)}
-          className="outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 min-w-0 w-full max-w-full rounded-xl border bg-background p-3 text-sm"
-        >
-          <option value="">{t("chooseConversationFolder")}</option>
-          {folders.map((folder) => (
-            <option key={folder.id} value={folder.id}>
-              {folder.alias || folder.name} · {folder.path}
-            </option>
-          ))}
-        </select>
+          onChange={setSelected}
+          placeholder={t("chooseConversationFolder")}
+          disabled={busy}
+          variant="field"
+          className="h-10 w-full max-w-none rounded-xl px-3 text-sm"
+        />
         <Button
           variant="outline"
           disabled={busy}
@@ -89,10 +85,8 @@ export function TodoConversationFolderDialog({
             {t("cancel")}
           </Button>
           <Button
-            disabled={
-              busy || !folders.some((folder) => String(folder.id) === selected)
-            }
-            onClick={() => onConfirm(Number(selected))}
+            disabled={busy || !folders.some((folder) => folder.id === selected)}
+            onClick={() => selected != null && onConfirm(selected)}
           >
             {confirmLabel ?? t("confirmConversationFolder")}
           </Button>

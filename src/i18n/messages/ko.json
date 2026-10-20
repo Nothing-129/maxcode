@@ -2135,6 +2135,7 @@
       "shareCreateLink": "공유 링크 만들기",
       "shareEditContent": "공유 내용 수정",
       "shareExecution": "실행 세부 정보 · {count}개",
+      "shareProgress": "진행 메시지 · {count}개",
       "shareSessionDetails": "세션 정보",
       "shareToolError": "도구 오류",
       "shareToolResult": "도구 결과",

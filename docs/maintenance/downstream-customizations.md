@@ -24,7 +24,7 @@
 
 待办新建对话默认沿用上一次主动新建会话的文件夹；查看历史和启动恢复不会覆盖该记录，已删除目录回退到当前有效目录或聊天模式。只有已完成待办按服务端每页 20 条分页，搜索覆盖全部已完成记录，个人和团队均适用；其他状态完整查询，翻页或断线不借用其他页、搜索条件或范围的数据。独立契约：`todo-last-new-folder.contract.test.tsx`、`todo-completed-pagination.contract.test.tsx`。
 
-侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
+侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。关联候选默认只查询当前用户被分配或已领取的团队待办（含已完成），搜索与分页在宿主端先按成员筛选；个人范围保留全部个人待办。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
 
 2026-10-16 待办 Markdown 与对象存储：编辑器支持 Markdown 和实时预览，粘贴图片/文件先上传再在光标处插入 URL；团队创建者配置 MinIO 的 S3 API、Bucket、访问密钥、Region 及带 Bucket/CDN 映射的可匿名读取文件地址。密钥仅通过宿主凭据存储保存；成员上传由成员令牌确定团队范围。个人附件保存在上传目录的 `todo-attachments/` 下，数据库只记文件元信息，链接为随机 ID 的读取地址。个人本地文件引用合计限制 100 MiB；团队 MinIO 附件取消应用层大小限制。启动迁移会删除旧数据库内嵌附件，保留待办正文及现有 Markdown URL；不再读取或转换旧附件，并拒绝旧客户端写回该格式。旧文件 URL 不随 MinIO 配置变化重写；未引用的已上传对象不自动删除，可由存储管理员按保留策略维护。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`、`todo-minio-settings.contract.test.tsx`、`todo-minio.contract.rs`。
 
@@ -318,3 +318,10 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 待办创建信息（`todos.creation-metadata`）：看板卡片、列表及看板/来源详情均展示创建人和创建时间；创建人与指定人独立匹配，成员资料缺失时显示创建人 ID。时间按界面语言与查看者时区显示。独立契约：`todo-creation-metadata.contract.test.tsx`。
 
 待办 Codex 会话迁移（`todos.codex-session-import`）：将整个 Codex 对话添加到待办时，可显式勾选允许导入完整原生会话（仅全部轮次可用）。完整工具调用、思考及原生恢复记录保存在团队宿主，使用成员凭据读取，不进入公开分享快照。接收方在待办卡片、看板详情或来源详情点击“导入并继续”，选择本机项目后以新 UUID 保存到当前 Codex 配置的会话目录，并自动关联指定来源待办；同一待办与目录重复导入打开已有会话。只映射执行目录及身份，不替换消息正文内的路径，不迁移项目文件、凭据配置或正在运行的命令。迁移前会展开 fork/revert 引用历史，缺少依赖时拒绝导出；旧待办及未勾选的分享保持只读查看。契约：`todo-codex-import.contract.rs`、`todo-codex-import.contract.test.tsx`。
+
+2026-10-19 修正 Codex 待办导入的分享入口：普通“分享对话”和“添加到待办”均展示完整会话导入选项；生成公开分享链接后仍可勾选并创建带恢复数据的待办。公开链接仍只返回阅读快照，原有仅包含快照的待办需重新从源会话创建。集成验证覆盖普通分享直接创建待办及先生成链接后创建待办两条路径。
+
+2026-10-19 分享页默认突出每轮用户提问和最后一条助手正文，较早的助手过程片段及明确的工作预告收进默认关闭的“过程说明”，展开后可阅读原文。旧快照没有消息阶段信息，采用消息边界兼容整理，不删除原文；图片继续直接展示。开头完整的 AGENTS 指令及环境包络默认折叠为会话信息，混合消息中的实际提问保持可见，不匹配未闭合标记或正文内普通提及。公开接口既有的思考/工具过滤和私有原生导入数据隔离继续生效。独立契约：`conversation-share-content.contract.test.tsx`。
+
+
+2026-10-20 待办 MCP（`todos.mcp-operations`）：`codeg-mcp` 新增独立 `todos` 工具组，MaxCode 管理且支持 MCP 的会话默认注入，不依赖多智能体委托或执行任务创建开关。提供范围列表、分页搜索、详情、创建、部分更新、领取、释放、完成、重开、删除及关联/取消关联当前会话。所有操作显式指定个人或团队范围，不改变界面选中项；创建必须携带 UUID `operation_id`，重试复用同一值；编辑和状态变更使用当前 `revision` 防止覆盖他人更新。远程团队通过成员凭据和新增 `team_todo_create` 接口创建，宿主需要升级到支持该接口的版本。会话 ID 仅由启动令牌解析，关联仅写本地关系，不上传聊天快照或原生 Codex 会话。待办变更通知可见看板刷新，保留五秒轮询恢复机制。新增工具需重启已有智能体会话并使用更新后的后端和 `codeg-mcp` 二进制。契约：`todo-mcp.contract.rs`、`todo-mcp.contract.test.tsx`。

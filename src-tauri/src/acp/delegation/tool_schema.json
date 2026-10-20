@@ -47,7 +47,9 @@
       "properties": {
         "task_ids": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "minItems": 1,
           "description": "One or more task_ids returned by delegate_to_agent — pass a single id to poll one task, or several to poll them together in one call. The response is always a JSON object {\"tasks\":[...]} with one entry per id (in this order) — one entry for a single id — and each entry carries that task's task_id and status. With wait_ms set, the call returns as soon as ANY of these tasks reaches a terminal state, or becomes blocked on you (status stays \"running\", plus a blocked_on field)."
         },
@@ -218,7 +220,7 @@
   },
   {
     "name": "create_work_task",
-    "description": "Queue a card on MaxCode's to-dos. A task is a unit of work an agent later executes on its own branch/worktree, then hands back for the user to review and merge. Use it when the user wants work PARKED rather than done now — 'add a task to…', 'put this on the board', 'we should also fix X later' — or when you are splitting a large request into reviewable pieces and the user asked for that. Do NOT use it to do the thing the user just asked you to do in this conversation, and do NOT queue a task per trivial step. The executing agent starts cold with no view of this chat, so `prompt` must carry the full briefing. The tool returns the task id; the user tracks it in their to-dos.",
+    "description": "Queue an AI execution task on MaxCode's work-task board. For human-owned personal/team todos (个人/团队待办), use create_todo instead. A task is a unit of work an agent later executes on its own branch/worktree, then hands back for the user to review and merge. Use it when the user wants work PARKED rather than done now — 'add a task to…', 'put this on the board', 'we should also fix X later' — or when you are splitting a large request into reviewable pieces and the user asked for that. Do NOT use it to do the thing the user just asked you to do in this conversation, and do NOT queue a task per trivial step. The executing agent starts cold with no view of this chat, so `prompt` must carry the full briefing. The tool returns the execution task id; the user tracks it on the work-task board.",
     "inputSchema": {
       "type": "object",
       "required": ["title", "prompt"],
@@ -273,6 +275,292 @@
           "description": "Short result summary shown on the task card: what changed, and anything the reviewer should look at."
         }
       }
+    }
+  },
+  {
+    "name": "list_todo_scopes",
+    "description": "List MaxCode personal/team todo scopes. Returns scope IDs and your member ID, without changing UI selection or revealing membership credentials. Use before targeting a team.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_todos",
+    "description": "Search and paginate human-owned MaxCode todos in an explicit scope, including completed items. Returns summaries plus members for assignment. Use get_todo for body, schedule and revision.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "search": {
+          "type": "string",
+          "description": "Search title, content or assignee name."
+        },
+        "only_mine": {
+          "type": "boolean"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      },
+      "required": ["scope_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_todo",
+    "description": "Read a human-owned todo including content, schedule, assignee and current revision. Does not change it.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        }
+      },
+      "required": ["scope_id", "todo_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_todo",
+    "description": "Create a human-owned personal/team todo in MaxCode (个人/团队待办). Does not launch an agent or create a worktree. Use when the user asks to remember/record a todo. Does not share chat history or native session data. To associate the current conversation, call link_todo_to_conversation after creation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "title": {
+          "type": "string",
+          "description": "Todo title."
+        },
+        "content": {
+          "type": "string",
+          "description": "Full todo body in Markdown."
+        },
+        "assignee_id": {
+          "type": ["string", "null"],
+          "description": "Member ID from list_todos/get_todo; null clears assignment."
+        },
+        "due_date": {
+          "type": ["string", "null"],
+          "description": "Due date YYYY-MM-DD; null clears it."
+        },
+        "priority": {
+          "type": ["string", "null"],
+          "enum": ["low", "normal", "high", "urgent", null]
+        },
+        "operation_id": {
+          "type": "string",
+          "description": "A new UUID for this creation. Reuse the SAME UUID when retrying an uncertain response to prevent duplicates."
+        }
+      },
+      "required": ["scope_id", "title", "content", "operation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_todo",
+    "description": "Patch a human-owned todo. Omitted fields remain unchanged; null clears nullable fields. Read get_todo first for revision and members. Does not start execution.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        },
+        "title": {
+          "type": "string",
+          "description": "Todo title."
+        },
+        "content": {
+          "type": "string",
+          "description": "Full todo body in Markdown."
+        },
+        "assignee_id": {
+          "type": ["string", "null"],
+          "description": "Member ID from list_todos/get_todo; null clears assignment."
+        },
+        "due_date": {
+          "type": ["string", "null"],
+          "description": "Due date YYYY-MM-DD; null clears it."
+        },
+        "priority": {
+          "type": ["string", "null"],
+          "enum": ["low", "normal", "high", "urgent", null]
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "claim_todo",
+    "description": "Claim an unclaimed todo for the current member. Requires current revision from get_todo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "release_todo",
+    "description": "Release a todo back to unclaimed and remove its assignee. Requires current revision from get_todo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "complete_todo",
+    "description": "Mark a todo completed. Requires current revision from get_todo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "reopen_todo",
+    "description": "Reopen a completed todo as unclaimed and clear its assignee. Requires current revision from get_todo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete_todo",
+    "description": "Permanently delete a todo. Use only when the user requests deletion. Requires current revision from get_todo.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Current revision from get_todo. On conflict, read again and reconsider the change; never overwrite blindly."
+        }
+      },
+      "required": ["scope_id", "todo_id", "revision"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "link_todo_to_conversation",
+    "description": "Link or unlink a todo to THIS conversation locally. The server resolves the conversation from the authenticated session. Never uploads or publishes the conversation, and never exports native Codex history.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+        },
+        "todo_id": {
+          "type": "string",
+          "description": "Todo ID returned by list_todos/create_todo."
+        },
+        "action": {
+          "type": "string",
+          "enum": ["link", "unlink"]
+        }
+      },
+      "required": ["scope_id", "todo_id", "action"],
+      "additionalProperties": false
     }
   }
 ]

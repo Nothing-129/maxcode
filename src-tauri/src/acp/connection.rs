@@ -5936,22 +5936,9 @@ fn is_executable_file(path: &Path) -> bool {
     true
 }
 
-/// Append the built-in `codeg-mcp` MCP entry if delegation is enabled
-/// AND the companion binary is present on disk. Returns the per-launch token
-/// that was registered, or `None` when injection was skipped (disabled by
-/// config, or binary missing).
-///
-/// When the binary is missing we log a single-line warning and skip
-/// injection rather than register the token + emit a phantom McpServerStdio
-/// pointing at a non-existent path. Phantom injection would have made every
-/// new ACP session ship a guaranteed-to-fail MCP server entry: stricter
-/// agents (Claude Code) refuse the whole session; lax agents lose the
-/// delegate tool silently. Skipping leaves the agent fully functional minus
-/// `delegate_to_agent`, which is the right degradation when codeg-mcp didn't
-/// make it into the install.
 /// Which tool groups a companion launch should expose. A struct rather than a
-/// positional bool list: the groups keep growing and seven adjacent `bool`s at a
-/// call site is a silent argument-swap waiting to happen.
+/// positional bool list keeps feature selection explicit. Human-owned todos
+/// are available independently of the delegation and execution-task settings.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 struct CompanionFeatureFlags {
     delegation: bool,
@@ -5966,6 +5953,7 @@ struct CompanionFeatureFlags {
     automations: bool,
     /// `create_work_task`, gated by the chat-authoring setting.
     taskboard: bool,
+    todos: bool,
 }
 
 /// The `--features` value for a companion launch, or `None` when no group is
@@ -5995,6 +5983,9 @@ fn companion_features_arg(flags: CompanionFeatureFlags) -> Option<String> {
     }
     if flags.taskboard {
         features.push("taskboard");
+    }
+    if flags.todos {
+        features.push("todos");
     }
     if features.is_empty() {
         return None;
@@ -6095,6 +6086,7 @@ where
         tasks: tasks_enabled,
         automations: authoring.automations_enabled,
         taskboard: authoring.work_tasks_enabled,
+        todos: true,
     };
     // `None` (no feature enabled) short-circuits BEFORE the binary lookup, the
     // token registration and the server append: there is no companion to launch,
@@ -11624,10 +11616,18 @@ async fn run_conversation_loop(
                 // manager enqueue site) guarantees its seq strictly precedes the
                 // turn's assistant/status events — viewers apply events in seq
                 // order, so otherwise the reply could render above the message.
-                // It also means a prompt that is never processed (rejected /
-                // dropped) broadcasts nothing. `apply_event` records it as
+                // A prompt dropped before this point broadcasts nothing. A
+                // prompt rejected by the agent after dispatch still appears
+                // to viewers. `apply_event` records it as
                 // `pending_user_message` so a client attaching mid-turn still
                 // renders the user turn from the snapshot.
+                // DeepSeek can reject a prompt before writing any user/message
+                // event (for example, an image sent to a text-only model).
+                // Keep the original visible blocks until the response settles
+                // so that rejection can be recovered from history.
+                let deepseek_prompt = (agent_type == AgentType::DeepSeek)
+                    .then(|| user_message.clone())
+                    .flatten();
                 if let Some((message_id, blocks)) = user_message {
                     emit_with_state(state, emitter, AcpEvent::UserMessage { message_id, blocks })
                         .await;
@@ -11996,6 +11996,21 @@ async fn run_conversation_loop(
                                     };
                                     if let Some(err_event) = err_event {
                                         emit_with_state(state, emitter, err_event).await;
+                                    }
+                                    if let Some((message_id, blocks)) = deepseek_prompt.as_ref() {
+                                        if let Err(write_error) =
+                                            crate::parsers::deepseek::record_rejected_prompt(
+                                                &sid.0,
+                                                message_id,
+                                                blocks,
+                                                &AcpError::protocol(e.to_string()).to_string(),
+                                            )
+                                            .await
+                                        {
+                                            tracing::warn!(
+                                                "[ACP] could not preserve rejected DeepSeek prompt: {write_error}"
+                                            );
+                                        }
                                     }
                                     // Not journaled (that is `end_turn` only),
                                     // but still recorded: the transcript's turn
@@ -31801,48 +31816,34 @@ mod tests {
         }
     }
 
-    // ─── inject_codeg_mcp: enabled=false short-circuit ──────────
-    //
-    // Guards the "default off" product contract: when the broker config has
-    // `enabled: false` (the new production default for fresh installs), the
-    // delegate-MCP injection must not push a server entry and must not
-    // register a per-launch token. The early return at the top of
-    // `inject_codeg_mcp` is the single chokepoint that keeps a
-    // codeg-mcp stdio MCP out of every ACP session until the user
-    // opts in via the settings panel.
+    // Personal/team todos remain available even with delegation disabled.
     #[tokio::test]
-    async fn inject_codeg_delegate_skipped_when_broker_disabled() {
-        // No set_config call: broker carries its default config, which is
-        // `enabled: false` after the product-default flip. This is the
-        // exact state a fresh install reaches before the user touches the
-        // settings panel. Feedback is likewise disabled by default, so with
-        // BOTH features off the companion isn't injected at all.
+    async fn inject_codeg_todos_without_enabling_delegation() {
         let injection = test_delegation_injection(
             Arc::new(TestAllAgentsAvailable) as Arc<dyn AgentAvailabilityLookup>
         );
-
-        let mut servers: Vec<McpServer> = Vec::new();
-        let result = inject_codeg_mcp(
+        let mut servers = Vec::new();
+        let result = inject_codeg_mcp_with_binary_locator(
             &mut servers,
             &injection,
             "parent-conn",
-            std::path::Path::new("/tmp"),
+            Path::new("/tmp"),
             false,
             HostToolsPolicy::Default,
+            || Some(PathBuf::from("/test/codeg-mcp")),
         )
-        .await;
-
-        assert!(result.is_none(), "disabled broker must return None");
-        assert!(
-            servers.is_empty(),
-            "disabled broker must not push any MCP server entry; got {servers:?}"
-        );
-        // Token registry stays untouched — no lookup should resolve to a
-        // valid entry because nothing was registered.
-        assert!(
-            injection.tokens.lookup("any-token").await.is_none(),
-            "disabled broker must not register a delegate token"
-        );
+        .await
+        .expect("todos inject the companion");
+        assert!(!result.delegation_enabled);
+        assert!(injection.tokens.lookup(&result.token).await.is_some());
+        assert_eq!(servers.len(), 1);
+        let McpServer::Stdio(server) = &servers[0] else {
+            panic!("expected stdio")
+        };
+        let feature_index = server.args.iter().position(|s| s == "--features").unwrap();
+        let features = &server.args[feature_index + 1];
+        assert!(features.split(',').any(|f| f == "todos"));
+        assert!(!features.split(',').any(|f| f == "delegation"));
     }
 
     // ─── delegate_target_args: enable-toggle filtering ──────────
@@ -31994,8 +31995,9 @@ mod tests {
                 tasks: true,
                 automations: true,
                 taskboard: true,
+                todos: true,
             }),
-            Some("delegation,feedback,ask,sessions,tasks,automations,taskboard".to_string())
+            Some("delegation,feedback,ask,sessions,tasks,automations,taskboard,todos".to_string())
         );
     }
 
