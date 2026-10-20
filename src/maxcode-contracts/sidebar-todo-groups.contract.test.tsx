@@ -633,6 +633,25 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     expect(owners[canonical]).toBeGreaterThan(-1)
   })
 
+  it("hides completed todos with active conversations unless show completed is enabled", async () => {
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [
+        group("Active task", [1]),
+        group("Finished task", [2], { status: "completed" }),
+      ],
+    })
+    const view = render(sidebar(false))
+    expect(await screen.findByText("Active task")).toBeTruthy()
+    expect(screen.queryByText("Finished task")).toBeNull()
+    // Hiding a todo group must not hide its conversation from other sections.
+    expect(document.querySelector('[data-conversation-id="2"]')).toBeTruthy()
+    view.rerender(sidebar(true))
+    expect(await screen.findByText("Finished task")).toBeTruthy()
+    view.rerender(sidebar(false))
+    expect(screen.queryByText("Finished task")).toBeNull()
+  })
+
   it("includes assigned completed todos independently of the board page", async () => {
     host.groups.mockResolvedValue({
       scope_key: "personal",

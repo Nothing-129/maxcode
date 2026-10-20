@@ -157,7 +157,7 @@
     {
       "id": "todos.sidebar-context-completion",
       "category": "product",
-      "description": "Sidebar todo headings offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses.",
+      "description": "Sidebar todo headings offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses. Completed todo groups follow the sidebar show-completed toggle even when linked conversations are still active; those conversations remain available in ordinary sections.",
       "origins": ["worktree-2026-10-16"],
       "paths": [
         "src/components/conversations/sidebar-todo-group-header.tsx",

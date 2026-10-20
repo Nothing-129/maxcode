@@ -1526,6 +1526,7 @@ export function SidebarConversationList({
     }
     return [...groups.values()].flatMap(({ todo, conversation_ids }) => {
       if (todo.assignee_id == null || todo.status === "unclaimed") return []
+      if (!showCompleted && todo.status === "completed") return []
       const children = [...new Set(conversation_ids)]
         .map((id) => byId.get(id))
         .filter(
