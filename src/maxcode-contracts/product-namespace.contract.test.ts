@@ -83,7 +83,7 @@ describe("MaxCode owns a separate product namespace", () => {
     expect(packaging.productName).toBe("MaxCode")
     expect(source("electron/update-config.cjs")).toContain("Nothing-129")
     expect(source("src-tauri/src/web/mod.rs")).toContain(
-      "DEFAULT_WEB_SERVICE_PORT: u16 = 3081"
+      "DEFAULT_WEB_SERVICE_PORT: u16 = 3080"
     )
   })
 })

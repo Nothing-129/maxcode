@@ -330,7 +330,7 @@ fn relocate_database(path: &Path, mappings: &[(PathBuf, PathBuf)]) -> io::Result
         }
     }
     // Imported desktop web services must not automatically contend with the
-    // other application's listener. Custom ports remain available for manual use.
+    // other application's listener. Preserve all saved port settings unchanged.
     if transaction
         .query_row(
             "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='app_metadata'",
@@ -346,7 +346,6 @@ fn relocate_database(path: &Path, mappings: &[(PathBuf, PathBuf)]) -> io::Result
                 [],
             )
             .map_err(io_error)?;
-        transaction.execute("UPDATE app_metadata SET value='3081' WHERE key='web_service_port' AND value='3080'", []).map_err(io_error)?;
         transaction.execute("DELETE FROM app_metadata WHERE key IN ('web_service_token','web_service_public_share_url')", []).map_err(io_error)?;
     }
     transaction.commit().map_err(io_error)

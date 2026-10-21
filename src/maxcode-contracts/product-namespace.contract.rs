@@ -167,27 +167,29 @@ fn maxcode_overrides_precede_explicit_compatibility_aliases() {
 
 #[test]
 fn imported_web_service_is_separate_and_requires_explicit_start() {
-    let root = tempfile::tempdir().unwrap();
-    let source = root.path().join("old");
-    let target = root.path().join("new");
-    fs::create_dir_all(&source).unwrap();
-    let old = rusqlite::Connection::open(source.join("codeg.db")).unwrap();
-    old.execute_batch("CREATE TABLE app_metadata (id INTEGER PRIMARY KEY, key TEXT, value TEXT); INSERT INTO app_metadata(key,value) VALUES ('web_service_token','old-token'),('web_service_auto_start','true'),('web_service_port','3080'),('web_service_public_share_url','https://old.example');").unwrap();
-    assert!(copy_legacy_root(&source, &target, &[]).unwrap());
-    let new = rusqlite::Connection::open(target.join("codeg.db")).unwrap();
-    let value = |db: &rusqlite::Connection, key: &str| {
-        db.query_row(
-            "SELECT value FROM app_metadata WHERE key=?1",
-            [key],
-            |row| row.get::<_, String>(0),
-        )
-    };
-    assert_eq!(value(&old, "web_service_token").unwrap(), "old-token");
-    assert_eq!(value(&old, "web_service_auto_start").unwrap(), "true");
-    assert_eq!(value(&new, "web_service_port").unwrap(), "3081");
-    assert_eq!(value(&new, "web_service_auto_start").unwrap(), "false");
-    assert!(value(&new, "web_service_token").is_err());
-    assert!(value(&new, "web_service_public_share_url").is_err());
+    for port in ["3080", "4488"] {
+        let root = tempfile::tempdir().unwrap();
+        let source = root.path().join("old");
+        let target = root.path().join("new");
+        fs::create_dir_all(&source).unwrap();
+        let old = rusqlite::Connection::open(source.join("codeg.db")).unwrap();
+        old.execute_batch(&format!("CREATE TABLE app_metadata (id INTEGER PRIMARY KEY, key TEXT, value TEXT); INSERT INTO app_metadata(key,value) VALUES ('web_service_token','old-token'),('web_service_auto_start','true'),('web_service_port','{port}'),('web_service_public_share_url','https://old.example');")).unwrap();
+        assert!(copy_legacy_root(&source, &target, &[]).unwrap());
+        let new = rusqlite::Connection::open(target.join("codeg.db")).unwrap();
+        let value = |db: &rusqlite::Connection, key: &str| {
+            db.query_row(
+                "SELECT value FROM app_metadata WHERE key=?1",
+                [key],
+                |row| row.get::<_, String>(0),
+            )
+        };
+        assert_eq!(value(&old, "web_service_token").unwrap(), "old-token");
+        assert_eq!(value(&old, "web_service_auto_start").unwrap(), "true");
+        assert_eq!(value(&new, "web_service_port").unwrap(), port);
+        assert_eq!(value(&new, "web_service_auto_start").unwrap(), "false");
+        assert!(value(&new, "web_service_token").is_err());
+        assert!(value(&new, "web_service_public_share_url").is_err());
+    }
 }
 
 #[test]

@@ -30,7 +30,7 @@ const WEB_SERVICE_TOKEN_KEY: &str = "web_service_token";
 const WEB_SERVICE_PORT_KEY: &str = "web_service_port";
 const WEB_SERVICE_AUTO_START_KEY: &str = "web_service_auto_start";
 const WEB_SERVICE_PUBLIC_SHARE_URL_KEY: &str = "web_service_public_share_url";
-pub const DEFAULT_WEB_SERVICE_PORT: u16 = 3081;
+pub const DEFAULT_WEB_SERVICE_PORT: u16 = 3080;
 
 pub struct WebServerState {
     handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
