@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-20 会话详情文本选择：详情内容显式允许选中复制，覆盖辅助侧栏外层的禁止选择样式，支持标题、模型、分支、用量与时间。独立契约：`session-details-selection.contract.test.ts`。
+
 2026-10-16 手机文本选择：触屏或触控笔长按仅保留浏览器原生菜单和选择手柄，避免与 MaxCode 选区工具栏重叠；混合设备切回鼠标后恢复快捷工具栏。独立契约：`mobile-selection-menu.contract.test.tsx`。
 
 2026-10-16 会话菜单统一：侧栏对话标题右键与三个点直接打开同一份完整菜单，菜单顺序、禁用状态和操作保持一致；保留未完成主会话的“标记完成”，三个点支持键盘打开。独立契约：`conversation-menu-parity.contract.test.tsx`。
@@ -42,7 +44,7 @@
 | 委托临时目录 | socket 避开所有 scratch 清理范围，处理别名和继承路径，清理保留当前采用的临时目录及原有权限防护 | `runtime.upstream-socket-ask-20260919` |
 | 安装状态与 Pi | npm 命令消失即清除幽灵安装状态；临时版本探测失败仍保留可启动安装；Pi 项目 MCP 配置纳入代码执行信任检查 | `runtime.install-detection-pi-trust-20261020` |
 | 前端依赖与渲染 | 更新编辑器、Markdown、公式、图表依赖及 Vitest/Vite，保留统一代码卡片与紧凑动作按钮，覆盖真实 Streamdown 输出 | `chat.unified-code-card` |
-| ZCode | 完整改用上游社区适配器 0.72.0、官方运行时/Node 发现、模式确认、独立 ACP 历史与 MCP 存储；移除旧原生数据库、别名、默认关闭、模型重映射和专属标题逻辑 | `agents.zcode-upstream-20261020` |
+| ZCode | 完整改用上游社区适配器 0.72.0、官方运行时/Node 发现、模式确认、独立 ACP 历史与 MCP 存储；移除旧原生数据库、别名、默认关闭和模型重映射；2026-10-21 起侧栏标题重新与 Codex/Grok/Pi/DeepSeek/Claude Code 一致走结构化自动生成（`supports_dedicated_auto_title`） | `agents.zcode-upstream-20261020`、`agents.acp-compatibility-and-titles` |
 
 `agents.zcode-community-acp-adapter` 已按用户要求退役。旧版描述仅作历史记录，
 不得恢复对应定制。历史文件保留在用户磁盘，本轮只移除旧解析代码，不清除外部数据。
@@ -163,6 +165,7 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
 | 手机布局 | 浏览器由工作区预留底部安全区；Android APP 由原生层避让导航栏/键盘，注入样式取消新旧网页外壳的重复底部安全区（所有机型），输入框仅保留 8px 间距 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
 | 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
+| 会话 | Codex AGENTS 指令兼容无路径标题和 Windows CRLF，过滤历史消息、标题与计数，保留普通提问 | `worktree-2026-10-22` | `chat.codex-agents-context-filter` |
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
 | 会话 | 模型工作状态（等待响应、思考中、流式输出、正在使用工具、等待你）只显示文案，左侧不放状态图标；agent 图标、耗时和 tok/s 保留；工具卡片状态图标保留。上游 activity-feedback 不得把左侧图标加回来 | `worktree-2026-09-21` | `chat.live-turn-status-text-only` |
@@ -343,4 +346,4 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 2026-10-19 分享页默认突出每轮用户提问和最后一条助手正文，较早的助手过程片段及明确的工作预告收进默认关闭的“过程说明”，展开后可阅读原文。旧快照没有消息阶段信息，采用消息边界兼容整理，不删除原文；图片继续直接展示。开头完整的 AGENTS 指令及环境包络默认折叠为会话信息，混合消息中的实际提问保持可见，不匹配未闭合标记或正文内普通提及。公开接口既有的思考/工具过滤和私有原生导入数据隔离继续生效。独立契约：`conversation-share-content.contract.test.tsx`。
 
 
-2026-10-20 待办 MCP（`todos.mcp-operations`）：`codeg-mcp` 新增独立 `todos` 工具组，MaxCode 管理且支持 MCP 的会话默认注入，不依赖多智能体委托或执行任务创建开关。提供范围列表、分页搜索、详情、创建、部分更新、领取、释放、完成、重开、删除及关联/取消关联当前会话。所有操作显式指定个人或团队范围，不改变界面选中项；创建必须携带 UUID `operation_id`，重试复用同一值；编辑和状态变更使用当前 `revision` 防止覆盖他人更新。远程团队通过成员凭据和新增 `team_todo_create` 接口创建，宿主需要升级到支持该接口的版本。会话 ID 仅由启动令牌解析，关联仅写本地关系，不上传聊天快照或原生 Codex 会话。待办变更通知可见看板刷新，保留五秒轮询恢复机制。新增工具需重启已有智能体会话并使用更新后的后端和 `codeg-mcp` 二进制。契约：`todo-mcp.contract.rs`、`todo-mcp.contract.test.tsx`。
+2026-10-20 待办 MCP（`todos.mcp-operations`）：`codeg-mcp` 新增独立 `todos` 工具组，MaxCode 管理且支持 MCP 的会话默认注入，不依赖多智能体委托或执行任务创建开关。提供范围列表、分页搜索、详情、创建、部分更新、领取、释放、完成、重开、删除及关联/取消关联当前会话。创建及搜索未指定范围时沿用当前个人/团队选择，显式范围覆盖但不改变界面选中项；创建必须携带 UUID `operation_id`，重试复用同一值；编辑和状态变更使用当前 `revision` 防止覆盖他人更新。远程团队通过成员凭据和新增 `team_todo_create` 接口创建，宿主需要升级到支持该接口的版本。会话 ID 仅由启动令牌解析。“把当前对话添加到待办”使用 `create_todo_from_conversation`，复用界面分享流程生成净化快照与 `source_url`，不导出原生 Codex 会话；`link_todo_to_conversation` 仅供显式本地关联，不可替代对话分享。团队缺失、离线或分享地址未配置时报错，不回退到个人或普通待办。待办变更通知可见看板刷新，保留五秒轮询恢复机制。新增工具需重启已有智能体会话并使用更新后的后端和 `codeg-mcp` 二进制。契约：`todo-mcp.contract.rs`、`todo-mcp.contract.test.tsx`。

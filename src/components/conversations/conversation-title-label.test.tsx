@@ -14,7 +14,9 @@ describe("ConversationTitleLabel", () => {
     )
     const date = getByText("0911")
     expect(date).toHaveClass("w-[4ch]", "tabular-nums", "shrink-0")
-    expect(getByText("｜探索｜")).toHaveClass("shrink-0")
+    expect(date).toHaveClass("text-xs", "text-muted-foreground")
+    expect(date.parentElement).toHaveClass("gap-2")
+    expect(screen.queryByText("探索", { exact: false })).toBeNull()
     expect(getByText("项目分析")).toHaveClass("truncate")
     expect(date.parentElement).toHaveClass(
       "flex",
@@ -22,7 +24,7 @@ describe("ConversationTitleLabel", () => {
       "font-[430]"
     )
     expect(date.parentElement).not.toHaveClass("truncate")
-    expect(date.parentElement?.textContent).toBe("0911｜探索｜项目分析")
+    expect(date.parentElement?.textContent).toBe("0911项目分析")
   })
 
   it("keeps skinny and wide dates in the same 4ch slot", () => {

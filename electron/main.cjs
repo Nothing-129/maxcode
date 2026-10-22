@@ -17,6 +17,10 @@ const path = require("node:path")
 const { createLoginItem } = require("./login-item.cjs")
 const { createWindowState } = require("./window-state.cjs")
 const {
+  createDesktopLog,
+  installRendererRecovery,
+} = require("./resilience.cjs")
+const {
   dialogOptions,
   externalUrl,
   isTrustedAppUrl,
@@ -60,6 +64,35 @@ const windowState = createWindowState(
   path.join(app.getPath("userData"), "window-state.json"),
   screen
 )
+
+const desktopLog = createDesktopLog(
+  path.join(
+    smokeDir ? path.join(smokeDir, "data") : legacyDataDir(app),
+    "logs",
+    "desktop.log"
+  ),
+  { token: () => backend?.token || "", version: app.getVersion() }
+)
+desktopLog("desktop-start")
+process.on("uncaughtExceptionMonitor", (error, origin) => {
+  desktopLog("uncaught-exception", {
+    origin,
+    message: error.stack || String(error),
+  })
+})
+process.on("unhandledRejection", (error) => {
+  desktopLog("unhandled-rejection", { message: String(error?.stack || error) })
+  fatalError(error)
+})
+process.on("exit", (code) => desktopLog("process-exit", { code }))
+app.on("child-process-gone", (_event, details) => {
+  desktopLog("child-process-gone", {
+    type: details.type,
+    reason: details.reason,
+    exitCode: details.exitCode,
+  })
+})
+app.on("will-quit", () => desktopLog("will-quit"))
 
 function trustedSender(event) {
   return Boolean(
@@ -165,6 +198,7 @@ function installBridge() {
   })
   handle("relaunch-app", () => {
     setImmediate(() => {
+      desktopLog("quit-request", { source: "relaunch-app" })
       app.relaunch()
       app.quit()
     })
@@ -176,7 +210,10 @@ function installBridge() {
   handle("update-status", () => desktopUpdater.status())
   handle("update-state", () => desktopUpdater.snapshot())
   handle("update-start", () => desktopUpdater.start())
-  handle("update-install", () => desktopUpdater.restart())
+  handle("update-install", () => {
+    desktopLog("update-install-request")
+    return desktopUpdater.restart()
+  })
   handle("minimize-window", (window) => window.minimize())
   handle("toggle-maximize", (window) => {
     if (window.isMaximized()) window.unmaximize()
@@ -325,6 +362,7 @@ function windowOptions(workspace = false) {
 function configureWindow(window) {
   windows.add(window)
   window.once("closed", () => {
+    desktopLog("window-closed", { windowId: window.id })
     windows.delete(window)
     if (mainWindow === window) mainWindow = null
   })
@@ -353,8 +391,13 @@ function configureWindow(window) {
     return { action: "deny" }
   })
   window.webContents.on("did-create-window", (child) => configureWindow(child))
-  window.webContents.on("render-process-gone", (_event, details) => {
-    if (!quitting) fatalError(new Error(`Renderer stopped: ${details.reason}`))
+  installRendererRecovery(window, {
+    log: desktopLog,
+    isQuitting: () => quitting,
+    dialog,
+  })
+  window.webContents.on("did-fail-load", (_event, code, description) => {
+    desktopLog("window-load-failed", { windowId: window.id, code, description })
   })
 }
 
@@ -372,6 +415,7 @@ async function createWindow() {
 
 async function shutdown() {
   if (shutdownPromise) return shutdownPromise
+  desktopLog("shutdown-start")
   windowState.save(mainWindow)
   quitting = true
   startupAbort.abort()
@@ -411,6 +455,7 @@ function fatalError(error) {
     backend?.token || "__no_token__",
     "[redacted]"
   )
+  desktopLog("fatal-error", { message })
   if (smokeTest) {
     process.stderr.write(`[electron smoke] FAIL: ${message}\n`)
     finishSmoke(1).catch(() => app.exit(1))
@@ -551,6 +596,7 @@ if (!app.requestSingleInstanceLock()) {
     mainWindow.focus()
   })
   app.on("before-quit", (event) => {
+    desktopLog("before-quit", { quitting })
     if (quitting) return
     event.preventDefault()
     shutdown()
@@ -564,7 +610,10 @@ if (!app.requestSingleInstanceLock()) {
     if (backend && !mainWindow && !quitting) createWindow().catch(fatalError)
   })
   for (const signal of ["SIGTERM", "SIGINT"]) {
-    process.on(signal, () => app.quit())
+    process.on(signal, () => {
+      desktopLog("quit-request", { source: signal })
+      app.quit()
+    })
   }
   app
     .whenReady()
@@ -598,6 +647,7 @@ if (!app.requestSingleInstanceLock()) {
         codegHome: smokeDir ? dataDir : undefined,
         signal: startupAbort.signal,
         onExit: (error) => {
+          desktopLog("backend-unexpected-exit", { message: error.message })
           if (!starting && !quitting) fatalError(error)
         },
       })

@@ -379,7 +379,7 @@ export function SessionDetailsContent({
   return (
     // `@container` drives the identifier / token / timestamp grids: one column
     // in the narrow aux-panel tab, two in the wider details dialog.
-    <div className="@container min-w-0 space-y-5 text-sm">
+    <div className="@container min-w-0 space-y-5 text-sm select-text">
       {/* Identity: the conversation title with its agent and status. */}
       <div className="min-w-0 space-y-2">
         <p className="wrap-anywhere text-base font-medium leading-snug">

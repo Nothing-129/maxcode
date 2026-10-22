@@ -20,6 +20,17 @@ function isDirectPointer(pointerType: string | undefined): boolean {
   return pointerType === "touch" || pointerType === "pen"
 }
 
+/** Portaled previews/menus bubble through React, but are not composer chrome. */
+function isLocalChromeClick(
+  event: MouseEvent<HTMLElement> | PointerEvent<HTMLElement>
+): boolean {
+  return (
+    event.target instanceof Node &&
+    event.currentTarget.contains(event.target) &&
+    isComposerChromeClick(event.target)
+  )
+}
+
 /**
  * Whether the browser speaks Pointer Events at all. Read per event rather than
  * once at module load, so nothing depends on whether this file was first
@@ -73,7 +84,7 @@ export function useComposerChromeFocus(
   const onPointerDown = useCallback(
     (event: PointerEvent<HTMLElement>) => {
       if (isDirectPointer(event.pointerType)) return
-      if (!isComposerChromeClick(event.target)) return
+      if (!isLocalChromeClick(event)) return
       event.preventDefault()
       editorRef.current?.focusAtCoords(event.clientX, event.clientY)
     },
@@ -88,7 +99,7 @@ export function useComposerChromeFocus(
           ? (native as globalThis.PointerEvent).pointerType
           : undefined
       if (!isDirectPointer(pointerType)) return
-      if (!isComposerChromeClick(event.target)) return
+      if (!isLocalChromeClick(event)) return
       editorRef.current?.focusAtCoords(event.clientX, event.clientY)
     },
     [editorRef]
@@ -99,7 +110,7 @@ export function useComposerChromeFocus(
       // Where there ARE pointer events, the press path above has already had
       // its say (and cancelling it suppresses this event entirely).
       if (supportsPointerEvents()) return
-      if (!isComposerChromeClick(event.target)) return
+      if (!isLocalChromeClick(event)) return
       event.preventDefault()
       editorRef.current?.focusAtCoords(event.clientX, event.clientY)
     },

@@ -16,6 +16,7 @@ import {
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
 import { useShortcutSettings } from "@/hooks/use-shortcut-settings"
+import { useTabToComposer } from "@/hooks/use-tab-to-composer"
 import {
   isConversationDeleted,
   useAppWorkspaceStore,
@@ -38,6 +39,7 @@ import { WorkspaceFolderDialog } from "@/components/layout/workspace-folder-dial
  * visible bar. Renders no visible chrome — only the dialogs.
  */
 export function WorkspaceChromeController() {
+  useTabToComposer()
   const { activeFolder } = useActiveFolder()
   const isChatMode = useIsActiveChatMode()
   const { toggle } = useSidebarContext()

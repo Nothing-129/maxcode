@@ -2,9 +2,108 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "sidebar.mobile-title-topic-only",
+      "category": "product",
+      "description": "Sidebar structured MMDD｜type｜topic titles omit the type on all screen sizes. Both mobile and desktop show a fixed-width, smaller muted MMDD date and topic separated by an 8px gap, without a pipe; the date is always visible. Display-only: stored titles, search, unstructured titles and empty-title fallbacks remain unchanged.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src/components/conversations/conversation-title-label.tsx",
+        "src/lib/conversation-title.ts"
+      ],
+      "contracts": ["src/maxcode-contracts/mobile-title-prefix.contract.test.tsx"]
+    },
+    {
+      "id": "chat.tab-to-visible-composer",
+      "category": "product",
+      "description": "Unmodified Tab from outside editing surfaces focuses a visible, enabled conversation composer without scrolling. Preserve Shift/modified Tab, editing and terminal keys, consumed events and dialog/menu focus traps; ignore hidden, offscreen and clipped composers.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src/hooks/use-tab-to-composer.ts",
+        "src/components/layout/workspace-chrome-controller.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/tab-to-composer.contract.test.tsx"]
+    },
+    {
+      "id": "chat.external-image-explicit-consent",
+      "category": "product",
+      "description": "Absolute local Markdown images outside the transcript root show the file path and require a per-image user click before bounded loading. Never automatically read external images, broaden relative traversal access, or carry consent across transcripts. Failed reads remain actionable and explain the failure.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src/lib/markdown-local-image.ts",
+        "src/components/ai-elements/markdown-local-image.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/external-markdown-image-consent.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.virtual-scroll-viewport-sync",
+      "category": "product",
+      "description": "Desktop and mobile sidebar virtual rows reconcile missed native scroll resets after content changes, viewport resize and page restoration. Reconciliation waits for idle scrolling, skips hidden viewports and never moves the native scroll position.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/use-sidebar-viewport-sync.ts"
+      ],
+      "contracts": ["src/maxcode-contracts/sidebar-viewport-sync.contract.test.tsx"]
+    },
+    {
+      "id": "chat.codex-agents-context-filter",
+      "category": "product",
+      "description": "Codex AGENTS instructions with or without a workspace suffix stay hidden in history, titles and counts, including Windows CRLF; ordinary questions remain visible.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src-tauri/src/parsers/codex.rs",
+        "src/maxcode-contracts/codex-agents-context.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-agents-context.contract.test.ts"
+      ]
+    },
+    {
+      "id": "desktop.windows-transparent-app-icon",
+      "category": "platform",
+      "description": "Windows uses the branded layered-terminal artwork from the macOS master, with transparent outer corners and native ICO frames for desktop/taskbar DPI scaling. Never restore the opaque white matte from the legacy PNG.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "src-tauri/icons/icon.ico",
+        "src-tauri/icons/icon.icns",
+        "scripts/generate-windows-icon.mjs",
+        "electron/electron-builder.cjs"
+      ],
+      "contracts": ["src/maxcode-contracts/windows-app-icon.contract.test.ts"]
+    },
+    {
+      "id": "agents.zcode-native-model-catalog",
+      "category": "runtime",
+      "description": "Version-gated compatibility for zcode-acp-server 0.72.0, 0.76.1 and 0.76.2: use the full session/create or session/resume modelAvailability cache and native provider IDs after materialization (session/read is current-only), excluding stale config.json ghosts; keep fallback only when availability is absent. No legacy alias migration or hardcoded model catalog.",
+      "origins": ["worktree-2026-10-21"],
+      "paths": [
+        "src-tauri/src/acp/zcode_model_catalog.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/mod.rs",
+        "docs/agents/zcode.md",
+        "src/maxcode-contracts/zcode-model-catalog.contract.rs",
+        "src/maxcode-contracts/fixtures/zcode-build-config-options.js.txt"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/zcode-model-catalog.contract.test.ts"
+      ]
+    },
+    {
+      "id": "ui.session-details-selection",
+      "category": "product",
+      "description": "Session details explicitly allow text selection and native copying inside the auxiliary sidebar.",
+      "origins": ["worktree-2026-10-20"],
+      "paths": ["src/components/conversations/session-details-content.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/session-details-selection.contract.test.ts"
+      ]
+    },
+    {
       "id": "agents.zcode-upstream-20261020",
       "category": "runtime",
-      "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization, default-disabled and dedicated-title behavior. Electron and the seven-agent catalog remain the host boundaries.",
+      "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization and default-disabled behavior, while keeping structured auto-titles through supports_dedicated_auto_title like the other maintained CLI agents. Electron and the seven-agent catalog remain the host boundaries.",
       "origins": [
         "610b2a36d",
         "67d257faf",
@@ -66,7 +165,7 @@
     {
       "id": "todos.mcp-operations",
       "category": "product",
-      "description": "Built-in MCP exposes human-owned personal/team todos separately from AI execution tasks. Explicit scopes, member-scoped remote creation, UUID deduplication, revision-guarded patches, token-derived local conversation links and live board refresh must survive upstream integration. Todo tools are available independently of delegation and never publish transcripts.",
+      "description": "Built-in MCP exposes human-owned personal/team todos separately from AI execution tasks. Creation and search default to the saved personal/team selection, while explicit scopes override without changing preferences. Conversation-to-todo requests use token-derived sanitized share snapshots and source URLs, separately from local association; native sessions are not exported. Member-scoped remote creation, UUID deduplication, revision-guarded patches and live board refresh must survive upstream integration. Todo tools remain independent of delegation.",
       "origins": ["worktree-2026-10-20"],
       "paths": [
         "src-tauri/src/todo/mcp.rs",
@@ -170,7 +269,7 @@
     {
       "id": "todos.mobile-hide-conversation-source-badges",
       "category": "product",
-      "description": "Conversation title todo-source badges, including the additional sources menu, are hidden below the md breakpoint for saved conversations and drafts, preserving mobile title space. Desktop retains source navigation.",
+      "description": "Conversation title todo-source badges, including the additional sources menu, are hidden below the md breakpoint for saved conversations and drafts, preserving mobile title space. Desktop source labels have no fixed width cap and shrink with the header only when space runs out; the additional sources button stays visible.",
       "origins": ["worktree-2026-10-16"],
       "paths": ["src/components/todos/conversation-todo-source-badges.tsx"],
       "contracts": [
@@ -231,7 +330,7 @@
     {
       "id": "sidebar.conversation-menu-parity",
       "category": "product",
-      "description": "Conversation title right-click and ellipsis open the same full context menu, with identical ordering, disabled states and handlers; pending root conversations retain completion and keyboard activation remains available.",
+      "description": "Conversation title right-click and ellipsis open the same full context menu, with identical ordering, disabled states and handlers; unfinished root conversations show completion as the first menu item and keyboard activation remains available.",
       "origins": ["worktree-2026-10-16"],
       "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
       "contracts": [
@@ -575,6 +674,20 @@
         "src/i18n/messages/"
       ],
       "contracts": ["src/maxcode-contracts/search-scope.contract.test.tsx"]
+    },
+    {
+      "id": "todos.completion-closes-details",
+      "category": "product",
+      "description": "Board and exact source todo details close only after a successful explicit completion. Pending or failed completion preserves the dialog; claim and reopen keep it open.",
+      "origins": ["worktree-2026-10-21"],
+      "paths": [
+        "src/components/todos/todos-page.tsx",
+        "src/components/todos/todo-source-detail-dialog.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-completion-close.contract.test.tsx",
+        "src/maxcode-contracts/todo-source-navigation.contract.test.tsx"
+      ]
     },
     {
       "id": "todos.completion-action-label",
@@ -2199,6 +2312,21 @@
       ]
     },
     {
+      "id": "composer.preview-selection",
+      "category": "product",
+      "description": "Portaled image previews and menus must never be treated as composer chrome clicks: mouse, touch, pen and legacy mouse interactions preserve the multiline draft caret so continued typing and newlines stay at the intended position.",
+      "origins": ["worktree-2026-10-09"],
+      "paths": [
+        "src/components/chat/composer/use-composer-chrome-focus.ts",
+        "src/components/chat/composer/composer-image-thumbnails.tsx",
+        "src/components/chat/composer/rich-composer.tsx",
+        "src/components/ui/image-preview-dialog.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-refocus-selection.contract.test.tsx"
+      ]
+    },
+    {
       "id": "composer.empty-selection",
       "category": "product",
       "description": "Selecting all and deleting composer text leaves a clean placeholder and caret without native or inactive selection paint on the empty paragraph; real text selection remains visible.",
@@ -2643,6 +2771,21 @@
       "contracts": ["src/maxcode-contracts/compact-reasoning.contract.test.tsx"]
     },
     {
+      "id": "desktop.crash-isolation-and-diagnostics",
+      "category": "platform",
+      "description": "Renderer failures recover only the affected window with bounded automatic retries, never shut down the desktop or backend sessions; desktop lifecycle and failures persist to a bounded, token-redacted local log. ACP connection cleanup uses a captured runtime handle after the driver exits block_on.",
+      "origins": ["worktree-2026-10-22"],
+      "paths": [
+        "electron/main.cjs",
+        "electron/resilience.cjs",
+        "src-tauri/src/acp/connection.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/electron-resilience.contract.test.ts",
+        "src/maxcode-contracts/acp-cleanup-runtime.contract.test.ts"
+      ]
+    },
+    {
       "id": "desktop.electron-runtime",
       "category": "platform",
       "description": "Electron is the default desktop entry, hosts the shared Rust server on an authenticated private loopback port, preserves desktop preferences and data paths, provides isolated native file and notification capabilities, and owns backend shutdown and installer updates. Finder launches restore the login-shell PATH with standard Node install fallbacks before spawning agents.",
@@ -3085,7 +3228,7 @@
     {
       "id": "agents.acp-compatibility-and-titles",
       "category": "runtime",
-      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, and Claude Code without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
+      "description": "Built-in/custom ACP agents keep discovery and preflight behavior, configurable locale-aware HTTP-generated titles for Codex, Grok, Pi, DeepSeek Harness, Claude Code, and ZCode without launching a second agent CLI, creation-date-based structured sidebar titles, multiline first-prompt seed replacement, typed K/V request parameters, local sensitive-data redaction for generated and fallback titles, Grok history plans, and redundant image-read filtering.",
       "origins": ["108154e4", "53144985", "bb6949f5", "16941c88"],
       "paths": [
         "src-tauri/src/acp/registry.rs",

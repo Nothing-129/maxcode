@@ -704,6 +704,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
             </HoverCardTrigger>
           </ContextMenuTrigger>
           <ContextMenuContent>
+            {showDoneAction && (
+              <ContextMenuItem
+                onSelect={() => onStatusChange(conversation.id, "completed")}
+              >
+                <CheckCircle2 className="size-4" />
+                {t("markCompleted")}
+              </ContextMenuItem>
+            )}
             {onLinkTodo && !isSubsession && (
               <ContextMenuItem
                 onSelect={() =>
@@ -743,14 +751,6 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   <Pin className="h-4 w-4" />
                 )}
                 {isPinned ? t("unpin") : t("pin")}
-              </ContextMenuItem>
-            )}
-            {showDoneAction && (
-              <ContextMenuItem
-                onSelect={() => onStatusChange(conversation.id, "completed")}
-              >
-                <CheckCircle2 className="size-4" />
-                {t("markCompleted")}
               </ContextMenuItem>
             )}
             <ContextMenuItem onSelect={() => setDetailsOpen(true)}>

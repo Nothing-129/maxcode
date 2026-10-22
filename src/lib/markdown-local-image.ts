@@ -70,6 +70,22 @@ export function resolveLocalImage(source: string, rootPath: string) {
   }
 }
 
+/** Only explicit absolute image references can be loaded with user consent.
+ * Relative traversal must not acquire a broader read capability. */
+export function resolveExternalImage(source: string, rootPath: string) {
+  const path = localImagePath(source)
+  if (!path || !isAbsoluteFilePath(path) || path.startsWith("//")) return null
+  if (resolveLocalImage(source, rootPath)) return null
+  const absolute = normalizeAbsPath(path)
+  const extension = absolute.split(".").pop()?.toLowerCase() ?? ""
+  if (!Object.prototype.hasOwnProperty.call(IMAGE_MIMES, extension)) return null
+  return {
+    path: absolute,
+    name: absolute.slice(absolute.lastIndexOf("/") + 1),
+    mime: IMAGE_MIMES[extension],
+  }
+}
+
 export type LocalImageReader = (
   root: string,
   relativePath: string,

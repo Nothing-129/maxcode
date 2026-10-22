@@ -1,5 +1,6 @@
 //! MCP operations on human-owned todos. Explicit scopes never change UI
-//! preferences; conversation links never publish transcripts or native sessions.
+//! preferences. Conversation-to-todo creation uses the existing share snapshot
+//! pipeline; local association remains a separate operation.
 
 use super::*;
 use serde_json::{json, Value as JsonValue};
@@ -27,6 +28,8 @@ pub struct CreateSpec {
 pub struct MemberCreateRequest {
     pub token: String,
     pub spec: CreateSpec,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub snapshot: Option<SharedConversationSnapshot>,
 }
 
 pub const TOOL_NAMES: &[&str] = &[
@@ -34,6 +37,7 @@ pub const TOOL_NAMES: &[&str] = &[
     "list_todos",
     "get_todo",
     "create_todo",
+    "create_todo_from_conversation",
     "update_todo",
     "claim_todo",
     "release_todo",
@@ -54,7 +58,7 @@ pub fn validate(request: &ToolRequest) -> Result<(), AppCommandError> {
         "list_todo_scopes" => &[],
         "list_todos" => &["search", "only_mine", "page", "page_size"],
         "get_todo" => &["todo_id"],
-        "create_todo" => &[
+        "create_todo" | "create_todo_from_conversation" => &[
             "title",
             "content",
             "operation_id",
@@ -86,7 +90,12 @@ pub fn validate(request: &ToolRequest) -> Result<(), AppCommandError> {
             )));
         }
     }
-    if request.tool != "list_todo_scopes" {
+    if request.tool != "list_todo_scopes"
+        && (!matches!(
+            request.tool.as_str(),
+            "create_todo" | "create_todo_from_conversation" | "list_todos"
+        ) || args.contains_key("scope_id"))
+    {
         required_arg(&request.arguments, "scope_id")?;
     }
     if extra.contains(&"todo_id") {
@@ -103,7 +112,10 @@ pub fn validate(request: &ToolRequest) -> Result<(), AppCommandError> {
             "Positive todo revision is required; call get_todo first",
         ));
     }
-    if request.tool == "create_todo" {
+    if matches!(
+        request.tool.as_str(),
+        "create_todo" | "create_todo_from_conversation"
+    ) {
         for key in ["title", "content", "operation_id"] {
             required_arg(&request.arguments, key)?;
         }
@@ -171,6 +183,7 @@ async fn create_local(
     conn: &DatabaseConnection,
     scope: &Scope,
     spec: CreateSpec,
+    snapshot: Option<SharedConversationSnapshot>,
 ) -> Result<TodoOriginResult, AppCommandError> {
     let operation = Uuid::parse_str(&spec.operation_id)
         .map_err(|_| AppCommandError::invalid_input("operation_id must be a UUID"))?
@@ -188,9 +201,10 @@ async fn create_local(
             assignee_id: spec.assignee_id,
             due_date: spec.due_date,
             priority: spec.priority,
+            snapshot,
             ..Default::default()
         },
-        &None,
+        &public_url(conn).await?,
     )
     .await?;
     let found = rows(
@@ -225,7 +239,19 @@ pub async fn member_create(
     request: MemberCreateRequest,
 ) -> Result<TodoOriginResult, AppCommandError> {
     let scope = member_scope(conn, request.token).await?;
-    create_local(conn, &scope, request.spec).await
+    create_local(conn, &scope, request.spec, request.snapshot).await
+}
+
+/// Resolve the persisted board selection once, without changing it or silently
+/// falling back to personal when a selected team is missing/offline.
+async fn default_scope(conn: &DatabaseConnection) -> Result<String, AppCommandError> {
+    let (mode, team) = selected(conn).await?;
+    if mode == "personal" {
+        return Ok(PERSONAL.to_string());
+    }
+    let id = team.ok_or_else(|| AppCommandError::not_found("Select a todo team first"))?;
+    local_scope(conn, &id).await?;
+    Ok(id)
 }
 
 pub async fn call(
@@ -245,20 +271,51 @@ pub async fn call(
                 "mode": "team", "self_id": record.self_id,
             }));
         }
-        return Ok(json!({"scopes": scopes}));
+        let (mode, active_team_id) = selected(conn).await?;
+        let default_scope_id = if mode == "personal" {
+            Some(PERSONAL.to_string())
+        } else {
+            active_team_id
+                .clone()
+                .filter(|id| scopes.iter().any(|s| s["scope_id"] == *id))
+        };
+        return Ok(
+            json!({"scopes": scopes, "mode": mode, "active_team_id": active_team_id,
+            "default_scope_id": default_scope_id}),
+        );
     }
-    let scope_id = required_arg(args, "scope_id")?.to_string();
+    let scope_id = match args.get("scope_id") {
+        Some(_) => required_arg(args, "scope_id")?.to_string(),
+        None => default_scope(conn).await?,
+    };
     if request.tool == "list_todos" {
         let query: SearchQuery = serde_json::from_value(args.clone())
             .map_err(|_| AppCommandError::invalid_input("Invalid search arguments"))?;
         return encode(search(conn, TodoSearchRequest { scope_id, query }).await?);
     }
-    if request.tool == "create_todo" {
+    if matches!(
+        request.tool.as_str(),
+        "create_todo" | "create_todo_from_conversation"
+    ) {
         let scope = local_scope(conn, &scope_id).await?;
         let mut fields = args.clone();
         fields.as_object_mut().unwrap().remove("scope_id");
         let spec: CreateSpec = serde_json::from_value(fields)
             .map_err(|_| AppCommandError::invalid_input("Invalid create arguments"))?;
+        let snapshot = if request.tool == "create_todo_from_conversation" {
+            let id = conversation_id
+                .ok_or_else(|| AppCommandError::not_found("Current conversation not available"))?;
+            Some(
+                conversation_share::build_conversation_share_snapshot(
+                    conn,
+                    id,
+                    ConversationShareOptions::default(),
+                )
+                .await?,
+            )
+        } else {
+            None
+        };
         let mut result = match scope.remote() {
             Some(team) => {
                 remote_json(
@@ -267,11 +324,12 @@ pub async fn call(
                     &MemberCreateRequest {
                         token: team.member_token.clone(),
                         spec,
+                        snapshot,
                     },
                 )
                 .await?
             }
-            None => create_local(conn, &scope, spec).await?,
+            None => create_local(conn, &scope, spec, snapshot).await?,
         };
         let todo = result
             .todo

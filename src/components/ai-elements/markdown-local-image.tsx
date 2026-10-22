@@ -12,10 +12,11 @@ import {
 import type { Components } from "streamdown"
 import { ImageOff, Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { readWorkspaceFileBase64 } from "@/lib/api"
+import { readFileBase64, readWorkspaceFileBase64 } from "@/lib/api"
 import {
   createLocalImageLoader,
   resolveLocalImage,
+  resolveExternalImage,
 } from "@/lib/markdown-local-image"
 import {
   ImageActions,
@@ -26,6 +27,7 @@ import { ImagePreviewDialog } from "@/components/ui/image-preview-dialog"
 type ImageScope = {
   root: string
   load: ReturnType<typeof createLocalImageLoader>
+  loadExternal: ReturnType<typeof createLocalImageLoader>
 }
 const LocalImageContext = createContext<ImageScope | null>(null)
 
@@ -43,6 +45,10 @@ export function MarkdownImageProvider({
         ? {
             root: rootPath,
             load: createLocalImageLoader(rootPath, readWorkspaceFileBase64),
+            // Never called from markup alone: each image requires a user click.
+            loadExternal: createLocalImageLoader(rootPath, (_, path, max) =>
+              readFileBase64(path, max)
+            ),
           }
         : null,
     [rootPath]
@@ -70,8 +76,17 @@ function LocalMarkdownImage({
 }) {
   const scope = useContext(LocalImageContext)
   const t = useTranslations("Folder.chat.messageList")
-  const target = scope ? resolveLocalImage(source, scope.root) : null
+  const localTarget = scope ? resolveLocalImage(source, scope.root) : null
+  const externalTarget = scope ? resolveExternalImage(source, scope.root) : null
+  const target = localTarget ?? externalTarget
+  const isExternal = !!externalTarget
   const path = target?.path
+  const [consent, setConsent] = useState<{
+    scope: ImageScope
+    source: string
+  } | null>(null)
+  const authorized = consent?.scope === scope && consent?.source === source
+  const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<{
     scope: ImageScope
     path: string
@@ -83,22 +98,60 @@ function LocalMarkdownImage({
   } | null>(null)
   const { canCopy, copy, download } = useImageActions()
   useEffect(() => {
-    if (!scope || !path) return
+    if (!scope || !path || (isExternal && !authorized)) return
     let cancelled = false
-    void scope.load(path).then((data) => {
+    const load = isExternal ? scope.loadExternal : scope.load
+    void load(path).then((data) => {
       if (!cancelled) setResult({ scope, path, data })
     })
     return () => {
       cancelled = true
     }
-  }, [scope, path])
+  }, [scope, path, isExternal, authorized, attempt])
 
   // A source or transcript change must never paint bytes from the previous
   // scope while its replacement is loading (including out-of-order reads).
   const current =
     result?.scope === scope && result?.path === path ? result : null
   const label = alt || target?.name || source
-  if (!scope || !target || current?.data === null) {
+  if (
+    scope &&
+    target &&
+    ((externalTarget && !authorized) || current?.data === null)
+  ) {
+    return (
+      <span className="inline-flex max-w-full flex-col items-start gap-1 text-muted-foreground">
+        <span
+          role="img"
+          aria-label={label}
+          className="inline-flex items-center gap-1.5"
+        >
+          <ImageOff aria-hidden="true" className="size-4 shrink-0" />
+          {label}
+        </span>
+        <span className="text-xs">
+          {t(
+            current?.data === null ? "localImageFailed" : "externalImageNotice"
+          )}
+        </span>
+        <code className="max-w-full wrap-anywhere text-xs">{target.path}</code>
+        <button
+          type="button"
+          className="cursor-pointer text-sm underline underline-offset-4"
+          onClick={(event) => {
+            event.preventDefault()
+            event.stopPropagation()
+            setConsent({ scope, source })
+            setResult(null)
+            setAttempt((value) => value + 1)
+          }}
+        >
+          {t(externalTarget ? "loadExternalImage" : "retryLocalImage")}
+        </button>
+      </span>
+    )
+  }
+  if (!scope || !target) {
     return (
       <span
         role="img"

@@ -79,15 +79,15 @@ describe("conversation title menu entry points", () => {
       const fromRightClick = menuSnapshot()
       expect(fromRightClick.slot).toBe("context-menu-content")
       expect(fromRightClick.items.map((item) => item.label)).toEqual([
+        ...(status === "pending"
+          ? [enMessages.Folder.conversationCard.markCompleted]
+          : []),
         enMessages.Todos.linkConversation,
         enMessages.Folder.conversationCard.newConversation,
         enMessages.Folder.conversationCard.rename,
         pinned
           ? enMessages.Folder.conversationCard.unpin
           : enMessages.Folder.conversationCard.pin,
-        ...(status === "pending"
-          ? [enMessages.Folder.conversationCard.markCompleted]
-          : []),
         enMessages.Folder.sessionDetails.menuLabel,
         enMessages.Folder.conversationCard.attachToCurrentSession,
         enMessages.Folder.conversationCard.delete,

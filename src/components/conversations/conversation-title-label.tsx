@@ -7,9 +7,10 @@ import {
 import { cn } from "@/lib/utils"
 
 /**
- * Sidebar conversation title. Structured auto-titles (`MMDD｜类型｜主题`) pin
- * the date in a 4ch tabular slot so a skinny `1` cannot shift the type column;
- * only the topic truncates. Unstructured / renamed titles stay one string.
+ * Sidebar conversation title. Structured auto-titles (`MMDD｜类型｜主题`) show
+ * only date and topic on all screen sizes, with the date in a fixed 4ch
+ * tabular slot. The type is omitted; stored titles are unchanged.
+ * Unstructured titles stay one string.
  */
 export function ConversationTitleLabel({
   title,
@@ -33,9 +34,13 @@ export function ConversationTitleLabel({
     )
   }
   return (
-    <span className={cn("flex min-w-0 items-center", className)} {...rest}>
-      <span className="w-[4ch] shrink-0 tabular-nums">{structured.date}</span>
-      <span className="shrink-0">{`｜${structured.kind}｜`}</span>
+    <span
+      className={cn("flex min-w-0 items-center gap-2", className)}
+      {...rest}
+    >
+      <span className="w-[4ch] shrink-0 text-xs text-muted-foreground tabular-nums">
+        {structured.date}
+      </span>
       <span className="min-w-0 truncate">{structured.topic}</span>
     </span>
   )

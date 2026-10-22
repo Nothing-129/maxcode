@@ -277,7 +277,7 @@ describe("MaxCode: source todo navigation uses its captured scope and exact task
     await user.click(
       screen.getByRole("button", { name: enMessages.Todos.complete })
     )
-    await screen.findByText("Source team · Completed")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     expect(todoOriginCall).toHaveBeenCalledWith({
       action: "complete",
       origin: teamOrigin,
@@ -347,7 +347,7 @@ describe("MaxCode: source todo navigation uses its captured scope and exact task
     await user.click(
       within(dialog).getByRole("button", { name: enMessages.Todos.complete })
     )
-    await within(dialog).findByText("Personal · Completed")
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull())
     await act(async () => {
       stale.resolve(
         result(
@@ -356,8 +356,7 @@ describe("MaxCode: source todo navigation uses its captured scope and exact task
         )
       )
     })
-    expect(within(dialog).getByText("Personal · Completed")).toBeInTheDocument()
-    expect(within(dialog).getByText("Original source body")).toBeInTheDocument()
+    expect(screen.queryByRole("dialog")).toBeNull()
     expect(screen.queryByText("Stale old title")).not.toBeInTheDocument()
     expect(screen.queryByText("Stale old body")).not.toBeInTheDocument()
   })

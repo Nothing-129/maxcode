@@ -318,8 +318,11 @@ function TodosWorkspace({
     [mutate, t]
   )
 
-  function todoAction(todo: Todo, action: TodoStatusAction) {
-    void act({ action, id: todo.id, revision: todo.revision })
+  async function todoAction(todo: Todo, action: TodoStatusAction) {
+    const success = await act({ action, id: todo.id, revision: todo.revision })
+    if (success && action === "complete") {
+      setDetailId((current) => (current === todo.id ? null : current))
+    }
   }
 
   function card(todo: Todo, list = false) {

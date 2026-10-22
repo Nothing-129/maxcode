@@ -159,6 +159,7 @@ import { TodoConversationFolderDialog } from "@/components/todos/todo-conversati
 import { todoConversationText } from "@/components/todos/board-columns"
 import { todoOriginCall } from "@/lib/todos"
 import { SidebarTodoGroupHeader } from "./sidebar-todo-group-header"
+import { useSidebarViewportSync } from "./use-sidebar-viewport-sync"
 import { useTodoConversationGroups } from "@/hooks/use-todo-conversation-groups"
 import { useOptionalTodosView } from "@/contexts/todos-view-context"
 import {
@@ -1902,6 +1903,8 @@ export function SidebarConversationList({
       folderGroupExpanded,
     ]
   )
+
+  useSidebarViewportSync(viewportEl, virtualizerRef, rows)
 
   // Latest snapshots for the imperative scroll path, refreshed every render so
   // scrollToActive reads current values without being torn down and re-subscribed.

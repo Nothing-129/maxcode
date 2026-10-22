@@ -593,6 +593,7 @@ async fn structured_title_survives_native_refresh_and_can_still_refine() {
         AgentType::Pi,
         AgentType::DeepSeek,
         AgentType::ClaudeCode,
+        AgentType::Zcode,
     ] {
         let row = conversation_service::create(
             &db.conn,
@@ -699,6 +700,7 @@ async fn greeting_kickoff_calls_http_for_each_supported_agent(
         AgentType::DeepSeek,
         AgentType::Grok,
         AgentType::ClaudeCode,
+        AgentType::Zcode,
     ]
     .into_iter()
     .enumerate()

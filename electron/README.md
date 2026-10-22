@@ -37,6 +37,24 @@ corepack pnpm electron:start --smoke-test
 开发时可通过 `CODEG_ELECTRON_BACKEND_PATH` 指定后端可执行文件，或通过
 `CODEG_ELECTRON_STATIC_DIR` 指定前端导出目录；安装版固定使用包内资源。
 
+## 异常恢复与日志
+
+单个窗口的渲染进程异常时，只重新加载该窗口，不退出桌面端或停止后台智能体。
+一分钟内再次异常会提示手动重新加载或关闭该窗口，避免无限自动重试。
+重新加载可能丢失尚未持久化的界面状态（例如未保存的输入）。后台服务退出等
+无法继续运行的故障仍会显示错误并退出，但会先记录原因。
+
+桌面主进程日志位于数据目录的 `logs/desktop.log`，macOS 默认路径：
+
+```text
+~/Library/Application Support/app.codeg/logs/desktop.log
+```
+
+记录渲染进程退出原因与退出码、窗口加载失败、后台异常退出、主进程异常和
+退出流程。日志隐藏当前桌面认证 Token，不记录完整页面 URL；超过 2 MiB 时
+轮换为 `desktop.log.1`，仅保留一份历史。日志写入失败不会使应用退出。
+Rust 后端日志仍位于同目录的 `codeg-server.YYYY-MM-DD.log`。
+
 ## 手机访问
 
 在桌面端「设置 → Web 服务」开启服务，手机连接同一局域网后打开该页显示的

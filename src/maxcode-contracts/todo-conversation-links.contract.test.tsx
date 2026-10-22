@@ -397,6 +397,29 @@ describe("existing conversation links remain local and target the captured todo 
 })
 
 describe("conversation source badges identify exact persisted or draft origins", () => {
+  it("lets desktop source names use available space and shrink only with the header", async () => {
+    h.sources = [source(), source()]
+    const { container } = render(
+      intl(
+        <ConversationTodoSourceBadges conversationId={1} draftOrigins={[]} />
+      )
+    )
+    const badge = await screen.findByRole("button", {
+      name: "Source todo: Completed task outside current page",
+    })
+    const wrapper = container.firstElementChild!
+    expect(wrapper).toHaveClass("min-w-0")
+    expect(wrapper).not.toHaveClass("shrink-0")
+    expect(badge).toHaveClass("min-w-0")
+    expect(badge.className).not.toMatch(/(?:^|\s)(?:\S+:)?(?:max-w-|w-)/)
+    expect(badge.querySelector("span")).toHaveClass("truncate")
+    expect(
+      screen.getByRole("button", {
+        name: enMessages.Todos.moreSourceTodos.replace("{count}", "1"),
+      })
+    ).toHaveClass("shrink-0")
+  })
+
   it.each([1, null])(
     "hides the entire source badge group below the desktop breakpoint (conversation %s)",
     async (conversationId) => {

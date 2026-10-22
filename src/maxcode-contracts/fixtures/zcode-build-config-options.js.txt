@@ -1,0 +1,160 @@
+// From william0wang/zcode-acp 0.72.0 dist/config/options.js, Apache-2.0.
+export async function buildConfigOptions(server, zcodeSid, receiverRoot) {
+    let currentProviderId = "";
+    let currentModelId = DEFAULT_MODEL_ID;
+    let currentMode = zcodeSid === null ? initialSessionMode() : "build";
+    // Matches the enabled provider's default reasoning variants (GLM-5.3:
+    // max/high/low, default max). Pending sessions show this until the real
+    // session/read thoughtLevel arrives.
+    let currentThought = "max";
+    let thoughtOptions = null;
+    if (zcodeSid === null) {
+        // Pending session — no backend to read yet, but the thought vocabulary
+        // is per model and the runtime's own source of truth is the enabled
+        // provider's models[].reasoning.variants in the local config. Advertise
+        // THAT for the default model instead of a hardcoded list: a client that
+        // relays the options into a picker (Multica's effort selector) would
+        // otherwise offer tokens the runtime rejects ("nothink" was fiction,
+        // "low" was missing).
+        const cur = loadAllModels()[0];
+        if (cur) {
+            // The advertised current model follows the dropdown's leading entry
+            // (the enabled provider's first model — what the runtime actually
+            // starts sessions with) rather than the legacy hardcoded "GLM-5.2".
+            // ACP clients skip a requested model switch when it equals the
+            // advertised current value, so a stale fiction silently pinned the
+            // wrong model whenever the requested id happened to match it.
+            currentProviderId = cur.providerId;
+            currentModelId = cur.modelId;
+            try {
+                const cfg = readConfig();
+                const m = cfg.provider?.[cur.providerId]?.models?.[cur.modelId];
+                const reasoning = m?.reasoning;
+                const variants = reasoning?.variants;
+                if (reasoning?.enabled !== false && variants && variants.length > 0) {
+                    thoughtOptions = orderThoughtVariants(variants);
+                    currentThought = reasoning.defaultVariant ?? variants[0];
+                }
+            }
+            catch {
+                // unreadable config — the static fallback below applies
+            }
+        }
+    }
+    if (zcodeSid !== null) {
+        try {
+            const read = await sessionRead(server, zcodeSid);
+            const settings = (read.settings ?? {});
+            const modeSet = settings.mode ?? {};
+            currentMode = modeSet.current ?? currentMode;
+            const modelSet = settings.model ?? {};
+            // settings.model.current is { providerId, modelId, variant? } — read BOTH so
+            // we can disambiguate same-named models across providers. Normalize the
+            // provider spelling (3.12+ registries answer `account:<family>-<plan>`;
+            // config.json and the dropdown use `builtin:<family>-<plan>`) so the
+            // current value matches a dropdown entry instead of duplicating it.
+            const cur = modelSet.current ?? {};
+            if (cur.providerId)
+                currentProviderId = configProviderIdFor(cur.providerId);
+            if (cur.modelId)
+                currentModelId = cur.modelId;
+            const tlSet = settings.thoughtLevel ?? {};
+            // `current` is absent right after session/create — fall back to the
+            // backend's defaultLevel (the level the session actually runs at).
+            currentThought =
+                tlSet.current ?? tlSet.defaultLevel ?? currentThought;
+            const tlAvail = tlSet.available ?? [];
+            if (tlAvail.length > 0) {
+                thoughtOptions = tlAvail.map((a) => ({ value: a.value, name: a.label ?? a.value }));
+                // setModel can leave the runtime briefly holding the PREVIOUS model's
+                // thoughtLevel (upstream clamps its own snapshot for the same reason —
+                // session-mapper.ts: "setModel 后 runtime 可能短暂保留上一个模型的
+                // thoughtLevel"). Never advertise a current outside the new model's
+                // list: the CLI would keep displaying — and re-sending — the old
+                // model's level (observed 2026-09-28 after switches between models
+                // with different level vocabularies).
+                const values = new Set(tlAvail.map((a) => a.value));
+                if (!values.has(currentThought)) {
+                    const def = typeof tlSet.defaultLevel === "string" ? tlSet.defaultLevel : undefined;
+                    currentThought = def && values.has(def) ? def : (tlAvail[0]?.value ?? currentThought);
+                }
+            }
+        }
+        catch {
+            // keep defaults
+        }
+        // Same plan-flag fold as buildModes: a plan-active runtime still reports
+        // the underlying mode in settings, and the dropdown must show "plan".
+        if (server.sessionPlanActive.has(zcodeSid) && currentMode !== "plan") {
+            currentMode = "plan";
+        }
+    }
+    // currentValue encodes provider+model so the switch handler can locate the
+    // right provider (and its apiKey). Fall back to the first enabled provider
+    // when settings omits providerId (legacy sessions).
+    const allModels = loadAllModels();
+    const currentProvider = currentProviderId || allModels[0]?.providerId || DEFAULT_PROVIDER_ID;
+    const currentModel = formatModelValue(currentProvider, currentModelId);
+    // Model options: config.json enabled providers are authoritative. Values
+    // are always providerId\modelId. Builtin labels stay the bare modelId
+    // unless two providers ship the same id; third-party labels always qualify.
+    let modelOptions = buildModelSelectOptions(allModels);
+    if (!modelOptions.some((o) => o.value === currentModel)) {
+        // The current model isn't from an enabled provider (e.g. the session was
+        // created with a now-disabled provider). Append it so the dropdown still
+        // shows the active selection.
+        modelOptions = [{ value: currentModel, name: currentModelId }, ...modelOptions];
+    }
+    if (!thoughtOptions)
+        thoughtOptions = [...CONFIG_META.thought.options];
+    const options = [
+        {
+            id: "model",
+            name: CONFIG_META.model.name,
+            category: "model",
+            type: "select",
+            currentValue: currentModel,
+            options: modelOptions,
+        },
+        {
+            id: "mode",
+            name: CONFIG_META.mode.name,
+            category: "mode",
+            type: "select",
+            currentValue: currentMode,
+            options: [...CONFIG_META.mode.options],
+        },
+        {
+            id: "thought",
+            name: CONFIG_META.thought.name,
+            // Category thought_level (not "thought") so ACP clients recognise the
+            // option as the reasoning-effort selector: the shared matchers in
+            // editors and orchestrators (e.g. Multica's acpEffortOptionIDs) key on
+            // id/category "effort"/"thought_level". The id stays "thought" — it is
+            // what session/set_config_option addresses.
+            category: "thought_level",
+            type: "select",
+            currentValue: currentThought,
+            options: thoughtOptions,
+        },
+    ];
+    // Read-only quota pseudo-option (ADR-0021): martty-only, no category (never
+    // lands in a settings menu), string type per the probe-verified shape — the
+    // SDK's union stops at select/boolean, so the cast carries the agent-owned
+    // extension through typecheck. `set_config_option` on it is a no-op.
+    // Gated on the RECEIVER's connection identity, not process state — a
+    // non-martty client must never see the spec-external string option.
+    if (backendCapabilities(server.backendKind).quota &&
+        server.quotaDock &&
+        receiverRoot !== undefined &&
+        server.marttyConnectionRoots.has(receiverRoot)) {
+        options.push({
+            id: "quota",
+            name: "GLM Coding Plan quota",
+            title: "GLM Coding Plan quota",
+            type: "string",
+            currentValue: server.quotaDock,
+        });
+    }
+    return options;
+}

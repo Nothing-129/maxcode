@@ -5711,7 +5711,7 @@ fn agents_instructions_regex() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {
         Regex::new(
-            r"(?s)\A# AGENTS\.md instructions for [^\n]+\n\s*\n<INSTRUCTIONS>.*?</INSTRUCTIONS>\s*",
+            r"(?s)\A# AGENTS\.md instructions(?: for [^\r\n]+)?\r?\n\s*<INSTRUCTIONS>.*?</INSTRUCTIONS>\s*",
         )
         .expect("valid agents instructions regex")
     })
@@ -5723,9 +5723,11 @@ fn strip_agents_instructions_block(input: &str) -> String {
 }
 
 fn is_agents_instruction_message(input: &str) -> bool {
-    input
-        .trim_start()
-        .starts_with("# AGENTS.md instructions for ")
+    let trimmed = input.trim_start();
+    // Some Codex versions omit the workspace suffix. Require a complete
+    // envelope for that form so ordinary questions about AGENTS.md survive.
+    trimmed.starts_with("# AGENTS.md instructions for ")
+        || agents_instructions_regex().is_match(trimmed)
 }
 
 fn is_environment_context_message(input: &str) -> bool {
@@ -16983,3 +16985,7 @@ mod maxcode_codex_desktop_history_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/mobile-running-transcript.contract.rs"]
 mod mobile_running_transcript_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/codex-agents-context.contract.rs"]
+mod maxcode_codex_agents_context_contract;

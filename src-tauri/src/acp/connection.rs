@@ -1320,6 +1320,8 @@ fn tag_mcp_suspect(
 struct ConnectionCleanupGuard {
     connections: Arc<tokio::sync::Mutex<HashMap<String, AgentConnection>>>,
     connection_id: String,
+    // Drop runs after Handle::block_on returns, outside the runtime context.
+    runtime: tokio::runtime::Handle,
 }
 
 impl Drop for ConnectionCleanupGuard {
@@ -1330,7 +1332,7 @@ impl Drop for ConnectionCleanupGuard {
         }
         let connections = self.connections.clone();
         let connection_id = std::mem::take(&mut self.connection_id);
-        tokio::spawn(async move {
+        self.runtime.spawn(async move {
             connections.lock().await.remove(&connection_id);
         });
     }
@@ -2024,6 +2026,7 @@ async fn build_agent(
                             &bridge_command,
                         ))
                     })?;
+                super::zcode_model_catalog::ensure(&entry).map_err(AcpError::protocol)?;
                 parts.push(runtime.node.to_string_lossy().into_owned());
                 parts.push(entry.to_string_lossy().into_owned());
             } else {
@@ -2596,6 +2599,7 @@ pub async fn spawn_agent_connection(
     let cleanup_guard = ConnectionCleanupGuard {
         connections: cleanup_connections,
         connection_id: cleanup_connection_id,
+        runtime: connection_rt.clone(),
     };
     let connection_thread = std::thread::Builder::new()
         .name(format!("acp-conn-{conn_id}"))
@@ -34332,6 +34336,10 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/acp-cleanup-runtime.contract.rs"]
+mod maxcode_acp_cleanup_runtime_contract;
 
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/own-ask-permission.contract.rs"]

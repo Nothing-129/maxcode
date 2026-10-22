@@ -150,17 +150,19 @@ export function TodoSourceDetailDialog({
 
   function statusAction() {
     if (!todo) return
-    void change({
-      action:
-        todo.status === "completed"
-          ? "reopen"
-          : todo.status === "unclaimed"
-            ? "claim"
-            : "complete",
-      revision: todo.revision,
-    }).catch((cause) => {
-      toast.error(t("operationFailed", { reason: toErrorMessage(cause) }))
-    })
+    const action =
+      todo.status === "completed"
+        ? "reopen"
+        : todo.status === "unclaimed"
+          ? "claim"
+          : "complete"
+    void change({ action, revision: todo.revision })
+      .then(() => {
+        if (action === "complete" && alive.current) onClose()
+      })
+      .catch((cause) => {
+        toast.error(t("operationFailed", { reason: toErrorMessage(cause) }))
+      })
   }
 
   if (editing && detail) {

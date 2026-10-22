@@ -279,7 +279,7 @@
   },
   {
     "name": "list_todo_scopes",
-    "description": "List MaxCode personal/team todo scopes. Returns scope IDs and your member ID, without changing UI selection or revealing membership credentials. Use before targeting a team.",
+    "description": "List personal/team todo scopes and the current mode, active_team_id and default_scope_id. The default follows the user's saved board selection. Do not default to personal merely because it is the first scope.",
     "inputSchema": {
       "type": "object",
       "properties": {},
@@ -295,7 +295,7 @@
       "properties": {
         "scope_id": {
           "type": "string",
-          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+          "description": "Optional override ONLY when the user explicitly chooses personal or a named team. Otherwise OMIT this field: MaxCode uses the currently selected personal/team todo scope. Never assume personal. The response includes the resolved scope; use it for later edits/retries."
         },
         "search": {
           "type": "string",
@@ -314,7 +314,7 @@
           "maximum": 100
         }
       },
-      "required": ["scope_id"],
+      "required": [],
       "additionalProperties": false
     }
   },
@@ -339,13 +339,13 @@
   },
   {
     "name": "create_todo",
-    "description": "Create a human-owned personal/team todo in MaxCode (个人/团队待办). Does not launch an agent or create a worktree. Use when the user asks to remember/record a todo. Does not share chat history or native session data. To associate the current conversation, call link_todo_to_conversation after creation.",
+    "description": "Create a plain human-owned MaxCode todo. Omit scope_id unless the user explicitly chooses a scope; the current personal/team selection is the default. For requests to add THIS CONVERSATION to todos (把这个对话添加到待办/把对话创建成待办), use create_todo_from_conversation instead: it saves a conversation share link. Plain create_todo does not share history or launch an agent.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "scope_id": {
           "type": "string",
-          "description": "Explicit scope_id from list_todo_scopes: personal or a team ID. Never infer from the currently selected UI tab."
+          "description": "Optional override ONLY when the user explicitly chooses personal or a named team. Otherwise OMIT this field: MaxCode uses the currently selected personal/team todo scope. Never assume personal. The response includes the resolved scope; use it for later edits/retries."
         },
         "title": {
           "type": "string",
@@ -372,7 +372,46 @@
           "description": "A new UUID for this creation. Reuse the SAME UUID when retrying an uncertain response to prevent duplicates."
         }
       },
-      "required": ["scope_id", "title", "content", "operation_id"],
+      "required": ["title", "content", "operation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "create_todo_from_conversation",
+    "description": "Add THIS CONVERSATION to MaxCode todos using conversation link sharing, like the UI action (把这个对话添加到待办/把对话创建成待办). Use this tool for that intent instead of create_todo plus local association. The server resolves the current conversation and saves a sanitized share snapshot with a source_url. Omit scope_id unless the user explicitly chooses a different scope: default to the current personal/team selection. Does not export native Codex session data, tools or thinking. Return the saved scope and source_url to the user. If sharing fails, report it; do not silently substitute a plain todo or local association.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "scope_id": {
+          "type": "string",
+          "description": "Optional override ONLY when the user explicitly chooses personal or a named team. Otherwise OMIT this field: MaxCode uses the currently selected personal/team todo scope. Never assume personal. The response includes the resolved scope; use it for later edits/retries."
+        },
+        "title": {
+          "type": "string",
+          "description": "Todo title."
+        },
+        "content": {
+          "type": "string",
+          "description": "Full todo body in Markdown."
+        },
+        "assignee_id": {
+          "type": ["string", "null"],
+          "description": "Member ID from list_todos/get_todo; null clears assignment."
+        },
+        "due_date": {
+          "type": ["string", "null"],
+          "description": "Due date YYYY-MM-DD; null clears it."
+        },
+        "priority": {
+          "type": ["string", "null"],
+          "enum": ["low", "normal", "high", "urgent", null]
+        },
+        "operation_id": {
+          "type": "string",
+          "description": "A new UUID for this creation. Reuse the SAME UUID when retrying an uncertain response to prevent duplicates."
+        }
+      },
+      "required": ["title", "content", "operation_id"],
       "additionalProperties": false
     }
   },
@@ -542,7 +581,7 @@
   },
   {
     "name": "link_todo_to_conversation",
-    "description": "Link or unlink a todo to THIS conversation locally. The server resolves the conversation from the authenticated session. Never uploads or publishes the conversation, and never exports native Codex history.",
+    "description": "Explicitly link/unlink an EXISTING todo to THIS conversation locally. This is only local association and creates NO conversation share link. When asked to add the current conversation to todos, use create_todo_from_conversation instead. The server resolves the conversation from the authenticated session.",
     "inputSchema": {
       "type": "object",
       "properties": {

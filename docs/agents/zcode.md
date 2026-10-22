@@ -19,7 +19,7 @@ ZCode Start Plan accounts cannot run through the bridge. Their model requests ne
 
 ## Sessions and tools
 
-A new session explicitly confirms Build mode before sending its first prompt. A valid saved mode, including Yolo, takes precedence. Confirming the mode makes the bridge create the ZCode backend session when the conversation connects rather than at its first prompt. Existing sessions use the normal restore and preference flow. Model and thought selectors follow ACP configuration updates rather than a hardcoded model list.
+A new session explicitly confirms Build mode before sending its first prompt. A valid saved mode, including Yolo, takes precedence. Confirming the mode makes the bridge create the ZCode backend session when the conversation connects rather than at its first prompt. Existing sessions use the normal restore and preference flow. Model and thought selectors follow ACP configuration updates rather than a hardcoded model list. For bridge 0.72.0, 0.76.1 and 0.76.2, MaxCode applies a version-gated catalog repair at launch: once the session exists, the model selector follows the full native model catalog cached from `session/create` or `session/resume`, preserving native provider IDs. Stale legacy `config.json` entries are not offered alongside the live catalog. `session/read` only reports the current model and must not be used as the complete catalog. Runtimes without a cached catalog retain the bridge fallback.
 
 The bridge writes a disabled sandbox template to `.zcode/acp/sandbox.json` in each workspace it runs in.
 
