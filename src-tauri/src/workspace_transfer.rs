@@ -48,6 +48,7 @@ pub struct DownloadTicket {
     pub kind: DownloadKind,
     pub filename: String,
     pub expires_at: Instant,
+    reusable: bool,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -179,6 +180,21 @@ impl WorkspaceTransferManager {
     }
 
     pub async fn issue_download_ticket(&self, spec: DownloadTicketSpec) -> DownloadTicketIssued {
+        self.issue_download_ticket_inner(spec, false).await
+    }
+
+    pub async fn issue_workspace_download_ticket(
+        &self,
+        spec: DownloadTicketSpec,
+    ) -> DownloadTicketIssued {
+        self.issue_download_ticket_inner(spec, true).await
+    }
+
+    async fn issue_download_ticket_inner(
+        &self,
+        spec: DownloadTicketSpec,
+        reusable: bool,
+    ) -> DownloadTicketIssued {
         self.cleanup_expired_tickets().await;
 
         let ticket = uuid::Uuid::new_v4().simple().to_string();
@@ -199,6 +215,7 @@ impl WorkspaceTransferManager {
                 kind: spec.kind,
                 filename: spec.filename.clone(),
                 expires_at: expires_at_instant,
+                reusable,
             },
         );
 
@@ -208,6 +225,19 @@ impl WorkspaceTransferManager {
             filename: spec.filename,
             expires_at,
         }
+    }
+
+    // Browser metadata probes, download-manager handoff and retries must not
+    // invalidate workspace links. Keep their original expiry (never slide it).
+    // Backup tickets remain single-use and cannot use this lookup.
+    pub async fn workspace_download_ticket(&self, ticket: &str) -> Option<DownloadTicket> {
+        self.cleanup_expired_tickets().await;
+        self.tickets
+            .lock()
+            .await
+            .get(ticket)
+            .filter(|ticket| ticket.reusable && Instant::now() < ticket.expires_at)
+            .cloned()
     }
 
     pub async fn consume_download_ticket(&self, ticket: &str) -> Option<DownloadTicket> {
@@ -294,6 +324,54 @@ mod tests {
         temp_env::with_var("CODEG_WORKSPACE_UPLOAD_MAX_CONCURRENCY", Some("0"), || {
             assert_eq!(env_usize("CODEG_WORKSPACE_UPLOAD_MAX_CONCURRENCY", 4), 4);
         });
+    }
+
+    #[tokio::test]
+    async fn workspace_ticket_retries_keep_scope_and_original_expiry() {
+        let manager = WorkspaceTransferManager::new_for_tests(Duration::from_secs(60));
+        let spec = DownloadTicketSpec {
+            root_path: PathBuf::from("/repo"),
+            target_path: PathBuf::from("/repo/final.png"),
+            relative_path: "final.png".into(),
+            kind: DownloadKind::File,
+            filename: "final.png".into(),
+        };
+        let backup = manager.issue_download_ticket(spec.clone()).await;
+        assert!(manager
+            .workspace_download_ticket(&backup.ticket)
+            .await
+            .is_none());
+        assert!(manager
+            .consume_download_ticket(&backup.ticket)
+            .await
+            .is_some());
+        assert!(manager
+            .consume_download_ticket(&backup.ticket)
+            .await
+            .is_none());
+        assert!(manager.workspace_download_ticket("invalid").await.is_none());
+        let issued = manager.issue_workspace_download_ticket(spec).await;
+        let original_expiry = manager.tickets.lock().await[&issued.ticket].expires_at;
+        for _ in 0..3 {
+            let ticket = manager
+                .workspace_download_ticket(&issued.ticket)
+                .await
+                .unwrap();
+            assert_eq!(ticket.target_path, PathBuf::from("/repo/final.png"));
+            assert_eq!(ticket.relative_path, "final.png");
+            assert_eq!(ticket.expires_at, original_expiry);
+        }
+        manager
+            .tickets
+            .lock()
+            .await
+            .get_mut(&issued.ticket)
+            .unwrap()
+            .expires_at = Instant::now();
+        assert!(manager
+            .workspace_download_ticket(&issued.ticket)
+            .await
+            .is_none());
     }
 
     #[tokio::test]

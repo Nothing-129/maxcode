@@ -53,6 +53,7 @@ import {
   type ConversationShareAddressSource,
 } from "@/lib/conversation-share"
 import { formatConversationTitle } from "@/lib/conversation-title"
+import { ConversationTitleLabel } from "./conversation-title-label"
 import { OPEN_CONVERSATION_SHARE_EVENT } from "@/lib/conversation-share-events"
 import { splitShareUserText } from "@/lib/conversation-share-content"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -618,7 +619,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           }}
           title={title}
         >
-          {displayTitle}
+          <ConversationTitleLabel
+            title={title}
+            fallback={t("untitledConversation")}
+          />
         </span>
         {canLinkTodo && (
           <ConversationTodoSourceBadges

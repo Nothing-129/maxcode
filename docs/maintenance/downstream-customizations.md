@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-23 手机工作区下载：票据在原有 60 秒有效期内允许 HEAD 探测和重复 GET，兼容浏览器向系统下载器交接；备份仍使用一次性票据。契约：`mobile-download-retries.contract.test.ts`。
+
 2026-10-23 回复操作栏移除模型信息和 Token 统计图标，保留消息操作、完成时间及跳回提问功能。契约：`reply-actions-no-metadata.contract.test.tsx`；热点：`chat.reply-actions-no-metadata`。
 
 2026-10-23 操作反馈：新发送/首次非空回复在进入视口后播放 360ms、12px 入场，完成播放后去重，取消的动画允许重试，等待文案交接淡出，已观察到的回复结束时淡入标题并在末尾短暂显示淡入淡出的 ✓（不显示结束文案）；回到底部按钮淡入淡出，侧栏关闭保留内容至过渡结束，侧栏/终端内容跟随原尺寸动画淡入淡出；复制对勾及已确认的保存成功提示增加轻量反馈。保留执行区层级，减少动态效果时取消新增位移/缩放。契约：`interaction-feedback.contract.test.tsx`；热点：`appearance.interaction-feedback`。

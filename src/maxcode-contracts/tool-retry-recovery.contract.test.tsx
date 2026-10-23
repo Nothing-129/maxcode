@@ -203,6 +203,8 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
       )
     )
     expect(screen.queryByText(/1 execution issue/)).toBeNull()
+    fireEvent.click(screen.getAllByRole("button", { name: "Ran 1 command" })[0])
+    expect(screen.queryByText(/1 execution issue/)).toBeNull()
     expect(screen.getByText(/1 retried successfully/)).not.toHaveClass(
       "text-destructive"
     )

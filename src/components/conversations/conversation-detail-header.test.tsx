@@ -245,6 +245,25 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     }
   })
 
+  it("uses the shared date and topic format in the conversation header", () => {
+    const { getByText, queryByText } = render(
+      withIntl(
+        <ConversationDetailHeader {...A} title="1022｜修复｜手机端标题截断" />
+      )
+    )
+    const date = getByText("1022")
+    expect(date).toHaveClass("text-xs", "text-muted-foreground")
+    expect(date).not.toHaveClass("hidden")
+    expect(date.parentElement).toHaveClass("gap-2")
+    expect(getByText("手机端标题截断")).toHaveClass("truncate")
+    expect(queryByText(/修复/)).toBeNull()
+    // The full stored title remains available for the tooltip and rename.
+    expect(date.closest("[title]")).toHaveAttribute(
+      "title",
+      "1022｜修复｜手机端标题截断"
+    )
+  })
+
   it("shares the active conversation from the mobile tools menu with other panes mounted", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"

@@ -8,7 +8,7 @@ describe("AgentIcon", () => {
     const { container } = render(<AgentIcon agentType="zcode" />)
     const svg = container.querySelector("svg")
     expect(svg).not.toBeNull()
-    expect(svg).toHaveAttribute("viewBox", "0 0 24 24")
+    expect(svg).toHaveAttribute("viewBox", "-1 -1 26 26")
     expect(svg?.querySelector("title")?.textContent).toBe("ZCode")
     expect(svg?.querySelector("linearGradient")).not.toBeNull()
   })

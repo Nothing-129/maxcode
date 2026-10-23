@@ -24,7 +24,7 @@ describe("Antigravity official color icon", () => {
       "image/svg+xml"
     )
     expect(svg.querySelector("parsererror")).toBeNull()
-    expect(svg.documentElement.getAttribute("viewBox")).toBe("0 0 180 180")
+    expect(svg.documentElement.getAttribute("viewBox")).toBe("15 15 150 150")
     for (const color of ["#3186FF", "#FC413D", "#00B95C", "#FBBC04"]) {
       expect(svg.querySelector(`[fill="${color}"]`)).not.toBeNull()
     }

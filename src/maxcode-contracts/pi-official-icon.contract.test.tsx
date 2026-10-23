@@ -10,7 +10,8 @@ describe("Pi official brand icon", () => {
       <AgentIcon agentType="pi" className="size-4 text-muted-foreground" />
     )
     const svg = container.querySelector("svg")
-    expect(svg).toHaveAttribute("viewBox", "0 0 800 800")
+    // Preserve the optically reviewed inset for small selector/composer icons.
+    expect(svg).toHaveAttribute("viewBox", "100 100 600 600")
     expect(svg?.querySelector("title")?.textContent).toBe("Pi")
     expect(
       Array.from(svg?.querySelectorAll("path") ?? [], (path) => ({

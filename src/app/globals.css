@@ -1710,6 +1710,20 @@
 /* 表格自带外边框归 0，避免与容器边框双线；内部行线（tr border-b / tbody divide-y）保留。 */
 [data-streamdown="table"] {
   border-width: 0;
+  /* Size columns by content up to the cell cap below, then scroll the card
+     instead of squeezing CJK body cells into one-character lines. */
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+}
+
+[data-streamdown="table-header-cell"],
+[data-streamdown="table-cell"] {
+  /* Long headers, prose and URLs wrap too. On phones a column is capped at
+     about 60% of the viewport; wider screens allow up to 32rem. */
+  max-width: clamp(12rem, 60vw, 32rem);
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 /* 末行的 border-b 会与容器底边框叠成双线（Codex 实测：末行 1px + 容器 1px）——去掉「最末行组」
    末行的底边框；有 tbody 时表头末行的 border-b（表头/表体分隔线）不受影响、保留。 */

@@ -3294,14 +3294,48 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
   parts,
   durationMs,
   renderPart,
+  showCounts = false,
 }: {
   parts: AdaptedContentPart[]
   durationMs?: number | null
   renderPart: (part: AdaptedContentPart, keyId: string) => ReactNode
+  showCounts?: boolean
 }) {
   const t = useTranslations("Folder.chat.messageList")
+  const tGroup = useTranslations("Folder.chat.contentParts.toolGroup")
   const tElapsed = useTranslations("Folder.chat.liveTurnStats")
   const [open, setOpen] = useState(false)
+  const activityLabel = useMemo(() => {
+    if (!showCounts) return null
+    const counts = Object.fromEntries(
+      TOOL_KIND_ORDER.map((kind) => [kind, 0])
+    ) as Record<ToolKindLabel, number>
+    const countPart = (part: AdaptedContentPart) => {
+      if (part.type === "tool-call") {
+        counts[classifyToolKind(part.toolName)] += 1
+      } else if (part.type === "reasoning") {
+        counts.think += 1
+      } else if (part.type === "plan") {
+        counts.todo += 1
+      } else if (part.type === "tool-group") {
+        part.items.forEach(countPart)
+      } else if (
+        part.type === "delegation-status-group" ||
+        part.type === "background-task-group"
+      ) {
+        part.polls.forEach(countPart)
+      } else if (part.type === "goal-run") {
+        countPart(part.start)
+        part.items.forEach(countPart)
+        if (part.end) countPart(part.end)
+      }
+      // Results belong to their tool call and must not count a second time.
+    }
+    parts.forEach(countPart)
+    return TOOL_KIND_ORDER.filter((kind) => counts[kind] > 0)
+      .map((kind) => tGroup(kind, { count: counts[kind] }))
+      .join(tGroup("joiner"))
+  }, [parts, showCounts, tGroup])
   const durationLabel =
     typeof durationMs === "number" && durationMs > 0
       ? formatElapsedLabel(durationMs, tElapsed)
@@ -3314,16 +3348,17 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
       className="w-full not-prose"
     >
       <div className="flex items-center gap-2">
-        <CollapsibleTrigger className="group flex shrink-0 items-center gap-1 text-[0.8125rem] leading-5 text-muted-foreground transition-colors hover:text-foreground">
+        <CollapsibleTrigger className="group flex min-w-0 items-center gap-1 text-left text-[0.8125rem] leading-5 text-muted-foreground transition-colors hover:text-foreground">
           <span>
-            {durationLabel
-              ? t("processedFor", { duration: durationLabel })
-              : t("processed")}
+            {activityLabel ||
+              (durationLabel
+                ? t("processedFor", { duration: durationLabel })
+                : t("processed"))}
           </span>
           <ChevronRightIcon
             aria-hidden="true"
             className={cn(
-              "size-3.5 opacity-60 transition-transform",
+              "size-3.5 shrink-0 opacity-60 transition-transform",
               open && "rotate-90"
             )}
           />
@@ -3464,9 +3499,52 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
     )
   }
 
-  return (
-    <div className="space-y-4">
-      {parts.map((part, i) => renderPart(part, `${i}`))}
-    </div>
-  )
+  // Keep the newest three activity rows visible while waiting for more text.
+  // A stable interval key preserves manual expansion as its folded prefix grows
+  // and when the next text closes the interval.
+  const content: ReactNode[] = []
+  for (let index = 0; index < parts.length; index += 1) {
+    const part = parts[index]
+    if (role === "assistant" && isCompletedActivityPart(part)) {
+      let end = index
+      const activityIndices: number[] = []
+      while (end < parts.length) {
+        const candidate = parts[end]
+        if (isCompletedActivityPart(candidate)) {
+          activityIndices.push(end)
+        } else if (!(candidate.type === "text" && !candidate.text.trim())) {
+          break
+        }
+        end += 1
+      }
+      const next = parts[end]
+      const followedByText =
+        next?.type === "text" && next.text.trim().length > 0
+      const foldEnd = followedByText
+        ? end
+        : !isResponseComplete &&
+            end === parts.length &&
+            activityIndices.length > 3
+          ? activityIndices[activityIndices.length - 3]
+          : index
+      if (foldEnd > index) {
+        content.push(
+          <CompletedActivitySummary
+            key={`interval-${index}`}
+            showCounts
+            parts={parts.slice(index, foldEnd)}
+            renderPart={renderPart}
+          />
+        )
+      }
+      for (let visible = foldEnd; visible < end; visible += 1) {
+        content.push(renderPart(parts[visible], `${visible}`))
+      }
+      index = end - 1
+      continue
+    }
+    content.push(renderPart(part, `${index}`))
+  }
+
+  return <div className="space-y-4">{content}</div>
 })

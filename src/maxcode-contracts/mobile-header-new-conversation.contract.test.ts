@@ -17,7 +17,7 @@ describe("MaxCode contract: mobile header new conversation", () => {
       button.includes("onClick={handleNewConversation}")
     )!
     expect(header).toMatch(
-      /\{displayTitle\}\s*<\/span>(?:\s*\{canLinkTodo && \([\s\S]*?\)\})?\s*<DropdownMenu>/
+      /<ConversationTitleLabel\s+title=\{title\}\s+fallback=\{t\("untitledConversation"\)\}\s*\/>\s*<\/span>(?:\s*\{canLinkTodo && \([\s\S]*?\)\})?\s*<DropdownMenu>/
     )
     expect(newChat).not.toContain("md:hidden")
     expect(newChat).toContain("<Button")

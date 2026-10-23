@@ -33,14 +33,19 @@ function tree(parts: AdaptedContentPart[], completed = false) {
   )
 }
 describe("MaxCode contract: upstream-style progress disclosures", () => {
-  it("shows prose, commands and thinking directly without a shared steps fold", () => {
+  it("keeps prose visible and folds intervening activity into expandable summaries", () => {
     const { rerender, container } = render(tree(steps(3)))
     for (let i = 0; i < 3; i++)
       expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
     expect(screen.queryByText("2 steps")).toBeNull()
     expect(container.querySelector("[data-activity-section]")).toBeNull()
-    const thinking = screen.getAllByRole("button", { name: /Thought|Thinking/ })
-    expect(thinking).toHaveLength(3)
+    const summaries = screen.getAllByRole("button", {
+      name: "Read files 1 time · Thought 1 time",
+    })
+    expect(summaries[0]).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(summaries[0])
+    const thinking = screen.getAllByRole("button", { name: "Thought" })
+    expect(thinking).toHaveLength(2)
     expect(thinking[0]).toHaveAttribute("aria-expanded", "false")
     fireEvent.click(thinking[0])
     expect(screen.getByText("Thought 0")).toBeVisible()

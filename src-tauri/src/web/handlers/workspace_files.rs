@@ -649,7 +649,7 @@ async fn create_download_ticket_core(
     };
 
     let ticket = manager
-        .issue_download_ticket(DownloadTicketSpec {
+        .issue_workspace_download_ticket(DownloadTicketSpec {
             root_path,
             target_path,
             relative_path: params.path,
@@ -669,17 +669,20 @@ pub async fn consume_download_ticket(
     Extension(state): Extension<Arc<AppState>>,
     AxumPath(ticket): AxumPath<String>,
 ) -> Result<Response, AppCommandError> {
-    let Some(ticket) = state
-        .workspace_transfer
-        .consume_download_ticket(&ticket)
-        .await
-    else {
+    workspace_download_response(state.workspace_transfer.clone(), ticket).await
+}
+
+async fn workspace_download_response(
+    manager: Arc<crate::workspace_transfer::WorkspaceTransferManager>,
+    ticket: String,
+) -> Result<Response, AppCommandError> {
+    let Some(ticket) = manager.workspace_download_ticket(&ticket).await else {
         return Err(AppCommandError::not_found(
             "Download ticket is invalid or expired",
         ));
     };
 
-    match ticket.kind {
+    let mut response = match ticket.kind {
         DownloadKind::File => {
             let target = resolve_download_file_target(
                 &ticket.root_path.to_string_lossy(),
@@ -692,9 +695,14 @@ pub async fn consume_download_ticket(
                 &ticket.root_path.to_string_lossy(),
                 &ticket.relative_path,
             )?;
-            stream_zip_response(state.workspace_transfer.clone(), target, ticket.filename).await
+            stream_zip_response(manager, target, ticket.filename).await
         }
-    }
+    }?;
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    Ok(response)
 }
 
 fn ensure_workspace_root(root: &Path) -> Result<(), AppCommandError> {
@@ -1075,7 +1083,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn create_download_ticket_for_file_is_consumed_once() {
+    async fn workspace_download_survives_head_and_repeated_get() {
         let root = tempfile::tempdir().unwrap();
         let file_path = root.path().join("a.txt");
         tokio::fs::write(&file_path, b"hello").await.unwrap();
@@ -1100,14 +1108,50 @@ mod tests {
             issued.url,
             format!("/api/workspace_download/{}", issued.ticket)
         );
-        assert!(manager
-            .consume_download_ticket(&issued.ticket)
-            .await
-            .is_some());
-        assert!(manager
-            .consume_download_ticket(&issued.ticket)
-            .await
-            .is_none());
+        use tower::ServiceExt;
+        let app = axum::Router::new().route(
+            "/download",
+            axum::routing::get(move || {
+                let manager = manager.clone();
+                let ticket = issued.ticket.clone();
+                async move { workspace_download_response(manager, ticket).await }
+            }),
+        );
+        // Model a browser probe followed by handoff to the system downloader.
+        for method in ["HEAD", "GET", "GET"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    axum::http::Request::builder()
+                        .method(method)
+                        .uri("/download")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            assert_eq!(response.headers()[header::CONTENT_LENGTH], "5");
+            assert_eq!(
+                response.headers()[header::CACHE_CONTROL],
+                "private, no-store"
+            );
+            assert!(response.headers()[header::CONTENT_DISPOSITION]
+                .to_str()
+                .unwrap()
+                .contains("attachment"));
+            let body = axum::body::to_bytes(response.into_body(), 1024)
+                .await
+                .unwrap();
+            assert_eq!(
+                body.as_ref(),
+                if method == "HEAD" {
+                    &b""[..]
+                } else {
+                    &b"hello"[..]
+                }
+            );
+        }
     }
 
     async fn build_zip_bytes_for_test(dir: PathBuf) -> Result<Vec<u8>, AppCommandError> {

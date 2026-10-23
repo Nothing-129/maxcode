@@ -165,7 +165,9 @@ describe("MaxCode: title completion is the only status action", () => {
       withIntl(<ConversationDetailHeader {...A} />)
     )
     const trigger = getByRole("button", { name: "More actions" })
-    expect(getByText(A.title).nextElementSibling).toBe(trigger)
+    expect(getByText(A.title).closest("[title]")?.nextElementSibling).toBe(
+      trigger
+    )
     expect(trigger.querySelector("svg")).not.toBeNull()
     expect(queryByRole("button", { name: "Rename" })).toBeNull()
 
@@ -183,7 +185,9 @@ describe("MaxCode: title completion is the only status action", () => {
       withIntl(<ConversationDetailHeader {...A} />)
     )
     const newChat = getByRole("button", { name: "New Conversation" })
-    expect(getByText(A.title).nextElementSibling).not.toBe(newChat)
+    expect(getByText(A.title).closest("[title]")?.nextElementSibling).not.toBe(
+      newChat
+    )
     await user.click(newChat)
     expect(h.openNewConversationTab).toHaveBeenCalledWith(1, "/a", {
       inheritFromActive: true,

@@ -224,11 +224,12 @@ const ClaudeCodeColorIcon = memo(function ClaudeCodeColorIcon({
 }: {
   size?: string | number
 }) {
+  // Center the wide silhouette vertically without stretching its proportions.
   return (
     <svg
       height={size}
       style={{ flex: "none", lineHeight: 1 }}
-      viewBox="0 0 24 24"
+      viewBox="0 0.5 24 24"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -324,11 +325,13 @@ const KimiCodeColorIcon = memo(function KimiCodeColorIcon({
 const PiColorIcon = memo(function PiColorIcon({ size = "1em" }: IconProps) {
   // Official three-color mark: https://pi.dev/logo-auto.svg
   // Also used by CC Switch's Pi icon; preserve the source geometry and colors.
+  // Optically balanced beside Codex/DeepSeek at 12–16px: the angular mark
+  // needs more breathing room than rounded or wide silhouettes.
   return (
     <svg
       height={size}
       style={baseSvgStyle}
-      viewBox="0 0 800 800"
+      viewBox="100 100 600 600"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
@@ -381,13 +384,11 @@ const GrokMonoIcon = memo(function GrokMonoIcon({ size = "1em" }: IconProps) {
       aria-hidden
       draggable={false}
       className="inline-block shrink-0 object-contain"
-      // The old cropped Grok mark occupied about 96% of its viewBox. Keep the
-      // favicon's visible footprint aligned with that standard while leaving
-      // the layout box unchanged.
+      // Give the solid dark plate extra breathing room beside unplated marks.
       style={{
         ...baseSvgStyle,
         height: size,
-        transform: "scale(0.96)",
+        transform: "scale(0.92)",
         width: size,
       }}
     />
@@ -462,13 +463,14 @@ const ZCodeColorIcon = memo(function ZCodeColorIcon({
   // 256×218 viewBox; the transform scales the mark to the app icon's
   // proportion (68.75% of the icon's width) and centers it in the 24-box. The
   // plate keeps the app icon's top-to-bottom #151718 → #000000 gradient on the
-  // 5.3 corner of the other plated marks (Kimi Code, Pi).
+  // 5.3 corner radius. A small canvas inset balances the solid plate against
+  // unplated marks at selector and composer sizes.
   const id = useId()
   return (
     <svg
       height={size}
       style={baseSvgStyle}
-      viewBox="0 0 24 24"
+      viewBox="-1 -1 26 26"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >

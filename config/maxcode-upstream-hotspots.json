@@ -2,6 +2,49 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "workspace.mobile-download-retries",
+      "category": "runtime",
+      "description": "Workspace download tickets survive browser HEAD probes and repeated GET requests within their original 60-second expiry; backup tickets stay single-use and inaccessible through workspace lookup. Downloads retain path validation and no-store responses.",
+      "origins": ["worktree-2026-10-23"],
+      "paths": [
+        "src-tauri/src/workspace_transfer.rs",
+        "src-tauri/src/web/handlers/workspace_files.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-download-retries.contract.test.ts"
+      ]
+    },
+    {
+      "id": "appearance.agent-icon-optical-balance",
+      "category": "product",
+      "description": "The seven maintained agent icons retain their brand silhouettes and fixed layout boxes at composer/selector sizes. Optical review in light and dark themes centers the wide Claude mark vertically, insets Grok and ZCode dark plates so they do not dominate unplated marks, and preserves Codex and DeepSeek sizing. Pi and Antigravity retain their separately registered optical canvas crops.",
+      "origins": ["worktree-2026-10-23"],
+      "paths": ["src/components/agent-icon.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/agent-icon-optical-balance.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.live-text-activity-intervals",
+      "category": "product",
+      "description": "During assistant streaming, the arrival of non-empty text collapses the process between it and the preceding text into an expandable summary. The summary counts tool calls by kind and reasoning blocks using the existing tool-group labels, without double-counting tool results. Both text segments remain visible. Before the next text, only the latest three activity rows stay visible and older rows fold into the same summary, preserving manual summary expansion as the interval grows or closes. Result cards break the interval.",
+      "origins": ["worktree-2026-10-23"],
+      "paths": ["src/components/message/content-parts-renderer.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/live-text-activity-intervals.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.markdown-table-readable-columns",
+      "category": "product",
+      "description": "Markdown tables size columns by content within responsive column limits and scroll within their card on narrow screens; long headers and body text wrap instead of creating excessively wide columns, including fullscreen tables.",
+      "origins": ["worktree-2026-10-23"],
+      "paths": ["src/app/globals.css"],
+      "contracts": [
+        "src/maxcode-contracts/markdown-table-width.contract.test.ts"
+      ]
+    },
+    {
       "id": "chat.composer-essential-actions",
       "category": "product",
       "description": "Composer add menus only expose attachments, quick messages and slash commands; live feedback and bundled expert, office and research entries and their welcome tips stay hidden.",
@@ -154,7 +197,7 @@
     {
       "id": "appearance.antigravity-color-icon",
       "category": "product",
-      "description": "Shared Google Antigravity agent icons use Google's official full-color SVG stored locally for offline rendering, retaining its color filters and mask rather than inheriting text color.",
+      "description": "Shared Google Antigravity agent icons use Google's official full-color SVG stored locally for offline rendering, retaining its color filters and mask rather than inheriting text color. Crop excess canvas whitespace with viewBox 15 15 150 150 to enlarge the visible mark by 20% for balanced small-size rendering.",
       "origins": ["worktree-2026-10-23"],
       "paths": [
         "src/components/agent-icon.tsx",
@@ -167,7 +210,7 @@
     {
       "id": "appearance.pi-official-icon",
       "category": "product",
-      "description": "All shared Pi agent icons use the official pi.dev three-color SVG with its original geometry and fixed pink, blue and gold fills, without the former black plate or white glyph.",
+      "description": "All shared Pi agent icons use the official pi.dev three-color SVG with its original geometry and fixed pink, blue and gold fills, without the former black plate or white glyph. Use the optically reviewed viewBox 100 100 600 600: the angular Pi mark retains more breathing room than rounded or wide neighboring silhouettes, balancing 12–16px selector and composer icons in light and dark themes.",
       "origins": ["worktree-2026-10-23"],
       "paths": ["src/components/agent-icon.tsx"],
       "contracts": ["src/maxcode-contracts/pi-official-icon.contract.test.tsx"]
@@ -175,14 +218,16 @@
     {
       "id": "sidebar.mobile-title-topic-only",
       "category": "product",
-      "description": "Sidebar structured MMDD｜type｜topic titles omit the type on all screen sizes. Both mobile and desktop show a fixed-width, smaller muted MMDD date and topic separated by an 8px gap, without a pipe; the date is always visible. Display-only: stored titles, search, unstructured titles and empty-title fallbacks remain unchanged.",
+      "description": "Sidebar and conversation header structured MMDD｜type｜topic titles omit the type on all screen sizes. Both mobile and desktop show a fixed-width, smaller muted MMDD date and topic separated by an 8px gap, without a pipe; the date is always visible. Display-only: stored titles, search, unstructured titles and empty-title fallbacks remain unchanged.",
       "origins": ["worktree-2026-10-22"],
       "paths": [
         "src/components/conversations/conversation-title-label.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
         "src/lib/conversation-title.ts"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-title-prefix.contract.test.tsx"
+        "src/maxcode-contracts/mobile-title-prefix.contract.test.tsx",
+        "src/maxcode-contracts/header-title-format.contract.test.ts"
       ]
     },
     {
@@ -2929,7 +2974,7 @@
     {
       "id": "chat.live-progress-summary",
       "category": "product",
-      "description": "Intermediate prose, command group pills and independent thinking disclosures remain directly visible in transcript order, matching the upstream screenshot without an extra steps disclosure. Completed turns retain the final-answer fold.",
+      "description": "Intermediate prose remains visible in transcript order; activity between prose segments folds into expandable counted summaries, while the latest activity stays directly accessible. Completed turns retain the final-answer fold.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/components/message/completed-turn-content.tsx",
