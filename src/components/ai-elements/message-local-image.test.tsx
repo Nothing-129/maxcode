@@ -139,8 +139,6 @@ describe("inline local images in real chat Markdown", () => {
 
   it.each([
     "../secret.png",
-    "/repo-other/secret.png",
-    "file:///private/secret.png",
     "javascript:alert(1)",
     "data:image/png;base64,AAAA",
     "./secret.json",

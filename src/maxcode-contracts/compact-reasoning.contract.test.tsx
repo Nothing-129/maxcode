@@ -21,6 +21,17 @@ function tree(streaming: boolean, text = "Inspecting the implementation") {
 }
 
 describe("MaxCode contract: compact thinking", () => {
+  it("keeps the brain icon before the label during and after thinking", () => {
+    const { rerender } = render(tree(true))
+    const icon = () =>
+      screen.getByRole("button").querySelector("svg:first-child")
+    expect(screen.getByRole("button")).toHaveClass("text-xs")
+    expect(icon()).toHaveClass("lucide-brain")
+    expect(icon()).toHaveAttribute("aria-hidden", "true")
+    rerender(tree(false))
+    expect(icon()).toHaveClass("lucide-brain")
+  })
+
   it("keeps live thinking collapsed across incoming text and completion", () => {
     const { rerender } = render(tree(true))
     expect(screen.getByRole("button")).toHaveAttribute("aria-expanded", "false")

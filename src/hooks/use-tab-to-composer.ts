@@ -30,7 +30,9 @@ function isVisible(element: HTMLElement): boolean {
     ) {
       return false
     }
-    if (node !== element) {
+    // Root overflow clips to the viewport (already applied above), not its
+    // layout box: the fixed workspace can leave <html> with zero height.
+    if (node !== element && node !== document.documentElement) {
       const bounds = node.getBoundingClientRect()
       if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
         left = Math.max(left, bounds.left)

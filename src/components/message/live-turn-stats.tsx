@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useEffect, useState } from "react"
+import { useTranslations } from "next-intl"
 import type {
   LiveContentBlock,
   LiveMessage,
@@ -12,7 +12,7 @@ import {
   countUnifiedDiffLineChanges,
   estimateChangedLineStats,
 } from "@/lib/line-change-stats"
-import { Bike, Car, FilePenLine, Rocket, Snail, Timer } from "lucide-react"
+import { Bike, Car, Rocket, Snail, Timer } from "lucide-react"
 import type { AgentType } from "@/lib/types"
 import { AgentIcon } from "@/components/agent-icon"
 import { useTokenOutputSpeed } from "@/hooks/use-token-output-speed"
@@ -32,11 +32,6 @@ interface LineChangeStats {
 
 interface LiveEditStats extends LineChangeStats {
   files: number
-}
-
-function formatCompactInt(n: number, formatter: Intl.NumberFormat): string {
-  if (n < 1000) return String(n)
-  return formatter.format(n)
 }
 
 export type TokenOutputSpeedBand = "slow" | "cruising" | "fast" | "maximum"
@@ -368,19 +363,9 @@ export function LiveTurnStats({
   isStreaming = true,
   awaitingUser = false,
 }: LiveTurnStatsProps) {
-  const locale = useLocale()
   const t = useTranslations("Folder.chat.liveTurnStats")
   const [elapsed, setElapsed] = useState(() => Date.now() - message.startedAt)
-  const editStats = useMemo(() => extractLiveEditStats(message), [message])
   const tps = useTokenOutputSpeed(message)
-  const compactNumberFormatter = useMemo(
-    () =>
-      new Intl.NumberFormat(locale, {
-        notation: "compact",
-        maximumFractionDigits: 1,
-      }),
-    [locale]
-  )
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -398,7 +383,13 @@ export function LiveTurnStats({
       <div className="flex min-h-8 flex-wrap items-center justify-center gap-x-2 gap-y-1 px-2 py-1 text-xs leading-none text-muted-foreground @[24rem]/turnstats:gap-x-3 @[24rem]/turnstats:px-4">
         <AgentIcon agentType={agentType} className="h-3.5 w-3.5" />
         {/* Working-state copy is text-only; do not restore ActivityStatusIcon. */}
-        <span role="status" aria-atomic="true">
+        <span
+          role="status"
+          aria-atomic="true"
+          className={
+            activity === "waiting" ? "maxcode-waiting-label" : undefined
+          }
+        >
           {t(activity)}
         </span>
         <span className="text-border leading-none">|</span>
@@ -423,19 +414,6 @@ export function LiveTurnStats({
           />
           {tps == null ? "-" : tps.toFixed(1)} tok/s
         </span>
-        {editStats.files > 0 && (
-          <>
-            <span className="hidden text-border leading-none @[24rem]/turnstats:inline">
-              |
-            </span>
-            <span className="hidden items-center gap-1 leading-none @[24rem]/turnstats:inline-flex">
-              <FilePenLine className="h-3 w-3 shrink-0" />
-              {editStats.files}F +
-              {formatCompactInt(editStats.additions, compactNumberFormatter)}/-
-              {formatCompactInt(editStats.deletions, compactNumberFormatter)}
-            </span>
-          </>
-        )}
       </div>
     </div>
   )

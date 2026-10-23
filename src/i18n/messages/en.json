@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "Failed to clone repository"
+    },
+    "artifactPreview": {
+      "loading": "Loading player…",
+      "mediaHint": "If playback is unavailable, download and open in another app.",
+      "playbackFailed": "This browser cannot play this file. Download it to open in another app.",
+      "downloadHint": "Download this file to open it in another app.",
+      "download": "Download file"
     }
   },
   "ProjectBoot": {

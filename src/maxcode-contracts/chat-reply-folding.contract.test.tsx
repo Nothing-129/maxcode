@@ -1,7 +1,7 @@
 import type { ReactElement } from "react"
-import { render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
-import { describe, expect, it } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 
 import enMessages from "@/i18n/messages/en.json"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
@@ -10,6 +10,8 @@ import {
   advanceReplyFold,
   type ReplyFoldState,
 } from "@/components/message/message-list-view"
+
+import { MessageScrollProvider } from "@/components/message/message-scroll-context"
 
 const initialFold: ReplyFoldState = {
   signal: 0,
@@ -101,4 +103,28 @@ describe("MaxCode contract: completed reply folding", () => {
 
     expect(completed.roundOpen).toBe(true)
   })
+})
+
+it("manual elapsed disclosure releases following before changing its height", () => {
+  const stopFollowing = vi.fn()
+  const onRoundOpenChange = vi.fn()
+  withIntl(
+    <MessageScrollProvider value={{ scrollToIndex: vi.fn(), stopFollowing }}>
+      <CompletedTurnContent
+        parts={parts}
+        durationMs={73_000}
+        completed
+        currentRound
+        roundOpen={false}
+        onRoundOpenChange={onRoundOpenChange}
+      />
+    </MessageScrollProvider>
+  )
+  expect(stopFollowing).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole("button", { name: "Worked for 1m 13s" }))
+  expect(stopFollowing).toHaveBeenCalledTimes(1)
+  expect(onRoundOpenChange).toHaveBeenCalledWith(true)
+  expect(stopFollowing.mock.invocationCallOrder[0]).toBeLessThan(
+    onRoundOpenChange.mock.invocationCallOrder[0]
+  )
 })

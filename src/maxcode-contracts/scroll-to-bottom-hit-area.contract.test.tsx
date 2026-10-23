@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { act, fireEvent, render, screen } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
 const context = vi.hoisted(() => ({
@@ -19,11 +19,15 @@ beforeEach(() => {
 })
 
 describe("MaxCode contract: scroll-to-bottom hit area", () => {
-  it("handles clicks on the button surface as well as its arrow", () => {
+  it("handles clicks on the button surface as well as its arrow", async () => {
     render(<MessageThreadScrollButton />)
     const button = screen.getByRole("button")
-    fireEvent.click(button)
-    fireEvent.click(button.querySelector("svg")!)
+    await act(async () => {
+      fireEvent.click(button)
+    })
+    await act(async () => {
+      fireEvent.click(button.querySelector("svg")!)
+    })
     expect(context.scrollToBottom).toHaveBeenCalledTimes(2)
 
     // jsdom cannot hit-test CSS: preserve the positioning guarantees too.

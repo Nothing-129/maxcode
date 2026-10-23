@@ -70,7 +70,7 @@ export function resolveLocalImage(source: string, rootPath: string) {
   }
 }
 
-/** Only explicit absolute image references can be loaded with user consent.
+/** Only explicit absolute image references can load automatically outside the root.
  * Relative traversal must not acquire a broader read capability. */
 export function resolveExternalImage(source: string, rootPath: string) {
   const path = localImagePath(source)

@@ -180,8 +180,8 @@ function VirtualizedMessageThreadImpl<T>({
     [stopScroll]
   )
   const scrollContextValue = useMemo<MessageScrollContextValue>(
-    () => ({ scrollToIndex }),
-    [scrollToIndex]
+    () => ({ scrollToIndex, stopFollowing: stopScroll }),
+    [scrollToIndex, stopScroll]
   )
 
   // Mirror the (stable) scroll handle into the caller-owned ref so a sibling

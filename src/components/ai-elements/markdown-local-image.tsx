@@ -45,7 +45,7 @@ export function MarkdownImageProvider({
         ? {
             root: rootPath,
             load: createLocalImageLoader(rootPath, readWorkspaceFileBase64),
-            // Never called from markup alone: each image requires a user click.
+            // Explicit absolute image paths load automatically outside the root too.
             loadExternal: createLocalImageLoader(rootPath, (_, path, max) =>
               readFileBase64(path, max)
             ),
@@ -81,11 +81,6 @@ function LocalMarkdownImage({
   const target = localTarget ?? externalTarget
   const isExternal = !!externalTarget
   const path = target?.path
-  const [consent, setConsent] = useState<{
-    scope: ImageScope
-    source: string
-  } | null>(null)
-  const authorized = consent?.scope === scope && consent?.source === source
   const [attempt, setAttempt] = useState(0)
   const [result, setResult] = useState<{
     scope: ImageScope
@@ -98,7 +93,7 @@ function LocalMarkdownImage({
   } | null>(null)
   const { canCopy, copy, download } = useImageActions()
   useEffect(() => {
-    if (!scope || !path || (isExternal && !authorized)) return
+    if (!scope || !path) return
     let cancelled = false
     const load = isExternal ? scope.loadExternal : scope.load
     void load(path).then((data) => {
@@ -107,18 +102,14 @@ function LocalMarkdownImage({
     return () => {
       cancelled = true
     }
-  }, [scope, path, isExternal, authorized, attempt])
+  }, [scope, path, isExternal, attempt])
 
   // A source or transcript change must never paint bytes from the previous
   // scope while its replacement is loading (including out-of-order reads).
   const current =
     result?.scope === scope && result?.path === path ? result : null
   const label = alt || target?.name || source
-  if (
-    scope &&
-    target &&
-    ((externalTarget && !authorized) || current?.data === null)
-  ) {
+  if (scope && target && current?.data === null) {
     return (
       <span className="inline-flex max-w-full flex-col items-start gap-1 text-muted-foreground">
         <span
@@ -129,11 +120,7 @@ function LocalMarkdownImage({
           <ImageOff aria-hidden="true" className="size-4 shrink-0" />
           {label}
         </span>
-        <span className="text-xs">
-          {t(
-            current?.data === null ? "localImageFailed" : "externalImageNotice"
-          )}
-        </span>
+        <span className="text-xs">{t("localImageFailed")}</span>
         <code className="max-w-full wrap-anywhere text-xs">{target.path}</code>
         <button
           type="button"
@@ -141,12 +128,11 @@ function LocalMarkdownImage({
           onClick={(event) => {
             event.preventDefault()
             event.stopPropagation()
-            setConsent({ scope, source })
             setResult(null)
             setAttempt((value) => value + 1)
           }}
         >
-          {t(externalTarget ? "loadExternalImage" : "retryLocalImage")}
+          {t("retryLocalImage")}
         </button>
       </span>
     )

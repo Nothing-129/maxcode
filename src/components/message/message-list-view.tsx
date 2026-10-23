@@ -1,5 +1,7 @@
 "use client"
 
+import { WaitingDots } from "./waiting-dots"
+
 import {
   ConversationMessageRail,
   buildHistoryMessageRailEntries,
@@ -15,6 +17,7 @@ import {
   useConversationRuntimeStore,
 } from "@/stores/conversation-runtime-store"
 import { isWindowedDetail } from "@/lib/turn-window"
+import { TurnFeedback } from "./turn-feedback"
 import { CompletedTurnContent } from "./completed-turn-content"
 import { ContextCompactionCard } from "./context-compaction-card"
 import { SentMessageEditButton } from "./sent-message-edit-button"
@@ -804,7 +807,11 @@ const UserMessageCopyButton = memo(function UserMessageCopyButton({
       onClick={handleCopy}
       size="icon-xs"
     >
-      {isCopied ? <CheckIcon size={12} /> : <CopyIcon size={12} />}
+      {isCopied ? (
+        <CheckIcon size={12} className="maxcode-success-feedback" />
+      ) : (
+        <CopyIcon size={12} />
+      )}
     </MessageAction>
   )
 })
@@ -1048,9 +1055,16 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
 
 const PendingTypingIndicator = memo(function PendingTypingIndicator({
   awaitingUser,
+  ledger,
+  token,
 }: {
   awaitingUser: boolean
+  ledger: Set<string>
+  token: string
 }) {
+  useEffect(() => {
+    ledger.add(`${token}:waiting`)
+  }, [ledger, token])
   const t = useTranslations("Folder.chat.liveTurnStats")
   return (
     <Message from="assistant">
@@ -1059,8 +1073,14 @@ const PendingTypingIndicator = memo(function PendingTypingIndicator({
           className="flex items-center py-1 text-xs text-muted-foreground"
           role="status"
         >
-          {/* Working-state copy is text-only; do not restore ActivityStatusIcon. */}
-          <span>{t(awaitingUser ? "awaitingUser" : "waiting")}</span>
+          {awaitingUser ? (
+            <span>{t("awaitingUser")}</span>
+          ) : (
+            <>
+              <span className="sr-only">{t("waiting")}</span>
+              <WaitingDots />
+            </>
+          )}
         </div>
       </MessageContent>
     </Message>
@@ -1144,12 +1164,6 @@ export function MessageListView({
   const handleLoadOlder = useCallback(() => {
     loadOlderTurns(conversationId)
   }, [loadOlderTurns, conversationId])
-
-  const shouldUseSmoothResize = !(
-    isActive &&
-    !detailLoading &&
-    timelineTurns.length
-  )
 
   const adapterText = useMemo(
     () => ({
@@ -1406,6 +1420,12 @@ export function MessageListView({
   // "not right now" instead of dropping its button and shifting the icon row.
   const forkBusy = connStatus === "prompting"
 
+  const [feedbackLedger] = useState(() => new Set<string>())
+  const feedbackToken = `${conversationId}:${fold.epoch}`
+  const waitingToken = `${conversationId}:send-${sendSignal}`
+  const feedbackText = useTranslations("Folder.chat.liveTurnStats")
+  const waitingLabel = feedbackText("waiting")
+
   const renderThreadItem = useCallback(
     (item: ThreadRenderItem) => {
       switch (item.kind) {
@@ -1416,37 +1436,78 @@ export function MessageListView({
               ? userTurnHeader(item.group)
               : null
           return (
-            <div style={pt > 0 ? { paddingTop: pt } : undefined}>
-              {phaseLabel ? (
-                <div className="flex items-center gap-2 px-1 pb-3 pt-1">
-                  <span aria-hidden="true" className="h-px flex-1 bg-border" />
-                  <span className="shrink-0 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[0.625rem] font-medium leading-none text-muted-foreground">
-                    {phaseLabel}
-                  </span>
-                  <span aria-hidden="true" className="h-px flex-1 bg-border" />
-                </div>
-              ) : null}
-              <HistoricalMessageGroup
-                group={item.group}
-                onEditMessage={onEditMessage}
-                showStats={item.showStats}
-                previousUserIndex={item.previousUserIndex}
-                previousUserAt={item.previousUserAt}
-                isResponseComplete={item.isResponseComplete}
-                sourceTurns={item.sourceTurns}
-                currentRound={item.isLastAssistantRun && fold.armed}
-                roundOpen={fold.roundOpen}
-                onRoundOpenChange={handleRoundOpenChange}
-                foldEpoch={fold.epoch}
-                onForkFromTurn={onForkFromTurn}
-                forkDisabled={forkBusy}
-                isThreadTail={item.isThreadTail}
-              />
-            </div>
+            <TurnFeedback
+              kind={
+                item.phase === "optimistic" && item.group.role === "user"
+                  ? "send"
+                  : item.group.role === "assistant" &&
+                      item.isLastAssistantRun &&
+                      fold.armed
+                    ? item.isResponseComplete
+                      ? "complete"
+                      : "reply"
+                    : null
+              }
+              token={
+                item.group.role === "user"
+                  ? `${conversationId}:${item.group.id}`
+                  : feedbackToken
+              }
+              ledger={feedbackLedger}
+              contentReady={item.group.parts.some((part) =>
+                part.type === "text"
+                  ? part.text.trim().length > 0
+                  : part.type === "reasoning"
+                    ? part.content.trim().length > 0
+                    : true
+              )}
+              waitingLabel={waitingLabel}
+              waitingToken={waitingToken}
+            >
+              <div style={pt > 0 ? { paddingTop: pt } : undefined}>
+                {phaseLabel ? (
+                  <div className="flex items-center gap-2 px-1 pb-3 pt-1">
+                    <span
+                      aria-hidden="true"
+                      className="h-px flex-1 bg-border"
+                    />
+                    <span className="shrink-0 rounded-full border border-border bg-muted/50 px-2 py-0.5 text-[0.625rem] font-medium leading-none text-muted-foreground">
+                      {phaseLabel}
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className="h-px flex-1 bg-border"
+                    />
+                  </div>
+                ) : null}
+                <HistoricalMessageGroup
+                  group={item.group}
+                  onEditMessage={onEditMessage}
+                  showStats={item.showStats}
+                  previousUserIndex={item.previousUserIndex}
+                  previousUserAt={item.previousUserAt}
+                  isResponseComplete={item.isResponseComplete}
+                  sourceTurns={item.sourceTurns}
+                  currentRound={item.isLastAssistantRun && fold.armed}
+                  roundOpen={fold.roundOpen}
+                  onRoundOpenChange={handleRoundOpenChange}
+                  foldEpoch={fold.epoch}
+                  onForkFromTurn={onForkFromTurn}
+                  forkDisabled={forkBusy}
+                  isThreadTail={item.isThreadTail}
+                />
+              </div>
+            </TurnFeedback>
           )
         }
         case "typing":
-          return <PendingTypingIndicator awaitingUser={awaitingUser} />
+          return (
+            <PendingTypingIndicator
+              awaitingUser={awaitingUser}
+              ledger={feedbackLedger}
+              token={waitingToken}
+            />
+          )
         case "compaction":
           // Chrome-less centered divider between turns (no avatar / stats footer).
           return (
@@ -1464,6 +1525,11 @@ export function MessageListView({
     },
     [
       awaitingUser,
+      conversationId,
+      feedbackLedger,
+      feedbackToken,
+      waitingToken,
+      waitingLabel,
       userTurnHeader,
       onEditMessage,
       fold.armed,
@@ -1687,7 +1753,9 @@ export function MessageListView({
         )}
         <MessageThread
           className="flex-1 min-h-0"
-          resize={shouldUseSmoothResize ? "smooth" : undefined}
+          entryKey={String(conversationId)}
+          active={isActive}
+          ready={!detailLoading && threadItems.length > 0}
         >
           <AutoScrollOnSend signal={sendSignal} />
           <VirtualizedMessageThread

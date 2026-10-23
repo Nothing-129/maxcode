@@ -1,6 +1,7 @@
 "use client"
 
 import { Collapsible as CollapsiblePrimitive } from "radix-ui"
+import { cn } from "@/lib/utils"
 
 function Collapsible({
   ...props
@@ -20,11 +21,13 @@ function CollapsibleTrigger({
 }
 
 function CollapsibleContent({
+  className,
   ...props
 }: React.ComponentProps<typeof CollapsiblePrimitive.CollapsibleContent>) {
   return (
     <CollapsiblePrimitive.CollapsibleContent
       data-slot="collapsible-content"
+      className={cn("maxcode-collapsible", className)}
       {...props}
     />
   )

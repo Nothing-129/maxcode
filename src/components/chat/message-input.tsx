@@ -411,8 +411,6 @@ export function MessageInput({
   onCancelQueueEdit,
   onSteer,
   steerChannel = "pull",
-  onAddFeedback,
-  feedbackAddDisabled,
   injectContent,
   onInjectConsumed,
   getSentHistory,
@@ -2246,8 +2244,6 @@ export function MessageInput({
                     attachments={attach}
                     shortcuts={menuShortcuts}
                     slashCommands={slashCommands}
-                    onAddFeedback={onAddFeedback}
-                    feedbackAddDisabled={feedbackAddDisabled}
                   />
                   {hasInlineSelectors && (
                     <div className="hidden min-w-0 flex-1 items-end gap-1 @[30rem]:flex">

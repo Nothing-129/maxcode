@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/instant-collapsible"
 import { ContentPartsRenderer } from "./content-parts-renderer"
 import { ProgressSections } from "./progress-sections"
+import { useMessageScroll } from "./message-scroll-context"
 
 export interface SplitAssistantTurnParts {
   progress: AdaptedContentPart[]
@@ -151,6 +152,7 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
     }
   }
 
+  const scroll = useMessageScroll()
   const open = currentRound ? roundOpen : localOpen
 
   // The unfold animation belongs to a real closed→open TOGGLE, never to a mount
@@ -168,6 +170,9 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
 
   const handleOpenChange = useCallback(
     (next: boolean) => {
+      // A disclosure is a reading action. Do not chase its changing height
+      // with bottom-following and move the clicked heading every frame.
+      scroll?.stopFollowing?.()
       if (currentRound) {
         onRoundOpenChange?.(next)
         return
@@ -175,7 +180,7 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
       manualFold.set(parts, { epoch: foldEpoch, open: next })
       setLocalOpen(next)
     },
-    [currentRound, foldEpoch, onRoundOpenChange, parts]
+    [currentRound, foldEpoch, onRoundOpenChange, parts, scroll]
   )
 
   const elapsed =
@@ -277,7 +282,7 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
           {labelNode}
           <ChevronRightIcon
             aria-hidden="true"
-            className="size-3.5 shrink-0 opacity-50 transition-transform group-data-[state=open]:rotate-90"
+            className="size-3.5 shrink-0 opacity-50 transition-transform duration-300 ease-in-out group-data-[state=open]:rotate-90 motion-reduce:transition-none"
           />
         </CollapsibleTrigger>
         {/* `reply-fold-body` (globals.css) slides the body open and shut on a

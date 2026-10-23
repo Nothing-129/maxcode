@@ -2,11 +2,13 @@
 
 import type { ComponentProps } from "react"
 
+import { AnimatePresence, motion } from "motion/react"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ArrowDownIcon, DownloadIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useLayoutEffect, useState } from "react"
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom"
 
 /**
@@ -39,7 +41,32 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom"
  * scrolled back into history is never yanked forward.
  */
 const StickThroughViewportResize = () => {
-  const { scrollRef, scrollToBottom, state } = useStickToBottomContext()
+  const { scrollRef, contentRef, scrollToBottom, state } =
+    useStickToBottomContext()
+
+  // Virtual rows can shrink after their estimated heights are measured.
+  // The library follows content growth, but on shrink only clamps overscroll;
+  // virtua may then restore its own anchor above the new bottom. Reconcile
+  // after those measurements, while respecting an explicit escape by the user.
+  useEffect(() => {
+    const content = contentRef?.current
+    if (!content) return
+    let frame: number | undefined
+    const observer = new ResizeObserver(() => {
+      if (frame !== undefined) cancelAnimationFrame(frame)
+      if (!state.isAtBottom) return
+      frame = requestAnimationFrame(() => {
+        frame = undefined
+        if (!state.isAtBottom) return
+        state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+      })
+    })
+    observer.observe(content)
+    return () => {
+      observer.disconnect()
+      if (frame !== undefined) cancelAnimationFrame(frame)
+    }
+  }, [contentRef, state])
 
   useEffect(() => {
     const viewport = scrollRef.current
@@ -84,28 +111,75 @@ const StickThroughViewportResize = () => {
   return null
 }
 
-export type MessageThreadProps = ComponentProps<typeof StickToBottom>
+export type MessageThreadProps = ComponentProps<typeof StickToBottom> & {
+  entryKey?: string
+  active?: boolean
+  ready?: boolean
+}
+
+export function ConversationEntryPosition({
+  entryKey,
+  active,
+  ready,
+}: {
+  entryKey: string
+  active: boolean
+  ready: boolean
+}) {
+  const context = useStickToBottomContext()
+  const { scrollRef, state, scrollToBottom } = context
+  useLayoutEffect(() => {
+    if (!active || !ready || !scrollRef.current) return
+    // Position before paint; subsequent virtual measurements follow instantly.
+    // This library setter also shields the resulting native scroll event.
+    // eslint-disable-next-line react-hooks/immutability
+    state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+    void scrollToBottom({ animation: "instant" })
+  }, [entryKey, active, ready, scrollRef, state, scrollToBottom])
+  return null
+}
+
+// Used only by the manual bottom arrow.
+// A softer spring starts long journeys gently and settles without a bounce.
+export const THREAD_SCROLL_ANIMATION = {
+  damping: 0.7,
+  stiffness: 0.025,
+  mass: 1,
+} as const
 
 export const MessageThread = ({
   className,
   children,
+  entryKey,
+  active = true,
+  ready = true,
   ...props
-}: MessageThreadProps) => (
-  <StickToBottom
-    className={cn("relative flex-1 overflow-y-hidden", className)}
-    initial="instant"
-    resize="smooth"
-    role="log"
-    {...props}
-  >
-    {(context) => (
-      <>
-        <StickThroughViewportResize />
-        {typeof children === "function" ? children(context) : children}
-      </>
-    )}
-  </StickToBottom>
-)
+}: MessageThreadProps) => {
+  return (
+    <StickToBottom
+      className={cn("relative flex-1 overflow-y-hidden", className)}
+      initial="instant"
+      resize="instant"
+      role="log"
+      {...props}
+    >
+      {(context) => (
+        <>
+          <StickThroughViewportResize />
+          {typeof children === "function" ? children(context) : children}
+          {/* Content refs must attach before entry's layout effect runs. */}
+          {entryKey !== undefined && (
+            <ConversationEntryPosition
+              entryKey={entryKey}
+              active={active}
+              ready={ready}
+            />
+          )}
+        </>
+      )}
+    </StickToBottom>
+  )
+}
 
 export type MessageThreadContentProps = ComponentProps<
   typeof StickToBottom.Content
@@ -168,27 +242,48 @@ export const MessageThreadScrollButton = ({
   ...props
 }: MessageThreadScrollButtonProps) => {
   const { isAtBottom, scrollToBottom } = useStickToBottomContext()
+  const [returningToBottom, setReturningToBottom] = useState(false)
 
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)")
   const handleScrollToBottom = useCallback(() => {
-    scrollToBottom()
-  }, [scrollToBottom])
+    if (returningToBottom) return
+    setReturningToBottom(true)
+    // The library sets isAtBottom as soon as following starts. Keep the arrow
+    // visible until the scroll actually finishes, then let it fade out.
+    void Promise.resolve(
+      scrollToBottom({
+        animation: reducedMotion ? "instant" : THREAD_SCROLL_ANIMATION,
+      })
+    ).finally(() => setReturningToBottom(false))
+  }, [scrollToBottom, reducedMotion, returningToBottom])
 
   return (
-    !isAtBottom && (
-      <Button
-        className={cn(
-          "pointer-events-auto absolute bottom-4 left-[50%] z-10 translate-x-[-50%] cursor-pointer rounded-full bg-background/90 transition-colors hover:bg-muted/90 active:not-aria-[haspopup]:translate-y-0",
-          className
-        )}
-        onClick={handleScrollToBottom}
-        size="icon"
-        type="button"
-        variant="outline"
-        {...props}
-      >
-        <ArrowDownIcon className="size-4" />
-      </Button>
-    )
+    <AnimatePresence>
+      {(!isAtBottom || returningToBottom) && (
+        <motion.div
+          key="scroll-to-bottom"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, pointerEvents: "none" }}
+          transition={{ duration: reducedMotion ? 0.1 : 0.16 }}
+          className="pointer-events-none absolute inset-0 z-10"
+        >
+          <Button
+            className={cn(
+              "pointer-events-auto absolute bottom-4 left-[50%] z-10 translate-x-[-50%] cursor-pointer rounded-full bg-background/90 transition-colors hover:bg-muted/90 active:not-aria-[haspopup]:translate-y-0",
+              className
+            )}
+            onClick={handleScrollToBottom}
+            size="icon"
+            type="button"
+            variant="outline"
+            {...props}
+          >
+            <ArrowDownIcon className="size-4" />
+          </Button>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }
 

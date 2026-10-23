@@ -6,8 +6,7 @@ import { describe, expect, it, vi } from "vitest"
 /**
  * rg/grep "found nothing" used to render as a red failed tool call (exit 1)
  * and inflate the tool-group "N failed" suffix. These cards must read as an
- * empty search, not an error; a real diagnostic (JSON parse, regex, …) stays
- * on the error path.
+ * empty search, not an error; real diagnostics stay available in details.
  */
 
 vi.mock("@/components/ai-elements/link-safety", () => ({
@@ -88,7 +87,7 @@ describe("search no-match presentation", () => {
     expect(screen.queryByText("Error")).not.toBeInTheDocument()
   })
 
-  it("keeps a shell rg that threw a parse error as a failure", () => {
+  it("keeps a shell parse error in details without a failure badge or count", () => {
     const traceback =
       "json.decoder.JSONDecodeError: Expecting property name " +
       "enclosed in double quotes: line 17 column 27 (char 557)"
@@ -110,7 +109,9 @@ describe("search no-match presentation", () => {
       },
     ])
 
-    expect(screen.getByText(/1 execution issue/)).toBeInTheDocument()
-    expect(screen.getByText("Error")).toBeInTheDocument()
+    expect(screen.queryByText(/execution issue/)).not.toBeInTheDocument()
+    expect(screen.queryByText("Error")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /rg -n/ }))
+    expect(screen.getByText(/json.decoder.JSONDecodeError/)).toBeVisible()
   })
 })

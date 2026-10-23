@@ -1136,7 +1136,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       const tabId = buildFileTabId({ kind: "file", path: absPath })
       const existing = fileTabsRef.current.find((t) => t.id === tabId)
       if (!existing || existing.kind !== "file") return
-      if (existing.isDirty) return
+      if (existing.isDirty || existing.language === "artifact") return
       if (inFlightLoadsRef.current.has(tabId)) return
 
       const binary = binaryPreviewKind(absPath)
@@ -1413,8 +1413,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       // outcome: a .dmg mounts, an .app launches). This is the choke point
       // every open entry shares (file tree, git panels, search results,
       // breadcrumbs, transcript badges), so each of them routes artifacts
-      // uniformly. Web/remote mode has no system opener and keeps the
-      // (doomed) preview attempt below.
+      // uniformly. Web/remote mode uses the media player or download fallback.
       if (shouldOpenWithSystemApp(absPath) && isLocalDesktop()) {
         try {
           await openPath(absPath)
@@ -1449,6 +1448,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         }
         const tabId = buildFileTabId({ kind: "file", path: absPath })
         const binary = binaryPreviewKind(absPath)
+        const artifact = shouldOpenWithSystemApp(absPath)
         const office = !binary && isOfficePreviewable(absPath)
         const seed = loadingTab(
           tabId,
@@ -1457,7 +1457,12 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           fileName(absPath),
           absPath,
           absPath,
-          binary ?? (office ? "office" : languageFromPath(absPath))
+          binary ??
+            (artifact
+              ? "artifact"
+              : office
+                ? "office"
+                : languageFromPath(absPath))
         )
 
         const decision = decideLoad(seed, options?.reload ?? false)
@@ -1468,7 +1473,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
           // Office files (.docx/.xlsx/.pptx) are binary OpenXML — never read as
           // text. The OfficePreview component renders them via the OfficeCLI
           // backend on its own, so just settle the tab as a ready preview shell.
-          if (office) {
+          if (office || artifact) {
             if (!settleFetch(tabId, gen)) return
             setFileTabs((prev) =>
               prev.map((tab) =>

@@ -504,7 +504,13 @@ export const CodeBlockCopyButton = ({
       variant="ghost"
       {...props}
     >
-      {children ?? <Icon size={14} />}
+      {children ?? (
+        <Icon
+          key={isCopied ? "copied" : "copy"}
+          size={14}
+          className={isCopied ? "maxcode-success-feedback" : undefined}
+        />
+      )}
     </Button>
   )
 }

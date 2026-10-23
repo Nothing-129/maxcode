@@ -1,5 +1,17 @@
 # MaxCode 下游功能清单
 
+2026-10-23 回复操作栏移除模型信息和 Token 统计图标，保留消息操作、完成时间及跳回提问功能。契约：`reply-actions-no-metadata.contract.test.tsx`；热点：`chat.reply-actions-no-metadata`。
+
+2026-10-23 操作反馈：新发送/首次非空回复在进入视口后播放 360ms、12px 入场，完成播放后去重，取消的动画允许重试，等待文案交接淡出，已观察到的回复结束时淡入标题并在末尾短暂显示淡入淡出的 ✓（不显示结束文案）；回到底部按钮淡入淡出，侧栏关闭保留内容至过渡结束，侧栏/终端内容跟随原尺寸动画淡入淡出；复制对勾及已确认的保存成功提示增加轻量反馈。保留执行区层级，减少动态效果时取消新增位移/缩放。契约：`interaction-feedback.contract.test.tsx`；热点：`appearance.interaction-feedback`。
+
+2026-10-23 精简执行状态栏：移除右侧文件数及增删行数（如 `1F +0/-7`）和对应分隔符，保留原有思考/执行状态、独立时钟图标与耗时及 tok/s。独立契约：`live-turn-no-file-stats.contract.test.tsx`；热点：`chat.live-turn-no-file-stats`。
+
+2026-10-23 等待响应动效：首条回复前采用上游样式的三个灰点，间隔 0.2 秒闪动；保留无障碍等待文案及明确的确认提示，回复到达时淡出同一组三点。减少动态效果时停止三点动画，隐藏会话暂停；实时状态栏保留文字流光。独立契约：`waiting-response-motion.contract.test.tsx`；热点：`chat.waiting-response-motion`。
+
+2026-10-23 统一界面动效：弹窗、菜单、页签、工作台及设置切换采用轻量过渡，按钮提供按压反馈，普通折叠内容平滑展开；保留草稿、滚动位置及会话挂载，不对流式消息/虚拟列表逐行施加动画。系统减少动态效果时保留短淡入淡出，取消新增位移、缩放和高度动画。独立契约：`interface-motion.contract.test.tsx`；热点：`appearance.interface-motion`。
+
+2026-10-23 Tab 聚焦输入框：固定定位的工作区可能使 html 高度为零，根元素 overflow 按视口判断，避免将可见输入框误判为已裁切；继续保留编辑区、终端、弹窗和菜单的键盘行为。独立契约：`tab-to-composer.contract.test.tsx`；热点：`chat.tab-to-visible-composer`。
+
 2026-10-20 会话详情文本选择：详情内容显式允许选中复制，覆盖辅助侧栏外层的禁止选择样式，支持标题、模型、分支、用量与时间。独立契约：`session-details-selection.contract.test.ts`。
 
 2026-10-16 手机文本选择：触屏或触控笔长按仅保留浏览器原生菜单和选择手柄，避免与 MaxCode 选区工具栏重叠；混合设备切回鼠标后恢复快捷工具栏。独立契约：`mobile-selection-menu.contract.test.tsx`。
@@ -104,6 +116,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 设置页视觉统一 | 参考分组设置界面统一侧栏、页面标题与留白、细边框卡片、输入/复合控件及错误提示；页边距不影响嵌套列表，说明样式不覆盖警告/错误颜色，折叠箭头保持可见 | `worktree-2026-09-26` | `settings.reference-grouped-style` |
 | 上游第二批集成 | Antigravity 1.2.1、Grok 1.0.41；共享服务更新目录权限预检且保留 Electron 安装器；聊天/任务图片附件编号框和箭头标注，上传成功原子替换 URI，失败恢复原图 | `f773185a`、`d8c3d54e`、`f0b5bfc5`、`ab8e4fd4` | `runtime.upstream-second-20260926` |
 | 上游稳定性集成 | 草稿绑定后跨分栏移动保留运行时，Codex 回退历史、ACP 撤销/断连、Claude 工具参数和附件去重、文件链接、代理本机直连；保留 Electron、标题模型与公开分享策略 | `81163947`、`1a347230`、`6aaac6f9`、`94a17675`、`dd13b595`、`b18fa74d`、`0a802c9e` | `runtime.upstream-priority-20260926` |
+| Antigravity 品牌图标 | 共用智能体图标采用 Google 官方彩色 SVG，本地离线加载，保留原始蒙版和色彩滤镜 | `worktree-2026-10-23` | `appearance.antigravity-color-icon` |
+| Pi 品牌图标 | 共用智能体图标采用 pi.dev 官方三色 SVG，与 CC Switch 一致，保留原始比例及粉红、蓝、金黄配色，移除旧黑底白色版本 | `worktree-2026-10-23` | `appearance.pi-official-icon` |
 | 外观主题 | 设置中可选择默认或 HBuilderX 暖黄；暖纸色画布、蓝灰正文、绿色强调色及编辑器背景同步，选择持久化并在首帧生效，其他高级外观设置继续隐藏 | `worktree-2026-09-24` | `appearance.hbuilderx-warm-theme` |
 | Claude 命令审批 | ACP 0.79、PowerShell 归一化、特殊 Shell 命令完整展示，保留显式拒绝优先和独立 CLI 更新 | `afdcfe0b` | `agents.claude-079-command-approval` |
 | Pi 上下文容量 | 按 provider/id 读取 models.json，支持默认值、重复声明及覆盖层，保留历史计时和用量 | `07653466`、`7d74c791`、`29e435ef` | `history.pi-declared-model-window` |
@@ -244,7 +258,7 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 智能体选择保留原来的胶囊平铺样式，位于欢迎页输入框上方；空间足够时展示全部已启用智能体（`chat.desktop-composer-layout`）。
 
-运行过程中保留所有中间说明文字，文字之间连续的思考和工具步骤合并成可展开摘要；只对展开的步骤详情限高滚动（`chat.live-progress-summary`）。
+运行过程中保留所有中间说明文字，直接展示命令组胶囊与独立思考入口，不再套一层步骤摘要；思考详情保留限高滚动（`chat.live-progress-summary`）。
 
 手机顶栏的新对话入口收进右侧工具菜单首项，为标题腾出一个按钮的宽度；新建行为沿用当前文件夹上下文。
 

@@ -132,7 +132,9 @@ function SidebarNavButton({
   )
 }
 
-export function Sidebar() {
+export function Sidebar({
+  keepVisible = false,
+}: { keepVisible?: boolean } = {}) {
   const t = useTranslations("Folder.sidebar")
   const tTitleBar = useTranslations("Folder.folderTitleBar")
   const { setOpen: setSearchOpen } = useSearchDialog()
@@ -302,7 +304,7 @@ export function Sidebar() {
     toggle,
   ])
 
-  if (!isOpen) return null
+  if (!isOpen && !keepVisible) return null
 
   const sidebarTools = (
     <div className="flex items-center gap-0.5" data-sidebar-tools>

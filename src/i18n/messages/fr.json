@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "Échec du clonage du dépôt"
+    },
+    "artifactPreview": {
+      "loading": "Chargement du lecteur…",
+      "mediaHint": "Si la lecture est impossible, téléchargez le fichier et ouvrez-le dans une autre application.",
+      "playbackFailed": "Ce navigateur ne peut pas lire ce fichier. Téléchargez-le pour l’ouvrir.",
+      "downloadHint": "Téléchargez ce fichier pour l’ouvrir dans une autre application.",
+      "download": "Télécharger le fichier"
     }
   },
   "ProjectBoot": {

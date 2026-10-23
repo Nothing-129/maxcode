@@ -1,5 +1,7 @@
 "use client"
 
+import { ArtifactPreview } from "@/components/files/artifact-preview"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { ArrowLeft, Code, Eye, ExternalLink } from "lucide-react"
@@ -455,6 +457,8 @@ function FileViewerContent({
   // `openFilePreview` stamps the synthetic "image" / "office" languages onto
   // the tab it seeds — branch on those, exactly as the file column does, so
   // the two surfaces can never disagree about what a tab holds.
+  if (tab.language === "artifact")
+    return <ArtifactPreview key={tab.id} path={tab.path!} />
   if (tab.language === "image") {
     return <ImagePreview key={tab.id} tab={tab} />
   }

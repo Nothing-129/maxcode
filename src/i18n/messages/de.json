@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "Repository konnte nicht geklont werden"
+    },
+    "artifactPreview": {
+      "loading": "Player wird geladen…",
+      "mediaHint": "Falls die Wiedergabe nicht möglich ist, herunterladen und in einer anderen App öffnen.",
+      "playbackFailed": "Dieser Browser kann die Datei nicht abspielen. Bitte herunterladen.",
+      "downloadHint": "Diese Datei herunterladen und in einer anderen App öffnen.",
+      "download": "Datei herunterladen"
     }
   },
   "ProjectBoot": {

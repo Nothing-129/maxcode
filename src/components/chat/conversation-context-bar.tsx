@@ -307,12 +307,17 @@ export const ConversationFolderBranchPicker = memo(
     const isNewConversation = override
       ? override.editable
       : ownTab!.conversationId == null
-    // Worktree folders surface their parent (root repo) name here; the picker's
-    // own list below keeps real folder names/paths for selection, and every
-    // git/path operation still uses `ownFolder` (the worktree) unchanged.
+    // Match the sidebar: prefer the repo's alias, including for worktrees.
+    // Git/path operations still use `ownFolder` (the worktree) unchanged.
+    const displayFolder =
+      isChatMode || !ownFolder
+        ? null
+        : (allFolders.find(
+            (f) => f.id === resolvePickerSelectedFolderId(ownFolder)
+          ) ?? ownFolder)
     const displayFolderName = isChatMode
       ? t("chatModeLabel")
-      : resolveFolderDisplayName(ownFolder!, allFolders)
+      : formatFolderLabelWithAlias(displayFolder!)
     // When the conversation lives in a worktree, the picker highlights its
     // parent repo (the worktree itself isn't listed). Display-only — the tab's
     // real folder/working dir is untouched. Chat mode has no real folder, so

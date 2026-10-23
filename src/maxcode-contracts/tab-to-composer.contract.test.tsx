@@ -68,6 +68,42 @@ describe("MaxCode: Tab returns to a visible conversation composer", () => {
     expect(document.activeElement).toBe(composer)
   })
 
+  it("uses the viewport when the fixed workspace leaves the root height zero", () => {
+    const { composer } = setup()
+    const root = document.documentElement
+    const previousStyle = root.getAttribute("style")
+    root.style.overflowX = "hidden"
+    root.style.overflowY = "hidden"
+    composer.parentElement!.style.position = "fixed"
+    try {
+      expect(root.getBoundingClientRect().height).toBe(0)
+      expect(tab().defaultPrevented).toBe(true)
+      expect(document.activeElement).toBe(composer)
+    } finally {
+      if (previousStyle === null) root.removeAttribute("style")
+      else root.setAttribute("style", previousStyle)
+    }
+  })
+
+  it("still protects a visible dialog in a zero-height document root", () => {
+    const { composer } = setup()
+    const root = document.documentElement
+    const previousStyle = root.getAttribute("style")
+    root.style.overflowX = "hidden"
+    root.style.overflowY = "hidden"
+    const { getByRole } = render(<div role="dialog" />)
+    vi.spyOn(getByRole("dialog"), "getBoundingClientRect").mockReturnValue(
+      composer.getBoundingClientRect()
+    )
+    try {
+      expect(tab().defaultPrevented).toBe(false)
+      expect(document.activeElement).not.toBe(composer)
+    } finally {
+      if (previousStyle === null) root.removeAttribute("style")
+      else root.setAttribute("style", previousStyle)
+    }
+  })
+
   it("leaves existing input and composer keyboard behavior alone", () => {
     const { composer, getByRole } = setup()
     for (const element of [getByRole("textbox"), composer]) {

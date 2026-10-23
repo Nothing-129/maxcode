@@ -10,7 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/instant-collapsible"
 import { cn } from "@/lib/utils"
-import { ChevronRightIcon } from "lucide-react"
+import { BrainIcon, ChevronRightIcon } from "lucide-react"
 import {
   createContext,
   memo,
@@ -173,7 +173,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex max-w-full items-center gap-1 text-muted-foreground text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex max-w-full items-center gap-1 text-muted-foreground text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           expandable
             ? "hover:text-foreground"
             : "cursor-default hover:text-muted-foreground",
@@ -184,6 +184,7 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
+            <BrainIcon aria-hidden="true" className="mr-1 size-4 shrink-0" />
             {thinkingMessageBuilder(isStreaming, duration)}
             {expandable && (
               <ChevronRightIcon

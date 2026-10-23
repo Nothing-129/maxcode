@@ -544,6 +544,74 @@ fn compute_final_rel(
 // Download tickets
 // ---------------------------------------------------------------------------
 
+pub async fn create_media_ticket(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<DownloadWorkspaceParams>,
+) -> Result<Json<serde_json::Value>, AppCommandError> {
+    let target = resolve_download_file_target(&params.root_path, &params.path)?;
+    let extension = target
+        .extension()
+        .and_then(|s| s.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if ![
+        "mp4", "mov", "m4v", "avi", "mkv", "webm", "ogv", "mpeg", "mpg", "3gp", "mp3", "wav",
+        "flac", "aac", "ogg", "m4a", "opus", "aiff", "wma",
+    ]
+    .contains(&extension.as_str())
+    {
+        return Err(AppCommandError::invalid_input("File is not audio or video"));
+    }
+    let ticket = state
+        .workspace_transfer
+        .issue_media_ticket(DownloadTicketSpec {
+            root_path: PathBuf::from(params.root_path),
+            target_path: target,
+            relative_path: params.path,
+            kind: DownloadKind::File,
+            filename: String::new(),
+        })
+        .await;
+    Ok(Json(
+        serde_json::json!({ "url": format!("/api/workspace_media/{ticket}") }),
+    ))
+}
+
+pub async fn stream_media(
+    Extension(state): Extension<Arc<AppState>>,
+    AxumPath(ticket): AxumPath<String>,
+    request: axum::extract::Request,
+) -> Result<Response, AppCommandError> {
+    let spec = state
+        .workspace_transfer
+        .media_ticket(&ticket)
+        .await
+        .ok_or_else(|| AppCommandError::not_found("Media ticket is invalid or expired"))?;
+    let target =
+        resolve_download_file_target(&spec.root_path.to_string_lossy(), &spec.relative_path)?;
+    stream_media_response(target, request).await
+}
+
+async fn stream_media_response(
+    target: PathBuf,
+    request: axum::extract::Request,
+) -> Result<Response, AppCommandError> {
+    let response = tower_http::services::ServeFile::new(target)
+        .try_call(request)
+        .await
+        .map_err(AppCommandError::io)?;
+    let mut response = response.into_response();
+    response.headers_mut().insert(
+        header::CACHE_CONTROL,
+        HeaderValue::from_static("private, no-store"),
+    );
+    response.headers_mut().insert(
+        header::X_CONTENT_TYPE_OPTIONS,
+        HeaderValue::from_static("nosniff"),
+    );
+    Ok(response)
+}
+
 pub async fn create_download_ticket(
     Extension(state): Extension<Arc<AppState>>,
     Json(params): Json<DownloadTicketRequest>,
@@ -882,6 +950,45 @@ async fn write_zip_archive_to_stream(
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn media_ranges_and_head_preserve_streaming_headers() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("clip.mov");
+        std::fs::write(&path, b"0123456789").unwrap();
+        let request = axum::http::Request::builder()
+            .header("range", "bytes=2-5")
+            .body(Body::empty())
+            .unwrap();
+        let response = stream_media_response(path.clone(), request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+        assert_eq!(response.headers()["content-range"], "bytes 2-5/10");
+        assert_eq!(response.headers()["cache-control"], "private, no-store");
+        assert_eq!(
+            axum::body::to_bytes(response.into_body(), 100)
+                .await
+                .unwrap(),
+            "2345"
+        );
+        let request = axum::http::Request::builder()
+            .method("HEAD")
+            .body(Body::empty())
+            .unwrap();
+        let response = stream_media_response(path.clone(), request).await.unwrap();
+        assert_eq!(response.headers()["content-length"], "10");
+        assert!(axum::body::to_bytes(response.into_body(), 100)
+            .await
+            .unwrap()
+            .is_empty());
+        let request = axum::http::Request::builder()
+            .header("range", "bytes=20-30")
+            .body(Body::empty())
+            .unwrap();
+        assert_eq!(
+            stream_media_response(path, request).await.unwrap().status(),
+            StatusCode::RANGE_NOT_SATISFIABLE
+        );
+    }
+
     use super::*;
     use futures_util::StreamExt as _;
 

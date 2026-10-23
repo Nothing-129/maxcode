@@ -275,6 +275,20 @@ const OPEN_WITH_SYSTEM_APP_EXTENSIONS = new Set([
   "avi",
   "mkv",
   "webm",
+  // Legacy office documents and other binary formats: download in browsers.
+  "doc",
+  "xls",
+  "ppt",
+  "odt",
+  "ods",
+  "odp",
+  "epub",
+  "psd",
+  "ai",
+  "sqlite",
+  "db",
+  "bin",
+  "iso",
   // fonts
   "ttf",
   "otf",
@@ -292,7 +306,10 @@ export function shouldOpenWithSystemApp(path: string): boolean {
   const basename = path.toLowerCase().split(/[\\/]/).pop() ?? ""
   const dot = basename.lastIndexOf(".")
   if (dot === -1) return false
-  return OPEN_WITH_SYSTEM_APP_EXTENSIONS.has(basename.slice(dot + 1))
+  return (
+    mediaPreviewKind(path) !== null ||
+    OPEN_WITH_SYSTEM_APP_EXTENSIONS.has(basename.slice(dot + 1))
+  )
 }
 
 /**
@@ -369,4 +386,31 @@ export function languageFromPath(path: string): string {
   }
   const ext = basename.slice(dotIdx + 1)
   return EXTENSION_MAP[ext] ?? "plaintext"
+}
+
+/** Browser media previews retain a download fallback for unsupported codecs. */
+export function mediaPreviewKind(path: string): "video" | "audio" | null {
+  const ext = path.toLowerCase().split(".").pop() ?? ""
+  if (
+    [
+      "mp4",
+      "mov",
+      "m4v",
+      "avi",
+      "mkv",
+      "webm",
+      "ogv",
+      "mpeg",
+      "mpg",
+      "3gp",
+    ].includes(ext)
+  )
+    return "video"
+  if (
+    ["mp3", "wav", "flac", "aac", "ogg", "m4a", "opus", "aiff", "wma"].includes(
+      ext
+    )
+  )
+    return "audio"
+  return null
 }

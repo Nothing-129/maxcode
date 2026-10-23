@@ -5622,3 +5622,16 @@ export async function automationListenerStatus(
 export async function automationRestartListener(id: number): Promise<void> {
   return getTransport().call("automation_restart_listener", { id })
 }
+
+export async function createWorkspaceMediaUrl(
+  rootPath: string,
+  path: string
+): Promise<string> {
+  const response = await workspaceFileFetch(
+    "workspace_media_ticket",
+    JSON.stringify({ rootPath, path }),
+    false
+  )
+  const result = (await response.json()) as { url: string }
+  return result.url
+}

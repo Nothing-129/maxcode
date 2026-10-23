@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs"
 import { describe, expect, it } from "vitest"
 
 describe("MaxCode: consistent newly sent message appearance", () => {
-  it("uses the shared message renderer without fading optimistic messages", () => {
+  it("uses the shared renderer without persistent dimming of optimistic messages", () => {
     const source = readFileSync(
       "src/components/message/message-list-view.tsx",
       "utf8"
@@ -12,7 +12,7 @@ describe("MaxCode: consistent newly sent message appearance", () => {
       source.indexOf('case "typing":')
     )
     expect(renderTurn).toContain("<HistoricalMessageGroup")
-    expect(renderTurn).not.toMatch(/dimmed|opacity|item\.phase/)
+    expect(renderTurn).not.toMatch(/dimmed|opacity-/)
     const group = source.slice(
       source.indexOf("const HistoricalMessageGroup"),
       source.indexOf("const PendingTypingIndicator")

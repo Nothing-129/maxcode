@@ -601,6 +601,10 @@ pub fn build_router(
             "/workspace_download_ticket",
             post(handlers::workspace_files::create_download_ticket),
         )
+        .route(
+            "/workspace_media_ticket",
+            post(handlers::workspace_files::create_media_ticket),
+        )
         // ─── Backup & restore ───
         //
         // Export builds an archive and returns a download ticket; restore
@@ -1829,6 +1833,10 @@ pub fn build_router(
         .route(
             "/get_system_language_settings",
             post(handlers::system_settings::get_system_language_settings),
+        )
+        .route(
+            "/workspace_media/{ticket}",
+            get(handlers::workspace_files::stream_media),
         )
         .route(
             "/workspace_download/{ticket}",

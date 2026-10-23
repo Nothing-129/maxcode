@@ -1,0 +1,267 @@
+/* Shared interaction rhythm. Keep motion off the streaming/virtualized rows. */
+/* The waiting label is an explicit progress cue. CSS avoids per-frame React
+   updates/style mutations in the transcript and never changes text geometry. */
+@keyframes maxcode-waiting-breathe {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes maxcode-waiting-shine {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: 0% center;
+  }
+}
+
+.maxcode-waiting-label {
+  display: inline-block;
+  animation: maxcode-waiting-breathe 2s ease-in-out infinite;
+}
+
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .maxcode-waiting-label {
+    background-image: linear-gradient(
+      100deg,
+      var(--muted-foreground) 40%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 60%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: maxcode-waiting-shine 1.8s linear infinite;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-waiting-label {
+    background-image: none;
+    color: inherit;
+    animation: maxcode-waiting-breathe 2s ease-in-out infinite;
+  }
+}
+
+@media (forced-colors: active) {
+  .maxcode-waiting-label {
+    background-image: none;
+    color: CanvasText;
+    animation: none;
+  }
+}
+
+.conversation-tab-hidden .maxcode-waiting-label,
+[hidden] .maxcode-waiting-label {
+  animation-play-state: paused;
+}
+
+:root {
+  --motion-fast: 140ms;
+  --motion-enter: 220ms;
+  --motion-exit: 140ms;
+  --motion-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Opacity alone preserves fixed descendants, scroll geometry and editor layout.
+   No fill-mode: the surface must not retain an extra stacking context. */
+@keyframes maxcode-surface-in {
+  from {
+    opacity: 0.65;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.maxcode-surface-enter,
+[data-slot="tabs-content"][data-state="active"] {
+  animation: maxcode-surface-in var(--motion-enter) var(--motion-ease);
+}
+
+:is(
+  [data-slot="dialog-content"],
+  [data-slot="dialog-overlay"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="alert-dialog-overlay"],
+  [data-slot="popover-content"],
+  [data-slot="dropdown-menu-content"],
+  [data-slot="dropdown-menu-sub-content"],
+  [data-slot="context-menu-content"],
+  [data-slot="context-menu-sub-content"],
+  [data-slot="select-content"]
+) {
+  animation-duration: var(--motion-enter);
+  animation-timing-function: var(--motion-ease);
+  &[data-state="closed"] {
+    animation-duration: var(--motion-exit);
+    animation-timing-function: ease-in;
+  }
+}
+
+[data-slot="button"],
+[data-slot="tabs-trigger"] {
+  transition-property:
+    background-color, color, border-color, box-shadow, opacity, translate, scale;
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--motion-ease);
+}
+
+[data-slot="button"]:active:not(:disabled):not([aria-disabled="true"]):not(
+    [aria-haspopup]
+  ) {
+  scale: 0.97;
+}
+
+/* Only Radix Collapsible opts in: instant-collapsible on the message hot path
+   deliberately does not measure height and must never inherit this animation. */
+@keyframes maxcode-collapse-in {
+  from {
+    height: 0;
+    opacity: 0;
+  }
+  to {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+}
+@keyframes maxcode-collapse-out {
+  from {
+    height: var(--radix-collapsible-content-height);
+    opacity: 1;
+  }
+  to {
+    height: 0;
+    opacity: 0;
+  }
+}
+.maxcode-collapsible[data-state="open"] {
+  overflow: hidden;
+  animation: maxcode-collapse-in var(--motion-enter) var(--motion-ease);
+}
+.maxcode-collapsible[data-state="closed"] {
+  overflow: hidden;
+  animation: maxcode-collapse-out var(--motion-exit) ease-in;
+}
+
+/* Keep a short fade as feedback when reduced motion is enabled, without
+   zoom/slide/height travel. Exit animations still complete Radix presence. */
+@keyframes maxcode-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes maxcode-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+/* Item-aligned selects sit over their trigger; fade them without moving the
+   selected option away from the pointer during Radix's initial measurement. */
+[data-slot="select-content"][data-align-trigger="true"] {
+  &[data-state="open"] {
+    animation-name: maxcode-fade-in;
+  }
+  &[data-state="closed"] {
+    animation-name: maxcode-fade-out;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-enter: 140ms;
+    --motion-exit: 100ms;
+  }
+  :is(
+    [data-slot="dialog-content"],
+    [data-slot="alert-dialog-content"],
+    [data-slot="popover-content"],
+    [data-slot="dropdown-menu-content"],
+    [data-slot="dropdown-menu-sub-content"],
+    [data-slot="context-menu-content"],
+    [data-slot="context-menu-sub-content"],
+    [data-slot="select-content"]:not([data-align-trigger="true"]),
+    .maxcode-collapsible
+  ) {
+    &[data-state="open"] {
+      animation-name: maxcode-fade-in;
+    }
+    &[data-state="closed"] {
+      animation-name: maxcode-fade-out;
+    }
+  }
+  [data-slot="button"]:active:not(:disabled):not([aria-disabled="true"]):not(
+      [aria-haspopup]
+    ) {
+    scale: none;
+    translate: none;
+  }
+}
+
+/* Operation feedback: actual success only, never inferred from saving=false. */
+@keyframes maxcode-success-feedback {
+  from {
+    opacity: 0;
+    transform: scale(0.75);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.maxcode-success-feedback,
+[data-sonner-toast][data-type="success"] [data-icon] {
+  animation: maxcode-success-feedback 180ms var(--motion-ease);
+}
+/* Geometry remains owned by the existing toggle-only panel transition.
+   Keep contents during closing so the shrinking panel does not flash empty. */
+.maxcode-panel-content {
+  transition: opacity 160ms ease-out;
+}
+.maxcode-panel-content[data-panel-open="false"] {
+  opacity: 0;
+}
+.maxcode-panel-content[data-panel-open="true"] {
+  opacity: 1;
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-success-feedback,
+  [data-sonner-toast][data-type="success"] [data-icon] {
+    animation: maxcode-fade-in 120ms ease-out;
+  }
+  .maxcode-panel-content {
+    transition: none;
+  }
+}
+
+/* Match the upstream pending response rhythm without moving the transcript. */
+.maxcode-waiting-dot {
+  animation: maxcode-waiting-breathe 1.4s ease-in-out infinite;
+}
+.maxcode-waiting-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.maxcode-waiting-dot:nth-child(3) {
+  animation-delay: 0.4s;
+}
+.conversation-tab-hidden .maxcode-waiting-dot,
+[hidden] .maxcode-waiting-dot {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-waiting-dot {
+    animation: none;
+  }
+}

@@ -1,5 +1,7 @@
 "use client"
 
+import { ArtifactPreview } from "@/components/files/artifact-preview"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { ChevronDown, ChevronRight, FileCode2, FileIcon } from "lucide-react"
@@ -1902,6 +1904,9 @@ function FileWorkspacePanelBody() {
       </div>
     )
   }
+
+  if (isFileTab && activeFileTab?.language === "artifact")
+    return <ArtifactPreview key={activeFileTab.id} path={activeFileTab.path!} />
 
   // Image preview
   if (isFileTab && activeFileTab && activeFileTab.language === "image") {

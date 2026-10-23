@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "複製倉庫失敗"
+    },
+    "artifactPreview": {
+      "loading": "正在載入播放器…",
+      "mediaHint": "無法播放時，可以下載後用其他應用程式開啟。",
+      "playbackFailed": "瀏覽器無法播放此檔案，請下載後開啟。",
+      "downloadHint": "此檔案不支援線上預覽，可以下載後開啟。",
+      "download": "下載檔案"
     }
   },
   "ProjectBoot": {

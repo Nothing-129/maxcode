@@ -322,26 +322,23 @@ const KimiCodeColorIcon = memo(function KimiCodeColorIcon({
 })
 
 const PiColorIcon = memo(function PiColorIcon({ size = "1em" }: IconProps) {
-  // pi's official mark (from pi-logo-on-light.svg) — rendered white on a black
-  // squircle to match pi's brand. The source paths use an 800-unit viewBox; the
-  // transform scales/centers the glyph into the 24-box.
+  // Official three-color mark: https://pi.dev/logo-auto.svg
+  // Also used by CC Switch's Pi icon; preserve the source geometry and colors.
   return (
     <svg
       height={size}
       style={baseSvgStyle}
-      viewBox="0 0 24 24"
+      viewBox="0 0 800 800"
       width={size}
       xmlns="http://www.w3.org/2000/svg"
     >
       <title>Pi</title>
-      <rect width="24" height="24" rx="5.3" fill="#000000" />
-      <g fill="#FFFFFF" transform="translate(0.922 0.922) scale(0.027693)">
-        <path
-          fillRule="evenodd"
-          d="M165.29 165.29H517.36V400H400V517.36H282.65V634.72H165.29ZM282.65 282.65V400H400V282.65Z"
-        />
-        <path d="M517.36 400H634.72V634.72H517.36Z" />
-      </g>
+      <path fill="#F09082" d="M165.29 165.29H517.36V400H400V282.65H165.29Z" />
+      <path
+        fill="#4D9ABF"
+        d="M165.29 282.65H282.65V400H400V517.36H282.65V634.72H165.29Z"
+      />
+      <path fill="#F1BE58" d="M517.36 400H634.72V634.72H517.36Z" />
     </svg>
   )
 })
@@ -417,28 +414,21 @@ const QoderMonoIcon = memo(function QoderMonoIcon({ size = "1em" }: IconProps) {
   )
 })
 
-const AntigravityMonoIcon = memo(function AntigravityMonoIcon({
+const AntigravityColorIcon = memo(function AntigravityColorIcon({
   size = "1em",
 }: IconProps) {
-  // Antigravity's arch mark — the official glyph from the ACP registry
-  // (cdn.agentclientprotocol.com/registry/v1/latest/antigravity-acp.svg),
-  // already authored in currentColor so it renders frameless like the other
-  // mono marks (Qoder's and Cursor's come from the same registry CDN).
+  // Original full-color SVG from Google's Antigravity press assets.
+  // https://www.antigravity.google/press
+  // Keep it local so icons work offline and SVG filter IDs stay isolated.
   return (
-    <svg
-      fill="none"
-      height={size}
-      style={baseSvgStyle}
-      viewBox="0 0 16 16"
-      width={size}
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <title>Google Antigravity</title>
-      <path
-        d="M14.1452 14.6818C14.9937 15.3182 16.2664 14.894 15.0997 13.7273C11.5998 10.3333 12.3421 1 7.99366 1C3.64518 1 4.3876 10.3333 0.887603 13.7273C-0.385123 15 0.993664 15.3182 1.84215 14.6818C5.13002 12.4545 4.9179 8.5303 7.99366 8.5303C11.0694 8.5303 10.8573 12.4545 14.1452 14.6818Z"
-        fill="currentColor"
-      />
-    </svg>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/agent-icons/antigravity.svg"
+      alt="Google Antigravity"
+      draggable={false}
+      className="inline-block shrink-0 object-contain"
+      style={{ ...baseSvgStyle, height: size, width: size }}
+    />
   )
 })
 
@@ -518,6 +508,7 @@ const COLOR_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   pi: PiColorIcon,
   deepseek: DeepSeekColorIcon,
   zcode: ZCodeColorIcon,
+  antigravity: AntigravityColorIcon,
 }
 
 const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
@@ -528,7 +519,6 @@ const MONO_ICONS: Partial<Record<AgentType, AnyIcon>> = {
   grok: GrokMonoIcon,
   cursor: CursorMonoIcon,
   qoder: QoderMonoIcon,
-  antigravity: AntigravityMonoIcon,
 }
 
 // Per-agent color override for mono marks, layered on top of the default

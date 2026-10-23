@@ -27,7 +27,6 @@ type TipKey =
   | "webService"
   | "fusionMode"
   | "quickMessages"
-  | "experts"
   | "taskBoard"
   | "automations"
   | "tokenUsage"
@@ -36,7 +35,6 @@ type TipKey =
   | "worktrees"
   | "importSessions"
   | "subSessions"
-  | "liveFeedback"
   | "skillPacks"
   | "modelProviders"
   | "workspaceBackground"
@@ -87,7 +85,6 @@ const TIPS: TipDef[] = [
   { key: "webService" },
   { key: "fusionMode" },
   { key: "quickMessages" },
-  { key: "experts" },
   { key: "taskBoard" },
   { key: "automations" },
   { key: "tokenUsage" },
@@ -96,7 +93,6 @@ const TIPS: TipDef[] = [
   { key: "worktrees" },
   { key: "importSessions" },
   { key: "subSessions" },
-  { key: "liveFeedback" },
   { key: "skillPacks" },
   { key: "modelProviders" },
   { key: "workspaceBackground" },

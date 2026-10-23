@@ -1,5 +1,4 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
-import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { SessionIdentityChips } from "@/components/conversations/session-details-content"
@@ -51,7 +50,7 @@ function History({ agent, ids }: { agent: AgentType; ids: string[] }) {
 }
 
 describe("MaxCode model display labels", () => {
-  it("updates visible history and chips without changing raw ids or other agents", async () => {
+  it("updates chips while keeping reply metadata hidden and raw ids unchanged", () => {
     const ids = ["contract-primary", "contract-unknown"]
     const config = options(ids[0], "Pi Workspace Model")
     const original = JSON.stringify(config)
@@ -61,12 +60,9 @@ describe("MaxCode model display labels", () => {
     expect(screen.getByText(ids[0])).toBeInTheDocument()
     act(() => rememberModelLabels("pi", config))
     expect(screen.getByText("Pi Workspace Model")).toBeInTheDocument()
-    await userEvent.hover(
-      screen.getByLabelText(en.Folder.chat.messageList.model)
-    )
-    expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "Pi Workspace Model, contract-unknown"
-    )
+    expect(
+      screen.queryByLabelText(en.Folder.chat.messageList.model)
+    ).not.toBeInTheDocument()
     expect(ids).toEqual(["contract-primary", "contract-unknown"])
     expect(JSON.stringify(config)).toBe(original)
     expect(getModelLabels("codex")).toBe(codexSnapshot)

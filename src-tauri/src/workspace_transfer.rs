@@ -80,6 +80,7 @@ pub enum TransferState {
 
 pub struct WorkspaceTransferManager {
     tickets: Mutex<HashMap<String, DownloadTicket>>,
+    media_tickets: Mutex<HashMap<String, (DownloadTicketSpec, Instant)>>,
     cancels: Mutex<HashMap<String, CancellationToken>>,
     ticket_ttl: Duration,
     pub workspace_upload_semaphore: Semaphore,
@@ -93,6 +94,7 @@ impl WorkspaceTransferManager {
     pub fn new_from_env() -> Self {
         Self {
             tickets: Mutex::new(HashMap::new()),
+            media_tickets: Mutex::new(HashMap::new()),
             cancels: Mutex::new(HashMap::new()),
             ticket_ttl: Duration::from_secs(DOWNLOAD_TICKET_TTL_SECS),
             workspace_upload_semaphore: Semaphore::new(env_usize(
@@ -121,6 +123,7 @@ impl WorkspaceTransferManager {
     pub fn new_for_tests(ticket_ttl: Duration) -> Self {
         Self {
             tickets: Mutex::new(HashMap::new()),
+            media_tickets: Mutex::new(HashMap::new()),
             cancels: Mutex::new(HashMap::new()),
             ticket_ttl,
             workspace_upload_semaphore: Semaphore::new(DEFAULT_WORKSPACE_UPLOAD_CONCURRENCY),
@@ -131,6 +134,24 @@ impl WorkspaceTransferManager {
             ),
             idle_timeout: Duration::from_secs(DEFAULT_TRANSFER_IDLE_TIMEOUT_SECS),
         }
+    }
+
+    // Media requests reuse a narrowly scoped ticket for metadata and byte ranges.
+    pub async fn issue_media_ticket(&self, spec: DownloadTicketSpec) -> String {
+        let mut tickets = self.media_tickets.lock().await;
+        tickets.retain(|_, (_, expiry)| *expiry > Instant::now());
+        let ticket = uuid::Uuid::new_v4().simple().to_string();
+        tickets.insert(
+            ticket.clone(),
+            (spec, Instant::now() + Duration::from_secs(3600)),
+        );
+        ticket
+    }
+
+    pub async fn media_ticket(&self, ticket: &str) -> Option<DownloadTicketSpec> {
+        let mut tickets = self.media_tickets.lock().await;
+        tickets.retain(|_, (_, expiry)| *expiry > Instant::now());
+        tickets.get(ticket).map(|(spec, _)| spec.clone())
     }
 
     pub async fn register_transfer(&self) -> (String, CancellationToken) {
@@ -224,6 +245,36 @@ pub fn env_duration_secs(name: &str, default_secs: u64) -> Duration {
 
 #[cfg(test)]
 mod tests {
+    #[tokio::test]
+    async fn media_ticket_is_reusable_scoped_and_expires() {
+        let manager = WorkspaceTransferManager::new_for_tests(Duration::from_secs(60));
+        let ticket = manager
+            .issue_media_ticket(DownloadTicketSpec {
+                root_path: PathBuf::from("/repo"),
+                target_path: PathBuf::from("/repo/clip.mov"),
+                relative_path: "clip.mov".into(),
+                kind: DownloadKind::File,
+                filename: "clip.mov".into(),
+            })
+            .await;
+        for _ in 0..2 {
+            assert_eq!(
+                manager.media_ticket(&ticket).await.unwrap().relative_path,
+                "clip.mov"
+            );
+        }
+        assert!(manager.consume_download_ticket(&ticket).await.is_none());
+        assert!(manager.media_ticket("invalid").await.is_none());
+        manager
+            .media_tickets
+            .lock()
+            .await
+            .get_mut(&ticket)
+            .unwrap()
+            .1 = Instant::now();
+        assert!(manager.media_ticket(&ticket).await.is_none());
+    }
+
     use super::*;
     use std::path::PathBuf;
     use std::time::Duration;

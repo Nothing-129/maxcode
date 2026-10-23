@@ -1,6 +1,7 @@
 "use client"
 
-import type { ComponentType } from "react"
+import { useRef, type ComponentType } from "react"
+import { useSurfaceTransition } from "@/hooks/use-surface-transition"
 import {
   useWorkbenchRoute,
   type WorkbenchRouteId,
@@ -71,8 +72,14 @@ const WORKBENCH_ROUTE_CHROME_ACTIONS: Partial<
  */
 export function WorkbenchRoutePage() {
   const { routeId } = useWorkbenchRoute()
+  const surfaceRef = useRef<HTMLDivElement>(null)
+  useSurfaceTransition(surfaceRef, routeId)
   const Page = WORKBENCH_ROUTES[routeId]
-  return Page ? <Page /> : null
+  return Page ? (
+    <div ref={surfaceRef} className="h-full min-h-0">
+      <Page />
+    </div>
+  ) : null
 }
 
 /** The active route's strip content (page title), or nothing. */

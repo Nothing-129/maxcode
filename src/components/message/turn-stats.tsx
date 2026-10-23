@@ -3,10 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   ArrowUpToLine,
-  BrainCog,
   CheckIcon,
   ClipboardPlus,
-  Coins,
   CopyIcon,
   MessageSquarePlus,
   Timer,
@@ -20,11 +18,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { useMessageScroll } from "@/components/message/message-scroll-context"
-import { useModelLabel } from "@/components/message/model-label-context"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { useTodoFromMessage } from "./use-todo-from-message"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
-import { formatTokenCount } from "@/lib/token-format"
 import { cn, copyTextToClipboard } from "@/lib/utils"
 import type { TurnUsage } from "@/lib/types"
 
@@ -77,8 +73,6 @@ const iconButtonClass =
 export function TurnStats({
   usage,
   duration_ms,
-  model,
-  models,
   previousUserIndex,
   previousUserAt,
   isResponseComplete = true,
@@ -96,7 +90,6 @@ export function TurnStats({
   const tTasks = useTranslations("Tasks")
   const tTodos = useTranslations("Todos")
   const scroll = useMessageScroll()
-  const modelLabel = useModelLabel()
   const [isCopied, setIsCopied] = useState(false)
   const timeoutRef = useRef<number>(0)
   const shortTimeFormatter = useMemo(
@@ -130,10 +123,6 @@ export function TurnStats({
     ? fullTimeFormatter.format(completedAtDate)
     : null
 
-  // Labels are presentation-only: preserve raw ids for billing and requests.
-  const displayModels = (models?.length ? models : model ? [model] : []).map(
-    (id) => modelLabel(id) ?? id
-  )
   const resolvedDurationMs = resolveTurnDurationMs(
     duration_ms,
     completedAt,
@@ -184,7 +173,6 @@ export function TurnStats({
   if (!isResponseComplete) return null
   if (
     !hasCopy &&
-    !hasUsage &&
     !displayDuration &&
     !hasCompletedAt &&
     !hasJump &&
@@ -207,7 +195,10 @@ export function TurnStats({
                 aria-label={isCopied ? t("copied") : t("copyMessage")}
               >
                 {isCopied ? (
-                  <CheckIcon aria-hidden="true" className="h-3.5 w-3.5" />
+                  <CheckIcon
+                    aria-hidden="true"
+                    className="h-3.5 w-3.5 maxcode-success-feedback"
+                  />
                 ) : (
                   <CopyIcon aria-hidden="true" className="h-3.5 w-3.5" />
                 )}
@@ -277,74 +268,6 @@ export function TurnStats({
                   ? t("forkNotReady")
                   : t("forkBusy")
                 : t("forkFromHere")}
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {displayModels.length > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className={cn(iconButtonClass, "cursor-default")}
-                aria-label={t("model")}
-              >
-                <BrainCog aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs break-words">
-              <span className="font-medium" translate="no">
-                {displayModels.join(", ")}
-              </span>
-            </TooltipContent>
-          </Tooltip>
-        )}
-        {hasUsage && usage && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                className={cn(iconButtonClass, "cursor-default")}
-                aria-label={t("tokenStats")}
-              >
-                <Coins aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top" className="max-w-xs">
-              <div className="flex flex-col gap-0.5">
-                <div className="flex justify-between gap-3">
-                  <span>{t("tokenInput")}</span>
-                  <span className="font-mono tabular-nums">
-                    {formatTokenCount(usage.input_tokens)}
-                  </span>
-                </div>
-                {/* An agent that reports no output split at all would otherwise
-                    show a misleading "Output: 0" row. Symmetric with the cache
-                    rows' `> 0` gating below. */}
-                {usage.output_tokens > 0 && (
-                  <div className="flex justify-between gap-3">
-                    <span>{t("tokenOutput")}</span>
-                    <span className="font-mono tabular-nums">
-                      {formatTokenCount(usage.output_tokens)}
-                    </span>
-                  </div>
-                )}
-                {usage.cache_read_input_tokens > 0 && (
-                  <div className="flex justify-between gap-3">
-                    <span>{t("tokenCacheRead")}</span>
-                    <span className="font-mono tabular-nums">
-                      {formatTokenCount(usage.cache_read_input_tokens)}
-                    </span>
-                  </div>
-                )}
-                {usage.cache_creation_input_tokens > 0 && (
-                  <div className="flex justify-between gap-3">
-                    <span>{t("tokenCacheWrite")}</span>
-                    <span className="font-mono tabular-nums">
-                      {formatTokenCount(usage.cache_creation_input_tokens)}
-                    </span>
-                  </div>
-                )}
-              </div>
             </TooltipContent>
           </Tooltip>
         )}

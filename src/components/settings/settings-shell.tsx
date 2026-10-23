@@ -35,6 +35,7 @@ import { cn } from "@/lib/utils"
 import { detectEnvironment } from "@/lib/transport/detect"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
+import { useSurfaceTransition } from "@/hooks/use-surface-transition"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import {
   SETTINGS_SEARCH_ENTRIES,
@@ -153,6 +154,7 @@ export function SettingsShell({
   const [navOpen, setNavOpen] = useState(false)
   const [query, setQuery] = useState("")
   const contentRef = useRef<HTMLDivElement>(null)
+  useSurfaceTransition(contentRef, normalizedPathname)
   const [searchTarget, setSearchTarget] = useState<{ id: string } | null>(
     () => {
       if (typeof window === "undefined") return null

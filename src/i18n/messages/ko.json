@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "저장소 클론에 실패했습니다"
+    },
+    "artifactPreview": {
+      "loading": "플레이어 로딩 중…",
+      "mediaHint": "재생할 수 없으면 다운로드하여 다른 앱에서 여세요.",
+      "playbackFailed": "이 브라우저에서 재생할 수 없습니다. 다운로드하여 여세요.",
+      "downloadHint": "파일을 다운로드하여 다른 앱에서 여세요.",
+      "download": "파일 다운로드"
     }
   },
   "ProjectBoot": {

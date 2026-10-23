@@ -3,7 +3,6 @@ import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it } from "vitest"
 import enMessages from "@/i18n/messages/en.json"
 import { CompletedTurnContent } from "@/components/message/completed-turn-content"
-import { groupProgressSections } from "@/components/message/progress-sections"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 
 function steps(count: number): AdaptedContentPart[] {
@@ -33,63 +32,53 @@ function tree(parts: AdaptedContentPart[], completed = false) {
     </NextIntlClientProvider>
   )
 }
-describe("MaxCode contract: prose separates collapsed activity sections", () => {
-  it("preserves every note while grouping the steps below each note", () => {
+describe("MaxCode contract: upstream-style progress disclosures", () => {
+  it("shows prose, commands and thinking directly without a shared steps fold", () => {
     const { rerender, container } = render(tree(steps(3)))
     for (let i = 0; i < 3; i++)
       expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
-    expect(screen.getAllByRole("button", { name: "2 steps" })).toHaveLength(3)
-    expect(screen.queryByText("Thought 0")).toBeNull()
-    expect(container.querySelector("[data-live-progress-preview]")).toBeNull()
-    const groups = groupProgressSections(steps(3))
-    expect(groups.map((section) => section.activity)).toEqual([
-      false,
-      true,
-      false,
-      true,
-      false,
-      true,
-    ])
-    expect(
-      groups
-        .filter((section) => section.activity)
-        .every((section) => section.parts.every((part) => part.type !== "text"))
-    ).toBe(true)
-    fireEvent.click(screen.getAllByRole("button", { name: "2 steps" })[0])
-    expect(
-      screen.getAllByRole("button", { name: "2 steps" })[0]
-    ).toHaveAttribute("aria-expanded", "true")
-    expect(
-      screen.getAllByRole("button", { name: "2 steps" })[1]
-    ).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("2 steps")).toBeNull()
+    expect(container.querySelector("[data-activity-section]")).toBeNull()
+    const thinking = screen.getAllByRole("button", { name: /Thought|Thinking/ })
+    expect(thinking).toHaveLength(3)
+    expect(thinking[0]).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(thinking[0])
+    expect(screen.getByText("Thought 0")).toBeVisible()
+    expect(thinking[1]).toHaveAttribute("aria-expanded", "false")
     rerender(tree(steps(4)))
-    for (let i = 0; i < 4; i++)
-      expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
-    expect(
-      screen.getAllByRole("button", { name: "2 steps" })[0]
-    ).toHaveAttribute("aria-expanded", "true")
+    expect(screen.getByText("Thought 0")).toBeVisible()
+    expect(screen.getByText("Progress note 3")).toBeVisible()
   })
-  it("preserves all intermediate prose in cancelled turns without a final answer", () => {
+  it("preserves intermediate prose in cancelled turns without a final answer", () => {
     render(tree(steps(3), true))
     for (let i = 0; i < 3; i++)
       expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
-    expect(screen.getAllByRole("button", { name: "2 steps" })).toHaveLength(3)
+    expect(screen.queryByText("2 steps")).toBeNull()
   })
-  it("keeps plans and artifacts outside the activity disclosures", () => {
-    const plan: AdaptedContentPart = {
-      type: "proposed-plan",
-      markdown: "Review this plan",
-      isStreaming: false,
-    }
-    const groups = groupProgressSections([...steps(1), plan, ...steps(1)])
-    expect(
-      groups.find((section) => section.parts.includes(plan))?.activity
-    ).toBe(false)
-    expect(groups.flatMap((section) => section.parts)).toEqual([
-      ...steps(1),
-      plan,
-      ...steps(1),
-    ])
+  it("keeps command groups directly expandable beside thinking", () => {
+    render(
+      tree([
+        { type: "text", text: "Checking the project" },
+        {
+          type: "tool-group",
+          isStreaming: false,
+          items: [0, 1].map((i) => ({
+            type: "tool-call" as const,
+            toolCallId: `command-${i}`,
+            toolName: "exec_command",
+            input: JSON.stringify({ cmd: `echo check-${i}` }),
+            state: "output-available" as const,
+            output: "done",
+          })),
+        },
+        { type: "reasoning", content: "Inspect results", isStreaming: false },
+      ])
+    )
+    const commands = screen.getByRole("button", { name: "Ran 2 commands" })
+    expect(commands).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(commands)
+    expect(screen.getByRole("button", { name: /echo check-0/ })).toBeVisible()
+    expect(screen.queryByText("Inspect results")).toBeNull()
   })
   it("folds the completed round while keeping its final answer visible", () => {
     render(tree([...steps(3), { type: "text", text: "Final answer" }], true))

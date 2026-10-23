@@ -4,15 +4,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
   Command,
-  FileStack,
-  FlaskConical,
   FolderSearch,
-  Lock,
-  MessageSquarePlus,
   MessageSquareText,
   Plus,
   Search,
-  Sparkles,
   Upload,
 } from "lucide-react"
 
@@ -53,15 +48,12 @@ export interface ComposerAddMenuProps {
   shortcuts: ComposerShortcuts
   /** The agent's own `/` commands (from a live session or a transient probe). */
   slashCommands: AvailableCommandInfo[]
-  /** Open the live-feedback dialog. Conversation-only; omitted elsewhere. */
-  onAddFeedback?: () => void
-  feedbackAddDisabled?: boolean
   triggerClassName?: string
 }
 
 /**
  * The composer's "+" menu — attach files, insert a saved quick message, pick a
- * slash command, or drop in one of the bundled skill families.
+ * slash command.
  *
  * One component for every composer in the app (conversation, and the to-do task
  * new/edit + follow-up + restart boxes) so the shortcuts a user learns in chat
@@ -73,8 +65,6 @@ export function ComposerAddMenu({
   attachments = null,
   shortcuts,
   slashCommands,
-  onAddFeedback,
-  feedbackAddDisabled,
   triggerClassName,
 }: ComposerAddMenuProps) {
   const t = useTranslations("Folder.chat.messageInput")
@@ -191,18 +181,6 @@ export function ComposerAddMenu({
             )}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {onAddFeedback && (
-          <DropdownMenuItem
-            disabled={feedbackAddDisabled}
-            onClick={onAddFeedback}
-            title={
-              feedbackAddDisabled ? t("liveFeedbackDisabledHint") : undefined
-            }
-          >
-            <MessageSquarePlus className="size-4" />
-            {t("liveFeedback")}
-          </DropdownMenuItem>
-        )}
         <DropdownMenuSub open={slashOpen} onOpenChange={handleSlashOpenChange}>
           <DropdownMenuSubTrigger disabled={slashCommands.length === 0}>
             <Command className="size-4" />
@@ -284,98 +262,6 @@ export function ComposerAddMenu({
             </div>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {/* A custom-dir pi can't have skills managed by codeg's default-dir
-            store, so hide these shortcuts instead of offering ones that lock
-            with a Settings path the Experts/Office matrices also hide for this
-            agent. */}
-        {shortcuts.skillManagementSupported && (
-          <>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={shortcuts.experts.length === 0}>
-                <Sparkles className="size-4" />
-                {t("experts")}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="min-w-44 overflow-y-auto"
-                style={SUBMENU_STYLE}
-              >
-                {shortcuts.experts.map((item) => {
-                  const Icon = shortcuts.getExpertIcon(item.metadata.icon)
-                  return (
-                    <DropdownMenuItem
-                      key={item.metadata.id}
-                      onClick={() => shortcuts.insertExpert(item)}
-                    >
-                      <Icon className="size-4" />
-                      <span className="flex-1 truncate">
-                        {shortcuts.expertLabel(item)}
-                      </span>
-                      {shortcuts.isSkillLocked(item.metadata.id) && (
-                        <Lock className="ml-auto size-3.5 shrink-0 text-muted-foreground/70" />
-                      )}
-                    </DropdownMenuItem>
-                  )
-                })}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>
-                <FileStack className="size-4" />
-                {t("office")}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="min-w-44 overflow-y-auto"
-                style={SUBMENU_STYLE}
-              >
-                {shortcuts.officeActions.map((action) => {
-                  const Icon = action.icon
-                  return (
-                    <DropdownMenuItem
-                      key={action.id}
-                      onClick={() => shortcuts.insertOffice(action)}
-                    >
-                      <Icon className="size-4" />
-                      <span className="flex-1 truncate">
-                        {shortcuts.officeLabel(action)}
-                      </span>
-                      {shortcuts.isSkillLocked(action.skillId) && (
-                        <Lock className="ml-auto size-3.5 shrink-0 text-muted-foreground/70" />
-                      )}
-                    </DropdownMenuItem>
-                  )
-                })}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger disabled={shortcuts.science.length === 0}>
-                <FlaskConical className="size-4" />
-                {t("research")}
-              </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent
-                className="min-w-44 overflow-y-auto"
-                style={SUBMENU_STYLE}
-              >
-                {shortcuts.science.map((item) => {
-                  const Icon = shortcuts.getScienceIcon(item.metadata.icon)
-                  return (
-                    <DropdownMenuItem
-                      key={item.metadata.id}
-                      onClick={() => shortcuts.insertScience(item)}
-                    >
-                      <Icon className="size-4" />
-                      <span className="flex-1 truncate">
-                        {shortcuts.scienceLabel(item)}
-                      </span>
-                      {shortcuts.isSkillLocked(item.metadata.id) && (
-                        <Lock className="ml-auto size-3.5 shrink-0 text-muted-foreground/70" />
-                      )}
-                    </DropdownMenuItem>
-                  )
-                })}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
-          </>
-        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

@@ -122,7 +122,7 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
       ).toBeUndefined()
     }
   })
-  it("shows retry success in the group but keeps unresolved execution issues neutral and raw errors available", () => {
+  it("shows retry success without command failure counts and keeps raw errors available", () => {
     render(
       tree([
         {
@@ -141,9 +141,7 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
       ])
     )
     expect(screen.getByText(/1 retried successfully/)).toBeInTheDocument()
-    const remaining = screen.getByText(/1 execution issue/)
-    expect(remaining).toHaveClass("text-muted-foreground")
-    expect(remaining).not.toHaveClass("text-destructive")
+    expect(screen.queryByText(/execution issue/)).toBeNull()
     fireEvent.click(
       screen.getByRole("button", { name: /retried successfully/ })
     )
@@ -152,7 +150,7 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
     expect(screen.getAllByText(/Permission denied/).length).toBeGreaterThan(0)
   })
   it.each([true, false])(
-    "uses a neutral summary for the screenshot's failed preference probe (streaming=%s)",
+    "omits command failure indicators for the screenshot's preference probe (streaming=%s)",
     (isStreaming) => {
       const probe = {
         ...failed,
@@ -183,13 +181,11 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
           },
         ])
       )
-      const summary = screen.getByText(/1 execution issue/)
-      expect(summary).toHaveAttribute("data-tool-execution-issues")
-      expect(summary).not.toHaveClass("text-destructive")
+      expect(screen.queryByText(/execution issue/)).toBeNull()
       expect(screen.queryByText(/retried successfully/)).toBeNull()
-      fireEvent.click(screen.getByRole("button", { name: /1 execution issue/ }))
-      expect(screen.getByText("Error")).toBeVisible()
-      fireEvent.click(screen.getByRole("button", { name: /Error/ }))
+      fireEvent.click(screen.getByRole("button", { name: /Ran 1 command/ }))
+      expect(screen.queryByText("Error")).toBeNull()
+      fireEvent.click(screen.getByRole("button", { name: /sw_vers/ }))
       expect(screen.getAllByText(/ProductName: macOS/).length).toBeGreaterThan(
         0
       )

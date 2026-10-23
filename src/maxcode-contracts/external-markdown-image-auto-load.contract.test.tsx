@@ -39,14 +39,12 @@ beforeEach(() => {
   mocks.external.mockReset().mockResolvedValue(PNG)
 })
 
-describe("external transcript image consent", () => {
-  it("shows the exact file and reads only after a click, then supports zoom", async () => {
+describe("external transcript image automatic loading", () => {
+  it("loads outside-root images without confirmation and supports zoom", async () => {
     render(preview())
-    expect(screen.getByText(path)).toBeVisible()
-    expect(screen.getByText("externalImageNotice")).toBeVisible()
-    expect(mocks.external).not.toHaveBeenCalled()
+    expect(screen.queryByText("externalImageNotice")).not.toBeInTheDocument()
+    expect(screen.queryByText("loadExternalImage")).not.toBeInTheDocument()
     expect(mocks.read).not.toHaveBeenCalled()
-    fireEvent.click(screen.getByRole("button", { name: "loadExternalImage" }))
     await screen.findByRole("button", { name: "新版预览" })
     expect(mocks.external).toHaveBeenCalledExactlyOnceWith(
       path,
@@ -63,14 +61,13 @@ describe("external transcript image consent", () => {
   it("explains read failure and permits an explicit retry", async () => {
     mocks.external.mockRejectedValueOnce(new Error("missing"))
     render(preview())
-    fireEvent.click(screen.getByRole("button", { name: "loadExternalImage" }))
     await screen.findByText("localImageFailed")
-    fireEvent.click(screen.getByRole("button", { name: "loadExternalImage" }))
+    fireEvent.click(screen.getByRole("button", { name: "retryLocalImage" }))
     await screen.findByRole("button", { name: "新版预览" })
     expect(mocks.external).toHaveBeenCalledTimes(2)
   })
 
-  it("requires fresh consent for another source or transcript and discards stale reads", async () => {
+  it("automatically reloads changed sources and transcripts and discards stale reads", async () => {
     let finish!: (value: string) => void
     mocks.external.mockImplementationOnce(
       () =>
@@ -79,22 +76,20 @@ describe("external transcript image consent", () => {
         })
     )
     const { rerender } = render(preview())
-    fireEvent.click(screen.getByRole("button", { name: "loadExternalImage" }))
     rerender(preview("/another/preview.png"))
-    await act(async () => {
-      finish(PNG)
-    })
-    expect(
-      screen.queryByRole("button", { name: "新版预览" })
-    ).not.toBeInTheDocument()
-    expect(mocks.external).toHaveBeenCalledTimes(1)
-    fireEvent.click(screen.getByRole("button", { name: "loadExternalImage" }))
     await screen.findByRole("button", { name: "新版预览" })
-    rerender(preview("/another/preview.png", "/another-session"))
-    expect(
-      screen.getByRole("button", { name: "loadExternalImage" })
-    ).toBeVisible()
+    await act(async () => {
+      finish("STALE")
+    })
+    expect(screen.getByRole("img", { name: "新版预览" })).toHaveAttribute(
+      "src",
+      `data:image/png;base64,${PNG}`
+    )
     expect(mocks.external).toHaveBeenCalledTimes(2)
+    rerender(preview("/another/preview.png", "/another-session"))
+    await screen.findByRole("button", { name: "新版预览" })
+    expect(mocks.external).toHaveBeenCalledTimes(3)
+    expect(screen.queryByText("loadExternalImage")).not.toBeInTheDocument()
   })
 
   it.each([

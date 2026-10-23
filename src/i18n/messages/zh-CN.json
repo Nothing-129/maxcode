@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "克隆仓库失败"
+    },
+    "artifactPreview": {
+      "loading": "正在加载播放器…",
+      "mediaHint": "无法播放时，可以下载后用其他应用打开。",
+      "playbackFailed": "浏览器无法播放此文件，请下载后打开。",
+      "downloadHint": "此文件不支持在线预览，可以下载后打开。",
+      "download": "下载文件"
     }
   },
   "ProjectBoot": {

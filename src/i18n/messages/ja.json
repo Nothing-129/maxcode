@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "リポジトリのクローンに失敗しました"
+    },
+    "artifactPreview": {
+      "loading": "プレーヤーを読み込み中…",
+      "mediaHint": "再生できない場合は、ダウンロードして別のアプリで開いてください。",
+      "playbackFailed": "このブラウザーでは再生できません。ダウンロードして開いてください。",
+      "downloadHint": "このファイルをダウンロードして別のアプリで開いてください。",
+      "download": "ファイルをダウンロード"
     }
   },
   "ProjectBoot": {

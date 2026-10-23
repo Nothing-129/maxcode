@@ -229,6 +229,7 @@ function KeptMountedSurface({
       <div
         className={cn(
           "h-full min-h-0",
+          !hidden && "maxcode-surface-enter",
           hidden && "conversation-tab-hidden invisible"
         )}
         inert={hidden || undefined}
@@ -1012,8 +1013,13 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
               slide — an un-backed wrapper would show the root `bg-background`
               (white) through that gap. The resize handle owns the subtle seam,
               avoiding a second border along the sidebar edge. */}
-          <div className="h-full min-h-0 overflow-hidden ws-surface-sidebar">
-            <Sidebar />
+          <div
+            className="h-full min-h-0 overflow-hidden ws-surface-sidebar maxcode-panel-content"
+            data-panel-open={sidebarOpen}
+            inert={!sidebarOpen}
+            aria-hidden={!sidebarOpen}
+          >
+            <Sidebar keepVisible={sidebarAnimating} />
           </div>
         </ResizablePanel>
 
@@ -1071,7 +1077,12 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
                 minSize={terminalOpen ? terminalSizeRange.minSize : 0}
                 maxSize={terminalOpen ? terminalSizeRange.maxSize : 0}
               >
-                <div className="h-full min-h-0 overflow-hidden">
+                <div
+                  className="h-full min-h-0 overflow-hidden maxcode-panel-content"
+                  data-panel-open={terminalOpen}
+                  inert={!terminalOpen}
+                  aria-hidden={!terminalOpen}
+                >
                   <TerminalPanel />
                 </div>
               </ResizablePanel>

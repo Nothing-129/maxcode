@@ -3158,7 +3158,7 @@ export function ConversationDetailPanel() {
                 indexInGroup > 0 && "border-l border-border/50"
               )
             : visible
-              ? "h-full"
+              ? "h-full maxcode-surface-enter"
               : "conversation-tab-hidden absolute inset-0 invisible pointer-events-none"
         )}
         onPointerDownCapture={

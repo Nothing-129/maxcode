@@ -4,6 +4,8 @@ import { createContext, useContext } from "react"
 import type { ScrollToIndexOpts } from "virtua"
 
 export interface MessageScrollContextValue {
+  /** Release automatic following before manually expanding historical work. */
+  stopFollowing?: () => void
   scrollToIndex: (index: number, opts?: ScrollToIndexOpts) => void
 }
 

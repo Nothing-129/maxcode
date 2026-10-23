@@ -4071,6 +4071,13 @@
     },
     "toasts": {
       "cloneFailed": "Falha ao clonar o repositório"
+    },
+    "artifactPreview": {
+      "loading": "Carregando o reprodutor…",
+      "mediaHint": "Se não for possível reproduzir, baixe e abra em outro aplicativo.",
+      "playbackFailed": "Este navegador não pode reproduzir o arquivo. Baixe para abri-lo.",
+      "downloadHint": "Baixe este arquivo para abri-lo em outro aplicativo.",
+      "download": "Baixar arquivo"
     }
   },
   "ProjectBoot": {

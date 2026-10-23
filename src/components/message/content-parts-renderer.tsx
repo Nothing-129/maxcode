@@ -2971,6 +2971,7 @@ const ToolCallPart = memo(function ToolCallPart({
       <ToolHeader
         type="dynamic-tool"
         state={presentationState}
+        hideErrorStatus={classifyToolKind(normalizedToolName) === "command"}
         recovered={!!part.recoveredBy}
         toolName={normalizedToolName}
         title={title ?? undefined}
@@ -3135,6 +3136,7 @@ const ToolGroupPart = memo(function ToolGroupPart({
       if (failed && item.recoveredBy) recovered += 1
       if (
         failed &&
+        classifyToolKind(normalizeToolName(item.toolName)) !== "command" &&
         !item.recoveredBy &&
         !isSearchNoMatchResult({
           toolName: item.toolName,
