@@ -1,13 +1,6 @@
 // @vitest-environment node
 import { createRequire } from "node:module"
-import {
-  existsSync,
-  mkdtempSync,
-  mkdirSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs"
+import { mkdtempSync, readFileSync, rmSync } from "node:fs"
 import { EventEmitter } from "node:events"
 import { runInNewContext } from "node:vm"
 import { tmpdir } from "node:os"
@@ -28,26 +21,19 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "maxcode-namespace-"))
   directories.push(root)
   const app = {
-    getPath: (name: string) =>
-      name === "home"
-        ? join(root, "home")
-        : name === "userData"
-          ? join(root, "profile")
-          : root,
+    getPath: (name: string) => (name === "home" ? join(root, "home") : root),
   }
   return {
     root,
     app,
     source: join(root, "app.codeg"),
-    target: join(root, "app.maxcode"),
+    target: join(root, "app.codeg"),
   }
 }
 
-describe("MaxCode owns a separate product namespace", () => {
-  it("logs ordinary startup without making legacy data ineligible for migration", () => {
-    const { app, source: old, target } = fixture()
-    mkdirSync(old)
-    writeFileSync(join(old, "codeg.db"), "legacy data")
+describe("MaxCode retains the original configuration directories", () => {
+  it("initializes ordinary desktop startup and logs in the existing data directory", () => {
+    const { app, target } = fixture()
     const entry = join(process.cwd(), "electron/main.cjs")
     const entryRequire = createRequire(entry)
     let quit = false
@@ -73,8 +59,8 @@ describe("MaxCode owns a separate product namespace", () => {
         if (id === "./runtime.cjs")
           return {
             ...runtime,
-            desktopDataDir: (value: typeof app) =>
-              runtime.desktopDataDir(value, {}, "darwin"),
+            legacyDataDir: (value: typeof app) =>
+              runtime.legacyDataDir(value, {}, "darwin"),
           }
         return entryRequire(id)
       },
@@ -83,72 +69,27 @@ describe("MaxCode owns a separate product namespace", () => {
     })
     expect(quit).toBe(true)
     expect(
-      JSON.parse(
-        readFileSync(join(app.getPath("userData"), "logs/desktop.log"), "utf8")
-      )
+      JSON.parse(readFileSync(join(target, "logs/desktop.log"), "utf8"))
     ).toMatchObject({ event: "desktop-start", version: "test" })
-    expect(existsSync(target)).toBe(false)
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
-    // Early failure diagnostics must not prevent migration on the next launch.
-    desktopProcess.emit(
-      "uncaughtExceptionMonitor",
-      new Error("startup failed"),
-      "test"
-    )
-    expect(existsSync(target)).toBe(false)
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
   })
 
-  it("uses its own default directory and prioritizes MAXCODE overrides", () => {
+  it("uses the original directories and credentials without migration", () => {
     const { app, target } = fixture()
-    expect(runtime.desktopDataDir(app, {}, "darwin")).toBe(target)
+    expect(runtime.legacyDataDir(app, {}, "darwin")).toBe(target)
     expect(
-      runtime.desktopDataDir(
-        app,
-        { MAXCODE_DATA_DIR: target, CODEG_DATA_DIR: "/other" },
-        "darwin"
-      )
-    ).toBe(target)
-    expect(
-      runtime.desktopDataDir(app, { CODEG_DATA_DIR: target }, "darwin")
-    ).toBe(target)
-  })
-
-  it("imports defaults once, resumes partial layout imports, and respects existing data", () => {
-    const { app, source: old, target } = fixture()
-    mkdirSync(old)
-    writeFileSync(join(old, "codeg.db"), "fixture")
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
-    expect(
-      runtime.legacyImportSource(app, { MAXCODE_DATA_DIR: target }, "darwin")
-    ).toBeUndefined()
-    mkdirSync(target)
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBeUndefined()
-    writeFileSync(join(target, ".maxcode-imported-from-codeg.json"), "{}")
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
-    writeFileSync(join(target, ".maxcode-layout-complete"), "1")
-    expect(runtime.legacyImportSource(app, {}, "darwin")).toBeUndefined()
-  })
-
-  it("registers executable migration and credential isolation contracts", () => {
-    expect(source(".github/workflows/release.yml")).toContain(
-      "run: pnpm desktop:upgrade-smoke"
-    )
-    expect(source(".github/workflows/test.yml")).toContain(
-      "run: pnpm desktop:upgrade-smoke"
-    )
-    expect(source("src-tauri/src/namespace.rs")).toContain(
-      "product-namespace.contract.rs"
+      runtime.legacyDataDir(app, { CODEG_DATA_DIR: "/custom" }, "darwin")
+    ).toBe("/custom")
+    expect(runtime.legacyImportSource).toBeUndefined()
+    expect(source("src-tauri/src/paths.rs")).toContain(
+      'CODEG_DIR_NAME: &str = ".codeg"'
     )
     expect(source("src-tauri/src/keyring_store.rs")).toContain(
-      "product-credentials.contract.rs"
+      'SERVICE_NAME: &str = "codeg"'
     )
-    expect(source("src-tauri/src/namespace.rs")).toContain(
-      'KEYRING_SERVICE: &str = "maxcode"'
+    expect(source("src-tauri/src/bin/codeg_server.rs")).not.toContain(
+      "migrate_desktop_layout"
     )
-    expect(source("src-tauri/src/commands/experts.rs")).toContain(
-      "crate::paths::codeg_home_dir()"
-    )
+    expect(source("electron/main.cjs")).not.toContain("legacySource")
   })
 
   it("keeps the existing signed application identity distinct from upstream Codeg", () => {

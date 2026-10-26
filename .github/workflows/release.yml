@@ -292,7 +292,7 @@ jobs:
           sudo timeout 180 apt-get install -y libdbus-1-dev libssl-dev libgtk-3-0 libnss3 libasound2 libgbm1 xvfb rpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Verify ordinary desktop startup and product namespace
+      - name: Verify desktop startup and original configuration directories
         run: pnpm test src/maxcode-contracts/product-namespace.contract.test.ts
       - name: Build Electron installers (macOS, signed and notarized)
         if: runner.os == 'macOS'
@@ -307,10 +307,6 @@ jobs:
       - name: Build Electron installers (Windows / Linux)
         if: runner.os != 'macOS'
         run: pnpm desktop:build
-      - name: Verify upgrade preserves existing workspaces and Web service settings
-        # Upgrade checks execute the ordinary main entry and bundled Rust
-        # backend with legacy project, conversation and Web service fixtures.
-        run: pnpm desktop:upgrade-smoke
       - name: Verify signed and notarized macOS application
         if: runner.os == 'macOS'
         shell: bash

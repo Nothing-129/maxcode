@@ -100,7 +100,7 @@ pub async fn save(
     emit_event(
         emitter,
         EVENT,
-        serde_json::json!({"key": write.key, "value": value}),
+        &serde_json::json!({"key": write.key, "value": value}),
     );
     Ok(value)
 }

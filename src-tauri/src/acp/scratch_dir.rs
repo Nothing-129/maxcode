@@ -51,7 +51,7 @@ use std::time::Duration;
 /// confined to this subtree, which is what makes it safe to delete without
 /// asking: `%TEMP%` itself is a namespace shared with every other application,
 /// but nothing except codeg writes here.
-const SCRATCH_NAMESPACE: &str = "maxcode-acp";
+const SCRATCH_NAMESPACE: &str = "codeg-acp";
 
 /// Opt out of isolation entirely and let the child inherit the ambient
 /// `TMP`/`TEMP`/`TMPDIR` the way it did before this module existed. Escape
@@ -232,12 +232,12 @@ fn warn_no_root_fits(root: &Path) {
 /// is what the sweeps actually need — [`sweep_roots`] visits every root codeg
 /// can pick, so relocating never strands a directory.
 pub fn scratch_root() -> PathBuf {
-    if let Some(explicit) = crate::namespace::env_path(ROOT_ENV) {
+    if let Some(explicit) = std::env::var_os(ROOT_ENV).filter(|v| !v.is_empty()) {
         // An explicit root is a decision about which VOLUME absorbs the churn,
         // usually taken to stop a system disk filling up. Honour it even when
         // it is too long to be safe and say so once, rather than silently
         // relocating gigabytes back onto the disk the user moved them off.
-        let root = explicit.join(SCRATCH_NAMESPACE);
+        let root = PathBuf::from(explicit).join(SCRATCH_NAMESPACE);
         #[cfg(unix)]
         if !leaves_room_for_a_child_socket(&root) {
             warn_no_root_fits(&root);
@@ -330,15 +330,13 @@ fn is_scratch_root_name(name: &std::ffi::OsStr) -> bool {
     let Some(name) = name.to_str() else {
         return false;
     };
-    [SCRATCH_NAMESPACE, "codeg-acp"]
-        .iter()
-        .any(|prefix| match name.strip_prefix(prefix) {
-            Some("") => true,
-            Some(rest) => rest
-                .strip_prefix('-')
-                .is_some_and(|euid| !euid.is_empty() && euid.bytes().all(|b| b.is_ascii_digit())),
-            None => false,
-        })
+    match name.strip_prefix(SCRATCH_NAMESPACE) {
+        Some("") => true,
+        Some(rest) => rest
+            .strip_prefix('-')
+            .is_some_and(|euid| !euid.is_empty() && euid.bytes().all(|b| b.is_ascii_digit())),
+        None => false,
+    }
 }
 
 /// A scratch directory owned by one agent launch.

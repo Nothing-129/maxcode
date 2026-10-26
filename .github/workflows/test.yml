@@ -176,8 +176,6 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Build packaged desktop
         run: pnpm desktop:pack
-      - name: Verify upgrade preserves existing workspaces and Web service settings
-        run: pnpm desktop:upgrade-smoke
       - name: Smoke test packaged desktop (Linux)
         if: runner.os == 'Linux'
         run: xvfb-run -a pnpm desktop:smoke

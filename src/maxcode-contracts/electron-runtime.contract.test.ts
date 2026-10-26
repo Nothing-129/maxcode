@@ -239,23 +239,23 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
   })
 
   it.skipIf(process.platform === "win32")(
-    "uses the MaxCode desktop data directory rather than Electron's Linux config directory",
+    "uses the legacy desktop data directory rather than Electron's Linux config directory",
     () => {
       const app = {
         getPath: (name: string) => (name === "home" ? "/home/user" : "/config"),
       }
-      expect(runtime.desktopDataDir(app, {}, "linux")).toBe(
-        "/home/user/.local/share/app.maxcode"
+      expect(runtime.legacyDataDir(app, {}, "linux")).toBe(
+        "/home/user/.local/share/app.codeg"
       )
       expect(
-        runtime.desktopDataDir(app, { XDG_DATA_HOME: "/data" }, "linux")
-      ).toBe("/data/app.maxcode")
+        runtime.legacyDataDir(app, { XDG_DATA_HOME: "/data" }, "linux")
+      ).toBe("/data/app.codeg")
       expect(
-        runtime.desktopDataDir(app, { CODEG_DATA_DIR: "/custom" }, "linux")
+        runtime.legacyDataDir(app, { CODEG_DATA_DIR: "/custom" }, "linux")
       ).toBe("/custom")
       expect(
-        runtime.desktopDataDir(app, { CODEG_HOME: "/assets" }, "linux")
-      ).toBe("/home/user/.local/share/app.maxcode")
+        runtime.legacyDataDir(app, { CODEG_HOME: "/assets" }, "linux")
+      ).toBe("/home/user/.local/share/app.codeg")
     }
   )
 

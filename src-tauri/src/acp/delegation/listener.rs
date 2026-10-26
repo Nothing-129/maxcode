@@ -915,7 +915,7 @@ fn fits_sun_path(path: &Path) -> bool {
 /// directories, whose pid-based sweeps must never remove the broker socket.
 #[cfg(unix)]
 fn short_socket_dir() -> PathBuf {
-    PathBuf::from(format!("/tmp/maxcode-{}", unsafe { libc::geteuid() }))
+    PathBuf::from(format!("/tmp/codeg-{}", unsafe { libc::geteuid() }))
 }
 
 /// Default socket path for the running process, scoped to PID so multiple

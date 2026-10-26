@@ -81,7 +81,7 @@ fn valid_version(version: &str) -> bool {
 fn root(agent: AgentType) -> Option<PathBuf> {
     Some(
         dirs::data_local_dir()?
-            .join(crate::namespace::APP_DIRECTORY)
+            .join("app.codeg")
             .join("agent-updates")
             .join(
                 agent

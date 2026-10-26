@@ -1402,7 +1402,7 @@ pub struct AgentConnection {
 /// directory can't be created: diagnostics must never block a connection.
 fn codex_app_server_log_dir() -> Option<String> {
     let dir = dirs::cache_dir()?
-        .join(crate::namespace::APP_DIRECTORY)
+        .join("app.codeg")
         .join("acp-logs")
         .join("codex-acp");
     std::fs::create_dir_all(&dir).ok()?;

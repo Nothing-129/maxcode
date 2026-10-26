@@ -25,8 +25,7 @@ const {
   externalUrl,
   isTrustedAppUrl,
   isTrustedUrl,
-  desktopDataDir,
-  legacyImportSource,
+  legacyDataDir,
   localPath,
   sanitizeStorage,
   startBackend,
@@ -67,10 +66,11 @@ const windowState = createWindowState(
 )
 
 const desktopLog = createDesktopLog(
-  // Logging starts before the backend copies legacy data. Keep it in the
-  // Electron profile: creating the destination data directory here would make
-  // both migration guards treat a first upgrade as an existing installation.
-  path.join(app.getPath("userData"), "logs", "desktop.log"),
+  path.join(
+    smokeDir ? path.join(smokeDir, "data") : legacyDataDir(app),
+    "logs",
+    "desktop.log"
+  ),
   { token: () => backend?.token || "", version: app.getVersion() }
 )
 desktopLog("desktop-start")
@@ -632,7 +632,7 @@ if (!app.requestSingleInstanceLock()) {
         : process.env.CODEG_ELECTRON_STATIC_DIR || path.join(root, "out")
       const dataDir = smokeDir
         ? path.join(smokeDir, "data")
-        : desktopDataDir(app)
+        : legacyDataDir(app)
       try {
         preferences = sanitizeStorage(
           JSON.parse(fs.readFileSync(preferencesFile, "utf8"))
@@ -645,7 +645,6 @@ if (!app.requestSingleInstanceLock()) {
         staticDir: path.resolve(staticDir),
         dataDir,
         codegHome: smokeDir ? dataDir : undefined,
-        legacySource: smokeDir ? undefined : legacyImportSource(app),
         signal: startupAbort.signal,
         onExit: (error) => {
           desktopLog("backend-unexpected-exit", { message: error.message })

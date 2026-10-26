@@ -489,30 +489,16 @@
       ]
     },
     {
-      "id": "desktop.product-namespace-isolation",
+      "id": "desktop.original-configuration-directories",
       "category": "platform",
-      "description": "MaxCode uses app.maxcode data/cache, .maxcode home and maxcode keyring service, with MAXCODE overrides taking precedence over explicit CODEG compatibility aliases. Ordinary Electron startup writes diagnostics in the Electron profile without creating the migration destination; startup contracts execute the main entry without smoke mode, and release upgrade smoke verifies legacy projects, conversations, attachments and settings using the real backend. Default desktop upgrades copy legacy data once using a read-only SQLite WAL snapshot, stage before publication, rebase owned path references and internal links, skip external links and pending restores, resume interrupted imports without overwriting existing destination data, and leave source data untouched. Native credentials copy once without overwrite or read-through resurrection after sign-out. The existing signed Electron app ID remains distinct from upstream; agent-native logins/history stay shared. Default web port remains 3080; upgrades preserve the saved port, access token, auto-start and public share URL in the independent copy.",
-      "origins": ["worktree-2026-10-21"],
+      "description": "Desktop upgrades retain app.codeg data/cache, .codeg home and codeg keyring credentials in place. No automatic namespace migration or configuration reset; ordinary startup must resolve its logger and backend through legacyDataDir.",
+      "origins": ["worktree-2026-10-27"],
       "paths": [
-        "electron/runtime.cjs",
         "electron/main.cjs",
-        "electron/scripts/upgrade-smoke.mjs",
-        "src-tauri/src/namespace.rs",
-        "src-tauri/src/keyring_store.rs",
+        "electron/runtime.cjs",
         "src-tauri/src/paths.rs",
-        "src-tauri/src/bin/codeg_server.rs",
-        "src-tauri/src/git_credential.rs",
-        "src-tauri/src/process.rs",
-        "src-tauri/src/acp/binary_cache.rs",
-        "src-tauri/src/acp/connection.rs",
-        "src-tauri/src/acp/scratch_dir.rs",
-        "src-tauri/src/acp/delegation/listener.rs",
-        "src-tauri/src/commands/agent_auto_updates.rs",
-        "src-tauri/src/commands/experts.rs",
-        "src-tauri/src/web/mod.rs",
-        "src/components/settings/web-service-settings.tsx",
-        "src/maxcode-contracts/product-namespace.contract.rs",
-        "src/maxcode-contracts/product-credentials.contract.rs"
+        "src-tauri/src/keyring_store.rs",
+        "src-tauri/src/bin/codeg_server.rs"
       ],
       "contracts": ["src/maxcode-contracts/product-namespace.contract.test.ts"]
     },

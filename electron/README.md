@@ -32,7 +32,7 @@ corepack pnpm electron:start --smoke-test
 
 开发入口使用静态导出，与安装包的资源加载方式一致，目前没有热更新。
 普通开发启动与安装版使用同一份 `codeg.db`；需要独立数据时设置
-`MAXCODE_DATA_DIR` 和 `MAXCODE_HOME` 为测试目录。`--smoke-test` 自动隔离数据。
+`CODEG_DATA_DIR` 和 `CODEG_HOME` 为测试目录。`--smoke-test` 自动隔离数据。
 
 开发时可通过 `CODEG_ELECTRON_BACKEND_PATH` 指定后端可执行文件，或通过
 `CODEG_ELECTRON_STATIC_DIR` 指定前端导出目录；安装版固定使用包内资源。
@@ -44,22 +44,21 @@ corepack pnpm electron:start --smoke-test
 重新加载可能丢失尚未持久化的界面状态（例如未保存的输入）。后台服务退出等
 无法继续运行的故障仍会显示错误并退出，但会先记录原因。
 
-桌面主进程日志位于 Electron 用户配置目录的 `logs/desktop.log`，macOS 默认路径：
+桌面主进程日志位于数据目录的 `logs/desktop.log`，macOS 默认路径：
 
 ```text
-~/Library/Application Support/MaxCode/logs/desktop.log
+~/Library/Application Support/app.codeg/logs/desktop.log
 ```
 
 记录渲染进程退出原因与退出码、窗口加载失败、后台异常退出、主进程异常和
 退出流程。日志隐藏当前桌面认证 Token，不记录完整页面 URL；超过 2 MiB 时
 轮换为 `desktop.log.1`，仅保留一份历史。日志写入失败不会使应用退出。
-Rust 后端日志位于 `app.maxcode/logs/codeg-server.YYYY-MM-DD.log`。
-桌面日志独立于待迁移的数据目录，避免首次启动写日志阻止旧数据复制。
+Rust 后端日志仍位于同目录的 `codeg-server.YYYY-MM-DD.log`。
 
 ## 手机访问
 
 在桌面端「设置 → Web 服务」开启服务，手机连接同一局域网后打开该页显示的
-局域网 URL，并使用页面中的 Token 登录。端口默认 3080，沿用旧版保存的端口；
+局域网 URL，并使用页面中的 Token 登录。端口默认 3080，也可沿用旧版保存的端口；
 勾选自动启动后，下次打开桌面应用会恢复服务。电脑的局域网 IP 和端口保持不变时，
 手机原有 URL 可继续使用。
 
@@ -123,10 +122,7 @@ Electron 主进程启动仅绑定 `127.0.0.1` 的 Rust 服务，由操作系统�
 页面地址或浏览器持久存储。原生文件选择、通知、文件保存和系统打开操作通过
 受限 IPC 桥接；渲染器不开启 Node.js 集成。
 
-数据库默认使用独立的 `app.maxcode` 数据目录；私有目录默认 `~/.maxcode`。
-`MAXCODE_DATA_DIR`/`MAXCODE_HOME` 优先，显式的 `CODEG_*` 仍作为兼容别名。
-首次默认桌面启动会复制旧 MaxCode 数据，原目录不移动、不删除；详情见
-[Codeg 共存与迁移](../docs/maintenance/maxcode-codeg-coexistence.md)。
+数据库默认沿用旧桌面端的 `app.codeg` 数据目录，`CODEG_HOME` 保持其独立含义。
 Electron 自己的窗口偏好通过私有配置文件跨端口保存；旧 Tauri WebView 的
 localStorage 不会自动导入。备份恢复完成后通过 Electron 重启整个应用。
 
@@ -158,10 +154,3 @@ Electron 的 macOS 主工作区使用隐藏系统标题栏与原生交通灯，�
 
 实现参考 [Electron 安全指南](https://www.electronjs.org/docs/latest/tutorial/security)
 和 [Electron Builder 配置](https://www.electron.build/v26/docs/configuration/)。
-
-## 升级回归验证
-
-`pnpm desktop:upgrade-smoke` 使用普通主进程入口（不传 `--smoke-test`）和构建产出的 Rust 后端，
-在临时目录中创建旧版工作区、会话、附件和 Web 服务设置，验证首次升级、旧 Token 认证、
-源数据库未修改及再次启动不覆盖新设置。Electron 原生窗口由现有 `desktop:smoke` 另行验证。
-发布流程要求两类验证通过。

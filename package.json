@@ -12,7 +12,6 @@
     "desktop:build": "node electron/scripts/cli.mjs build",
     "desktop:pack": "node electron/scripts/cli.mjs pack",
     "desktop:smoke": "node electron/scripts/smoke.mjs",
-    "desktop:upgrade-smoke": "node electron/scripts/upgrade-smoke.mjs",
     "desktop:build:dmg": "node electron/scripts/cli.mjs build --mac dmg",
     "electron:dev": "node electron/scripts/cli.mjs dev",
     "electron:start": "node electron/scripts/cli.mjs start",

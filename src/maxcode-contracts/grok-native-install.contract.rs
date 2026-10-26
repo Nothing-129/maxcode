@@ -42,7 +42,7 @@ async fn grok_native_install_is_the_last_npx_fallback() {
     let home = tempfile::tempdir().expect("tempdir");
     let grok_dir = home.path().join(".grok");
     let native_bin = grok_dir.join("bin");
-    let local_bin = home.path().join(".maxcode").join("npm-global").join("bin");
+    let local_bin = home.path().join(".codeg").join("npm-global").join("bin");
     let prefix = home.path().join("npm-prefix");
     let prefix_bin = npm_prefix_bin_dir(&prefix);
     // Names nothing on the real PATH or npm prefix can answer.
