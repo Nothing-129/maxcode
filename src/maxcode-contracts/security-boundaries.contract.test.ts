@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
+import { parse } from "yaml"
 import { TODO_ATTACHMENT_MAX_BYTES, uploadTodoFile } from "@/lib/todo-storage"
 import { source } from "./contract-source"
 
@@ -8,6 +9,20 @@ vi.mock("@/lib/transport/web-auth", () => ({
 afterEach(() => vi.unstubAllGlobals())
 
 describe("Attachment and server security boundaries", () => {
+  it("audits dependencies without caching an absent pnpm store", () => {
+    const workflow = parse(source(".github/workflows/security.yml"))
+    const steps = workflow.jobs.javascript.steps
+    const node = steps.find((step: { uses?: string }) =>
+      step.uses?.startsWith("actions/setup-node@")
+    )
+    expect(node.with.cache).toBeUndefined()
+    expect(
+      steps.some((step: { run?: string }) =>
+        step.run?.includes("pnpm audit --audit-level=moderate")
+      )
+    ).toBe(true)
+  })
+
   it.each(["personal", "team-a"])(
     "rejects oversized %s files before network transfer",
     async (scope) => {

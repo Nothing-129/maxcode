@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: pnpm
+          # Auditing the lockfile does not create a pnpm store to cache.
       # Audit dev dependencies too: Electron is a devDependency but ships to users.
       - run: pnpm audit --audit-level=moderate
 
