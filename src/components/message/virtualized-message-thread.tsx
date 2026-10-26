@@ -6,6 +6,7 @@ import type { CSSProperties, ReactNode, RefObject } from "react"
 import {
   Virtualizer,
   type CustomItemComponentProps,
+  type CustomContainerComponentProps,
   type VirtualizerHandle,
 } from "virtua"
 import { useStickToBottomContext } from "use-stick-to-bottom"
@@ -113,6 +114,20 @@ export function shouldShiftForPrepend(
 function MessageThreadItem({ ref, style, children }: CustomItemComponentProps) {
   return (
     <div ref={ref} style={style} className="maxcode-thread-item">
+      {children}
+    </div>
+  )
+}
+
+// Virtua disables pointer events while scrolling. Keep message controls usable
+// during streamed replies and avoid restyling every descendant twice per scroll.
+function ThreadContainer({
+  style,
+  children,
+  ref,
+}: CustomContainerComponentProps) {
+  return (
+    <div ref={ref} style={{ ...style, pointerEvents: undefined }}>
       {children}
     </div>
   )
@@ -329,6 +344,7 @@ function VirtualizedMessageThreadImpl<T>({
         ) : (
           <Virtualizer
             ref={virtualizerHandleRef}
+            as={ThreadContainer}
             item={MessageThreadItem}
             scrollRef={scrollRef as unknown as RefObject<HTMLElement | null>}
             itemSize={itemSize}

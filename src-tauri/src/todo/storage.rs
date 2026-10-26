@@ -157,6 +157,11 @@ pub async fn validate_content_size(
     content: &str,
     added: usize,
 ) -> Result<(), AppCommandError> {
+    if added > TODO_ATTACHMENT_MAX_BYTES {
+        return Err(AppCommandError::invalid_input(
+            "Attachment exceeds the 100 MB upload limit",
+        ));
+    }
     if scope != PERSONAL {
         return Ok(());
     }

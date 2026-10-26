@@ -268,6 +268,8 @@ function parseGrokTaskOutputEnvelopes(text: string): BackgroundTaskEnvelope[] {
     .filter((e): e is BackgroundTaskEnvelope => e !== null)
 }
 
+const POLL_TAG_RE = /<(?:retrieval_status|task_type|task_id)>/i
+
 /** Every task reported by one background-task tool result: a single envelope for
  *  Claude Code's poll/stop shapes, and one per task for Grok's `TaskOutput`
  *  (whose `MultiResult` variant can cover several). Empty when the text is
@@ -277,9 +279,13 @@ export function parseBackgroundTaskEnvelopes(
 ): BackgroundTaskEnvelope[] {
   const raw = text?.trim()
   if (!raw) return []
-  const single = parsePollEnvelope(raw) ?? parseStopEnvelope(raw)
+  // Ordinary file contents and command logs need none of these parsers.
+  const json = raw.startsWith("{")
+  const single =
+    (POLL_TAG_RE.test(raw) ? parsePollEnvelope(raw) : null) ??
+    (json ? parseStopEnvelope(raw) : null)
   if (single) return [single]
-  return parseGrokTaskOutputEnvelopes(raw)
+  return json ? parseGrokTaskOutputEnvelopes(raw) : []
 }
 
 /** Parse a background-task tool result into its structured envelope, or `null`

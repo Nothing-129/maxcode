@@ -19,9 +19,25 @@ describe("MaxCode contract: upstream ZCode integration", () => {
       "zcode_cancelled_handshake_stops_mode_confirmation_before_config_or_prompt",
       "zcode_does_not_replay_the_mode_its_gate_applied",
       "zcode_records_history_without_enabling_native_parser_agents",
+      "zcode_negotiates_images_and_resources_but_not_audio",
     ]) {
       expect(contract).toContain(name)
     }
+  })
+
+  it("registers executable per-prompt telemetry and cancellation contracts", () => {
+    expect(read("src-tauri/src/acp/connection.rs")).toContain(
+      "/../src/maxcode-contracts/zcode-turn-metrics.contract.rs"
+    )
+    const contract = read(
+      "src/maxcode-contracts/zcode-turn-metrics.contract.rs"
+    )
+    for (const name of [
+      "zcode_terminal_metrics_reach_history_once_before_turn_complete",
+      "zcode_cancel_keeps_the_late_tail_in_its_reply_and_bills_no_other_prompt",
+      "zcode_a_prompt_held_over_several_windows_totals_them_on_codegs_clock",
+    ])
+      expect(contract).toContain(name)
   })
 
   it("uses the upstream bridge and ACP history instead of a native SQLite parser", () => {

@@ -33,7 +33,12 @@ import {
   type TodoMember,
 } from "./board-columns"
 
-export type TodoStatusAction = "claim" | "release" | "complete" | "reopen"
+export type TodoStatusAction =
+  | "claim"
+  | "release"
+  | "complete"
+  | "verify"
+  | "reopen"
 
 export function TodoAssignee({ member }: { member?: TodoMember }) {
   const t = useTranslations("Todos")
@@ -208,9 +213,11 @@ export function TodoCard({
   const action =
     todo.status === "completed"
       ? "reopen"
-      : column === "unclaimed"
-        ? "claim"
-        : "complete"
+      : todo.status === "pending_verification"
+        ? "verify"
+        : column === "unclaimed"
+          ? "claim"
+          : "complete"
 
   return (
     <article
@@ -268,6 +275,8 @@ export function TodoCard({
           list && "mt-0 shrink-0 border-0 pt-0"
         )}
       >
+        <TodoConversationButton todo={todo} />
+        <TodoImportConversationButton todo={todo} />
         {todo.source_url && (
           <BrowserLink
             href={todo.source_url}
@@ -278,8 +287,6 @@ export function TodoCard({
             <ExternalLink className="size-3.5" />
           </BrowserLink>
         )}
-        <TodoImportConversationButton todo={todo} />
-        <TodoConversationButton todo={todo} />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label={t("more")}>
@@ -296,6 +303,14 @@ export function TodoCard({
                 disabled={disabled}
               >
                 {t("release")}
+              </DropdownMenuItem>
+            )}
+            {todo.status === "pending_verification" && (
+              <DropdownMenuItem
+                onSelect={() => onAction("reopen")}
+                disabled={disabled}
+              >
+                {t("reopen")}
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
@@ -316,7 +331,7 @@ export function TodoCard({
           disabled={disabled}
           onClick={() => onAction(action)}
         >
-          {action === "complete" ? (
+          {action === "complete" || action === "verify" ? (
             <Check className="size-3.5" aria-hidden="true" />
           ) : action === "claim" ? (
             <UserPlus className="size-3.5" aria-hidden="true" />

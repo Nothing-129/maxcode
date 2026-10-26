@@ -39,7 +39,9 @@ pub fn build_router(
         )
         .route(
             "/todo_attachment_upload",
-            post(handlers::todo::todo_attachment_upload).layer(DefaultBodyLimit::disable()),
+            post(handlers::todo::todo_attachment_upload).layer(DefaultBodyLimit::max(
+                handlers::todo::ATTACHMENT_REQUEST_MAX_BYTES,
+            )),
         )
         .route(
             "/todo_call",
@@ -131,6 +133,14 @@ pub fn build_router(
         .route(
             "/mark_conversations_read",
             post(handlers::conversation_read::mark_conversations_read),
+        )
+        .route(
+            "/get_workspace_preferences",
+            post(handlers::ui_preferences::get_workspace_preferences),
+        )
+        .route(
+            "/set_workspace_preference",
+            post(handlers::ui_preferences::set_workspace_preference),
         )
         .route(
             "/get_ui_preferences",
@@ -1798,7 +1808,9 @@ pub fn build_router(
         )
         .route(
             "/team_todo_attachment",
-            post(handlers::todo::team_todo_attachment_upload).layer(DefaultBodyLimit::disable()),
+            post(handlers::todo::team_todo_attachment_upload).layer(DefaultBodyLimit::max(
+                handlers::todo::ATTACHMENT_REQUEST_MAX_BYTES,
+            )),
         )
         .route(
             "/team_todo_call",
@@ -1935,6 +1947,7 @@ pub fn build_router(
         .fallback_service(fallback)
         .layer(html_rewrite)
         .layer(middleware::from_fn(super::frontend_cache::frontend_cache))
+        .layer(middleware::from_fn(super::security_headers::security_headers))
         .layer(cors)
         .layer(Extension(state))
         .layer(Extension(shutdown_signal))

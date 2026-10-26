@@ -19,7 +19,7 @@ async fn completion_timestamp_lifecycle() {
     .unwrap();
     let mut item = state.todos[0].clone();
     assert!(item.completed_at.is_none());
-    for action in ["complete", "update", "reopen", "complete"] {
+    for action in ["complete", "update", "verify", "reopen", "complete"] {
         let previous = item.completed_at.clone();
         let state = call(
             conn,
@@ -43,7 +43,7 @@ async fn completion_timestamp_lifecycle() {
                         .is_ok()
                 );
             }
-            "update" => assert_eq!(item.completed_at, previous),
+            "update" | "verify" => assert_eq!(item.completed_at, previous),
             "reopen" => assert!(item.completed_at.is_none()),
             _ => unreachable!(),
         }

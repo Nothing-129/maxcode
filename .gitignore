@@ -69,3 +69,6 @@ electron/dist/
 # executable then sits untracked in the repo root — which is enough to fail a
 # work task's "worktree is clean" check at delivery.
 /rust_out
+
+# Local and CI runtime benchmark output.
+/benchmark-results/

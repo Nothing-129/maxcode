@@ -20,7 +20,7 @@ use crate::commands::conversation_share::{
 
 const PERSONAL: &str = "personal";
 const MAX_SHARE_BYTES: usize = 24 * 1024 * 1024;
-const TODO_ATTACHMENT_MAX_BYTES: usize = 100 * 1024 * 1024;
+pub(crate) const TODO_ATTACHMENT_MAX_BYTES: usize = 100 * 1024 * 1024;
 pub(crate) const TODO_REQUEST_MAX_BYTES: usize = 200 * 1024 * 1024;
 // Team responses contain multiple todos, independently of conversation snapshots.
 const TODO_RESPONSE_MAX_BYTES: usize = 512 * 1024 * 1024;
@@ -1180,7 +1180,7 @@ async fn mutate(
     }
     if !matches!(
         request.action.as_str(),
-        "create" | "update" | "delete" | "claim" | "release" | "complete" | "reopen"
+        "create" | "update" | "delete" | "claim" | "release" | "complete" | "finish" | "resume" | "verify" | "reopen"
     ) {
         return Err(AppCommandError::invalid_input("Unsupported todo action"));
     }
@@ -1284,14 +1284,17 @@ async fn mutate(
                 let content=required_todo_content(request.content.as_deref())?;
                 let title=todo_title(request,&content)?;
                 validate_assignee(&txn,scope,&request.assignee_id).await?;
-                execute(&txn,"UPDATE maxcode_todo_item SET due_date=?,priority=?,title=?,content=?,assignee_id=?,status=CASE WHEN status='completed' THEN status WHEN ? IS NULL THEN 'unclaimed' ELSE 'claimed' END,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![request.due_date.clone().into(),request.priority.clone().into(),title.into(),content.into(),request.assignee_id.clone().into(),request.assignee_id.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?
+                execute(&txn,"UPDATE maxcode_todo_item SET due_date=?,priority=?,title=?,content=?,assignee_id=?,status=CASE WHEN status IN ('completed','pending_verification') THEN status WHEN ? IS NULL THEN 'unclaimed' ELSE 'claimed' END,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![request.due_date.clone().into(),request.priority.clone().into(),title.into(),content.into(),request.assignee_id.clone().into(),request.assignee_id.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?
             },
             "delete"=>{
                 let n=execute(&txn,"DELETE FROM maxcode_todo_item WHERE id=? AND scope_id=? AND revision=?",vec![id.clone().into(),scope.into(),revision.into()]).await?;
                 if n==1 {execute(&txn,"DELETE FROM maxcode_todo_share WHERE todo_id=? AND scope_id=?",vec![id.clone().into(),scope.into()]).await?;}n
             },
             "claim"=>execute(&txn,"UPDATE maxcode_todo_item SET status='claimed',assignee_id=?,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status='unclaimed' AND assignee_id IS NULL",vec![self_id.into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
-            "complete"=>execute(&txn,"UPDATE maxcode_todo_item SET status='completed',revision=revision+1,completed_at=?,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status!='completed'",vec![now.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "complete"=>execute(&txn,"UPDATE maxcode_todo_item SET status='pending_verification',revision=revision+1,completed_at=?,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status IN ('unclaimed','claimed')",vec![now.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "finish"=>execute(&txn,"UPDATE maxcode_todo_item SET status='completed',revision=revision+1,completed_at=COALESCE(completed_at,?),updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status IN ('claimed','pending_verification')",vec![now.clone().into(),now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "resume"=>execute(&txn,"UPDATE maxcode_todo_item SET status='claimed',completed_at=NULL,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status='pending_verification' AND assignee_id IS NOT NULL",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
+            "verify"=>execute(&txn,"UPDATE maxcode_todo_item SET status='completed',revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=? AND status='pending_verification'",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
             "release"|"reopen"=>execute(&txn,"UPDATE maxcode_todo_item SET status='unclaimed',assignee_id=NULL,completed_at=NULL,revision=revision+1,updated_at=? WHERE id=? AND scope_id=? AND revision=?",vec![now.into(),id.clone().into(),scope.into(),revision.into()]).await?,
             _=>unreachable!(),
         };
@@ -1339,3 +1342,7 @@ mod completion_time_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/todo-team-removal.contract.rs"]
 mod removal_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/todo-verification.contract.rs"]
+mod verification_contract;

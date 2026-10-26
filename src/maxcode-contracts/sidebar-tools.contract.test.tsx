@@ -341,3 +341,16 @@ describe("sidebar tools beside search", () => {
 vi.mock("@/components/layout/sidebar-footer", () => ({
   SidebarFooter: () => <div data-testid="sidebar-footer" />,
 }))
+
+// Menu behavior uses a synchronous adapter; host persistence and live sync are
+// exercised independently by workspace-preferences.contract.test.tsx.
+vi.mock("@/lib/workspace-preferences-store", () => ({
+  workspacePreferenceStorage: {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+  },
+  subscribeWorkspacePreferences: (listener: () => void) => {
+    listener()
+    return () => {}
+  },
+}))

@@ -193,9 +193,8 @@ export class WebTransport implements Transport {
       () => controller.abort(),
       effectiveTimeoutMs
     )
-    let res: Response
     try {
-      res = await fetch(`${this.baseUrl}/api/${command}`, {
+      const res = await fetch(`${this.baseUrl}/api/${command}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -204,6 +203,29 @@ export class WebTransport implements Transport {
         body: JSON.stringify(args ?? {}),
         signal: controller.signal,
       })
+      if (res.status === 401) {
+        // A rejected credential is a definitive auth failure; an empty token is
+        // merely the expected logged-out state (the login page still mounts
+        // global providers that may attempt optional backend reads). Only the
+        // former should surface the session-expired dialog.
+        if (token) this.markUnauthorized()
+        throw new Error("Unauthorized")
+      }
+      if (!res.ok) {
+        const error = await res.json().catch((error: unknown) => {
+          if (controller.signal.aborted) throw error
+          return { code: "network_error", message: `HTTP ${res.status}` }
+        })
+        throw error
+      }
+      // Read the body as text and parse it here rather than calling
+      // `res.json()`. Identical on the happy path, but a truncated or malformed
+      // body otherwise throws a bare engine message — `Unterminated string in
+      // JSON at position 80865` — that names neither the endpoint nor anything
+      // else a user could report. Exactly that error was reported against the
+      // Agents settings page (#736) and could not be traced to a source.
+      const body = await res.text()
+      return parseJsonOrThrow<T>(body, `API ${command}`)
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         throw new Error("Request timed out")
@@ -212,29 +234,6 @@ export class WebTransport implements Transport {
     } finally {
       window.clearTimeout(timeout)
     }
-    if (res.status === 401) {
-      // A rejected credential is a definitive auth failure; an empty token is
-      // merely the expected logged-out state (the login page still mounts
-      // global providers that may attempt optional backend reads). Only the
-      // former should surface the session-expired dialog.
-      if (token) this.markUnauthorized()
-      throw new Error("Unauthorized")
-    }
-    if (!res.ok) {
-      const error = await res.json().catch(() => ({
-        code: "network_error",
-        message: `HTTP ${res.status}`,
-      }))
-      throw error
-    }
-    // Read the body as text and parse it here rather than calling
-    // `res.json()`. Identical on the happy path, but a truncated or malformed
-    // body otherwise throws a bare engine message — `Unterminated string in
-    // JSON at position 80865` — that names neither the endpoint nor anything
-    // else a user could report. Exactly that error was reported against the
-    // Agents settings page (#736) and could not be traced to a source.
-    const body = await res.text()
-    return parseJsonOrThrow<T>(body, `API ${command}`)
   }
 
   async subscribe<T>(
@@ -487,7 +486,14 @@ export class WebTransport implements Transport {
         const handlers = this.handlers.get(event.channel)
         if (handlers) {
           for (const h of handlers) {
-            h(event.payload)
+            try {
+              h(event.payload)
+            } catch (error) {
+              console.error(
+                `[WebTransport] handler for ${event.channel} threw:`,
+                error
+              )
+            }
           }
         }
       } catch {

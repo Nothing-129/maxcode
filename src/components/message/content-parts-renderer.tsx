@@ -3365,7 +3365,6 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
             )}
           />
         </CollapsibleTrigger>
-        <span aria-hidden="true" className="h-px min-w-6 flex-1 bg-border" />
       </div>
       <CollapsibleContent className="w-full outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
         <div className="mt-3 space-y-3 border-l border-border/70 pl-3 text-sm">

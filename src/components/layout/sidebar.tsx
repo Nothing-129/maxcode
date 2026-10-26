@@ -1,5 +1,7 @@
 "use client"
 
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
+
 import { SidebarNavigationIcon } from "./sidebar-navigation-icon"
 import { SidebarFooter } from "./sidebar-footer"
 import { SidebarWordmark } from "./sidebar-wordmark"
@@ -206,15 +208,17 @@ export function Sidebar({
   ])
 
   useEffect(() => {
-    // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setShowCompleted(loadShowCompleted())
-    setShowWorktrees(loadShowWorktrees())
-    setShowRecent(loadShowRecent())
-    setShowTodos(loadShowTodos())
-    setNavItems(loadNavItemVisibility())
-    setSortMode(loadSortMode())
-    setSectionOrder(loadSectionOrder())
+    const restore = () => {
+      // Host preferences hydrate asynchronously and update across clients.
+      setShowCompleted(loadShowCompleted())
+      setShowWorktrees(loadShowWorktrees())
+      setShowRecent(loadShowRecent())
+      setShowTodos(loadShowTodos())
+      setNavItems(loadNavItemVisibility())
+      setSortMode(loadSortMode())
+      setSectionOrder(loadSectionOrder())
+    }
+    return subscribeWorkspacePreferences(restore)
   }, [])
 
   const handleSetShowCompleted = useCallback((value: boolean) => {

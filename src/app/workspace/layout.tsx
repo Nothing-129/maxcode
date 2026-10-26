@@ -1,6 +1,7 @@
 "use client"
 
 import { TodoComposeDialog } from "@/components/todos/todo-compose-dialog"
+import { useConversationSidebarSwipe } from "@/hooks/use-conversation-sidebar-swipe"
 import { useMobileVisualViewport } from "@/hooks/use-mobile-visual-viewport"
 import { InAppSettings } from "@/components/settings/in-app-settings"
 import {
@@ -524,6 +525,11 @@ function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
   const { activateConversationPane } = useWorkspaceActions()
   const { isConversations } = useWorkbenchRoute()
   const hasRouteStrip = useHasWorkbenchRouteStrip()
+  const { isOpen: sidebarOpen, restored, toggle } = useSidebarContext()
+  const sidebarSwipe = useConversationSidebarSwipe(
+    isConversations && restored && !sidebarOpen,
+    toggle
+  )
 
   const showConversation =
     mode === "conversation" || activePane === "conversation"
@@ -540,7 +546,10 @@ function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
           // Mobile mirrors the desktop chrome: no tab strip — the conversation
           // detail header (folder › title) renders inside {children}, and tabs
           // are navigated from the sidebar (single active conversation at a time).
-          <section className="flex h-full min-h-0 flex-col overflow-hidden">
+          <section
+            {...sidebarSwipe}
+            className="flex h-full min-h-0 flex-col overflow-hidden"
+          >
             <div className="relative flex-1 min-h-0 overflow-hidden">
               {children}
             </div>

@@ -1,5 +1,7 @@
 "use client"
 
+import { workspacePreferenceStorage } from "@/lib/workspace-preferences-store"
+
 const FOLDER_EXPANDED_KEY = "workspace:sidebar-folder-expanded"
 const FOLDER_GROUP_EXPANDED_KEY = "workspace:sidebar-folder-group-expanded"
 const TODO_GROUP_EXPANDED_KEY = "workspace:sidebar-todo-group-expanded"
@@ -135,7 +137,7 @@ export function normalizeSectionOrder(value: unknown): SidebarSectionOrder {
  * Move `id` by `delta` slots (negative = towards the top), returning a new
  * order. A move that would fall off either end — or that names an id not in the
  * order — returns the SAME array reference, so a no-op never re-renders the
- * sidebar or rewrites localStorage.
+ * sidebar or rewrites host preferences.
  */
 export function moveSectionInOrder(
   order: SidebarSectionOrder,
@@ -155,7 +157,7 @@ export function moveSectionInOrder(
 export function loadFolderExpanded(): Record<number, boolean> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = localStorage.getItem(FOLDER_EXPANDED_KEY)
+    const raw = workspacePreferenceStorage.getItem(FOLDER_EXPANDED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -175,7 +177,10 @@ export function loadFolderExpanded(): Record<number, boolean> {
 export function saveFolderExpanded(state: Record<number, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(FOLDER_EXPANDED_KEY, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(
+      FOLDER_EXPANDED_KEY,
+      JSON.stringify(state)
+    )
   } catch {
     /* ignore */
   }
@@ -184,12 +189,11 @@ export function saveFolderExpanded(state: Record<number, boolean>): void {
 /** Collapsed state of the sidebar's folder GROUPS, keyed by group id. Absent
  *  key = expanded, mirroring {@link loadFolderExpanded}: a freshly created group
  *  is open, and a group whose row is closed is the only thing persisted. Kept
- *  device-local (localStorage, not the DB) for the same reason folder collapse
- *  is — it is a view preference, not shared workspace state. */
+ *  host-owned alongside folder collapse state, shared by desktop and web. */
 export function loadFolderGroupExpanded(): Record<number, boolean> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = localStorage.getItem(FOLDER_GROUP_EXPANDED_KEY)
+    const raw = workspacePreferenceStorage.getItem(FOLDER_GROUP_EXPANDED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -209,7 +213,10 @@ export function loadFolderGroupExpanded(): Record<number, boolean> {
 export function saveFolderGroupExpanded(state: Record<number, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(FOLDER_GROUP_EXPANDED_KEY, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(
+      FOLDER_GROUP_EXPANDED_KEY,
+      JSON.stringify(state)
+    )
   } catch {
     /* ignore */
   }
@@ -219,7 +226,7 @@ export function loadTodoGroupExpanded(): Record<string, boolean> {
   if (typeof window === "undefined") return {}
   try {
     const parsed = JSON.parse(
-      localStorage.getItem(TODO_GROUP_EXPANDED_KEY) ?? "{}"
+      workspacePreferenceStorage.getItem(TODO_GROUP_EXPANDED_KEY) ?? "{}"
     ) as unknown
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       return {}
@@ -234,7 +241,10 @@ export function loadTodoGroupExpanded(): Record<string, boolean> {
 export function saveTodoGroupExpanded(state: Record<string, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(TODO_GROUP_EXPANDED_KEY, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(
+      TODO_GROUP_EXPANDED_KEY,
+      JSON.stringify(state)
+    )
   } catch {
     /* ignore */
   }
@@ -247,7 +257,7 @@ export function saveTodoGroupExpanded(state: Record<string, boolean>): void {
 export function loadConversationExpanded(): number[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = localStorage.getItem(CONVERSATION_EXPANDED_KEY)
+    const raw = workspacePreferenceStorage.getItem(CONVERSATION_EXPANDED_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -264,7 +274,10 @@ export function loadConversationExpanded(): number[] {
 export function saveConversationExpanded(ids: number[]): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(CONVERSATION_EXPANDED_KEY, JSON.stringify(ids))
+    workspacePreferenceStorage.setItem(
+      CONVERSATION_EXPANDED_KEY,
+      JSON.stringify(ids)
+    )
   } catch {
     /* ignore */
   }
@@ -276,7 +289,7 @@ export function saveConversationExpanded(ids: number[]): void {
 export function loadShowCompleted(): boolean {
   if (typeof window === "undefined") return false
   try {
-    const raw = localStorage.getItem(SHOW_COMPLETED_KEY)
+    const raw = workspacePreferenceStorage.getItem(SHOW_COMPLETED_KEY)
     if (raw === "true") return true
     if (raw === "false") return false
   } catch {
@@ -288,7 +301,7 @@ export function loadShowCompleted(): boolean {
 export function saveShowCompleted(value: boolean): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SHOW_COMPLETED_KEY, String(value))
+    workspacePreferenceStorage.setItem(SHOW_COMPLETED_KEY, String(value))
   } catch {
     /* ignore */
   }
@@ -301,7 +314,7 @@ export function saveShowCompleted(value: boolean): void {
 export function loadShowWorktrees(): boolean {
   if (typeof window === "undefined") return true
   try {
-    const raw = localStorage.getItem(SHOW_WORKTREES_KEY)
+    const raw = workspacePreferenceStorage.getItem(SHOW_WORKTREES_KEY)
     if (raw === "false") return false
     if (raw === "true") return true
   } catch {
@@ -313,7 +326,7 @@ export function loadShowWorktrees(): boolean {
 export function saveShowWorktrees(value: boolean): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SHOW_WORKTREES_KEY, String(value))
+    workspacePreferenceStorage.setItem(SHOW_WORKTREES_KEY, String(value))
   } catch {
     /* ignore */
   }
@@ -327,7 +340,7 @@ export function saveShowWorktrees(value: boolean): void {
 export function loadShowRecent(): boolean {
   if (typeof window === "undefined") return true
   try {
-    const raw = localStorage.getItem(SHOW_RECENT_KEY)
+    const raw = workspacePreferenceStorage.getItem(SHOW_RECENT_KEY)
     if (raw === "false") return false
     if (raw === "true") return true
   } catch {
@@ -339,7 +352,7 @@ export function loadShowRecent(): boolean {
 export function saveShowRecent(value: boolean): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SHOW_RECENT_KEY, String(value))
+    workspacePreferenceStorage.setItem(SHOW_RECENT_KEY, String(value))
   } catch {
     /* ignore */
   }
@@ -349,7 +362,7 @@ export function saveShowRecent(value: boolean): void {
 export function loadShowTodos(): boolean {
   if (typeof window === "undefined") return true
   try {
-    return localStorage.getItem(SHOW_TODOS_KEY) !== "false"
+    return workspacePreferenceStorage.getItem(SHOW_TODOS_KEY) !== "false"
   } catch {
     return true
   }
@@ -358,7 +371,7 @@ export function loadShowTodos(): boolean {
 export function saveShowTodos(value: boolean): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SHOW_TODOS_KEY, String(value))
+    workspacePreferenceStorage.setItem(SHOW_TODOS_KEY, String(value))
   } catch {
     /* ignore */
   }
@@ -369,7 +382,7 @@ export function saveShowTodos(value: boolean): void {
 export function loadRecentFilter(): SidebarRecentFilter {
   if (typeof window === "undefined") return DEFAULT_RECENT_FILTER
   try {
-    const raw = localStorage.getItem(RECENT_FILTER_KEY)
+    const raw = workspacePreferenceStorage.getItem(RECENT_FILTER_KEY)
     if ((SIDEBAR_RECENT_FILTERS as readonly string[]).includes(raw ?? "")) {
       return raw as SidebarRecentFilter
     }
@@ -382,7 +395,7 @@ export function loadRecentFilter(): SidebarRecentFilter {
 export function saveRecentFilter(value: SidebarRecentFilter): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(RECENT_FILTER_KEY, value)
+    workspacePreferenceStorage.setItem(RECENT_FILTER_KEY, value)
   } catch {
     /* ignore */
   }
@@ -391,7 +404,7 @@ export function saveRecentFilter(value: SidebarRecentFilter): void {
 export function loadNavItemVisibility(): SidebarNavItemVisibility {
   if (typeof window === "undefined") return {}
   try {
-    const raw = localStorage.getItem(NAV_ITEMS_KEY)
+    const raw = workspacePreferenceStorage.getItem(NAV_ITEMS_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -411,7 +424,7 @@ export function loadNavItemVisibility(): SidebarNavItemVisibility {
 export function saveNavItemVisibility(state: SidebarNavItemVisibility): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(NAV_ITEMS_KEY, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(NAV_ITEMS_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -420,7 +433,7 @@ export function saveNavItemVisibility(state: SidebarNavItemVisibility): void {
 export function loadSortMode(): SidebarSortMode {
   if (typeof window === "undefined") return DEFAULT_SIDEBAR_SORT_MODE
   try {
-    const raw = localStorage.getItem(SORT_MODE_KEY)
+    const raw = workspacePreferenceStorage.getItem(SORT_MODE_KEY)
     if (raw === "updated" || raw === "created") return raw
   } catch {
     /* ignore */
@@ -431,7 +444,7 @@ export function loadSortMode(): SidebarSortMode {
 export function saveSortMode(value: SidebarSortMode): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SORT_MODE_KEY, value)
+    workspacePreferenceStorage.setItem(SORT_MODE_KEY, value)
   } catch {
     /* ignore */
   }
@@ -440,7 +453,7 @@ export function saveSortMode(value: SidebarSortMode): void {
 export function loadSectionOrder(): SidebarSectionOrder {
   if (typeof window === "undefined") return DEFAULT_SECTION_ORDER
   try {
-    const raw = localStorage.getItem(SECTION_ORDER_KEY)
+    const raw = workspacePreferenceStorage.getItem(SECTION_ORDER_KEY)
     if (!raw) return DEFAULT_SECTION_ORDER
     // Current format is a JSON array; the legacy pre-Recent format was a bare
     // `folders-first` / `chats-first` string, which is not valid JSON — fall
@@ -461,7 +474,7 @@ export function loadSectionOrder(): SidebarSectionOrder {
 export function saveSectionOrder(value: SidebarSectionOrder): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(value))
+    workspacePreferenceStorage.setItem(SECTION_ORDER_KEY, JSON.stringify(value))
   } catch {
     /* ignore */
   }
@@ -470,7 +483,7 @@ export function saveSectionOrder(value: SidebarSectionOrder): void {
 export function loadSectionCollapsed(): SidebarSectionCollapsed {
   if (typeof window === "undefined") return {}
   try {
-    const raw = localStorage.getItem(SECTION_COLLAPSED_KEY)
+    const raw = workspacePreferenceStorage.getItem(SECTION_COLLAPSED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -488,7 +501,10 @@ export function loadSectionCollapsed(): SidebarSectionCollapsed {
 export function saveSectionCollapsed(state: SidebarSectionCollapsed): void {
   if (typeof window === "undefined") return
   try {
-    localStorage.setItem(SECTION_COLLAPSED_KEY, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(
+      SECTION_COLLAPSED_KEY,
+      JSON.stringify(state)
+    )
   } catch {
     /* ignore */
   }

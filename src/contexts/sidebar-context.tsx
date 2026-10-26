@@ -1,5 +1,7 @@
 "use client"
 
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
+
 import {
   createContext,
   useCallback,
@@ -60,29 +62,53 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   const [width, setWidthState] = useState(DEFAULT_WIDTH)
   const [restored, setRestored] = useState(false)
 
-  const toggle = useCallback(() => setIsOpen((prev) => !prev), [])
-  const close = useCallback(() => setIsOpen(false), [])
+  const persistPanel = useCallback(
+    (patch: Partial<{ isOpen: boolean; width: number }>) => {
+      const stored = loadPersistedPanelState(storageKey)
+      savePersistedPanelState(storageKey, {
+        isOpen: stored?.isOpen ?? DEFAULT_IS_OPEN,
+        width: stored?.width ?? DEFAULT_WIDTH,
+        ...patch,
+      })
+    },
+    [storageKey]
+  )
 
-  const setWidth = useCallback((w: number) => {
-    setWidthState(clampWidth(w))
-  }, [])
+  const toggle = useCallback(() => {
+    setIsOpen((prev) => {
+      persistPanel({ isOpen: !prev })
+      return !prev
+    })
+  }, [persistPanel])
+  const close = useCallback(() => {
+    setIsOpen(false)
+    persistPanel({ isOpen: false })
+  }, [persistPanel])
+
+  const setWidth = useCallback(
+    (w: number) => {
+      setWidthState(clampWidth(w))
+      persistPanel({ width: clampWidth(w) })
+    },
+    [persistPanel]
+  )
 
   useEffect(() => {
-    const stored = loadPersistedPanelState(storageKey)
-    // On mobile (< 768px), always start closed regardless of persisted state.
-    const isMobileViewport = window.innerWidth < 768
-    const defaultOpen = isMobileViewport ? false : DEFAULT_IS_OPEN
-    // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsOpen(isMobileViewport ? false : (stored?.isOpen ?? defaultOpen))
-    setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH))
-    setRestored(true)
+    let initial = true
+    let lastOpen: boolean | undefined
+    return subscribeWorkspacePreferences(() => {
+      const stored = loadPersistedPanelState(storageKey)
+      const isMobileViewport = window.innerWidth < 768
+      const hostOpen = stored?.isOpen ?? DEFAULT_IS_OPEN
+      if (initial || lastOpen !== hostOpen) {
+        setIsOpen(initial && isMobileViewport ? false : hostOpen)
+      }
+      lastOpen = hostOpen
+      initial = false
+      setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH))
+      setRestored(true)
+    }, [storageKey])
   }, [storageKey])
-
-  useEffect(() => {
-    if (!restored) return
-    savePersistedPanelState(storageKey, { isOpen, width })
-  }, [isOpen, restored, storageKey, width])
 
   const value = useMemo(
     () => ({

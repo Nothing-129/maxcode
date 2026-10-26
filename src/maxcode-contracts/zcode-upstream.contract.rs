@@ -202,13 +202,16 @@ fn zcode_does_not_replay_the_mode_its_gate_applied() {
 }
 
 #[test]
-fn zcode_does_not_offer_unvalidated_attachments() {
+fn zcode_negotiates_images_and_resources_but_not_audio() {
     let advertised = agent_client_protocol::schema::v1::PromptCapabilities::default()
         .image(true)
         .audio(true)
         .embedded_context(true);
     let zcode = effective_prompt_capabilities(AgentType::Zcode, &advertised);
-    assert!(!zcode.image && !zcode.audio && !zcode.embedded_context);
+    assert!(zcode.image && zcode.embedded_context);
+    assert!(!zcode.audio);
+    let absent = effective_prompt_capabilities(AgentType::Zcode, &Default::default());
+    assert!(!absent.image && !absent.audio && !absent.embedded_context);
     let other = effective_prompt_capabilities(AgentType::KimiCode, &advertised);
     assert!(other.image && other.audio && other.embedded_context);
 }

@@ -1131,6 +1131,10 @@ export function isLiveTurnId(id: string): boolean {
   return id.startsWith(LIVE_TURN_ID_PREFIX)
 }
 
+// Tool call updates replace their info object; unchanged calls reuse the name
+// across streaming rebuilds without retaining completed calls.
+const inferredToolNames = new WeakMap<ToolCallInfo, string>()
+
 export function buildStreamingTurnsFromLiveMessage(
   conversationId: number,
   liveMessage: LiveMessage,
@@ -1187,11 +1191,10 @@ export function buildStreamingTurnsFromLiveMessage(
   // absent once its own tool call ended that run. Drives the rejoin above.
   const transcriptRun = new Map<string, "text" | "thinking">()
 
-  // Cache inferred tool names — inferLiveToolName is called per tool_call
-  // in both Phase 1 and Phase 2; caching avoids redundant computation.
-  const inferredNames = new Map<string, string>()
+  // Inferred tool names are cached per call info (see `inferredToolNames`):
+  // both phases below ask for every tool_call's name.
   const getToolName = (info: ToolCallInfo): string => {
-    const cached = inferredNames.get(info.tool_call_id)
+    const cached = inferredToolNames.get(info)
     if (cached !== undefined) return cached
     const name = inferLiveToolName({
       title: info.title,
@@ -1199,7 +1202,7 @@ export function buildStreamingTurnsFromLiveMessage(
       rawInput: info.raw_input,
       meta: info.meta,
     })
-    inferredNames.set(info.tool_call_id, name)
+    inferredToolNames.set(info, name)
     return name
   }
 

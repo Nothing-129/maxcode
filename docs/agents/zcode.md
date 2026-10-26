@@ -29,4 +29,14 @@ Manage stdio MCP servers through MaxCode's MCP settings and assign them to ZCode
 
 ## Current scope
 
-The first integration covers ACP conversations, permission requests, cancellation, MaxCode transcript history, and stdio MCP. Message-level fork is disabled while the bridge's fork response and checkpoint behavior are incompatible with MaxCode's typed flow. Native history import, a ZCode provider/configuration panel, HTTP MCP, attachments, native Goal/queue extensions and remote hub are outside this phase. Runtime validation with official ZCode has been performed on Windows, with bridge 0.69.2; macOS and Linux discovery paths still need platform testing.
+The first integration covers ACP conversations, permission requests, cancellation, MaxCode transcript history, and stdio MCP. Message-level fork is disabled while the bridge's fork response and checkpoint behavior are incompatible with MaxCode's typed flow. Native history import, a ZCode provider/configuration panel, HTTP MCP, audio attachments, native Goal/queue extensions and remote hub are outside this phase. Runtime validation with official ZCode has been performed on Windows, with bridge 0.69.2; macOS and Linux discovery paths still need platform testing.
+
+## Attachments and turn metrics
+
+Image and embedded-resource prompts follow the bridge's negotiated capabilities;
+audio remains disabled. ACP transcripts retain attachment payloads and suppress
+prompt echoes when reopened. Per-prompt billing uses the bridge's terminal reports,
+including canonical cache-read/write counters. Multiple busy windows contribute to
+one prompt's usage; only a single window can supply its native wall time, otherwise
+MaxCode measures the prompt duration. A local cancel records no premature turn end,
+so late text remains in the cancelled reply and late metrics cannot bill the next prompt.

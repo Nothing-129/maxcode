@@ -11,6 +11,39 @@ use crate::todo::conversation_sources as sources;
 use crate::web::event_bridge::emit_event;
 use crate::{app_error::AppCommandError, app_state::AppState, todo};
 
+pub const ATTACHMENT_REQUEST_MAX_BYTES: usize =
+    todo::TODO_ATTACHMENT_MAX_BYTES + 1024 * 1024 + 64 * 1024;
+// Shared by desktop and public listeners; reject excess uploads before buffering.
+static ATTACHMENT_UPLOADS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
+
+async fn bounded_field(
+    mut field: axum::extract::multipart::Field<'_>,
+    limit: usize,
+) -> Result<Vec<u8>, AppCommandError> {
+    let mut bytes = Vec::new();
+    while let Some(chunk) = field
+        .chunk()
+        .await
+        .map_err(|_| AppCommandError::invalid_input("Invalid or oversized attachment upload"))?
+    {
+        if chunk.len() > limit.saturating_sub(bytes.len()) {
+            return Err(AppCommandError::invalid_input(
+                "Attachment field exceeds the upload limit",
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    Ok(bytes)
+}
+
+async fn bounded_text(
+    field: axum::extract::multipart::Field<'_>,
+    limit: usize,
+) -> Result<String, AppCommandError> {
+    String::from_utf8(bounded_field(field, limit).await?)
+        .map_err(|_| AppCommandError::invalid_input("Invalid attachment metadata encoding"))
+}
+
 fn no_store(value: impl serde::Serialize) -> Response {
     let mut response = Json(value).into_response();
     response.headers_mut().insert(
@@ -169,6 +202,17 @@ pub async fn todo_storage_config(
 }
 
 async fn read_attachment(
+    multipart: axum::extract::Multipart,
+) -> Result<(String, String, Vec<u8>, String, String), AppCommandError> {
+    tokio::time::timeout(
+        std::time::Duration::from_secs(120),
+        read_attachment_inner(multipart),
+    )
+    .await
+    .map_err(|_| AppCommandError::invalid_input("Attachment upload timed out"))?
+}
+
+async fn read_attachment_inner(
     mut multipart: axum::extract::Multipart,
 ) -> Result<(String, String, Vec<u8>, String, String), AppCommandError> {
     let mut scope = String::new();
@@ -181,16 +225,10 @@ async fn read_attachment(
     {
         match field.name() {
             Some("scope_id") => {
-                scope = field
-                    .text()
-                    .await
-                    .map_err(|_| AppCommandError::invalid_input("Invalid scope"))?
+                scope = bounded_text(field, 80).await?;
             }
             Some("content") => {
-                content = field
-                    .text()
-                    .await
-                    .map_err(|_| AppCommandError::invalid_input("Invalid content"))?
+                content = bounded_text(field, 1024 * 1024).await?;
             }
             Some("file") => {
                 if file.is_some() {
@@ -201,17 +239,10 @@ async fn read_attachment(
                     .content_type()
                     .unwrap_or("application/octet-stream")
                     .to_string();
-                let bytes = field.bytes().await.map_err(|_| {
-                    AppCommandError::invalid_input("Attachment exceeds the upload limit")
-                })?;
-                file = Some((name, mime, bytes.to_vec()));
+                let bytes = bounded_field(field, todo::TODO_ATTACHMENT_MAX_BYTES).await?;
+                file = Some((name, mime, bytes));
             }
             _ => return Err(AppCommandError::invalid_input("Unknown attachment field")),
-        }
-        if scope.len() > 80 || content.len() > 1024 * 1024 {
-            return Err(AppCommandError::invalid_input(
-                "Attachment metadata is too large",
-            ));
         }
     }
     let (name, mime, bytes) =
@@ -222,6 +253,9 @@ pub async fn todo_attachment_upload(
     Extension(state): Extension<Arc<AppState>>,
     multipart: axum::extract::Multipart,
 ) -> Result<Response, AppCommandError> {
+    let _permit = ATTACHMENT_UPLOADS.try_acquire().map_err(|_| {
+        AppCommandError::invalid_input("Too many attachment uploads; retry shortly")
+    })?;
     let (name, mime, bytes, scope, content) = read_attachment(multipart).await?;
     Ok(no_store(
         todo::storage::upload_local(&state.db.conn, &scope, name, mime, bytes, &content).await?,
@@ -238,6 +272,9 @@ pub async fn team_todo_attachment_upload(
         .and_then(|v| v.to_str().ok())
         .unwrap_or_default();
     let scope = todo::storage::member_scope(&state.db.conn, token).await?;
+    let _permit = ATTACHMENT_UPLOADS.try_acquire().map_err(|_| {
+        AppCommandError::invalid_input("Too many attachment uploads; retry shortly")
+    })?;
     let (name, mime, bytes, _, content) = read_attachment(multipart).await?;
     Ok(no_store(
         todo::storage::upload_host(&state.db.conn, &scope, name, mime, bytes, &content).await?,
@@ -340,3 +377,7 @@ pub async fn team_todo_create(
     emit_event(&state.emitter, "todos://changed", serde_json::json!({}));
     Ok(no_store(result))
 }
+
+#[cfg(test)]
+#[path = "../../../../src/maxcode-contracts/todo-upload-bounds.contract.rs"]
+mod upload_contract;

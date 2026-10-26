@@ -1598,6 +1598,7 @@ async fn record_turn_end(
     stop_reason: &str,
     started_at_ms: u64,
     model: Option<String>,
+    metrics: Option<&crate::acp::zcode_turn::TurnMetrics>,
 ) {
     let Some(dir) = transcript_dir_for(agent_type) else {
         return;
@@ -1607,6 +1608,9 @@ async fn record_turn_end(
         "stopReason": stop_reason,
         "durationMs": now.saturating_sub(started_at_ms),
     });
+    if let Some(metrics) = metrics {
+        metrics.apply_to(&mut payload);
+    }
     // ACP puts no model on the prompt response, so the session's model selector
     // is the only honest answer at turn end — and it is the same value the
     // composer showed while the turn ran. Recorded per turn rather than once in
@@ -4920,11 +4924,9 @@ fn effective_prompt_capabilities(
     capabilities: &agent_client_protocol::schema::v1::PromptCapabilities,
 ) -> PromptCapabilitiesInfo {
     PromptCapabilitiesInfo {
-        // ZCode attachments are outside the validated first integration.
-        image: agent_type != AgentType::Zcode
-            && (capabilities.image || agent_type == AgentType::Grok),
+        image: capabilities.image || agent_type == AgentType::Grok,
         audio: agent_type != AgentType::Zcode && capabilities.audio,
-        embedded_context: agent_type != AgentType::Zcode && capabilities.embedded_context,
+        embedded_context: capabilities.embedded_context,
     }
 }
 
@@ -9852,7 +9854,7 @@ fn normalize_grok_image_blocks(blocks: Vec<PromptInputBlock>) -> Vec<PromptInput
         .collect()
 }
 
-fn map_prompt_blocks(blocks: Vec<PromptInputBlock>) -> Vec<ContentBlock> {
+pub(crate) fn map_prompt_blocks(blocks: Vec<PromptInputBlock>) -> Vec<ContentBlock> {
     blocks
         .into_iter()
         .map(|block| match block {
@@ -11089,6 +11091,9 @@ async fn run_conversation_loop(
     // loop ends while `read_update` holds `session`. A fork restarts this loop
     // with the new session, so it cannot go stale in here.
     let agent_turn_session_id = session.session_id().0.to_string();
+    // ZCode cancellation tails arrive on the idle loop. Do not record startup
+    // banners or load replay before this connection has sent its first prompt.
+    let mut prompted = false;
     loop {
         // Wait for either a user command or a session update (e.g. available_commands_update)
         let cmd = loop {
@@ -11152,6 +11157,11 @@ async fn run_conversation_loop(
                                         drift.extend(
                                             take_asserted_config_drift(&st, &update.config_options).await,
                                         );
+                                    }
+                                    // Preserve ZCode's cancelled tail in its ACP history.
+                                    // Other agents retain their existing idle-recording policy.
+                                    if prompted && agent_type == AgentType::Zcode {
+                                        record_transcript_update(agent_type, &notif.session_id.0, &notif.update);
                                     }
                                     emit_conversation_update(&st, &h, agent_type, notif.update, cwd_opt, &mut raw_output_cache, &mut cb_state).await;
                                     Ok(())
@@ -11344,6 +11354,7 @@ async fn run_conversation_loop(
                 // instantly — and awaited, so the replay gate can never see
                 // this conversation as transcript-less (see `record_prompt`).
                 record_prompt(agent_type, &sid.0, &prompt_blocks).await;
+                prompted = true;
                 // claude-agent-acp answers a `/remote-control` prompt itself;
                 // its reply says whether Remote Control is on.
                 cb_state.claude_remote_control = remote_control_command(agent_type, &prompt_blocks);
@@ -11378,6 +11389,7 @@ async fn run_conversation_loop(
                 // of a confusing `PendingReview` on a blank conversation — and
                 // the probe's other fields say *why* it looked empty.
                 let mut probe = TurnOutputProbe::new(stderr_mark);
+                let mut zcode_turn = crate::acp::zcode_turn::TurnTracker::default();
                 // A CodeBuddy native sub-agent's full lifecycle (Agent tool call
                 // open → completed) happens within one turn, so reset the
                 // suppression window at each turn start. This bounds the tracking
@@ -11464,6 +11476,26 @@ async fn run_conversation_loop(
                             let runtime = terminal_runtime.clone();
                             let session_id = sid.clone();
                             let cwd_opt = Some(cwd);
+                            // ZCode's billing reports are per busy window,
+                            // unlike the standard context-occupancy
+                            // usage_update channel, and this prompt's windows
+                            // add up (see `zcode_turn`). Observe only this
+                            // prompt's drain: load replay and idle
+                            // notifications cannot seed the next turn.
+                            if agent_type == AgentType::Zcode {
+                                if let Dispatch::Notification(notification) = &dispatch {
+                                    if crate::acp::zcode_turn::is_turn_state_method(
+                                        notification.method(),
+                                    ) {
+                                        zcode_turn.observe(
+                                            notification.method(),
+                                            notification.params(),
+                                            &sid.0,
+                                        );
+                                        continue;
+                                    }
+                                }
+                            }
                             // grok reports `/compact` results on ext methods
                             // that bypass the typed pipeline below and emit a
                             // compaction card/error from `.otherwise`. Count
@@ -11724,6 +11756,7 @@ async fn run_conversation_loop(
                                         reason_str,
                                         turn_started_at_ms,
                                         current_session_model_id(state).await,
+                                        zcode_turn.metrics(),
                                     )
                                     .await;
                                     // Same wedge guard as the normal turn exit
@@ -11839,6 +11872,7 @@ async fn run_conversation_loop(
                                 reason_str,
                                 turn_started_at_ms,
                                 current_session_model_id(state).await,
+                                zcode_turn.metrics(),
                             )
                             .await;
                             // The turn is over, so any card still parked here
@@ -12122,6 +12156,16 @@ async fn run_conversation_loop(
                                         .release_all_for_session(sid.0.as_ref())
                                         .await;
                                     tracked_terminal_tool_calls.clear();
+                                    // No turn end is recorded here, for ZCode
+                                    // as for every agent whose history is
+                                    // codeg's transcript: the agent's last
+                                    // frames are still on their way and land
+                                    // on the idle loop, and a turn end ahead of
+                                    // them would make the history parser read
+                                    // them as a reply of their own. This
+                                    // prompt's `zcode_turn` goes with the
+                                    // drain, so a late report never bills the
+                                    // next prompt either.
                                     // Also cancel any pending permission requests
                                     // (queued ones included), clearing the card
                                     // that was on screen, and immediately emit
@@ -27661,6 +27705,91 @@ mod tests {
     }
 
     #[test]
+    fn grok_custom_model_effort_selector_follows_its_declared_levels() {
+        // #993, both `session/new` replies captured from grok 1.0.62 for a
+        // custom `[model."grok-4.7"]` whose endpoint lists no levels: before and
+        // after the settings panel wrote `reasoning_efforts = ["low", "medium",
+        // "high", "xhigh"]` (with `[models].default_reasoning_effort = "high"`).
+        let session = |custom_meta: serde_json::Value, effort_rows: serde_json::Value| {
+            let mut rows = vec![
+                serde_json::json!({"id": "grok-4.5", "category": "model", "label": "Grok 4.5", "selected": false}),
+                serde_json::json!({"id": "grok-4.7", "category": "model", "label": "Grok 4.7 (custom endpoint)", "selected": true}),
+            ];
+            rows.extend(effort_rows.as_array().cloned().unwrap_or_default());
+            let meta: serde_json::Map<String, serde_json::Value> = serde_json::from_value(
+                serde_json::json!({"x.ai/sessionConfig": {"options": rows}}),
+            )
+            .unwrap();
+            let models = serde_json::json!({
+                "currentModelId": "grok-4.7",
+                "availableModels": [{
+                    "modelId": "grok-4.7",
+                    "name": "Grok 4.7 (custom endpoint)",
+                    "_meta": custom_meta
+                }]
+            });
+            synthesize_grok_config_options(Some(&meta), &parse_grok_model_specs(Some(&models)))
+                .expect("synthesize")
+        };
+
+        let before = session(
+            serde_json::json!({"totalContextTokens": 500000, "agentType": "grok-build-plan"}),
+            serde_json::json!([]),
+        );
+        assert!(
+            before.iter().all(|o| o.id != GROK_EFFORT_OPTION_ID),
+            "no declared levels ⇒ no effort selector"
+        );
+
+        let level = |id: &str, label: &str| -> serde_json::Value {
+            serde_json::json!({"id": id, "value": id, "label": label, "description": null})
+        };
+        let after = session(
+            serde_json::json!({
+                "totalContextTokens": 500000,
+                "agentType": "grok-build-plan",
+                "supportsReasoningEffort": true,
+                "reasoningEffort": "high",
+                "reasoningEfforts": [
+                    level("low", "Low"),
+                    level("medium", "Medium"),
+                    level("high", "High"),
+                    level("xhigh", "X-High")
+                ]
+            }),
+            serde_json::json!([
+                {"id": "low", "category": "mode", "label": "Low", "selected": false},
+                {"id": "medium", "category": "mode", "label": "Medium", "selected": false},
+                {"id": "high", "category": "mode", "label": "High", "selected": true},
+                {"id": "xhigh", "category": "mode", "label": "X-High", "selected": false}
+            ]),
+        );
+        let effort = after
+            .iter()
+            .find(|o| o.id == GROK_EFFORT_OPTION_ID)
+            .expect("declared levels ⇒ an effort selector");
+        let sel = expect_select(&effort.kind);
+        assert_eq!(sel.current_value, "high");
+        let rows: Vec<(&str, &str)> = sel
+            .options
+            .iter()
+            .map(|o| (o.value.as_str(), o.name.as_str()))
+            .collect();
+        assert_eq!(
+            rows,
+            [
+                ("low", "Low"),
+                ("medium", "Medium"),
+                ("high", "High"),
+                ("xhigh", "Max")
+            ]
+        );
+        // Grok sends `description: null` for declared levels; every row still
+        // gets the canonical sub-text.
+        assert!(sel.options.iter().all(|o| o.description.is_some()));
+    }
+
+    #[test]
     fn synthesize_grok_config_options_model_reactive_effort_for_4_5() {
         // Flat sessionConfig marks grok-4.5 current; per-model specs drive effort.
         let meta: serde_json::Map<String, serde_json::Value> = serde_json::from_value(
@@ -32419,6 +32548,13 @@ mod tests {
     // Driven through `run_conversation_loop` over the real runtime and an
     // in-memory pipe. The scripted agent replays frames captured from grok
     // 1.0.41 running `/workflow <name>` against a two-phase, one-agent script.
+
+    mod maxcode_zcode_turn_metrics_contract {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../src/maxcode-contracts/zcode-turn-metrics.contract.rs"
+        ));
+    }
 
     /// One scripted Grok frame: JSON-RPC method + params.
     type GrokFrame = (&'static str, serde_json::Value);

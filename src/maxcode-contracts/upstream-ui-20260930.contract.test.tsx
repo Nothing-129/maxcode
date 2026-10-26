@@ -238,3 +238,16 @@ describe("MaxCode contract: Recent filtering retains ten-item pagination", () =>
     expect(shownTitles()).toHaveLength(10)
   })
 })
+
+// View/parser tests use an in-memory storage adapter; host synchronization is
+// covered by workspace-preferences.contract.test.tsx.
+vi.mock("@/lib/workspace-preferences-store", () => ({
+  workspacePreferenceStorage: {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+  },
+  subscribeWorkspacePreferences: (listener: () => void) => {
+    listener()
+    return () => {}
+  },
+}))

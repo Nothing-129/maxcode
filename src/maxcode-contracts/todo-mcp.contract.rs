@@ -109,7 +109,7 @@ async fn patch_preserves_omitted_fields_and_conflicts_do_not_overwrite() {
     )
     .await
     .unwrap();
-    assert_eq!(complete["todo"]["status"], "completed");
+    assert_eq!(complete["todo"]["status"], "pending_verification");
     assert!(complete["todo"]["completed_at"].is_string());
     let reopened = call(
         &db.conn,

@@ -1,0 +1,48 @@
+name: Dependency security
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  javascript:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      # Audit dev dependencies too: Electron is a devDependency but ships to users.
+      - run: pnpm audit --audit-level=moderate
+
+  rust:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-0.22.2-${{ runner.os }}
+      - name: Install auditor
+        run: command -v cargo-audit || cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit Rust lockfile
+        run: |
+          git clone --depth 1 https://github.com/RustSec/advisory-db.git "$RUNNER_TEMP/advisory-db"
+          node scripts/audit-rust.mjs --db "$RUNNER_TEMP/advisory-db" --no-fetch

@@ -3642,7 +3642,7 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   background: var(--secondary);
 }
 [data-settings-surface] [data-slot="switch"][data-state="checked"] {
-  background: #3080ff;
+  background: var(--primary);
 }
 [data-settings-surface] [data-slot="switch-thumb"] {
   background: white;
@@ -3709,7 +3709,9 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   scroll-margin-block: 1rem;
 }
 
-/* Todo surfaces include portalled dialogs and menus so their actions stay blue. */
+/* Share Todo's blue actions across the default workspace, including portals.
+   Keep explicit color presets intact; Todo retains its local blue palette. */
+:root:is([data-theme="neutral"], :not([data-theme])),
 .todo-theme {
   --primary: #216ae4;
   --primary-foreground: #ffffff;
@@ -3717,4 +3719,11 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   --secondary: color-mix(in srgb, #216ae4 12%, var(--background));
   --secondary-foreground: #216ae4;
   --accent: color-mix(in srgb, #216ae4 12%, var(--background));
+}
+
+:root:is([data-theme="neutral"], :not([data-theme])) {
+  --sidebar-primary: #216ae4;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-ring: #216ae4;
+  --sidebar-accent: color-mix(in srgb, #216ae4 12%, var(--sidebar));
 }

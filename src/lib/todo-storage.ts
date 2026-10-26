@@ -36,6 +36,9 @@ export async function uploadTodoFile(
   file: File,
   content: string
 ): Promise<TodoUploadedFile> {
+  if (file.size > TODO_ATTACHMENT_MAX_BYTES) {
+    throw new Error("Attachment exceeds the 100 MB upload limit")
+  }
   const form = new FormData()
   form.append("scope_id", scopeId)
   form.append("content", content)

@@ -1,5 +1,7 @@
 "use client"
 
+import { workspacePreferenceStorage } from "@/lib/workspace-preferences-store"
+
 export interface PersistedPanelState {
   isOpen: boolean
   width: number
@@ -11,7 +13,7 @@ export function loadPersistedPanelState(
   if (typeof window === "undefined") return null
 
   try {
-    const raw = localStorage.getItem(storageKey)
+    const raw = workspacePreferenceStorage.getItem(storageKey)
     if (!raw) return null
     const parsed = JSON.parse(raw) as Partial<PersistedPanelState>
     if (typeof parsed.isOpen !== "boolean") return null
@@ -31,7 +33,7 @@ export function savePersistedPanelState(
   if (typeof window === "undefined") return
 
   try {
-    localStorage.setItem(storageKey, JSON.stringify(state))
+    workspacePreferenceStorage.setItem(storageKey, JSON.stringify(state))
   } catch {
     /* ignore */
   }

@@ -2,6 +2,27 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "workspace.host-owned-view-preferences",
+      "category": "product",
+      "origins": ["worktree-2026-10-26"],
+      "description": "Sidebar navigation visibility, section order, sort/filter/collapse state and panel geometry are persisted per key on the host and shared live by Electron and web. Only Electron seeds legacy localStorage with insert-only migration. Web legacy values never override host settings; mobile closed panels never overwrite desktop preferences.",
+      "paths": [
+        "src/lib/workspace-preferences-store.ts",
+        "src/lib/sidebar-view-mode-storage.ts",
+        "src/lib/panel-state-storage.ts",
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/contexts/sidebar-context.tsx",
+        "src/contexts/aux-panel-context.tsx",
+        "src-tauri/src/commands/workspace_preferences.rs",
+        "src-tauri/src/web/handlers/ui_preferences.rs",
+        "src-tauri/src/web/router.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/workspace-preferences.contract.test.tsx"
+      ]
+    },
+    {
       "id": "agents.reviewed-updates-20261026",
       "category": "runtime",
       "description": "Claude ACP 0.94.0, Grok 1.0.62, Antigravity 1.4.1 and ZCode 0.76.2 with cancelled-turn reports, interim background results, prompt suggestions, Remote Control and fork accounting. Preserve MaxCode seven-agent catalog, managed install priority, grouped idle eviction and hidden background strip. Fork accounting rebuilds facts under a downstream schema marker.",
@@ -30,6 +51,115 @@
       "contracts": [
         "src/maxcode-contracts/agent-updates-20261026.contract.test.ts"
       ]
+    },
+    {
+      "id": "mobile.conversation-sidebar-swipe",
+      "category": "product",
+      "description": "Mobile conversation right swipes open the sidebar while preserving vertical scrolling, text editing, selection and horizontal content scrolling.",
+      "origins": ["worktree-2026-10-26"],
+      "paths": [
+        "src/app/workspace/layout.tsx",
+        "src/hooks/use-conversation-sidebar-swipe.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-sidebar-swipe.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "todos.production-verification",
+      "category": "product",
+      "description": "Completing a todo queues production verification; explicit verification or the sidebar direct-completion action archives it. Sidebar inline muted icon-and-text labels without colored backgrounds show processing, pending verification and completed, with direct status actions preserving assignees. Personal, team and linked conversation actions preserve this lifecycle.",
+      "origins": ["worktree-2026-10-26"],
+      "paths": [
+        "src/components/todos/",
+        "src/lib/todos.ts",
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src-tauri/src/todo/",
+        "src-tauri/src/db/migration/m20261026_000001_todo_verification.rs",
+        "src/maxcode-contracts/todo-verification.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx",
+        "src/maxcode-contracts/todo-verification.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.activity-summary-no-divider",
+      "category": "product",
+      "description": "Completed activity summaries use a compact text disclosure with a chevron, without a trailing horizontal divider.",
+      "origins": ["worktree-2026-10-26"],
+      "paths": ["src/components/message/content-parts-renderer.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/activity-summary-style.contract.test.ts"
+      ]
+    },
+    {
+      "id": "security.upload-and-browser-boundaries",
+      "category": "runtime",
+      "description": "Todo uploads enforce bounded fields and total bodies, a shared concurrency cap and read timeout before MinIO transfer; browser pages enforce CSP and preview isolation independently of Electron.",
+      "origins": ["worktree-2026-10-25"],
+      "paths": [
+        "src-tauri/src/web/handlers/todo.rs",
+        "src-tauri/src/web/router.rs",
+        "src-tauri/src/web/security_headers.rs",
+        "src-tauri/src/web/mod.rs",
+        "src-tauri/src/todo/mod.rs",
+        "src-tauri/src/todo/storage.rs",
+        "src/maxcode-contracts/todo-upload-bounds.contract.rs",
+        "src/maxcode-contracts/server-security-headers.contract.rs",
+        "src/lib/todo-storage.ts",
+        "src/components/todos/todo-editor-dialog.tsx",
+        ".github/workflows/security.yml",
+        "scripts/audit-rust.mjs",
+        "src-tauri/Cargo.toml",
+        "src-tauri/Cargo.lock",
+        "package.json",
+        "pnpm-workspace.yaml",
+        "pnpm-lock.yaml"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/security-boundaries.contract.test.ts"
+      ]
+    },
+    {
+      "id": "workspace.shared-blue-actions",
+      "category": "product",
+      "description": "Default neutral light/dark workspace and root-inherited portals share Todo blue action, focus and selection colors while preserving canvas colors and explicit theme presets. Settings switches use the shared primary color.",
+      "origins": ["worktree-2026-10-25"],
+      "paths": ["src/app/globals.css"],
+      "contracts": [
+        "src/maxcode-contracts/workspace-blue-theme.contract.test.ts"
+      ]
+    },
+    {
+      "id": "maintenance.runtime-benchmark-baseline",
+      "category": "runtime",
+      "description": "CI runs runtime benchmarks in an isolated job and retains JSON results, console output and environment metadata for comparison. Codex TOML logic remains independently testable after extraction from the settings UI.",
+      "origins": ["worktree-2026-10-24"],
+      "paths": [
+        ".github/workflows/test.yml",
+        "vitest.bench.config.ts",
+        "benchmarks/conversation-runtime.bench.ts",
+        "src/components/settings/codex-config-toml.ts",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/acp/tests.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/runtime-benchmark-baseline.contract.test.ts"
+      ]
+    },
+    {
+      "id": "transport.delivery-resilience",
+      "category": "runtime",
+      "description": "HTTP deadlines include success and error response bodies. Individual WebSocket subscriber failures are logged without interrupting sibling subscribers. CI validates the upstream protection manifest alongside the full unit suite.",
+      "origins": ["worktree-2026-10-24"],
+      "paths": [
+        "src/lib/transport/web-transport.ts",
+        ".github/workflows/test.yml"
+      ],
+      "contracts": ["src/maxcode-contracts/transport-delivery.contract.test.ts"]
     },
     {
       "id": "workspace.mobile-download-retries",
@@ -353,7 +483,7 @@
     {
       "id": "agents.zcode-upstream-20261020",
       "category": "runtime",
-      "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization and default-disabled behavior, while keeping structured auto-titles through supports_dedicated_auto_title like the other maintained CLI agents. Electron and the seven-agent catalog remain the host boundaries.",
+      "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization and default-disabled behavior, while keeping structured auto-titles through supports_dedicated_auto_title like the other maintained CLI agents. Electron and the seven-agent catalog remain the host boundaries. Negotiated images and resources, canonical cache usage, summed busy windows per prompt, and cancellation tails stay in one reply without billing another prompt.",
       "origins": [
         "610b2a36d",
         "67d257faf",
@@ -362,7 +492,13 @@
         "1517ac94e",
         "d08c488a1",
         "55ed789f6",
-        "worktree-2026-10-20"
+        "worktree-2026-10-20",
+        "e3e8b9340",
+        "79279a6bf",
+        "899a77dfd",
+        "546605db5",
+        "a6f30fae5",
+        "ace77d678"
       ],
       "paths": [
         "src-tauri/src/acp/zcode.rs",
@@ -380,7 +516,9 @@
         "src/components/settings/acp-agent-settings.tsx",
         "src/components/agent-icon.tsx",
         "docs/agents/zcode.md",
-        "src/maxcode-contracts/zcode-upstream.contract.rs"
+        "src/maxcode-contracts/zcode-upstream.contract.rs",
+        "src-tauri/src/acp/zcode_turn.rs",
+        "src/maxcode-contracts/zcode-turn-metrics.contract.rs"
       ],
       "contracts": ["src/maxcode-contracts/zcode-upstream.contract.test.ts"]
     },
@@ -853,7 +991,7 @@
     {
       "id": "todos.paste-attachments",
       "category": "product",
-      "description": "Todo bodies are Markdown with live preview. Pasted or selected files upload first and insert URL Markdown at the cursor; new payloads never embed base64. Creator-only MinIO settings keep credentials on the host, members upload via scoped capability tokens, team files use permanent readable object URLs, and personal files live on disk. A 100 MiB referenced-file aggregate limit applies only to personal local storage; team MinIO uploads have no application size cap. A startup migration deletes legacy embedded attachments while preserving todo text and Markdown URLs; legacy writes are rejected.",
+      "description": "Todo bodies are Markdown with live preview. Pasted or selected files upload first and insert URL Markdown at the cursor; new payloads never embed base64. Creator-only MinIO settings keep credentials on the host, members upload via scoped capability tokens, team files use permanent readable object URLs, and personal files live on disk. A 100 MiB referenced-file aggregate limit applies only to personal local storage; team MinIO uploads have a 100 MiB per-file cap without a per-task aggregate cap. A startup migration deletes legacy embedded attachments while preserving todo text and Markdown URLs; legacy writes are rejected.",
       "origins": ["worktree-2026-10-15"],
       "paths": [
         "src/maxcode-contracts/todo-attachments.contract.rs",
@@ -1037,6 +1175,7 @@
         "src/lib/message-input-draft.ts"
       ],
       "contracts": [
+        "src/maxcode-contracts/todo-card-action-order.contract.test.tsx",
         "src/maxcode-contracts/todo-conversation-origin.contract.test.tsx",
         "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx",
         "src/maxcode-contracts/todo-conversation-links.contract.test.tsx",
@@ -4186,6 +4325,48 @@
       ],
       "contracts": [
         "src/maxcode-contracts/todo-folder-picker.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "runtime.streaming-parse-cache-20261026",
+      "category": "runtime",
+      "description": "Cache unchanged streaming tool names and skip irrelevant background output parsing while preserving MaxCode tool outcomes and maintained-agent scope.",
+      "origins": ["433d67706", "d968412b0"],
+      "paths": [
+        "src/lib/background-task.ts",
+        "src/lib/tool-call-normalization.ts",
+        "src/lib/adapters/ai-elements-adapter.ts",
+        "src/stores/conversation-runtime-store.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/streaming-tool-parse-cache.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.streaming-scroll-interaction",
+      "category": "product",
+      "description": "Keep message controls clickable while the current virtualized transcript scrolls, retaining MaxCode layout and bottom-follow policy.",
+      "origins": ["c83aab6c7"],
+      "paths": ["src/components/message/virtualized-message-thread.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/streaming-scroll-interaction.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "agents.grok-reasoning-levels",
+      "category": "runtime",
+      "description": "Grok custom models expose declared reasoning levels; untouched raw TOML and custom level metadata survive save and rename.",
+      "origins": ["7b372f960"],
+      "paths": [
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/acp/types.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src/components/settings/acp-agent-settings.tsx",
+        "src/lib/types.ts",
+        "src/maxcode-contracts/grok-reasoning-levels.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/grok-reasoning-levels.contract.test.tsx"
       ]
     }
   ],

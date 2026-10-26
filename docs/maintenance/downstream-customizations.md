@@ -2,6 +2,10 @@
 
 2026-10-26 智能体同步：Claude ACP 0.94.0、Grok 1.0.62、Antigravity 1.4.1、ZCode ACP 0.76.2。同步取消后工具状态、后台中间结果、预测提示、Remote Control 与 fork 子智能体计费修复；保留七智能体目录、托管安装优先级、分组空闲回收及隐藏后台任务条。契约：`agent-updates-20261026.contract.test.ts`、`claude-fork-accounting.contract.rs`。
 
+2026-10-25 依赖安全：CI 在推送、PR 和每周定时扫描前端全部依赖及 Rust 锁文件。`scripts/audit-rust.mjs` 仅在全平台、全 feature 的依赖树均不含 RSA 时，豁免 SQLx 可选 MySQL 锁文件依赖的 `RUSTSEC-2023-0071`（无修复版本）；一旦 RSA 变为可达依赖，CI 必须失败。已知不健全依赖同样阻断 CI，停止维护告警继续显示。
+
+2026-10-25 安全边界：待办附件上传（含 MinIO）限制单文件 100 MiB、元数据大小、请求总量、并发数及读取时间；服务器页面添加 CSP、防嵌入及无引用来源响应头，Office 预览在直接打开时仍强制沙箱。契约：`todo-upload-bounds.contract.rs`、`server-security-headers.contract.rs`。
+
 2026-10-23 手机工作区下载：票据在原有 60 秒有效期内允许 HEAD 探测和重复 GET，兼容浏览器向系统下载器交接；备份仍使用一次性票据。契约：`mobile-download-retries.contract.test.ts`。
 
 2026-10-23 回复操作栏移除模型信息和 Token 统计图标，保留消息操作、完成时间及跳回提问功能。契约：`reply-actions-no-metadata.contract.test.tsx`；热点：`chat.reply-actions-no-metadata`。
@@ -365,3 +369,27 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 
 2026-10-20 待办 MCP（`todos.mcp-operations`）：`codeg-mcp` 新增独立 `todos` 工具组，MaxCode 管理且支持 MCP 的会话默认注入，不依赖多智能体委托或执行任务创建开关。提供范围列表、分页搜索、详情、创建、部分更新、领取、释放、完成、重开、删除及关联/取消关联当前会话。创建及搜索未指定范围时沿用当前个人/团队选择，显式范围覆盖但不改变界面选中项；创建必须携带 UUID `operation_id`，重试复用同一值；编辑和状态变更使用当前 `revision` 防止覆盖他人更新。远程团队通过成员凭据和新增 `team_todo_create` 接口创建，宿主需要升级到支持该接口的版本。会话 ID 仅由启动令牌解析。“把当前对话添加到待办”使用 `create_todo_from_conversation`，复用界面分享流程生成净化快照与 `source_url`，不导出原生 Codex 会话；`link_todo_to_conversation` 仅供显式本地关联，不可替代对话分享。团队缺失、离线或分享地址未配置时报错，不回退到个人或普通待办。待办变更通知可见看板刷新，保留五秒轮询恢复机制。新增工具需重启已有智能体会话并使用更新后的后端和 `codeg-mcp` 二进制。契约：`todo-mcp.contract.rs`、`todo-mcp.contract.test.tsx`。
+
+
+## 2026-10-26 选择性上游吸收
+
+评审和滚动复现记录见 [upstream-review-20261026.md](./upstream-review-20261026.md)。
+流式解析使用有界/弱引用缓存，保留现有消息语义；Grok 自定义模型可配置思考
+等级且保留手写配置；ZCode 支持协商图片/资源、按提示累计统计和取消尾部保留。
+滚动仅移植已复现的点击失效修复，不替换聊天时间线和底部定位策略。
+保护项：`runtime.streaming-parse-cache-20261026`、`chat.streaming-scroll-interaction`、
+`agents.grok-reasoning-levels`、`agents.zcode-upstream-20261020`。
+
+
+### 宿主统一侧栏偏好
+
+侧栏导航入口显隐、分区顺序、会话排序和筛选、各组展开状态、左右侧栏宽度及开关，
+由 `workspace-preferences-store.ts` 统一读写宿主 `app_metadata`。
+桌面端和连接同一后端的 Web 客户端共享这份设置，通过
+`workspace-preferences://changed` 广播和重连补拉保持同步。
+每个设置独立保存，不用整份旧快照覆盖其他客户端的修改。
+
+首次升级仅 Electron 将旧 `localStorage` 设置按键迁移，使用原子仅插入操作，
+已有后端值优先；成功后清理对应旧键，失败保留以便重试。
+Web 不导入浏览器旧值。手机首次打开时临时收起侧栏，不将该默认行为回写宿主。
+此设置属于宿主工作区，连接同一后端的客户端共享，并非按浏览器或账号隔离。

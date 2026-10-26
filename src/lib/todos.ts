@@ -5,7 +5,11 @@ export type TodoMode = "personal" | "team"
 export type TodoPriority = "low" | "normal" | "high" | "urgent"
 export type TodoScheduleFilter = "all" | "today" | "overdue" | "urgent"
 
-export type TodoStatus = "unclaimed" | "claimed" | "completed"
+export type TodoStatus =
+  | "unclaimed"
+  | "claimed"
+  | "pending_verification"
+  | "completed"
 
 export interface TodoMember {
   id: string
@@ -91,6 +95,9 @@ export interface TodoOriginRequest {
     | "update"
     | "claim"
     | "release"
+    | "finish"
+    | "resume"
+    | "verify"
     | "complete"
     | "reopen"
     | "delete"
@@ -186,7 +193,15 @@ type TodoAction =
       revision: number
     }
   | {
-      action: "delete" | "claim" | "release" | "complete" | "reopen"
+      action:
+        | "delete"
+        | "claim"
+        | "release"
+        | "finish"
+        | "resume"
+        | "verify"
+        | "complete"
+        | "reopen"
       id: string
       revision: number
     }

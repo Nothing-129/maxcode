@@ -271,7 +271,7 @@ async fn claims_and_all_mutations_require_current_revision() {
     let done = member_call(
         &db.conn,
         TeamMemberRequest {
-            token: member.member_token,
+            token: member.member_token.clone(),
             request: TodoRequest {
                 action: "complete".to_string(),
                 id: Some(task.id.clone()),
@@ -282,8 +282,24 @@ async fn claims_and_all_mutations_require_current_revision() {
     )
     .await
     .unwrap();
-    assert_eq!(done.todos[0].status, "completed");
+    assert_eq!(done.todos[0].status, "pending_verification");
     assert_eq!(done.todos[0].revision, 3);
+    let verified = member_call(
+        &db.conn,
+        TeamMemberRequest {
+            token: member.member_token,
+            request: TodoRequest {
+                action: "verify".into(),
+                id: Some(task.id.clone()),
+                revision: Some(3),
+                ..Default::default()
+            },
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(verified.todos[0].status, "completed");
+    assert_eq!(verified.todos[0].revision, 4);
     assert!(call(
         &db.conn,
         TodoRequest {
@@ -637,7 +653,7 @@ async fn editing_without_a_title_generates_one_and_preserves_status_and_share() 
     .todos
     .remove(0);
     assert_eq!(edited.title, "Edited personal title");
-    assert_eq!(edited.status, "completed");
+    assert_eq!(edited.status, "pending_verification");
     assert_eq!(edited.source_url.as_deref(), Some(source));
     assert_eq!(edited.revision, 3);
 
@@ -911,6 +927,19 @@ async fn completed_mutations_preserve_requested_page_and_clamp_empty_last_pages(
             action: "complete".to_string(),
             id: Some("personal-completed-001".to_string()),
             revision: Some(2),
+            completed_page: Some(2),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(completed.completed_pagination.total, 39);
+    let completed = call(
+        &db.conn,
+        TodoRequest {
+            action: "verify".into(),
+            id: Some("personal-completed-001".into()),
+            revision: Some(3),
             completed_page: Some(2),
             ..Default::default()
         },

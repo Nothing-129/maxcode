@@ -522,7 +522,31 @@ function inferFromInput(
   return null
 }
 
+/**
+ * Names already normalized, by the name they came with. The same few names
+ * pass through here over and over — every call of a streaming turn, on every
+ * token — and each pass is a run of regular expressions. Short names only: a
+ * live call's title can hold a whole command.
+ */
+const normalizedNames = new Map<string, string>()
+const NORMALIZED_NAMES_MAX = 512
+const NORMALIZED_NAME_MAX_LENGTH = 160
+
 export function normalizeToolName(toolName: string): string {
+  if (toolName.length > NORMALIZED_NAME_MAX_LENGTH) {
+    return normalizeUncached(toolName)
+  }
+  const cached = normalizedNames.get(toolName)
+  if (cached !== undefined) return cached
+  const name = normalizeUncached(toolName)
+  if (normalizedNames.size >= NORMALIZED_NAMES_MAX) {
+    normalizedNames.delete(normalizedNames.keys().next().value!)
+  }
+  normalizedNames.set(toolName, name)
+  return name
+}
+
+function normalizeUncached(toolName: string): string {
   const raw = toolName.trim()
   const trimmed = raw
     .replace(/^[:：'"`“”‘’\s]+/, "")

@@ -232,11 +232,13 @@ export function TodoConversationLinkDialog({
                   (person) => person.id === todo.assignee_id
                 )
                 const status =
-                  todo.status === "completed"
-                    ? "colCompleted"
-                    : todo.status === "unclaimed"
-                      ? "colUnclaimed"
-                      : "colClaimed"
+                  todo.status === "pending_verification"
+                    ? "colPendingVerification"
+                    : todo.status === "completed"
+                      ? "colCompleted"
+                      : todo.status === "unclaimed"
+                        ? "colUnclaimed"
+                        : "colClaimed"
                 return (
                   <div
                     key={todo.id}

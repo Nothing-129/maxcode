@@ -55,6 +55,7 @@ mod m20261016_000001_todo_attachment;
 mod m20261016_000002_remove_embedded_todo_attachments;
 mod m20261016_000003_todo_completed_at;
 mod m20261018_000001_todo_codex_session;
+mod m20261026_000001_todo_verification;
 pub struct Migrator;
 
 #[async_trait::async_trait]
@@ -116,6 +117,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20261016_000002_remove_embedded_todo_attachments::Migration),
             Box::new(m20261016_000003_todo_completed_at::Migration),
             Box::new(m20261018_000001_todo_codex_session::Migration),
+            Box::new(m20261026_000001_todo_verification::Migration),
         ]
     }
 }

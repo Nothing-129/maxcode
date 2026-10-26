@@ -1,5 +1,7 @@
 "use client"
 
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
+
 import {
   createContext,
   useCallback,
@@ -76,47 +78,80 @@ export function AuxPanelProvider({ children }: AuxPanelProviderProps) {
   )
   const minWidth = MIN_WIDTH
 
-  const toggle = useCallback(() => setIsOpen((prev) => !prev), [])
+  const persistPanel = useCallback(
+    (patch: Partial<{ isOpen: boolean; width: number }>) => {
+      const stored = loadPersistedPanelState(storageKey)
+      savePersistedPanelState(storageKey, {
+        isOpen: stored?.isOpen ?? DEFAULT_IS_OPEN,
+        width: stored?.width ?? DEFAULT_WIDTH,
+        ...patch,
+      })
+    },
+    [storageKey]
+  )
 
-  const setOpen = useCallback((open: boolean) => setIsOpen(open), [])
+  const toggle = useCallback(() => {
+    setIsOpen((prev) => {
+      persistPanel({ isOpen: !prev })
+      return !prev
+    })
+  }, [persistPanel])
+
+  const setOpen = useCallback(
+    (open: boolean) => {
+      setIsOpen(open)
+      persistPanel({ isOpen: open })
+    },
+    [persistPanel]
+  )
 
   const setWidth = useCallback(
     (w: number) => {
       setWidthState(clampWidth(w, minWidth))
+      persistPanel({ width: clampWidth(w, minWidth) })
     },
-    [minWidth]
+    [minWidth, persistPanel]
   )
 
-  const openTab = useCallback((tab: AuxPanelTab) => {
-    setActiveTab(tab)
-    setIsOpen(true)
-  }, [])
+  const openTab = useCallback(
+    (tab: AuxPanelTab) => {
+      setActiveTab(tab)
+      setIsOpen(true)
+      persistPanel({ isOpen: true })
+    },
+    [persistPanel]
+  )
 
-  const revealInFileTree = useCallback((path: string) => {
-    setPendingRevealPath(path)
-    setActiveTab("file_tree")
-    setIsOpen(true)
-  }, [])
+  const revealInFileTree = useCallback(
+    (path: string) => {
+      setPendingRevealPath(path)
+      setActiveTab("file_tree")
+      setIsOpen(true)
+      persistPanel({ isOpen: true })
+    },
+    [persistPanel]
+  )
 
   const consumePendingRevealPath = useCallback(() => {
     setPendingRevealPath(null)
   }, [])
 
   useEffect(() => {
-    const stored = loadPersistedPanelState(storageKey)
-    const isMobileViewport = window.innerWidth < 768
-    const defaultOpen = isMobileViewport ? false : DEFAULT_IS_OPEN
-    // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setIsOpen(isMobileViewport ? false : (stored?.isOpen ?? defaultOpen))
-    setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH, minWidth))
-    setRestored(true)
+    let initial = true
+    let lastOpen: boolean | undefined
+    return subscribeWorkspacePreferences(() => {
+      const stored = loadPersistedPanelState(storageKey)
+      const isMobileViewport = window.innerWidth < 768
+      const hostOpen = stored?.isOpen ?? DEFAULT_IS_OPEN
+      if (initial || lastOpen !== hostOpen) {
+        setIsOpen(initial && isMobileViewport ? false : hostOpen)
+      }
+      lastOpen = hostOpen
+      initial = false
+      setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH, minWidth))
+      setRestored(true)
+    }, [storageKey])
   }, [storageKey, minWidth])
-
-  useEffect(() => {
-    if (!restored) return
-    savePersistedPanelState(storageKey, { isOpen, width })
-  }, [isOpen, restored, storageKey, width])
 
   // Reset pending reveal path when the active folder changes; file tree
   // state is content-driven by the workspace contexts and will refetch

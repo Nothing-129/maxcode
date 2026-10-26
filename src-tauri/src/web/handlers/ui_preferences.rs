@@ -34,3 +34,21 @@ pub async fn set_ui_preferences(
     let saved = set_ui_preferences_core(&state.db.conn, &state.emitter, params.settings).await?;
     Ok(Json(saved))
 }
+
+pub async fn get_workspace_preferences(
+    Extension(state): Extension<Arc<AppState>>,
+) -> Result<Json<std::collections::BTreeMap<String, String>>, AppCommandError> {
+    Ok(Json(
+        crate::commands::workspace_preferences::load(&state.db.conn).await?,
+    ))
+}
+
+pub async fn set_workspace_preference(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<crate::commands::workspace_preferences::Write>,
+) -> Result<Json<String>, AppCommandError> {
+    Ok(Json(
+        crate::commands::workspace_preferences::save(&state.db.conn, &state.emitter, params)
+            .await?,
+    ))
+}

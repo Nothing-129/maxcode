@@ -49,6 +49,7 @@ pub mod types;
 pub mod work_task_tools;
 pub mod zcode;
 mod zcode_model_catalog;
+pub mod zcode_turn;
 
 pub use idle_sweep::{idle_sweep_task, idle_timeout_from_env, SWEEP_INTERVAL_SECS};
 pub use internal_bus::{EventBusMetrics, EventBusMetricsSnapshot, InternalEventBus};

@@ -1705,9 +1705,19 @@ function stringProperty(
     : null
 }
 
+/** The key a goal's objective is written under, as it reads in JSON. */
+const OBJECTIVE_KEY = '"objective"'
+
 function goalObjectiveKeyFromTool(part: AdaptedToolCallPart): string | null {
-  const input = parseJsonRecord(part.input)
-  const output = parseJsonRecord(part.output ?? part.errorText)
+  // Every call of a turn passes through here on each update of a streaming
+  // turn: parse only what can name an objective at all.
+  const result = part.output ?? part.errorText
+  const input = part.input?.includes(OBJECTIVE_KEY)
+    ? parseJsonRecord(part.input)
+    : null
+  const output = result?.includes(OBJECTIVE_KEY)
+    ? parseJsonRecord(result)
+    : null
   const outputGoal = nestedRecord(output, "goal")
   const objective =
     stringProperty(outputGoal, "objective") ??

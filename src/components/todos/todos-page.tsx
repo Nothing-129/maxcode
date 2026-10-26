@@ -320,7 +320,7 @@ function TodosWorkspace({
 
   async function todoAction(todo: Todo, action: TodoStatusAction) {
     const success = await act({ action, id: todo.id, revision: todo.revision })
-    if (success && action === "complete") {
+    if (success && (action === "complete" || action === "verify")) {
       setDetailId((current) => (current === todo.id ? null : current))
     }
   }
@@ -591,7 +591,8 @@ function TodosWorkspace({
                     "h-3.5 w-0.5 rounded-full bg-muted-foreground/40",
                     column === "claimed" && "bg-primary",
                     column === "mine" && "bg-amber-500",
-                    column === "completed" && "bg-emerald-500"
+                    column === "completed" && "bg-emerald-500",
+                    column === "pending_verification" && "bg-amber-500"
                   )}
                 />
                 <h2 className="text-xs font-semibold">
@@ -732,18 +733,22 @@ function TodosWorkspace({
                     detail,
                     detail.status === "completed"
                       ? "reopen"
-                      : detail.status === "unclaimed"
-                        ? "claim"
-                        : "complete"
+                      : detail.status === "pending_verification"
+                        ? "verify"
+                        : detail.status === "unclaimed"
+                          ? "claim"
+                          : "complete"
                   )
                 }
               >
                 {t(
                   detail.status === "completed"
                     ? "reopen"
-                    : detail.status === "unclaimed"
-                      ? "claim"
-                      : "complete"
+                    : detail.status === "pending_verification"
+                      ? "verify"
+                      : detail.status === "unclaimed"
+                        ? "claim"
+                        : "complete"
                 )}
               </Button>
             </DialogFooter>

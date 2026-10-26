@@ -10,6 +10,7 @@ export default defineConfig({
     environment: "node",
     benchmark: {
       include: ["benchmarks/**/*.bench.ts"],
+      outputJson: "benchmark-results/runtime.json",
     },
   },
 })

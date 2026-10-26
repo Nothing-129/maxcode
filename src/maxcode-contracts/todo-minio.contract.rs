@@ -185,7 +185,13 @@ async fn aggregate_limit_counts_only_referenced_files_in_the_authorized_scope() 
     validate_content_size(&db.conn, "personal", "Removed the old file", 100)
         .await
         .unwrap();
-    validate_content_size(&db.conn, "team-b", content, TODO_ATTACHMENT_MAX_BYTES + 1)
+    assert!(
+        validate_content_size(&db.conn, "team-b", content, TODO_ATTACHMENT_MAX_BYTES + 1)
+            .await
+            .is_err()
+    );
+    // Team tasks can reference multiple files, but each upload is bounded.
+    validate_content_size(&db.conn, "team-b", content, TODO_ATTACHMENT_MAX_BYTES)
         .await
         .unwrap();
     let result = call(

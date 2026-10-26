@@ -1,5 +1,7 @@
 "use client"
 
+import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
+
 import {
   memo,
   useCallback,
@@ -1318,14 +1320,17 @@ export function SidebarConversationList({
   const reorderingRef = useRef(false)
 
   useEffect(() => {
-    // Hydrate from localStorage after mount to keep SSR/CSR markup consistent.
+    const restore = () => {
+      // Host preferences hydrate asynchronously and update across clients.
 
-    setFolderExpanded(loadFolderExpanded())
-    setFolderGroupExpanded(loadFolderGroupExpanded())
-    setTodoGroupExpanded(loadTodoGroupExpanded())
-    setSectionCollapsed(loadSectionCollapsed())
-    setRecentFilter(loadRecentFilter())
-    setConversationExpanded(new Set(loadConversationExpanded()))
+      setFolderExpanded(loadFolderExpanded())
+      setFolderGroupExpanded(loadFolderGroupExpanded())
+      setTodoGroupExpanded(loadTodoGroupExpanded())
+      setSectionCollapsed(loadSectionCollapsed())
+      setRecentFilter(loadRecentFilter())
+      setConversationExpanded(new Set(loadConversationExpanded()))
+    }
+    return subscribeWorkspacePreferences(restore)
   }, [])
 
   const toggleSection = useCallback(
@@ -1517,7 +1522,11 @@ export function SidebarConversationList({
       // Unfinished tasks are unpaginated. Keep my tasks visible even before
       // their first conversation, or when all their conversations are hidden.
       for (const todo of state.todos) {
-        if (todo.status !== "claimed" || todo.assignee_id !== state.self_id)
+        if (
+          (todo.status !== "claimed" &&
+            todo.status !== "pending_verification") ||
+          todo.assignee_id !== state.self_id
+        )
           continue
         myTodoIds.add(todo.id)
         if (!groups.has(todo.id)) {
@@ -1605,7 +1614,7 @@ export function SidebarConversationList({
   const [completingTodoId, setCompletingTodoId] = useState<string | null>(null)
   const completingTodo = useRef(false)
   const handleCompleteTodo = useCallback(
-    async (id: string) => {
+    async (id: string, action: "complete" | "finish" | "resume" = "finish") => {
       const state = todoStateRef.current
       const scope =
         state?.mode === "personal" ? "personal" : state?.active_team_id
@@ -1621,7 +1630,7 @@ export function SidebarConversationList({
         if (todo.status !== "completed") {
           await todoOriginCall({
             origin,
-            action: "complete",
+            action,
             revision: todo.revision,
           })
         }
@@ -3367,6 +3376,12 @@ export function SidebarConversationList({
             )?.status === "completed"
               ? undefined
               : handleCompleteTodo
+          }
+          status={
+            (
+              todoView?.state?.todos.find((todo) => todo.id === row.id) ??
+              linkedTodoGroups.find((group) => group.todo.id === row.id)?.todo
+            )?.status ?? "claimed"
           }
           completing={completingTodoId !== null}
           onNewConversation={handleNewTodoConversation}

@@ -71,11 +71,13 @@ export function ConversationTodoSourceBadges({
   const tooltip = (source: TodoConversationSource) => {
     if (!source.todo) return label(source)
     const status =
-      source.todo.status === "completed"
-        ? "colCompleted"
-        : source.todo.status === "unclaimed"
-          ? "colUnclaimed"
-          : "colClaimed"
+      source.todo.status === "pending_verification"
+        ? "colPendingVerification"
+        : source.todo.status === "completed"
+          ? "colCompleted"
+          : source.todo.status === "unclaimed"
+            ? "colUnclaimed"
+            : "colClaimed"
     return `${label(source)} · ${t("sourceTodoScope", { scope: source.scope_name, status: t(status) })}${source.assignee ? ` · ${source.assignee.name}` : ""}`
   }
   const first = sources[0]

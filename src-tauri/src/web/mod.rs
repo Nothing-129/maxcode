@@ -5,6 +5,7 @@ pub mod frontend_cache;
 pub mod handlers;
 pub mod port_probe;
 pub mod router;
+pub mod security_headers;
 pub mod shutdown;
 pub mod socket_inherit;
 pub mod ws;

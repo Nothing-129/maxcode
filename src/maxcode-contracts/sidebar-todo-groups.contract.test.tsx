@@ -219,6 +219,37 @@ afterEach(() => {
 })
 
 describe("sidebar conversations grouped by their originating assigned todos", () => {
+  it.each([
+    ["claimed", "To do", "Mark to verify", "complete"],
+    ["pending_verification", "To verify", "Mark to do", "resume"],
+    ["pending_verification", "To verify", "Mark completed", "finish"],
+  ] as const)(
+    "shows %s and applies %s status actions",
+    async (status, badge, label, action) => {
+      host.state!.todos = [myTodo("Status task", { status })]
+      host.origin.mockResolvedValue({
+        todo: myTodo("Status task", { status, revision: 8 }),
+      })
+      render(sidebar())
+      const statusLabel = await screen.findByText(badge)
+      expect(statusLabel).toBeVisible()
+      expect(statusLabel).toHaveClass("text-muted-foreground/60", "inline-flex")
+      expect(statusLabel.querySelector("svg")).toHaveAttribute(
+        "aria-hidden",
+        "true"
+      )
+      fireEvent.contextMenu(screen.getByText("Status task"))
+      expect(screen.getAllByRole("menuitem")).toHaveLength(2)
+      fireEvent.click(await screen.findByRole("menuitem", { name: label }))
+      await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
+      expect(host.origin).toHaveBeenLastCalledWith({
+        origin: { scope_id: "personal", todo_id: "Status task" },
+        action,
+        revision: 8,
+      })
+    }
+  )
+
   it.each(["personal", "team-a"])(
     "completes a linked todo outside the board page in %s without completing conversations",
     async (scope) => {
@@ -247,7 +278,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
         [
           {
             origin: { scope_id: scope, todo_id: "Linked task" },
-            action: "complete",
+            action: "finish",
             revision: 9,
           },
         ],
@@ -283,7 +314,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
     expect(host.origin).toHaveBeenLastCalledWith({
       origin: { scope_id: "team-a", todo_id: "Task" },
-      action: "complete",
+      action: "finish",
       revision: 4,
     })
   })
@@ -314,7 +345,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
     expect(host.origin).toHaveBeenLastCalledWith({
       origin: { scope_id: "personal", todo_id: "Retry task" },
-      action: "complete",
+      action: "finish",
       revision: 3,
     })
   })
@@ -355,7 +386,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     for (const id of ["Third", "Fourth"]) {
       expect(
         document.querySelector(`[data-todo-group-id="${id}"] button`)
-      ).toHaveTextContent(`${id}0`)
+      ).toHaveTextContent(`${id}To do0`)
       expect(
         screen.getByRole("button", { name: `New conversation from ${id}` })
       ).toBeEnabled()
@@ -375,7 +406,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
     expect(
       document.querySelector('[data-todo-group-id="My task"] button')
-    ).toHaveTextContent("My task0")
+    ).toHaveTextContent("My taskTo do0")
 
     host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
     host.state = { ...host.state!, todos: [myTodo("New task")] }
@@ -836,3 +867,16 @@ describe("todo sidebar query scope and concurrency", () => {
     expect(view.result.current).toEqual([])
   })
 })
+
+// View/parser tests use an in-memory storage adapter; host synchronization is
+// covered by workspace-preferences.contract.test.tsx.
+vi.mock("@/lib/workspace-preferences-store", () => ({
+  workspacePreferenceStorage: {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+  },
+  subscribeWorkspacePreferences: (listener: () => void) => {
+    listener()
+    return () => {}
+  },
+}))

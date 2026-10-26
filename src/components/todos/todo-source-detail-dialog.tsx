@@ -153,12 +153,15 @@ export function TodoSourceDetailDialog({
     const action =
       todo.status === "completed"
         ? "reopen"
-        : todo.status === "unclaimed"
-          ? "claim"
-          : "complete"
+        : todo.status === "pending_verification"
+          ? "verify"
+          : todo.status === "unclaimed"
+            ? "claim"
+            : "complete"
     void change({ action, revision: todo.revision })
       .then(() => {
-        if (action === "complete" && alive.current) onClose()
+        if ((action === "complete" || action === "verify") && alive.current)
+          onClose()
       })
       .catch((cause) => {
         toast.error(t("operationFailed", { reason: toErrorMessage(cause) }))
@@ -255,9 +258,11 @@ export function TodoSourceDetailDialog({
                     {t(
                       todo.status === "completed"
                         ? "reopen"
-                        : todo.status === "unclaimed"
-                          ? "claim"
-                          : "complete"
+                        : todo.status === "pending_verification"
+                          ? "verify"
+                          : todo.status === "unclaimed"
+                            ? "claim"
+                            : "complete"
                     )}
                   </Button>
                 </DialogFooter>

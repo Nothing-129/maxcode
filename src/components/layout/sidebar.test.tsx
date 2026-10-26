@@ -268,3 +268,16 @@ describe("Sidebar — Show completed default", () => {
 vi.mock("./sidebar-footer", () => ({
   SidebarFooter: () => <div data-testid="sidebar-footer" />,
 }))
+
+// View/parser tests use an in-memory storage adapter; host synchronization is
+// covered by workspace-preferences.contract.test.tsx.
+vi.mock("@/lib/workspace-preferences-store", () => ({
+  workspacePreferenceStorage: {
+    getItem: (key: string) => localStorage.getItem(key),
+    setItem: (key: string, value: string) => localStorage.setItem(key, value),
+  },
+  subscribeWorkspacePreferences: (listener: () => void) => {
+    listener()
+    return () => {}
+  },
+}))

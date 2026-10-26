@@ -85,8 +85,19 @@ async fn filtered_completed_pages_count_all_matches_and_keep_unfinished() {
             conn,
             TodoRequest {
                 action: "complete".into(),
-                id: Some(item.id),
+                id: Some(item.id.clone()),
                 revision: Some(item.revision),
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+        call(
+            conn,
+            TodoRequest {
+                action: "verify".into(),
+                id: Some(item.id),
+                revision: Some(item.revision + 1),
                 ..Default::default()
             },
         )

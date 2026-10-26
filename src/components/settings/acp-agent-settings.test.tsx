@@ -16,6 +16,8 @@ import {
   configTextForClaudeSave,
   extractCodexImportantValues,
   getAgentChecks,
+  GROK_REASONING_EFFORT_LEVELS,
+  grokReasoningEffortChoices,
   hostToolsAgentModeEnabled,
   importantEnvKeysByAgent,
   importantFieldsFor,
@@ -31,6 +33,7 @@ import {
   setClaudeEnvFlagInConfigText,
   setHostToolsAgentMode,
   showsCodexReadOnlyAcpWarning,
+  toggleGrokReasoningEffort,
 } from "./acp-agent-settings"
 import { parse as parseTomlDocument } from "smol-toml"
 import type {
@@ -105,6 +108,8 @@ const grokDraft = (
   grokCustomApiKey: "",
   grokCustomApiBackend: "responses",
   grokCustomContextWindow: "",
+  grokCustomReasoningEfforts: [],
+  grokCustomReasoningEffortsBaseline: [],
   grokAutoCompactThreshold: "",
   ...overrides,
 })
@@ -115,6 +120,7 @@ const emptyCustoms = {
   customApiKey: null,
   customApiBackend: null,
   customContextWindow: null,
+  customReasoningEfforts: null,
   autoCompactThresholdPercent: null,
 }
 
@@ -438,6 +444,7 @@ describe("buildGrokStructuredConfig — Grok panel save payload", () => {
       customApiKey: "xai-123",
       customApiBackend: "chat_completions",
       customContextWindow: 131072,
+      customReasoningEfforts: null,
       autoCompactThresholdPercent: 80,
     })
   })
@@ -481,6 +488,7 @@ describe("buildGrokStructuredConfig — Grok panel save payload", () => {
       customApiKey: null,
       customApiBackend: "responses",
       customContextWindow: null,
+      customReasoningEfforts: null,
       autoCompactThresholdPercent: 100,
     })
   })
@@ -512,6 +520,123 @@ describe("buildGrokStructuredConfig — Grok panel save payload", () => {
         ...emptyCustoms,
       })
     }
+  })
+})
+
+describe("Grok custom model reasoning-effort levels", () => {
+  // Levels ride with an active model only once the chips moved off the list
+  // they were read as — an emptied list too, which removes the key. Untouched
+  // chips, or no active model, send null ("leave it as it is").
+  it("sends the levels only once the chips moved", () => {
+    const levels = ["low", "medium", "high", "xhigh"]
+    const custom = { grokCustomModelId: "grok-4.7" }
+    expect(
+      buildGrokStructuredConfig(
+        grokDraft({ ...custom, grokCustomReasoningEfforts: levels })
+      ).customReasoningEfforts
+    ).toEqual(levels)
+    expect(
+      buildGrokStructuredConfig(
+        grokDraft({
+          ...custom,
+          grokCustomReasoningEfforts: [],
+          grokCustomReasoningEffortsBaseline: ["high"],
+        })
+      ).customReasoningEfforts
+    ).toEqual([])
+    // Untouched, or toggled back to what was read: nothing to send.
+    for (const read of [[], ["xhigh", "high"]]) {
+      expect(
+        buildGrokStructuredConfig(
+          grokDraft({
+            ...custom,
+            grokCustomReasoningEfforts: [...read],
+            grokCustomReasoningEffortsBaseline: read,
+          })
+        ).customReasoningEfforts
+      ).toBeNull()
+    }
+    // Reordering is a move: the first level is where Grok starts a session.
+    expect(
+      buildGrokStructuredConfig(
+        grokDraft({
+          ...custom,
+          grokCustomReasoningEfforts: ["high", "xhigh"],
+          grokCustomReasoningEffortsBaseline: ["xhigh", "high"],
+        })
+      ).customReasoningEfforts
+    ).toEqual(["high", "xhigh"])
+    // No active custom model: null like the rest of the group.
+    expect(
+      buildGrokStructuredConfig(
+        grokDraft({ grokCustomReasoningEfforts: levels })
+      ).customReasoningEfforts
+    ).toBeNull()
+    expect(
+      buildGrokStructuredConfig(
+        grokDraft({
+          ...custom,
+          grokAuthMode: "api_key",
+          grokCustomReasoningEfforts: levels,
+        })
+      ).customReasoningEfforts
+    ).toBeNull()
+  })
+
+  // The raw editor's text is the merge base and the structured values land on
+  // top: re-sending the levels that were read would revert ones typed there.
+  it("keeps levels typed into the raw config.toml editor", () => {
+    const onDisk = '[models]\ndefault = "grok-4.7"\n\n[model."grok-4.7"]\n'
+    const edited = `${onDisk}reasoning_efforts = ["low", "high"]\n`
+    const opts = buildGrokSaveOptions(
+      {
+        ...grokDraft({ grokCustomModelId: "grok-4.7" }),
+        grokConfigTomlText: edited,
+      },
+      onDisk
+    )
+    expect(opts.grokConfigTomlText).toBe(edited)
+    expect(opts.grokStructured.customModelId).toBe("grok-4.7")
+    expect(opts.grokStructured.customReasoningEfforts).toBeNull()
+  })
+
+  // Only Grok's canonical levels are offered (an unknown one would make Grok
+  // drop the whole list); `none` is left out of the chips.
+  it("offers Grok's canonical levels, plus any other level already saved", () => {
+    expect(GROK_REASONING_EFFORT_LEVELS).toEqual([
+      "minimal",
+      "low",
+      "medium",
+      "high",
+      "xhigh",
+      "max",
+    ])
+    expect(grokReasoningEffortChoices([])).toEqual(GROK_REASONING_EFFORT_LEVELS)
+    // A hand-written level stays visible (once) so it can be turned off.
+    expect(grokReasoningEffortChoices(["none", "high", "none"])).toEqual([
+      ...GROK_REASONING_EFFORT_LEVELS,
+      "none",
+    ])
+  })
+
+  it("adds a level in chip order and drops every copy when turned off", () => {
+    expect(toggleGrokReasoningEffort([], "high")).toEqual(["high"])
+    expect(toggleGrokReasoningEffort(["high"], "low")).toEqual(["low", "high"])
+    expect(toggleGrokReasoningEffort(["low", "high"], "xhigh")).toEqual([
+      "low",
+      "high",
+      "xhigh",
+    ])
+    // Extras stay, after the canonical levels.
+    expect(toggleGrokReasoningEffort(["none", "high"], "low")).toEqual([
+      "low",
+      "high",
+      "none",
+    ])
+    expect(toggleGrokReasoningEffort(["low", "high", "low"], "low")).toEqual([
+      "high",
+    ])
+    expect(toggleGrokReasoningEffort(["none"], "none")).toEqual([])
   })
 })
 

@@ -95,9 +95,10 @@ export function TodoEditorDialog({
     try {
       const files = await source
       if (
-        scopeId === "personal" &&
-        files.reduce((sum, file) => sum + file.size, 0) >
-          TODO_ATTACHMENT_MAX_BYTES
+        files.some((file) => file.size > TODO_ATTACHMENT_MAX_BYTES) ||
+        (scopeId === "personal" &&
+          files.reduce((sum, file) => sum + file.size, 0) >
+            TODO_ATTACHMENT_MAX_BYTES)
       ) {
         throw new Error(t("attachmentTooLarge"))
       }

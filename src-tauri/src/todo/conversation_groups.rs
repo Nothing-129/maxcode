@@ -277,7 +277,10 @@ pub async fn groups(conn: &DatabaseConnection) -> Result<TodoConversationGroups,
         };
         for summary in looked_up {
             // An untrusted host cannot invent associations to local rows.
-            if matches!(summary.status.as_str(), "claimed" | "completed")
+            if matches!(
+                summary.status.as_str(),
+                "claimed" | "pending_verification" | "completed"
+            )
                 && !summary.assignee_id.is_empty()
                 && conversations.contains_key(&summary.id)
             {

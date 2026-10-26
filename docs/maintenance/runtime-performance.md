@@ -53,3 +53,18 @@ pnpm bench:runtime --compare /tmp/maxcode-runtime-before.json --outputJson /tmp/
 输入延迟或 UI 帧率。排查实际卡顿时，需要在 Electron/浏览器中使用同量级历史、工具
 输出及分屏会话录制 Performance，并核对 React 提交耗时、长任务和输入响应；检查
 内存时还应反复打开、关闭会话并对比 GC 后的 heap snapshot。
+
+## CI 持续记录
+
+Test 工作流的 `runtime-benchmarks` 独立任务运行 `pnpm bench:runtime`，
+将默认 JSON 输出写入 `benchmark-results/runtime.json`。该目录已加入 Git 忽略规则。
+每次运行保留 30 天的 artifact，包含 JSON、控制台输出和运行环境信息
+（提交、Node、CPU、内存等）。基准内的正确性断言失败会使任务失败；目前不设置
+性能退化硬阈值，先积累同类 runner 的稳定基线。
+
+下载基线 artifact 后，将其 JSON 放到默认输出目录以外，再用本文开头的
+`--compare` 命令比较。CPU/Node 不同或负载差异明显时不可直接据此判定退化。
+修改 benchmark 名称或每次 operation 工作量后，应重新建立基线。
+
+CI 任务隔离不能消除共享 runner 的性能噪声，首次本地验证也不作为新的性能收益声明。
+界面滚动、流式渲染和切换会话仍需按上述 Performance 方法单独测量。

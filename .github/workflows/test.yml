@@ -43,11 +43,61 @@ jobs:
       - name: Lint
         run: pnpm eslint .
 
+      - name: Validate upstream protection manifest
+        run: pnpm upstream:guard:validate
+
       - name: Unit tests (vitest)
         run: pnpm test
 
       - name: Static export build
         run: pnpm build
+
+  runtime-benchmarks:
+    name: Runtime performance baseline
+    runs-on: ubuntu-22.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Record benchmark environment
+        run: |
+          mkdir -p benchmark-results
+          node --input-type=module <<'NODE'
+          import fs from "node:fs"
+          import os from "node:os"
+          fs.writeFileSync("benchmark-results/environment.json", JSON.stringify({
+            commit: process.env.GITHUB_SHA,
+            runId: process.env.GITHUB_RUN_ID,
+            node: process.version,
+            platform: process.platform,
+            arch: process.arch,
+            cpu: os.cpus()[0]?.model,
+            cpuCount: os.cpus().length,
+            memoryBytes: os.totalmem(),
+            timestamp: new Date().toISOString(),
+          }, null, 2))
+          NODE
+      - name: Measure runtime performance
+        shell: bash
+        run: |
+          set -o pipefail
+          pnpm bench:runtime 2>&1 | tee benchmark-results/runtime.log
+      - name: Upload benchmark results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runtime-benchmarks-${{ github.sha }}
+          path: benchmark-results/
+          retention-days: 30
+          if-no-files-found: error
 
   rust:
     name: Rust ${{ matrix.mode }} on ${{ matrix.os }}

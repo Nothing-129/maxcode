@@ -3545,6 +3545,11 @@ export interface GrokSettings {
   custom_api_backend: string | null
   /** [model.<id>].context_window — context size in tokens. */
   custom_context_window: number | null
+  /** [model.<id>].reasoning_efforts — the levels the custom model declares,
+   * each the lowercased `value` Grok sends to the provider, in file order.
+   * Empty when absent: Grok then only has its own model catalog's levels for
+   * this id (never the custom base_url's model list). */
+  custom_reasoning_efforts: string[]
   /** [session].auto_compact_threshold_percent — 0–100 (Grok default 85). */
   auto_compact_threshold_percent: number | null
 }
@@ -3562,6 +3567,11 @@ export interface GrokStructuredConfig {
   customApiKey: string | null
   customApiBackend: string | null
   customContextWindow: number | null
+  /** The custom model's reasoning_efforts levels. Unlike the fields above,
+   * null leaves the key as it is (the panel sends levels only once its chips
+   * moved, so a list typed into the raw editor survives); an empty list
+   * removes it. */
+  customReasoningEfforts: string[] | null
   autoCompactThresholdPercent: number | null
 }
 

@@ -45,3 +45,5 @@ pub mod work_task;
 pub mod workspace_state;
 
 pub mod conversation_read;
+
+pub mod workspace_preferences;

@@ -111,19 +111,22 @@ describe("MaxCode todo Markdown and URL attachments", () => {
       "\n[first.txt](https://minio.test/first.txt)\n"
     )
   })
-  it("rejects more than 100 MiB before uploading", async () => {
-    expect(TODO_ATTACHMENT_MAX_BYTES).toBe(100 * 1024 * 1024)
-    mount("Existing")
-    const file = new File([], "large.bin")
-    Object.defineProperty(file, "size", {
-      value: TODO_ATTACHMENT_MAX_BYTES + 1,
-    })
-    paste([file])
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      en.Todos.attachmentTooLarge
-    )
-    expect(uploadTodoFile).not.toHaveBeenCalled()
-  })
+  it.each(["personal", "team-a"])(
+    "rejects more than 100 MiB before uploading to %s",
+    async (scope) => {
+      expect(TODO_ATTACHMENT_MAX_BYTES).toBe(100 * 1024 * 1024)
+      mount("Existing", scope)
+      const file = new File([], "large.bin")
+      Object.defineProperty(file, "size", {
+        value: TODO_ATTACHMENT_MAX_BYTES + 1,
+      })
+      paste([file])
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        en.Todos.attachmentTooLarge
+      )
+      expect(uploadTodoFile).not.toHaveBeenCalled()
+    }
+  )
   it("disables saving while uploading and supports the file picker", async () => {
     mount("Text")
     let finish!: (value: Awaited<ReturnType<typeof uploadTodoFile>>) => void
@@ -156,16 +159,19 @@ describe("MaxCode todo Markdown and URL attachments", () => {
       screen.queryByRole("link", { name: "unsafe" })
     ).not.toBeInTheDocument()
   })
-  it("allows MinIO team uploads above the personal size limit", async () => {
+  it("allows multiple bounded MinIO files above the personal aggregate limit", async () => {
     mount("Team upload", "team-a")
-    const file = new File(["large"], "large.bin")
-    Object.defineProperty(file, "size", {
-      value: TODO_ATTACHMENT_MAX_BYTES + 1,
+    const files = ["first.bin", "second.bin"].map((name) => {
+      const file = new File(["large"], name)
+      Object.defineProperty(file, "size", {
+        value: TODO_ATTACHMENT_MAX_BYTES,
+      })
+      return file
     })
     fireEvent.paste(screen.getByLabelText("Todo content"), {
-      clipboardData: { files: [file], items: [], getData: () => "" },
+      clipboardData: { files, items: [], getData: () => "" },
     })
-    await waitFor(() => expect(uploadTodoFile).toHaveBeenCalled())
+    await waitFor(() => expect(uploadTodoFile).toHaveBeenCalledTimes(2))
     expect(screen.queryByRole("alert")).not.toBeInTheDocument()
   })
   it("saves existing Markdown URLs without uploading again", async () => {
