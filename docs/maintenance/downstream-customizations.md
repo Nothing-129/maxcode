@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-26 发布草稿：发布重跑分页查找并复用唯一的同标签草稿，多个草稿或已发布标签明确失败；附件检查和最终发布使用同一个 release ID。保留 Electron 构建、签名和安装包校验，不恢复旧 Tauri 发布链路。契约：`release-draft.contract.test.ts`。
+
 2026-10-26 智能体同步：Claude ACP 0.94.0、Grok 1.0.62、Antigravity 1.4.1、ZCode ACP 0.76.2。同步取消后工具状态、后台中间结果、预测提示、Remote Control 与 fork 子智能体计费修复；保留七智能体目录、托管安装优先级、分组空闲回收及隐藏后台任务条。契约：`agent-updates-20261026.contract.test.ts`、`claude-fork-accounting.contract.rs`。
 
 2026-10-25 依赖安全：CI 在推送、PR 和每周定时扫描前端全部依赖及 Rust 锁文件。`scripts/audit-rust.mjs` 仅在全平台、全 feature 的依赖树均不含 RSA 时，豁免 SQLx 可选 MySQL 锁文件依赖的 `RUSTSEC-2023-0071`（无修复版本）；一旦 RSA 变为可达依赖，CI 必须失败。已知不健全依赖同样阻断 CI，停止维护告警继续显示。

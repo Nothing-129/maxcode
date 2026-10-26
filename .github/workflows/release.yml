@@ -182,21 +182,29 @@ jobs:
               commit.commit.message?.trim() || "_No commit message._";
             let release;
 
-            try {
-              const existing = await github.rest.repos.getReleaseByTag({
-                owner,
-                repo,
-                tag,
-              });
+            // Enumerate drafts too, including those left by a failed run.
+            const releases = await github.paginate(
+              github.rest.repos.listReleases,
+              { owner, repo, per_page: 100 },
+            );
+            const matching = releases.filter((release) => release.tag_name === tag);
+            if (matching.some((release) => !release.draft)) {
+              core.setFailed(
+                `Release for tag ${tag} already exists and is not a draft.`,
+              );
+              return;
+            }
+            if (matching.length > 1) {
+              core.setFailed(
+                `Multiple draft releases exist for tag ${tag}: ${matching
+                  .map((release) => release.id)
+                  .join(", ")}.`,
+              );
+              return;
+            }
 
-              if (!existing.data.draft) {
-                core.setFailed(
-                  `Release for tag ${tag} already exists and is not a draft.`,
-                );
-                return;
-              }
-
-              release = existing.data;
+            if (matching.length === 1) {
+              release = matching[0];
               if (
                 release.prerelease !== prerelease ||
                 release.name !== releaseName ||
@@ -213,11 +221,7 @@ jobs:
                 release = updated.data;
               }
               core.info(`Reusing existing draft release #${release.id}`);
-            } catch (error) {
-              if (error.status !== 404) {
-                throw error;
-              }
-
+            } else {
               const created = await github.rest.repos.createRelease({
                 owner,
                 repo,
@@ -671,9 +675,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
+          RELEASE_ID: ${{ needs.create-draft-release.outputs.release_id }}
         run: |
           set -euo pipefail
-          gh release view "$GITHUB_REF_NAME" --json assets | node electron/scripts/release.cjs validate-assets
+          gh api "repos/$GH_REPO/releases/$RELEASE_ID" | node electron/scripts/release.cjs validate-assets
 
       - name: Publish draft release
         uses: actions/github-script@v7

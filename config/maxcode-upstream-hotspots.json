@@ -2,6 +2,14 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "release.reuse-exact-draft",
+      "category": "platform",
+      "origins": ["80c55f218", "worktree-2026-10-26"],
+      "description": "Electron releases reuse the unique same-tag draft found across all release pages, reject duplicate drafts and already published tags, and validate assets using the exact release ID that will be published. Failed reruns never silently select an arbitrary draft or create another same-tag draft.",
+      "paths": [".github/workflows/release.yml"],
+      "contracts": ["src/maxcode-contracts/release-draft.contract.test.ts"]
+    },
+    {
       "id": "workspace.host-owned-view-preferences",
       "category": "product",
       "origins": ["worktree-2026-10-26"],
