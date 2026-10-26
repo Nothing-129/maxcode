@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest"
 
 import { AgentToolCallPart } from "./agent-tool-call"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
+import { BACKGROUND_TASK_MARKER } from "@/lib/background-agent"
 import enMessages from "@/i18n/messages/en.json"
 
 type ToolCallPart = Extract<AdaptedContentPart, { type: "tool-call" }>
@@ -89,6 +90,49 @@ describe("AgentToolCallPart model and effort", () => {
     fireEvent.click(screen.getByRole("button", { name: "Completed" }))
     expect(screen.getByText("Prompt")).toBeInTheDocument()
     expect(screen.queryByText(/Effort:/)).not.toBeInTheDocument()
+  })
+
+  // The Agent tool's schema: a `model` or `effort` argument is ignored for
+  // `subagent_type: "fork"`, which runs on the parent's model and effort.
+  it("shows neither the model nor the effort of a fork, which ignores both", () => {
+    renderCard(
+      basePart(
+        JSON.stringify({
+          subagent_type: "fork",
+          description: "probe fork",
+          prompt: "do it",
+          model: "haiku",
+          effort: "high",
+        }),
+        "output-available"
+      )
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Completed" }))
+    expect(screen.getByText("fork: probe fork")).toBeInTheDocument()
+    expect(screen.getByText("Prompt")).toBeInTheDocument()
+    expect(screen.queryByText(/Model:/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/Effort:/)).not.toBeInTheDocument()
+  })
+
+  it("keeps the model and effort of another agent's role named fork", () => {
+    renderCard(
+      basePart(
+        JSON.stringify({
+          agent_type: "fork",
+          description: "probe role",
+          model: "gpt-5.5",
+          effort: "high",
+        }),
+        "output-available"
+      )
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Completed" }))
+    expect(screen.getByText("gpt-5.5").parentElement?.textContent).toBe(
+      "Model: gpt-5.5"
+    )
+    expect(screen.getByText("high").parentElement?.textContent).toBe(
+      "Effort: high"
+    )
   })
 })
 
@@ -627,5 +671,80 @@ describe("AgentToolCallPart child session action", () => {
     expect(
       screen.queryByRole("button", { name: "View sub-agent session" })
     ).not.toBeInTheDocument()
+  })
+})
+
+describe("AgentToolCallPart background lifecycle", () => {
+  const launch = (payload: Record<string, unknown>): ToolCallPart => ({
+    ...basePart(
+      JSON.stringify({
+        subagent_type: "general-purpose",
+        description: "probe sub bg bash",
+      }),
+      "output-available"
+    ),
+    output: `${BACKGROUND_TASK_MARKER}${JSON.stringify(payload)}`,
+  })
+
+  // Claude Code notifies `completed` for a sub-agent that ended its run while
+  // background work of its own still runs, and says it will notify again.
+  it("reads an interim notification as an interim result, not as completed", () => {
+    renderCard(
+      launch({
+        task_id: "a0a4",
+        status: "completed",
+        summary:
+          'Agent "probe sub bg bash" is waiting on its own background work',
+        result: "interim report",
+        interim: true,
+      })
+    )
+    const trigger = screen.getByLabelText("Background task: interim result")
+    expect(
+      screen.queryByLabelText("Background task completed")
+    ).not.toBeInTheDocument()
+    fireEvent.click(trigger)
+    expect(
+      screen.getByText(
+        'Agent "probe sub bg bash" is waiting on its own background work'
+      )
+    ).toBeInTheDocument()
+    expect(screen.getByText("interim report")).toBeInTheDocument()
+  })
+
+  it("reads the final notification as completed", () => {
+    renderCard(
+      launch({
+        task_id: "a0a4",
+        status: "completed",
+        summary: 'Agent "probe sub bg bash" finished',
+        result: "final report",
+      })
+    )
+    expect(
+      screen.getByLabelText("Background task completed")
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText("Background task: interim result")
+    ).not.toBeInTheDocument()
+  })
+})
+
+describe("AgentToolCallPart error text", () => {
+  // claude-agent-acp fences a failed tool's result for markdown clients; the
+  // card shows it as preformatted text, as the transcript records it.
+  it("shows a fenced error without its fence", () => {
+    renderCard({
+      ...basePart(
+        JSON.stringify({ subagent_type: "Explore", description: "scan" }),
+        "output-error"
+      ),
+      errorText:
+        "```\nThe user doesn't want to proceed with this tool use.\n```",
+    })
+    expect(
+      screen.getByText("The user doesn't want to proceed with this tool use.")
+        .textContent
+    ).toBe("The user doesn't want to proceed with this tool use.")
   })
 })

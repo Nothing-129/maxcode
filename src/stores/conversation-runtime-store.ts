@@ -1,5 +1,6 @@
 import { create } from "zustand"
 import type {
+  CancelledTurnReports,
   LiveContentBlock,
   LiveMessage,
   ToolCallInfo,
@@ -128,6 +129,8 @@ export interface PendingBackgroundSettlement {
   status: string
   summary: string | null
   result: string | null
+  /** See `BackgroundSettledInfo.interim`. */
+  interim?: boolean
 }
 
 /**
@@ -193,6 +196,10 @@ export interface ConversationRuntimeSession {
   // the launching turn promotes into `localTurns` (see
   // `PendingBackgroundSettlement`). Drained by `COMPLETE_TURN`.
   pendingBackgroundSettlements: PendingBackgroundSettlement[]
+  // A stopped turn's late tool-call reports that arrived while the turn was
+  // still the live message (see `APPLY_CANCELLED_TURN_REPORTS`). Applied and
+  // cleared by `COMPLETE_TURN`.
+  pendingCancelledTurnReports: CancelledTurnReports | null
 
   // Temporary state
   optimisticTurns: MessageTurn[]
@@ -409,6 +416,15 @@ type Action =
       settlement: PendingBackgroundSettlement
     }
   | {
+      // A stopped turn with the reports the agent sent after it ended folded
+      // in (`ConnectionState.cancelledTurn`): settle the promoted cards of the
+      // calls it left open (`applyLateToolCallReports`), or hold the reports
+      // for `COMPLETE_TURN` while the turn is still the live message.
+      type: "APPLY_CANCELLED_TURN_REPORTS"
+      conversationId: number
+      reports: CancelledTurnReports
+    }
+  | {
       type: "APPEND_OPTIMISTIC_TURN"
       conversationId: number
       turn: MessageTurn
@@ -503,6 +519,7 @@ function createEmptySession(
     localTurns: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
+    pendingCancelledTurnReports: null,
     optimisticTurns: [],
     liveMessage: null,
     syncState: "idle",
@@ -2079,6 +2096,8 @@ function applyBackgroundSettlementToTurns(
   turns: MessageTurn[],
   settlement: PendingBackgroundSettlement
 ): { turns: MessageTurn[]; matched: boolean; changed: boolean } {
+  // Same payload, key order included, as the detail parse writes
+  // (`apply_background_lifecycle`): `interim` only when set.
   const marker =
     BACKGROUND_TASK_MARKER +
     JSON.stringify({
@@ -2086,6 +2105,7 @@ function applyBackgroundSettlementToTurns(
       status: settlement.status,
       summary: settlement.summary,
       result: settlement.result,
+      ...(settlement.interim ? { interim: true } : {}),
     })
   let matched = false
   let changed = false
@@ -2160,6 +2180,86 @@ export function partitionOptimisticTurnsOnComplete(
   }
 
   return { promote: optimisticTurns, keep: [] }
+}
+
+type ToolUseBlock = Extract<ContentBlock, { type: "tool_use" }>
+type ToolResultBlock = Extract<ContentBlock, { type: "tool_result" }>
+
+/**
+ * Settle a promoted turn's cards from the reports the agent sent after the turn
+ * ended. `reports.message` is the turn's message with those reports folded in
+ * (`ConnectionState.cancelledTurn`), so rebuilding it the way `COMPLETE_TURN`
+ * promotes a message yields every card exactly as the turn would have shown it
+ * had the reports landed inside it — a sub-agent's card with its child calls'
+ * outcomes included. The card of each call the turn left open
+ * (`reports.openCalls`) takes its rebuilt `tool_use` and `tool_result`, again
+ * on every later application, so a sub-agent card that settled first still
+ * takes its child's closing. Any other card is never revised: a call that
+ * settled inside the turn, such as an async sub-agent's launch, keeps what was
+ * written on its card since (the lifecycle marker `RESOLVE_BACKGROUND_TASK`
+ * writes). Returns `turns` itself when nothing changed.
+ */
+export function applyLateToolCallReports(
+  conversationId: number,
+  turns: MessageTurn[],
+  reports: CancelledTurnReports
+): MessageTurn[] {
+  const rebuilt = new Map<
+    string,
+    { use: ToolUseBlock; result: ToolResultBlock | undefined }
+  >()
+  for (const turn of buildStreamingTurnsFromLiveMessage(
+    conversationId,
+    reports.message
+  ).turns) {
+    for (const block of turn.blocks) {
+      if (block.type !== "tool_use" || !block.tool_use_id) continue
+      const id = block.tool_use_id
+      if (!reports.openCalls.has(id)) continue
+      rebuilt.set(id, {
+        use: block,
+        result: turn.blocks.find(
+          (b): b is ToolResultBlock =>
+            b.type === "tool_result" && b.tool_use_id === id
+        ),
+      })
+    }
+  }
+  if (rebuilt.size === 0) return turns
+
+  let changed = false
+  const nextTurns = turns.map((turn) => {
+    let blocks: MessageTurn["blocks"] | null = null
+    for (const block of turn.blocks) {
+      if (block.type !== "tool_use" || !block.tool_use_id) continue
+      const card = rebuilt.get(block.tool_use_id)
+      if (!card) continue
+      const current: MessageTurn["blocks"] = blocks ?? turn.blocks
+      const resultIndex = current.findIndex(
+        (b) => b.type === "tool_result" && b.tool_use_id === block.tool_use_id
+      )
+      const result = resultIndex === -1 ? undefined : current[resultIndex]
+      if (
+        JSON.stringify(card.use) === JSON.stringify(block) &&
+        (card.result === undefined ||
+          JSON.stringify(card.result) === JSON.stringify(result))
+      ) {
+        continue
+      }
+      const next: MessageTurn["blocks"] = current.slice()
+      const useIndex = next.indexOf(block)
+      next[useIndex] = card.use
+      if (card.result) {
+        if (resultIndex === -1) next.splice(useIndex + 1, 0, card.result)
+        else next[resultIndex] = card.result
+      }
+      blocks = next
+    }
+    if (!blocks) return turn
+    changed = true
+    return { ...turn, blocks }
+  })
+  return changed ? nextTurns : turns
 }
 
 function reducer(
@@ -2550,6 +2650,20 @@ function reducer(
             : stillPending
       }
 
+      // A stopped turn's reports that arrived before this promotion (see
+      // `APPLY_CANCELLED_TURN_REPORTS`), when this promotes that turn. Held
+      // reports of any other message are dropped below: that message was
+      // replaced before it was promoted, and its turn is read from the
+      // transcript, which records how each call ended.
+      const heldReports = current.pendingCancelledTurnReports
+      if (heldReports && heldReports.message.id === sourceLiveMessage?.id) {
+        promoted = applyLateToolCallReports(
+          action.conversationId,
+          promoted,
+          heldReports
+        )
+      }
+
       return updateSessionInState(state, action.conversationId, () => ({
         ...current,
         localTurns: promoted,
@@ -2576,6 +2690,7 @@ function reducer(
         // reply is already persisted.
         lastTurnOwned: current.syncState === "awaiting_persist",
         pendingBackgroundSettlements: remainingSettlements,
+        pendingCancelledTurnReports: null,
         sessionStats: nextSessionStats,
       }))
     }
@@ -2682,6 +2797,34 @@ function reducer(
       return updateSessionInState(state, action.conversationId, (s) => ({
         ...s,
         pendingBackgroundSettlements: [...withoutDup, action.settlement],
+      }))
+    }
+
+    case "APPLY_CANCELLED_TURN_REPORTS": {
+      // Only meaningful for an open session: a closed tab renders from the
+      // disk parse, which records how each call ended.
+      const current = state.byConversationId.get(action.conversationId)
+      if (!current) return state
+      // Not promoted yet (the panel promotes on the status edge, ahead of any
+      // report, but the delegated-child view promotes from an effect): hold
+      // the reports for `COMPLETE_TURN`, which applies them to whatever copy
+      // of the message it is handed.
+      if (current.liveMessage?.id === action.reports.message.id) {
+        if (current.pendingCancelledTurnReports === action.reports) return state
+        return updateSessionInState(state, action.conversationId, (s) => ({
+          ...s,
+          pendingCancelledTurnReports: action.reports,
+        }))
+      }
+      const localTurns = applyLateToolCallReports(
+        action.conversationId,
+        current.localTurns,
+        action.reports
+      )
+      if (localTurns === current.localTurns) return state
+      return updateSessionInState(state, action.conversationId, (s) => ({
+        ...s,
+        localTurns,
       }))
     }
 
@@ -2932,6 +3075,8 @@ function reducer(
           ...(to.seenUserMessageIds ?? []),
         ]),
         liveMessage: mergedLiveMessage,
+        pendingCancelledTurnReports:
+          from.pendingCancelledTurnReports ?? to.pendingCancelledTurnReports,
         syncState: to.syncState !== "idle" ? to.syncState : from.syncState,
         activeTurnToken: to.activeTurnToken ?? from.activeTurnToken,
         // `from` (the draft) leads `localTurns`; treat the merged buffer as
@@ -3157,6 +3302,12 @@ export interface RuntimeActions {
   resolveBackgroundTask: (
     conversationId: number,
     settlement: PendingBackgroundSettlement
+  ) => void
+  /** Settle a stopped turn's cards from the reports the agent sent after the
+   *  turn ended (see `APPLY_CANCELLED_TURN_REPORTS`). */
+  applyCancelledTurnReports: (
+    conversationId: number,
+    reports: CancelledTurnReports
   ) => void
   setLiveMessage: (
     conversationId: number,
@@ -5104,6 +5255,12 @@ export const useConversationRuntimeStore = create<ConversationRuntimeStore>()((
         type: "RESOLVE_BACKGROUND_TASK",
         conversationId,
         settlement,
+      }),
+    applyCancelledTurnReports: (conversationId, reports) =>
+      dispatch({
+        type: "APPLY_CANCELLED_TURN_REPORTS",
+        conversationId,
+        reports,
       }),
     setLiveMessage: (conversationId, liveMessage, isLive) =>
       dispatch({

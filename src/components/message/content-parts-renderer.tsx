@@ -2421,6 +2421,8 @@ const ToolCallPart = memo(function ToolCallPart({
   // both its `in_progress` status and this badge until the conversation is
   // reloaded. That is pre-existing routing, not something the marker changes,
   // and the strip above the transcript is the surface that does clear on time.
+  // (The exception is a turn the user stopped: until the next prompt, reports
+  // on the calls it left open settle the promoted cards — `cancelledTurn`.)
   const airBackgrounded = useMemo(
     () => toolCallMovedToBackground(part.meta) && isUnsettledToolCall(part),
     [part]

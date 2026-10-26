@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "Pregunta lo que sea...",
+        "promptSuggestion": "{suggestion} (Tab para usarla)",
         "removeAttachmentAria": "Quitar {name}",
         "attachFiles": "Adjuntar archivos",
         "addActions": "Añadir",
@@ -3993,6 +3994,7 @@
         "cardRunning": "Ejecutándose en segundo plano",
         "cardLaunchedPending": "Tarea lanzada en segundo plano",
         "cardCompleted": "Tarea en segundo plano completada",
+        "cardInterim": "Tarea en segundo plano: resultado provisional",
         "cardFinishedWithStatus": "Tarea en segundo plano finalizada ({status})",
         "cardResultPending": "El resultado aún no ha llegado"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} tokens",
         "stopDeclined": "No se pudo detener esa tarea; puede que ya haya terminado.",
         "stopFailed": "No se pudo detener la tarea: {error}"
+      },
+      "remoteControl": {
+        "title": "Control remoto activado",
+        "open": "Abrir en el navegador",
+        "copy": "Copiar enlace",
+        "copied": "Copiado",
+        "qr": "Código QR",
+        "qrLabel": "Código QR del enlace de control remoto de esta sesión",
+        "qrHint": "Escanéalo con el teléfono para continuar esta sesión en la app de Claude o en claude.ai/code.",
+        "noUrl": "Claude Code no devolvió ningún enlace para esta sesión",
+        "turnOff": "Desactivar",
+        "turnOffBusy": "Disponible cuando Claude termine"
       },
       "proposedPlan": {
         "title": "Plan propuesto",

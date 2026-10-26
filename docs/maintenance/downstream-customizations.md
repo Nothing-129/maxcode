@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-26 智能体同步：Claude ACP 0.94.0、Grok 1.0.62、Antigravity 1.4.1、ZCode ACP 0.76.2。同步取消后工具状态、后台中间结果、预测提示、Remote Control 与 fork 子智能体计费修复；保留七智能体目录、托管安装优先级、分组空闲回收及隐藏后台任务条。契约：`agent-updates-20261026.contract.test.ts`、`claude-fork-accounting.contract.rs`。
+
 2026-10-23 手机工作区下载：票据在原有 60 秒有效期内允许 HEAD 探测和重复 GET，兼容浏览器向系统下载器交接；备份仍使用一次性票据。契约：`mobile-download-retries.contract.test.ts`。
 
 2026-10-23 回复操作栏移除模型信息和 Token 统计图标，保留消息操作、完成时间及跳回提问功能。契约：`reply-actions-no-metadata.contract.test.tsx`；热点：`chat.reply-actions-no-metadata`。

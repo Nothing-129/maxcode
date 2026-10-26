@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "Ask anything...",
+        "promptSuggestion": "{suggestion} (Tab to use)",
         "removeAttachmentAria": "Remove {name}",
         "attachFiles": "Attach files",
         "attachLocalUpload": "Upload local file",
@@ -3993,6 +3994,7 @@
         "cardRunning": "Running in background",
         "cardLaunchedPending": "Launched in background",
         "cardCompleted": "Background task completed",
+        "cardInterim": "Background task: interim result",
         "cardFinishedWithStatus": "Background task finished ({status})",
         "cardResultPending": "Result not returned yet"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} tokens",
         "stopDeclined": "That task could not be stopped — it may have already finished.",
         "stopFailed": "Failed to stop the task: {error}"
+      },
+      "remoteControl": {
+        "title": "Remote Control is on",
+        "open": "Open in browser",
+        "copy": "Copy link",
+        "copied": "Copied",
+        "qr": "QR code",
+        "qrLabel": "QR code for this session's Remote Control link",
+        "qrHint": "Scan with your phone to continue this session in the Claude app or on claude.ai/code.",
+        "noUrl": "Claude Code returned no link for this session",
+        "turnOff": "Turn off",
+        "turnOffBusy": "Available once Claude has finished"
       },
       "proposedPlan": {
         "title": "Proposed plan",

@@ -16,8 +16,10 @@ import type {
   SessionFailureRecord,
   SessionModeInfo,
   AvailableCommandInfo,
+  RemoteControlInfo,
 } from "@/lib/types"
 import type { SessionFailureAction } from "@/lib/session-failures"
+import { RemoteControlStrip } from "@/components/chat/remote-control-strip"
 import { SessionFailureBanner } from "@/components/chat/session-failure-banner"
 import type {
   PendingPermission,
@@ -59,6 +61,12 @@ interface ConversationShellProps {
   asyncTasks?: AsyncTaskRecord[]
   /** Retained for upstream caller compatibility; unused by this surface. */
   onStopAsyncTask?: (taskId: string) => Promise<boolean>
+  /** Claude Code's Remote Control while it is on; its strip shows the
+   *  session's link and QR code. Omit/`null` renders nothing. */
+  remoteControl?: RemoteControlInfo | null
+  /** Turns Remote Control off (sends `/remote-control off`). Omitted for
+   *  surfaces without a connection of their own — the button is then hidden. */
+  onRemoteControlOff?: () => void
   pendingPermission: PendingPermission | null
   pendingQuestion: PendingQuestion | null
   /** Awaiting-answer multiple-choice `ask_user_question`. */
@@ -90,6 +98,9 @@ interface ConversationShellProps {
   onConfigOptionChange?: (configId: string, valueId: string) => void
   agentType?: AgentType | null
   availableCommands?: AvailableCommandInfo[] | null
+  /** The prompt the agent predicts the user will send next; the empty
+   *  composer offers it (see `MessageInput.promptSuggestion`). */
+  promptSuggestion?: string | null
   attachmentTabId?: string | null
   /** Pass-through: see `MessageInput`. */
   folderPickerOverride?: ConversationFolderPickerOverride
@@ -165,6 +176,8 @@ export function ConversationShell({
   sessionFailures,
   onSessionFailureAction,
   onSessionFailureDismiss,
+  remoteControl,
+  onRemoteControlOff,
   pendingPermission,
   pendingQuestion,
   pendingAskQuestion,
@@ -188,6 +201,7 @@ export function ConversationShell({
   onConfigOptionChange,
   agentType,
   availableCommands,
+  promptSuggestion,
   attachmentTabId,
   folderPickerOverride,
   draftStorageKey,
@@ -295,6 +309,13 @@ export function ConversationShell({
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {topBanner}
+      {remoteControl && (
+        <RemoteControlStrip
+          remoteControl={remoteControl}
+          onTurnOff={onRemoteControlOff}
+          canTurnOff={status === "connected"}
+        />
+      )}
 
       <div className="flex-1 min-h-0">{children}</div>
 
@@ -364,6 +385,7 @@ export function ConversationShell({
               onConfigOptionChange={onConfigOptionChange}
               agentType={agentType}
               availableCommands={availableCommands}
+              promptSuggestion={promptSuggestion}
               attachmentTabId={attachmentTabId}
               folderPickerOverride={folderPickerOverride}
               draftStorageKey={draftStorageKey}

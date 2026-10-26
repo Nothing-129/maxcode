@@ -17,6 +17,10 @@ import type {
   AttachHandlers,
   EventStreamSubscription,
 } from "@/lib/transport/types"
+import {
+  toolStatusTerminal,
+  toolStatusUnsettled,
+} from "@/lib/tool-call-lifecycle"
 import { randomUUID } from "@/lib/utils"
 import { inferLiveToolName } from "@/lib/tool-call-normalization"
 import {
@@ -81,6 +85,7 @@ import type {
   SessionUsageUpdateInfo,
   PromptCapabilitiesInfo,
   PromptInputBlock,
+  RemoteControlInfo,
   ToolCallImageWire,
   UserMessageBlock,
 } from "@/lib/types"
@@ -291,6 +296,16 @@ export interface LiveMessage {
   generationTiming?: LiveGenerationTiming
 }
 
+/** A stopped turn's record (see `ConnectionState.cancelledTurn`). */
+export interface CancelledTurnReports {
+  /** The turn's message, with every later report on one of its tool calls
+   *  folded in. */
+  message: LiveMessage
+  /** The tool calls the turn left open when it ended: the cards these reports
+   *  may settle, and the only ones. */
+  openCalls: ReadonlySet<string>
+}
+
 // ── Per-connection state ──
 
 export interface ConnectionState {
@@ -307,6 +322,23 @@ export interface ConnectionState {
   configOptions: SessionConfigOptionInfo[] | null
   availableCommands: AvailableCommandInfo[] | null
   usage: SessionUsageUpdateInfo | null
+  /**
+   * The prompt the agent predicts the user will send next (claude-agent-acp
+   * 0.92.0), offered as gray text in the empty composer, where Tab fills it in.
+   * Set by `prompt_suggestion`, withdrawn by its `null`, and cleared when a
+   * prompt starts (STATUS_CHANGED → prompting): it predicted that prompt. The
+   * backend keeps the same value for the snapshot.
+   */
+  promptSuggestion: string | null
+  /**
+   * Claude Code's Remote Control while it is on (claude-agent-acp 0.93.0's
+   * `/remote-control`): the session can be continued from claude.ai/code or a
+   * phone for as long as the agent CLI runs. Set by `remote_control`, cleared
+   * by its `null`, by a fork (codeg closes the session it leaves) and when the
+   * connection goes. While it is set the idle sweep leaves the connection
+   * alone. The backend keeps the same value for the snapshot.
+   */
+  remoteControl: RemoteControlInfo | null
   liveMessage: LiveMessage | null
   pendingPermission: PendingPermission | null
   /** In-flight user prompt for the current turn — set from a `user_message`
@@ -447,6 +479,20 @@ export interface ConnectionState {
    */
   outOfTurnToolCalls: ReadonlyMap<string, ToolCallInfo> | null
   /**
+   * A turn the user stopped, while the agent may still be reporting on it.
+   * codeg ends a stopped turn the moment the user asks
+   * (`ConnectionCommand::Cancel` emits `turn_complete` before the agent
+   * answers), so the reports that close the turn's open tool calls — Claude
+   * Code's `failed` with the CLI's refusal for a command, "The turn was
+   * cancelled…" for a sub-agent's — land after the panel promoted the turn.
+   * Folded into this record and handed to the runtime store
+   * (`applyCancelledTurnReports`), they settle its cards as they would have
+   * settled inside the turn; left out, a stopped command reads as completed
+   * until the conversation is reloaded. Kept until the next prompt starts;
+   * `null` otherwise, and for a turn that left no tool call open.
+   */
+  cancelledTurn: CancelledTurnReports | null
+  /**
    * Client-local: the user dismissed (X) the stale banner for the CURRENT
    * drift. Hides the banner without touching the underlying `configStale`
    * state. Reset to `false` whenever a fresh `session_config_stale` arrives (a
@@ -516,6 +562,7 @@ function selectIdleWarmConnectionCandidates(
       conn.status !== "connected" ||
       conn.isViewer ||
       conn.isDelegationChild ||
+      conn.remoteControl != null ||
       conn.backgroundOutstanding > 0 ||
       liveAsyncTasks(conn.asyncTasks).length > 0 ||
       conn.pendingPermission != null ||
@@ -646,6 +693,9 @@ type Action =
       type: "STATUS_CHANGED"
       contextKey: string
       status: ConnectionStatus
+      /** The ending turn's stop reason, when `turn_complete` is what moved
+       *  the status. */
+      stopReason?: string
     }
   | {
       // One AIR typed session-failure upsert (`session_failure` event).
@@ -901,6 +951,16 @@ type Action =
       type: "USAGE_UPDATE"
       contextKey: string
       usage: SessionUsageUpdateInfo
+    }
+  | {
+      type: "PROMPT_SUGGESTION"
+      contextKey: string
+      text: string | null
+    }
+  | {
+      type: "REMOTE_CONTROL"
+      contextKey: string
+      remoteControl: RemoteControlInfo | null
     }
   | {
       type: "EVENT_APPLIED"
@@ -1600,6 +1660,9 @@ function createConnectingPlaceholder(
     configOptions: null,
     availableCommands: null,
     usage: null,
+    promptSuggestion: null,
+    remoteControl: null,
+    cancelledTurn: null,
     liveMessage: null,
     pendingPermission: null,
     pendingUserMessage: null,
@@ -1820,6 +1883,98 @@ function recordOutOfTurnToolCall(
   return next
 }
 
+type ToolCallUpdateAction = Extract<Action, { type: "TOOL_CALL_UPDATE" }>
+
+/** Fold one `tool_call_update` into the tool call it revises. Shared by the
+ *  in-turn path and a stopped turn's late reports (`foldCancelledTurnReport`),
+ *  so a report lands the same way on either side of the turn's end. */
+function mergeToolCallUpdate(
+  info: ToolCallInfo,
+  update: ToolCallUpdateAction
+): ToolCallInfo {
+  let newChunks: string[]
+  let newTotalBytes: number
+
+  if (update.raw_output === null) {
+    newChunks = info.raw_output_chunks
+    newTotalBytes = info.raw_output_total_bytes
+  } else if (update.raw_output_append) {
+    newChunks = [...info.raw_output_chunks, update.raw_output]
+    newTotalBytes = info.raw_output_total_bytes + update.raw_output.length
+
+    // 超限时从头部批量移除 chunks（单次 slice 替代循环 shift）
+    if (
+      newTotalBytes > MAX_LIVE_TOOL_RAW_OUTPUT_CHARS &&
+      newChunks.length > 1
+    ) {
+      let evictCount = 0
+      let evictedBytes = 0
+      while (
+        evictCount < newChunks.length - 1 &&
+        newTotalBytes - evictedBytes > MAX_LIVE_TOOL_RAW_OUTPUT_CHARS
+      ) {
+        evictedBytes += newChunks[evictCount].length
+        evictCount++
+      }
+      if (evictCount > 0) {
+        newChunks = newChunks.slice(evictCount)
+        newTotalBytes -= evictedBytes
+      }
+    }
+  } else {
+    // 非 append 模式（替换）
+    newChunks = [update.raw_output]
+    newTotalBytes = update.raw_output.length
+  }
+
+  return {
+    ...info,
+    title: update.title ?? info.title,
+    status: update.status ?? info.status,
+    content: update.content ?? info.content,
+    raw_input: update.raw_input ?? info.raw_input,
+    raw_output_chunks: newChunks,
+    locations: update.locations ?? info.locations,
+    meta: update.meta ?? info.meta,
+    raw_output_total_bytes: newTotalBytes,
+    images: update.images !== null ? update.images : info.images,
+  }
+}
+
+/** A stopped turn's record (`ConnectionState.cancelledTurn`), or `null` when
+ *  the turn left no tool call open, which leaves its reports nothing to
+ *  settle. */
+function cancelledTurnOf(message: LiveMessage): CancelledTurnReports | null {
+  const openCalls = new Set<string>()
+  for (const block of message.content) {
+    if (block.type === "tool_call" && toolStatusUnsettled(block.info.status)) {
+      openCalls.add(block.info.tool_call_id)
+    }
+  }
+  return openCalls.size > 0 ? { message, openCalls } : null
+}
+
+/** Fold an out-of-turn report into a stopped turn's record when it revises one
+ *  of that turn's tool calls. Returns `turn` itself otherwise. */
+function foldCancelledTurnReport(
+  turn: CancelledTurnReports | null,
+  update: ToolCallUpdateAction
+): CancelledTurnReports | null {
+  if (!turn) return turn
+  const { content } = turn.message
+  const index = content.findIndex(
+    (b) => b.type === "tool_call" && b.info.tool_call_id === update.tool_call_id
+  )
+  const block = content[index]
+  if (!block || block.type !== "tool_call") return turn
+  const next = content.slice()
+  next[index] = {
+    type: "tool_call",
+    info: mergeToolCallUpdate(block.info, update),
+  }
+  return { ...turn, message: { ...turn.message, content: next } }
+}
+
 function connectionsReducer(
   state: ConnectionsMap,
   action: Action
@@ -1845,6 +2000,8 @@ function connectionsReducer(
         configOptions: null,
         availableCommands: null,
         usage: null,
+        promptSuggestion: null,
+        remoteControl: null,
         liveMessage: null,
         pendingPermission: null,
         pendingUserMessage: null,
@@ -1868,6 +2025,7 @@ function connectionsReducer(
         configStaleDismissed: false,
         backgroundOutstanding: 0,
         outOfTurnToolCalls: null,
+        cancelledTurn: null,
       })
       return next
     }
@@ -1905,6 +2063,8 @@ function connectionsReducer(
         configOptions: null,
         availableCommands: null,
         usage: null,
+        promptSuggestion: null,
+        remoteControl: null,
         liveMessage: null,
         pendingPermission: null,
         pendingUserMessage: null,
@@ -1928,6 +2088,7 @@ function connectionsReducer(
         configStaleDismissed: false,
         backgroundOutstanding: 0,
         outOfTurnToolCalls: null,
+        cancelledTurn: null,
       })
       return next
     }
@@ -2069,7 +2230,16 @@ function connectionsReducer(
         configOptions: action.patch.configOptions,
         availableCommands: action.patch.availableCommands,
         usage: action.patch.usage,
+        // Current state like `usage`; a stale snapshot never reaches here, so
+        // it cannot bring back a prediction a later prompt already spent.
+        promptSuggestion: action.patch.promptSuggestion,
+        remoteControl: action.patch.remoteControl,
         liveMessage: hydratedLiveMessage,
+        // A snapshot with a turn in flight carries a prompt newer than any the
+        // user stopped, which ends that turn's window as the status event of
+        // that prompt would have.
+        cancelledTurn:
+          action.patch.status === "prompting" ? null : current.cancelledTurn,
         // The snapshot's live message REPLACES the local one, and the wire has
         // no `steering` block (the backend never records one — see
         // `snapshot-denormalize`), so every adopted mid-turn message is gone
@@ -2150,6 +2320,11 @@ function connectionsReducer(
       if (!conn) return state
       const next = new Map(state)
       const updated = { ...conn, status: action.status }
+      if (action.status === "disconnected" || action.status === "error") {
+        // Remote Control ran in the agent CLI, which is gone.
+        updated.remoteControl = null
+      }
+
       if (action.status === "prompting") {
         const startedAt = Date.now()
         updated.liveMessage = {
@@ -2174,6 +2349,11 @@ function connectionsReducer(
         // The out-of-turn window ended: its tool-call contexts (kept only for
         // background permission enrichment) are stale for the new turn.
         updated.outOfTurnToolCalls = null
+        // A new turn ends the window in which a stopped one's reports land.
+        updated.cancelledTurn = null
+        // The predicted prompt was for this prompt's place, so it is spent
+        // whatever the user sent (the backend clears its copy the same way).
+        updated.promptSuggestion = null
       } else if (conn.status === "prompting") {
         // Prompt cycle ended: clear in-flight Claude API retry banner.
         updated.claudeApiRetry = null
@@ -2190,6 +2370,16 @@ function connectionsReducer(
         // Likewise a blocked exit_plan_mode approval — cleared via
         // `plan_approval_resolved` normally; this is the turn-end safety net.
         updated.pendingPlanApproval = null
+      }
+      // Keep a stopped turn for the reports that close its cards (see
+      // `ConnectionState.cancelledTurn`). Keyed on the message, so ending the
+      // same turn again keeps the reports already folded in.
+      if (
+        action.stopReason === "cancelled" &&
+        conn.liveMessage &&
+        conn.cancelledTurn?.message.id !== conn.liveMessage.id
+      ) {
+        updated.cancelledTurn = cancelledTurnOf(conn.liveMessage)
       }
       next.set(action.contextKey, updated)
       return next
@@ -2381,8 +2571,10 @@ function connectionsReducer(
       // Out-of-turn: stay out of `liveMessage` (see TOOL_CALL), but merge the
       // registry entry and backfill an open permission dialog waiting for
       // this tool's input — a background permission must still show its
-      // command/diff details. In-turn ordering is safe: the panel flushes
-      // pending tool-call updates at turn_complete BEFORE status flips back.
+      // command/diff details. A report on a tool call of a turn the user
+      // stopped also folds into `cancelledTurn`. In-turn ordering is safe: the
+      // panel flushes pending tool-call updates at turn_complete BEFORE status
+      // flips back.
       if (conn.status !== "prompting") {
         const existing = conn.outOfTurnToolCalls?.get(action.tool_call_id)
         const merged: ToolCallInfo = existing
@@ -2420,6 +2612,7 @@ function connectionsReducer(
             conn.pendingPermission,
             merged
           ),
+          cancelledTurn: foldCancelledTurnReport(conn.cancelledTurn, action),
         })
         return next
       }
@@ -2462,60 +2655,11 @@ function connectionsReducer(
       } else {
         const block = prev.content[existingIndex]
         if (block.type !== "tool_call") return state
-
-        let newChunks: string[]
-        let newTotalBytes: number
-
-        if (action.raw_output === null) {
-          newChunks = block.info.raw_output_chunks
-          newTotalBytes = block.info.raw_output_total_bytes
-        } else if (action.raw_output_append) {
-          newChunks = [...block.info.raw_output_chunks, action.raw_output]
-          newTotalBytes =
-            block.info.raw_output_total_bytes + action.raw_output.length
-
-          // 超限时从头部批量移除 chunks（单次 slice 替代循环 shift）
-          if (
-            newTotalBytes > MAX_LIVE_TOOL_RAW_OUTPUT_CHARS &&
-            newChunks.length > 1
-          ) {
-            let evictCount = 0
-            let evictedBytes = 0
-            while (
-              evictCount < newChunks.length - 1 &&
-              newTotalBytes - evictedBytes > MAX_LIVE_TOOL_RAW_OUTPUT_CHARS
-            ) {
-              evictedBytes += newChunks[evictCount].length
-              evictCount++
-            }
-            if (evictCount > 0) {
-              newChunks = newChunks.slice(evictCount)
-              newTotalBytes -= evictedBytes
-            }
-          }
-        } else {
-          // 非 append 模式（替换）
-          newChunks = [action.raw_output]
-          newTotalBytes = action.raw_output.length
-        }
-
         newContent = [
           ...prev.content.slice(0, existingIndex),
           {
             type: "tool_call" as const,
-            info: {
-              ...block.info,
-              title: action.title ?? block.info.title,
-              status: action.status ?? block.info.status,
-              content: action.content ?? block.info.content,
-              raw_input: action.raw_input ?? block.info.raw_input,
-              raw_output_chunks: newChunks,
-              locations: action.locations ?? block.info.locations,
-              meta: action.meta ?? block.info.meta,
-              raw_output_total_bytes: newTotalBytes,
-              images:
-                action.images !== null ? action.images : block.info.images,
-            },
+            info: mergeToolCallUpdate(block.info, action),
           },
           ...prev.content.slice(existingIndex + 1),
         ]
@@ -2797,6 +2941,12 @@ function connectionsReducer(
         ...conn,
         sessionId: action.sessionId,
         asyncTasks: forked ? [] : conn.asyncTasks,
+        // Likewise the predicted prompt: it follows the last turn of the
+        // session left behind, and a fork starts from an earlier point of it.
+        promptSuggestion: forked ? null : conn.promptSuggestion,
+        // And Remote Control: codeg closes the session a fork leaves, and its
+        // CLI with it.
+        remoteControl: forked ? null : conn.remoteControl,
       })
       return next
     }
@@ -3215,6 +3365,32 @@ function connectionsReducer(
         ...conn,
         usage: action.usage,
       })
+      return next
+    }
+
+    case "PROMPT_SUGGESTION": {
+      const conn = state.get(action.contextKey)
+      if (!conn || conn.promptSuggestion === action.text) return state
+      const next = new Map(state)
+      next.set(action.contextKey, { ...conn, promptSuggestion: action.text })
+      return next
+    }
+
+    case "REMOTE_CONTROL": {
+      const conn = state.get(action.contextKey)
+      if (!conn) return state
+      const before = conn.remoteControl
+      const after = action.remoteControl
+      if (
+        (before === null && after === null) ||
+        (before !== null &&
+          after !== null &&
+          before.session_url === after.session_url)
+      ) {
+        return state
+      }
+      const next = new Map(state)
+      next.set(action.contextKey, { ...conn, remoteControl: after })
       return next
     }
 
@@ -4129,6 +4305,34 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         sink(nextConn.liveMessage, nextConn.status === "prompting")
       }
 
+      // A stopped turn's late reports (see `cancelledTurn`) settle the cards of
+      // the turn the panel promoted. Only once a report in the batch closes a
+      // tool call: progress folds in on its own and rides along, rather than
+      // having the runtime store rebuild the turn per batch.
+      const settleCancelledTurnCards = (
+        key: string,
+        batch: ReadonlyArray<{ contextKey: string; status: string | null }>
+      ) => {
+        const nextConn = next.get(key)
+        const folded = nextConn?.cancelledTurn
+        if (!nextConn || !folded) return
+        if (folded === prev.get(key)?.cancelledTurn) return
+        if (
+          !batch.some(
+            (item) => item.contextKey === key && toolStatusTerminal(item.status)
+          )
+        ) {
+          return
+        }
+        const conversationId = nextConn.sessionId
+          ? getConversationIdByExternalIdFromStore(nextConn.sessionId)
+          : null
+        if (conversationId == null) return
+        useConversationRuntimeStore
+          .getState()
+          .actions.applyCancelledTurnReports(conversationId, folded)
+      }
+
       if (action.type === "REMOVE_ALL") {
         notifyAllKeyListeners()
       } else if (action.type === "STREAM_BATCH") {
@@ -4142,6 +4346,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         for (const key of keys) {
           mirrorLiveMessage(key)
           notifyKeyListeners(key)
+          settleCancelledTurnCards(key, action.actions)
         }
       } else if (action.type === "REKEY_CONNECTION") {
         // The connection (with its in-flight liveMessage) moved to toKey; sync
@@ -4840,17 +5045,18 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           //    the user had to dismiss one by one. Only the single-task case
           //    still carries the agent's own summary — a count says everything
           //    a batch notification usefully can.
+          const finished = (e.settled ?? []).filter((s) => !s.interim)
           if (e.settled && e.settled.length > 0) {
-            if (!echo) {
+            if (!echo && finished.length > 0) {
               const nc = storeRef.current.connections.get(contextKey)
               const agentLabel = nc ? getAgentLabel(nc.agentType) : "Agent"
 
-              const count = e.settled.length
+              const count = finished.length
               const many = tChat("backgroundTasks.notifySettledMany", {
                 agent: agentLabel,
                 count,
               })
-              const single = e.settled[0]
+              const single = finished[0]
               void notifyDesktop(
                 "background_task",
                 sessionNotification(contextKey, {
@@ -4901,6 +5107,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
                   status: settled.status,
                   summary: settled.summary ?? null,
                   result: settled.result ?? null,
+                  interim: settled.interim === true,
                 })
               }
             }
@@ -5236,6 +5443,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             type: "STATUS_CHANGED",
             contextKey,
             status: "connected",
+            stopReason: e.stop_reason,
           })
           // Detect pending question from tool calls in the completed turn
           const turnConn = storeRef.current.connections.get(contextKey)
@@ -5573,6 +5781,25 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               used: e.used,
               size: e.size,
             },
+          })
+          break
+        case "prompt_suggestion":
+          flushStreamingQueue(contextKey)
+          dispatch({
+            type: "PROMPT_SUGGESTION",
+            contextKey,
+            text: e.text?.trim() || null,
+          })
+          break
+        case "remote_control":
+          // After the reply it follows, which can still be in the stream queue.
+          flushStreamingQueue(contextKey)
+          dispatch({
+            type: "REMOTE_CONTROL",
+            contextKey,
+            remoteControl: e.remote_control
+              ? { session_url: e.remote_control.session_url ?? null }
+              : null,
           })
           break
       }
@@ -6232,6 +6459,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // strip is actively showing as running. Mirrors the backend's
         // `has_active_background_work`, which ORs the two the same way.
         if (liveAsyncTasks(conn.asyncTasks).length > 0) continue
+        if (conn.remoteControl) continue
         const lastActive = lastActivityRef.current.get(contextKey) ?? 0
         if (now - lastActive > CONNECTION_IDLE_TIMEOUT_MS) {
           const keys = groupsToDisconnect.get(conn.connectionId) ?? []
@@ -6257,6 +6485,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
             conn.status !== "connected" ||
             conn.isViewer ||
             conn.isDelegationChild ||
+            conn.remoteControl != null ||
             conn.backgroundOutstanding > 0 ||
             liveAsyncTasks(conn.asyncTasks).length > 0 ||
             conn.pendingPermission != null ||

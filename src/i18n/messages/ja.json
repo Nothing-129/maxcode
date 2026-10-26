@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "何でも質問してください...",
+        "promptSuggestion": "{suggestion}（Tab で入力）",
         "removeAttachmentAria": "{name} を削除",
         "attachFiles": "ファイルを添付",
         "addActions": "追加",
@@ -3993,6 +3994,7 @@
         "cardRunning": "バックグラウンドで実行中",
         "cardLaunchedPending": "バックグラウンドタスクを開始しました",
         "cardCompleted": "バックグラウンドタスクが完了しました",
+        "cardInterim": "バックグラウンドタスク：途中結果",
         "cardFinishedWithStatus": "バックグラウンドタスクが終了しました（{status}）",
         "cardResultPending": "結果はまだ返っていません"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} トークン",
         "stopDeclined": "このタスクは停止できませんでした。すでに終了している可能性があります。",
         "stopFailed": "タスクの停止に失敗しました: {error}"
+      },
+      "remoteControl": {
+        "title": "リモートコントロール有効",
+        "open": "ブラウザで開く",
+        "copy": "リンクをコピー",
+        "copied": "コピーしました",
+        "qr": "QR コード",
+        "qrLabel": "このセッションのリモートコントロール用リンクの QR コード",
+        "qrHint": "スマートフォンでスキャンすると、Claude アプリまたは claude.ai/code でこのセッションを続けられます。",
+        "noUrl": "Claude Code はこのセッションのリンクを返しませんでした",
+        "turnOff": "オフにする",
+        "turnOffBusy": "Claude の作業が終わると使えます"
       },
       "proposedPlan": {
         "title": "提案された計画",

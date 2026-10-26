@@ -21,6 +21,7 @@ import type {
   PendingQuestionState,
   PromptCapabilitiesInfo,
   QuestionAnswer,
+  RemoteControlInfo,
   SessionConfigOptionInfo,
   AsyncTaskRecord,
   SessionFailureRecord,
@@ -75,6 +76,13 @@ export interface UseConnectionReturn {
   modes: SessionModeStateInfo | null
   configOptions: SessionConfigOptionInfo[] | null
   availableCommands: AvailableCommandInfo[] | null
+  /** The prompt the agent predicts the user will send next, offered by the
+   *  empty composer (Tab fills it in), or `null`. See
+   *  `ConnectionState.promptSuggestion`. */
+  promptSuggestion: string | null
+  /** Claude Code's Remote Control while it is on, or `null`. See
+   *  `ConnectionState.remoteControl`. */
+  remoteControl: RemoteControlInfo | null
   pendingPermission: PendingPermission | null
   pendingUserMessage: PendingUserMessage | null
   /** Feedback-note ids this turn's live message adopted as mid-turn user turns
@@ -162,6 +170,9 @@ const CONN_NON_RENDER_KEYS = new Set<keyof ConnectionState>([
   // enrichment); no useConnection consumer renders it, and it can churn per
   // background tool event.
   "outOfTurnToolCalls",
+  // A stopped turn with its late reports folded in: handed to the runtime
+  // store by the connection dispatch, never rendered from here.
+  "cancelledTurn",
 ])
 
 // Shallow-equal two connection snapshots for RENDER purposes: equal iff every
@@ -271,6 +282,8 @@ export function useConnection(contextKey: string): UseConnectionReturn {
   const configOptions =
     connection?.configOptions ?? cached?.configOptions ?? null
   const availableCommands = connection?.availableCommands ?? null
+  const promptSuggestion = connection?.promptSuggestion ?? null
+  const remoteControl = connection?.remoteControl ?? null
   const pendingPermission = connection?.pendingPermission ?? null
   const pendingUserMessage = connection?.pendingUserMessage ?? null
   const steeredMessageIds =
@@ -380,6 +393,8 @@ export function useConnection(contextKey: string): UseConnectionReturn {
       modes,
       configOptions,
       availableCommands,
+      promptSuggestion,
+      remoteControl,
       pendingPermission,
       pendingUserMessage,
       steeredMessageIds,
@@ -423,6 +438,8 @@ export function useConnection(contextKey: string): UseConnectionReturn {
       modes,
       configOptions,
       availableCommands,
+      promptSuggestion,
+      remoteControl,
       pendingPermission,
       pendingUserMessage,
       steeredMessageIds,

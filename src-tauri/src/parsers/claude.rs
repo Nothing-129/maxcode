@@ -54,6 +54,9 @@ struct BackgroundNotification {
     status: String,
     summary: Option<String>,
     result: Option<String>,
+    /// The notification says the task will notify again (see
+    /// [`task_notification_is_interim`]).
+    interim: bool,
 }
 
 /// Record one `<task-notification>` payload under its task id. The same id can
@@ -73,11 +76,82 @@ fn record_task_notification(
         BackgroundNotification {
             status: capture_tag(task_notification_status_regex(), raw)
                 .unwrap_or_else(|| "completed".to_string()),
-            summary: capture_tag(task_notification_summary_regex(), raw),
-            result: capture_tag(task_notification_result_regex(), raw)
-                .map(|r| truncate_str(&r, BACKGROUND_RESULT_MAX_CHARS)),
+            summary: capture_tag(task_notification_summary_regex(), raw)
+                .map(|s| unescape_task_notification_text(&s)),
+            result: capture_tag(task_notification_result_regex(), raw).map(|r| {
+                truncate_str(
+                    &unescape_task_notification_text(&r),
+                    BACKGROUND_RESULT_MAX_CHARS,
+                )
+            }),
+            interim: task_notification_is_interim(raw),
         },
     );
+}
+
+/// Undo the escaping Claude Code applies to the text it writes inside a
+/// `<task-notification>`: `&` as `&amp;`, `<` as `&lt;`, `>` as `&gt;`, quotes
+/// as they are. Measured on CLI 2.1.296 and 2.1.300 with a sub-agent report
+/// holding `` `Vec<String>` `` and `a && b`, and borne out by a real history:
+/// every notification from 2.1.257 to 2.1.296 that had any of the three carried
+/// the entities, none the bare characters. Left escaped, the launch card showed
+/// `&lt;` in its summary line and inside the report's code, where markdown
+/// leaves entities alone. `&amp;` is undone last, so an entity the text itself
+/// spelled out (`&amp;lt;`) stays one (`&lt;`).
+pub(crate) fn unescape_task_notification_text(text: &str) -> String {
+    text.replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
+/// The sentences with which Claude Code's `<note>` says a `completed` agent
+/// notification is not the agent's last word. Both are the CLI's own text
+/// (`enqueueAgentNotification`, read from the 2.1.296 and 2.1.300 binaries):
+///
+/// * "This agent stopped with background work of its own still running. It
+///   may resume on its own when that work completes or reports, and the same
+///   task-id notifies again if it does; the result below may be interim." —
+///   the agent ended its run while a command or agent it started in the
+///   background still runs. Measured live on both CLIs: the agent picks up
+///   when that work ends and notifies again, with "finished" and the ordinary
+///   note. CLI 2.1.300 also words the summary "… is waiting on its own
+///   background work" (2.1.296 said "… finished" for this one too).
+/// * "… The agent is being resumed with them and will notify again. …" — new
+///   in 2.1.300: messages sent to the agent arrived after its last step, and
+///   it runs again with them.
+///
+/// The ordinary note ("A task-notification fires each time this agent stops
+/// with no live background children of its own. …") contains neither.
+const INTERIM_TASK_NOTE_PHRASES: [&str; 2] =
+    ["the result below may be interim", "will notify again"];
+
+fn task_notification_note_regex() -> &'static Regex {
+    static RE: OnceLock<Regex> = OnceLock::new();
+    RE.get_or_init(|| Regex::new(r"(?s)<note>(.*?)</note>").unwrap())
+}
+
+/// Whether a `<task-notification>` reports a stop the task will report on
+/// again: a `completed` agent notification whose `<note>` says so (see
+/// [`INTERIM_TASK_NOTE_PHRASES`]). Such a task is still alive: its result may
+/// be interim, and a later notification for the same task id replaces it.
+///
+/// Only the part before `<result>` is read, where the CLI puts its note, so a
+/// report that quotes those sentences cannot mark its own notification; and the
+/// one text before it the model writes, the agent's description in the
+/// summary, comes escaped ([`unescape_task_notification_text`]; measured with a
+/// description holding `<note>`), so a `<note>` there is always the CLI's. A
+/// notification without the note (every CLI before the note existed) is final,
+/// as it always was.
+pub(crate) fn task_notification_is_interim(raw: &str) -> bool {
+    let head = raw.split("<result>").next().unwrap_or(raw);
+    let completed = capture_tag(task_notification_status_regex(), head)
+        .is_none_or(|status| status == "completed");
+    completed
+        && capture_tag(task_notification_note_regex(), head).is_some_and(|note| {
+            INTERIM_TASK_NOTE_PHRASES
+                .iter()
+                .any(|phrase| note.contains(phrase))
+        })
 }
 
 /// The `<task-notification>` text of a background task that settled while a
@@ -2697,6 +2771,10 @@ impl ClaudeRecordAccumulator {
     /// renders that as "launched, result pending" WITHOUT claiming it is
     /// still running (a killed CLI leaves it null forever; deriving
     /// "running" from transcript alone is the zombie trap CC desktop hit).
+    /// `"interim": true` follows when the latest notification says the task
+    /// will notify again ([`task_notification_is_interim`]); the frontend then
+    /// reads its result as interim rather than as the task's end, again
+    /// without claiming the task still runs.
     /// Follows the parser's established output-rewrite pattern
     /// (`structuredPatch` diffs, `structurize_read_tool_output`).
     pub(crate) fn apply_background_lifecycle(&self, messages: &mut [UnifiedMessage]) {
@@ -2718,12 +2796,16 @@ impl ClaudeRecordAccumulator {
                     continue;
                 };
                 let notification = self.background_notifications.get(task_id);
-                let payload = serde_json::json!({
+                let mut payload = serde_json::json!({
                     "task_id": task_id,
                     "status": notification.map(|n| n.status.clone()),
                     "summary": notification.and_then(|n| n.summary.clone()),
                     "result": notification.and_then(|n| n.result.clone()),
                 });
+                // Only when set, so every other marker reads as it always did.
+                if notification.is_some_and(|n| n.interim) {
+                    payload["interim"] = serde_json::Value::Bool(true);
+                }
                 *output_preview = Some(format!("{BACKGROUND_TASK_MARKER}{payload}"));
             }
         }
@@ -3397,6 +3479,11 @@ fn extract_agent_execution_stats(tur: &serde_json::Value) -> AgentExecutionStats
 /// the sub-agent started, so a session running across midnight attributes its
 /// delegated work to the day it actually happened.
 ///
+/// A fork's transcript opens with a copy of what it inherited — the parent's
+/// launching record, or a launching subagent's whole history — whose usage is
+/// already counted where it was spent. [`parse_subagent_tool_calls`] reads a
+/// fork from its directive message on, so only the fork's own calls count.
+///
 /// Runs on turns rather than messages, and deliberately after the context
 /// window has been read: delegated tokens are this session's *spend*, but they
 /// never occupied this session's prompt.
@@ -3459,6 +3546,54 @@ fn attribute_subagent_usage(session_path: &Path, turns: &mut [MessageTurn]) {
 /// uses (see [`ClaudeRecordAccumulator::claim_assistant_usage`]) — a sub-agent
 /// transcript has the identical one-line-per-content-block shape. It is
 /// consumed by [`attribute_subagent_usage`]; the tool-call caller ignores it.
+/// How Claude Code opens the directive message of a `subagent_type: "fork"`
+/// child. Same marker as claude-agent-acp 0.94.0's `FORK_BOILERPLATE_OPEN`.
+const FORK_BOILERPLATE_OPEN: &str = "<fork-boilerplate>";
+
+/// Whether a transcript record is the directive message a `subagent_type:
+/// "fork"` child starts its own work from: a `user` record whose content holds
+/// a text block opening with the fork boilerplate, beside a `tool_result` for
+/// each copied `tool_use` ("Fork started — processing in background").
+///
+/// Everything a fork's transcript holds before that message is inherited, not
+/// the child's work. Measured on CLI 2.1.300 (forks behind
+/// `CLAUDE_CODE_FORK_SUBAGENT=1`) and 2.1.303 (where the Agent SDK, and so
+/// every claude-agent-acp ≥0.94.0 session, offers forks by default; the
+/// terminal has since 2.1.232):
+///
+/// * a fork of the main thread starts with a `fork-context-ref` record naming
+///   the parent session, then a COPY of the parent's launching assistant
+///   record — the `Agent` tool_use, with the parent's `message.id` and the
+///   parent's usage, which the parent's own transcript already counts;
+/// * a fork launched by a subagent copies that subagent's history instead
+///   (its prompt, its earlier calls, its launching record), each record with
+///   its original timestamp, `message.id` and usage.
+///
+/// Read whole, the prefix put the parent's own `Agent` call into the fork's
+/// card, counted the copied usage twice in the session's spend, and started
+/// the fork's clock at the copied history.
+///
+/// claude-agent-acp's `stripForkPrefix` cuts at the FIRST such message; a
+/// streaming reader that restarts at each one cuts at the LAST. They agree on
+/// every transcript Claude Code writes — a fork may not spawn subagents, so
+/// a second directive cannot appear — and the last is the right cut if one
+/// ever did, since a copied history would then carry the earlier one.
+fn is_fork_directive_record(value: &serde_json::Value) -> bool {
+    value
+        .get("message")
+        .and_then(|m| m.get("content"))
+        .and_then(|c| c.as_array())
+        .is_some_and(|blocks| {
+            blocks.iter().any(|block| {
+                block.get("type").and_then(|t| t.as_str()) == Some("text")
+                    && block
+                        .get("text")
+                        .and_then(|t| t.as_str())
+                        .is_some_and(|text| text.starts_with(FORK_BOILERPLATE_OPEN))
+            })
+        })
+}
+
 fn parse_subagent_tool_calls(
     path: &PathBuf,
 ) -> (Vec<AgentToolCall>, Option<TurnUsage>, Option<DateTime<Utc>>) {
@@ -3492,6 +3627,13 @@ fn parse_subagent_tool_calls(
 
         let msg_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
 
+        if msg_type == "user" && is_fork_directive_record(&value) {
+            calls.clear();
+            results.clear();
+            usage_by_message_id.clear();
+            started_at = parse_timestamp(&value);
+            continue;
+        }
         if started_at.is_none() {
             started_at = parse_timestamp(&value);
         }
@@ -5943,6 +6085,16 @@ mod tests {
 
     /// Build the `assistant` line Claude Code writes for one content block of a
     /// response — `id` identifies the API call, so several lines share it.
+    fn fork_directive(at: &str, copied_tool_use_id: &str, prompt: &str) -> String {
+        json!({
+            "type": "user", "timestamp": at,
+            "message": {"role": "user", "content": [
+                {"type":"tool_result", "tool_use_id":copied_tool_use_id, "content":"Fork started — processing in background"},
+                {"type":"text", "text":format!("<fork-boilerplate>inherited context</fork-boilerplate>\n{prompt}")}
+            ]}
+        }).to_string()
+    }
+
     fn assistant_block_line(
         uuid: &str,
         message_id: &str,
@@ -6714,6 +6866,52 @@ mod tests {
                 .any(|(ts, n)| ts.starts_with("2026-03-01") && *n == 5_010),
             "sub-agent spend belongs to the turn that launched it, got {carrying:?}"
         );
+    }
+
+    /// A fork's transcript repeats the launching record — same `message.id`,
+    /// same usage — which the session's own transcript already counted. Only
+    /// the fork's own calls are delegated spend.
+    #[test]
+    fn a_forks_copy_of_the_launching_message_is_not_counted_twice() {
+        let launch = json!({
+            "type": "tool_use", "id": "tu1", "name": "Agent",
+            "input": {"description": "d", "prompt": "go", "subagent_type": "fork"}
+        });
+        let launch_usage = json!({
+            "input_tokens": 1000,
+            "output_tokens": 0,
+            "cache_creation_input_tokens": 0,
+            "cache_read_input_tokens": 0
+        });
+        let detail = parse_with_subagents(
+            &[assistant_block_line(
+                "a1",
+                "msg_launch",
+                "2026-03-01T10:00:00Z",
+                launch.clone(),
+                launch_usage.clone(),
+            )],
+            &[(
+                "af1",
+                vec![
+                    json!({
+                        "type": "fork-context-ref", "agentId": "af1",
+                        "parentSessionId": "dedup-test", "contextLength": 1
+                    })
+                    .to_string(),
+                    assistant_block_line(
+                        "copy",
+                        "msg_launch",
+                        "2026-03-01T10:00:00Z",
+                        launch,
+                        launch_usage,
+                    ),
+                    fork_directive("2026-03-01T10:00:01Z", "tu1", "go"),
+                    subagent_line("s1", "msg_fork", "2026-03-01T10:02:00Z", 7_000),
+                ],
+            )],
+        );
+        assert_eq!(total_usage_tokens(&detail), 8_000);
     }
 
     #[test]
@@ -8525,6 +8723,438 @@ mod tests {
         );
     }
 
+    /// The `<note>` of an agent notification, word for word as CLI 2.1.296 and
+    /// 2.1.300 write it (`enqueueAgentNotification`).
+    const INTERIM_WAITING_NOTE: &str = "This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.";
+    const FINAL_AGENT_NOTE: &str = "A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.";
+    /// What 2.1.300 adds to the note when messages reached the agent too late.
+    const LATE_MESSAGES_NOTE: &str = " One or more messages sent to this agent arrived after this run's last step, too late for the result below. The agent is being resumed with them and will notify again. Wait for that notification before resending.";
+
+    /// A `<task-notification>` in the layout the CLI writes it.
+    fn agent_notification(
+        task_id: &str,
+        status: &str,
+        summary: &str,
+        note: Option<&str>,
+        result: &str,
+    ) -> String {
+        let note = note.map_or(String::new(), |n| format!("<note>{n}</note>\n"));
+        format!(
+            "<task-notification>\n<task-id>{task_id}</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<output-file>/tmp/{task_id}.output</output-file>\n<status>{status}</status>\n<summary>{summary}</summary>\n{note}<result>{result}</result>\n<usage><subagent_tokens>15</subagent_tokens><tool_uses>1</tool_uses><duration_ms>289</duration_ms></usage>\n</task-notification>"
+        )
+    }
+
+    /// Measured live on CLI 2.1.296 and 2.1.300: a background sub-agent that
+    /// starts a background command of its own and ends its run while the
+    /// command runs notifies `completed` with the interim note, then again,
+    /// with the ordinary note, once the command is done and it has finished.
+    #[test]
+    fn an_interim_agent_notification_is_read_from_the_cli_note() {
+        let waiting_2300 = "Agent \"probe sub bg bash\" is waiting on its own background work";
+        let finished = "Agent \"probe sub bg bash\" finished";
+        let late = format!("{FINAL_AGENT_NOTE}{LATE_MESSAGES_NOTE}");
+        let cases: Vec<(String, bool)> = vec![
+            // 2.1.300 words the summary for it as well.
+            (
+                agent_notification(
+                    "a1",
+                    "completed",
+                    waiting_2300,
+                    Some(INTERIM_WAITING_NOTE),
+                    "ok",
+                ),
+                true,
+            ),
+            // 2.1.296 said "finished", with the same note.
+            (
+                agent_notification(
+                    "a1",
+                    "completed",
+                    finished,
+                    Some(INTERIM_WAITING_NOTE),
+                    "ok",
+                ),
+                true,
+            ),
+            // 2.1.300: resumed with messages that came after its last step.
+            (
+                agent_notification("a1", "completed", finished, Some(&late), "ok"),
+                true,
+            ),
+            // The final notification.
+            (
+                agent_notification("a1", "completed", finished, Some(FINAL_AGENT_NOTE), "ok"),
+                false,
+            ),
+            // A CLI from before the note.
+            (
+                agent_notification("a1", "completed", finished, None, "ok"),
+                false,
+            ),
+            // A stop that is no completion ends the task, whatever the note.
+            (
+                agent_notification(
+                    "a1",
+                    "failed",
+                    "Agent \"x\" failed: boom",
+                    Some(INTERIM_WAITING_NOTE),
+                    "",
+                ),
+                false,
+            ),
+            // A report that quotes the sentences, or a note, marks nothing.
+            (
+                agent_notification(
+                    "a1",
+                    "completed",
+                    finished,
+                    Some(FINAL_AGENT_NOTE),
+                    &format!("The CLI said: {INTERIM_WAITING_NOTE}"),
+                ),
+                false,
+            ),
+            (
+                agent_notification(
+                    "a1",
+                    "completed",
+                    finished,
+                    None,
+                    &format!("<note>{INTERIM_WAITING_NOTE}</note>"),
+                ),
+                false,
+            ),
+        ];
+        for (raw, interim) in cases {
+            assert_eq!(task_notification_is_interim(&raw), interim, "{raw}");
+        }
+    }
+
+    /// The launch card reads the interim result as interim until the agent's
+    /// final notification replaces it, as the live card does.
+    #[test]
+    fn an_interim_notification_marks_the_launch_card_until_the_final_one() {
+        let waiting = "Agent \"probe sub bg bash\" is waiting on its own background work";
+        let finished = "Agent \"probe sub bg bash\" finished";
+        let notification_record = |uuid: &str, ts: &str, raw: String| {
+            json!({
+                "type": "user", "uuid": uuid, "timestamp": ts,
+                "message": {"role": "user", "content": raw},
+            })
+        };
+        let mut records = vec![
+            json!({
+                "type": "assistant", "uuid": "a1", "timestamp": "2026-10-15T14:04:03.600Z",
+                "message": {"role": "assistant", "content": [{
+                    "type": "tool_use", "id": "toolu_01", "name": "Agent",
+                    "input": {"description": "probe sub bg bash", "prompt": "…", "subagent_type": "general-purpose"},
+                }]},
+            }),
+            json!({
+                "type": "user", "uuid": "u1", "timestamp": "2026-10-15T14:04:03.700Z",
+                "message": {"role": "user", "content": [{
+                    "tool_use_id": "toolu_01", "type": "tool_result",
+                    "content": [{"type": "text", "text": "Async agent launched successfully. agentId: a0a4bac773047ba2c"}],
+                }]},
+                "toolUseResult": {"isAsync": true, "status": "async_launched", "agentId": "a0a4bac773047ba2c"},
+            }),
+            notification_record(
+                "u2",
+                "2026-10-15T14:04:04.142Z",
+                agent_notification(
+                    "a0a4bac773047ba2c",
+                    "completed",
+                    waiting,
+                    Some(INTERIM_WAITING_NOTE),
+                    "ok",
+                ),
+            ),
+            json!({
+                "type": "assistant", "uuid": "a2", "timestamp": "2026-10-15T14:04:04.300Z",
+                "message": {"role": "assistant", "content": [{"type": "text", "text": "Noted."}]},
+            }),
+        ];
+        let marker = |detail: &ConversationDetail| -> serde_json::Value {
+            let raw = detail
+                .turns
+                .iter()
+                .flat_map(|t| t.blocks.iter())
+                .find_map(|b| match b {
+                    ContentBlock::ToolResult {
+                        output_preview: Some(o),
+                        ..
+                    } => o.strip_prefix(BACKGROUND_TASK_MARKER),
+                    _ => None,
+                })
+                .expect("the launch card carries a lifecycle marker");
+            serde_json::from_str(raw).unwrap()
+        };
+
+        let detail = parse_lines("interim", &record_lines(&records));
+        assert_eq!(
+            marker(&detail),
+            json!({
+                "task_id": "a0a4bac773047ba2c",
+                "status": "completed",
+                "summary": waiting,
+                "result": "ok",
+                "interim": true,
+            })
+        );
+
+        records.push(notification_record(
+            "u3",
+            "2026-10-15T14:04:12.383Z",
+            agent_notification(
+                "a0a4bac773047ba2c",
+                "completed",
+                finished,
+                Some(FINAL_AGENT_NOTE),
+                "ok",
+            ),
+        ));
+        let detail = parse_lines("interim", &record_lines(&records));
+        assert_eq!(
+            marker(&detail),
+            json!({
+                "task_id": "a0a4bac773047ba2c",
+                "status": "completed",
+                "summary": finished,
+                "result": "ok",
+            })
+        );
+    }
+
+    /// Claude Code escapes `&`, `<` and `>` in a notification's summary and
+    /// report (measured on CLI 2.1.296 and 2.1.300, text below as written);
+    /// the launch card shows them as the agent wrote them.
+    #[test]
+    fn a_notification_summary_and_report_read_unescaped() {
+        assert_eq!(
+            unescape_task_notification_text(
+                "`Vec&lt;String&gt;` &amp; `a &amp;&amp; b` in &lt;code&gt; \"q\" 'a'"
+            ),
+            "`Vec<String>` & `a && b` in <code> \"q\" 'a'"
+        );
+        // An entity the text itself spelled out stays one.
+        assert_eq!(
+            unescape_task_notification_text("&amp;lt;br&amp;gt; &amp;amp;"),
+            "&lt;br&gt; &amp;"
+        );
+
+        let records = vec![
+            json!({
+                "type": "assistant", "uuid": "a1", "timestamp": "2026-10-15T14:20:00.000Z",
+                "message": {"role": "assistant", "content": [{
+                    "type": "tool_use", "id": "toolu_01", "name": "Agent",
+                    "input": {"description": "probe <x> & \"y\"", "prompt": "…"},
+                }]},
+            }),
+            json!({
+                "type": "user", "uuid": "u1", "timestamp": "2026-10-15T14:20:00.100Z",
+                "message": {"role": "user", "content": [{
+                    "tool_use_id": "toolu_01", "type": "tool_result",
+                    "content": [{"type": "text", "text": "Async agent launched successfully. agentId: a980553ddc890e37a"}],
+                }]},
+                "toolUseResult": {"isAsync": true, "status": "async_launched", "agentId": "a980553ddc890e37a"},
+            }),
+            json!({
+                "type": "user", "uuid": "u2", "timestamp": "2026-10-15T14:20:02.000Z",
+                "message": {"role": "user", "content": agent_notification(
+                    "a980553ddc890e37a",
+                    "completed",
+                    "Agent \"probe &lt;x&gt; &amp; \"y\"\" finished",
+                    Some(FINAL_AGENT_NOTE),
+                    "Found it: `Vec&lt;String&gt;` &amp; `a &amp;&amp; b` in &lt;code&gt; \"q\" 'a'",
+                )},
+            }),
+        ];
+        let detail = parse_lines("escaped", &record_lines(&records));
+        let raw = detail
+            .turns
+            .iter()
+            .flat_map(|t| t.blocks.iter())
+            .find_map(|b| match b {
+                ContentBlock::ToolResult {
+                    output_preview: Some(o),
+                    ..
+                } => o.strip_prefix(BACKGROUND_TASK_MARKER),
+                _ => None,
+            })
+            .expect("the launch card carries a lifecycle marker");
+        let marker: serde_json::Value = serde_json::from_str(raw).unwrap();
+        assert_eq!(marker["summary"], "Agent \"probe <x> & \"y\"\" finished");
+        assert_eq!(
+            marker["result"],
+            "Found it: `Vec<String>` & `a && b` in <code> \"q\" 'a'"
+        );
+    }
+
+    /// CLI 2.1.300 writes each main-loop API request into the transcript: the
+    /// system prompt and tools once per shape (`api-request-shape`), the
+    /// messages the transcript does not already hold (`api-request-blob`, the
+    /// prompt as sent among them), and one `api-request` per request, which the
+    /// reply's records name in `requestRef`. Record shapes as measured on a live
+    /// 2.1.300 session, trimmed. None of it is conversation: the parse must
+    /// read exactly as the same session without them (the 2.1.296 shape). (A
+    /// request still waiting on its reply is the newest timestamped record, so
+    /// like any record it moves the summary's `ended_at` to when it was sent.)
+    #[test]
+    fn the_api_request_records_of_cli_2_1_300_change_nothing_parsed() {
+        let shape = json!({
+            "type": "api-request-shape", "sessionId": "s1",
+            "shapeHash": "cc7642af",
+            "shape": {
+                "system": [{"type": "text", "text": "You are Claude Code."}],
+                "tools": [{"name": "Bash", "description": "Run a command", "input_schema": {"type": "object"}}],
+            },
+        });
+        let blob = |hash: &str, role: &str, text: &str| {
+            json!({
+                "type": "api-request-blob", "sessionId": "s1", "hash": hash,
+                "message": {"role": role, "content": [{"type": "text", "text": text}]},
+            })
+        };
+        let request = |id: &str, ts: &str, base: Option<&str>, tail: &[&str]| {
+            let mut r = json!({
+                "type": "api-request", "sessionId": "s1", "id": id, "timestamp": ts,
+                "version": "2.1.300", "querySource": "sdk", "shapeHash": "cc7642af",
+                "params": {
+                    "model": "claude-opus-5-5", "max_tokens": 128000,
+                    "thinking": {"type": "adaptive", "display": "updates"},
+                    "output_config": {"effort": "medium"},
+                },
+                "keep": 0, "tail": tail,
+                "cacheControl": [{"path": ["system", 0], "value": {"type": "ephemeral"}}],
+                "requestDigest": "d4bce501",
+            });
+            if let Some(base) = base {
+                r["base"] = json!(base);
+                r["keep"] = json!(2);
+            }
+            r
+        };
+        let assistant = |uuid: &str,
+                         ts: &str,
+                         request: &str,
+                         msg: &str,
+                         content: serde_json::Value| {
+            json!({
+                "type": "assistant", "sessionId": "s1", "uuid": uuid, "timestamp": ts, "requestRef": request,
+                "message": {
+                    "id": msg, "role": "assistant", "model": "claude-opus-5-5", "content": content,
+                    "usage": {"input_tokens": 10, "output_tokens": 5, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0},
+                },
+            })
+        };
+        let with_requests = vec![
+            json!({
+                "type": "user", "sessionId": "s1", "uuid": "u1", "timestamp": "2026-10-15T13:55:16.940Z", "promptId": "p1",
+                "message": {"role": "user", "content": [{"type": "text", "text": "Run the records probe"}]},
+            }),
+            shape,
+            blob(
+                "696a9d59",
+                "user",
+                "<system-reminder>\nAttribution …\n</system-reminder>\nRun the records probe",
+            ),
+            blob(
+                "5e31db53",
+                "system",
+                "# Environment\nYou have been invoked in the following environment",
+            ),
+            request(
+                "r1",
+                "2026-10-15T13:55:16.968Z",
+                None,
+                &["696a9d59", "5e31db53"],
+            ),
+            assistant(
+                "a1",
+                "2026-10-15T13:55:17.010Z",
+                "r1",
+                "msg_1",
+                json!([{"type": "tool_use", "id": "toolu_1", "name": "Bash", "input": {"command": "echo records-probe", "description": "probe command"}}]),
+            ),
+            json!({
+                "type": "user", "sessionId": "s1", "uuid": "u2", "timestamp": "2026-10-15T13:55:17.030Z", "promptId": "p1",
+                "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "toolu_1", "content": "records-probe"}]},
+                "toolUseResult": {"stdout": "records-probe", "stderr": "", "interrupted": false},
+            }),
+            blob(
+                "39e44cd0",
+                "system",
+                "<total_tokens>14999985 tokens left</total_tokens>",
+            ),
+            request(
+                "r2",
+                "2026-10-15T13:55:17.033Z",
+                Some("r1"),
+                &["b9052120", "a79caadf", "39e44cd0"],
+            ),
+            assistant(
+                "a2",
+                "2026-10-15T13:55:17.040Z",
+                "r2",
+                "msg_2",
+                json!([{"type": "text", "text": "done"}]),
+            ),
+            json!({"type": "last-prompt", "sessionId": "s1", "lastPrompt": "Run the records probe", "leafUuid": "a2"}),
+        ];
+        let without_requests: Vec<serde_json::Value> = with_requests
+            .iter()
+            .filter(|r| !r["type"].as_str().unwrap_or("").starts_with("api-request"))
+            .map(|r| {
+                let mut r = r.clone();
+                if let Some(o) = r.as_object_mut() {
+                    o.remove("requestRef");
+                }
+                r
+            })
+            .collect();
+        assert_eq!(with_requests.len() - without_requests.len(), 6);
+
+        let with = parse_lines("req", &record_lines(&with_requests));
+        let without = parse_lines("req", &record_lines(&without_requests));
+        assert_eq!(
+            serde_json::to_value(&with.turns).unwrap(),
+            serde_json::to_value(&without.turns).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&with.summary).unwrap(),
+            serde_json::to_value(&without.summary).unwrap()
+        );
+        assert_eq!(
+            serde_json::to_value(&with.session_stats).unwrap(),
+            serde_json::to_value(&without.session_stats).unwrap()
+        );
+        // One prompt, though the prompt as sent is in a blob too.
+        assert_eq!(
+            turn_texts(&with.turns),
+            vec![
+                ("user", "Run the records probe".to_string()),
+                ("assistant", "<Bash>".to_string()),
+                ("assistant", "done".to_string()),
+            ]
+        );
+
+        let summarize = |records: &[serde_json::Value]| {
+            let path = std::env::temp_dir().join(format!(
+                "codeg-claude-api-request-{}.jsonl",
+                uuid::Uuid::new_v4()
+            ));
+            fs::write(&path, record_lines(records).join("\n") + "\n").expect("write transcript");
+            let summary = ClaudeParser {
+                base_dir: PathBuf::new(),
+            }
+            .parse_jsonl_summary(&path)
+            .expect("parse summary")
+            .expect("summary present");
+            fs::remove_file(&path).expect("cleanup temp jsonl");
+            serde_json::to_value(summary).unwrap()
+        };
+        assert_eq!(summarize(&with_requests), summarize(&without_requests));
+    }
+
     /// #948: built with an agent's launch env, the parser reads where THAT
     /// env puts the agent's files, not where codeg's own environment does.
     #[test]
@@ -8536,3 +9166,7 @@ mod tests {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/claude-fork-accounting.contract.rs"]
+mod maxcode_claude_fork_accounting_contract;

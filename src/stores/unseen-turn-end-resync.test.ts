@@ -104,6 +104,7 @@ function seedStreamingOwner(
     localTurns: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
+    pendingCancelledTurnReports: null,
     optimisticTurns: [userTurn("local-u1", "write it")],
     liveMessage: live("lm-1", "Line 1. Line 2. "),
     syncState: "awaiting_persist",

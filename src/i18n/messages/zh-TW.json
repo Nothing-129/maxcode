@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "請開始輸入...",
+        "promptSuggestion": "{suggestion}（按 Tab 填入）",
         "removeAttachmentAria": "移除 {name}",
         "attachFiles": "附加檔案",
         "addActions": "新增",
@@ -3993,6 +3994,7 @@
         "cardRunning": "背景執行中",
         "cardLaunchedPending": "已啟動背景任務",
         "cardCompleted": "背景任務已完成",
+        "cardInterim": "背景任務：階段性結果",
         "cardFinishedWithStatus": "背景任務已結束（{status}）",
         "cardResultPending": "結果尚未返回"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} tokens",
         "stopDeclined": "無法停止該任務，它可能已經結束。",
         "stopFailed": "停止任務失敗：{error}"
+      },
+      "remoteControl": {
+        "title": "遠端控制已開啟",
+        "open": "在瀏覽器中開啟",
+        "copy": "複製連結",
+        "copied": "已複製",
+        "qr": "QR 碼",
+        "qrLabel": "本會話遠端控制連結的 QR 碼",
+        "qrHint": "用手機掃描，在 Claude App 或 claude.ai/code 上繼續本會話。",
+        "noUrl": "Claude Code 沒有傳回本會話的連結",
+        "turnOff": "關閉",
+        "turnOffBusy": "Claude 完成目前工作後可用"
       },
       "proposedPlan": {
         "title": "計劃提案",

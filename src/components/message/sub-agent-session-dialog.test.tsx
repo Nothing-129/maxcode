@@ -214,6 +214,8 @@ function makeConnState(overrides: Partial<ConnectionState>): ConnectionState {
     configOptions: null,
     availableCommands: null,
     usage: null,
+    promptSuggestion: null,
+    remoteControl: null,
     liveMessage: null,
     pendingPermission: null,
     pendingQuestion: null,
@@ -237,6 +239,7 @@ function makeConnState(overrides: Partial<ConnectionState>): ConnectionState {
     configStaleDismissed: false,
     backgroundOutstanding: 0,
     outOfTurnToolCalls: null,
+    cancelledTurn: null,
     ...overrides,
   }
 }

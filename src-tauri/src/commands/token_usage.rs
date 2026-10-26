@@ -106,7 +106,8 @@ const TOP_CONVERSATIONS: usize = 8;
 ///   turn's own timestamp instead of its last tool result.
 /// * `3` — Codex cache-write tokens are split from fresh input, requiring
 ///   previously indexed sessions to be parsed again. Total tokens are unchanged.
-const FACT_SCHEMA_VERSION: &str = "3";
+// Rebuild facts after excluding inherited Claude fork context.
+const FACT_SCHEMA_VERSION: &str = "maxcode-4-claude-fork";
 
 const FACT_SCHEMA_VERSION_KEY: &str = "token_usage_fact_schema_version";
 

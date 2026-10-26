@@ -211,6 +211,13 @@ interface MessageInputProps {
   agentType?: AgentType | null
   availableCommands?: AvailableCommandInfo[] | null
   /**
+   * The prompt the agent predicts the user will send next (claude-agent-acp
+   * 0.92.0). Between turns the empty composer shows it as its placeholder and
+   * a bare Tab fills it in, sending nothing. Not offered while a turn runs,
+   * while the composer is disabled, or while a queued message is being edited.
+   */
+  promptSuggestion?: string | null
+  /**
    * The agent's command list is still on its way (the connection is being
    * established). The editor stays typable throughout, so `/` opens its panel
    * on a loading row instead of silently doing nothing, and fills in the moment
@@ -395,6 +402,7 @@ export function MessageInput({
   onConfigOptionChange,
   agentType,
   availableCommands,
+  promptSuggestion,
   commandsLoading = false,
   promptCapabilities,
   attachmentTabId,
@@ -457,6 +465,16 @@ export function MessageInput({
   const { shortcuts } = useShortcutSettings()
   const effectiveDraftStorageKey = draftStorageKey ?? null
   const resolvedPlaceholder = placeholder ?? t("askAnything")
+  // The predicted follow-up prompt, only where sending it could follow: never
+  // mid-turn (Enter then queues or steers), never into a queued message being
+  // edited, never into a composer that cannot send.
+  const offeredSuggestion =
+    !isPrompting && !disabled && !isEditingQueueItem
+      ? promptSuggestion?.trim() || null
+      : null
+  const shownPlaceholder = offeredSuggestion
+    ? t("promptSuggestion", { suggestion: offeredSuggestion })
+    : resolvedPlaceholder
   const editorRef = useRef<RichComposerHandle>(null)
   // Prompt-history navigation. `historyRef` is seeded from `getSentHistory`
   // lazily, the first time the user steps into history, so a session that never
@@ -2207,8 +2225,9 @@ export function MessageInput({
               />
               <RichComposer
                 ref={editorRef}
-                placeholder={resolvedPlaceholder}
+                placeholder={shownPlaceholder}
                 ariaLabel={resolvedPlaceholder}
+                promptSuggestion={offeredSuggestion}
                 autoFocus={autoFocus}
                 referenceSearch={referenceSearch}
                 mentionUiLabels={mentionUiLabels}

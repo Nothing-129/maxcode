@@ -19,7 +19,7 @@ This file provides guidance to Code Agent when working with code in this reposit
 - 设置、创建会话的智能体目录及后台自动更新仅面向这七种；隐藏新增自定义智能体入口。
 - 其他智能体的实现和历史数据暂时保留；上游集成跳过其专属适配、版本和界面改动。
 - 共用功能仅吸收对上述七种有价值的部分，不恢复其他智能体入口。
-- ZCode 完整跟随上游的 William `zcode-acp-server` 集成（当前 0.72.0），使用 ACP 会话记录与上游运行时发现；不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
+- ZCode 完整跟随上游的 William `zcode-acp-server` 集成（当前 0.76.2），使用 ACP 会话记录与上游运行时发现；不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
 
 ## 项目概述
 

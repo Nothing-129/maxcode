@@ -26,7 +26,7 @@ describe("MaxCode contract: upstream ZCode integration", () => {
 
   it("uses the upstream bridge and ACP history instead of a native SQLite parser", () => {
     const registry = read("src-tauri/src/acp/registry.rs")
-    expect(registry).toContain('package: "zcode-acp-server@0.72.0"')
+    expect(registry).toContain('package: "zcode-acp-server@0.76.2"')
     expect(registry).toContain('AgentType::Zcode => "codeg-zcode-acp"')
     expect(read("src-tauri/src/models/agent.rs")).toContain(
       "matches!(self, AgentType::Custom(_) | AgentType::Zcode)"

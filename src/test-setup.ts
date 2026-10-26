@@ -1,4 +1,7 @@
-import "@testing-library/jest-dom/vitest"
+import { expect } from "vitest"
+import * as matchers from "@testing-library/jest-dom/matchers"
+
+expect.extend(matchers)
 
 // Node ≥ 25 ships an experimental `localStorage` global whose getter returns
 // undefined unless --localstorage-file was passed. vitest's jsdom environment

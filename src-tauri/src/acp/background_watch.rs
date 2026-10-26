@@ -18,7 +18,9 @@
 //!   `task.status` reached a terminal state, or a `TaskStop`/`KillShell`
 //!   call. Background shells almost never emit a `<task-notification>` (they
 //!   are collected inline via `TaskOutput` or just left running), so those
-//!   two extra signals are what keep the count from stranding. Entries are
+//!   two extra signals are what keep the count from stranding. A notification
+//!   whose note says the sub-agent will notify again (it is waiting on
+//!   background work of its own, or being resumed) settles nothing. Entries are
 //!   re-armed when the main agent resumes a settled sub-agent via
 //!   `SendMessage`, and expired past
 //!   [`background_keepalive_max_age`]. The outstanding count is mirrored into
@@ -72,9 +74,10 @@ use crate::models::message::MessageTurn;
 use crate::parsers::claude::{
     capture_tag, capture_title_record, find_clear_rollover_successor, find_session_file_in,
     group_into_turns, is_meta_message, queued_human_prompt, queued_task_notification,
-    slash_command_display, task_notification_result_regex, task_notification_status_regex,
-    task_notification_summary_regex, task_notification_task_id_regex,
-    task_notification_tool_use_id_regex, ClaudeRecordAccumulator, BACKGROUND_RESULT_MAX_CHARS,
+    slash_command_display, task_notification_is_interim, task_notification_result_regex,
+    task_notification_status_regex, task_notification_summary_regex,
+    task_notification_task_id_regex, task_notification_tool_use_id_regex,
+    unescape_task_notification_text, ClaudeRecordAccumulator, BACKGROUND_RESULT_MAX_CHARS,
     CONTEXT_CONTINUATION_PREFIX,
 };
 use crate::parsers::truncate_str;
@@ -1279,11 +1282,31 @@ impl WatchState {
         Ok(lines)
     }
 
+    /// An interim `<task-notification>` ([`task_notification_is_interim`]):
+    /// the sub-agent stopped while background work of its own still runs, or
+    /// is being resumed with messages that came too late, and it notifies again
+    /// when it is done. It is still alive in this CLI, so it stays in the count
+    /// that keeps the connection out of the idle sweeps, and is not settled
+    /// (the next, final notification settles it). One this watch never saw
+    /// launch is counted from here: the CLI just said it runs, and the
+    /// max-age valve still bounds a final notification that never comes.
+    fn keep_interim_task(&mut self, id: &str) {
+        let known = self.tasks.contains_key(id);
+        self.tasks
+            .entry(id.to_string())
+            .or_insert_with(|| TaskEntry {
+                kind: "agent",
+                started_at: Instant::now(),
+            });
+        tracing::info!("[bg-watch] interim notification task={id} known={known}, kept outstanding");
+    }
+
     /// Task accounting for one record: launch acks; settlements via a
     /// `<task-notification>` record or one folded into a running turn, a
     /// `TaskOutput` result reaching a terminal `task.status`, or a
     /// `TaskStop`/`KillShell` call; and `SendMessage` re-arms of settled
-    /// sub-agents.
+    /// sub-agents. An interim notification settles nothing
+    /// ([`Self::keep_interim_task`]).
     fn account(&mut self, value: &serde_json::Value, settled: &mut Vec<BackgroundSettledInfo>) {
         let record_type = value.get("type").and_then(|t| t.as_str()).unwrap_or("");
         match record_type {
@@ -1296,13 +1319,17 @@ impl WatchState {
             // so there is nothing to announce out of turn, and the launch card
             // gets its final state from the detail parse.
             "attachment" => {
-                if let Some(id) = queued_task_notification(value)
-                    .and_then(|raw| capture_tag(task_notification_task_id_regex(), raw))
-                {
-                    if self.tasks.remove(&id).is_some() {
-                        tracing::info!("[bg-watch] settled task={id} folded into a turn");
+                if let Some(raw) = queued_task_notification(value) {
+                    if let Some(id) = capture_tag(task_notification_task_id_regex(), raw) {
+                        if task_notification_is_interim(raw) {
+                            self.keep_interim_task(&id);
+                        } else {
+                            if self.tasks.remove(&id).is_some() {
+                                tracing::info!("[bg-watch] settled task={id} folded into a turn");
+                            }
+                            self.settled_ids.insert(id);
+                        }
                     }
-                    self.settled_ids.insert(id);
                 }
             }
             "user" => {
@@ -1400,7 +1427,8 @@ impl WatchState {
                         let task_id = capture_tag(task_notification_task_id_regex(), trimmed);
                         let status = capture_tag(task_notification_status_regex(), trimmed)
                             .unwrap_or_else(|| "completed".into());
-                        let summary = capture_tag(task_notification_summary_regex(), trimmed);
+                        let summary = capture_tag(task_notification_summary_regex(), trimmed)
+                            .map(|s| unescape_task_notification_text(&s));
                         // The notification is self-contained: its `<tool-use-id>`
                         // is the launching tool call's id and `<result>` is the
                         // sub-agent's report. Carrying both lets the frontend flip
@@ -1411,23 +1439,37 @@ impl WatchState {
                         // card alone.
                         let tool_use_id =
                             capture_tag(task_notification_tool_use_id_regex(), trimmed);
-                        // Same cap the cold-parse fold applies, so the live card
-                        // matches and a pathological report can't blow the
-                        // event-stream size budget.
-                        let result = capture_tag(task_notification_result_regex(), trimmed)
-                            .map(|r| truncate_str(&r, BACKGROUND_RESULT_MAX_CHARS));
+                        // Unescaped and capped as the cold-parse fold does, so
+                        // the live card matches and a pathological report can't
+                        // blow the event-stream size budget.
+                        let result =
+                            capture_tag(task_notification_result_regex(), trimmed).map(|r| {
+                                truncate_str(
+                                    &unescape_task_notification_text(&r),
+                                    BACKGROUND_RESULT_MAX_CHARS,
+                                )
+                            });
                         if let Some(id) = task_id {
-                            let known = self.tasks.remove(&id).is_some();
-                            self.settled_ids.insert(id.clone());
-                            tracing::info!(
-                                "[bg-watch] settled task={id} status={status} known={known}"
-                            );
+                            // An interim notification still flips the card, to
+                            // its interim result, so the live card reads as the
+                            // detail parse does; but the task is not settled.
+                            let interim = task_notification_is_interim(trimmed);
+                            if interim {
+                                self.keep_interim_task(&id);
+                            } else {
+                                let known = self.tasks.remove(&id).is_some();
+                                self.settled_ids.insert(id.clone());
+                                tracing::info!(
+                                    "[bg-watch] settled task={id} status={status} known={known}"
+                                );
+                            }
                             settled.push(BackgroundSettledInfo {
                                 task_id: id,
                                 status,
                                 summary,
                                 tool_use_id,
                                 result,
+                                interim,
                             });
                         }
                     }
@@ -3254,6 +3296,170 @@ mod tests {
         assert!(matches!(ws.mode, Mode::Foreground));
         // A settled sub-agent can still be resumed and re-armed.
         assert!(ws.settled_ids.contains("agent1"));
+    }
+
+    /// The `<task-notification>` CLI 2.1.300 writes for a background sub-agent
+    /// that ended its run while a background command of its own still runs
+    /// (measured live), and the final one it writes once the agent is done.
+    fn agent_notification_text(task_id: &str, interim: bool) -> String {
+        let (summary, note) = if interim {
+            (
+                "Agent \"probe sub bg bash\" is waiting on its own background work",
+                "This agent stopped with background work of its own still running. It may resume on its own when that work completes or reports, and the same task-id notifies again if it does; the result below may be interim.",
+            )
+        } else {
+            (
+                "Agent \"probe sub bg bash\" finished",
+                "A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.",
+            )
+        };
+        format!(
+            "<task-notification>\n<task-id>{task_id}</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<status>completed</status>\n<summary>{summary}</summary>\n<note>{note}</note>\n<result>ok</result>\n</task-notification>"
+        )
+    }
+
+    fn agent_notification_record(uuid: &str, task_id: &str, interim: bool) -> String {
+        serde_json::json!({
+            "type": "user", "timestamp": "2026-07-07T03:47:00.000Z", "uuid": uuid,
+            "isSidechain": false,
+            "message": {"role": "user", "content": agent_notification_text(task_id, interim)},
+        })
+        .to_string()
+    }
+
+    fn folded_agent_notification(uuid: &str, task_id: &str, interim: bool) -> String {
+        serde_json::json!({
+            "type": "attachment", "timestamp": "2026-07-07T03:47:00.000Z", "uuid": uuid,
+            "attachment": {
+                "type": "queued_command",
+                "prompt": agent_notification_text(task_id, interim),
+                "commandMode": "task-notification",
+                "origin": {"kind": "task-notification", "producer": "session-task"},
+            },
+        })
+        .to_string()
+    }
+
+    /// A sub-agent that ended its run while background work of its own runs is
+    /// still alive in this CLI: its interim notification flips the card (to
+    /// the interim result, marked so) but keeps it in the count that holds off
+    /// the idle sweeps, and only the final notification settles it.
+    #[test]
+    fn an_interim_notification_keeps_the_task_outstanding_until_the_final_one() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[&agent_ack("agent1")]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+        let (_, outstanding, ..) = unpack(tick_now(&mut ws, &ledger).expect("launch event"));
+        assert_eq!(outstanding, 1);
+
+        write_lines(
+            &path,
+            &[
+                &agent_notification_record("u-interim", "agent1", true),
+                &assistant_text("a1", "Noted."),
+            ],
+        );
+        let (_, outstanding, settled, _) =
+            unpack(tick_now(&mut ws, &ledger).expect("interim event"));
+        assert_eq!(outstanding, 1);
+        assert_eq!(settled.len(), 1);
+        assert!(settled[0].interim);
+        assert_eq!(settled[0].status, "completed");
+        assert_eq!(settled[0].result.as_deref(), Some("ok"));
+        assert!(!ws.settled_ids.contains("agent1"));
+
+        write_lines(
+            &path,
+            &[
+                &agent_notification_record("u-final", "agent1", false),
+                &assistant_text("a2", "It is done."),
+            ],
+        );
+        let (_, outstanding, settled, _) = unpack(tick_now(&mut ws, &ledger).expect("final event"));
+        assert_eq!(outstanding, 0);
+        assert_eq!(settled.len(), 1);
+        assert!(!settled[0].interim);
+        assert_eq!(
+            settled[0].summary.as_deref(),
+            Some("Agent \"probe sub bg bash\" finished")
+        );
+        assert!(ws.settled_ids.contains("agent1"));
+    }
+
+    /// Folded into a running turn, an interim notification settles the count
+    /// no more than it does on its own.
+    #[test]
+    fn an_interim_notification_folded_into_a_turn_keeps_the_task_outstanding() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[&agent_ack("agent1")]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+        let _ = tick_now(&mut ws, &ledger);
+
+        write_lines(&path, &[&folded_agent_notification("q1", "agent1", true)]);
+        // Nothing to announce and the count unchanged: no event at all.
+        assert!(tick_prompting(&mut ws, &ledger).is_none());
+        assert!(ws.tasks.contains_key("agent1"));
+        assert!(!ws.settled_ids.contains("agent1"));
+
+        write_lines(&path, &[&folded_agent_notification("q2", "agent1", false)]);
+        let (_, outstanding, ..) = unpack(tick_prompting(&mut ws, &ledger).expect("final event"));
+        assert_eq!(outstanding, 0);
+        assert!(ws.settled_ids.contains("agent1"));
+    }
+
+    /// The settlement carries the summary and report as the agent wrote them:
+    /// Claude Code escapes `&`, `<` and `>` inside the notification (measured
+    /// on CLI 2.1.296 and 2.1.300), and the live card must read as the detail
+    /// parse does.
+    #[test]
+    fn a_settlement_carries_the_notification_text_unescaped() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[&agent_ack("agent1")]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+        let _ = tick_now(&mut ws, &ledger);
+
+        let raw = "<task-notification>\n<task-id>agent1</task-id>\n<tool-use-id>toolu_01</tool-use-id>\n<status>completed</status>\n<summary>Agent \"probe &lt;x&gt; &amp; \"y\"\" finished</summary>\n<result>Found it: `Vec&lt;String&gt;` &amp; `a &amp;&amp; b`</result>\n</task-notification>";
+        let record = serde_json::json!({
+            "type": "user", "timestamp": "2026-07-07T03:47:00.000Z", "uuid": "u-esc",
+            "message": {"role": "user", "content": raw},
+        })
+        .to_string();
+        write_lines(&path, &[&record]);
+        let (_, _, settled, _) = unpack(tick_now(&mut ws, &ledger).expect("settle event"));
+        assert_eq!(
+            settled[0].summary.as_deref(),
+            Some("Agent \"probe <x> & \"y\"\" finished")
+        );
+        assert_eq!(
+            settled[0].result.as_deref(),
+            Some("Found it: `Vec<String>` & `a && b`")
+        );
+    }
+
+    /// The CLI says the sub-agent runs on: one whose launch this watch never
+    /// read is counted from its interim notification.
+    #[test]
+    fn an_interim_notification_counts_a_task_whose_launch_was_not_seen() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+
+        write_lines(
+            &path,
+            &[&agent_notification_record("u-interim", "agentX", true)],
+        );
+        let (_, outstanding, settled, _) =
+            unpack(tick_now(&mut ws, &ledger).expect("interim event"));
+        assert_eq!(outstanding, 1);
+        assert!(settled[0].interim);
     }
 
     /// A `<task-notification>`

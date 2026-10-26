@@ -10,6 +10,7 @@ import type {
   PendingPlanApprovalState,
   PendingQuestionState,
   PromptCapabilitiesInfo,
+  RemoteControlInfo,
   SessionConfigOptionInfo,
   SessionFailureRecord,
   SessionModeStateInfo,
@@ -45,6 +46,12 @@ export interface SnapshotPatch {
   configOptions: SessionConfigOptionInfo[] | null
   availableCommands: AvailableCommandInfo[] | null
   usage: SessionUsageUpdateInfo | null
+  /** The follow-up prompt the agent last predicted, or `null`. Current state,
+   *  like `usage`: applied on the fresh hydrate branch only. */
+  promptSuggestion: string | null
+  /** Claude Code's Remote Control while it is on, or `null`. Current state,
+   *  like `usage`: applied on the fresh hydrate branch only. */
+  remoteControl: RemoteControlInfo | null
   liveMessage: LocalLiveMessage | null
   pendingPermission: PendingPermission | null
   /** Awaiting-answer multiple-choice `ask_user_question` carried by the
@@ -123,6 +130,10 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     configOptions: wire.config_options,
     availableCommands: wire.available_commands ?? null,
     usage: wire.usage,
+    promptSuggestion: wire.prompt_suggestion ?? null,
+    remoteControl: wire.remote_control
+      ? { session_url: wire.remote_control.session_url ?? null }
+      : null,
     liveMessage: wire.live_message
       ? denormalizeLiveMessage(wire.live_message, toolMap)
       : null,

@@ -81,6 +81,7 @@ function session(history: DbConversationDetail): ConversationRuntimeSession {
     localTurns: [],
     backgroundTurns: [],
     pendingBackgroundSettlements: [],
+    pendingCancelledTurnReports: null,
     optimisticTurns: [],
     liveMessage: null,
     syncState: "idle",

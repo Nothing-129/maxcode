@@ -49,6 +49,7 @@ use crate::acp::stderr_tail::{summarize_parser_error, StderrTail, TailScope};
 use crate::acp::terminal_runtime::{
     TerminalRuntime, TerminalRuntimeError, TerminalShellRuntimeConfig,
 };
+use crate::acp::types::RemoteControlInfo;
 use crate::acp::types::{
     AcpEvent, AsyncTaskDelta, AsyncTaskUsage, AvailableCommandInfo, ConnectionStatus,
     GrokModelCatalog, GrokModelSpec, PermissionOptionInfo, PlanEntryInfo, PluginLoadFailure,
@@ -1758,15 +1759,15 @@ fn agent_debug_callback(
     agent_name: String,
     stderr_tail: Arc<StderrTail>,
     stdio_debug_enabled: bool,
-) -> impl Fn(&str, agent_client_protocol::LineDirection) + Send + Sync + 'static {
+) -> impl Fn(&str, crate::acp::agent_process::LineDirection) + Send + Sync + 'static {
     move |line, dir| {
         let (tag, enabled) = match dir {
-            agent_client_protocol::LineDirection::Stderr => {
+            crate::acp::agent_process::LineDirection::Stderr => {
                 stderr_tail.push(line);
                 ("stderr", true)
             }
-            agent_client_protocol::LineDirection::Stdout => ("stdout", stdio_debug_enabled),
-            agent_client_protocol::LineDirection::Stdin => ("stdin", stdio_debug_enabled),
+            crate::acp::agent_process::LineDirection::Stdout => ("stdout", stdio_debug_enabled),
+            crate::acp::agent_process::LineDirection::Stdin => ("stdin", stdio_debug_enabled),
         };
         if !enabled {
             return;
@@ -4968,8 +4969,24 @@ fn resolve_working_dir(working_dir: Option<&str>) -> PathBuf {
     }
 }
 
+/// The `_meta.claudeCode` object every Claude session request names
+/// (`session/new`, `load`, `resume`, `fork`): the raw SDK message stream, and,
+/// when `prompt_suggestions` is false, `options.promptSuggestions: false`.
+///
+/// claude-agent-acp 0.92.0 turns the SDK's `promptSuggestions` on for every
+/// session it serves an AIR client: after each turn Claude Code sends one more
+/// request, with the whole conversation, the main model and its thinking, to
+/// predict the user's next prompt (measured against a fake API: none on 0.91.0,
+/// one after every turn past the first on 0.92.0; never written to the
+/// transcript). The composer offers the prediction (`AcpEvent::PromptSuggestion`),
+/// so a session someone types into keeps it. A session nobody composes in asks
+/// for none (see `SessionState.wants_prompt_suggestions`). The flag is fixed
+/// for a connection, and every request of it must name the same object: the
+/// adapter restarts a session whose resume names other settings than it was
+/// started with (see `crate::acp::fork::build_fork_request`).
 pub(crate) fn claude_raw_sdk_session_meta(
     agent_type: AgentType,
+    prompt_suggestions: bool,
 ) -> Option<serde_json::Map<String, serde_json::Value>> {
     if agent_type != AgentType::ClaudeCode {
         return None;
@@ -4980,6 +4997,12 @@ pub(crate) fn claude_raw_sdk_session_meta(
         "emitRawSDKMessages".to_string(),
         serde_json::Value::Bool(true),
     );
+    if !prompt_suggestions {
+        claude_code.insert(
+            "options".to_string(),
+            serde_json::json!({ "promptSuggestions": false }),
+        );
+    }
 
     let mut meta = serde_json::Map::new();
     meta.insert(
@@ -5320,9 +5343,10 @@ fn build_new_session_request(
     agent_type: AgentType,
     cwd: &Path,
     mcp_servers: Vec<McpServer>,
+    prompt_suggestions: bool,
 ) -> NewSessionRequest {
     let mut req = NewSessionRequest::new(cwd.to_path_buf());
-    if let Some(meta) = claude_raw_sdk_session_meta(agent_type) {
+    if let Some(meta) = claude_raw_sdk_session_meta(agent_type, prompt_suggestions) {
         req = req.meta(meta);
     }
     if !mcp_servers.is_empty() {
@@ -5336,9 +5360,10 @@ fn build_load_session_request(
     session_id: SessionId,
     cwd: &Path,
     mcp_servers: Vec<McpServer>,
+    prompt_suggestions: bool,
 ) -> LoadSessionRequest {
     let mut req = LoadSessionRequest::new(session_id, cwd.to_path_buf());
-    if let Some(meta) = claude_raw_sdk_session_meta(agent_type) {
+    if let Some(meta) = claude_raw_sdk_session_meta(agent_type, prompt_suggestions) {
         req = req.meta(meta);
     }
     if !mcp_servers.is_empty() {
@@ -5357,9 +5382,10 @@ pub(crate) fn build_resume_session_request(
     session_id: SessionId,
     cwd: &Path,
     mcp_servers: Vec<McpServer>,
+    prompt_suggestions: bool,
 ) -> ResumeSessionRequest {
     let mut req = ResumeSessionRequest::new(session_id, cwd.to_path_buf());
-    if let Some(meta) = claude_raw_sdk_session_meta(agent_type) {
+    if let Some(meta) = claude_raw_sdk_session_meta(agent_type, prompt_suggestions) {
         req = req.meta(meta);
     }
     if !mcp_servers.is_empty() {
@@ -6711,6 +6737,10 @@ async fn run_connection(
             )
             .await;
 
+            // Fixed for the connection, so every session request below names
+            // the same Claude settings (see `claude_raw_sdk_session_meta`).
+            let prompt_suggestions = state.read().await.wants_prompt_suggestions;
+
             if let Some(sid) = session_id {
                 // Prefer session/resume when the agent advertises the
                 // capability: it restores session context WITHOUT replaying
@@ -6725,6 +6755,7 @@ async fn run_connection(
                         SessionId::new(sid.clone()),
                         &cwd,
                         mcp_servers.clone(),
+                        prompt_suggestions,
                     );
                     match unless_cancelled(&handshake, send_resume_session(&cx, resume_req)).await? {
                         Ok((resume_resp, models_raw)) => {
@@ -6865,6 +6896,7 @@ async fn run_connection(
                         SessionId::new(sid.clone()),
                         &cwd,
                         mcp_servers.clone(),
+                        prompt_suggestions,
                     );
                     unless_cancelled(&handshake, cx.send_request_to(Agent, load_req).block_task())
                         .await?
@@ -7199,7 +7231,12 @@ async fn run_connection(
                             &handshake,
                             send_new_session_capturing_models(
                                 &cx,
-                                build_new_session_request(agent_type, &cwd, mcp_servers.clone()),
+                                build_new_session_request(
+                                    agent_type,
+                                    &cwd,
+                                    mcp_servers.clone(),
+                                    prompt_suggestions,
+                                ),
                             ),
                         )
                         .await?
@@ -7315,7 +7352,12 @@ async fn run_connection(
                     &handshake,
                     send_new_session_capturing_models(
                         &cx,
-                        build_new_session_request(agent_type, &cwd, mcp_servers.clone()),
+                        build_new_session_request(
+                            agent_type,
+                            &cwd,
+                            mcp_servers.clone(),
+                            prompt_suggestions,
+                        ),
                     ),
                 )
                 .await?
@@ -7644,10 +7686,10 @@ fn codeg_ask_auto_allow_option(
 /// the outcome for every other tool, and the deliberate fallback whenever the
 /// auto-allow cannot be taken (the ask feature is off, or the agent offered no
 /// allow-once option).
-// `result_large_err`: agent-client-protocol 2.x's `Responder` is past clippy's
-// size limit, but this `Err` is the responder handed back once per permission
-// request, not an error bubbled through `?` — boxing it would only add an
-// allocation.
+// `result_large_err`: agent-client-protocol's `Responder` (since 2.x) is past
+// clippy's size limit, but this `Err` is the responder handed back once per
+// permission request, not an error bubbled through `?` — boxing it would only
+// add an allocation.
 #[allow(clippy::result_large_err)]
 async fn try_auto_allow_codeg_ask(
     access: &Option<(
@@ -10053,11 +10095,13 @@ async fn handle_fork_or_exit(
     // fork response exactly as before. Neither is worse off than it was before
     // this call existed.
     let resumed = if supports_resume {
+        let prompt_suggestions = state.read().await.wants_prompt_suggestions;
         let resume_req = build_resume_session_request(
             agent_type,
             SessionId::new(new_sid.clone()),
             cwd,
             mcp_servers.to_vec(),
+            prompt_suggestions,
         );
         match send_resume_session(&cx, resume_req).await {
             Ok(pair) => Some(pair),
@@ -11300,6 +11344,10 @@ async fn run_conversation_loop(
                 // instantly — and awaited, so the replay gate can never see
                 // this conversation as transcript-less (see `record_prompt`).
                 record_prompt(agent_type, &sid.0, &prompt_blocks).await;
+                // claude-agent-acp answers a `/remote-control` prompt itself;
+                // its reply says whether Remote Control is on.
+                cb_state.claude_remote_control = remote_control_command(agent_type, &prompt_blocks);
+
                 let turn_started_at_ms = crate::acp_transcript::now_epoch_ms();
                 let prompt_request = PromptRequest::new(sid.clone(), prompt_blocks);
                 // Snapshot the stderr write position BEFORE the request is
@@ -11362,6 +11410,7 @@ async fn run_conversation_loop(
                 // follows it on the wire; one still waiting here belongs to a
                 // call the canceled turn never completed.
                 cb_state.claude_viewed_results.clear();
+                cb_state.claude_fork_awaiting_result.clear();
                 // A codex web search whose request never reported (canceled
                 // mid-request) must not set aside this turn's first report.
                 // `/goal` continuation turns run on the idle loop and announce
@@ -11393,6 +11442,15 @@ async fn run_conversation_loop(
                 // to avoid deadlocking when the agent awaits a permission response.
                 loop {
                     tokio::select! {
+                        // Updates before the response: an agent that writes
+                        // its last update right before the response (as
+                        // claude-agent-acp does for the replies it writes
+                        // itself, `/remote-control`'s among them) delivers
+                        // both at once, and the update is queued by the time
+                        // the response is ready. Taken the other way round,
+                        // the turn would end `empty` and the update land on
+                        // the idle loop, where a Claude chunk is dropped.
+                        biased;
                         update = session.read_update() => {
                             // An `Err` is the session's router going away, not one bad
                             // message (see `AgentSession::read_update`): the connection
@@ -12395,12 +12453,14 @@ async fn run_conversation_loop(
                 // brought; only one landing from now on can be newer than that
                 // handshake (see `SessionState::grok_catalog_broadcast`).
                 state.write().await.grok_catalog_broadcast = None;
+                let prompt_suggestions = state.read().await.wants_prompt_suggestions;
                 let result = crate::acp::fork::fork_session(
                     &cx,
                     &sid,
                     agent_type,
                     cwd,
                     mcp_servers,
+                    prompt_suggestions,
                     fork_point.as_ref(),
                 )
                 .await;
@@ -14563,6 +14623,131 @@ fn session_info_goal_value(
     }
 }
 
+/// What a `session_info_update` says about the predicted follow-up prompt:
+/// `Some(Some(text))` offers `text`, `Some(None)` withdraws the one offered,
+/// and `None` (the key absent or unreadable) leaves it as it is.
+///
+/// claude-agent-acp 0.92.0 (#1356) forwards the prompt Claude Code predicts
+/// after a turn as `_meta.promptSuggestions = {suggestions: [{text}]}`, to an
+/// AIR client only, and sends `suggestions: []` when the next prompt arrives
+/// (the prediction is spent) or a conversation reset drops the transcript it
+/// was drawn from. The first non-blank `text` is the one offered, as AIR offers
+/// it. The key names no vendor, but it is read only from the two adapters codeg
+/// declares AIR to ([`crate::acp::air_contract::speaks_air_contract`]), the
+/// only agents that send it.
+fn prompt_suggestion_update(
+    agent_type: AgentType,
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> Option<Option<String>> {
+    if !crate::acp::air_contract::speaks_air_contract(agent_type) {
+        return None;
+    }
+    let suggestions = meta?
+        .get("promptSuggestions")?
+        .get("suggestions")?
+        .as_array()?;
+    Some(
+        suggestions
+            .iter()
+            .filter_map(|entry| entry.get("text")?.as_str())
+            .map(str::trim)
+            .find(|text| !text.is_empty())
+            .map(str::to_string),
+    )
+}
+
+/// What a `/remote-control` prompt asks claude-agent-acp for (0.93.0, #1197).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum RemoteControlCommand {
+    /// `/remote-control` or `/remote-control <session name>`: turn Remote
+    /// Control on, or answer with its URL again when it is on already.
+    Connect,
+    /// `/remote-control off`.
+    Disconnect,
+}
+
+/// The `/remote-control` command a Claude prompt is, read the way
+/// claude-agent-acp 0.93.0 reads it (`parseRemoteControlCommand`), since the
+/// adapter answers only what it parses: exactly one text block whose
+/// JavaScript-trimmed text is `/remote-control`, alone or followed by
+/// whitespace and an argument. An argument that trims to `off`, in any case,
+/// turns it off; any other (a session name), or none, turns it on.
+fn remote_control_command(
+    agent_type: AgentType,
+    blocks: &[ContentBlock],
+) -> Option<RemoteControlCommand> {
+    use crate::acp::js_text::is_js_whitespace;
+    if agent_type != AgentType::ClaudeCode {
+        return None;
+    }
+    let [ContentBlock::Text(text)] = blocks else {
+        return None;
+    };
+    let rest = text
+        .text
+        .trim_matches(is_js_whitespace)
+        .strip_prefix("/remote-control")?;
+    if rest.is_empty() {
+        return Some(RemoteControlCommand::Connect);
+    }
+    // `(?:\s+([\s\S]*))?$`: whatever follows the name starts with whitespace.
+    if !rest.starts_with(is_js_whitespace) {
+        return None;
+    }
+    if rest.trim_matches(is_js_whitespace).to_lowercase() == "off" {
+        Some(RemoteControlCommand::Disconnect)
+    } else {
+        Some(RemoteControlCommand::Connect)
+    }
+}
+
+/// What claude-agent-acp's reply to a `/remote-control` prompt says Remote
+/// Control is now: `Some(Some(_))` on, `Some(None)` off, and `None` when the
+/// text is no such reply, or one that leaves Remote Control as it was.
+///
+/// The adapter answers the command itself, with no model turn, in one
+/// `agent_message_chunk` of fixed wording (0.93.0's `runRemoteControlCommand`):
+///  - "Remote Control is active. Continue this session from claude.ai/code or
+///    the Claude mobile app:\n\n<session URL>\n\nRun /remote-control off to
+///    disconnect.", or "Remote Control is active, but Claude Code did not
+///    return a session URL.": on.
+///  - "Could not start Remote Control: <error>": off. Claude Code answers with
+///    the bridge it has while that one is up, and tears a failed one down
+///    before it tries again, so a start that fails leaves none.
+///  - "Remote Control is off. Run /remote-control to reconnect.": off.
+///  - "Could not stop Remote Control: <error>": unchanged.
+///
+/// None of it reaches the transcript, and the CLI's own `bridge_state` frames
+/// reach the client only with the next model turn, so this text is the one
+/// timely report. Wording that stops matching (a later adapter, or Claude Code
+/// answering a command the adapter left to it) changes nothing, which leaves
+/// codeg where it was before it read the reply at all.
+fn remote_control_reply(
+    command: RemoteControlCommand,
+    text: &str,
+) -> Option<Option<RemoteControlInfo>> {
+    match command {
+        RemoteControlCommand::Connect if text.starts_with("Remote Control is active") => {
+            Some(Some(RemoteControlInfo {
+                session_url: remote_control_session_url(text),
+            }))
+        }
+        RemoteControlCommand::Connect if text.starts_with("Could not start Remote Control") => {
+            Some(None)
+        }
+        RemoteControlCommand::Disconnect if text.starts_with("Remote Control is off") => Some(None),
+        _ => None,
+    }
+}
+
+/// The session URL an "active" reply names: its first word that parses as an
+/// `https` URL, kept as written.
+fn remote_control_session_url(text: &str) -> Option<String> {
+    text.split_whitespace()
+        .find(|word| url::Url::parse(word).is_ok_and(|url| url.scheme() == "https"))
+        .map(str::to_string)
+}
+
 /// The raw `sessionFailure` value out of a `_meta.jetbrains.air` envelope —
 /// present only when the envelope itself is well-formed (integer
 /// `version >= 1`, mirroring the advertisement check the adapters run on
@@ -15055,6 +15240,11 @@ fn track_subagent_window(
 /// a throwaway instance. Mirrors `ToolCallOutputCache`'s lifetime.
 #[derive(Default)]
 struct CodeBuddyLiveState {
+    /// The `/remote-control` command the latest Claude prompt was
+    /// ([`remote_control_command`]), until the adapter's reply to it arrives
+    /// ([`remote_control_reply`]) or the next prompt replaces it.
+    claude_remote_control: Option<RemoteControlCommand>,
+
     /// tool_call_id → authoritative title: `"agent"` for a native sub-agent, or
     /// the inner `mcp__…` name for a `DeferExecuteTool` MCP call. Re-asserted on
     /// every later frame so a status-only update can't downgrade the card.
@@ -15224,6 +15414,12 @@ struct CodeBuddyLiveState {
     /// result of its own (see the `ToolCallUpdate` arm), and the map is cleared
     /// at turn start like `hosted_terminal_calls`.
     claude_viewed_results: HashMap<String, String>,
+    /// claude fork launches whose copied "Fork started" result was dropped
+    /// ([`claude_fork_inherited_result`]), waiting for the real result, which
+    /// only the raw SDK stream carries ([`take_claude_fork_results`]). Cleared
+    /// at turn start like `claude_viewed_results`: a card the turn left open is
+    /// not live any more.
+    claude_fork_awaiting_result: HashSet<String>,
     /// The plugin-failure list last forwarded as
     /// [`AcpEvent::PluginLoadFailures`] (see `take_new_claude_plugin_failures`).
     /// Claude Code repeats `plugin_errors` on every turn's `system/init`, so
@@ -15843,6 +16039,7 @@ fn map_grok_subagent_notification_inner(
                     summary: None,
                     tool_use_id: Some(call_id),
                     result,
+                    interim: false,
                 }],
                 watermark: 0,
             }])
@@ -15929,11 +16126,11 @@ fn grok_ext_notification_is_alert(dispatch: &Dispatch, agent_type: AgentType) ->
 /// `invalid type: null, expected a string` — and a handler `Err` brought the
 /// whole connection down, so the user saw `ACP protocol error: Invalid params:
 /// "invalid type: null, expected a string"` instead of a session (issue #794).
-/// The 2.x runtime logs a handler error instead of dying on it, and codeg's own
-/// `AgentSession` router simply matches no session on a null id — but nothing
-/// would ever claim the frame either, so without this guard it would sit in the
-/// retry queue for the connection's lifetime and be replayed into every handler
-/// registered after it.
+/// The runtime since 2.x logs a handler error instead of dying on it, and
+/// codeg's own `AgentSession` router simply matches no session on a null id —
+/// but nothing would ever claim the frame either, so without this guard it would
+/// sit in the retry queue for the connection's lifetime and be replayed into
+/// every handler registered after it.
 ///
 /// grok 1.0.40 is what made this reachable: it narrates `session/new` progress
 /// on `_x.ai/session/setup`, and its first five phases (`auth`,
@@ -16270,6 +16467,90 @@ fn stash_claude_viewed_results(params: &serde_json::Value, cb_state: &mut CodeBu
     }
 }
 
+/// Whether a claude `tool_call_update` is a fork's copy of its own launch
+/// result rather than news about the call.
+///
+/// A `subagent_type: "fork"` child starts from a copy of the context it
+/// inherited, which ends in a user message answering the copied launching
+/// `tool_use` with "Fork started — processing in background" (see
+/// `parsers::claude::is_fork_directive_record`). When the fork runs in the
+/// foreground, the adapter streams that copied message as the fork's own output
+/// and reports it as the launching call's result. The Agent SDK offers forks by
+/// default since CLI 2.1.302 (claude-agent-acp 0.94.0), and on 2.1.303 a fork
+/// runs in the foreground when the main thread's call passes
+/// `run_in_background: false`, or when a subagent launches it (as it already
+/// did on 2.1.300 with forks turned on). Measured on 0.94.0, both ways: the
+/// card completed with "Fork started — processing in background" as soon as
+/// the fork began, and the real result found the call already settled and was
+/// never sent (only the PostToolUse hook's `toolResponse` marker reached the
+/// client). 0.94.0's own fix of this copy (#1384) covers the `session/load`
+/// replay only; the live frame is reported as
+/// agentclientprotocol/claude-agent-acp#1389. A fork in the background sends no
+/// such frame.
+///
+/// A tool call is never its own child, so the frame is recognized exactly: its
+/// `parentToolUseId` names the call itself. An adapter that stops sending it
+/// leaves this path unused.
+fn claude_fork_inherited_result(
+    agent_type: AgentType,
+    tool_call_id: &str,
+    meta: Option<&serde_json::Map<String, serde_json::Value>>,
+) -> bool {
+    claude_chunk_parent_tool_use_id(agent_type, meta).as_deref() == Some(tool_call_id)
+}
+
+/// The completion of each fork launch whose copied result was dropped
+/// ([`claude_fork_inherited_result`]), built from a raw SDK `user` message that
+/// answers it from the session that launched it: the result the adapter
+/// received and never sent. Taken the way the transcript parser takes it
+/// (`parsers::claude::extract_tool_result_text`, which also undoes the
+/// hand-back frame), so the live card and its reloaded twin read the same.
+///
+/// The fork's own copy of the answer (`parent_tool_use_id` naming the call
+/// itself) is skipped: it is the inherited message, not the result.
+fn take_claude_fork_results(
+    params: &serde_json::Value,
+    cb_state: &mut CodeBuddyLiveState,
+) -> Vec<AcpEvent> {
+    if cb_state.claude_fork_awaiting_result.is_empty() {
+        return Vec::new();
+    }
+    let Some(message) = params.get("message") else {
+        return Vec::new();
+    };
+    let parent = message.get("parent_tool_use_id").and_then(|v| v.as_str());
+    let mut events = Vec::new();
+    for result in crate::acp::air_contract::claude_sdk_tool_results(message) {
+        if parent == Some(result.tool_use_id)
+            || !cb_state
+                .claude_fork_awaiting_result
+                .remove(result.tool_use_id)
+        {
+            continue;
+        }
+        events.push(AcpEvent::ToolCallUpdate {
+            tool_call_id: result.tool_use_id.to_string(),
+            title: None,
+            status: Some(
+                if result.is_error {
+                    "failed"
+                } else {
+                    "completed"
+                }
+                .to_string(),
+            ),
+            content: crate::parsers::claude::extract_tool_result_text(result.block),
+            raw_input: None,
+            raw_output: None,
+            raw_output_append: None,
+            locations: None,
+            meta: None,
+            images: None,
+        });
+    }
+    events
+}
+
 /// The plugins a claude `system/init` frame reports it could not load
 /// (`plugin_errors`, CLI 2.1.283+), read off the raw SDK stream.
 ///
@@ -16406,6 +16687,18 @@ async fn maybe_emit_ext_notification(
     let turn_active = state.read().await.status == ConnectionStatus::Prompting;
     if agent_type == AgentType::ClaudeCode && notification.method() == CLAUDE_SDK_EXT_METHOD {
         stash_claude_viewed_results(notification.params(), cb_state);
+        // Gated like `settle_codex_subagent_launch`: once the turn is over the
+        // card is not live, and an update would materialize it from nothing.
+        for event in take_claude_fork_results(notification.params(), cb_state) {
+            let AcpEvent::ToolCallUpdate { tool_call_id, .. } = &event else {
+                continue;
+            };
+            let tool_call_id = tool_call_id.clone();
+            emit_with_state_gated(state, emitter, event, |s| {
+                s.active_tool_calls.contains_key(&tool_call_id)
+            })
+            .await;
+        }
         if let Some(failures) = take_new_claude_plugin_failures(notification.params(), cb_state) {
             emit_with_state(state, emitter, AcpEvent::PluginLoadFailures { failures }).await;
         }
@@ -17111,6 +17404,13 @@ async fn emit_conversation_update(
                         // into the live Agent capsule.
                         let parent_tool_use_id =
                             claude_chunk_parent_tool_use_id(agent_type, meta.as_ref());
+                        // The adapter's own answer to a `/remote-control`
+                        // prompt is one top-level chunk.
+                        let remote_control =
+                            match (cb_state.claude_remote_control, &parent_tool_use_id) {
+                                (Some(command), None) => remote_control_reply(command, &text.text),
+                                _ => None,
+                            };
                         emit_with_state(
                             state,
                             emitter,
@@ -17120,6 +17420,15 @@ async fn emit_conversation_update(
                             },
                         )
                         .await;
+                        if let Some(remote_control) = remote_control {
+                            cb_state.claude_remote_control = None;
+                            emit_with_state(
+                                state,
+                                emitter,
+                                AcpEvent::RemoteControl { remote_control },
+                            )
+                            .await;
+                        }
                     }
                 }
             }
@@ -17426,6 +17735,13 @@ async fn emit_conversation_update(
         }
         SessionUpdate::ToolCallUpdate(mut tcu) => {
             let tool_call_id = tcu.tool_call_id.to_string();
+            // A fork's copy of its own launch result: dropped before the `_meta`
+            // ledger reads it, and the real result is taken off the raw SDK
+            // stream instead (see `claude_fork_inherited_result`).
+            if claude_fork_inherited_result(agent_type, &tool_call_id, tcu.meta.as_ref()) {
+                cb_state.claude_fork_awaiting_result.insert(tool_call_id);
+                return;
+            }
             // The AIR contract leaves every unchanged `_meta` key off an update;
             // read the call's merged `_meta` instead of the frame's, and hand the
             // frontend (which REPLACES a call's `_meta` with whatever arrives)
@@ -17934,6 +18250,9 @@ async fn emit_conversation_update(
                 // spelling — see `session_title::publish_native_title`.
                 crate::acp::session_title::accept_wire_title(state, emitter, agent_type, title)
                     .await;
+            }
+            if let Some(text) = prompt_suggestion_update(agent_type, info.meta.as_ref()) {
+                emit_with_state(state, emitter, AcpEvent::PromptSuggestion { text }).await;
             }
             let neutral_goal_channel = state.read().await.neutral_goal_channel;
             if let Some(goal) = session_info_goal_value(neutral_goal_channel, info.meta.as_ref()) {
@@ -19180,6 +19499,57 @@ mod tests {
         assert!(!init_advertises_steering(None));
     }
 
+    /// claude-agent-acp 0.92.0's `initialize` answer, as its own scenario harness
+    /// records it for codeg's exact `clientCapabilities`: ACP SDK 1.9.0 adds the
+    /// unstable `sessionCapabilities.systemPrompt`, which this schema crate does
+    /// not know. The typed response must still parse, with every capability
+    /// codeg reads beside it intact — a failed parse here would end every
+    /// Claude connection at its handshake.
+    #[test]
+    fn claude_0920_initialize_response_parses_past_its_system_prompt_capability() {
+        let wire = serde_json::json!({
+            "_meta": {
+                "jetbrains": {"air": {
+                    "capabilities": ["sessionFailure", "agentFileChangeReport", "nativeSubagentSessions",
+                        "asyncTasks", "customInstructions", "recommendedValue", "diffPatch", "planFile"],
+                    "goal": {"actions": ["set", "clear"], "controlMethod": "_session/goal", "version": 1},
+                    "version": 1
+                }},
+                "steering": {"supported": true}
+            },
+            "agentCapabilities": {
+                "_meta": {"authStatus": {}, "claudeCode": {"promptQueueing": true}},
+                "auth": {"logout": {}},
+                "loadSession": true,
+                "mcpCapabilities": {"http": true, "sse": true},
+                "promptCapabilities": {"embeddedContext": true, "image": true},
+                "providers": {},
+                "sessionCapabilities": {
+                    "additionalDirectories": {}, "close": {}, "delete": {}, "fork": {}, "list": {},
+                    "resume": {}, "subagents": {},
+                    "systemPrompt": {"mode": {"override": {}}}
+                }
+            },
+            "agentInfo": {"name": "@agentclientprotocol/claude-agent-acp", "title": "Claude Agent", "version": "0.92.0"},
+            "authMethods": [],
+            "protocolVersion": 1
+        });
+        let response: agent_client_protocol::schema::v1::InitializeResponse =
+            serde_json::from_value(wire).expect("0.92.0 initialize parses");
+        let caps = &response.agent_capabilities;
+        assert!(caps.load_session);
+        assert!(caps.session_capabilities.resume.is_some());
+        assert!(caps.session_capabilities.close.is_some());
+        assert!(caps.session_capabilities.fork.is_some());
+        assert!(caps.prompt_capabilities.image);
+        assert!(init_advertises_steering(response.meta.as_ref()));
+        assert!(init_advertises_goal(response.meta.as_ref()));
+        assert_eq!(
+            response.agent_info.as_ref().map(|info| info.name.as_str()),
+            Some("@agentclientprotocol/claude-agent-acp")
+        );
+    }
+
     #[test]
     fn init_advertises_goal_requires_integer_version_at_least_1() {
         // The real advertisements: codex-acp 1.2.0+ / claude-agent-acp 0.66.0+.
@@ -19287,6 +19657,423 @@ mod tests {
             "version": 1, "sessionFailure": {"id": "x", "revision": 1}
         }}}));
         assert!(session_info_goal_value(true, Some(&failure)).is_none());
+    }
+
+    // --- predicted follow-up prompt (`_meta.promptSuggestions`) ------------
+
+    #[test]
+    fn prompt_suggestion_update_reads_the_offer_the_clear_and_nothing_else() {
+        let read = |meta: serde_json::Value| {
+            prompt_suggestion_update(AgentType::ClaudeCode, Some(&meta_map(meta)))
+        };
+        // claude-agent-acp 0.92.0's two frames: an offer, and the clear it
+        // sends when the next prompt arrives.
+        assert_eq!(
+            read(
+                serde_json::json!({"promptSuggestions": {"suggestions": [{"text": "Run the tests"}]}})
+            ),
+            Some(Some("Run the tests".to_string()))
+        );
+        assert_eq!(
+            read(serde_json::json!({"promptSuggestions": {"suggestions": []}})),
+            Some(None)
+        );
+        // The first non-blank text is the one offered, trimmed.
+        assert_eq!(
+            read(serde_json::json!({"promptSuggestions": {"suggestions": [
+                {"text": "   "}, {"other": 1}, {"text": "  commit this \n"}, {"text": "push it"}
+            ]}})),
+            Some(Some("commit this".to_string()))
+        );
+        // Only blank texts withdraw the offer rather than showing an empty hint.
+        assert_eq!(
+            read(serde_json::json!({"promptSuggestions": {"suggestions": [{"text": " "}]}})),
+            Some(None)
+        );
+        // Anything else leaves the held one as it is: no key, an unreadable
+        // shape, or a goal/title-only update.
+        assert_eq!(read(serde_json::json!({"goal": {"version": 1}})), None);
+        assert_eq!(read(serde_json::json!({"promptSuggestions": null})), None);
+        assert_eq!(
+            read(serde_json::json!({"promptSuggestions": {"suggestions": "x"}})),
+            None
+        );
+        assert_eq!(read(serde_json::json!({"promptSuggestions": {}})), None);
+        assert_eq!(prompt_suggestion_update(AgentType::ClaudeCode, None), None);
+    }
+
+    /// Read only from the two adapters codeg declares AIR to, the only ones the
+    /// key is sent to: an unnamespaced key from anyone else is not taken on trust.
+    #[test]
+    fn prompt_suggestion_update_is_read_from_the_air_adapters_only() {
+        let offer = meta_map(serde_json::json!({
+            "promptSuggestions": {"suggestions": [{"text": "Run the tests"}]}
+        }));
+        assert!(prompt_suggestion_update(AgentType::Codex, Some(&offer)).is_some());
+        for agent_type in [AgentType::CodeBuddy, AgentType::Grok, AgentType::OpenCode] {
+            assert_eq!(
+                prompt_suggestion_update(agent_type, Some(&offer)),
+                None,
+                "{agent_type:?}"
+            );
+        }
+    }
+
+    /// Drive one `session_info_update` with this `_meta` through
+    /// `emit_conversation_update`, as the idle loop does between turns.
+    async fn drive_session_info_meta(
+        state: &Arc<RwLock<SessionState>>,
+        agent_type: AgentType,
+        meta: serde_json::Value,
+    ) {
+        let update: SessionUpdate = serde_json::from_value(serde_json::json!({
+            "sessionUpdate": "session_info_update",
+            "_meta": meta,
+        }))
+        .expect("valid session_info_update wire shape");
+        let mut cache = ToolCallOutputCache::default();
+        let mut cb = CodeBuddyLiveState::default();
+        emit_conversation_update(
+            state,
+            &EventEmitter::Noop,
+            agent_type,
+            update,
+            None,
+            &mut cache,
+            &mut cb,
+        )
+        .await;
+    }
+
+    /// The offer and the clear each become a `PromptSuggestion` event, which the
+    /// session state keeps for the snapshot; an update without the key (a goal,
+    /// a title) emits none and leaves the held offer alone.
+    #[tokio::test]
+    async fn session_info_update_offers_and_withdraws_the_predicted_prompt() {
+        let state = Arc::new(RwLock::new(SessionState::new(
+            "conn-suggest".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        )));
+        let suggestions = |state: &SessionState| -> Vec<Option<String>> {
+            state
+                .recent_events_after(0)
+                .unwrap_or_default()
+                .iter()
+                .filter_map(|e| match &e.payload {
+                    AcpEvent::PromptSuggestion { text } => Some(text.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        drive_session_info_meta(
+            &state,
+            AgentType::ClaudeCode,
+            serde_json::json!({"promptSuggestions": {"suggestions": [{"text": "Run the tests"}]}}),
+        )
+        .await;
+        assert_eq!(
+            state.read().await.prompt_suggestion.as_deref(),
+            Some("Run the tests")
+        );
+
+        drive_session_info_meta(
+            &state,
+            AgentType::ClaudeCode,
+            serde_json::json!({"jetbrains": {"air": {"version": 1}}}),
+        )
+        .await;
+        assert_eq!(
+            state.read().await.prompt_suggestion.as_deref(),
+            Some("Run the tests"),
+            "an update without the key keeps the offer"
+        );
+
+        drive_session_info_meta(
+            &state,
+            AgentType::ClaudeCode,
+            serde_json::json!({"promptSuggestions": {"suggestions": []}}),
+        )
+        .await;
+        assert_eq!(state.read().await.prompt_suggestion, None);
+        assert_eq!(
+            suggestions(&*state.read().await),
+            vec![Some("Run the tests".to_string()), None]
+        );
+    }
+
+    // --- Claude Code's Remote Control (claude-agent-acp 0.93.0) ------------
+
+    /// The success reply of claude-agent-acp 0.93.0's `runRemoteControlCommand`,
+    /// verbatim.
+    fn remote_control_active_reply(url: &str) -> String {
+        format!(
+            "Remote Control is active. Continue this session from claude.ai/code or the \
+             Claude mobile app:\n\n{url}\n\nRun /remote-control off to disconnect."
+        )
+    }
+
+    fn text_blocks(texts: &[&str]) -> Vec<ContentBlock> {
+        texts
+            .iter()
+            .map(|text| ContentBlock::Text(TextContent::new(*text)))
+            .collect()
+    }
+
+    /// The prompts the adapter answers itself, read with its own
+    /// `parseRemoteControlCommand` rules: one text block, JavaScript `trim`
+    /// and `\s`, the name exact, `off` in any case.
+    #[test]
+    fn remote_control_command_reads_what_the_adapter_parses() {
+        use RemoteControlCommand::{Connect, Disconnect};
+        for (text, want) in [
+            ("/remote-control", Some(Connect)),
+            ("  /remote-control\n", Some(Connect)),
+            ("/remote-control My laptop session", Some(Connect)),
+            ("/remote-control\toff", Some(Disconnect)),
+            ("/remote-control OFF", Some(Disconnect)),
+            ("  /remote-control   Off  ", Some(Disconnect)),
+            // JavaScript's whitespace, not Rust's: U+FEFF trims, U+0085 doesn't.
+            ("\u{FEFF}/remote-control off\u{FEFF}", Some(Disconnect)),
+            ("/remote-control\u{3000}off", Some(Disconnect)),
+            ("/remote-control\u{85}off", None),
+            ("/remote-control off now", Some(Connect)),
+            ("/remote-controller", None),
+            ("/Remote-Control", None),
+            ("please /remote-control", None),
+            ("/rc", None),
+        ] {
+            assert_eq!(
+                remote_control_command(AgentType::ClaudeCode, &text_blocks(&[text])),
+                want,
+                "{text:?}"
+            );
+        }
+        // Anything beside the one text block goes to Claude Code instead.
+        assert_eq!(
+            remote_control_command(
+                AgentType::ClaudeCode,
+                &text_blocks(&["/remote-control", "extra"])
+            ),
+            None
+        );
+        assert_eq!(remote_control_command(AgentType::ClaudeCode, &[]), None);
+        // Only claude-agent-acp has the command.
+        assert_eq!(
+            remote_control_command(AgentType::Codex, &text_blocks(&["/remote-control"])),
+            None
+        );
+    }
+
+    /// The adapter's five replies, verbatim, and what each says Remote Control
+    /// is now; any other text says nothing.
+    #[test]
+    fn remote_control_reply_reads_the_adapters_five_replies() {
+        use RemoteControlCommand::{Connect, Disconnect};
+        let url = "https://claude.ai/code/session_01ABCdef";
+        assert_eq!(
+            remote_control_reply(Connect, &remote_control_active_reply(url)),
+            Some(Some(RemoteControlInfo {
+                session_url: Some(url.to_string())
+            }))
+        );
+        assert_eq!(
+            remote_control_reply(
+                Connect,
+                "Remote Control is active, but Claude Code did not return a session URL."
+            ),
+            Some(Some(RemoteControlInfo { session_url: None }))
+        );
+        // Measured through a gateway (0.93.0, CLI 2.1.300).
+        assert_eq!(
+            remote_control_reply(
+                Connect,
+                "Could not start Remote Control: Remote Control is only available when using \
+                 Claude via api.anthropic.com. ANTHROPIC_BASE_URL is set and does not point at \
+                 api.anthropic.com, so this session is using a custom endpoint — unset it (or \
+                 run in a shell without it) to use Remote Control."
+            ),
+            Some(None)
+        );
+        assert_eq!(
+            remote_control_reply(
+                Disconnect,
+                "Remote Control is off. Run /remote-control to reconnect."
+            ),
+            Some(None)
+        );
+        assert_eq!(
+            remote_control_reply(Disconnect, "Could not stop Remote Control: offline"),
+            None,
+            "a stop that failed leaves it as it was"
+        );
+        // Claude Code's own answer to a command the adapter left to it, and
+        // replies to the other command, say nothing.
+        assert_eq!(
+            remote_control_reply(
+                Connect,
+                "/remote-control isn't available in this environment."
+            ),
+            None
+        );
+        assert_eq!(
+            remote_control_reply(Disconnect, &remote_control_active_reply(url)),
+            None
+        );
+        assert_eq!(
+            remote_control_reply(
+                Connect,
+                "Remote Control is off. Run /remote-control to reconnect."
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn remote_control_session_url_takes_the_first_https_url_as_written() {
+        assert_eq!(
+            remote_control_session_url(&remote_control_active_reply(
+                "https://claude.ai/code/session_01?x=1"
+            ))
+            .as_deref(),
+            Some("https://claude.ai/code/session_01?x=1")
+        );
+        assert_eq!(remote_control_session_url("no url here"), None);
+        assert_eq!(
+            remote_control_session_url("see http://claude.ai/code/x or https://"),
+            None,
+            "plain http and a bare scheme are no session URL"
+        );
+    }
+
+    /// Drive one top-level `agent_message_chunk` through
+    /// `emit_conversation_update` with `cb`'s pending command.
+    async fn drive_agent_text(
+        state: &Arc<RwLock<SessionState>>,
+        cb: &mut CodeBuddyLiveState,
+        text: &str,
+        parent_tool_use_id: Option<&str>,
+    ) {
+        let mut update = serde_json::json!({
+            "sessionUpdate": "agent_message_chunk",
+            "content": {"type": "text", "text": text},
+        });
+        if let Some(parent) = parent_tool_use_id {
+            update["_meta"] = serde_json::json!({"claudeCode": {"parentToolUseId": parent}});
+        }
+        let update: SessionUpdate =
+            serde_json::from_value(update).expect("valid agent_message_chunk wire shape");
+        let mut cache = ToolCallOutputCache::default();
+        emit_conversation_update(
+            state,
+            &EventEmitter::Noop,
+            AgentType::ClaudeCode,
+            update,
+            None,
+            &mut cache,
+            cb,
+        )
+        .await;
+    }
+
+    fn remote_control_events(state: &SessionState) -> Vec<Option<RemoteControlInfo>> {
+        state
+            .recent_events_after(0)
+            .unwrap_or_default()
+            .iter()
+            .filter_map(|e| match &e.payload {
+                AcpEvent::RemoteControl { remote_control } => Some(remote_control.clone()),
+                _ => None,
+            })
+            .collect()
+    }
+
+    /// The reply to a pending command becomes a `RemoteControl` event after
+    /// the text itself, which still renders; the command is then spent. Text
+    /// before the reply, a subagent's text, and text with no command pending
+    /// say nothing.
+    #[tokio::test]
+    async fn the_adapters_reply_to_a_pending_command_sets_remote_control() {
+        let state = Arc::new(RwLock::new(SessionState::new(
+            "conn-rc".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        )));
+        let url = "https://claude.ai/code/session_01";
+        let mut cb = CodeBuddyLiveState::default();
+
+        drive_agent_text(&state, &mut cb, &remote_control_active_reply(url), None).await;
+        assert!(
+            remote_control_events(&*state.read().await).is_empty(),
+            "no command pending: an agent that merely says so changes nothing"
+        );
+
+        cb.claude_remote_control = Some(RemoteControlCommand::Connect);
+        drive_agent_text(&state, &mut cb, "some straggler", None).await;
+        drive_agent_text(
+            &state,
+            &mut cb,
+            &remote_control_active_reply(url),
+            Some("toolu_1"),
+        )
+        .await;
+        assert!(remote_control_events(&*state.read().await).is_empty());
+        assert_eq!(
+            cb.claude_remote_control,
+            Some(RemoteControlCommand::Connect)
+        );
+
+        drive_agent_text(&state, &mut cb, &remote_control_active_reply(url), None).await;
+        let on = Some(RemoteControlInfo {
+            session_url: Some(url.to_string()),
+        });
+        assert_eq!(state.read().await.remote_control, on);
+        assert_eq!(
+            cb.claude_remote_control, None,
+            "the reply spends the command"
+        );
+        let events = state
+            .read()
+            .await
+            .recent_events_after(0)
+            .unwrap_or_default();
+        let reply_at = events
+            .iter()
+            .position(|e| {
+                matches!(&e.payload, AcpEvent::ContentDelta { text, .. } if text.starts_with("Remote Control is active"))
+            })
+            .expect("the reply renders");
+        let state_at = events
+            .iter()
+            .position(|e| matches!(e.payload, AcpEvent::RemoteControl { .. }))
+            .expect("Remote Control is reported");
+        assert!(reply_at < state_at);
+
+        // Spent: the same words again change nothing.
+        drive_agent_text(
+            &state,
+            &mut cb,
+            "Remote Control is off. Run /remote-control to reconnect.",
+            None,
+        )
+        .await;
+        assert_eq!(state.read().await.remote_control, on);
+
+        cb.claude_remote_control = Some(RemoteControlCommand::Disconnect);
+        drive_agent_text(
+            &state,
+            &mut cb,
+            "Remote Control is off. Run /remote-control to reconnect.",
+            None,
+        )
+        .await;
+        assert_eq!(state.read().await.remote_control, None);
+        assert_eq!(remote_control_events(&*state.read().await), vec![on, None]);
     }
 
     // --- live ACP session title (`session_info_update.title`) --------------
@@ -22297,7 +23084,7 @@ mod tests {
 
     #[test]
     fn claude_raw_sdk_meta_enabled_only_for_claude() {
-        let claude_meta = claude_raw_sdk_session_meta(AgentType::ClaudeCode)
+        let claude_meta = claude_raw_sdk_session_meta(AgentType::ClaudeCode, true)
             .expect("Claude must have raw SDK meta");
         assert_eq!(
             claude_meta
@@ -22307,7 +23094,50 @@ mod tests {
             Some(true)
         );
 
-        assert!(claude_raw_sdk_session_meta(AgentType::Codex).is_none());
+        assert!(claude_raw_sdk_session_meta(AgentType::Codex, true).is_none());
+        assert!(claude_raw_sdk_session_meta(AgentType::Codex, false).is_none());
+        // A session that asks for predicted prompts names nothing else: the
+        // adapter turns them on itself.
+        assert_eq!(
+            serde_json::Value::Object(claude_meta),
+            serde_json::json!({"claudeCode": {"emitRawSDKMessages": true}})
+        );
+    }
+
+    /// claude-agent-acp 0.92.0 reads `_meta.claudeCode.options` into the SDK
+    /// options after its own `promptSuggestions: true`, so this is what keeps
+    /// a session nobody types into from paying for a prediction after every
+    /// turn (measured against a fake API: no prediction request at all).
+    #[test]
+    fn claude_session_meta_turns_prompt_suggestions_off_when_asked() {
+        let meta = claude_raw_sdk_session_meta(AgentType::ClaudeCode, false)
+            .expect("Claude must have raw SDK meta");
+        assert_eq!(
+            serde_json::Value::Object(meta),
+            serde_json::json!({"claudeCode": {
+                "emitRawSDKMessages": true,
+                "options": {"promptSuggestions": false},
+            }})
+        );
+        // Every request of the connection names the same object.
+        let cwd = std::path::PathBuf::from("/tmp/codeg");
+        let new_req = build_new_session_request(AgentType::ClaudeCode, &cwd, Vec::new(), false);
+        let load_req = build_load_session_request(
+            AgentType::ClaudeCode,
+            SessionId::new("abc".to_string()),
+            &cwd,
+            Vec::new(),
+            false,
+        );
+        let resume_req = build_resume_session_request(
+            AgentType::ClaudeCode,
+            SessionId::new("abc".to_string()),
+            &cwd,
+            Vec::new(),
+            false,
+        );
+        assert_eq!(new_req.meta, load_req.meta);
+        assert_eq!(new_req.meta, resume_req.meta);
     }
 
     #[test]
@@ -24841,7 +25671,7 @@ mod tests {
     #[test]
     fn build_new_session_request_sets_claude_raw_meta() {
         let cwd = std::path::PathBuf::from("/tmp/codeg");
-        let req = build_new_session_request(AgentType::ClaudeCode, &cwd, Vec::new());
+        let req = build_new_session_request(AgentType::ClaudeCode, &cwd, Vec::new(), true);
 
         assert_eq!(
             req.meta
@@ -24979,7 +25809,7 @@ mod tests {
         })
     }
 
-    /// What the 2.x runtime answers a prompt the agent died on is its own
+    /// What the runtime since 2.x answers a prompt the agent died on is its own
     /// `Incoming transport closed`, not the "never received" the classifier
     /// already knew — taken here off the real runtime. Turn-scoped, it kept a
     /// dead agent's session open, rejecting every later prompt the same way.
@@ -25694,6 +26524,7 @@ mod tests {
             SessionId::new("abc".to_string()),
             &cwd,
             Vec::new(),
+            true,
         );
 
         assert!(req.meta.is_none());
@@ -25712,7 +26543,7 @@ mod tests {
     fn openclaw_session_requests_carry_no_mcp_servers() {
         let cwd = std::path::PathBuf::from("/tmp/codeg");
 
-        let new_req = build_new_session_request(AgentType::OpenClaw, &cwd, Vec::new());
+        let new_req = build_new_session_request(AgentType::OpenClaw, &cwd, Vec::new(), true);
         assert!(
             new_req.mcp_servers.is_empty(),
             "OpenClaw session/new must carry no MCP servers"
@@ -25729,6 +26560,7 @@ mod tests {
             SessionId::new("openclaw-session".to_string()),
             &cwd,
             Vec::new(),
+            true,
         );
         assert!(
             load_req.mcp_servers.is_empty(),
@@ -25825,6 +26657,7 @@ mod tests {
             SessionId::new("abc".to_string()),
             &cwd,
             Vec::new(),
+            true,
         );
 
         assert_eq!(
@@ -25845,6 +26678,7 @@ mod tests {
             SessionId::new("abc".to_string()),
             &cwd,
             Vec::new(),
+            true,
         );
 
         assert!(req.meta.is_none());
@@ -25866,6 +26700,7 @@ mod tests {
             SessionId::new("openclaw-session".to_string()),
             &cwd,
             Vec::new(),
+            true,
         );
         assert!(
             req.mcp_servers.is_empty(),
@@ -27494,6 +28329,292 @@ mod tests {
             .expect("the withheld result is filled in");
         assert!(raw.contains("const a = 1;"), "{raw}");
         assert!(cb.claude_viewed_results.is_empty(), "spent");
+    }
+
+    /// A raw SDK `user` message (`_claude/sdkMessage`) carrying one tool_result.
+    fn claude_sdk_tool_result(parent: &str, tool_use_id: &str, text: &str) -> Dispatch {
+        Dispatch::Notification(
+            UntypedMessage::new(
+                CLAUDE_SDK_EXT_METHOD,
+                serde_json::json!({"sessionId": "s", "message": {
+                    "type": "user",
+                    "parent_tool_use_id": parent,
+                    "message": {"role": "user", "content": [{
+                        "type": "tool_result", "tool_use_id": tool_use_id,
+                        "content": [{"type": "text", "text": text}]
+                    }]}
+                }}),
+            )
+            .unwrap(),
+        )
+    }
+
+    /// claude-agent-acp 0.94.0 (CLI 2.1.303), recorded: a subagent runs a fork
+    /// in the foreground. Frames in wire order, ids shortened.
+    async fn drive_nested_fork(
+        state: &Arc<RwLock<SessionState>>,
+        cb: &mut CodeBuddyLiveState,
+        turn_ends_before_the_result: bool,
+    ) {
+        let mut cache = ToolCallOutputCache::default();
+        let update = |frame: serde_json::Value| -> SessionUpdate {
+            serde_json::from_value(frame).expect("recorded wire shape parses")
+        };
+        let frames_before_copy = [
+            serde_json::json!({"sessionUpdate": "tool_call", "toolCallId": "toolu_outer",
+                "_meta": {"claudeCode": {"toolName": "Agent"},
+                    "jetbrains": {"air": {"version": 1, "subagent": true}}},
+                "name": "Agent", "status": "pending", "title": "Task", "kind": "think", "content": []}),
+            serde_json::json!({"sessionUpdate": "tool_call", "toolCallId": "toolu_fork",
+                "_meta": {"claudeCode": {"toolName": "Agent", "parentToolUseId": "toolu_outer"},
+                    "jetbrains": {"air": {"version": 1, "subagent": true}}},
+                "name": "Agent", "status": "pending", "title": "inner fork", "kind": "think",
+                "rawInput": {"description": "inner fork", "prompt": "do it", "subagent_type": "fork"},
+                "content": [{"type": "content", "content": {"type": "text", "text": "do it"}}]}),
+        ];
+        for frame in frames_before_copy {
+            emit_conversation_update(
+                state,
+                &EventEmitter::Noop,
+                AgentType::ClaudeCode,
+                update(frame),
+                None,
+                &mut cache,
+                cb,
+            )
+            .await;
+        }
+        // The fork's copied directive: raw first, then the adapter's report of
+        // it as the launching call's result, parented to the call itself.
+        maybe_emit_ext_notification(
+            state,
+            &EventEmitter::Noop,
+            AgentType::ClaudeCode,
+            claude_sdk_tool_result(
+                "toolu_fork",
+                "toolu_fork",
+                "Fork started — processing in background",
+            ),
+            cb,
+        )
+        .await;
+        let frames_while_running = [
+            serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_fork",
+                "_meta": {"claudeCode": {"parentToolUseId": "toolu_fork"}},
+                "status": "completed",
+                "content": [{"type": "content", "content": {"type": "text",
+                    "text": "Fork started — processing in background"}}]}),
+            serde_json::json!({"sessionUpdate": "tool_call", "toolCallId": "toolu_bash",
+                "_meta": {"claudeCode": {"toolName": "Bash", "parentToolUseId": "toolu_fork"}},
+                "status": "pending", "title": "echo nested-forked", "kind": "execute",
+                "rawInput": {"command": "echo nested-forked"}, "content": []}),
+            serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_bash",
+                "status": "completed"}),
+            // The PostToolUse hook's marker: no status, no content.
+            serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_fork",
+                "_meta": {"claudeCode": {"toolResponse": {"status": "completed"},
+                    "parentToolUseId": "toolu_outer"}}}),
+        ];
+        for frame in frames_while_running {
+            emit_conversation_update(
+                state,
+                &EventEmitter::Noop,
+                AgentType::ClaudeCode,
+                update(frame),
+                None,
+                &mut cache,
+                cb,
+            )
+            .await;
+        }
+        if turn_ends_before_the_result {
+            // What `TurnComplete` does to the live calls.
+            state.write().await.active_tool_calls.clear();
+        }
+        // The real result, answered from the subagent that launched the fork;
+        // the adapter sends no update for it.
+        maybe_emit_ext_notification(
+            state,
+            &EventEmitter::Noop,
+            AgentType::ClaudeCode,
+            claude_sdk_tool_result("toolu_outer", "toolu_fork", "the fork's report"),
+            cb,
+        )
+        .await;
+    }
+
+    fn fork_events(state: &SessionState) -> Vec<AcpEvent> {
+        state
+            .recent_events_after(0)
+            .expect("events recorded")
+            .into_iter()
+            .map(|e| e.payload.clone())
+            .filter(|e| matches!(e,
+                AcpEvent::ToolCall { tool_call_id, .. } | AcpEvent::ToolCallUpdate { tool_call_id, .. }
+                    if tool_call_id == "toolu_fork"))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn a_foreground_forks_copied_result_waits_for_the_real_one() {
+        let state = Arc::new(RwLock::new(SessionState::new(
+            "conn-fork".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        )));
+        let mut cb = CodeBuddyLiveState::default();
+        drive_nested_fork(&state, &mut cb, false).await;
+
+        let events = fork_events(&*state.read().await);
+        // Opening frame, the hook marker, then the result off the raw stream.
+        assert_eq!(events.len(), 3, "{events:?}");
+        // Nothing settled the card before the real result.
+        for event in &events[..2] {
+            if let AcpEvent::ToolCallUpdate {
+                status, content, ..
+            } = event
+            {
+                assert_eq!(status, &None, "{event:?}");
+                assert_eq!(content, &None, "{event:?}");
+            }
+        }
+        let AcpEvent::ToolCallUpdate {
+            status,
+            content,
+            meta,
+            ..
+        } = &events[2]
+        else {
+            panic!("expected the completion");
+        };
+        assert_eq!(status.as_deref(), Some("completed"));
+        assert_eq!(content.as_deref(), Some("the fork's report"));
+        assert!(meta.is_none(), "the card's _meta is left as it was");
+        // The snapshot agrees, and the card never named itself its parent.
+        let guard = state.read().await;
+        let call = guard.active_tool_calls.get("toolu_fork").expect("tracked");
+        assert_eq!(
+            call.status,
+            crate::acp::session_state::ToolCallStatus::Completed
+        );
+        assert_eq!(
+            call.meta
+                .as_ref()
+                .and_then(|m| m.pointer("/claudeCode/parentToolUseId")),
+            Some(&serde_json::json!("toolu_outer"))
+        );
+        assert!(cb.claude_fork_awaiting_result.is_empty(), "spent");
+    }
+
+    #[tokio::test]
+    async fn a_forks_result_after_its_turn_ended_is_not_applied() {
+        // `settle_codex_subagent_launch`'s gate: with the turn over, an update
+        // would bring the card back as a ghost in the next snapshot.
+        let state = Arc::new(RwLock::new(SessionState::new(
+            "conn-fork".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        )));
+        let mut cb = CodeBuddyLiveState::default();
+        drive_nested_fork(&state, &mut cb, true).await;
+
+        let guard = state.read().await;
+        assert!(guard.active_tool_calls.is_empty());
+        let events = fork_events(&guard);
+        assert!(
+            !events.iter().any(|e| matches!(
+                e,
+                AcpEvent::ToolCallUpdate {
+                    status: Some(_),
+                    ..
+                }
+            )),
+            "{events:?}"
+        );
+    }
+
+    #[test]
+    fn a_forks_own_copy_of_its_launch_result_never_settles_it() {
+        // The copy reaches the raw stream before the adapter reports it, so it
+        // never finds the call waiting; this pins the order-independent skip.
+        let mut cb = CodeBuddyLiveState::default();
+        cb.claude_fork_awaiting_result
+            .insert("toolu_fork".to_string());
+        let params = |parent: &str, text: &str| {
+            serde_json::json!({"sessionId": "s", "message": {
+                "type": "user", "parent_tool_use_id": parent,
+                "message": {"role": "user", "content": [
+                    {"type": "tool_result", "tool_use_id": "toolu_fork", "content": text},
+                    {"type": "tool_result", "tool_use_id": "toolu_other", "content": "x"}
+                ]}
+            }})
+        };
+        assert!(
+            take_claude_fork_results(&params("toolu_fork", "Fork started"), &mut cb).is_empty()
+        );
+        assert!(cb.claude_fork_awaiting_result.contains("toolu_fork"));
+        let events = take_claude_fork_results(&params("toolu_outer", "report"), &mut cb);
+        assert_eq!(events.len(), 1, "only the awaited call: {events:?}");
+        let AcpEvent::ToolCallUpdate {
+            tool_call_id,
+            status,
+            content,
+            ..
+        } = &events[0]
+        else {
+            panic!("expected a completion");
+        };
+        assert_eq!(tool_call_id, "toolu_fork");
+        assert_eq!(status.as_deref(), Some("completed"));
+        assert_eq!(content.as_deref(), Some("report"));
+        assert!(cb.claude_fork_awaiting_result.is_empty());
+        // An error result fails the card.
+        cb.claude_fork_awaiting_result
+            .insert("toolu_fork".to_string());
+        let mut errored = params("toolu_outer", "boom");
+        errored["message"]["message"]["content"][0]["is_error"] = serde_json::json!(true);
+        let events = take_claude_fork_results(&errored, &mut cb);
+        let AcpEvent::ToolCallUpdate { status, .. } = &events[0] else {
+            panic!("expected a failure");
+        };
+        assert_eq!(status.as_deref(), Some("failed"));
+    }
+
+    #[test]
+    fn only_a_claude_update_parented_to_its_own_call_is_a_forks_copy() {
+        let meta = |parent: &str| {
+            let serde_json::Value::Object(map) =
+                serde_json::json!({"claudeCode": {"parentToolUseId": parent}})
+            else {
+                unreachable!()
+            };
+            map
+        };
+        assert!(claude_fork_inherited_result(
+            AgentType::ClaudeCode,
+            "toolu_fork",
+            Some(&meta("toolu_fork"))
+        ));
+        // A child of another call, a call with no parent, another agent.
+        assert!(!claude_fork_inherited_result(
+            AgentType::ClaudeCode,
+            "toolu_fork",
+            Some(&meta("toolu_outer"))
+        ));
+        assert!(!claude_fork_inherited_result(
+            AgentType::ClaudeCode,
+            "toolu_fork",
+            None
+        ));
+        assert!(!claude_fork_inherited_result(
+            AgentType::CodeBuddy,
+            "toolu_fork",
+            Some(&meta("toolu_fork"))
+        ));
     }
 
     #[tokio::test]
@@ -31011,7 +32132,7 @@ mod tests {
     #[test]
     fn untyped_new_session_carries_the_typed_request_payload() {
         let cwd = std::path::PathBuf::from("/tmp/codeg");
-        let req = build_new_session_request(AgentType::Cline, &cwd, Vec::new());
+        let req = build_new_session_request(AgentType::Cline, &cwd, Vec::new(), true);
         let expected = serde_json::to_value(&req).unwrap();
 
         let untyped = UntypedMessage::new(AGENT_METHOD_NAMES.session_new, req).expect("builds");
@@ -33112,6 +34233,238 @@ mod tests {
                 "The 'fake-model' model is not supported when using Codex with a ChatGPT account."
             )
         );
+    }
+
+    /// `run_conversation_loop` for a Claude session whose agent answers every
+    /// prompt with one `agent_message_chunk` and the `end_turn` response,
+    /// written back to back, the way claude-agent-acp 0.93.0 answers a
+    /// `/remote-control` prompt it handles itself.
+    struct ClaudeReplyLoop {
+        state: Arc<RwLock<SessionState>>,
+        cmd_tx: mpsc::Sender<ConnectionCommand>,
+        events: tokio::sync::broadcast::Receiver<Arc<crate::acp::types::EventEnvelope>>,
+        /// The text the agent answers the next prompt with.
+        reply: Arc<std::sync::Mutex<String>>,
+        client: tokio::task::JoinHandle<()>,
+        agent: tokio::task::JoinHandle<()>,
+    }
+
+    impl ClaudeReplyLoop {
+        async fn start() -> Self {
+            use agent_client_protocol::schema::v1::PromptResponse;
+
+            let reply = Arc::new(std::sync::Mutex::new(String::from("ok")));
+            let agent_reply = Arc::clone(&reply);
+            let (client_end, agent_end) = agent_client_protocol::Channel::duplex();
+            let agent = tokio::spawn(async move {
+                let _ = Agent
+                    .builder()
+                    .on_receive_request(
+                        async |_req: NewSessionRequest,
+                               responder: Responder<NewSessionResponse>,
+                               _cx: ConnectionTo<Client>| {
+                            responder.respond(NewSessionResponse::new(SessionId::new("s1")))
+                        },
+                        on_receive_request!(),
+                    )
+                    .on_receive_request(
+                        async move |req: PromptRequest,
+                                    responder: Responder<PromptResponse>,
+                                    cx: ConnectionTo<Client>| {
+                            let text = agent_reply.lock().unwrap().clone();
+                            cx.send_notification(UntypedMessage::new(
+                                "session/update",
+                                serde_json::json!({
+                                    "sessionId": req.session_id.0.to_string(),
+                                    "update": {
+                                        "sessionUpdate": "agent_message_chunk",
+                                        "content": {"type": "text", "text": text},
+                                    },
+                                }),
+                            )?)?;
+                            responder.respond(PromptResponse::new(StopReason::EndTurn))
+                        },
+                        on_receive_request!(),
+                    )
+                    .connect_with(agent_end, async |_cx: ConnectionTo<Client>| {
+                        std::future::pending::<Result<(), agent_client_protocol::Error>>().await
+                    })
+                    .await;
+            });
+
+            let state = Arc::new(RwLock::new(SessionState::new(
+                "conn-claude-reply".to_string(),
+                AgentType::ClaudeCode,
+                None,
+                "win".to_string(),
+                None,
+            )));
+            let events = state.read().await.event_stream().subscribe();
+            let (cmd_tx, mut cmd_rx) = mpsc::channel(16);
+            let loop_state = Arc::clone(&state);
+            let client = tokio::spawn(async move {
+                let _ = Client
+                    .builder()
+                    .connect_with(client_end, async move |cx: ConnectionTo<Agent>| {
+                        let raw = cx
+                            .send_request_to(
+                                Agent,
+                                UntypedMessage::new("session/new", NewSessionRequest::new("/tmp"))?,
+                            )
+                            .block_task()
+                            .await?;
+                        let response: NewSessionResponse = serde_json::from_value(raw)
+                            .map_err(agent_client_protocol::Error::into_internal_error)?;
+                        let mut session = AgentSession::attach(&cx, response)?;
+                        let perms = PendingPermissions::default();
+                        let ledger = background_watch::PromptLedger::shared();
+                        let stderr_tail = Arc::new(StderrTail::new());
+                        run_conversation_loop(
+                            &mut session,
+                            "conn-claude-reply",
+                            &EventEmitter::Noop,
+                            &loop_state,
+                            AgentType::ClaudeCode,
+                            &perms,
+                            &mut cmd_rx,
+                            Arc::new(TerminalRuntime::with_base_env(BTreeMap::new())),
+                            "/tmp",
+                            false,
+                            &[],
+                            &ledger,
+                            None,
+                            &stderr_tail,
+                        )
+                        .await?;
+                        Ok(())
+                    })
+                    .await;
+            });
+
+            Self {
+                state,
+                cmd_tx,
+                events,
+                reply,
+                client,
+                agent,
+            }
+        }
+
+        /// Prompt with `text`, the agent answering `reply`, and return every
+        /// event of the turn through its `TurnComplete`.
+        async fn turn(&mut self, text: &str, reply: &str) -> Vec<AcpEvent> {
+            *self.reply.lock().unwrap() = reply.to_string();
+            self.state.write().await.turn_in_flight = true;
+            self.cmd_tx
+                .send(ConnectionCommand::Prompt {
+                    blocks: vec![PromptInputBlock::Text { text: text.into() }],
+                    user_message: None,
+                })
+                .await
+                .expect("the loop is running");
+            let mut seen = Vec::new();
+            loop {
+                let envelope =
+                    tokio::time::timeout(std::time::Duration::from_secs(10), self.events.recv())
+                        .await
+                        .expect("the turn ends")
+                        .expect("event stream");
+                let done = matches!(envelope.payload, AcpEvent::TurnComplete { .. });
+                seen.push(envelope.payload.clone());
+                if done {
+                    return seen;
+                }
+            }
+        }
+
+        async fn shutdown(self) {
+            drop(self.cmd_tx);
+            self.client.abort();
+            self.agent.abort();
+        }
+    }
+
+    /// An answer written right before its response belongs to its turn. The
+    /// two arrive together, so the turn loop must take the update first:
+    /// taken the other way round, the turn ends `empty` (an error toast for a
+    /// turn that answered) and the text lands on the idle loop, where the
+    /// frontend drops a Claude chunk outside a turn. That is the ordinary case
+    /// for the replies claude-agent-acp writes itself, `/remote-control`'s
+    /// among them, which no transcript records either.
+    #[tokio::test]
+    async fn an_answer_written_with_its_response_stays_in_its_turn() {
+        let mut claude = ClaudeReplyLoop::start().await;
+        for n in 0..40 {
+            let reply = format!("answer {n}");
+            let events = claude.turn("hello", &reply).await;
+            let answered = events.iter().any(|e| {
+                matches!(e, AcpEvent::ContentDelta { text, parent_tool_use_id: None } if *text == reply)
+            });
+            assert!(
+                answered,
+                "turn {n}: the answer rendered in its turn: {events:?}"
+            );
+            match events.last() {
+                Some(AcpEvent::TurnComplete { stop_reason, .. }) => {
+                    assert_eq!(stop_reason, "end_turn", "turn {n}")
+                }
+                other => panic!("turn {n} ended with {other:?}"),
+            }
+        }
+        claude.shutdown().await;
+    }
+
+    /// `/remote-control` end to end through the turn loop: the adapter's reply
+    /// renders, Remote Control follows it, and `off` takes it back. The same
+    /// words in reply to another prompt change nothing.
+    #[tokio::test]
+    async fn remote_control_follows_the_adapters_replies_through_the_turn_loop() {
+        let mut claude = ClaudeReplyLoop::start().await;
+        let url = "https://claude.ai/code/session_01";
+        let remote_control = |events: &[AcpEvent]| -> Vec<Option<RemoteControlInfo>> {
+            events
+                .iter()
+                .filter_map(|e| match e {
+                    AcpEvent::RemoteControl { remote_control } => Some(remote_control.clone()),
+                    _ => None,
+                })
+                .collect()
+        };
+
+        let events = claude
+            .turn("what do you say?", &remote_control_active_reply(url))
+            .await;
+        assert!(remote_control(&events).is_empty());
+        assert_eq!(claude.state.read().await.remote_control, None);
+
+        let events = claude
+            .turn("/remote-control", &remote_control_active_reply(url))
+            .await;
+        let on = Some(RemoteControlInfo {
+            session_url: Some(url.to_string()),
+        });
+        assert_eq!(remote_control(&events), vec![on.clone()]);
+        assert!(matches!(
+            events.last(),
+            Some(AcpEvent::TurnComplete { stop_reason, .. }) if stop_reason == "end_turn"
+        ));
+        assert_eq!(claude.state.read().await.remote_control, on);
+        assert_eq!(
+            claude.state.read().await.to_snapshot().remote_control,
+            on,
+            "a client attaching later sees it too"
+        );
+
+        let events = claude
+            .turn(
+                "/remote-control off",
+                "Remote Control is off. Run /remote-control to reconnect.",
+            )
+            .await;
+        assert_eq!(remote_control(&events), vec![None]);
+        assert_eq!(claude.state.read().await.remote_control, None);
+        claude.shutdown().await;
     }
 
     /// How the agent behind [`ForkTransition`] answers `session/close`.

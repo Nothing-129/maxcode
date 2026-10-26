@@ -451,8 +451,8 @@ fn estimate_envelope_size(envelope: &EventEnvelope) -> usize {
                     .iter()
                     .map(|s| {
                         // Keys + braces + commas for every field (task_id,
-                        // status, summary, tool_use_id, result) plus the
-                        // element comma — generously fixed so `estimate >=
+                        // status, summary, tool_use_id, result, interim) plus
+                        // the element comma — generously fixed so `estimate >=
                         // serialized` holds for every present/absent optional
                         // combination.
                         128 + json_str_len(&s.task_id)
@@ -1059,6 +1059,9 @@ mod tests {
                         // Escape-heavy + large, to exercise the estimate's
                         // coverage of the (previously omitted) `result` field.
                         result: Some("Build \"log\"\n\t".repeat(2048)),
+                        // Serialized only when set: the fixed per-entry
+                        // overhead must cover its key too.
+                        interim: true,
                     },
                     crate::acp::types::BackgroundSettledInfo {
                         task_id: "bipkee1pw".into(),
@@ -1066,6 +1069,7 @@ mod tests {
                         summary: None,
                         tool_use_id: None,
                         result: None,
+                        interim: false,
                     },
                 ],
                 watermark: u64::MAX,

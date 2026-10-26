@@ -228,7 +228,7 @@ async fn probe_adapter(meta: &AcpAgentMeta) -> Option<AdapterInfo> {
         _ => return None,
     };
     let (adapter_installed, native_path) = tokio::join!(
-        crate::commands::acp::is_cmd_available(adapter_cmd),
+        crate::commands::acp::is_cmd_available(meta.agent_type, adapter_cmd),
         crate::commands::acp::resolve_vendor_cli(relation.native_cmd, relation.extra_dirs),
     );
 
@@ -816,7 +816,7 @@ mod adapter_tests {
         );
         assert_eq!(
             info.adapter_package,
-            "@agentclientprotocol/claude-agent-acp@0.90.0"
+            "@agentclientprotocol/claude-agent-acp@0.94.0"
         );
         assert_eq!(info.adapter_cmd, "claude-agent-acp");
         assert!(!info.adapter_installed);
@@ -844,7 +844,7 @@ mod adapter_tests {
     #[test]
     fn zcode_adapter_info_keeps_the_vendor_runtime_separate() {
         let info = info_for(AgentType::Zcode, Some("/home/user/.local/bin/zcode"), false);
-        assert_eq!(info.adapter_package, "zcode-acp-server@0.72.0");
+        assert_eq!(info.adapter_package, "zcode-acp-server@0.76.2");
         assert_eq!(info.adapter_cmd, "zcode-acp-server");
         assert!(!info.adapter_installed);
         assert_eq!(info.native_cmd, "zcode");

@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "Fragen Sie alles...",
+        "promptSuggestion": "{suggestion} (Tab zum Übernehmen)",
         "removeAttachmentAria": "{name} entfernen",
         "attachFiles": "Dateien anhängen",
         "addActions": "Hinzufügen",
@@ -3993,6 +3994,7 @@
         "cardRunning": "Läuft im Hintergrund",
         "cardLaunchedPending": "Hintergrundaufgabe gestartet",
         "cardCompleted": "Hintergrundaufgabe abgeschlossen",
+        "cardInterim": "Hintergrundaufgabe: Zwischenergebnis",
         "cardFinishedWithStatus": "Hintergrundaufgabe beendet ({status})",
         "cardResultPending": "Ergebnis steht noch aus"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} Tokens",
         "stopDeclined": "Diese Aufgabe konnte nicht gestoppt werden – sie ist möglicherweise bereits beendet.",
         "stopFailed": "Aufgabe konnte nicht gestoppt werden: {error}"
+      },
+      "remoteControl": {
+        "title": "Fernsteuerung aktiv",
+        "open": "Im Browser öffnen",
+        "copy": "Link kopieren",
+        "copied": "Kopiert",
+        "qr": "QR-Code",
+        "qrLabel": "QR-Code des Fernsteuerungs-Links dieser Sitzung",
+        "qrHint": "Mit dem Handy scannen, um diese Sitzung in der Claude-App oder auf claude.ai/code fortzusetzen.",
+        "noUrl": "Claude Code hat keinen Link für diese Sitzung zurückgegeben",
+        "turnOff": "Ausschalten",
+        "turnOffBusy": "Verfügbar, sobald Claude fertig ist"
       },
       "proposedPlan": {
         "title": "Vorgeschlagener Plan",

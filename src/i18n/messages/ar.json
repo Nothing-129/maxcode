@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "اسأل أي شيء...",
+        "promptSuggestion": "{suggestion} (اضغط Tab للاستخدام)",
         "removeAttachmentAria": "إزالة {name}",
         "attachFiles": "إرفاق ملفات",
         "addActions": "إضافة",
@@ -3993,6 +3994,7 @@
         "cardRunning": "قيد التشغيل في الخلفية",
         "cardLaunchedPending": "بدأت مهمة الخلفية",
         "cardCompleted": "اكتملت مهمة الخلفية",
+        "cardInterim": "مهمة الخلفية: نتيجة مؤقتة",
         "cardFinishedWithStatus": "انتهت مهمة الخلفية ({status})",
         "cardResultPending": "لم تصل النتيجة بعد"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} رمز",
         "stopDeclined": "تعذّر إيقاف هذه المهمة، ربما تكون قد انتهت بالفعل.",
         "stopFailed": "فشل إيقاف المهمة: {error}"
+      },
+      "remoteControl": {
+        "title": "التحكم عن بُعد مُفعّل",
+        "open": "فتح في المتصفح",
+        "copy": "نسخ الرابط",
+        "copied": "تم النسخ",
+        "qr": "رمز QR",
+        "qrLabel": "رمز QR لرابط التحكم عن بُعد لهذه الجلسة",
+        "qrHint": "امسحه بهاتفك لمتابعة هذه الجلسة في تطبيق Claude أو على claude.ai/code.",
+        "noUrl": "لم يُرجع Claude Code رابطًا لهذه الجلسة",
+        "turnOff": "إيقاف",
+        "turnOffBusy": "متاح بعد أن ينتهي Claude"
       },
       "proposedPlan": {
         "title": "الخطة المقترحة",

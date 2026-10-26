@@ -6,12 +6,12 @@ use serde_json::json;
 fn reviewed_pins_leave_unreviewed_agents_and_runtime_gates_alone() {
     use crate::acp::registry::{get_agent_meta, AgentDistribution};
     for (agent, pin, node) in [
-        (AgentType::ClaudeCode, "0.90.0", "22.0.0"),
+        (AgentType::ClaudeCode, "0.94.0", "22.0.0"),
         (AgentType::Codex, "2.2.2", "20.3.0"),
-        (AgentType::Grok, "1.0.52", "20.0.0"),
+        (AgentType::Grok, "1.0.62", "20.0.0"),
         (AgentType::Pi, "0.0.34", "22.0.0"),
         (AgentType::DeepSeek, "0.9.0", "22.0.0"),
-        (AgentType::Zcode, "0.72.0", "22.0.0"),
+        (AgentType::Zcode, "0.76.2", "22.0.0"),
     ] {
         let AgentDistribution::Npx {
             version,

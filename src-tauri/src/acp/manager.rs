@@ -873,6 +873,9 @@ impl ConnectionManager {
                         if state.pending_permission.is_some() {
                             continue;
                         }
+                        if state.remote_control.is_some() {
+                            continue;
+                        }
                         if state.has_active_background_work(now) {
                             continue;
                         }
@@ -7386,6 +7389,53 @@ mod tests {
         }
         let n = mgr.sweep_idle(Duration::from_secs(300)).await;
         assert_eq!(n, 1, "settled background work no longer exempts the sweep");
+    }
+
+    #[tokio::test]
+    async fn sweep_idle_skips_remote_control() {
+        let mgr = ConnectionManager::new();
+        insert_fake_connection(
+            &mgr,
+            "remote",
+            AgentType::ClaudeCode,
+            None,
+            EventEmitter::Noop,
+        )
+        .await;
+        {
+            let state = mgr.get_state("remote").await.unwrap();
+            state
+                .write()
+                .await
+                .apply_event(&crate::acp::types::AcpEvent::RemoteControl {
+                    remote_control: Some(crate::acp::types::RemoteControlInfo {
+                        session_url: Some("https://claude.ai/code/session_01".into()),
+                    }),
+                });
+        }
+        // After the event, which counts as activity itself.
+        backdate_last_activity(&mgr, "remote", 600).await;
+        let n = mgr.sweep_idle(Duration::from_secs(300)).await;
+        assert_eq!(
+            n, 0,
+            "a connection with Remote Control on must not be swept \
+             (disconnecting kills the CLI and ends the remote session)"
+        );
+        assert!(mgr.connections.lock().await.contains_key("remote"));
+
+        // Turned off, the same connection is sweepable again.
+        {
+            let state = mgr.get_state("remote").await.unwrap();
+            state
+                .write()
+                .await
+                .apply_event(&crate::acp::types::AcpEvent::RemoteControl {
+                    remote_control: None,
+                });
+        }
+        backdate_last_activity(&mgr, "remote", 600).await;
+        let n = mgr.sweep_idle(Duration::from_secs(300)).await;
+        assert_eq!(n, 1, "Remote Control off no longer exempts the sweep");
     }
 
     #[tokio::test]

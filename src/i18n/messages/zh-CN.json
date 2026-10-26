@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "请开始输入...",
+        "promptSuggestion": "{suggestion}（按 Tab 填入）",
         "removeAttachmentAria": "移除 {name}",
         "attachFiles": "附加文件",
         "attachLocalUpload": "附加本地文件",
@@ -3993,6 +3994,7 @@
         "cardRunning": "后台运行中",
         "cardLaunchedPending": "已启动后台任务",
         "cardCompleted": "后台任务已完成",
+        "cardInterim": "后台任务：阶段性结果",
         "cardFinishedWithStatus": "后台任务已结束（{status}）",
         "cardResultPending": "结果尚未返回"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} tokens",
         "stopDeclined": "无法停止该任务，它可能已经结束。",
         "stopFailed": "停止任务失败：{error}"
+      },
+      "remoteControl": {
+        "title": "远程控制已开启",
+        "open": "在浏览器中打开",
+        "copy": "复制链接",
+        "copied": "已复制",
+        "qr": "二维码",
+        "qrLabel": "本会话远程控制链接的二维码",
+        "qrHint": "用手机扫码，在 Claude App 或 claude.ai/code 上继续本会话。",
+        "noUrl": "Claude Code 没有返回本会话的链接",
+        "turnOff": "关闭",
+        "turnOffBusy": "Claude 完成当前工作后可用"
       },
       "proposedPlan": {
         "title": "计划提案",

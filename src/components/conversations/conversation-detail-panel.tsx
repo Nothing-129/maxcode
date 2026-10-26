@@ -1610,6 +1610,16 @@ const ConversationTabView = memo(function ConversationTabView({
     [conn.connectionId, tAsyncTasks]
   )
 
+  /** Turn Claude Code's Remote Control off the way the user would: by sending
+   *  `/remote-control off`, which the adapter answers itself. */
+  const handleRemoteControlOff = useCallback(() => {
+    const command = "/remote-control off"
+    handleSend({
+      blocks: [{ type: "text", text: command }],
+      displayText: command,
+    })
+  }, [handleSend])
+
   const handleOpenAgentsSettings = useCallback(() => {
     openSettingsWindow("agents", { agentType: selectedAgent }).catch((err) => {
       console.error(
@@ -2442,6 +2452,13 @@ const ConversationTabView = memo(function ConversationTabView({
           ? handleStopAsyncTask
           : undefined
       }
+      remoteControl={connIsForOtherAgent ? null : conn.remoteControl}
+      onRemoteControlOff={
+        // Owners of a live connection only, like the stop above.
+        conn.connectionId !== null && !conn.isViewer
+          ? handleRemoteControlOff
+          : undefined
+      }
       pendingPermission={conn.pendingPermission}
       pendingQuestion={conn.pendingQuestion}
       pendingAskQuestion={conn.pendingAskQuestion}
@@ -2467,6 +2484,7 @@ const ConversationTabView = memo(function ConversationTabView({
       onConfigOptionChange={handleConfigOptionChange}
       agentType={selectedAgent}
       availableCommands={connectionCommands}
+      promptSuggestion={connIsForOtherAgent ? null : conn.promptSuggestion}
       attachmentTabId={tabId}
       draftStorageKey={draftStorageKey}
       hideInput={isWelcomeMode || Boolean(acpLoadError)}
@@ -2605,6 +2623,9 @@ const ConversationTabView = memo(function ConversationTabView({
                 onConfigOptionChange={handleConfigOptionChange}
                 agentType={selectedAgent}
                 availableCommands={connectionCommands}
+                promptSuggestion={
+                  connIsForOtherAgent ? null : conn.promptSuggestion
+                }
                 attachmentTabId={tabId}
                 draftStorageKey={draftStorageKey}
                 isActive={isActive}

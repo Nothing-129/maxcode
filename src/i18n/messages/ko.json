@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "무엇이든 물어보세요...",
+        "promptSuggestion": "{suggestion} (Tab 키로 입력)",
         "removeAttachmentAria": "{name} 제거",
         "attachFiles": "파일 첨부",
         "addActions": "추가",
@@ -3993,6 +3994,7 @@
         "cardRunning": "백그라운드에서 실행 중",
         "cardLaunchedPending": "백그라운드 작업 시작됨",
         "cardCompleted": "백그라운드 작업 완료",
+        "cardInterim": "백그라운드 작업: 중간 결과",
         "cardFinishedWithStatus": "백그라운드 작업 종료 ({status})",
         "cardResultPending": "결과가 아직 반환되지 않았습니다"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} 토큰",
         "stopDeclined": "해당 작업을 중지할 수 없습니다. 이미 완료되었을 수 있습니다.",
         "stopFailed": "작업 중지에 실패했습니다: {error}"
+      },
+      "remoteControl": {
+        "title": "원격 제어 켜짐",
+        "open": "브라우저에서 열기",
+        "copy": "링크 복사",
+        "copied": "복사됨",
+        "qr": "QR 코드",
+        "qrLabel": "이 세션의 원격 제어 링크 QR 코드",
+        "qrHint": "휴대폰으로 스캔하면 Claude 앱이나 claude.ai/code에서 이 세션을 이어갈 수 있습니다.",
+        "noUrl": "Claude Code가 이 세션의 링크를 반환하지 않았습니다",
+        "turnOff": "끄기",
+        "turnOffBusy": "Claude가 작업을 마치면 사용할 수 있습니다"
       },
       "proposedPlan": {
         "title": "제안된 계획",

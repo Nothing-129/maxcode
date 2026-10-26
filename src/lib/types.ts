@@ -2437,6 +2437,17 @@ export interface AvailableCommandInfo {
   input_hint?: string | null
 }
 
+/**
+ * Claude Code's Remote Control for a session that has it on (mirror of Rust
+ * `RemoteControlInfo`): the session can be continued from claude.ai/code or the
+ * Claude app on a phone for as long as the agent CLI runs.
+ */
+export interface RemoteControlInfo {
+  /** The remote session's claude.ai/code URL; `null` when Claude Code turned
+   *  Remote Control on without returning one. */
+  session_url: string | null
+}
+
 export interface SessionUsageUpdateInfo {
   used: number
   size: number
@@ -2471,6 +2482,11 @@ export interface ToolCallImageWire {
  * notification names its `Bash` call too, whose card has no marker to flip (the
  * store leaves it alone); absent when the notification names no call (an MCP
  * call moved to the background).
+ *
+ * `interim` (absent unless true) marks a notification whose note says the
+ * sub-agent will notify again: it stopped while background work of its own
+ * still runs, or it is being resumed. Its result may be interim, it is not the
+ * task's end, and it raises no "finished" notification.
  */
 export interface BackgroundSettledInfo {
   task_id: string
@@ -2478,6 +2494,7 @@ export interface BackgroundSettledInfo {
   summary?: string | null
   tool_use_id?: string | null
   result?: string | null
+  interim?: boolean
 }
 
 export type AcpEvent =
@@ -2749,6 +2766,27 @@ export type AcpEvent =
       type: "usage_update"
       used: number
       size: number
+    }
+  /**
+   * The prompt the agent predicts the user will send next (claude-agent-acp
+   * 0.92.0's `_meta.promptSuggestions`), offered as gray text in the empty
+   * composer; Tab fills it in. `null` withdraws the one held. Current state,
+   * like `usage_update`: the snapshot carries the last one, and a new prompt
+   * clears it.
+   */
+  | {
+      type: "prompt_suggestion"
+      text: string | null
+    }
+  /**
+   * Claude Code's Remote Control turned on (an object) or off (`null`), read
+   * from claude-agent-acp 0.93.0's reply to a `/remote-control` prompt.
+   * Current state, like `prompt_suggestion`: the snapshot carries it while it
+   * is on.
+   */
+  | {
+      type: "remote_control"
+      remote_control: RemoteControlInfo | null
     }
   /**
    * Out-of-turn activity surfaced from the agent's own session transcript by
@@ -3276,6 +3314,12 @@ export interface LiveSessionSnapshot {
   config_options: SessionConfigOptionInfo[] | null
   prompt_capabilities: PromptCapabilitiesInfo | null
   usage: SessionUsageUpdateInfo | null
+  /** The follow-up prompt the agent last predicted (see the
+   *  `prompt_suggestion` event). Absent when there is none. */
+  prompt_suggestion?: string | null
+  /** Claude Code's Remote Control while it is on (see the `remote_control`
+   *  event). Absent when it is off. */
+  remote_control?: RemoteControlInfo | null
   fork_supported: boolean
   available_commands: AvailableCommandInfo[]
   selectors_ready: boolean

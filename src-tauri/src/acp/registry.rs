@@ -1417,11 +1417,12 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // keep background Bash output and saved model aliases. 0.86.0
             // bundles Claude Code 2.1.287 and removes the session/new count burst.
             distribution: AgentDistribution::Npx {
-                // Reviewed 22e70a05 / fa38e534 / 8b95fc1c / e86fd9bf / bd30df7c:
-                // CLI 2.1.296; queued-command history, stable transcript titles,
-                // fork settings parity and canonical Bash/Grep/Read inputs.
-                version: "0.90.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.90.0",
+                // Reviewed through f88b372a2 (Claude CLI 2.1.303): retain
+                // cancelled-turn reports and interim background results;
+                // offer predicted prompts and preserve Remote Control sessions.
+                // Fork children exclude inherited usage and wait for real results.
+                version: "0.94.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.94.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2428,8 +2429,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // permission flags and connection-scope setup notification handling.
             distribution: AgentDistribution::Npx {
                 // Reviewed 001ee728: background task labels name the original command.
-                version: "1.0.52",
-                package: "@xai-official/grok@1.0.52",
+                version: "1.0.62",
+                package: "@xai-official/grok@1.0.62",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
@@ -2714,9 +2715,10 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // bridge: the verified handshake advertises `loadSession`,
             // `sessionCapabilities` list+resume, image/audio/embeddedContext
             // prompts and MCP http+sse, with `agentInfo.name =
-            // "antigravity-acp"`. Model and session mode (default/auto_edit/
-            // yolo) arrive as standard `configOptions`, so the composer
-            // selectors need no per-agent code.
+            // "antigravity-acp"`. Model, thinking level (since 1.4.0) and
+            // session mode (default/auto_edit/yolo) arrive as standard
+            // `configOptions`, so the composer selectors need no per-agent
+            // code.
             //
             // WHOLE-TREE, NOT SINGLE-FILE. The archive is FLAT but holds TWO
             // executables:
@@ -2763,10 +2765,65 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // already have. `darwin-x86_64` first shipped with 1.2.1 (1.2.0
             // still covered only the other five targets), so on an Intel Mac
             // anything older 404s the same way.
+            //
+            // 1.3.0, checked against 1.2.1: every archive is still flat with
+            // the same two executables and modes, and `tools.py`,
+            // `config_options.py`, `paths.py`, `settings.py` and `oauth/` are
+            // byte-identical. So the MCP `rawInput` codeg folds, the mode
+            // values, the token paths and the loopback OAuth flow the login
+            // relay drives are unchanged. `initialize` matches, and
+            // `session/new` still fails `-32000 Authentication required` until
+            // settings.json declares `auth.type`, which gained a `gateway`
+            // value codeg does not offer. New on the wire is `usage_update`,
+            // which reaches the context ring like any agent's, and the Windows
+            // server is still the PyInstaller onefile that codeg's TMP/TEMP
+            // scratch and `_MEI*` reaping are built for. One launch detail
+            // moved: `main.py` now appends `localhost,127.0.0.1,::1` to both
+            // `NO_PROXY` spellings whenever a proxy variable is set. codeg
+            // already exports those hosts, so its value passes through, except
+            // `*`, which codeg sends alone because Python skips a `*` inside a
+            // list. The server turns it into `*,localhost,127.0.0.1,::1`, so
+            // with a proxy configured and a `*` bypass list, its urllib and
+            // requests traffic is proxied again.
+            //
+            // 1.4.0, checked against 1.3.0: every archive is still flat with
+            // the same two executables and modes. `main.py`, `tools.py`,
+            // `paths.py`, `settings.py` and `oauth/` are byte-identical, and
+            // the mode and `auth.type` values are unchanged, so the MCP
+            // `rawInput` codeg folds, the token paths, the login relay's OAuth
+            // flow and the `NO_PROXY` rewrite above all still hold. `initialize`
+            // only adds `agentCapabilities._meta.antigravity` (`tier`,
+            // `systemPrompt.append`), `session/new` still fails `-32000` until
+            // `auth.type` is declared, and the Windows server is still the
+            // PyInstaller onefile. What moved is the model picker. The `model`
+            // option lists one row per model family and a new `thinking_level`
+            // option (category `thought_level`) picks the variant, while the
+            // flat `models` list keeps every variant id, the ids 1.3.0's picker
+            // listed. A model saved under 1.3.0 is such an id, and
+            // `session_model_list_offers` in connection.rs replays it as saved
+            // for the server to map. A model switch now takes effect at the
+            // next prompt, and `start_subagent` became `invoke_subagent` beside
+            // a new `run_workflow` tool; codeg maps neither name.
+            //
+            // 1.4.1, checked against 1.4.0: every archive is still flat with
+            // the same two executables and modes. Of the server's own Python
+            // only `server.py`, `model_selection.py`, `client_info.py`, the
+            // gateway modules and the version string changed; `main.py`,
+            // `tools.py`, `config_options.py`, `paths.py`, `settings.py`,
+            // `oauth/` and the MCP modules are byte-identical, the protobuf
+            // descriptors the history parser reads are unchanged, and the Go
+            // harness differs only in build stamps. `initialize` (apart from
+            // the version), `session/new` with its `model`, `thinking_level`
+            // and `mode` values and flat `models` list, the slash commands, a
+            // model then thinking-level switch, and a gateway turn that calls a
+            // tool on a wire MCP server all answer as 1.4.0 does. What moved:
+            // an Agent Platform session now defaults to `gemini-4-argon-high`
+            // and lists Gemini 4 Argon first, a Google-login model list drops
+            // the models the plan marks disabled, and the Windows server, still
+            // the PyInstaller onefile, embeds Python 3.14 where it embedded
+            // 3.10.
             distribution: AgentDistribution::Binary {
-                // Reviewed 001ee728: family model selector plus thinking_level;
-                // replay saved variant IDs only while the flat session list offers them.
-                version: "1.4.0",
+                version: "1.4.1",
                 // Never resolvable on PATH (there is no standalone CLI by
                 // this name); it exists because `Binary` requires one, and
                 // for dir-tree agents `installed_binary_path` ignores it in
@@ -2783,32 +2840,32 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.0-darwin-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "darwin-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.0-darwin-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.0-linux-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.1-linux-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.0-linux-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.1-linux-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.0-windows-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.1-windows-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.0-windows-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.1-windows-x86_64.zip",
                         sha256: None,
                     },
                 ],
@@ -2855,9 +2912,12 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // notification that ends a turn, which codeg does not read. The
             // rest (quota cards, CLIProxy, sandbox pacing when a workspace arms
             // the sandbox) is opt-in and outside what codeg drives.
+            // Reviewed e2961c264 / a7cd74b18: 0.75 makes the sandbox opt-in
+            // and adds replay message IDs; 0.76.2 needs no new wire adaptation.
+            // Retain native turn metrics and the reviewed model-catalog repair.
             distribution: AgentDistribution::Npx {
-                version: "0.72.0",
-                package: "zcode-acp-server@0.72.0",
+                version: "0.76.2",
+                package: "zcode-acp-server@0.76.2",
                 cmd: "zcode-acp-server",
                 args: &["server"],
                 env: &[],
@@ -2945,7 +3005,7 @@ mod tests {
                 dir_entry,
                 ..
             } => {
-                assert_eq!(version, "1.4.0");
+                assert_eq!(version, "1.4.1");
                 assert_eq!(cmd, "agy_acp_server");
                 let entry = dir_entry.expect("antigravity must use dir-tree extraction");
                 assert_eq!(entry.unix, "agy_acp_server.par");
@@ -2955,7 +3015,7 @@ mod tests {
                 assert!(platforms.iter().any(|p| p.platform == "darwin-x86_64"));
                 for platform in platforms {
                     assert!(
-                        platform.url.contains("/agy-acp-server-1.4.0-"),
+                        platform.url.contains("/agy-acp-server-1.4.1-"),
                         "{} URL lost the release name: {}",
                         platform.platform,
                         platform.url
@@ -3156,14 +3216,14 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::Zcode,
-            "0.72.0",
-            "zcode-acp-server@0.72.0",
+            "0.76.2",
+            "zcode-acp-server@0.76.2",
             Some("22.0.0"),
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.90.0",
-            "@agentclientprotocol/claude-agent-acp@0.90.0",
+            "0.94.0",
+            "@agentclientprotocol/claude-agent-acp@0.94.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3205,8 +3265,8 @@ mod tests {
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.52",
-            "@xai-official/grok@1.0.52",
+            "1.0.62",
+            "@xai-official/grok@1.0.62",
             Some("20.0.0"),
         );
         assert_npx_version(

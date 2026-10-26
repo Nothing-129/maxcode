@@ -3153,6 +3153,7 @@
       },
       "messageInput": {
         "askAnything": "Posez n'importe quelle question...",
+        "promptSuggestion": "{suggestion} (Tab pour l’utiliser)",
         "removeAttachmentAria": "Retirer {name}",
         "attachFiles": "Joindre des fichiers",
         "addActions": "Ajouter",
@@ -3993,6 +3994,7 @@
         "cardRunning": "En cours d'exécution en arrière-plan",
         "cardLaunchedPending": "Tâche lancée en arrière-plan",
         "cardCompleted": "Tâche en arrière-plan terminée",
+        "cardInterim": "Tâche en arrière-plan : résultat provisoire",
         "cardFinishedWithStatus": "Tâche en arrière-plan terminée ({status})",
         "cardResultPending": "Résultat pas encore reçu"
       },
@@ -4002,6 +4004,18 @@
         "tokens": "{count} jetons",
         "stopDeclined": "Impossible d'arrêter cette tâche : elle est peut-être déjà terminée.",
         "stopFailed": "Échec de l'arrêt de la tâche : {error}"
+      },
+      "remoteControl": {
+        "title": "Contrôle à distance activé",
+        "open": "Ouvrir dans le navigateur",
+        "copy": "Copier le lien",
+        "copied": "Copié",
+        "qr": "Code QR",
+        "qrLabel": "Code QR du lien de contrôle à distance de cette session",
+        "qrHint": "Scannez-le avec votre téléphone pour poursuivre cette session dans l'app Claude ou sur claude.ai/code.",
+        "noUrl": "Claude Code n'a renvoyé aucun lien pour cette session",
+        "turnOff": "Désactiver",
+        "turnOffBusy": "Disponible une fois que Claude a terminé"
       },
       "proposedPlan": {
         "title": "Plan proposé",

@@ -2,6 +2,36 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "agents.reviewed-updates-20261026",
+      "category": "runtime",
+      "description": "Claude ACP 0.94.0, Grok 1.0.62, Antigravity 1.4.1 and ZCode 0.76.2 with cancelled-turn reports, interim background results, prompt suggestions, Remote Control and fork accounting. Preserve MaxCode seven-agent catalog, managed install priority, grouped idle eviction and hidden background strip. Fork accounting rebuilds facts under a downstream schema marker.",
+      "origins": [
+        "80269fa71",
+        "efdce2c01",
+        "c9e6329c4",
+        "f88b372a2",
+        "84cbc38a2",
+        "08513b573",
+        "a7cd74b18"
+      ],
+      "paths": [
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src-tauri/src/commands/token_usage.rs",
+        "src/contexts/acp-connections-context.tsx",
+        "src/stores/conversation-runtime-store.ts",
+        "src/components/chat/conversation-shell.tsx",
+        "src/maxcode-contracts/claude-fork-accounting.contract.rs",
+        "src/maxcode-contracts/grok-native-install.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-updates-20261026.contract.test.ts"
+      ]
+    },
+    {
       "id": "workspace.mobile-download-retries",
       "category": "runtime",
       "description": "Workspace download tickets survive browser HEAD probes and repeated GET requests within their original 60-second expiry; backup tickets stay single-use and inaccessible through workspace lookup. Downloads retain path validation and no-store responses.",

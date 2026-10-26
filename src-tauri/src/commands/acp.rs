@@ -244,8 +244,8 @@ fn npm_install_attempts(
 /// Uses PATH first, then codeg's EACCES fallback prefix, then the current npm
 /// global prefix. The explicit fallback-prefix probe keeps this correct even
 /// when startup PATH initialization was skipped or later overwritten.
-pub(crate) async fn is_cmd_available(cmd: &str) -> bool {
-    resolve_npx_command(cmd).await.is_some()
+pub(crate) async fn is_cmd_available(agent_type: AgentType, cmd: &str) -> bool {
+    resolve_agent_npx_command(agent_type, cmd).await.is_some()
 }
 
 pub(crate) fn resolve_command_on_path(cmd: &str) -> Option<PathBuf> {
@@ -471,7 +471,9 @@ pub(crate) async fn resolve_agent_npx_command(agent: AgentType, cmd: &str) -> Op
     if let Some((path, _)) = super::agent_auto_updates::active_for_agent(agent) {
         return Some(path);
     }
-    resolve_npx_command(cmd).await
+    resolve_npx_command(cmd)
+        .await
+        .or_else(|| npx_native_install(agent, cmd))
 }
 
 pub(crate) async fn resolve_npx_command(cmd: &str) -> Option<PathBuf> {
@@ -487,6 +489,70 @@ pub(crate) async fn resolve_npx_command(cmd: &str) -> Option<PathBuf> {
     resolve_npx_command_from_current_npm_prefix(cmd).await
 }
 
+/// [`resolve_npx_command`] plus the copy the agent vendor's own native
+/// installer keeps in a directory of its own (see [`npx_native_install`]).
+///
+/// Connect, launch, status, list, diagnostics and version detection all take
+/// an npx agent's command from here, so they agree on whether it is installed.
+/// Ordered last, so anything on PATH, an official-installer copy in
+/// MaxCode's user npm prefix and the current npm prefix all still win.
+pub(crate) async fn resolve_npx_command_for(agent_type: AgentType, cmd: &str) -> Option<PathBuf> {
+    resolve_agent_npx_command(agent_type, cmd).await
+}
+
+/// The native-installer copy of an npx agent's command, for the agents whose
+/// vendor also ships an installer of its own that puts the command where no
+/// other probe looks.
+fn npx_native_install(agent_type: AgentType, cmd: &str) -> Option<PathBuf> {
+    match agent_type {
+        AgentType::Grok => grok_native_install(&home_dir_or_default(), cmd),
+        _ => None,
+    }
+}
+
+/// `grok` as Grok's own installers leave it: `x.ai/cli/install.sh` and
+/// `install.ps1` put it in `~/.grok/bin`, then only add that directory to the
+/// shell rc or the Windows user PATH. An app that was already running, or that
+/// a launcher started with the environment from before the install, never sees
+/// that PATH, and on Windows nothing lands in `~/.local/bin` either, so without
+/// this a working native install reads as not installed.
+///
+/// `@xai-official/grok`'s npm postinstall writes its binary to the same place,
+/// and `npm uninstall -g` leaves that copy behind. Grok records which installer
+/// owns `~/.grok/bin` as `[cli].installer` in the `config.toml` beside it:
+/// `"internal"` from its own installers, `"npm"` from the npm package. A copy
+/// recorded as npm's does not count here. An npm-installed Grok resolves
+/// through the npm prefix like every other npx agent, and counting its copy
+/// would keep Grok installed after codeg uninstalls it.
+///
+/// Only the default location is probed. A `GROK_BIN_DIR` or `GROK_HOME`
+/// relocation is not followed.
+fn grok_native_install(home: &Path, cmd: &str) -> Option<PathBuf> {
+    let grok_dir = home.join(".grok");
+    let cand = grok_dir
+        .join("bin")
+        .join(if cfg!(windows) && !cmd.ends_with(".exe") {
+            format!("{cmd}.exe")
+        } else {
+            cmd.to_string()
+        });
+    if !cand.is_file() {
+        return None;
+    }
+    let installer = fs::read_to_string(grok_dir.join("config.toml"))
+        .ok()
+        .and_then(|raw| raw.parse::<toml::Table>().ok())
+        .and_then(|table| {
+            table
+                .get("cli")?
+                .as_table()?
+                .get("installer")?
+                .as_str()
+                .map(str::to_string)
+        });
+    (installer.as_deref() != Some("npm")).then_some(cand)
+}
+
 #[derive(Default)]
 struct NpxCommandResolver {
     per_cmd_cache: HashMap<String, Option<PathBuf>>,
@@ -499,7 +565,9 @@ impl NpxCommandResolver {
             return Some(path);
         }
         if let Some(cached) = self.per_cmd_cache.get(cmd) {
-            return cached.clone();
+            return cached
+                .clone()
+                .or_else(|| npx_native_install(agent_type, cmd));
         }
 
         let resolved = if let Some(path) = super::agent_auto_updates::active_command(cmd) {
@@ -520,7 +588,7 @@ impl NpxCommandResolver {
         };
 
         self.per_cmd_cache.insert(cmd.to_string(), resolved.clone());
-        resolved
+        resolved.or_else(|| npx_native_install(agent_type, cmd))
     }
 }
 
@@ -1115,7 +1183,7 @@ async fn collect_agent_diag(
             diag.package = Some(package.to_string());
             diag.node_required = node_required.map(str::to_string);
 
-            let resolve_npx = resolve_npx_command(cmd)
+            let resolve_npx = resolve_npx_command_for(agent_type, cmd)
                 .await
                 .map(|p| p.to_string_lossy().to_string());
             diag.launchable = resolve_npx.clone();
@@ -12325,7 +12393,7 @@ pub(crate) async fn acp_detect_agent_local_version_core(
         registry::AgentDistribution::Binary { .. } => true,
         registry::AgentDistribution::Npx { package, cmd, .. } => {
             npx_requires_runtime_probe(agent_type, package)
-                || (previous.is_some() && !is_cmd_available(cmd).await)
+                || (previous.is_some() && !is_cmd_available(agent_type, cmd).await)
         }
         registry::AgentDistribution::Uvx { .. } => false,
     };
@@ -19420,3 +19488,7 @@ mod maxcode_settings_agent_probe_deadline_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/agent-install-detection.contract.rs"]
 mod maxcode_agent_install_detection_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/grok-native-install.contract.rs"]
+mod maxcode_grok_native_install_contract;
