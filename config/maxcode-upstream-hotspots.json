@@ -644,7 +644,7 @@
     {
       "id": "chat.codex-native-steering",
       "category": "runtime",
-      "description": "Codex ACP 2.2.2 runs a reviewed private scratch copy with promptRequired steering and owning-prompt checks. Only the patched initialize capability enables native delivery. Ended turns and queued requests whose owner changed return content to the host without detached turns; unknown packages retain pull feedback. Native Codex queued drafts preserve attachments and never cancel the running turn.",
+      "description": "Codex ACP 2.2.2 runs a reviewed private scratch copy with promptRequired steering and owning-prompt checks. CRLF/LF sources share the same strict unique-anchor validation on Windows and Unix. Only the patched initialize capability enables native delivery. Ended turns and queued requests whose owner changed return content to the host without detached turns; unknown packages retain pull feedback. Native Codex queued drafts preserve attachments and never cancel the running turn.",
       "origins": ["worktree-2026-10-17"],
       "paths": [
         "src-tauri/src/acp/codex_steering.rs",
@@ -1129,6 +1129,20 @@
       "origins": ["worktree-2026-10-15"],
       "paths": ["src/components/todos/", "src/app/globals.css"],
       "contracts": ["src/maxcode-contracts/todo-theme.contract.test.tsx"]
+    },
+    {
+      "id": "todos.canonical-conversation-reference",
+      "category": "product",
+      "description": "Personal and team todo boards, source details and unsent conversation drafts use the todo owner's source_url for generated localized conversation references, including legacy todos with a different original share URL. Draft insertion never appends a duplicate source already present in the body. Unrelated links and fenced code examples remain literal; content without a source stays unchanged.",
+      "origins": ["worktree-2026-10-26"],
+      "paths": [
+        "src/lib/todo-conversation-reference.ts",
+        "src/lib/todos.ts",
+        "src/components/todos/board-columns.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-conversation-reference.contract.test.ts"
+      ]
     },
     {
       "id": "todos.confirmed-compose",

@@ -26,6 +26,8 @@ const PATCHES: &[(&str, &str)] = &[
 ];
 
 fn patch_source(source: &str) -> Option<String> {
+    // Git and Windows package tools may preserve CRLF in the reviewed source.
+    let source = source.replace("\r\n", "\n");
     // Require every reviewed anchor exactly once, before changing anything.
     if PATCHES
         .iter()

@@ -36,6 +36,11 @@ fn launch_copy_preserves_installed_package_and_module_resolution() {
 fn unknown_or_already_transformed_adapter_cannot_claim_compatibility() {
     assert!(patch_source("arbitrary JavaScript").is_none());
     let patched = patch_source(FIXTURE).unwrap();
+    assert_eq!(
+        patch_source(&FIXTURE.replace("\r\n", "\n").replace('\n', "\r\n")),
+        Some(patched.clone()),
+        "Windows line endings preserve the reviewed adapter contract"
+    );
     assert!(patch_source(&patched).is_none());
     assert!(patch_source(&FIXTURE.replace("supported: true", "supported: false")).is_none());
     let peer = agent_client_protocol::schema::v1::Implementation::new("codex-acp", "2.2.2");

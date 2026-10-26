@@ -1,4 +1,5 @@
 import type { TodoState } from "@/lib/todos"
+import { todoContentWithConversationReference } from "@/lib/todo-conversation-reference"
 
 export type Todo = TodoState["todos"][number]
 export type TodoMember = TodoState["members"][number]
@@ -45,5 +46,16 @@ export function groupTodos(todos: Todo[], selfId: string | null) {
 }
 
 export function todoConversationText(todo: Todo): string {
-  return [todo.content, todo.source_url].filter(Boolean).join("\n\n")
+  const content = todoContentWithConversationReference(
+    todo.content,
+    todo.source_url
+  )
+  return [
+    content,
+    todo.source_url && !content.includes(todo.source_url)
+      ? todo.source_url
+      : null,
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 }

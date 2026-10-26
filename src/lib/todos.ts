@@ -1,5 +1,6 @@
 import { getTransport } from "./transport"
 import type { ConversationShareOptions } from "./types"
+import { todoContentWithConversationReference } from "./todo-conversation-reference"
 
 export type TodoMode = "personal" | "team"
 export type TodoPriority = "low" | "normal" | "high" | "urgent"
@@ -212,6 +213,20 @@ export type TodoRequest = TodoAction &
     priority?: TodoPriority | null
   }
 
+function normalizeTodoReference(todo: Todo, mode: TodoMode): Todo {
+  const sourceUrl =
+    mode === "personal" &&
+    todo.source_url?.startsWith("/share#") &&
+    typeof window !== "undefined"
+      ? new URL(todo.source_url, window.location.origin).href
+      : todo.source_url
+  return {
+    ...todo,
+    source_url: sourceUrl,
+    content: todoContentWithConversationReference(todo.content, sourceUrl),
+  }
+}
+
 /** All team networking stays in the local backend; credentials never enter UI. */
 export async function todoCall(request: TodoRequest): Promise<TodoState> {
   const state = await getTransport().call<TodoState>(
@@ -221,18 +236,10 @@ export async function todoCall(request: TodoRequest): Promise<TodoState> {
     },
     { timeoutMs: 330_000 }
   )
-  if (state.mode === "personal" && typeof window !== "undefined") {
-    return {
-      ...state,
-      todos: state.todos.map((todo) => ({
-        ...todo,
-        source_url: todo.source_url?.startsWith("/share#")
-          ? new URL(todo.source_url, window.location.origin).href
-          : todo.source_url,
-      })),
-    }
+  return {
+    ...state,
+    todos: state.todos.map((todo) => normalizeTodoReference(todo, state.mode)),
   }
-  return state
 }
 
 /** Local conversation identities never leave the user's own backend. */
@@ -272,21 +279,10 @@ export async function todoOriginCall(
     },
     { timeoutMs: 330_000 }
   )
-  if (
-    result.mode === "personal" &&
-    result.todo?.source_url?.startsWith("/share#") &&
-    typeof window !== "undefined"
-  ) {
-    return {
-      ...result,
-      todo: {
-        ...result.todo,
-        source_url: new URL(result.todo.source_url, window.location.origin)
-          .href,
-      },
-    }
+  return {
+    ...result,
+    todo: result.todo ? normalizeTodoReference(result.todo, result.mode) : null,
   }
-  return result
 }
 
 export function todoScopeKey(

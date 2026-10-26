@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-26 发布检查：Codex 2.2.2 私有适配补丁在匹配前统一 CRLF/LF 换行，兼容 Windows 检出及包文件；保留全部锚点唯一性检查，未知或已转换适配器仍不声明原生插话能力。契约：`codex-native-steering.contract.rs`。
+
 2026-10-26 发布草稿：发布重跑分页查找并复用唯一的同标签草稿，多个草稿或已发布标签明确失败；附件检查和最终发布使用同一个 release ID。保留 Electron 构建、签名和安装包校验，不恢复旧 Tauri 发布链路。契约：`release-draft.contract.test.ts`。
 
 2026-10-26 智能体同步：Claude ACP 0.94.0、Grok 1.0.62、Antigravity 1.4.1、ZCode ACP 0.76.2。同步取消后工具状态、后台中间结果、预测提示、Remote Control 与 fork 子智能体计费修复；保留七智能体目录、托管安装优先级、分组空闲回收及隐藏后台任务条。契约：`agent-updates-20261026.contract.test.ts`、`claude-fork-accounting.contract.rs`。
