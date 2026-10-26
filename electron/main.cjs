@@ -68,7 +68,7 @@ const windowState = createWindowState(
 
 const desktopLog = createDesktopLog(
   path.join(
-    smokeDir ? path.join(smokeDir, "data") : legacyDataDir(app),
+    smokeDir ? path.join(smokeDir, "data") : desktopDataDir(app),
     "logs",
     "desktop.log"
   ),

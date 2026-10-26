@@ -1,6 +1,14 @@
 // @vitest-environment node
 import { createRequire } from "node:module"
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs"
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs"
+import { EventEmitter } from "node:events"
+import { runInNewContext } from "node:vm"
 import { tmpdir } from "node:os"
 import { join } from "node:path"
 import { afterEach, describe, expect, it } from "vitest"
@@ -30,6 +38,47 @@ function fixture() {
 }
 
 describe("MaxCode owns a separate product namespace", () => {
+  it("initializes ordinary desktop startup and logs in its own namespace", () => {
+    const { app, target } = fixture()
+    const entry = join(process.cwd(), "electron/main.cjs")
+    const entryRequire = createRequire(entry)
+    let quit = false
+    const desktopApp = Object.assign(new EventEmitter(), app, {
+      setName() {},
+      setAppUserModelId() {},
+      enableSandbox() {},
+      getVersion: () => "test",
+      requestSingleInstanceLock: () => false,
+      quit: () => {
+        quit = true
+      },
+    })
+    const desktopProcess = Object.assign(new EventEmitter(), {
+      argv: ["maxcode"],
+      env: {},
+      platform: "darwin",
+      pid: process.pid,
+    })
+    runInNewContext(readFileSync(entry, "utf8"), {
+      require: (id: string) => {
+        if (id === "electron") return { app: desktopApp, screen: {} }
+        if (id === "./runtime.cjs")
+          return {
+            ...runtime,
+            desktopDataDir: (value: typeof app) =>
+              runtime.desktopDataDir(value, {}, "darwin"),
+          }
+        return entryRequire(id)
+      },
+      process: desktopProcess,
+      AbortController,
+    })
+    expect(quit).toBe(true)
+    expect(
+      JSON.parse(readFileSync(join(target, "logs/desktop.log"), "utf8"))
+    ).toMatchObject({ event: "desktop-start", version: "test" })
+  })
+
   it("uses its own default directory and prioritizes MAXCODE overrides", () => {
     const { app, target } = fixture()
     expect(runtime.desktopDataDir(app, {}, "darwin")).toBe(target)

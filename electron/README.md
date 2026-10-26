@@ -47,7 +47,7 @@ corepack pnpm electron:start --smoke-test
 桌面主进程日志位于数据目录的 `logs/desktop.log`，macOS 默认路径：
 
 ```text
-~/Library/Application Support/app.codeg/logs/desktop.log
+~/Library/Application Support/app.maxcode/logs/desktop.log
 ```
 
 记录渲染进程退出原因与退出码、窗口加载失败、后台异常退出、主进程异常和

@@ -292,6 +292,8 @@ jobs:
           sudo timeout 180 apt-get install -y libdbus-1-dev libssl-dev libgtk-3-0 libnss3 libasound2 libgbm1 xvfb rpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Verify ordinary desktop startup and product namespace
+        run: pnpm test src/maxcode-contracts/product-namespace.contract.test.ts
       - name: Build Electron installers (macOS, signed and notarized)
         if: runner.os == 'macOS'
         env:
