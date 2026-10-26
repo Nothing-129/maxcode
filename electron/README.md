@@ -44,16 +44,17 @@ corepack pnpm electron:start --smoke-test
 重新加载可能丢失尚未持久化的界面状态（例如未保存的输入）。后台服务退出等
 无法继续运行的故障仍会显示错误并退出，但会先记录原因。
 
-桌面主进程日志位于数据目录的 `logs/desktop.log`，macOS 默认路径：
+桌面主进程日志位于 Electron 用户配置目录的 `logs/desktop.log`，macOS 默认路径：
 
 ```text
-~/Library/Application Support/app.maxcode/logs/desktop.log
+~/Library/Application Support/MaxCode/logs/desktop.log
 ```
 
 记录渲染进程退出原因与退出码、窗口加载失败、后台异常退出、主进程异常和
 退出流程。日志隐藏当前桌面认证 Token，不记录完整页面 URL；超过 2 MiB 时
 轮换为 `desktop.log.1`，仅保留一份历史。日志写入失败不会使应用退出。
-Rust 后端日志仍位于同目录的 `codeg-server.YYYY-MM-DD.log`。
+Rust 后端日志位于 `app.maxcode/logs/codeg-server.YYYY-MM-DD.log`。
+桌面日志独立于待迁移的数据目录，避免首次启动写日志阻止旧数据复制。
 
 ## 手机访问
 
@@ -157,3 +158,10 @@ Electron 的 macOS 主工作区使用隐藏系统标题栏与原生交通灯，�
 
 实现参考 [Electron 安全指南](https://www.electronjs.org/docs/latest/tutorial/security)
 和 [Electron Builder 配置](https://www.electron.build/v26/docs/configuration/)。
+
+## 升级回归验证
+
+`pnpm desktop:upgrade-smoke` 使用普通主进程入口（不传 `--smoke-test`）和构建产出的 Rust 后端，
+在临时目录中创建旧版工作区、会话、附件和 Web 服务设置，验证首次升级、旧 Token 认证、
+源数据库未修改及再次启动不覆盖新设置。Electron 原生窗口由现有 `desktop:smoke` 另行验证。
+发布流程要求两类验证通过。

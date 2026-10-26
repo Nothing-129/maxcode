@@ -307,6 +307,10 @@ jobs:
       - name: Build Electron installers (Windows / Linux)
         if: runner.os != 'macOS'
         run: pnpm desktop:build
+      - name: Verify upgrade preserves existing workspaces and Web service settings
+        # Upgrade checks execute the ordinary main entry and bundled Rust
+        # backend with legacy project, conversation and Web service fixtures.
+        run: pnpm desktop:upgrade-smoke
       - name: Verify signed and notarized macOS application
         if: runner.os == 'macOS'
         shell: bash

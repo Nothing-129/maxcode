@@ -26,7 +26,7 @@
 
 2026-10-20 会话详情文本选择：详情内容显式允许选中复制，覆盖辅助侧栏外层的禁止选择样式，支持标题、模型、分支、用量与时间。独立契约：`session-details-selection.contract.test.ts`。
 
-MaxCode 与 Codeg 共存：独立 `app.maxcode` 数据/缓存、`.maxcode` 私有目录与 `maxcode` 钥匙串；首次默认桌面启动复制旧数据，不移动或删除源目录。迁移包含只读 SQLite 快照、内部路径和链接重定位、凭据一次性复制及失败重试，已有新目录优先。默认网页端口保持 3080，已有端口配置保留，导入后网页服务需手动重新开启。原生智能体登录与历史仍共用。契约：`product-namespace.contract.test.ts`。详见 [共存与迁移](./maxcode-codeg-coexistence.md)。
+MaxCode 与 Codeg 共存：独立 `app.maxcode` 数据/缓存、`.maxcode` 私有目录与 `maxcode` 钥匙串；首次默认桌面启动复制旧数据，不移动或删除源目录。迁移包含只读 SQLite 快照、内部路径和链接重定位、凭据一次性复制及失败重试，已有新目录优先。默认网页端口保持 3080，升级完整保留端口、访问 Token、自动启动和分享地址。普通启动日志不创建待迁移的数据目录。原生智能体登录与历史仍共用。契约：`product-namespace.contract.test.ts`。详见 [共存与迁移](./maxcode-codeg-coexistence.md)。
 
 2026-10-16 手机文本选择：触屏或触控笔长按仅保留浏览器原生菜单和选择手柄，避免与 MaxCode 选区工具栏重叠；混合设备切回鼠标后恢复快捷工具栏。独立契约：`mobile-selection-menu.contract.test.tsx`。
 

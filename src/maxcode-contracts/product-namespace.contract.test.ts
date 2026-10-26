@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { createRequire } from "node:module"
 import {
+  existsSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -27,7 +28,12 @@ function fixture() {
   const root = mkdtempSync(join(tmpdir(), "maxcode-namespace-"))
   directories.push(root)
   const app = {
-    getPath: (name: string) => (name === "home" ? join(root, "home") : root),
+    getPath: (name: string) =>
+      name === "home"
+        ? join(root, "home")
+        : name === "userData"
+          ? join(root, "profile")
+          : root,
   }
   return {
     root,
@@ -38,8 +44,10 @@ function fixture() {
 }
 
 describe("MaxCode owns a separate product namespace", () => {
-  it("initializes ordinary desktop startup and logs in its own namespace", () => {
-    const { app, target } = fixture()
+  it("logs ordinary startup without making legacy data ineligible for migration", () => {
+    const { app, source: old, target } = fixture()
+    mkdirSync(old)
+    writeFileSync(join(old, "codeg.db"), "legacy data")
     const entry = join(process.cwd(), "electron/main.cjs")
     const entryRequire = createRequire(entry)
     let quit = false
@@ -75,8 +83,20 @@ describe("MaxCode owns a separate product namespace", () => {
     })
     expect(quit).toBe(true)
     expect(
-      JSON.parse(readFileSync(join(target, "logs/desktop.log"), "utf8"))
+      JSON.parse(
+        readFileSync(join(app.getPath("userData"), "logs/desktop.log"), "utf8")
+      )
     ).toMatchObject({ event: "desktop-start", version: "test" })
+    expect(existsSync(target)).toBe(false)
+    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
+    // Early failure diagnostics must not prevent migration on the next launch.
+    desktopProcess.emit(
+      "uncaughtExceptionMonitor",
+      new Error("startup failed"),
+      "test"
+    )
+    expect(existsSync(target)).toBe(false)
+    expect(runtime.legacyImportSource(app, {}, "darwin")).toBe(old)
   })
 
   it("uses its own default directory and prioritizes MAXCODE overrides", () => {
@@ -111,6 +131,12 @@ describe("MaxCode owns a separate product namespace", () => {
   })
 
   it("registers executable migration and credential isolation contracts", () => {
+    expect(source(".github/workflows/release.yml")).toContain(
+      "run: pnpm desktop:upgrade-smoke"
+    )
+    expect(source(".github/workflows/test.yml")).toContain(
+      "run: pnpm desktop:upgrade-smoke"
+    )
     expect(source("src-tauri/src/namespace.rs")).toContain(
       "product-namespace.contract.rs"
     )

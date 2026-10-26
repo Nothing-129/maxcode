@@ -166,7 +166,7 @@ fn maxcode_overrides_precede_explicit_compatibility_aliases() {
 }
 
 #[test]
-fn imported_web_service_is_separate_and_requires_explicit_start() {
+fn upgrade_preserves_all_web_service_settings_in_an_independent_copy() {
     for port in ["3080", "4488"] {
         let root = tempfile::tempdir().unwrap();
         let source = root.path().join("old");
@@ -186,9 +186,20 @@ fn imported_web_service_is_separate_and_requires_explicit_start() {
         assert_eq!(value(&old, "web_service_token").unwrap(), "old-token");
         assert_eq!(value(&old, "web_service_auto_start").unwrap(), "true");
         assert_eq!(value(&new, "web_service_port").unwrap(), port);
-        assert_eq!(value(&new, "web_service_auto_start").unwrap(), "false");
-        assert!(value(&new, "web_service_token").is_err());
-        assert!(value(&new, "web_service_public_share_url").is_err());
+        for key in [
+            "web_service_port",
+            "web_service_auto_start",
+            "web_service_token",
+            "web_service_public_share_url",
+        ] {
+            assert_eq!(value(&new, key).unwrap(), value(&old, key).unwrap());
+        }
+        new.execute(
+            "UPDATE app_metadata SET value='new-token' WHERE key='web_service_token'",
+            [],
+        )
+        .unwrap();
+        assert_eq!(value(&old, "web_service_token").unwrap(), "old-token");
     }
 }
 

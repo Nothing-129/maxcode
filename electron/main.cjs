@@ -67,11 +67,10 @@ const windowState = createWindowState(
 )
 
 const desktopLog = createDesktopLog(
-  path.join(
-    smokeDir ? path.join(smokeDir, "data") : desktopDataDir(app),
-    "logs",
-    "desktop.log"
-  ),
+  // Logging starts before the backend copies legacy data. Keep it in the
+  // Electron profile: creating the destination data directory here would make
+  // both migration guards treat a first upgrade as an existing installation.
+  path.join(app.getPath("userData"), "logs", "desktop.log"),
   { token: () => backend?.token || "", version: app.getVersion() }
 )
 desktopLog("desktop-start")

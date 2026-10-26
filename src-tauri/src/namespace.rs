@@ -329,25 +329,9 @@ fn relocate_database(path: &Path, mappings: &[(PathBuf, PathBuf)]) -> io::Result
             }
         }
     }
-    // Imported desktop web services must not automatically contend with the
-    // other application's listener. Preserve all saved port settings unchanged.
-    if transaction
-        .query_row(
-            "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='app_metadata'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )
-        .map_err(io_error)?
-        > 0
-    {
-        transaction
-            .execute(
-                "UPDATE app_metadata SET value='false' WHERE key='web_service_auto_start'",
-                [],
-            )
-            .map_err(io_error)?;
-        transaction.execute("DELETE FROM app_metadata WHERE key IN ('web_service_token','web_service_public_share_url')", []).map_err(io_error)?;
-    }
+    // This is an upgrade of the user's existing MaxCode installation. Preserve
+    // its Web service settings, including the token used by existing clients.
+    // The copied database is independent; later edits never write back to Codeg.
     transaction.commit().map_err(io_error)
 }
 
