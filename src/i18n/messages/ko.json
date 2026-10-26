@@ -3110,6 +3110,7 @@
         "notificationQuestion": "{agent}이(가) 답변을 기다리고 있습니다",
         "notificationErrorRedacted": "{agent}에서 오류가 발생했습니다",
         "claudeApiRetry": {
+          "rateLimited": "요청 속도가 제한되어 자동 재시도를 기다리는 중",
           "fallbackError": "authentication_failed",
           "retryingWithMax": "재시도 중 {attempt}/{max}",
           "retryingAttempt": "{attempt}번째 재시도 중",

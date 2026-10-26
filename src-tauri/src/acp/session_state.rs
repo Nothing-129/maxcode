@@ -339,6 +339,10 @@ pub struct SessionState {
     /// `thinkingLevelMap`, so selector projection reads `models.json` here to
     /// hide levels that Pi itself would clamp or reject. Backend-internal.
     pub pi_agent_dir: Option<PathBuf>,
+    /// Launch-scoped native Codex log database. Read-only retry fallback only.
+    pub codex_retry_log_path: Option<PathBuf>,
+    /// Current transient retry, retained for clients attaching mid-backoff.
+    pub turn_retrying: Option<AcpEvent>,
     /// pi-acp 0.0.34+ reports the actual model's thinking levels itself.
     /// Keep its selector authoritative; only older adapters need projection.
     pub pi_native_thinking_levels: bool,
@@ -723,6 +727,8 @@ impl SessionState {
             current_mode: None,
             config_options: None,
             pi_agent_dir: None,
+            codex_retry_log_path: None,
+            turn_retrying: None,
             pi_native_thinking_levels: false,
             grok_model_specs: None,
             grok_catalog_broadcast: None,
@@ -809,6 +815,16 @@ impl SessionState {
     /// 单一分发器：把一个 AcpEvent 应用到 self。注意此方法**不**自增 event_seq——
     /// seq 由 emit_with_state 在外层管理（这样 apply_event 可独立单元测试）。
     pub fn apply_event(&mut self, payload: &AcpEvent) {
+        if matches!(
+            payload,
+            AcpEvent::StatusChanged { .. }
+                | AcpEvent::TurnComplete { .. }
+                | AcpEvent::UserMessage { .. }
+                | AcpEvent::SessionStarted { .. }
+                | AcpEvent::ToolCallUpdate { .. }
+        ) {
+            self.turn_retrying = None;
+        }
         match payload {
             AcpEvent::SessionStarted { session_id } => {
                 if self.external_id.as_deref() != Some(session_id.as_str()) {
@@ -1500,17 +1516,19 @@ impl SessionState {
                 // window asks.
                 self.async_task_activity_at = Some(Utc::now());
             }
+            AcpEvent::TurnRetrying { .. } => {
+                if self.status == ConnectionStatus::Prompting {
+                    self.turn_retrying = Some(payload.clone());
+                }
+            }
             AcpEvent::ClaudeSdkMessage { .. }
             | AcpEvent::ConfigOptionRejected { .. }
             | AcpEvent::SessionLoadFailed { .. }
-            | AcpEvent::TurnRetrying { .. }
             | AcpEvent::NativeSessionTitle { .. }
             | AcpEvent::TranscriptRolledOver { .. }
             | AcpEvent::UserPromptSent { .. } => {
                 // 这些事件不直接修改 SessionState 的可见字段。
                 // UserPromptSent 是纯通知事件，仅供 chat-channel 推送消费。
-                // TurnRetrying 与 Claude 的 api_retry 一样是前端瞬态提示（重试横幅），
-                // 不进快照——回合边界会清除它。
                 // ConfigOptionRejected 是对一次交互的提示（选择器被降级/拒绝），
                 // 权威值已由紧随其后的 SessionConfigOptions 落进快照。
             }
@@ -1812,6 +1830,7 @@ impl SessionState {
     /// settling them on the next chunk would flash them away before they can be
     /// read — they keep waiting for the turn boundary.
     fn settle_retry_incidents_on_progress(&mut self) {
+        self.turn_retrying = None;
         for failure in self.session_failures.values_mut() {
             if !failure.resolved && failure.severity == "warning" && failure.category != "unknown" {
                 failure.resolved = true;
@@ -2168,6 +2187,7 @@ impl SessionState {
             config_stale_kind: self.config_stale_kind,
             last_error: self.last_error.clone(),
             session_failures: self.session_failures.values().cloned().collect(),
+            turn_retrying: self.turn_retrying.clone(),
             async_tasks: self.async_tasks.values().cloned().collect(),
             goal_actions: self.goal_actions.clone(),
             event_seq: self.event_seq,
@@ -2309,6 +2329,8 @@ pub struct LiveSessionSnapshot {
     /// common case) to keep the wire shape byte-identical pre-feature.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub session_failures: Vec<SessionFailureRecord>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub turn_retrying: Option<AcpEvent>,
     /// AIR async tasks, merged (see `SessionState.async_tasks`). Terminal rows
     /// included: they carry the ids the subsequent live deltas revise, so a
     /// client seeded without them would re-create a settled task as a running

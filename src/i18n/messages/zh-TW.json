@@ -3110,6 +3110,7 @@
         "notificationQuestion": "{agent} 正在等你回答",
         "notificationErrorRedacted": "{agent} 遇到錯誤",
         "claudeApiRetry": {
+          "rateLimited": "請求受到速率限制，正在等待自動重試",
           "fallbackError": "authentication_failed",
           "retryingWithMax": "正在重試 {attempt}/{max}",
           "retryingAttempt": "正在重試（第 {attempt} 次）",

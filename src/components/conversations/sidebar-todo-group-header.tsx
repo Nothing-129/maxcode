@@ -24,7 +24,6 @@ import { cn } from "@/lib/utils"
 export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   id,
   title,
-  count,
   expanded,
   onToggle,
   onComplete,
@@ -36,7 +35,6 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
 }: {
   id: string
   title: string
-  count: number
   expanded: boolean
   onToggle: (id: string) => void
   status?: TodoStatus
@@ -79,9 +77,6 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
           )}
         </span>
         <span className="flex-1" />
-        <span className="inline-flex h-[0.9375rem] shrink-0 items-center rounded-[0.3125rem] bg-primary/10 px-1 font-mono text-[0.625rem] text-primary">
-          {count}
-        </span>
         <ChevronRight
           aria-hidden
           className={cn(

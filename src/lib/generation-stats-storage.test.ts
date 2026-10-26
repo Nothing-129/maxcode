@@ -23,7 +23,7 @@ describe("generation stats storage", () => {
 
   it("rejects malformed persisted values", () => {
     localStorage.setItem(
-      "codeg.generationStats:local:7",
+      "codeg.generationStats.v2:local:7",
       JSON.stringify({ ttft_ms: -1 })
     )
     expect(loadGenerationStats(7)).toBeNull()

@@ -23,6 +23,7 @@ import {
 } from "@/lib/tool-call-lifecycle"
 import { randomUUID } from "@/lib/utils"
 import { inferLiveToolName } from "@/lib/tool-call-normalization"
+import { estimateTokens } from "@/lib/token-speed"
 import {
   createLiveGenerationTiming,
   markLiveGenerationOutput,
@@ -49,6 +50,7 @@ import {
 } from "@/lib/api"
 import { signInAgentForTurnFailure } from "@/lib/agent-sign-in"
 import { denormalizeSnapshot } from "@/lib/snapshot-denormalize"
+import { apiRetryFromEvent } from "@/lib/api-retry"
 import { buildDelegationSeedEnvelopes } from "@/lib/delegation-seed"
 import {
   isConnectionBusy,
@@ -218,6 +220,7 @@ export interface ClaudeApiRetryState {
   error: string | null
   errorStatus: number | null
   retryDelayMs: number | null
+  retryAtMs?: number | null
   /**
    * Whether the SOURCE reports error text for a retry at all — not whether this
    * particular record carries it.
@@ -1815,13 +1818,20 @@ function applyStreamingAction(
   if (isRootToken) {
     const firstTokenAt = action.firstTokenAt ?? Date.now()
     const lastTokenAt = action.lastTokenAt ?? firstTokenAt
+    const outputBlock = newContent[contentIndex]
+    const observedText =
+      !generationTiming &&
+      (outputBlock.type === "text" || outputBlock.type === "thinking")
+        ? outputBlock.text
+        : action.text
     generationTiming = markLiveGenerationOutput(
       generationTiming,
       prev.startedAt,
       contentIndex,
       prev.generationTiming?.nextStepStartedAt != null ||
         lastRootGeneratedBlock(prev.content)?.type === "tool_call",
-      firstTokenAt
+      firstTokenAt,
+      estimateTokens(observedText)
     )
     if (lastTokenAt !== firstTokenAt) {
       generationTiming = markLiveGenerationOutput(
@@ -2234,6 +2244,7 @@ function connectionsReducer(
         // it cannot bring back a prediction a later prompt already spent.
         promptSuggestion: action.patch.promptSuggestion,
         remoteControl: action.patch.remoteControl,
+        claudeApiRetry: action.patch.claudeApiRetry ?? null,
         liveMessage: hydratedLiveMessage,
         // A snapshot with a turn in flight carries a prompt newer than any the
         // user stopped, which ends that turn's window as the status event of
@@ -3225,7 +3236,16 @@ function connectionsReducer(
       const next = new Map(state)
       next.set(action.contextKey, {
         ...conn,
-        claudeApiRetry: action.retry,
+        claudeApiRetry: action.retry
+          ? {
+              ...action.retry,
+              retryAtMs:
+                action.retry.retryAtMs ??
+                (action.retry.retryDelayMs != null
+                  ? Date.now() + action.retry.retryDelayMs
+                  : null),
+            }
+          : null,
       })
       return next
     }
@@ -5405,15 +5425,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           dispatch({
             type: "CLAUDE_API_RETRY",
             contextKey,
-            retry: {
-              sessionId: retryConn?.sessionId ?? "",
-              attempt: e.attempt ?? null,
-              maxRetries: e.max_retries ?? null,
-              error: e.message || null,
-              errorStatus: e.error_status ?? null,
-              retryDelayMs: e.retry_delay_ms ?? null,
-              reportsError: e.message.trim().length > 0,
-            },
+            retry: apiRetryFromEvent(e, retryConn?.sessionId ?? ""),
           })
           break
         }

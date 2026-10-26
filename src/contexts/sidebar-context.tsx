@@ -1,7 +1,5 @@
 "use client"
 
-import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
-
 import {
   createContext,
   useCallback,
@@ -52,6 +50,14 @@ function clampWidth(width: number) {
   return Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, width))
 }
 
+// Touch navigation closes the sidebar even on landscape phones / desktop-site
+// mode. These temporary drawer actions must never change the saved PC layout.
+function isTouchSidebarLayout() {
+  return (
+    window.innerWidth < 768 || window.matchMedia("(pointer: coarse)").matches
+  )
+}
+
 interface SidebarProviderProps {
   children: ReactNode
 }
@@ -76,13 +82,13 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
 
   const toggle = useCallback(() => {
     setIsOpen((prev) => {
-      persistPanel({ isOpen: !prev })
+      if (!isTouchSidebarLayout()) persistPanel({ isOpen: !prev })
       return !prev
     })
   }, [persistPanel])
   const close = useCallback(() => {
     setIsOpen(false)
-    persistPanel({ isOpen: false })
+    if (!isTouchSidebarLayout()) persistPanel({ isOpen: false })
   }, [persistPanel])
 
   const setWidth = useCallback(
@@ -96,18 +102,35 @@ export function SidebarProvider({ children }: SidebarProviderProps) {
   useEffect(() => {
     let initial = true
     let lastOpen: boolean | undefined
-    return subscribeWorkspacePreferences(() => {
+    let lastLocal: boolean | undefined
+    const restore = () => {
       const stored = loadPersistedPanelState(storageKey)
-      const isMobileViewport = window.innerWidth < 768
-      const hostOpen = stored?.isOpen ?? DEFAULT_IS_OPEN
-      if (initial || lastOpen !== hostOpen) {
-        setIsOpen(initial && isMobileViewport ? false : hostOpen)
+      const local = isTouchSidebarLayout()
+      const savedOpen = stored?.isOpen ?? DEFAULT_IS_OPEN
+      if (
+        initial ||
+        lastLocal !== local ||
+        (!local && lastOpen !== savedOpen)
+      ) {
+        setIsOpen(local ? false : savedOpen)
       }
-      lastOpen = hostOpen
+      lastOpen = savedOpen
+      lastLocal = local
       initial = false
       setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH))
       setRestored(true)
-    }, [storageKey])
+    }
+    restore()
+    const pointer = window.matchMedia("(pointer: coarse)")
+    const onLayoutChange = () => {
+      if (!initial) restore()
+    }
+    window.addEventListener("resize", onLayoutChange)
+    pointer.addEventListener("change", onLayoutChange)
+    return () => {
+      window.removeEventListener("resize", onLayoutChange)
+      pointer.removeEventListener("change", onLayoutChange)
+    }
   }, [storageKey])
 
   const value = useMemo(

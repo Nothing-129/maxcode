@@ -638,6 +638,9 @@ pub enum AcpEvent {
         max_retries: Option<u32>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         retry_delay_ms: Option<u64>,
+        /// Absolute deadline, so delayed delivery/refresh never restarts a wait.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        retry_at_ms: Option<u64>,
     },
     /// A JetBrains AIR typed session failure upsert (see
     /// [`SessionFailureRecord`]). Emitted verbatim for every VALID record the

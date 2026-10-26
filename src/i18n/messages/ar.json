@@ -3110,6 +3110,7 @@
         "notificationQuestion": "{agent} ينتظر إجابتك",
         "notificationErrorRedacted": "واجه {agent} خطأً",
         "claudeApiRetry": {
+          "rateLimited": "تم بلوغ حد الطلبات؛ في انتظار إعادة المحاولة تلقائيًا",
           "fallbackError": "authentication_failed",
           "retryingWithMax": "إعادة المحاولة {attempt}/{max}",
           "retryingAttempt": "إعادة المحاولة رقم {attempt}",

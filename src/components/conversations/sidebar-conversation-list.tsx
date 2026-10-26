@@ -1321,16 +1321,17 @@ export function SidebarConversationList({
 
   useEffect(() => {
     const restore = () => {
-      // Host preferences hydrate asynchronously and update across clients.
-
+      // Expansion is local; only explicit view preferences follow the host.
       setFolderExpanded(loadFolderExpanded())
       setFolderGroupExpanded(loadFolderGroupExpanded())
       setTodoGroupExpanded(loadTodoGroupExpanded())
       setSectionCollapsed(loadSectionCollapsed())
-      setRecentFilter(loadRecentFilter())
       setConversationExpanded(new Set(loadConversationExpanded()))
     }
-    return subscribeWorkspacePreferences(restore)
+    restore()
+    return subscribeWorkspacePreferences(() =>
+      setRecentFilter(loadRecentFilter())
+    )
   }, [])
 
   const toggleSection = useCallback(
@@ -3366,7 +3367,6 @@ export function SidebarConversationList({
         <SidebarTodoGroupHeader
           id={row.id}
           title={row.title}
-          count={row.count}
           expanded={row.expanded}
           onToggle={toggleTodoGroup}
           onComplete={

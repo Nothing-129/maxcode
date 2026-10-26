@@ -13,6 +13,7 @@ pub mod codex_catalog_source;
 pub mod codex_context;
 pub mod codex_goal;
 pub mod codex_model_catalog;
+mod codex_retry;
 pub mod codex_steering;
 pub mod connection;
 pub mod conversation_model_config;

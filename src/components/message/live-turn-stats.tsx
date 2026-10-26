@@ -23,6 +23,7 @@ interface LiveTurnStatsProps {
   agentType: AgentType
   isStreaming?: boolean
   awaitingUser?: boolean
+  retrying?: boolean
 }
 
 interface LineChangeStats {
@@ -362,8 +363,10 @@ export function LiveTurnStats({
   agentType,
   isStreaming = true,
   awaitingUser = false,
+  retrying = false,
 }: LiveTurnStatsProps) {
   const t = useTranslations("Folder.chat.liveTurnStats")
+  const tRetry = useTranslations("Folder.chat.acpConnections.claudeApiRetry")
   const [elapsed, setElapsed] = useState(() => Date.now() - message.startedAt)
   const tps = useTokenOutputSpeed(message)
 
@@ -387,10 +390,12 @@ export function LiveTurnStats({
           role="status"
           aria-atomic="true"
           className={
-            activity === "waiting" ? "maxcode-waiting-label" : undefined
+            !retrying && activity === "waiting"
+              ? "maxcode-waiting-label"
+              : undefined
           }
         >
-          {t(activity)}
+          {retrying ? tRetry("retrying") : t(activity)}
         </span>
         <span className="text-border leading-none">|</span>
         <span className="inline-flex items-center gap-1 leading-none">

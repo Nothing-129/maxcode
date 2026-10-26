@@ -68,6 +68,8 @@ export function ComposerAddMenu({
   triggerClassName,
 }: ComposerAddMenuProps) {
   const t = useTranslations("Folder.chat.messageInput")
+  const [open, setOpen] = useState(false)
+  const refocusAfterInsert = useRef(false)
   const [slashOpen, setSlashOpen] = useState(false)
   const [slashSearch, setSlashSearch] = useState("")
   const slashInputRef = useRef<HTMLInputElement>(null)
@@ -98,7 +100,9 @@ export function ComposerAddMenu({
 
   const handleOpenChange = useCallback(
     (open: boolean) => {
+      setOpen(open)
       if (!open) return
+      refocusAfterInsert.current = false
       // The editor keeps its selection while the menu is open, so a quick
       // message inserts back at the same caret without tracking an offset.
       shortcuts.refreshQuickMessages()
@@ -106,8 +110,14 @@ export function ComposerAddMenu({
     [shortcuts]
   )
 
+  const insertSlashCommand = (cmd: AvailableCommandInfo) => {
+    refocusAfterInsert.current = true
+    shortcuts.insertSlashCommand(cmd)
+    setOpen(false)
+  }
+
   return (
-    <DropdownMenu onOpenChange={handleOpenChange}>
+    <DropdownMenu open={open} onOpenChange={handleOpenChange}>
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
@@ -121,7 +131,17 @@ export function ComposerAddMenu({
           <Plus className="size-4" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="min-w-56 w-auto">
+      <DropdownMenuContent
+        side="top"
+        align="start"
+        className="min-w-56 w-auto"
+        onCloseAutoFocus={(event) => {
+          if (!refocusAfterInsert.current) return
+          event.preventDefault()
+          refocusAfterInsert.current = false
+          shortcuts.focusEditor()
+        }}
+      >
         {attachments ? (
           <>
             <DropdownMenuItem
@@ -167,7 +187,10 @@ export function ComposerAddMenu({
               shortcuts.quickMessages.map((message) => (
                 <DropdownMenuItem
                   key={message.id}
-                  onClick={() => shortcuts.insertQuickMessage(message)}
+                  onSelect={() => {
+                    refocusAfterInsert.current = true
+                    shortcuts.insertQuickMessage(message)
+                  }}
                 >
                   <span className="truncate">
                     {message.title || (
@@ -217,8 +240,7 @@ export function ComposerAddMenu({
                     e.preventDefault()
                     const first = filteredSlashCommands[0]
                     if (first) {
-                      shortcuts.insertSlashCommand(first)
-                      setSlashOpen(false)
+                      insertSlashCommand(first)
                     }
                     return
                   }
@@ -242,7 +264,7 @@ export function ComposerAddMenu({
                 filteredSlashCommands.map((cmd) => (
                   <DropdownMenuItem
                     key={cmd.name}
-                    onClick={() => shortcuts.insertSlashCommand(cmd)}
+                    onSelect={() => insertSlashCommand(cmd)}
                     // Radix focuses the item on pointermove, which fires while
                     // scrolling (items slide under the cursor) and steals focus
                     // from the search input. Short-circuit that default with

@@ -2278,6 +2278,7 @@ const ConversationTabView = memo(function ConversationTabView({
           imageRoot={workingDirForConnection ?? null}
           agentType={selectedAgent}
           connStatus={connStatus}
+          retrying={!!conn.claudeApiRetry}
           awaitingUser={
             !!(
               conn.pendingPermission ||

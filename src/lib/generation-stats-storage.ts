@@ -2,7 +2,8 @@
 
 import type { GenerationStats } from "@/lib/types"
 
-const KEY_PREFIX = "codeg.generationStats"
+// Old estimates mixed buffered tool payloads into text decode intervals.
+const KEY_PREFIX = "codeg.generationStats.v2"
 
 function storageKey(conversationId: number): string {
   return `${KEY_PREFIX}:local:${conversationId}`

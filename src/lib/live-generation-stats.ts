@@ -10,6 +10,8 @@ export interface LiveGenerationStep {
   startedAt: number | null
   firstTokenAt: number | null
   lastTokenAt: number | null
+  /** Tokens already present at the first observation have no measured duration. */
+  firstChunkTokens?: number
   startContentIndex: number
 }
 
@@ -41,9 +43,22 @@ export function markLiveGenerationOutput(
   messageStartedAt: number,
   contentIndex: number,
   startsAfterTool: boolean,
-  now: number
+  now: number,
+  outputTokens = 0
 ): LiveGenerationTiming {
-  const current = timing ?? createLiveGenerationTiming(messageStartedAt)
+  // A snapshot has no local timing. Begin at the current block and exclude
+  // its already-buffered prefix; earlier snapshot blocks were never observed.
+  const current = timing ?? {
+    steps: [
+      {
+        startedAt: null,
+        firstTokenAt: null,
+        lastTokenAt: null,
+        startContentIndex: contentIndex,
+      },
+    ] as LiveGenerationStep[],
+    nextStepStartedAt: null,
+  }
   const steps = current.steps.slice()
 
   if (startsAfterTool) {
@@ -51,6 +66,7 @@ export function markLiveGenerationOutput(
       startedAt: current.nextStepStartedAt,
       firstTokenAt: now,
       lastTokenAt: now,
+      firstChunkTokens: outputTokens,
       startContentIndex: contentIndex,
     })
   } else {
@@ -65,6 +81,8 @@ export function markLiveGenerationOutput(
       ...step,
       firstTokenAt: step.firstTokenAt ?? now,
       lastTokenAt: now,
+      firstChunkTokens:
+        step.firstTokenAt == null ? outputTokens : step.firstChunkTokens,
     }
   }
 
@@ -91,9 +109,8 @@ function rootGeneratedText(block: LiveContentBlock): string | null {
   ) {
     return block.text
   }
-  if (block.type === "tool_call") {
-    return `${block.info.title}\n${block.info.raw_input ?? ""}`
-  }
+  // Tool payloads can arrive buffered or be enriched later; their size has no
+  // corresponding browser-observed generation interval.
   return null
 }
 
@@ -124,13 +141,13 @@ export function generationStatsFromLiveMessage(
     }
     if (step.firstTokenAt == null || step.lastTokenAt == null) continue
 
-    const isOpenFinalStep =
-      index === timing.steps.length - 1 && timing.nextStepStartedAt == null
-    const decodeEnd = isOpenFinalStep
-      ? Math.max(step.lastTokenAt, completedAt)
-      : step.lastTokenAt
+    // Completion/tool waits are not decoding. A single buffered response has
+    // no measurable streaming interval even if completion arrives much later.
+    const decodeEnd = Math.min(step.lastTokenAt, completedAt)
     const decodeMs = Math.max(0, decodeEnd - step.firstTokenAt)
-    if (decodeMs <= 0) continue
+    // Millisecond delivery bursts are not reliable measurements of generation
+    // speed. Use the same warmup as the live speed gauge.
+    if (decodeMs < 500) continue
 
     const end =
       timing.steps[index + 1]?.startContentIndex ?? message.content.length
@@ -139,6 +156,7 @@ export function generationStatsFromLiveMessage(
       const text = rootGeneratedText(block)
       if (text) estimatedTokens += estimateTokens(text)
     }
+    estimatedTokens -= step.firstChunkTokens ?? 0
     if (estimatedTokens <= 0) continue
 
     stats.decode_ms += decodeMs

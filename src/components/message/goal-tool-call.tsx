@@ -14,7 +14,12 @@ import { Shimmer } from "@/components/ai-elements/shimmer"
 import { normalizeToolName } from "@/lib/tool-call-normalization"
 import { cn } from "@/lib/utils"
 import { unwrapWholeFence } from "@/lib/fenced-text"
-import { ChevronRightIcon, PauseIcon, XIcon } from "lucide-react"
+import {
+  ChevronRightIcon,
+  LoaderCircleIcon,
+  PauseIcon,
+  XIcon,
+} from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useGoalControl } from "./goal-control-context"
 
@@ -341,7 +346,16 @@ function GoalCard({
 
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
               {statusLabel && (
-                <span>
+                <span
+                  role={isRunning ? "status" : undefined}
+                  className="inline-flex items-center gap-1"
+                >
+                  {isRunning && (
+                    <LoaderCircleIcon
+                      aria-hidden="true"
+                      className="size-3 animate-spin text-primary"
+                    />
+                  )}
                   {t("statusLabel")}:{" "}
                   <span className="font-medium text-foreground">
                     {statusLabel}

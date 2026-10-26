@@ -2404,6 +2404,14 @@ pub async fn spawn_agent_connection(
         owner_window_label.clone(),
         None, // folder_id 由后续 prompt handler 在首次 send 时绑定 (Phase 2)
     );
+    if agent_type == AgentType::Codex {
+        initial_state.codex_retry_log_path = Some(
+            crate::parsers::codex::resolve_codex_home_dir_for_env(
+                &crate::parsers::AgentEnv::from_overrides(runtime_env.clone()),
+            )
+            .join("logs_2.sqlite"),
+        );
+    }
     if agent_type == AgentType::Pi {
         initial_state.pi_agent_dir = Some(crate::commands::acp::pi_agent_dir_in_workspace(
             &runtime_env,
@@ -11163,7 +11171,11 @@ async fn run_conversation_loop(
                                     if prompted && agent_type == AgentType::Zcode {
                                         record_transcript_update(agent_type, &notif.session_id.0, &notif.update);
                                     }
+                                    sync_codex_goal_turn(&st, &h, agent_type, &notif.update, &mut cb_state, delegation_injection).await;
                                     emit_conversation_update(&st, &h, agent_type, notif.update, cwd_opt, &mut raw_output_cache, &mut cb_state).await;
+                                    if cb_state.codex_goal_turn && cb_state.codex_open_goal.is_none() {
+                                        close_codex_goal_turn(&st, &h, agent_type, &notif.session_id.0, "end_turn", &mut cb_state, delegation_injection).await;
+                                    }
                                     Ok(())
                                 },
                             )
@@ -11274,6 +11286,20 @@ async fn run_conversation_loop(
                     continue;
                 }
 
+                // A newly admitted prompt owns the next response boundary.
+                if cb_state.codex_goal_turn {
+                    close_codex_goal_turn(
+                        state,
+                        emitter,
+                        agent_type,
+                        &agent_turn_session_id,
+                        "cancelled",
+                        &mut cb_state,
+                        delegation_injection,
+                    )
+                    .await;
+                }
+
                 // A prompt the gate admitted while Grok ran a turn of its own
                 // (the frontend queues behind that turn; a chat channel or an
                 // automation does not). Grok queues this prompt behind its
@@ -11296,7 +11322,7 @@ async fn run_conversation_loop(
                 )
                 .await
                 {
-                    cancel_grok_agent_turn_asks(delegation_injection, conn_id).await;
+                    cancel_agent_turn_asks(delegation_injection, conn_id).await;
                 }
 
                 emit_with_state(
@@ -11368,6 +11394,18 @@ async fn run_conversation_loop(
                 // out of "this turn" and demote the most relevant evidence to a
                 // stale-looking `recent` fallback.
                 let stderr_mark = stderr_tail.mark();
+                // Codex can sleep on Retry-After without publishing an ACP error.
+                // Poll only during this owned prompt; dropping the loop stops it.
+                let mut codex_retry_log =
+                    state.read().await.codex_retry_log_path.clone().map(|path| {
+                        super::codex_retry::RetryLogCursor::new(
+                            path,
+                            sid.0.to_string(),
+                            turn_started_at_ms,
+                        )
+                    });
+                let mut retry_poll = tokio::time::interval(std::time::Duration::from_secs(1));
+                retry_poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                 // Use Box::pin (heap) instead of tokio::pin! (stack) so the
                 // future can be moved into a background task on cancel.
                 let mut prompt_response = Box::pin(
@@ -11602,6 +11640,11 @@ async fn run_conversation_loop(
                                         // function so this closure is
                                         // infallible by construction —
                                         // see `handle_turn_notification`.
+                                        if is_agent_output_update(agent_type, &notif.update) {
+                                            if let Some(cursor) = codex_retry_log.as_mut() {
+                                                cursor.observe_output(crate::acp_transcript::now_epoch_ms());
+                                            }
+                                        }
                                         handle_turn_notification(
                                             notif,
                                             agent_type,
@@ -11946,6 +11989,11 @@ async fn run_conversation_loop(
                                 }
                             }
                             break;
+                        }
+                        _ = retry_poll.tick(), if codex_retry_log.is_some() => {
+                            if let Some(event) = codex_retry_log.as_mut().unwrap().poll().await {
+                                emit_with_state(state, emitter, event).await;
+                            }
                         }
                         _ = terminal_poll_interval.tick(), if !tracked_terminal_tool_calls.is_empty() => {
                             poll_tracked_terminal_tool_calls(
@@ -12428,6 +12476,17 @@ async fn run_conversation_loop(
                 // now, like the mid-turn Cancel does — without waiting on the
                 // agent's own `turn_completed`, which the closed turn then
                 // ignores. That is the one idle turn with a `TurnComplete`.
+                cb_state.codex_thread_active = false;
+                close_codex_goal_turn(
+                    state,
+                    emitter,
+                    agent_type,
+                    &agent_turn_session_id,
+                    "cancelled",
+                    &mut cb_state,
+                    delegation_injection,
+                )
+                .await;
                 let closed_agent_turn = close_grok_agent_turn(
                     state,
                     emitter,
@@ -12464,7 +12523,7 @@ async fn run_conversation_loop(
                     inj.broker.cancel_by_parent_turn(conn_id).await;
                 }
                 if closed_agent_turn {
-                    cancel_grok_agent_turn_asks(delegation_injection, conn_id).await;
+                    cancel_agent_turn_asks(delegation_injection, conn_id).await;
                 }
             }
             Some(ConnectionCommand::Fork { fork_point, reply }) => {
@@ -12477,7 +12536,7 @@ async fn run_conversation_loop(
                 // The manager's between-turns check reads `turn_in_flight`,
                 // which a turn Grok started on its own never sets. Forking now
                 // would leave that turn open on the session we are leaving.
-                if cb_state.grok_agent_turn.is_some() {
+                if cb_state.grok_agent_turn.is_some() || cb_state.codex_goal_turn {
                     let _ = reply.send(Err(AcpError::TurnInProgress));
                     continue;
                 }
@@ -15311,6 +15370,9 @@ struct CodeBuddyLiveState {
     /// brand-new connection resets both together (empty live blocks + fresh state).
     /// So this state never resets while goal blocks it would close still exist.
     codex_open_goal: Option<String>,
+    /// A server-initiated goal turn, which has no session/prompt response.
+    codex_goal_turn: bool,
+    codex_thread_active: bool,
     /// Monotonic per-connection counter for synthetic goal tool-call ids. Occurrence
     /// (not content) addressing keeps two runs that share an objective from
     /// colliding in the reducer's id-keyed live block list.
@@ -16959,6 +17021,108 @@ fn grok_workflow_state(status: &str) -> String {
     .to_string()
 }
 
+/// Codex goal continuations have no client prompt response. Use the adapter's
+/// native thread status to announce their lifecycle BEFORE streaming any chunks;
+/// otherwise frontend reducers correctly discard those chunks as out-of-turn.
+async fn sync_codex_goal_turn(
+    state: &Arc<RwLock<SessionState>>,
+    emitter: &EventEmitter,
+    agent_type: AgentType,
+    update: &SessionUpdate,
+    cb_state: &mut CodeBuddyLiveState,
+    delegation_injection: Option<&DelegationInjection>,
+) {
+    if agent_type != AgentType::Codex {
+        return;
+    }
+    let thread_status = match update {
+        SessionUpdate::SessionInfoUpdate(info) => info
+            .meta
+            .as_ref()
+            .and_then(|meta| meta.get("codex"))
+            .and_then(|meta| meta.get("threadStatus"))
+            .and_then(|status| status.get("type"))
+            .and_then(serde_json::Value::as_str),
+        _ => None,
+    };
+    if let Some(status) = thread_status {
+        cb_state.codex_thread_active = status == "active";
+    }
+    if matches!(thread_status, Some("idle" | "notLoaded" | "systemError")) {
+        let session_id = state.read().await.external_id.clone().unwrap_or_default();
+        close_codex_goal_turn(
+            state,
+            emitter,
+            agent_type,
+            &session_id,
+            "end_turn",
+            cb_state,
+            delegation_injection,
+        )
+        .await;
+        return;
+    }
+    // Only native busy status is evidence of execution. An active goal in
+    // history, or a late chunk following cancellation, must not start a turn.
+    if cb_state.codex_goal_turn
+        || cb_state.codex_open_goal.is_none()
+        || !cb_state.codex_thread_active
+    {
+        return;
+    }
+    let mut s = state.write().await;
+    if s.status != ConnectionStatus::Connected || !s.begin_agent_initiated_turn() {
+        return;
+    }
+    drop(s);
+    cb_state.codex_goal_turn = true;
+    cb_state.codex_context_readings.turn_started();
+    emit_with_state(
+        state,
+        emitter,
+        AcpEvent::StatusChanged {
+            status: ConnectionStatus::Prompting,
+        },
+    )
+    .await;
+}
+
+async fn close_codex_goal_turn(
+    state: &Arc<RwLock<SessionState>>,
+    emitter: &EventEmitter,
+    agent_type: AgentType,
+    session_id: &str,
+    stop_reason: &str,
+    cb_state: &mut CodeBuddyLiveState,
+    delegation_injection: Option<&DelegationInjection>,
+) {
+    if !std::mem::take(&mut cb_state.codex_goal_turn) {
+        return;
+    }
+    // Reclaim parked asks before TurnComplete removes their UI cards. This
+    // covers stop, pause/clear, native idle and replacement by a new prompt.
+    let connection_id = state.read().await.connection_id.clone();
+    cancel_agent_turn_asks(delegation_injection, &connection_id).await;
+    emit_with_state(
+        state,
+        emitter,
+        AcpEvent::TurnComplete {
+            session_id: session_id.to_string(),
+            stop_reason: stop_reason.to_string(),
+            agent_type: agent_type.to_string(),
+        },
+    )
+    .await;
+    emit_with_state(
+        state,
+        emitter,
+        AcpEvent::StatusChanged {
+            status: ConnectionStatus::Connected,
+        },
+    )
+    .await;
+}
+
 /// A Grok `turn_completed` — the end of a turn as Grok itself reports it, on
 /// its private channel: `{prompt_id, stop_reason, usage?, elapsed_ms}`.
 #[derive(Debug, PartialEq, Eq)]
@@ -17170,10 +17334,7 @@ async fn close_grok_agent_turn(
 /// them, and Grok would stay blocked — holding the one-per-connection slot
 /// every later ask needs, and, when a prompt is queued behind the turn, that
 /// prompt too. The same reclaim the mid-turn Cancel does.
-async fn cancel_grok_agent_turn_asks(
-    delegation_injection: Option<&DelegationInjection>,
-    conn_id: &str,
-) {
+async fn cancel_agent_turn_asks(delegation_injection: Option<&DelegationInjection>, conn_id: &str) {
     if let Some(inj) = delegation_injection {
         inj.questions.cancel_questions_by_parent(conn_id).await;
         inj.plan_approvals
@@ -17437,6 +17598,9 @@ async fn emit_conversation_update(
                                 attempt,
                                 max_retries: max,
                                 retry_delay_ms: delay_ms,
+                                retry_at_ms: delay_ms.map(|delay| {
+                                    crate::acp_transcript::now_epoch_ms().saturating_add(delay)
+                                }),
                             },
                         )
                         .await;
@@ -18368,6 +18532,7 @@ async fn emit_conversation_update(
                         attempt: None,
                         max_retries: None,
                         retry_delay_ms: None,
+                        retry_at_ms: None,
                     },
                 )
                 .await;
@@ -31915,6 +32080,11 @@ mod tests {
         }
     }
 
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../src/maxcode-contracts/codex-goal-cleanup.contract.rs"
+    ));
+
     // Personal/team todos remain available even with delegation disabled.
     #[tokio::test]
     async fn inject_codeg_todos_without_enabling_delegation() {
@@ -35857,3 +36027,7 @@ mod maxcode_upstream_runtime_20261015_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/zcode-upstream.contract.rs"]
 mod maxcode_zcode_upstream_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/codex-goal-continuation.contract.rs"]
+mod codex_goal_continuation_contract;

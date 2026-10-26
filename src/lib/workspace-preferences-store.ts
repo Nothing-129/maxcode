@@ -5,9 +5,6 @@ import { getTransport } from "@/lib/transport"
 import { toast } from "sonner"
 
 export const WORKSPACE_PREFERENCE_KEYS = [
-  "workspace:sidebar-folder-expanded",
-  "workspace:sidebar-folder-group-expanded",
-  "workspace:sidebar-todo-group-expanded",
   "workspace:sidebar-show-completed",
   "workspace:sidebar-show-worktrees",
   "workspace:sidebar-show-recent",
@@ -16,10 +13,6 @@ export const WORKSPACE_PREFERENCE_KEYS = [
   "workspace:sidebar-nav-items",
   "workspace:sidebar-sort-mode",
   "workspace:sidebar-section-order",
-  "workspace:sidebar-section-collapsed",
-  "workspace:sidebar-conversation-expanded",
-  "workspace:left-sidebar",
-  "workspace:right-sidebar",
 ] as const
 
 const EVENT = "workspace-preferences://changed"
@@ -33,7 +26,6 @@ const generations = new Map<string, number>()
 const versions = new Map<string, number>()
 const pending = new Set<string>()
 let writes = Promise.resolve()
-const panelTimers = new Map<string, ReturnType<typeof setTimeout>>()
 
 function notify() {
   for (const listener of listeners) listener()
@@ -180,18 +172,6 @@ export const workspacePreferenceStorage = {
         }
       })
     }
-    // Resizing emits pointer-move updates; save the final geometry in a burst.
-    if (key === "workspace:left-sidebar" || key === "workspace:right-sidebar") {
-      clearTimeout(panelTimers.get(key))
-      panelTimers.set(
-        key,
-        setTimeout(() => {
-          panelTimers.delete(key)
-          persist()
-        }, 120)
-      )
-    } else {
-      persist()
-    }
+    persist()
   },
 }

@@ -27,7 +27,7 @@ describe("live generation stats", () => {
     expect(generationStatsFromLiveMessage(message, 2_000)).toEqual({
       ttft_ms: 400,
       ttft_steps: 1,
-      decode_ms: 600,
+      decode_ms: 500,
       decode_tokens: 6,
     })
   })
@@ -37,7 +37,7 @@ describe("live generation stats", () => {
     timing = markLiveGenerationOutput(timing, 1_000, 0, false, 1_200)
     timing = markLiveToolSettled(timing, 1_000, 5_000)
     timing = markLiveGenerationOutput(timing, 1_000, 1, true, 5_300)
-    timing = markLiveGenerationOutput(timing, 1_000, 1, false, 5_700)
+    timing = markLiveGenerationOutput(timing, 1_000, 1, false, 5_800)
     const message: LiveMessage = {
       id: "m2",
       role: "assistant",

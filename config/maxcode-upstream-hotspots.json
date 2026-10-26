@@ -2,6 +2,60 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.codex-goal-continuation",
+      "category": "runtime",
+      "origins": ["worktree-2026-10-26"],
+      "description": "Codex server-initiated goal turns use native threadStatus active/idle to announce prompting before streamed output and settle captured turns. Stored active goals alone never imply execution; cancellation, terminal goal updates and newly admitted prompts close synthetic turns without reopening on late chunks. Ending a goal turn reclaims pending question and plan responders before removing their cards, exactly once.",
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src/components/message/goal-tool-call.tsx",
+        "src/maxcode-contracts/codex-goal-continuation.contract.rs",
+        "src/maxcode-contracts/codex-goal-cleanup.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-goal-continuation.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.composer-add-menu-focus",
+      "category": "product",
+      "description": "Selecting a slash command or quick message from the composer add menu closes the menu and restores focus at the insertion caret. Mouse, keyboard item activation and search Enter allow immediate continued typing; ordinary dismissal still returns focus to the trigger.",
+      "origins": ["worktree-2026-10-26"],
+      "paths": [
+        "src/components/chat/composer/composer-add-menu.tsx",
+        "src/components/chat/composer/use-composer-shortcuts.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-add-menu-focus.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.codex-retry-status",
+      "category": "runtime",
+      "origins": ["worktree-2026-10-26"],
+      "description": "Codex silent Retry-After backoff is surfaced from read-only native retry logs scoped to the active thread and prompt start. Never infer retries from elapsed silence or resend prompts. Show localized 429 cause, attempt and absolute-deadline countdown; preserve through fresh snapshots and clear on actual output or turn exit. Missing/changed logs fail open to normal ACP behavior.",
+      "paths": [
+        "src-tauri/src/acp/codex_retry.rs",
+        "src/maxcode-contracts/codex-retry-status.contract.rs",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/live-turn-stats.tsx",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/session_state.rs",
+        "src-tauri/src/acp/types.rs",
+        "src/components/chat/api-retry-banner.tsx",
+        "src/components/chat/conversation-shell.tsx",
+        "src/contexts/acp-connections-context.tsx",
+        "src/lib/api-retry.ts",
+        "src/lib/snapshot-denormalize.ts",
+        "src/lib/types.ts",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-retry-status.contract.test.tsx"
+      ]
+    },
+    {
       "id": "release.reuse-exact-draft",
       "category": "platform",
       "origins": ["80c55f218", "worktree-2026-10-26"],
@@ -12,8 +66,8 @@
     {
       "id": "workspace.host-owned-view-preferences",
       "category": "product",
-      "origins": ["worktree-2026-10-26"],
-      "description": "Sidebar navigation visibility, section order, sort/filter/collapse state and panel geometry are persisted per key on the host and shared live by Electron and web. Only Electron seeds legacy localStorage with insert-only migration. Web legacy values never override host settings; mobile closed panels never overwrite desktop preferences.",
+      "origins": ["worktree-2026-10-26", "worktree-2026-10-27"],
+      "description": "Explicit sidebar navigation visibility, section order and sort/filter preferences are shared live by Electron and web. Panel visibility/width and section, folder, todo and sub-conversation expansion are client-local and excluded from host reads, writes, broadcasts and legacy migration. Mobile drawer actions preserve local PC geometry. Only Electron seeds legacy shared preferences with insert-only migration; web never overrides host settings with local values.",
       "paths": [
         "src/lib/workspace-preferences-store.ts",
         "src/lib/sidebar-view-mode-storage.ts",
@@ -666,7 +720,7 @@
     {
       "id": "todos.sidebar-context-completion",
       "category": "product",
-      "description": "Sidebar todo headings offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses. Completed todo groups follow the sidebar show-completed toggle even when linked conversations are still active; those conversations remain available in ordinary sections.",
+      "description": "Sidebar todo headings omit conversation counts and offer a right-click completion action for unfinished todos. Completion captures the selected scope and fetches the current revision independently of board pagination, refreshes todo state, and preserves child conversation statuses. Completed todo groups follow the sidebar show-completed toggle even when linked conversations are still active; those conversations remain available in ordinary sections.",
       "origins": ["worktree-2026-10-16"],
       "paths": [
         "src/components/conversations/sidebar-todo-group-header.tsx",
@@ -3600,7 +3654,8 @@
       ],
       "contracts": [
         "src/maxcode-contracts/deepseek-generation-stats.contract.test.ts",
-        "src/maxcode-contracts/generation-stats-runtime-id.contract.test.ts"
+        "src/maxcode-contracts/generation-stats-runtime-id.contract.test.ts",
+        "src/maxcode-contracts/pi-generation-throughput.contract.test.ts"
       ]
     },
     {

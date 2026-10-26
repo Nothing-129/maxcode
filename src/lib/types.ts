@@ -2696,6 +2696,7 @@ export type AcpEvent =
       attempt?: number
       max_retries?: number
       retry_delay_ms?: number
+      retry_at_ms?: number
     }
   | {
       // JetBrains AIR typed session failure upsert
@@ -3334,6 +3335,7 @@ export interface LiveSessionSnapshot {
    *  watermarks included, so an attaching client seeds the same monotonic
    *  merge the live path applies. Absent while empty (the common case). */
   session_failures?: SessionFailureRecord[]
+  turn_retrying?: Extract<AcpEvent, { type: "turn_retrying" }> | null
   /** AIR async tasks, merged. Terminal rows included: they carry the ids the
    *  subsequent live deltas revise, so a client seeded without them would
    *  re-create a settled task as a running one on its next correction. Absent

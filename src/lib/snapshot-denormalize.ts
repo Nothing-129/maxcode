@@ -1,3 +1,4 @@
+import { apiRetryFromEvent } from "@/lib/api-retry"
 import type {
   ActiveDelegationState,
   AsyncTaskRecord,
@@ -21,6 +22,7 @@ import type {
 import type {
   LiveContentBlock as LocalLiveContentBlock,
   LiveMessage as LocalLiveMessage,
+  ClaudeApiRetryState,
   PendingPermission,
   PendingUserMessage,
   ToolCallInfo,
@@ -28,7 +30,7 @@ import type {
 
 /**
  * Snapshot-derived subset of ConnectionState. Fields not present here
- * (pendingQuestion, claudeApiRetry, contextKey, agentType, workingDir) are
+ * (pendingQuestion, contextKey, agentType, workingDir) are
  * frontend-only or set elsewhere and must not be touched by
  * HYDRATE_FROM_SNAPSHOT.
  */
@@ -87,6 +89,7 @@ export interface SnapshotPatch {
    *  records, never clobber a fresher live one. `[]` when the server omitted
    *  the field. */
   sessionFailures: SessionFailureRecord[]
+  claudeApiRetry?: ClaudeApiRetryState | null
   /** AIR async tasks carried by the snapshot, already merged backend-side.
    *  Terminal rows included — they are the ids subsequent live deltas revise.
    *  `[]` when the server omitted the field. */
@@ -169,6 +172,10 @@ export function denormalizeSnapshot(wire: LiveSessionSnapshot): SnapshotPatch {
     configStaleKind: wire.config_stale_kind ?? null,
     backgroundOutstanding: wire.background_outstanding ?? 0,
     sessionFailures: wire.session_failures ?? [],
+    claudeApiRetry:
+      wire.status === "prompting" && wire.turn_retrying
+        ? apiRetryFromEvent(wire.turn_retrying, wire.external_id ?? "")
+        : null,
     asyncTasks: wire.async_tasks ?? [],
     lastError,
     lastErrorDetails,

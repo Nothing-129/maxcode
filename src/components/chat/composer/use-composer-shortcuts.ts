@@ -56,6 +56,8 @@ export interface ComposerShortcuts {
 
   /** Inserts a command badge at the caret (no trigger token to replace). */
   insertSlashCommand: (cmd: AvailableCommandInfo) => void
+  /** Restore the insertion caret after the add menu releases its focus scope. */
+  focusEditor: () => void
 
   experts: ExpertListItem[]
   science: ScienceListItem[]
@@ -130,6 +132,10 @@ export function useComposerShortcuts({
     },
     [editorRef]
   )
+
+  const focusEditor = useCallback(() => {
+    editorRef.current?.getEditor()?.commands.focus()
+  }, [editorRef])
 
   // The "+" → Slash commands picker inserts a command badge at the current caret
   // (no trigger token to replace), adding a leading space if the caret isn't at
@@ -301,6 +307,7 @@ export function useComposerShortcuts({
     refreshQuickMessages,
     insertQuickMessage,
     insertSlashCommand,
+    focusEditor,
     experts: expertsSorted,
     science: scienceSorted,
     officeActions: OFFICE_ACTIONS,

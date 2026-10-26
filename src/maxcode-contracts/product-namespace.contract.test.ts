@@ -76,9 +76,10 @@ describe("MaxCode retains the original configuration directories", () => {
   it("uses the original directories and credentials without migration", () => {
     const { app, target } = fixture()
     expect(runtime.legacyDataDir(app, {}, "darwin")).toBe(target)
+    const custom = join(target, "custom")
     expect(
-      runtime.legacyDataDir(app, { CODEG_DATA_DIR: "/custom" }, "darwin")
-    ).toBe("/custom")
+      runtime.legacyDataDir(app, { CODEG_DATA_DIR: custom }, "darwin")
+    ).toBe(custom)
     expect(runtime.legacyImportSource).toBeUndefined()
     expect(source("src-tauri/src/paths.rs")).toContain(
       'CODEG_DIR_NAME: &str = ".codeg"'

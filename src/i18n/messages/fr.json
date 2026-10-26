@@ -3110,6 +3110,7 @@
         "notificationQuestion": "{agent} attend votre réponse",
         "notificationErrorRedacted": "{agent} a rencontré une erreur",
         "claudeApiRetry": {
+          "rateLimited": "Limite de requêtes atteinte ; nouvelle tentative automatique en attente",
           "fallbackError": "authentication_failed",
           "retryingWithMax": "nouvelle tentative {attempt}/{max}",
           "retryingAttempt": "nouvelle tentative {attempt}",

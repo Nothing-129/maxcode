@@ -1,6 +1,6 @@
 import type { ConversationFolderPickerOverride } from "@/components/chat/conversation-context-bar"
-import { useMemo, type ReactNode } from "react"
-import { useTranslations } from "next-intl"
+import type { ReactNode } from "react"
+import { ApiRetryBanner } from "@/components/chat/api-retry-banner"
 import type {
   AgentType,
   ConnectionStatus,
@@ -27,7 +27,6 @@ import type {
   ClaudeApiRetryState,
 } from "@/contexts/acp-connections-context"
 import type { QueuedMessage } from "@/hooks/use-message-queue"
-import { Loader2 } from "lucide-react"
 import { ChatInput } from "@/components/chat/chat-input"
 import type { ComposerInjectContent } from "@/components/chat/message-input"
 import { PermissionDialog } from "@/components/chat/permission-dialog"
@@ -234,78 +233,6 @@ export function ConversationShell({
   injectContent,
   onInjectConsumed,
 }: ConversationShellProps) {
-  const tAcp = useTranslations("Folder.chat.acpConnections")
-  const retryLineText = useMemo(() => {
-    const retry = claudeApiRetry
-    if (!retry) return null
-
-    const retryAttempt =
-      retry.attempt !== null && retry.attempt !== undefined
-        ? Math.trunc(retry.attempt)
-        : null
-    const retryMax =
-      retry.maxRetries !== null && retry.maxRetries !== undefined
-        ? Math.trunc(retry.maxRetries)
-        : null
-    const retryDelaySeconds =
-      retry.retryDelayMs !== null && retry.retryDelayMs !== undefined
-        ? (retry.retryDelayMs / 1000).toFixed(1)
-        : null
-    // `null` only for a source that reports no cause at all (pi, #525) — see
-    // `ClaudeApiRetryState.reportsError`. Claude and codex keep the fallback.
-    const errorLabel =
-      retry.error ??
-      (retry.reportsError ? tAcp("claudeApiRetry.fallbackError") : null)
-    const statusLabel =
-      retry.errorStatus !== null && retry.errorStatus !== undefined
-        ? tAcp("claudeApiRetry.httpStatus", {
-            status: Math.trunc(retry.errorStatus),
-          })
-        : ""
-    const retryLabel =
-      retryAttempt !== null && retryMax !== null
-        ? tAcp("claudeApiRetry.retryingWithMax", {
-            attempt: retryAttempt,
-            max: retryMax,
-          })
-        : retryAttempt !== null
-          ? tAcp("claudeApiRetry.retryingAttempt", {
-              attempt: retryAttempt,
-            })
-          : tAcp("claudeApiRetry.retrying")
-    const delayLabel =
-      retryDelaySeconds !== null
-        ? tAcp("claudeApiRetry.nextRetryIn", {
-            seconds: retryDelaySeconds,
-          })
-        : null
-
-    // With no cause AND no HTTP status there is nothing to put before the
-    // separator, and the shared template would render a dangling "· 正在重试".
-    // Take the prefix-less pair instead — the counters carry the whole message.
-    if (errorLabel === null && statusLabel === "") {
-      return delayLabel !== null
-        ? tAcp("claudeApiRetry.lineNoErrorWithDelay", {
-            retry: retryLabel,
-            delay: delayLabel,
-          })
-        : tAcp("claudeApiRetry.lineNoError", { retry: retryLabel })
-    }
-
-    return delayLabel !== null
-      ? tAcp("claudeApiRetry.lineWithDelay", {
-          error: errorLabel ?? "",
-          status: statusLabel,
-          retry: retryLabel,
-          delay: delayLabel,
-        })
-      : tAcp("claudeApiRetry.line", {
-          error: errorLabel ?? "",
-          status: statusLabel,
-          retry: retryLabel,
-        })
-  }, [claudeApiRetry, tAcp])
-
   return (
     <div className="relative flex h-full min-h-0 flex-col">
       {topBanner}
@@ -426,16 +353,7 @@ export function ConversationShell({
         />
       )}
 
-      {retryLineText && (
-        <div className="border-t border-destructive/20 bg-destructive/5 px-4 py-2 text-xs text-destructive">
-          <div className="flex items-center gap-2 font-medium">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
-              {retryLineText}
-            </span>
-          </div>
-        </div>
-      )}
+      <ApiRetryBanner value={claudeApiRetry} />
 
       {error && (
         <div className="px-4 py-2 text-xs text-destructive bg-destructive/5 border-t border-destructive/20">

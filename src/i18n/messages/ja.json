@@ -3110,6 +3110,7 @@
         "notificationQuestion": "{agent} が回答を待っています",
         "notificationErrorRedacted": "{agent} でエラーが発生しました",
         "claudeApiRetry": {
+          "rateLimited": "リクエストがレート制限されました。自動再試行を待っています",
           "fallbackError": "authentication_failed",
           "retryingWithMax": "再試行中 {attempt}/{max}",
           "retryingAttempt": "再試行中（{attempt} 回目）",

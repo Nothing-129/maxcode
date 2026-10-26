@@ -363,7 +363,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     expect(host.origin).not.toHaveBeenCalled()
   })
 
-  it("shows all four of my unfinished todos when only two have conversations", async () => {
+  it("shows all my unfinished todo headings without conversation counts", async () => {
     host.state!.todos = ["First", "Second", "Third", "Fourth"].map((id) =>
       myTodo(id)
     )
@@ -380,13 +380,13 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => {
       expect(
         document.querySelector('[data-todo-group-id="First"] button')
-      ).toHaveTextContent("1")
+      ).toHaveTextContent(/^FirstTo do$/)
     })
     expect(document.querySelectorAll("[data-todo-group-id]")).toHaveLength(4)
-    for (const id of ["Third", "Fourth"]) {
+    for (const id of ["First", "Second", "Third", "Fourth"]) {
       expect(
         document.querySelector(`[data-todo-group-id="${id}"] button`)
-      ).toHaveTextContent(`${id}To do0`)
+      ).toHaveTextContent(new RegExp(`^${id}To do$`))
       expect(
         screen.getByRole("button", { name: `New conversation from ${id}` })
       ).toBeEnabled()
@@ -406,7 +406,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
     expect(
       document.querySelector('[data-todo-group-id="My task"] button')
-    ).toHaveTextContent("My taskTo do0")
+    ).toHaveTextContent(/^My taskTo do$/)
 
     host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
     host.state = { ...host.state!, todos: [myTodo("New task")] }

@@ -1,6 +1,6 @@
 [package]
 name = "codeg"
-version = "0.30.46"
+version = "0.30.47"
 description = "Agent Code Generation App"
 authors = ["feitao"]
 edition = "2021"
@@ -67,7 +67,7 @@ bzip2 = "0.5"
 # DeepSeek Harness session logs (`~/.dsh/sessions/**/session.jsonl.zstd`) are a
 # sequence of complete Zstandard frames appended per write batch; the parser
 # only decodes (`zstd::stream::decode_all` walks concatenated frames to EOF).
-zstd = "0.13"
+zstd = "0.14.3"
 tar = "0.4"
 # ZIP 9 confines extraction links and strips privileged Unix permission bits.
 zip = "9"

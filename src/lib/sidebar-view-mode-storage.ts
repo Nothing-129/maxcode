@@ -157,7 +157,7 @@ export function moveSectionInOrder(
 export function loadFolderExpanded(): Record<number, boolean> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = workspacePreferenceStorage.getItem(FOLDER_EXPANDED_KEY)
+    const raw = localStorage.getItem(FOLDER_EXPANDED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -177,10 +177,7 @@ export function loadFolderExpanded(): Record<number, boolean> {
 export function saveFolderExpanded(state: Record<number, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    workspacePreferenceStorage.setItem(
-      FOLDER_EXPANDED_KEY,
-      JSON.stringify(state)
-    )
+    localStorage.setItem(FOLDER_EXPANDED_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -189,11 +186,11 @@ export function saveFolderExpanded(state: Record<number, boolean>): void {
 /** Collapsed state of the sidebar's folder GROUPS, keyed by group id. Absent
  *  key = expanded, mirroring {@link loadFolderExpanded}: a freshly created group
  *  is open, and a group whose row is closed is the only thing persisted. Kept
- *  host-owned alongside folder collapse state, shared by desktop and web. */
+ *  local alongside folder collapse state; expanding a row is a client action. */
 export function loadFolderGroupExpanded(): Record<number, boolean> {
   if (typeof window === "undefined") return {}
   try {
-    const raw = workspacePreferenceStorage.getItem(FOLDER_GROUP_EXPANDED_KEY)
+    const raw = localStorage.getItem(FOLDER_GROUP_EXPANDED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -213,10 +210,7 @@ export function loadFolderGroupExpanded(): Record<number, boolean> {
 export function saveFolderGroupExpanded(state: Record<number, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    workspacePreferenceStorage.setItem(
-      FOLDER_GROUP_EXPANDED_KEY,
-      JSON.stringify(state)
-    )
+    localStorage.setItem(FOLDER_GROUP_EXPANDED_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -226,7 +220,7 @@ export function loadTodoGroupExpanded(): Record<string, boolean> {
   if (typeof window === "undefined") return {}
   try {
     const parsed = JSON.parse(
-      workspacePreferenceStorage.getItem(TODO_GROUP_EXPANDED_KEY) ?? "{}"
+      localStorage.getItem(TODO_GROUP_EXPANDED_KEY) ?? "{}"
     ) as unknown
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       return {}
@@ -241,10 +235,7 @@ export function loadTodoGroupExpanded(): Record<string, boolean> {
 export function saveTodoGroupExpanded(state: Record<string, boolean>): void {
   if (typeof window === "undefined") return
   try {
-    workspacePreferenceStorage.setItem(
-      TODO_GROUP_EXPANDED_KEY,
-      JSON.stringify(state)
-    )
+    localStorage.setItem(TODO_GROUP_EXPANDED_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }
@@ -257,7 +248,7 @@ export function saveTodoGroupExpanded(state: Record<string, boolean>): void {
 export function loadConversationExpanded(): number[] {
   if (typeof window === "undefined") return []
   try {
-    const raw = workspacePreferenceStorage.getItem(CONVERSATION_EXPANDED_KEY)
+    const raw = localStorage.getItem(CONVERSATION_EXPANDED_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as unknown
     if (!Array.isArray(parsed)) return []
@@ -274,10 +265,7 @@ export function loadConversationExpanded(): number[] {
 export function saveConversationExpanded(ids: number[]): void {
   if (typeof window === "undefined") return
   try {
-    workspacePreferenceStorage.setItem(
-      CONVERSATION_EXPANDED_KEY,
-      JSON.stringify(ids)
-    )
+    localStorage.setItem(CONVERSATION_EXPANDED_KEY, JSON.stringify(ids))
   } catch {
     /* ignore */
   }
@@ -483,7 +471,7 @@ export function saveSectionOrder(value: SidebarSectionOrder): void {
 export function loadSectionCollapsed(): SidebarSectionCollapsed {
   if (typeof window === "undefined") return {}
   try {
-    const raw = workspacePreferenceStorage.getItem(SECTION_COLLAPSED_KEY)
+    const raw = localStorage.getItem(SECTION_COLLAPSED_KEY)
     if (!raw) return {}
     const parsed = JSON.parse(raw) as unknown
     if (!parsed || typeof parsed !== "object") return {}
@@ -501,10 +489,7 @@ export function loadSectionCollapsed(): SidebarSectionCollapsed {
 export function saveSectionCollapsed(state: SidebarSectionCollapsed): void {
   if (typeof window === "undefined") return
   try {
-    workspacePreferenceStorage.setItem(
-      SECTION_COLLAPSED_KEY,
-      JSON.stringify(state)
-    )
+    localStorage.setItem(SECTION_COLLAPSED_KEY, JSON.stringify(state))
   } catch {
     /* ignore */
   }

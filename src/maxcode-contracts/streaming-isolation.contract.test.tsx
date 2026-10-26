@@ -230,6 +230,7 @@ describe("MaxCode contract: streaming across retained sessions", () => {
         startedAt: 1_000,
         firstTokenAt: 1_050,
         lastTokenAt: 1_076,
+        firstChunkTokens: 25_000,
         startContentIndex: 0,
       },
     ])
@@ -283,6 +284,7 @@ describe("MaxCode contract: streaming across retained sessions", () => {
         startedAt: 1_000,
         firstTokenAt: 1_005,
         lastTokenAt: 1_010,
+        firstChunkTokens: 2.75,
         startContentIndex: 0,
       },
     ])
@@ -301,7 +303,7 @@ describe("MaxCode contract: streaming across retained sessions", () => {
     expect(generationStatsFromLiveMessage(message, 1_224)).toMatchObject({
       ttft_ms: 5,
       ttft_steps: 1,
-      decode_ms: 219,
+      decode_ms: 0,
     })
   })
 })

@@ -103,6 +103,7 @@ interface MessageListViewProps {
   imageRoot?: string | null
   agentType: AgentType
   connStatus?: ConnectionStatus | null
+  retrying?: boolean
   awaitingUser?: boolean
   isActive?: boolean
   sendSignal?: number
@@ -1116,6 +1117,7 @@ export function MessageListView({
   imageRoot,
   agentType,
   connStatus,
+  retrying = false,
   awaitingUser = false,
   isActive = true,
   sendSignal = 0,
@@ -1779,6 +1781,7 @@ export function MessageListView({
         {liveMessage && connStatus === "prompting" && (
           <LiveTurnStats
             message={liveMessage}
+            retrying={retrying}
             awaitingUser={awaitingUser}
             agentType={agentType}
             isStreaming={connStatus === "prompting"}

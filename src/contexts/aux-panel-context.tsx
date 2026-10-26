@@ -1,7 +1,5 @@
 "use client"
 
-import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
-
 import {
   createContext,
   useCallback,
@@ -137,20 +135,13 @@ export function AuxPanelProvider({ children }: AuxPanelProviderProps) {
   }, [])
 
   useEffect(() => {
-    let initial = true
-    let lastOpen: boolean | undefined
-    return subscribeWorkspacePreferences(() => {
-      const stored = loadPersistedPanelState(storageKey)
-      const isMobileViewport = window.innerWidth < 768
-      const hostOpen = stored?.isOpen ?? DEFAULT_IS_OPEN
-      if (initial || lastOpen !== hostOpen) {
-        setIsOpen(initial && isMobileViewport ? false : hostOpen)
-      }
-      lastOpen = hostOpen
-      initial = false
-      setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH, minWidth))
-      setRestored(true)
-    }, [storageKey])
+    const stored = loadPersistedPanelState(storageKey)
+    const isMobileViewport = window.innerWidth < 768
+    // Panel geometry and automatic visibility changes belong to this client.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsOpen(isMobileViewport ? false : (stored?.isOpen ?? DEFAULT_IS_OPEN))
+    setWidthState(clampWidth(stored?.width ?? DEFAULT_WIDTH, minWidth))
+    setRestored(true)
   }, [storageKey, minWidth])
 
   // Reset pending reveal path when the active folder changes; file tree

@@ -15,9 +15,6 @@ use crate::{
 pub const EVENT: &str = "workspace-preferences://changed";
 const PREFIX: &str = "workspace_view:";
 pub const KEYS: &[&str] = &[
-    "workspace:sidebar-folder-expanded",
-    "workspace:sidebar-folder-group-expanded",
-    "workspace:sidebar-todo-group-expanded",
     "workspace:sidebar-show-completed",
     "workspace:sidebar-show-worktrees",
     "workspace:sidebar-show-recent",
@@ -26,10 +23,6 @@ pub const KEYS: &[&str] = &[
     "workspace:sidebar-nav-items",
     "workspace:sidebar-sort-mode",
     "workspace:sidebar-section-order",
-    "workspace:sidebar-section-collapsed",
-    "workspace:sidebar-conversation-expanded",
-    "workspace:left-sidebar",
-    "workspace:right-sidebar",
 ];
 
 pub async fn load(
@@ -136,6 +129,27 @@ mod tests {
         let values = load(&db.conn).await.unwrap();
         assert_eq!(values[KEYS[0]], "host");
         assert_eq!(values[KEYS[1]], "other");
+        // Old host rows may remain after upgrade, but client layout is no
+        // longer readable or writable through the shared preference API.
+        for key in [
+            "workspace:left-sidebar",
+            "workspace:right-sidebar",
+            "workspace:sidebar-folder-expanded",
+            "workspace:sidebar-folder-group-expanded",
+            "workspace:sidebar-todo-group-expanded",
+            "workspace:sidebar-section-collapsed",
+            "workspace:sidebar-conversation-expanded",
+        ] {
+            app_metadata_service::upsert_value(&db.conn, &format!("{PREFIX}{key}"), "stale")
+                .await
+                .unwrap();
+            assert!(!load(&db.conn).await.unwrap().contains_key(key));
+            assert!(
+                save(&db.conn, &EventEmitter::Noop, write(key, "new", false))
+                    .await
+                    .is_err()
+            );
+        }
         assert!(save(
             &db.conn,
             &EventEmitter::Noop,
