@@ -153,15 +153,34 @@ function sanitizeStorage(value, token = "") {
   return result
 }
 
-function legacyDataDir(app, env = process.env, platform = process.platform) {
-  if (env.CODEG_DATA_DIR) {
-    return path.resolve(env.CODEG_DATA_DIR)
-  }
-  const base =
-    platform === "linux"
-      ? env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share")
-      : app.getPath("appData")
-  return path.join(base, "app.codeg")
+function desktopDataDir(app, env = process.env, platform = process.platform) {
+  const override = env.MAXCODE_DATA_DIR || env.CODEG_DATA_DIR
+  if (override) return path.resolve(override)
+  return path.join(desktopDataBase(app, env, platform), "app.maxcode")
+}
+
+function desktopDataBase(app, env, platform) {
+  return platform === "linux"
+    ? env.XDG_DATA_HOME || path.join(app.getPath("home"), ".local", "share")
+    : app.getPath("appData")
+}
+
+function legacyImportSource(
+  app,
+  env = process.env,
+  platform = process.platform
+) {
+  if (env.MAXCODE_DATA_DIR || env.CODEG_DATA_DIR) return undefined
+  const target = desktopDataDir(app, env, platform)
+  const source = path.join(desktopDataBase(app, env, platform), "app.codeg")
+  const imported = fs.existsSync(
+    path.join(target, ".maxcode-imported-from-codeg.json")
+  )
+  const complete = fs.existsSync(path.join(target, ".maxcode-layout-complete"))
+  return fs.existsSync(path.join(source, "codeg.db")) &&
+    (!fs.existsSync(target) || (imported && !complete))
+    ? source
+    : undefined
 }
 
 // Finder/LaunchServices does not inherit the terminal's PATH. Import only PATH
@@ -208,6 +227,7 @@ async function startBackend({
   staticDir,
   dataDir,
   codegHome,
+  legacySource,
   onExit,
   signal,
 }) {
@@ -235,8 +255,10 @@ async function startBackend({
       CODEG_HOST: "127.0.0.1",
       CODEG_PORT: "0",
       CODEG_TOKEN: token,
+      MAXCODE_DATA_DIR: dataDir,
       CODEG_DATA_DIR: dataDir,
-      ...(codegHome ? { CODEG_HOME: codegHome } : {}),
+      MAXCODE_LEGACY_DATA_DIR: legacySource || "",
+      ...(codegHome ? { MAXCODE_HOME: codegHome, CODEG_HOME: codegHome } : {}),
       CODEG_STATIC_DIR: staticDir,
       CODEG_ELECTRON_READY_FILE: readyFile,
     },
@@ -301,7 +323,7 @@ async function startBackend({
   }
 
   try {
-    const deadline = Date.now() + 45000
+    const deadline = Date.now() + (legacySource ? 10 * 60_000 : 45_000)
     while (Date.now() < deadline) {
       if (signal?.aborted) throw new Error("Backend startup canceled")
       if (failure) throw failure
@@ -329,7 +351,7 @@ async function startBackend({
       await wait(100)
     }
     throw new Error(
-      `Backend did not become ready within 45 seconds.\n${output}`
+      `Backend did not become ready within the startup deadline.\n${output}`
     )
   } catch (error) {
     await stop()
@@ -343,7 +365,8 @@ module.exports = {
   externalUrl,
   isTrustedAppUrl,
   isTrustedUrl,
-  legacyDataDir,
+  desktopDataDir,
+  legacyImportSource,
   localPath,
   sanitizeStorage,
   startBackend,

@@ -2,7 +2,7 @@
 //!
 //! Experts are curated skills (from obra/superpowers) that codeg bundles
 //! into its binary via `include_dir!`. On startup they are extracted to a
-//! central directory `~/.codeg/skills/<id>/`. Users can then enable an
+//! central directory `~/.maxcode/skills/<id>/`. Users can then enable an
 //! expert for any ACP agent by creating a symbolic link (or Windows
 //! junction) from the agent's skill directory into the central copy.
 //!
@@ -47,7 +47,6 @@ use crate::models::agent::AgentType;
 
 static EXPERTS_BUNDLE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/experts");
 
-const CENTRAL_DIR_NAME: &str = ".codeg";
 const CENTRAL_SKILLS_SUBDIR: &str = "skills";
 const MANIFEST_FILE: &str = ".manifest.json";
 const EXPERTS_TOML: &str = "experts.toml";
@@ -195,14 +194,8 @@ fn mutation_lock() -> &'static Mutex<()> {
 
 // ─── Paths ──────────────────────────────────────────────────────────────
 
-fn home_dir_or_default() -> PathBuf {
-    dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
-}
-
 pub(crate) fn central_experts_dir() -> PathBuf {
-    home_dir_or_default()
-        .join(CENTRAL_DIR_NAME)
-        .join(CENTRAL_SKILLS_SUBDIR)
+    crate::paths::codeg_home_dir().join(CENTRAL_SKILLS_SUBDIR)
 }
 
 fn manifest_path() -> PathBuf {

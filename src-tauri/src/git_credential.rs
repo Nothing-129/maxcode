@@ -282,15 +282,15 @@ fn resolve_app_data_dir() -> Option<std::path::PathBuf> {
     // On Windows: %APPDATA%/app.codeg
     #[cfg(target_os = "macos")]
     {
-        dirs::data_dir().map(|d| d.join("app.codeg"))
+        dirs::data_dir().map(|d| d.join(crate::namespace::APP_DIRECTORY))
     }
     #[cfg(target_os = "linux")]
     {
-        dirs::data_dir().map(|d| d.join("app.codeg"))
+        dirs::data_dir().map(|d| d.join(crate::namespace::APP_DIRECTORY))
     }
     #[cfg(target_os = "windows")]
     {
-        dirs::data_dir().map(|d| d.join("app.codeg"))
+        dirs::data_dir().map(|d| d.join(crate::namespace::APP_DIRECTORY))
     }
 }
 

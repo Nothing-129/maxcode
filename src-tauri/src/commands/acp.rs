@@ -772,7 +772,7 @@ pub(crate) async fn verify_agent_installed(agent_type: AgentType) -> Result<(), 
 /// `npm list -g <package_name> --json` and parsing the JSON output.
 ///
 /// Checks both the system global prefix and the user-local prefix
-/// (`~/.codeg/npm-global/`) so packages installed via the EACCES fallback are
+/// (`~/.maxcode/npm-global/`) so packages installed via the EACCES fallback are
 /// found as well.
 ///
 /// `pub(crate)` so env diagnostics can report the installed version it sees
@@ -980,7 +980,7 @@ struct AgentDiag {
     resolve_npx: Option<String>,
     /// `<npm prefix -g>/bin/<cmd>` when it exists.
     system_prefix_bin: Option<String>,
-    /// `~/.codeg/npm-global/bin/<cmd>` (EACCES fallback) when it exists.
+    /// `~/.maxcode/npm-global/bin/<cmd>` (EACCES fallback) when it exists.
     user_prefix_bin: Option<String>,
     /// Homebrew global bin (`/opt/homebrew/bin/<cmd>` etc.) when it exists (macOS).
     homebrew_bin: Option<String>,
@@ -1467,7 +1467,7 @@ fn compute_verdict(inp: &DiagInputs) -> DiagnosticsVerdict {
                 return diag_verdict(
                     DiagLevel::Fail,
                     "user_prefix_not_on_path",
-                    "Installed into the EACCES fallback prefix (~/.codeg/npm-global), which is not on the app's PATH.",
+                    "Installed into the EACCES fallback prefix (~/.maxcode/npm-global), which is not on the app's PATH.",
                 );
             }
             if agent.homebrew_bin.is_some() {
@@ -1659,7 +1659,7 @@ fn build_report(
             ));
             let user_prefix_is_launch_target = a.user_prefix_bin == a.resolve_npx;
             checks.push(diag_check(
-                "~/.codeg/npm-global/bin/<cmd>",
+                "~/.maxcode/npm-global/bin/<cmd>",
                 a.user_prefix_bin.as_deref().unwrap_or("absent"),
                 if user_prefix_is_launch_target {
                     DiagLevel::Ok
@@ -2722,7 +2722,7 @@ async fn install_npm_global_package_streaming_inner(
     Ok(())
 }
 
-/// Fallback: install an npm package into a user-local prefix (`~/.codeg/npm-global/`)
+/// Fallback: install an npm package into a user-local prefix (`~/.maxcode/npm-global/`)
 /// when the system global prefix is not writable (EACCES).
 async fn install_npm_to_user_prefix_streaming(
     package: &str,
@@ -2873,7 +2873,7 @@ async fn uninstall_npm_global_package(package: &str) -> Result<(), AcpError> {
     Ok(())
 }
 
-/// Uninstall an npm package from the user-local prefix (`~/.codeg/npm-global/`).
+/// Uninstall an npm package from the user-local prefix (`~/.maxcode/npm-global/`).
 async fn uninstall_npm_from_user_prefix(package_name: &str) -> Result<(), AcpError> {
     let prefix = match crate::process::user_npm_prefix() {
         Some(p) if p.exists() => p,
@@ -9574,7 +9574,7 @@ fn skill_content_path(layout: AgentSkillLayout, skill_path: &Path) -> PathBuf {
 /// recursively and files are unlinked. This prevents `remove_dir_all` from
 /// accidentally wiping the contents of a symlink target — which is critical
 /// for the Experts feature where agent skill dirs may contain symlinks into
-/// the central `~/.codeg/skills/` store.
+/// the central `~/.maxcode/skills/` store.
 pub(crate) fn remove_skill_entry(path: &Path) -> std::io::Result<()> {
     let meta = fs::symlink_metadata(path)?;
     let file_type = meta.file_type();

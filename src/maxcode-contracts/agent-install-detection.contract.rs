@@ -3,7 +3,7 @@ use super::*;
 /// Register an npx agent for the detection tests below. The caller holds
 /// the registry lock. Its command and package are unique to the test, so
 /// whether the command resolves is up to the test's own HOME
-/// (`~/.codeg/npm-global/bin`), never to what this machine has installed.
+/// (`~/.maxcode/npm-global/bin`), never to what this machine has installed.
 fn register_npx_detection_agent(id: &str) -> AgentType {
     use crate::acp::custom_registry::{
         CustomAgentDef, CustomAgentSpec, CustomDistributionKind, NpxSpec,
@@ -109,7 +109,7 @@ async fn detection_keeps_a_stored_npx_version_whose_command_resolves_without_a_v
     let agent = register_npx_detection_agent("detect-quiet-npx-agent");
     let db = db_recording_installed_version(agent, "0.0.34").await;
     let home = tempfile::tempdir().expect("tempdir");
-    let bin_dir = home.path().join(".codeg").join("npm-global").join("bin");
+    let bin_dir = home.path().join(".maxcode").join("npm-global").join("bin");
     std::fs::create_dir_all(&bin_dir).expect("bin dir");
     use std::os::unix::fs::PermissionsExt;
     let bin = bin_dir.join("detect-quiet-npx-agent");

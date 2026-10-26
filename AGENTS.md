@@ -150,6 +150,8 @@ Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享
 
 ## 关键约束
 
+- **Codeg 共存**：MaxCode 默认使用 `app.maxcode` 数据/缓存、`~/.maxcode` 和独立 `maxcode` 钥匙串；`MAXCODE_*` 路径覆盖优先，保留显式 `CODEG_*` 别名。旧数据只能一次性复制，禁止迁移后读穿或写回 Codeg 目录及凭据。保持既有签名应用标识兼容，原生智能体登录/历史仍共用。
+
 - **仅支持静态导出**：`next.config.ts` 设置 `output: "export"`，不支持动态路由（`[param]`），必须使用查询参数替代
 - **路径别名**：`@/*` 映射到 `./src/*`，导入写法为 `@/lib/utils`、`@/components/ui/button`
 - **服务器部署**：通过环境变量配置（`CODEG_PORT`、`CODEG_HOST`、`CODEG_TOKEN`、`CODEG_DATA_DIR`、`CODEG_STATIC_DIR`）

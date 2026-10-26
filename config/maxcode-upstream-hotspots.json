@@ -481,6 +481,33 @@
       ]
     },
     {
+      "id": "desktop.product-namespace-isolation",
+      "category": "platform",
+      "description": "MaxCode uses app.maxcode data/cache, .maxcode home and maxcode keyring service, with MAXCODE overrides taking precedence over explicit CODEG compatibility aliases. Default desktop upgrades copy legacy data once using a read-only SQLite WAL snapshot, stage before publication, rebase owned path references and internal links, skip external links and pending restores, resume interrupted imports without overwriting existing destination data, and leave source data untouched. Native credentials copy once without overwrite or read-through resurrection after sign-out. The existing signed Electron app ID remains distinct from upstream; agent-native logins/history stay shared. Default web port remains 3080 and all saved ports are preserved; imported web auto-start is disabled until explicitly enabled.",
+      "origins": ["worktree-2026-10-21"],
+      "paths": [
+        "electron/runtime.cjs",
+        "electron/main.cjs",
+        "src-tauri/src/namespace.rs",
+        "src-tauri/src/keyring_store.rs",
+        "src-tauri/src/paths.rs",
+        "src-tauri/src/bin/codeg_server.rs",
+        "src-tauri/src/git_credential.rs",
+        "src-tauri/src/process.rs",
+        "src-tauri/src/acp/binary_cache.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/scratch_dir.rs",
+        "src-tauri/src/acp/delegation/listener.rs",
+        "src-tauri/src/commands/agent_auto_updates.rs",
+        "src-tauri/src/commands/experts.rs",
+        "src-tauri/src/web/mod.rs",
+        "src/components/settings/web-service-settings.tsx",
+        "src/maxcode-contracts/product-namespace.contract.rs",
+        "src/maxcode-contracts/product-credentials.contract.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/product-namespace.contract.test.ts"]
+    },
+    {
       "id": "agents.zcode-upstream-20261020",
       "category": "runtime",
       "description": "ZCode follows the upstream community zcode-acp-server 0.72.0 integration: discover official runtime and compatible Node, honor explicit absolute/PATH overrides, confirm a new session mode, forward MCP and record separate ACP history. Remove all prior MaxCode-specific SQLite history, alias migration, model normalization and default-disabled behavior, while keeping structured auto-titles through supports_dedicated_auto_title like the other maintained CLI agents. Electron and the seven-agent catalog remain the host boundaries. Negotiated images and resources, canonical cache usage, summed busy windows per prompt, and cancellation tails stay in one reply without billing another prompt.",
