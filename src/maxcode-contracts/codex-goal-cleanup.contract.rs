@@ -16,8 +16,10 @@ async fn codex_goal_end_reclaims_asks_once_without_touching_other_turns() {
         );
         initial.status = ConnectionStatus::Connected;
         let state = Arc::new(RwLock::new(initial));
-        let mut cb = CodeBuddyLiveState::default();
-        cb.codex_open_goal = Some("goal".into());
+        let mut cb = CodeBuddyLiveState {
+            codex_open_goal: Some("goal".into()),
+            ..Default::default()
+        };
         let active = serde_json::from_value(serde_json::json!({
             "sessionUpdate": "session_info_update",
             "_meta": { "codex": { "threadStatus": { "type": "active" } } }

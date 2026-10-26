@@ -25,8 +25,10 @@ fn state() -> Arc<RwLock<SessionState>> {
 #[tokio::test]
 async fn goal_continuation_announces_streaming_before_content_and_settles_on_native_idle() {
     let state = state();
-    let mut cb = CodeBuddyLiveState::default();
-    cb.codex_open_goal = Some("Analyze calls".into());
+    let mut cb = CodeBuddyLiveState {
+        codex_open_goal: Some("Analyze calls".into()),
+        ..Default::default()
+    };
     let mut events = state.read().await.event_stream().subscribe();
     sync_codex_goal_turn(
         &state,
@@ -156,8 +158,10 @@ async fn history_non_goal_other_agents_and_admitted_prompts_do_not_open_goal_tur
 #[tokio::test]
 async fn cancellation_closes_once_and_late_chunks_do_not_reopen() {
     let state = state();
-    let mut cb = CodeBuddyLiveState::default();
-    cb.codex_open_goal = Some("Analyze calls".into());
+    let mut cb = CodeBuddyLiveState {
+        codex_open_goal: Some("Analyze calls".into()),
+        ..Default::default()
+    };
     sync_codex_goal_turn(
         &state,
         &EventEmitter::Noop,

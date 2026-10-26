@@ -1,6 +1,6 @@
 use super::*;
-/// The custom agent these loop tests drive. Deliberately unregistered:
-/// nothing on the recording path looks the id up.
+// The custom agent these loop tests drive. Deliberately unregistered:
+// nothing on the recording path looks the id up.
 
 fn custom_update(update: serde_json::Value) -> GrokFrame {
     (
