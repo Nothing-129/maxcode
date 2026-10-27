@@ -193,7 +193,8 @@ pub struct AsyncTaskRecord {
     pub name: String,
     /// Already FRIENDLY, not the SDK's raw type: claude maps
     /// `local_bash`→`"shell"`, `local_workflow`→`"workflow"`,
-    /// `local_monitor`/`mcp`→`"monitor"`, and anything else to `"task"`; codex
+    /// `local_monitor`/`mcp`→`"monitor"`, and anything else to `"task"`, and
+    /// from 0.97.0 names a turn Claude Code started on its own `"turn"`; codex
     /// publishes `"shell"` for every background terminal. Kept a plain string so
     /// an unmapped future type renders as itself instead of failing to
     /// deserialize.

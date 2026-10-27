@@ -4007,7 +4007,11 @@
         "stop": "停止",
         "tokens": "{count} tokens",
         "stopDeclined": "无法停止该任务，它可能已经结束。",
-        "stopFailed": "停止任务失败：{error}"
+        "stopFailed": "停止任务失败：{error}",
+        "agentWorking": "{agent} 正在工作",
+        "scheduledWakeup": "定时唤醒",
+        "scheduledWakeupAt": "定时唤醒（{time}）",
+        "scheduledTask": "定时任务"
       },
       "remoteControl": {
         "title": "远程控制已开启",

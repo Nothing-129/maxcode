@@ -6,6 +6,7 @@ type CompactionItem = {
   source?: "history" | "live"
   meta?: Record<string, unknown> | null
   callId?: string
+  compaction?: { meta?: Record<string, unknown> | null; callId?: string }
 }
 
 /**
@@ -23,7 +24,10 @@ export function dedupeCompactionItems<T extends CompactionItem>(
   const namedEvents = new Map<string, Event>()
   let dropped = false
   const kept = items.filter((item) => {
-    if (item.kind !== "compaction") return true
+    // Mid-reply compactions stay ordinary turns, but their live/history copies
+    // must pass through the same one-to-one identity ledger as dividers.
+    const boundary = item.kind === "compaction" ? item : item.compaction
+    if (!boundary) return true
     const source =
       item.source ??
       (item.phase === "persisted"
@@ -31,7 +35,7 @@ export function dedupeCompactionItems<T extends CompactionItem>(
         : item.phase === "streaming" || item.phase === "optimistic"
           ? "live"
           : null)
-    const payload = contextCompactionPayload(item.meta)
+    const payload = contextCompactionPayload(boundary.meta)
     const counters = payload
       ? [payload.preTokens, payload.postTokens, payload.durationMs]
       : []
@@ -50,7 +54,9 @@ export function dedupeCompactionItems<T extends CompactionItem>(
           ])
         : null
     const callId =
-      typeof item.callId === "string" && item.callId.trim() ? item.callId : null
+      typeof boundary.callId === "string" && boundary.callId.trim()
+        ? boundary.callId
+        : null
     const named = callId ? namedEvents.get(callId) : undefined
     if (named) {
       // Consume the cross-source pair so it cannot swallow a later real event.

@@ -4007,7 +4007,11 @@
         "stop": "Detener",
         "tokens": "{count} tokens",
         "stopDeclined": "No se pudo detener esa tarea; puede que ya haya terminado.",
-        "stopFailed": "No se pudo detener la tarea: {error}"
+        "stopFailed": "No se pudo detener la tarea: {error}",
+        "agentWorking": "{agent} está trabajando",
+        "scheduledWakeup": "Activación programada",
+        "scheduledWakeupAt": "Activación programada para las {time}",
+        "scheduledTask": "Tarea programada"
       },
       "remoteControl": {
         "title": "Control remoto activado",

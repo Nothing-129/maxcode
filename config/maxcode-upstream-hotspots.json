@@ -2,6 +2,36 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.reviewed-fixes-20261027",
+      "category": "runtime",
+      "origins": [
+        "b36508601",
+        "0db3d7218",
+        "6f05d30ed",
+        "2acd5d1a4"
+      ],
+      "description": "Real Unicode and renamed Git paths keep counts and previews; mid-reply compactions merge into one reply with summaries and source-aware one-to-one dedupe. Claude ACP 0.97.0 restores advisor results and retains foreground fork handling, seven-agent catalog, undeclared backgroundSubagents/diffPatch and hidden task strip.",
+      "paths": [
+        "src-tauri/src/commands/folders.rs",
+        "src-tauri/src/workspace_state/mod.rs",
+        "src-tauri/src/work_task/git.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/acp/background_watch.rs",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/context-compaction-card.tsx",
+        "src/lib/dedupe-compaction-items.ts",
+        "src/lib/async-tasks.ts",
+        "src/components/chat/async-task-strip.tsx",
+        "src/maxcode-contracts/git-real-filenames.contract.rs",
+        "src/maxcode-contracts/claude-097-advisor.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-fixes-20261027.contract.test.ts"
+      ]
+    },
+    {
       "id": "chat.codex-goal-continuation",
       "category": "runtime",
       "origins": ["worktree-2026-10-26"],

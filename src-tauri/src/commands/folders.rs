@@ -2171,7 +2171,7 @@ pub async fn git_status(
         .filter(|l| !l.is_empty())
         .map(|line| {
             let status = line[..2].trim().to_string();
-            let file = unquote_git_path(&line[3..]);
+            let file = unquote_status_path(&line[3..]);
             GitStatusEntry { status, file }
         })
         .collect();
@@ -2201,7 +2201,11 @@ pub async fn git_diff(path: String, file: Option<String>) -> Result<String, AppC
         args.push(f.clone());
     }
 
+    // Unquoted paths, as `git_status` asks for: the overview's file list is
+    // read from these headers, and its "view diff" / "open file" ask for the
+    // file by the name found there — an octal-escaped one names no file.
     let output = crate::process::tokio_command("git")
+        .args(["-c", "core.quotePath=false"])
         .args(&args)
         .current_dir(&path)
         .output()
@@ -2216,6 +2220,7 @@ pub async fn git_diff(path: String, file: Option<String>) -> Result<String, AppC
             fallback_args.push(f.clone());
         }
         let fallback = crate::process::tokio_command("git")
+            .args(["-c", "core.quotePath=false"])
             .args(&fallback_args)
             .current_dir(&path)
             .output()
@@ -2252,7 +2257,9 @@ pub async fn git_diff_with_branch(
         args.push(f.clone());
     }
 
+    // Unquoted paths — see `git_diff`.
     let output = crate::process::tokio_command("git")
+        .args(["-c", "core.quotePath=false"])
         .args(&args)
         .current_dir(&path)
         .output()
@@ -2289,7 +2296,9 @@ pub async fn git_show_diff(
         args.push(f.clone());
     }
 
+    // Unquoted paths — see `git_diff`.
     let output = crate::process::tokio_command("git")
+        .args(["-c", "core.quotePath=false"])
         .args(&args)
         .current_dir(&path)
         .output()
@@ -3502,7 +3511,7 @@ const FILE_IO_MAX_CONCURRENT_OPS: usize = 8;
 static FILE_IO_SEMAPHORE: LazyLock<Semaphore> =
     LazyLock::new(|| Semaphore::new(FILE_IO_MAX_CONCURRENT_OPS));
 
-fn to_git_literal_pathspec(path: &str) -> String {
+pub(crate) fn to_git_literal_pathspec(path: &str) -> String {
     format!(":(literal){path}")
 }
 
@@ -3518,6 +3527,76 @@ fn unquote_git_path(path: &str) -> String {
     } else {
         trimmed.to_string()
     }
+}
+
+/// [`unquote_git_path`] for the path field of a `git status --porcelain=v1`
+/// line, which for a rename or copy is `<from> -> <to>` with EACH side quoted
+/// on its own. Status quotes a path that has a space in it, so moving
+/// `my notes.md` reads `"my notes.md" -> "notes/my notes.md"`, and unquoting
+/// the field as one string would keep the inner quotes
+/// (`my notes.md" -> "notes/my notes.md`).
+fn unquote_status_path(field: &str) -> String {
+    let field = field.trim();
+    let sides = match field.strip_prefix('"') {
+        // The closing quote of a quoted `<from>`: inside the quotes git
+        // escapes `"` and `\` with a backslash, so skip whatever follows one.
+        Some(quoted) => {
+            let mut close = None;
+            let mut chars = quoted.char_indices();
+            while let Some((i, c)) = chars.next() {
+                match c {
+                    '\\' => {
+                        chars.next();
+                    }
+                    '"' => {
+                        close = Some(i + 2);
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+            close.and_then(|end| {
+                field[end..]
+                    .strip_prefix(" -> ")
+                    .map(|to| (&field[..end], to))
+            })
+        }
+        // An unquoted `<from>` has no space in it (status would have quoted
+        // it), so the first ` -> ` is the separator.
+        None => field.split_once(" -> "),
+    };
+    match sides {
+        Some((from, to)) => format!("{} -> {}", unquote_git_path(from), unquote_git_path(to)),
+        None => unquote_git_path(field),
+    }
+}
+
+/// Both sides of a rename as `git diff --numstat` prints it: `old => new`, or
+/// with the part they share factored out of braces, `src/{old => new}/main.rs`.
+/// `None` for a path that is not written as a rename.
+///
+/// Around the braces git keeps the `/` that ends the shared prefix and the one
+/// that starts the shared suffix, so a side left empty by a move up a directory
+/// (`docs/{sub => }/moved.txt`) would join them into `docs//moved.txt`.
+pub(crate) fn numstat_rename_sides(path: &str) -> Option<(String, String)> {
+    if let (Some(open), Some(close)) = (path.find('{'), path.rfind('}')) {
+        if open < close {
+            let (prefix, suffix) = (&path[..open], &path[close + 1..]);
+            if let Some((old, new)) = path[open + 1..close].split_once(" => ") {
+                let side = |middle: &str| {
+                    let suffix = if middle.is_empty() {
+                        suffix.strip_prefix('/').unwrap_or(suffix)
+                    } else {
+                        suffix
+                    };
+                    format!("{prefix}{middle}{suffix}")
+                };
+                return Some((side(old), side(new)));
+            }
+        }
+    }
+    path.rsplit_once(" => ")
+        .map(|(old, new)| (old.to_string(), new.to_string()))
 }
 
 pub(crate) fn resolve_tree_path(root: &Path, rel_path: &str) -> Result<PathBuf, AppCommandError> {
@@ -7838,6 +7917,148 @@ branch refs/heads/main";
         )
         .await;
         assert!(res.is_err(), "dest containing '..' must be rejected");
+    }
+
+    #[test]
+    fn unquote_status_path_unquotes_each_side_of_a_rename() {
+        assert_eq!(unquote_status_path("src/main.rs"), "src/main.rs");
+        assert_eq!(unquote_status_path("\"with space.txt\""), "with space.txt");
+        assert_eq!(
+            unquote_status_path("d/旧.txt -> d/新.txt"),
+            "d/旧.txt -> d/新.txt"
+        );
+        assert_eq!(
+            unquote_status_path("\"d/old name.txt\" -> \"d/new name.txt\""),
+            "d/old name.txt -> d/new name.txt"
+        );
+        assert_eq!(
+            unquote_status_path("plain.txt -> \"with space.txt\""),
+            "plain.txt -> with space.txt"
+        );
+        assert_eq!(
+            unquote_status_path("\"with space.txt\" -> plain.txt"),
+            "with space.txt -> plain.txt"
+        );
+        // An escaped quote inside the first side does not end it. (The sides
+        // keep git's escapes, as `unquote_git_path` always has.)
+        assert_eq!(
+            unquote_status_path(r#""q\" -> x.txt" -> "y z.txt""#),
+            r#"q\" -> x.txt -> y z.txt"#
+        );
+    }
+
+    #[test]
+    fn numstat_rename_sides_reads_both_sides() {
+        let sides = |raw: &str| numstat_rename_sides(raw);
+        let pair = |old: &str, new: &str| Some((old.to_string(), new.to_string()));
+        assert_eq!(sides("src/main.rs"), None);
+        assert_eq!(sides("src/{a}.rs"), None);
+        assert_eq!(sides("old.rs => new.rs"), pair("old.rs", "new.rs"));
+        assert_eq!(
+            sides("src/{old => new}/main.rs"),
+            pair("src/old/main.rs", "src/new/main.rs")
+        );
+        assert_eq!(
+            sides("d/{old name.txt => new name.txt}"),
+            pair("d/old name.txt", "d/new name.txt")
+        );
+        assert_eq!(sides("{a => b}/x.rs"), pair("a/x.rs", "b/x.rs"));
+        // An emptied side: into a directory, and up out of one.
+        assert_eq!(
+            sides("src/{ => sub}/main.rs"),
+            pair("src/main.rs", "src/sub/main.rs")
+        );
+        assert_eq!(
+            sides("src/{sub => }/main.rs"),
+            pair("src/sub/main.rs", "src/main.rs")
+        );
+    }
+
+    /// Init a repo for the tests below, with the config the code under test
+    /// would otherwise read from the developer's machine pinned repo-locally
+    /// (the one layer both this helper and that code read): git's default
+    /// `core.quotePath`, which a global `false` would hide the bugs behind,
+    /// and no CRLF conversion, which Git for Windows turns on system-wide.
+    fn init_quoting_fixture(root: &std::path::Path) {
+        git_run(root, &["init", "-q", "-b", "main"]);
+        git_run(root, &["config", "core.quotePath", "true"]);
+        git_run(root, &["config", "core.autocrlf", "false"]);
+        git_run(root, &["config", "status.renames", "true"]);
+    }
+
+    /// Status quotes a path that has a space in it, and a rename quotes its two
+    /// sides separately: the whole field unquoted as one string read
+    /// `d/old name.txt" -> "d/new name.txt`, so the Git panel showed the
+    /// rename as `"d/new name.txt` and asked for that file by that name.
+    #[tokio::test]
+    async fn git_status_unquotes_both_sides_of_a_rename() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        init_quoting_fixture(root);
+        std::fs::create_dir(root.join("d")).expect("mkdir");
+        std::fs::write(root.join("d").join("old name.txt"), "1\n2\n3\n").expect("write");
+        std::fs::write(root.join("d").join("旧.txt"), "1\n2\n3\n").expect("write");
+        git_run(root, &["add", "-A"]);
+        git_run(root, &["commit", "-q", "-m", "base"]);
+        git_run(root, &["mv", "d/old name.txt", "d/new name.txt"]);
+        git_run(root, &["mv", "d/旧.txt", "d/新.txt"]);
+
+        let entries = git_status(root.to_str().expect("utf-8 path").to_string(), Some(true))
+            .await
+            .expect("status");
+        let files: Vec<(&str, &str)> = entries
+            .iter()
+            .map(|e| (e.status.as_str(), e.file.as_str()))
+            .collect();
+        assert_eq!(
+            files,
+            [
+                ("R", "d/old name.txt -> d/new name.txt"),
+                ("R", "d/旧.txt -> d/新.txt"),
+            ]
+        );
+    }
+
+    /// The diff overviews (working tree, branch, commit) list their files by
+    /// the paths in the patch headers, and "view diff" / "open file" ask for a
+    /// file by that path — so a header has to name a non-ASCII file as itself,
+    /// not by git's default octal escapes.
+    #[tokio::test]
+    async fn diff_headers_name_a_non_ascii_path_as_itself() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let root = dir.path();
+        let path = root.to_str().expect("utf-8 path").to_string();
+        init_quoting_fixture(root);
+        std::fs::create_dir(root.join("docs")).expect("mkdir");
+        std::fs::write(root.join("docs").join("需求.md"), "one\n").expect("write");
+        git_run(root, &["add", "-A"]);
+        // Not a `+++ b/…` match: a developer's `diff.mnemonicPrefix` or
+        // `diff.noprefix` changes the prefix, and the name is the point here.
+        let names_itself = |patch: &str| patch.contains("docs/需求.md") && !patch.contains("\\351");
+
+        // No commit yet: `diff HEAD` fails and the `--cached` fallback answers.
+        let unborn = git_diff(path.clone(), None).await.expect("unborn diff");
+        assert!(names_itself(&unborn), "{unborn}");
+
+        git_run(root, &["commit", "-q", "-m", "base"]);
+        git_run(root, &["branch", "base"]);
+        std::fs::write(root.join("docs").join("需求.md"), "one\ntwo\n").expect("write");
+        let working = git_diff(path.clone(), None).await.expect("working diff");
+        assert!(names_itself(&working), "{working}");
+        let one = git_diff(path.clone(), Some("docs/需求.md".to_string()))
+            .await
+            .expect("file diff");
+        assert!(names_itself(&one), "{one}");
+
+        git_run(root, &["commit", "-q", "-am", "edit"]);
+        let commit = git_show_diff(path.clone(), "HEAD".to_string(), None)
+            .await
+            .expect("commit diff");
+        assert!(names_itself(&commit), "{commit}");
+        let branch = git_diff_with_branch(path, "base".to_string(), None)
+            .await
+            .expect("branch diff");
+        assert!(names_itself(&branch), "{branch}");
     }
 }
 

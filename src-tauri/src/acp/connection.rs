@@ -5120,7 +5120,9 @@ fn build_client_capabilities(
     // adapter's own filter (`taskType: "local_agent"` is marked ignored), so
     // advertising this does not disturb the sub-agent surfaces.
     //
-    // For claude those tasks are background shells, workflows and monitors; for
+    // For claude those tasks are background shells, workflows and monitors, and
+    // from 0.97.0 the turns Claude Code starts on its own after a prompt ended
+    // (`taskType: "turn"`, stoppable), which ACP v1 has no other signal for; for
     // codex they are BACKGROUND TERMINALS — a shell process the model leaves
     // running past the tool call, which codex core tracks under
     // `thread/backgroundTerminals/*`. codex-acp only announces a terminal that
@@ -5242,6 +5244,7 @@ fn build_client_capabilities(
     // model ids and show the running agent's own recommendation.
     // AIR clients receive partial metadata and relocated fields in 2.x.
     // The shared ledger restores them; exact patches remain unadvertised.
+    // Keep backgroundSubagents undeclared: child tools finish within the parent turn.
     if matches!(agent_type, AgentType::ClaudeCode | AgentType::Codex) {
         let capabilities: &[&str] = &["sessionFailure", "asyncTasks", "recommendedValue"];
         meta.insert(
@@ -16590,9 +16593,17 @@ fn stash_claude_viewed_results(params: &serde_json::Value, cb_state: &mut CodeBu
 /// the fork began, and the real result found the call already settled and was
 /// never sent (only the PostToolUse hook's `toolResponse` marker reached the
 /// client). 0.94.0's own fix of this copy (#1384) covers the `session/load`
-/// replay only; the live frame is reported as
+/// replay only; the live frame was reported as
 /// agentclientprotocol/claude-agent-acp#1389. A fork in the background sends no
 /// such frame.
+///
+/// 0.97.0 fixes the live frame (#1431): the adapter drops a fork's copied
+/// result whose `tool_use_id` is the message's own parent, and the launching
+/// call completes with the fork's real report. Measured on the pinned 0.97.0
+/// with a foreground fork: no update names itself as its parent, and the card
+/// completes once, with the report. This path stays for an adapter older than
+/// 0.97.0 (a custom version pin), where it still turns the copy into the
+/// report.
 ///
 /// A tool call is never its own child, so the frame is recognized exactly: its
 /// `parentToolUseId` names the call itself. An adapter that stops sending it
@@ -28829,6 +28840,159 @@ mod tests {
             )),
             "{events:?}"
         );
+    }
+
+    /// claude-agent-acp 0.97.0 (CLI 2.1.310), recorded: the main thread runs a
+    /// fork in the foreground. The adapter no longer reports the fork's copied
+    /// launch result (#1431), and completes the call with the fork's report
+    /// itself. The raw SDK stream still carries both the copy and the real
+    /// answer. Frames in wire order, ids shortened.
+    #[tokio::test]
+    async fn a_097_foreground_fork_completes_once_with_its_report() {
+        let state = Arc::new(RwLock::new(SessionState::new(
+            "conn-fork".to_string(),
+            AgentType::ClaudeCode,
+            None,
+            "win".to_string(),
+            None,
+        )));
+        let mut cb = CodeBuddyLiveState::default();
+        let mut cache = ToolCallOutputCache::default();
+        let update = |frame: serde_json::Value| -> SessionUpdate {
+            serde_json::from_value(frame).expect("recorded wire shape parses")
+        };
+        enum Frame {
+            Update(serde_json::Value),
+            Raw(Box<Dispatch>),
+        }
+        let frames = vec![
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call", "toolCallId": "toolu_fork",
+                "_meta": {"claudeCode": {"toolName": "Agent"},
+                    "jetbrains": {"air": {"version": 1, "subagent": true}}},
+                "name": "Agent", "status": "pending", "title": "Task", "kind": "think", "content": []}),
+            ),
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_fork",
+                "rawInput": {"description": "probe fork", "prompt": "do it",
+                    "subagent_type": "fork", "run_in_background": false},
+                "title": "probe fork",
+                "content": [{"type": "content", "content": {"type": "text", "text": "do it"}}]}),
+            ),
+            // The fork's copy of its launch result, on the raw stream only.
+            Frame::Raw(Box::new(claude_sdk_tool_result(
+                "toolu_fork",
+                "toolu_fork",
+                "Fork started — that fork is you.",
+            ))),
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call", "toolCallId": "toolu_bash",
+                "_meta": {"claudeCode": {"toolName": "Bash", "parentToolUseId": "toolu_fork"}},
+                "status": "pending", "title": "echo forked-child", "kind": "execute",
+                "rawInput": {"command": "echo forked-child"}, "content": []}),
+            ),
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_bash",
+                "status": "completed"}),
+            ),
+            // The PostToolUse hook's marker: no status, no content.
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_fork",
+                "_meta": {"claudeCode": {"toolResponse": {"status": "completed"}}}}),
+            ),
+            // The real result, on the raw stream and then from the adapter.
+            Frame::Raw(Box::new(claude_sdk_tool_result_from_root(
+                "toolu_fork",
+                "done",
+            ))),
+            Frame::Update(
+                serde_json::json!({"sessionUpdate": "tool_call_update", "toolCallId": "toolu_fork",
+                "status": "completed",
+                "content": [{"type": "content", "content": {"type": "text", "text": "done"}}]}),
+            ),
+        ];
+        for frame in frames {
+            match frame {
+                Frame::Update(value) => {
+                    emit_conversation_update(
+                        &state,
+                        &EventEmitter::Noop,
+                        AgentType::ClaudeCode,
+                        update(value),
+                        None,
+                        &mut cache,
+                        &mut cb,
+                    )
+                    .await
+                }
+                Frame::Raw(dispatch) => {
+                    maybe_emit_ext_notification(
+                        &state,
+                        &EventEmitter::Noop,
+                        AgentType::ClaudeCode,
+                        *dispatch,
+                        &mut cb,
+                    )
+                    .await
+                }
+            }
+        }
+
+        let events = fork_events(&*state.read().await);
+        let settled: Vec<_> = events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    AcpEvent::ToolCallUpdate {
+                        status: Some(_),
+                        ..
+                    }
+                )
+            })
+            .collect();
+        assert_eq!(
+            settled.len(),
+            1,
+            "one completion, the adapter's: {events:?}"
+        );
+        let AcpEvent::ToolCallUpdate {
+            status, content, ..
+        } = settled[0]
+        else {
+            unreachable!()
+        };
+        assert_eq!(status.as_deref(), Some("completed"));
+        assert_eq!(content.as_deref(), Some("done"));
+        assert!(
+            cb.claude_fork_awaiting_result.is_empty(),
+            "the pre-0.97.0 path never armed"
+        );
+        let guard = state.read().await;
+        let call = guard.active_tool_calls.get("toolu_fork").expect("tracked");
+        assert_eq!(
+            call.status,
+            crate::acp::session_state::ToolCallStatus::Completed
+        );
+    }
+
+    /// A raw SDK `user` message answering `tool_use_id` from the root session
+    /// (`parent_tool_use_id: null`).
+    fn claude_sdk_tool_result_from_root(tool_use_id: &str, text: &str) -> Dispatch {
+        Dispatch::Notification(
+            UntypedMessage::new(
+                CLAUDE_SDK_EXT_METHOD,
+                serde_json::json!({"sessionId": "s", "message": {
+                    "type": "user",
+                    "parent_tool_use_id": null,
+                    "message": {"role": "user", "content": [{
+                        "type": "tool_result", "tool_use_id": tool_use_id,
+                        "content": [{"type": "text", "text": text}]
+                    }]}
+                }}),
+            )
+            .unwrap(),
+        )
     }
 
     #[test]

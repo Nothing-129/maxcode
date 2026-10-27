@@ -4007,7 +4007,11 @@
         "stop": "Stop",
         "tokens": "{count} tokens",
         "stopDeclined": "That task could not be stopped — it may have already finished.",
-        "stopFailed": "Failed to stop the task: {error}"
+        "stopFailed": "Failed to stop the task: {error}",
+        "agentWorking": "{agent} is working",
+        "scheduledWakeup": "Scheduled wakeup",
+        "scheduledWakeupAt": "Scheduled wakeup for {time}",
+        "scheduledTask": "Scheduled task"
       },
       "remoteControl": {
         "title": "Remote Control is on",

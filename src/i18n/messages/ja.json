@@ -4007,7 +4007,11 @@
         "stop": "停止",
         "tokens": "{count} トークン",
         "stopDeclined": "このタスクは停止できませんでした。すでに終了している可能性があります。",
-        "stopFailed": "タスクの停止に失敗しました: {error}"
+        "stopFailed": "タスクの停止に失敗しました: {error}",
+        "agentWorking": "{agent} が作業中",
+        "scheduledWakeup": "スケジュールされた起動",
+        "scheduledWakeupAt": "スケジュールされた起動（{time}）",
+        "scheduledTask": "スケジュールされたタスク"
       },
       "remoteControl": {
         "title": "リモートコントロール有効",

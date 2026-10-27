@@ -2715,6 +2715,86 @@ mod tests {
         assert!(matches!(ws.mode, Mode::Foreground));
     }
 
+    /// An `advisor` server-tool call and its `advisor_tool_result` are separate
+    /// assistant records (Claude Code 2.1.310), so a tick can read the call
+    /// before the result is flushed. The next tick re-emits the call's turn
+    /// with the result beside it, and leaves no turn holding only the result.
+    #[test]
+    fn an_advisor_result_read_a_tick_after_its_call_joins_the_call() {
+        use crate::models::message::ContentBlock;
+        let dir = tempfile::tempdir().unwrap();
+        let path = temp_session(&dir);
+        write_lines(&path, &[]);
+        let ledger = PromptLedger::shared();
+        let mut ws = WatchState::with_file_for_test("s1", path.clone());
+        let assistant_block = |uuid: &str, block: &str| {
+            format!(
+                r#"{{"type":"assistant","timestamp":"2026-07-07T03:49:05.000Z","uuid":"{uuid}","message":{{"id":"msg_adv","role":"assistant","model":"claude-sonnet-5","content":[{block}]}}}}"#
+            )
+        };
+        let advice = "ADVICE: check the edge cases first.";
+
+        write_lines(
+            &path,
+            &[
+                &cron_prompt("review the plan"),
+                &assistant_block(
+                    "a-call",
+                    r#"{"type":"server_tool_use","id":"srvtoolu_adv","name":"advisor","input":{}}"#,
+                ),
+            ],
+        );
+        let (turns, ..) =
+            unpack(tick_now(&mut ws, &ledger).expect("the out-of-turn turn surfaces"));
+        let blob = serde_json::to_string(&turns).unwrap();
+        assert!(
+            blob.contains("srvtoolu_adv") && !blob.contains(advice),
+            "{blob}"
+        );
+
+        write_lines(
+            &path,
+            &[
+                &assistant_block(
+                    "a-result",
+                    &format!(
+                        r#"{{"type":"advisor_tool_result","tool_use_id":"srvtoolu_adv","content":{{"type":"advisor_result","text":"{advice}","stop_reason":"end_turn"}}}}"#
+                    ),
+                ),
+                &assistant_text("a-after", "advisor consulted"),
+            ],
+        );
+        let (turns, ..) = unpack(tick_now(&mut ws, &ledger).expect("the result tick re-emits"));
+        let call_turn = turns
+            .iter()
+            .find(|turn| {
+                turn.blocks.iter().any(|b| {
+                    matches!(b, ContentBlock::ToolUse { tool_use_id: Some(id), .. } if id == "srvtoolu_adv")
+                })
+            })
+            .expect("the call's turn is re-emitted");
+        assert!(
+            call_turn.blocks.iter().any(|b| matches!(
+                b,
+                ContentBlock::ToolResult {
+                    tool_use_id: Some(id),
+                    output_preview: Some(text),
+                    is_error: false,
+                    ..
+                } if id == "srvtoolu_adv" && text == advice
+            )),
+            "{:?}",
+            call_turn.blocks
+        );
+        assert!(
+            turns.iter().all(|turn| !turn
+                .blocks
+                .iter()
+                .all(|b| matches!(b, ContentBlock::ToolResult { .. }))),
+            "{turns:?}"
+        );
+    }
+
     /// A folded message carries no `promptId`, so matching one leaves no
     /// submission to group by. An initiator that lands before the reply — a
     /// cron prompt here, which carries no id either — is out-of-turn as usual,

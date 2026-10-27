@@ -3211,7 +3211,9 @@ export interface AsyncTaskRecord {
   name: string
   /** Already friendly: `shell` | `workflow` | `monitor` | `task`, or an
    *  unmapped future value rendered as itself. NOT the SDK's raw type.
-   *  codex publishes `shell` for every background terminal. */
+   *  codex publishes `shell` for every background terminal. claude 0.97.0+
+   *  publishes `turn` for a turn Claude Code started on its own
+   *  (`AUTONOMOUS_TURN_TASK_TYPE`). */
   task_type: string
   description: string
   /** Whether the task earns its own transcript card upstream. The strip renders

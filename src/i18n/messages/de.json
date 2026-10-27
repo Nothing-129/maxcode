@@ -4007,7 +4007,11 @@
         "stop": "Stoppen",
         "tokens": "{count} Tokens",
         "stopDeclined": "Diese Aufgabe konnte nicht gestoppt werden – sie ist möglicherweise bereits beendet.",
-        "stopFailed": "Aufgabe konnte nicht gestoppt werden: {error}"
+        "stopFailed": "Aufgabe konnte nicht gestoppt werden: {error}",
+        "agentWorking": "{agent} arbeitet",
+        "scheduledWakeup": "Geplantes Aufwecken",
+        "scheduledWakeupAt": "Geplantes Aufwecken um {time}",
+        "scheduledTask": "Geplante Aufgabe"
       },
       "remoteControl": {
         "title": "Fernsteuerung aktiv",

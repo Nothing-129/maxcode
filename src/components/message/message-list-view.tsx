@@ -191,6 +191,9 @@ export type ThreadRenderItem =
       key: string
       kind: "turn"
       group: ResolvedMessageGroup
+      source?: "history" | "live"
+      // Single inline compaction identity, consumed before assistant merging.
+      compaction?: { meta: Record<string, unknown> | null; callId: string }
       phase: "persisted" | "optimistic" | "streaming"
       isResponseComplete: boolean
       showStats: boolean
@@ -224,6 +227,9 @@ export type ThreadRenderItem =
       // divider showed up wedged before that reply's file cards + footer). As a
       // dedicated kind it breaks the assistant-merge run and renders as a
       // chrome-less centered divider in the correct between-turns position.
+      // Only one a reply does not go on after: a compaction the agent ran
+      // mid-turn stays a turn and is merged into that reply as one of its steps
+      // (`hoistedCompaction`), as it is drawn live.
       key: string
       kind: "compaction"
       phase?: "persisted" | "optimistic" | "streaming"
@@ -598,6 +604,42 @@ export function compactionOnlyPart(group: ResolvedMessageGroup): {
     state: only.state,
     callId: only.toolCallId,
   }
+}
+
+/**
+ * The compaction the group at `index` is to be hoisted out as — a standalone
+ * divider between turns — or `null` to keep it a turn: not a compaction-only
+ * group, or one that falls inside a reply. That is when the next group with
+ * anything in it — past the empty placeholders the parsers leave between
+ * turns, which `mergeConsecutiveAssistantTurns` sees through too, and past
+ * other compactions — is the agent's, not a message.
+ *
+ * An agent that compacts its context by itself mid-turn (codex, claude) goes
+ * on with the same reply afterwards, and live the compaction is one of that
+ * reply's steps, inside its timeline. Its history copy is a turn of its own
+ * between the reply's two halves; hoisted out as a divider it cut the reply in
+ * two, each half with its own header and footer. Kept a turn, it is merged
+ * into the reply as live. A compaction the reply does not go on after — a
+ * `/compact` between replies, or one at the very end — stays the divider
+ * between them. Exported for tests.
+ */
+export function hoistedCompaction(
+  groups: readonly ResolvedMessageGroup[],
+  index: number
+): ReturnType<typeof compactionOnlyPart> {
+  const compaction = compactionOnlyPart(groups[index]!)
+  if (compaction === null) return null
+  for (let i = index + 1; i < groups.length; i++) {
+    const group = groups[i]!
+    const empty =
+      group.parts.length === 0 &&
+      group.resources.length === 0 &&
+      group.images.length === 0
+    if (empty) continue
+    if (group.role !== "assistant") break
+    if (compactionOnlyPart(group) === null) return null
+  }
+  return compaction
 }
 
 /**
@@ -1226,14 +1268,12 @@ export function MessageListView({
 
     // Map each adapted message directly to a render item (1:1).
     // Backend group_into_turns() already ensures each turn is a complete unit.
-    const rawItems: ThreadRenderItem[] = allAdapted.map((msg, i) => {
-      const phase = timelineTurns[i].phase
-      const role = msg.role === "tool" ? "assistant" : msg.role
+    const groups = allAdapted.map((msg) => {
       let group = groupCache.get(msg)
       if (!group) {
         group = {
           id: msg.id,
-          role,
+          role: msg.role === "tool" ? "assistant" : msg.role,
           parts: msg.content,
           resources: msg.userResources ?? [],
           images: msg.userImages ?? [],
@@ -1245,19 +1285,18 @@ export function MessageListView({
         }
         groupCache.set(msg, group)
       }
-      // Include phase so a turn that briefly coexists across phases (e.g.
-      // a streaming turn that has just been promoted to localTurns while the
-      // liveMessage is still attached) doesn't collide with itself in the
-      // virtualized list, and role because the timeline dedup deliberately
-      // keeps different-role turns that share an id. NO positional index:
-      // paging in older history prepends items, and an index-bearing key
-      // would shift every existing row's identity — remounting the whole
-      // list and dropping the virtualizer's measurement cache mid-scroll.
-      const key = `${phase}-${role}-${msg.id}`
-      // Hoist a compaction-only turn to its own standalone divider item so it
-      // renders BETWEEN turns instead of being merged into (and wedged inside)
-      // the preceding assistant reply by `mergeConsecutiveAssistantTurns`.
-      const compaction = compactionOnlyPart(group)
+      return group
+    })
+    const rawItems: ThreadRenderItem[] = groups.map((group, i) => {
+      const phase = timelineTurns[i].phase
+      // Keep MaxCode phase-qualified keys stable within each phase.
+      const key = `${phase}-${group.role}-${group.id}`
+      // Hoist a compaction-only turn that ends a run to its own standalone
+      // divider item so it renders BETWEEN turns instead of being merged into
+      // (and wedged inside) the preceding assistant reply by
+      // `mergeConsecutiveAssistantTurns`. One the reply goes on after stays a
+      // turn, to be merged into that reply as one of its steps.
+      const compaction = hoistedCompaction(groups, i)
       if (compaction !== null) {
         return {
           key,
@@ -1278,6 +1317,11 @@ export function MessageListView({
         kind: "turn" as const,
         group,
         phase,
+        source:
+          phase !== "persisted" || timelineTurns[i].key.startsWith("local-")
+            ? ("live" as const)
+            : ("history" as const),
+        compaction: compactionOnlyPart(group) ?? undefined,
         // Persisted does not always mean completed: a passive viewer reads
         // transcript blocks the agent is still writing. The store flags exactly
         // those DB records (`isInFlightRound`); reading the raw

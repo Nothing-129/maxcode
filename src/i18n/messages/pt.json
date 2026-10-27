@@ -4007,7 +4007,11 @@
         "stop": "Parar",
         "tokens": "{count} tokens",
         "stopDeclined": "Não foi possível parar essa tarefa — ela pode já ter terminado.",
-        "stopFailed": "Falha ao parar a tarefa: {error}"
+        "stopFailed": "Falha ao parar a tarefa: {error}",
+        "agentWorking": "{agent} está trabalhando",
+        "scheduledWakeup": "Ativação agendada",
+        "scheduledWakeupAt": "Ativação agendada para {time}",
+        "scheduledTask": "Tarefa agendada"
       },
       "remoteControl": {
         "title": "Controle remoto ativado",

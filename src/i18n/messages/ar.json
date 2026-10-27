@@ -4007,7 +4007,11 @@
         "stop": "إيقاف",
         "tokens": "{count} رمز",
         "stopDeclined": "تعذّر إيقاف هذه المهمة، ربما تكون قد انتهت بالفعل.",
-        "stopFailed": "فشل إيقاف المهمة: {error}"
+        "stopFailed": "فشل إيقاف المهمة: {error}",
+        "agentWorking": "\u2066{agent}\u2069 يعمل",
+        "scheduledWakeup": "تنبيه مجدول",
+        "scheduledWakeupAt": "تنبيه مجدول في \u2066{time}\u2069",
+        "scheduledTask": "مهمة مجدولة"
       },
       "remoteControl": {
         "title": "التحكم عن بُعد مُفعّل",

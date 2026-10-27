@@ -17,8 +17,8 @@ describe("MaxCode contract: reviewed built-in agent version catalog", () => {
     [
       "ClaudeCode",
       "Codex",
-      "0.94.0",
-      "@agentclientprotocol/claude-agent-acp@0.94.0",
+      "0.97.0",
+      "@agentclientprotocol/claude-agent-acp@0.97.0",
     ],
     ["Codex", "Gemini", "2.2.2", "@agentclientprotocol/codex-acp@2.2.2"],
     ["Pi", "Grok", "0.0.34", "pi-acp@0.0.34"],

@@ -3366,12 +3366,80 @@ pub(crate) fn extract_assistant_content(value: &serde_json::Value) -> Vec<Conten
                         meta: None,
                     });
                 }
+                "advisor_tool_result" => {
+                    if let Some(result) = advisor_tool_result(item) {
+                        // Its own record, like the call's: `relocate_orphaned_tool_results`
+                        // moves it next to the call.
+                        blocks.push(ContentBlock::ToolResult {
+                            tool_use_id: Some(result.tool_use_id),
+                            output_preview: result.text,
+                            is_error: result.is_error,
+                            agent_stats: None,
+                            images: Vec::new(),
+                        });
+                    }
+                }
                 _ => {}
             }
         }
     }
 
     blocks
+}
+
+/// The text claude-agent-acp shows for advice the API returned encrypted
+/// (`advisor_redacted_result`), copied from 0.97.0's `toAcpNotifications`.
+const ADVISOR_REDACTED_RESULT_TEXT: &str = "Advisor guidance applied server-side.";
+
+/// One `advisor_tool_result` block, read the way the live path reports it.
+pub(crate) struct AdvisorToolResult {
+    pub(crate) tool_use_id: String,
+    pub(crate) text: Option<String>,
+    pub(crate) is_error: bool,
+}
+
+/// The result of a call to Claude's `advisor` server tool (the `advisorModel`
+/// setting or `--advisor`), from an assistant record's `advisor_tool_result`
+/// block. `None` for a block that names no call.
+///
+/// A server tool runs inside the API request, so its result is not a user
+/// `tool_result`: the response carries the `server_tool_use` call and this
+/// block side by side, and Claude Code writes each as an assistant record of
+/// its own (same `message.id`). claude-agent-acp 0.97.0 (#1247) completes the
+/// live tool call from the block: the advice when the API sends it in plain
+/// text, a fixed line when it sends it encrypted, and `Advisor error: <code>`
+/// as a failure. This reads it the same way, so a reloaded session shows what
+/// the live one did. Before 0.97.0 the adapter dropped the block, failed the
+/// call ("Claude ended the turn without returning a result for this tool.")
+/// and the turn with it.
+///
+/// An unknown `content.type` yields no text and no failure: the call happened,
+/// and nothing here can say more.
+pub(crate) fn advisor_tool_result(item: &serde_json::Value) -> Option<AdvisorToolResult> {
+    let tool_use_id = item
+        .get("tool_use_id")
+        .and_then(|v| v.as_str())
+        .filter(|id| !id.is_empty())?
+        .to_string();
+    let content = item.get("content");
+    let field = |key: &str| content.and_then(|c| c.get(key)).and_then(|v| v.as_str());
+    let (text, is_error) = match field("type") {
+        Some("advisor_result") => (field("text").map(str::to_string), false),
+        Some("advisor_redacted_result") => (Some(ADVISOR_REDACTED_RESULT_TEXT.to_string()), false),
+        Some("advisor_tool_result_error") => (
+            Some(match field("error_code") {
+                Some(code) => format!("Advisor error: {code}"),
+                None => "Advisor error".to_string(),
+            }),
+            true,
+        ),
+        _ => (None, false),
+    };
+    Some(AdvisorToolResult {
+        tool_use_id,
+        text,
+        is_error,
+    })
 }
 
 /// `pub(crate)`: shared with `parsers::qoder` — qoder meters its subscription
@@ -3684,6 +3752,13 @@ fn parse_subagent_tool_calls(
                             .map(|v| truncate_str(&tool_input_json(&name, v), 500));
                         if !id.is_empty() {
                             calls.push((id, name, input));
+                        }
+                    } else if block_type == "advisor_tool_result" {
+                        if let Some(result) = advisor_tool_result(item) {
+                            results.insert(
+                                result.tool_use_id,
+                                (result.text.map(|s| truncate_str(&s, 500)), result.is_error),
+                            );
                         }
                     }
                 }
@@ -9170,3 +9245,7 @@ mod tests {
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/claude-fork-accounting.contract.rs"]
 mod maxcode_claude_fork_accounting_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/claude-097-advisor.contract.rs"]
+mod maxcode_claude_097_advisor_contract;

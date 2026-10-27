@@ -1416,13 +1416,15 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // reclaim parked questions before steering and on turn completion;
             // keep background Bash output and saved model aliases. 0.86.0
             // bundles Claude Code 2.1.287 and removes the session/new count burst.
+            // 0.97.0 (CLI 2.1.310): advisor results, autonomous turn tasks and
+            // the foreground fork fix; retain AIR and subagent capability policy.
             distribution: AgentDistribution::Npx {
                 // Reviewed through f88b372a2 (Claude CLI 2.1.303): retain
                 // cancelled-turn reports and interim background results;
                 // offer predicted prompts and preserve Remote Control sessions.
                 // Fork children exclude inherited usage and wait for real results.
-                version: "0.94.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.94.0",
+                version: "0.97.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.97.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -3222,8 +3224,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.94.0",
-            "@agentclientprotocol/claude-agent-acp@0.94.0",
+            "0.97.0",
+            "@agentclientprotocol/claude-agent-acp@0.97.0",
             Some("22.0.0"),
         );
         assert_npx_version(

@@ -16,10 +16,11 @@
  * Rendered as a centered, chrome-less divider (a horizontal rule flanking a
  * token-delta label) so it reads as a conversation boundary marker — "context
  * was compacted here" — not a real tool call. Recognition is by `_meta`, so it
- * works for the live stream and DB/snapshot reloads. In history the compaction
- * is hoisted to a dedicated standalone timeline item (see `message-list-view`'s
- * `"compaction"` render kind) so it sits BETWEEN turns rather than folding into
- * the preceding assistant reply.
+ * works for the live stream and DB/snapshot reloads. In history a compaction
+ * between replies is hoisted to a dedicated standalone timeline item (see
+ * `message-list-view`'s `"compaction"` render kind) so it sits BETWEEN turns
+ * rather than folding into the preceding assistant reply; one the agent ran
+ * mid-reply stays a step of that reply, on its rail, as it is drawn live.
  *
  * The ACP compaction lifecycle (claude-agent-acp 0.78.0+, codex-acp 1.13.0+)
  * can also carry the RETAINED SUMMARY — what the model kept of the dropped

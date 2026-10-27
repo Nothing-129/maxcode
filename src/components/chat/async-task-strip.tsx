@@ -14,6 +14,12 @@
  * authoritative answer, and it is the only surface that can offer a stop (Grok
  * has no stop request, so its rows never offer one).
  *
+ * One row is not a job: since claude-agent-acp 0.97.0 a turn Claude Code starts
+ * on its own after the prompt ended (to answer a finished background task, or
+ * at a scheduled wakeup) arrives as a `turn` task. codeg draws that turn from
+ * Claude Code's transcript file, which cannot say whether the turn is still
+ * running; this row can, and its stop interrupts the turn.
+ *
  * ABOVE the messages rather than docked under the composer: the strip is the
  * status of work happening NOW, and the composer end of the shell is where
  * transient things (a retry line, the last error) come and go while the user is
@@ -27,10 +33,11 @@
  * as the ids later corrections revise; see `lib/async-tasks.ts`.
  */
 
-import { useCallback, useState } from "react"
-import { useTranslations } from "next-intl"
+import { useCallback, useMemo, useState } from "react"
+import { useLocale, useTranslations } from "next-intl"
 import {
   Activity,
+  Bot,
   FileText,
   Loader2,
   PauseCircle,
@@ -44,7 +51,11 @@ import { Shimmer } from "@/components/ai-elements/shimmer"
 import { cn } from "@/lib/utils"
 import { useWorkspaceActions } from "@/contexts/workspace-context"
 import { formatTokenCount } from "@/lib/token-format"
-import { liveAsyncTasks } from "@/lib/async-tasks"
+import {
+  AUTONOMOUS_TURN_TASK_TYPE,
+  autonomousTurnCause,
+  liveAsyncTasks,
+} from "@/lib/async-tasks"
 import type { AsyncTaskRecord } from "@/lib/types"
 
 /** The adapter's friendly `taskType` vocabulary. An unmapped future type keeps
@@ -53,16 +64,21 @@ const TASK_ICONS: Record<string, typeof TerminalIcon> = {
   shell: TerminalIcon,
   workflow: Workflow,
   monitor: Activity,
+  [AUTONOMOUS_TURN_TASK_TYPE]: Bot,
 }
 
 export function AsyncTaskStrip({
   tasks,
   onStop,
+  agentName,
 }: {
   tasks: AsyncTaskRecord[]
   /** Resolves to the adapter's verdict: `false` means it declined to stop the
    *  task. Undefined disables every stop button (no live connection to ask). */
   onStop?: (taskId: string) => Promise<boolean>
+  /** The agent's display name, for the row of a turn it started on its own.
+   *  Without it that row keeps the adapter's own (English) name. */
+  agentName?: string
 }) {
   const live = liveAsyncTasks(tasks)
   if (live.length === 0) return null
@@ -70,7 +86,12 @@ export function AsyncTaskStrip({
   return (
     <div className="border-b border-border bg-muted/30">
       {live.map((task) => (
-        <AsyncTaskRow key={task.task_id} task={task} onStop={onStop} />
+        <AsyncTaskRow
+          key={task.task_id}
+          task={task}
+          onStop={onStop}
+          agentName={agentName}
+        />
       ))}
     </div>
   )
@@ -79,15 +100,45 @@ export function AsyncTaskStrip({
 function AsyncTaskRow({
   task,
   onStop,
+  agentName,
 }: {
   task: AsyncTaskRecord
   onStop?: (taskId: string) => Promise<boolean>
+  agentName?: string
 }) {
   const t = useTranslations("Folder.chat.asyncTasks")
+  const locale = useLocale()
   const { openFilePreview } = useWorkspaceActions()
   const [stopping, setStopping] = useState(false)
   const paused = task.state === "paused"
   const Icon = TASK_ICONS[task.task_type] ?? Activity
+  // A turn the agent runs with no prompt open (see AUTONOMOUS_TURN_TASK_TYPE):
+  // the row says who is working and why, in the user's language, and its stop
+  // interrupts that turn.
+  const isTurn = task.task_type === AUTONOMOUS_TURN_TASK_TYPE
+  const timeFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }),
+    [locale]
+  )
+  const turnCause = useMemo(() => {
+    if (!isTurn) return null
+    const cause = autonomousTurnCause(task.description)
+    switch (cause.kind) {
+      case "unknown":
+        return null
+      case "scheduledWakeup":
+        return cause.at
+          ? t("scheduledWakeupAt", { time: timeFormatter.format(cause.at) })
+          : t("scheduledWakeup")
+      case "scheduledTask":
+        return t("scheduledTask")
+      case "text":
+        return cause.text
+    }
+  }, [isTurn, task.description, t, timeFormatter])
+  const name =
+    isTurn && agentName ? t("agentWorking", { agent: agentName }) : task.name
 
   // Read it in a file tab, the same way a file named in the transcript opens
   // (`reply-artifacts`). NOT the OS opener: that path is validated against the
@@ -120,14 +171,19 @@ function AsyncTaskRow({
   // The meta line is the "is this making progress" evidence: where a
   // multi-step task is (a workflow's phase, then the agent it is running), the
   // tool it last ran, then its cost. All absent until the adapter reports them.
-  const meta = [
-    task.phase,
-    task.current_agent,
-    task.last_tool_name,
-    task.usage
-      ? t("tokens", { count: formatTokenCount(task.usage.total_tokens) })
-      : null,
-  ].filter(Boolean) as string[]
+  // A turn's is what started it.
+  const meta = (
+    isTurn
+      ? [turnCause]
+      : [
+          task.phase,
+          task.current_agent,
+          task.last_tool_name,
+          task.usage
+            ? t("tokens", { count: formatTokenCount(task.usage.total_tokens) })
+            : null,
+        ]
+  ).filter(Boolean) as string[]
 
   return (
     <div className="flex items-center gap-2 px-4 py-1.5 text-xs">
@@ -141,13 +197,13 @@ function AsyncTaskRow({
       )}
       <span
         className="min-w-0 truncate font-medium text-foreground"
-        title={task.description || task.name}
+        title={isTurn ? (turnCause ?? name) : task.description || task.name}
       >
         {paused ? (
-          task.name
+          name
         ) : (
           <Shimmer as="span" duration={1.4} shineColor="var(--primary)">
-            {task.name}
+            {name}
           </Shimmer>
         )}
       </span>

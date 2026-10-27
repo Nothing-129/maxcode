@@ -4007,7 +4007,11 @@
         "stop": "Arrêter",
         "tokens": "{count} jetons",
         "stopDeclined": "Impossible d'arrêter cette tâche : elle est peut-être déjà terminée.",
-        "stopFailed": "Échec de l'arrêt de la tâche : {error}"
+        "stopFailed": "Échec de l'arrêt de la tâche : {error}",
+        "agentWorking": "{agent} travaille",
+        "scheduledWakeup": "Réveil programmé",
+        "scheduledWakeupAt": "Réveil programmé à {time}",
+        "scheduledTask": "Tâche planifiée"
       },
       "remoteControl": {
         "title": "Contrôle à distance activé",

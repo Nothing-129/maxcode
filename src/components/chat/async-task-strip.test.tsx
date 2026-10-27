@@ -140,4 +140,78 @@ describe("AsyncTaskStrip", () => {
     )
     expect(screen.getByText("Verify")).toBeInTheDocument()
   })
+
+  describe("a turn the agent started on its own", () => {
+    // claude-agent-acp 0.97.0's announcement, as recorded: no tool call, the
+    // summary of the task notification that woke Claude Code as description.
+    const turn = (overrides: Partial<AsyncTaskRecord> = {}) =>
+      task({
+        task_id: "autonomous-turn-1",
+        name: "Claude is working",
+        task_type: "turn",
+        description: 'Background command "pnpm build" completed (exit code 0)',
+        show_in_transcript: false,
+        ...overrides,
+      })
+
+    it("names the agent in the user's language and says what woke it", () => {
+      renderStrip(
+        <AsyncTaskStrip
+          tasks={[turn()]}
+          onStop={vi.fn()}
+          agentName="Claude Code"
+        />
+      )
+      expect(screen.getByText("Claude Code is working")).toBeInTheDocument()
+      expect(screen.queryByText("Claude is working")).not.toBeInTheDocument()
+      expect(
+        screen.getByText(
+          'Background command "pnpm build" completed (exit code 0)'
+        )
+      ).toBeInTheDocument()
+    })
+
+    it("stops the turn through the same request", async () => {
+      const onStop = vi.fn().mockResolvedValue(true)
+      renderStrip(
+        <AsyncTaskStrip
+          tasks={[turn()]}
+          onStop={onStop}
+          agentName="Claude Code"
+        />
+      )
+      await userEvent.click(screen.getByRole("button", { name: t.stop }))
+      expect(onStop).toHaveBeenCalledWith("autonomous-turn-1")
+    })
+
+    it("keeps the adapter's name without an agent name", () => {
+      renderStrip(<AsyncTaskStrip tasks={[turn()]} />)
+      expect(screen.getByText("Claude is working")).toBeInTheDocument()
+    })
+
+    it("says nothing for a turn the adapter could not explain", () => {
+      const { container } = renderStrip(
+        <AsyncTaskStrip
+          tasks={[
+            turn({
+              description: "Claude Code started a turn without a prompt.",
+            }),
+          ]}
+          agentName="Claude Code"
+        />
+      )
+      expect(container).not.toHaveTextContent("without a prompt")
+      expect(screen.getByText("Claude Code is working")).toBeInTheDocument()
+    })
+
+    it("words a scheduled wakeup itself", () => {
+      renderStrip(
+        <AsyncTaskStrip
+          tasks={[turn({ description: "A scheduled task fired." })]}
+          agentName="Claude Code"
+        />
+      )
+      expect(screen.getByText(t.scheduledTask)).toBeInTheDocument()
+    })
+  })
 })

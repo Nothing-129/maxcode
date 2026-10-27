@@ -1,5 +1,11 @@
 # MaxCode 下游功能清单
 
+2026-10-27 选择性吸收 `b36508601`、`0db3d7218`、`6f05d30ed`、`2acd5d1a4`：
+修复中文和重命名 Git 文件的统计与 Diff；回答中途压缩保留单条回复、摘要及跨来源一对一去重；
+Claude ACP 升到 0.97.0，恢复 advisor 历史结果，保留前台 fork 保护、七智能体目录、
+隐藏后台任务条和现有 AIR 能力边界。独立契约：`upstream-fixes-20261027.contract.test.ts`、
+`git-real-filenames.contract.rs`、`claude-097-advisor.contract.rs`。
+
 2026-10-26 输入框加号菜单：选择命令或快捷消息后关闭菜单，将焦点恢复到插入后的光标位置，可立即继续输入；支持鼠标、键盘选择及搜索回车，取消菜单仍回到加号按钮。契约：`composer-add-menu-focus.contract.test.tsx`；热点：`chat.composer-add-menu-focus`。
 
 2026-10-26 发布检查：Codex 2.2.2 私有适配补丁在匹配前统一 CRLF/LF 换行，兼容 Windows 检出及包文件；保留全部锚点唯一性检查，未知或已转换适配器仍不声明原生插话能力。契约：`codex-native-steering.contract.rs`。
