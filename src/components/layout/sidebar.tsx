@@ -51,11 +51,8 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
-import { useIsMac } from "@/hooks/use-is-mac"
 import { usePlatform } from "@/hooks/use-platform"
 import { useZoomLevel } from "@/hooks/use-appearance"
-import { useShortcutSettings } from "@/hooks/use-shortcut-settings"
-import { formatShortcutLabel } from "@/lib/keyboard-shortcuts"
 import { isNativeDesktop } from "@/lib/platform"
 import { leftChromeReserve } from "@/lib/window-chrome"
 import {
@@ -85,15 +82,6 @@ import {
 } from "@/lib/sidebar-view-mode-storage"
 import { cn } from "@/lib/utils"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
-
-// Reveal the shortcut below the button without taking space from its label.
-const SHORTCUT_BADGE_CLASS = cn(
-  "pointer-events-none absolute left-1/2 top-full z-10 mt-1 -translate-x-1/2 inline-flex h-[0.9375rem] items-center justify-center",
-  "rounded-[0.3125rem] bg-primary/10 px-[0.25rem]",
-  "font-mono text-[0.625rem] font-medium leading-none text-primary",
-  "opacity-0 transition-opacity duration-150",
-  "group-hover:opacity-100 group-focus-visible:opacity-100"
-)
 
 /** Compact action button shared by the fixed sidebar navigation. */
 function SidebarNavButton({
@@ -145,10 +133,8 @@ export function Sidebar({
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
-  const isMac = useIsMac()
   const { isMac: platformIsMac } = usePlatform()
   const { zoomLevel } = useZoomLevel()
-  const { shortcuts } = useShortcutSettings()
   const isMobile = useIsMobile()
   // Touch devices must also collapse the sidebar after navigating AWAY from it
   // when they land in the desktop shell — a phone in landscape, a foldable, or
@@ -193,10 +179,6 @@ export function Sidebar({
     DEFAULT_SECTION_ORDER
   )
   const [allExpanded, setAllExpanded] = useState(true)
-  const newConversationShortcutLabel = formatShortcutLabel(
-    shortcuts.new_conversation,
-    isMac
-  )
   const toggleExpandLabel = allExpanded
     ? t("collapseAllGroups")
     : t("expandAllGroups")
@@ -530,13 +512,6 @@ export function Sidebar({
             icon="compose"
             label={t("newChat")}
             onClick={handleNewConversation}
-            trailing={
-              newConversationShortcutLabel ? (
-                <kbd className={SHORTCUT_BADGE_CLASS}>
-                  {newConversationShortcutLabel}
-                </kbd>
-              ) : null
-            }
           />
           {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
           {/* Route navigation respects the saved visibility preference and closes the

@@ -3,6 +3,7 @@
 import type { DynamicToolUIPart, ToolUIPart } from "ai"
 import type { ComponentProps, ReactNode } from "react"
 
+import { StatusText } from "@/components/shared/status-text"
 import { Badge } from "@/components/ui/badge"
 import {
   ActivityStatusIcon,
@@ -64,7 +65,7 @@ const activityStates: Record<ToolPart["state"], ActivityStatus> = {
 export const getStatusBadge = (status: ToolPart["state"], label: string) => (
   <Badge className="gap-1.5 rounded-full text-xs" variant="secondary">
     <ActivityStatusIcon status={activityStates[status]} className="size-4" />
-    {label}
+    <StatusText value={status}>{label}</StatusText>
   </Badge>
 )
 

@@ -1592,3 +1592,18 @@ mod tests {
         assert!(!text.contains("codex"));
     }
 }
+
+#[derive(Deserialize)]
+pub struct CodexQuotaParams {
+    #[serde(default)]
+    pub force: bool,
+}
+
+pub async fn codex_subscription_quota(
+    Extension(state): Extension<Arc<AppState>>,
+    Json(params): Json<CodexQuotaParams>,
+) -> Result<Json<crate::commands::codex_quota::CodexQuota>, AppCommandError> {
+    crate::commands::codex_quota::read_core(&state.db, params.force)
+        .await
+        .map(Json)
+}

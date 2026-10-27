@@ -34,6 +34,7 @@ import {
 import { FolderAliasLabel } from "@/components/conversations/folder-alias-label"
 import { FolderOptionItem } from "@/components/shared/folder-select"
 import { BranchDropdown } from "@/components/layout/branch-dropdown"
+import { AttachmentTray } from "./composer/attachment-tray"
 
 interface ConversationContextBarProps {
   extraContent?: React.ReactNode
@@ -80,21 +81,25 @@ export const ConversationContextBar = memo(function ConversationContextBar({
     return () => inner.removeEventListener("wheel", handler)
   }, [hasExtraContent])
 
-  if (!hasExtraContent) return null
-
   return (
-    <div className="flex shrink-0 items-center gap-1.5 px-2 pt-2 text-xs text-muted-foreground">
+    <AttachmentTray
+      present={hasExtraContent}
+      className="flex items-center gap-1.5 px-2 pt-2 text-xs text-muted-foreground"
+    >
       <ScrollArea
         x="scroll"
         y="hidden"
         className="min-w-0 flex-1"
         ref={scrollRef}
       >
-        <div ref={innerRef} className="flex w-max items-center gap-1.5">
+        <div
+          ref={innerRef}
+          className="relative flex w-max items-center gap-1.5"
+        >
           {extraContent}
         </div>
       </ScrollArea>
-    </div>
+    </AttachmentTray>
   )
 })
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
+import { GenerationActionIcon } from "./composer/generation-action-icon"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   ArrowUp,
@@ -16,7 +17,6 @@ import {
   Copy,
   MessageSquareText,
   Scissors,
-  Square,
   TextSelect,
   X,
   Zap,
@@ -74,7 +74,6 @@ import {
   type AppendTextToSessionDetail,
 } from "@/lib/session-attachment-events"
 import {
-  ConversationContextBar,
   ConversationFolderBranchPicker,
   useConversationFolderBranchPickerVisible,
   type ConversationFolderPickerOverride,
@@ -157,6 +156,7 @@ import type { Editor, JSONContent } from "@tiptap/core"
 import { useReferenceSearch } from "@/components/chat/composer/use-reference-search"
 import { useComposerMentionLabels } from "@/components/chat/composer/use-composer-mention-labels"
 import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
+import { AttachmentTray } from "@/components/chat/composer/attachment-tray"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
 import { useComposerAttachments } from "@/components/chat/composer/use-composer-attachments"
 import { useComposerShortcuts } from "@/components/chat/composer/use-composer-shortcuts"
@@ -232,11 +232,6 @@ interface MessageInputProps {
   folderPickerOverride?: ConversationFolderPickerOverride
   draftStorageKey?: string | null
   isActive?: boolean
-  /** Paint the flowing active-session gradient on the composer border. Set only
-   *  for the active tab while tiled across multiple sessions; a lone or
-   *  non-tiled session keeps the plain default border. Independent of
-   *  `isActive` (which still drives auto-focus/connect). */
-  showActiveFlow?: boolean
   onEnqueue?: (draft: PromptDraft, modeId: string | null) => void
   /** Id of the queue item being edited — the stable key for (re)hydration, so
    *  switching between two items with identical display text still reloads. */
@@ -409,7 +404,6 @@ export function MessageInput({
   folderPickerOverride,
   draftStorageKey,
   isActive = false,
-  showActiveFlow = false,
   onEnqueue,
   editingItemId,
   editingDraftText,
@@ -1985,6 +1979,9 @@ export function MessageInput({
     t,
   ])
 
+  const sendDisabled =
+    (disabled && !(queueWhileUnavailable && onEnqueue)) || !hasSendableContent
+
   const actionButtons = isEditingQueueItem ? (
     <div className="flex items-center gap-1">
       <Button
@@ -2014,11 +2011,12 @@ export function MessageInput({
           onClick={onCancel}
           variant="default"
           size="icon"
-          className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
+          data-generation-running="true"
+          className="maxcode-generation-button h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
           title={t("cancel")}
           aria-label={t("cancel")}
         >
-          <Square className="size-3.5 fill-current" strokeWidth={0} />
+          <GenerationActionIcon running />
         </Button>
         <div className="flex items-center gap-0.5">
           <Button
@@ -2069,26 +2067,25 @@ export function MessageInput({
         onClick={onCancel}
         variant="default"
         size="icon"
-        className="h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
+        data-generation-running="true"
+        className="maxcode-generation-button h-8 w-8 rounded-full bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
         title={t("cancel")}
         aria-label={t("cancel")}
       >
-        <Square className="size-3.5 fill-current" strokeWidth={0} />
+        <GenerationActionIcon running />
       </Button>
     )
   ) : (
     // MaxCode 发送钮：32px 正圆、白色上箭头；可用时使用统一操作蓝色 #216AE4。
     <Button
       onClick={handleSend}
-      disabled={
-        (disabled && !(queueWhileUnavailable && onEnqueue)) ||
-        !hasSendableContent
-      }
+      disabled={sendDisabled}
       size="icon"
-      className="h-8 w-8 rounded-full enabled:bg-[#216ae4] enabled:text-white enabled:hover:bg-[#216ae4]/90 disabled:opacity-100 disabled:bg-secondary disabled:text-muted-foreground"
+      data-generation-running="false"
+      className="maxcode-generation-button h-8 w-8 rounded-full enabled:bg-[#216ae4] enabled:text-white enabled:hover:bg-[#216ae4]/90 disabled:opacity-100 disabled:bg-muted disabled:text-muted-foreground"
       title={t(disabled && queueWhileUnavailable ? "queueMessage" : "send")}
     >
-      <ArrowUp className="size-4" strokeWidth={2.5} />
+      <GenerationActionIcon running={false} ready={!sendDisabled} />
     </Button>
   )
 
@@ -2200,33 +2197,27 @@ export function MessageInput({
                 // rest of the canvas (no frosted treatment) — the border stays.
                 COMPOSER_CHROME_SURFACE_CLASS,
                 boxMinHeight,
-                // Active session, tiled across multiple sessions: a gradient
-                // flows around the border to mark which tile is active — but
-                // ONLY while the composer itself is not focused. Focusing it
-                // hides the flow (globals.css) so the always-on selected
-                // chrome above takes over. A lone/non-tiled session
-                // (showActiveFlow=false) and inactive tiles keep the plain
-                // selected chrome.
-                showActiveFlow && "codeg-composer-flow",
                 showDragActive && "ring-1 ring-primary/40",
                 className
               )}
             >
-              <ConversationContextBar
-                hasExtraContent={hasImageAttachments}
-                scrollEndTrigger={attachments.length}
-                extraContent={
-                  <ComposerImageThumbnails
-                    attachments={imageAttachments}
-                    onRemove={attach.removeAttachment}
-                    onMarkup={attach.replaceImageAttachment}
-                  />
-                }
-              />
               <RichComposer
+                attachmentContent={
+                  <AttachmentTray
+                    present={hasImageAttachments}
+                    className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-1"
+                  >
+                    <ComposerImageThumbnails
+                      attachments={imageAttachments}
+                      onRemove={attach.removeAttachment}
+                      onMarkup={attach.replaceImageAttachment}
+                    />
+                  </AttachmentTray>
+                }
                 ref={editorRef}
                 placeholder={shownPlaceholder}
                 ariaLabel={resolvedPlaceholder}
+                removeFileLabel={(name) => t("removeAttachmentAria", { name })}
                 promptSuggestion={offeredSuggestion}
                 autoFocus={autoFocus}
                 referenceSearch={referenceSearch}
@@ -2344,7 +2335,9 @@ export function MessageInput({
                     </div>
                   )}
                 </div>
-                <div className="shrink-0">{actionButtons}</div>
+                <div className="maxcode-composer-actions shrink-0">
+                  {actionButtons}
+                </div>
               </div>
               {showDragActive && (
                 <div className="pointer-events-none absolute inset-1 z-20 flex items-center justify-center rounded-md border border-dashed border-primary/50 bg-background/80 text-xs text-muted-foreground">

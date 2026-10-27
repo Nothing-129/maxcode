@@ -1,10 +1,12 @@
 "use client"
 
+import { useSidebarDisclosureMotion } from "@/hooks/use-sidebar-disclosure-motion"
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
 
 import {
   memo,
   useCallback,
+  useId,
   useEffect,
   useImperativeHandle,
   useLayoutEffect,
@@ -17,7 +19,11 @@ import { useTranslations } from "next-intl"
 import { FolderRunningIndicator } from "./folder-running-indicator"
 import { useTheme } from "next-themes"
 import { toast } from "sonner"
-import { Virtualizer, type VirtualizerHandle } from "virtua"
+import {
+  Virtualizer,
+  type CustomItemComponentProps,
+  type VirtualizerHandle,
+} from "virtua"
 import {
   Bot,
   Check,
@@ -208,6 +214,16 @@ import { toErrorMessage } from "@/lib/app-error"
 
 // Layout effect on the client (so the sticky overlay is positioned before
 // paint) but a no-op-safe passive effect during the static-export prerender.
+// Keep Virtua's positioning and measurement ref; only lift the selected row's
+// stacking context so its traveling background can cross opaque sibling rows.
+function SidebarVirtualRow({ style, children, ref }: CustomItemComponentProps) {
+  return (
+    <div ref={ref} style={style} className="maxcode-sidebar-virtual-row">
+      {children}
+    </div>
+  )
+}
+
 const useIsomorphicLayoutEffect =
   typeof window !== "undefined" ? useLayoutEffect : useEffect
 
@@ -603,7 +619,7 @@ const FolderHeader = memo(function FolderHeader({
                   <ChevronRight
                     aria-hidden
                     className={cn(
-                      "h-3 w-3 shrink-0 text-muted-foreground/60",
+                      "maxcode-disclosure-chevron h-3 w-3 shrink-0 text-muted-foreground/60",
                       "transition-[transform,opacity] duration-200 ease-out",
                       "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
                       "[@media(hover:none)]:opacity-100",
@@ -1000,6 +1016,7 @@ export function SidebarConversationList({
 }: SidebarConversationListProps & {
   ref?: Ref<SidebarConversationListHandle>
 }) {
+  const selectionMotionId = useId()
   const t = useTranslations("Folder.sidebar")
   const tCommon = useTranslations("Folder.common")
   const tFolderDropdown = useTranslations("Folder.folderNameDropdown")
@@ -1132,6 +1149,8 @@ export function SidebarConversationList({
 
   const { sortedTypes: availableAgents, fresh: availableAgentsFresh } =
     useSortedAvailableAgents()
+  const listSurfaceRef = useRef<HTMLDivElement>(null)
+  const prepareDisclosure = useSidebarDisclosureMotion(listSurfaceRef)
   const [folderExpanded, setFolderExpanded] = useState<Record<number, boolean>>(
     {}
   )
@@ -1165,13 +1184,17 @@ export function SidebarConversationList({
   const [todoGroupExpanded, setTodoGroupExpanded] = useState<
     Record<string, boolean>
   >({})
-  const toggleTodoGroup = useCallback((id: string) => {
-    setTodoGroupExpanded((previous) => {
-      const next = { ...previous, [id]: !(previous[id] ?? true) }
-      saveTodoGroupExpanded(next)
-      return next
-    })
-  }, [])
+  const toggleTodoGroup = useCallback(
+    (id: string) => {
+      prepareDisclosure()
+      setTodoGroupExpanded((previous) => {
+        const next = { ...previous, [id]: !(previous[id] ?? true) }
+        saveTodoGroupExpanded(next)
+        return next
+      })
+    },
+    [prepareDisclosure]
+  )
   // Session-only, like folder paging: collapsing/reopening Chat starts from a
   // compact first page instead of preserving a long, previously-expanded list.
   const [chatLimit, setChatLimit] = useState(CHAT_PAGE_SIZE)
@@ -1295,7 +1318,6 @@ export function SidebarConversationList({
   // window pointer listeners so the public callbacks stay referentially stable
   // (the `FolderHeader` memo depends on a stable `onGripPointerDown`).
   const dragSurfaceRef = useRef<HTMLDivElement>(null)
-  const listSurfaceRef = useRef<HTMLDivElement>(null)
   const dragPointerRef = useRef<{
     entry: SidebarEntry
     pointerId: number
@@ -1336,6 +1358,7 @@ export function SidebarConversationList({
 
   const toggleSection = useCallback(
     (section: SidebarSectionKey) => {
+      prepareDisclosure()
       if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
       if (section === "recent") setRecentLimit(RECENT_PAGE_SIZE)
       if (section === "folders" && foldersExpanded) {
@@ -1356,44 +1379,58 @@ export function SidebarConversationList({
         return next
       })
     },
-    [foldersExpanded]
+    [foldersExpanded, prepareDisclosure]
   )
 
-  const toggleFolderGroup = useCallback((groupId: number) => {
-    setFolderGroupExpanded((prev) => {
-      // Absent key = expanded, so the first click has to write `false`.
-      const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
-      saveFolderGroupExpanded(next)
-      return next
-    })
-  }, [])
+  const toggleFolderGroup = useCallback(
+    (groupId: number) => {
+      prepareDisclosure()
+      setFolderGroupExpanded((prev) => {
+        // Absent key = expanded, so the first click has to write `false`.
+        const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
+        saveFolderGroupExpanded(next)
+        return next
+      })
+    },
+    [prepareDisclosure]
+  )
 
   /** Drive every folder group at once, for expand/collapse-all. Reads the group
    *  list imperatively so the callback stays stable across group changes. */
-  const setAllGroupsCollapsed = useCallback((collapsed: boolean) => {
-    setFolderGroupExpanded(() => {
-      const next: Record<number, boolean> = {}
-      for (const group of useAppWorkspaceStore.getState().folderGroups) {
-        next[group.id] = !collapsed
-      }
-      saveFolderGroupExpanded(next)
-      return next
-    })
-  }, [])
+  const setAllGroupsCollapsed = useCallback(
+    (collapsed: boolean) => {
+      prepareDisclosure()
+      setFolderGroupExpanded(() => {
+        const next: Record<number, boolean> = {}
+        for (const group of useAppWorkspaceStore.getState().folderGroups) {
+          next[group.id] = !collapsed
+        }
+        saveFolderGroupExpanded(next)
+        return next
+      })
+    },
+    [prepareDisclosure]
+  )
 
   /** Drive every top-level section header at once, for expand/collapse-all.
    *  Bails out (same object → no re-render, no write) when they already all
    *  agree, so the header button is idempotent. */
-  const setAllSectionsCollapsed = useCallback((collapsed: boolean) => {
-    setSectionCollapsed((prev) => {
-      if (SIDEBAR_SECTION_KEYS.every((key) => Boolean(prev[key]) === collapsed))
-        return prev
-      const next: SidebarSectionCollapsed = { ...prev }
-      for (const key of SIDEBAR_SECTION_KEYS) next[key] = collapsed
-      saveSectionCollapsed(next)
-      return next
-    })
-  }, [])
+  const setAllSectionsCollapsed = useCallback(
+    (collapsed: boolean) => {
+      prepareDisclosure()
+      setSectionCollapsed((prev) => {
+        if (
+          SIDEBAR_SECTION_KEYS.every((key) => Boolean(prev[key]) === collapsed)
+        )
+          return prev
+        const next: SidebarSectionCollapsed = { ...prev }
+        for (const key of SIDEBAR_SECTION_KEYS) next[key] = collapsed
+        saveSectionCollapsed(next)
+        return next
+      })
+    },
+    [prepareDisclosure]
+  )
 
   const handleChangeFolderColor = useCallback(
     async (folderId: number, color: FolderThemeColor) => {
@@ -2161,78 +2198,86 @@ export function SidebarConversationList({
     chatLimit,
   ])
 
-  const toggleFolder = useCallback((folderId: number) => {
-    const currentlyExpanded = folderExpandedRef.current[folderId] ?? true
-    const nextExpanded = !currentlyExpanded
-    // Update the intent ref before scheduling React state so two clicks that
-    // arrive before the next render still toggle from the result of the first
-    // click instead of both reading the same committed snapshot.
-    folderExpandedRef.current = {
-      ...folderExpandedRef.current,
-      [folderId]: nextExpanded,
-    }
-    if (currentlyExpanded) {
-      // Collapse can shrink the list under the current scroll offset: virtua
-      // then reports "scrolled past this header", the sticky overlay stays
-      // up, and the in-list copy is `inert` — the folder looks stuck, clicks
-      // do nothing. Pin the header to the top whenever we fold while scrolled
-      // through it. CRITICAL: scroll FIRST, shrink SECOND. Scrolling the
-      // already-shrunken list (single-rAF after the state flip, in either
-      // virtua-`scrollToIndex` or direct `scrollTop` form) desynced virtua's
-      // layout from the viewport: an invisible stale wrapper then swallowed
-      // clicks anywhere in the list until the next real scroll — the "expand
-      // needs two clicks" bug. Scrolling the still-UNCHANGED list keeps the
-      // scroll event coherent with the row model; the header's flat index
-      // (and therefore its target offset) is identical before and after the
-      // collapse, so the pre-collapse pin lands exactly where the post-
-      // collapse one meant to. scrollToIndex on unchanged content is the
-      // same path scrollToActive uses safely.
-      const handle = virtualizerRef.current
-      const idx = headerIndexForFolder(rowsRef.current, folderId)
-      if (
-        handle &&
-        idx >= 0 &&
-        handle.scrollOffset > handle.getItemOffset(idx)
-      ) {
-        handle.scrollToIndex(idx, { align: "start", smooth: false })
+  const toggleFolder = useCallback(
+    (folderId: number) => {
+      prepareDisclosure()
+      const currentlyExpanded = folderExpandedRef.current[folderId] ?? true
+      const nextExpanded = !currentlyExpanded
+      // Update the intent ref before scheduling React state so two clicks that
+      // arrive before the next render still toggle from the result of the first
+      // click instead of both reading the same committed snapshot.
+      folderExpandedRef.current = {
+        ...folderExpandedRef.current,
+        [folderId]: nextExpanded,
       }
-      // "Show more" is a reading gesture for this open: collapse drops the
-      // extra pages so the next expand starts at the first 10 again.
-      setFolderLimitById((prev) => {
-        if (prev[folderId] == null) return prev
-        const next = { ...prev }
-        delete next[folderId]
+      if (currentlyExpanded) {
+        // Collapse can shrink the list under the current scroll offset: virtua
+        // then reports "scrolled past this header", the sticky overlay stays
+        // up, and the in-list copy is `inert` — the folder looks stuck, clicks
+        // do nothing. Pin the header to the top whenever we fold while scrolled
+        // through it. CRITICAL: scroll FIRST, shrink SECOND. Scrolling the
+        // already-shrunken list (single-rAF after the state flip, in either
+        // virtua-`scrollToIndex` or direct `scrollTop` form) desynced virtua's
+        // layout from the viewport: an invisible stale wrapper then swallowed
+        // clicks anywhere in the list until the next real scroll — the "expand
+        // needs two clicks" bug. Scrolling the still-UNCHANGED list keeps the
+        // scroll event coherent with the row model; the header's flat index
+        // (and therefore its target offset) is identical before and after the
+        // collapse, so the pre-collapse pin lands exactly where the post-
+        // collapse one meant to. scrollToIndex on unchanged content is the
+        // same path scrollToActive uses safely.
+        const handle = virtualizerRef.current
+        const idx = headerIndexForFolder(rowsRef.current, folderId)
+        if (
+          handle &&
+          idx >= 0 &&
+          handle.scrollOffset > handle.getItemOffset(idx)
+        ) {
+          handle.scrollToIndex(idx, { align: "start", smooth: false })
+        }
+        // "Show more" is a reading gesture for this open: collapse drops the
+        // extra pages so the next expand starts at the first 10 again.
+        setFolderLimitById((prev) => {
+          if (prev[folderId] == null) return prev
+          const next = { ...prev }
+          delete next[folderId]
+          return next
+        })
+      }
+      setFolderExpanded((prev) => {
+        const next = { ...prev, [folderId]: nextExpanded }
+        saveFolderExpanded(next)
         return next
       })
-    }
-    setFolderExpanded((prev) => {
-      const next = { ...prev, [folderId]: nextExpanded }
-      saveFolderExpanded(next)
-      return next
-    })
-  }, [])
+    },
+    [prepareDisclosure]
+  )
 
   // Toggle a container repo's "root" sub-group (its own sessions). Session-only,
   // so unlike `toggleFolder` there is no persistence write.
-  const toggleRootGroup = useCallback((repoId: number) => {
-    setRootGroupCollapsed((prev) => {
-      const next = new Set(prev)
-      if (next.has(repoId)) {
-        next.delete(repoId)
+  const toggleRootGroup = useCallback(
+    (repoId: number) => {
+      prepareDisclosure()
+      setRootGroupCollapsed((prev) => {
+        const next = new Set(prev)
+        if (next.has(repoId)) {
+          next.delete(repoId)
+          return next
+        }
+        next.add(repoId)
+        // Same reset as a folder collapse: the root sub-group shares the repo
+        // folder id, so reopening it should start at the first page again.
+        setFolderLimitById((limits) => {
+          if (limits[repoId] == null) return limits
+          const cleared = { ...limits }
+          delete cleared[repoId]
+          return cleared
+        })
         return next
-      }
-      next.add(repoId)
-      // Same reset as a folder collapse: the root sub-group shares the repo
-      // folder id, so reopening it should start at the first page again.
-      setFolderLimitById((limits) => {
-        if (limits[repoId] == null) return limits
-        const cleared = { ...limits }
-        delete cleared[repoId]
-        return cleared
       })
-      return next
-    })
-  }, [])
+    },
+    [prepareDisclosure]
+  )
 
   // Lazily fetch a conversation's direct delegation children into the cache.
   // Deduped against both the cache and in-flight requests so a re-toggle or the
@@ -3093,26 +3138,6 @@ export function SidebarConversationList({
     normalizeFolderThemeColor(folderIndex.get(folderId)?.color)
   const darkMode = resolvedTheme === "dark"
 
-  // Folder-section sessions indent one step under the header (`depth >= 1`)
-  // but must not grow a spine from the folder icon. Skip that first rail
-  // unless this row is pinned / chat / Recent (flat) or a worktree / root
-  // sub-group (those keep the container connector).
-  const folderRailFrom = (
-    conv: DbConversationSummary | undefined,
-    recent?: true
-  ): number => {
-    if (!conv || recent) return 0
-    if (conv.kind === "chat" || conv.pinned_at != null) return 0
-    if (
-      showWorktrees &&
-      (childToParent.has(conv.folder_id) ||
-        containerRepoIds.has(conv.folder_id))
-    ) {
-      return 0
-    }
-    return 1
-  }
-
   // A per-row theme wrapper replaces the old per-folder-group wrapper: it scopes
   // the folder's accent color (and dark-mode flip) to that single virtual row.
   const themeWrap = (folderId: number, child: React.ReactNode) => {
@@ -3663,7 +3688,6 @@ export function SidebarConversationList({
       // (0.875rem + depth·CONV_RAIL_DEPTH_STEP) plus the button's extra 0.875rem.
       // Ancestor guide rails keep each parent's vertical line continuous through
       // this placeholder; the content is lifted (relative) above the z-0 rails.
-      const parent = conversations.find((c) => c.id === row.parentId)
       return (
         <div
           className="relative py-[0.375rem] text-[0.75rem] text-muted-foreground/70"
@@ -3673,10 +3697,7 @@ export function SidebarConversationList({
         >
           <SubsessionAncestorRails
             depth={row.depth}
-            from={folderRailFrom(
-              parent,
-              row.recent || row.todoId ? true : undefined
-            )}
+            from={row.depth - row.subsessionDepth}
           />
           <span className="relative flex items-center gap-1.5">
             <Loader2 className="h-3 w-3 shrink-0 animate-spin" aria-hidden />
@@ -3695,6 +3716,7 @@ export function SidebarConversationList({
     return (
       <SidebarConversationCard
         conversation={conv}
+        selectionId={`${selectionMotionId}:${row.todoId ?? (row.recent ? "recent" : conv.folder_id)}`}
         isSelected={
           selectedConversation?.agentType === conv.agent_type &&
           selectedConversation?.id === conv.id
@@ -3721,10 +3743,7 @@ export function SidebarConversationList({
             : undefined
         }
         depth={row.depth}
-        railFrom={folderRailFrom(
-          conv,
-          row.recent || row.todoId ? true : undefined
-        )}
+        railFrom={row.depth - (row.subsessionDepth ?? 0)}
         hasChildren={conv.child_count > 0}
         expanded={conversationExpanded.has(conv.id)}
         onToggleExpand={toggleConversation}
@@ -3854,7 +3873,10 @@ export function SidebarConversationList({
       ) : (
         <ContextMenu>
           <ContextMenuTrigger asChild>
-            <div ref={listSurfaceRef} className="flex-1 min-h-0 relative">
+            <div
+              ref={listSurfaceRef}
+              className="maxcode-list-ready flex-1 min-h-0 relative"
+            >
               <ScrollArea
                 onViewportRef={handleViewportRef}
                 className={cn(
@@ -3876,6 +3898,7 @@ export function SidebarConversationList({
                     >
                       <Virtualizer
                         ref={virtualizerRef}
+                        item={SidebarVirtualRow}
                         scrollRef={viewportRef}
                         data={rows}
                         itemSize={32}
@@ -3883,7 +3906,12 @@ export function SidebarConversationList({
                         onScroll={handleVirtuaScroll}
                       >
                         {(row: SidebarRow) => (
-                          <div key={rowKey(row)}>{renderRow(row)}</div>
+                          <div
+                            key={rowKey(row)}
+                            data-sidebar-disclosure-row={rowKey(row)}
+                          >
+                            {renderRow(row)}
+                          </div>
                         )}
                       </Virtualizer>
                     </div>

@@ -1,6 +1,8 @@
 "use client"
 
 import { memo, useCallback, useEffect, useMemo, useRef } from "react"
+import { SelectionIndicator } from "@/components/shared/selection-indicator"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { Reorder } from "motion/react"
 import type { PanInfo } from "motion/react"
 import { X } from "lucide-react"
@@ -40,6 +42,7 @@ export interface TabMoveTarget {
 interface TabItemProps {
   tab: TabItemData
   isActive: boolean
+  selectionId?: string
   isTileMode: boolean
   /** Browser-style shrink: fill/shrink to share the row width instead of a
    *  fixed intrinsic size (title-bar embedded strips). Off = mobile scroll row. */
@@ -95,6 +98,7 @@ interface TabItemProps {
 export const TabItem = memo(function TabItem({
   tab,
   isActive,
+  selectionId,
   isTileMode,
   embedded = false,
   adjacentActive,
@@ -122,6 +126,7 @@ export const TabItem = memo(function TabItem({
   onTouchSortingStart,
   onTouchSortingEnd,
 }: TabItemProps) {
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)")
   const t = useTranslations("Folder.tabs")
   const showStatus = useConversationStatusDisplay()
   const itemRef = useRef<HTMLDivElement>(null)
@@ -248,6 +253,10 @@ export const TabItem = memo(function TabItem({
       ref={itemRef}
       as="div"
       value={tab}
+      layout="position"
+      transition={{
+        layout: { duration: reducedMotion ? 0 : 0.2, ease: "easeOut" },
+      }}
       data-tab-id={tab.id}
       drag="x"
       dragControls={dragControls}
@@ -298,6 +307,7 @@ export const TabItem = memo(function TabItem({
             role="tab"
             aria-selected={isActive}
             onClick={handleClick}
+            data-motion-tab=""
             onDoubleClick={handleDoubleClick}
             onMouseDown={(event) => handleMiddleClickClose(event, handleClose)}
             className={cn(
@@ -338,6 +348,12 @@ export const TabItem = memo(function TabItem({
                   ]
             )}
           >
+            {isActive && selectionId && (
+              <SelectionIndicator
+                id={selectionId}
+                className="bottom-0 left-2 right-2 h-0.5 rounded-full bg-primary"
+              />
+            )}
             <span aria-hidden="true" className="relative inline-flex shrink-0">
               <AgentIcon agentType={tab.agentType} className="h-3.5 w-3.5" />
               {showStatus && tab.status ? (
@@ -357,6 +373,7 @@ export const TabItem = memo(function TabItem({
                 embedded
                   ? "min-w-0 flex-1 overflow-hidden whitespace-nowrap browser-tab-label"
                   : "truncate max-w-[8.75rem]",
+                isActive && "font-medium",
                 !tab.isPinned && "[font-style:oblique]"
               )}
               title={tooltip}

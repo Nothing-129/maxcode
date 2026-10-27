@@ -123,7 +123,7 @@ export function DelegationStatusRow({
         title={taskId ?? undefined}
       >
         {isRunning ? (
-          <Shimmer as="span" duration={1} shineColor="var(--primary)">
+          <Shimmer as="span" duration={1} shineColor="var(--foreground)">
             {label}
           </Shimmer>
         ) : (

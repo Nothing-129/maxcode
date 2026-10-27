@@ -228,7 +228,15 @@
 /* Geometry remains owned by the existing toggle-only panel transition.
    Keep contents during closing so the shrinking panel does not flash empty. */
 .maxcode-panel-content {
-  transition: opacity 160ms ease-out;
+  transition:
+    opacity 180ms ease-out,
+    transform 240ms var(--motion-ease);
+}
+.maxcode-panel-content[data-panel-edge="right"][data-panel-open="false"] {
+  transform: translateX(8px);
+}
+.maxcode-panel-content[data-panel-edge="bottom"][data-panel-open="false"] {
+  transform: translateY(8px);
 }
 .maxcode-panel-content[data-panel-open="false"] {
   opacity: 0;
@@ -243,6 +251,7 @@
   }
   .maxcode-panel-content {
     transition: none;
+    transform: none !important;
   }
 }
 

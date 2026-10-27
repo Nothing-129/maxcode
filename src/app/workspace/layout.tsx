@@ -1089,6 +1089,7 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
                 <div
                   className="h-full min-h-0 overflow-hidden maxcode-panel-content"
                   data-panel-open={terminalOpen}
+                  data-panel-edge="bottom"
                   inert={!terminalOpen}
                   aria-hidden={!terminalOpen}
                 >
@@ -1121,8 +1122,14 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
               paired `bg-background` is the off-state (image disabled): equivalent
               to the old opaque wrapper, so the 240ms collapse slide still never
               flashes white while AuxPanel `return null`s. */}
-          <div className="h-full min-h-0 overflow-hidden bg-background ws-transparent-bg">
-            <AuxPanel />
+          <div
+            className="h-full min-h-0 overflow-hidden bg-background ws-transparent-bg maxcode-panel-content"
+            data-panel-open={auxOpen}
+            data-panel-edge="right"
+            inert={!auxOpen}
+            aria-hidden={!auxOpen}
+          >
+            <AuxPanel keepVisible={auxAnimating} />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

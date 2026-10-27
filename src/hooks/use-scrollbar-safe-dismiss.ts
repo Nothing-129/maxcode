@@ -97,6 +97,8 @@ export function useScrollbarSafeDismiss<
     const { clientX, clientY } = event.detail.originalEvent
     const rect = content.getBoundingClientRect()
     const insideBox =
+      rect.right > rect.left &&
+      rect.bottom > rect.top &&
       clientX >= rect.left &&
       clientX <= rect.right &&
       clientY >= rect.top &&

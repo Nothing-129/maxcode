@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 import { resolve } from "node:path"
 import postcss from "postcss"
+import { NextIntlClientProvider } from "next-intl"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { describe, expect, it, vi } from "vitest"
 
@@ -64,7 +65,14 @@ const REPLY = [
 ].join("\n")
 
 function renderReply() {
-  return render(<MessageResponse>{REPLY}</MessageResponse>)
+  return render(
+    <NextIntlClientProvider
+      locale="en"
+      messages={{ MarkdownTable: { plainText: "Plain text" } }}
+    >
+      <MessageResponse>{REPLY}</MessageResponse>
+    </NextIntlClientProvider>
+  )
 }
 
 describe("MessageResponse code block chrome", () => {
@@ -195,20 +203,20 @@ describe("MessageResponse table chrome", () => {
       '[data-streamdown="table-fullscreen"]'
     )
     expect(fullscreen).toBeInstanceOf(HTMLElement)
-    const exit = screen.getByTitle("Exit fullscreen")
+    const exit = screen.getByRole("button", { name: "Close" })
     expect(fullscreen!.contains(exit)).toBe(true)
-    expect(exit.closest(TABLE_TOOLBAR)).toBeNull()
-    expect([...document.querySelectorAll(TABLE_TOOLBAR)]).toEqual([
-      inlineToolbar,
-    ])
+    expect(inlineToolbar!.contains(exit)).toBe(false)
+    expect(
+      fullscreen!.querySelector('[data-streamdown="table-wrapper"]')
+    ).toBeInstanceOf(HTMLElement)
 
     // Its card hugs the table instead of tracing the screen edge.
     const fullscreenTable = fullscreen!.querySelector(
       '[data-streamdown="table"]'
     )
-    expect([...document.querySelectorAll(FULLSCREEN_TABLE_CARD)]).toEqual([
-      fullscreenTable!.parentElement,
-    ])
+    expect(fullscreenTable!.parentElement?.parentElement).toBe(
+      fullscreen!.querySelector('[data-streamdown="table-wrapper"]')
+    )
     expect(declarations(FULLSCREEN_TABLE_CARD)).toMatchObject({
       flex: "0 1 auto",
       "min-height": "0",

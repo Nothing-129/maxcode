@@ -914,8 +914,18 @@ describe("buildRows", () => {
     })
     expect(rows.filter((r) => r.kind === "conversation")).toEqual([
       { kind: "conversation", conversation: parent, depth: 1 },
-      { kind: "conversation", conversation: childA, depth: 2 },
-      { kind: "conversation", conversation: childB, depth: 2 },
+      {
+        kind: "conversation",
+        conversation: childA,
+        depth: 2,
+        subsessionDepth: 1,
+      },
+      {
+        kind: "conversation",
+        conversation: childB,
+        depth: 2,
+        subsessionDepth: 1,
+      },
     ])
   })
 
@@ -959,6 +969,7 @@ describe("buildRows", () => {
       kind: "subsession-loading",
       parentId: 1,
       depth: 2,
+      subsessionDepth: 1,
     })
   })
 
@@ -1005,8 +1016,18 @@ describe("buildRows", () => {
     })
     expect(rows.filter((r) => r.kind === "conversation")).toEqual([
       { kind: "conversation", conversation: parent, depth: 1 },
-      { kind: "conversation", conversation: child, depth: 2 },
-      { kind: "conversation", conversation: grandchild, depth: 3 },
+      {
+        kind: "conversation",
+        conversation: child,
+        depth: 2,
+        subsessionDepth: 1,
+      },
+      {
+        kind: "conversation",
+        conversation: grandchild,
+        depth: 3,
+        subsessionDepth: 2,
+      },
     ])
   })
 
@@ -1052,6 +1073,7 @@ describe("buildRows", () => {
       kind: "subsession-loading",
       parentId: 1,
       depth: 2,
+      subsessionDepth: 1,
     })
   })
 })
@@ -1113,8 +1135,14 @@ describe("buildRows — Recent section", () => {
     expect(
       rows.filter((r) => r.kind === "conversation" && r.conversation.id === 2)
     ).toEqual([
-      { kind: "conversation", conversation: kid, depth: 2 },
-      { kind: "conversation", conversation: kid, depth: 1, recent: true },
+      { kind: "conversation", conversation: kid, depth: 2, subsessionDepth: 1 },
+      {
+        kind: "conversation",
+        conversation: kid,
+        depth: 1,
+        recent: true,
+        subsessionDepth: 1,
+      },
     ])
 
     const loadingRows = buildRows({
@@ -1127,8 +1155,14 @@ describe("buildRows — Recent section", () => {
       childrenLoading: new Set([1]),
     }).filter((r) => r.kind === "subsession-loading")
     expect(loadingRows).toEqual([
-      { kind: "subsession-loading", parentId: 1, depth: 2 },
-      { kind: "subsession-loading", parentId: 1, depth: 1, recent: true },
+      { kind: "subsession-loading", parentId: 1, depth: 2, subsessionDepth: 1 },
+      {
+        kind: "subsession-loading",
+        parentId: 1,
+        depth: 1,
+        recent: true,
+        subsessionDepth: 1,
+      },
     ])
   })
 

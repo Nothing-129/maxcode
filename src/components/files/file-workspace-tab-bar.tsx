@@ -1,6 +1,16 @@
 "use client"
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react"
+import { SelectionIndicator } from "@/components/shared/selection-indicator"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { Reorder } from "motion/react"
 import {
   FileText,
@@ -37,6 +47,7 @@ import {
 // standalone mobile variant is gone — mobile shows the FileWorkspaceHeader
 // (folder › file breadcrumb) instead and opens files from the file tree.
 export function FileWorkspaceTabBar() {
+  const selectionId = useId()
   const t = useTranslations("Folder.fileWorkspace")
   const { mode, filesMaximized } = useWorkspaceView()
   const { fileTabs, activeFileTabId } = useWorkspaceFileTabs()
@@ -151,6 +162,7 @@ export function FileWorkspaceTabBar() {
         <FileWorkspaceTabItem
           key={tab.id}
           tab={tab}
+          selectionId={selectionId}
           active={tab.id === activeFileTabId}
           adjacentActive={
             activeFileIndex < 0
@@ -232,6 +244,7 @@ export function FileWorkspaceTabBar() {
 interface FileWorkspaceTabItemProps {
   tab: FileWorkspaceTab
   active: boolean
+  selectionId?: string
   /** Whether this tab immediately precedes/follows the active tab — lets the
    *  neighbour inset its workspace-bg baseline so the active tab's transparent
    *  reverse-corner foot (which flares over it) leaves no stray line. */
@@ -259,6 +272,7 @@ interface FileWorkspaceTabItemProps {
 const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
   tab,
   active,
+  selectionId,
   adjacentActive,
   embedded,
   closeLabel,
@@ -304,12 +318,17 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
     onSwitch(tab.id)
   }, [onSwitch, tab.id])
 
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)")
   const whileDrag = useMemo(() => ({ scale: 1.03 }), [])
 
   return (
     <Reorder.Item
       as="div"
       value={tab}
+      layout="position"
+      transition={{
+        layout: { duration: reducedMotion ? 0 : 0.2, ease: "easeOut" },
+      }}
       data-file-tab-id={tab.id}
       drag="x"
       dragControls={dragControls}
@@ -390,6 +409,12 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
             )}
             title={tab.description ?? tab.title}
           >
+            {active && selectionId && (
+              <SelectionIndicator
+                id={selectionId}
+                className="bottom-0 left-2 right-2 h-0.5 rounded-full bg-foreground/50"
+              />
+            )}
             {isDiff ? (
               <GitCompare className="h-3.5 w-3.5" />
             ) : (

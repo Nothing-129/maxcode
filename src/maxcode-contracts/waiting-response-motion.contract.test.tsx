@@ -44,14 +44,16 @@ describe("MaxCode: waiting response text animation", () => {
     expect(screen.getByRole("status")).not.toHaveClass("maxcode-waiting-label")
   })
 
-  it("shows three decorative waiting dots and retains accessible status text", () => {
+  it("retains accessible pending text and the reusable decorative dots", () => {
     const list = source("src/components/message/message-list-view.tsx")
     const pending = list.slice(
       list.indexOf("const PendingTypingIndicator"),
       list.indexOf("const AutoScrollOnSend")
     )
-    expect(pending).toContain("<WaitingDots />")
-    expect(pending).toContain('className="sr-only"')
+    expect(pending).toContain(
+      '<TurnStatusLabel>{t("thinkingPending")}</TurnStatusLabel>'
+    )
+    expect(pending).toContain('{t("awaitingUser")}')
     const { container } = render(<WaitingDots />)
     expect(container.querySelectorAll(".maxcode-waiting-dot")).toHaveLength(3)
     expect(container.firstElementChild).toHaveAttribute("aria-hidden", "true")

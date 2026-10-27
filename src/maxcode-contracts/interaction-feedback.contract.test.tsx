@@ -99,7 +99,7 @@ describe("interaction feedback", () => {
     const waiting = screen.getByText("Waiting").parentElement!
     expect(waiting).not.toHaveAttribute("hidden")
     expect(waiting).toHaveClass("absolute")
-    expect(waiting.querySelectorAll(".maxcode-waiting-dot")).toHaveLength(3)
+    expect(waiting.querySelector(".maxcode-turn-status")).not.toBeNull()
     animations[1].onfinish?.()
     expect(waiting).toHaveAttribute("hidden")
     expect(ledger.has("round:waiting")).toBe(false)
@@ -136,7 +136,7 @@ describe("interaction feedback", () => {
     render(view(new Set(), "send"))
     expect(animate.mock.calls[0]).toEqual([
       [{ opacity: 0.2 }, { opacity: 1 }],
-      { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      { duration: 120, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
     ])
   })
   it("preserves panel mounts and ties success feedback to confirmed success", () => {

@@ -202,7 +202,7 @@ function AsyncTaskRow({
         {paused ? (
           name
         ) : (
-          <Shimmer as="span" duration={1.4} shineColor="var(--primary)">
+          <Shimmer as="span" duration={1.4} shineColor="var(--foreground)">
             {name}
           </Shimmer>
         )}

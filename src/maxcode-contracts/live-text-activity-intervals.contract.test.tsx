@@ -16,6 +16,14 @@ const work: AdaptedContentPart = {
   isStreaming: false,
 }
 
+// Live Markdown wraps characters for the fade; query the complete rendered
+// response rather than requiring all its text to be in one DOM text node.
+function responseText(value: string) {
+  return screen.findByText((_, element) =>
+    Boolean(element?.matches(".chat-markdown") && element.textContent === value)
+  )
+}
+
 function timeline(
   parts: AdaptedContentPart[],
   role: "assistant" | "user" = "assistant"
@@ -28,7 +36,7 @@ function timeline(
 }
 
 describe("live text activity intervals", () => {
-  it("keeps three latest rows and preserves an expanded summary when more work and text arrive", () => {
+  it("keeps three latest rows and preserves an expanded summary when more work and text arrive", async () => {
     const prefix = [text("Starting"), work, work, work]
     const view = render(timeline(prefix))
     expect(screen.getAllByRole("button", { name: "Thought" })).toHaveLength(3)
@@ -52,7 +60,7 @@ describe("live text activity intervals", () => {
       trigger
     )
     expect(trigger).toHaveAttribute("aria-expanded", "true")
-    expect(screen.getByText("Update")).toBeVisible()
+    expect(await responseText("Update")).toBeVisible()
   })
 
   it("folds the complete interval on new text if the reader left it collapsed", () => {
@@ -102,7 +110,7 @@ describe("live text activity intervals", () => {
     ).toHaveAttribute("aria-expanded", "false")
   })
 
-  it("collapses on the next text token and preserves manual expansion on updates", () => {
+  it("collapses on the next text token and preserves manual expansion on updates", async () => {
     const prefix = [text("Starting work"), work]
     const view = render(timeline(prefix))
     expect(screen.queryByRole("button", { name: /Thought 1 time/ })).toBeNull()
@@ -113,8 +121,8 @@ describe("live text activity intervals", () => {
     view.rerender(timeline([...prefix, text("Progress report")]))
     const trigger = screen.getByRole("button", { name: /Thought 1 time/ })
     expect(trigger).toHaveAttribute("aria-expanded", "false")
-    expect(screen.getByText("Starting work")).toBeVisible()
-    expect(screen.getByText("Progress report")).toBeVisible()
+    expect(await responseText("Starting work")).toBeVisible()
+    expect(await responseText("Progress report")).toBeVisible()
     expect(screen.queryByText(work.content)).toBeNull()
     fireEvent.click(trigger)
     fireEvent.click(screen.getByRole("button", { name: "Thought" }))
@@ -129,7 +137,7 @@ describe("live text activity intervals", () => {
     ).toHaveLength(1)
   })
 
-  it("folds multiple closed intervals independently, including empty text residue", () => {
+  it("folds multiple closed intervals independently, including empty text residue", async () => {
     render(
       timeline([
         text("First"),
@@ -145,7 +153,7 @@ describe("live text activity intervals", () => {
       screen.getAllByRole("button", { name: /Thought 1 time/ })
     ).toHaveLength(2)
     for (const value of ["First", "Second", "Third"]) {
-      expect(screen.getByText(value)).toBeVisible()
+      expect(await responseText(value)).toBeVisible()
     }
   })
 

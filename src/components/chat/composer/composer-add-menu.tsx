@@ -121,10 +121,14 @@ export function ComposerAddMenu({
       <DropdownMenuTrigger asChild>
         <Button
           type="button"
+          tabIndex={-1}
           disabled={disabled}
           variant="ghost"
           size="icon-xs"
-          className={cn("shrink-0 text-muted-foreground", triggerClassName)}
+          className={cn(
+            "shrink-0 text-muted-foreground focus-visible:ring-0",
+            triggerClassName
+          )}
           title={t("addActions")}
           aria-label={t("addActions")}
         >

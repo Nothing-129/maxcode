@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>流式输出 · 动效实验室</title>
+<style>
+:root{color-scheme:light;--bg:#f5f5f3;--panel:#fff;--text:#242424;--muted:#81817b;--line:#e6e6e1;--accent:#437158;--soft:#edf3ee}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",sans-serif}body.dark{color-scheme:dark;--bg:#171817;--panel:#202220;--text:#e4e6e2;--muted:#949a92;--line:#343833;--accent:#a7c6ad;--soft:#2c382e}
+main{max-width:1480px;margin:auto;padding:42px 32px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}.eyebrow{font-size:11px;letter-spacing:3px;color:var(--accent)}h1{font-size:29px;letter-spacing:-1px;font-weight:600;margin:6px 0}p{margin:0;color:var(--muted)}button,select,textarea,input{font:inherit}button,select{border:1px solid var(--line);border-radius:9px;background:var(--panel);color:var(--text);padding:8px 13px;cursor:pointer}button:hover{border-color:var(--accent)}button.primary{background:var(--text);color:var(--panel);border-color:var(--text)}.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:28px 0 12px;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:14px}.control{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}input[type=range]{width:95px;accent-color:var(--accent)}output{min-width:45px;font-variant-numeric:tabular-nums}.divider{width:1px;height:23px;background:var(--line)}.timeline{display:flex;align-items:center;gap:12px;margin:0 3px 24px;color:var(--muted);font-size:11px}.track{height:3px;flex:1;background:var(--line);border-radius:4px;overflow:hidden}.track i{display:block;height:100%;background:var(--accent);width:0}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.card{border:1px solid var(--line);border-radius:14px;background:var(--panel);overflow:hidden}.card-head{padding:17px 20px 12px;display:flex;gap:12px;align-items:center}.number{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}.card h2{font-size:14px;font-weight:600;margin:0}.tag{margin-left:auto;font-size:10px;color:var(--accent);background:var(--soft);padding:2px 7px;border-radius:5px}.description{padding:0 20px;font-size:11px;color:var(--muted)}.body{height:245px;overflow:auto;padding:22px 23px 16px;scrollbar-width:thin}.text{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px;line-height:1.95;min-height:24px}.unit{display:inline}.motion{display:inline-block;white-space:pre-wrap}.block{display:block;margin-bottom:10px}.caret{display:inline-block;width:2px;height:1em;vertical-align:-2px;background:var(--accent);margin-left:3px}.card-foot{padding:10px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}.card-foot button{border:0;padding:0;font-size:11px;background:none;color:var(--muted)}.grid.focused{grid-template-columns:1fr;max-width:860px;margin:auto}.grid.focused .body{height:420px;padding:30px 40px}.grid.focused .text{font-size:17px}.grid.focused .card[hidden]{display:none}details{margin-top:24px;color:var(--muted);font-size:12px}summary{cursor:pointer}textarea{display:block;width:100%;height:150px;resize:vertical;border:1px solid var(--line);background:var(--panel);color:var(--text);border-radius:10px;padding:14px;margin:12px 0}footer{margin-top:24px;font-size:11px;color:var(--muted)}button:focus-visible,select:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:3px}@media(max-width:1100px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:650px){main{padding:24px 16px}.grid{grid-template-columns:1fr}header{align-items:flex-start}.divider{display:none}.controls{gap:14px}h1{font-size:24px}}
+</style>
+<main>
+<header><div><div class="eyebrow">STREAMING / MOTION STUDIES</div><h1>同一段回答，九种出现方式。</h1><p>观察输出的节奏、文字的过渡，以及等待时的感受。</p></div><button id="theme">切换深色</button></header>
+<section class="controls" aria-label="播放控制">
+<button class="primary" id="restart">↻ 全部重播</button><button id="pause">暂停</button>
+<div class="divider"></div>
+<label class="control">速度<input id="speed" type="range" min="0.5" max="2" step="0.25" value="1"><output id="speedValue">1×</output></label>
+<label class="control">过渡<input id="duration" type="range" min="150" max="1200" step="50" value="650"><output id="durationValue">650ms</output></label>
+<label class="control">数据流<select id="source"><option value="burst">分批到达（模拟网络）</option><option value="even">均匀到达</option></select></label>
+<label class="control">视图<select id="view"><option value="all">全部对比</option></select></label>
+<label class="control"><input type="checkbox" id="loop" checked>循环播放</label>
+</section>
+<div class="timeline"><span id="state">模拟输出中</span><div class="track"><i id="progress"></i></div><span id="time">0.0s</span></div>
+<section class="grid" id="grid" aria-label="动效对比"></section>
+<details><summary>替换示例文字</summary><textarea id="sample" aria-label="示例文字" maxlength="2000"></textarea><button id="apply">应用并重播</button></details>
+<footer>所有卡片接收相同的数据。打字类效果会缓冲收到的文字，因此完成时间可能不同。过渡滑块影响淡入、模糊和上浮；速度同时影响数据到达和打字速度。此页为独立本地演示。</footer>
+</main>
+<script>
+const configs=[
+ ['direct','直接追加','收到一批，显示一批；用作基准。','基准'],
+ ['fade','逐字渐显','新文字从浅到深，形成柔和的输出尾部。','录屏风格'],
+ ['type','匀速打字','缓冲数据，以固定速度逐字显示。','稳定节奏'],
+ ['adaptive','自适应打字 + 淡入','队列越长，显示越快；叠加短暂渐显。','推荐比较'],
+ ['phrase','短句渐显','每个短语一起淡入，减少零碎的视觉变化。','按组出现'],
+ ['blur','模糊转清晰','新增文字从轻微模糊、透明过渡到清晰。','柔和'],
+ ['rise','轻微上浮','短语向上移动 5px，同时淡入。','有位移'],
+ ['cursor','光标跟随','匀速打字，末尾附带闪烁光标。','输入感'],
+ ['block','段落展开','收齐一段再展示，高度随过渡展开。','整段出现']
+];
+const $=s=>document.querySelector(s), grid=$('#grid');
+configs.forEach(([id,title,desc,tag],i)=>{
+ const card=document.createElement('article');card.className='card';card.dataset.id=id;
+ card.innerHTML=`<div class="card-head"><span class="number">0${i+1}</span><h2>${title}</h2><span class="tag">${tag}</span></div><div class="description">${desc}</div><div class="body"><div class="text"></div></div><div class="card-foot"><span class="status">等待数据</span><button data-focus="${id}">单独查看 ↗</button></div>`;grid.append(card);
+ const option=document.createElement('option');option.value=id;option.textContent=`0${i+1} ${title}`;$('#view').append(option);
+});
+$('#sample').value='流式输出的舒适感，来自稳定的节奏与克制的动效。文字持续出现，读者就能提前开始阅读，而不用等待整段回答生成完毕。\n\n新内容可以柔和地进入视野，已经读过的文字则保持稳定。收到数据时偶尔会有停顿，适当的缓冲能让输出更连贯。\n\n在 MaxCode 中，正文、代码与表格可以使用不同的呈现方式。先比较这些基础效果，再选择你最喜欢的节奏。';
+let chars=[],schedule=[],received=0,elapsed=0,last=0,paused=false,finishedAt=null,cards=[];
+function reset(){
+ chars=Array.from($('#sample').value || '请输入一段用于比较动效的文字。');received=0;elapsed=0;finishedAt=null;last=performance.now();schedule=[];
+ let n=0,t=450,k=0;
+ while(n<chars.length){const burst=$('#source').value==='burst';const size=burst?[5,14,7,22,9,17][k%6]:2;t+=burst?[140,320,110,500,180,260][k%6]:60;n=Math.min(chars.length,n+size);schedule.push({t,n});k++}
+ cards=configs.map(([id])=>{const el=grid.querySelector(`[data-id="${id}"]`);const text=el.querySelector('.text');text.replaceChildren();const caret=document.createElement('i');caret.className='caret';if(id==='cursor')text.append(caret);el.querySelector('.body').scrollTop=0;return{id,el,text,caret,count:0,credit:0,active:[],done:false}});
+ paused=false;$('#pause').textContent='暂停';$('#state').textContent='模拟输出中';$('#progress').style.width='0%';
+}
+function append(c,end,kind){
+ const value=chars.slice(c.count,end).join('');if(!value)return;
+ const node=document.createElement('span');node.textContent=value;node.className=kind==='rise'?'motion':kind==='block'?'block':'unit';
+ if(c.id==='cursor')c.text.insertBefore(node,c.caret);else c.text.append(node);
+ if(kind){const entry={node,born:elapsed,kind};if(kind==='block'){node.style.overflow='hidden';entry.height=node.scrollHeight}c.active.push(entry)}
+ c.count=end;
+}
+function tick(now){
+ const realDt=Math.min(80,now-last || 0);last=now;
+ if(!paused){const dt=realDt*Number($('#speed').value);elapsed+=dt;
+  while(schedule.length && schedule[0].t<=elapsed)received=schedule.shift().n;
+  const duration=Number($('#duration').value);
+  for(const c of cards){
+   const body=c.el.querySelector('.body');const follow=body.scrollHeight-body.clientHeight-body.scrollTop<35;
+   if(['type','cursor','adaptive'].includes(c.id)){
+    c.credit=Math.min(2,c.credit);c.credit+=dt/1000*(c.id==='adaptive'?Math.min(105,25+(received-c.count)*1.25):31);
+    const end=Math.min(received,c.count+Math.floor(c.credit));c.credit-=end-c.count;
+    while(c.count<end)append(c,c.count+1,c.id==='adaptive'?'adaptive':null);
+   }else if(c.id==='phrase'||c.id==='rise'){
+    while(c.count<received){let end=c.count;while(end<received && !/[，。！？、；\n]/.test(chars[end]))end++;if(end<received)end++;else if(received<chars.length && end-c.count<12)break;append(c,end,c.id==='rise'?'rise':'phrase')}
+   }else if(c.id==='block'){
+    while(c.count<received){let end=chars.indexOf('\n',c.count);if(end<0)end=chars.length;if(end>=received && received<chars.length)break;end=Math.min(end+1,received);append(c,end,'block')}
+   }else if(c.id==='direct'){append(c,received,null)}else{while(c.count<received)append(c,c.count+1,c.id)}
+   c.active=c.active.filter(a=>{const d=a.kind==='adaptive'?duration*.55:duration;const p=Math.min(1,(elapsed-a.born)/d);const ease=1-Math.pow(1-p,2);a.node.style.opacity=String(.04+.96*ease);
+    if(a.kind==='blur')a.node.style.filter=`blur(${(1-ease)*3}px)`;
+    if(a.kind==='rise')a.node.style.transform=`translateY(${(1-ease)*5}px)`;
+    if(a.kind==='block')a.node.style.maxHeight=`${a.height*ease}px`;
+    if(p===1){a.node.removeAttribute('style');return false}return true});
+   c.done=c.count===chars.length && !c.active.length;
+   c.caret.style.opacity=c.done?'0':String(Math.floor(elapsed/500)%2===0?1:.15);
+   c.el.querySelector('.status').textContent=c.done?'已完成':`${c.count} / ${chars.length} 字`;
+   if(follow)body.scrollTop=body.scrollHeight;
+  }
+  $('#progress').style.width=`${received/chars.length*100}%`;$('#time').textContent=`${(elapsed/1000).toFixed(1)}s`;
+  if(cards.every(c=>c.done)){if(finishedAt===null)finishedAt=elapsed;$('#state').textContent='全部完成';if($('#loop').checked && elapsed-finishedAt>2400)reset()}
+ }
+ requestAnimationFrame(tick);
+}
+function setView(value){$('#view').value=value;grid.classList.toggle('focused',value!=='all');cards.forEach(c=>c.el.hidden=value!=='all'&&c.id!==value)}
+$('#restart').onclick=reset;$('#apply').onclick=reset;$('#pause').onclick=()=>{paused=!paused;$('#pause').textContent=paused?'继续':'暂停';$('#state').textContent=paused?'已暂停':finishedAt!==null?'全部完成':'模拟输出中'};
+$('#speed').oninput=e=>$('#speedValue').textContent=e.target.value+'×';$('#duration').oninput=e=>$('#durationValue').textContent=e.target.value+'ms';$('#source').onchange=reset;$('#view').onchange=e=>setView(e.target.value);grid.onclick=e=>{const btn=e.target.closest('[data-focus]');if(btn)setView(btn.dataset.focus)};
+$('#theme').onclick=()=>{$('body').classList.toggle('dark');$('#theme').textContent=$('body').classList.contains('dark')?'切换浅色':'切换深色'};
+document.addEventListener('visibilitychange',()=>last=performance.now());reset();requestAnimationFrame(tick);
+</script>
+</html>

@@ -25,7 +25,16 @@ describe("MaxCode contract: compact thinking", () => {
     const { rerender } = render(tree(true))
     const icon = () =>
       screen.getByRole("button").querySelector("svg:first-child")
-    expect(screen.getByRole("button")).toHaveClass("text-xs")
+    expect(screen.getByRole("button")).toHaveClass(
+      "h-6",
+      "px-2",
+      "text-[0.6875rem]",
+      "leading-4",
+      "font-normal",
+      "text-muted-foreground"
+    )
+    expect(icon()).toHaveClass("size-3", "opacity-60")
+    expect(icon()).not.toHaveClass("mr-1")
     expect(icon()).toHaveClass("lucide-brain")
     expect(icon()).toHaveAttribute("aria-hidden", "true")
     rerender(tree(false))

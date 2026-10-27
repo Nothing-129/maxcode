@@ -87,9 +87,14 @@ describe("MaxCode contract: consistent interface motion", () => {
     expect(source("src/components/workbench/workbench-content.tsx")).toContain(
       "useSurfaceTransition(surfaceRef, routeId)"
     )
+    // Conversation entry fades only the reading content; the composer and
+    // toolbar must not inherit the generic whole-surface entrance.
+    expect(source("src/components/ai-elements/message-thread.tsx")).toContain(
+      "useSurfaceTransition(contentRef, entryKey, {"
+    )
     expect(
       source("src/components/conversations/conversation-detail-panel.tsx")
-    ).toContain('"h-full maxcode-surface-enter"')
+    ).not.toContain('"h-full maxcode-surface-enter"')
     expect(source("src/app/workspace/layout.tsx")).toContain(
       '!hidden && "maxcode-surface-enter"'
     )

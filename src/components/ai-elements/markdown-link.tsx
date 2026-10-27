@@ -1,6 +1,6 @@
 "use client"
 
-import type { ComponentProps, MouseEvent, ReactNode } from "react"
+import type { ComponentProps, MouseEvent } from "react"
 import { useCallback, useState } from "react"
 import { FileText, Globe, Mail, Phone, type LucideIcon } from "lucide-react"
 import type { Components, LinkSafetyModalProps } from "streamdown"
@@ -24,6 +24,7 @@ import {
 } from "./link-safety"
 
 import { CodexFollowup, decodeCodexFollowup } from "./codex-followup"
+import { markdownNodeText as nodeText } from "./markdown-node-text"
 
 const RESOURCE_KIND_ICON: Record<ResourceKind, LucideIcon> = {
   file: FileText,
@@ -40,17 +41,6 @@ const PUBLIC_EXTERNAL_PROTOCOL = /^(?:https?:|mailto:|tel:)/i
 type MarkdownLinkProps = ComponentProps<"a"> & {
   // react-markdown passes the originating hast node; it must not reach the DOM.
   node?: unknown
-}
-
-/** Flatten a markdown link's children to plain text (used as the badge label). */
-function nodeText(children: ReactNode): string {
-  if (typeof children === "string") return children
-  if (Array.isArray(children)) {
-    return children
-      .map((child) => (typeof child === "string" ? child : ""))
-      .join("")
-  }
-  return ""
 }
 
 /**
@@ -223,6 +213,7 @@ export function MarkdownLink({
         type="button"
         data-incomplete={isIncomplete}
         data-streamdown="link"
+        aria-label={nodeText(children) || undefined}
         data-resource-kind={kind ?? undefined}
         title={isIncomplete ? undefined : href}
         onClick={handleClick}
@@ -278,6 +269,7 @@ export function PublicMarkdownLink(props: MarkdownLinkProps) {
   return (
     <BrowserLink
       href={externalHref}
+      aria-label={nodeText(children) || undefined}
       data-resource-kind={kind ?? undefined}
       title={externalHref}
       className={cn(

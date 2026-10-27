@@ -13,8 +13,11 @@ describe("MaxCode send button color", () => {
       expect(stop).not.toMatch(/dark:(?:hover:)?bg-/)
       expect(stop).toContain('title={t("cancel")}')
       expect(stop).toContain('aria-label={t("cancel")}')
-      expect(stop).toContain("fill-current")
+      expect(stop).toContain("<GenerationActionIcon running />")
     }
+    expect(
+      source("src/components/chat/composer/generation-action-icon.tsx")
+    ).toContain("fill-current")
   })
 
   it("uses the action blue when enabled and muted paint when disabled", () => {
@@ -26,19 +29,19 @@ describe("MaxCode send button color", () => {
     expect(send).toContain("enabled:bg-[#216ae4]")
     expect(send).toContain("enabled:text-white")
     expect(send).toContain("enabled:hover:bg-[#216ae4]/90")
-    expect(send).toContain("disabled:bg-secondary")
+    expect(send).toContain("disabled:bg-muted")
+    expect(send).not.toContain("disabled:bg-secondary")
     expect(send).toContain("disabled:text-muted-foreground")
-    expect(send).toContain(
-      "(disabled && !(queueWhileUnavailable && onEnqueue)) ||"
+    expect(send).toContain("disabled={sendDisabled}")
+    expect(input).toContain(
+      "(disabled && !(queueWhileUnavailable && onEnqueue)) || !hasSendableContent"
     )
-    expect(send).toContain("!hasSendableContent")
   })
-  it("uses the same update blue in light and dark modes", () => {
+  it("uses update blue and error red on the neutral footer action icons", () => {
     const update = source("src/components/layout/status-bar-update.tsx")
-    expect(update).toContain("bg-[#216ae4] text-white hover:bg-[#216ae4]/90")
+    expect(update).toContain("text-[#216ae4]")
+    expect(update).toContain("statusBarActionClassName")
     expect(update).not.toMatch(/dark:(?:hover:)?bg-/)
-    expect(update).toContain(
-      "bg-destructive text-white hover:bg-destructive/90"
-    )
+    expect(update).toContain("text-destructive")
   })
 })

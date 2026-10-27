@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "./motion.css";
+@import "./interaction-motion.css";
+@import "streamdown/styles.css";
+@import "./streaming-text.css";
 @import "@xterm/xterm/css/xterm.css";
 /* 自托管字体（@font-face 声明惰性，woff2 仅在被应用/预览时下载） */
 @import "@fontsource-variable/inter";
@@ -1497,6 +1500,46 @@
   --os-size: 8px;
 }
 
+/* Keep the thin composer thumb inside the rounded surface. Axis padding
+   survives OverlayScrollbars' cornerless rule that resets top/bottom to zero. */
+.codeg-composer .codeg-composer-scroll {
+  overflow: clip;
+  border-radius: 1rem 1rem 0 0;
+}
+/* Ignore overflow introduced only by the composer's height animation. The
+   settled measurement still allows a real overflow rail immediately. */
+.codeg-composer[data-composer-overflow="false"] .os-scrollbar {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transition: none;
+}
+.codeg-composer-scroll .os-scrollbar.os-theme-codeg {
+  --os-size: 4px;
+  --os-padding-axis: 12px;
+  --os-padding-perpendicular: 0px;
+  --os-handle-bg: color-mix(in oklab, var(--foreground) 18%, transparent);
+  --os-handle-bg-hover: color-mix(in oklab, var(--foreground) 30%, transparent);
+  --os-handle-bg-active: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --os-track-bg: transparent;
+}
+.codeg-composer-scroll .os-scrollbar-vertical:not(.os-scrollbar-rtl) {
+  right: 6px;
+}
+.codeg-composer-scroll .os-scrollbar-vertical.os-scrollbar-rtl {
+  left: 6px;
+}
+.codeg-composer-scroll,
+.codeg-composer-scroll [data-overlayscrollbars-viewport] {
+  scrollbar-width: none;
+}
+.codeg-composer-scroll::-webkit-scrollbar,
+.codeg-composer-scroll [data-overlayscrollbars-viewport]::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
 /* Forge label chips. The six values come from `labelSwatch()` as inline custom
    properties (both themes at once); this picks which set applies, because the
    theme is a class on the root and an inline style cannot see it. Unlayered on
@@ -2370,62 +2413,6 @@ div.monaco-diff-editor.side-by-side .editor.modified {
     0 4px 32px rgb(0 0 0 / 1.5%);
 }
 
-/* Active-session composer: a gradient that flows around the input border as the
-   active-conversation cue (replaces the old top-center icon). The ::before
-   overlays the element's existing 1px border — `inset:-1px` reaches the
-   border-box edge and the conic gradient is masked down to a thin ring — so
-   adding/removing this class never changes the box model: no layout shift when
-   the active tab switches. Rotating the gradient's start angle makes it "flow";
-   stops start and end on the same color so the conic seam is invisible. The
-   `, 0deg` fallback keeps `background` valid where @property is unsupported,
-   degrading to a static gradient border. Intentionally NOT gated behind
-   prefers-reduced-motion: this is an explicitly-requested accent and the
-   maintainer runs reduced-motion ON but wants requested motion to play (repo
-   convention, matches the always-on spinners); at most one composer animates at
-   a time over a 1px ring, so the repaint cost is negligible. */
-@property --codeg-flow-angle {
-  syntax: "<angle>";
-  initial-value: 0deg;
-  inherits: false;
-}
-.codeg-composer-flow::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  z-index: 1;
-  border-radius: inherit;
-  padding: 1px;
-  background: conic-gradient(
-    from var(--codeg-flow-angle, 0deg),
-    #ff453a,
-    #32d74b,
-    #0a84ff,
-    #ff453a
-  );
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask-composite: exclude;
-  pointer-events: none;
-  animation: codeg-composer-flow 2.5s linear infinite;
-}
-/* The flow is the "active session, input not focused" cue: the moment the
-   composer itself gains focus, hide it so the input reverts to its always-on
-   selected chrome (soft border + shadow; no click-only focus ring).
-   `display:none` also stops the animation while the input is focused. */
-.codeg-composer-flow:focus-within::before {
-  display: none;
-}
-@keyframes codeg-composer-flow {
-  to {
-    --codeg-flow-angle: 360deg;
-  }
-}
-
 .codeg-composer .ProseMirror {
   outline: none;
   white-space: pre-wrap;
@@ -2600,6 +2587,16 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   user-select: none;
   white-space: normal;
 }
+.codeg-composer .codeg-reference[data-composer-reference="file"] {
+  display: none;
+}
+.codeg-composer .codeg-file-insertion-gap {
+  font-size: 0;
+}
+.codeg-composer [data-editor-file-card][data-selected="true"] [data-composer-file-card] {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
 .codeg-composer
   .codeg-reference.ProseMirror-selectednode
   [data-reference-badge] {
@@ -2733,6 +2730,10 @@ div.monaco-diff-editor.side-by-side .editor.modified {
    workspace-bg gated). */
 .browser-tab-item[data-active="true"] .browser-tab-content {
   padding-right: 1.5rem;
+  background-image: linear-gradient(
+    color-mix(in oklab, var(--primary) 8%, transparent),
+    color-mix(in oklab, var(--primary) 8%, transparent)
+  );
 }
 
 /* Non-active embedded tab hover: an inset rounded tint with a larger bottom inset,
@@ -3726,4 +3727,84 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   --sidebar-primary-foreground: #ffffff;
   --sidebar-ring: #216ae4;
   --sidebar-accent: color-mix(in srgb, #216ae4 12%, var(--sidebar));
+}
+
+/* Keep the three sidebar navigation buttons on their original neutral surfaces. */
+:root:is([data-theme="neutral"], :not([data-theme])) [data-sidebar-actions] {
+  --sidebar-primary: #0d0d0d;
+  --sidebar-accent: #ececec;
+}
+
+:root:is([data-theme="neutral"], :not([data-theme])).dark
+  [data-sidebar-actions] {
+  --sidebar-primary: #ffffff;
+  --sidebar-accent: #2a2a2a;
+}
+
+/* Model selection keeps neutral hover surfaces, including portalled lists. */
+:root:is([data-theme="neutral"], :not([data-theme]))
+  [data-neutral-model-surface] {
+  --accent: #ececec;
+}
+
+:root:is([data-theme="neutral"], :not([data-theme])).dark
+  [data-neutral-model-surface] {
+  --accent: #2f2f2f;
+}
+
+/* Keep the thinking → working handoff on the same baseline. */
+.maxcode-turn-status {
+  color: transparent;
+  background-image: linear-gradient(
+    100deg,
+    var(--muted-foreground) 35%,
+    var(--background) 50%,
+    var(--muted-foreground) 65%
+  );
+  background-size: 250% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  animation: maxcode-turn-status-sweep 2s linear infinite;
+}
+@keyframes maxcode-turn-status-sweep {
+  from {
+    background-position: 100% center;
+  }
+  to {
+    background-position: 0% center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-turn-status {
+    animation: none;
+    background: none;
+    color: var(--muted-foreground);
+  }
+}
+
+/* Pane selection stays local to the title, without framing the conversation. */
+[data-conversation-title][data-selection-active] {
+  position: relative;
+  padding: 0.25rem 0.5rem 0.25rem 1rem;
+  border-radius: 0.375rem;
+}
+[data-conversation-title][data-selection-active="true"] {
+  background-color: color-mix(in oklab, var(--foreground) 4%, transparent);
+}
+[data-conversation-title][data-selection-active]::before {
+  content: "";
+  position: absolute;
+  left: 0.375rem;
+  top: calc(50% - 0.125rem);
+  width: 0.25rem;
+  height: 0.25rem;
+  border-radius: 50%;
+  background-color: transparent;
+}
+[data-conversation-title][data-selection-active="true"]::before {
+  background-color: color-mix(
+    in oklab,
+    var(--primary) 70%,
+    var(--muted-foreground)
+  );
 }

@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, type ComponentProps } from "react"
+import { markdownNodeText } from "./markdown-node-text"
 
 // A fragment survives the existing Markdown sanitizer without granting any new
 // URL protocol. It is consumed locally and never used for navigation.
@@ -24,6 +25,7 @@ export function CodexFollowup({
   return (
     <button
       type="button"
+      aria-label={markdownNodeText(children) || undefined}
       className="my-1 rounded-lg border border-border px-3 py-1.5 text-left text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
       title={prompt}
       onClick={() => onSelect(prompt)}

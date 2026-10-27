@@ -1,6 +1,8 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
+import { AnimatePresence, motion, useIsPresent } from "motion/react"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { ScreenshotMarkupDialog } from "./image-markup-dialog"
 import type { MarkupMark } from "@/lib/image-markup"
 import { toast } from "sonner"
@@ -26,15 +28,23 @@ function toDisplay(attachment: ImageInputAttachment): UserImageDisplay {
   }
 }
 
+/** Removed tiles may paint briefly, but their controls stop responding at once. */
+function AttachmentInteraction({ children }: { children: ReactNode }) {
+  const present = useIsPresent()
+  return (
+    <div inert={!present} aria-hidden={!present}>
+      {children}
+    </div>
+  )
+}
+
 /**
  * The composer's image attachment strip: one thumbnail per pasted / dropped /
  * picked image, each clickable for a full preview and removable in place.
  *
- * Renders as a bare list of tiles (no wrapper) so each host can place it in its
- * own scroller — the conversation composer hands it to `ConversationContextBar`
- * alongside the context chips, while the to-do task composers put it in a plain
- * row above the editor. The preview dialog is owned here: it's an artifact of
- * clicking a tile, not state any host needs.
+ * Renders as a bare list of tiles for the shared composer scrollport. The
+ * host wraps tiles in normal flow above file cards and text. The preview dialog
+ * is owned here because no host needs its state.
  *
  * Tiles and the blown-up preview carry the same right-click Copy / Download
  * menu as transcript images (`ImageActions`); without it a right-click on a
@@ -68,56 +78,93 @@ export function ComposerImageThumbnails({
     ? (attachments.find((a) => a.id === previewId) ?? null)
     : null
   const previewDisplay = preview ? toDisplay(preview) : null
+  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)")
 
   return (
     <>
-      {attachments.map((attachment) => (
-        <ImageActions
-          key={attachment.id}
-          image={toDisplay(attachment)}
-          className="relative shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30"
-        >
-          <button
-            type="button"
-            onClick={() => setPreviewId(attachment.id)}
-            className="cursor-pointer transition-opacity hover:opacity-80"
+      <AnimatePresence initial={false} mode="sync">
+        {attachments.map((attachment) => (
+          <motion.div
+            key={attachment.id}
+            layout={reduced ? false : "position"}
+            initial={{
+              opacity: 0,
+              y: reduced ? 0 : 5,
+              scale: reduced ? 1 : 0.96,
+            }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{
+              opacity: 0,
+              y: reduced ? 0 : -3,
+              scale: reduced ? 1 : 0.96,
+            }}
+            transition={{
+              duration: reduced ? 0.1 : 0.18,
+              ease: [0.22, 1, 0.36, 1],
+            }}
+            className="relative shrink-0"
+            data-attachment-tile={attachment.id}
           >
-            <Image
-              src={`data:${attachment.mimeType};base64,${attachment.data}`}
-              alt={attachment.name}
-              width={56}
-              height={56}
-              unoptimized
-              className="h-14 w-14 object-cover"
-            />
-          </button>
-          {attachment.uploading ? (
-            // Web/remote upload still in flight — sends are gated on this
-            // settling (see the host's send handler).
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50">
-              <Loader2 className="h-4 w-4 animate-spin text-foreground/80" />
-            </div>
-          ) : null}
-          {onMarkup && !attachment.uploading && (
-            <button
-              type="button"
-              className="absolute bottom-1 left-1 rounded-sm bg-background/80 p-0.5 hover:bg-background"
-              aria-label={tMarkup("markupTitle")}
-              onClick={() => setMarkupId(attachment.id)}
-            >
-              <Pencil className="h-3 w-3" />
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={() => onRemove(attachment.id)}
-            className="absolute right-1 top-1 rounded-sm bg-background/70 p-0.5 hover:bg-background"
-            aria-label={t("removeAttachmentAria", { name: attachment.name })}
-          >
-            <X className="h-3 w-3" />
-          </button>
-        </ImageActions>
-      ))}
+            <AttachmentInteraction>
+              <ImageActions
+                image={toDisplay(attachment)}
+                className="relative shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30"
+              >
+                <button
+                  type="button"
+                  onClick={() => setPreviewId(attachment.id)}
+                  className="cursor-pointer transition-opacity hover:opacity-80"
+                >
+                  <Image
+                    src={`data:${attachment.mimeType};base64,${attachment.data}`}
+                    alt={attachment.name}
+                    width={56}
+                    height={56}
+                    unoptimized
+                    className="h-14 w-14 object-cover"
+                  />
+                </button>
+                <AnimatePresence initial={false}>
+                  {attachment.uploading ? (
+                    // Web/remote upload still in flight — sends are gated on this
+                    // settling (see the host's send handler).
+                    <motion.div
+                      key="upload"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: reduced ? 0 : 0.14 }}
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50"
+                    >
+                      <Loader2 className="h-4 w-4 animate-spin text-foreground/80 motion-reduce:animate-none" />
+                    </motion.div>
+                  ) : null}
+                </AnimatePresence>
+                {onMarkup && !attachment.uploading && (
+                  <button
+                    type="button"
+                    className="absolute bottom-1 left-1 rounded-sm bg-background/80 p-0.5 hover:bg-background"
+                    aria-label={tMarkup("markupTitle")}
+                    onClick={() => setMarkupId(attachment.id)}
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onRemove(attachment.id)}
+                  className="absolute right-1 top-1 rounded-sm bg-background/70 p-0.5 hover:bg-background"
+                  aria-label={t("removeAttachmentAria", {
+                    name: attachment.name,
+                  })}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </ImageActions>
+            </AttachmentInteraction>
+          </motion.div>
+        ))}
+      </AnimatePresence>
       {markup && onMarkup && (
         <ScreenshotMarkupDialog
           key={markup.id}

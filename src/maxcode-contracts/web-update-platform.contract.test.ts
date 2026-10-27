@@ -36,8 +36,8 @@ describe("MaxCode contract: resilient web installation", () => {
 describe("MaxCode contract: updater and release channel", () => {
   it("highlights the update action in blue in both themes", () => {
     const status = source("src/components/layout/status-bar-update.tsx")
-    expect(status).toContain("rounded-full")
-    expect(status).toContain("bg-[#216ae4]")
+    expect(status).toContain("text-[#216ae4]")
+    expect(status).not.toContain("rounded-full")
     expect(status).not.toMatch(/dark:(?:hover:)?bg-/)
   })
 

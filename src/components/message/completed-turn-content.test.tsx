@@ -10,6 +10,12 @@ import {
   splitAssistantTurnParts,
 } from "./completed-turn-content"
 
+function prose(value: string) {
+  return screen.getByText((_, element) =>
+    Boolean(element?.matches(".chat-markdown") && element.textContent === value)
+  )
+}
+
 function renderWithIntl(ui: ReactElement) {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
@@ -151,7 +157,7 @@ describe("CompletedTurnContent", () => {
 
     const trigger = screen.getByRole("button", { name: "Worked for 1m 9s" })
     expect(trigger).toHaveAttribute("aria-expanded", "false")
-    expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
+    expect(prose("The fix is complete.")).toBeInTheDocument()
     expect(
       screen.queryByText("I found the relevant component.")
     ).not.toBeInTheDocument()
@@ -159,10 +165,8 @@ describe("CompletedTurnContent", () => {
     fireEvent.click(trigger)
 
     expect(trigger).toHaveAttribute("aria-expanded", "true")
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
-    expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
+    expect(prose("The fix is complete.")).toBeInTheDocument()
   })
 
   it("re-mounts expanded after the virtualizer recycled the row", () => {
@@ -174,9 +178,7 @@ describe("CompletedTurnContent", () => {
       <CompletedTurnContent parts={parts} durationMs={69_000} completed />
     )
     fireEvent.click(screen.getByRole("button", { name: "Worked for 1m 9s" }))
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
     first.unmount()
 
     renderWithIntl(
@@ -186,9 +188,7 @@ describe("CompletedTurnContent", () => {
     expect(
       screen.getByRole("button", { name: "Worked for 1m 9s" })
     ).toHaveAttribute("aria-expanded", "true")
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
   })
 
   it("keeps progress prose visible under the live header", () => {
@@ -205,13 +205,11 @@ describe("CompletedTurnContent", () => {
       "aria-expanded",
       "true"
     )
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
     expect(
       screen.getByRole("button", { name: /Read src\/app\.tsx/ })
     ).toBeInTheDocument()
-    expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
+    expect(prose("The fix is complete.")).toBeInTheDocument()
   })
 
   it("folds the round when the reply finishes", () => {
@@ -229,9 +227,7 @@ describe("CompletedTurnContent", () => {
         foldEpoch={0}
       />
     )
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
 
     // Settling re-adapts the turn: same content, brand-new array.
     view.rerender(
@@ -251,7 +247,7 @@ describe("CompletedTurnContent", () => {
       screen.getByRole("button", { name: "Worked for 1m 9s" })
     ).toHaveAttribute("aria-expanded", "false")
     expect(screen.queryByText("I found the relevant component.")).toBeNull()
-    expect(screen.getByText("The fix is complete.")).toBeInTheDocument()
+    expect(prose("The fix is complete.")).toBeInTheDocument()
   })
 
   it("does not replay the unfold when an open reply re-mounts", () => {
@@ -293,9 +289,7 @@ describe("CompletedTurnContent", () => {
       />
     )
     fireEvent.click(screen.getByRole("button", { name: "Worked for 1m 9s" }))
-    expect(
-      screen.getByText("I found the relevant component.")
-    ).toBeInTheDocument()
+    expect(prose("I found the relevant component.")).toBeInTheDocument()
 
     view.rerender(
       <NextIntlClientProvider locale="en" messages={enMessages}>

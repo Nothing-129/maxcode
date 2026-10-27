@@ -1,7 +1,9 @@
 "use client"
 
+import { statusBarActionClassName } from "./status-bar-action"
+
 import { useRef, useState } from "react"
-import { ArrowDown, CircleAlert, LoaderCircle } from "lucide-react"
+import { ArrowDown, CircleAlert, LoaderCircle, Package } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { openUrl } from "@/lib/platform"
@@ -10,7 +12,7 @@ import { cn } from "@/lib/utils"
 
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
 
-/** Version label with a filled circular update icon immediately to its right. */
+/** One stable version action whose leading icon reflects update state. */
 export function StatusBarUpdate() {
   const t = useTranslations("SystemSettings")
   const update = useAppUpdate()
@@ -88,63 +90,55 @@ export function StatusBarUpdate() {
     }
   }
 
+  const targetVersion = state.version || available?.version
+  const actionTitle = [label, targetVersion].filter(Boolean).join(" · ")
+  const title = showAction
+    ? reasonText
+      ? `${actionTitle} — ${reasonText}`
+      : actionTitle
+    : checking
+      ? t("checking")
+      : t("checkUpdate")
+
   return (
-    <div className="flex h-6 items-center gap-1 whitespace-nowrap font-mono tabular-nums">
+    <div className="flex h-6 items-center whitespace-nowrap font-mono tabular-nums">
       <button
         type="button"
-        title={checking ? t("checking") : t("checkUpdate")}
-        aria-busy={checking}
-        disabled={checking || busy || ready}
-        onClick={() => void checkNow({ silent: false })}
-        className="flex h-6 items-center gap-1 rounded px-1 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"
+        title={title}
+        aria-label={showAction ? label : undefined}
+        aria-busy={checking || busy}
+        disabled={checking || busy}
+        onClick={() => {
+          if (showAction) void handleUpdate()
+          else void checkNow({ silent: false })
+        }}
+        className={cn(statusBarActionClassName, "flex items-center gap-1.5")}
       >
-        {currentVersion ? `v${currentVersion}` : "v—"}
-        {checking && (
+        {checking || busy ? (
           <LoaderCircle
             aria-hidden="true"
-            className="size-3 animate-spin motion-reduce:animate-none"
+            className={cn(
+              "size-3 shrink-0 animate-spin motion-reduce:animate-none",
+              showAction && "text-[#216ae4]"
+            )}
           />
-        )}
-      </button>
-      {showAction && (
-        <button
-          type="button"
-          aria-label={label}
-          title={reasonText ? `${label} — ${reasonText}` : label}
-          disabled={busy}
-          onClick={() => void handleUpdate()}
-          className={cn(
-            "group flex h-5 shrink-0 items-center justify-center gap-0.5 rounded-full px-1 transition-all group-hover:px-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
-            failed
-              ? "bg-destructive text-white hover:bg-destructive/90"
-              : "bg-[#216ae4] text-white hover:bg-[#216ae4]/90"
-          )}
-        >
-          {busy ? (
-            <LoaderCircle
-              aria-hidden="true"
-              className="size-3 animate-spin motion-reduce:animate-none"
-            />
-          ) : failed ? (
+        ) : showAction ? (
+          failed ? (
             <CircleAlert
               aria-hidden="true"
-              className="size-3"
-              strokeWidth={2.5}
+              className="size-3 shrink-0 text-destructive"
             />
           ) : (
-            <>
-              <ArrowDown
-                aria-hidden="true"
-                className="size-3 group-hover:hidden"
-                strokeWidth={2.5}
-              />
-              <span className="hidden text-2xs font-medium group-hover:inline">
-                {t("updateAction")}
-              </span>
-            </>
-          )}
-        </button>
-      )}
+            <ArrowDown
+              aria-hidden="true"
+              className="size-3 shrink-0 text-[#216ae4]"
+            />
+          )
+        ) : (
+          <Package aria-hidden="true" className="size-3 shrink-0" />
+        )}
+        {currentVersion || "—"}
+      </button>
       {selfUpdateBlocker && reasonText && (
         <span
           role="status"

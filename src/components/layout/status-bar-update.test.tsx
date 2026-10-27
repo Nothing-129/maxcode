@@ -87,7 +87,7 @@ beforeEach(() => {
 describe("StatusBarUpdate — direct update action", () => {
   it("checks for updates directly when the version is clicked", () => {
     renderWith({})
-    const version = screen.getByRole("button", { name: "v0.21.7" })
+    const version = screen.getByRole("button", { name: "0.21.7" })
     expect(version).toHaveAttribute("title", "Check for updates")
     fireEvent.click(version)
     expect(checkNow).toHaveBeenCalledWith({ silent: false })
@@ -106,20 +106,28 @@ describe("StatusBarUpdate — direct update action", () => {
     expect(container).toBeEmptyDOMElement()
   })
 
-  it("puts a filled circular icon after the version and downloads on the first click without notifications or details", async () => {
+  it("replaces the package icon while checking without adding another icon", () => {
+    renderWith({ checking: true })
+    const button = screen.getByRole("button", { name: "0.21.7" })
+    expect(button).toBeDisabled()
+    expect(button.querySelectorAll("svg")).toHaveLength(1)
+    expect(button.querySelector("svg")).toHaveClass("size-3", "animate-spin")
+    expect(button).toHaveAttribute("title", "Checking...")
+  })
+
+  it("reuses the version entry for updates without widening the footer", async () => {
     renderWith({ available: RELEASE })
     const button = screen.getByRole("button", {
       name: "Download update and restart",
     })
-    expect(button.previousElementSibling).toHaveTextContent("v0.21.7")
-    // The pill collapses to just the icon; the label only shows on hover.
-    expect(button.textContent).toBe("Update")
-    expect(button.querySelector("svg")).toHaveClass("group-hover:hidden")
-    expect(button.querySelector("span")).toHaveClass(
-      "hidden",
-      "group-hover:inline"
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(button).toHaveTextContent("0.21.7")
+    expect(button.querySelectorAll("svg")).toHaveLength(1)
+    expect(button.querySelector("svg")).toHaveClass("size-3", "text-[#216ae4]")
+    expect(button).toHaveAttribute(
+      "title",
+      "Download update and restart · 0.21.9"
     )
-    expect(button).toHaveClass("rounded-full", "bg-[#216ae4]", "text-white")
     expect(startUpdate).not.toHaveBeenCalled()
     expect(toastInfo).not.toHaveBeenCalled()
     fireEvent.click(button)

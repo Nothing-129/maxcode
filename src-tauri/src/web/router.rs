@@ -881,6 +881,10 @@ pub fn build_router(
             post(handlers::acp::acp_answer_plan_approval),
         )
         .route(
+            "/codex_subscription_quota",
+            post(handlers::acp::codex_subscription_quota),
+        )
+        .route(
             "/acp_list_connections",
             post(handlers::acp::acp_list_connections),
         )

@@ -117,7 +117,9 @@ export function resolveAuxTabView(
   }
 }
 
-export function AuxPanel() {
+export function AuxPanel({
+  keepVisible = false,
+}: { keepVisible?: boolean } = {}) {
   const t = useTranslations("Folder.auxPanel.tabs")
   const tDetails = useTranslations("Folder.sessionDetails")
   const { isOpen, width, activeTab, setActiveTab } = useAuxPanelContext()
@@ -269,7 +271,7 @@ export function AuxPanel() {
     )
   }
 
-  if (!isOpen) return null
+  if (!isOpen && !keepVisible) return null
 
   return (
     // Desktop: background matches the middle workspace (bg-background), not the

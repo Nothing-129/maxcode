@@ -32,6 +32,7 @@ import {
   publicMarkdownLinkComponents,
 } from "./markdown-link"
 import { mermaidComponents } from "./mermaid-block"
+import { markdownTableComponents } from "./markdown-table"
 import { LIVE_REMEND, normalizeMathDelimiters } from "./message"
 import { rehypePluginsAllowingCodeg } from "./rehype-allow-codeg"
 import { remarkTrimCjkAutolinkTail } from "./remark-cjk-autolink-tail"
@@ -155,7 +156,7 @@ export const ReasoningTrigger = memo(
       (nextIsStreaming: boolean, nextDuration?: number) => {
         if (nextIsStreaming) {
           return (
-            <Shimmer duration={1} shineColor="var(--primary)">
+            <Shimmer duration={1} shineColor="var(--foreground)">
               {t("thinking")}
             </Shimmer>
           )
@@ -173,7 +174,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex max-w-full items-center gap-1 text-muted-foreground text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          "flex h-6 max-w-full items-center gap-1 px-2 text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           expandable
             ? "hover:text-foreground"
             : "cursor-default hover:text-muted-foreground",
@@ -184,12 +185,15 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            <BrainIcon aria-hidden="true" className="mr-1 size-4 shrink-0" />
+            <BrainIcon
+              aria-hidden="true"
+              className="size-3 shrink-0 opacity-60"
+            />
             {thinkingMessageBuilder(isStreaming, duration)}
             {expandable && (
               <ChevronRightIcon
                 className={cn(
-                  "size-3.5 shrink-0 opacity-60 transition-transform",
+                  "size-3 shrink-0 opacity-60 transition-transform",
                   isOpen ? "rotate-90" : "rotate-0"
                 )}
               />
@@ -226,10 +230,15 @@ const rehypePlugins = rehypePluginsAllowingCodeg(
   withRelativeFileLinks(defaultRehypePlugins)
 )
 
-const reasoningComponents = { ...markdownLinkComponents, ...mermaidComponents }
+const reasoningComponents = {
+  ...markdownLinkComponents,
+  ...mermaidComponents,
+  ...markdownTableComponents,
+}
 const publicReasoningComponents = {
   ...publicMarkdownLinkComponents,
   ...mermaidComponents,
+  ...markdownTableComponents,
 }
 
 export const ReasoningContent = memo(
@@ -250,7 +259,7 @@ export const ReasoningContent = memo(
     return (
       <CollapsibleContent
         className={cn(
-          "mt-2 max-h-64 overflow-y-auto overscroll-contain border-l border-border/70 pl-3 pr-2 text-sm",
+          "maxcode-reasoning-content mt-2 max-h-64 overflow-y-auto overscroll-contain border-l border-border/70 pl-3 pr-2 text-sm",
           "data-[state=closed]:fade-out-0 data-[state=closed]:slide-out-to-top-2 data-[state=open]:slide-in-from-top-2 text-muted-foreground outline-none data-[state=closed]:animate-out data-[state=open]:animate-in",
           className
         )}

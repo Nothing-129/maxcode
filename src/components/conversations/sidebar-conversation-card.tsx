@@ -25,6 +25,7 @@ import {
   Link2,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { SelectionIndicator } from "@/components/shared/selection-indicator"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { useTabStore } from "@/contexts/tab-context"
 import { emitAttachSessionToSession } from "@/lib/session-attachment-events"
@@ -110,10 +111,9 @@ export const CONV_RAIL_DEPTH_STEP = "1.25rem"
  * Renders nothing for a root (depth 0). Shared with the list's sub-session
  * loading placeholder so the spine stays continuous while children are fetched.
  *
- * `from` skips the first N levels. Folder-section sessions sit at depth 1 so
- * they indent under the folder header, but that first step must not draw a
- * spine — otherwise every expanded folder grows a vertical line down through
- * its conversations. Delegation / worktree rails start at `from`.
+ * `from` is the root session's visual depth. Folder, worktree and todo
+ * indentation must not produce rails; only delegation levels starting at
+ * the root session axis connect its actual descendants.
  */
 export function SubsessionAncestorRails({
   depth,
@@ -202,6 +202,7 @@ function isKeyboardFocus(target: EventTarget | null): boolean {
 interface SidebarConversationCardProps {
   conversation: DbConversationSummary
   isSelected: boolean
+  selectionId?: string
   isOpenInTab?: boolean
   timeLabel?: string
   onConversationPointerDown?: (
@@ -219,8 +220,8 @@ interface SidebarConversationCardProps {
   /** Delegation-tree nesting depth (0 = root). Drives the per-level indent. */
   depth?: number
   /**
-   * Skip this many ancestor-rail levels. Folder-section sessions use `1` so
-   * they indent under the folder without drawing a spine from the folder icon.
+   * Visual depth of the root session in this section. Skip container indent
+   * so only delegation descendants draw rails, including in Todo and Recent.
    */
   railFrom?: number
   /** True when `child_count > 0`: the conversation has delegation children, so
@@ -244,6 +245,7 @@ interface SidebarConversationCardProps {
 export const SidebarConversationCard = memo(function SidebarConversationCard({
   conversation,
   isSelected,
+  selectionId,
   isOpenInTab = false,
   timeLabel,
   onSelect,
@@ -401,7 +403,11 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
           <ContextMenuTrigger asChild>
             <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
               <div
-                className="relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg"
+                className={cn(
+                  "relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg",
+                  // Lift the traveling decoration above opaque sibling rows.
+                  isSelected && "z-[1]"
+                )}
                 data-conv-key={`${conversation.agent_type}:${conversation.id}`}
                 // Per-level indent: shift the shared rail axis right by one step per
                 // depth. Root rows (depth 0) leave the var untouched so they inherit
@@ -419,14 +425,23 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                 <div
                   className={cn(
                     // Compact history rows from the supplied desktop reference.
-                    "group relative flex h-full w-full items-center",
+                    "group relative flex h-full w-full items-center isolate",
                     "rounded-[0.625rem] text-sidebar-foreground",
                     "transition-colors duration-[120ms]",
                     isSelected
-                      ? "bg-black/[0.04] dark:bg-white/[0.06]"
+                      ? selectionId
+                        ? undefined
+                        : "bg-black/[0.07] dark:bg-white/[0.1]"
                       : "hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
                   )}
                 >
+                  {isSelected && selectionId && (
+                    <SelectionIndicator
+                      id={selectionId}
+                      durationMs={320}
+                      className="inset-0 -z-10 rounded-[0.625rem] bg-black/[0.07] dark:bg-white/[0.1]"
+                    />
+                  )}
                   <button
                     data-conversation-id={conversation.id}
                     onPointerDown={handlePointerDown}
@@ -450,12 +465,12 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     left rail aligns under the parent's. */}
                     <SubsessionAncestorRails depth={depth} from={railFrom} />
                     {/* This row's OWN rail, through its agent icon. Omitted for
-                    folder-section roots (`railFrom` covers the folder indent):
-                    that rail would stitch sibling sessions into one spine
-                    under the folder. Delegation children still draw it. */}
-                    {!(railFrom > 0 && depth <= railFrom) && (
+                    root sessions in every section: only delegation children
+                    draw a rail, so independent siblings never share a spine. */}
+                    {depth > railFrom && (
                       <span
                         aria-hidden
+                        data-conversation-rail
                         className={cn(
                           "pointer-events-none absolute z-0 bg-sidebar-border"
                         )}

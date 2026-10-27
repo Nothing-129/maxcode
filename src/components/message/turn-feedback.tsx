@@ -1,6 +1,6 @@
 "use client"
 
-import { WaitingDots } from "./waiting-dots"
+import { TURN_HEADING_CLASS, TurnStatusLabel } from "./turn-status"
 import { CheckIcon } from "lucide-react"
 import { useLayoutEffect, useRef, type ReactNode } from "react"
 
@@ -58,14 +58,14 @@ export function TurnFeedback({
               { opacity: 1, offset: 0.8 },
               { opacity: 0 },
             ]
-          : reduced
-            ? [{ opacity: 0.2 }, { opacity: 1 }]
+          : reduced || (kind === "reply" && hadWaiting)
+            ? [{ opacity: reduced ? 0.2 : 0 }, { opacity: 1 }]
             : [
-                { opacity: 0, transform: "translateY(12px)" },
+                { opacity: 0, transform: "translateY(4px)" },
                 { opacity: 1, transform: "translateY(0)" },
               ],
         {
-          duration: kind === "complete" ? 1100 : reduced ? 160 : 360,
+          duration: kind === "complete" ? 1100 : reduced ? 120 : 200,
           easing:
             kind === "complete" ? "linear" : "cubic-bezier(0.22, 1, 0.36, 1)",
         }
@@ -89,7 +89,7 @@ export function TurnFeedback({
       if (kind === "reply" && waiting && hadWaiting) {
         waiting.hidden = false
         const exit = waiting.animate([{ opacity: 1 }, { opacity: 0 }], {
-          duration: reduced ? 160 : 240,
+          duration: reduced ? 120 : 160,
           easing: "ease-out",
         })
         animations.push(exit)
@@ -127,10 +127,9 @@ export function TurnFeedback({
         ref={waitingRef}
         hidden
         aria-hidden
-        className="pointer-events-none absolute top-0 left-0 text-xs text-muted-foreground"
+        className={`pointer-events-none absolute top-4 left-0 !border-transparent ${TURN_HEADING_CLASS}`}
       >
-        <span className="sr-only">{waitingLabel}</span>
-        <WaitingDots />
+        <TurnStatusLabel>{waitingLabel}</TurnStatusLabel>
       </span>
       <div ref={contentRef}>{children}</div>
       <span

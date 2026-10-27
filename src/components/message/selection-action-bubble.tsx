@@ -51,6 +51,9 @@ type SelectionState =
 
 const NO_SELECTION: SelectionState = { kind: "none" }
 
+const ACTION_CLASS_NAME =
+  "h-7 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground [&_svg]:size-3.5"
+
 function sameState(a: SelectionState, b: SelectionState): boolean {
   if (a.kind !== b.kind) return false
   if (a.kind === "none" || b.kind === "none") return true
@@ -407,7 +410,7 @@ export function SelectionActionBubble({
       role="toolbar"
       aria-label={t("selectionActions")}
       className={cn(
-        "absolute z-30 flex items-center gap-0.5 rounded-full border border-border bg-popover p-0.5 shadow-md select-none",
+        "absolute z-30 flex items-center gap-0.5 rounded-xl border border-border/60 bg-popover p-1 text-popover-foreground shadow-sm select-none",
         // Only the ask row can outgrow a narrow tiled column. Capping it against
         // the container (the bubble's containing block) lets the input shrink
         // instead of being sheared off by the panel's overflow-hidden; the
@@ -492,6 +495,7 @@ export function SelectionActionBubble({
             type="button"
             variant="ghost"
             size="xs"
+            className={ACTION_CLASS_NAME}
             onClick={handleCopy}
             aria-label={t("selectionCopy")}
           >
@@ -503,6 +507,7 @@ export function SelectionActionBubble({
               type="button"
               variant="ghost"
               size="xs"
+              className={ACTION_CLASS_NAME}
               onClick={handleQuote}
               aria-label={t("selectionQuote")}
             >
@@ -515,6 +520,7 @@ export function SelectionActionBubble({
               type="button"
               variant="ghost"
               size="xs"
+              className={ACTION_CLASS_NAME}
               onClick={handleSaveAsNote}
               aria-label={t("selectionSaveAsNote")}
             >
@@ -527,6 +533,7 @@ export function SelectionActionBubble({
               type="button"
               variant="ghost"
               size="xs"
+              className={ACTION_CLASS_NAME}
               onClick={handleAskOpen}
               aria-label={t("selectionAsk")}
             >

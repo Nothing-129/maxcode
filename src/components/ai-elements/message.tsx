@@ -12,6 +12,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { cn } from "@/lib/utils"
+import { useAdaptiveStreamingText } from "@/hooks/use-adaptive-streaming-text"
+import { useMediaQuery } from "@/hooks/use-media-query"
 import { useTranslations } from "next-intl"
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 import {
@@ -34,6 +36,7 @@ import {
 } from "./markdown-link"
 import { maskLiteralSpans } from "./markdown-mask"
 import { mermaidComponents } from "./mermaid-block"
+import { markdownTableComponents } from "./markdown-table"
 import { rehypePluginsAllowingCodeg } from "./rehype-allow-codeg"
 import { remarkCodexFollowup } from "./remark-codex-followup"
 import { remarkAutolinkLocalPaths } from "./remark-autolink-local-paths"
@@ -516,6 +519,14 @@ const rehypePlugins = rehypePluginsAllowingCodeg(
 const FINISHED_MODE = "static" as const
 const FINISHED_PARSE_INCOMPLETE_MARKDOWN = false
 
+const STREAMING_FADE = {
+  animation: "fadeIn",
+  duration: 350,
+  easing: "ease-out",
+  sep: "char",
+  stagger: 0,
+} as const
+
 /**
  * How remend repairs an unclosed link while the text is still streaming: it
  * shows the link's text, and nothing else, until the closing `)` arrives.
@@ -549,12 +560,18 @@ function MessageResponseImpl({
   remend,
   ...props
 }: MessageResponseProps) {
+  const reducedMotion = useMediaQuery("(prefers-reduced-motion: reduce)")
+  const animate = mode === "streaming" && !reducedMotion
+  const displayed = useAdaptiveStreamingText(
+    typeof children === "string" ? children : "",
+    animate
+  )
   const normalized = useMemo(
     () =>
       typeof children === "string"
-        ? normalizeMathDelimiters(children)
+        ? normalizeMathDelimiters(displayed)
         : children,
-    [children]
+    [children, displayed]
   )
   const plugins = useStreamdownPlugins(
     typeof normalized === "string" ? normalized : undefined
@@ -585,6 +602,8 @@ function MessageResponseImpl({
       parseIncompleteMarkdown={parseIncompleteMarkdown}
       remend={remend ? { ...remend, ...LIVE_REMEND } : LIVE_REMEND}
       {...props}
+      isAnimating={animate}
+      animated={animate ? STREAMING_FADE : false}
       // Merge after spreading props so a caller can still override other
       // elements, but the selected link policy on `a` — and the diagram block
       // on `pre` — always win. Public shares use an external-only renderer
@@ -596,6 +615,7 @@ function MessageResponseImpl({
           : markdownLinkComponents),
         ...markdownLocalImageComponents,
         ...mermaidComponents,
+        ...markdownTableComponents,
       }}
     >
       {normalized}

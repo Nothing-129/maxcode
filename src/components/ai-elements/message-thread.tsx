@@ -4,6 +4,7 @@ import type { ComponentProps } from "react"
 
 import { AnimatePresence, motion } from "motion/react"
 import { useMediaQuery } from "@/hooks/use-media-query"
+import { useSurfaceTransition } from "@/hooks/use-surface-transition"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { ArrowDownIcon, DownloadIcon } from "lucide-react"
@@ -127,7 +128,13 @@ export function ConversationEntryPosition({
   ready: boolean
 }) {
   const context = useStickToBottomContext()
-  const { scrollRef, state, scrollToBottom } = context
+  const { scrollRef, contentRef, state, scrollToBottom } = context
+  useSurfaceTransition(contentRef, entryKey, {
+    active,
+    ready,
+    durationMs: 280,
+    initialOpacity: 0.15,
+  })
   useLayoutEffect(() => {
     if (!active || !ready || !scrollRef.current) return
     // Position before paint; subsequent virtual measurements follow instantly.

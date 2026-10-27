@@ -116,7 +116,7 @@ function badgeColorClass(data: ReferenceAttrs): string {
 }
 
 export interface ReferenceBadgeProps {
-  appearance?: "badge" | "file-link"
+  appearance?: "badge" | "file-link" | "composer-file"
   data: ReferenceAttrs
   className?: string
 }
@@ -132,11 +132,20 @@ export function ReferenceBadge({
   appearance = "badge",
 }: ReferenceBadgeProps) {
   const isFileLink = appearance === "file-link" && data.refType === "file"
+  const isComposerFile =
+    appearance === "composer-file" && data.refType === "file"
+  const filename = data.label || data.id.split(/[\\/]/).pop() || data.id
+  const extension = filename.match(/\.([a-z0-9]{1,12})$/i)?.[1]?.toUpperCase()
   return (
     <span
       data-reference-badge=""
       data-ref-type={data.refType}
-      title={data.uri ?? data.label}
+      data-composer-file-card={isComposerFile ? "" : undefined}
+      title={
+        isComposerFile
+          ? data.uri || data.id || filename
+          : (data.uri ?? data.label)
+      }
       // The badge is an inline contentEditable=false atom. `role="img"` makes it
       // a single named unit so `aria-label` is a reliable accessible name (a
       // bare span's aria-label is not), and collapses the decorative icon —
@@ -145,16 +154,28 @@ export function ReferenceBadge({
       aria-label={`${data.refType}: ${data.label || data.id}`}
       className={cn(
         "inline-flex align-middle",
-        isFileLink
-          ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
-          : cn(
-              "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
-              badgeColorClass(data)
-            ),
+        isComposerFile
+          ? "max-w-[min(100%,16rem)] items-center gap-2 rounded-xl border border-border/60 bg-muted/50 px-2.5 py-1.5 text-foreground font-normal leading-none transition-colors duration-150 hover:border-foreground/15 hover:bg-muted/80"
+          : isFileLink
+            ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+            : cn(
+                "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
+                badgeColorClass(data)
+              ),
         className
       )}
     >
-      {isFileLink ? (
+      {isComposerFile ? (
+        <span
+          aria-hidden="true"
+          className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background/80 [&_[data-file-icon]]:mt-0"
+        >
+          <FileTypeIcon
+            path={data.id}
+            isDirectory={data.meta?.fileKind === "dir"}
+          />
+        </span>
+      ) : isFileLink ? (
         <FileTypeIcon
           path={data.id}
           isDirectory={data.meta?.fileKind === "dir"}
@@ -162,15 +183,31 @@ export function ReferenceBadge({
       ) : (
         <ReferenceIcon data={data} />
       )}
-      <span
-        className={
-          isFileLink
-            ? "min-w-0 whitespace-normal [overflow-wrap:anywhere]"
-            : "truncate"
-        }
-      >
-        {data.label || data.id}
-      </span>
+      {isComposerFile ? (
+        <span className="flex min-w-0 flex-col gap-0.5">
+          <span className="truncate text-xs font-medium leading-4">
+            {filename}
+          </span>
+          {extension && data.meta?.fileKind !== "dir" && (
+            <span
+              aria-hidden="true"
+              className="text-[0.625rem] font-medium tracking-[0.06em] text-muted-foreground leading-none"
+            >
+              {extension}
+            </span>
+          )}
+        </span>
+      ) : (
+        <span
+          className={
+            isFileLink
+              ? "min-w-0 whitespace-normal [overflow-wrap:anywhere]"
+              : "truncate"
+          }
+        >
+          {data.label || data.id}
+        </span>
+      )}
     </span>
   )
 }

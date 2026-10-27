@@ -3,6 +3,10 @@ import { describe, expect, it, vi } from "vitest"
 import { SidebarFooter } from "@/components/layout/sidebar-footer"
 import { source } from "./contract-source"
 
+vi.mock("@/components/layout/sidebar-codex-quota", () => ({
+  SidebarCodexQuota: () => null,
+}))
+
 const actions = vi.hoisted(() => ({
   stats: vi.fn(),
   alerts: vi.fn(),
@@ -24,6 +28,18 @@ vi.mock("@/components/layout/status-bar-update", () => ({
 }))
 
 describe("sidebar utility footer", () => {
+  it("pairs quota and version with small icons and omits the version prefix", () => {
+    const quota = source("src/components/layout/sidebar-codex-quota.tsx")
+    const update = source("src/components/layout/status-bar-update.tsx")
+    expect(quota).toContain(
+      '<Gauge aria-hidden="true" className="size-3 shrink-0" />'
+    )
+    expect(update).toContain(
+      '<Package aria-hidden="true" className="size-3 shrink-0" />'
+    )
+    expect(update).toContain('{currentVersion || "—"}')
+    expect(update).not.toContain("`v${currentVersion}`")
+  })
   it("retains usage, alerts and updates without the obsolete quick launcher", () => {
     render(<SidebarFooter />)
     expect(

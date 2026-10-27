@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "Texte brut"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Quota Codex",
+    "remaining": "Restant",
+    "fiveHour": "5 heures",
+    "weekly": "Hebdomadaire",
+    "days": "{count} jours",
+    "hours": "{count} heures",
+    "minutes": "{count} min",
+    "percent": "{value} %",
+    "refresh": "Actualiser le quota",
+    "stale": "Dernières données",
+    "resetsAt": "Réinitialisation : {time}",
+    "updatedAt": "Mis à jour : {time}",
+    "resetUnknown": "Heure de réinitialisation indisponible",
+    "failed": "Échec de l’actualisation ; dernières données disponibles affichées.",
+    "unavailable": "Quota temporairement indisponible"
+  },
   "Language": {
     "followSystem": "Suivre le système",
     "english": "Anglais",
@@ -3526,6 +3548,7 @@
         "turnFailed": "Échec du tour : {message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "Réflexion en cours",
         "waiting": "En attente de réponse",
         "running": "Exécution des outils",
         "awaitingUser": "En attente de votre confirmation",

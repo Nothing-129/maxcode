@@ -1,6 +1,6 @@
 "use client"
 
-import { WaitingDots } from "./waiting-dots"
+import { TURN_HEADING_CLASS, TurnStatusLabel } from "./turn-status"
 
 import {
   ConversationMessageRail,
@@ -1110,19 +1110,16 @@ const PendingTypingIndicator = memo(function PendingTypingIndicator({
   }, [ledger, token])
   const t = useTranslations("Folder.chat.liveTurnStats")
   return (
-    <Message from="assistant">
+    <Message from="assistant" className="pt-4">
       <MessageContent>
         <div
-          className="flex items-center py-1 text-xs text-muted-foreground"
+          className={`${TURN_HEADING_CLASS} !border-transparent`}
           role="status"
         >
           {awaitingUser ? (
             <span>{t("awaitingUser")}</span>
           ) : (
-            <>
-              <span className="sr-only">{t("waiting")}</span>
-              <WaitingDots />
-            </>
+            <TurnStatusLabel>{t("thinkingPending")}</TurnStatusLabel>
           )}
         </div>
       </MessageContent>
@@ -1470,7 +1467,7 @@ export function MessageListView({
   const feedbackToken = `${conversationId}:${fold.epoch}`
   const waitingToken = `${conversationId}:send-${sendSignal}`
   const feedbackText = useTranslations("Folder.chat.liveTurnStats")
-  const waitingLabel = feedbackText("waiting")
+  const waitingLabel = feedbackText("thinkingPending")
 
   const renderThreadItem = useCallback(
     (item: ThreadRenderItem) => {

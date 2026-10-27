@@ -298,7 +298,7 @@ function GoalCard({
         />
         <span className="min-w-0 truncate">
           {isRunning ? (
-            <Shimmer as="span" duration={1} shineColor="var(--primary)">
+            <Shimmer as="span" duration={1} shineColor="var(--foreground)">
               {headerText}
             </Shimmer>
           ) : (

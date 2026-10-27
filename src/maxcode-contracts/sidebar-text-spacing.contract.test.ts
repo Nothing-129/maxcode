@@ -32,7 +32,7 @@ describe("sidebar text and spacing", () => {
     expect(card).toContain("MessageSquare")
     expect(card).toContain("maxcode-sidebar-label")
     expect(card).not.toContain('isOpenInTab && "text-primary"')
-    expect(card).toContain("bg-black/[0.04] dark:bg-white/[0.06]")
+    expect(card).toContain("bg-black/[0.07] dark:bg-white/[0.1]")
     expect(card).toContain("calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)")
     expect(card).toContain("formatConversationTitle(conversation.title)")
     expect(card).toContain("ConversationTitleLabel")

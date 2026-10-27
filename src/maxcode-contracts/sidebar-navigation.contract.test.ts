@@ -3,6 +3,13 @@ import zhCN from "@/i18n/messages/zh-CN.json"
 import { source } from "./contract-source"
 
 describe("sidebar navigation scope", () => {
+  it("omits the New chat hover shortcut badge", () => {
+    const sidebar = source("src/components/layout/sidebar.tsx")
+    expect(sidebar).not.toContain("SHORTCUT_BADGE_CLASS")
+    expect(sidebar).not.toContain("newConversationShortcutLabel")
+    expect(sidebar).not.toContain("<kbd")
+  })
+
   it("labels the Simplified Chinese navigation actions 新对话 and 自动任务", () => {
     expect(zhCN.Folder.sidebar.newChat).toBe("新对话")
     expect(zhCN.Folder.sidebar.automations).toBe("自动任务")

@@ -5,6 +5,12 @@ import enMessages from "@/i18n/messages/en.json"
 import { CompletedTurnContent } from "@/components/message/completed-turn-content"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 
+function prose(value: string) {
+  return screen.getByText((_, element) =>
+    Boolean(element?.matches(".chat-markdown") && element.textContent === value)
+  )
+}
+
 function steps(count: number): AdaptedContentPart[] {
   return Array.from({ length: count }, (_, i): AdaptedContentPart[] => [
     { type: "text", text: `Progress note ${i}` },
@@ -36,7 +42,7 @@ describe("MaxCode contract: upstream-style progress disclosures", () => {
   it("keeps prose visible and folds intervening activity into expandable summaries", () => {
     const { rerender, container } = render(tree(steps(3)))
     for (let i = 0; i < 3; i++)
-      expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
+      expect(prose(`Progress note ${i}`)).toBeVisible()
     expect(screen.queryByText("2 steps")).toBeNull()
     expect(container.querySelector("[data-activity-section]")).toBeNull()
     const summaries = screen.getAllByRole("button", {
@@ -52,12 +58,12 @@ describe("MaxCode contract: upstream-style progress disclosures", () => {
     expect(thinking[1]).toHaveAttribute("aria-expanded", "false")
     rerender(tree(steps(4)))
     expect(screen.getByText("Thought 0")).toBeVisible()
-    expect(screen.getByText("Progress note 3")).toBeVisible()
+    expect(prose("Progress note 3")).toBeVisible()
   })
   it("preserves intermediate prose in cancelled turns without a final answer", () => {
     render(tree(steps(3), true))
     for (let i = 0; i < 3; i++)
-      expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
+      expect(prose(`Progress note ${i}`)).toBeVisible()
     expect(screen.queryByText("2 steps")).toBeNull()
   })
   it("keeps command groups directly expandable beside thinking", () => {
@@ -91,6 +97,6 @@ describe("MaxCode contract: upstream-style progress disclosures", () => {
     expect(screen.queryByText("Progress note 0")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Finished working" }))
     for (let i = 0; i < 3; i++)
-      expect(screen.getByText(`Progress note ${i}`)).toBeVisible()
+      expect(prose(`Progress note ${i}`)).toBeVisible()
   })
 })

@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "純文字"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Codex 額度",
+    "remaining": "剩餘",
+    "fiveHour": "5 小時",
+    "weekly": "本週",
+    "days": "{count} 天",
+    "hours": "{count} 小時",
+    "minutes": "{count} 分鐘",
+    "percent": "{value}%",
+    "refresh": "重新整理額度",
+    "stale": "上次資料",
+    "resetsAt": "{time} 重設",
+    "updatedAt": "更新於 {time}",
+    "resetUnknown": "暫未提供重設時間",
+    "failed": "重新整理失敗，目前顯示上次成功查詢的資料。",
+    "unavailable": "暫時無法取得額度"
+  },
   "Language": {
     "followSystem": "跟隨系統",
     "english": "英文",
@@ -3526,6 +3548,7 @@
         "turnFailed": "本輪失敗：{message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "正在思考",
         "waiting": "等待回應",
         "running": "執行工具中",
         "awaitingUser": "等待你的確認",

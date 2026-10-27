@@ -10,9 +10,11 @@ import {
   useState,
   type CSSProperties,
   type RefObject,
+  type ReactNode,
 } from "react"
 import { type Editor, type JSONContent } from "@tiptap/core"
 import { Selection } from "@tiptap/pm/state"
+import { useComposerHeightMotion } from "@/hooks/use-composer-height-motion"
 import { EditorContent, useEditor } from "@tiptap/react"
 import { exitSuggestion } from "@tiptap/suggestion"
 
@@ -24,6 +26,7 @@ import {
 } from "@/lib/invocation-token"
 import { matchShortcutEvent } from "@/lib/keyboard-shortcuts"
 import { cn } from "@/lib/utils"
+import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { buildComposerExtensions } from "./editor-config"
 import {
@@ -32,6 +35,7 @@ import {
   textToSeededInlineContent,
 } from "./plain-text-content"
 import { serializeDocToText } from "./to-prompt-blocks"
+import { EditorFileAttachments } from "./editor-file-attachments"
 import { decideComposerKey } from "./submit-key"
 import type {
   MentionController,
@@ -109,6 +113,9 @@ export interface RichComposerProps {
   disabled?: boolean
   /** Accessible label for the editing surface. */
   ariaLabel?: string
+  removeFileLabel?: (name: string) => string
+  /** Attachments share the editor scrollport and take up normal flow space. */
+  attachmentContent?: ReactNode
   /** Outer wrapper className (host controls border/ring/max-height). */
   className?: string
   /** Inline style for the outer wrapper (e.g. max-height). */
@@ -265,6 +272,8 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       onBlur,
       onReady,
       referenceSearch,
+      removeFileLabel,
+      attachmentContent,
       mentionUiLabels,
       tabLabels,
       mentionAnchorRef,
@@ -574,6 +583,8 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       onBlur: () => onBlurRef.current?.(),
     })
 
+    useComposerHeightMotion(rootRef, Boolean(editor))
+
     // Reflect disabled changes onto the live editor. Pass emitUpdate=false so
     // toggling editability never fires onUpdate/onChange without a real edit.
     useEffect(() => {
@@ -722,10 +733,19 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         style={style}
         data-disabled={disabled || undefined}
       >
-        <EditorContent
-          editor={editor}
-          className="codeg-composer-scroll min-h-0 flex-1 overflow-y-auto px-4 pt-4 pb-3"
-        />
+        <ScrollArea
+          className="codeg-composer-scroll min-h-0 flex-1"
+          autoHide="never"
+        >
+          <div data-composer-scroll-content="">
+            {attachmentContent}
+            <EditorFileAttachments
+              editor={editor}
+              removeLabel={removeFileLabel}
+            />
+            <EditorContent editor={editor} className="px-4 pt-4 pb-3" />
+          </div>
+        </ScrollArea>
         {referenceSearch && mentionState && (
           <SuggestionPopup
             // Remount per `@` session so panel state (active/pinned tab,

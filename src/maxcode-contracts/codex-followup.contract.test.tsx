@@ -86,7 +86,7 @@ describe("Codex followup suggestions", () => {
     }
   )
 
-  it("switches a streaming partial directive to a control when completed", () => {
+  it("switches a streaming partial directive to a control when completed", async () => {
     const onSelect = vi.fn()
     const view = (text: string) => (
       <CodexFollowupContext.Provider value={onSelect}>
@@ -100,7 +100,9 @@ describe("Codex followup suggestions", () => {
     )
     expect(screen.queryByRole("button", { name: "查看新增记录" })).toBeNull()
     rerender(view(directive))
-    expect(screen.getByRole("button", { name: "查看新增记录" })).toBeVisible()
+    expect(
+      await screen.findByRole("button", { name: "查看新增记录" })
+    ).toBeVisible()
   })
 
   it("connects suggestion selection to append-only composer injection", () => {

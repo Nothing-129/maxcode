@@ -10,7 +10,7 @@ describe("running composer actions", () => {
     )
 
     expect(running.match(/h-8 w-8 rounded-full/g)).toHaveLength(4)
-    expect(running.match(/size-3.5 fill-current/g)).toHaveLength(2)
+    expect(running.match(/<GenerationActionIcon running \/>/g)).toHaveLength(2)
     expect(running).toContain('<ArrowUp className="size-4"')
     expect(running).toContain('variant="secondary"')
     expect(running).toContain('variant="ghost"')

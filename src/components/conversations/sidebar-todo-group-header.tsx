@@ -80,7 +80,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         <ChevronRight
           aria-hidden
           className={cn(
-            "size-3 shrink-0 text-muted-foreground transition-transform",
+            "maxcode-disclosure-chevron size-3 shrink-0 text-muted-foreground transition-transform",
             expanded && "rotate-90"
           )}
         />

@@ -13,9 +13,11 @@ export function ReferenceView({ node }: ReactNodeViewProps) {
     <NodeViewWrapper
       as="span"
       className="codeg-reference"
+      data-composer-reference={attrs.refType}
+      aria-hidden={attrs.refType === "file" || undefined}
       contentEditable={false}
     >
-      <ReferenceBadge data={attrs} />
+      {attrs.refType !== "file" && <ReferenceBadge data={attrs} />}
     </NodeViewWrapper>
   )
 }

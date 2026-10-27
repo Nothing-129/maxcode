@@ -225,6 +225,7 @@ export function TodoCard({
         "group rounded-2xl border border-border/70 bg-background p-4 shadow-xs transition-colors hover:border-border",
         list && "flex flex-wrap items-center gap-x-5 gap-y-2"
       )}
+      data-motion-item={todo.id}
       data-testid={`todo-${todo.id}`}
     >
       <button

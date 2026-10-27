@@ -66,6 +66,7 @@ export function ModelOptionPicker({
       >
         <PopoverTrigger asChild>
           <Button
+            data-neutral-model-surface
             variant="ghost"
             size="xs"
             aria-label={
@@ -79,6 +80,8 @@ export function ModelOptionPicker({
         </PopoverTrigger>
       </SelectorTooltip>
       <PopoverContent
+        data-composer-selector-content=""
+        data-neutral-model-surface
         ref={contentRef}
         side="top"
         align="start"

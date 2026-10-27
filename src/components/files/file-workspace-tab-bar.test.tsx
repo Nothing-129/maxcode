@@ -58,7 +58,10 @@ vi.mock("motion/react", () => {
       </div>
     )
   }
-  return { Reorder: { Group: Passthrough, Item: Passthrough } }
+  return {
+    Reorder: { Group: Passthrough, Item: Passthrough },
+    motion: { span: Passthrough },
+  }
 })
 
 vi.mock("@/contexts/workspace-context", () => ({

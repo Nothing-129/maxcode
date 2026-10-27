@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "Plain text"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Codex quota",
+    "remaining": "Remaining",
+    "fiveHour": "5 hours",
+    "weekly": "Weekly",
+    "days": "{count} days",
+    "hours": "{count} hours",
+    "minutes": "{count} min",
+    "percent": "{value}%",
+    "refresh": "Refresh quota",
+    "stale": "Last known",
+    "resetsAt": "Resets {time}",
+    "updatedAt": "Updated {time}",
+    "resetUnknown": "Reset time unavailable",
+    "failed": "Refresh failed; showing last successful reading.",
+    "unavailable": "Quota temporarily unavailable"
+  },
   "Language": {
     "followSystem": "Follow System",
     "english": "English",
@@ -3526,6 +3548,7 @@
         "turnFailed": "Turn failed: {message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "Thinking",
         "waiting": "Waiting for response",
         "running": "Running tools",
         "awaitingUser": "Waiting for you",

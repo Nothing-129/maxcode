@@ -906,6 +906,8 @@ export interface ConversationRow {
    * card's per-level indent (a pure function of this number).
    */
   depth: number
+  /** Delegation depth only; excludes folder, worktree and todo indentation. */
+  subsessionDepth?: number
   /**
    * Set (only) on rows emitted by the "Recent" section. Recent deliberately
    * re-lists conversations that also appear under their folder or in Chat, so
@@ -1083,6 +1085,7 @@ export interface SubsessionLoadingRow {
   kind: "subsession-loading"
   parentId: number
   depth: number
+  subsessionDepth: number
   /** Set on the placeholder under a Recent-section parent — same duplicate-key
    *  concern as {@link ConversationRow.recent}: one expanded parent listed in
    *  both its folder and Recent produces two placeholders. */
@@ -1169,9 +1172,11 @@ function pushConversationRow(
   // Tags this row — and its whole subtree — as a Recent-section copy. See
   // {@link ConversationRow.recent}.
   recent = false,
-  todoId?: string
+  todoId?: string,
+  subsessionDepth = 0
 ): void {
   const row: ConversationRow = { kind: "conversation", conversation, depth }
+  if (subsessionDepth > 0) row.subsessionDepth = subsessionDepth
   if (recent) row.recent = true
   if (todoId) row.todoId = todoId
   rows.push(row)
@@ -1193,6 +1198,7 @@ function pushConversationRow(
       kind: "subsession-loading",
       parentId: conversation.id,
       depth: depth + 1,
+      subsessionDepth: subsessionDepth + 1,
     }
     if (recent) loadingRow.recent = true
     if (todoId) loadingRow.todoId = todoId
@@ -1210,7 +1216,8 @@ function pushConversationRow(
       childrenByParent,
       childrenLoading,
       recent,
-      todoId
+      todoId,
+      subsessionDepth + 1
     )
   }
 }

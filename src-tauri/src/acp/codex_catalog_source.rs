@@ -211,6 +211,30 @@ async fn resolve_codex_js(acp_dir: &Path, node: &Path) -> Option<PathBuf> {
     path.exists().then_some(path)
 }
 
+/// Resolve the same Codex runtime used by ACP for read-only account queries.
+/// No installation or model request is performed.
+pub(crate) async fn account_command() -> Option<tokio::process::Command> {
+    let node = catalog_node();
+    for source in catalog_sources().await {
+        match source {
+            CatalogSource::Runtime(path) if path.is_file() => {
+                return Some(crate::process::tokio_command(path));
+            }
+            CatalogSource::Adapter(dir) => {
+                if let Some(node) = node.as_deref() {
+                    if let Some(js) = resolve_codex_js(&dir, node).await {
+                        let mut command = crate::process::tokio_command(node);
+                        command.arg(js);
+                        return Some(command);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    None
+}
+
 async fn fetch_sources(sources: Vec<CatalogSource>, node: Option<PathBuf>) -> Option<Vec<Value>> {
     for source in sources {
         let mut cmd = match source {

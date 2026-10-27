@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import { ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
@@ -26,11 +27,16 @@ export function InlineModeSelector({
   onSelect,
   label,
 }: ModeSelectorProps) {
+  const [open, setOpen] = useState(false)
   const selected = modes.find((mode) => mode.id === selectedModeId)
   const currentLabel = selected?.name ?? selectedModeId ?? ""
   return (
-    <DropdownMenu>
-      <SelectorTooltip label={label} description={selected?.description}>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+      <SelectorTooltip
+        label={label}
+        description={selected?.description}
+        suppressed={open}
+      >
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
@@ -44,6 +50,7 @@ export function InlineModeSelector({
         </DropdownMenuTrigger>
       </SelectorTooltip>
       <DropdownMenuContent
+        data-composer-selector-content=""
         side="top"
         align="start"
         className="max-h-[60vh] min-w-72 overflow-y-auto"

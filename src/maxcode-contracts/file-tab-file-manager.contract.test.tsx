@@ -33,7 +33,7 @@ vi.mock("motion/react", () => {
   function Item({ children }: { children?: ReactNode }) {
     return <div>{children}</div>
   }
-  return { Reorder: { Group: Item, Item } }
+  return { Reorder: { Group: Item, Item }, motion: { span: Item } }
 })
 vi.mock("@/contexts/workspace-context", () => ({
   useWorkspaceView: () => ({ mode: "fusion", filesMaximized: false }),

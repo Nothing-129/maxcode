@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "نص عادي"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "حصة Codex",
+    "remaining": "المتبقي",
+    "fiveHour": "5 ساعات",
+    "weekly": "أسبوعي",
+    "days": "{count} أيام",
+    "hours": "{count} ساعات",
+    "minutes": "{count} دقائق",
+    "percent": "{value}%",
+    "refresh": "تحديث الحصة",
+    "stale": "آخر بيانات",
+    "resetsAt": "إعادة التعيين: {time}",
+    "updatedAt": "آخر تحديث: {time}",
+    "resetUnknown": "وقت إعادة التعيين غير متاح",
+    "failed": "فشل التحديث؛ تُعرض آخر بيانات ناجحة.",
+    "unavailable": "الحصة غير متاحة مؤقتًا"
+  },
   "Language": {
     "followSystem": "اتباع النظام",
     "english": "الإنجليزية",
@@ -3526,6 +3548,7 @@
         "turnFailed": "فشلت هذه الجولة: {message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "جارٍ التفكير",
         "waiting": "في انتظار الرد",
         "running": "جارٍ تشغيل الأدوات",
         "awaitingUser": "في انتظار تأكيدك",

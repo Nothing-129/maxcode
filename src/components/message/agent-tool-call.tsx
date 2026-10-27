@@ -654,7 +654,7 @@ export const AgentToolCallPart = memo(function AgentToolCallPart({
             <Shimmer
               className="text-sm"
               duration={1}
-              shineColor="var(--primary)"
+              shineColor="var(--foreground)"
             >
               {isLiveBackgroundLaunch || outcomeBackground
                 ? tBg("cardRunning")

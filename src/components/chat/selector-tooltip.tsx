@@ -17,12 +17,9 @@ interface SelectorTooltipProps {
   /** The blurb for the setting, when there is one. */
   description?: string | null
   /**
-   * Force the hint closed while the selector's own popup is open. Only needed
-   * for `Popover`-based selectors: a Radix `Popover` is non-modal, so the
-   * trigger keeps receiving pointer events underneath its own panel and the
-   * hint would crawl out from behind it. `DropdownMenu` (modal) and `Select`
-   * (`disableOutsidePointerEvents`) both make the trigger unhoverable while
-   * open, so those callers pass nothing.
+   * Force the hint closed while the selector's own popup is open. Non-modal
+   * popovers and composer dropdowns keep their triggers hoverable, so they
+   * pass their open state to prevent a hint surfacing behind the panel.
    */
   suppressed?: boolean
   /**
@@ -115,7 +112,7 @@ export function SelectorTooltip({
               </div>
             ) : null}
             {description ? (
-              <div className="break-words text-background/70">
+              <div className="break-words text-muted-foreground">
                 {description}
               </div>
             ) : null}

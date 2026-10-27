@@ -197,7 +197,7 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
             <ChevronRight
               aria-hidden
               className={cn(
-                "h-3 w-3 shrink-0 text-muted-foreground/60",
+                "maxcode-disclosure-chevron h-3 w-3 shrink-0 text-muted-foreground/60",
                 "transition-[transform,opacity] duration-200 ease-out",
                 "opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
                 "[@media(hover:none)]:opacity-100",

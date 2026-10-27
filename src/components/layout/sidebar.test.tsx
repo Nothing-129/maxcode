@@ -188,11 +188,9 @@ describe("Sidebar — fixed nav region", () => {
     expect(spies.openNewConversationTab).toHaveBeenCalledWith(7, "/x")
   })
 
-  it("renders the New chat shortcut hint", () => {
-    const { getByText } = renderSidebar()
-    // isMac=false → "mod" formats as "Ctrl". The badge is opacity-0 until the
-    // row is hovered/focused but stays in the DOM, so getByText resolves it.
-    expect(getByText("Ctrl+T")).toBeTruthy()
+  it("omits the New chat shortcut hint", () => {
+    const { queryByText } = renderSidebar()
+    expect(queryByText("Ctrl+T")).toBeNull()
   })
 
   it("no longer carries a Search row — it moved to the window chrome", () => {

@@ -1,0 +1,13 @@
+/* Streamdown marks previously rendered characters with a zero duration on each
+   update. Keep the duration stable so their existing CSS animations finish
+   naturally while new characters begin fading in; no full-paragraph replay. */
+.chat-markdown [data-sd-animate] {
+  animation-duration: 350ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-markdown [data-sd-animate],
+  .chat-markdown [data-sd-animate-marker]::marker {
+    animation: none;
+  }
+}

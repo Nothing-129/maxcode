@@ -12,6 +12,8 @@ type ScrollAreaProps = {
   className?: string
   x?: "scroll" | "hidden"
   y?: "scroll" | "hidden"
+  hideScrollbars?: boolean
+  autoHide?: "scroll" | "move" | "leave" | "never"
   onScroll?: (event: Event) => void
   /**
    * Receives the real scrollable viewport element once OverlayScrollbars has
@@ -32,20 +34,22 @@ type ScrollAreaProps = {
   ref?: React.Ref<OverlayScrollbarsComponentRef>
 }
 
-const BASE_OPTIONS: OverlayScrollbarsComponentProps["options"] = {
+const BASE_OPTIONS = {
   scrollbars: {
     theme: "os-theme-codeg",
     autoHide: "scroll",
     autoHideDelay: 800,
     clickScroll: true,
   },
-}
+} satisfies OverlayScrollbarsComponentProps["options"]
 
 export function ScrollArea({
   children,
   className,
   x = "hidden",
   y = "scroll",
+  hideScrollbars = false,
+  autoHide = "scroll",
   onScroll,
   onViewportRef,
   dir,
@@ -54,9 +58,14 @@ export function ScrollArea({
   const options = useMemo<OverlayScrollbarsComponentProps["options"]>(
     () => ({
       ...BASE_OPTIONS,
+      scrollbars: {
+        ...BASE_OPTIONS.scrollbars,
+        autoHide,
+        visibility: hideScrollbars ? "hidden" : "auto",
+      },
       overflow: { x, y },
     }),
-    [x, y]
+    [x, y, hideScrollbars, autoHide]
   )
 
   const events = useMemo<OverlayScrollbarsComponentProps["events"]>(

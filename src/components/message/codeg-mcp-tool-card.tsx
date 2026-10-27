@@ -138,7 +138,7 @@ export function CodegMcpToolCard({
         className="min-w-0 flex-1 truncate text-xs font-medium text-foreground"
       >
         {isRunning ? (
-          <Shimmer as="span" duration={1} shineColor="var(--primary)">
+          <Shimmer as="span" duration={1} shineColor="var(--foreground)">
             {label}
           </Shimmer>
         ) : (

@@ -1,0 +1,200 @@
+.maxcode-sidebar-virtual-row:has([data-motion-selection]) {
+  z-index: 1;
+}
+
+/* Small, consistent feedback; no layout animation on the transcript hot path. */
+@keyframes maxcode-selector-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes maxcode-selector-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(2px) scale(0.985);
+  }
+}
+
+[data-composer-selector-content][data-state="open"] {
+  animation: maxcode-selector-in 180ms var(--motion-ease);
+}
+[data-composer-selector-content][data-state="closed"] {
+  pointer-events: none;
+  animation: maxcode-selector-out 120ms ease-in;
+}
+
+[data-slot="tooltip-content"],
+[data-slot="hover-card-content"] {
+  animation-duration: 140ms;
+  animation-timing-function: var(--motion-ease);
+}
+
+[data-slot="tooltip-content"][data-state="closed"],
+[data-slot="hover-card-content"][data-state="closed"] {
+  animation-duration: 100ms;
+}
+
+.maxcode-status-text {
+  animation: maxcode-fade-in 160ms ease-out;
+}
+
+.maxcode-reasoning-content[data-state="open"] {
+  animation: maxcode-fade-in 180ms ease-out;
+}
+.maxcode-reasoning-content[data-state="closed"] {
+  animation: maxcode-fade-out 100ms ease-in;
+}
+
+.maxcode-composer-actions {
+  min-height: 2rem;
+}
+.maxcode-composer-actions > * {
+  animation: maxcode-fade-in 160ms ease-out;
+}
+.maxcode-composer-actions [data-slot="button"] > svg {
+  animation: maxcode-fade-in 160ms ease-out;
+}
+
+[data-slot="checkbox-indicator"] > svg {
+  animation: maxcode-success-feedback 160ms var(--motion-ease);
+}
+
+.maxcode-list-ready {
+  animation: maxcode-surface-in 180ms ease-out;
+}
+
+.maxcode-disclosure-chevron {
+  transition-duration: 260ms;
+  transition-timing-function: var(--motion-ease);
+}
+
+.maxcode-attachment-tray {
+  display: grid;
+  grid-template-rows: 1fr;
+  opacity: 1;
+  transition:
+    grid-template-rows 220ms var(--motion-ease),
+    opacity 180ms ease-out;
+}
+.maxcode-attachment-tray[data-open="false"] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+@keyframes maxcode-generation-halo {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.8;
+    transform: scale(1.15);
+  }
+}
+
+.maxcode-generation-button {
+  position: relative;
+  overflow: visible;
+  transition:
+    scale 140ms var(--motion-ease),
+    background-color 280ms ease-out,
+    color 280ms ease-out;
+}
+.maxcode-generation-button[data-generation-running="true"]::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 3px rgb(33 106 228 / 14%);
+  animation: maxcode-generation-halo 2s ease-in-out infinite;
+}
+@media (hover: hover) {
+  .maxcode-generation-button:hover:not(:disabled) {
+    scale: 1.04;
+  }
+}
+.maxcode-generation-button:active:not(:disabled) {
+  translate: none;
+  scale: 0.94;
+}
+.maxcode-generation-icon {
+  position: relative;
+  display: inline-grid;
+  width: 1rem;
+  height: 1rem;
+  place-items: center;
+  pointer-events: none;
+}
+.maxcode-generation-icon > svg {
+  grid-area: 1 / 1;
+  transition: opacity 160ms ease-out;
+}
+.maxcode-send-ready-halo {
+  position: absolute;
+  width: 2rem;
+  height: 2rem;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+.maxcode-generation-icon[data-running="true"] > [data-generation-glyph="send"],
+.maxcode-generation-icon[data-running="false"]
+  > [data-generation-glyph="stop"] {
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-attachment-tray {
+    transition: none;
+  }
+  .maxcode-disclosure-chevron {
+    transition: none;
+  }
+  .maxcode-generation-button,
+  .maxcode-generation-button:hover:not(:disabled),
+  .maxcode-generation-button:active:not(:disabled) {
+    scale: 1;
+    translate: none;
+    transition:
+      background-color 100ms ease-out,
+      color 100ms ease-out;
+  }
+  .maxcode-generation-button[data-generation-running="true"]::before {
+    animation: none;
+    opacity: 0;
+  }
+  .maxcode-generation-icon > svg {
+    transition-duration: 100ms;
+  }
+  [data-composer-selector-content][data-state="open"] {
+    animation: maxcode-fade-in 120ms ease-out;
+  }
+  [data-composer-selector-content][data-state="closed"] {
+    animation: maxcode-fade-out 100ms ease-in;
+  }
+  [data-slot="skeleton"] {
+    animation: none;
+  }
+  [data-slot="checkbox-indicator"] > svg {
+    animation: maxcode-fade-in 100ms ease-out;
+  }
+  .maxcode-composer-actions > *,
+  .maxcode-composer-actions [data-slot="button"] > svg,
+  .maxcode-status-text {
+    animation-duration: 100ms;
+  }
+}

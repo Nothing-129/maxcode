@@ -9,6 +9,7 @@ import {
   type Ref,
 } from "react"
 import type { Editor } from "@tiptap/core"
+import { AttachmentTray } from "@/components/chat/composer/attachment-tray"
 
 import {
   ComposerInvocationsPopup,
@@ -303,24 +304,28 @@ export function TaskMessageComposer({
       className={`${COMPOSER_CHROME_BOX_CLASS} ${COMPOSER_CHROME_SURFACE_CLASS} ${COMPOSER_CHROME_SHADOW_CLASS}`}
     >
       <ComposerInvocationsPopup inv={invocations} />
-      {attach.imageAttachments.length > 0 ? (
-        <div className="flex gap-2 overflow-x-auto px-2 pt-2">
-          <ComposerImageThumbnails
-            attachments={attach.imageAttachments}
-            onRemove={attach.removeAttachment}
-            onMarkup={attach.replaceImageAttachment}
-          />
-        </div>
-      ) : null}
       {/* Not keyed by the placeholder: RichComposer repaints a changed hint in
           place (the drawer swaps one per follow-up scenario). Remounting would
           take the document with it, and an attachment whose bytes live out of
           band cannot be recovered from the serialized text. */}
       <RichComposer
+        attachmentContent={
+          <AttachmentTray
+            present={attach.imageAttachments.length > 0}
+            className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-1"
+          >
+            <ComposerImageThumbnails
+              attachments={attach.imageAttachments}
+              onRemove={attach.removeAttachment}
+              onMarkup={attach.replaceImageAttachment}
+            />
+          </AttachmentTray>
+        }
         ref={editorRef}
         defaultText={defaultText}
         placeholder={placeholder}
         ariaLabel={ariaLabel}
+        removeFileLabel={(name) => t("removeAttachmentAria", { name })}
         autoFocus={autoFocus}
         referenceSearch={referenceSearch}
         mentionUiLabels={uiLabels}

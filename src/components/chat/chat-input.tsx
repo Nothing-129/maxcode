@@ -48,9 +48,6 @@ interface ChatInputProps {
   folderPickerOverride?: ConversationFolderPickerOverride
   draftStorageKey?: string | null
   isActive?: boolean
-  /** Show the composer's flowing active-session border. Set only for the active
-   *  tab when tiled across multiple sessions; passed through to MessageInput. */
-  showActiveFlow?: boolean
   queue?: QueuedMessage[]
   connectionError?: string | null
   onReconnect?: () => Promise<void>
@@ -127,7 +124,6 @@ export const ChatInput = memo(function ChatInput({
   folderPickerOverride,
   draftStorageKey,
   isActive,
-  showActiveFlow,
   queue,
   connectionError,
   onReconnect,
@@ -261,7 +257,6 @@ export const ChatInput = memo(function ChatInput({
         folderPickerOverride={folderPickerOverride}
         draftStorageKey={draftStorageKey}
         isActive={isActive}
-        showActiveFlow={showActiveFlow}
         onEnqueue={onEnqueue}
         editingItemId={editingItemId}
         editingDraftText={editingDraftText}

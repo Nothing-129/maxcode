@@ -177,12 +177,6 @@ interface ConversationTabViewProps {
   agentType: AgentType
   workingDir?: string
   isActive: boolean
-  /** Drive the composer's flowing active-session border. True only for the
-   *  active tab while several sessions are visible (tiled within a group
-   *  and/or split across groups) — the places the flow serves as the "which
-   *  session is active" cue. Distinct from `isActive`, which also governs
-   *  auto-focus/connect and is true even for a lone session. */
-  showActiveFlow: boolean
   reloadSignal: number
   /** The split group this view is rendered under. Used ONLY to tell a
    *  reparent (the tab moved to another group — remount, keep the connection)
@@ -254,7 +248,6 @@ const ConversationTabView = memo(function ConversationTabView({
   agentType,
   workingDir,
   isActive,
-  showActiveFlow,
   reloadSignal,
   groupId,
   preserveIdleOwnerOnUnmount,
@@ -2510,7 +2503,6 @@ const ConversationTabView = memo(function ConversationTabView({
       onAddFeedback={feedback.featureEnabled ? feedback.openDialog : undefined}
       feedbackAddDisabled={!feedback.canSubmit}
       isActive={isActive}
-      showActiveFlow={showActiveFlow}
       queue={msgQueue}
       onEnqueue={
         canAutoConnect || awaitingHistoricalSessionId
@@ -2630,7 +2622,6 @@ const ConversationTabView = memo(function ConversationTabView({
                 attachmentTabId={tabId}
                 draftStorageKey={draftStorageKey}
                 isActive={isActive}
-                showActiveFlow={showActiveFlow}
                 queue={msgQueue}
                 onEnqueue={
                   canAutoConnect || awaitingHistoricalSessionId
@@ -3156,7 +3147,6 @@ export function ConversationDetailPanel() {
         agentType={tab.agentType}
         workingDir={tab.workingDir ?? folderPath}
         isActive={active}
-        showActiveFlow={(showSplitLayout || canTileG) && active}
         reloadSignal={reloadByTabId[tab.id] ?? 0}
         groupId={groupId}
         visible={visible}
@@ -3180,17 +3170,14 @@ export function ConversationDetailPanel() {
                 indexInGroup > 0 && "border-l border-border/50"
               )
             : visible
-              ? "h-full maxcode-surface-enter"
+              ? "relative h-full"
               : "conversation-tab-hidden absolute inset-0 invisible pointer-events-none"
         )}
         onPointerDownCapture={
           visible && !active ? () => switchTab(tab.id) : undefined
         }
       >
-        {/* The visible active cue is now the composer's flowing gradient border
-            (see message-input.tsx); keep a non-visual cue for assistive tech
-            when several sessions are visible (tiled and/or split). */}
-        {(showSplitLayout || canTileG) && active && (
+        {visible && (showSplitLayout || canTileG) && active && (
           <span className="sr-only">{t("activeConversationIndicator")}</span>
         )}
         {/* A backgrounded tab is kept mounted and merely hidden (its session is
@@ -3273,6 +3260,7 @@ export function ConversationDetailPanel() {
           >
             <ConversationDetailHeader
               tabId={selTab.id}
+              selectionActive={selTab.id === activeTabId}
               conversationId={selTab.conversationId}
               runtimeConversationId={selTab.runtimeConversationId ?? null}
               folderId={selTab.folderId}
@@ -3336,6 +3324,15 @@ export function ConversationDetailPanel() {
         {!showSplitLayout && activeTab && (
           <ConversationDetailHeader
             tabId={activeTab.id}
+            selectionActive={
+              !isMobile &&
+              orderedGroupIds.some(
+                (id) =>
+                  tileByGroup[id] && (tabsByGroup.get(id)?.length ?? 0) > 1
+              )
+                ? true
+                : undefined
+            }
             conversationId={activeTab.conversationId}
             runtimeConversationId={activeTab.runtimeConversationId ?? null}
             folderId={activeTab.folderId}

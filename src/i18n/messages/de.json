@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "Nur Text"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Codex-Kontingent",
+    "remaining": "Verbleibend",
+    "fiveHour": "5 Stunden",
+    "weekly": "Wöchentlich",
+    "days": "{count} Tage",
+    "hours": "{count} Stunden",
+    "minutes": "{count} Min.",
+    "percent": "{value}%",
+    "refresh": "Kontingent aktualisieren",
+    "stale": "Letzter Stand",
+    "resetsAt": "Zurücksetzung: {time}",
+    "updatedAt": "Aktualisiert: {time}",
+    "resetUnknown": "Zeitpunkt der Zurücksetzung unbekannt",
+    "failed": "Aktualisierung fehlgeschlagen; letzter erfolgreicher Stand wird angezeigt.",
+    "unavailable": "Kontingent vorübergehend nicht verfügbar"
+  },
   "Language": {
     "followSystem": "Systemsprache verwenden",
     "english": "Englisch",
@@ -3526,6 +3548,7 @@
         "turnFailed": "Runde fehlgeschlagen: {message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "Denke nach",
         "waiting": "Warte auf Antwort",
         "running": "Werkzeuge werden ausgeführt",
         "awaitingUser": "Warte auf deine Bestätigung",

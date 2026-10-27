@@ -100,6 +100,7 @@ import { ConversationShareOptionsEditor } from "./conversation-share-options"
 
 interface ConversationDetailHeaderProps {
   tabId: string
+  selectionActive?: boolean
   /** Persisted DB id — null for an unsaved draft (rename / pin / status /
    *  details / delete disabled until the first send persists the row). */
   conversationId: number | null
@@ -131,6 +132,7 @@ const EMPTY_TODO_ORIGINS: TodoOrigin[] = []
  */
 export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   tabId,
+  selectionActive,
   conversationId,
   runtimeConversationId,
   folderId,
@@ -601,6 +603,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       {/* 标题文字占据剩余宽度，超出时截断。 */}
       <div className="flex min-w-0 flex-1 items-center gap-1">
         <span
+          data-conversation-title=""
+          data-selection-active={selectionActive}
           className="min-w-0 truncate text-sm leading-5 font-semibold text-foreground md:cursor-grab md:active:cursor-grabbing"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onPointerDown={(event) => {

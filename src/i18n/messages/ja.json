@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "プレーンテキスト"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Codex 利用枠",
+    "remaining": "残り",
+    "fiveHour": "5 時間",
+    "weekly": "週間",
+    "days": "{count} 日",
+    "hours": "{count} 時間",
+    "minutes": "{count} 分",
+    "percent": "{value}%",
+    "refresh": "利用枠を更新",
+    "stale": "前回のデータ",
+    "resetsAt": "リセット: {time}",
+    "updatedAt": "更新: {time}",
+    "resetUnknown": "リセット時刻は不明です",
+    "failed": "更新に失敗しました。前回のデータを表示しています。",
+    "unavailable": "利用枠を取得できません"
+  },
   "Language": {
     "followSystem": "システムに従う",
     "english": "英語",
@@ -3526,6 +3548,7 @@
         "turnFailed": "このターンは失敗しました：{message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "考え中",
         "waiting": "応答を待機中",
         "running": "ツールを実行中",
         "awaitingUser": "確認を待機中",

@@ -3176,7 +3176,7 @@ const ToolGroupPart = memo(function ToolGroupPart({
     <Collapsible open={open} onOpenChange={setOpen} className="w-full">
       <CollapsibleTrigger
         className={cn(
-          "group inline-flex max-w-full items-center gap-1.5 rounded-full bg-muted/60 px-3.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground ws-msg-chip"
+          "group inline-flex h-6 max-w-full items-center gap-1 rounded-md bg-muted/30 px-2 text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground ws-msg-chip"
         )}
       >
         <ChevronRightIcon
@@ -3188,7 +3188,7 @@ const ToolGroupPart = memo(function ToolGroupPart({
         />
         <span className="min-w-0 truncate">
           {part.isStreaming ? (
-            <Shimmer as="span" duration={1} shineColor="var(--primary)">
+            <Shimmer as="span" duration={1} shineColor="var(--foreground)">
               {titleText}
             </Shimmer>
           ) : (
@@ -3350,7 +3350,7 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
       className="w-full not-prose"
     >
       <div className="flex items-center gap-2">
-        <CollapsibleTrigger className="group flex min-w-0 items-center gap-1 text-left text-[0.8125rem] leading-5 text-muted-foreground transition-colors hover:text-foreground">
+        <CollapsibleTrigger className="group flex h-6 min-w-0 items-center gap-1 text-left text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors hover:text-foreground">
           <span>
             {activityLabel ||
               (durationLabel
@@ -3360,7 +3360,7 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
           <ChevronRightIcon
             aria-hidden="true"
             className={cn(
-              "size-3.5 shrink-0 opacity-60 transition-transform",
+              "size-3 shrink-0 opacity-60 transition-transform",
               open && "rotate-90"
             )}
           />
@@ -3528,8 +3528,9 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
             activityIndices.length > 3
           ? activityIndices[activityIndices.length - 3]
           : index
+      const activityRows: ReactNode[] = []
       if (foldEnd > index) {
-        content.push(
+        activityRows.push(
           <CompletedActivitySummary
             key={`interval-${index}`}
             showCounts
@@ -3539,8 +3540,13 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
         )
       }
       for (let visible = foldEnd; visible < end; visible += 1) {
-        content.push(renderPart(parts[visible], `${visible}`))
+        activityRows.push(renderPart(parts[visible], `${visible}`))
       }
+      content.push(
+        <div key={`activity-${index}`} data-activity-rows className="space-y-1">
+          {activityRows}
+        </div>
+      )
       index = end - 1
       continue
     }

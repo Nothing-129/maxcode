@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "Texto simples"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Cota do Codex",
+    "remaining": "Restante",
+    "fiveHour": "5 horas",
+    "weekly": "Semanal",
+    "days": "{count} dias",
+    "hours": "{count} horas",
+    "minutes": "{count} min",
+    "percent": "{value}%",
+    "refresh": "Atualizar cota",
+    "stale": "Dados anteriores",
+    "resetsAt": "Redefinição: {time}",
+    "updatedAt": "Atualizado: {time}",
+    "resetUnknown": "Horário de redefinição indisponível",
+    "failed": "Falha ao atualizar; exibindo os últimos dados disponíveis.",
+    "unavailable": "Cota temporariamente indisponível"
+  },
   "Language": {
     "followSystem": "Seguir o sistema",
     "english": "Inglês",
@@ -3526,6 +3548,7 @@
         "turnFailed": "O turno falhou: {message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "Pensando",
         "waiting": "Aguardando resposta",
         "running": "Executando ferramentas",
         "awaitingUser": "Aguardando sua confirmação",

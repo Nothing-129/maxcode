@@ -10,7 +10,7 @@ import {
 } from "@/lib/adapters/ai-elements-adapter"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
 import { cn } from "@/lib/utils"
-import { Shimmer } from "@/components/ai-elements/shimmer"
+import { TURN_HEADING_CLASS, TurnStatusLabel } from "./turn-status"
 import {
   Collapsible,
   CollapsibleContent,
@@ -93,8 +93,7 @@ const manualFold = new WeakMap<
  * The scoped heading style supplies the quiet gray label and subtle divider,
  * with a theme-aware dark fallback. Keep it independent of global UI colors.
  */
-const HEADER_CLASS =
-  "maxcode-turn-heading flex w-full items-center gap-1 border-b pb-1 text-[0.875rem] leading-[1.625] font-[430]"
+const HEADER_CLASS = TURN_HEADING_CLASS
 
 export const CompletedTurnContent = memo(function CompletedTurnContent({
   parts,
@@ -203,7 +202,15 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
     split.progress.length > 0 && (!completed || hasVisibleAnswer(split.answer))
 
   const label = !completed
-    ? t("working")
+    ? parts.some((part) =>
+        part.type === "text"
+          ? part.text.trim().length > 0
+          : part.type === "reasoning"
+            ? part.content.trim().length > 0
+            : true
+      )
+      ? t("working")
+      : tElapsed("thinkingPending")
     : elapsed
       ? t("workedFor", { duration: elapsed })
       : t("worked")
@@ -216,14 +223,7 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
   const labelNode = completed ? (
     <span className="min-w-0 truncate tabular-nums">{label}</span>
   ) : (
-    <Shimmer
-      as="span"
-      className="min-w-0 truncate"
-      duration={1}
-      shineColor="var(--primary)"
-    >
-      {label}
-    </Shimmer>
+    <TurnStatusLabel>{label}</TurnStatusLabel>
   )
 
   // Streamdown's incomplete-markdown repair (remend) may only run on text that

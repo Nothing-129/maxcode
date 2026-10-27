@@ -21,7 +21,7 @@ describe("MaxCode: model working-state labels stay text-only", () => {
       list.indexOf("const AutoScrollOnSend")
     )
     expect(typing).toContain('t("awaitingUser")')
-    expect(typing).toContain('t("waiting")')
+    expect(typing).toContain('t("thinkingPending")')
     forbidsStatusGlyph(list)
     forbidsStatusGlyph(typing)
   })

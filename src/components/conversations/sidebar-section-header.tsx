@@ -205,7 +205,7 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
           <ChevronRight
             aria-hidden
             className={cn(
-              "h-3 w-3 shrink-0 transition-[transform,opacity] duration-200 ease-out",
+              "maxcode-disclosure-chevron h-3 w-3 shrink-0 transition-[transform,opacity] duration-200 ease-out",
               // Collapsed: always show the chevron (the only affordance that the
               // section can be reopened). Expanded: reveal on hover/focus only.
               expanded

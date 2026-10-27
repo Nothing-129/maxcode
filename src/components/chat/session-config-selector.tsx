@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment } from "react"
+import { Fragment, useState } from "react"
 import { ChevronDown, ToggleLeft, ToggleRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -15,7 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { DropdownRadioItemContent } from "@/components/chat/dropdown-radio-item-content"
 import { SelectorTooltip } from "@/components/chat/selector-tooltip"
-import type { ModelOptionGroup } from "@/lib/model-config-groups"
+import {
+  isModelConfigOption,
+  type ModelOptionGroup,
+} from "@/lib/model-config-groups"
 import type { SessionConfigOptionInfo } from "@/lib/types"
 
 interface SessionConfigSelectorProps {
@@ -39,6 +42,7 @@ export function InlineSessionConfigSelector({
   derivedGroups,
   recommendedLabel,
 }: SessionConfigSelectorProps) {
+  const [open, setOpen] = useState(false)
   if (option.kind.type !== "select") return null
 
   // Unified group list rendered in the dropdown body. Derived (model) groups
@@ -74,10 +78,17 @@ export function InlineSessionConfigSelector({
     value === recommendedValue ? recommendedLabel : null
 
   return (
-    <DropdownMenu>
-      <SelectorTooltip label={option.name} description={option.description}>
+    <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
+      <SelectorTooltip
+        label={option.name}
+        description={option.description}
+        suppressed={open}
+      >
         <DropdownMenuTrigger asChild>
           <Button
+            data-neutral-model-surface={
+              isModelConfigOption(option) || undefined
+            }
             variant="ghost"
             size="xs"
             aria-label={
@@ -91,6 +102,8 @@ export function InlineSessionConfigSelector({
         </DropdownMenuTrigger>
       </SelectorTooltip>
       <DropdownMenuContent
+        data-composer-selector-content=""
+        data-neutral-model-surface={isModelConfigOption(option) || undefined}
         side="top"
         align="start"
         className="min-w-72 overflow-y-auto"

@@ -234,6 +234,52 @@ describe("MessageInput (RichComposer integration)", () => {
     expect(textbox).toHaveAttribute("aria-multiline", "true")
   })
 
+  it("animates the actual send arrow once on the first typed content", async () => {
+    const original = Object.getOwnPropertyDescriptor(
+      SVGElement.prototype,
+      "animate"
+    )
+    const cancel = vi.fn()
+    const animate = vi.fn(() => ({ cancel }))
+    Object.defineProperty(SVGElement.prototype, "animate", {
+      configurable: true,
+      value: animate,
+    })
+    try {
+      const { container } = renderInput({})
+      await waitFor(() =>
+        expect(composerHandle.current?.getEditor()).toBeTruthy()
+      )
+      const editor = composerHandle.current!.getEditor()!
+      const button = container.querySelector<HTMLButtonElement>(
+        'button[data-generation-running="false"]'
+      )!
+      const arrow = button.querySelector('[data-generation-glyph="send"]')
+      expect(button).toBeDisabled()
+      expect(animate).not.toHaveBeenCalled()
+      act(() => {
+        editor.commands.insertContent("a")
+      })
+      expect(button).toBeEnabled()
+      expect(animate).toHaveBeenCalledTimes(1)
+      expect(animate.mock.contexts[0]).toBe(arrow)
+      act(() => {
+        editor.commands.insertContent("bc")
+      })
+      expect(animate).toHaveBeenCalledTimes(1)
+      act(() => {
+        editor.commands.clearContent()
+      })
+      expect(button).toBeDisabled()
+      expect(cancel).toHaveBeenCalledOnce()
+    } finally {
+      cleanup()
+      if (original)
+        Object.defineProperty(SVGElement.prototype, "animate", original)
+      else Reflect.deleteProperty(SVGElement.prototype, "animate")
+    }
+  })
+
   it("disables Send while the composer is empty and has no attachments", async () => {
     const { container } = renderInput({})
     await waitFor(() =>

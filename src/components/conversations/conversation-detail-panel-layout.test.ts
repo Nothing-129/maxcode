@@ -275,7 +275,7 @@ describe("ConversationDetailPanel split-group render model", () => {
 
   it("marks the active session whenever several are visible (split or tiled)", () => {
     expect(source).toContain(
-      "showActiveFlow={(showSplitLayout || canTileG) && active}"
+      "visible && (showSplitLayout || canTileG) && active"
     )
   })
 

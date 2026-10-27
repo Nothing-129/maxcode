@@ -73,7 +73,7 @@ it("hides the desktop action until download completes and waits for an explicit 
   )
   const view = render(content(true))
   try {
-    const version = await screen.findByRole("button", { name: "v0.30.6" })
+    const version = await screen.findByRole("button", { name: "0.30.6" })
     fireEvent.click(version)
     await waitFor(() => expect(check).toHaveBeenCalledOnce())
     expect(start).not.toHaveBeenCalled()
@@ -106,7 +106,11 @@ it("hides the desktop action until download completes and waits for an explicit 
     const button = await screen.findByRole("button", {
       name: messages.SystemSettings.restartToUpdate,
     })
-    expect(button.previousElementSibling).toHaveTextContent("v0.30.6")
+    expect(button).toHaveTextContent("0.30.6")
+    expect(screen.getAllByRole("button")).toHaveLength(1)
+    expect(button.querySelectorAll("svg")).toHaveLength(1)
+    expect(button.querySelector("svg")).toHaveClass("text-[#216ae4]")
+    expect(button).toHaveAttribute("title", "Restart to update · 0.30.7")
     expect(install).not.toHaveBeenCalled()
     // A fresh renderer also must not install a package staged by the main process.
     window.maxcodeElectron!.getUpdateState = async () => ({

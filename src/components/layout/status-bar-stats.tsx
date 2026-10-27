@@ -1,5 +1,7 @@
 "use client"
 
+import { statusBarActionClassName } from "./status-bar-action"
+
 import { ChartNoAxesColumn } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -34,7 +36,8 @@ export function StatusBarStats() {
           onClick={() => setRoute("tokenUsage")}
           title={t("openUsage")}
           className={cn(
-            "flex items-center gap-1.5 transition-colors hover:text-foreground",
+            statusBarActionClassName,
+            "flex items-center gap-1.5",
             routeId === "tokenUsage" && "text-foreground"
           )}
         >

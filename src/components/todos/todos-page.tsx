@@ -5,6 +5,7 @@ import { TodoImportConversationButton } from "./todo-import-conversation-button"
 import { TodoMarkdown } from "./todo-markdown"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useListReflow } from "@/hooks/use-list-reflow"
 import { useTranslations } from "next-intl"
 import {
   ChevronLeft,
@@ -291,6 +292,11 @@ function TodosWorkspace({
     () => groupTodos(visible, state.self_id),
     [visible, state.self_id]
   )
+  const motionRef = useRef<HTMLDivElement>(null)
+  useListReflow(
+    motionRef,
+    `${viewMode}:${visible.map((todo) => `${todo.id}:${todo.status}`).join(",")}`
+  )
   const detail = state.todos.find((todo) => todo.id === detailId)
   const deleting = state.todos.find((todo) => todo.id === deleteId)
   const unfinished = visible.filter((todo) => todo.status !== "completed")
@@ -399,7 +405,7 @@ function TodosWorkspace({
   }
 
   return (
-    <>
+    <div ref={motionRef} className="flex min-h-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
         <div className="flex gap-1 rounded-full border border-primary/15 bg-primary/5 p-1">
           <Button
@@ -802,6 +808,6 @@ function TodosWorkspace({
       {activeTeam?.is_local && state.mode === "team" && (
         <span className="sr-only">{t("hostOnlineHint")}</span>
       )}
-    </>
+    </div>
   )
 }

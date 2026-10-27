@@ -1,4 +1,26 @@
 {
+  "MarkdownTable": {
+    "plainText": "纯文本"
+  },
+  "CodexQuota": {
+    "fiveHourShort": "5h",
+    "weeklyShort": "week",
+    "title": "Codex 额度",
+    "remaining": "剩余",
+    "fiveHour": "5 小时",
+    "weekly": "本周",
+    "days": "{count} 天",
+    "hours": "{count} 小时",
+    "minutes": "{count} 分钟",
+    "percent": "{value}%",
+    "refresh": "刷新额度",
+    "stale": "上次数据",
+    "resetsAt": "{time} 重置",
+    "updatedAt": "更新于 {time}",
+    "resetUnknown": "暂未提供重置时间",
+    "failed": "刷新失败，当前显示上次成功查询的数据。",
+    "unavailable": "暂时无法获取额度"
+  },
   "Language": {
     "followSystem": "跟随系统",
     "english": "英语",
@@ -3526,6 +3548,7 @@
         "turnFailed": "本轮失败：{message}"
       },
       "liveTurnStats": {
+        "thinkingPending": "正在思考",
         "waiting": "等待响应",
         "running": "执行工具中",
         "awaitingUser": "等待你的确认",

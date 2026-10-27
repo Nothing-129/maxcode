@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useId, useEffect, useMemo, useRef, useState } from "react"
 import type { WheelEvent as ReactWheelEvent } from "react"
 import { Reorder } from "motion/react"
 import type { PanInfo } from "motion/react"
@@ -44,6 +44,7 @@ interface TabBarProps {
 // mobile variant is gone — mobile shows the conversation detail header instead
 // and navigates tabs from the sidebar.
 export function TabBar({ groupId }: TabBarProps) {
+  const selectionId = useId()
   const t = useTranslations("Folder.conversationCard")
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
@@ -407,6 +408,7 @@ export function TabBar({ groupId }: TabBarProps) {
             <TabItem
               key={tab.id}
               tab={tab}
+              selectionId={selectionId}
               isActive={tab.id === displayActiveId}
               isTileMode={isTileMode}
               embedded
