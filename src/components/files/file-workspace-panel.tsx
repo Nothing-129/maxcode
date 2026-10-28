@@ -28,6 +28,7 @@ import {
   useWorkspaceFileTabs,
   type FileWorkspaceTab,
 } from "@/contexts/workspace-context"
+import { FileLoadingSkeleton } from "./file-loading-skeleton"
 import { ImagePreview } from "@/components/files/image-preview"
 import { HtmlPreview } from "@/components/files/html-preview"
 import { MarkdownDocumentPreview } from "@/components/files/markdown-document-preview"
@@ -1760,9 +1761,7 @@ function FileWorkspacePanelBody() {
           </div>
         )}
         {richDiffColdLoad ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-            {t("loading")}
-          </div>
+          <FileLoadingSkeleton label={t("loading")} variant="diff" />
         ) : activeFileTab.language === "image" ? (
           // Binary image: the loader put bytes on the tab, not text.
           activeFileTab.imageDiff ? (
@@ -1813,9 +1812,7 @@ function FileWorkspacePanelBody() {
           </div>
         )}
         {sessionDiffColdLoad ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-            {t("loading")}
-          </div>
+          <FileLoadingSkeleton label={t("loading")} variant="code" />
         ) : (
           <UnifiedDiffPreview
             diffText={activeFileTab.content}
@@ -1885,9 +1882,7 @@ function FileWorkspacePanelBody() {
           </div>
         )}
         {diffListColdLoad ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-            {t("loading")}
-          </div>
+          <FileLoadingSkeleton label={t("loading")} variant="list" />
         ) : (
           <DiffFileList
             diffOutline={diffOutline}
@@ -1948,9 +1943,7 @@ function FileWorkspacePanelBody() {
           </div>
         )}
         {markdownColdLoad ? (
-          <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-            {t("loading")}
-          </div>
+          <FileLoadingSkeleton label={t("loading")} variant="document" />
         ) : (
           <MarkdownDocumentPreview
             content={renderedContent}
@@ -2123,11 +2116,7 @@ function FileWorkspacePanelBody() {
               onChange={handleEditorChange}
               language={activeFileTab.language}
               theme={editorTheme}
-              loading={
-                <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-                  {t("loadingEditor")}
-                </div>
-              }
+              loading={<FileLoadingSkeleton label={t("loadingEditor")} />}
               options={{
                 // Lock the editor while a refresh is in flight. Otherwise
                 // keystrokes that arrive during the refresh window survive
@@ -2153,9 +2142,7 @@ function FileWorkspacePanelBody() {
               }}
             />
           ) : (
-            <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-              {t("loadingEditor")}
-            </div>
+            <FileLoadingSkeleton label={t("loadingEditor")} />
           )}
         </div>
       </div>

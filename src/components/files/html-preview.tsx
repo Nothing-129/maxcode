@@ -14,9 +14,8 @@ import { cn } from "@/lib/utils"
 
 // Trusted sandbox: scripts run, popups/forms/modals work, but the frame still
 // has an opaque origin (no allow-same-origin) and cannot navigate the top
-// window (no allow-top-navigation). The default untrusted mode uses an empty
-// sandbox, which renders markup/CSS/images but blocks ALL script execution —
-// the actual in-app security boundary for previewing untrusted HTML.
+// window (no allow-top-navigation). Opened HTML files run scripts by default;
+// the toggle can switch to an empty sandbox that blocks script execution.
 const SANDBOX_TRUSTED = "allow-scripts allow-popups allow-forms allow-modals"
 
 export function HtmlPreview({
@@ -33,7 +32,7 @@ export function HtmlPreview({
   const t = useTranslations("Folder.fileWorkspacePanel")
   const [inlined, setInlined] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [trusted, setTrusted] = useState(false)
+  const [trusted, setTrusted] = useState(true)
 
   const content = tab.content ?? ""
   const path = tab.path ?? ""

@@ -1,5 +1,6 @@
 "use client"
 
+import { useSidebarScrollMotion } from "@/hooks/use-sidebar-scroll-motion"
 import { useSidebarDisclosureMotion } from "@/hooks/use-sidebar-disclosure-motion"
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
 
@@ -536,12 +537,11 @@ const FolderHeader = memo(function FolderHeader({
                   paddingLeft: `calc(var(--conv-rail-axis) + 0.875rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`,
                 }}
               >
-                {/* Connector spine (Show worktrees): a depth-1 sub-group header
-                    draws its container's vertical rail at the depth-0 axis, so
-                    stacked across the container's children (root + worktree
-                    headers and their session cards) it forms one continuous line
-                    down from the container. Renders nothing at depth 0. */}
-                <SubsessionAncestorRails depth={depth} />
+                {/* Folder groups use indentation alone. Only actual worktree
+                    and root sub-groups draw their immediate repo connector. */}
+                {variant !== "repo" ? (
+                  <SubsessionAncestorRails depth={depth} from={depth - 1} />
+                ) : null}
                 <span
                   aria-hidden
                   className={cn(
@@ -1150,6 +1150,18 @@ export function SidebarConversationList({
   const { sortedTypes: availableAgents, fresh: availableAgentsFresh } =
     useSortedAvailableAgents()
   const listSurfaceRef = useRef<HTMLDivElement>(null)
+  // virtua binds to the real OverlayScrollbars viewport element (surfaced via
+  // the ScrollArea `onViewportRef` bridge once OS has initialized). We keep both
+  // a ref (for the Virtualizer `scrollRef` prop) and a state flag so the
+  // Virtualizer only mounts after the viewport exists.
+  const viewportRef = useRef<HTMLElement | null>(null)
+  const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null)
+  const handleViewportRef = useCallback((element: HTMLElement | null) => {
+    viewportRef.current = element
+    setViewportEl(element)
+  }, [])
+  const { cancel: cancelScrollMotion, prepareReveal } =
+    useSidebarScrollMotion(viewportEl)
   const prepareDisclosure = useSidebarDisclosureMotion(listSurfaceRef)
   const [folderExpanded, setFolderExpanded] = useState<Record<number, boolean>>(
     {}
@@ -1187,13 +1199,14 @@ export function SidebarConversationList({
   const toggleTodoGroup = useCallback(
     (id: string) => {
       prepareDisclosure()
+      if (todoGroupExpanded[id] === false) prepareReveal(`todo-group-${id}`)
       setTodoGroupExpanded((previous) => {
         const next = { ...previous, [id]: !(previous[id] ?? true) }
         saveTodoGroupExpanded(next)
         return next
       })
     },
-    [prepareDisclosure]
+    [prepareDisclosure, prepareReveal, todoGroupExpanded]
   )
   // Session-only, like folder paging: collapsing/reopening Chat starts from a
   // compact first page instead of preserving a long, previously-expanded list.
@@ -1359,6 +1372,7 @@ export function SidebarConversationList({
   const toggleSection = useCallback(
     (section: SidebarSectionKey) => {
       prepareDisclosure()
+      if (sectionCollapsed[section]) prepareReveal(`section-${section}`)
       if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
       if (section === "recent") setRecentLimit(RECENT_PAGE_SIZE)
       if (section === "folders" && foldersExpanded) {
@@ -1379,12 +1393,14 @@ export function SidebarConversationList({
         return next
       })
     },
-    [foldersExpanded, prepareDisclosure]
+    [foldersExpanded, prepareDisclosure, prepareReveal, sectionCollapsed]
   )
 
   const toggleFolderGroup = useCallback(
     (groupId: number) => {
       prepareDisclosure()
+      if (folderGroupExpanded[groupId] === false)
+        prepareReveal(`foldergroup-${groupId}`)
       setFolderGroupExpanded((prev) => {
         // Absent key = expanded, so the first click has to write `false`.
         const next = { ...prev, [groupId]: !(prev[groupId] ?? true) }
@@ -1392,7 +1408,7 @@ export function SidebarConversationList({
         return next
       })
     },
-    [prepareDisclosure]
+    [prepareDisclosure, prepareReveal, folderGroupExpanded]
   )
 
   /** Drive every folder group at once, for expand/collapse-all. Reads the group
@@ -1510,16 +1526,6 @@ export function SidebarConversationList({
     [folderIndex, tFileTree]
   )
 
-  // virtua binds to the real OverlayScrollbars viewport element (surfaced via
-  // the ScrollArea `onViewportRef` bridge once OS has initialized). We keep both
-  // a ref (for the Virtualizer `scrollRef` prop) and a state flag so the
-  // Virtualizer only mounts after the viewport exists.
-  const viewportRef = useRef<HTMLElement | null>(null)
-  const [viewportEl, setViewportEl] = useState<HTMLElement | null>(null)
-  const handleViewportRef = useCallback((element: HTMLElement | null) => {
-    viewportRef.current = element
-    setViewportEl(element)
-  }, [])
   const virtualizerRef = useRef<VirtualizerHandle>(null)
   const scrollToActiveRef = useRef<() => void>(() => {})
   const pendingScrollRef = useRef(false)
@@ -2047,6 +2053,7 @@ export function SidebarConversationList({
 
   useEffect(() => {
     scrollToActiveRef.current = () => {
+      cancelScrollMotion()
       if (!selectedConversation) return
       const targetId = selectedConversation.id
       const targetAgent = selectedConversation.agentType
@@ -2174,7 +2181,7 @@ export function SidebarConversationList({
       if (index < 0) return
       virtualizerRef.current?.scrollToIndex(index, {
         align: "center",
-        smooth: true,
+        smooth: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
       })
     }
 
@@ -2183,6 +2190,7 @@ export function SidebarConversationList({
       scrollToActiveRef.current()
     }
   }, [
+    cancelScrollMotion,
     selectedConversation,
     conversations,
     folderExpanded,
@@ -2203,6 +2211,8 @@ export function SidebarConversationList({
       prepareDisclosure()
       const currentlyExpanded = folderExpandedRef.current[folderId] ?? true
       const nextExpanded = !currentlyExpanded
+      cancelScrollMotion()
+      if (nextExpanded) prepareReveal(`folder-${folderId}`)
       // Update the intent ref before scheduling React state so two clicks that
       // arrive before the next render still toggle from the result of the first
       // click instead of both reading the same committed snapshot.
@@ -2250,7 +2260,7 @@ export function SidebarConversationList({
         return next
       })
     },
-    [prepareDisclosure]
+    [prepareDisclosure, prepareReveal, cancelScrollMotion]
   )
 
   // Toggle a container repo's "root" sub-group (its own sessions). Session-only,
@@ -2258,6 +2268,7 @@ export function SidebarConversationList({
   const toggleRootGroup = useCallback(
     (repoId: number) => {
       prepareDisclosure()
+      if (rootGroupCollapsed.has(repoId)) prepareReveal(`rootgroup-${repoId}`)
       setRootGroupCollapsed((prev) => {
         const next = new Set(prev)
         if (next.has(repoId)) {
@@ -2276,7 +2287,7 @@ export function SidebarConversationList({
         return next
       })
     },
-    [prepareDisclosure]
+    [prepareDisclosure, prepareReveal, rootGroupCollapsed]
   )
 
   // Lazily fetch a conversation's direct delegation children into the cache.

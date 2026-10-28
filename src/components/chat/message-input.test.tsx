@@ -1992,7 +1992,7 @@ describe("MessageInput prompt history", () => {
     expect(handle.getText()).toBe("my draft")
   })
 
-  it("steps on the edge and lands on the edge it travelled from", async () => {
+  it("steps at the document edge and places recalled prompts at the end", async () => {
     const { handle, editor } = await mountWithHistory([
       "first",
       "older\nmulti\nline",
@@ -2004,10 +2004,13 @@ describe("MessageInput prompt history", () => {
     press(editor, "ArrowUp")
     expect(handle.getText()).toBe("newest\nmulti\nline")
 
-    // Recalling lands at the TOP, so the same key keeps going older without the
-    // caret having to be walked anywhere.
+    // Recalling lands at the end, ready to append. Walk to the top to
+    // recall an older entry (jsdom does not move the caret natively).
+    expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1)
+    act(() => editor.commands.focus("start"))
     press(editor, "ArrowUp")
     expect(handle.getText()).toBe("older\nmulti\nline")
+    act(() => editor.commands.focus("start"))
     press(editor, "ArrowUp")
     expect(handle.getText()).toBe("first")
 
@@ -2033,8 +2036,8 @@ describe("MessageInput prompt history", () => {
     press(editor, "ArrowUp")
     expect(handle.getText()).toBe("newest\nmulti\nline")
 
-    // The caret is at the TOP, so Down belongs to the caret, not the history
-    // (jsdom has no native caret movement, so the observable is "no recall").
+    // Move inside the recalled prompt; arrows must not switch history.
+    act(() => editor.commands.setTextSelection(3))
     press(editor, "ArrowDown")
     expect(handle.getText()).toBe("newest\nmulti\nline")
   })

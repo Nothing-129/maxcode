@@ -14,7 +14,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DropdownRadioItemContent } from "@/components/chat/dropdown-radio-item-content"
-import { SelectorTooltip } from "@/components/chat/selector-tooltip"
 import {
   isModelConfigOption,
   type ModelOptionGroup,
@@ -79,28 +78,21 @@ export function InlineSessionConfigSelector({
 
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
-      <SelectorTooltip
-        label={option.name}
-        description={option.description}
-        suppressed={open}
-      >
-        <DropdownMenuTrigger asChild>
-          <Button
-            data-neutral-model-surface={
-              isModelConfigOption(option) || undefined
-            }
-            variant="ghost"
-            size="xs"
-            aria-label={
-              currentLabel ? `${option.name}: ${currentLabel}` : option.name
-            }
-            className="min-w-0 gap-0.5 px-1 text-muted-foreground"
-          >
-            <span className="max-w-[10rem] truncate">{currentLabel}</span>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-          </Button>
-        </DropdownMenuTrigger>
-      </SelectorTooltip>
+      <DropdownMenuTrigger asChild>
+        <Button
+          data-selector-control=""
+          data-neutral-model-surface={isModelConfigOption(option) || undefined}
+          variant="ghost"
+          size="xs"
+          aria-label={
+            currentLabel ? `${option.name}: ${currentLabel}` : option.name
+          }
+          className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+        >
+          <span className="max-w-[10rem] truncate">{currentLabel}</span>
+          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+        </Button>
+      </DropdownMenuTrigger>
       <DropdownMenuContent
         data-composer-selector-content=""
         data-neutral-model-surface={isModelConfigOption(option) || undefined}
@@ -186,26 +178,25 @@ export function InlineSessionConfigToggle({
   const Icon = checked ? ToggleRight : ToggleLeft
 
   return (
-    <SelectorTooltip label={option.name} description={option.description}>
-      <Button
-        variant="ghost"
-        size="xs"
-        aria-pressed={checked}
-        aria-label={`${option.name}: ${checked ? onLabel : offLabel}`}
-        onClick={() => onSelect(option.id, checked ? "false" : "true")}
+    <Button
+      data-selector-control=""
+      variant="ghost"
+      size="xs"
+      aria-pressed={checked}
+      aria-label={`${option.name}: ${checked ? onLabel : offLabel}`}
+      onClick={() => onSelect(option.id, checked ? "false" : "true")}
+      className={cn(
+        "min-w-0 gap-1 px-1",
+        checked ? "text-foreground" : "text-muted-foreground"
+      )}
+    >
+      <Icon
         className={cn(
-          "min-w-0 gap-1 px-1",
-          checked ? "text-foreground" : "text-muted-foreground"
+          "size-3.5 shrink-0",
+          checked ? "text-primary" : "text-muted-foreground"
         )}
-      >
-        <Icon
-          className={cn(
-            "size-3.5 shrink-0",
-            checked ? "text-primary" : "text-muted-foreground"
-          )}
-        />
-        <span className="max-w-[10rem] truncate">{option.name}</span>
-      </Button>
-    </SelectorTooltip>
+      />
+      <span className="max-w-[10rem] truncate">{option.name}</span>
+    </Button>
   )
 }

@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value}分",
         "elapsedSeconds": "{value}秒",
         "outputSpeedAria": "推定出力速度",
-        "outputSpeedTooltip": "推定出力速度（テキスト + 思考 + ツール引数）"
+        "outputSpeedTooltip": "推定出力速度（テキスト + 思考 + ツール引数）",
+        "retrying": "再試行中"
       },
       "generationStats": {
         "roundCount": "{count} ターン",

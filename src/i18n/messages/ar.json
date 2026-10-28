@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value}د",
         "elapsedSeconds": "{value}ث",
         "outputSpeedAria": "السرعة التقديرية للإخراج",
-        "outputSpeedTooltip": "السرعة التقديرية للإخراج (نص + تفكير + وسائط الأدوات)"
+        "outputSpeedTooltip": "السرعة التقديرية للإخراج (نص + تفكير + وسائط الأدوات)",
+        "retrying": "جاري إعادة المحاولة"
       },
       "generationStats": {
         "roundCount": "عدد الجولات: {count}",

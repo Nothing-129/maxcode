@@ -32,10 +32,10 @@ describe("MaxCode: waiting response text animation", () => {
       </NextIntlClientProvider>
     )
     const { rerender } = render(view())
-    expect(screen.getByRole("status")).toHaveTextContent("等待响应")
+    expect(screen.getByRole("status")).toHaveTextContent("处理中")
     expect(screen.getByRole("status")).toHaveClass("maxcode-waiting-label")
     rerender(view(true))
-    expect(screen.getByRole("status")).toHaveTextContent("等待你的确认")
+    expect(screen.getByRole("status")).toHaveTextContent("待确认")
     expect(screen.getByRole("status")).not.toHaveClass("maxcode-waiting-label")
     rerender(view(false, true, true))
     expect(screen.getByRole("status")).not.toHaveClass("maxcode-waiting-label")
@@ -46,14 +46,8 @@ describe("MaxCode: waiting response text animation", () => {
 
   it("retains accessible pending text and the reusable decorative dots", () => {
     const list = source("src/components/message/message-list-view.tsx")
-    const pending = list.slice(
-      list.indexOf("const PendingTypingIndicator"),
-      list.indexOf("const AutoScrollOnSend")
-    )
-    expect(pending).toContain(
-      '<TurnStatusLabel>{t("thinkingPending")}</TurnStatusLabel>'
-    )
-    expect(pending).toContain('{t("awaitingUser")}')
+    expect(list).toContain("stabilizePendingReply(")
+    expect(list).toContain('feedbackText("awaitingUser")')
     const { container } = render(<WaitingDots />)
     expect(container.querySelectorAll(".maxcode-waiting-dot")).toHaveLength(3)
     expect(container.firstElementChild).toHaveAttribute("aria-hidden", "true")
@@ -63,6 +57,7 @@ describe("MaxCode: waiting response text animation", () => {
     expect(css).toMatch(
       /prefers-reduced-motion: reduce[^}]*\.maxcode-waiting-dot\s*\{\s*animation: none/s
     )
+    const pending = source("src/components/message/turn-status.tsx")
     expect(pending).toContain('role="status"')
     expect(pending).not.toContain("<ActivityStatusIcon")
   })

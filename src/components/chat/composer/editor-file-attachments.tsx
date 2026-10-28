@@ -1,6 +1,7 @@
 "use client"
 
 import type { Editor } from "@tiptap/core"
+import type { ReactNode } from "react"
 import { useEditorState } from "@tiptap/react"
 import { AnimatePresence, motion, useIsPresent } from "motion/react"
 import { X } from "lucide-react"
@@ -8,6 +9,7 @@ import { AttachmentTray } from "./attachment-tray"
 import { ReferenceBadge } from "./badges/reference-badge"
 import { useMediaQuery } from "@/hooks/use-media-query"
 import type { ReferenceAttrs } from "./types"
+import { ATTACHMENT_REMOVE_CLASS } from "./attachment-card"
 
 interface FileEntry {
   key: string
@@ -38,7 +40,7 @@ function FileCardContent({
       <button
         type="button"
         disabled={!file.editable || !present}
-        className="absolute right-1.5 top-1.5 flex size-4 items-center justify-center rounded text-muted-foreground/60 opacity-0 transition-opacity hover:bg-foreground/10 hover:text-foreground focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring group-hover/composer-file:opacity-100 group-focus-within/composer-file:opacity-100 [@media(hover:none)]:opacity-100 disabled:pointer-events-none"
+        className={ATTACHMENT_REMOVE_CLASS}
         aria-label={
           removeLabel?.(file.attrs.label || file.attrs.id) ??
           `Remove ${file.attrs.label || file.attrs.id}`
@@ -62,9 +64,13 @@ function FileCardContent({
 export function EditorFileAttachments({
   editor,
   removeLabel,
+  children,
+  attachmentsPresent = false,
 }: {
   editor: Editor | null
   removeLabel?: (name: string) => string
+  children?: ReactNode
+  attachmentsPresent?: boolean
 }) {
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)")
   const files =
@@ -97,9 +103,10 @@ export function EditorFileAttachments({
     }) ?? []
   return (
     <AttachmentTray
-      present={files.length > 0}
-      className="grid gap-1.5 px-4 pt-3 pb-1 [grid-template-columns:repeat(auto-fill,minmax(min(100%,14rem),1fr))]"
+      present={attachmentsPresent || files.length > 0}
+      className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-1"
     >
+      {children}
       <AnimatePresence initial={false}>
         {files.map((file) => (
           <motion.div
@@ -109,7 +116,7 @@ export function EditorFileAttachments({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0 }}
             transition={{ duration: reduced ? 0.1 : 0.18 }}
-            className="group/composer-file relative min-w-0 max-w-full"
+            className="relative w-56 min-w-0 max-w-full shrink-0"
             data-editor-file-card=""
             data-selected={file.selected}
           >

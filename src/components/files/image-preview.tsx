@@ -1,5 +1,7 @@
 "use client"
 
+import { FileLoadingSkeleton } from "./file-loading-skeleton"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Minus, Plus, RotateCcw } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -286,9 +288,7 @@ export function ImagePreview({ tab }: { tab: FileWorkspaceTab }) {
         </>
       )}
       {!tab.content && tab.loading && (
-        <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
-          {t("loading")}
-        </div>
+        <FileLoadingSkeleton label={t("loading")} variant="media" />
       )}
     </div>
   )

@@ -1,15 +1,12 @@
 "use client"
 
+import { FileLoadingSkeleton } from "./file-loading-skeleton"
 import dynamic from "next/dynamic"
 import { useTranslations } from "next-intl"
 
 function PdfPreviewLoading() {
   const t = useTranslations("Folder.fileWorkspacePanel")
-  return (
-    <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-      {t("loading")}
-    </div>
-  )
+  return <FileLoadingSkeleton label={t("loading")} variant="document" />
 }
 
 /**

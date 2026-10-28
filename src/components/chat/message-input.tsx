@@ -156,7 +156,6 @@ import type { Editor, JSONContent } from "@tiptap/core"
 import { useReferenceSearch } from "@/components/chat/composer/use-reference-search"
 import { useComposerMentionLabels } from "@/components/chat/composer/use-composer-mention-labels"
 import { ComposerAddMenu } from "@/components/chat/composer/composer-add-menu"
-import { AttachmentTray } from "@/components/chat/composer/attachment-tray"
 import { ComposerImageThumbnails } from "@/components/chat/composer/composer-image-thumbnails"
 import { useComposerAttachments } from "@/components/chat/composer/use-composer-attachments"
 import { useComposerShortcuts } from "@/components/chat/composer/use-composer-shortcuts"
@@ -887,8 +886,7 @@ export function MessageInput({
 
   // Arrow-key prompt history. RichComposer only calls this from the document
   // edge, so the caret keeps moving line by line inside a multi-line entry. A
-  // step lands on the edge it travelled FROM — the top for older, the bottom
-  // for newer — so pressing the same key again keeps going. Editing ends the
+  // recalled prompt places the caret at the end, ready to append. Editing ends the
   // navigation (see `handleComposerChange`); re-entry always starts at the
   // newest prompt. Returns true to consume the key.
   const handleHistoryKeyDown = useCallback(
@@ -932,10 +930,8 @@ export function MessageInput({
         else editorRef.current?.setText(draft?.text ?? "")
         historyDraftRef.current = null
       }
-      // Land on the edge we travelled from, so the SAME key keeps stepping.
-      editorRef.current
-        ?.getEditor()
-        ?.commands.focus(direction === "older" ? "start" : "end")
+      // Recalled prompts and restored drafts are ready to continue typing.
+      editorRef.current?.getEditor()?.commands.focus("end")
       applyingHistoryRef.current = false
       historyIndexRef.current = step.index
       return true
@@ -2202,17 +2198,18 @@ export function MessageInput({
               )}
             >
               <RichComposer
+                attachmentsPresent={hasImageAttachments}
+                onDeleteSelectedAttachments={() =>
+                  attach.setAttachments((current) =>
+                    current.filter((attachment) => attachment.type !== "image")
+                  )
+                }
                 attachmentContent={
-                  <AttachmentTray
-                    present={hasImageAttachments}
-                    className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-1"
-                  >
-                    <ComposerImageThumbnails
-                      attachments={imageAttachments}
-                      onRemove={attach.removeAttachment}
-                      onMarkup={attach.replaceImageAttachment}
-                    />
-                  </AttachmentTray>
+                  <ComposerImageThumbnails
+                    attachments={imageAttachments}
+                    onRemove={attach.removeAttachment}
+                    onMarkup={attach.replaceImageAttachment}
+                  />
                 }
                 ref={editorRef}
                 placeholder={shownPlaceholder}
@@ -2427,7 +2424,12 @@ export function MessageInput({
             data-composer-status-row=""
             className="mt-1 flex min-h-5 items-center justify-between gap-2 px-2 text-xs text-muted-foreground/60"
           >
-            <div className="flex min-w-0 items-center gap-1">
+            {/* On phones, reserve the pickers' preferred width before fitting
+                optional metrics. Leave room for the connection control. */}
+            <div
+              data-composer-navigation=""
+              className="flex min-w-0 items-center gap-1 max-md:w-max max-md:max-w-[calc(100%-2.5rem)] max-md:shrink-0"
+            >
               <ConversationFolderBranchPicker
                 tabId={attachmentTabId}
                 override={folderPickerOverride}

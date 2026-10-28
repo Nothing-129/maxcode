@@ -141,7 +141,7 @@ describe("refined interface motion", () => {
     height = 80
     act(() => resize([], {} as ResizeObserver))
     expect(animate.mock.calls[animate.mock.calls.length - 1][1]).toMatchObject({
-      duration: 120,
+      duration: 320,
     })
     view.unmount()
     expect(disconnect).toHaveBeenCalled()

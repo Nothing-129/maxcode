@@ -13,9 +13,9 @@ import {
   type ReactNode,
 } from "react"
 import { type Editor, type JSONContent } from "@tiptap/core"
-import { Selection } from "@tiptap/pm/state"
+import { AllSelection, Selection } from "@tiptap/pm/state"
 import { useComposerHeightMotion } from "@/hooks/use-composer-height-motion"
-import { EditorContent, useEditor } from "@tiptap/react"
+import { EditorContent, useEditor, useEditorState } from "@tiptap/react"
 import { exitSuggestion } from "@tiptap/suggestion"
 
 import type { HistoryDirection } from "@/lib/composer-history"
@@ -116,6 +116,10 @@ export interface RichComposerProps {
   removeFileLabel?: (name: string) => string
   /** Attachments share the editor scrollport and take up normal flow space. */
   attachmentContent?: ReactNode
+  /** Whether external attachment cards are present (the tray remains mounted). */
+  attachmentsPresent?: boolean
+  /** Remove the external images when the whole composer selection is deleted. */
+  onDeleteSelectedAttachments?: () => void
   /** Outer wrapper className (host controls border/ring/max-height). */
   className?: string
   /** Inline style for the outer wrapper (e.g. max-height). */
@@ -274,6 +278,8 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       referenceSearch,
       removeFileLabel,
       attachmentContent,
+      attachmentsPresent = Boolean(attachmentContent),
+      onDeleteSelectedAttachments,
       mentionUiLabels,
       tabLabels,
       mentionAnchorRef,
@@ -297,6 +303,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
     const onFocusRef = useRef(onFocus)
     const onBlurRef = useRef(onBlur)
     const onReadyRef = useRef(onReady)
+    const onDeleteSelectedAttachmentsRef = useRef(onDeleteSelectedAttachments)
     // Latest referenceSearch, read at event time so the mention plugin (always
     // installed) is gated on whether mentions are currently enabled — robust to
     // the prop being added/removed after the editor is created once.
@@ -325,6 +332,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       onFocusRef.current = onFocus
       onBlurRef.current = onBlur
       onReadyRef.current = onReady
+      onDeleteSelectedAttachmentsRef.current = onDeleteSelectedAttachments
       referenceSearchRef.current = referenceSearch
       knownInvocationsRef.current = knownInvocations
       submitShortcutRef.current = submitShortcut
@@ -403,6 +411,19 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
       autofocus: autoFocus ? "end" : false,
       editorProps: {
         handleDOMEvents: {
+          beforeinput: (view, event) => {
+            // Mobile keyboards can delete without emitting a keydown.
+            if (
+              view.editable &&
+              !view.composing &&
+              !event.isComposing &&
+              event.inputType.startsWith("delete") &&
+              view.state.selection instanceof AllSelection
+            ) {
+              onDeleteSelectedAttachmentsRef.current?.()
+            }
+            return false
+          },
           paste: (_view, event) => {
             // ProseMirror skips handlePaste during IME composition. Files
             // still need to reach the host; leave text to the input method.
@@ -423,6 +444,15 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
           // Enter that picks a CJK candidate must not select a slash command
           // (`decideComposerKey` repeats this for the submit/newline path).
           if (isImeCompositionKey(event) || view.composing) return false
+          if (
+            view.editable &&
+            (event.key === "Backspace" || event.key === "Delete") &&
+            view.state.selection instanceof AllSelection
+          ) {
+            onDeleteSelectedAttachmentsRef.current?.()
+            // Let ProseMirror delete the selected text and file atoms normally.
+            return false
+          }
           // The internal `@` panel's suggestion plugin owns its navigation keys;
           // never submit/break while it is open.
           if (mentionOpenRef.current) return false
@@ -585,6 +615,11 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
 
     useComposerHeightMotion(rootRef, Boolean(editor))
 
+    const allSelected = useEditorState({
+      editor,
+      selector: ({ editor }) => editor?.state.selection instanceof AllSelection,
+    })
+
     // Reflect disabled changes onto the live editor. Pass emitUpdate=false so
     // toggling editability never fires onUpdate/onChange without a real edit.
     useEffect(() => {
@@ -732,17 +767,20 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
         className={cn("codeg-composer flex min-h-0 flex-col", className)}
         style={style}
         data-disabled={disabled || undefined}
+        data-all-selected={allSelected || undefined}
       >
         <ScrollArea
           className="codeg-composer-scroll min-h-0 flex-1"
           autoHide="never"
         >
           <div data-composer-scroll-content="">
-            {attachmentContent}
             <EditorFileAttachments
               editor={editor}
               removeLabel={removeFileLabel}
-            />
+              attachmentsPresent={attachmentsPresent}
+            >
+              {attachmentContent}
+            </EditorFileAttachments>
             <EditorContent editor={editor} className="px-4 pt-4 pb-3" />
           </div>
         </ScrollArea>

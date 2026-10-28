@@ -10,7 +10,6 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { ModelOptionList } from "@/components/chat/model-option-list"
-import { SelectorTooltip } from "@/components/chat/selector-tooltip"
 import { useScrollbarSafeDismiss } from "@/hooks/use-scrollbar-safe-dismiss"
 import type { ModelOptionGroup } from "@/lib/model-config-groups"
 import type { SessionConfigOptionInfo } from "@/lib/types"
@@ -56,29 +55,21 @@ export function ModelOptionPicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      {/* `suppressed` while the panel is open: a Popover is non-modal, so the
-          trigger still takes hover underneath it and the hint would otherwise
-          surface from behind the list. */}
-      <SelectorTooltip
-        label={option.name}
-        description={option.description}
-        suppressed={open}
-      >
-        <PopoverTrigger asChild>
-          <Button
-            data-neutral-model-surface
-            variant="ghost"
-            size="xs"
-            aria-label={
-              currentLabel ? `${option.name}: ${currentLabel}` : option.name
-            }
-            className="min-w-0 gap-0.5 px-1 text-muted-foreground"
-          >
-            <span className="max-w-[10rem] truncate">{currentLabel}</span>
-            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-          </Button>
-        </PopoverTrigger>
-      </SelectorTooltip>
+      <PopoverTrigger asChild>
+        <Button
+          data-selector-control=""
+          data-neutral-model-surface
+          variant="ghost"
+          size="xs"
+          aria-label={
+            currentLabel ? `${option.name}: ${currentLabel}` : option.name
+          }
+          className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+        >
+          <span className="max-w-[10rem] truncate">{currentLabel}</span>
+          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+        </Button>
+      </PopoverTrigger>
       <PopoverContent
         data-composer-selector-content=""
         data-neutral-model-surface

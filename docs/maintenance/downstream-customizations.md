@@ -1,5 +1,9 @@
 # MaxCode 下游功能清单
 
+2026-10-28 侧栏滚动动效：纵向滚轮输入（包括系统合并的小数位移、连续触控板输入）统一按帧推进，保留速度和小数位置，采用临界阻尼平滑收尾；不再用设备猜测在一次手势中切回原生跳动，横向手势和缩放保持原生；手动拖动、键盘、主动定位、虚拟列表校正和卸载会取消缓动。手动展开分组后，仅当新增首行被底边遮挡时平滑露出，同时保留标题上下文；定位当前会话尊重减少动态效果设置，收起前的虚拟列表即时定位保持。契约：`sidebar-scroll-motion.contract.test.tsx`；热点：`sidebar.scroll-motion`。
+
+2026-10-27 回复自然结束：移除流式回复完成后临时出现的尾部对号，只对已有状态标题做轻微淡入，不重放正文动画；保留实时观察与虚拟列表去重约束。契约：`interaction-feedback.contract.test.tsx`；热点：`appearance.interaction-feedback`。
+
 2026-10-27 输入框统一滚动：图片、文件附件与文字共用一个浮层滚动区域，图片采用正常流布局并自动换行，避免独立横向图片栏与文件卡片重叠；聊天和待办输入框共用布局，底部操作区保持固定；内容溢出时显示中性 4px 浮动滑块，轨道上下留 12px 内边距、距侧边 6px，并在圆角内裁切，避免组件重置顶端位置造成外冒；隐藏原生回退滚动条。滚动条按高度动画开始前的最终布局判断溢出，前几行换行扩高时不因临时溢出闪现；其他共用滚动区域保留原有默认行为，编辑器和文档状态保持。契约：`composer-unified-scroll.contract.test.tsx`；热点：`chat.composer-unified-scroll`。
 
 2026-10-27 附件与文字分区：输入框文件原子节点映射到文字上方的独立换行托盘，提供本地化移除按钮和选中反馈；仅隐藏原来的文件节点视图及插入空白，保留编辑器文档、提示词顺序、复制和历史记录。移除按最新文档位置执行，可撤销，退出卡片立即禁用交互。契约：`composer-attachment-layout.contract.test.tsx`；热点：`chat.composer-attachment-layout`。
@@ -152,7 +156,7 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 9 月 30 日上游稳定性 | Claude/Codex AIR 稀疏更新、Read/审批/插件提示，Codex 搜索上下文与历史思考、压缩摘要，Grok 后台跟进；保留完整工具输入、全部 hunk 和权限门控 | `9d9ce6b0`、`2db8a81b`、`b35282c6`、`757bd8e0`、`58f0fd0e`、`9243c7df` | `runtime.upstream-recommended-20260930`、`history.claude-compaction-compatible` |
 | Codex 模型目录 | GPT-6.1 Sol 及官方优先级；安装和托管更新刷新自有目录，保留用户目录、默认、自定义和排除模型 | `155916e6`、`worktree-2026-09-30` | `agents.codex-catalog-refresh-20260930` |
 | Pi 运行时与思考 | 离线能力、实际 profile 和原生 selector；保留七档偏好、自定义映射、旧 .33 补丁及托管 CLI | `9cbd5b96` 至 `b9d9e6b6` | `agents.pi-runtime-thinking-20260930` |
-| HTML/visualize | 内联预览、延迟提及、会话相对资源，隔离 origin/CSP 与每文件信任，脚本默认关闭，公开分享只读 | `20687bb4` 至 `0e5ac772` | `chat.upstream-html-preview-20260930` |
+| HTML/visualize | 内联预览、延迟提及、会话相对资源，隔离 origin/CSP 与每文件信任，会话内预览脚本默认关闭；打开 HTML 文件默认运行脚本，可手动关闭；公开分享只读 | `20687bb4` 至 `0e5ac772` | `chat.upstream-html-preview-20260930`、`files.html-scripts-default` |
 | Recent 筛选 | 分类先于十条分页，记忆筛选并准确显示余量，保留独立分页、折叠和新建聊天 | `e36c8ed4` 至 `caca52f6` | `sidebar.recent-filters-20260930` |
 | 会话通知 | 关闭窗格后按持久会话命名，保留 MaxCode 隐私、静默重放和 owner 登录动作限制 | `09d74bce`、`d2e86448`、`2db8a81b` | `runtime.session-notifications-20260930` |
 | 设置页视觉统一 | 参考分组设置界面统一侧栏、页面标题与留白、细边框卡片、输入/复合控件及错误提示；页边距不影响嵌套列表，说明样式不覆盖警告/错误颜色，折叠箭头保持可见 | `worktree-2026-09-26` | `settings.reference-grouped-style` |
@@ -441,3 +445,19 @@ Codex 目标自动续跑（`chat.codex-goal-continuation`）：后台自主启�
 暂停、清除、取消及新用户提示会收尾自主轮次，并在关闭交互卡片前清理待答问题和审批等待；仅历史目标 active 快照不启动动画。
 目标卡片底部显示运行指示，避免长目标滚动到底部时误认为中断。
 契约：`codex-goal-continuation.contract.rs`、`codex-goal-continuation.contract.test.tsx`。
+
+### 发送消息落位（2026-10-28）
+
+`chat.send-landing`：刚发送的用户气泡直接显示，移除气泡自身的缩放、位移与透明度动效，仅保留内容区平滑滚动；输入框收起延长为 320ms，发送滚动使用一次连续跟随。历史消息不重播，减少动态效果时跳过发送动效。契约覆盖气泡静态显示、发送确认、历史静态及输入框高度变化。
+
+气泡成形不叠加首条消息触发的整区淡入：内容区就绪跟随历史加载完成，而不是等到第一条消息出现。
+
+发送滚动修正：显式发送、正文尺寸变化和视口尺寸变化在发送后的短暂窗口内共用平滑弹簧（stiffness 0.04、damping 0.7、mass 1.2），避免瞬间贴底覆盖动画；历史定位与减少动态效果保持即时。
+
+### 流式输出平滑跟随（2026-10-28）
+
+`chat.streaming-scroll`：生成期间正文换行与视口高度变化共用滚动弹簧（stiffness 0.04、damping 0.7、mass 1.2），消除逐行即时贴底；只跟随已在底部的用户，手动上翻历史不拉回。历史首次定位、后台视图与减少动态效果保持即时，发送滚动参数独立保留。
+
+### 工具摘要出现过渡（2026-10-28）
+
+`chat.activity-reveal`：生成期间新插入的工具摘要占用高度在 320ms 内展开，不改变文字透明度；计数更新不重播，历史摘要静态显示。点击或键盘操作立即结束过渡，减少动态效果跳过动画。契约：`activity-reveal.contract.test.tsx`。

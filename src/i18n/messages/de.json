@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value} Min",
         "elapsedSeconds": "{value} Sek",
         "outputSpeedAria": "Geschätzte Ausgabegeschwindigkeit",
-        "outputSpeedTooltip": "Geschätzte Ausgabegeschwindigkeit (Text + Denken + Werkzeugargumente)"
+        "outputSpeedTooltip": "Geschätzte Ausgabegeschwindigkeit (Text + Denken + Werkzeugargumente)",
+        "retrying": "erneuter Versuch"
       },
       "generationStats": {
         "roundCount": "{count, plural, one {# Runde} other {# Runden}}",

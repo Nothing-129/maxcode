@@ -41,6 +41,8 @@ import {
   MessageThread,
   MessageThreadScrollButton,
   THREAD_SCROLL_ANIMATION,
+  SEND_SCROLL_ANIMATION,
+  STREAM_SCROLL_ANIMATION,
 } from "@/components/ai-elements/message-thread"
 
 afterEach(() => {
@@ -76,6 +78,75 @@ describe("MaxCode contract: instant history positioning and manual bottom naviga
         ))}
       </MessageThread>
     )
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: "instant",
+    })
+  })
+
+  it("uses a slow shared spring only after a send, not on session switches", () => {
+    const view = render(
+      <MessageThread entryKey="a" sendSignal={3}>
+        {null}
+      </MessageThread>
+    )
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: "instant",
+    })
+    view.rerender(
+      <MessageThread entryKey="a" sendSignal={4}>
+        {null}
+      </MessageThread>
+    )
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: SEND_SCROLL_ANIMATION,
+    })
+    view.rerender(
+      <MessageThread entryKey="b" sendSignal={8}>
+        {null}
+      </MessageThread>
+    )
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: "instant",
+    })
+  })
+  it("ends send follow only on arrival or user escape, never a timed snap", () => {
+    const thread = source("src/components/ai-elements/message-thread.tsx")
+    expect(thread).toContain(
+      "Math.abs(state.calculatedTargetScrollTop - state.scrollTop) <= 2"
+    )
+    expect(thread).not.toContain("if (!sendWindow.running) return")
+  })
+  it("keeps reduced-motion sends instant", () => {
+    context.reducedMotion = true
+    const view = render(<MessageThread sendSignal={1}>{null}</MessageThread>)
+    view.rerender(<MessageThread sendSignal={2}>{null}</MessageThread>)
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: "instant",
+    })
+  })
+
+  it("smooths live line growth while retaining instant initial history", () => {
+    const view = render(<MessageThread streaming>{null}</MessageThread>)
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: STREAM_SCROLL_ANIMATION,
+    })
+    view.rerender(
+      <MessageThread streaming active={false}>
+        {null}
+      </MessageThread>
+    )
+    expect(threadOptions).toHaveBeenLastCalledWith({
+      initial: "instant",
+      resize: "instant",
+    })
+    context.reducedMotion = true
+    view.rerender(<MessageThread streaming>{null}</MessageThread>)
     expect(threadOptions).toHaveBeenLastCalledWith({
       initial: "instant",
       resize: "instant",

@@ -26,7 +26,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Loader2 } from "lucide-react"
+import { MessageListSkeleton } from "@/components/message/message-list-skeleton"
 
 import { AgentIcon } from "@/components/agent-icon"
 import { LiveTranscriptView } from "@/components/message/live-transcript-view"
@@ -103,6 +103,7 @@ export function TaskTranscriptDialog({
  * covering a failed read.
  */
 function TaskAgentResolver({ task }: { task: WorkTask }) {
+  const t = useTranslations("Folder.chat.messageList")
   const folders = useAppWorkspaceStore((s) => s.folders)
   const override = task.config?.agent_type ?? null
   const folderDefault =
@@ -127,14 +128,7 @@ function TaskAgentResolver({ task }: { task: WorkTask }) {
   }, [override, conversationId, folderDefault])
 
   if (resolved == null) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2
-          className="size-5 animate-spin text-muted-foreground"
-          aria-hidden="true"
-        />
-      </div>
-    )
+    return <MessageListSkeleton label={t("loading")} />
   }
   return <TaskTranscriptBody task={task} agentType={resolved} />
 }

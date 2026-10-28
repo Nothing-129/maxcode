@@ -48,7 +48,7 @@ export function useComposerHeightMotion(
         animation = root.animate(
           [{ height: `${from}px` }, { height: `${target.height}px` }],
           {
-            duration: target.height < previous ? 120 : 180,
+            duration: target.height < previous ? 320 : 180,
             easing: "cubic-bezier(0.22, 1, 0.36, 1)",
           }
         )

@@ -620,11 +620,14 @@ function MobileFolderWorkspaceShell({
         disablePointerDismissal={false}
       >
         <DrawerContent
+          keepMounted
           showCloseButton={false}
           className="mobile-sidebar-drawer w-[85%] max-w-[22.5rem] p-0"
         >
           <DrawerTitle className="sr-only">Sidebar</DrawerTitle>
-          <Sidebar />
+          {/* Prepare the list while closed and retain its caches and scroll
+              state across drawer toggles. The drawer hides closed content. */}
+          <Sidebar keepVisible />
         </DrawerContent>
       </Drawer>
 

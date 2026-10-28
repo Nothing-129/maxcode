@@ -1,3 +1,4 @@
+import { ActivityReveal } from "./activity-reveal"
 import { memo, useMemo, useState, type ReactNode } from "react"
 import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 import {
@@ -27,6 +28,7 @@ import {
 } from "@/lib/line-change-stats"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { Shimmer } from "@/components/ai-elements/shimmer"
+import { ACTIVITY_DISCLOSURE_CLASS } from "@/components/ai-elements/activity-disclosure"
 import {
   Collapsible,
   CollapsibleContent,
@@ -2351,7 +2353,7 @@ const ToolCallPart = memo(function ToolCallPart({
   part: Extract<AdaptedContentPart, { type: "tool-call" }>
 }) {
   const t = useTranslations("Folder.chat.contentParts")
-  const [manualOpen, setManualOpen] = useState(false)
+  const [manualOpen, setManualOpen] = useState<boolean | undefined>(undefined)
   const normalizedToolName = useMemo(
     () => normalizeToolName(part.toolName),
     [part.toolName]
@@ -2966,7 +2968,10 @@ const ToolCallPart = memo(function ToolCallPart({
     )
   }
 
-  const open = (isRunning && (isCommandTool || hasLiveOutput)) || manualOpen
+  const open =
+    manualOpen ??
+    ((isRunning && (isCommandTool || hasLiveOutput)) ||
+      presentationState === "output-error")
 
   return (
     <Tool open={open} onOpenChange={setManualOpen}>
@@ -3175,17 +3180,8 @@ const ToolGroupPart = memo(function ToolGroupPart({
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="w-full">
       <CollapsibleTrigger
-        className={cn(
-          "group inline-flex h-6 max-w-full items-center gap-1 rounded-md bg-muted/30 px-2 text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground ws-msg-chip"
-        )}
+        className={cn(ACTIVITY_DISCLOSURE_CLASS, "hover:text-foreground")}
       >
-        <ChevronRightIcon
-          aria-hidden="true"
-          className={cn(
-            "size-3 shrink-0 opacity-60 transition-transform",
-            open && "rotate-90"
-          )}
-        />
         <span className="min-w-0 truncate">
           {part.isStreaming ? (
             <Shimmer as="span" duration={1} shineColor="var(--foreground)">
@@ -3210,6 +3206,13 @@ const ToolGroupPart = memo(function ToolGroupPart({
             </span>
           )}
         </span>
+        <ChevronRightIcon
+          aria-hidden="true"
+          className={cn(
+            "size-3 shrink-0 opacity-60 transition-transform",
+            open && "rotate-90"
+          )}
+        />
       </CollapsibleTrigger>
       <CollapsibleContent
         className={cn(
@@ -3219,7 +3222,7 @@ const ToolGroupPart = memo(function ToolGroupPart({
           "data-[state=closed]:slide-out-to-top-1 data-[state=open]:slide-in-from-top-1"
         )}
       >
-        <div className="mt-3 w-full space-y-3">
+        <div className="mt-3 w-full space-y-3 border-l border-border/70 pl-3">
           {part.items.map((item, idx) => (
             <ToolCallPart
               key={`grouped-tc-${item.toolCallId ?? idx}-${idx}`}
@@ -3246,11 +3249,48 @@ const COMPLETED_ACTIVITY_TYPES = new Set<AdaptedContentPart["type"]>([
 ])
 
 function isCompletedActivityPart(part: AdaptedContentPart): boolean {
+  if (
+    part.type === "tool-call" &&
+    [
+      "enterplanmode",
+      "exitplanmode",
+      "switch_mode",
+      "plan_review",
+      "askuserquestion",
+      "request_user_input",
+      "attempt_completion",
+    ].includes(normalizeToolName(part.toolName).toLowerCase())
+  )
+    return false
   return COMPLETED_ACTIVITY_TYPES.has(part.type)
 }
 
+export function activityNeedsAttention(part: AdaptedContentPart): boolean {
+  if (part.type === "tool-call") {
+    const name = normalizeToolName(part.toolName).toLowerCase()
+    if (
+      [
+        "enterplanmode",
+        "exitplanmode",
+        "switch_mode",
+        "plan_review",
+        "askuserquestion",
+        "request_user_input",
+        "attempt_completion",
+      ].includes(name)
+    )
+      return true
+    return part.state === "input-available" || part.state === "input-streaming"
+  }
+  if (part.type === "tool-result") return false
+  if (part.type === "tool-group") return part.items.some(activityNeedsAttention)
+  return (
+    part.type !== "text" && part.type !== "reasoning" && part.type !== "plan"
+  )
+}
+
 function canLiveInsideActivitySummary(part: AdaptedContentPart): boolean {
-  return part.type === "text" || isCompletedActivityPart(part)
+  return !activityNeedsAttention(part)
 }
 
 export interface CompletedActivitySplit {
@@ -3303,8 +3343,8 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
   renderPart: (part: AdaptedContentPart, keyId: string) => ReactNode
   showCounts?: boolean
 }) {
-  const t = useTranslations("Folder.chat.messageList")
   const tGroup = useTranslations("Folder.chat.contentParts.toolGroup")
+  const t = useTranslations("Folder.chat.messageList")
   const tElapsed = useTranslations("Folder.chat.liveTurnStats")
   const [open, setOpen] = useState(false)
   const activityLabel = useMemo(() => {
@@ -3313,25 +3353,21 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
       TOOL_KIND_ORDER.map((kind) => [kind, 0])
     ) as Record<ToolKindLabel, number>
     const countPart = (part: AdaptedContentPart) => {
-      if (part.type === "tool-call") {
+      if (part.type === "tool-call")
         counts[classifyToolKind(part.toolName)] += 1
-      } else if (part.type === "reasoning") {
-        counts.think += 1
-      } else if (part.type === "plan") {
-        counts.todo += 1
-      } else if (part.type === "tool-group") {
-        part.items.forEach(countPart)
-      } else if (
+      else if (part.type === "reasoning") counts.think += 1
+      else if (part.type === "plan") counts.todo += 1
+      else if (part.type === "tool-group") part.items.forEach(countPart)
+      else if (
         part.type === "delegation-status-group" ||
         part.type === "background-task-group"
-      ) {
+      )
         part.polls.forEach(countPart)
-      } else if (part.type === "goal-run") {
+      else if (part.type === "goal-run") {
         countPart(part.start)
         part.items.forEach(countPart)
         if (part.end) countPart(part.end)
       }
-      // Results belong to their tool call and must not count a second time.
     }
     parts.forEach(countPart)
     return TOOL_KIND_ORDER.filter((kind) => counts[kind] > 0)
@@ -3350,8 +3386,10 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
       className="w-full not-prose"
     >
       <div className="flex items-center gap-2">
-        <CollapsibleTrigger className="group flex h-6 min-w-0 items-center gap-1 text-left text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors hover:text-foreground">
-          <span>
+        <CollapsibleTrigger
+          className={cn(ACTIVITY_DISCLOSURE_CLASS, "hover:text-foreground")}
+        >
+          <span className="min-w-0 truncate">
             {activityLabel ||
               (durationLabel
                 ? t("processedFor", { duration: durationLabel })
@@ -3367,7 +3405,7 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
         </CollapsibleTrigger>
       </div>
       <CollapsibleContent className="w-full outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-        <div className="mt-3 space-y-3 border-l border-border/70 pl-3 text-sm">
+        <div className="mt-3 space-y-3 text-sm">
           {parts.map((part, index) =>
             renderPart(part, `completed-activity-${index}`)
           )}
@@ -3381,6 +3419,7 @@ interface ContentPartsRendererProps {
   parts: AdaptedContentPart[]
   role?: MessageRole
   isResponseComplete?: boolean
+  expandedActivity?: boolean
   durationMs?: number | null
   isStreaming?: boolean
 }
@@ -3389,11 +3428,17 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
   parts: rawParts,
   role,
   isResponseComplete = false,
+  expandedActivity = false,
   durationMs,
   isStreaming = false,
 }: ContentPartsRendererProps) {
+  const [readerOpened, setReaderOpened] = useState(false)
   const parts = useMemo(() => annotateToolRecovery(rawParts), [rawParts])
-  const renderPart = (part: AdaptedContentPart, keyId: string): ReactNode => {
+  const renderPart = (
+    part: AdaptedContentPart,
+    keyId: string,
+    expanded = expandedActivity
+  ): ReactNode => {
     if (part.type === "text") {
       // An empty text part renders nothing but still earns a `space-y-4` gap
       // below, which reads as a blank band inside the bubble. A user turn is
@@ -3416,6 +3461,20 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
     }
 
     if (part.type === "tool-group") {
+      if (
+        expanded ||
+        part.items.some(
+          (item) => item.state === "output-error" || !!item.errorText
+        )
+      ) {
+        return (
+          <div key={`tg-${keyId}`} className="space-y-3">
+            {part.items.map((item, index) =>
+              renderPart(item, `${keyId}-${index}`, expanded)
+            )}
+          </div>
+        )
+      }
       return <ToolGroupPart key={`tg-${keyId}`} part={part} />
     }
 
@@ -3446,6 +3505,15 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
     }
 
     if (part.type === "reasoning") {
+      if (expanded)
+        return (
+          <TextPart
+            key={`reasoning-${keyId}`}
+            text={part.content}
+            isUser={false}
+            isStreaming={false}
+          />
+        )
       return <ReasoningPart key={`reasoning-${keyId}`} part={part} />
     }
 
@@ -3479,7 +3547,10 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
   }
 
   const completedActivity =
-    role === "assistant" && isResponseComplete
+    role === "assistant" &&
+    isResponseComplete &&
+    !readerOpened &&
+    !expandedActivity
       ? splitCompletedAssistantActivity(parts)
       : null
 
@@ -3489,7 +3560,7 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
         <CompletedActivitySummary
           parts={completedActivity.activity}
           durationMs={durationMs}
-          renderPart={renderPart}
+          renderPart={(part, key) => renderPart(part, key, true)}
         />
         <div className="space-y-4">
           {completedActivity.answer.map((part, index) =>
@@ -3500,58 +3571,50 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
     )
   }
 
-  // Keep the newest three activity rows visible while waiting for more text.
-  // A stable interval key preserves manual expansion as its folded prefix grows
-  // and when the next text closes the interval.
   const content: ReactNode[] = []
   for (let index = 0; index < parts.length; index += 1) {
     const part = parts[index]
-    if (role === "assistant" && isCompletedActivityPart(part)) {
-      let end = index
-      const activityIndices: number[] = []
+    if (
+      role === "assistant" &&
+      !expandedActivity &&
+      isCompletedActivityPart(part)
+    ) {
+      let end = index + 1
       while (end < parts.length) {
-        const candidate = parts[end]
-        if (isCompletedActivityPart(candidate)) {
-          activityIndices.push(end)
-        } else if (!(candidate.type === "text" && !candidate.text.trim())) {
+        const next = parts[end]
+        if (
+          !isCompletedActivityPart(next) &&
+          !(next.type === "text" && !next.text.trim())
+        )
           break
-        }
         end += 1
       }
-      const next = parts[end]
-      const followedByText =
-        next?.type === "text" && next.text.trim().length > 0
-      const foldEnd = followedByText
-        ? end
-        : !isResponseComplete &&
-            end === parts.length &&
-            activityIndices.length > 3
-          ? activityIndices[activityIndices.length - 3]
-          : index
-      const activityRows: ReactNode[] = []
-      if (foldEnd > index) {
-        activityRows.push(
-          <CompletedActivitySummary
-            key={`interval-${index}`}
-            showCounts
-            parts={parts.slice(index, foldEnd)}
-            renderPart={renderPart}
-          />
-        )
-      }
-      for (let visible = foldEnd; visible < end; visible += 1) {
-        activityRows.push(renderPart(parts[visible], `${visible}`))
-      }
       content.push(
-        <div key={`activity-${index}`} data-activity-rows className="space-y-1">
-          {activityRows}
-        </div>
+        <ActivityReveal key={`interval-${index}`} live={isStreaming}>
+          <CompletedActivitySummary
+            showCounts
+            parts={parts.slice(index, end)}
+            renderPart={(item, key) => renderPart(item, key, true)}
+          />
+        </ActivityReveal>
       )
       index = end - 1
-      continue
+    } else {
+      content.push(renderPart(part, `${index}`))
     }
-    content.push(renderPart(part, `${index}`))
   }
-
-  return <div className="space-y-4">{content}</div>
+  return (
+    <div
+      data-activity-rows
+      className="space-y-4"
+      onClickCapture={(event) => {
+        const trigger = (event.target as HTMLElement).closest(
+          'button[aria-expanded="false"]'
+        )
+        if (trigger && !trigger.hasAttribute("disabled")) setReaderOpened(true)
+      }}
+    >
+      {content}
+    </div>
+  )
 })

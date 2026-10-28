@@ -10,7 +10,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/instant-collapsible"
 import { cn } from "@/lib/utils"
-import { BrainIcon, ChevronRightIcon } from "lucide-react"
+import { ChevronRightIcon } from "lucide-react"
+import { ACTIVITY_DISCLOSURE_CLASS } from "./activity-disclosure"
 import {
   createContext,
   memo,
@@ -125,7 +126,7 @@ export const Reasoning = memo(
     return (
       <ReasoningContext.Provider value={contextValue}>
         <Collapsible
-          className={cn("not-prose", className)}
+          className={cn("w-full not-prose", className)}
           onOpenChange={handleOpenChange}
           open={isOpen}
           {...props}
@@ -162,9 +163,9 @@ export const ReasoningTrigger = memo(
           )
         }
         if (nextDuration === undefined || nextDuration === 0) {
-          return <p>{t("thoughtForFewSeconds")}</p>
+          return <span>{t("thoughtForFewSeconds")}</span>
         }
-        return <p>{t("thoughtForSeconds", { duration: nextDuration })}</p>
+        return <span>{t("thoughtForSeconds", { duration: nextDuration })}</span>
       },
       [t]
     )
@@ -174,7 +175,7 @@ export const ReasoningTrigger = memo(
     return (
       <CollapsibleTrigger
         className={cn(
-          "flex h-6 max-w-full items-center gap-1 px-2 text-[0.6875rem] leading-4 font-normal text-muted-foreground transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          ACTIVITY_DISCLOSURE_CLASS,
           expandable
             ? "hover:text-foreground"
             : "cursor-default hover:text-muted-foreground",
@@ -185,13 +186,12 @@ export const ReasoningTrigger = memo(
       >
         {children ?? (
           <>
-            <BrainIcon
-              aria-hidden="true"
-              className="size-3 shrink-0 opacity-60"
-            />
-            {thinkingMessageBuilder(isStreaming, duration)}
+            <span className="min-w-0 truncate">
+              {thinkingMessageBuilder(isStreaming, duration)}
+            </span>
             {expandable && (
               <ChevronRightIcon
+                aria-hidden="true"
                 className={cn(
                   "size-3 shrink-0 opacity-60 transition-transform",
                   isOpen ? "rotate-90" : "rotate-0"

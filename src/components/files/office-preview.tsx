@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import { FileWarning, Loader2 } from "lucide-react"
+import { FileLoadingSkeleton } from "./file-loading-skeleton"
+import { FileWarning } from "lucide-react"
 
 import { renewOfficeWatch, startOfficeWatch, stopOfficeWatch } from "@/lib/api"
 import { getServerBaseUrl } from "@/lib/transport"
@@ -302,10 +303,7 @@ export function OfficePreview({
   return (
     <div className="relative h-full min-h-0">
       {watchUrl == null ? (
-        <div className="flex h-full items-center justify-center gap-2 text-xs text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {t("loading")}
-        </div>
+        <FileLoadingSkeleton label={t("loading")} variant="document" />
       ) : (
         <iframe
           ref={frameRef}

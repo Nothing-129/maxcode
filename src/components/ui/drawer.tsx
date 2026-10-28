@@ -264,11 +264,13 @@ function DrawerContent({
   children,
   closeButtonClassName,
   showCloseButton = true,
+  keepMounted = false,
   ref,
   ...props
 }: DrawerPrimitive.Popup.Props & {
   closeButtonClassName?: string
   showCloseButton?: boolean
+  keepMounted?: boolean
 }) {
   const { hasSnapPoints, modal, showSwipeHandle, swipeDirection } = useDrawer()
   const swipeAxis =
@@ -296,7 +298,7 @@ function DrawerContent({
   )
 
   return (
-    <DrawerPortal data-slot="drawer-portal">
+    <DrawerPortal data-slot="drawer-portal" keepMounted={keepMounted}>
       {modal === true && (
         <DrawerOverlay
           data-snap-points={hasSnapPoints ? "" : undefined}

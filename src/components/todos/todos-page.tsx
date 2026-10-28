@@ -1,5 +1,6 @@
 "use client"
 
+import { TodosLoadingSkeleton } from "./todos-loading-skeleton"
 import { TodoImportConversationButton } from "./todo-import-conversation-button"
 
 import { TodoMarkdown } from "./todo-markdown"
@@ -82,7 +83,8 @@ export function TodosPageTitle() {
 
 export function TodosPage() {
   const t = useTranslations("Todos")
-  const { state, loading, error, refetch, mutate, busy } = useTodosView()
+  const { state, loading, error, refetch, mutate, busy, viewMode } =
+    useTodosView()
   const [teamsOpen, setTeamsOpen] = useState(false)
   const [sourceOrigin, setSourceOrigin] = useState<TodoOrigin | null>(null)
   const attemptedSourceScope = useRef<string | null>(null)
@@ -159,33 +161,26 @@ export function TodosPage() {
           state={state}
           onTeams={() => setTeamsOpen(true)}
         />
+      ) : loading ? (
+        <TodosLoadingSkeleton label={t("loading")} viewMode={viewMode} />
       ) : (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center">
-          {loading ? (
-            <Loader2
-              className="size-5 animate-spin text-muted-foreground"
-              aria-label={t("loading")}
-            />
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground" role="alert">
-                {t("loadFailed")}
-              </p>
-              {error && (
-                <p className="max-w-lg text-xs text-muted-foreground wrap-anywhere">
-                  {error}
-                </p>
-              )}
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => void refetch()}>
-                  {t("retry")}
-                </Button>
-                <Button variant="outline" onClick={() => setTeamsOpen(true)}>
-                  {t("teams")}
-                </Button>
-              </div>
-            </>
+          <p className="text-sm text-muted-foreground" role="alert">
+            {t("loadFailed")}
+          </p>
+          {error && (
+            <p className="max-w-lg text-xs text-muted-foreground wrap-anywhere">
+              {error}
+            </p>
           )}
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => void refetch()}>
+              {t("retry")}
+            </Button>
+            <Button variant="outline" onClick={() => setTeamsOpen(true)}>
+              {t("teams")}
+            </Button>
+          </div>
         </div>
       )}
       {teamsOpen && (

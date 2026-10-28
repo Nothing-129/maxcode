@@ -51,8 +51,8 @@ describe("Codex retry visibility", () => {
         />
       </NextIntlClientProvider>
     )
-    expect(screen.getByRole("status")).toHaveTextContent("正在重试")
-    expect(screen.getByRole("status")).not.toHaveTextContent("等待响应")
+    expect(screen.getByRole("status")).toHaveTextContent("重试中")
+    expect(screen.getByRole("status")).not.toHaveTextContent("处理中")
     expect(screen.getByRole("status")).not.toHaveClass("maxcode-waiting-label")
   })
   it("shows the cause, HTTP status, attempt and live countdown, not a silent spinner", () => {

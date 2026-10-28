@@ -41,9 +41,36 @@ import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom"
  * Only a thread that was already at the bottom is re-pinned, so a user who
  * scrolled back into history is never yanked forward.
  */
-const StickThroughViewportResize = () => {
+const StickThroughViewportResize = ({
+  sending = false,
+  onSendSettled,
+  streaming = false,
+}: {
+  sending?: boolean
+  streaming?: boolean
+  onSendSettled?: () => void
+}) => {
   const { scrollRef, contentRef, scrollToBottom, state } =
     useStickToBottomContext()
+
+  useEffect(() => {
+    if (!sending) return
+    let frame = 0
+    const startedAt = performance.now()
+    const settle = () => {
+      if (
+        !state.isAtBottom ||
+        (performance.now() - startedAt >= 700 &&
+          Math.abs(state.calculatedTargetScrollTop - state.scrollTop) <= 2)
+      ) {
+        onSendSettled?.()
+        return
+      }
+      frame = requestAnimationFrame(settle)
+    }
+    frame = requestAnimationFrame(settle)
+    return () => cancelAnimationFrame(frame)
+  }, [sending, state, onSendSettled])
 
   // Virtual rows can shrink after their estimated heights are measured.
   // The library follows content growth, but on shrink only clamps overscroll;
@@ -59,7 +86,16 @@ const StickThroughViewportResize = () => {
       frame = requestAnimationFrame(() => {
         frame = undefined
         if (!state.isAtBottom) return
-        state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+        if (sending || streaming) {
+          void scrollToBottom({
+            animation: sending
+              ? SEND_SCROLL_ANIMATION
+              : STREAM_SCROLL_ANIMATION,
+            preserveScrollPosition: true,
+          })
+        } else {
+          state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+        }
       })
     })
     observer.observe(content)
@@ -67,7 +103,7 @@ const StickThroughViewportResize = () => {
       observer.disconnect()
       if (frame !== undefined) cancelAnimationFrame(frame)
     }
-  }, [contentRef, state])
+  }, [contentRef, state, sending, streaming, scrollToBottom])
 
   useEffect(() => {
     const viewport = scrollRef.current
@@ -100,20 +136,29 @@ const StickThroughViewportResize = () => {
       // `preserveScrollPosition` suppresses only the redundant "we're at the
       // bottom" state write — the guard above already established that. A
       // growth resize lands at the target on its own, so this is then a no-op.
-      scrollToBottom({ animation: "instant", preserveScrollPosition: true })
+      scrollToBottom({
+        animation: sending
+          ? SEND_SCROLL_ANIMATION
+          : streaming
+            ? STREAM_SCROLL_ANIMATION
+            : "instant",
+        preserveScrollPosition: true,
+      })
     })
 
     observer.observe(viewport)
     return () => {
       observer.disconnect()
     }
-  }, [scrollRef, scrollToBottom, state])
+  }, [scrollRef, scrollToBottom, state, sending, streaming])
 
   return null
 }
 
 export type MessageThreadProps = ComponentProps<typeof StickToBottom> & {
   entryKey?: string
+  sendSignal?: number
+  streaming?: boolean
   active?: boolean
   ready?: boolean
 }
@@ -146,6 +191,20 @@ export function ConversationEntryPosition({
   return null
 }
 
+// All send-time resize paths share this spring; duration is not scroll speed.
+export const SEND_SCROLL_ANIMATION = {
+  damping: 0.7,
+  stiffness: 0.04,
+  mass: 1.2,
+} as const
+
+// Keep line-height increments visibly continuous rather than nearly instant.
+export const STREAM_SCROLL_ANIMATION = {
+  damping: 0.7,
+  stiffness: 0.04,
+  mass: 1.2,
+} as const
+
 // Used only by the manual bottom arrow.
 // A softer spring starts long journeys gently and settles without a bounce.
 export const THREAD_SCROLL_ANIMATION = {
@@ -158,21 +217,51 @@ export const MessageThread = ({
   className,
   children,
   entryKey,
+  sendSignal = 0,
+  streaming = false,
   active = true,
   ready = true,
   ...props
 }: MessageThreadProps) => {
+  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)")
+  const [sendWindow, setSendWindow] = useState({
+    entryKey,
+    signal: sendSignal,
+    running: false,
+  })
+  if (sendWindow.entryKey !== entryKey || sendWindow.signal !== sendSignal) {
+    setSendWindow({
+      entryKey,
+      signal: sendSignal,
+      running: sendWindow.entryKey === entryKey,
+    })
+  }
+  const sending = sendWindow.running && active && !reduced
+  const followingStream = streaming && active && !reduced
+  const settleSend = useCallback(() => {
+    setSendWindow((current) => ({ ...current, running: false }))
+  }, [])
   return (
     <StickToBottom
       className={cn("relative flex-1 overflow-y-hidden", className)}
       initial="instant"
-      resize="instant"
+      resize={
+        sending
+          ? SEND_SCROLL_ANIMATION
+          : followingStream
+            ? STREAM_SCROLL_ANIMATION
+            : "instant"
+      }
       role="log"
       {...props}
     >
       {(context) => (
         <>
-          <StickThroughViewportResize />
+          <StickThroughViewportResize
+            sending={sending}
+            streaming={followingStream}
+            onSendSettled={settleSend}
+          />
           {typeof children === "function" ? children(context) : children}
           {/* Content refs must attach before entry's layout effect runs. */}
           {entryKey !== undefined && (

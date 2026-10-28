@@ -16,7 +16,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/instant-collapsible"
-import { ContentPartsRenderer } from "./content-parts-renderer"
+import {
+  activityNeedsAttention,
+  ContentPartsRenderer,
+} from "./content-parts-renderer"
 import { ProgressSections } from "./progress-sections"
 import { useMessageScroll } from "./message-scroll-context"
 
@@ -103,8 +106,10 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
   roundOpen = true,
   onRoundOpenChange,
   foldEpoch = 0,
+  pendingLabel,
 }: {
   parts: AdaptedContentPart[]
+  pendingLabel?: string
   durationMs?: number | null
   completed: boolean
   /** This reply is the thread's current round — the newest assistant run, from
@@ -151,6 +156,12 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
     }
   }
 
+  const [readerOpened, setReaderOpened] = useState(false)
+  const [wasCompleted, setWasCompleted] = useState(completed)
+  if (wasCompleted !== completed) {
+    setWasCompleted(completed)
+    if (completed && !readerOpened && !currentRound) setLocalOpen(false)
+  }
   const scroll = useMessageScroll()
   const open = currentRound ? roundOpen : localOpen
 
@@ -199,7 +210,10 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
   // whole stream and hand it over one beat before the turn ends. Folding a live
   // reply is then an explicit choice; the round settling re-applies the rule.
   const foldable =
-    split.progress.length > 0 && (!completed || hasVisibleAnswer(split.answer))
+    !completed ||
+    (split.progress.length > 0 &&
+      !split.progress.some(activityNeedsAttention) &&
+      hasVisibleAnswer(split.answer))
 
   const label = !completed
     ? parts.some((part) =>
@@ -207,10 +221,14 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
           ? part.text.trim().length > 0
           : part.type === "reasoning"
             ? part.content.trim().length > 0
-            : true
+            : part.type === "tool-group"
+              ? part.items.length > 0
+              : part.type === "plan"
+                ? part.entries.length > 0
+                : true
       )
       ? t("working")
-      : tElapsed("thinkingPending")
+      : (pendingLabel ?? tElapsed("thinkingPending"))
     : elapsed
       ? t("workedFor", { duration: elapsed })
       : t("worked")
@@ -263,7 +281,18 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
   }
 
   return (
-    <div className="space-y-4">
+    <div
+      className="space-y-4"
+      onClickCapture={(event) => {
+        const trigger = (event.target as HTMLElement).closest(
+          'button[aria-expanded="false"]'
+        )
+        if (!completed && trigger && !trigger.hasAttribute("disabled")) {
+          setReaderOpened(true)
+          handleOpenChange(true)
+        }
+      }}
+    >
       <Collapsible
         className="w-full"
         open={open}

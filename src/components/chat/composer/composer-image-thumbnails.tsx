@@ -17,6 +17,12 @@ import {
 } from "@/components/message/image-actions"
 import type { UserImageDisplay } from "@/lib/adapters/ai-elements-adapter"
 import type { ImageInputAttachment } from "@/components/chat/message-input-attachments"
+import {
+  ATTACHMENT_CARD_CLASS,
+  ATTACHMENT_REMOVE_CLASS,
+  AttachmentDetails,
+} from "./attachment-card"
+import { cn } from "@/lib/utils"
 
 /** The staged attachment reshaped for the shared transcript image actions. */
 function toDisplay(attachment: ImageInputAttachment): UserImageDisplay {
@@ -43,7 +49,7 @@ function AttachmentInteraction({ children }: { children: ReactNode }) {
  * picked image, each clickable for a full preview and removable in place.
  *
  * Renders as a bare list of tiles for the shared composer scrollport. The
- * host wraps tiles in normal flow above file cards and text. The preview dialog
+ * host mixes tiles with file cards in one wrapping tray above text. The preview dialog
  * is owned here because no host needs its state.
  *
  * Tiles and the blown-up preview carry the same right-click Copy / Download
@@ -89,39 +95,44 @@ export function ComposerImageThumbnails({
             layout={reduced ? false : "position"}
             initial={{
               opacity: 0,
-              y: reduced ? 0 : 5,
-              scale: reduced ? 1 : 0.96,
+              y: reduced ? 0 : 4,
             }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{
-              opacity: 0,
-              y: reduced ? 0 : -3,
-              scale: reduced ? 1 : 0.96,
-            }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             transition={{
               duration: reduced ? 0.1 : 0.18,
-              ease: [0.22, 1, 0.36, 1],
             }}
-            className="relative shrink-0"
+            className="relative w-56 min-w-0 max-w-full shrink-0"
             data-attachment-tile={attachment.id}
           >
             <AttachmentInteraction>
               <ImageActions
                 image={toDisplay(attachment)}
-                className="relative shrink-0 overflow-hidden rounded-md border border-border/70 bg-muted/30"
+                className={cn("relative", ATTACHMENT_CARD_CLASS)}
               >
                 <button
                   type="button"
                   onClick={() => setPreviewId(attachment.id)}
-                  className="cursor-pointer transition-opacity hover:opacity-80"
+                  className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-lg text-left transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  title={attachment.name}
+                  aria-label={attachment.name}
                 >
                   <Image
                     src={`data:${attachment.mimeType};base64,${attachment.data}`}
                     alt={attachment.name}
-                    width={56}
-                    height={56}
+                    width={36}
+                    height={36}
                     unoptimized
-                    className="h-14 w-14 object-cover"
+                    className="size-9 shrink-0 rounded-lg object-cover"
+                  />
+                  <AttachmentDetails
+                    name={attachment.name}
+                    type={
+                      attachment.name
+                        .match(/\.([a-z0-9]{1,12})$/i)?.[1]
+                        ?.toUpperCase() ??
+                      attachment.mimeType.split("/")[1]?.toUpperCase()
+                    }
                   />
                 </button>
                 <AnimatePresence initial={false}>
@@ -134,7 +145,7 @@ export function ComposerImageThumbnails({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       transition={{ duration: reduced ? 0 : 0.14 }}
-                      className="pointer-events-none absolute inset-0 flex items-center justify-center bg-background/50"
+                      className="pointer-events-none absolute inset-0 flex items-center justify-center rounded-xl bg-background/50"
                     >
                       <Loader2 className="h-4 w-4 animate-spin text-foreground/80 motion-reduce:animate-none" />
                     </motion.div>
@@ -143,7 +154,7 @@ export function ComposerImageThumbnails({
                 {onMarkup && !attachment.uploading && (
                   <button
                     type="button"
-                    className="absolute bottom-1 left-1 rounded-sm bg-background/80 p-0.5 hover:bg-background"
+                    className="absolute bottom-1 left-1 rounded-md bg-background/80 p-0.5 hover:bg-background focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     aria-label={tMarkup("markupTitle")}
                     onClick={() => setMarkupId(attachment.id)}
                   >
@@ -153,7 +164,8 @@ export function ComposerImageThumbnails({
                 <button
                   type="button"
                   onClick={() => onRemove(attachment.id)}
-                  className="absolute right-1 top-1 rounded-sm bg-background/70 p-0.5 hover:bg-background"
+                  className={ATTACHMENT_REMOVE_CLASS}
+                  onMouseDown={(event) => event.preventDefault()}
                   aria-label={t("removeAttachmentAria", {
                     name: attachment.name,
                   })}

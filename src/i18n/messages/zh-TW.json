@@ -3548,18 +3548,19 @@
         "turnFailed": "本輪失敗：{message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "正在思考",
-        "waiting": "等待回應",
-        "running": "執行工具中",
-        "awaitingUser": "等待你的確認",
+        "thinkingPending": "處理中",
+        "waiting": "處理中",
+        "running": "執行中",
+        "awaitingUser": "待確認",
         "settled": "回應已結束",
-        "thinking": "思考中...",
-        "streaming": "工作中",
+        "thinking": "思考中",
+        "streaming": "輸出中",
         "elapsedHours": "{value} 小時",
         "elapsedMinutes": "{value} 分鐘",
         "elapsedSeconds": "{value} 秒",
         "outputSpeedAria": "估算輸出速度",
-        "outputSpeedTooltip": "估算輸出速度（正文 + 思考 + 工具參數）"
+        "outputSpeedTooltip": "估算輸出速度（正文 + 思考 + 工具參數）",
+        "retrying": "重試中"
       },
       "generationStats": {
         "roundCount": "回合{count}",

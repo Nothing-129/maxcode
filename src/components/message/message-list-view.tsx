@@ -1,7 +1,5 @@
 "use client"
 
-import { TURN_HEADING_CLASS, TurnStatusLabel } from "./turn-status"
-
 import {
   ConversationMessageRail,
   buildHistoryMessageRailEntries,
@@ -18,6 +16,7 @@ import {
 } from "@/stores/conversation-runtime-store"
 import { isWindowedDetail } from "@/lib/turn-window"
 import { TurnFeedback } from "./turn-feedback"
+import { MessageListSkeleton } from "./message-list-skeleton"
 import { CompletedTurnContent } from "./completed-turn-content"
 import { ContextCompactionCard } from "./context-compaction-card"
 import { SentMessageEditButton } from "./sent-message-edit-button"
@@ -62,6 +61,7 @@ import type { DelegationCardSource } from "@/hooks/use-delegation-card-model"
 import {
   MessageThread,
   MessageThreadScrollButton,
+  SEND_SCROLL_ANIMATION,
 } from "@/components/ai-elements/message-thread"
 import {
   Message,
@@ -971,7 +971,9 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   forkDisabled = false,
   isThreadTail = false,
   onEditMessage,
+  pendingLabel,
 }: {
+  pendingLabel?: string
   group: ResolvedMessageGroup
   onEditMessage?: (text: string) => void
   showStats?: boolean
@@ -1041,6 +1043,7 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           <MessageContent>
             <CompletedTurnContent
               parts={group.parts}
+              pendingLabel={pendingLabel}
               durationMs={completedTurnDurationMs}
               completed={isResponseComplete}
               currentRound={currentRound}
@@ -1096,36 +1099,49 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   )
 })
 
-const PendingTypingIndicator = memo(function PendingTypingIndicator({
-  awaitingUser,
-  ledger,
-  token,
-}: {
-  awaitingUser: boolean
-  ledger: Set<string>
-  token: string
-}) {
-  useEffect(() => {
-    ledger.add(`${token}:waiting`)
-  }, [ledger, token])
-  const t = useTranslations("Folder.chat.liveTurnStats")
-  return (
-    <Message from="assistant" className="pt-4">
-      <MessageContent>
-        <div
-          className={`${TURN_HEADING_CLASS} !border-transparent`}
-          role="status"
-        >
-          {awaitingUser ? (
-            <span>{t("awaitingUser")}</span>
-          ) : (
-            <TurnStatusLabel>{t("thinkingPending")}</TurnStatusLabel>
-          )}
-        </div>
-      </MessageContent>
-    </Message>
-  )
-})
+/** The pending row and its first streamed reply share a virtualizer key and
+ * exactly the same component tree. Confirmation of the user turn must not
+ * remove the placeholder before the assistant has actually arrived. */
+export function stabilizePendingReply(
+  items: ThreadRenderItem[],
+  key: string,
+  waiting: boolean
+): ThreadRenderItem[] {
+  const tail = items[items.length - 1]
+  if (
+    tail?.kind === "turn" &&
+    tail.group.role === "assistant" &&
+    !tail.isResponseComplete
+  ) {
+    return [...items.slice(0, -1), { ...tail, key }]
+  }
+  if (!waiting || (tail?.kind === "turn" && tail.group.role !== "user"))
+    return items
+  return [
+    ...items,
+    {
+      key,
+      kind: "turn",
+      group: {
+        id: key,
+        role: "assistant",
+        parts: [],
+        resources: [],
+        images: [],
+      },
+      phase: "streaming",
+      source: "live",
+      isResponseComplete: false,
+      showStats: false,
+      isRoleTransition: true,
+      previousUserIndex: null,
+      previousUserAt: null,
+      isLastAssistantRun: true,
+      isThreadTail: true,
+      sourceTurns: [],
+    },
+  ]
+}
 
 const AutoScrollOnSend = memo(function AutoScrollOnSend({
   signal,
@@ -1139,13 +1155,15 @@ const AutoScrollOnSend = memo(function AutoScrollOnSend({
     if (signal === lastSignalRef.current) return
     lastSignalRef.current = signal
 
-    scrollToBottom()
-    const rafId = requestAnimationFrame(() => {
-      scrollToBottom()
+    // Follow the input shell's collapse and the new row in one continuous
+    // scroll, instead of restarting the scroll on the following frame.
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)"
+    ).matches
+    void scrollToBottom({
+      animation: reduced ? "instant" : SEND_SCROLL_ANIMATION,
+      duration: reduced ? 0 : 1000,
     })
-    return () => {
-      cancelAnimationFrame(rafId)
-    }
   }, [scrollToBottom, signal])
 
   return null
@@ -1395,16 +1413,12 @@ export function MessageListView({
     }
     markThreadTail(items)
 
-    const lastPhase = timelineTurns[timelineTurns.length - 1]?.phase ?? null
-    if (
-      lastPhase === "optimistic" &&
-      (connStatus === "prompting" || sessionSyncState === "awaiting_persist")
-    ) {
-      items.push({ key: "pending-typing", kind: "typing" })
-    }
-
     return {
-      threadItems: items,
+      threadItems: stabilizePendingReply(
+        items,
+        `pending-reply-${conversationId}:${sendSignal}`,
+        connStatus === "prompting" || sessionSyncState === "awaiting_persist"
+      ),
       nonStreamingAdapted: nonStreaming,
       // "The agent is replying right now." True for the local stream and for a
       // passive viewer reading a round the backend still flags in-flight, and
@@ -1413,6 +1427,8 @@ export function MessageListView({
     }
   }, [
     adapterText,
+    conversationId,
+    sendSignal,
     connStatus,
     sessionSyncState,
     timelineTurns,
@@ -1525,6 +1541,9 @@ export function MessageListView({
                 ) : null}
                 <HistoricalMessageGroup
                   group={item.group}
+                  pendingLabel={
+                    awaitingUser ? feedbackText("awaitingUser") : undefined
+                  }
                   onEditMessage={onEditMessage}
                   showStats={item.showStats}
                   previousUserIndex={item.previousUserIndex}
@@ -1544,13 +1563,7 @@ export function MessageListView({
           )
         }
         case "typing":
-          return (
-            <PendingTypingIndicator
-              awaitingUser={awaitingUser}
-              ledger={feedbackLedger}
-              token={waitingToken}
-            />
-          )
+          return null
         case "compaction":
           // Chrome-less centered divider between turns (no avatar / stats footer).
           return (
@@ -1568,6 +1581,7 @@ export function MessageListView({
     },
     [
       awaitingUser,
+      feedbackText,
       conversationId,
       feedbackLedger,
       feedbackToken,
@@ -1701,14 +1715,7 @@ export function MessageListView({
   const hasRenderableContent = threadItems.length > 0 || Boolean(liveMessage)
 
   if (detailLoading && !hasRenderableContent) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          <span>{t("loading")}</span>
-        </div>
-      </div>
-    )
+    return <MessageListSkeleton label={t("loading")} />
   }
 
   // An ACP load failure replaces content only when there is nothing to show
@@ -1797,8 +1804,10 @@ export function MessageListView({
         <MessageThread
           className="flex-1 min-h-0"
           entryKey={String(conversationId)}
+          sendSignal={sendSignal}
+          streaming={connStatus === "prompting" || liveMessage != null}
           active={isActive}
-          ready={!detailLoading && threadItems.length > 0}
+          ready={!detailLoading}
         >
           <AutoScrollOnSend signal={sendSignal} />
           <VirtualizedMessageThread

@@ -48,10 +48,14 @@ import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 function renderParts(parts: AdaptedContentPart[], expand = true) {
   const result = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={parts} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={parts} role="assistant" />
     </NextIntlClientProvider>
   )
-  if (expand) fireEvent.click(screen.getAllByRole("button")[0])
+  if (expand) {
+    const trigger = screen.getAllByRole("button")[0]
+    if (trigger.getAttribute("aria-expanded") === "false")
+      fireEvent.click(trigger)
+  }
   return result
 }
 

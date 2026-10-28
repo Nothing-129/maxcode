@@ -56,7 +56,7 @@ import { normalizeToolName } from "@/lib/tool-call-normalization"
 function renderParts(parts: AdaptedContentPart[]) {
   const result = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={parts} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={parts} role="assistant" />
     </NextIntlClientProvider>
   )
   const toggles = screen.queryAllByRole("button")

@@ -140,11 +140,8 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
         },
       ])
     )
-    expect(screen.getByText(/1 retried successfully/)).toBeInTheDocument()
     expect(screen.queryByText(/execution issue/)).toBeNull()
-    fireEvent.click(
-      screen.getByRole("button", { name: /retried successfully/ })
-    )
+    fireEvent.click(screen.getByRole("button", { name: /Ran 3 commands/ }))
     expect(screen.getByText("Retry succeeded")).toBeVisible()
     fireEvent.click(screen.getByRole("button", { name: /Retry succeeded/ }))
     expect(screen.getAllByText(/Permission denied/).length).toBeGreaterThan(0)
@@ -185,7 +182,10 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
       expect(screen.queryByText(/retried successfully/)).toBeNull()
       fireEvent.click(screen.getByRole("button", { name: /Ran 1 command/ }))
       expect(screen.queryByText("Error")).toBeNull()
-      fireEvent.click(screen.getByRole("button", { name: /sw_vers/ }))
+      expect(screen.getByRole("button", { name: /sw_vers/ })).toHaveAttribute(
+        "aria-expanded",
+        "true"
+      )
       expect(screen.getAllByText(/ProductName: macOS/).length).toBeGreaterThan(
         0
       )
@@ -205,7 +205,7 @@ describe("MaxCode contract: confirmed read retries retain error history", () => 
     expect(screen.queryByText(/1 execution issue/)).toBeNull()
     fireEvent.click(screen.getAllByRole("button", { name: "Ran 1 command" })[0])
     expect(screen.queryByText(/1 execution issue/)).toBeNull()
-    expect(screen.getByText(/1 retried successfully/)).not.toHaveClass(
+    expect(screen.getByText("Retry succeeded")).not.toHaveClass(
       "text-destructive"
     )
   })

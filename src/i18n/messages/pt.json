@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value} min",
         "elapsedSeconds": "{value} s",
         "outputSpeedAria": "Velocidade de saída estimada",
-        "outputSpeedTooltip": "Velocidade de saída estimada (texto + raciocínio + argumentos de ferramenta)"
+        "outputSpeedTooltip": "Velocidade de saída estimada (texto + raciocínio + argumentos de ferramenta)",
+        "retrying": "tentando novamente"
       },
       "generationStats": {
         "roundCount": "{count, plural, one {# rodada} other {# rodadas}}",

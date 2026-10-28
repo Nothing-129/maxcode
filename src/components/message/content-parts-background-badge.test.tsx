@@ -62,7 +62,7 @@ function codexBackgroundedExec(
 function renderPart(part: AdaptedContentPart) {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={[part]} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={[part]} role="assistant" />
     </NextIntlClientProvider>
   )
 }

@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils"
 import { FileTypeIcon } from "./file-type-icon"
 
 import type { ReferenceAttrs } from "../types"
+import { ATTACHMENT_CARD_CLASS, AttachmentDetails } from "../attachment-card"
 
 const ICON_CLASS = "size-3.5 shrink-0"
 
@@ -155,7 +156,7 @@ export function ReferenceBadge({
       className={cn(
         "inline-flex align-middle",
         isComposerFile
-          ? "max-w-[min(100%,16rem)] items-center gap-2 rounded-xl border border-border/60 bg-muted/50 px-2.5 py-1.5 text-foreground font-normal leading-none transition-colors duration-150 hover:border-foreground/15 hover:bg-muted/80"
+          ? ATTACHMENT_CARD_CLASS
           : isFileLink
             ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
             : cn(
@@ -168,7 +169,7 @@ export function ReferenceBadge({
       {isComposerFile ? (
         <span
           aria-hidden="true"
-          className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-background/80 [&_[data-file-icon]]:mt-0"
+          className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-background/80 [&_[data-file-icon]]:mt-0"
         >
           <FileTypeIcon
             path={data.id}
@@ -184,19 +185,10 @@ export function ReferenceBadge({
         <ReferenceIcon data={data} />
       )}
       {isComposerFile ? (
-        <span className="flex min-w-0 flex-col gap-0.5">
-          <span className="truncate text-xs font-medium leading-4">
-            {filename}
-          </span>
-          {extension && data.meta?.fileKind !== "dir" && (
-            <span
-              aria-hidden="true"
-              className="text-[0.625rem] font-medium tracking-[0.06em] text-muted-foreground leading-none"
-            >
-              {extension}
-            </span>
-          )}
-        </span>
+        <AttachmentDetails
+          name={filename}
+          type={data.meta?.fileKind !== "dir" ? extension : undefined}
+        />
       ) : (
         <span
           className={

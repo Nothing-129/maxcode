@@ -12,16 +12,16 @@ describe("MaxCode: model working-state labels stay text-only", () => {
   it("keeps live phase copy and never restores a status glyph beside it", () => {
     const stats = source("src/components/message/live-turn-stats.tsx")
     expect(stats).toContain("getAgentActivity")
-    expect(stats).toContain('{retrying ? tRetry("retrying") : t(activity)}')
+    expect(stats).toContain('{t(retrying ? "retrying" : activity)}')
     forbidsStatusGlyph(stats)
 
     const list = source("src/components/message/message-list-view.tsx")
     const typing = list.slice(
-      list.indexOf("const PendingTypingIndicator"),
+      list.indexOf("export function stabilizePendingReply"),
       list.indexOf("const AutoScrollOnSend")
     )
-    expect(typing).toContain('t("awaitingUser")')
-    expect(typing).toContain('t("thinkingPending")')
+    expect(list).toContain('feedbackText("awaitingUser")')
+    expect(list).toContain('feedbackText("thinkingPending")')
     forbidsStatusGlyph(list)
     forbidsStatusGlyph(typing)
   })

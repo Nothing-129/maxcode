@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value} min",
         "elapsedSeconds": "{value} s",
         "outputSpeedAria": "Vitesse de sortie estimée",
-        "outputSpeedTooltip": "Vitesse de sortie estimée (texte + raisonnement + arguments d’outil)"
+        "outputSpeedTooltip": "Vitesse de sortie estimée (texte + raisonnement + arguments d’outil)",
+        "retrying": "nouvelle tentative"
       },
       "generationStats": {
         "roundCount": "{count, plural, one {# tour} other {# tours}}",

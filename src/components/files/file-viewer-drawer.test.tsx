@@ -251,6 +251,16 @@ describe("FileViewerDrawer", () => {
 
     expect(screen.queryByTestId("markdown")).not.toBeInTheDocument()
     expect(screen.getByText("loading")).toBeInTheDocument()
+    expect(screen.getByRole("status")).toHaveAttribute("aria-busy", "true")
+
+    act(() => setTabs([tab({ content: "# Loaded" })]))
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
+    const document = screen.getByTestId("markdown")
+    expect(document).toHaveTextContent("# Loaded")
+
+    act(() => setTabs([tab({ loading: true, content: "# Loaded" })]))
+    expect(screen.getByTestId("markdown")).toBe(document)
+    expect(screen.queryByRole("status")).not.toBeInTheDocument()
   })
 
   it("says so when the path cannot be resolved to a file at all", async () => {

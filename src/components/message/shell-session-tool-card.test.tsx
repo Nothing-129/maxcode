@@ -38,7 +38,7 @@ import type { AdaptedContentPart } from "@/lib/adapters/ai-elements-adapter"
 function renderParts(parts: AdaptedContentPart[]) {
   const result = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={parts} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={parts} role="assistant" />
     </NextIntlClientProvider>
   )
   fireEvent.click(screen.getAllByRole("button")[0])

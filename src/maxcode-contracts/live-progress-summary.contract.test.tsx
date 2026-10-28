@@ -39,19 +39,16 @@ function tree(parts: AdaptedContentPart[], completed = false) {
   )
 }
 describe("MaxCode contract: upstream-style progress disclosures", () => {
-  it("keeps prose visible and folds intervening activity into expandable summaries", () => {
+  it("keeps prose visible with every activity interval collapsed by default", () => {
     const { rerender, container } = render(tree(steps(3)))
     for (let i = 0; i < 3; i++)
       expect(prose(`Progress note ${i}`)).toBeVisible()
     expect(screen.queryByText("2 steps")).toBeNull()
     expect(container.querySelector("[data-activity-section]")).toBeNull()
-    const summaries = screen.getAllByRole("button", {
+    const thinking = screen.getAllByRole("button", {
       name: "Read files 1 time · Thought 1 time",
     })
-    expect(summaries[0]).toHaveAttribute("aria-expanded", "false")
-    fireEvent.click(summaries[0])
-    const thinking = screen.getAllByRole("button", { name: "Thought" })
-    expect(thinking).toHaveLength(2)
+    expect(thinking).toHaveLength(3)
     expect(thinking[0]).toHaveAttribute("aria-expanded", "false")
     fireEvent.click(thinking[0])
     expect(screen.getByText("Thought 0")).toBeVisible()
@@ -85,11 +82,13 @@ describe("MaxCode contract: upstream-style progress disclosures", () => {
         { type: "reasoning", content: "Inspect results", isStreaming: false },
       ])
     )
-    const commands = screen.getByRole("button", { name: "Ran 2 commands" })
+    const commands = screen.getByRole("button", {
+      name: "Ran 2 commands · Thought 1 time",
+    })
     expect(commands).toHaveAttribute("aria-expanded", "false")
     fireEvent.click(commands)
     expect(screen.getByRole("button", { name: /echo check-0/ })).toBeVisible()
-    expect(screen.queryByText("Inspect results")).toBeNull()
+    expect(screen.getByText("Inspect results")).toBeVisible()
   })
   it("folds the completed round while keeping its final answer visible", () => {
     render(tree([...steps(3), { type: "text", text: "Final answer" }], true))
@@ -98,5 +97,79 @@ describe("MaxCode contract: upstream-style progress disclosures", () => {
     fireEvent.click(screen.getByRole("button", { name: "Finished working" }))
     for (let i = 0; i < 3; i++)
       expect(prose(`Progress note ${i}`)).toBeVisible()
+  })
+  it("preserves manually opened thinking when the turn completes", () => {
+    const parts = [...steps(1), { type: "text" as const, text: "Final answer" }]
+    const view = render(tree(parts))
+    const thinking = screen.getByRole("button", {
+      name: "Read files 1 time · Thought 1 time",
+    })
+    fireEvent.click(thinking)
+    view.rerender(tree(parts, true))
+    expect(screen.getByText("Thought 0")).toBeVisible()
+    expect(
+      screen.getByRole("button", { name: "Read files 1 time · Thought 1 time" })
+    ).toBe(thinking)
+    expect(
+      screen.getByRole("button", { name: "Finished working" })
+    ).toHaveAttribute("aria-expanded", "true")
+  })
+
+  it("automatically folds an untouched live turn on completion and reveals records without group summaries", () => {
+    const parts = [...steps(1), { type: "text" as const, text: "Final answer" }]
+    const view = render(tree(parts))
+    view.rerender(tree(parts, true))
+    const summary = screen.getByRole("button", { name: "Finished working" })
+    expect(summary).toHaveAttribute("aria-expanded", "false")
+    fireEvent.click(summary)
+    const interval = screen.getByRole("button", {
+      name: "Read files 1 time · Thought 1 time",
+    })
+    expect(interval).toHaveAttribute("aria-expanded", "false")
+    expect(screen.queryByText("Thought 0")).toBeNull()
+    fireEvent.click(interval)
+    expect(screen.getByText("Thought 0")).toBeVisible()
+  })
+
+  it("allows repeated whole-turn and interval toggling even after a failed tool", () => {
+    render(
+      tree(
+        [
+          {
+            type: "tool-group",
+            isStreaming: false,
+            items: [
+              {
+                type: "tool-call",
+                toolCallId: "failed",
+                toolName: "exec_command",
+                input: '{"cmd":"cat missing.ts"}',
+                state: "output-error",
+                errorText: "File missing",
+              },
+            ],
+          },
+          { type: "text", text: "Final answer" },
+        ],
+        true
+      )
+    )
+    const turn = screen.getByRole("button", { name: "Finished working" })
+    expect(turn).toHaveAttribute("aria-expanded", "false")
+    expect(screen.getByText("Final answer")).toBeVisible()
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      fireEvent.click(turn)
+      expect(turn).toHaveAttribute("aria-expanded", "true")
+      const interval = screen.getByRole("button", { name: "Ran 1 command" })
+      expect(interval).toHaveAttribute("aria-expanded", "false")
+      fireEvent.click(interval)
+      expect(screen.getByText(/File missing/)).toBeVisible()
+      fireEvent.click(interval)
+      expect(screen.queryByText(/File missing/)).toBeNull()
+      fireEvent.click(turn)
+      expect(turn).toHaveAttribute("aria-expanded", "false")
+      expect(screen.queryByRole("button", { name: "Ran 1 command" })).toBeNull()
+      expect(screen.getByText("Final answer")).toBeVisible()
+    }
   })
 })

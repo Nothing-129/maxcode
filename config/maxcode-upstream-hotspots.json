@@ -2,6 +2,162 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "chat.activity-reveal",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "New live tool summary intervals expand their occupied height over 320ms without fading text. Count updates and historical summaries do not replay; interaction cancels the entrance and reduced motion skips it.",
+      "paths": ["src/components/message/activity-reveal.tsx", "src/components/message/content-parts-renderer.tsx"],
+      "contracts": ["src/maxcode-contracts/activity-reveal.contract.test.tsx"]
+    },
+    {
+      "id": "chat.streaming-scroll",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Active live output follows line-height and viewport growth through a shared visibly eased spring rather than instant bottom jumps. User escape remains respected; initial history, inactive views and reduced motion retain instant positioning. Send motion keeps its independent tuning.",
+      "paths": ["src/components/ai-elements/message-thread.tsx", "src/components/message/message-list-view.tsx"],
+      "contracts": ["src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"]
+    },
+    {
+      "id": "chat.send-landing",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Sent user bubbles remain static without scaling, translation or opacity animation, with a 320ms composer collapse and one shared moderate-speed spring across explicit sends, content resize and viewport resize; history positioning remains instant. History does not replay and reduced motion skips the send animation.",
+      "paths": ["src/components/message/turn-feedback.tsx", "src/components/message/message-list-view.tsx", "src/hooks/use-composer-height-motion.ts", "src/components/ai-elements/message-thread.tsx"],
+      "contracts": ["src/maxcode-contracts/interaction-feedback.contract.test.tsx", "src/maxcode-contracts/refined-interface-motion.contract.test.tsx", "src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"]
+    },
+    {
+      "id": "composer.no-hover-hints",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Composer mode, model and session configuration controls do not display hover hints; accessible labels and click selection remain available.",
+      "paths": [
+        "src/components/chat/session-config-selector.tsx",
+        "src/components/chat/mode-selector.tsx",
+        "src/components/chat/model-option-picker.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/composer-no-hover-hints.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.folder-group-no-rails",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Folder group membership uses indentation without vertical rails on member folder headers. Worktree and root sub-groups retain only their immediate repo connector.",
+      "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-folder-group-no-rails.contract.test.ts"]
+    },
+    {
+      "id": "sidebar.scroll-motion",
+      "category": "product",
+      "origins": [
+        "worktree-2026-10-28"
+      ],
+      "description": "Sidebar vertical wheel input, including fractional and continuous OS samples, follows one critically damped frame-driven trajectory with preserved velocity and subpixel position. No device heuristics switch mid-gesture to native jumps; horizontal gestures and zoom remain native. Pointer/keyboard input, explicit navigation, virtualizer corrections and unmount cancel pending easing. Explicit group expansion reveals only clipped newly inserted content while retaining its header; locate-active respects reduced motion, and pre-collapse virtualizer pinning stays instant. Reduced motion keeps wheel input native and expansion reveal immediate.",
+      "paths": [
+        "src/hooks/use-sidebar-scroll-motion.ts",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-scroll-motion.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "files.html-scripts-default",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Opened HTML files enable scripts and their resource CSP by default so script-rendered pages display immediately. The script toggle can disable and re-enable execution while preserving the opaque iframe origin and workspace-confined resource reads. Transcript previews retain their separate opt-in policy.",
+      "paths": [
+        "src/components/files/html-preview.tsx",
+        "src/lib/html-preview-inline.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/html-file-scripts-default.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "content.initial-loading-skeletons",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Session drawers share the message skeleton during initial resolution. File cold loads use code, split diff, document, list or image-shaped placeholders; existing content remains mounted during refresh. Todo initial loads follow board/list mode. All placeholders expose localized status, hide decoration and honor reduced motion; errors and operation indicators retain their behavior.",
+      "paths": [
+        "src/components/message/subagent-session-dialog.tsx",
+        "src/components/message/message-list-skeleton.tsx",
+        "src/components/tasks/task-transcript-dialog.tsx",
+        "src/components/files/file-loading-skeleton.tsx",
+        "src/components/files/file-viewer-drawer.tsx",
+        "src/components/files/file-workspace-panel.tsx",
+        "src/components/files/image-preview.tsx",
+        "src/components/files/pdf-preview.tsx",
+        "src/components/files/office-preview.tsx",
+        "src/components/todos/todos-loading-skeleton.tsx",
+        "src/components/todos/todos-page.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/content-loading-skeletons.contract.test.tsx"]
+    },
+    {
+      "id": "chat.message-loading-skeleton",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Empty conversation history loads show themed message-shaped skeletons in the shared responsive chat column, with an accessible localized status and reduced-motion support. Cached or live messages remain visible during background refresh; loaded history retains its existing entry transition.",
+      "paths": [
+        "src/components/message/message-list-skeleton.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/message-loading-skeleton.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.compact-live-status",
+      "category": "product",
+      "origins": [
+        "worktree-2026-10-27"
+      ],
+      "description": "Simplified and traditional Chinese live status labels use six short phases: processing for initial and inter-step waits, thinking for observed reasoning, output for text, executing for any tool, confirmation and retry. Initial pending copy also says processing. Retry uses a dedicated live-status translation in every locale. No inactivity suffix or tool-specific action labels are added.",
+      "paths": [
+        "src/components/message/live-turn-stats.tsx",
+        "src/lib/agent-activity.ts",
+        "src/i18n/messages"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/compact-live-status.contract.test.tsx",
+        "src/maxcode-contracts/live-turn-status-text-only.contract.test.tsx",
+        "src/maxcode-contracts/activity-feedback.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "composer.mobile-navigation-priority",
+      "category": "product",
+      "origins": [
+        "worktree-2026-10-27"
+      ],
+      "description": "On mobile, composer folder and branch pickers reserve their preferred width before optional round count, TTFT and throughput metrics are fitted. Navigation is capped only to leave room for the connection control; metrics fall back to throughput and then hide as space runs out, and return when space grows. Desktop layout retains its existing sizing.",
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/conversation-context-bar.tsx",
+        "src/components/chat/composer-generation-stats.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-composer-navigation-priority.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.mobile-content-retention",
+      "category": "product",
+      "origins": [
+        "worktree-2026-10-27"
+      ],
+      "description": "Mobile sidebar stays closed by default and retains its drawer contents, conversation list caches and scroll state while closed. Prepare content before opening to avoid repeated list initialization; closed content remains hidden and unavailable to keyboard and accessibility navigation. Other drawers keep their default mount lifecycle.",
+      "paths": [
+        "src/app/workspace/layout.tsx",
+        "src/components/ui/drawer.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/contexts/sidebar-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-sidebar-retention.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.composer-unified-scroll",
       "category": "product",
       "origins": [
@@ -28,9 +184,13 @@
       "origins": [
         "worktree-2026-10-27"
       ],
-      "description": "Composer file atoms project into an independent wrapping tray above text, with localized remove controls and selection feedback. Inline file views and only their insertion gaps are visually hidden; the editor document, prompt order, clipboard and history remain the source of truth. Removal uses current document positions, supports undo, and exiting controls are inert.",
+      "description": "Composer images and file atoms share one wrapping tray above text, with matching fixed-height cards, preview/icon, truncated name and type, common remove controls and selection feedback. The tray stays mounted through removal of either kind and preserves the final exit while collapsing when no attachments remain. Inline file views and only their insertion gaps are visually hidden; the editor document, prompt order, clipboard and history remain the source of truth. Removal uses current document positions, supports undo, and exiting controls are inert. Select-all also highlights external image thumbnails; Backspace/Delete removes those images together with the selected document in chat and task composers, including image-only inputs and mobile beforeinput deletion while respecting IME and disabled state.",
       "paths": [
         "src/components/chat/composer/editor-file-attachments.tsx",
+        "src/components/chat/composer/attachment-card.tsx",
+        "src/components/chat/composer/attachment-tray.tsx",
+        "src/components/chat/composer/composer-image-thumbnails.tsx",
+        "src/components/chat/composer/badges/reference-badge.tsx",
         "src/components/chat/composer/file-attachment-layout.ts",
         "src/components/chat/composer/editor-config.ts",
         "src/components/chat/composer/nodes/reference-view.tsx",
@@ -40,7 +200,9 @@
         "src/app/globals.css"
       ],
       "contracts": [
-        "src/maxcode-contracts/composer-attachment-layout.contract.test.tsx"
+        "src/maxcode-contracts/composer-attachment-layout.contract.test.tsx",
+        "src/maxcode-contracts/composer-attachment-gallery.contract.test.tsx",
+        "src/maxcode-contracts/composer-image-selection.contract.test.tsx"
       ]
     },
     {
@@ -131,9 +293,16 @@
       "id": "chat.compact-tool-group-summary",
       "category": "product",
       "origins": ["worktree-2026-10-27"],
-      "description": "Grouped tool disclosures and combined activity-count summaries such as file reads, commands and thinking counts remain secondary to prose: 24px height, 11px normal-weight muted text, small corners and a faint background. Consecutive activity rows use 4px vertical gaps while prose retains its spacing; thinking and tool triggers share 8px horizontal insets and 12px leading icons. Preserve expansion and tool outcomes.",
-      "paths": ["src/components/message/content-parts-renderer.tsx"],
-      "contracts": ["src/maxcode-contracts/compact-tool-summary.contract.test.ts"]
+      "description": "Activity disclosures fit their text width with a muted text label and an adjacent chevron, without a background bar. Preserve expansion and tool outcomes.",
+      "paths": [
+        "src/components/message/content-parts-renderer.tsx",
+        "src/components/ai-elements/activity-disclosure.ts",
+        "src/components/ai-elements/reasoning.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/compact-tool-summary.contract.test.ts",
+        "src/maxcode-contracts/activity-disclosure-alignment.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.send-ready-motion",
@@ -204,7 +373,7 @@
       "id": "chat.thinking-working-handoff",
       "category": "product",
       "origins": ["worktree-2026-10-27"],
-      "description": "Pending replies show localized Thinking with a neutral text sweep, then Working on the same baseline. Shared typography and spacing prevent jumps; reply handoff uses opacity only and reduced motion disables the sweep. Empty live placeholders remain Thinking and confirmation remains explicit.",
+      "description": "Pending replies show localized Processing (处理中 in Chinese), then Working on the same stable heading and text node. The pending placeholder uses the real assistant message component tree and the same per-send virtualizer key as the first streamed reply, including merged live runs. Persisting the user send must not remove the waiting row before the assistant arrives. Empty text, reasoning, tool groups and plans remain Processing. Status text stays opaque without a shimmer, reply entrance fade or overlaid pending label; pending and working share typography, border and baseline. Confirmation remains explicit.",
       "paths": [
         "src/components/message/turn-status.tsx",
         "src/components/message/message-list-view.tsx",
@@ -652,7 +821,7 @@
     {
       "id": "chat.live-text-activity-intervals",
       "category": "product",
-      "description": "During assistant streaming, the arrival of non-empty text collapses the process between it and the preceding text into an expandable summary. The summary counts tool calls by kind and reasoning blocks using the existing tool-group labels, without double-counting tool results. Both text segments remain visible. Before the next text, only the latest three activity rows stay visible and older rows fold into the same summary, preserving manual summary expansion as the interval grows or closes. Result cards break the interval.",
+      "description": "Every contiguous activity interval, including a single item and the newest running items, defaults to a collapsed counted summary. Counts combine tools by kind and thinking without double-counting results. No latest-three exception. Prose and result cards remain outside intervals; manual expansion survives streaming updates.",
       "origins": ["worktree-2026-10-23"],
       "paths": ["src/components/message/content-parts-renderer.tsx"],
       "contracts": [
@@ -732,7 +901,7 @@
     {
       "id": "chat.command-failure-details",
       "category": "product",
-      "description": "Command failures omit header error badges and tool-group execution issue counts in live and historical conversations. Expandable command output retains failure diagnostics and underlying execution states; successful, running, approval and denied statuses retain their existing presentation.",
+      "description": "Command failures omit header error badges and tool-group execution issue counts. All activity intervals default collapsed, including failed commands. A failed tool does not disable the completed-turn disclosure; both the whole turn and its intervals remain repeatedly expandable and collapsible. Expanding the interval exposes failure diagnostics and preserves underlying execution states.",
       "origins": ["worktree-2026-10-23"],
       "paths": [
         "src/components/ai-elements/tool.tsx",
@@ -759,7 +928,7 @@
     {
       "id": "appearance.interaction-feedback",
       "category": "product",
-      "description": "Animate new sends and first nonempty replies when visible, recording completion only after the animation finishes; retry cancelled entrances. Crossfade pending text, highlight the header and briefly show a text-free checkmark at the reply tail on observed completion. Fade the scroll-to-bottom control, preserve sidebar contents through close, fade sidebar/terminal contents, and animate confirmed copy/save success. Respect reduced motion and preserve scroll, drafts, and execution hierarchy.",
+      "description": "Animate new sends and first nonempty replies when visible, recording completion only after the animation finishes; retry cancelled entrances. Crossfade pending text and softly settle only the existing status heading on observed completion; no transient tail checkmark or final-body animation. Fade the scroll-to-bottom control, preserve sidebar contents through close, fade sidebar/terminal contents, and animate confirmed copy/save success. Respect reduced motion and preserve scroll, drafts, and execution hierarchy.",
       "origins": ["worktree-2026-10-23"],
       "paths": [
         "src/components/message/turn-feedback.tsx",
@@ -2410,7 +2579,7 @@
     {
       "id": "chat.sent-prompt-history",
       "category": "product",
-      "description": "Chat and canvas recall only the current session user prompts with unmodified Up/Down at whole-document boundaries. Draft JSON and attachments survive browsing; pending saves land before recall. IME, menus, selection, multiline movement and queue editing retain their original behavior.",
+      "description": "Chat and canvas recall only the current session user prompts with unmodified Up/Down at whole-document boundaries. Recalled prompts and restored drafts place the caret at the end for continued typing. Draft JSON and attachments survive browsing; pending saves land before recall. IME, menus, selection, multiline movement and queue editing retain their original behavior.",
       "origins": ["3593fcb0", "7444874c", "ce1dd3c5", "worktree-2026-09-19"],
       "paths": [
         "src/lib/composer-history.ts",
@@ -3636,7 +3805,7 @@
     {
       "id": "chat.live-progress-summary",
       "category": "product",
-      "description": "Intermediate prose remains visible in transcript order; activity between prose segments folds into expandable counted summaries, while the latest activity stays directly accessible. Completed turns retain the final-answer fold.",
+      "description": "Live prose stays visible while every activity interval defaults to a compact counted disclosure. Completed work logs retain their outer fold and intervals inside also default closed. Opening an interval shows individual records without another group summary. Result and approval cards remain visible.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/components/message/completed-turn-content.tsx",
@@ -3650,7 +3819,7 @@
     {
       "id": "chat.compact-reasoning",
       "category": "product",
-      "description": "Thinking matches secondary tool summaries with an 11px normal-weight muted label, 24px trigger height and 12px subdued brain and chevron icons. It retains its leading brain icon during streaming and completion, and stays collapsed during streaming; readers can expand a bounded scrollable panel, and manual choices survive streaming updates and completion.",
+      "description": "Thinking matches secondary tool summaries with an 11px normal-weight muted label, 24px full-width trigger with a faint rounded background, no leading icon or inset, and a 12px subdued trailing chevron. It stays collapsed during streaming; readers can expand a bounded scrollable panel, and manual choices survive streaming updates and completion.",
       "origins": ["worktree-2026-09-08"],
       "paths": ["src/components/ai-elements/reasoning.tsx"],
       "contracts": ["src/maxcode-contracts/compact-reasoning.contract.test.tsx"]

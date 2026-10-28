@@ -24,7 +24,10 @@ vi.mock("use-stick-to-bottom", () => ({
   useStickToBottomContext: () => testState,
 }))
 
-import { MessageThread } from "@/components/ai-elements/message-thread"
+import {
+  MessageThread,
+  STREAM_SCROLL_ANIMATION,
+} from "@/components/ai-elements/message-thread"
 
 // jsdom has no ResizeObserver; capture the callback so a test can play a
 // viewport resize through it, and record what got observed/disconnected.
@@ -116,6 +119,24 @@ describe("MessageThread viewport resize", () => {
       animation: "instant",
       preserveScrollPosition: true,
     })
+  })
+
+  it("smooths streaming viewport changes and stops following when the user escapes", () => {
+    render(
+      <MessageThread streaming>
+        <span />
+      </MessageThread>
+    )
+    resizeTo(400)
+    resizeTo(368)
+    expect(testState.scrollToBottom).toHaveBeenLastCalledWith({
+      animation: STREAM_SCROLL_ANIMATION,
+      preserveScrollPosition: true,
+    })
+    testState.scrollToBottom.mockClear()
+    testState.state.isAtBottom = false
+    resizeTo(340)
+    expect(testState.scrollToBottom).not.toHaveBeenCalled()
   })
 
   it("leaves a thread the user scrolled away from where it is", () => {

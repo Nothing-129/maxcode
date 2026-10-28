@@ -8,15 +8,18 @@ import { ContentPartsRenderer } from "./content-parts-renderer"
 export const ProgressSections = memo(function ProgressSections({
   parts,
   isStreaming,
+  expandedActivity = false,
 }: {
   parts: AdaptedContentPart[]
   isStreaming: boolean
+  expandedActivity?: boolean
 }) {
   return (
     <ContentPartsRenderer
       parts={parts}
       role="assistant"
       isStreaming={isStreaming}
+      expandedActivity={expandedActivity}
     />
   )
 })

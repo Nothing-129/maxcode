@@ -1,12 +1,19 @@
 import { generateJSON, type Editor, type JSONContent } from "@tiptap/core"
-import { act, render, waitFor } from "@testing-library/react"
+import { act, cleanup, render, waitFor } from "@testing-library/react"
 import { createRef } from "react"
-import { describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it } from "vitest"
 
 import { buildComposerExtensions } from "../editor-config"
 import { RichComposer, type RichComposerHandle } from "../rich-composer"
 import { serializeDocToText } from "../to-prompt-blocks"
 import type { ReferenceAttrs } from "../types"
+
+afterEach(async () => {
+  cleanup()
+  // Tiptap destroys React editors on a deferred timer. Let it finish while
+  // the jsdom document still exists.
+  await new Promise((resolve) => setTimeout(resolve, 10))
+})
 
 async function mountEditor() {
   const ref = createRef<RichComposerHandle>()

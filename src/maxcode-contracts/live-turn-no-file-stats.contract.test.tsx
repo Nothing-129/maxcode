@@ -15,9 +15,9 @@ afterEach(() => {
 
 describe("MaxCode: live status omits file change counters", () => {
   it.each([
-    ["waiting", "等待响应"],
-    ["thinking", "思考中..."],
-    ["text", "工作中"],
+    ["waiting", "处理中"],
+    ["thinking", "思考中"],
+    ["text", "输出中"],
   ] as const)(
     "preserves the original %s phase and separate clock",
     (phase, label) => {
@@ -77,7 +77,7 @@ describe("MaxCode: live status omits file change counters", () => {
         <LiveTurnStats message={message} agentType="codex" />
       </NextIntlClientProvider>
     )
-    expect(screen.getByRole("status")).toHaveTextContent("执行工具中")
+    expect(screen.getByRole("status")).toHaveTextContent("执行中")
     expect(container.querySelector(".lucide-timer")).toBeVisible()
     expect(screen.getByText("0 秒")).toBeVisible()
     expect(screen.getByText("1.8 tok/s")).toBeVisible()

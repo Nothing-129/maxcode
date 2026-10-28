@@ -27,7 +27,7 @@ describe("MaxCode: composer navigation fits beside connection controls", () => {
   it("reserves the trailing controls while the navigation group shrinks", () => {
     const composer = source("src/components/chat/message-input.tsx")
     const row = composer.slice(composer.indexOf('data-composer-status-row=""'))
-    expect(row).toContain('className="flex min-w-0 items-center gap-1"')
+    expect(row).toContain('className="flex min-w-0 items-center gap-1 ')
     expect(row).toContain('className="flex shrink-0 items-center gap-0 pr-px')
   })
 })

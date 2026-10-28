@@ -21,13 +21,16 @@ function tree(streaming: boolean, text = "Inspecting the implementation") {
 }
 
 describe("MaxCode contract: compact thinking", () => {
-  it("keeps the brain icon before the label during and after thinking", () => {
+  it("keeps the label at the prose edge and the chevron on the right", () => {
     const { rerender } = render(tree(true))
     const icon = () =>
-      screen.getByRole("button").querySelector("svg:first-child")
+      screen.getByRole("button").querySelector("svg:last-child")
     expect(screen.getByRole("button")).toHaveClass(
       "h-6",
-      "px-2",
+      "px-0",
+      "w-fit",
+      "max-w-full",
+      "justify-start",
       "text-[0.6875rem]",
       "leading-4",
       "font-normal",
@@ -35,10 +38,10 @@ describe("MaxCode contract: compact thinking", () => {
     )
     expect(icon()).toHaveClass("size-3", "opacity-60")
     expect(icon()).not.toHaveClass("mr-1")
-    expect(icon()).toHaveClass("lucide-brain")
+    expect(icon()).toHaveClass("lucide-chevron-right")
     expect(icon()).toHaveAttribute("aria-hidden", "true")
     rerender(tree(false))
-    expect(icon()).toHaveClass("lucide-brain")
+    expect(icon()).toHaveClass("lucide-chevron-right")
   })
 
   it("keeps live thinking collapsed across incoming text and completion", () => {

@@ -366,7 +366,6 @@ export function LiveTurnStats({
   retrying = false,
 }: LiveTurnStatsProps) {
   const t = useTranslations("Folder.chat.liveTurnStats")
-  const tRetry = useTranslations("Folder.chat.acpConnections.claudeApiRetry")
   const [elapsed, setElapsed] = useState(() => Date.now() - message.startedAt)
   const tps = useTokenOutputSpeed(message)
 
@@ -395,7 +394,7 @@ export function LiveTurnStats({
               : undefined
           }
         >
-          {retrying ? tRetry("retrying") : t(activity)}
+          {t(retrying ? "retrying" : activity)}
         </span>
         <span className="text-border leading-none">|</span>
         <span className="inline-flex items-center gap-1 leading-none">

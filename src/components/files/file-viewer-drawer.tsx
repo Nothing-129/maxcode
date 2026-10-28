@@ -1,5 +1,7 @@
 "use client"
 
+import { FileLoadingSkeleton } from "./file-loading-skeleton"
+
 import { ArtifactPreview } from "@/components/files/artifact-preview"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -441,7 +443,14 @@ function FileViewerContent({
   // Cold load — no bytes yet. A refresh of an already-loaded tab keeps the
   // previous content on screen (the file column's "non-destructive refresh").
   if (!tab || (tab.loading && tab.content === "")) {
-    return <CenteredNotice>{t("loading")}</CenteredNotice>
+    return (
+      <FileLoadingSkeleton
+        label={t("loading")}
+        variant={
+          tab?.language === "image" ? "media" : isPreview ? "document" : "code"
+        }
+      />
+    )
   }
   // Deliberately NO `saveState === "error"` branch. A LOAD failure and a SAVE
   // failure share that one flag, and nothing on the tab tells them apart:

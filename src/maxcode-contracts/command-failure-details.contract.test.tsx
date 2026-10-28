@@ -5,9 +5,9 @@ import { ContentPartsRenderer } from "@/components/message/content-parts-rendere
 import type { AdaptedToolCallPart } from "@/lib/adapters/ai-elements-adapter"
 import zh from "@/i18n/messages/zh-CN.json"
 
-describe("MaxCode: command failures stay in expandable details", () => {
+describe("MaxCode: command failures remain visible", () => {
   it.each([true, false])(
-    "keeps the three-command summary free of failure indicators (streaming=%s)",
+    "keeps diagnostics accessible inside the collapsed command summary (streaming=%s)",
     (isStreaming) => {
       const items: AdaptedToolCallPart[] = [
         {
@@ -49,6 +49,7 @@ describe("MaxCode: command failures stay in expandable details", () => {
         </NextIntlClientProvider>
       )
       const group = screen.getByRole("button", { name: "运行 3 个命令" })
+      expect(group).toHaveAttribute("aria-expanded", "false")
       fireEvent.click(group)
       expect(screen.queryByText("错误")).toBeNull()
       expect(screen.queryByText(/执行异常/)).toBeNull()
@@ -59,8 +60,10 @@ describe("MaxCode: command failures stay in expandable details", () => {
       ] as const) {
         const header = screen.getByRole("button", { name: command })
         expect(within(header).queryByText("已完成")).toBeNull()
-        fireEvent.click(header)
+        expect(header).toHaveAttribute("aria-expanded", "true")
         expect(screen.getByText(new RegExp(diagnostic))).toBeVisible()
+        fireEvent.click(header)
+        expect(header).toHaveAttribute("aria-expanded", "false")
       }
       expect(JSON.stringify(items)).toBe(before)
     }

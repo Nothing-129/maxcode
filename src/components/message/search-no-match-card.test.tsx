@@ -111,7 +111,10 @@ describe("search no-match presentation", () => {
 
     expect(screen.queryByText(/execution issue/)).not.toBeInTheDocument()
     expect(screen.queryByText("Error")).not.toBeInTheDocument()
-    fireEvent.click(screen.getByRole("button", { name: /rg -n/ }))
+    expect(screen.getByRole("button", { name: /rg -n/ })).toHaveAttribute(
+      "aria-expanded",
+      "true"
+    )
     expect(screen.getByText(/json.decoder.JSONDecodeError/)).toBeVisible()
   })
 })

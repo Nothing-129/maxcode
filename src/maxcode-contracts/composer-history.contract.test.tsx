@@ -118,6 +118,20 @@ afterEach(() => {
 })
 
 describe("MaxCode: sent prompt history preserves the local composer", () => {
+  it("recalls a multiline prompt with the caret at the end for appending", async () => {
+    const prompt = "First line\nLast line"
+    const { handle } = await mount({ getSentHistory: () => [prompt] })
+    const editor = handle.getEditor()!
+    press(editor, "ArrowUp")
+    expect(handle.getText()).toBe(prompt)
+    expect(editor.state.selection.empty).toBe(true)
+    expect(editor.state.selection.from).toBe(editor.state.doc.content.size - 1)
+    act(() => {
+      editor.commands.insertContent(" appended")
+    })
+    expect(handle.getText()).toBe(`${prompt} appended`)
+  })
+
   it("restores reference badges and attachment bytes without sending during recall", async () => {
     const { handle, onSend, container } = await mount({
       draftStorageKey: draftKey,

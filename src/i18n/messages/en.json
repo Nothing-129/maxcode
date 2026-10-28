@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value}m",
         "elapsedSeconds": "{value}s",
         "outputSpeedAria": "Estimated output speed",
-        "outputSpeedTooltip": "Estimated output speed (text + thinking + tool arguments)"
+        "outputSpeedTooltip": "Estimated output speed (text + thinking + tool arguments)",
+        "retrying": "retrying"
       },
       "generationStats": {
         "roundCount": "{count, plural, one {# round} other {# rounds}}",

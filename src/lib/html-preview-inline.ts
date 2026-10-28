@@ -21,9 +21,9 @@
 //
 // Security model: the returned HTML carries no privileges of its own. It is
 // meant to be rendered with an opaque-origin sandbox (NO `allow-same-origin`)
-// plus the CSP from `withSandboxCsp`. In the default (untrusted) mode the
-// iframe is rendered WITHOUT `allow-scripts`, so no JavaScript runs at all.
-// Enabling scripts is an explicit, per-file user opt-in (see HtmlPreview).
+// plus the CSP from `withSandboxCsp`. Opened files (HtmlPreview) enable scripts
+// by default; transcript previews require an explicit opt-in. Callers that
+// disable scripts pair the strict CSP with a sandbox without `allow-scripts`.
 
 export type Base64Reader = (absPath: string) => Promise<string>
 
@@ -714,8 +714,8 @@ export async function inlineHtmlResources(
   }
 
   // Re-apply wrapper attributes so document-level CSS still matches; inline
-  // event-handler attributes (e.g. body onload) stay inert in the default
-  // no-scripts sandbox.
+  // event-handler attributes (e.g. body onload) stay inert when the caller
+  // selects the no-scripts sandbox.
   const wrap = extractWrapperAttrs(html)
   return `<!DOCTYPE html>\n<html${wrap.html}>\n<head${wrap.head}>${headTpl.innerHTML}</head>\n<body${wrap.body}>${bodyTpl.innerHTML}</body>\n</html>`
 }
@@ -739,7 +739,7 @@ const CSP_STRICT = [
   "frame-src 'none'",
 ].join("; ")
 
-// Trusted policy (explicit per-file opt-in). Allows the file's own scripts and
+// Trusted policy (selected by the caller). Allows the file's own scripts and
 // network access. The iframe is still opaque-origin, so the host app's origin
 // stays protected.
 const CSP_TRUSTED = [

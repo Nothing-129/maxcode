@@ -2581,6 +2581,12 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   -webkit-user-select: none;
 }
 
+/* External images share the editor's select-all feedback. */
+.codeg-composer[data-all-selected="true"] [data-attachment-tile] [data-image-actions] {
+  outline: 2px solid var(--ring);
+  outline-offset: 1px;
+}
+
 /* Inline reference badges (atom node view). */
 .codeg-composer .codeg-reference {
   cursor: default;
@@ -3752,34 +3758,9 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   --accent: #2f2f2f;
 }
 
-/* Keep the thinking → working handoff on the same baseline. */
+/* Status text stays opaque across pending → working node handoffs. */
 .maxcode-turn-status {
-  color: transparent;
-  background-image: linear-gradient(
-    100deg,
-    var(--muted-foreground) 35%,
-    var(--background) 50%,
-    var(--muted-foreground) 65%
-  );
-  background-size: 250% 100%;
-  background-clip: text;
-  -webkit-background-clip: text;
-  animation: maxcode-turn-status-sweep 2s linear infinite;
-}
-@keyframes maxcode-turn-status-sweep {
-  from {
-    background-position: 100% center;
-  }
-  to {
-    background-position: 0% center;
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  .maxcode-turn-status {
-    animation: none;
-    background: none;
-    color: var(--muted-foreground);
-  }
+  color: var(--muted-foreground);
 }
 
 /* Pane selection stays local to the title, without framing the conversation. */

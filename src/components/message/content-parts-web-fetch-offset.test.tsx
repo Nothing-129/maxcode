@@ -46,7 +46,7 @@ function webFetch(input: Record<string, unknown>): AdaptedToolCallPart {
 function renderOpen(part: AdaptedContentPart) {
   render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={[part]} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={[part]} role="assistant" />
     </NextIntlClientProvider>
   )
   // The input sits in the card body; open it if the card starts collapsed.
@@ -79,6 +79,7 @@ describe("WebFetch card — read offset", () => {
       const { unmount } = render(
         <NextIntlClientProvider locale="en" messages={enMessages}>
           <ContentPartsRenderer
+            expandedActivity
             parts={[webFetch({ url: "https://example.com/long", offset })]}
             role="assistant"
           />

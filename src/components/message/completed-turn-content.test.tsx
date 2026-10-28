@@ -207,7 +207,7 @@ describe("CompletedTurnContent", () => {
     )
     expect(prose("I found the relevant component.")).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: /Read src\/app\.tsx/ })
+      screen.getByRole("button", { name: "Read files 1 time" })
     ).toBeInTheDocument()
     expect(prose("The fix is complete.")).toBeInTheDocument()
   })

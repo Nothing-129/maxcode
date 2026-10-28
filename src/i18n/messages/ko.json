@@ -3559,7 +3559,8 @@
         "elapsedMinutes": "{value}분",
         "elapsedSeconds": "{value}초",
         "outputSpeedAria": "예상 출력 속도",
-        "outputSpeedTooltip": "예상 출력 속도（텍스트 + 추론 + 도구 인수）"
+        "outputSpeedTooltip": "예상 출력 속도（텍스트 + 추론 + 도구 인수）",
+        "retrying": "재시도 중"
       },
       "generationStats": {
         "roundCount": "{count}턴",

@@ -50,7 +50,7 @@ function compactionPart(
 function renderParts(parts: AdaptedContentPart[]) {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={parts} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={parts} role="assistant" />
     </NextIntlClientProvider>
   )
 }

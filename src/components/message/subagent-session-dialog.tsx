@@ -29,6 +29,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
+import { MessageListSkeleton } from "./message-list-skeleton"
 
 import { AgentIcon } from "@/components/agent-icon"
 import { ContentPartsRenderer } from "@/components/message/content-parts-renderer"
@@ -222,10 +223,7 @@ export function SubagentSessionDialog({
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-3">
           {loading && messages == null ? (
-            <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
-              <Loader2 className="mr-2 size-3.5 animate-spin" />
-              {t("agentSessionLoading")}
-            </div>
+            <MessageListSkeleton label={t("agentSessionLoading")} />
           ) : error ? (
             <p className="text-xs text-destructive" role="alert">
               {error}

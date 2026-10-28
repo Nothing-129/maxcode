@@ -41,6 +41,7 @@ describe("MaxCode reviewed agent releases preserve file changes", () => {
     const { container } = render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <ContentPartsRenderer
+          expandedActivity
           role="assistant"
           parts={[
             {

@@ -51,7 +51,7 @@ function fileTool(
 function renderOpen(part: AdaptedContentPart, toolName: string) {
   const view = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <ContentPartsRenderer parts={[part]} role="assistant" />
+      <ContentPartsRenderer expandedActivity parts={[part]} role="assistant" />
     </NextIntlClientProvider>
   )
   // The input sits in the card body; open it if the card starts collapsed.

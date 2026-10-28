@@ -9,7 +9,6 @@ import {
   type Ref,
 } from "react"
 import type { Editor } from "@tiptap/core"
-import { AttachmentTray } from "@/components/chat/composer/attachment-tray"
 
 import {
   ComposerInvocationsPopup,
@@ -309,17 +308,18 @@ export function TaskMessageComposer({
           take the document with it, and an attachment whose bytes live out of
           band cannot be recovered from the serialized text. */}
       <RichComposer
+        attachmentsPresent={attach.imageAttachments.length > 0}
+        onDeleteSelectedAttachments={() =>
+          attach.setAttachments((current) =>
+            current.filter((attachment) => attachment.type !== "image")
+          )
+        }
         attachmentContent={
-          <AttachmentTray
-            present={attach.imageAttachments.length > 0}
-            className="flex flex-wrap items-start gap-2 px-4 pt-3 pb-1"
-          >
-            <ComposerImageThumbnails
-              attachments={attach.imageAttachments}
-              onRemove={attach.removeAttachment}
-              onMarkup={attach.replaceImageAttachment}
-            />
-          </AttachmentTray>
+          <ComposerImageThumbnails
+            attachments={attach.imageAttachments}
+            onRemove={attach.removeAttachment}
+            onMarkup={attach.replaceImageAttachment}
+          />
         }
         ref={editorRef}
         defaultText={defaultText}
