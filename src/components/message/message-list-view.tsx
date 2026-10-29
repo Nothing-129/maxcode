@@ -591,7 +591,9 @@ export function compactionOnlyPart(group: ResolvedMessageGroup): {
   if (group.role !== "assistant") return null
   if (group.resources.length > 0 || group.images.length > 0) return null
   const meaningful = group.parts.filter(
-    (p) => !(p.type === "text" && p.text.trim().length === 0)
+    (p) =>
+      !(p.type === "text" && p.text.trim().length === 0) &&
+      !(p.type === "reasoning" && p.content.trim().length === 0)
   )
   if (meaningful.length !== 1) return null
   const only = meaningful[0]
@@ -1115,6 +1117,13 @@ export function stabilizePendingReply(
   waiting: boolean
 ): ThreadRenderItem[] {
   const tail = items[items.length - 1]
+  // Compaction is already the visible current work. A blank pending reply
+  // underneath it would misleadingly say we are still waiting for a response.
+  if (
+    tail?.kind === "compaction" &&
+    (tail.state === "input-streaming" || tail.state === "input-available")
+  )
+    return items
   if (
     tail?.kind === "turn" &&
     tail.group.role === "assistant" &&

@@ -281,10 +281,10 @@
   .maxcode-live-activity-label {
     display: inline-block;
     background-image: linear-gradient(
-      100deg,
-      var(--muted-foreground) 40%,
-      var(--foreground) 50%,
-      var(--muted-foreground) 60%
+      90deg,
+      var(--muted-foreground) 35%,
+      var(--background) 50%,
+      var(--muted-foreground) 65%
     );
     background-size: 250% 100%;
     background-clip: text;

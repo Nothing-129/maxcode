@@ -1496,8 +1496,8 @@ function toolCallHasInput(input: string | null | undefined): boolean {
  * The lane guard mirrors `groupConsecutiveToolCalls`'s fold condition exactly,
  * so this only ever removes parts that would fold into a generic tool-group.
  * Every specialized lane (agent/delegation/ask/feedback/goal via
- * `isAgentLikeToolName`, plan-mode, background-task) is left untouched — those
- * render through their own cards and handle their own empty in-flight polls
+ * `isAgentLikeToolName`, plan-mode, background-task, context-compaction) is left
+ * untouched — those render through their own cards and handle empty in-flight polls
  * (see commit 1ddf751b, same disease in the other lanes). Runs before
  * `groupConsecutiveToolCalls`.
  */
@@ -1510,7 +1510,8 @@ export function dropEmptyInFlightToolCalls(
     if (
       isAgentLikeToolName(part.toolName) ||
       isPlanModeToolName(part.toolName) ||
-      isBackgroundTaskToolCall(part)
+      isBackgroundTaskToolCall(part) ||
+      isContextCompactionMeta(part.meta)
     ) {
       return true
     }

@@ -30,7 +30,7 @@
       "id": "chat.live-activity-label-motion",
       "category": "product",
       "origins": ["worktree-2026-10-29"],
-      "description": "Active work headings and live tool-count summaries share a CSS-only 1.8s sheen without opacity or layout changes. Waiting headings share the continuous sheen; completed and historical labels remain static; hidden views pause and reduced motion or forced colors disable the sheen.",
+      "description": "Active work headings and only the trailing live tool-count summary share a CSS-only 1.8s sheen; earlier summaries and summaries followed by prose stay static without opacity or layout changes. Waiting headings share the continuous sheen; completed and historical labels remain static; hidden views pause and reduced motion or forced colors disable the sheen.",
       "paths": ["src/components/message/turn-status.tsx", "src/components/message/completed-turn-content.tsx", "src/components/message/content-parts-renderer.tsx", "src/app/motion.css"],
       "contracts": ["src/maxcode-contracts/live-activity-label-motion.contract.test.tsx"]
     },
@@ -38,8 +38,8 @@
       "id": "codex.server-compaction-status",
       "category": "product",
       "origins": ["worktree-2026-10-28"],
-      "description": "Show explicit auto-compaction request spans and server keepalives missed by Codex ACP immediately as context-compaction cards and localized live status; the same card switches to completed when compaction finishes. The read-only log fallback is scoped to the current thread and prompt, never inferred from silence, and clears on fresh output, native lifecycle, failure or cancellation.",
-      "paths": ["src-tauri/src/acp/codex_compaction.rs", "src-tauri/src/acp/connection.rs", "src/lib/agent-activity.ts", "src/components/message/live-turn-stats.tsx", "src/maxcode-contracts/codex-compaction-status.contract.rs"],
+      "description": "Show explicit auto-compaction request spans and server keepalives missed by Codex ACP immediately as context-compaction cards and localized live status; the same card switches to completed when compaction finishes. Preserve empty in-flight compactions through tool filtering and suppress the redundant waiting-response placeholder while their divider is active. The read-only log fallback is scoped to the current thread and prompt, never inferred from silence, and clears on fresh output, native lifecycle, failure or cancellation.",
+      "paths": ["src-tauri/src/acp/codex_compaction.rs", "src-tauri/src/acp/connection.rs", "src/lib/agent-activity.ts", "src/components/message/live-turn-stats.tsx", "src/lib/adapters/ai-elements-adapter.ts", "src/components/message/message-list-view.tsx", "src/maxcode-contracts/codex-compaction-status.contract.rs"],
       "contracts": ["src/maxcode-contracts/codex-compaction-status.contract.test.tsx"]
     },
     {
@@ -414,7 +414,7 @@
       "id": "chat.thinking-working-handoff",
       "category": "product",
       "origins": ["worktree-2026-10-27", "worktree-2026-10-29"],
-      "description": "Pending replies show localized Waiting for response (等待响应 in Chinese) with an ellipsis and a continuous sheen, without an elapsed clock, enabled disclosure or empty chevron, then Working on the same stable heading and text node. The pending placeholder uses the real assistant message component tree and the same per-send virtualizer key as the first streamed reply, including merged live runs. Persisting the user send must not remove the waiting row before the assistant arrives. Empty text, reasoning, tool groups and plans remain Waiting for response. Waiting and working share the same text node and sheen class without restarting the animation, reply entrance fade or overlaid pending label; pending and working share typography, border and baseline. Confirmation remains explicit.",
+      "description": "Pending replies show localized Waiting for response (等待响应 in Chinese) with an ellipsis and a continuous sheen, without an elapsed clock, enabled disclosure or empty chevron, then Working on the same stable heading and text node. The pending placeholder uses the real assistant message component tree and the same per-send virtualizer key as the first streamed reply, including merged live runs. Persisting the user send must not remove the waiting row before the assistant arrives. Empty text, reasoning, tool groups and plans remain Waiting for response. Waiting and working share the same text node and sheen class without restarting the animation, reply entrance fade or overlaid pending label; pending and working share typography and baseline. The waiting divider is transparent while retaining its border width to prevent layout shifts; working restores the divider. Confirmation remains explicit.",
       "paths": [
         "src/components/message/turn-status.tsx",
         "src/components/message/message-list-view.tsx",

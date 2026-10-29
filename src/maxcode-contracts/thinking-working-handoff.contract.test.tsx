@@ -23,6 +23,7 @@ describe("thinking to working handoff", () => {
     const view = render(tree([]))
     const heading = screen.getByRole("button")
     expect(heading).toBeDisabled()
+    expect(heading.style.borderColor).toBe("transparent")
     expect(heading.querySelector("svg")).toBeNull()
     const label = screen.getByRole("status")
     const textNode = label.firstChild
@@ -39,6 +40,7 @@ describe("thinking to working handoff", () => {
       view.container.querySelector(".chat-message-text")
     ).toHaveTextContent("Reply arrived")
     expect(heading).not.toBeDisabled()
+    expect(heading.style.borderColor).toBe("")
     view.unmount()
   })
 

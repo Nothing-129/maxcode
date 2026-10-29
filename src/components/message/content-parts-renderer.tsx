@@ -3600,7 +3600,7 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
         <ActivityReveal key={`interval-${index}`} live={isStreaming}>
           <CompletedActivitySummary
             showCounts
-            active={isStreaming}
+            active={isStreaming && !isResponseComplete && end === parts.length}
             parts={parts.slice(index, end)}
             renderPart={(item, key) => renderPart(item, key, true)}
           />
