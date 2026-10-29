@@ -10,9 +10,9 @@ describe("sidebar navigation scope", () => {
     expect(sidebar).not.toContain("<kbd")
   })
 
-  it("labels the Simplified Chinese navigation actions 新对话 and 自动任务", () => {
+  it("labels the Simplified Chinese navigation actions 新对话 and 自动化", () => {
     expect(zhCN.Folder.sidebar.newChat).toBe("新对话")
-    expect(zhCN.Folder.sidebar.automations).toBe("自动任务")
+    expect(zhCN.Folder.sidebar.automations).toBe("自动化")
     expect(zhCN.Folder.sidebar.tasks).toBe("待办")
   })
 

@@ -5,6 +5,49 @@ use crate::acp::types::SessionConfigSelectInfo;
 use crate::db::service::conversation_service;
 use crate::db::test_helpers::{fresh_disk_db, fresh_in_memory_db, seed_conversation, seed_folder};
 
+#[test]
+fn codex_resume_uses_conversation_pair_before_loading_and_preserves_other_config() {
+    let prefs = BTreeMap::from([
+        ("model".into(), "gpt-6-astra".into()),
+        ("reasoning_effort".into(), "medium".into()),
+    ]);
+    let raw = r#"{"model":"gpt-6.1-sol","model_reasoning_effort":"high","model_provider":"gateway","features":{"example":true}}"#;
+    let config: serde_json::Value = serde_json::from_str(
+        &codex_resume_config(AgentType::Codex, true, &prefs, Some(raw))
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(config["model"], "gpt-6-astra");
+    assert_eq!(config["model_reasoning_effort"], "medium");
+    assert_eq!(config["model_provider"], "gateway");
+    assert_eq!(config["features"]["example"], true);
+    let without_config: serde_json::Value = serde_json::from_str(
+        &codex_resume_config(AgentType::Codex, true, &prefs, None)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(without_config["model"], "gpt-6-astra");
+    assert!(
+        codex_resume_config(AgentType::Codex, false, &prefs, Some(raw))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        codex_resume_config(AgentType::ClaudeCode, true, &prefs, Some(raw))
+            .unwrap()
+            .is_none()
+    );
+    assert!(
+        codex_resume_config(AgentType::Codex, true, &BTreeMap::new(), Some(raw))
+            .unwrap()
+            .is_none()
+    );
+    assert!(codex_resume_config(AgentType::Codex, true, &prefs, Some("[]")).is_err());
+    assert!(codex_resume_config(AgentType::Codex, true, &prefs, Some("invalid")).is_err());
+}
+
 fn option(id: &str, category: &str, value: &str) -> SessionConfigOptionInfo {
     SessionConfigOptionInfo {
         id: id.into(),
@@ -51,7 +94,9 @@ async fn history_keeps_its_own_pair_across_database_reopen_and_other_conversatio
     save_model_config(&db.conn, second, &pair("gpt-6.1-sol", "high"))
         .await
         .unwrap();
-    let summary = conversation_service::get_by_id(&db.conn, first).await.unwrap();
+    let summary = conversation_service::get_by_id(&db.conn, first)
+        .await
+        .unwrap();
     let json = serde_json::to_value(&summary).unwrap();
     assert_eq!(json["model_config"]["model"], "gpt-5.6");
     assert_eq!(json["model_config"]["reasoning_effort"], "medium");

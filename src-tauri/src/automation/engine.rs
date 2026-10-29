@@ -560,6 +560,32 @@ impl AutomationEngine {
             return Err("prompt is empty".to_string());
         }
 
+        for origin in &cfg.todo_origins {
+            use crate::todo::conversation_sources::{
+                origin_call, OriginAction, TodoOriginCallRequest,
+            };
+            let source = origin_call(
+                &self.db.conn,
+                TodoOriginCallRequest {
+                    origin: origin.clone(),
+                    operation: OriginAction {
+                        action: "get".into(),
+                        ..Default::default()
+                    },
+                },
+            )
+            .await
+            .map_err(|e| format!("attached todo unavailable: {e}"))?;
+            let todo = source
+                .todo
+                .ok_or_else(|| "attached todo no longer exists".to_string())?;
+            blocks.push(PromptInputBlock::Text {
+                text: format!(
+                    "Attached todo (JSON context):\n{}",
+                    serde_json::to_string(&todo).map_err(|e| e.to_string())?
+                ),
+            });
+        }
         if !messages.is_empty() {
             if let Some(source) = cfg
                 .message_trigger
@@ -708,6 +734,18 @@ impl AutomationEngine {
                 return Err(e.to_string());
             }
         };
+        if let Err(e) = crate::todo::conversation_groups::link_origins(
+            &self.db.conn,
+            conversation_id,
+            &cfg.todo_origins,
+        )
+        .await
+        {
+            if disconnect_on_finish {
+                let _ = self.manager.disconnect(&conn_id).await;
+            }
+            return Err(e.to_string());
+        }
         if cfg.session_mode == AutomationSessionMode::ReuseChat {
             if let Err(e) =
                 automation_runtime_service::bind_conversation(&self.db.conn, auto, conversation_id)
@@ -729,6 +767,13 @@ impl AutomationEngine {
             );
         }
 
+        if !cfg.todo_origins.is_empty() {
+            crate::web::event_bridge::emit_event(
+                &self.emitter,
+                "todo-conversation-links://changed",
+                serde_json::json!({"conversation_id": conversation_id}),
+            );
+        }
         // Surface the produced conversation in every client's sidebar the instant
         // it exists (InProgress) — independent of the implicit upsert inside
         // send_prompt_linked. Its folder was announced just above, so it can be

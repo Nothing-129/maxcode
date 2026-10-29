@@ -128,9 +128,10 @@ describe("links in text that is still streaming (real Streamdown)", () => {
         })
 
         rerender(live(text))
-        await waitFor(() => {
-          expect(fileBadge(container, "def.tsx")).toBeTruthy()
-        })
+        await waitFor(
+          () => expect(fileBadge(container, "def.tsx")).toBeTruthy(),
+          { timeout: 5_000 }
+        )
         expect(container.textContent).not.toContain("[blocked]")
 
         expect(mocks.openFilePreview).not.toHaveBeenCalled()

@@ -36,6 +36,9 @@ vi.mock("@/components/automations/agent-config-section", () => ({
 vi.mock("@/components/automations/cron-builder-dialog", () => ({
   CronBuilderDialog: () => null,
 }))
+vi.mock("@/components/automations/automation-todo-picker", () => ({
+  AutomationTodoPicker: () => null,
+}))
 vi.mock("@/components/automations/automation-branch-picker", () => ({
   AutomationBranchPicker: () => <div data-testid="branch-picker" />,
 }))

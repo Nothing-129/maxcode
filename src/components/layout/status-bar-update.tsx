@@ -131,7 +131,8 @@ export function StatusBarUpdate() {
           ) : (
             <ArrowDown
               aria-hidden="true"
-              className="size-3 shrink-0 text-[#216ae4]"
+              strokeWidth={2.75}
+              className="size-4 shrink-0 text-[#216ae4] motion-safe:animate-[update-arrow-nudge_4s_ease-in-out_infinite]"
             />
           )
         ) : (

@@ -245,6 +245,12 @@ pub struct BrokerCreateWorkTaskRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BrokerAutomationRequest {
+    pub token: String,
+    pub request: crate::automation::mcp::ToolRequest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BrokerTodoRequest {
     pub token: String,
     pub request: crate::todo::conversation_sources::mcp::ToolRequest,
@@ -270,6 +276,7 @@ pub enum BrokerMessage {
     CreateAutomation(BrokerCreateAutomationRequest),
     CreateWorkTask(BrokerCreateWorkTaskRequest),
     Todo(BrokerTodoRequest),
+    Automation(BrokerAutomationRequest),
 }
 
 /// The wrapped outcome the main process returns over the same socket.
@@ -460,6 +467,13 @@ pub async fn client_create_work_task_round_trip(
     req: &BrokerCreateWorkTaskRequest,
 ) -> io::Result<BrokerResponse> {
     message_round_trip(socket_path, &BrokerMessage::CreateWorkTask(req.clone())).await
+}
+
+pub async fn client_automation_round_trip(
+    socket_path: &str,
+    req: &BrokerAutomationRequest,
+) -> io::Result<BrokerResponse> {
+    message_round_trip(socket_path, &BrokerMessage::Automation(req.clone())).await
 }
 
 pub async fn client_todo_round_trip(

@@ -123,7 +123,7 @@ describe("StatusBarUpdate — direct update action", () => {
     expect(screen.getAllByRole("button")).toHaveLength(1)
     expect(button).toHaveTextContent("0.21.7")
     expect(button.querySelectorAll("svg")).toHaveLength(1)
-    expect(button.querySelector("svg")).toHaveClass("size-3", "text-[#216ae4]")
+    expect(button.querySelector("svg")).toHaveClass("size-4", "text-[#216ae4]")
     expect(button).toHaveAttribute(
       "title",
       "Download update and restart · 0.21.9"

@@ -3,6 +3,7 @@
 //! server mode; see [`engine`].
 
 pub mod engine;
+pub mod mcp;
 pub mod messages;
 
 pub use engine::{build_engine, engine, run_automation_engine, AutomationEngine};

@@ -2385,7 +2385,7 @@ pub async fn spawn_agent_connection(
     agent_type: AgentType,
     working_dir: Option<String>,
     session_id: Option<String>,
-    runtime_env: BTreeMap<String, String>,
+    mut runtime_env: BTreeMap<String, String>,
     owner_window_label: String,
     emitter: EventEmitter,
     connections: Arc<tokio::sync::Mutex<HashMap<String, AgentConnection>>>,
@@ -2394,6 +2394,18 @@ pub async fn spawn_agent_connection(
     delegation_injection: Option<DelegationInjection>,
     terminal_shell_config: TerminalShellRuntimeConfig,
 ) -> Result<tokio::sync::oneshot::Receiver<()>, AcpError> {
+    let inherited_codex_config = std::env::var("CODEX_CONFIG").ok();
+    if let Some(config) = super::conversation_model_config::codex_resume_config(
+        agent_type,
+        session_id.is_some(),
+        &preferred_config_values,
+        runtime_env
+            .get("CODEX_CONFIG")
+            .map(String::as_str)
+            .or(inherited_codex_config.as_deref()),
+    )? {
+        runtime_env.insert("CODEX_CONFIG".into(), config);
+    }
     // Create the authoritative session state up front. Subsequent emit_with_state
     // calls write through this state and increment its seq counter so the first
     // event the frontend sees has seq=1, not the placeholder 0 from Phase 0.
@@ -11407,6 +11419,14 @@ async fn run_conversation_loop(
                             turn_started_at_ms,
                         )
                     });
+                let mut codex_compaction_log =
+                    state.read().await.codex_retry_log_path.clone().map(|path| {
+                        super::codex_compaction::CompactionLogCursor::new(
+                            path,
+                            sid.0.to_string(),
+                            turn_started_at_ms,
+                        )
+                    });
                 let mut retry_poll = tokio::time::interval(std::time::Duration::from_secs(1));
                 retry_poll.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
                 // Use Box::pin (heap) instead of tokio::pin! (stack) so the
@@ -11635,6 +11655,11 @@ async fn run_conversation_loop(
                                 // `/compact` turn produces nothing else
                                 // at all.
                                 probe.saw_agent_output = true;
+                                if let Some(cursor) = codex_compaction_log.as_mut() {
+                                    if let Some(end) = cursor.observe_native(crate::acp_transcript::now_epoch_ms()) {
+                                        emit_with_state(&st, &h, end).await;
+                                    }
+                                }
                                 emit_with_state(&st, &h, event).await;
                             } else if let Err(e) = MatchDispatch::new(dispatch)
                                 .if_notification(
@@ -11644,6 +11669,24 @@ async fn run_conversation_loop(
                                         // infallible by construction —
                                         // see `handle_turn_notification`.
                                         if is_agent_output_update(agent_type, &notif.update) {
+                                            if let Some(cursor) = codex_compaction_log.as_mut() {
+                                                let meta = match &notif.update {
+                                                    SessionUpdate::ToolCall(call) => call.meta.as_ref(),
+                                                    SessionUpdate::ToolCallUpdate(call) => call.meta.as_ref(),
+                                                    _ => None,
+                                                };
+                                                let native_compaction = meta.is_some_and(|m| m.contains_key("contextCompaction"))
+                                                    || crate::acp::air_contract::air_meta_value(meta, "contextCompaction").is_some();
+                                                let now = crate::acp_transcript::now_epoch_ms();
+                                                let end = if native_compaction {
+                                                    cursor.observe_native(now)
+                                                } else {
+                                                    cursor.finish(now, "completed")
+                                                };
+                                                if let Some(end) = end {
+                                                    emit_with_state(&st, &h, end).await;
+                                                }
+                                            }
                                             if let Some(cursor) = codex_retry_log.as_mut() {
                                                 cursor.observe_output(crate::acp_transcript::now_epoch_ms());
                                             }
@@ -11684,6 +11727,20 @@ async fn run_conversation_loop(
                             }
                         }
                         prompt_result = &mut prompt_response => {
+                            if let Some(cursor) = codex_compaction_log.as_mut() {
+                                let status = if prompt_result.as_ref().is_ok_and(|response| {
+                                    response.stop_reason == StopReason::EndTurn
+                                }) {
+                                    "completed"
+                                } else {
+                                    "failed"
+                                };
+                                if let Some(end) = cursor.finish(
+                                    crate::acp_transcript::now_epoch_ms(), status,
+                                ) {
+                                    emit_with_state(state, emitter, end).await;
+                                }
+                            }
                             // ACP defines the `authRequired` rejection as the
                             // signal that the CLIENT should run its auth flow
                             // and come back — the session survives it, so this
@@ -11994,6 +12051,11 @@ async fn run_conversation_loop(
                             break;
                         }
                         _ = retry_poll.tick(), if codex_retry_log.is_some() => {
+                            if let Some(cursor) = codex_compaction_log.as_mut() {
+                                if let Some(event) = cursor.poll().await {
+                                    emit_with_state(state, emitter, event).await;
+                                }
+                            }
                             if let Some(event) = codex_retry_log.as_mut().unwrap().poll().await {
                                 emit_with_state(state, emitter, event).await;
                             }
@@ -12195,6 +12257,11 @@ async fn run_conversation_loop(
                                     );
                                 }
                                 Some(ConnectionCommand::Cancel) => {
+                                    if let Some(cursor) = codex_compaction_log.as_mut() {
+                                        if let Some(end) = cursor.finish(crate::acp_transcript::now_epoch_ms(), "failed") {
+                                            emit_with_state(state, emitter, end).await;
+                                        }
+                                    }
                                     // Send CancelNotification to agent to stop the current turn
                                     let _ = cx.send_notification_to(
                                         Agent,
@@ -12339,6 +12406,13 @@ async fn run_conversation_loop(
                     }
                 }
 
+                if let Some(cursor) = codex_compaction_log.as_mut() {
+                    if let Some(end) =
+                        cursor.finish(crate::acp_transcript::now_epoch_ms(), "failed")
+                    {
+                        emit_with_state(state, emitter, end).await;
+                    }
+                }
                 if disconnect_requested {
                     tracing::info!(
                         "[ACP] closing connection loop after disconnect; connection_id={conn_id}"

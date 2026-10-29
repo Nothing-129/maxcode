@@ -35,12 +35,12 @@ describe("compact live working-state labels", () => {
     [
       "zh-CN",
       zhCN,
-      ["处理中", "思考中", "输出中", "执行中", "待确认", "重试中"],
+      ["等待响应", "思考中", "输出中", "执行中", "待确认", "重试中"],
     ],
     [
       "zh-TW",
       zhTW,
-      ["處理中", "思考中", "輸出中", "執行中", "待確認", "重試中"],
+      ["等待回應", "思考中", "輸出中", "執行中", "待確認", "重試中"],
     ],
   ] as const)("uses six short phases in %s", (locale, messages, labels) => {
     const view = (
@@ -81,6 +81,8 @@ describe("compact live working-state labels", () => {
     expectLabel(5)
     rerender(view([tool("completed")]))
     expectLabel(0)
-    expect(messages.Folder.chat.liveTurnStats.thinkingPending).toBe(labels[0])
+    expect(messages.Folder.chat.liveTurnStats.thinkingPending).toBe(
+      `${labels[0]}...`
+    )
   })
 })

@@ -355,6 +355,20 @@ impl DelegationListener {
                     },
                 }
             }
+            BrokerMessage::Automation(req) => {
+                let result = match self.authoring_context(&req.token).await {
+                    Some(ctx) => self.authoring.automation_call(ctx, req.request).await,
+                    None => Err(crate::app_error::AppCommandError::permission_denied(
+                        "invalid token",
+                    )),
+                };
+                BrokerResponse {
+                    outcome: match result {
+                        Ok(value) => serde_json::json!({"ok": true, "result": value}),
+                        Err(error) => serde_json::json!({"ok": false, "error": error}),
+                    },
+                }
+            }
             BrokerMessage::Cancel(cancel) => {
                 self.process_cancel(cancel).await;
                 // Empty ack — the companion only uses this to detect the
@@ -2272,6 +2286,7 @@ mod tests {
         let msg = BrokerMessage::CreateAutomation(BrokerCreateAutomationRequest {
             token: "tok".into(),
             spec: NewAutomationSpec {
+                todo_origins: vec![],
                 name: "Nightly audit".into(),
                 prompt: "audit deps".into(),
                 cron: Some("0 3 * * *".into()),
@@ -2353,6 +2368,7 @@ mod tests {
         let msg = BrokerMessage::CreateAutomation(BrokerCreateAutomationRequest {
             token: "bogus".into(),
             spec: NewAutomationSpec {
+                todo_origins: vec![],
                 name: "n".into(),
                 prompt: "p".into(),
                 cron: None,

@@ -3548,7 +3548,7 @@
         "turnFailed": "Turn failed: {message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "Thinking",
+        "thinkingPending": "Waiting for response...",
         "waiting": "Waiting for response",
         "running": "Running tools",
         "awaitingUser": "Waiting for you",
@@ -4844,8 +4844,8 @@
     "questionHint": "Let agents pause and ask you a multiple-choice question that appears above the conversation input box. The agent waits until you answer (or skip).",
     "sessionInfoLabel": "Get session info",
     "sessionInfoHint": "Let agents look up a session you reference in your message (a session badge) to read its title, agent, status, workspace, token usage, and recent messages.",
-    "automationsLabel": "Create automations",
-    "automationsHint": "Save the conversation as an automation that runs on a schedule. Off by default — it goes on to start agents on its own.",
+    "automationsLabel": "Manage automations",
+    "automationsHint": "Allow agents to create, inspect, edit, enable and run automations through MCP. Off by default.",
     "workTasksLabel": "Create to-do tasks",
     "workTasksHint": "Queue a card on the to-do board from the conversation. Off by default — it writes app state.",
     "save": "Save",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "Toggle details"
   },
   "Automations": {
+    "attachedTodos": "Attached todos",
+    "attachedTodosHint": "Each run reads the latest todo content and links its conversation to these todos.",
+    "todoScope": "Todo scope",
+    "personalTodos": "Personal todos",
     "sessionMode": "Conversation mode",
     "sessionNew": "New conversation each run",
     "sessionReuse": "One chat per day",

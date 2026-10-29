@@ -205,6 +205,19 @@ impl ChatAuthoringAccess for DbChatAuthoring {
         Ok(result)
     }
 
+    async fn automation_call(
+        &self,
+        _ctx: AuthoringContext,
+        request: crate::automation::mcp::ToolRequest,
+    ) -> Result<serde_json::Value, crate::app_error::AppCommandError> {
+        if !self.config.automations_enabled().await {
+            return Err(crate::app_error::AppCommandError::permission_denied(
+                "Automation MCP tools are disabled in Settings → Agent tools",
+            ));
+        }
+        crate::automation::mcp::call(&self.db, &self.emitter, request).await
+    }
+
     async fn create_automation(
         &self,
         ctx: AuthoringContext,
@@ -258,6 +271,7 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             Err(note) => return AuthoringOutcome::rejected(KIND_AUTOMATION, note),
         };
         let config = AutomationConfig {
+            todo_origins: spec.todo_origins,
             session_mode: Default::default(),
             message_trigger: None,
             action: spec.action,
@@ -587,6 +601,7 @@ mod tests {
 
     fn automation_spec() -> NewAutomationSpec {
         NewAutomationSpec {
+            todo_origins: vec![],
             name: "Nightly audit".into(),
             prompt: "audit the dependencies".into(),
             cron: Some("0 3 * * *".into()),

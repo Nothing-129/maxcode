@@ -17,7 +17,7 @@ describe("MaxCode: consistent newly sent message appearance", () => {
       source.indexOf("const HistoricalMessageGroup"),
       source.indexOf("const PendingTypingIndicator")
     )
-    expect(group).toContain("<CollapsibleUserMessage parts={group.parts} />")
+    expect(group).toContain("<CollapsibleUserMessage parts={displayParts} />")
     expect(group).not.toMatch(/dimmed|opacity-/)
   })
 })

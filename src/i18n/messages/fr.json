@@ -3548,7 +3548,7 @@
         "turnFailed": "Échec du tour : {message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "Réflexion en cours",
+        "thinkingPending": "En attente de réponse...",
         "waiting": "En attente de réponse",
         "running": "Exécution des outils",
         "awaitingUser": "En attente de votre confirmation",
@@ -4844,8 +4844,8 @@
     "questionHint": "Permet aux agents de s'interrompre et de vous poser une question à choix multiples affichée au-dessus de la zone de saisie de la conversation. L'agent attend votre réponse (ou que vous ignoriez).",
     "sessionInfoLabel": "Obtenir les infos de session",
     "sessionInfoHint": "Permet aux agents de consulter une session que vous mentionnez dans votre message (un badge de session) pour lire son titre, son agent, son statut, son espace de travail, sa consommation de jetons et ses messages récents.",
-    "automationsLabel": "Créer des automatisations",
-    "automationsHint": "Enregistre la conversation comme une automatisation qui s'exécute selon un planning. Désactivé par défaut : elle démarre ensuite des agents d'elle-même.",
+    "automationsLabel": "Gérer les automatisations",
+    "automationsHint": "Autoriser les agents à créer, consulter, modifier, activer et lancer des automatisations via MCP. Désactivé par défaut.",
     "workTasksLabel": "Créer des tâches à faire",
     "workTasksHint": "Ajoute une carte au tableau des tâches depuis la conversation. Désactivé par défaut : écrit l'état de l'application.",
     "save": "Enregistrer",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "Afficher les détails"
   },
   "Automations": {
+    "attachedTodos": "Tâches associées",
+    "attachedTodosHint": "Chaque exécution lit le contenu actuel des tâches et y associe sa conversation.",
+    "todoScope": "Périmètre des tâches",
+    "personalTodos": "Tâches personnelles",
     "sessionMode": "Mode de conversation",
     "sessionNew": "Nouvelle conversation à chaque fois",
     "sessionReuse": "Une discussion par jour",

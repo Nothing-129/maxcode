@@ -92,6 +92,7 @@ it("hides the desktop action until download completes and waits for an explicit 
     })
     expect(screen.getAllByRole("button")).toHaveLength(1)
     expect(version).not.toBeDisabled()
+    expect(version).not.toHaveClass("bg-[#216ae4]")
     fireEvent.click(version)
     await waitFor(() => expect(check).toHaveBeenCalledTimes(2))
     await act(async () => {
@@ -109,7 +110,13 @@ it("hides the desktop action until download completes and waits for an explicit 
     expect(button).toHaveTextContent("0.30.6")
     expect(screen.getAllByRole("button")).toHaveLength(1)
     expect(button.querySelectorAll("svg")).toHaveLength(1)
-    expect(button.querySelector("svg")).toHaveClass("text-[#216ae4]")
+    expect(button.querySelector("svg")).toHaveClass(
+      "text-[#216ae4]",
+      "size-4",
+      "motion-safe:animate-[update-arrow-nudge_4s_ease-in-out_infinite]"
+    )
+    expect(button.querySelector("svg")).toHaveAttribute("stroke-width", "2.75")
+    expect(button).not.toHaveClass("bg-[#216ae4]")
     expect(button).toHaveAttribute("title", "Restart to update · 0.30.7")
     expect(install).not.toHaveBeenCalled()
     // A fresh renderer also must not install a package staged by the main process.

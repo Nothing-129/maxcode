@@ -3548,7 +3548,7 @@
         "turnFailed": "O turno falhou: {message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "Pensando",
+        "thinkingPending": "Aguardando resposta...",
         "waiting": "Aguardando resposta",
         "running": "Executando ferramentas",
         "awaitingUser": "Aguardando sua confirmação",
@@ -4844,8 +4844,8 @@
     "questionHint": "Permite que os agentes pausem e façam uma pergunta de múltipla escolha que aparece acima da caixa de entrada da conversa. O agente aguarda até você responder (ou pular).",
     "sessionInfoLabel": "Obter informações da sessão",
     "sessionInfoHint": "Permite que os agentes consultem uma sessão mencionada na sua mensagem (um selo de sessão) para ler o título, agente, status, espaço de trabalho, uso de tokens e mensagens recentes.",
-    "automationsLabel": "Criar automações",
-    "automationsHint": "Salva a conversa como uma automação que roda em um agendamento. Desativado por padrão — depois ela inicia agentes por conta própria.",
+    "automationsLabel": "Gerenciar automações",
+    "automationsHint": "Permitir que agentes criem, consultem, editem, ativem e executem automações via MCP. Desativado por padrão.",
     "workTasksLabel": "Criar tarefas a fazer",
     "workTasksHint": "Coloca um cartão no quadro de tarefas a partir da conversa. Desativado por padrão — grava o estado do app.",
     "save": "Salvar",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "Alternar detalhes"
   },
   "Automations": {
+    "attachedTodos": "Tarefas vinculadas",
+    "attachedTodosHint": "Cada execução lê o conteúdo atual das tarefas e vincula sua conversa a elas.",
+    "todoScope": "Escopo das tarefas",
+    "personalTodos": "Tarefas pessoais",
     "sessionMode": "Modo de conversa",
     "sessionNew": "Nova conversa a cada execução",
     "sessionReuse": "Um chat por dia",

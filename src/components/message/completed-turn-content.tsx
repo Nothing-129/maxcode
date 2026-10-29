@@ -215,18 +215,20 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
       !split.progress.some(activityNeedsAttention) &&
       hasVisibleAnswer(split.answer))
 
+  const hasActivity = parts.some((part) =>
+    part.type === "text"
+      ? part.text.trim().length > 0
+      : part.type === "reasoning"
+        ? part.content.trim().length > 0
+        : part.type === "tool-group"
+          ? part.items.length > 0
+          : part.type === "plan"
+            ? part.entries.length > 0
+            : true
+  )
+  const waiting = !completed && !hasActivity
   const label = !completed
-    ? parts.some((part) =>
-        part.type === "text"
-          ? part.text.trim().length > 0
-          : part.type === "reasoning"
-            ? part.content.trim().length > 0
-            : part.type === "tool-group"
-              ? part.items.length > 0
-              : part.type === "plan"
-                ? part.entries.length > 0
-                : true
-      )
+    ? hasActivity
       ? t("working")
       : (pendingLabel ?? tElapsed("thinkingPending"))
     : elapsed
@@ -241,7 +243,15 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
   const labelNode = completed ? (
     <span className="min-w-0 truncate tabular-nums">{label}</span>
   ) : (
-    <TurnStatusLabel>{label}</TurnStatusLabel>
+    <TurnStatusLabel
+      active={
+        !waiting ||
+        !pendingLabel ||
+        pendingLabel === tElapsed("thinkingPending")
+      }
+    >
+      {label}
+    </TurnStatusLabel>
   )
 
   // Streamdown's incomplete-markdown repair (remend) may only run on text that
@@ -303,16 +313,19 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
             along the reading direction, open points down at what it revealed:
             the same disclosure triangle every other fold in the thread uses. */}
         <CollapsibleTrigger
+          disabled={waiting}
           className={cn(
             HEADER_CLASS,
             "group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
           )}
         >
           {labelNode}
-          <ChevronRightIcon
-            aria-hidden="true"
-            className="size-3.5 shrink-0 opacity-50 transition-transform duration-300 ease-in-out group-data-[state=open]:rotate-90 motion-reduce:transition-none"
-          />
+          {hasActivity && (
+            <ChevronRightIcon
+              aria-hidden="true"
+              className="size-3.5 shrink-0 opacity-50 transition-transform duration-300 ease-in-out group-data-[state=open]:rotate-90 motion-reduce:transition-none"
+            />
+          )}
         </CollapsibleTrigger>
         {/* `reply-fold-body` (globals.css) slides the body open and shut on a
             grid track. The inner div is the clipped grid item — it must stay a
@@ -326,10 +339,12 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
         >
           <div>
             <div className="pt-3">
-              <ProgressSections
-                parts={split.progress}
-                isStreaming={isStreaming}
-              />
+              {hasActivity && (
+                <ProgressSections
+                  parts={split.progress}
+                  isStreaming={isStreaming}
+                />
+              )}
             </div>
           </div>
         </CollapsibleContent>

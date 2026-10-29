@@ -2017,7 +2017,7 @@
       "resetRecentLimit": "重置为前 {count} 条",
       "noFolders": "没有打开的文件夹",
       "newChatAction": "新建聊天",
-      "automations": "自动任务",
+      "automations": "自动化",
       "tasks": "待办",
       "loadingSubsessions": "正在加载子会话…",
       "forge": "仓库面板",
@@ -3548,8 +3548,8 @@
         "turnFailed": "本轮失败：{message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "处理中",
-        "waiting": "处理中",
+        "thinkingPending": "等待响应...",
+        "waiting": "等待响应",
         "running": "执行中",
         "awaitingUser": "待确认",
         "settled": "响应已结束",
@@ -4844,8 +4844,8 @@
     "questionHint": "允许智能体暂停并向你提出多选问题，问题会显示在会话输入框上方。智能体会一直等待，直到你作答（或跳过）。",
     "sessionInfoLabel": "获取会话信息",
     "sessionInfoHint": "允许智能体查询你在消息中提及的会话（会话徽章），读取其标题、智能体、状态、工作区、Token 用量和最近消息。",
-    "automationsLabel": "创建自动化",
-    "automationsHint": "把对话保存为按计划运行的自动化。默认关闭——它之后会自行启动智能体。",
+    "automationsLabel": "管理自动化",
+    "automationsHint": "允许智能体通过 MCP 创建、查询、修改、启停和运行自动化。默认关闭。",
     "workTasksLabel": "创建待办任务",
     "workTasksHint": "从对话中往待办看板排一张任务卡。默认关闭——它会写入应用状态。",
     "save": "保存",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "切换详情"
   },
   "Automations": {
+    "attachedTodos": "挂载待办",
+    "attachedTodosHint": "每次运行读取待办最新内容，并将执行会话关联到待办。",
+    "todoScope": "待办范围",
+    "personalTodos": "个人待办",
     "sessionMode": "会话方式",
     "sessionNew": "每次新建会话",
     "sessionReuse": "每天一个对话",

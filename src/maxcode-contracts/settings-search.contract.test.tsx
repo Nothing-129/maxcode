@@ -163,13 +163,9 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
     mount(undefined, "zh-CN")
     search("代理")
     expect(searchResult("网络代理")).toBeVisible()
-    for (const query of [
-      "壁纸",
-      "MCP",
-      "OpenCode",
-      "启动登录项",
-      "Access Token",
-    ]) {
+    search("MCP")
+    expect(searchResult("管理自动化")).toBeVisible()
+    for (const query of ["壁纸", "OpenCode", "启动登录项", "Access Token"]) {
       search(query)
       expect(screen.getByRole("status")).toHaveTextContent(
         zh.SettingsShell.searchEmpty

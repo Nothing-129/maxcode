@@ -1,7 +1,9 @@
+import { isContextCompactionMeta } from "@/lib/context-compaction"
 import type { LiveMessage } from "@/contexts/acp-connections-context"
 
 export type AgentActivity =
   | "waiting"
+  | "compacting"
   | "thinking"
   | "streaming"
   | "running"
@@ -19,6 +21,15 @@ export function getAgentActivity(
 ): AgentActivity {
   if (!isStreaming) return "settled"
   if (awaitingUser) return "awaitingUser"
+  if (
+    message.content.some(
+      (block) =>
+        block.type === "tool_call" &&
+        isContextCompactionMeta(block.info.meta) &&
+        (block.info.status === "pending" || block.info.status === "in_progress")
+    )
+  )
+    return "compacting"
   if (
     message.content.some(
       (block) =>

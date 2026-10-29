@@ -1,12 +1,28 @@
 import { beforeEach, expect, it, vi } from "vitest"
 import { acpConnect } from "@/lib/api"
 import { updateCachedSelectors } from "@/lib/selectors-cache-storage"
+import { source } from "./contract-source"
 import {
   getSavedPrefsForConnect,
   saveConfigPreference,
 } from "@/lib/selector-prefs-storage"
 
 const call = vi.hoisted(() => vi.fn())
+
+it("restores Codex launch config before spawning without suppressing warnings", () => {
+  const connection = source("src-tauri/src/acp/connection.rs")
+  const spawn = connection.slice(
+    connection.indexOf("pub async fn spawn_agent_connection(")
+  )
+  expect(spawn.indexOf("codex_resume_config(")).toBeGreaterThan(0)
+  expect(spawn.indexOf("codex_resume_config(")).toBeLessThan(
+    spawn.indexOf("match build_agent(")
+  )
+  expect(spawn).toContain('runtime_env.insert("CODEX_CONFIG".into(), config)')
+  const notices = source("src/contexts/acp-connections-context.tsx")
+  expect(notices).toContain('e.notice.severity === "warning"')
+  expect(notices).toContain("toast.warning(body)")
+})
 vi.mock("@/lib/transport", () => ({ getTransport: () => ({ call }) }))
 
 beforeEach(() => localStorage.removeItem("codeg:selector-prefs"))

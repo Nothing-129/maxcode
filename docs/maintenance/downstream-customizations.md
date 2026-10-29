@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-10-29 Codex 模型恢复：已有会话的模型和思考强度通过进程级 `CODEX_CONFIG` 在恢复前传入，避免先按全局默认模型恢复再切换。不修改全局配置，保留原有警告弹窗。契约和热点沿用 `chat.conversation-model-memory`。
+
 2026-10-28 侧栏滚动动效：纵向滚轮输入（包括系统合并的小数位移、连续触控板输入）统一按帧推进，保留速度和小数位置，采用临界阻尼平滑收尾；不再用设备猜测在一次手势中切回原生跳动，横向手势和缩放保持原生；手动拖动、键盘、主动定位、虚拟列表校正和卸载会取消缓动。手动展开分组后，仅当新增首行被底边遮挡时平滑露出，同时保留标题上下文；定位当前会话尊重减少动态效果设置，收起前的虚拟列表即时定位保持。契约：`sidebar-scroll-motion.contract.test.tsx`；热点：`sidebar.scroll-motion`。
 
 2026-10-27 回复自然结束：移除流式回复完成后临时出现的尾部对号，只对已有状态标题做轻微淡入，不重放正文动画；保留实时观察与虚拟列表去重约束。契约：`interaction-feedback.contract.test.tsx`；热点：`appearance.interaction-feedback`。
@@ -189,7 +191,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
 | 智能体自动更新 | 维护范围内已启用且已安装的智能体强制后台更新，支持 npm（含 ZCode 社区适配器）、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14`、`feat/zcode-agent`、`worktree-2026-09-26` | `settings.agent-auto-updates` |
 | 智能体安装 | 手动 npm 安装、升级、重试及自定义包查询使用 npm.aifalao.net；在线版本检测与自动安装使用官方 registry.npmjs.org，适配器与 CLI 独立检测 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
-| 自动任务 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
+| 自动化 | 支持挂载个人/团队待办；运行时读取最新内容并关联执行会话；MCP 支持查询、修改、启停、立即运行、删除和运行记录管理，调用时复查开关 | `worktree-2026-10-29` | `automation.todo-mount-and-mcp` |
+| 自动化 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |
 | 手机设置 | 右上角分类菜单显示在设置页之上，可切换分类、点击空白或 Escape 关闭；保留设置及工作区草稿，隐藏后台工作区抽屉并在返回时恢复 | `worktree-2026-09-10` | `settings.mobile-category-navigation` |
 | 移动端 | 恢复前台及网络重连后检查并恢复当前会话，连接中、未连接、连接错误均持续 3 秒才显示；状态或会话变化重新计时，已连接立即恢复，持续掉线保留红色提示 | `worktree-2026-09-10` | `chat.mobile-session-recovery` |
@@ -218,7 +221,7 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 消息 | 已发消息的复制按钮旁提供修改图标，点击即停止当前回复并将原文填入、聚焦底部输入框；修改后由用户正常发送 | `worktree-2026-09-08` | `messages.edit-sent-message` |
 | 侧边栏 | “最近”栏目新建入口与“聊天”一致，始终新建不绑定当前文件夹的聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
-| 侧边栏 | 保留新对话（简体中文固定文案）、自动任务、待办任务及会话列表，仓库面板不加入侧栏；待办和自动任务支持显隐设置；待办导航及文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08`、`worktree-2026-10-13` | `workspace.sidebar-navigation` |
+| 侧边栏 | 保留新对话（简体中文固定文案）、自动化、待办任务及会话列表，仓库面板不加入侧栏；待办和自动化支持显隐设置；待办导航及文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08`、`worktree-2026-10-13` | `workspace.sidebar-navigation` |
 | 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；旧 Tauri 壳与兼容 CI 已退役 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
 | 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap；GitHub 过慢或不可达时走 maxcode-update.aifalao.net | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
@@ -461,3 +464,11 @@ Codex 目标自动续跑（`chat.codex-goal-continuation`）：后台自主启�
 ### 工具摘要出现过渡（2026-10-28）
 
 `chat.activity-reveal`：生成期间新插入的工具摘要占用高度在 320ms 内展开，不改变文字透明度；计数更新不重播，历史摘要静态显示。点击或键盘操作立即结束过渡，减少动态效果跳过动画。契约：`activity-reveal.contract.test.tsx`。
+
+### 首条响应等待反馈（2026-10-29）
+
+`chat.thinking-working-handoff`：首条内容到达前显示本地化“等待响应...”和扫光动画，不显示秒数，禁用空内容折叠按钮并隐藏箭头；收到内容后沿用原状态节点切换为“正在工作中”，保持同一文字节点和动画类，扫光不重启。契约：`thinking-working-handoff.contract.test.tsx`。
+
+### 工作标题与工具摘要扫光（2026-10-29）
+
+`chat.live-activity-label-motion`：恢复正在工作标题与生成期间工具计数摘要的 1.8s CSS 扫光；不改变透明度或布局。等待响应沿用同一扫光；完成及历史文字静态；隐藏视图暂停，减少动态效果和强制颜色模式关闭扫光。

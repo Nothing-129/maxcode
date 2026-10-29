@@ -209,6 +209,7 @@ impl CompanionFeatures {
             "get_session_info" => self.sessions,
             "task_progress" | "task_complete" => self.tasks,
             "create_automation" => self.automations,
+            name if crate::automation::mcp::TOOL_NAMES.contains(&name) => self.automations,
             "create_work_task" => self.taskboard,
             "delegate_to_agent"
             | "get_delegation_status"
@@ -791,6 +792,27 @@ async fn build_tools_call_spawn(
             let round_trip =
                 Box::pin(async move { client_create_work_task_round_trip(&socket, &req).await });
             register_and_spawn(inflight, id, None, round_trip, render_authoring_result).await
+        }
+        name if crate::automation::mcp::TOOL_NAMES.contains(&name) => {
+            let request =
+                match serde_json::from_value(json!({"tool": name, "arguments": arguments})) {
+                    Ok(request) => request,
+                    Err(error) => {
+                        return LineAction::Respond(err(
+                            id,
+                            -32602,
+                            format!("Invalid automation arguments: {error}"),
+                        ))
+                    }
+                };
+            let req = super::transport::BrokerAutomationRequest {
+                token: ctx.token.clone(),
+                request,
+            };
+            let round_trip = Box::pin(async move {
+                super::transport::client_automation_round_trip(&socket, &req).await
+            });
+            register_and_spawn(inflight, id, None, round_trip, render_todo_result).await
         }
         name if crate::todo::conversation_sources::mcp::TOOL_NAMES.contains(&name) => {
             let request = crate::todo::conversation_sources::mcp::ToolRequest {
@@ -1431,6 +1453,13 @@ fn parse_automation_spec(arguments: &Value) -> Result<NewAutomationSpec, String>
         }
     }
     Ok(NewAutomationSpec {
+        todo_origins: serde_json::from_value(
+            arguments
+                .get("todo_origins")
+                .cloned()
+                .unwrap_or_else(|| json!([])),
+        )
+        .map_err(|e| format!("Invalid todo_origins: {e}"))?,
         name: truncate_chars(&name, MAX_TITLE_CHARS),
         prompt: truncate_chars(&prompt, MAX_PROMPT_CHARS),
         cron,
@@ -2901,7 +2930,10 @@ mod tests {
         assert!(!names.contains(&"create_work_task".to_string()));
 
         let names = list_tool_names(dispatch_with_features(AUTOMATIONS_ONLY, list).await);
-        assert_eq!(names, vec!["create_automation".to_string()]);
+        assert!(names.contains(&"create_automation".to_string()));
+        for tool in crate::automation::mcp::TOOL_NAMES {
+            assert!(names.contains(&tool.to_string()));
+        }
 
         let names = list_tool_names(dispatch_with_features(TASKBOARD_ONLY, list).await);
         assert_eq!(names, vec!["create_work_task".to_string()]);

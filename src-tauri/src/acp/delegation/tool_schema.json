@@ -214,6 +214,23 @@
         "enabled": {
           "type": "boolean",
           "description": "Whether the schedule is live right away. Defaults to true; pass false to save it switched off."
+        },
+        "todo_origins": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "required": ["scope_id", "todo_id"],
+            "properties": {
+              "scope_id": {
+                "type": "string"
+              },
+              "todo_id": {
+                "type": "string"
+              }
+            }
+          },
+          "description": "Personal/team todos to attach. Use list_todo_scopes/list_todos to discover IDs. Every run reads current content and links its conversation."
         }
       }
     }
@@ -599,6 +616,192 @@
         }
       },
       "required": ["scope_id", "todo_id", "action"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_automations",
+    "description": "List saved MaxCode automations and their status.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {},
+      "required": [],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "get_automation",
+    "description": "Read an automation, including its full editable config and attached todo_origins. Read before updating.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["automation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "update_automation",
+    "description": "Replace an automation using its full draft. First get_automation, retain all editable fields and config, then apply requested changes. Does not run it now.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "draft": {
+          "type": "object",
+          "required": [
+            "name",
+            "enabled",
+            "trigger_kind",
+            "timezone",
+            "agent_type",
+            "isolation",
+            "is_remote_branch",
+            "config"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "enabled": {
+              "type": "boolean"
+            },
+            "trigger_kind": {
+              "enum": ["manual", "schedule", "message"]
+            },
+            "cron": {
+              "type": ["string", "null"]
+            },
+            "timezone": {
+              "type": "string"
+            },
+            "agent_type": {
+              "type": "string"
+            },
+            "root_folder_id": {
+              "type": ["integer", "null"]
+            },
+            "isolation": {
+              "enum": ["shared_in_root", "worktree_per_run"]
+            },
+            "branch": {
+              "type": ["string", "null"]
+            },
+            "is_remote_branch": {
+              "type": "boolean"
+            },
+            "config": {
+              "type": "object",
+              "description": "Preserve full config from get_automation. todo_origins attaches personal/team todos.",
+              "properties": {
+                "todo_origins": {
+                  "type": "array",
+                  "maxItems": 100,
+                  "items": {
+                    "type": "object",
+                    "required": ["scope_id", "todo_id"],
+                    "properties": {
+                      "scope_id": {
+                        "type": "string"
+                      },
+                      "todo_id": {
+                        "type": "string"
+                      }
+                    }
+                  },
+                  "description": "Personal/team todos to attach. Use list_todo_scopes/list_todos to discover IDs. Every run reads current content and links its conversation."
+                }
+              }
+            }
+          }
+        }
+      },
+      "required": ["automation_id", "draft"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "set_automation_enabled",
+    "description": "Enable or disable the schedule/listener of an automation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      },
+      "required": ["automation_id", "enabled"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "run_automation",
+    "description": "Run an automation immediately. Returns run_id; inspect list_automation_runs for progress.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["automation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "delete_automation",
+    "description": "Delete an automation and its schedule. Use only when requested by the user.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["automation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "list_automation_runs",
+    "description": "List the most recent 50 runs of an automation.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "automation_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["automation_id"],
+      "additionalProperties": false
+    }
+  },
+  {
+    "name": "cancel_automation_run",
+    "description": "Cancel an automation run.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "run_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["run_id"],
       "additionalProperties": false
     }
   }

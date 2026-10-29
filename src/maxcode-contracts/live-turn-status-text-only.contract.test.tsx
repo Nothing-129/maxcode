@@ -12,7 +12,7 @@ describe("MaxCode: model working-state labels stay text-only", () => {
   it("keeps live phase copy and never restores a status glyph beside it", () => {
     const stats = source("src/components/message/live-turn-stats.tsx")
     expect(stats).toContain("getAgentActivity")
-    expect(stats).toContain('{t(retrying ? "retrying" : activity)}')
+    expect(stats).toContain('t(retrying ? "retrying" : activity)')
     forbidsStatusGlyph(stats)
 
     const list = source("src/components/message/message-list-view.tsx")

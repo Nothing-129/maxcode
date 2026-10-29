@@ -59,6 +59,8 @@ pub struct AuthoringContext {
 /// automation service at save.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewAutomationSpec {
+    #[serde(default)]
+    pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
     pub name: String,
     pub prompt: String,
     /// 5- or 6-field cron. `None` → a manual-trigger automation (run from the
@@ -157,6 +159,16 @@ pub trait ChatAuthoringAccess: Send + Sync {
     ) -> Result<serde_json::Value, crate::app_error::AppCommandError> {
         Err(crate::app_error::AppCommandError::permission_denied(
             "Todo tools unavailable",
+        ))
+    }
+
+    async fn automation_call(
+        &self,
+        _ctx: AuthoringContext,
+        _request: crate::automation::mcp::ToolRequest,
+    ) -> Result<serde_json::Value, crate::app_error::AppCommandError> {
+        Err(crate::app_error::AppCommandError::permission_denied(
+            "Automation tools unavailable",
         ))
     }
 

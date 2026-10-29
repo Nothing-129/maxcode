@@ -46,7 +46,7 @@ import { LiveTurnStats } from "./live-turn-stats"
 import { ModelLabelProvider } from "./model-label-context"
 import { useModelLabels } from "@/hooks/use-model-labels"
 import { ReplyArtifacts } from "./reply-artifacts"
-import { UserResourceLinks } from "./user-resource-links"
+import { UserResourceLinks, withoutResourceLinks } from "./user-resource-links"
 import { UserImageAttachments } from "./user-image-attachments"
 import { AgentPlanOverlay } from "@/components/chat/agent-plan-overlay"
 import { SubAgentOverlay } from "@/components/chat/sub-agent-overlay"
@@ -1015,6 +1015,10 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
     ? sourceTurns[sourceTurns.length - 1]
     : null
   const forkPointUnnamed = isForkPointUnnamed(forkPoint, isThreadTail)
+  const displayParts =
+    group.role === "user"
+      ? withoutResourceLinks(group.parts, group.resources)
+      : group.parts
 
   return (
     <div>
@@ -1023,6 +1027,7 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           <UserImageAttachments images={group.images} className="self-end" />
         ) : null}
         {group.role === "user" ? (
+          group.resources.length > 0 ||
           group.parts.some(
             (part) => part.type !== "text" || part.text.trim().length > 0
           ) ? (
@@ -1035,7 +1040,12 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
                 onEdit={onEditMessage}
               />
               <MessageContent>
-                <CollapsibleUserMessage parts={group.parts} />
+                {displayParts.some(
+                  (part) => part.type !== "text" || part.text.trim().length > 0
+                ) && <CollapsibleUserMessage parts={displayParts} />}
+                {group.resources.length > 0 && (
+                  <UserResourceLinks resources={group.resources} />
+                )}
               </MessageContent>
             </div>
           ) : null
@@ -1053,9 +1063,6 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
             />
           </MessageContent>
         )}
-        {group.role === "user" && group.resources.length > 0 ? (
-          <UserResourceLinks resources={group.resources} className="self-end" />
-        ) : null}
       </Message>
       {showStats && group.role === "assistant" && sourceTurns && (
         <ReplyArtifacts

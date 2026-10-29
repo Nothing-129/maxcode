@@ -3789,3 +3789,17 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
     var(--muted-foreground)
   );
 }
+
+/* Brief update nudge followed by a pause; motion-safe gates the animation. */
+@keyframes update-arrow-nudge {
+  0%,
+  72%,
+  88%,
+  100% {
+    transform: translateY(0);
+  }
+  80%,
+  94% {
+    transform: translateY(3px);
+  }
+}

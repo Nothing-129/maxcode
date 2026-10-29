@@ -37,9 +37,10 @@ describe("MaxCode send button color", () => {
       "(disabled && !(queueWhileUnavailable && onEnqueue)) || !hasSendableContent"
     )
   })
-  it("uses update blue and error red on the neutral footer action icons", () => {
+  it("uses a blue update icon and retains error red", () => {
     const update = source("src/components/layout/status-bar-update.tsx")
     expect(update).toContain("text-[#216ae4]")
+    expect(update).not.toContain("bg-[#216ae4]")
     expect(update).toContain("statusBarActionClassName")
     expect(update).not.toMatch(/dark:(?:hover:)?bg-/)
     expect(update).toContain("text-destructive")

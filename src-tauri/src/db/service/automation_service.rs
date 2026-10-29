@@ -185,6 +185,12 @@ fn validate_draft(draft: &AutomationDraft) -> Result<(), DbError> {
     if cfg.display_text.trim().is_empty() && cfg.prompt_blocks.is_empty() {
         return Err(DbError::Validation("prompt is required".into()));
     }
+    if !cfg.todo_origins.is_empty() && cfg.action != crate::models::AutomationAction::LaunchSession
+    {
+        return Err(DbError::Validation(
+            "todo attachments require a session automation".into(),
+        ));
+    }
     // Enqueue-task automations feed a folder-bound board; reject a folderless
     // draft at save so the misconfiguration never becomes a failed run.
     if cfg.action == crate::models::AutomationAction::EnqueueTask && draft.root_folder_id.is_none()
@@ -313,6 +319,11 @@ pub async fn create(
     draft: AutomationDraft,
 ) -> Result<AutomationInfo, DbError> {
     validate_draft(&draft)?;
+    let cfg: AutomationConfig = serde_json::from_value(draft.config.clone())
+        .map_err(|e| DbError::Validation(format!("invalid automation config: {e}")))?;
+    crate::todo::conversation_groups::validate_origins(conn, &cfg.todo_origins)
+        .await
+        .map_err(|e| DbError::Validation(e.to_string()))?;
     let now = Utc::now();
     let next_run_at = next_run_for(&draft, now)?;
     let config_str = serde_json::to_string(&draft.config)
@@ -349,6 +360,11 @@ pub async fn update(
     draft: AutomationDraft,
 ) -> Result<AutomationInfo, DbError> {
     validate_draft(&draft)?;
+    let cfg: AutomationConfig = serde_json::from_value(draft.config.clone())
+        .map_err(|e| DbError::Validation(format!("invalid automation config: {e}")))?;
+    crate::todo::conversation_groups::validate_origins(conn, &cfg.todo_origins)
+        .await
+        .map_err(|e| DbError::Validation(e.to_string()))?;
     let row = find_active(conn, id).await?;
     let old_cfg: AutomationConfig = serde_json::from_str(&row.config).unwrap_or_default();
     let new_cfg: AutomationConfig =

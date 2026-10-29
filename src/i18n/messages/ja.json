@@ -3548,7 +3548,7 @@
         "turnFailed": "このターンは失敗しました：{message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "考え中",
+        "thinkingPending": "応答を待機中...",
         "waiting": "応答を待機中",
         "running": "ツールを実行中",
         "awaitingUser": "確認を待機中",
@@ -4844,8 +4844,8 @@
     "questionHint": "エージェントが処理を一時停止し、会話の入力欄の上に表示される選択式の質問をできるようにします。回答（またはスキップ）するまでエージェントは待機します。",
     "sessionInfoLabel": "セッション情報の取得",
     "sessionInfoHint": "メッセージ内で参照したセッション（セッションバッジ）をエージェントが照会し、タイトル・エージェント・ステータス・ワークスペース・トークン使用量・最近のメッセージを読み取れるようにします。",
-    "automationsLabel": "自動化を作成",
-    "automationsHint": "会話をスケジュール実行の自動化として保存します。既定はオフ — 自動化はその後、自分でエージェントを起動します。",
+    "automationsLabel": "自動化の管理",
+    "automationsHint": "MCP を通じて自動化の作成・参照・編集・有効化・実行を許可します。初期設定はオフです。",
     "workTasksLabel": "ToDo タスクを作成",
     "workTasksHint": "会話から ToDo ボードにカードを追加します。既定はオフ — アプリの状態を書き換えます。",
     "save": "保存",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "詳細を切り替え"
   },
   "Automations": {
+    "attachedTodos": "関連付ける ToDo",
+    "attachedTodosHint": "実行ごとに最新の ToDo 内容を読み込み、実行時の会話を関連付けます。",
+    "todoScope": "ToDo の範囲",
+    "personalTodos": "個人の ToDo",
     "sessionMode": "会話モード",
     "sessionNew": "毎回新しい会話",
     "sessionReuse": "1日1チャット",

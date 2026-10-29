@@ -3548,8 +3548,8 @@
         "turnFailed": "本輪失敗：{message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "處理中",
-        "waiting": "處理中",
+        "thinkingPending": "等待回應...",
+        "waiting": "等待回應",
         "running": "執行中",
         "awaitingUser": "待確認",
         "settled": "回應已結束",
@@ -4844,8 +4844,8 @@
     "questionHint": "允許智能體暫停並向你提出多選問題，問題會顯示在對話輸入框上方。智能體會一直等待，直到你作答（或略過）。",
     "sessionInfoLabel": "取得工作階段資訊",
     "sessionInfoHint": "允許智慧代理查詢你在訊息中提及的工作階段（工作階段徽章），讀取其標題、代理、狀態、工作區、Token 用量與最近訊息。",
-    "automationsLabel": "建立自動化",
-    "automationsHint": "把對話儲存為按排程執行的自動化。預設關閉——它之後會自行啟動代理。",
+    "automationsLabel": "管理自動化",
+    "automationsHint": "允許智能體透過 MCP 建立、查詢、修改、啟停和執行自動化。預設關閉。",
     "workTasksLabel": "建立待辦任務",
     "workTasksHint": "從對話中往待辦看板排一張任務卡。預設關閉——它會寫入應用程式狀態。",
     "save": "儲存",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "切換詳情"
   },
   "Automations": {
+    "attachedTodos": "掛載待辦",
+    "attachedTodosHint": "每次執行讀取待辦最新內容，並將執行對話關聯到待辦。",
+    "todoScope": "待辦範圍",
+    "personalTodos": "個人待辦",
     "sessionMode": "對話方式",
     "sessionNew": "每次新增對話",
     "sessionReuse": "每天一個對話",

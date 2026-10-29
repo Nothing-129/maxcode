@@ -15,7 +15,7 @@ afterEach(() => {
 
 describe("MaxCode: live status omits file change counters", () => {
   it.each([
-    ["waiting", "处理中"],
+    ["waiting", "等待响应"],
     ["thinking", "思考中"],
     ["text", "输出中"],
   ] as const)(

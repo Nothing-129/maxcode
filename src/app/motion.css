@@ -274,3 +274,42 @@
     animation: none;
   }
 }
+
+/* Live transcript labels: change highlight only, never opacity or geometry. */
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .maxcode-turn-status.maxcode-live-activity-label,
+  .maxcode-live-activity-label {
+    display: inline-block;
+    background-image: linear-gradient(
+      100deg,
+      var(--muted-foreground) 40%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 60%
+    );
+    background-size: 250% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation: maxcode-waiting-shine 1.8s linear infinite;
+  }
+}
+.conversation-tab-hidden .maxcode-live-activity-label,
+[hidden] .maxcode-live-activity-label {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-turn-status.maxcode-live-activity-label,
+  .maxcode-live-activity-label {
+    animation: none;
+    background-image: none;
+    color: inherit;
+  }
+}
+@media (forced-colors: active) {
+  .maxcode-turn-status.maxcode-live-activity-label,
+  .maxcode-live-activity-label {
+    animation: none;
+    background-image: none;
+    color: CanvasText;
+  }
+}

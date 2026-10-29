@@ -3548,7 +3548,7 @@
         "turnFailed": "Runde fehlgeschlagen: {message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "Denke nach",
+        "thinkingPending": "Warte auf Antwort...",
         "waiting": "Warte auf Antwort",
         "running": "Werkzeuge werden ausgeführt",
         "awaitingUser": "Warte auf deine Bestätigung",
@@ -4844,8 +4844,8 @@
     "questionHint": "Erlaubt Agenten, anzuhalten und dir eine Multiple-Choice-Frage zu stellen, die über dem Eingabefeld der Unterhaltung erscheint. Der Agent wartet, bis du antwortest (oder überspringst).",
     "sessionInfoLabel": "Sitzungsinformationen abrufen",
     "sessionInfoHint": "Erlaubt Agenten, eine in deiner Nachricht referenzierte Sitzung (ein Sitzungs-Badge) nachzuschlagen, um Titel, Agent, Status, Arbeitsbereich, Token-Verbrauch und letzte Nachrichten zu lesen.",
-    "automationsLabel": "Automatisierungen erstellen",
-    "automationsHint": "Speichert die Unterhaltung als Automatisierung, die nach Zeitplan läuft. Standardmäßig aus – sie startet danach selbst Agenten.",
+    "automationsLabel": "Automatisierungen verwalten",
+    "automationsHint": "Agenten dürfen über MCP Automatisierungen erstellen, anzeigen, bearbeiten, aktivieren und ausführen. Standardmäßig deaktiviert.",
     "workTasksLabel": "To-do-Aufgaben erstellen",
     "workTasksHint": "Stellt aus der Unterhaltung heraus eine Karte auf das To-do-Board. Standardmäßig aus – schreibt App-Zustand.",
     "save": "Speichern",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "Details umschalten"
   },
   "Automations": {
+    "attachedTodos": "Verknüpfte Aufgaben",
+    "attachedTodosHint": "Jeder Lauf liest den aktuellen Aufgabeninhalt und verknüpft seine Unterhaltung mit diesen Aufgaben.",
+    "todoScope": "Aufgabenbereich",
+    "personalTodos": "Persönliche Aufgaben",
     "sessionMode": "Gesprächsmodus",
     "sessionNew": "Jedes Mal ein neues Gespräch",
     "sessionReuse": "Ein Chat pro Tag",

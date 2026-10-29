@@ -3337,11 +3337,13 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
   durationMs,
   renderPart,
   showCounts = false,
+  active = false,
 }: {
   parts: AdaptedContentPart[]
   durationMs?: number | null
   renderPart: (part: AdaptedContentPart, keyId: string) => ReactNode
   showCounts?: boolean
+  active?: boolean
 }) {
   const tGroup = useTranslations("Folder.chat.contentParts.toolGroup")
   const t = useTranslations("Folder.chat.messageList")
@@ -3389,7 +3391,12 @@ const CompletedActivitySummary = memo(function CompletedActivitySummary({
         <CollapsibleTrigger
           className={cn(ACTIVITY_DISCLOSURE_CLASS, "hover:text-foreground")}
         >
-          <span className="min-w-0 truncate">
+          <span
+            className={cn(
+              "min-w-0 truncate",
+              active && "maxcode-live-activity-label"
+            )}
+          >
             {activityLabel ||
               (durationLabel
                 ? t("processedFor", { duration: durationLabel })
@@ -3593,6 +3600,7 @@ export const ContentPartsRenderer = memo(function ContentPartsRenderer({
         <ActivityReveal key={`interval-${index}`} live={isStreaming}>
           <CompletedActivitySummary
             showCounts
+            active={isStreaming}
             parts={parts.slice(index, end)}
             renderPart={(item, key) => renderPart(item, key, true)}
           />

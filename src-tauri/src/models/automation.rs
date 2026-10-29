@@ -52,7 +52,7 @@ pub struct AutomationRunInfo {
 
 /// Full create/update payload — the editor loads the whole automation and saves
 /// it back wholesale (a "saved composer" has no partial-patch semantics).
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AutomationDraft {
     pub name: String,
     pub enabled: bool,
@@ -87,6 +87,8 @@ pub enum AutomationAction {
 /// rest is display.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AutomationConfig {
+    #[serde(default)]
+    pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
     #[serde(default)]
     pub session_mode: AutomationSessionMode,
     #[serde(default)]

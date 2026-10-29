@@ -1577,6 +1577,7 @@ export interface AutomationListenerInfo {
 }
 
 export interface AutomationConfig {
+  todo_origins?: import("./todos").TodoOrigin[]
   session_mode?: AutomationSessionMode
   message_trigger?: AutomationMessageTrigger | null
   action?: AutomationAction

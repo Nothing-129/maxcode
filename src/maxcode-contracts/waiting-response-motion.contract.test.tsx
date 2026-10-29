@@ -32,7 +32,7 @@ describe("MaxCode: waiting response text animation", () => {
       </NextIntlClientProvider>
     )
     const { rerender } = render(view())
-    expect(screen.getByRole("status")).toHaveTextContent("处理中")
+    expect(screen.getByRole("status")).toHaveTextContent("等待响应")
     expect(screen.getByRole("status")).toHaveClass("maxcode-waiting-label")
     rerender(view(true))
     expect(screen.getByRole("status")).toHaveTextContent("待确认")

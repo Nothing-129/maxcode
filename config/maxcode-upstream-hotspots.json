@@ -2,6 +2,47 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "automation.todo-mount-and-mcp",
+      "category": "product",
+      "origins": ["worktree-2026-10-29"],
+      "description": "Automation editor attaches personal/team todos without changing active scope. Every run reads current todo context and links its conversation. Automation MCP management shares the UI service operations and honors the live feature switch. Chinese navigation calls the feature 自动化.",
+      "paths": [
+        "src/components/automations/automation-editor.tsx",
+        "src/components/automations/automation-todo-picker.tsx",
+        "src/lib/types.ts",
+        "src-tauri/src/models/automation.rs",
+        "src-tauri/src/automation/",
+        "src/maxcode-contracts/automation-management.contract.rs",
+        "src-tauri/src/db/service/automation_service.rs",
+        "src-tauri/src/commands/chat_authoring.rs",
+        "src-tauri/src/acp/chat_authoring.rs",
+        "src-tauri/src/acp/delegation/companion.rs",
+        "src-tauri/src/acp/delegation/listener.rs",
+        "src-tauri/src/acp/delegation/transport.rs",
+        "src-tauri/src/acp/delegation/tool_schema.json",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-todos.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.live-activity-label-motion",
+      "category": "product",
+      "origins": ["worktree-2026-10-29"],
+      "description": "Active work headings and live tool-count summaries share a CSS-only 1.8s sheen without opacity or layout changes. Waiting headings share the continuous sheen; completed and historical labels remain static; hidden views pause and reduced motion or forced colors disable the sheen.",
+      "paths": ["src/components/message/turn-status.tsx", "src/components/message/completed-turn-content.tsx", "src/components/message/content-parts-renderer.tsx", "src/app/motion.css"],
+      "contracts": ["src/maxcode-contracts/live-activity-label-motion.contract.test.tsx"]
+    },
+    {
+      "id": "codex.server-compaction-status",
+      "category": "product",
+      "origins": ["worktree-2026-10-28"],
+      "description": "Show explicit auto-compaction request spans and server keepalives missed by Codex ACP immediately as context-compaction cards and localized live status; the same card switches to completed when compaction finishes. The read-only log fallback is scoped to the current thread and prompt, never inferred from silence, and clears on fresh output, native lifecycle, failure or cancellation.",
+      "paths": ["src-tauri/src/acp/codex_compaction.rs", "src-tauri/src/acp/connection.rs", "src/lib/agent-activity.ts", "src/components/message/live-turn-stats.tsx", "src/maxcode-contracts/codex-compaction-status.contract.rs"],
+      "contracts": ["src/maxcode-contracts/codex-compaction-status.contract.test.tsx"]
+    },
+    {
       "id": "chat.activity-reveal",
       "category": "product",
       "origins": ["worktree-2026-10-28"],
@@ -372,8 +413,8 @@
     {
       "id": "chat.thinking-working-handoff",
       "category": "product",
-      "origins": ["worktree-2026-10-27"],
-      "description": "Pending replies show localized Processing (处理中 in Chinese), then Working on the same stable heading and text node. The pending placeholder uses the real assistant message component tree and the same per-send virtualizer key as the first streamed reply, including merged live runs. Persisting the user send must not remove the waiting row before the assistant arrives. Empty text, reasoning, tool groups and plans remain Processing. Status text stays opaque without a shimmer, reply entrance fade or overlaid pending label; pending and working share typography, border and baseline. Confirmation remains explicit.",
+      "origins": ["worktree-2026-10-27", "worktree-2026-10-29"],
+      "description": "Pending replies show localized Waiting for response (等待响应 in Chinese) with an ellipsis and a continuous sheen, without an elapsed clock, enabled disclosure or empty chevron, then Working on the same stable heading and text node. The pending placeholder uses the real assistant message component tree and the same per-send virtualizer key as the first streamed reply, including merged live runs. Persisting the user send must not remove the waiting row before the assistant arrives. Empty text, reasoning, tool groups and plans remain Waiting for response. Waiting and working share the same text node and sheen class without restarting the animation, reply entrance fade or overlaid pending label; pending and working share typography, border and baseline. Confirmation remains explicit.",
       "paths": [
         "src/components/message/turn-status.tsx",
         "src/components/message/message-list-view.tsx",
@@ -1938,10 +1979,11 @@
     {
       "id": "chat.conversation-model-memory",
       "category": "product",
-      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Conversation summaries expose confirmed model_config for cold clients and evicted previews. Previews store only selected labels in separate per-conversation entries, never synchronously parse or rewrite all full model catalogs on reopen. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes.",
-      "origins": ["worktree-2026-10-12"],
+      "description": "Model and thinking selections belong to each conversation and persist in SQLite. Reopening history restores its confirmed pair instead of per-agent defaults; legacy history retains native restored values, new sessions use recent defaults, and only confirmed ready selectors are recorded without changing recency or permission policy. Conversation summaries expose confirmed model_config for cold clients and evicted previews. Previews store only selected labels in separate per-conversation entries, never synchronously parse or rewrite all full model catalogs on reopen. Reopening shows a bounded per-conversation confirmed selector preview immediately, read-only until live restoration completes. Codex resume supplies the saved model and reasoning effort through process-local CODEX_CONFIG before loading the thread, preserving other config and all warning notifications.",
+      "origins": ["worktree-2026-10-12", "worktree-2026-10-29"],
       "paths": [
         "src-tauri/src/acp/conversation_model_config.rs",
+        "src-tauri/src/acp/connection.rs",
         "src-tauri/src/acp/mod.rs",
         "src/maxcode-contracts/conversation-model-memory.contract.rs",
         "src/maxcode-contracts/conversation-model-lifecycle.contract.rs",
@@ -3130,13 +3172,30 @@
       ]
     },
     {
+      "id": "chat.sent-attachment-cards",
+      "category": "product",
+      "description": "Sent attachments appear once as cards inside the user bubble. Display-only filtering retains original reference text for copy/edit. File cards open through the shared file viewer and expose system open/reveal via the file context menu, plus a direct local file-manager button; remote workspaces never reveal paths on the client machine.",
+      "origins": ["worktree-2026-10-28"],
+      "paths": [
+        "src/components/message/user-resource-links.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/file-reference-actions.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/sent-attachments.contract.test.tsx"]
+    },
+    {
       "id": "workspace.update-action-color",
       "category": "product",
-      "description": "The sidebar update action uses #216AE4 with white icons and 90% opacity hover in both light and dark modes; update errors retain the destructive color.",
+      "description": "The sidebar version button stays neutral. Its update arrow is 16px with a 2.75 stroke and #216AE4 color, briefly nudging downward every four seconds only when reduced motion is not requested; update errors retain the destructive color.",
       "origins": ["worktree-2026-09-10", "worktree-2026-09-26"],
-      "paths": ["src/components/layout/status-bar-update.tsx"],
+      "paths": [
+        "src/components/layout/status-bar-update.tsx",
+        "src/app/globals.css"
+      ],
       "contracts": [
-        "src/maxcode-contracts/web-update-platform.contract.test.ts"
+        "src/maxcode-contracts/web-update-platform.contract.test.ts",
+        "src/maxcode-contracts/electron-update-ui.contract.test.tsx",
+        "src/maxcode-contracts/send-button-color.contract.test.ts"
       ]
     },
     {
@@ -3767,7 +3826,7 @@
     {
       "id": "workspace.sidebar-navigation",
       "category": "product",
-      "description": "Sidebar navigation includes New chat (新对话 in Simplified Chinese), Automations (自动任务), Tasks (待办) and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions are equal-width borderless rounded buttons with a subtle 35%-opacity sidebar-accent background in one horizontal row with 14px labels at default zoom; Tasks has no count badge. New chat has no hover or focus shortcut badge; the global new-conversation shortcut remains available. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
+      "description": "Sidebar navigation includes New chat (新对话 in Simplified Chinese), Automations (自动化), Tasks (待办) and conversation history while omitting Repository dashboard. Optional task/automation entries respect saved visibility. Fixed navigation actions are equal-width borderless rounded buttons with a subtle 35%-opacity sidebar-accent background in one horizontal row with 14px labels at default zoom; Tasks has no count badge. New chat has no hover or focus shortcut badge; the global new-conversation shortcut remains available. Task navigation and Folder, Recent and Chats new-conversation actions collapse the sidebar on mobile or coarse-pointer layouts.",
       "origins": ["worktree-2026-09-08", "worktree-2026-10-13"],
       "paths": [
         "src/components/layout/sidebar.tsx",

@@ -37,6 +37,13 @@ describe("MaxCode contract: updater and release channel", () => {
   it("highlights the update action in blue in both themes", () => {
     const status = source("src/components/layout/status-bar-update.tsx")
     expect(status).toContain("text-[#216ae4]")
+    expect(status).not.toContain("bg-[#216ae4]")
+    expect(status).toContain(
+      "motion-safe:animate-[update-arrow-nudge_4s_ease-in-out_infinite]"
+    )
+    const styles = source("src/app/globals.css")
+    expect(styles).toContain("@keyframes update-arrow-nudge")
+    expect(styles).toContain("translateY(3px)")
     expect(status).not.toContain("rounded-full")
     expect(status).not.toMatch(/dark:(?:hover:)?bg-/)
   })

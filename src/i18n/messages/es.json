@@ -3548,7 +3548,7 @@
         "turnFailed": "El turno falló: {message}"
       },
       "liveTurnStats": {
-        "thinkingPending": "Pensando",
+        "thinkingPending": "Esperando respuesta...",
         "waiting": "Esperando respuesta",
         "running": "Ejecutando herramientas",
         "awaitingUser": "Esperando tu confirmación",
@@ -4844,8 +4844,8 @@
     "questionHint": "Permite que los agentes se detengan y te hagan una pregunta de opción múltiple que aparece encima del cuadro de entrada de la conversación. El agente espera hasta que respondas (u omitas).",
     "sessionInfoLabel": "Obtener información de sesión",
     "sessionInfoHint": "Permite que los agentes consulten una sesión que mencionas en tu mensaje (una insignia de sesión) para leer su título, agente, estado, espacio de trabajo, uso de tokens y mensajes recientes.",
-    "automationsLabel": "Crear automatizaciones",
-    "automationsHint": "Guarda la conversación como una automatización que se ejecuta según un horario. Desactivado por defecto: luego inicia agentes por su cuenta.",
+    "automationsLabel": "Gestionar automatizaciones",
+    "automationsHint": "Permite crear, consultar, editar, activar y ejecutar automatizaciones mediante MCP. Desactivado de forma predeterminada.",
     "workTasksLabel": "Crear tareas pendientes",
     "workTasksHint": "Añade una tarjeta al tablero de pendientes desde la conversación. Desactivado por defecto: escribe estado de la aplicación.",
     "save": "Guardar",
@@ -4961,6 +4961,10 @@
     "toggleDetails": "Mostrar detalles"
   },
   "Automations": {
+    "attachedTodos": "Pendientes vinculados",
+    "attachedTodosHint": "Cada ejecución lee el contenido actual y vincula su conversación a estos pendientes.",
+    "todoScope": "Ámbito de pendientes",
+    "personalTodos": "Pendientes personales",
     "sessionMode": "Modo de conversación",
     "sessionNew": "Nueva conversación cada vez",
     "sessionReuse": "Un chat por día",

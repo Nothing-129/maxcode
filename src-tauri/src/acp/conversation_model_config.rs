@@ -12,6 +12,38 @@ use crate::models::AgentType;
 use super::session_state::SessionState;
 use super::types::{SessionConfigKindInfo, SessionConfigOptionInfo};
 
+/// codex-acp merges CODEX_CONFIG into thread/resume before returning selectors.
+/// Restore the conversation pair there, rather than first resuming with the
+/// global default and only correcting it through session/set_config_option.
+pub fn codex_resume_config(
+    agent_type: AgentType,
+    resuming: bool,
+    preferences: &BTreeMap<String, String>,
+    existing: Option<&str>,
+) -> Result<Option<String>, super::error::AcpError> {
+    if agent_type != AgentType::Codex || !resuming {
+        return Ok(None);
+    }
+    let Some(model) = preferences.get("model").filter(|v| !v.trim().is_empty()) else {
+        return Ok(None);
+    };
+    let mut config = match existing.filter(|v| !v.trim().is_empty()) {
+        Some(raw) => serde_json::from_str::<serde_json::Map<String, serde_json::Value>>(raw)
+            .map_err(|_| {
+                super::error::AcpError::Protocol("CODEX_CONFIG must be a JSON object".into())
+            })?,
+        None => serde_json::Map::new(),
+    };
+    config.insert("model".into(), model.clone().into());
+    if let Some(effort) = preferences
+        .get("reasoning_effort")
+        .filter(|v| !v.trim().is_empty())
+    {
+        config.insert("model_reasoning_effort".into(), effort.clone().into());
+    }
+    Ok(Some(serde_json::Value::Object(config).to_string()))
+}
+
 pub async fn preferences_for_connect(
     db: &DatabaseConnection,
     agent_type: AgentType,

@@ -28,6 +28,7 @@ import {
   AutomationMessageSettings,
   DEFAULT_MESSAGE_TRIGGER,
 } from "./automation-message-settings"
+import { AutomationTodoPicker } from "./automation-todo-picker"
 import { AutomationBranchPicker } from "./automation-branch-picker"
 import {
   ComposerInvocationsPopup,
@@ -90,6 +91,9 @@ export function AutomationEditor({
   const t = useTranslations("Automations")
   const folders = useAppWorkspaceStore((s) => s.folders)
 
+  const [todoOrigins, setTodoOrigins] = useState(
+    automation?.config?.todo_origins ?? []
+  )
   const [name, setName] = useState(automation?.name ?? "")
   const [action, setAction] = useState<AutomationAction>(
     automation?.config?.action ?? "launch_session"
@@ -328,6 +332,7 @@ export function AutomationEditor({
           ? {
               // Preserve the original agent's saved config verbatim; only the
               // user-editable prompt is refreshed.
+              todo_origins: enqueue ? [] : todoOrigins,
               action,
               session_mode: enqueue ? "new_per_run" : sessionMode,
               message_trigger: trigger === "message" ? messageTrigger : null,
@@ -339,6 +344,7 @@ export function AutomationEditor({
                 automation.config?.label_snapshot ?? label_snapshot,
             }
           : {
+              todo_origins: enqueue ? [] : todoOrigins,
               action,
               session_mode: enqueue ? "new_per_run" : sessionMode,
               message_trigger: trigger === "message" ? messageTrigger : null,
@@ -555,6 +561,10 @@ export function AutomationEditor({
             )}
           </p>
         </div>
+      )}
+
+      {action === "launch_session" && (
+        <AutomationTodoPicker value={todoOrigins} onChange={setTodoOrigins} />
       )}
 
       {/* Target — where the run happens: workspace folder, isolation, branch. */}

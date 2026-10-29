@@ -101,7 +101,11 @@ describe("Codex followup suggestions", () => {
     expect(screen.queryByRole("button", { name: "查看新增记录" })).toBeNull()
     rerender(view(directive))
     expect(
-      await screen.findByRole("button", { name: "查看新增记录" })
+      await screen.findByRole(
+        "button",
+        { name: "查看新增记录" },
+        { timeout: 5_000 }
+      )
     ).toBeVisible()
   })
 

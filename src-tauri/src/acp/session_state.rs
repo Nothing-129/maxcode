@@ -339,7 +339,7 @@ pub struct SessionState {
     /// `thinkingLevelMap`, so selector projection reads `models.json` here to
     /// hide levels that Pi itself would clamp or reject. Backend-internal.
     pub pi_agent_dir: Option<PathBuf>,
-    /// Launch-scoped native Codex log database. Read-only retry fallback only.
+    /// Launch-scoped native Codex log database. Read-only retry/compaction fallbacks.
     pub codex_retry_log_path: Option<PathBuf>,
     /// Current transient retry, retained for clients attaching mid-backoff.
     pub turn_retrying: Option<AcpEvent>,

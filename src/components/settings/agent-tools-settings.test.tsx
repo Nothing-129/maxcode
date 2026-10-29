@@ -48,7 +48,7 @@ const LABELS = {
   feedback: "Live Feedback",
   question: "Ask user question",
   sessionInfo: "Get session info",
-  automations: "Create automations",
+  automations: "Manage automations",
   workTasks: "Create to-do tasks",
 } as const
 

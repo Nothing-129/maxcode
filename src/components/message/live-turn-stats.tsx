@@ -366,6 +366,7 @@ export function LiveTurnStats({
   retrying = false,
 }: LiveTurnStatsProps) {
   const t = useTranslations("Folder.chat.liveTurnStats")
+  const compactionText = useTranslations("Folder.chat.contextCompaction")
   const [elapsed, setElapsed] = useState(() => Date.now() - message.startedAt)
   const tps = useTokenOutputSpeed(message)
 
@@ -394,7 +395,9 @@ export function LiveTurnStats({
               : undefined
           }
         >
-          {t(retrying ? "retrying" : activity)}
+          {activity === "compacting"
+            ? compactionText("compacting")
+            : t(retrying ? "retrying" : activity)}
         </span>
         <span className="text-border leading-none">|</span>
         <span className="inline-flex items-center gap-1 leading-none">
