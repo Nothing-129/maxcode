@@ -54,6 +54,7 @@ module.exports = {
     }
   },
   mac: {
+    sign: release ? require("./scripts/mac-sign.cjs") : undefined,
     forceCodeSigning: release,
     identity: process.env.CSC_NAME || (process.env.CSC_LINK ? undefined : "-"),
     category: "public.app-category.developer-tools",

@@ -3805,7 +3805,7 @@
     {
       "id": "desktop.electron-release-pipeline",
       "category": "release",
-      "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Apple ticket validation retries error 68 at most three times and never bypasses signature or notarization checks. Server minisign compatibility remains; legacy Tauri shell and CI are retired.",
+      "description": "Default CI packages and smoke-tests Electron without Tauri; native desktop release matrices require complete installers and checksums, signed/notarized macOS apps and successful selected builds before publishing only to the personal repository. Release code signing retries explicit timestamp-service failures four times with 30/60/120/240-second backoff without rebuilding or weakening signing; other signing failures stop immediately. Apple ticket validation retries error 68 at most three times and never bypasses signature or notarization checks. Server minisign compatibility remains; legacy Tauri shell and CI are retired.",
       "origins": ["worktree-2026-09-08", "worktree-2026-10-15"],
       "paths": [
         ".github/workflows/test.yml",
@@ -3820,6 +3820,7 @@
       ],
       "contracts": [
         "src/maxcode-contracts/electron-release.contract.test.ts",
+        "src/maxcode-contracts/macos-signing-retry.contract.test.ts",
         "src/maxcode-contracts/electron-runtime.contract.test.ts"
       ]
     },

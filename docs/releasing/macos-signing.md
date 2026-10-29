@@ -87,6 +87,15 @@ stapled ticket, and smoke-test the packaged application. It uploads DMG, ZIP and
 SHA-256 files only after those checks pass. Publication requires every selected
 desktop and server build to succeed and every required release asset to exist.
 
+Release signing retries explicit timestamp-service failures up to four times,
+waiting 30, 60, 120 and 240 seconds. Only the signing phase repeats; frontend
+and Rust compilation do not. Certificate, keychain and other signing errors
+fail immediately. The signer retains all Electron Builder options, including
+secure timestamps and hardened runtime; notarization and verification still
+run afterward. This is separate from the workflow's retries for Apple ticket
+validation error 68. A service outage longer than this window still fails the
+release rather than publishing an unsigned application.
+
 New releases do not contain a Tauri `latest.json` feed. Existing Tauri users must
 install Electron manually; the app continues using their database and native
 keyring. Signed Electron releases support differential ZIP downloads with a
