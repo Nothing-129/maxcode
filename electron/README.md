@@ -101,7 +101,9 @@ corepack pnpm desktop:pack
 corepack pnpm desktop:smoke
 ```
 
-`release.yml` 按 `DESKTOP_TARGETS` 使用原生架构 runner 构建 Electron 安装包，
+`release.yml` 按 `DESKTOP_TARGETS` 使用原生架构 runner 构建 Electron 安装包。
+从 `v0.30.51` 之后的新发布起，仅构建 macOS Apple Silicon 和 Windows x64；
+`v0.30.51` 的既有标签仍沿用原来的三个平台配置。发布流程会
 生成 SHA-256、架构独立的 `latest-*.yml` 与差分 blockmap，并验证元数据中的
 SHA-512、文件大小及版本后上传到当前仓库的草稿发布。全部选中平台构建、签名和启动
 验证成功，且安装包齐全后才发布；仓库限定为 `Nothing-129/maxcode`。

@@ -22,7 +22,8 @@ env:
   # Electron 更新清单按平台与架构分开，发布 blockmap 以支持差分下载。
   # 桌面使用目标架构原生 runner；Linux arm64 仅支持服务器包。
   # ------------------------------------------------------------------
-  DESKTOP_TARGETS: "x86_64-apple-darwin,aarch64-apple-darwin,x86_64-pc-windows-msvc"
+  # 自下一次发布起停止 macOS Intel 构建；已有标签的工作流保持原配置。
+  DESKTOP_TARGETS: "aarch64-apple-darwin,x86_64-pc-windows-msvc"
   SERVER_TARGETS: ""
 
 concurrency:

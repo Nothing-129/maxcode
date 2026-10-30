@@ -37,6 +37,15 @@ const installers = (value: string) => [
 ]
 
 describe("MaxCode contract: Electron release and retired shell isolation", () => {
+  it("releases only macOS Apple Silicon and Windows x64 installers", () => {
+    const workflow = parse(source(".github/workflows/release.yml"))
+    expect(
+      targets(workflow.env.DESKTOP_TARGETS, true).map(
+        (entry: { target: string }) => entry.target
+      )
+    ).toEqual(["aarch64-apple-darwin", "x86_64-pc-windows-msvc"])
+  })
+
   it.skipIf(process.platform === "win32").each([
     {
       name: "retries a transient Apple lookup failure",
