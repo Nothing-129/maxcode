@@ -1,26 +1,16 @@
 "use client"
 
 import { useCallback } from "react"
-import {
-  Menu,
-  Ellipsis,
-  PanelRight,
-  Search,
-  Settings,
-  Share2,
-  SquarePen,
-  SquareTerminal,
-} from "lucide-react"
+import { Ellipsis, PanelRight, Search, Share2, SquarePen } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { openSettingsWindow } from "@/lib/api"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useIsActiveChatMode } from "@/hooks/use-is-active-chat-mode"
 import { Button } from "@/components/ui/button"
+import { DesktopChromeIcon } from "./desktop-chrome-icon"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useAuxPanelContext } from "@/contexts/aux-panel-context"
-import { useTerminalContext } from "@/contexts/terminal-context"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { openConversationShare } from "@/lib/conversation-share-events"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
@@ -32,7 +22,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { MobileHeaderTarget } from "./mobile-header-slot"
+import {
+  MobileHeaderTarget,
+  useMobileHeaderActions,
+} from "./mobile-header-slot"
 import {
   MobileFrontendRefresh,
   MobileFrontendRefreshItem,
@@ -40,11 +33,11 @@ import {
 
 /** Mobile navigation shares one canvas-colored row with the active title. */
 export function FolderTitleBar() {
+  const conversationActions = useMobileHeaderActions()
   const tTitleBar = useTranslations("Folder.folderTitleBar")
   const tCard = useTranslations("Folder.conversationCard")
   const { isOpen: sidebarOpen, toggle } = useSidebarContext()
   const { toggle: toggleAuxPanel } = useAuxPanelContext()
-  const { toggle: toggleTerminal } = useTerminalContext()
   const { setOpen: setSearchOpen } = useSearchDialog()
   const { activeFolder } = useActiveFolder()
   const isChatMode = useIsActiveChatMode()
@@ -55,12 +48,6 @@ export function FolderTitleBar() {
     const tab = s.tabs.find((tab) => tab.id === s.activeTabId)
     return tab?.conversationId != null ? tab.id : null
   })
-
-  const handleOpenSettings = useCallback(() => {
-    openSettingsWindow().catch((err) => {
-      console.error("[FolderTitleBar] failed to open settings:", err)
-    })
-  }, [])
 
   // Mirror the sidebar's "New chat": return to the conversation workspace, then
   // start a new conversation in the active folder — or folderless chat mode when
@@ -95,7 +82,7 @@ export function FolderTitleBar() {
         onClick={toggle}
         aria-label={tTitleBar(sidebarOpen ? "hideSidebar" : "showSidebar")}
       >
-        <Menu className="size-5" strokeWidth={1.8} />
+        <DesktopChromeIcon name="sidebar" />
       </Button>
       <MobileHeaderTarget hidden={!isConversations} />
       {!isConversations && <div className="min-w-0 flex-1" />}
@@ -115,15 +102,21 @@ export function FolderTitleBar() {
             <Ellipsis className="size-[18px]" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-52">
-          <DropdownMenuItem
-            className="min-h-11"
-            onSelect={handleNewConversation}
-          >
-            <SquarePen />
-            {tCard("newConversation")}
-          </DropdownMenuItem>
-          {isConversations && (
+        <DropdownMenuContent
+          align="end"
+          className="min-w-52 [&_[role=menuitem]]:min-h-11"
+        >
+          {isConversations && conversationActions}
+          {!(isConversations && conversationActions) && (
+            <DropdownMenuItem
+              className="min-h-11"
+              onSelect={handleNewConversation}
+            >
+              <SquarePen />
+              {tCard("newConversation")}
+            </DropdownMenuItem>
+          )}
+          {isConversations && !conversationActions && (
             <DropdownMenuItem
               className="min-h-11"
               disabled={shareTabId == null}
@@ -148,14 +141,6 @@ export function FolderTitleBar() {
               <DropdownMenuSeparator />
               <DropdownMenuItem
                 className="min-h-11"
-                onSelect={() => toggleTerminal()}
-                disabled={!activeFolder}
-              >
-                <SquareTerminal />
-                {tTitleBar("toggleTerminal")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="min-h-11"
                 onSelect={toggleAuxPanel}
                 disabled={!activeFolder && !isChatMode}
               >
@@ -165,10 +150,6 @@ export function FolderTitleBar() {
             </>
           )}
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="min-h-11" onSelect={handleOpenSettings}>
-            <Settings />
-            {tTitleBar("openSettings")}
-          </DropdownMenuItem>
           <MobileFrontendRefreshItem />
         </DropdownMenuContent>
       </DropdownMenu>

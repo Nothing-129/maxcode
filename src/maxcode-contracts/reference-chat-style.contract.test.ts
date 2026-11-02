@@ -36,15 +36,11 @@ describe("reference chat presentation", () => {
       "group-hover/turn:opacity-100 focus-within:opacity-100"
     )
   })
-  it("keeps the neutral theme from restoring the stronger composer shadow", () => {
+  it("preserves the resting and focused composer elevation", () => {
     const css = source("src/app/globals.css")
-    const chrome = css.slice(
-      css.indexOf("/* Neutral light desktop surfaces"),
-      css.indexOf("/* Active-session composer")
-    )
-    expect(chrome).toContain("border-color: rgb(0 0 0 / 6%)")
-    expect(chrome).toContain("0 4px 32px rgb(0 0 0 / 1.5%)")
-    expect(chrome).not.toContain("0 0 0 1px")
+    expect(css).toContain("0 8px 32px rgb(0 0 0 / 8%)")
+    expect(css).toContain(".codeg-composer-chrome:focus-within")
+    expect(css).toContain("border-color: rgb(0 102 255 / 30%)")
   })
   it.each([
     [18000, "18 秒"],
@@ -63,13 +59,13 @@ describe("reference chat presentation", () => {
   })
   it("retains every setting and external status component with all selectors aligned left", () => {
     const input = source("src/components/chat/message-input.tsx")
-    expect(input).toContain("availableConfigOptions.map((option)")
+    expect(input).toContain(".filter(showComposerConfigInline)")
     const selectors = input.slice(
       input.indexOf("const inlineSelectorItems ="),
-      input.indexOf("const collapsedSettings =")
+      input.indexOf("const sendDisabled =")
     )
     expect(selectors).not.toMatch(/ms-auto|ml-auto|justify-between|flex-1/)
-    expect(selectors).toContain('className="flex min-w-0 items-end"')
+    expect(selectors).toContain('className="flex min-w-0 items-center"')
     for (const control of [
       "InlineSessionConfigToggle",
       "InlineSessionConfigSelector",
@@ -83,7 +79,7 @@ describe("reference chat presentation", () => {
     ]) {
       expect(input).toContain(`<${control}`)
     }
-    expect(input).toContain("settings={collapsedSettings}")
+    expect(input).toContain("settings={modelSettings}")
     expect(input.indexOf('data-composer-status-row=""')).toBeGreaterThan(
       input.indexOf("</ContextMenu>")
     )

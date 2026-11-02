@@ -2,16 +2,11 @@
 //! the `ask_user_question` feature toggle.
 //!
 //! One knob survives across restarts:
-//!   * `question.enabled` — feature kill switch (**default true**). When on,
+//!   * `question.enabled` — feature kill switch (**default false**). When on,
 //!     `codeg-mcp` exposes the `ask_user_question` tool so an agent can block on
 //!     a multiple-choice question rendered above the conversation input box.
 //!
-//! Default-ON deliberately diverges from live-feedback / delegation (both
-//! default OFF). Those add a tool the agent polls / fans out unprompted, so they
-//! are opt-in; `ask_user_question` only surfaces when the agent *explicitly*
-//! pauses on a decision that is genuinely the user's, so it is far less
-//! intrusive and ships enabled. A user who never wants the agent to ask can turn
-//! it off in settings.
+//! Disabled by default; users may enable it in settings.
 //!
 //! On startup `apply_persisted_question_config` reads this key from
 //! `app_metadata` and pushes it into the shared [`QuestionRuntimeConfig`] that
@@ -29,8 +24,7 @@ use crate::web::event_bridge::{emit_event, EventEmitter, QUESTION_SETTINGS_CHANG
 
 pub const KEY_QUESTION_ENABLED: &str = "question.enabled";
 
-/// On by default (`enabled: true`) — see the module docs for why this diverges
-/// from the opt-in feedback/delegation features.
+/// Disabled by default.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct QuestionSettings {
     pub enabled: bool,
@@ -38,7 +32,7 @@ pub struct QuestionSettings {
 
 impl Default for QuestionSettings {
     fn default() -> Self {
-        Self { enabled: true }
+        Self { enabled: false }
     }
 }
 
@@ -51,7 +45,7 @@ impl QuestionSettings {
 }
 
 /// Read the persisted key from `app_metadata`, falling back to the default
-/// (enabled) for a missing or malformed value. Never errors hard — corrupt
+/// (disabled) for a missing or malformed value. Never errors hard — corrupt
 /// persistence is treated as "no preference yet".
 pub async fn load_question_settings(conn: &DatabaseConnection) -> QuestionSettings {
     let mut settings = QuestionSettings::default();
@@ -97,10 +91,10 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn load_returns_default_enabled_when_unset() {
+    async fn load_returns_default_disabled_when_unset() {
         let db = crate::db::test_helpers::fresh_in_memory_db().await;
         let settings = load_question_settings(&db.conn).await;
-        assert!(settings.enabled, "ask_user_question defaults ON");
+        assert!(!settings.enabled, "ask_user_question defaults OFF");
     }
 
     #[tokio::test]

@@ -1,6 +1,6 @@
 "use client"
 
-import { Fragment, useState } from "react"
+import { Fragment, useState, type ReactNode } from "react"
 import { ChevronDown, ToggleLeft, ToggleRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -22,6 +22,8 @@ import type { SessionConfigOptionInfo } from "@/lib/types"
 
 interface SessionConfigSelectorProps {
   option: SessionConfigOptionInfo
+  footer?: ReactNode
+  triggerSuffix?: string
   onSelect: (configId: string, valueId: string) => void
   /**
    * Frontend-derived grouping for the model picker (split on the `provider/`
@@ -37,6 +39,8 @@ interface SessionConfigSelectorProps {
 
 export function InlineSessionConfigSelector({
   option,
+  footer,
+  triggerSuffix = "",
   onSelect,
   derivedGroups,
   recommendedLabel,
@@ -85,11 +89,14 @@ export function InlineSessionConfigSelector({
           variant="ghost"
           size="xs"
           aria-label={
-            currentLabel ? `${option.name}: ${currentLabel}` : option.name
+            currentLabel
+              ? `${option.name}: ${currentLabel}${triggerSuffix}`
+              : option.name
           }
           className="min-w-0 gap-0.5 px-1 text-muted-foreground"
         >
           <span className="max-w-[10rem] truncate">{currentLabel}</span>
+          {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
           <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>
@@ -145,6 +152,7 @@ export function InlineSessionConfigSelector({
                 </DropdownMenuRadioItem>
               ))}
         </DropdownMenuRadioGroup>
+        {footer}
       </DropdownMenuContent>
     </DropdownMenu>
   )

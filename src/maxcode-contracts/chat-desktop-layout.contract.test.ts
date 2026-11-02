@@ -6,12 +6,12 @@ import { source } from "./contract-source"
 describe("MaxCode contract: desktop chat geometry and discoverability", () => {
   it("preserves the original inline toolbar and narrow settings menu", () => {
     const input = source("src/components/chat/message-input.tsx")
-    expect(input).toContain("availableConfigOptions.map((option)")
+    expect(input).toContain(".filter(showComposerConfigInline)")
     expect(input).toContain("InlineSessionConfigToggle")
-    expect(input).toContain("settings={collapsedSettings}")
+    expect(input).toContain("settings={modelSettings}")
     expect(input).toContain('hasInlineSelectors && "@[30rem]:hidden"')
     expect(input).toContain(
-      "hidden min-w-0 flex-1 items-end gap-1 @[30rem]:flex"
+      "hidden min-w-0 flex-1 items-center gap-1 @[30rem]:flex"
     )
     expect(input).not.toContain("composer-permission-controls")
     expect(input).not.toContain("composer-model-controls")

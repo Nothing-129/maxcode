@@ -21,7 +21,7 @@ describe("MaxCode contract: desktop title bar icons", () => {
       expect(icon.getAttribute("aria-hidden")).toBe("true")
       expect(icon.getAttribute("focusable")).toBe("false")
       expect(icon.getAttribute("viewBox")).toBe("0 0 20 20")
-      expect(icon.getAttribute("stroke-width")).toBe("1.25")
+      expect(icon.getAttribute("stroke-width")).toBe("1.5")
     }
     const dots = container.querySelectorAll(
       '[data-desktop-chrome-icon="more"] circle'
@@ -41,9 +41,11 @@ describe("MaxCode contract: desktop title bar icons", () => {
     )
     expect(left).toContain('DesktopChromeIcon name="sidebar"')
     expect(left).toContain("onClick={toggle}")
-    expect(right).toContain("onClick={() => toggleTerminal()}")
+    expect(left).toContain("openChatModeTab()")
     expect(right).toContain("onClick={toggleAuxPanel}")
-    expect(right).toContain("onClick={handleOpenSettings}")
+    expect(source("src/components/layout/sidebar.tsx")).toContain(
+      "openSettingsWindow()"
+    )
     expect(header).toContain("onSelect={handleShareOpen}")
     expect(header).toContain('DesktopChromeIcon name="share"')
     expect(header).toContain('DesktopChromeIcon name="more"')

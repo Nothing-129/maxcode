@@ -9,7 +9,7 @@
 //!     the same drafts the editors build, and writes through
 //!     `automation_create_core` / `work_task_create_core` so the lists get their
 //!     broadcasts and the work-task pump its nudge.
-//!   * The `chat_authoring.*` settings knobs (**default false, both**) — read at
+//!   * The `chat_authoring.*` settings knobs (automations default on, work tasks off) — read at
 //!     MCP injection time via [`ChatAuthoringRuntimeConfig`] to build
 //!     `--features`, and AGAIN at write time by [`DbChatAuthoring`] so turning
 //!     the switch off takes effect on sessions that are already running.
@@ -412,20 +412,27 @@ impl ChatAuthoringAccess for DbChatAuthoring {
 
 // ===========================================================================
 // Settings persistence — `chat_authoring.automations_enabled` /
-// `chat_authoring.work_tasks_enabled` (both default OFF). Mirrors
+// `chat_authoring.work_tasks_enabled` (automations ON, work tasks OFF). Mirrors
 // `crate::commands::session_info`.
 // ===========================================================================
 
 pub const KEY_CHAT_AUTHORING_AUTOMATIONS: &str = "chat_authoring.automations_enabled";
 pub const KEY_CHAT_AUTHORING_WORK_TASKS: &str = "chat_authoring.work_tasks_enabled";
 
-/// Off by default, unlike the read-only `get_session_info` / `ask_user_question`
-/// toggles: these tools write app state and a scheduled automation goes on to
-/// spawn agents unattended, so the user opts in.
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+/// Automations are enabled by default; the retired task board stays disabled.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ChatAuthoringSettings {
     pub automations_enabled: bool,
     pub work_tasks_enabled: bool,
+}
+
+impl Default for ChatAuthoringSettings {
+    fn default() -> Self {
+        Self {
+            automations_enabled: true,
+            work_tasks_enabled: false,
+        }
+    }
 }
 
 impl ChatAuthoringSettings {
@@ -437,19 +444,19 @@ impl ChatAuthoringSettings {
     }
 }
 
-async fn load_flag(conn: &DatabaseConnection, key: &str) -> bool {
+async fn load_flag(conn: &DatabaseConnection, key: &str, default: bool) -> bool {
     match app_metadata_service::get_value(conn, key).await {
-        Ok(Some(raw)) => raw.parse::<bool>().unwrap_or(false),
-        _ => false,
+        Ok(Some(raw)) => raw.parse::<bool>().unwrap_or(default),
+        _ => default,
     }
 }
 
 /// Read the persisted keys from `app_metadata`, falling back to the default
-/// (both off) for a missing or malformed value. Never errors hard.
+/// (automations on, work tasks off) for a missing or malformed value. Never errors hard.
 pub async fn load_chat_authoring_settings(conn: &DatabaseConnection) -> ChatAuthoringSettings {
     ChatAuthoringSettings {
-        automations_enabled: load_flag(conn, KEY_CHAT_AUTHORING_AUTOMATIONS).await,
-        work_tasks_enabled: load_flag(conn, KEY_CHAT_AUTHORING_WORK_TASKS).await,
+        automations_enabled: load_flag(conn, KEY_CHAT_AUTHORING_AUTOMATIONS, true).await,
+        work_tasks_enabled: load_flag(conn, KEY_CHAT_AUTHORING_WORK_TASKS, false).await,
     }
 }
 
@@ -560,9 +567,9 @@ mod tests {
     }
 
     #[test]
-    fn settings_default_is_both_off() {
+    fn settings_default_enables_only_automations() {
         let s = ChatAuthoringSettings::default();
-        assert!(!s.automations_enabled);
+        assert!(s.automations_enabled);
         assert!(!s.work_tasks_enabled);
     }
 
@@ -788,9 +795,10 @@ mod tests {
         let db = fresh_in_memory_db().await;
         let config = ChatAuthoringRuntimeConfig::new();
 
-        // Nothing stored yet → both off.
+        // Missing preferences enable automations only.
         apply_persisted_chat_authoring_config(&db.conn, &config).await;
-        assert_eq!(config.snapshot().await, ChatAuthoringConfig::default());
+        assert!(config.automations_enabled().await);
+        assert!(!config.work_tasks_enabled().await);
 
         set_chat_authoring_settings_core(
             &db.conn,
@@ -816,3 +824,7 @@ mod tests {
         assert!(!fresh.work_tasks_enabled().await);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/mcp-defaults.contract.rs"]
+mod maxcode_mcp_defaults_contract;

@@ -1520,7 +1520,11 @@
   --os-padding-perpendicular: 0px;
   --os-handle-bg: color-mix(in oklab, var(--foreground) 18%, transparent);
   --os-handle-bg-hover: color-mix(in oklab, var(--foreground) 30%, transparent);
-  --os-handle-bg-active: color-mix(in oklab, var(--foreground) 38%, transparent);
+  --os-handle-bg-active: color-mix(
+    in oklab,
+    var(--foreground) 38%,
+    transparent
+  );
   --os-track-bg: transparent;
 }
 .codeg-composer-scroll .os-scrollbar-vertical:not(.os-scrollbar-rtl) {
@@ -2039,6 +2043,14 @@
   visibility: hidden !important;
 }
 
+/* OverlayScrollbars also sets visibility: visible on its active rails. A
+   kept-mounted tab must hide those rails even when its composer still overflows
+   or its scroll/hover state changes in the background. */
+.conversation-tab-hidden .os-scrollbar {
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
 .select-none {
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -2399,18 +2411,39 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   cursor: pointer;
 }
 
-/* Neutral light desktop surfaces: keep geometry and focus behavior intact. */
-:root:is([data-theme="neutral"], :not([data-theme])):not(.dark)
-  .codeg-composer-chrome {
-  border-color: rgb(0 0 0 / 6%);
+/* Composer elevation and focus colors sampled from the Doubao input. */
+:root:not(.dark) .codeg-composer-chrome {
+  border-color: rgb(0 0 0 / 10%);
 }
 
-/* Subtle composer elevation, without a second outline around the border. */
-:root:is([data-theme="neutral"], :not([data-theme])):not(.dark)
-  .maxcode-composer-shadow {
+:root:not(.dark) .maxcode-composer-shadow {
   box-shadow:
-    0 2px 8px rgb(0 0 0 / 2.5%),
-    0 4px 32px rgb(0 0 0 / 1.5%);
+    0 2px 4px rgb(0 0 0 / 2%),
+    0 4px 16px rgb(0 0 0 / 4%),
+    0 8px 32px rgb(0 0 0 / 8%);
+}
+
+.codeg-composer-chrome:focus-within {
+  border-color: rgb(0 102 255 / 30%);
+}
+
+.maxcode-composer-shadow:focus-within {
+  box-shadow:
+    0 2px 4px rgb(116 158 243 / 2%),
+    0 4px 12px rgb(102 188 253 / 4%),
+    0 8px 24px rgb(95 178 255 / 17%);
+}
+
+/* Match the light-theme selector specificity so focus always wins. */
+:root:not(.dark) .codeg-composer-chrome:focus-within {
+  border-color: rgb(0 102 255 / 30%);
+}
+
+:root:not(.dark) .maxcode-composer-shadow:focus-within {
+  box-shadow:
+    0 2px 4px rgb(116 158 243 / 2%),
+    0 4px 12px rgb(102 188 253 / 4%),
+    0 8px 24px rgb(95 178 255 / 17%);
 }
 
 .codeg-composer .ProseMirror {
@@ -2582,7 +2615,9 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 }
 
 /* External images share the editor's select-all feedback. */
-.codeg-composer[data-all-selected="true"] [data-attachment-tile] [data-image-actions] {
+.codeg-composer[data-all-selected="true"]
+  [data-attachment-tile]
+  [data-image-actions] {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
@@ -2599,7 +2634,9 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .codeg-composer .codeg-file-insertion-gap {
   font-size: 0;
 }
-.codeg-composer [data-editor-file-card][data-selected="true"] [data-composer-file-card] {
+.codeg-composer
+  [data-editor-file-card][data-selected="true"]
+  [data-composer-file-card] {
   outline: 2px solid var(--ring);
   outline-offset: 1px;
 }
@@ -3457,6 +3494,27 @@ html[data-native-shell="electron"]
   -webkit-app-region: no-drag;
 }
 
+/* Pointer-restored focus must not borrow the editor's keyboard focus ring.
+   Keep the actual focus, button elevation and borders; Tab restores the normal
+   focus-visible treatment. Editable fields keep their own focus feedback. */
+html[data-input-modality="pointer"]
+  :is(
+    button,
+    a[href],
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="checkbox"],
+    [role="radio"],
+    [role="switch"],
+    [role="slider"],
+    [role="combobox"]
+  ):not(input, textarea, [contenteditable="true"]):focus {
+  --tw-ring-shadow: 0 0 #0000;
+  --tw-ring-offset-shadow: 0 0 #0000;
+  outline: none;
+}
+
 /* A mouse-selected menu returns focus to its trigger, but must not inherit
    the text editor's keyboard ring. Keep focus and keyboard navigation intact. */
 html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
@@ -3491,8 +3549,16 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   margin: 0 0 0.5rem;
   padding: 0 0.75rem;
   border-radius: 999px;
-  background: var(--secondary);
+  background: #f4f4f4;
   color: var(--muted-foreground);
+}
+.dark [data-settings-surface] .settings-search {
+  background: #303030;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) [data-settings-surface] .settings-search {
+    background: #303030;
+  }
 }
 [data-settings-surface] .settings-search:focus-within {
   outline: 1px solid #216ae4;

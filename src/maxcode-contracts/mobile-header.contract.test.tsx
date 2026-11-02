@@ -4,8 +4,14 @@ import {
   MobileHeaderProvider,
   MobileHeaderSlot,
   MobileHeaderTarget,
+  MobileHeaderActionsSlot,
+  useMobileHeaderActions,
 } from "@/components/layout/mobile-header-slot"
 import { source } from "./contract-source"
+
+function ActionsHost() {
+  return <div data-testid="actions">{useMobileHeaderActions()}</div>
+}
 
 function MobileLayout({
   title,
@@ -29,6 +35,32 @@ function MobileLayout({
 }
 
 describe("mobile workspace header", () => {
+  it("follows active pane actions and clears them when that pane unmounts", () => {
+    const first = vi.fn()
+    const second = vi.fn()
+    const layout = (active: string | null) => (
+      <MobileHeaderProvider>
+        <ActionsHost />
+        <MobileHeaderActionsSlot active={active === "first"}>
+          <button onClick={first}>Rename first</button>
+        </MobileHeaderActionsSlot>
+        {active != null && (
+          <MobileHeaderActionsSlot active={active === "second"}>
+            <button onClick={second}>Rename second</button>
+          </MobileHeaderActionsSlot>
+        )}
+      </MobileHeaderProvider>
+    )
+    const view = render(layout("first"))
+    fireEvent.click(screen.getByRole("button", { name: "Rename first" }))
+    expect(first).toHaveBeenCalledOnce()
+    view.rerender(layout("second"))
+    expect(screen.queryByText("Rename first")).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: "Rename second" }))
+    expect(second).toHaveBeenCalledOnce()
+    view.rerender(layout(null))
+    expect(screen.getByTestId("actions")).toBeEmptyDOMElement()
+  })
   it("keeps one live conversation title in the navigation row", () => {
     const view = render(<MobileLayout title="First conversation" />)
     expect(screen.getByTestId("navigation")).toHaveTextContent(
@@ -77,18 +109,18 @@ describe("mobile workspace header", () => {
     expect(chrome).toMatch(
       /<DropdownMenuItem\s+className="min-h-11"\s+onSelect=\{handleNewConversation\}\s*>[\s\S]*?tCard\("newConversation"\)[\s\S]*?<\/DropdownMenuItem>/
     )
-    for (const label of [
-      "search",
-      "toggleTerminal",
-      "toggleAuxPanel",
-      "openSettings",
-    ]) {
+    for (const label of ["search", "toggleAuxPanel"]) {
       expect(chrome).toMatch(
         new RegExp(
           `<DropdownMenuItem[\\s\\S]*?tTitleBar\\("${label}"\\)[\\s\\S]*?</DropdownMenuItem>`
         )
       )
     }
+    expect(chrome).not.toContain("toggleTerminal")
+    expect(chrome).not.toContain("openSettings")
+    expect(source("src/components/layout/sidebar.tsx")).toContain(
+      "openSettingsWindow()"
+    )
     expect(
       source("src/components/conversations/conversation-detail-header.tsx")
     ).toContain("<MobileHeaderSlot>{header}</MobileHeaderSlot>")

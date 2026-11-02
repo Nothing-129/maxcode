@@ -16,10 +16,12 @@ export function ConversationTitleLabel({
   title,
   fallback,
   className,
+  showDate = true,
   ...rest
 }: {
   title: string | null | undefined
   fallback: string
+  showDate?: boolean
 } & Omit<ComponentPropsWithoutRef<"span">, "title">) {
   const formatted = formatConversationTitle(title)
   const text = formatted || fallback
@@ -38,9 +40,11 @@ export function ConversationTitleLabel({
       className={cn("flex min-w-0 items-center gap-2", className)}
       {...rest}
     >
-      <span className="w-[4ch] shrink-0 text-xs text-muted-foreground tabular-nums">
-        {structured.date}
-      </span>
+      {showDate && (
+        <span className="w-[4ch] shrink-0 text-xs text-muted-foreground tabular-nums">
+          {structured.date}
+        </span>
+      )}
       <span className="min-w-0 truncate">{structured.topic}</span>
     </span>
   )

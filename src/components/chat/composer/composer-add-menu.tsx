@@ -1,9 +1,12 @@
 "use client"
 
+import type { SessionSelectorSetting } from "@/components/chat/session-selectors-panel"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
   Command,
+  Cog,
   FolderSearch,
   MessageSquareText,
   Plus,
@@ -16,6 +19,8 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSub,
   DropdownMenuSubContent,
   DropdownMenuSubTrigger,
@@ -48,6 +53,8 @@ export interface ComposerAddMenuProps {
   shortcuts: ComposerShortcuts
   /** The agent's own `/` commands (from a live session or a transient probe). */
   slashCommands: AvailableCommandInfo[]
+  collaboration?: SessionSelectorSetting
+  configurationReadOnly?: boolean
   triggerClassName?: string
 }
 
@@ -66,6 +73,8 @@ export function ComposerAddMenu({
   shortcuts,
   slashCommands,
   triggerClassName,
+  collaboration,
+  configurationReadOnly,
 }: ComposerAddMenuProps) {
   const t = useTranslations("Folder.chat.messageInput")
   const [open, setOpen] = useState(false)
@@ -288,6 +297,41 @@ export function ComposerAddMenu({
             </div>
           </DropdownMenuSubContent>
         </DropdownMenuSub>
+        {collaboration && (
+          <>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Cog className="size-4" />
+                {t("composerConfig.collaboration")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuRadioGroup
+                  value={collaboration.currentValue}
+                  onValueChange={(value) => {
+                    if (configurationReadOnly) return
+                    collaboration.onSelect(value)
+                    setOpen(false)
+                  }}
+                >
+                  {collaboration.groups
+                    .flatMap((group) => group.options)
+                    .map((option) => (
+                      <DropdownMenuRadioItem
+                        key={option.value}
+                        value={option.value}
+                        disabled={configurationReadOnly}
+                      >
+                        <DropdownRadioItemContent
+                          label={option.name}
+                          description={option.description}
+                        />
+                      </DropdownMenuRadioItem>
+                    ))}
+                </DropdownMenuRadioGroup>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   )

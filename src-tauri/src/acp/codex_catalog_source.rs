@@ -149,13 +149,14 @@ fn select_catalog_sources(
 /// Query the installation launch actually owns. A failed known source must not
 /// substitute an older global installation and rewrite our generated catalog.
 async fn catalog_sources() -> Vec<CatalogSource> {
-    use crate::models::agent::AgentType;
     let override_path = std::env::var("CODEX_PATH").ok();
-    if override_path
-        .as_deref()
-        .is_some_and(|value| !value.trim().is_empty())
-    {
-        return select_catalog_sources(override_path.as_deref(), None, None, Vec::new());
+    catalog_sources_for_override(override_path.as_deref()).await
+}
+
+async fn catalog_sources_for_override(override_path: Option<&str>) -> Vec<CatalogSource> {
+    use crate::models::agent::AgentType;
+    if override_path.is_some_and(|value| !value.trim().is_empty()) {
+        return select_catalog_sources(override_path, None, None, Vec::new());
     }
     let managed = crate::commands::agent_auto_updates::managed_runtime(AgentType::Codex)
         .map(|(_, path)| path);
@@ -213,9 +214,16 @@ async fn resolve_codex_js(acp_dir: &Path, node: &Path) -> Option<PathBuf> {
 
 /// Resolve the same Codex runtime used by ACP for read-only account queries.
 /// No installation or model request is performed.
-pub(crate) async fn account_command() -> Option<tokio::process::Command> {
+pub(crate) async fn account_command(
+    override_path: Option<&str>,
+) -> Option<tokio::process::Command> {
+    // Per-agent overrides take precedence over the server's inherited env,
+    // just as they do when ACP launches a conversation.
+    let override_path = override_path
+        .map(str::to_owned)
+        .or_else(|| std::env::var("CODEX_PATH").ok());
     let node = catalog_node();
-    for source in catalog_sources().await {
+    for source in catalog_sources_for_override(override_path.as_deref()).await {
         match source {
             CatalogSource::Runtime(path) if path.is_file() => {
                 return Some(crate::process::tokio_command(path));

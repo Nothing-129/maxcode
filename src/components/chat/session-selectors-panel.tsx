@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { DropdownRadioItemContent } from "@/components/chat/dropdown-radio-item-content"
@@ -35,6 +35,7 @@ export interface SessionSelectorSetting {
   title: string
   currentValue: string
   currentLabel: string
+  footer?: ReactNode
   groups: SessionSelectorGroup[]
   /** The value the agent recommends (ACP `recommendedValue`), badged wherever it
    *  appears in this setting's list. Absent for settings that carry no hint. */
@@ -137,6 +138,7 @@ export function SessionSelectorsPanel({
         // Long model lists: a searchable + virtualized list (its own scroller),
         // so no surrounding `overflow-y-auto` wrapper here.
         <div className="flex min-w-0 flex-1 flex-col pl-1">
+          {active.footer}
           <ModelOptionList
             groups={active.groups}
             currentValue={active.currentValue}
@@ -158,6 +160,7 @@ export function SessionSelectorsPanel({
           aria-label={active.title}
           className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto pl-1"
         >
+          {active.footer}
           {active.groups.map((group, groupIndex) => (
             <div key={group.key} className="flex flex-col gap-0.5">
               {group.name ? (

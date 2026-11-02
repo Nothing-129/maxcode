@@ -324,3 +324,15 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
     }
   )
 })
+
+
+it("keeps settings search background neutral across accent themes", () => {
+  const css = source("src/app/globals.css")
+  const search = css.slice(
+    css.indexOf("[data-settings-surface] .settings-search {"),
+    css.indexOf("[data-settings-surface] .settings-search input")
+  )
+  expect(search).toContain("background: #f4f4f4")
+  expect(search).toContain("background: #303030")
+  expect(search).not.toMatch(/var\(--(?:primary|secondary|accent|ring)\)/)
+})

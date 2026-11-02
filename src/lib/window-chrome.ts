@@ -25,7 +25,7 @@ export const MAC_TRAFFIC_LIGHT_INSET = 76
 export const WINDOW_CAPTION_WIDTH = 138
 
 /** Left cluster: sidebar toggle + search (two icon buttons + padding). */
-export const LEFT_CHROME_CLUSTER = 80
+export const LEFT_CHROME_CLUSTER = 96
 
 /**
  * Right cluster: terminal + aux + settings (three icon buttons + padding).

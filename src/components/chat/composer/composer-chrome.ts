@@ -1,14 +1,5 @@
-/**
- * Always-on selected chrome for the conversation composer.
- *
- * Both conversation locations render this through `<ChatInput>` →
- * `<MessageInput>`:
- *   1. the new-conversation (welcome) input in the empty-state column
- *   2. the same input after the first send, docked at the bottom of the thread
- *
- * The box already looks ready to type. Do not add a click-only
- * `focus-within` ring — that is the style this module replaces.
- */
+/** Shared input surface. globals.css supplies the neutral resting shadow
+ * and blue focus-within border/shadow without changing layout. */
 export const COMPOSER_CHROME_BOX_CLASS =
   "codeg-composer-chrome relative rounded-[1.25rem] border border-black/[0.06] dark:border-white/[0.08]"
 

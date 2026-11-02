@@ -1,5 +1,53 @@
 use super::*;
 
+#[cfg(unix)]
+#[tokio::test]
+async fn quota_uses_the_per_agent_runtime_override_for_the_account_handshake() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    // Spaces exercise custom installation paths without shell interpolation.
+    let runtime = dir.path().join("Official Codex Runtime");
+    std::fs::write(
+        &runtime,
+        r#"#!/bin/sh
+        [ "$1" = app-server ] || exit 1
+        read -r line
+        echo '{"id":1,"result":{}}'
+        read -r line
+        read -r line
+        echo '{"id":2,"result":{"account":{"type":"chatgpt","planType":"pro"},"requiresOpenaiAuth":true}}'
+        read -r line
+        echo '{"id":3,"result":{"rateLimits":{"secondary":{"usedPercent":62,"windowDurationMins":10080}}}}'
+        "#,
+    )
+    .unwrap();
+    std::fs::set_permissions(&runtime, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let env = std::collections::BTreeMap::from([(
+        "CODEX_PATH".into(),
+        runtime.to_string_lossy().into_owned(),
+    )]);
+    let quota = tokio::time::timeout(Duration::from_secs(3), query(&env))
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(quota.official);
+    assert_eq!(quota.plan_type.as_deref(), Some("pro"));
+    assert_eq!(quota.windows.len(), 1);
+    assert_eq!(quota.windows[0].used_percent, 62.0);
+}
+
+#[tokio::test]
+async fn missing_per_agent_runtime_never_queries_another_installation() {
+    let dir = tempfile::tempdir().unwrap();
+    let missing = dir.path().join("missing-codex");
+    assert!(
+        crate::acp::codex_catalog_source::account_command(missing.to_str())
+            .await
+            .is_none()
+    );
+}
+
 #[test]
 fn rejects_third_party_provider_even_with_retained_official_credentials() {
     assert!(official_config(""));

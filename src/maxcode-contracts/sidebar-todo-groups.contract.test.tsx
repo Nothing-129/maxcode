@@ -32,12 +32,19 @@ import type {
   TodoState,
 } from "@/lib/todos"
 import type { DbConversationSummary, FolderDetail } from "@/lib/types"
+import {
+  loadConversationExpanded,
+  loadTodoGroupExpanded,
+  saveConversationExpanded,
+  saveTodoGroupExpanded,
+} from "@/lib/sidebar-view-mode-storage"
 import enMessages from "@/i18n/messages/en.json"
 
 const host = vi.hoisted(() => ({
   state: null as TodoState | null,
   enabled: true,
   groups: vi.fn<() => Promise<TodoConversationGroupsState>>(),
+  children: vi.fn<(id: number) => Promise<DbConversationSummary[]>>(),
   origin: vi.fn(),
   refetch: vi.fn(),
 }))
@@ -49,6 +56,10 @@ vi.mock("@/lib/todos", async (original) => ({
   ...(await original<typeof import("@/lib/todos")>()),
   todoConversationGroups: host.groups,
   todoOriginCall: host.origin,
+}))
+vi.mock("@/lib/api", async (original) => ({
+  ...(await original<typeof import("@/lib/api")>()),
+  listChildConversations: host.children,
 }))
 vi.mock("virtua", () => ({
   Virtualizer: ({
@@ -185,6 +196,7 @@ beforeEach(() => {
   host.enabled = true
   host.state = state()
   host.refetch.mockReset()
+  host.children.mockReset().mockResolvedValue([])
   host.origin.mockReset()
   host.groups.mockReset()
   host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
@@ -219,6 +231,66 @@ afterEach(() => {
 })
 
 describe("sidebar conversations grouped by their originating assigned todos", () => {
+  it("shows creation dates for board and linked-only todo groups", async () => {
+    const createdAt = new Date(2026, 10, 2, 12).toISOString()
+    host.state!.todos = [myTodo("Board task", { created_at: createdAt })]
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group("Linked task", [1], { created_at: createdAt })],
+    })
+    render(sidebar())
+    await screen.findByText("Linked task")
+    for (const id of ["Board task", "Linked task"]) {
+      const heading = document.querySelector(`[data-todo-group-id="${id}"]`)!
+      const date = within(heading as HTMLElement).getByText("1102")
+      expect(date.tagName).toBe("TIME")
+      expect(date).toHaveAttribute("datetime", createdAt)
+      expect(date).toHaveClass("w-[4ch]", "shrink-0", "tabular-nums")
+      expect(within(heading as HTMLElement).getByText(id)).toBeVisible()
+    }
+  })
+
+  it("matches conversation typography and shows only one date and the topic", () => {
+    const createdAt = new Date(2026, 10, 2, 12).toISOString()
+    host.state!.todos = [
+      myTodo("Structured task", {
+        title: "1026｜探索｜检查分组样式",
+        created_at: createdAt,
+      }),
+    ]
+    render(sidebar())
+    const topic = screen.getByText("检查分组样式")
+    const label = topic.closest(".maxcode-sidebar-label")!
+    expect(label).toHaveClass(
+      "gap-2",
+      "text-[0.875rem]",
+      "leading-[1.375rem]",
+      "font-[430]"
+    )
+    expect(within(label as HTMLElement).getByText("1102")).toHaveClass(
+      "w-[4ch]",
+      "text-xs",
+      "text-muted-foreground",
+      "tabular-nums"
+    )
+    expect(label).toHaveTextContent("1102检查分组样式")
+    expect(screen.queryByText("1026")).not.toBeInTheDocument()
+    expect(topic).toHaveClass("truncate")
+  })
+
+  it.each([undefined, "invalid"])(
+    "omits an unavailable creation date (%s) without changing the title",
+    async (created_at) => {
+      host.groups.mockResolvedValue({
+        scope_key: "personal",
+        groups: [group("Legacy task", [1], { created_at })],
+      })
+      render(sidebar())
+      const title = await screen.findByText("Legacy task")
+      expect(title.closest("button")!.querySelector("time")).toBeNull()
+    }
+  )
+
   it.each([
     ["claimed", "To do", "Mark to verify", "complete"],
     ["pending_verification", "To verify", "Mark to do", "resume"],
@@ -380,13 +452,13 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => {
       expect(
         document.querySelector('[data-todo-group-id="First"] button')
-      ).toHaveTextContent(/^FirstTo do$/)
+      ).toHaveTextContent(/^1016FirstTo do$/)
     })
     expect(document.querySelectorAll("[data-todo-group-id]")).toHaveLength(4)
     for (const id of ["First", "Second", "Third", "Fourth"]) {
       expect(
         document.querySelector(`[data-todo-group-id="${id}"] button`)
-      ).toHaveTextContent(new RegExp(`^${id}To do$`))
+      ).toHaveTextContent(new RegExp(`^1016${id}To do$`))
       expect(
         screen.getByRole("button", { name: `New conversation from ${id}` })
       ).toBeEnabled()
@@ -406,7 +478,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
     expect(
       document.querySelector('[data-todo-group-id="My task"] button')
-    ).toHaveTextContent(/^My taskTo do$/)
+    ).toHaveTextContent(/^1016My taskTo do$/)
 
     host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
     host.state = { ...host.state!, todos: [myTodo("New task")] }
@@ -738,6 +810,123 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
       2
     )
   })
+
+  it.each(["section", "group"] as const)(
+    "collapsing a todo %s folds every nested conversation and persists the compact view",
+    async (target) => {
+      host.state!.todos = [myTodo("Empty task")]
+      host.groups.mockResolvedValue({
+        scope_key: "personal",
+        groups: [group("First task", [1]), group("Second task", [3])],
+      })
+      useAppWorkspaceStore.setState({
+        conversations: [
+          { ...conversation(1), child_count: 1 },
+          { ...conversation(2), child_count: 1 },
+          conversation(3),
+        ],
+      })
+      host.children.mockImplementation(async (id) => {
+        if (id === 1)
+          return [{ ...conversation(10), parent_id: 1, child_count: 1 }]
+        if (id === 10)
+          return [{ ...conversation(11), parent_id: 10, child_count: 1 }]
+        if (id === 11) return [{ ...conversation(12), parent_id: 11 }]
+        if (id === 2) return [{ ...conversation(20), parent_id: 2 }]
+        return []
+      })
+      saveConversationExpanded([1, 10, 11, 2])
+      saveTodoGroupExpanded({ "Other scope": true })
+      const todoRow = (id: number) =>
+        document.querySelector<HTMLElement>(
+          `[data-sidebar-disclosure-row="todo-First task-conv-codex-${id}"]`
+        )
+      const groupToggle = () =>
+        screen.getByRole("button", { name: "First task To do" })
+      const sectionToggle = () =>
+        screen.getByRole("button", {
+          name: enMessages.Folder.sidebar.sectionTodos,
+        })
+      const view = render(sidebar())
+      await waitFor(() => expect(todoRow(12)).toBeInTheDocument())
+      // A descendant hidden by its own parent must also lose its expansion.
+      fireEvent.click(
+        within(todoRow(10)!).getByRole("button", { expanded: true })
+      )
+      expect(todoRow(11)).not.toBeInTheDocument()
+      fireEvent.click(target === "section" ? sectionToggle() : groupToggle())
+      expect(todoRow(1)).not.toBeInTheDocument()
+      expect(loadConversationExpanded()).toEqual([2])
+      expect(
+        document.querySelector('[data-conversation-id="20"]')
+      ).toBeInTheDocument()
+      expect(loadTodoGroupExpanded()).toEqual(
+        target === "section"
+          ? {
+              "First task": false,
+              "Second task": false,
+              "Empty task": false,
+              "Other scope": true,
+            }
+          : { "First task": false, "Other scope": true }
+      )
+      if (target === "section") {
+        expect(screen.queryByText("First task")).not.toBeInTheDocument()
+        fireEvent.click(sectionToggle())
+        expect(groupToggle()).toHaveAttribute("aria-expanded", "false")
+        expect(
+          screen.getByRole("button", { name: "Second task To do" })
+        ).toHaveAttribute("aria-expanded", "false")
+        expect(
+          screen.getByRole("button", { name: "1016 Empty task To do" })
+        ).toHaveAttribute("aria-expanded", "false")
+        expect(todoRow(1)).not.toBeInTheDocument()
+      } else {
+        expect(
+          screen.getByRole("button", { name: "Second task To do" })
+        ).toHaveAttribute("aria-expanded", "true")
+      }
+      view.unmount()
+      render(sidebar())
+      await screen.findByText("First task")
+      expect(groupToggle()).toHaveAttribute("aria-expanded", "false")
+      fireEvent.click(groupToggle())
+      expect(
+        within(todoRow(1)!).getByRole("button", {
+          name: "Expand sub-conversations",
+          expanded: false,
+        })
+      ).toBeVisible()
+      expect(todoRow(10)).not.toBeInTheDocument()
+      fireEvent.click(
+        within(todoRow(1)!).getByRole("button", {
+          name: "Expand sub-conversations",
+          expanded: false,
+        })
+      )
+      await waitFor(() => expect(todoRow(10)).toBeInTheDocument())
+      expect(
+        within(todoRow(10)!).getByRole("button", {
+          name: "Expand sub-conversations",
+          expanded: false,
+        })
+      ).toBeVisible()
+      fireEvent.click(
+        within(todoRow(10)!).getByRole("button", {
+          name: "Expand sub-conversations",
+          expanded: false,
+        })
+      )
+      await waitFor(() => expect(todoRow(11)).toBeInTheDocument())
+      expect(
+        within(todoRow(11)!).getByRole("button", {
+          name: "Expand sub-conversations",
+          expanded: false,
+        })
+      ).toBeVisible()
+      expect(todoRow(12)).not.toBeInTheDocument()
+    }
+  )
 
   it("uses live conversation summaries without extra lookups on title/status updates", async () => {
     host.groups.mockResolvedValue({

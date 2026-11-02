@@ -61,15 +61,14 @@ interface AgentToolValues {
 
 /**
  * What the switches show until the load lands — and what a group that failed to
- * load keeps showing. Mirrors the Rust-side defaults (the two read-only lookups
- * ship on; feedback and the two writers ship off), so the panel doesn't flip
+ * load keeps showing. Mirrors the Rust-side persisted defaults, so the panel doesn't flip
  * under the user a beat after it opens.
  */
 const DEFAULTS: AgentToolValues = {
   feedback: false,
-  question: true,
+  question: false,
   sessionInfo: true,
-  automations: false,
+  automations: true,
   workTasks: false,
 }
 

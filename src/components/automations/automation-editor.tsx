@@ -665,9 +665,6 @@ export function AutomationEditor({
             [
               { value: "schedule", label: t("triggerSchedule") },
               { value: "manual", label: t("triggerManual") },
-              ...(action === "launch_session"
-                ? [{ value: "message", label: t("triggerMessage") }]
-                : []),
             ] as Array<{ value: AutomationTriggerKind; label: string }>
           ).map((opt) => (
             <button

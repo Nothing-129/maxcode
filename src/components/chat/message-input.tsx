@@ -1,5 +1,16 @@
 "use client"
 
+import {
+  ModelFastMode,
+  isFastModeEnabled,
+} from "@/components/chat/model-fast-mode"
+
+import {
+  secondaryComposerConfig,
+  showComposerConfigInline,
+  showComposerConfigInSettings,
+} from "@/lib/composer-config-visibility"
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
@@ -955,8 +966,45 @@ export function MessageInput({
     [modes, vocabulary]
   )
   const availableConfigOptions = useMemo(
-    () => vocabulary.configOptions(configOptions ?? []),
-    [configOptions, vocabulary]
+    () =>
+      vocabulary.configOptions(configOptions ?? []).map((option) => {
+        const secondary = secondaryComposerConfig(option)
+        if (!secondary) return option
+        const name = t(`composerConfig.${secondary}`)
+        if (option.kind.type !== "select") return { ...option, name }
+        const localize = (item: {
+          value: string
+          name: string
+          description?: string | null
+        }) => ({
+          ...item,
+          name:
+            secondary === "collaboration"
+              ? item.value === "default"
+                ? t("composerConfig.default")
+                : item.value === "plan"
+                  ? t("composerConfig.plan")
+                  : item.name
+              : item.value === "on"
+                ? t("toggleOn")
+                : item.value === "off"
+                  ? t("toggleOff")
+                  : item.name,
+        })
+        return {
+          ...option,
+          name,
+          kind: {
+            ...option.kind,
+            options: option.kind.options.map(localize),
+            groups: option.kind.groups.map((group) => ({
+              ...group,
+              options: group.options.map(localize),
+            })),
+          },
+        }
+      }),
+    [configOptions, vocabulary, t]
   )
   const hasConfigOptions = availableConfigOptions.length > 0
   const hasModes = availableModes.length > 0
@@ -976,8 +1024,6 @@ export function MessageInput({
   const showModeLoading = modeLoading && !hasConfigOptions && !showModeSelector
   const showConfigLoading = configOptionsLoading && !hasConfigOptions
   const showSelectorsLoading = showConfigLoading || showModeLoading
-  const hasAnySelector =
-    hasConfigOptions || showModeSelector || showSelectorsLoading
   // The loading placeholder takes the inline slot too, not just the collapsed
   // popover's row: at composer widths the chips would occupy, "still loading"
   // has to be visible without opening anything.
@@ -1761,6 +1807,29 @@ export function MessageInput({
   const hasImageAttachments = imageAttachments.length > 0
   const showDragActive = attach.isDragActive
 
+  const fastOption = availableConfigOptions.find(
+    (option) => secondaryComposerConfig(option) === "fast"
+  )
+  const hasModelOption = availableConfigOptions.some(isModelConfigOption)
+  const modelFastFooter = fastOption ? (
+    <ModelFastMode
+      option={fastOption}
+      disabled={configOptionsReadOnly}
+      onSelect={(id, value) => onConfigOptionChange?.(id, value)}
+    />
+  ) : undefined
+  const modelFastSuffix = isFastModeEnabled(fastOption) ? " · Fast" : ""
+
+  const configTitle = (option: SessionConfigOptionInfo) => {
+    const secondary = secondaryComposerConfig(option)
+    if (secondary) return t(`composerConfig.${secondary}`)
+    if (isModelConfigOption(option)) return t("composerConfig.model")
+    if (option.category === "thought_level" || option.id === "reasoning_effort")
+      return t("composerConfig.effort")
+    if (option.category === "mode" || option.id === "mode")
+      return t("composerConfig.permission")
+    return option.name
+  }
   const renderInlineConfigOption = (option: SessionConfigOptionInfo) => {
     // On/off options flip in place — a dropdown for a binary choice is a
     // wasted interaction.
@@ -1787,6 +1856,8 @@ export function MessageInput({
           key={option.id}
           option={option}
           groups={listGroups}
+          footer={modelFastFooter}
+          triggerSuffix={modelFastSuffix}
           onSelect={(configId, valueId) =>
             onConfigOptionChange?.(configId, valueId)
           }
@@ -1797,6 +1868,10 @@ export function MessageInput({
       <InlineSessionConfigSelector
         key={option.id}
         option={option}
+        footer={isModelConfigOption(option) ? modelFastFooter : undefined}
+        triggerSuffix={
+          isModelConfigOption(option) ? modelFastSuffix : undefined
+        }
         derivedGroups={deriveModelGroups(option)}
         recommendedLabel={t("recommendedBadge")}
         onSelect={(configId, valueId) =>
@@ -1810,38 +1885,6 @@ export function MessageInput({
   // keeps the layout off free-space distribution (#746).
   const boxMinHeight = composerBoxMinHeight(tall)
   const editableMinHeight = composerEditableMinHeight(tall, hasImageAttachments)
-
-  const inlineSelectorItems = (
-    <>
-      {showSelectorsLoading && (
-        <SelectorLoadingPlaceholder
-          label={showConfigLoading ? t("loadingSettings") : t("loadingMode")}
-        />
-      )}
-      {hasConfigOptions &&
-        availableConfigOptions.map((option) => {
-          return (
-            <div
-              key={option.id}
-              inert={configOptionsReadOnly}
-              aria-disabled={configOptionsReadOnly}
-              data-composer-config={option.id}
-              className="flex min-w-0 items-end"
-            >
-              {renderInlineConfigOption(option)}
-            </div>
-          )
-        })}
-      {showModeSelector && (
-        <InlineModeSelector
-          modes={availableModes}
-          selectedModeId={effectiveModeId!}
-          onSelect={handleModeSelect}
-          label={t("modeLabel")}
-        />
-      )}
-    </>
-  )
 
   // Normalized settings for the collapsed (narrow) master–detail panel. Config
   // options and the mode picker are mutually exclusive in this UI (see
@@ -1974,6 +2017,73 @@ export function MessageInput({
     handleModeSelect,
     t,
   ])
+
+  const modelSettings = collapsedSettings.flatMap((setting) => {
+    const option = availableConfigOptions.find(
+      (option) => setting.key === `config:${option.id}`
+    )
+    if (!option) return [setting]
+    if (!showComposerConfigInSettings(option, hasModelOption)) return []
+    return [
+      {
+        ...setting,
+        title: configTitle(option),
+        ...(isModelConfigOption(option) && {
+          currentLabel: setting.currentLabel + modelFastSuffix,
+          footer: modelFastFooter,
+        }),
+      },
+    ]
+  })
+  const hasAnySelector = modelSettings.length > 0 || showSelectorsLoading
+
+  const planOption = availableConfigOptions.find(
+    (option) =>
+      option.id === "collaboration_mode" &&
+      option.kind.type === "select" &&
+      option.kind.current_value === "plan"
+  )
+  const canExitPlan =
+    planOption?.kind.type === "select" &&
+    [
+      ...planOption.kind.options,
+      ...planOption.kind.groups.flatMap((group) => group.options),
+    ].some((option) => option.value === "default")
+
+  const inlineSelectorItems = (
+    <>
+      {showSelectorsLoading && (
+        <SelectorLoadingPlaceholder
+          label={showConfigLoading ? t("loadingSettings") : t("loadingMode")}
+        />
+      )}
+      {hasConfigOptions &&
+        availableConfigOptions
+          .filter(showComposerConfigInline)
+          .map((option) => {
+            return (
+              <div
+                key={option.id}
+                inert={configOptionsReadOnly}
+                aria-disabled={configOptionsReadOnly}
+                data-composer-config={option.id}
+                className="flex min-w-0 items-center"
+                title={configTitle(option)}
+              >
+                {renderInlineConfigOption(option)}
+              </div>
+            )
+          })}
+      {showModeSelector && (
+        <InlineModeSelector
+          modes={availableModes}
+          selectedModeId={effectiveModeId!}
+          onSelect={handleModeSelect}
+          label={t("modeLabel")}
+        />
+      )}
+    </>
+  )
 
   const sendDisabled =
     (disabled && !(queueWhileUnavailable && onEnqueue)) || !hasSendableContent
@@ -2245,15 +2355,19 @@ export function MessageInput({
                 // (see above); RichComposer explains the basis.
                 className={cn("grow", editableMinHeight)}
               />
-              <div className="flex shrink-0 items-end justify-between gap-1 px-2 pb-2">
-                <div className="flex min-w-0 flex-1 items-end gap-1">
+              <div className="flex shrink-0 items-center justify-between gap-1 px-2 pb-2">
+                <div className="flex min-w-0 flex-1 items-center gap-1">
                   <ComposerAddMenu
+                    collaboration={collapsedSettings.find(
+                      (setting) => setting.key === "config:collaboration_mode"
+                    )}
+                    configurationReadOnly={configOptionsReadOnly}
                     attachments={attach}
                     shortcuts={menuShortcuts}
                     slashCommands={slashCommands}
                   />
                   {hasInlineSelectors && (
-                    <div className="hidden min-w-0 flex-1 items-end gap-1 @[30rem]:flex">
+                    <div className="hidden min-w-0 flex-1 items-center gap-1 @[30rem]:flex">
                       {inlineSelectorItems}
                     </div>
                   )}
@@ -2318,7 +2432,7 @@ export function MessageInput({
                               aria-disabled={configOptionsReadOnly}
                             >
                               <SessionSelectorsPanel
-                                settings={collapsedSettings}
+                                settings={modelSettings}
                                 settingsLabel={t("agentSettings")}
                                 recommendedLabel={t("recommendedBadge")}
                                 onAfterSelect={() =>
@@ -2331,8 +2445,32 @@ export function MessageInput({
                       </Popover>
                     </div>
                   )}
+                  {planOption && (
+                    <span
+                      data-composer-plan-tag=""
+                      className="inline-flex h-7 shrink-0 items-center gap-1 rounded-md bg-muted px-2 text-xs font-medium text-muted-foreground"
+                    >
+                      Plan
+                      <button
+                        type="button"
+                        aria-label={t("composerConfig.exitPlan")}
+                        title={t("composerConfig.exitPlan")}
+                        disabled={
+                          configOptionsReadOnly ||
+                          !canExitPlan ||
+                          !onConfigOptionChange
+                        }
+                        onClick={() =>
+                          onConfigOptionChange?.(planOption.id, "default")
+                        }
+                        className="inline-flex size-5 items-center justify-center rounded-sm hover:bg-foreground/10 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    </span>
+                  )}
                 </div>
-                <div className="maxcode-composer-actions shrink-0">
+                <div className="maxcode-composer-actions flex shrink-0 items-center">
                   {actionButtons}
                 </div>
               </div>

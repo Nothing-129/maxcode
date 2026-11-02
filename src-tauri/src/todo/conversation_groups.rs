@@ -19,6 +19,8 @@ pub struct TodoGroupSummary {
     pub title: String,
     pub status: String,
     pub assignee_id: String,
+    #[serde(default)]
+    pub created_at: String,
 }
 
 #[derive(Serialize)]
@@ -146,7 +148,7 @@ async fn assigned_lookup(
     let placeholders = vec!["?"; todo_ids.len()].join(",");
     rows(
         conn,
-        &format!("SELECT id,title,status,assignee_id FROM maxcode_todo_item WHERE scope_id=? AND assignee_id IS NOT NULL AND status!='unclaimed' AND id IN ({placeholders}) ORDER BY updated_at DESC,id DESC"),
+        &format!("SELECT id,title,status,assignee_id,created_at FROM maxcode_todo_item WHERE scope_id=? AND assignee_id IS NOT NULL AND status!='unclaimed' AND id IN ({placeholders}) ORDER BY updated_at DESC,id DESC"),
         values,
     )
     .await?
@@ -157,6 +159,7 @@ async fn assigned_lookup(
             title: field(row, "title")?,
             status: field(row, "status")?,
             assignee_id: field(row, "assignee_id")?,
+            created_at: field(row, "created_at")?,
         })
     })
     .collect()

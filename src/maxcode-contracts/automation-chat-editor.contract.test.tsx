@@ -175,11 +175,29 @@ describe("Chat automation editor", () => {
       )
     )
   })
+  it("offers only schedule and manual triggers for new automations", () => {
+    mount(draft)
+    expect(
+      screen.queryByRole("button", { name: en.Automations.triggerMessage })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: en.Automations.triggerSchedule })
+    ).toBeInTheDocument()
+    expect(
+      screen.getByRole("button", { name: en.Automations.triggerManual })
+    ).toBeInTheDocument()
+    expect(
+      screen.queryByLabelText(en.Automations.messageKeywords)
+    ).not.toBeInTheDocument()
+  })
   it("offers event batching and saves message triggers without a cron or a project", async () => {
-    const submit = mount(draft)
-    fireEvent.click(
-      screen.getByRole("button", { name: en.Automations.triggerMessage })
-    )
+    const submit = mount({
+      ...draft,
+      trigger_kind: "message",
+      root_folder_id: null,
+      branch: null,
+      config: { ...draft.config, session_mode: "reuse_chat" },
+    })
     expect(
       screen.getByRole("button", { name: en.Automations.sessionNew })
     ).toBeDisabled()

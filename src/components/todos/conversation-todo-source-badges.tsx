@@ -83,7 +83,8 @@ export function ConversationTodoSourceBadges({
   const first = sources[0]
   return (
     <span
-      className="hidden min-w-0 items-center gap-1 md:flex"
+      data-todo-source-badges=""
+      className="hidden w-fit max-w-[min(100%,20rem)] min-w-0 items-center justify-center gap-1 md:flex"
       style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
     >
       <button
@@ -91,9 +92,8 @@ export function ConversationTodoSourceBadges({
         onClick={() => open(first)}
         title={tooltip(first)}
         aria-label={label(first)}
-        className="todo-theme flex h-6 min-w-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 text-xs text-primary outline-none hover:bg-primary/15 focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex h-3.5 min-w-0 items-center rounded-sm px-0.5 text-[11px] leading-[14px] font-normal text-muted-foreground/70 outline-none hover:text-muted-foreground focus-visible:ring-1 focus-visible:ring-ring"
       >
-        <ListTodo className="size-3 shrink-0" aria-hidden />
         <span className="min-w-0 truncate">
           {first.todo?.title ?? t("sourceTodo")}
         </span>
@@ -103,7 +103,7 @@ export function ConversationTodoSourceBadges({
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="todo-theme h-6 shrink-0 rounded-md bg-primary/10 px-1.5 text-xs text-primary"
+              className="h-3.5 shrink-0 rounded-sm px-0.5 text-[11px] leading-[14px] font-normal text-muted-foreground/70 hover:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
               aria-label={t("moreSourceTodos", { count: sources.length - 1 })}
             >
               +{sources.length - 1}

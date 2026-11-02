@@ -8,7 +8,7 @@ describe("MaxCode contract: mobile conversation sharing", () => {
     const menu = chrome.slice(chrome.indexOf("<DropdownMenu>"))
     expect(menu).toContain('aria-label={tTitleBar("workspaceTools")}')
     expect(menu).toMatch(
-      /\{isConversations && \(\s*<DropdownMenuItem[\s\S]*?disabled=\{shareTabId == null\}[\s\S]*?openConversationShare\(shareTabId\)[\s\S]*?tCard\("shareConversation"\)/
+      /\{isConversations && !conversationActions && \(\s*<DropdownMenuItem[\s\S]*?disabled=\{shareTabId == null\}[\s\S]*?openConversationShare\(shareTabId\)[\s\S]*?tCard\("shareConversation"\)/
     )
     expect(chrome).toContain("s.tabs.find((tab) => tab.id === s.activeTabId)")
     expect(chrome).toContain("tab?.conversationId != null ? tab.id : null")

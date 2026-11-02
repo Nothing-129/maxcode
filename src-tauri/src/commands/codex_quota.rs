@@ -107,6 +107,14 @@ pub async fn read_core(db: &AppDatabase, force: bool) -> Result<CodexQuota, AppC
         .and_then(|s| s.env_json.as_deref())
         .and_then(|s| serde_json::from_str(s).ok())
         .unwrap_or_default();
+    // Include the effective runtime override in both the query and cache key.
+    // Otherwise another installed Codex can be queried instead of the one ACP
+    // launches, and changing the inherited override can retain stale results.
+    if !env.contains_key("CODEX_PATH") {
+        if let Ok(path) = std::env::var("CODEX_PATH") {
+            env.insert("CODEX_PATH".into(), path);
+        }
+    }
     for key in ["OPENAI_API_KEY", "OPENAI_BASE_URL"] {
         if env
             .get(key)
@@ -204,9 +212,11 @@ async fn rpc(
 }
 
 async fn query(env: &std::collections::BTreeMap<String, String>) -> Result<CodexQuota, ()> {
-    let command = crate::acp::codex_catalog_source::account_command()
-        .await
-        .ok_or(())?;
+    let command = crate::acp::codex_catalog_source::account_command(
+        env.get("CODEX_PATH").map(String::as_str),
+    )
+    .await
+    .ok_or(())?;
     query_command(command, env).await
 }
 

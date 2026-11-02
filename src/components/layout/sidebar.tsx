@@ -1,7 +1,13 @@
 "use client"
 
+import { openSettingsWindow } from "@/lib/api"
+
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
 
+import {
+  DesktopChromeIcon,
+  desktopChromeButtonClassName,
+} from "./desktop-chrome-icon"
 import { SidebarNavigationIcon } from "./sidebar-navigation-icon"
 import { SidebarFooter } from "./sidebar-footer"
 import { SidebarWordmark } from "./sidebar-wordmark"
@@ -9,14 +15,11 @@ import { SidebarWordmark } from "./sidebar-wordmark"
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import {
   CheckCheck,
-  Crosshair,
-  Ellipsis,
   MessagesSquare,
   Menu,
   ListChevronsDownUp,
   ListChevronsUpDown,
   ListTodo,
-  Search,
   Zap,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -52,9 +55,8 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useIsCoarsePointer } from "@/hooks/use-is-coarse-pointer"
 import { usePlatform } from "@/hooks/use-platform"
-import { useZoomLevel } from "@/hooks/use-appearance"
 import { isNativeDesktop } from "@/lib/platform"
-import { leftChromeReserve } from "@/lib/window-chrome"
+import { MAC_TRAFFIC_LIGHT_INSET } from "@/lib/window-chrome"
 import {
   isNavItemVisible,
   loadNavItemVisibility,
@@ -134,7 +136,6 @@ export function Sidebar({
   const { unseenFailures } = useAutomationsView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
   const { isMac: platformIsMac } = usePlatform()
-  const { zoomLevel } = useZoomLevel()
   const isMobile = useIsMobile()
   // Touch devices must also collapse the sidebar after navigating AWAY from it
   // when they land in the desktop shell — a phone in landscape, a foldable, or
@@ -143,21 +144,15 @@ export function Sidebar({
   const isCoarsePointer = useIsCoarsePointer()
   const collapseOnNavigate = isMobile || isCoarsePointer
   const listRef = useRef<SidebarConversationListHandle>(null)
-  // On desktop the header's top-left is owned by the fixed window-chrome overlay
-  // (sidebar toggle + remote); reserve exactly its width so the view controls
-  // and drag region clear it. The reserve scales with the app zoom to track the
-  // rem-sized overlay buttons. Mobile has no overlay (the sidebar is a Drawer).
-  const leftReserve = leftChromeReserve(
-    platformIsMac && isNativeDesktop(),
-    zoomLevel
-  )
+  // Only native macOS traffic lights need clearance inside the sidebar.
+  const leftReserve =
+    platformIsMac && isNativeDesktop() ? MAC_TRAFFIC_LIGHT_INSET : 0
 
   // `showCompleted` defaults OFF; `showWorktrees` and `showRecent` default ON
   // (the mount effect below reconciles a persisted override). Each initial
   // value matches its own default so the pre-hydration render doesn't flash as
   // the stored preference is applied.
-  const { showStatus, allowActions, setShowStatus, setAllowActions } =
-    useConversationStatusPrefs()
+  const { allowActions, setAllowActions } = useConversationStatusPrefs()
   // 会话状态开关异步持久化到后端；失败时乐观值已回滚，这里补一个 toast。
   const announcePrefsSaveFailure = useCallback(
     (err: unknown) => {
@@ -294,10 +289,22 @@ export function Sidebar({
 
   const sidebarTools = (
     <div className="flex items-center gap-0.5" data-sidebar-tools>
+      {!isMobile && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={desktopChromeButtonClassName}
+          aria-label={tTitleBar("hideSidebar")}
+          title={tTitleBar("hideSidebar")}
+          onClick={toggle}
+        >
+          <DesktopChromeIcon name="sidebar" />
+        </Button>
+      )}
       <Button
         variant="ghost"
         size="icon"
-        className={cn("text-muted-foreground", isMobile ? "size-11" : "size-7")}
+        className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
         title={tTitleBar("search")}
         aria-label={tTitleBar("search")}
         onClick={() => {
@@ -305,35 +312,39 @@ export function Sidebar({
           setSearchOpen(true)
         }}
       >
-        <Search className="size-4" />
+        <DesktopChromeIcon name="search" />
       </Button>
       <Button
         variant="ghost"
         size="icon"
-        className={cn("text-muted-foreground", isMobile ? "size-11" : "size-7")}
-        onClick={() => listRef.current?.scrollToActive()}
-        title={t("locateActiveConversation")}
-        aria-label={t("locateActiveConversation")}
+        className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
+        title={tTitleBar("openSettings")}
+        aria-label={tTitleBar("openSettings")}
+        onClick={() => {
+          void openSettingsWindow().catch(console.error)
+        }}
       >
-        <Crosshair aria-hidden="true" className="size-4" />
+        <DesktopChromeIcon name="settings" />
       </Button>
-      <DropdownMenu>
+      {/* Keep sidebar controls clickable while the view options are open. */}
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className={cn(
-              "text-muted-foreground",
-              isMobile ? "size-11" : "size-7"
-            )}
+            className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
             title={viewOptionsLabel}
             aria-label={viewOptionsLabel}
           >
-            <Ellipsis aria-hidden="true" className="size-4" />
+            <DesktopChromeIcon name="more" />
           </Button>
         </DropdownMenuTrigger>
 
         <DropdownMenuContent align="end" className="min-w-56">
+          <DropdownMenuItem onSelect={() => listRef.current?.scrollToActive()}>
+            <DesktopChromeIcon name="locate" className="size-4" />
+            {t("locateActiveConversation")}
+          </DropdownMenuItem>
           <DropdownMenuItem
             onSelect={() => useConversationUnreadStore.getState().markAllRead()}
           >
@@ -362,15 +373,6 @@ export function Sidebar({
             </DropdownMenuSubTrigger>
 
             <DropdownMenuSubContent>
-              <DropdownMenuCheckboxItem
-                checked={showStatus}
-                onCheckedChange={(value) => {
-                  setShowStatus(value).catch(announcePrefsSaveFailure)
-                }}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("showStatus")}
-              </DropdownMenuCheckboxItem>
               <DropdownMenuCheckboxItem
                 checked={allowActions}
                 onCheckedChange={(value) => {
@@ -473,30 +475,26 @@ export function Sidebar({
       <div
         className={cn(
           "flex shrink-0 items-center gap-2 pr-2",
-          // Desktop: the fixed left window-chrome overlay (reserved below) owns
-          // the top-left, so drop the header's own left padding. ChatGPT 桌面端
-          // 侧栏头部没有任何分隔线（内容直接从窗口交通灯下方开始），故 desktop
-          // 分支不再挂边框。Mobile keeps title and tools in one compact row.
-          isMobile ? "h-14 pl-4" : "h-10 pl-0"
+          // Keep desktop tools aligned with the conversation header.
+          isMobile ? "h-14 pl-4" : "h-12 pl-0"
         )}
       >
-        {isMobile ? (
-          <div className="flex min-w-0 items-center gap-4">
-            <h2 className="truncate text-[0.875rem] font-bold tracking-[-0.00625rem] text-sidebar-foreground">
-              {t("title")}
-            </h2>
-          </div>
-        ) : (
-          // Reserve exactly the fixed left overlay's width so the view controls
-          // clear it; the empty reserved space is a window-drag region.
+        {!isMobile && (
+          // Leave native traffic lights clear and keep this area draggable.
           <div
             data-drag-region
             className="h-full shrink-0"
             style={{ width: leftReserve }}
           />
         )}
-        {/* Push the tools to the right and keep empty space draggable. */}
-        <div data-drag-region className="h-full min-w-0 flex-1" />
+        {isMobile ? (
+          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+            <SidebarWordmark />
+          </div>
+        ) : (
+          // Push desktop tools right and keep empty space draggable.
+          <div data-drag-region className="h-full min-w-0 flex-1" />
+        )}
         {sidebarTools}
       </div>
 

@@ -192,6 +192,7 @@ async fn completed_group_lookup_is_independent_of_board_page() {
     let grouped = groups(&db.conn).await.unwrap();
     assert_eq!(grouped.groups[0].todo.id, oldest.id);
     assert_eq!(grouped.groups[0].todo.status, "completed");
+    assert_eq!(grouped.groups[0].todo.created_at, oldest.created_at);
 }
 
 #[tokio::test]
@@ -306,7 +307,8 @@ async fn member_lookup_scopes_and_bounds_response_without_local_conversation_dat
     assert_eq!(result.len(), 1);
     assert_eq!(result[0].id, a.id);
     let serialized = serde_json::to_value(&result).unwrap();
-    assert_eq!(serialized[0].as_object().unwrap().len(), 4);
+    assert_eq!(serialized[0].as_object().unwrap().len(), 5);
+    assert_eq!(serialized[0]["created_at"], a.created_at);
     assert!(serialized[0].get("content").is_none());
     assert!(serialized[0].get("conversation_ids").is_none());
     assert!(member_lookup(
@@ -347,6 +349,7 @@ async fn remote_lookup_uploads_only_todo_ids_and_keeps_offline_origin_local() {
     let heading = TodoGroupSummary {
         id: todo_id.clone(),
         title: "Remote assigned".to_string(),
+        created_at: "2026-11-02T04:00:00Z".to_string(),
         status: "claimed".to_string(),
         assignee_id: new_id(),
     };
@@ -370,6 +373,7 @@ async fn remote_lookup_uploads_only_todo_ids_and_keeps_offline_origin_local() {
     select(&db.conn, "team", Some(&team_id)).await;
     let grouped = groups(&db.conn).await.unwrap();
     assert_eq!(grouped.groups[0].conversation_ids, vec![conversation]);
+    assert_eq!(grouped.groups[0].todo.created_at, "2026-11-02T04:00:00Z");
     {
         let requests = observed.lock().unwrap();
         assert_eq!(requests.len(), 1);
@@ -471,4 +475,13 @@ async fn create_handlers_compensate_when_origin_write_fails() {
     .unwrap()
     .is_empty());
     assert!(groups(&state.db.conn).await.unwrap().groups.is_empty());
+}
+
+#[test]
+fn legacy_team_headings_allow_missing_creation_date() {
+    let heading: TodoGroupSummary = serde_json::from_value(serde_json::json!({
+        "id": "legacy", "title": "Legacy", "status": "claimed", "assignee_id": "me"
+    }))
+    .unwrap();
+    assert!(heading.created_at.is_empty());
 }

@@ -313,3 +313,15 @@
     color: CanvasText;
   }
 }
+
+/* Reserve the complete greeting's layout while revealing whole graphemes. */
+@keyframes maxcode-welcome-type {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.maxcode-welcome-character {
+  animation: maxcode-welcome-type 1ms step-end var(--character-delay) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-welcome-character { animation: none; }
+}

@@ -5,6 +5,7 @@ import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi, beforeEach } from "vitest"
 
 import enMessages from "@/i18n/messages/en.json"
+import { MobileHeaderProvider } from "@/components/layout/mobile-header-slot"
 
 // The header is a SINGLE instance reused across active tabs, and the global
 // tab-switch / close-tab shortcuts still fire while a rename/delete dialog is
@@ -245,20 +246,93 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     }
   })
 
-  it("uses the shared date and topic format in the conversation header", () => {
+  it("uses the active pane's conversation actions in the mobile workspace menu", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    h.tabs.push({ id: "tab-b", conversationId: 2 })
+    const layout = () =>
+      withIntl(
+        <MobileHeaderProvider>
+          <FolderTitleBar />
+          <ConversationDetailHeader {...A} />
+          <ConversationDetailHeader {...B} />
+        </MobileHeaderProvider>
+      )
+    const view = render(layout())
+    await user.click(view.getByRole("button", { name: "Workspace tools" }))
+    for (const name of [
+      "Rename",
+      "Pin",
+      enMessages.Folder.sessionDetails.menuLabel,
+      "Share conversation",
+      "Mark as completed",
+      "Delete",
+    ]) {
+      expect(view.getByRole("menuitem", { name })).toBeVisible()
+    }
+    expect(
+      view.queryByRole("menuitem", {
+        name: enMessages.Folder.conversationCard.newConversation,
+      })
+    ).toBeNull()
+    await user.click(view.getByRole("menuitem", { name: "Mark as completed" }))
+    expect(h.updateConversationStatus).toHaveBeenCalledWith(1, "completed")
+
+    h.activeTabId = "tab-b"
+    view.rerender(layout())
+    await user.click(view.getByRole("button", { name: "Workspace tools" }))
+    await user.click(view.getByRole("menuitem", { name: "Rename" }))
+    const input = view.getByRole("textbox")
+    await user.clear(input)
+    await user.type(input, "Mobile rename")
+    await user.click(view.getByRole("button", { name: "Save" }))
+    expect(h.updateConversationTitle).toHaveBeenCalledWith(2, "Mobile rename")
+  })
+
+  it("disables persisted conversation actions for mobile drafts and clears them on unmount", async () => {
+    const user = userEvent.setup({ pointerEventsCheck: 0 })
+    const layout = (mounted: boolean) =>
+      withIntl(
+        <MobileHeaderProvider>
+          <FolderTitleBar />
+          {mounted && (
+            <ConversationDetailHeader
+              {...A}
+              conversationId={null}
+              runtimeConversationId={null}
+            />
+          )}
+        </MobileHeaderProvider>
+      )
+    const view = render(layout(true))
+    await user.click(view.getByRole("button", { name: "Workspace tools" }))
+    for (const name of ["Rename", "Pin", "Share conversation", "Delete"]) {
+      expect(view.getByRole("menuitem", { name })).toHaveAttribute(
+        "data-disabled"
+      )
+    }
+    await user.keyboard("{Escape}")
+    view.rerender(layout(false))
+    await user.click(view.getByRole("button", { name: "Workspace tools" }))
+    expect(view.queryByRole("menuitem", { name: "Rename" })).toBeNull()
+    expect(
+      view.getByRole("menuitem", {
+        name: enMessages.Folder.conversationCard.newConversation,
+      })
+    ).toBeVisible()
+  })
+
+  it("shows only the topic in the conversation header", () => {
     const { getByText, queryByText } = render(
       withIntl(
         <ConversationDetailHeader {...A} title="1022｜修复｜手机端标题截断" />
       )
     )
-    const date = getByText("1022")
-    expect(date).toHaveClass("text-xs", "text-muted-foreground")
-    expect(date).not.toHaveClass("hidden")
-    expect(date.parentElement).toHaveClass("gap-2")
-    expect(getByText("手机端标题截断")).toHaveClass("truncate")
+    expect(queryByText("1022")).toBeNull()
+    const topic = getByText("手机端标题截断")
+    expect(topic).toHaveClass("truncate")
     expect(queryByText(/修复/)).toBeNull()
     // The full stored title remains available for the tooltip and rename.
-    expect(date.closest("[title]")).toHaveAttribute(
+    expect(topic.closest("[title]")).toHaveAttribute(
       "title",
       "1022｜修复｜手机端标题截断"
     )

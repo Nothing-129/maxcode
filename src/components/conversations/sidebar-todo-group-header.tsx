@@ -20,10 +20,12 @@ import {
 } from "@/components/ui/context-menu"
 import type { TodoStatus } from "@/lib/todos"
 import { cn } from "@/lib/utils"
+import { ConversationTitleLabel } from "./conversation-title-label"
 
 export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   id,
   title,
+  createdAt,
   expanded,
   onToggle,
   onComplete,
@@ -35,6 +37,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
 }: {
   id: string
   title: string
+  createdAt?: string
   expanded: boolean
   onToggle: (id: string) => void
   status?: TodoStatus
@@ -45,6 +48,11 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   disabled?: boolean
 }) {
   const t = useTranslations("Todos")
+  const createdDate = createdAt ? new Date(createdAt) : null
+  const dateLabel =
+    createdDate && !Number.isNaN(createdDate.getTime())
+      ? `${String(createdDate.getMonth() + 1).padStart(2, "0")}${String(createdDate.getDate()).padStart(2, "0")}`
+      : null
   const awaitingVerification = status === "pending_verification"
   const StatusIcon =
     status === "completed" ? Check : awaitingVerification ? Clock : Circle
@@ -61,7 +69,23 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         className="group flex h-[1.9375rem] min-w-0 flex-1 items-center gap-[0.4375rem] rounded-lg pl-[0.4375rem] pr-[0.375rem] text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <ListTodo className="size-[0.875rem] shrink-0 text-sidebar-foreground/75" />
-        <span className="min-w-0 truncate">{title}</span>
+        <span className="maxcode-sidebar-label relative flex min-w-0 items-center gap-2 text-[0.875rem] leading-[1.375rem] font-[430]">
+          {dateLabel && (
+            <time
+              dateTime={createdAt}
+              title={`${t("createdAt")}: ${createdDate?.toLocaleDateString()}`}
+              className="w-[4ch] shrink-0 text-xs text-muted-foreground tabular-nums"
+            >
+              {dateLabel}
+            </time>
+          )}
+          <ConversationTitleLabel
+            title={title}
+            fallback={title}
+            showDate={!dateLabel}
+            className="min-w-0"
+          />
+        </span>
         <span className="inline-flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground/60">
           <StatusIcon
             aria-hidden="true"

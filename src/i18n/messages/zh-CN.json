@@ -3178,6 +3178,17 @@
         "sendMessage": "发送消息..."
       },
       "messageInput": {
+        "composerConfig": {
+          "exitPlan": "退出计划模式",
+          "default": "默认",
+          "plan": "计划模式",
+          "collaboration": "协作模式",
+          "fast": "快速模式",
+          "settings": "配置",
+          "model": "模型",
+          "effort": "推理强度",
+          "permission": "权限"
+        },
         "askAnything": "请开始输入...",
         "promptSuggestion": "{suggestion}（按 Tab 填入）",
         "removeAttachmentAria": "移除 {name}",

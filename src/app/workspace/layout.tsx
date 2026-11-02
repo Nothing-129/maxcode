@@ -548,7 +548,7 @@ function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
           // are navigated from the sidebar (single active conversation at a time).
           <section
             {...sidebarSwipe}
-            className="flex h-full min-h-0 flex-col overflow-hidden"
+            className="relative flex h-full min-h-0 flex-col overflow-hidden"
           >
             <div className="relative flex-1 min-h-0 overflow-hidden">
               {children}
@@ -1052,8 +1052,22 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
         >
           <main
             ref={mainContainerRef}
-            className="flex h-full min-h-0 flex-col overflow-hidden"
+            className="relative flex h-full min-h-0 flex-col overflow-hidden"
           >
+            <div
+              data-conversation-navigation
+              style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+              className="absolute left-0 top-0 z-50 h-12"
+            >
+              <LeftEdgeChrome />
+            </div>
+            <div
+              data-conversation-panel-toggle
+              style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+              className="pointer-events-none absolute right-0 top-0 z-50 h-12"
+            >
+              <RightEdgeChrome />
+            </div>
             <ResizablePanelGroup
               id={FOLDER_MAIN_GROUP_ID}
               ref={mainGroupRef}
@@ -1207,16 +1221,6 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
           Windows/Linux caption buttons; then the caption buttons themselves
           (self-null on macOS/web). Each edge column reserves the matching width
           beneath these (see leftChromeReserve / rightChromeReserve). */}
-      {!isMobile && (
-        <>
-          <div className="absolute left-0 top-0 z-50 h-10">
-            <LeftEdgeChrome />
-          </div>
-          <div className="absolute right-0 top-0 z-50 h-10">
-            <RightEdgeChrome />
-          </div>
-        </>
-      )}
       <AppToaster
         position="bottom-right"
         duration={TOAST_DURATION_MS}

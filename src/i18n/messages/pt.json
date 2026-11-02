@@ -3178,6 +3178,17 @@
         "sendMessage": "Envie uma mensagem..."
       },
       "messageInput": {
+        "composerConfig": {
+          "exitPlan": "Exit Plan mode",
+          "default": "Default",
+          "plan": "Plan mode",
+          "collaboration": "Collaboration mode",
+          "fast": "Fast mode",
+          "settings": "Settings",
+          "model": "Model",
+          "effort": "Reasoning",
+          "permission": "Permissions"
+        },
         "askAnything": "Pergunte qualquer coisa...",
         "promptSuggestion": "{suggestion} (Tab para usar)",
         "removeAttachmentAria": "Remover {name}",

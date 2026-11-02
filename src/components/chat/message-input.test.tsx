@@ -2120,7 +2120,7 @@ describe("MessageInput composer box sizing (#746)", () => {
     const chrome = container.querySelector(".codeg-composer-chrome")!
     const editorRoot = chrome.querySelector(".codeg-composer")!
     // The row holding the add menu / agent settings / stop button.
-    const actionRow = chrome.querySelector(":scope > .shrink-0.items-end")
+    const actionRow = chrome.querySelector(":scope > .shrink-0.items-center")
     expect(actionRow).not.toBeNull()
 
     // Stop lives in that row (it is what appeared top-right in the report).
@@ -2345,5 +2345,227 @@ describe("MessageInput predicted follow-up prompt", () => {
       expect(composerHandle.current!.isEmpty()).toBe(true)
       unmount()
     }
+  })
+})
+
+describe("composer secondary configuration menu", () => {
+  afterEach(() => cleanup())
+  it.each(["default", "plan"])(
+    "keeps narrow settings consistent with PC for %s collaboration",
+    async (value) => {
+      const user = userEvent.setup()
+      const onConfigOptionChange = vi.fn()
+      renderInput({
+        configOptions: [
+          {
+            id: "collaboration_mode",
+            name: "Collaboration mode",
+            kind: {
+              type: "select",
+              current_value: value,
+              groups: [],
+              options: [
+                { value: "default", name: "Default" },
+                { value: "plan", name: "Plan" },
+              ],
+            },
+          },
+          { ...MODEL_OPTION, name: "Agent model label" },
+          {
+            ...MODEL_OPTION,
+            id: "reasoning_effort",
+            name: "Agent effort label",
+          },
+          { ...MODEL_OPTION, id: "mode", name: "Agent permission label" },
+        ],
+        onConfigOptionChange,
+      })
+      await user.click(screen.getByRole("button", { name: MSGS.agentSettings }))
+      const popover = await screen.findByRole("dialog", {
+        name: MSGS.agentSettings,
+      })
+      const rail = within(popover).getByRole("group", {
+        name: MSGS.agentSettings,
+      })
+      expect(within(rail).getAllByRole("button")).toHaveLength(3)
+      for (const title of ["model", "effort", "permission"] as const) {
+        expect(
+          within(rail).getByTitle(MSGS.composerConfig[title])
+        ).toBeInTheDocument()
+      }
+      await user.click(within(rail).getByTitle(MSGS.composerConfig.effort))
+      await user.click(within(popover).getByRole("button", { name: /^Opus/ }))
+      expect(onConfigOptionChange).toHaveBeenCalledWith(
+        "reasoning_effort",
+        "opus"
+      )
+      expect(
+        screen.queryByRole("dialog", { name: MSGS.agentSettings })
+      ).toBeNull()
+    }
+  )
+  it("omits an empty narrow settings trigger when only collaboration is available", () => {
+    renderInput({
+      configOptions: [
+        {
+          ...MODEL_OPTION,
+          id: "collaboration_mode",
+        },
+      ],
+    })
+    expect(
+      screen.queryByRole("button", { name: MSGS.agentSettings })
+    ).toBeNull()
+    expect(
+      screen.getByRole("button", { name: MSGS.addActions })
+    ).toBeInTheDocument()
+  })
+  it("hides default collaboration inline but changes it through configuration", async () => {
+    const user = userEvent.setup()
+    const onConfigOptionChange = vi.fn()
+    const { container } = renderInput({
+      configOptions: [
+        {
+          id: "collaboration_mode",
+          name: "Collaboration mode",
+          kind: {
+            type: "select",
+            current_value: "default",
+            groups: [],
+            options: [
+              { value: "default", name: "Default" },
+              { value: "plan", name: "Plan" },
+            ],
+          },
+        },
+      ],
+      onConfigOptionChange,
+    })
+    expect(
+      container.querySelector('[data-composer-config="collaboration_mode"]')
+    ).toBeNull()
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull()
+    await user.click(
+      screen.getByRole("button", {
+        name: enMessages.Folder.chat.messageInput.addActions,
+      })
+    )
+    await user.click(
+      await screen.findByRole("menuitem", { name: "Collaboration mode" })
+    )
+    // jsdom has no submenu geometry; click directly without synthetic pointer
+    // travel that would incorrectly leave Radix's submenu grace area.
+    fireEvent.click(
+      await screen.findByRole("menuitemradio", { name: "Plan mode" })
+    )
+    expect(onConfigOptionChange).toHaveBeenCalledWith(
+      "collaboration_mode",
+      "plan"
+    )
+  })
+  it("shows Plan as a dismissible tag and restores default on close", async () => {
+    const user = userEvent.setup()
+    const onConfigOptionChange = vi.fn()
+    const { container } = renderInput({
+      onConfigOptionChange,
+      configOptions: [
+        {
+          id: "collaboration_mode",
+          name: "Collaboration mode",
+          kind: {
+            type: "select",
+            current_value: "plan",
+            groups: [],
+            options: [
+              { value: "default", name: "Default" },
+              { value: "plan", name: "Plan" },
+            ],
+          },
+        },
+      ],
+    })
+    expect(
+      container.querySelector('[data-composer-config="collaboration_mode"]')
+    ).toBeNull()
+    expect(
+      container.querySelector("[data-composer-plan-tag]")
+    ).toHaveTextContent("Plan")
+    await user.click(screen.getByRole("button", { name: "Exit Plan mode" }))
+    expect(onConfigOptionChange).toHaveBeenCalledExactlyOnceWith(
+      "collaboration_mode",
+      "default"
+    )
+  })
+})
+
+describe("Fast belongs to the model picker", () => {
+  afterEach(() => cleanup())
+  const fast = (enabled: boolean): SessionConfigOptionInfo => ({
+    id: "fast-mode",
+    name: "Fast mode",
+    description: "Increased usage",
+    kind: {
+      type: "select",
+      current_value: enabled ? "on" : "off",
+      groups: [],
+      options: [
+        { value: "off", name: "Off" },
+        { value: "on", name: "On" },
+      ],
+    },
+  })
+  it("changes Fast from the short model list without changing the model", async () => {
+    const user = userEvent.setup()
+    const onConfigOptionChange = vi.fn()
+    const { container } = renderInput({
+      configOptions: [MODEL_OPTION, fast(false)],
+      onConfigOptionChange,
+    })
+    expect(
+      container.querySelector('[data-composer-config="fast-mode"]')
+    ).toBeNull()
+    expect(screen.queryByRole("button", { name: "Settings" })).toBeNull()
+    const model = container.querySelector(
+      '[data-composer-config="model"]'
+    ) as HTMLElement
+    await user.click(within(model).getByRole("button"))
+    await user.click(await screen.findByRole("switch", { name: "Fast" }))
+    expect(onConfigOptionChange).toHaveBeenCalledExactlyOnceWith(
+      "fast-mode",
+      "on"
+    )
+  })
+  it("adds Fast to the model label only when enabled", () => {
+    const { container } = renderInput({
+      configOptions: [MODEL_OPTION, fast(true)],
+    })
+    const model = container.querySelector(
+      '[data-composer-config="model"]'
+    ) as HTMLElement
+    expect(model).toHaveTextContent("· Fast")
+    expect(
+      container.querySelector('[data-composer-config="fast-mode"]')
+    ).toBeNull()
+  })
+  it("offers Fast within the narrow model settings pane", async () => {
+    const user = userEvent.setup()
+    const onConfigOptionChange = vi.fn()
+    renderInput({
+      configOptions: [MODEL_OPTION, fast(true)],
+      onConfigOptionChange,
+    })
+    await user.click(
+      screen.getByRole("button", {
+        name: enMessages.Folder.chat.messageInput.agentSettings,
+      })
+    )
+    const dialog = await screen.findByRole("dialog", {
+      name: enMessages.Folder.chat.messageInput.agentSettings,
+    })
+    expect(
+      within(dialog).queryByRole("button", { name: /Fast mode/ })
+    ).toBeNull()
+    await user.click(within(dialog).getByRole("switch", { name: "Fast" }))
+    expect(onConfigOptionChange).toHaveBeenCalledWith("fast-mode", "off")
   })
 })

@@ -185,10 +185,8 @@ pub trait ChatAuthoringAccess: Send + Sync {
     ) -> AuthoringOutcome;
 }
 
-/// The two independently-toggled feature flags. Both default OFF: unlike the
-/// read-only `get_session_info` / `ask_user_question` tools, these WRITE app
-/// state and a scheduled automation goes on to spawn agents on its own, so the
-/// user opts in explicitly.
+/// Runtime flags start disabled until persisted settings are applied.
+/// Product defaults are owned by ChatAuthoringSettings (automations on).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct ChatAuthoringConfig {
     pub automations_enabled: bool,

@@ -2,6 +2,182 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "workspace.hidden-scrollbars",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Hide OverlayScrollbars rails inside inactive keep-alive pages even when the library sets visibility visible for overflow, scroll or interaction. Restore normal rail visibility when the page becomes active.",
+      "paths": ["src/app/globals.css"],
+      "contracts": ["src/maxcode-contracts/hidden-scrollbars.contract.test.ts"]
+    },
+    {
+      "id": "sidebar.todo-creation-date",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Show todo group creation dates as local MMDD in the same muted fixed-width column as conversation dates, including linked-only and completed todos. Match conversation title color, weight, line height and date/topic spacing; structured titles show only the topic without duplicating their embedded date or type. Include created_at in local/team heading lookups and tolerate older hosts without it.",
+      "paths": [
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/lib/todos.ts",
+        "src-tauri/src/todo/conversation_groups.rs",
+        "src/maxcode-contracts/todo-conversation-groups.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.mobile-tools-only-header",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Show the shared MaxCode brand wordmark in the mobile sidebar header before the tools, once only. Omit the legacy Conversations heading; retain the header tools and their 44px touch targets.",
+      "paths": ["src/components/layout/sidebar.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.hide-status-color-switch",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Omit the status color switch from the sidebar conversation list options.",
+      "paths": ["src/components/layout/sidebar.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.overflow-dismissal",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Keep the sidebar overflow menu non-modal: clicking sidebar blank space or its trigger dismisses it, and the sidebar toggle remains usable with a single click. Escape also dismisses the menu.",
+      "paths": ["src/components/layout/sidebar.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-tools.contract.test.tsx"]
+    },
+    {
+      "id": "ui.pointer-focus-feedback",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Suppress pointer-restored focus outlines and Tailwind rings across buttons, links and non-editable controls; retain focus, normal borders/elevation, keyboard navigation indicators and editable/composer focus feedback.",
+      "paths": [
+        "src/app/globals.css",
+        "src/components/input-modality-init.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/selector-focus.contract.test.tsx"]
+    },
+    {
+      "id": "desktop.unified-titlebar-icons",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Use shared 18px icons on a 20-unit optical grid, 1.5-unit strokes and neutral 32px titlebar buttons. Align sidebar tools with the 48px conversation header and retain 44px mobile touch targets.",
+      "paths": [
+        "src/components/layout/desktop-chrome-icon.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/layout/left-edge-chrome.tsx",
+        "src/components/layout/right-edge-chrome.tsx",
+        "src/components/conversations/conversation-detail-header.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/titlebar-icons.contract.test.tsx"]
+    },
+    {
+      "id": "chat.composer-focus-shadow",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Match Doubao composer resting three-layer neutral shadow and focus-within blue border/shadow without layout shift.",
+      "paths": [
+        "src/app/globals.css",
+        "src/components/chat/composer/composer-chrome.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-focus-shadow.contract.test.ts"
+      ]
+    },
+    {
+      "id": "chat.centered-header",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Center a single conversation title without date prefix or linked todo subtitle. Omit new conversation from the conversation header overflow menu. Keep sidebar/new chat and menu/aux toggle inside the conversation area with native no-drag controls. The sidebar toggle lives immediately before search inside the expanded desktop sidebar and reappears in main navigation only when collapsed. Settings stays beside search; locate-active-conversation is available only in the sidebar overflow menu on desktop and mobile; aux panel has no empty header strip. The right overlay only receives input on visible buttons; no invisible drag filler may cover the conversation actions menu.",
+      "paths": [
+        "src/components/layout/left-edge-chrome.tsx",
+        "src/components/layout/right-edge-chrome.tsx",
+        "src/components/layout/desktop-chrome-icon.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/todos/conversation-todo-source-badges.tsx",
+        "src/app/workspace/layout.tsx",
+        "src/lib/window-chrome.ts",
+        "src/components/conversations/conversation-title-label.tsx",
+        "src/components/layout/aux-panel.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-header-layout.contract.test.ts",
+        "src/maxcode-contracts/sidebar-tools.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.welcome-typewriter",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Reveal the new-chat greeting once per mount, grapheme by grapheme, preserving full layout and accessible text. Reduced motion shows the full greeting immediately.",
+      "paths": ["src/components/chat/welcome-hero.tsx", "src/app/motion.css"],
+      "contracts": [
+        "src/maxcode-contracts/welcome-typewriter.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.subtle-history-entry",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Earlier messages use a compact borderless entry with an upward chevron, hover feedback, keyboard focus and a disabled busy state.",
+      "paths": ["src/components/message/virtualized-message-thread.tsx"],
+      "contracts": ["src/maxcode-contracts/history-entry.contract.test.ts"]
+    },
+    {
+      "id": "todos.sidebar-recursive-collapse",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Collapsing the Todos section persists every listed todo group as folded, including headings without conversations. Closing a todo group or the section also resets its linked conversations and cached descendant expansion, including hidden descendants, while preserving unrelated conversations and other groups. Reopening or remounting restores a compact view; expand/collapse-all uses the same todo subtree reset.",
+      "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.secondary-composer-config",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Render active Plan as a trailing dismissible tag whose close restores default; place collaboration mode directly in the final add-menu submenu after attachments, quick messages and slash commands, without a separator; place Fast in model pickers and show enabled Fast beside the model name. Use the same visibility and localized setting titles on mobile/narrow and PC composers: default/Plan collaboration stays in the add menu, Fast stays in the model pane, and empty settings triggers are omitted. Keep readonly controls consistent. Preserve unknown options and read-only/loading behavior.",
+      "paths": [
+        "src/components/chat/composer/composer-add-menu.tsx",
+        "src/components/chat/model-fast-mode.tsx",
+        "src/components/chat/model-option-picker.tsx",
+        "src/components/chat/session-config-selector.tsx",
+        "src/components/chat/session-selectors-panel.tsx",
+        "src/lib/composer-config-visibility.ts",
+        "src/components/chat/message-input.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-config-visibility.contract.test.ts"
+      ]
+    },
+    {
+      "id": "mcp.default-tool-switches",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Missing MCP preferences enable automations and disable ask-user-question. Preserve explicit saved choices; keep retired taskboard disabled.",
+      "paths": [
+        "src-tauri/src/commands/chat_authoring.rs",
+        "src-tauri/src/commands/question.rs",
+        "src/components/settings/agent-tools-settings.tsx"
+      ],
+      "contracts": ["src/maxcode-contracts/mcp-defaults.contract.test.ts"]
+    },
+    {
+      "id": "automation.hide-dingtalk-trigger",
+      "category": "product",
+      "origins": ["worktree-2026-10-30"],
+      "description": "Automation editor offers only schedule and manual triggers. Do not restore the DingTalk message trigger entry. Existing message automations remain editable for compatibility.",
+      "paths": ["src/components/automations/automation-editor.tsx"],
+      "contracts": [
+        "src/maxcode-contracts/automation-chat-editor.contract.test.tsx"
+      ]
+    },
+    {
       "id": "automation.todo-mount-and-mcp",
       "category": "product",
       "origins": ["worktree-2026-10-29"],
@@ -22,32 +198,50 @@
         "src-tauri/src/acp/delegation/tool_schema.json",
         "src/i18n/messages/"
       ],
-      "contracts": [
-        "src/maxcode-contracts/automation-todos.contract.test.tsx"
-      ]
+      "contracts": ["src/maxcode-contracts/automation-todos.contract.test.tsx"]
     },
     {
       "id": "chat.live-activity-label-motion",
       "category": "product",
       "origins": ["worktree-2026-10-29"],
       "description": "Active work headings and only the trailing live tool-count summary share a CSS-only 1.8s sheen; earlier summaries and summaries followed by prose stay static without opacity or layout changes. Waiting headings share the continuous sheen; completed and historical labels remain static; hidden views pause and reduced motion or forced colors disable the sheen.",
-      "paths": ["src/components/message/turn-status.tsx", "src/components/message/completed-turn-content.tsx", "src/components/message/content-parts-renderer.tsx", "src/app/motion.css"],
-      "contracts": ["src/maxcode-contracts/live-activity-label-motion.contract.test.tsx"]
+      "paths": [
+        "src/components/message/turn-status.tsx",
+        "src/components/message/completed-turn-content.tsx",
+        "src/components/message/content-parts-renderer.tsx",
+        "src/app/motion.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/live-activity-label-motion.contract.test.tsx"
+      ]
     },
     {
       "id": "codex.server-compaction-status",
       "category": "product",
       "origins": ["worktree-2026-10-28"],
       "description": "Show explicit auto-compaction request spans and server keepalives missed by Codex ACP immediately as context-compaction cards and localized live status; the same card switches to completed when compaction finishes. Preserve empty in-flight compactions through tool filtering and suppress the redundant waiting-response placeholder while their divider is active. The read-only log fallback is scoped to the current thread and prompt, never inferred from silence, and clears on fresh output, native lifecycle, failure or cancellation.",
-      "paths": ["src-tauri/src/acp/codex_compaction.rs", "src-tauri/src/acp/connection.rs", "src/lib/agent-activity.ts", "src/components/message/live-turn-stats.tsx", "src/lib/adapters/ai-elements-adapter.ts", "src/components/message/message-list-view.tsx", "src/maxcode-contracts/codex-compaction-status.contract.rs"],
-      "contracts": ["src/maxcode-contracts/codex-compaction-status.contract.test.tsx"]
+      "paths": [
+        "src-tauri/src/acp/codex_compaction.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src/lib/agent-activity.ts",
+        "src/components/message/live-turn-stats.tsx",
+        "src/lib/adapters/ai-elements-adapter.ts",
+        "src/components/message/message-list-view.tsx",
+        "src/maxcode-contracts/codex-compaction-status.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/codex-compaction-status.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.activity-reveal",
       "category": "product",
       "origins": ["worktree-2026-10-28"],
       "description": "New live tool summary intervals expand their occupied height over 320ms without fading text. Count updates and historical summaries do not replay; interaction cancels the entrance and reduced motion skips it.",
-      "paths": ["src/components/message/activity-reveal.tsx", "src/components/message/content-parts-renderer.tsx"],
+      "paths": [
+        "src/components/message/activity-reveal.tsx",
+        "src/components/message/content-parts-renderer.tsx"
+      ],
       "contracts": ["src/maxcode-contracts/activity-reveal.contract.test.tsx"]
     },
     {
@@ -55,16 +249,30 @@
       "category": "product",
       "origins": ["worktree-2026-10-28"],
       "description": "Active live output follows line-height and viewport growth through a shared visibly eased spring rather than instant bottom jumps. User escape remains respected; initial history, inactive views and reduced motion retain instant positioning. Send motion keeps its independent tuning.",
-      "paths": ["src/components/ai-elements/message-thread.tsx", "src/components/message/message-list-view.tsx"],
-      "contracts": ["src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"]
+      "paths": [
+        "src/components/ai-elements/message-thread.tsx",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.send-landing",
       "category": "product",
       "origins": ["worktree-2026-10-28"],
       "description": "Sent user bubbles remain static without scaling, translation or opacity animation, with a 320ms composer collapse and one shared moderate-speed spring across explicit sends, content resize and viewport resize; history positioning remains instant. History does not replay and reduced motion skips the send animation.",
-      "paths": ["src/components/message/turn-feedback.tsx", "src/components/message/message-list-view.tsx", "src/hooks/use-composer-height-motion.ts", "src/components/ai-elements/message-thread.tsx"],
-      "contracts": ["src/maxcode-contracts/interaction-feedback.contract.test.tsx", "src/maxcode-contracts/refined-interface-motion.contract.test.tsx", "src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"]
+      "paths": [
+        "src/components/message/turn-feedback.tsx",
+        "src/components/message/message-list-view.tsx",
+        "src/hooks/use-composer-height-motion.ts",
+        "src/components/ai-elements/message-thread.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/interaction-feedback.contract.test.tsx",
+        "src/maxcode-contracts/refined-interface-motion.contract.test.tsx",
+        "src/maxcode-contracts/conversation-history-scroll.contract.test.tsx"
+      ]
     },
     {
       "id": "composer.no-hover-hints",
@@ -76,7 +284,9 @@
         "src/components/chat/mode-selector.tsx",
         "src/components/chat/model-option-picker.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/composer-no-hover-hints.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/composer-no-hover-hints.contract.test.tsx"
+      ]
     },
     {
       "id": "sidebar.folder-group-no-rails",
@@ -84,14 +294,14 @@
       "origins": ["worktree-2026-10-28"],
       "description": "Folder group membership uses indentation without vertical rails on member folder headers. Worktree and root sub-groups retain only their immediate repo connector.",
       "paths": ["src/components/conversations/sidebar-conversation-list.tsx"],
-      "contracts": ["src/maxcode-contracts/sidebar-folder-group-no-rails.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-folder-group-no-rails.contract.test.ts"
+      ]
     },
     {
       "id": "sidebar.scroll-motion",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-28"
-      ],
+      "origins": ["worktree-2026-10-28"],
       "description": "Sidebar vertical wheel input, including fractional and continuous OS samples, follows one critically damped frame-driven trajectory with preserved velocity and subpixel position. No device heuristics switch mid-gesture to native jumps; horizontal gestures and zoom remain native. Pointer/keyboard input, explicit navigation, virtualizer corrections and unmount cancel pending easing. Explicit group expansion reveals only clipped newly inserted content while retaining its header; locate-active respects reduced motion, and pre-collapse virtualizer pinning stays instant. Reduced motion keeps wheel input native and expansion reveal immediate.",
       "paths": [
         "src/hooks/use-sidebar-scroll-motion.ts",
@@ -132,7 +342,9 @@
         "src/components/todos/todos-loading-skeleton.tsx",
         "src/components/todos/todos-page.tsx"
       ],
-      "contracts": ["src/maxcode-contracts/content-loading-skeletons.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/content-loading-skeletons.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.message-loading-skeleton",
@@ -150,9 +362,7 @@
     {
       "id": "chat.compact-live-status",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Simplified and traditional Chinese live status labels use six short phases: processing for initial and inter-step waits, thinking for observed reasoning, output for text, executing for any tool, confirmation and retry. Initial pending copy also says processing. Retry uses a dedicated live-status translation in every locale. No inactivity suffix or tool-specific action labels are added.",
       "paths": [
         "src/components/message/live-turn-stats.tsx",
@@ -168,9 +378,7 @@
     {
       "id": "composer.mobile-navigation-priority",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "On mobile, composer folder and branch pickers reserve their preferred width before optional round count, TTFT and throughput metrics are fitted. Navigation is capped only to leave room for the connection control; metrics fall back to throughput and then hide as space runs out, and return when space grows. Desktop layout retains its existing sizing.",
       "paths": [
         "src/components/chat/message-input.tsx",
@@ -184,9 +392,7 @@
     {
       "id": "sidebar.mobile-content-retention",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Mobile sidebar stays closed by default and retains its drawer contents, conversation list caches and scroll state while closed. Prepare content before opening to avoid repeated list initialization; closed content remains hidden and unavailable to keyboard and accessibility navigation. Other drawers keep their default mount lifecycle.",
       "paths": [
         "src/app/workspace/layout.tsx",
@@ -201,9 +407,7 @@
     {
       "id": "chat.composer-unified-scroll",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Image attachments, file cards and text share one overlay scrollport in normal flow inside both conversation and task composers; images wrap without a separate horizontal scrollport, while action controls remain outside. The composer shows a quiet 4px overlay thumb whenever content overflows, with 12px track-axis padding and 6px side inset inside rounded clipping. Scrollbar visibility follows settled geometry before shell height animation, avoiding false overflow flashes on early line breaks. Track padding remains effective when the library resets cornerless offsets; native fallback rails stay hidden. Other shared scroll areas retain their defaults; editing/document state is preserved.",
       "paths": [
         "src/components/chat/message-input.tsx",
@@ -222,9 +426,7 @@
     {
       "id": "chat.composer-attachment-layout",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Composer images and file atoms share one wrapping tray above text, with matching fixed-height cards, preview/icon, truncated name and type, common remove controls and selection feedback. The tray stays mounted through removal of either kind and preserves the final exit while collapsing when no attachments remain. Inline file views and only their insertion gaps are visually hidden; the editor document, prompt order, clipboard and history remain the source of truth. Removal uses current document positions, supports undo, and exiting controls are inert. Select-all also highlights external image thumbnails; Backspace/Delete removes those images together with the selected document in chat and task composers, including image-only inputs and mobile beforeinput deletion while respecting IME and disabled state.",
       "paths": [
         "src/components/chat/composer/editor-file-attachments.tsx",
@@ -249,9 +451,7 @@
     {
       "id": "chat.composer-file-cards",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "File references inside the composer render as spaced neutral rounded cards with themed file-type icons, truncated filenames, secondary extension labels and full-path tooltips. Transcript links and other reference kinds retain their appearance; the reference atom schema, prompt payload, editing and clipboard semantics remain unchanged.",
       "paths": [
         "src/components/chat/composer/badges/reference-badge.tsx",
@@ -265,9 +465,7 @@
     {
       "id": "appearance.panel-attachment-motion",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Auxiliary and terminal contents fade and slide with the existing toggle-only panel geometry. Closing auxiliary content stays mounted for the exit and hidden panels are inert. Attachment thumbnails enter/exit with position reflow, removed controls become inert immediately, upload overlays fade out without replacing the image, and a shared tray preserves the final card exit while its height collapses. Reduced motion suppresses travel and tray height animation.",
       "paths": [
         "src/app/workspace/layout.tsx",
@@ -286,9 +484,7 @@
     {
       "id": "sidebar.group-disclosure-motion",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Explicit folder, folder-group, todo-group and section toggles reveal visible rows and move following rows in 260ms; removed rows fade in inert, inaccessible snapshots for 180ms. Virtual row dimensions, scroll-before-collapse pinning, focus and toggle semantics remain immediate. Initial loads and status updates do not animate; scrolling, repeated toggles and unmount cancel transitions; reduced motion skips travel.",
       "paths": [
         "src/hooks/use-sidebar-disclosure-motion.ts",
@@ -312,7 +508,9 @@
         "src/components/conversations/sidebar-conversation-list.tsx",
         "src/components/conversations/sidebar-conversation-grouping.ts"
       ],
-      "contracts": ["src/maxcode-contracts/sidebar-session-rails.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/sidebar-session-rails.contract.test.tsx"
+      ]
     },
     {
       "id": "conversations.static-active-selection",
@@ -328,7 +526,9 @@
         "src/components/tabs/tab-item.tsx",
         "src/app/globals.css"
       ],
-      "contracts": ["src/maxcode-contracts/active-conversation-selection.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/active-conversation-selection.contract.test.ts"
+      ]
     },
     {
       "id": "chat.compact-tool-group-summary",
@@ -348,25 +548,19 @@
     {
       "id": "chat.send-ready-motion",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "When the actual send disabled gate becomes ready, the arrow lifts visibly once for 380ms with a single 480ms expanding/fading blue halo, while button colors transition for 280ms. Further typing does not replay it; restored drafts and generation completion do not bounce. Clearing cancels the animation; reduced motion and hidden documents skip travel.",
       "paths": [
         "src/components/chat/message-input.tsx",
         "src/components/chat/composer/generation-action-icon.tsx",
         "src/app/interaction-motion.css"
       ],
-      "contracts": [
-        "src/maxcode-contracts/send-ready-motion.contract.test.tsx"
-      ]
+      "contracts": ["src/maxcode-contracts/send-ready-motion.contract.test.tsx"]
     },
     {
       "id": "chat.generation-button-motion",
       "category": "product",
-      "origins": [
-        "worktree-2026-10-27"
-      ],
+      "origins": ["worktree-2026-10-27"],
       "description": "Running stop buttons breathe a faint decorative halo on a stable circle; hover/press provide scale feedback and persistent stop/send glyphs crossfade in 160ms. Actions remain immediate, decorative glyphs are hidden from accessibility, and reduced motion removes halo/travel while shortening the opacity transition.",
       "paths": [
         "src/components/chat/message-input.tsx",
@@ -383,7 +577,9 @@
       "origins": ["worktree-2026-10-27"],
       "description": "Text selection actions use a compact themed toolbar with a subtle border and shadow, modest corners, normal-weight 12px labels and consistent 14px icons. Preserve copy, quote, note and ask behavior and native mobile selection.",
       "paths": ["src/components/message/selection-action-bubble.tsx"],
-      "contracts": ["src/maxcode-contracts/selection-toolbar-style.contract.test.ts"]
+      "contracts": [
+        "src/maxcode-contracts/selection-toolbar-style.contract.test.ts"
+      ]
     },
     {
       "id": "chat.table-plain-text-copy",
@@ -552,7 +748,7 @@
       "id": "sidebar.codex-subscription-quota",
       "category": "product",
       "origins": ["worktree-2026-10-27"],
-      "description": "Official Codex logins display remaining account quota windows inline between conversation count and version in the same sidebar footer row, as plain single-line text matching the version font size and color, with two subtle ｜ separators each centered in the free space between adjacent text regions, only while quota is visible, without a separate card, badges, conditional colors or progress bars in the footer; details include thin remaining-quota progress bars (Plus: five-hour and weekly; Pro: weekly only), refreshed every five minutes and once whenever details open (manual reads bypass the automatic TTL and coalesce in-flight reads), with a retained manual refresh button and explicit stale data. API-key and third-party providers stay hidden; queries use the installed Codex app-server without model prompts or credential exposure.",
+      "description": "Official Codex logins display remaining account quota windows inline between conversation count and version in the same sidebar footer row, as plain single-line text matching the version font size and color, with two subtle ｜ separators each centered in the free space between adjacent text regions, only while quota is visible, without a separate card, badges, conditional colors or progress bars in the footer; details include thin remaining-quota progress bars (Plus: five-hour and weekly; Pro: weekly only), refreshed every five minutes and once whenever details open (manual reads bypass the automatic TTL and coalesce in-flight reads), with a retained manual refresh button and explicit stale data. API-key and third-party providers stay hidden; queries use the installed Codex app-server without model prompts or credential exposure. Account queries honor the per-agent CODEX_PATH before the inherited override and managed runtime, include the effective override in the cache key, and never substitute another installation when an explicit path is missing.",
       "paths": [
         "src/components/layout/sidebar.tsx",
         "src/components/layout/sidebar-footer.tsx",
@@ -566,7 +762,10 @@
         "src-tauri/src/web/router.rs",
         "src/i18n/messages/"
       ],
-      "contracts": ["src/maxcode-contracts/codex-quota.contract.test.tsx"]
+      "contracts": [
+        "src/maxcode-contracts/codex-quota.contract.test.tsx",
+        "src/maxcode-contracts/codex-quota.contract.test.tsx"
+      ]
     },
     {
       "id": "chat.neutral-model-hover",
@@ -2016,7 +2215,7 @@
     {
       "id": "settings.option-search",
       "category": "product",
-      "description": "Settings search indexes reachable option labels, descriptions and keywords in all ten locales, shows category context and an empty state, and focuses/highlights the selected option after lazy loading. It preserves drafts, remote query parameters, static-export routes and mobile navigation; lookup never toggles setting values or revives hidden categories/unmaintained agents.",
+      "description": "Settings search uses a neutral gray background independent of the accent theme. Settings search indexes reachable option labels, descriptions and keywords in all ten locales, shows category context and an empty state, and focuses/highlights the selected option after lazy loading. It preserves drafts, remote query parameters, static-export routes and mobile navigation; lookup never toggles setting values or revives hidden categories/unmaintained agents.",
       "origins": ["worktree-2026-10-11"],
       "paths": [
         "src/components/settings/settings-shell.tsx",
@@ -3081,14 +3280,16 @@
     {
       "id": "chat.mobile-header-new-conversation",
       "category": "product",
-      "description": "Desktop conversation titles keep the overflow trigger beside the title and expose a compact new-chat button on the right of the header row. Mobile conversation headers expose a direct new-chat button and hide the overflow trigger, retaining active-folder and agent inheritance. Mobile new chat uses a square-framed pencil icon; the rightmost workspace-tools menu uses a horizontal ellipsis icon. The sidebar, new-chat and workspace-tools buttons use matching compact 32px-wide, 44px-high ghost icon buttons with 18px action icons, an optically balanced 20px sidebar menu icon with 1.8 stroke width and rounded-xl corners.",
+      "description": "The mobile rightmost workspace menu renders the active pane conversation actions shared with desktop, including rename, pin, details, sharing, todo linking, completion and deletion. Persisted-only actions stay disabled for drafts. Conversation actions follow tab changes and clear on unmount. New conversation is omitted while conversation actions are present. Retain compact navigation buttons and 44px menu touch targets.",
       "origins": ["worktree-2026-09-10"],
       "paths": [
         "src/components/conversations/conversation-detail-header.tsx",
-        "src/components/layout/folder-title-bar.tsx"
+        "src/components/layout/folder-title-bar.tsx",
+        "src/components/layout/mobile-header-slot.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts"
+        "src/maxcode-contracts/mobile-header-new-conversation.contract.test.ts",
+        "src/maxcode-contracts/mobile-header.contract.test.tsx"
       ]
     },
     {
@@ -3745,7 +3946,7 @@
     {
       "id": "workspace.mobile-header",
       "category": "product",
-      "description": "Mobile shares a single canvas-colored header with the active title. New conversation and secondary workspace actions stay in the tools menu to preserve title width; desktop title placement is unchanged.",
+      "description": "Mobile shares a single canvas-colored header with the active title. Use the same sidebar panel icon as desktop with the existing mobile touch target. Secondary workspace actions stay in the tools menu to preserve title width. Omit the terminal toggle and the duplicate settings entry from the mobile tools menu; settings remain in the sidebar. Desktop title placement is unchanged.",
       "origins": ["worktree-2026-09-08"],
       "paths": [
         "src/components/layout/mobile-header-slot.tsx",

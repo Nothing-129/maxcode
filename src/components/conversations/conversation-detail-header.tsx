@@ -2,8 +2,14 @@
 
 import { useConversationDrag } from "@/hooks/use-conversation-drag"
 import { openConversationFind } from "@/lib/conversation-find-events"
-import { DesktopChromeIcon } from "@/components/layout/desktop-chrome-icon"
-import { MobileHeaderSlot } from "@/components/layout/mobile-header-slot"
+import {
+  DesktopChromeIcon,
+  desktopChromeButtonClassName,
+} from "@/components/layout/desktop-chrome-icon"
+import {
+  MobileHeaderActionsSlot,
+  MobileHeaderSlot,
+} from "@/components/layout/mobile-header-slot"
 
 import { memo, useCallback, useEffect, useRef, useState } from "react"
 import {
@@ -18,21 +24,17 @@ import {
   Pin,
   PinOff,
   Search,
-  SquarePen,
   Trash2,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
-import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-navigate"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { useOptionalWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { requestCreateTodo } from "@/lib/todo-compose-events"
 import { useOptionalTodosView } from "@/contexts/todos-view-context"
-import { ConversationTodoSourceBadges } from "@/components/todos/conversation-todo-source-badges"
 import {
   TodoConversationLinkDialog,
   type TodoConversationLinkTarget,
 } from "@/components/todos/todo-conversation-link-dialog"
-import type { TodoOrigin } from "@/lib/todos"
 import {
   createConversationShare,
   deleteConversation,
@@ -113,17 +115,14 @@ interface ConversationDetailHeaderProps {
   status: ConversationStatus | undefined
 }
 
-const EMPTY_TODO_ORIGINS: TodoOrigin[] = []
-
 /**
  * Conversation detail header (inline on desktop, in the nav row on mobile): the owning folder name + the
- * conversation title on the left with a desktop overflow menu, and a new-chat
- * button on the right. A single
+ * conversation title with an overflow menu. A single
  * instance renders fixed above the tile scroll area, scoped to the ACTIVE
  * conversation, so it never scrolls horizontally when many conversations are
  * tiled.
  *
- * The ⋯ menu mirrors the sidebar conversation card's right-click menu (new /
+ * The ⋯ menu shares the sidebar conversation card's actions (
  * rename / pin / details / status / delete) so the two entry points stay
  * consistent, wired to the same APIs. Subscriptions are kept narrow — a
  * primitive `pinned_at != null` boolean — so the header never re-renders on
@@ -135,8 +134,6 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   selectionActive,
   conversationId,
   runtimeConversationId,
-  folderId,
-  folderPath,
   title,
   status,
 }: ConversationDetailHeaderProps) {
@@ -147,17 +144,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const tDetails = useTranslations("Folder.sessionDetails")
   const tTodos = useTranslations("Todos")
   const todosView = useOptionalTodosView()
-  const draftOrigins = useTabStore(
-    (state) =>
-      state.rawTabs?.find((tab) => tab.id === tabId)?.todoOrigins ??
-      EMPTY_TODO_ORIGINS
-  )
   const workbenchRoute = useOptionalWorkbenchRoute()
   const setRoute = workbenchRoute?.setRoute
-  const { closeTab, closePane, restorePaneDraft, openNewConversationTab } =
-    useTabActions()
+  const { closeTab, closePane, restorePaneDraft } = useTabActions()
   const hasArchivedDraft = useTabStore((s) => s.archivedPaneDrafts.length > 0)
-  const collapseSidebarOnNavigate = useCollapseSidebarOnNavigate()
   const updateConversationLocal = useAppWorkspaceStore(
     (s) => s.updateConversationLocal
   )
@@ -258,16 +248,6 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       console.error("[ConversationDetailHeader] toggle pin:", err)
     })
   }, [conversationId, isPinned, updateConversationLocal])
-
-  const handleNewConversation = useCallback(() => {
-    if (!folderPath) return
-    // On touch, get the sidebar out of the way so the fresh draft is visible —
-    // same predicate the sidebar's own "new chat" rows collapse under.
-    collapseSidebarOnNavigate()
-    // Keep the active agent when the folder has no pinned default (matches the
-    // panel's right-click "new conversation").
-    openNewConversationTab(folderId, folderPath, { inheritFromActive: true })
-  }, [collapseSidebarOnNavigate, folderId, folderPath, openNewConversationTab])
 
   const handleRenameOpen = useCallback(() => {
     if (conversationId == null) return
@@ -590,22 +570,125 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
 
   const handleTitleDrag = useConversationDrag(tabId, title)
 
+  const activeTabId = useTabStore((state) => state.activeTabId)
+  const conversationMenuItems = (
+    <>
+      <DropdownMenuItem onSelect={() => closePane(tabId)}>
+        {t("closePane")}
+      </DropdownMenuItem>
+      <DropdownMenuItem
+        disabled={!hasArchivedDraft}
+        onSelect={() => {
+          restorePaneDraft()
+        }}
+      >
+        {t("restorePaneDraft")}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        disabled={runtimeConversationId == null && conversationId == null}
+        onSelect={() => {
+          const id = runtimeConversationId ?? conversationId
+          if (id != null) openConversationFind(id)
+        }}
+      >
+        <Search className="h-4 w-4" />
+        {tFind("title")}
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={!persisted} onSelect={handleRenameOpen}>
+        <Pencil className="h-4 w-4" />
+        {t("rename")}
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!persisted} onSelect={handleTogglePin}>
+        {isPinned ? (
+          <PinOff className="h-4 w-4" />
+        ) : (
+          <Pin className="h-4 w-4" />
+        )}
+        {isPinned ? t("unpin") : t("pin")}
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!persisted} onSelect={handleOpenDetails}>
+        <Info className="h-4 w-4" />
+        {tDetails("menuLabel")}
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!persisted} onSelect={handleShareOpen}>
+        <DesktopChromeIcon name="share" />
+        {t("shareConversation")}
+      </DropdownMenuItem>
+      {setRoute && (
+        <DropdownMenuItem disabled={!persisted} onSelect={handleTodoShareOpen}>
+          <ClipboardPlus className="h-4 w-4" />
+          {tTodos("addConversation")}
+        </DropdownMenuItem>
+      )}
+      {todosView && canLinkTodo && (
+        <DropdownMenuItem
+          disabled={
+            !persisted ||
+            !todosView.state ||
+            (todosView.state.mode === "team" && !todosView.state.active_team_id)
+          }
+          onSelect={() => {
+            const state = todosView.state
+            if (conversationId == null || !state) return
+            setLinkTarget({
+              conversationId,
+              title: displayTitle,
+              scopeId:
+                state.mode === "personal"
+                  ? "personal"
+                  : (state.active_team_id ?? ""),
+              scopeName:
+                state.mode === "personal"
+                  ? tTodos("personalMode")
+                  : (state.teams.find(
+                      (team) => team.id === state.active_team_id
+                    )?.name ?? tTodos("teamMode")),
+            })
+          }}
+        >
+          <Link2 className="size-4" />
+          {tTodos("linkConversation")}
+        </DropdownMenuItem>
+      )}
+      {status !== "completed" && (
+        <DropdownMenuItem
+          disabled={!persisted}
+          onSelect={() => handleStatusChange("completed")}
+        >
+          <Check className="h-4 w-4" />
+          {t("markCompleted")}
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        variant="destructive"
+        disabled={!persisted}
+        onSelect={handleDeleteOpen}
+      >
+        <Trash2 className="h-4 w-4" />
+        {t("delete")}
+      </DropdownMenuItem>
+    </>
+  )
+
   const header = (
     // Transparent (no surface class): the title header reads as part of the
     // message canvas below it rather than as a frosted chrome band. The supplied
     // desktop reference uses a compact title and quiet sharing action, sharing
     // one row with window controls. With a workspace background image on, the whole top
     // of the column reveals the canvas.
-    <div
-      data-drag-region
-      className="flex h-14 min-w-0 shrink-0 items-center gap-1 md:h-10 md:gap-2 md:pl-[var(--conversation-header-left,0.75rem)] md:pr-[var(--conversation-header-right,0.75rem)]"
-    >
+    <div className="relative flex h-14 min-w-0 shrink-0 items-center gap-1 md:h-12 md:gap-2 md:pl-[var(--conversation-header-left,0.75rem)] md:pr-[var(--conversation-header-right,0.75rem)]">
+      <MobileHeaderActionsSlot active={activeTabId === tabId}>
+        {conversationMenuItems}
+      </MobileHeaderActionsSlot>
       {/* 标题文字占据剩余宽度，超出时截断。 */}
-      <div className="flex min-w-0 flex-1 items-center gap-1">
+      <div className="absolute inset-x-28 inset-y-0 flex min-w-0 flex-col items-center justify-center">
         <span
           data-conversation-title=""
           data-selection-active={selectionActive}
-          className="min-w-0 truncate text-sm leading-5 font-semibold text-foreground md:cursor-grab md:active:cursor-grabbing"
+          className="min-w-0 truncate text-[15px] leading-[18px] font-medium text-foreground md:cursor-grab md:active:cursor-grabbing"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onPointerDown={(event) => {
             if (event.button === 1) {
@@ -624,21 +707,16 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           title={title}
         >
           <ConversationTitleLabel
+            showDate={false}
             title={title}
             fallback={t("untitledConversation")}
           />
         </span>
-        {canLinkTodo && (
-          <ConversationTodoSourceBadges
-            conversationId={conversationId}
-            draftOrigins={draftOrigins}
-          />
-        )}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
               type="button"
-              className="hidden size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring md:flex [&_svg]:size-4"
+              className={`absolute -right-16 top-1/2 -translate-y-1/2 hidden items-center justify-center md:flex ${desktopChromeButtonClassName}`}
               aria-label={tConv("moreActions")}
               title={tConv("moreActions")}
             >
@@ -646,134 +724,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem onSelect={() => closePane(tabId)}>
-              {t("closePane")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={!hasArchivedDraft}
-              onSelect={() => {
-                restorePaneDraft()
-              }}
-            >
-              {t("restorePaneDraft")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              disabled={!folderPath}
-              onSelect={handleNewConversation}
-            >
-              <SquarePen className="h-4 w-4" />
-              {t("newConversation")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              className="max-md:hidden"
-              disabled={runtimeConversationId == null && conversationId == null}
-              onSelect={() => {
-                const id = runtimeConversationId ?? conversationId
-                if (id != null) openConversationFind(id)
-              }}
-            >
-              <Search className="h-4 w-4" />
-              {tFind("title")}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem disabled={!persisted} onSelect={handleRenameOpen}>
-              <Pencil className="h-4 w-4" />
-              {t("rename")}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!persisted} onSelect={handleTogglePin}>
-              {isPinned ? (
-                <PinOff className="h-4 w-4" />
-              ) : (
-                <Pin className="h-4 w-4" />
-              )}
-              {isPinned ? t("unpin") : t("pin")}
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              disabled={!persisted}
-              onSelect={handleOpenDetails}
-            >
-              <Info className="h-4 w-4" />
-              {tDetails("menuLabel")}
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!persisted} onSelect={handleShareOpen}>
-              <DesktopChromeIcon name="share" />
-              {t("shareConversation")}
-            </DropdownMenuItem>
-            {setRoute && (
-              <DropdownMenuItem
-                disabled={!persisted}
-                onSelect={handleTodoShareOpen}
-              >
-                <ClipboardPlus className="h-4 w-4" />
-                {tTodos("addConversation")}
-              </DropdownMenuItem>
-            )}
-            {todosView && canLinkTodo && (
-              <DropdownMenuItem
-                disabled={
-                  !persisted ||
-                  !todosView.state ||
-                  (todosView.state.mode === "team" &&
-                    !todosView.state.active_team_id)
-                }
-                onSelect={() => {
-                  const state = todosView.state
-                  if (conversationId == null || !state) return
-                  setLinkTarget({
-                    conversationId,
-                    title: displayTitle,
-                    scopeId:
-                      state.mode === "personal"
-                        ? "personal"
-                        : (state.active_team_id ?? ""),
-                    scopeName:
-                      state.mode === "personal"
-                        ? tTodos("personalMode")
-                        : (state.teams.find(
-                            (team) => team.id === state.active_team_id
-                          )?.name ?? tTodos("teamMode")),
-                  })
-                }}
-              >
-                <Link2 className="size-4" />
-                {tTodos("linkConversation")}
-              </DropdownMenuItem>
-            )}
-            {status !== "completed" && (
-              <DropdownMenuItem
-                disabled={!persisted}
-                onSelect={() => handleStatusChange("completed")}
-              >
-                <Check className="h-4 w-4" />
-                {t("markCompleted")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              variant="destructive"
-              disabled={!persisted}
-              onSelect={handleDeleteOpen}
-            >
-              <Trash2 className="h-4 w-4" />
-              {t("delete")}
-            </DropdownMenuItem>
+            {conversationMenuItems}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        className="h-11 w-8 shrink-0 rounded-xl md:size-6 md:rounded-md md:text-muted-foreground md:hover:bg-accent md:hover:text-foreground"
-        aria-label={t("newConversation")}
-        title={t("newConversation")}
-        disabled={!folderPath}
-        onClick={handleNewConversation}
-      >
-        <SquarePen aria-hidden="true" className="size-[18px] md:size-4" />
-      </Button>
 
       <Dialog
         open={renameTarget != null}

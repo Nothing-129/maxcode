@@ -49,7 +49,8 @@ export interface TodoOrigin {
 }
 
 export interface TodoConversationGroup {
-  todo: Pick<Todo, "id" | "title" | "status" | "assignee_id">
+  todo: Pick<Todo, "id" | "title" | "status" | "assignee_id"> &
+    Partial<Pick<Todo, "created_at">>
   conversation_ids: number[]
 }
 

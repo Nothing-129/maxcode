@@ -1196,18 +1196,6 @@ export function SidebarConversationList({
   const [todoGroupExpanded, setTodoGroupExpanded] = useState<
     Record<string, boolean>
   >({})
-  const toggleTodoGroup = useCallback(
-    (id: string) => {
-      prepareDisclosure()
-      if (todoGroupExpanded[id] === false) prepareReveal(`todo-group-${id}`)
-      setTodoGroupExpanded((previous) => {
-        const next = { ...previous, [id]: !(previous[id] ?? true) }
-        saveTodoGroupExpanded(next)
-        return next
-      })
-    },
-    [prepareDisclosure, prepareReveal, todoGroupExpanded]
-  )
   // Session-only, like folder paging: collapsing/reopening Chat starts from a
   // compact first page instead of preserving a long, previously-expanded list.
   const [chatLimit, setChatLimit] = useState(CHAT_PAGE_SIZE)
@@ -1369,12 +1357,117 @@ export function SidebarConversationList({
     )
   }, [])
 
+  const todoGroups = useMemo<SidebarTodoConversationGroup[]>(() => {
+    const byId = new Map(
+      conversations.map((conversation) => [conversation.id, conversation])
+    )
+    const compare =
+      sortMode === "updated" ? compareByUpdatedAtDesc : compareByCreatedAtDesc
+    const groups = new Map(
+      linkedTodoGroups.map((group) => [group.todo.id, group])
+    )
+    const myTodoIds = new Set<string>()
+    const state = todoView?.state
+    if (state?.self_id) {
+      // Unfinished tasks are unpaginated. Keep my tasks visible even before
+      // their first conversation, or when all their conversations are hidden.
+      for (const todo of state.todos) {
+        if (
+          (todo.status !== "claimed" &&
+            todo.status !== "pending_verification") ||
+          todo.assignee_id !== state.self_id
+        )
+          continue
+        myTodoIds.add(todo.id)
+        if (!groups.has(todo.id)) {
+          groups.set(todo.id, { todo, conversation_ids: [] })
+        }
+      }
+    }
+    return [...groups.values()].flatMap(({ todo, conversation_ids }) => {
+      if (todo.assignee_id == null || todo.status === "unclaimed") return []
+      if (!showCompleted && todo.status === "completed") return []
+      const children = [...new Set(conversation_ids)]
+        .map((id) => byId.get(id))
+        .filter(
+          (conversation): conversation is DbConversationSummary =>
+            conversation != null &&
+            (showCompleted || conversation.status !== "completed")
+        )
+        .sort(compare)
+      return children.length > 0 || myTodoIds.has(todo.id)
+        ? [{ id: todo.id, title: todo.title, conversations: children }]
+        : []
+    })
+  }, [
+    linkedTodoGroups,
+    todoView?.state,
+    conversations,
+    showCompleted,
+    sortMode,
+  ])
+
+  // Reset the whole cached subtree, including descendants hidden by a folded
+  // parent. Expansion is shared by the todo/recent/folder copies of a session.
+  const collapseTodoConversations = useCallback(
+    (todoIds: ReadonlySet<string>) => {
+      const ids = new Set(
+        linkedTodoGroups
+          .filter((group) => todoIds.has(group.todo.id))
+          .flatMap((group) => group.conversation_ids)
+      )
+      for (const id of ids) {
+        for (const child of childrenByParentRef.current.get(id) ?? []) {
+          ids.add(child.id)
+        }
+      }
+      setConversationExpanded((previous) => {
+        const next = new Set(previous)
+        for (const id of ids) next.delete(id)
+        if (next.size === previous.size) return previous
+        saveConversationExpanded([...next])
+        return next
+      })
+    },
+    [linkedTodoGroups]
+  )
+
+  const toggleTodoGroup = useCallback(
+    (id: string) => {
+      prepareDisclosure()
+      if (todoGroupExpanded[id] === false) {
+        prepareReveal(`todo-group-${id}`)
+      } else {
+        collapseTodoConversations(new Set([id]))
+      }
+      setTodoGroupExpanded((previous) => {
+        const next = { ...previous, [id]: !(previous[id] ?? true) }
+        saveTodoGroupExpanded(next)
+        return next
+      })
+    },
+    [
+      prepareDisclosure,
+      prepareReveal,
+      todoGroupExpanded,
+      collapseTodoConversations,
+    ]
+  )
   const toggleSection = useCallback(
     (section: SidebarSectionKey) => {
       prepareDisclosure()
       if (sectionCollapsed[section]) prepareReveal(`section-${section}`)
       if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
       if (section === "recent") setRecentLimit(RECENT_PAGE_SIZE)
+      if (section === "todos" && todosExpanded) {
+        setTodoGroupExpanded((previous) => {
+          const next = { ...previous }
+          for (const group of todoGroups) next[group.id] = false
+          saveTodoGroupExpanded(next)
+          return next
+        })
+        collapseTodoConversations(new Set(todoGroups.map((group) => group.id)))
+      }
       if (section === "folders" && foldersExpanded) {
         // Reopening the section should show folder names with their sessions
         // folded, including folders inside groups and worktree containers.
@@ -1393,7 +1486,15 @@ export function SidebarConversationList({
         return next
       })
     },
-    [foldersExpanded, prepareDisclosure, prepareReveal, sectionCollapsed]
+    [
+      foldersExpanded,
+      todosExpanded,
+      todoGroups,
+      collapseTodoConversations,
+      prepareDisclosure,
+      prepareReveal,
+      sectionCollapsed,
+    ]
   )
 
   const toggleFolderGroup = useCallback(
@@ -1550,56 +1651,6 @@ export function SidebarConversationList({
     if (showCompleted) return base
     return base.filter((c) => c.status !== "completed")
   }, [conversations, showCompleted])
-
-  const todoGroups = useMemo<SidebarTodoConversationGroup[]>(() => {
-    const byId = new Map(
-      conversations.map((conversation) => [conversation.id, conversation])
-    )
-    const compare =
-      sortMode === "updated" ? compareByUpdatedAtDesc : compareByCreatedAtDesc
-    const groups = new Map(
-      linkedTodoGroups.map((group) => [group.todo.id, group])
-    )
-    const myTodoIds = new Set<string>()
-    const state = todoView?.state
-    if (state?.self_id) {
-      // Unfinished tasks are unpaginated. Keep my tasks visible even before
-      // their first conversation, or when all their conversations are hidden.
-      for (const todo of state.todos) {
-        if (
-          (todo.status !== "claimed" &&
-            todo.status !== "pending_verification") ||
-          todo.assignee_id !== state.self_id
-        )
-          continue
-        myTodoIds.add(todo.id)
-        if (!groups.has(todo.id)) {
-          groups.set(todo.id, { todo, conversation_ids: [] })
-        }
-      }
-    }
-    return [...groups.values()].flatMap(({ todo, conversation_ids }) => {
-      if (todo.assignee_id == null || todo.status === "unclaimed") return []
-      if (!showCompleted && todo.status === "completed") return []
-      const children = [...new Set(conversation_ids)]
-        .map((id) => byId.get(id))
-        .filter(
-          (conversation): conversation is DbConversationSummary =>
-            conversation != null &&
-            (showCompleted || conversation.status !== "completed")
-        )
-        .sort(compare)
-      return children.length > 0 || myTodoIds.has(todo.id)
-        ? [{ id: todo.id, title: todo.title, conversations: children }]
-        : []
-    })
-  }, [
-    linkedTodoGroups,
-    todoView?.state,
-    conversations,
-    showCompleted,
-    sortMode,
-  ])
 
   const [todoFolderDraft, setTodoFolderDraft] = useState<
     Parameters<typeof openTodoConversationDraft>[0] | null
@@ -2047,6 +2098,7 @@ export function SidebarConversationList({
         saveTodoGroupExpanded(next)
         return next
       })
+      collapseTodoConversations(new Set(todoGroups.map((group) => group.id)))
       setAllSectionsCollapsed(true)
     },
   }))
@@ -3403,6 +3455,12 @@ export function SidebarConversationList({
         <SidebarTodoGroupHeader
           id={row.id}
           title={row.title}
+          createdAt={
+            (
+              todoView?.state?.todos.find((todo) => todo.id === row.id) ??
+              linkedTodoGroups.find((group) => group.todo.id === row.id)?.todo
+            )?.created_at
+          }
           expanded={row.expanded}
           onToggle={toggleTodoGroup}
           onComplete={

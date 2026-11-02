@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, type ReactNode } from "react"
+import { useState, type CSSProperties, type ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { Lightbulb } from "lucide-react"
 import { useShortcutSettings } from "@/hooks/use-shortcut-settings"
@@ -98,20 +98,42 @@ const TIPS: TipDef[] = [
   { key: "workspaceBackground" },
 ]
 
-// ChatGPT 桌面端的问候语是单色纯文本，强调段不做渐变，保持与之一致。
-const highlightTitle = (chunks: ReactNode) => <>{chunks}</>
-
 const highlightTip = (chunks: ReactNode) => (
   <span className="font-medium text-primary">{chunks}</span>
 )
 
 export function WelcomeHero() {
   const t = useTranslations("Folder.chat.welcomePanel")
+  const greeting = t.markup("greeting", { highlight: (chunks) => chunks })
+  const characters = Array.from(
+    new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
+      greeting
+    ),
+    ({ segment }) => segment
+  )
+  const stepMs = Math.min(45, 900 / Math.max(1, characters.length - 1))
 
   return (
     // ChatGPT 桌面端首页问候语：~28px、常规字重、居中、纯前景色（无渐变强调）。
-    <h1 className="text-center text-[1.75rem] font-normal tracking-tight text-foreground sm:text-[2rem]">
-      {t.rich("greeting", { highlight: highlightTitle })}
+    <h1
+      aria-label={greeting}
+      className="text-center text-[1.75rem] font-normal tracking-tight text-foreground sm:text-[2rem]"
+    >
+      <span key={greeting} aria-hidden="true" className="whitespace-pre-wrap">
+        {characters.map((character, index) => (
+          <span
+            key={index}
+            className="maxcode-welcome-character"
+            style={
+              {
+                "--character-delay": `${40 + index * stepMs}ms`,
+              } as CSSProperties
+            }
+          >
+            {character}
+          </span>
+        ))}
+      </span>
     </h1>
   )
 }

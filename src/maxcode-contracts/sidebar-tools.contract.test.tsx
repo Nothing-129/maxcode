@@ -9,6 +9,7 @@ import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { Ref } from "react"
 
+import { LeftEdgeChrome } from "@/components/layout/left-edge-chrome"
 import { Sidebar } from "@/components/layout/sidebar"
 import {
   resetConversationUnreadStore,
@@ -51,6 +52,7 @@ const spies = vi.hoisted(() => ({
 const mockState = vi.hoisted(() => ({
   activeFolder: { id: 7, path: "/x" } as { id: number; path: string } | null,
   isMobile: false,
+  sidebarOpen: true,
   isCoarsePointer: false,
   attentionCount: 0,
   routeId: "conversations",
@@ -86,7 +88,10 @@ vi.mock("@/components/conversations/sidebar-conversation-list", async () => {
   }
 })
 vi.mock("@/contexts/sidebar-context", () => ({
-  useSidebarContext: () => ({ isOpen: true, toggle: spies.toggleSidebar }),
+  useSidebarContext: () => ({
+    isOpen: mockState.sidebarOpen,
+    toggle: spies.toggleSidebar,
+  }),
 }))
 vi.mock("@/contexts/active-folder-context", () => ({
   useActiveFolder: () => ({ activeFolder: mockState.activeFolder }),
@@ -122,7 +127,11 @@ vi.mock("@/contexts/workbench-route-context", () => ({
 vi.mock("@/hooks/use-is-mac", () => ({ useIsMac: () => false }))
 vi.mock("@/hooks/use-shortcut-settings", () => ({
   useShortcutSettings: () => ({
-    shortcuts: { toggle_search: "mod+k", new_conversation: "mod+t" },
+    shortcuts: {
+      toggle_search: "mod+k",
+      new_conversation: "mod+t",
+      toggle_sidebar: "mod+b",
+    },
   }),
 }))
 vi.mock("@/hooks/use-mobile", () => ({
@@ -168,7 +177,41 @@ describe("sidebar tools beside search", () => {
     spies.toggleSidebar.mockClear()
   })
 
-  it("groups search, locate and overflow in that order and locates the active conversation", () => {
+  it("allows the sidebar toggle to close the sidebar while overflow is open", async () => {
+    const user = userEvent.setup()
+    renderSidebar()
+    await user.click(screen.getByRole("button", { name: "View options" }))
+    expect(screen.getByRole("menu")).toBeVisible()
+
+    await user.click(screen.getByRole("button", { name: "Hide Sidebar" }))
+
+    expect(spies.toggleSidebar).toHaveBeenCalledOnce()
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+  })
+
+  it.each(["outside", "trigger", "escape"])(
+    "dismisses overflow via %s without closing the sidebar",
+    async (action) => {
+      const user = userEvent.setup()
+      const { container } = renderSidebar()
+      const trigger = screen.getByRole("button", { name: "View options" })
+      await user.click(trigger)
+      expect(screen.getByRole("menu")).toBeVisible()
+
+      if (action === "outside") {
+        await user.click(container.querySelector("aside")!)
+      } else if (action === "trigger") {
+        await user.click(trigger)
+      } else {
+        await user.keyboard("{Escape}")
+      }
+
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument()
+      expect(spies.toggleSidebar).not.toHaveBeenCalled()
+    }
+  )
+
+  it("groups sidebar toggle, search, settings and overflow in that order", () => {
     renderSidebar()
     const search = screen.getByRole("button", { name: "Search" })
     const group = search.closest("[data-sidebar-tools]") as HTMLElement
@@ -176,11 +219,7 @@ describe("sidebar tools beside search", () => {
       within(group)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
-    ).toEqual(["Search", "Locate Active Conversation", "View options"])
-    fireEvent.click(
-      within(group).getByRole("button", { name: "Locate Active Conversation" })
-    )
-    expect(spies.scrollToActive).toHaveBeenCalledOnce()
+    ).toEqual(["Hide Sidebar", "Search", "Open Settings", "View options"])
     expect(
       screen.queryByRole("button", { name: "Mark all as read" })
     ).toBeNull()
@@ -207,6 +246,27 @@ describe("sidebar tools beside search", () => {
       expect(spies.toggleSidebar).toHaveBeenCalledTimes(shouldCollapse ? 1 : 0)
     }
   )
+
+  it("omits the status color switch from conversation list options", async () => {
+    const user = userEvent.setup()
+    renderSidebar()
+    await user.click(screen.getByRole("button", { name: "View options" }))
+    await user.hover(
+      screen.getByRole("menuitem", {
+        name: enMessages.Folder.sidebar.listOptions,
+      })
+    )
+    expect(
+      await screen.findByRole("menuitemcheckbox", {
+        name: enMessages.Folder.sidebar.allowStatusActions,
+      })
+    ).toBeVisible()
+    expect(
+      screen.queryByRole("menuitemcheckbox", {
+        name: enMessages.Folder.sidebar.showStatus,
+      })
+    ).not.toBeInTheDocument()
+  })
 
   it("lets users hide and restore tasks through navigation preferences", async () => {
     const user = userEvent.setup()
@@ -239,7 +299,7 @@ describe("sidebar tools beside search", () => {
     expect(tools.parentElement).toBe(header)
     expect(tools.previousElementSibling).toHaveAttribute("data-drag-region")
     expect(tools.previousElementSibling).toHaveClass("flex-1")
-    expect(header.firstElementChild).toHaveStyle({ width: "80px" })
+    expect(header.firstElementChild).toHaveStyle({ width: "0px" })
     expect(tools.nextElementSibling).toBeNull()
     expect(document.querySelectorAll("[data-sidebar-tools]")).toHaveLength(1)
   })
@@ -248,38 +308,49 @@ describe("sidebar tools beside search", () => {
     mockState.isMobile = true
     spies.setSearchOpen.mockClear()
     spies.toggleSidebar.mockClear()
-    renderSidebar()
-    const titleRow = screen.getByRole("heading", {
-      name: enMessages.Folder.sidebar.title,
-    }).parentElement!.parentElement!
+    const { container } = renderSidebar()
+    expect(
+      screen.queryByRole("heading", {
+        name: enMessages.Folder.sidebar.title,
+      })
+    ).not.toBeInTheDocument()
+    const titleRow = container.querySelector("aside")!
+      .firstElementChild as HTMLElement
+    expect(within(titleRow).getByRole("img", { name: "MaxCode" })).toBeVisible()
+    expect(screen.getAllByRole("img", { name: "MaxCode" })).toHaveLength(1)
     expect(
       within(titleRow).getByRole("button", { name: "Search" })
-    ).toBeVisible()
-    expect(
-      within(titleRow).getByRole("button", {
-        name: "Locate Active Conversation",
-      })
     ).toBeVisible()
     expect(
       within(titleRow).getByRole("button", { name: "View options" })
     ).toBeVisible()
     expect(document.querySelectorAll("[data-sidebar-tools]")).toHaveLength(1)
-    for (const name of [
-      "Search",
-      "Locate Active Conversation",
-      "View options",
-    ]) {
+    for (const name of ["Search", "View options"]) {
       expect(screen.getByRole("button", { name })).toHaveClass("size-11")
     }
-    fireEvent.click(
-      screen.getByRole("button", { name: "Locate Active Conversation" })
-    )
-    expect(spies.scrollToActive).toHaveBeenCalledOnce()
     expect(spies.toggleSidebar).not.toHaveBeenCalled()
     fireEvent.click(screen.getByRole("button", { name: "Search" }))
     expect(spies.toggleSidebar).toHaveBeenCalledOnce()
     expect(spies.setSearchOpen).toHaveBeenCalledWith(true)
   })
+
+  it.each([false, true])(
+    "locates from the overflow menu without closing the sidebar (mobile %s)",
+    async (mobile) => {
+      mockState.isMobile = mobile
+      const user = userEvent.setup()
+      renderSidebar()
+      expect(
+        screen.queryByRole("button", { name: "Locate Active Conversation" })
+      ).toBeNull()
+      await user.click(screen.getByRole("button", { name: "View options" }))
+      await user.click(
+        screen.getByRole("menuitem", { name: "Locate Active Conversation" })
+      )
+      expect(spies.scrollToActive).toHaveBeenCalledOnce()
+      expect(spies.toggleSidebar).not.toHaveBeenCalled()
+    }
+  )
 
   it("keeps mobile expand/collapse available inside the overflow menu", async () => {
     mockState.isMobile = true
@@ -307,7 +378,7 @@ describe("sidebar tools beside search", () => {
       renderSidebar()
       await user.click(screen.getByRole("button", { name: "View options" }))
       const action = screen.getByRole("menuitem", { name: "Mark all as read" })
-      expect(screen.getAllByRole("menuitem")[0]).toBe(action)
+      expect(screen.getAllByRole("menuitem")[1]).toBe(action)
       await user.click(action)
       expect(useConversationUnreadStore.getState().unreadIds.size).toBe(0)
     }
@@ -354,3 +425,42 @@ vi.mock("@/lib/workspace-preferences-store", () => ({
     return () => {}
   },
 }))
+
+it("moves the desktop sidebar toggle inside when open and outside when collapsed", () => {
+  mockState.isMobile = false
+  mockState.sidebarOpen = true
+  spies.toggleSidebar.mockClear()
+  const view = () => (
+    <NextIntlClientProvider locale="en" messages={enMessages}>
+      <Sidebar />
+      <div data-testid="main-navigation">
+        <LeftEdgeChrome />
+      </div>
+    </NextIntlClientProvider>
+  )
+  const { container, rerender } = render(view())
+  const hide = screen.getByRole("button", { name: "Hide Sidebar" })
+  expect(container.querySelector("aside")).toContainElement(hide)
+  expect(
+    within(screen.getByTestId("main-navigation")).queryByRole("button", {
+      name: "Hide Sidebar",
+    })
+  ).toBeNull()
+  fireEvent.click(hide)
+  expect(spies.toggleSidebar).toHaveBeenCalledOnce()
+  mockState.sidebarOpen = false
+  rerender(view())
+  expect(container.querySelector("aside")).toBeNull()
+  const show = within(screen.getByTestId("main-navigation")).getByRole(
+    "button",
+    { name: "Show Sidebar" }
+  )
+  fireEvent.click(show)
+  expect(spies.toggleSidebar).toHaveBeenCalledTimes(2)
+  mockState.sidebarOpen = true
+  rerender(view())
+  expect(screen.queryByRole("button", { name: "Show Sidebar" })).toBeNull()
+  expect(container.querySelector("aside")).toContainElement(
+    screen.getByRole("button", { name: "Hide Sidebar" })
+  )
+})

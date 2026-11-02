@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { ChevronDown } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { Button } from "@/components/ui/button"
@@ -16,6 +16,8 @@ import type { SessionConfigOptionInfo } from "@/lib/types"
 
 interface ModelOptionPickerProps {
   option: SessionConfigOptionInfo
+  footer?: ReactNode
+  triggerSuffix?: string
   /** The grouped list to show (derived `provider/` groups, or a single
    *  headerless group for a long flat list). */
   groups: ModelOptionGroup[]
@@ -33,6 +35,8 @@ interface ModelOptionPickerProps {
 // reads as a focus-outside; `useScrollbarSafeDismiss` keeps it open (see there).
 export function ModelOptionPicker({
   option,
+  footer,
+  triggerSuffix = "",
   groups,
   onSelect,
 }: ModelOptionPickerProps) {
@@ -62,11 +66,14 @@ export function ModelOptionPicker({
           variant="ghost"
           size="xs"
           aria-label={
-            currentLabel ? `${option.name}: ${currentLabel}` : option.name
+            currentLabel
+              ? `${option.name}: ${currentLabel}${triggerSuffix}`
+              : option.name
           }
           className="min-w-0 gap-0.5 px-1 text-muted-foreground"
         >
           <span className="max-w-[10rem] truncate">{currentLabel}</span>
+          {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
           <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
         </Button>
       </PopoverTrigger>
@@ -100,6 +107,7 @@ export function ModelOptionPicker({
           emptyLabel={t("noModels")}
           autoFocus
         />
+        {footer}
       </PopoverContent>
     </Popover>
   )

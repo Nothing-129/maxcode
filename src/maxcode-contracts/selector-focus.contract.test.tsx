@@ -38,7 +38,7 @@ describe("MaxCode contract: selector focus after pointer selection", () => {
     expect(document.documentElement.dataset.inputModality).toBeUndefined()
   })
 
-  it("limits suppression to pointer-focused selectors, not all buttons", () => {
+  it("suppresses pointer focus rings across controls while preserving keyboard and editor feedback", () => {
     expect(source("src/app/layout.tsx")).toContain("<InputModalityInit />")
     expect(source("src/components/chat/selector-tooltip.tsx")).toContain(
       'data-selector-control=""'
@@ -49,5 +49,12 @@ describe("MaxCode contract: selector focus after pointer selection", () => {
     expect(source("src/components/ui/button.tsx")).toContain(
       "focus-visible:ring-1"
     )
+    const css = source("src/app/globals.css")
+    expect(css).toContain('html[data-input-modality="pointer"]\n  :is(')
+    expect(css).toContain(
+      ':not(input, textarea, [contenteditable="true"]):focus'
+    )
+    expect(css).toContain("--tw-ring-offset-shadow: 0 0 #0000")
+    expect(css).toContain(".codeg-composer-chrome:focus-within")
   })
 })

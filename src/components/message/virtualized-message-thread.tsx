@@ -10,7 +10,7 @@ import {
   type VirtualizerHandle,
 } from "virtua"
 import { useStickToBottomContext } from "use-stick-to-bottom"
-import { Loader2 } from "lucide-react"
+import { ChevronUp, Loader2 } from "lucide-react"
 import {
   MessageThreadContent,
   type MessageThreadContentProps,
@@ -361,15 +361,22 @@ function VirtualizedMessageThreadImpl<T>({
                     type="button"
                     onClick={isLoadingOlder ? undefined : onLoadOlder}
                     disabled={isLoadingOlder}
-                    className="mx-auto flex items-center gap-2 rounded-full border border-border bg-muted/40 px-3 py-1 text-xs text-muted-foreground transition-colors hover:bg-muted disabled:cursor-default disabled:hover:bg-muted/40"
+                    aria-busy={isLoadingOlder}
+                    className="mx-auto flex min-h-8 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
                   >
                     {isLoadingOlder ? (
                       <>
-                        <Loader2 className="h-3 w-3 animate-spin" />
+                        <Loader2
+                          aria-hidden="true"
+                          className="h-3 w-3 animate-spin motion-reduce:animate-none"
+                        />
                         {loadingOlderLabel}
                       </>
                     ) : (
-                      loadOlderLabel
+                      <>
+                        <ChevronUp aria-hidden="true" className="h-3.5 w-3.5" />
+                        {loadOlderLabel}
+                      </>
                     )}
                   </button>
                 </div>

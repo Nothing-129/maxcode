@@ -1,6 +1,8 @@
 "use client"
 
-import { Search } from "lucide-react"
+import { useActiveFolder } from "@/contexts/active-folder-context"
+import { useTabActions } from "@/contexts/tab-context"
+import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
 import { useTranslations } from "next-intl"
 import { isNativeDesktop } from "@/lib/platform"
 import {
@@ -8,7 +10,6 @@ import {
   desktopChromeButtonClassName,
 } from "./desktop-chrome-icon"
 import { Button } from "@/components/ui/button"
-import { useSearchDialog } from "@/contexts/search-dialog-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
 import { useIsMac } from "@/hooks/use-is-mac"
 import { usePlatform } from "@/hooks/use-platform"
@@ -17,43 +18,29 @@ import { useZoomLevel } from "@/hooks/use-appearance"
 import { formatShortcutLabel } from "@/lib/keyboard-shortcuts"
 import { MAC_TRAFFIC_LIGHT_INSET, leftChromeReserve } from "@/lib/window-chrome"
 
-/**
- * Contents of the window's fixed top-LEFT chrome overlay: the sidebar toggle +
- * search. `FolderLayoutShell` pins this at the window's top-left corner so it
- * never moves — or re-mounts — when the sidebar opens or closes (that
- * re-parenting is what made the old in-header cluster flicker).
- *
- * A leading spacer clears the native macOS traffic lights; the cluster's fixed
- * width matches the reservation the window's left-edge column makes (see
- * `leftChromeReserve`), so tabs never render underneath. The trailing drag
- * filler lets the cluster's empty space move the window.
- *
- * Search sits here — rather than in the sidebar, where it used to be a fixed
- * nav row — precisely because this overlay never unmounts: the sidebar does,
- * which left ⌘K as the only path to it while collapsed. The slot it took over
- * belonged to the remote-workspace picker, a far rarer action that moved to the
- * sidebar list's context menu and the status bar's quick actions.
- *
- * "Open folder" and "summon pet" were intentionally dropped from here — Open
- * Folder / Clone remain reachable from the sidebar list's hover / empty-state
- * actions and ⌘O; the pet stays reachable from Settings › Appearance.
- */
+/** Navigation belongs to the conversation column; only a collapsed sidebar
+ * requires clearance for the native macOS traffic lights. */
 export function LeftEdgeChrome() {
   const tTitleBar = useTranslations("Folder.folderTitleBar")
   const { isOpen, toggle } = useSidebarContext()
-  const { setOpen: setSearchOpen } = useSearchDialog()
+  const { activeFolder } = useActiveFolder()
+  const { openNewConversationTab, openChatModeTab } = useTabActions()
+  const { openConversations } = useWorkbenchRoute()
+  const tCard = useTranslations("Folder.conversationCard")
   const isMac = useIsMac()
   const { shortcuts } = useShortcutSettings()
   const { isMac: platformIsMac } = usePlatform()
   const { zoomLevel } = useZoomLevel()
   // The traffic lights only exist on the macOS desktop runtime (not web / not
   // Windows-Linux), so only reserve their inset there.
-  const showMacInset = platformIsMac && isNativeDesktop()
+  const showMacInset = !isOpen && platformIsMac && isNativeDesktop()
 
   return (
     <div
       className="flex h-full items-center"
-      style={{ width: leftChromeReserve(showMacInset, zoomLevel) }}
+      style={{
+        width: isOpen ? "3.5rem" : leftChromeReserve(showMacInset, zoomLevel),
+      }}
     >
       {showMacInset && (
         <div
@@ -63,37 +50,40 @@ export function LeftEdgeChrome() {
         />
       )}
       {/* Keep navigation discoverable for mouse, touch, and keyboard users. */}
-      <div className="flex items-center gap-1 rounded-full p-2 pl-3 text-muted-foreground">
-        <Button
-          variant="ghost"
-          size="icon"
-          // Ghost's own hover is `bg-muted` — identical to the strip, so it
-          // reads as no hover at all. Darken past it (and lighten in dark mode)
-          // so the hover is actually visible.
-          className={desktopChromeButtonClassName}
-          onClick={toggle}
-          title={tTitleBar("withShortcut", {
-            label: tTitleBar(isOpen ? "hideSidebar" : "showSidebar"),
-            shortcut: formatShortcutLabel(shortcuts.toggle_sidebar, isMac),
-          })}
-        >
-          <DesktopChromeIcon name="sidebar" />
-        </Button>
+      <div className="flex items-center gap-2 px-3 text-foreground">
         {!isOpen && (
           <Button
             variant="ghost"
             size="icon"
+            // Ghost's own hover is `bg-muted` — identical to the strip, so it
+            // reads as no hover at all. Darken past it (and lighten in dark mode)
+            // so the hover is actually visible.
             className={desktopChromeButtonClassName}
-            onClick={() => setSearchOpen(true)}
+            aria-label={tTitleBar(isOpen ? "hideSidebar" : "showSidebar")}
+            onClick={toggle}
             title={tTitleBar("withShortcut", {
-              label: tTitleBar("search"),
-              shortcut: formatShortcutLabel(shortcuts.toggle_search, isMac),
+              label: tTitleBar(isOpen ? "hideSidebar" : "showSidebar"),
+              shortcut: formatShortcutLabel(shortcuts.toggle_sidebar, isMac),
             })}
-            aria-label={tTitleBar("search")}
           >
-            <Search aria-hidden="true" className="h-3.5 w-3.5" />
+            <DesktopChromeIcon name="sidebar" />
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className={desktopChromeButtonClassName}
+          onClick={() => {
+            openConversations()
+            if (activeFolder)
+              openNewConversationTab(activeFolder.id, activeFolder.path)
+            else openChatModeTab()
+          }}
+          title={tCard("newConversation")}
+          aria-label={tCard("newConversation")}
+        >
+          <DesktopChromeIcon name="compose" />
+        </Button>
       </div>
       {/* Empty tail is a window-drag region. */}
       <div data-drag-region className="h-full min-w-0 flex-1" />

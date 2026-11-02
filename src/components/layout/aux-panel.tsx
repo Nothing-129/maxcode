@@ -17,7 +17,6 @@ import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useIsActiveChatMode } from "@/hooks/use-is-active-chat-mode"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useZoomLevel } from "@/hooks/use-appearance"
-import { rightChromeReserve } from "@/lib/window-chrome"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import {
@@ -187,7 +186,7 @@ export function AuxPanel({
   // segmented control has to fit LEFT of all that — otherwise collapse it into
   // a dropdown. Only relevant to the desktop layout (mobile is a full-width
   // Drawer), and only when there's more than the lone Session Details tab.
-  const rightReserve = rightChromeReserve(false, zoomLevel)
+  const rightReserve = 0
   const collapsed =
     !isMobile &&
     showFolderTabs &&
@@ -318,7 +317,12 @@ export function AuxPanel({
           // TabsContent's aria-labelledby still resolves the panel's name from
           // the directly-referenced hidden trigger, so it stays labelled without
           // showing a pointless single-tab control.
-          <div className="flex h-10 shrink-0 items-center gap-2 bg-muted ws-transparent-bg ws-strip-line pl-3 pr-2">
+          <div
+            className={cn(
+              "flex h-10 shrink-0 items-center gap-2 bg-background ws-transparent-bg pl-3 pr-2",
+              !showFolderTabs && "hidden"
+            )}
+          >
             {/* Off-image `bg-muted` matches the conversation/file strips +
                 bottom StatusBar. With a workspace background image on, the
                 composition-family pair `ws-transparent-bg ws-strip-line` makes
