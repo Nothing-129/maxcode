@@ -16,6 +16,8 @@ import { useTranslations } from "next-intl"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
 import { GenerationActionIcon } from "./composer/generation-action-icon"
+import { AcceptPromptSuggestion } from "./composer/accept-prompt-suggestion"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   ArrowUp,
@@ -117,7 +119,10 @@ import {
   type ModelOptionGroup,
 } from "@/lib/model-config-groups"
 import { useAgentSkills } from "@/hooks/use-agent-skills"
-import { isPrimaryPointerCoarse } from "@/hooks/use-is-coarse-pointer"
+import {
+  isPrimaryPointerCoarse,
+  useIsCoarsePointer,
+} from "@/hooks/use-is-coarse-pointer"
 import { useScrollbarSafeDismiss } from "@/hooks/use-scrollbar-safe-dismiss"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
 import {
@@ -469,6 +474,9 @@ export function MessageInput({
   const { shortcuts } = useShortcutSettings()
   const effectiveDraftStorageKey = draftStorageKey ?? null
   const resolvedPlaceholder = placeholder ?? t("askAnything")
+  const isMobile = useIsMobile()
+  const isCoarsePointer = useIsCoarsePointer()
+  const useTouchSuggestion = isMobile || isCoarsePointer
   // The predicted follow-up prompt, only where sending it could follow: never
   // mid-turn (Enter then queues or steers), never into a queued message being
   // edited, never into a composer that cannot send.
@@ -477,7 +485,9 @@ export function MessageInput({
       ? promptSuggestion?.trim() || null
       : null
   const shownPlaceholder = offeredSuggestion
-    ? t("promptSuggestion", { suggestion: offeredSuggestion })
+    ? useTouchSuggestion
+      ? offeredSuggestion
+      : t("promptSuggestion", { suggestion: offeredSuggestion })
     : resolvedPlaceholder
   const editorRef = useRef<RichComposerHandle>(null)
   // Prompt-history navigation. `historyRef` is seeded from `getSentHistory`
@@ -1823,11 +1833,7 @@ export function MessageInput({
   const configTitle = (option: SessionConfigOptionInfo) => {
     const secondary = secondaryComposerConfig(option)
     if (secondary) return t(`composerConfig.${secondary}`)
-    if (isModelConfigOption(option)) return t("composerConfig.model")
-    if (option.category === "thought_level" || option.id === "reasoning_effort")
-      return t("composerConfig.effort")
-    if (option.category === "mode" || option.id === "mode")
-      return t("composerConfig.permission")
+    // Keep agent setting titles in the same language as their option labels.
     return option.name
   }
   const renderInlineConfigOption = (option: SessionConfigOptionInfo) => {
@@ -2470,7 +2476,14 @@ export function MessageInput({
                     </span>
                   )}
                 </div>
-                <div className="maxcode-composer-actions flex shrink-0 items-center">
+                <div className="maxcode-composer-actions flex min-h-11 shrink-0 items-center gap-2">
+                  {offeredSuggestion && composerEmpty && (
+                    <AcceptPromptSuggestion
+                      editorRef={editorRef}
+                      suggestion={offeredSuggestion}
+                      label={t("acceptPromptSuggestion")}
+                    />
+                  )}
                   {actionButtons}
                 </div>
               </div>

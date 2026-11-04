@@ -195,7 +195,7 @@ describe("mobile frontend refresh", () => {
     )
     const header = source("src/components/layout/folder-title-bar.tsx")
     expect(header).toMatch(
-      /tTitleBar\("openSettings"\)[\s\S]*?<MobileFrontendRefreshItem \/>[\s\S]*?<\/DropdownMenuContent>/
+      /tTitleBar\("search"\)[\s\S]*?<MobileFrontendRefreshItem \/>[\s\S]*?<\/DropdownMenuContent>/
     )
     const refresh = source("src/lib/refresh-frontend.ts")
     expect(refresh).toContain("new URL(window.location.href)")

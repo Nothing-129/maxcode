@@ -5,6 +5,9 @@ import { useEffect } from "react"
 const editingSurface =
   'input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], .monaco-editor, .cm-editor, .xterm, [data-terminal-panel-region="true"]'
 
+const composerSelector =
+  '.codeg-composer:not([data-disabled="true"]) [contenteditable="true"]'
+
 /** Include clipping ancestors: canvas cards and inactive panes can be offscreen. */
 function isVisible(element: HTMLElement): boolean {
   const rect = element.getBoundingClientRect()
@@ -55,15 +58,7 @@ export function focusVisibleComposerOnTab(event: KeyboardEvent): void {
     event.ctrlKey ||
     event.metaKey ||
     event.altKey ||
-    event.isComposing ||
-    event.repeat
-  ) {
-    return
-  }
-  const active = document.activeElement
-  if (
-    (active instanceof Element && active.closest(editingSurface)) ||
-    (event.target instanceof Element && event.target.closest(editingSurface))
+    event.isComposing
   ) {
     return
   }
@@ -77,10 +72,27 @@ export function focusVisibleComposerOnTab(event: KeyboardEvent): void {
   ) {
     return
   }
+  const active = document.activeElement
+  // Editor suggestion/menu handlers run first. An unclaimed Tab must keep
+  // focus here, including repeated presses, rather than entering the config
+  // toolbar. Keep the current pane instead of choosing the first composer.
+  if (
+    active instanceof HTMLElement &&
+    active.matches(composerSelector) &&
+    isVisible(active)
+  ) {
+    event.preventDefault()
+    return
+  }
+  if (
+    event.repeat ||
+    (active instanceof Element && active.closest(editingSurface)) ||
+    (event.target instanceof Element && event.target.closest(editingSurface))
+  ) {
+    return
+  }
   const composer = Array.from(
-    document.querySelectorAll<HTMLElement>(
-      '.codeg-composer:not([data-disabled="true"]) [contenteditable="true"]'
-    )
+    document.querySelectorAll<HTMLElement>(composerSelector)
   ).find(isVisible)
   if (!composer) return
   composer.focus({ preventScroll: true })

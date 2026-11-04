@@ -2286,6 +2286,18 @@ describe("MessageInput predicted follow-up prompt", () => {
     return result
   }
 
+  it("offers desktop click adoption without submitting, then hides the arrow", async () => {
+    const onSend = vi.fn()
+    await mounted({ promptSuggestion: "Run the tests", onSend })
+    const label = enMessages.Folder.chat.messageInput.acceptPromptSuggestion
+    const accept = screen.getByRole("button", { name: label })
+    expect(composerHandle.current!.isEmpty()).toBe(true)
+    fireEvent.click(accept)
+    expect(composerHandle.current!.getText()).toBe("Run the tests")
+    expect(onSend).not.toHaveBeenCalled()
+    expect(screen.queryByRole("button", { name: label })).toBeNull()
+  })
+
   it("shows the suggestion as the placeholder between turns and fills it in on Tab", async () => {
     const { container } = await mounted({ promptSuggestion: "Run the tests" })
     expect(
@@ -2388,12 +2400,14 @@ describe("composer secondary configuration menu", () => {
         name: MSGS.agentSettings,
       })
       expect(within(rail).getAllByRole("button")).toHaveLength(3)
-      for (const title of ["model", "effort", "permission"] as const) {
-        expect(
-          within(rail).getByTitle(MSGS.composerConfig[title])
-        ).toBeInTheDocument()
+      for (const title of [
+        "Agent model label",
+        "Agent effort label",
+        "Agent permission label",
+      ]) {
+        expect(within(rail).getByTitle(title)).toBeInTheDocument()
       }
-      await user.click(within(rail).getByTitle(MSGS.composerConfig.effort))
+      await user.click(within(rail).getByTitle("Agent effort label"))
       await user.click(within(popover).getByRole("button", { name: /^Opus/ }))
       expect(onConfigOptionChange).toHaveBeenCalledWith(
         "reasoning_effort",

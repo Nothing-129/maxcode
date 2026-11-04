@@ -12,11 +12,11 @@ export function TodosLoadingSkeleton({
     <div
       role="status"
       aria-busy="true"
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       <span className="sr-only">{label}</span>
-      <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col">
-        <div className="flex shrink-0 items-center gap-3 border-b p-4">
+      <div aria-hidden="true" className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b p-4">
           <Skeleton className="h-8 w-40 motion-reduce:animate-none" />
           <Skeleton className="h-8 w-24 motion-reduce:animate-none" />
           <Skeleton className="ms-auto h-8 w-20 motion-reduce:animate-none" />
@@ -24,7 +24,7 @@ export function TodosLoadingSkeleton({
         <div
           className={
             viewMode === "board"
-              ? "flex min-h-0 flex-1 gap-4 overflow-hidden p-4"
+              ? "flex min-h-0 min-w-0 flex-1 gap-4 overflow-hidden p-4"
               : "space-y-4 overflow-hidden p-4"
           }
         >
@@ -33,7 +33,7 @@ export function TodosLoadingSkeleton({
               key={column}
               className={
                 viewMode === "board"
-                  ? "min-w-60 flex-1 space-y-4 rounded-2xl bg-muted/35 p-4"
+                  ? "min-w-80 flex-1 space-y-4 rounded-2xl bg-muted/35 p-4"
                   : "space-y-4"
               }
             >

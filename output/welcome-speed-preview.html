@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MaxCode · 问候语速度预览</title>
+<style>
+:root { color-scheme:light; --bg:#f7f7f5; --card:#fff; --ink:#202020; --muted:#73736e; --line:#e6e6e1; --accent:#247554; --tint:#edf6f0; }
+:root[data-theme="dark"] { color-scheme:dark; --bg:#191919; --card:#212121; --ink:#ececec; --muted:#aaa; --line:#393939; --accent:#7bd5a9; --tint:#203a2d; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","PingFang SC","Hiragino Sans GB","Microsoft YaHei","Segoe UI",sans-serif; }
+main { max-width:1100px; margin:auto; padding:38px 28px 32px; }
+header { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:28px; }
+.brand { font-size:12px; letter-spacing:.12em; color:var(--muted); }
+h1 { font-size:25px; letter-spacing:-.6px; font-weight:500; margin:8px 0; }
+p { color:var(--muted); font-size:13px; line-height:1.7; margin:0; }
+button { font:inherit; cursor:pointer; color:inherit; background:var(--card); border:1px solid var(--line); border-radius:9px; padding:9px 14px; transition:background .15s; }
+button:hover { background:var(--tint); }
+button:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+.stage { background:var(--card); border:1px solid var(--line); border-radius:18px; padding:22px 24px 28px; }
+.stage-top { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); }
+.hero { min-height:150px; display:grid; place-content:center; text-align:center; }
+.greeting { font-size:32px; font-weight:400; letter-spacing:-.025em; margin:0; white-space:pre-wrap; }
+.composer { max-width:640px; margin:0 auto; border:1px solid var(--line); border-radius:20px; padding:18px; color:var(--muted); font-size:13px; }
+.composer-bottom { display:flex; justify-content:space-between; align-items:center; margin-top:25px; font-size:12px; }
+.send { display:grid; place-content:center; border-radius:50%; width:28px; height:28px; background:var(--ink); color:var(--card); font-size:18px; }
+.toolbar { display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin:24px 0 14px; }
+.primary { background:var(--ink); color:var(--card); border-color:var(--ink); font-size:13px; }
+.primary:hover { background:var(--accent); }
+label { font-size:13px; color:var(--muted); cursor:pointer; display:flex; gap:7px; align-items:center; }
+input { accent-color:var(--accent); }
+.grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.option { background:var(--card); border:1px solid var(--line); border-radius:13px; padding:16px; }
+.option.selected { border-color:var(--accent); box-shadow:0 0 0 1px var(--accent); }
+.option-top { display:flex; justify-content:space-between; align-items:center; font-size:13px; }
+.badge { color:var(--muted); font-size:11px; }
+.option .greeting { font-size:22px; min-height:92px; display:flex; align-items:center; justify-content:center; letter-spacing:-.025em; }
+.option-foot { display:flex; justify-content:space-between; gap:10px; align-items:center; }
+.timing { color:var(--muted); font-size:11px; }
+.pick { font-size:12px; padding:7px 10px; }
+.selected .pick { color:var(--accent); background:var(--tint); border-color:transparent; }
+footer { margin-top:18px; font-size:12px; color:var(--muted); line-height:1.8; }
+#choice { color:var(--accent); font-weight:500; }
+@media(max-width:760px) { main { padding:24px 16px; } .grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .greeting { font-size:28px; } .option .greeting { font-size:19px; } header { align-items:flex-start; } }
+@media(max-width:450px) { .grid { grid-template-columns:1fr; } .stage { padding:18px 14px; } .greeting { font-size:25px; } }
+/* Reserve the complete greeting's layout while revealing whole graphemes. */
+@keyframes maxcode-welcome-type {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.maxcode-welcome-character {
+  animation: maxcode-welcome-type 1ms step-end var(--character-delay) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .maxcode-welcome-character { animation: none; }
+}
+
+</style>
+<main>
+<header><div><div class="brand">MAXCODE / MOTION PREVIEW</div><h1>选一个刚刚好的速度</h1><p>同一句问候，六档节奏。点击卡片，在上方看实际字号效果。</p></div><button id="theme" aria-label="切换深浅主题">深色预览</button></header>
+<section class="stage" aria-label="实际效果预览">
+<div class="stage-top"><span id="stage-label"></span><button id="replay" style="font-size:12px;padding:6px 11px">重播这一档 ↻</button></div>
+<div class="hero"><h2 class="greeting" id="hero" aria-label="今天准备做些什么呢？"></h2></div>
+<div class="composer" aria-hidden="true">给智能体发送消息…<div class="composer-bottom"><span>＋ &nbsp; Codex ⌄</span><span class="send">↑</span></div></div>
+</section>
+<div class="toolbar"><button class="primary" id="replay-all">同时重播六档 ↻</button><label><input id="loop" type="checkbox">循环对比（每 2.5 秒）</label></div>
+<div class="grid" id="options"></div>
+<footer><div id="choice" role="status"></div><div>与当前页面使用相同的逐字显示动画；首字等待 40 ms，文字位置固定。总时长含首字等待。仅供选速度，尚未修改应用默认值。</div><div id="reduced" hidden>系统已启用“减少动态效果”，动画按系统设置关闭。需要比较速度时，请先在系统设置中关闭该选项。</div></footer>
+</main>
+<script>
+const greeting = "今天准备做些什么呢？";
+const characters = Array.from(new Intl.Segmenter("zh-CN", {granularity:"grapheme"}).segment(greeting), x => x.segment);
+const speeds = [{id:"A",ms:45,name:"当前速度"},{id:"B",ms:35,name:"轻快"},{id:"C",ms:25,name:"更快"},{id:"D",ms:18,name:"很快"},{id:"E",ms:12,name:"极速"},{id:"F",ms:8,name:"一掠而过"}];
+let selected = speeds[2];
+let timer;
+function play(node, ms) {
+  const fragment = document.createDocumentFragment();
+  characters.forEach((ch,i) => {
+    const span = document.createElement("span");
+    span.className = "maxcode-welcome-character";
+    span.style.setProperty("--character-delay", (40+i*ms)+"ms");
+    span.textContent = ch;
+    fragment.append(span);
+  });
+  node.replaceChildren(fragment);
+}
+function total(ms) { return 41+(characters.length-1)*ms; }
+function select(speed) {
+  selected = speed;
+  document.querySelectorAll(".option").forEach(card => {
+    const active = card.dataset.id === speed.id;
+    card.classList.toggle("selected",active);
+    const btn = card.querySelector("button");
+    btn.setAttribute("aria-pressed", String(active));
+    btn.textContent = active ? "已选 · 再看一次" : "选择并预览";
+  });
+  document.querySelector("#stage-label").textContent = speed.id+" · "+speed.name+" / "+speed.ms+" ms 每字 / 全句 "+total(speed.ms)+" ms";
+  document.querySelector("#choice").textContent = "当前选择："+speed.id+" 档（"+speed.ms+" ms / 字）。选好后，告诉我档位字母即可。";
+  play(document.querySelector("#hero"),speed.ms);
+}
+speeds.forEach(speed => {
+  const card = document.createElement("section");
+  card.className="option"; card.dataset.id=speed.id;
+  card.innerHTML='<div class="option-top"><span>'+speed.id+' · '+speed.name+'</span><span class="badge">'+(45/speed.ms).toFixed(1)+'×</span></div><div class="greeting" aria-label="'+greeting+'"></div><div class="option-foot"><span class="timing">'+speed.ms+' ms / 字 · 全句 '+total(speed.ms)+' ms</span><button class="pick" aria-label="选择 '+speed.id+' 档" aria-pressed="false">选择并预览</button></div>';
+  card.querySelector("button").addEventListener("click",()=>select(speed));
+  document.querySelector("#options").append(card);
+});
+function replayAll() {
+  document.querySelectorAll(".option").forEach((card,i)=>play(card.querySelector(".greeting"),speeds[i].ms));
+  play(document.querySelector("#hero"),selected.ms);
+}
+document.querySelector("#replay").onclick=()=>play(document.querySelector("#hero"),selected.ms);
+document.querySelector("#replay-all").onclick=replayAll;
+document.querySelector("#loop").onchange=e=> { clearInterval(timer); if(e.target.checked) { replayAll(); timer=setInterval(replayAll,2500); } };
+document.querySelector("#theme").onclick=e=> { const dark=document.documentElement.dataset.theme!=="dark"; document.documentElement.dataset.theme=dark?"dark":"light"; e.target.textContent=dark?"浅色预览":"深色预览"; };
+const motion = matchMedia("(prefers-reduced-motion: reduce)");
+function updateMotion() { document.querySelector("#reduced").hidden=!motion.matches; }
+motion.addEventListener("change",updateMotion); updateMotion();
+select(selected); replayAll();
+</script>
+</html>

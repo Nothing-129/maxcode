@@ -32,7 +32,10 @@ it("wires live headers and count summaries while keeping completed summaries sta
 })
 it("uses a steady CSS highlight and stops it for accessibility and hidden views", () => {
   const css = source("src/app/motion.css")
-  const rules = css.slice(css.indexOf("/* Live transcript labels:"))
+  const rules = css.slice(
+    css.indexOf("/* Live transcript labels:"),
+    css.indexOf("/* Reserve the complete greeting")
+  )
   expect(rules).toContain("maxcode-waiting-shine 1.8s linear infinite")
   expect(rules).not.toMatch(/opacity:|transform:/)
   // Match the original Shimmer: a light sweep on light themes, a dark

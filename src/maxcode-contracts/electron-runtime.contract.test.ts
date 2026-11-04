@@ -298,7 +298,7 @@ describe("MaxCode contract: Electron owns the local desktop", () => {
       readFileSync("electron/package.json", "utf8")
     )
     expect(appManifest.version).toBe(manifest.version)
-    expect(appManifest.dependencies["electron-updater"]).toBe("6.8.9")
+    expect(appManifest.dependencies["electron-updater"]).toBe("6.8.11")
     expect(manifest.scripts["desktop:dev"]).toBe(
       "node electron/scripts/cli.mjs dev"
     )

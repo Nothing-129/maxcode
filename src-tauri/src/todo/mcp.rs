@@ -30,6 +30,8 @@ pub struct MemberCreateRequest {
     pub spec: CreateSpec,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub snapshot: Option<SharedConversationSnapshot>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
 }
 
 pub const TOOL_NAMES: &[&str] = &[
@@ -184,6 +186,7 @@ async fn create_local(
     scope: &Scope,
     spec: CreateSpec,
     snapshot: Option<SharedConversationSnapshot>,
+    source_url: Option<String>,
 ) -> Result<TodoOriginResult, AppCommandError> {
     let operation = Uuid::parse_str(&spec.operation_id)
         .map_err(|_| AppCommandError::invalid_input("operation_id must be a UUID"))?
@@ -202,6 +205,7 @@ async fn create_local(
             due_date: spec.due_date,
             priority: spec.priority,
             snapshot,
+            source_url,
             ..Default::default()
         },
         &public_url(conn).await?,
@@ -239,7 +243,14 @@ pub async fn member_create(
     request: MemberCreateRequest,
 ) -> Result<TodoOriginResult, AppCommandError> {
     let scope = member_scope(conn, request.token).await?;
-    create_local(conn, &scope, request.spec, request.snapshot).await
+    create_local(
+        conn,
+        &scope,
+        request.spec,
+        request.snapshot,
+        request.source_url,
+    )
+    .await
 }
 
 /// Resolve the persisted board selection once, without changing it or silently
@@ -316,6 +327,32 @@ pub async fn call(
         } else {
             None
         };
+        // Publish on the conversation creator, before forwarding to the team.
+        let source_url = if let Some(snapshot) = &snapshot {
+            match public_url(conn).await? {
+                Some(origin) => {
+                    let data = serde_json::to_string(snapshot).map_err(|_| {
+                        AppCommandError::invalid_input("Invalid conversation snapshot")
+                    })?;
+                    let share = crate::db::service::conversation_share_service::publish(
+                        conn,
+                        conversation_id.expect("resolved conversation"),
+                        data,
+                    )
+                    .await
+                    .map_err(AppCommandError::from)?;
+                    Some(format!("{origin}/share#{}", share.token))
+                }
+                None if scope.id == PERSONAL => None,
+                None => {
+                    return Err(AppCommandError::configuration_missing(
+                        "Bind your public sharing address before adding this conversation",
+                    ))
+                }
+            }
+        } else {
+            None
+        };
         let mut result = match scope.remote() {
             Some(team) => {
                 remote_json(
@@ -325,11 +362,12 @@ pub async fn call(
                         token: team.member_token.clone(),
                         spec,
                         snapshot,
+                        source_url,
                     },
                 )
                 .await?
             }
-            None => create_local(conn, &scope, spec, snapshot).await?,
+            None => create_local(conn, &scope, spec, snapshot, source_url).await?,
         };
         let todo = result
             .todo

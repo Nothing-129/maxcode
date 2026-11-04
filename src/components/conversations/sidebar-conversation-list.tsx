@@ -163,6 +163,7 @@ import { useSidebarConversationDrag } from "@/hooks/use-sidebar-conversation-dra
 import { useSubsessionSync } from "@/hooks/use-subsession-sync"
 import { SidebarSectionHeader } from "./sidebar-section-header"
 import { SidebarFolderGroupHeader } from "./sidebar-folder-group-header"
+import { requestOpenTodo } from "@/lib/todo-compose-events"
 import { openTodoConversationDraft } from "@/components/todos/use-new-chat-from-todo"
 import { TodoConversationFolderDialog } from "@/components/todos/todo-conversation-folder-dialog"
 import { todoConversationText } from "@/components/todos/board-columns"
@@ -1091,7 +1092,7 @@ export function SidebarConversationList({
     openNewConversationTab,
     openChatModeTab,
   } = useTabActions()
-  const { openConversations } = useWorkbenchRoute()
+  const { openConversations, setRoute } = useWorkbenchRoute()
 
   const folderIndex = useMemo(() => {
     const map = new Map<
@@ -1664,6 +1665,19 @@ export function SidebarConversationList({
       todoActionMounted.current = false
     }
   }, [])
+  const handleOpenTodo = useCallback(
+    (id: string) => {
+      const state = todoStateRef.current
+      const scope =
+        state?.mode === "personal" ? "personal" : state?.active_team_id
+      if (!scope) return
+      requestOpenTodo({ scope_id: scope, todo_id: id })
+      setRoute("tasks")
+      onNavigate?.()
+    },
+    [setRoute, onNavigate]
+  )
+
   const handleNewTodoConversation = useCallback(
     async (id: string) => {
       const state = todoStateRef.current
@@ -3463,6 +3477,7 @@ export function SidebarConversationList({
           }
           expanded={row.expanded}
           onToggle={toggleTodoGroup}
+          onOpen={handleOpenTodo}
           onComplete={
             (
               todoView?.state?.todos.find((todo) => todo.id === row.id) ??

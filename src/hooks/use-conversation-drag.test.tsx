@@ -9,8 +9,12 @@ vi.mock("@/lib/conversation-drop-target", () => ({
   conversationDropTarget: () => ({ gid: "target", direction: "right" }),
 }))
 
-function Title() {
-  return <span onPointerDown={useConversationDrag("tab", "Title")}>Title</span>
+function Title({ onDragStart }: { onDragStart?: () => void }) {
+  return (
+    <span onPointerDown={useConversationDrag("tab", "Title", onDragStart)}>
+      Title
+    </span>
+  )
 }
 
 function pointer(type: string, x: number) {
@@ -40,15 +44,19 @@ describe("conversation title drag", () => {
     const drop = vi
       .spyOn(useTabStore.getState(), "dropTabInGroup")
       .mockImplementation(() => {})
-    render(<Title />)
+    const onDragStart = vi.fn()
+    render(<Title onDragStart={onDragStart} />)
     fireEvent(screen.getByText("Title"), pointer("pointerdown", 100))
     fireEvent(window, pointer("pointermove", 102))
+    expect(onDragStart).not.toHaveBeenCalled()
     expect(useTabStore.getState().tabDrag).toBeNull()
     fireEvent(window, pointer("pointermove", 200))
     expect(useTabStore.getState().tabDrag).toMatchObject({
       overGroupId: "target",
       direction: "right",
     })
+    fireEvent(window, pointer("pointermove", 210))
+    expect(onDragStart).toHaveBeenCalledTimes(1)
     fireEvent(window, pointer("pointerup", 200))
     expect(drop).toHaveBeenCalledTimes(1)
     expect(drop).toHaveBeenCalledWith("tab", "target", "right")

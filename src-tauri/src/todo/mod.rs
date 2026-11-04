@@ -134,6 +134,8 @@ pub struct TodoRequest {
     pub revision: Option<i64>,
     #[serde(default)]
     pub conversation_id: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_url: Option<String>,
     #[serde(default)]
     pub share_options: ConversationShareOptions,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1151,6 +1153,26 @@ async fn validate_assignee<C: ConnectionTrait>(
     }
     Ok(())
 }
+fn validate_conversation_source_url(source: &str) -> Result<String, AppCommandError> {
+    let url = url::Url::parse(source)
+        .map_err(|_| AppCommandError::invalid_input("Invalid conversation share URL"))?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none()
+        || !url.username().is_empty()
+        || url.password().is_some()
+        || url.path() != "/share"
+        || url.query().is_some()
+        || !url
+            .fragment()
+            .is_some_and(|token| token.len() == 32 && token.bytes().all(|c| c.is_ascii_hexdigit()))
+    {
+        return Err(AppCommandError::invalid_input(
+            "Invalid conversation share URL",
+        ));
+    }
+    Ok(source.to_string())
+}
+
 async fn mutate(
     conn: &DatabaseConnection,
     scope: &str,
@@ -1180,7 +1202,16 @@ async fn mutate(
     }
     if !matches!(
         request.action.as_str(),
-        "create" | "update" | "delete" | "claim" | "release" | "complete" | "finish" | "resume" | "verify" | "reopen"
+        "create"
+            | "update"
+            | "delete"
+            | "claim"
+            | "release"
+            | "complete"
+            | "finish"
+            | "resume"
+            | "verify"
+            | "reopen"
     ) {
         return Err(AppCommandError::invalid_input("Unsupported todo action"));
     }
@@ -1213,7 +1244,7 @@ async fn mutate(
         if let Some(snapshot) = request.snapshot.clone() {
             let origin = match url.as_deref() {
                 Some(url) => url,
-                None if scope == PERSONAL => "",
+                None if scope == PERSONAL || request.source_url.is_some() => "",
                 None => {
                     return Err(AppCommandError::configuration_missing(
                         "Bind a public sharing address before adding this conversation",
@@ -1234,7 +1265,10 @@ async fn mutate(
                 ));
             }
             let token = new_id();
-            source_url = Some(format!("{origin}/share#{token}"));
+            source_url = Some(match request.source_url.as_deref() {
+                Some(source) => validate_conversation_source_url(source)?,
+                None => format!("{origin}/share#{token}"),
+            });
             let native = request
                 .codex_session
                 .as_ref()

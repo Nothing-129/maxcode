@@ -1,6 +1,6 @@
 import { getTransport } from "./transport"
 import type { ConversationShareOptions } from "./types"
-import { todoContentWithConversationReference } from "./todo-conversation-reference"
+import { todoConversationReference } from "./todo-conversation-reference"
 
 export type TodoMode = "personal" | "team"
 export type TodoPriority = "low" | "normal" | "high" | "urgent"
@@ -181,6 +181,7 @@ type TodoAction =
       title: string
       content: string
       assignee_id: string | null
+      source_url?: string
       conversation_id?: number
       share_options?: ConversationShareOptions
       include_codex_session?: boolean
@@ -223,8 +224,7 @@ function normalizeTodoReference(todo: Todo, mode: TodoMode): Todo {
       : todo.source_url
   return {
     ...todo,
-    source_url: sourceUrl,
-    content: todoContentWithConversationReference(todo.content, sourceUrl),
+    source_url: todoConversationReference(todo.content) ?? sourceUrl,
   }
 }
 

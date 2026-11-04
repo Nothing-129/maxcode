@@ -32,16 +32,14 @@ describe("sidebar date and topic title", () => {
     }
   )
 
-  it.each([
-    "普通会话标题",
-    "1022｜探索",
-    "项目｜探索｜审批文件",
-    "1022/探索/审批文件",
-  ])("preserves unstructured title %s", (title) => {
-    render(<ConversationTitleLabel title={title} fallback="Untitled" />)
-    expect(screen.getByText(title)).toHaveClass("truncate")
-    expect(screen.getByText(title)).not.toHaveClass("hidden")
-  })
+  it.each(["普通会话标题", "项目｜探索｜审批文件", "1022/探索/审批文件"])(
+    "preserves unstructured title %s",
+    (title) => {
+      render(<ConversationTitleLabel title={title} fallback="Untitled" />)
+      expect(screen.getByText(title)).toHaveClass("truncate")
+      expect(screen.getByText(title)).not.toHaveClass("hidden")
+    }
+  )
 
   it("preserves the empty-title fallback", () => {
     render(<ConversationTitleLabel title={null} fallback="未命名会话" />)

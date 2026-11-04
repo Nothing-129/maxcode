@@ -7,9 +7,11 @@ describe("conversation header title format", () => {
       "src/components/conversations/conversation-detail-header.tsx",
       "utf8"
     )
-    expect(header).toMatch(/<ConversationTitleLabel\s+title=\{title\}/)
+    expect(header).toMatch(
+      /<ConversationTitleLabel\s+(?:showDate=\{false\}\s+)?title=\{title\}/
+    )
     expect(header).toContain('fallback={t("untitledConversation")}')
-    expect(header).toContain('setRenameValue(title || "")')
+    expect(header).toContain("setRenameValue(formatConversationTitle(title))")
     expect(header).toContain("title={title}")
   })
 })

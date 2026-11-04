@@ -22,8 +22,11 @@ it("preserves the full accessible heading and stable character nodes on rerender
     (characters[0] as HTMLElement).style.getPropertyValue("--character-delay")
   ).toBe("40ms")
   expect(
+    (characters[1] as HTMLElement).style.getPropertyValue("--character-delay")
+  ).toBe("65ms")
+  expect(
     (characters[9] as HTMLElement).style.getPropertyValue("--character-delay")
-  ).toBe("445ms")
+  ).toBe("265ms")
   result.rerender(view())
   expect(heading.querySelector(".maxcode-welcome-character")).toBe(
     characters[0]

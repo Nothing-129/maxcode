@@ -46,7 +46,7 @@ describe("MaxCode: mobile conversation layout", () => {
     expect(chooseComposerUsageDisplayMode(-10, 60, 80)).toBe("hidden")
   })
 
-  it("hides search and sent-message edit on mobile even during interaction", () => {
+  it("keeps search in the title menu and hides sent-message edit on mobile", () => {
     expect(source("src/components/message/conversation-find.tsx")).toContain(
       "if (!active || !open) return null"
     )
@@ -56,7 +56,7 @@ describe("MaxCode: mobile conversation layout", () => {
       "src/components/conversations/conversation-detail-header.tsx"
     )
     expect(header).toMatch(
-      /<DropdownMenuItem\s+className="max-md:hidden"\s+disabled=\{runtimeConversationId/
+      /<DropdownMenuItem\s+disabled=\{runtimeConversationId/
     )
     expect(edit).toContain("group-hover/user-msg:opacity-100")
     expect(edit).toContain("focus-visible:opacity-100")

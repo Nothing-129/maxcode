@@ -3,20 +3,14 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: structured title recovery", () => {
-  it("uses nine defined categories and other instead of unknown", () => {
+  it("generates date/topic titles and accepts legacy categories on read", () => {
     const titles = source("src-tauri/src/session_title.rs")
     const tests = source("src-tauri/src/session_title_tests.rs")
-    expect(titles).toContain(
-      "功能、设计、修复、优化、发布、探索、文档、研究、其他"
-    )
-    expect(titles).toContain("{TITLE_CATEGORY_GUIDANCE}")
-    expect(titles).toContain("For social conversation use 类型=其他")
-    expect(titles).not.toContain('format!("{}｜未知｜未命名"')
+    expect(titles).toContain("只生成主题，不要日期或类型")
+    expect(titles).not.toContain("TITLE_CATEGORY_GUIDANCE")
+    expect(tests).toContain("fn date_topic_and_fallback_apply_to_every_locale")
     expect(tests).toContain(
       "fn other_category_accepts_topics_and_normalizes_legacy_fallbacks"
-    )
-    expect(tests).toContain(
-      "fn category_boundaries_and_other_fallback_apply_to_every_locale"
     )
   })
 

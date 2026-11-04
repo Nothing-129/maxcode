@@ -3191,6 +3191,7 @@
         },
         "askAnything": "Fragen Sie alles...",
         "promptSuggestion": "{suggestion} (Tab zum Übernehmen)",
+        "acceptPromptSuggestion": "Vorschlag übernehmen",
         "removeAttachmentAria": "{name} entfernen",
         "attachFiles": "Dateien anhängen",
         "addActions": "Hinzufügen",
@@ -6080,6 +6081,7 @@
     "markupSend": "Bild speichern"
   },
   "Todos": {
+    "viewDetails": "Details anzeigen",
     "allowCodexImport": "Import der gesamten Codex-Sitzung erlauben",
     "allowCodexImportHint": "Beim Teilen aller Runden verfügbar. Aufgabenmitglieder erhalten Verlauf, Werkzeugaufrufe und Denkprotokolle. Projektdateien und Zugangsdaten sind nicht enthalten.",
     "importCodexConversation": "Importieren und fortsetzen",

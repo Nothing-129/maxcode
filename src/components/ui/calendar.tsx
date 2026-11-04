@@ -17,9 +17,9 @@ import { Button, buttonVariants } from "@/components/ui/button"
 
 /**
  * shadcn/ui's Calendar (registry `new-york-v4/ui/calendar`, MIT), a thin skin
- * over react-day-picker. Pinned to react-day-picker ^9 — this file is written
- * against v9's `classNames` keys and `components` overrides; v10 is mid-rename
- * to `@daypicker/react` and drops props this style relies on.
+ * over react-day-picker. Uses v10's current `classNames` keys and component
+ * overrides; the react-day-picker package remains a supported compatibility
+ * entry point for @daypicker/react.
  *
  * Two deliberate deviations from the upstream file:
  *

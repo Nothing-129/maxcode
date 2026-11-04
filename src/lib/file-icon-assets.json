@@ -44,7 +44,7 @@
     "dark": "file-type-typescriptdef-official"
   },
   "file-type-reactjs": {
-    "light": "file-type-reactjs",
+    "light": "file-type-light-reactjs",
     "dark": "file-type-reactjs"
   },
   "file-type-reactts": {

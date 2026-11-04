@@ -3191,6 +3191,7 @@
         },
         "askAnything": "اسأل أي شيء...",
         "promptSuggestion": "{suggestion} (اضغط Tab للاستخدام)",
+        "acceptPromptSuggestion": "استخدام الاقتراح",
         "removeAttachmentAria": "إزالة {name}",
         "attachFiles": "إرفاق ملفات",
         "addActions": "إضافة",
@@ -6080,6 +6081,7 @@
     "markupSend": "حفظ الصورة"
   },
   "Todos": {
+    "viewDetails": "عرض التفاصيل",
     "allowCodexImport": "السماح باستيراد جلسة Codex كاملة",
     "allowCodexImportHint": "متاح عند مشاركة جميع الجولات. يتضمن السجل الكامل واستدعاءات الأدوات والتفكير لأعضاء المهمة. لا يتضمن ملفات المشروع أو بيانات تسجيل الدخول.",
     "importCodexConversation": "استيراد ومتابعة",

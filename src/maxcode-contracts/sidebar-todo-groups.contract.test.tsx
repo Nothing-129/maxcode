@@ -17,7 +17,11 @@ import {
   buildOwnerHeaderIndex,
   flatIndexOfConversation,
 } from "@/components/conversations/sidebar-conversation-grouping"
-import { WorkbenchRouteProvider } from "@/contexts/workbench-route-context"
+import { consumePendingOpenTodo } from "@/lib/todo-compose-events"
+import {
+  WorkbenchRouteProvider,
+  useWorkbenchRoute,
+} from "@/contexts/workbench-route-context"
 import { useTodoConversationGroups } from "@/hooks/use-todo-conversation-groups"
 import {
   resetAppWorkspaceStore,
@@ -189,6 +193,7 @@ function deferred() {
 }
 
 beforeEach(() => {
+  consumePendingOpenTodo()
   localStorage.clear()
   resetTabStore()
   resetAppWorkspaceStore()
@@ -231,6 +236,58 @@ afterEach(() => {
 })
 
 describe("sidebar conversations grouped by their originating assigned todos", () => {
+  it.each(["personal", "team-a"])(
+    "opens linked-only completed todo details from the menu in %s",
+    async (scope) => {
+      host.state = state(scope)
+      host.groups.mockResolvedValue({
+        scope_key: scope === "personal" ? scope : `team:${scope}`,
+        groups: [group("Linked detail", [1], { status: "completed" })],
+      })
+      const navigate = vi.fn()
+      function RouteProbe() {
+        return (
+          <output data-testid="route">{useWorkbenchRoute().routeId}</output>
+        )
+      }
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <WorkbenchRouteProvider>
+            <RouteProbe />
+            <SidebarConversationList
+              showTodos
+              showCompleted
+              onNavigate={navigate}
+            />
+          </WorkbenchRouteProvider>
+        </NextIntlClientProvider>
+      )
+      const title = await screen.findByText("Linked detail")
+      const heading = title.closest("[data-todo-group-id]") as HTMLElement
+      const toggle = within(heading).getByRole("button", {
+        name: "Linked detail Completed",
+      })
+      fireEvent.click(title)
+      expect(toggle).toHaveAttribute("aria-expanded", "false")
+      expect(consumePendingOpenTodo()).toBeNull()
+      expect(navigate).not.toHaveBeenCalled()
+      fireEvent.click(
+        within(heading).getByRole("button", { name: "More actions" })
+      )
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "View details" })
+      )
+      expect(consumePendingOpenTodo()).toEqual({
+        scope_id: scope,
+        todo_id: "Linked detail",
+      })
+      expect(screen.getByTestId("route")).toHaveTextContent("tasks")
+      expect(navigate).toHaveBeenCalledOnce()
+      expect(toggle).toHaveAttribute("aria-expanded", "false")
+      expect(host.origin).not.toHaveBeenCalled()
+    }
+  )
+
   it("shows creation dates for board and linked-only todo groups", async () => {
     const createdAt = new Date(2026, 10, 2, 12).toISOString()
     host.state!.todos = [myTodo("Board task", { created_at: createdAt })]
@@ -311,7 +368,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
         "true"
       )
       fireEvent.contextMenu(screen.getByText("Status task"))
-      expect(screen.getAllByRole("menuitem")).toHaveLength(2)
+      expect(screen.getAllByRole("menuitem")).toHaveLength(3)
       fireEvent.click(await screen.findByRole("menuitem", { name: label }))
       await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
       expect(host.origin).toHaveBeenLastCalledWith({

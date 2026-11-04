@@ -21,7 +21,8 @@ const h = vi.hoisted(() => ({
   openTab: vi.fn(),
   setRoute: vi.fn(),
   refreshConversations: vi.fn().mockResolvedValue(undefined),
-  allFolders: [
+  folderGroups: [],
+  folders: [
     { id: 7, path: "/local/project", name: "Project", kind: "regular" },
   ],
 }))

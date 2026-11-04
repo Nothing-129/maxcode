@@ -3191,6 +3191,7 @@
         },
         "askAnything": "请开始输入...",
         "promptSuggestion": "{suggestion}（按 Tab 填入）",
+        "acceptPromptSuggestion": "采纳建议",
         "removeAttachmentAria": "移除 {name}",
         "attachFiles": "附加文件",
         "attachLocalUpload": "附加本地文件",
@@ -6080,6 +6081,7 @@
     "markupSend": "保存图片"
   },
   "Todos": {
+    "viewDetails": "查看详情",
     "allowCodexImport": "允许导入完整 Codex 会话",
     "allowCodexImportHint": "仅支持分享全部轮次。待办成员可导入完整历史、工具调用和思考记录；不包含项目文件和登录凭据。",
     "importCodexConversation": "导入并继续",

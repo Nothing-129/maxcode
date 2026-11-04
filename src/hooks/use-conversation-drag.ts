@@ -10,7 +10,11 @@ import {
 } from "@/lib/drag-selection-guard"
 
 /** Drag the title even when the workspace has no tab strip yet. */
-export function useConversationDrag(tabId: string, title: string) {
+export function useConversationDrag(
+  tabId: string,
+  title: string,
+  onDragStart?: () => void
+) {
   const cleanup = useRef<(() => void) | null>(null)
   useEffect(() => () => cleanup.current?.(), [])
 
@@ -32,6 +36,7 @@ export function useConversationDrag(tabId: string, title: string) {
       if (!dragging) {
         dragging = true
         acquireDragSelectionGuard()
+        onDragStart?.()
       }
       const target = conversationDropTarget(tabId, e.clientX, e.clientY)
       useTabStore.getState().updateTabDrag({

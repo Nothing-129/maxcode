@@ -12,33 +12,23 @@ const referencePrefixes = [
   "Consulta la conversación:",
 ]
 
-/** Reconcile generated references with the snapshot hosted by the todo owner. */
-export function todoContentWithConversationReference(
-  content: string,
-  sourceUrl: string | null
-) {
-  if (!sourceUrl) return content
+/** Read only the generated standalone reference; prose and code stay literal. */
+export function todoConversationReference(content: string): string | null {
   let fence: string | null = null
-  return content
-    .split("\n")
-    .map((line) => {
-      const marker = line.trimStart().match(/^(`{3,}|~{3,})/)
-      if (marker) {
-        if (!fence) fence = marker[1]
-        else if (marker[1][0] === fence[0] && marker[1].length >= fence.length)
-          fence = null
-        return line
-      }
-      if (fence) return line
-      const trimmed = line.trim()
-      const prefix = referencePrefixes.find((value) =>
-        trimmed.startsWith(value)
-      )
-      if (!prefix) return line
-      const url = trimmed.slice(prefix.length).trim()
-      // Only the generated, standalone MaxCode reference is rewritten.
-      if (!/^https?:\/\/[^\s/]+\/share#[a-f\d]{32}$/i.test(url)) return line
-      return line.replace(url, () => sourceUrl)
-    })
-    .join("\n")
+  for (const line of content.split("\n")) {
+    const marker = line.trimStart().match(/^(`{3,}|~{3,})/)
+    if (marker) {
+      if (!fence) fence = marker[1]
+      else if (marker[1][0] === fence[0] && marker[1].length >= fence.length)
+        fence = null
+      continue
+    }
+    if (fence) continue
+    const trimmed = line.trim()
+    const prefix = referencePrefixes.find((value) => trimmed.startsWith(value))
+    if (!prefix) continue
+    const url = trimmed.slice(prefix.length).trim()
+    if (/^https?:\/\/[^\s/]+\/share#[a-f\d]{32}$/i.test(url)) return url
+  }
+  return null
 }

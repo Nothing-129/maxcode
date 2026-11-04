@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { todoConversationText } from "@/components/todos/board-columns"
-import { todoContentWithConversationReference } from "@/lib/todo-conversation-reference"
+import { todoConversationReference } from "@/lib/todo-conversation-reference"
 import { todoCall, todoOriginCall, type Todo } from "@/lib/todos"
 
 const call = vi.hoisted(() => vi.fn())
@@ -12,7 +12,7 @@ const canonical =
   "https://maxcodezcy.yuanjia101.com/share#0c8a29fef1cd40ab9eb4d27746c02849"
 const title = "1023｜优化｜消息消费机制审计"
 const content = `${title}\n\n详情见对话：${original}`
-const normalized = `${title}\n\n详情见对话：${canonical}`
+const normalized = content
 const todo: Todo = {
   id: "audit",
   title,
@@ -28,8 +28,8 @@ const todo: Todo = {
 
 beforeEach(() => call.mockReset())
 
-describe("MaxCode: one canonical todo conversation reference", () => {
-  it("inserts a legacy task with only the owner-hosted reference", () => {
+describe("MaxCode: creator-owned todo conversation reference", () => {
+  it("preserves the original creator link in legacy tasks", () => {
     expect(todoConversationText(todo)).toBe(normalized)
     expect(todoConversationText({ ...todo, content: normalized })).toBe(
       normalized
@@ -37,7 +37,7 @@ describe("MaxCode: one canonical todo conversation reference", () => {
     expect(todo.content).toBe(content)
   })
 
-  it("reconciles generated references in every supported language", () => {
+  it("preserves generated references in every supported language", () => {
     const locales = import.meta.glob<{
       Todos: { conversationLinkContent: string }
     }>("../i18n/messages/*.json", { eager: true, import: "default" })
@@ -49,7 +49,7 @@ describe("MaxCode: one canonical todo conversation reference", () => {
           ...todo,
           content: template.replace("{url}", original),
         })
-      ).toBe(template.replace("{url}", canonical))
+      ).toBe(template.replace("{url}", original))
     }
   })
 
@@ -67,8 +67,9 @@ describe("MaxCode: one canonical todo conversation reference", () => {
     expect(todoConversationText({ ...todo, content: body })).toBe(
       `${body}\n\n${canonical}`
     )
-    expect(todoContentWithConversationReference(content, null)).toBe(content)
+    expect(todoConversationReference(content)).toBe(original)
     expect(todoConversationText({ ...todo, source_url: null })).toBe(content)
+    expect(todoConversationReference(body)).toBeNull()
     expect(todoConversationText({ ...todo, content: canonical })).toBe(
       canonical
     )
@@ -86,20 +87,26 @@ describe("MaxCode: one canonical todo conversation reference", () => {
         origin: { scope_id: mode, todo_id: todo.id },
       })
       expect(detail.todo?.content).toBe(normalized)
+      expect(detail.todo?.source_url).toBe(original)
     }
   )
 
-  it("resolves personal relative sources before reconciling their references", async () => {
+  it("prefers the original creator reference over a legacy personal source", async () => {
     const relative = "/share#0c8a29fef1cd40ab9eb4d27746c02849"
     call.mockResolvedValueOnce({
       mode: "personal",
       todos: [{ ...todo, source_url: relative }],
     })
     const result = await todoCall({ action: "state" })
-    const source = new URL(relative, window.location.origin).href
-    expect(result.todos[0].source_url).toBe(source)
-    expect(todoConversationText(result.todos[0])).toBe(
-      `${title}\n\n详情见对话：${source}`
+    expect(result.todos[0].source_url).toBe(original)
+    expect(todoConversationText(result.todos[0])).toBe(content)
+    call.mockResolvedValueOnce({
+      mode: "personal",
+      todos: [{ ...todo, content: "Plain task", source_url: relative }],
+    })
+    const plain = await todoCall({ action: "state" })
+    expect(plain.todos[0].source_url).toBe(
+      new URL(relative, window.location.origin).href
     )
   })
 })

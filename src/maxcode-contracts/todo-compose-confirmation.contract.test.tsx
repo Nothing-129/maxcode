@@ -103,6 +103,7 @@ describe("MaxCode: one-click todos require editor confirmation in place", () => 
       requestCreateTodo({
         title: "Release planning",
         text: "Release planning\n\nSee conversation: https://share.example.com/share#conversation",
+        sourceUrl: "https://share.example.com/share#conversation",
         conversationId: 42,
         shareOptions: { includeTools: false },
       })
@@ -125,6 +126,7 @@ describe("MaxCode: one-click todos require editor confirmation in place", () => 
         title: "Release planning",
         content:
           "Release planning\n\nSee conversation: https://share.example.com/share#conversation",
+        source_url: "https://share.example.com/share#conversation",
         conversation_id: 42,
         share_options: { includeTools: false },
       })

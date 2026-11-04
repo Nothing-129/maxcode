@@ -349,7 +349,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   }, [conversation])
 
   const handleRenameOpen = useCallback(() => {
-    setRenameValue(conversation.title || "")
+    setRenameValue(formatConversationTitle(conversation.title))
     setRenameOpen(true)
   }, [conversation.title])
 

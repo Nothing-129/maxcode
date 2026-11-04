@@ -3191,6 +3191,7 @@
         },
         "askAnything": "請開始輸入...",
         "promptSuggestion": "{suggestion}（按 Tab 填入）",
+        "acceptPromptSuggestion": "採納建議",
         "removeAttachmentAria": "移除 {name}",
         "attachFiles": "附加檔案",
         "addActions": "新增",
@@ -6080,6 +6081,7 @@
     "markupSend": "儲存圖片"
   },
   "Todos": {
+    "viewDetails": "查看詳情",
     "allowCodexImport": "允許匯入完整 Codex 對話",
     "allowCodexImportHint": "僅支援分享全部輪次。待辦成員可匯入完整歷史、工具呼叫和思考紀錄；不包含專案檔案和登入憑證。",
     "importCodexConversation": "匯入並繼續",

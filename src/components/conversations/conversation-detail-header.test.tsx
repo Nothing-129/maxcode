@@ -1,5 +1,5 @@
 import { type ComponentProps, type ReactElement } from "react"
-import { act, render, waitFor } from "@testing-library/react"
+import { act, fireEvent, render, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi, beforeEach } from "vitest"
@@ -64,6 +64,7 @@ const h = vi.hoisted(() => ({
   })),
   closeTab: vi.fn(),
   openNewConversationTab: vi.fn(),
+  titleDragStart: undefined as (() => void) | undefined,
   updateConversationLocal: vi.fn(),
   refreshConversations: vi.fn(),
   conversations: [] as { id: number; agent_type: string }[],
@@ -121,7 +122,14 @@ vi.mock("@/contexts/tab-context", () => ({
 }))
 // Drag gestures are covered by the dedicated hook tests.
 vi.mock("@/hooks/use-conversation-drag", () => ({
-  useConversationDrag: () => vi.fn(),
+  useConversationDrag: (
+    _tabId: string,
+    _title: string,
+    onDragStart?: () => void
+  ) => {
+    h.titleDragStart = onDragStart
+    return vi.fn()
+  },
 }))
 // The header collapses the touch sidebar on "new conversation"; these tests
 // exercise rename/delete targeting, so a bare stub context is enough.
@@ -245,6 +253,58 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
       publicShareUrl: null,
     }
   })
+
+  it.each([390, 768, 1440])(
+    "opens a new conversation in the title's folder at width %i",
+    (width) => {
+      const originalWidth = window.innerWidth
+      try {
+        Object.defineProperty(window, "innerWidth", {
+          configurable: true,
+          value: width,
+        })
+        const view = render(withIntl(<ConversationDetailHeader {...A} />))
+        const title = () =>
+          view.container.querySelector("[data-conversation-title]")!
+        fireEvent.click(title())
+        expect(h.openNewConversationTab).toHaveBeenLastCalledWith(1, "/a")
+
+        view.rerender(
+          withIntl(
+            <ConversationDetailHeader
+              {...B}
+              folderId={7}
+              folderPath="/current"
+            />
+          )
+        )
+        fireEvent.click(title())
+        expect(h.openNewConversationTab).toHaveBeenLastCalledWith(7, "/current")
+
+        h.openNewConversationTab.mockClear()
+        fireEvent.click(title(), { button: 1 })
+        expect(h.openNewConversationTab).not.toHaveBeenCalled()
+        view.rerender(
+          withIntl(<ConversationDetailHeader {...A} folderPath={undefined} />)
+        )
+        fireEvent.click(title())
+        expect(h.openNewConversationTab).not.toHaveBeenCalled()
+
+        view.rerender(withIntl(<ConversationDetailHeader {...A} />))
+        h.titleDragStart?.()
+        fireEvent.click(title())
+        expect(h.openNewConversationTab).not.toHaveBeenCalled()
+        fireEvent.pointerDown(title(), { button: 0 })
+        fireEvent.click(title())
+        expect(h.openNewConversationTab).toHaveBeenLastCalledWith(1, "/a")
+      } finally {
+        Object.defineProperty(window, "innerWidth", {
+          configurable: true,
+          value: originalWidth,
+        })
+      }
+    }
+  )
 
   it("uses the active pane's conversation actions in the mobile workspace menu", async () => {
     const user = userEvent.setup({ pointerEventsCheck: 0 })
@@ -612,6 +672,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
       title: "conv-a",
       text: "conv-a\n\nSee conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      sourceUrl: "http://localhost:3000/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: { rounds: [2] },
     })
@@ -698,6 +759,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
       title: "conv-a",
       text: "conv-a\n\nSee conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      sourceUrl: "http://localhost:3000/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: {},
     })
@@ -724,6 +786,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
       title: "conv-a",
       text: "conv-a\n\nSee conversation: https://maxcode.example.com/share#0123456789abcdef0123456789abcdef",
+      sourceUrl:
+        "https://maxcode.example.com/share#0123456789abcdef0123456789abcdef",
       conversationId: 1,
       shareOptions: {},
     })

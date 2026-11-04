@@ -1,8 +1,10 @@
 "use client"
 
-import { memo } from "react"
+import { memo, useState } from "react"
 import {
   ChevronRight,
+  Ellipsis,
+  Info,
   ListTodo,
   Plus,
   Loader2,
@@ -17,6 +19,7 @@ import {
   ContextMenuTrigger,
   ContextMenuContent,
   ContextMenuItem,
+  ContextMenuSeparator,
 } from "@/components/ui/context-menu"
 import type { TodoStatus } from "@/lib/todos"
 import { cn } from "@/lib/utils"
@@ -28,6 +31,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   createdAt,
   expanded,
   onToggle,
+  onOpen,
   onComplete,
   status = "claimed",
   completing = false,
@@ -40,6 +44,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   createdAt?: string
   expanded: boolean
   onToggle: (id: string) => void
+  onOpen: (id: string) => void
   status?: TodoStatus
   onComplete?: (id: string, action?: "complete" | "finish" | "resume") => void
   completing?: boolean
@@ -48,6 +53,8 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   disabled?: boolean
 }) {
   const t = useTranslations("Todos")
+  const tCard = useTranslations("Folder.conversationCard")
+  const [menuOpen, setMenuOpen] = useState(false)
   const createdDate = createdAt ? new Date(createdAt) : null
   const dateLabel =
     createdDate && !Number.isNaN(createdDate.getTime())
@@ -109,6 +116,31 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
           )}
         />
       </button>
+      <button
+        type="button"
+        title={tCard("moreActions")}
+        aria-label={tCard("moreActions")}
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+        data-state={menuOpen ? "open" : "closed"}
+        onPointerDown={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          event.stopPropagation()
+          const rect = event.currentTarget.getBoundingClientRect()
+          event.currentTarget.dispatchEvent(
+            new MouseEvent("contextmenu", {
+              bubbles: true,
+              cancelable: true,
+              button: 2,
+              clientX: rect.left,
+              clientY: rect.bottom,
+            })
+          )
+        }}
+        className="mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/todo-header:opacity-100 group-focus-within/todo-header:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100 [@media(pointer:coarse)]:opacity-100"
+      >
+        <Ellipsis className="size-3.5" />
+      </button>
       {onNewConversation && (
         <button
           type="button"
@@ -127,33 +159,43 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
       )}
     </div>
   )
-  if (!onComplete) return header
   return (
-    <ContextMenu>
+    <ContextMenu onOpenChange={setMenuOpen}>
       <ContextMenuTrigger asChild>{header}</ContextMenuTrigger>
       <ContextMenuContent>
-        <ContextMenuItem
-          disabled={completing}
-          onSelect={() =>
-            onComplete(id, awaitingVerification ? "resume" : "complete")
-          }
-        >
-          {awaitingVerification ? (
-            <RotateCcw className="size-4" />
-          ) : (
-            <Clock className="size-4" />
-          )}
-          {t(
-            awaitingVerification ? "markProcessing" : "markPendingVerification"
-          )}
+        <ContextMenuItem onSelect={() => onOpen(id)}>
+          <Info className="size-4" />
+          {t("viewDetails")}
         </ContextMenuItem>
-        <ContextMenuItem
-          disabled={completing}
-          onSelect={() => onComplete(id, "finish")}
-        >
-          <Check className="size-4" />
-          {t("complete")}
-        </ContextMenuItem>
+        {onComplete && (
+          <>
+            <ContextMenuSeparator />
+            <ContextMenuItem
+              disabled={completing}
+              onSelect={() =>
+                onComplete(id, awaitingVerification ? "resume" : "complete")
+              }
+            >
+              {awaitingVerification ? (
+                <RotateCcw className="size-4" />
+              ) : (
+                <Clock className="size-4" />
+              )}
+              {t(
+                awaitingVerification
+                  ? "markProcessing"
+                  : "markPendingVerification"
+              )}
+            </ContextMenuItem>
+            <ContextMenuItem
+              disabled={completing}
+              onSelect={() => onComplete(id, "finish")}
+            >
+              <Check className="size-4" />
+              {t("complete")}
+            </ContextMenuItem>
+          </>
+        )}
       </ContextMenuContent>
     </ContextMenu>
   )

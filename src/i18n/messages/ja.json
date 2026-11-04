@@ -3191,6 +3191,7 @@
         },
         "askAnything": "何でも質問してください...",
         "promptSuggestion": "{suggestion}（Tab で入力）",
+        "acceptPromptSuggestion": "提案を入力",
         "removeAttachmentAria": "{name} を削除",
         "attachFiles": "ファイルを添付",
         "addActions": "追加",
@@ -6080,6 +6081,7 @@
     "markupSend": "画像を保存"
   },
   "Todos": {
+    "viewDetails": "詳細を表示",
     "allowCodexImport": "Codex セッション全体のインポートを許可",
     "allowCodexImportHint": "全ラウンドの共有時に利用できます。ToDo メンバーは履歴、ツール呼び出し、思考記録をインポートできます。プロジェクトファイルと認証情報は含まれません。",
     "importCodexConversation": "インポートして続行",

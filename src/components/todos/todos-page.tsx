@@ -154,7 +154,7 @@ export function TodosPage() {
   }, [sourceOrigin, state, scope, busy, mutate, t, invalidateSource])
 
   return (
-    <div className="todo-theme flex h-full min-h-0 flex-col">
+    <div className="todo-theme flex h-full min-h-0 min-w-0 flex-col overflow-hidden">
       {state ? (
         <TodosWorkspace
           key={todoScopeKey(state)}
@@ -400,7 +400,7 @@ function TodosWorkspace({
   }
 
   return (
-    <div ref={motionRef} className="flex min-h-0 flex-1 flex-col">
+    <div ref={motionRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
         <div className="flex gap-1 rounded-full border border-primary/15 bg-primary/5 p-1">
           <Button
@@ -578,11 +578,11 @@ function TodosWorkspace({
           </Button>
         </div>
       ) : viewMode === "board" ? (
-        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4">
+        <div className="flex min-h-0 min-w-0 flex-1 gap-4 overflow-x-auto p-4">
           {TODO_COLUMNS.map((column) => (
             <section
               key={column}
-              className="flex min-h-0 min-w-60 flex-1 flex-col rounded-2xl bg-muted/35"
+              className="flex min-h-0 min-w-80 flex-1 flex-col rounded-2xl bg-muted/35"
               aria-label={t(TODO_COLUMN_LABELS[column])}
               aria-busy={column === "completed" && completedLoading}
             >

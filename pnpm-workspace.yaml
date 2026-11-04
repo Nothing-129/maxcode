@@ -9,9 +9,12 @@ overrides:
   undici@6: ^6.29.1
   undici@7: ^7.30.1
   # Keep the stylesheet and every renderer on the same patched KaTeX.
-  katex: ^0.19.0
+  katex: ^0.19.1
   # ansi-to-react uses the compatible factory/tlds API from linkify-it 5.
   ansi-to-react>linkify-it: ^5.0.2
+  # Keep the existing compiler lint semantics during dependency maintenance.
+  # 7.1 adds diagnostics that require a separate application-wide migration.
+  eslint-plugin-react-hooks: 7.0.1
 
 allowBuilds:
   "@parcel/watcher": true

@@ -325,7 +325,6 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
   )
 })
 
-
 it("keeps settings search background neutral across accent themes", () => {
   const css = source("src/app/globals.css")
   const search = css.slice(

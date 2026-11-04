@@ -1,12 +1,12 @@
 {
   "name": "maxcode-desktop",
-  "version": "0.30.52",
+  "version": "0.30.53",
   "private": true,
   "description": "MaxCode Electron desktop workspace",
   "author": "MaxCode contributors",
   "license": "Apache-2.0",
   "main": "main.cjs",
   "dependencies": {
-    "electron-updater": "6.8.9"
+    "electron-updater": "6.8.11"
   }
 }

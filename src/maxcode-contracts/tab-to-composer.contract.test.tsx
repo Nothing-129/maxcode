@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render } from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { useTabToComposer } from "@/hooks/use-tab-to-composer"
@@ -12,6 +13,7 @@ function Harness() {
       <div className="codeg-composer">
         <div contentEditable suppressContentEditableWarning tabIndex={0} />
       </div>
+      <button>Full access</button>
     </>
   )
 }
@@ -55,7 +57,7 @@ describe("MaxCode: Tab returns to a visible conversation composer", () => {
   it("focuses from a non-input control without scrolling", () => {
     const { composer, getByRole } = setup()
     const focus = vi.spyOn(composer, "focus")
-    const button = getByRole("button")
+    const button = getByRole("button", { name: "Conversation" })
     button.focus()
     expect(tab(button).defaultPrevented).toBe(true)
     expect(document.activeElement).toBe(composer)
@@ -104,13 +106,26 @@ describe("MaxCode: Tab returns to a visible conversation composer", () => {
     }
   })
 
-  it("leaves existing input and composer keyboard behavior alone", () => {
+  it("leaves other input keyboard behavior alone", () => {
+    const { getByRole } = setup()
+    const input = getByRole("textbox")
+    input.focus()
+    expect(tab(input).defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(input)
+  })
+
+  it("keeps consecutive Tabs in the composer instead of the permission selector", async () => {
+    const user = userEvent.setup()
     const { composer, getByRole } = setup()
-    for (const element of [getByRole("textbox"), composer]) {
-      element.focus()
-      expect(tab(element).defaultPrevented).toBe(false)
-      expect(document.activeElement).toBe(element)
-    }
+    getByRole("button", { name: "Conversation" }).focus()
+    await user.tab()
+    expect(composer).toHaveFocus()
+    await user.tab()
+    await user.tab()
+    expect(composer).toHaveFocus()
+    expect(tab(composer, { repeat: true }).defaultPrevented).toBe(true)
+    await user.tab({ shift: true })
+    expect(getByRole("textbox")).toHaveFocus()
   })
 
   it.each([

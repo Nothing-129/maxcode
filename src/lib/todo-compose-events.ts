@@ -7,6 +7,7 @@ export const TODO_OPEN_EVENT = "maxcode:open-todo"
 export interface TodoComposeDraft {
   title?: string
   text: string
+  sourceUrl?: string
   conversationId?: number
   shareOptions?: ConversationShareOptions
   includeCodexSession?: boolean

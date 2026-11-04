@@ -56,6 +56,17 @@ describe("composer secondary configuration", () => {
       expect(showComposerConfigInSettings(option(id, "on"), false)).toBe(true)
     }
   })
+  it("preserves agent titles for model, effort and permission settings", () => {
+    const source = readFileSync("src/components/chat/message-input.tsx", "utf8")
+    const titleResolver = source.slice(
+      source.indexOf("const configTitle ="),
+      source.indexOf("const renderInlineConfigOption =")
+    )
+    expect(titleResolver).toContain("return option.name")
+    for (const key of ["model", "effort", "permission"]) {
+      expect(titleResolver).not.toContain(`t("composerConfig.${key}")`)
+    }
+  })
   it("keeps narrow settings wired to shared visibility, labels and readonly protections", () => {
     const source = readFileSync("src/components/chat/message-input.tsx", "utf8")
     expect(source).toContain("settings={modelSettings}")

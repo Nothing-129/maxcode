@@ -2,6 +2,47 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "sidebar.todo-details-menu",
+      "category": "product",
+      "origins": ["worktree-2026-11-03"],
+      "description": "Todo rows retain whole-row expansion. A touch-visible ellipsis opens the same context menu as right click, with View details first and existing lifecycle actions preserved. Details use the captured personal/team scope and exact todo ID, including completed and linked-only todos; mobile navigation closes the drawer. The plus button still creates a linked conversation.",
+      "paths": [
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/i18n/messages/"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-todo-details-menu.contract.test.tsx",
+        "src/maxcode-contracts/sidebar-todo-groups.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.touch-prompt-suggestion",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Desktop and touch composers offer a separate 44px adoption arrow before send only for an empty, available composer between turns. Touch and phone composers show predicted text without the Tab suffix. Placeholder taps only focus; adopting fills and focuses without submitting or overwriting a live draft. Desktop Tab adoption is retained.",
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/chat/composer/accept-prompt-suggestion.tsx",
+        "src/i18n/messages/zh-CN.json",
+        "src/i18n/messages/en.json"
+      ],
+      "contracts": ["src/maxcode-contracts/composer-touch-suggestion.contract.test.tsx"]
+    },
+    {
+      "id": "todos.readable-board-columns",
+      "category": "product",
+      "origins": ["worktree-2026-11-02"],
+      "description": "Todo boards keep each status column at least 320px wide and share extra space on large screens. Narrow workspaces scroll horizontally inside the board without widening the page; loading placeholders reserve the same widths.",
+      "paths": [
+        "src/components/todos/todos-page.tsx",
+        "src/components/todos/todos-loading-skeleton.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/todo-board-responsive.contract.test.tsx"
+      ]
+    },
+    {
       "id": "workspace.hidden-scrollbars",
       "category": "product",
       "origins": ["worktree-2026-11-02"],
@@ -113,7 +154,7 @@
       "id": "chat.welcome-typewriter",
       "category": "product",
       "origins": ["worktree-2026-10-30"],
-      "description": "Reveal the new-chat greeting once per mount, grapheme by grapheme, preserving full layout and accessible text. Reduced motion shows the full greeting immediately.",
+      "description": "Reveal the new-chat greeting once per mount, grapheme by grapheme, with the selected C speed (25ms per grapheme after a 40ms initial delay, capped at a 900ms reveal span), preserving full layout and accessible text. Reduced motion shows the full greeting immediately.",
       "paths": ["src/components/chat/welcome-hero.tsx", "src/app/motion.css"],
       "contracts": [
         "src/maxcode-contracts/welcome-typewriter.contract.test.tsx"
@@ -138,10 +179,21 @@
       ]
     },
     {
+      "id": "mobile.title-new-conversation",
+      "category": "product",
+      "origins": ["worktree-2026-11-03"],
+      "description": "Clicking the conversation title on mobile or PC opens a new conversation draft in the displayed conversation's folder. Preserve title styling, desktop dragging and middle-click pane closing. A completed or cancelled drag must not trigger creation. Missing folder paths do not create a draft.",
+      "paths": [
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/hooks/use-conversation-drag.ts"
+      ],
+      "contracts": ["src/maxcode-contracts/mobile-title-new-conversation.contract.test.ts"]
+    },
+    {
       "id": "chat.secondary-composer-config",
       "category": "product",
       "origins": ["worktree-2026-10-30"],
-      "description": "Render active Plan as a trailing dismissible tag whose close restores default; place collaboration mode directly in the final add-menu submenu after attachments, quick messages and slash commands, without a separator; place Fast in model pickers and show enabled Fast beside the model name. Use the same visibility and localized setting titles on mobile/narrow and PC composers: default/Plan collaboration stays in the add menu, Fast stays in the model pane, and empty settings triggers are omitted. Keep readonly controls consistent. Preserve unknown options and read-only/loading behavior.",
+      "description": "Render active Plan as a trailing dismissible tag whose close restores default; place collaboration mode directly in the final add-menu submenu after attachments, quick messages and slash commands, without a separator; place Fast in model pickers and show enabled Fast beside the model name. Preserve agent-provided model, effort and permission titles alongside their original option labels, without localized title overrides. Use the same visibility on mobile/narrow and PC composers: default/Plan collaboration stays in the add menu, Fast stays in the model pane, and empty settings triggers are omitted. Keep readonly controls consistent. Preserve unknown options and read-only/loading behavior.",
       "paths": [
         "src/components/chat/composer/composer-add-menu.tsx",
         "src/components/chat/model-fast-mode.tsx",
@@ -1250,6 +1302,20 @@
       "contracts": ["src/maxcode-contracts/pi-official-icon.contract.test.tsx"]
     },
     {
+      "id": "conversation.date-topic-titles",
+      "category": "product",
+      "description": "Models generate only the topic in every locale. The backend adds MMDD from the stored Shanghai creation time; prompts and their current-title fallback contain no generated date or category. Stored titles use MMDD｜topic. Legacy date/type/topic titles normalize to date/topic for display and both rename dialogs; the sidebar keeps its separate date column. Legacy stored titles remain readable and locked names remain protected.",
+      "origins": ["worktree-2026-11-03"],
+      "paths": [
+        "src/lib/conversation-title.ts",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src-tauri/src/session_title.rs",
+        "src-tauri/src/session_title_tests.rs"
+      ],
+      "contracts": ["src/maxcode-contracts/date-topic-title.contract.test.tsx"]
+    },
+    {
       "id": "sidebar.mobile-title-topic-only",
       "category": "product",
       "description": "Sidebar and conversation header structured MMDD｜type｜topic titles omit the type on all screen sizes. Both mobile and desktop show a fixed-width, smaller muted MMDD date and topic separated by an 8px gap, without a pipe; the date is always visible. Display-only: stored titles, search, unstructured titles and empty-title fallbacks remain unchanged.",
@@ -1267,7 +1333,7 @@
     {
       "id": "chat.tab-to-visible-composer",
       "category": "product",
-      "description": "Unmodified Tab from outside editing surfaces focuses a visible, enabled conversation composer without scrolling. Root overflow uses the viewport, including a zero-height root around the fixed workspace. Preserve Shift/modified Tab, editing and terminal keys, consumed events and dialog/menu focus traps; ignore hidden, offscreen and clipped composers.",
+      "description": "Unmodified Tab from outside editing surfaces focuses a visible, enabled conversation composer without scrolling. Further unclaimed Tabs, including key repeats, retain focus in the current composer instead of moving to permission/model controls; editor suggestions and menus consume keys first. Root overflow uses the viewport, including a zero-height root around the fixed workspace. Preserve Shift/modified Tab, other editing and terminal keys, consumed events and dialog/menu focus traps; ignore hidden, offscreen and clipped composers.",
       "origins": ["worktree-2026-10-22"],
       "paths": [
         "src/hooks/use-tab-to-composer.ts",
@@ -1986,15 +2052,22 @@
     {
       "id": "todos.canonical-conversation-reference",
       "category": "product",
-      "description": "Personal and team todo boards, source details and unsent conversation drafts use the todo owner's source_url for generated localized conversation references, including legacy todos with a different original share URL. Draft insertion never appends a duplicate source already present in the body. Unrelated links and fenced code examples remain literal; content without a source stays unchanged.",
+      "description": "Conversation todos preserve the conversation creator's original share URL through the UI draft, backend team forwarding and MCP creation. Team hosting never replaces that URL. Legacy todos prefer the generated localized original reference still stored in their body; unrelated prose and fenced code are ignored. Draft insertion never appends a duplicate source already present in the body. Unrelated links and fenced code examples remain literal; content without a source stays unchanged.",
       "origins": ["worktree-2026-10-26"],
       "paths": [
+        "src/maxcode-contracts/todo-mcp.contract.rs",
+        "src-tauri/src/todo/mod.rs",
+        "src-tauri/src/todo/mcp.rs",
+        "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/todos/todo-editor-dialog.tsx",
+        "src/lib/todo-compose-events.ts",
         "src/lib/todo-conversation-reference.ts",
         "src/lib/todos.ts",
         "src/components/todos/board-columns.ts"
       ],
       "contracts": [
-        "src/maxcode-contracts/todo-conversation-reference.contract.test.ts"
+        "src/maxcode-contracts/todo-conversation-reference.contract.test.ts",
+        "src/maxcode-contracts/todo-mcp.contract.test.tsx"
       ]
     },
     {
@@ -4216,7 +4289,7 @@
     {
       "id": "conversations.structured-title-recovery",
       "category": "product",
-      "description": "Dedicated titles normalize MMDD｜type｜topic, use Shanghai creation-date MMDD｜其他｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, use nine categories with explicit outcome-based boundaries and 其他 for social conversation, normalize legacy 未知 fallbacks to 其他, treat understandable short messages as valid title topics, verify greeting kickoff sends HTTP for every supported agent, and log HTTP attempts, responses, outcomes and skip reasons without credentials or message content.",
+      "description": "Dedicated titles normalize MMDD｜topic (accepting legacy type fields), use Shanghai creation-date MMDD｜未命名 for missing context or failed generation, keep automatic fallback unlocked for recovery, reject invalid/truncated responses, recover from the first transcript turn with cooldown, use the first exchange assistant text for image-only prompts without crossing later user turns or sending image payloads, preserve locked names, omit category generation, normalize legacy category titles and 未知 fallbacks to date/topic, treat understandable short messages as valid title topics, verify greeting kickoff sends HTTP for every supported agent, and log HTTP attempts, responses, outcomes and skip reasons without credentials or message content.",
       "origins": ["worktree-2026-09-07"],
       "paths": [
         "src-tauri/src/session_title.rs",
@@ -5242,7 +5315,7 @@
     {
       "id": "todos.searchable-conversation-folder",
       "category": "product",
-      "description": "Todo conversation folder selection uses the shared in-app searchable picker with alias-first labels, secondary truncated paths, and a full-width field. It excludes chat folders, requires an explicit valid selection before confirming, and retains browse, cancellation and busy-state behavior.",
+      "description": "Todo conversation folder selection uses the shared in-app searchable picker with alias-first labels, secondary truncated paths, and a full-width field. Only currently open root workspace projects are offered, in sidebar order including group placement and member order; closed folders, internal delegated checkouts, chat folders and worktree children are excluded. It requires an explicit valid selection before confirming and retains browse, cancellation and busy-state behavior.",
       "origins": ["worktree-2026-10-19"],
       "paths": [
         "src/components/todos/todo-conversation-folder-dialog.tsx",

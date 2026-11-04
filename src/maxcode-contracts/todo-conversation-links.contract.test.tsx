@@ -57,6 +57,7 @@ vi.mock("@/lib/platform", async (original) => ({
 }))
 vi.mock("@/components/layout/mobile-header-slot", () => ({
   MobileHeaderSlot: ({ children }: { children: ReactNode }) => <>{children}</>,
+  MobileHeaderActionsSlot: () => null,
 }))
 vi.mock("@/hooks/use-conversation-drag", () => ({
   useConversationDrag: () => vi.fn(),

@@ -158,6 +158,7 @@ export function TodoEditorDialog({
               ...fields,
               ...(draft?.conversationId != null
                 ? {
+                    source_url: draft.sourceUrl,
                     conversation_id: draft.conversationId,
                     share_options: draft.shareOptions,
                     ...(draft.includeCodexSession

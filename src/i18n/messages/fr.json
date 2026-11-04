@@ -3191,6 +3191,7 @@
         },
         "askAnything": "Posez n'importe quelle question...",
         "promptSuggestion": "{suggestion} (Tab pour l’utiliser)",
+        "acceptPromptSuggestion": "Utiliser la suggestion",
         "removeAttachmentAria": "Retirer {name}",
         "attachFiles": "Joindre des fichiers",
         "addActions": "Ajouter",
@@ -6080,6 +6081,7 @@
     "markupSend": "Enregistrer l’image"
   },
   "Todos": {
+    "viewDetails": "Voir les détails",
     "allowCodexImport": "Autoriser l’import de la session Codex complète",
     "allowCodexImportHint": "Disponible en partageant tous les échanges. Les membres reçoivent l’historique, les appels d’outils et le raisonnement. Les fichiers du projet et les identifiants sont exclus.",
     "importCodexConversation": "Importer et continuer",

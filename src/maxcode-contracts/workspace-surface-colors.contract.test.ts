@@ -57,24 +57,24 @@ describe("MaxCode contract: Codex-matched workspace surfaces", () => {
     expect(fallback).toContain("--background: #ffffff;")
     expect(fallback).toContain("--sidebar: #fcfcfc;")
   })
-  it("softens only neutral light composer paint without changing layout", () => {
+  it("keeps the current light composer outline and elevation without changing layout", () => {
     const rules: Record<string, Record<string, string>> = {}
     postcss.parse(source("src/app/globals.css")).walkRules((rule) => {
-      if (!rule.selector.includes(':root:is([data-theme="neutral"]')) return
+      if (!rule.selector.startsWith(":root:not(.dark)")) return
       const declarations: Record<string, string> = {}
       rule.walkDecls((decl) => {
         declarations[decl.prop] = decl.value.replace(/\s+/g, " ")
       })
       rules[rule.selector.replace(/\s+/g, " ")] = declarations
     })
-    const scope =
-      ':root:is([data-theme="neutral"], :not([data-theme])):not(.dark)'
+    const scope = ":root:not(.dark)"
     // Neutral light mode must use the same softened outline and shadow.
     expect(rules[`${scope} .codeg-composer-chrome`]).toEqual({
-      "border-color": "rgb(0 0 0 / 6%)",
+      "border-color": "rgb(0 0 0 / 10%)",
     })
     expect(rules[`${scope} .maxcode-composer-shadow`]).toEqual({
-      "box-shadow": "0 2px 8px rgb(0 0 0 / 2.5%), 0 4px 32px rgb(0 0 0 / 1.5%)",
+      "box-shadow":
+        "0 2px 4px rgb(0 0 0 / 2%), 0 4px 16px rgb(0 0 0 / 4%), 0 8px 32px rgb(0 0 0 / 8%)",
     })
     expect(source("src/components/chat/composer/composer-chrome.ts")).toContain(
       "maxcode-composer-shadow"

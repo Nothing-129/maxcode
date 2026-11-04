@@ -111,7 +111,7 @@ export function WelcomeHero() {
     ),
     ({ segment }) => segment
   )
-  const stepMs = Math.min(45, 900 / Math.max(1, characters.length - 1))
+  const stepMs = Math.min(25, 900 / Math.max(1, characters.length - 1))
 
   return (
     // ChatGPT 桌面端首页问候语：~28px、常规字重、居中、纯前景色（无渐变强调）。

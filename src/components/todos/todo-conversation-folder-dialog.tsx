@@ -1,10 +1,14 @@
 "use client"
 
-import { useState } from "react"
+import { useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { WorkspaceFolderDialog } from "@/components/layout/workspace-folder-dialog"
 import { FolderSelect } from "@/components/shared/folder-select"
+import {
+  buildSidebarLayout,
+  layoutFolderIds,
+} from "@/components/conversations/sidebar-conversation-grouping"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -34,9 +38,19 @@ export function TodoConversationFolderDialog({
 }) {
   const t = useTranslations("Todos")
   const tSidebar = useTranslations("Folder.sidebar")
-  const folders = useAppWorkspaceStore((state) => state.allFolders).filter(
-    (folder) => folder.kind !== "chat"
-  )
+  const openFolders = useAppWorkspaceStore((state) => state.folders)
+  const folderGroups = useAppWorkspaceStore((state) => state.folderGroups)
+  const folders = useMemo(() => {
+    // Match the user's workspace projects and sidebar order, including groups.
+    // allFolders also contains closed folders and internal working directories.
+    const projects = openFolders.filter(
+      (folder) => folder.kind !== "chat" && folder.parent_id == null
+    )
+    const byId = new Map(projects.map((folder) => [folder.id, folder]))
+    return layoutFolderIds(
+      buildSidebarLayout({ folders: projects, groups: folderGroups })
+    ).map((id) => byId.get(id)!)
+  }, [openFolders, folderGroups])
   const [selected, setSelected] = useState<number | null>(null)
   const [browse, setBrowse] = useState(false)
   if (browse)

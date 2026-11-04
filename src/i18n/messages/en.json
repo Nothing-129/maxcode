@@ -3191,6 +3191,7 @@
         },
         "askAnything": "Ask anything...",
         "promptSuggestion": "{suggestion} (Tab to use)",
+        "acceptPromptSuggestion": "Use suggestion",
         "removeAttachmentAria": "Remove {name}",
         "attachFiles": "Attach files",
         "attachLocalUpload": "Upload local file",
@@ -6080,6 +6081,7 @@
     "markupSend": "Save image"
   },
   "Todos": {
+    "viewDetails": "View details",
     "allowCodexImport": "Allow importing the full Codex session",
     "allowCodexImportHint": "Available when sharing all rounds. Includes full history, tool calls and reasoning for todo members. Project files and credentials are not included.",
     "importCodexConversation": "Import and continue",

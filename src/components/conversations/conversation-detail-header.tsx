@@ -134,6 +134,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   selectionActive,
   conversationId,
   runtimeConversationId,
+  folderId,
+  folderPath,
   title,
   status,
 }: ConversationDetailHeaderProps) {
@@ -146,7 +148,8 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const todosView = useOptionalTodosView()
   const workbenchRoute = useOptionalWorkbenchRoute()
   const setRoute = workbenchRoute?.setRoute
-  const { closeTab, closePane, restorePaneDraft } = useTabActions()
+  const { closeTab, closePane, restorePaneDraft, openNewConversationTab } =
+    useTabActions()
   const hasArchivedDraft = useTabStore((s) => s.archivedPaneDrafts.length > 0)
   const updateConversationLocal = useAppWorkspaceStore(
     (s) => s.updateConversationLocal
@@ -251,7 +254,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
 
   const handleRenameOpen = useCallback(() => {
     if (conversationId == null) return
-    setRenameValue(title || "")
+    setRenameValue(formatConversationTitle(title))
     setRenameTarget({ id: conversationId, title })
   }, [conversationId, title])
 
@@ -523,6 +526,7 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
           target.title,
           tTodos("conversationLinkContent", { url: link }),
         ].join("\n\n"),
+        sourceUrl: link,
         conversationId: target.id,
         shareOptions: options,
         ...(includeCodexSession && !options.rounds
@@ -568,7 +572,10 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
     }
   }, [handleCloseShare, shareTarget])
 
-  const handleTitleDrag = useConversationDrag(tabId, title)
+  const titleDragged = useRef(false)
+  const handleTitleDrag = useConversationDrag(tabId, title, () => {
+    titleDragged.current = true
+  })
 
   const activeTabId = useTabStore((state) => state.activeTabId)
   const conversationMenuItems = (
@@ -696,7 +703,13 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
               event.stopPropagation()
               return
             }
+            titleDragged.current = false
             handleTitleDrag(event)
+          }}
+          onClick={(event) => {
+            if (event.button !== 0 || titleDragged.current || !folderPath)
+              return
+            openNewConversationTab(folderId, folderPath)
           }}
           onAuxClick={(event) => {
             if (event.button !== 1) return

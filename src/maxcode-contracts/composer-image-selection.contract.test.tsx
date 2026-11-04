@@ -139,7 +139,7 @@ describe("composer images participate in select-all deletion", () => {
     ]) {
       expect(source(path)).toContain("onDeleteSelectedAttachments=")
     }
-    expect(source("src/app/globals.css")).toContain(
+    expect(source("src/app/globals.css").replace(/\s+/g, " ")).toContain(
       '.codeg-composer[data-all-selected="true"] [data-attachment-tile] [data-image-actions]'
     )
   })

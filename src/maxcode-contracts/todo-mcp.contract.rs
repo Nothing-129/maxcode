@@ -258,6 +258,7 @@ async fn invalid_remote_membership_cannot_create_any_todo() {
             token: "a".repeat(32),
             spec,
             snapshot: None,
+            source_url: None,
         }
     )
     .await
@@ -371,7 +372,7 @@ async fn remote_create_retries_and_edits_use_only_member_capability() {
         1
     );
     // The same selected remote scope must receive a real conversation share,
-    // with the host's public URL and no caller-side conversation identifiers.
+    // with the creator's public URL and no caller-side conversation identifiers.
     crate::db::service::app_metadata_service::upsert_value(
         &host.conn,
         "web_service_public_share_url",
@@ -387,6 +388,13 @@ async fn remote_create_retries_and_edits_use_only_member_capability() {
     .await
     .unwrap();
     let (conversation, _home) = conversation_fixture(&db).await;
+    crate::db::service::app_metadata_service::upsert_value(
+        &db.conn,
+        "web_service_public_share_url",
+        "https://creator.example.com",
+    )
+    .await
+    .unwrap();
     let shared = call(
         &db.conn,
         Some(conversation),
@@ -396,13 +404,11 @@ async fn remote_create_retries_and_edits_use_only_member_capability() {
     .unwrap();
     assert_eq!(shared["origin"]["scope_id"], team_id);
     let url = shared["todo"]["source_url"].as_str().unwrap();
-    assert!(url.starts_with("https://host.example.com/share#"));
-    let public = conversation_share::get_shared_conversation_core(
-        &host.conn,
-        url.split('#').nth(1).unwrap(),
-    )
-    .await
-    .unwrap();
+    assert!(url.starts_with("https://creator.example.com/share#"));
+    let public =
+        conversation_share::get_shared_conversation_core(&db.conn, url.split('#').nth(1).unwrap())
+            .await
+            .unwrap();
     assert!(serde_json::to_string(&public)
         .unwrap()
         .contains("Configure SIP 8001"));
@@ -633,4 +639,55 @@ async fn current_conversation_creates_team_share_link_not_local_association() {
     .await
     .unwrap()
     .is_empty());
+}
+
+#[tokio::test]
+async fn ui_team_creation_preserves_creator_url_and_private_import_storage() {
+    let db = fresh_in_memory_db().await;
+    select_test_team(&db.conn).await;
+    crate::db::service::app_metadata_service::upsert_value(
+        &db.conn,
+        "web_service_public_share_url",
+        "https://host.example.com",
+    )
+    .await
+    .unwrap();
+    let (conversation, _home) = conversation_fixture(&db).await;
+    let share = conversation_share::create_conversation_share_core(
+        &db.conn,
+        conversation,
+        ConversationShareOptions::default(),
+    )
+    .await
+    .unwrap();
+    let source = format!("https://creator.example.com/share#{}", share.token);
+    let state = super::super::call(
+        &db.conn,
+        TodoRequest {
+            action: "create".into(),
+            title: Some("Creator conversation".into()),
+            content: Some(format!("详情见对话：{source}")),
+            conversation_id: Some(conversation),
+            source_url: Some(source.clone()),
+            ..Default::default()
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(state.todos[0].source_url.as_deref(), Some(source.as_str()));
+    assert_eq!(state.todos[0].content, format!("详情见对话：{source}"));
+    assert_eq!(
+        rows(&db.conn, "SELECT token FROM maxcode_todo_share", vec![])
+            .await
+            .unwrap()
+            .len(),
+        1
+    );
+    for invalid in [
+        "javascript:alert(1)",
+        "https://creator.example.com/other",
+        "https://user:pass@example.com/share#0123456789abcdef0123456789abcdef",
+    ] {
+        assert!(validate_conversation_source_url(invalid).is_err());
+    }
 }

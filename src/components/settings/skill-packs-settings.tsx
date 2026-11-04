@@ -54,6 +54,7 @@ export function SkillPacksSettings() {
   const [tab, setTab] = useState<SkillPackTab>(() =>
     normalizeTab(searchParams.get("tab"))
   )
+  const activeTabRef = useRef(tab)
 
   // The currently-mounted pack body publishes its reload handler here, so the
   // fixed "Refresh" button drives whichever tab is visible without remounting
@@ -67,6 +68,10 @@ export function SkillPacksSettings() {
   const handleTabChange = useCallback(
     (next: string) => {
       const value = normalizeTab(next)
+      // Focus and pointer activation can report the same selection before
+      // React commits it. Mirror each actual change into the URL only once.
+      if (value === activeTabRef.current) return
+      activeTabRef.current = value
       setTab(value)
       // Preserve every other param (esp. ?remoteConnectionId=N) when mirroring
       // the active tab into the URL.
