@@ -402,13 +402,11 @@ pub const PI_MIN_RUNTIME_VERSION: &str = "0.81.0";
 /// `_meta.steering.supported`: an adapter that ignores the opt-in falls back
 /// to `startedNewTurn` on the turn-end race — a detached turn no host request
 /// owns, which codeg's turn-scoped runtime must never trigger. codex-acp
-/// ships `_session/steering` but not `promptRequired` — re-verified against
-/// the published 1.3.0 tarball (zero hits, same as 1.1.9) — so it stays
-/// `None` until a release implements the opt-in — then this is a one-line
-/// flip plus tests.
+/// honors `promptRequired` from 2.4.0; older unmodified releases stay
+/// on the pull channel.
 /// MaxCode's private 2.2.2 compatibility copy is gated separately by an
 /// explicit initialize marker in `codex_steering`; an unmodified Codex
-/// adapter still has no version-only opt-in here.
+/// adapter below 2.4.0 still has no version-only opt-in here.
 ///
 /// Honoring the opt-in is necessary but not sufficient: the ACTIVE path must
 /// also keep the owning `session/prompt` in flight across the steered work
@@ -434,8 +432,31 @@ pub fn steering_prompt_required_min_version(agent_type: AgentType) -> Option<&'s
         // reverted an unrelated ExitPlanMode change — still carries the bug and
         // is held to the pull channel by the runtime version gate.
         AgentType::ClaudeCode => Some("0.65.0"),
+        AgentType::Codex => Some("2.4.0"),
         _ => None,
     }
+}
+
+/// Whether a live-feedback note that would be steered natively goes to the
+/// next-turn queue instead while a permission card is open on the session
+/// (`ConnectionManager::submit_feedback_native` answers `NoActiveTurn`, the
+/// reroute the composer already handles).
+///
+/// codex holds a steer injected during an approval as the turn's pending
+/// input until the model's next step. Its command and file-change approvals
+/// offer `cancel` ("No, and tell Codex what to do differently"), which aborts
+/// the turn and drops that input unseen. Measured on codex-acp 2.4.0 with
+/// codex 0.165.0: a steer during an exec approval came back `injected` in
+/// 4 ms. After "Yes" the note reached the next model request. After the
+/// `cancel` answer the prompt ended `cancelled`, and neither the rollout nor
+/// any later request carried the note, which codeg had already recorded as
+/// delivered. Queued, the note becomes the next prompt, which is what that
+/// button asks the user for. The pull channel needs no such rule: an unread
+/// note outlives its turn and offers to be resent.
+///
+/// Only codex is known to drop an injected note this way, so only codex waits.
+pub fn steering_waits_out_open_permission(agent_type: AgentType) -> bool {
+    matches!(agent_type, AgentType::Codex)
 }
 
 /// Whether this adapter's goal-control request reaches the agent OUT OF BAND —
@@ -1423,8 +1444,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 // cancelled-turn reports and interim background results;
                 // offer predicted prompts and preserve Remote Control sessions.
                 // Fork children exclude inherited usage and wait for real results.
-                version: "0.97.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.97.0",
+                version: "0.100.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.100.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2077,8 +2098,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             distribution: AgentDistribution::Npx {
                 // Reviewed 8b95fc1c: app-server crash classification, thread names,
                 // cache-write accounting and strict owned catalog validation.
-                version: "2.2.2",
-                package: "@agentclientprotocol/codex-acp@2.2.2",
+                version: "2.5.0",
+                package: "@agentclientprotocol/codex-acp@2.5.0",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
@@ -2431,8 +2452,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // permission flags and connection-scope setup notification handling.
             distribution: AgentDistribution::Npx {
                 // Reviewed 001ee728: background task labels name the original command.
-                version: "1.0.62",
-                package: "@xai-official/grok@1.0.62",
+                version: "1.0.70",
+                package: "@xai-official/grok@1.0.70",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
@@ -2824,8 +2845,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // the models the plan marks disabled, and the Windows server, still
             // the PyInstaller onefile, embeds Python 3.14 where it embedded
             // 3.10.
+            // Reviewed upstream febefc08f / 6b14e28ef: 1.4.5 retains the
+            // archive layout. From 1.4.4 its client_view_file reads whole files;
+            // file_system_runtime grants it the existing 16 MiB file limit.
             distribution: AgentDistribution::Binary {
-                version: "1.4.1",
+                version: "1.4.5",
                 // Never resolvable on PATH (there is no standalone CLI by
                 // this name); it exists because `Binary` requires one, and
                 // for dir-tree agents `installed_binary_path` ignores it in
@@ -2842,32 +2866,32 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 platforms: &[
                     PlatformBinary {
                         platform: "darwin-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.5-darwin-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "darwin-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.1-darwin-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/macos/agy-acp-server-1.4.5-darwin-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.1-linux-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.5-linux-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "linux-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.1-linux-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/linux/agy-acp-server-1.4.5-linux-x86_64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-aarch64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.1-windows-arm64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.5-windows-arm64.zip",
                         sha256: None,
                     },
                     PlatformBinary {
                         platform: "windows-x86_64",
-                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.1-windows-x86_64.zip",
+                        url: "https://dl.google.com/agy-extensions/releases/windows/agy-acp-server-1.4.5-windows-x86_64.zip",
                         sha256: None,
                     },
                 ],
@@ -2917,9 +2941,12 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // Reviewed e2961c264 / a7cd74b18: 0.75 makes the sandbox opt-in
             // and adds replay message IDs; 0.76.2 needs no new wire adaptation.
             // Retain native turn metrics and the reviewed model-catalog repair.
+            // 0.82.0 (6b14e28ef) keeps these wire contracts and adds steering
+            // without promptRequired. Keep ZCode on pull feedback; history
+            // remains ACP-native with upstream runtime discovery.
             distribution: AgentDistribution::Npx {
-                version: "0.76.2",
-                package: "zcode-acp-server@0.76.2",
+                version: "0.82.0",
+                package: "zcode-acp-server@0.82.0",
                 cmd: "zcode-acp-server",
                 args: &["server"],
                 env: &[],
@@ -3007,7 +3034,7 @@ mod tests {
                 dir_entry,
                 ..
             } => {
-                assert_eq!(version, "1.4.1");
+                assert_eq!(version, "1.4.5");
                 assert_eq!(cmd, "agy_acp_server");
                 let entry = dir_entry.expect("antigravity must use dir-tree extraction");
                 assert_eq!(entry.unix, "agy_acp_server.par");
@@ -3017,7 +3044,7 @@ mod tests {
                 assert!(platforms.iter().any(|p| p.platform == "darwin-x86_64"));
                 for platform in platforms {
                     assert!(
-                        platform.url.contains("/agy-acp-server-1.4.1-"),
+                        platform.url.contains("/agy-acp-server-1.4.5-"),
                         "{} URL lost the release name: {}",
                         platform.platform,
                         platform.url
@@ -3160,7 +3187,7 @@ mod tests {
     }
 
     #[test]
-    fn steering_prompt_required_min_version_gates_claude_only() {
+    fn steering_prompt_required_min_version_gates_reviewed_adapters() {
         // The native-steering policy bit: only an adapter that honors the
         // `promptRequired` opt-in AND keeps the owning prompt in flight across
         // a steered turn gets a minimum version. The floor is the release that
@@ -3174,7 +3201,10 @@ mod tests {
             steering_prompt_required_min_version(AgentType::ClaudeCode),
             Some("0.65.0")
         );
-        assert_eq!(steering_prompt_required_min_version(AgentType::Codex), None);
+        assert_eq!(
+            steering_prompt_required_min_version(AgentType::Codex),
+            Some("2.4.0")
+        );
         for agent in [
             AgentType::Gemini,
             AgentType::OpenClaw,
@@ -3218,14 +3248,14 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::Zcode,
-            "0.76.2",
-            "zcode-acp-server@0.76.2",
+            "0.82.0",
+            "zcode-acp-server@0.82.0",
             Some("22.0.0"),
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.97.0",
-            "@agentclientprotocol/claude-agent-acp@0.97.0",
+            "0.100.0",
+            "@agentclientprotocol/claude-agent-acp@0.100.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3260,15 +3290,15 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "2.2.2",
-            "@agentclientprotocol/codex-acp@2.2.2",
+            "2.5.0",
+            "@agentclientprotocol/codex-acp@2.5.0",
             Some("20.3.0"),
         );
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.62",
-            "@xai-official/grok@1.0.62",
+            "1.0.70",
+            "@xai-official/grok@1.0.70",
             Some("20.0.0"),
         );
         assert_npx_version(

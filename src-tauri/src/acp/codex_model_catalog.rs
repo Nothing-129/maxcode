@@ -753,15 +753,15 @@ mod tests {
         let models = snap();
         assert_eq!(
             models.len(),
-            11,
-            "snapshot should carry the catalog codex 0.159.2–0.160.1 ships"
+            12,
+            "snapshot should carry the catalog codex 0.165.0 ships"
         );
         // 0.158.0 deleted gpt-5.4 outright (it had shipped hidden, as a
         // retirement stub) rather than hiding it any further.
         assert!(models.iter().all(|m| slug_of(m) != Some("gpt-5.4")));
         assert!(models.iter().any(|m| slug_of(m) == Some("gpt-6-astra")));
         // 0.156.1 adds GPT-6 Sol and Luna, 0.159.1 GPT-6.1 Sol; all listed.
-        for added in ["gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol"] {
+        for added in ["gpt-6-sol", "gpt-6-luna", "gpt-6.1-sol", "gpt-6.1-terra"] {
             let m = models
                 .iter()
                 .find(|m| slug_of(m) == Some(added))
@@ -882,8 +882,8 @@ mod tests {
             default: None,
         };
         let cat = expand_to_catalog(&config, &snap());
-        // All 11 officials auto-included + 1 custom = 12.
-        assert_eq!(slugs(&cat).len(), 12);
+        // All 12 officials auto-included + 1 custom = 13.
+        assert_eq!(slugs(&cat).len(), 13);
         // Custom is first (top of picker) and forced list + api.
         let c = find(&cat, "gw/opus").expect("custom present");
         assert_eq!(c.get("visibility").unwrap(), "list");

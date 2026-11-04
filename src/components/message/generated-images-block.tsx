@@ -155,11 +155,12 @@ export const GeneratedImagesBlock = memo(function GeneratedImagesBlock({
           </div>
         ) : (
           <div
-            className="flex h-64 w-64 max-w-full shrink-0 animate-pulse items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/40 text-xs text-muted-foreground"
+            className="maxcode-skeleton flex h-64 w-64 max-w-full shrink-0 items-center justify-center rounded-md border border-dashed border-border/70 bg-muted/40 text-xs text-muted-foreground"
             role="status"
+            aria-busy="true"
             aria-live="polite"
           >
-            <div className="flex flex-col items-center gap-1.5">
+            <div className="relative flex flex-col items-center gap-1.5">
               <ImagePlus className="h-6 w-6 opacity-60" />
               <span>{t("imageGenerationPending")}</span>
             </div>

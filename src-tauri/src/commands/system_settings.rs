@@ -1374,7 +1374,8 @@ mod tests {
         .await
         .expect("test title model");
 
-        assert!(result.title.ends_with("｜探索｜Test title model"));
+        assert!(result.title.ends_with("｜Test title model"));
+        assert!(!result.title.contains("｜探索｜"));
         let request = request_rx.await.expect("captured title request");
         assert!(request.contains("POST /v1/chat/completions HTTP/1.1"));
         assert!(request

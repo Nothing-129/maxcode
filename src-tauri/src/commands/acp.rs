@@ -3666,39 +3666,42 @@ fn persist_codex_local_config(config_patch_json: Option<&str>) -> Result<(), Acp
         toml::Value::String(provider_name.clone()),
     );
 
-    let providers_item = table
-        .entry("model_providers".to_string())
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-    if !providers_item.is_table() {
-        *providers_item = toml::Value::Table(toml::map::Map::new());
-    }
-    let providers = providers_item
-        .as_table_mut()
-        .ok_or_else(|| AcpError::protocol("invalid model_providers table"))?;
-    let provider_item = providers
-        .entry(provider_name.clone())
-        .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
-    if !provider_item.is_table() {
-        *provider_item = toml::Value::Table(toml::map::Map::new());
-    }
-    let provider_table = provider_item
-        .as_table_mut()
-        .ok_or_else(|| AcpError::protocol("invalid model provider table"))?;
-    match trim_non_empty(api_base_url) {
-        Some(base_url) => {
-            provider_table.insert("base_url".to_string(), toml::Value::String(base_url));
+    // gcp is built in from codex 0.165; custom endpoint fields make it fail.
+    if provider_name != "gcp" {
+        let providers_item = table
+            .entry("model_providers".to_string())
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        if !providers_item.is_table() {
+            *providers_item = toml::Value::Table(toml::map::Map::new());
         }
-        None => {
-            provider_table.remove("base_url");
+        let providers = providers_item
+            .as_table_mut()
+            .ok_or_else(|| AcpError::protocol("invalid model_providers table"))?;
+        let provider_item = providers
+            .entry(provider_name.clone())
+            .or_insert_with(|| toml::Value::Table(toml::map::Map::new()));
+        if !provider_item.is_table() {
+            *provider_item = toml::Value::Table(toml::map::Map::new());
         }
-    }
-    if provider_name == "codeg" {
-        provider_table.insert("name".to_string(), toml::Value::String("codeg".to_string()));
-        provider_table.insert(
-            "wire_api".to_string(),
-            toml::Value::String("responses".to_string()),
-        );
-        ensure_codex_provider_auth_default(provider_table);
+        let provider_table = provider_item
+            .as_table_mut()
+            .ok_or_else(|| AcpError::protocol("invalid model provider table"))?;
+        match trim_non_empty(api_base_url) {
+            Some(base_url) => {
+                provider_table.insert("base_url".to_string(), toml::Value::String(base_url));
+            }
+            None => {
+                provider_table.remove("base_url");
+            }
+        }
+        if provider_name == "codeg" {
+            provider_table.insert("name".to_string(), toml::Value::String("codeg".to_string()));
+            provider_table.insert(
+                "wire_api".to_string(),
+                toml::Value::String("responses".to_string()),
+            );
+            ensure_codex_provider_auth_default(provider_table);
+        }
     }
 
     if env.is_empty() {
@@ -10713,7 +10716,7 @@ fn cascade_update_agent_config(
                 .get("model_provider")
                 .and_then(|value| value.as_str())
                 .map(str::trim)
-                .filter(|value| !value.is_empty())
+                .filter(|value| !value.is_empty() && *value != "gcp")
                 .map(str::to_string)
                 .unwrap_or_else(|| "codeg".to_string());
             table.insert(
@@ -13469,3 +13472,7 @@ mod maxcode_grok_reasoning_levels_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/grok-native-install.contract.rs"]
 mod maxcode_grok_native_install_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/codex-gcp-provider.contract.rs"]
+mod maxcode_codex_gcp_provider;

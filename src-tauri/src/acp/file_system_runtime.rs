@@ -78,6 +78,25 @@ pub struct FsAccessPolicy {
     read_roots: Vec<PathBuf>,
     /// Roots a write may land in. Empty ⇒ unrestricted.
     write_roots: Vec<PathBuf>,
+    read_response_limit: usize,
+}
+
+/// The most text one `fs/read_text_file` answer may carry for `agent_type`.
+///
+/// Every agent gets [`FS_MAX_READ_RESPONSE_BYTES`], and a bigger read fails
+/// with a hint to narrow it with `line` / `limit`. Google Antigravity cannot
+/// narrow it: from 1.4.4 its `client_view_file` asks for the whole file and
+/// slices out the requested lines itself, because its output header shows the
+/// file's line count, which an answer does not carry. Under the common limit
+/// even a few lines of a file over 2 MiB would fail to read. Its whole file
+/// may therefore fill the [`FS_MAX_FILE_SIZE_BYTES`] any read is held to. Its
+/// stdio transport takes such an answer as one line: past its buffer limit it
+/// reads the line in pieces instead of refusing it.
+fn read_response_limit(agent_type: AgentType) -> usize {
+    match agent_type {
+        AgentType::Antigravity => usize::try_from(FS_MAX_FILE_SIZE_BYTES).unwrap_or(usize::MAX),
+        _ => FS_MAX_READ_RESPONSE_BYTES,
+    }
 }
 
 impl FsAccessPolicy {
@@ -88,6 +107,7 @@ impl FsAccessPolicy {
         Self {
             read_roots: roots.clone(),
             write_roots: roots,
+            read_response_limit: FS_MAX_READ_RESPONSE_BYTES,
         }
     }
 
@@ -96,6 +116,7 @@ impl FsAccessPolicy {
         Self {
             read_roots: Vec::new(),
             write_roots: Vec::new(),
+            read_response_limit: FS_MAX_READ_RESPONSE_BYTES,
         }
     }
 
@@ -123,6 +144,7 @@ impl FsAccessPolicy {
         Self {
             read_roots: Vec::new(),
             write_roots,
+            read_response_limit: read_response_limit(agent_type),
         }
     }
 
@@ -141,8 +163,14 @@ impl FsAccessPolicy {
             None | Some("") | Some("default") => {
                 Self::permissive(workspace_root, agent_type, runtime_env)
             }
-            Some("strict") => Self::strict(workspace_root),
-            Some("unrestricted") => Self::unrestricted(),
+            Some("strict") => Self {
+                read_response_limit: read_response_limit(agent_type),
+                ..Self::strict(workspace_root)
+            },
+            Some("unrestricted") => Self {
+                read_response_limit: read_response_limit(agent_type),
+                ..Self::unrestricted()
+            },
             Some(other) => {
                 tracing::warn!(
                     "[ACP] unrecognized {FS_POLICY_ENV}={other:?}; falling back to \"default\""
@@ -774,8 +802,7 @@ impl FileSystemRuntime {
         let path_for_log = path.clone();
 
         let response = run_blocking_with_timeout("fs/read_text_file", move || {
-            read_text_file_impl(&path, line, limit, &policy.read_roots)
-                .map(ReadTextFileResponse::new)
+            read_text_file_impl(&path, line, limit, &policy).map(ReadTextFileResponse::new)
         })
         .await;
 
@@ -856,9 +883,9 @@ fn read_text_file_impl(
     path: &Path,
     line: Option<u32>,
     limit: Option<u32>,
-    read_roots: &[PathBuf],
+    policy: &FsAccessPolicy,
 ) -> Result<String, FileSystemRuntimeError> {
-    ensure_path_allowed(path, read_roots, false)?;
+    ensure_path_allowed(path, &policy.read_roots, false)?;
 
     let metadata = std::fs::metadata(path).map_err(|err| map_io_error("read", path, err))?;
     if metadata.len() > FS_MAX_FILE_SIZE_BYTES {
@@ -879,8 +906,8 @@ fn read_text_file_impl(
     let mut taken = 0usize;
     let mut out = String::with_capacity(
         usize::try_from(metadata.len())
-            .unwrap_or(FS_MAX_READ_RESPONSE_BYTES)
-            .min(FS_MAX_READ_RESPONSE_BYTES),
+            .unwrap_or(policy.read_response_limit)
+            .min(policy.read_response_limit),
     );
     let mut line_buf = String::new();
 
@@ -900,10 +927,10 @@ fn read_text_file_impl(
                 }
             }
 
-            if out.len().saturating_add(line_buf.len()) > FS_MAX_READ_RESPONSE_BYTES {
+            if out.len().saturating_add(line_buf.len()) > policy.read_response_limit {
                 return Err(FileSystemRuntimeError::InvalidParams(format!(
                     "read result too large (limit {} bytes). Narrow with line/limit.",
-                    FS_MAX_READ_RESPONSE_BYTES
+                    policy.read_response_limit
                 )));
             }
 
@@ -1158,6 +1185,7 @@ mod tests {
         FsAccessPolicy {
             read_roots: Vec::new(),
             write_roots: vec![canonical_root(workspace)],
+            read_response_limit: FS_MAX_READ_RESPONSE_BYTES,
         }
     }
 
@@ -2025,6 +2053,7 @@ mod tests {
         let runtime = FileSystemRuntime::with_policy(FsAccessPolicy {
             read_roots: Vec::new(),
             write_roots: vec![canonical_root(&workspace)],
+            read_response_limit: FS_MAX_READ_RESPONSE_BYTES,
         });
         assert!(runtime
             .write_text_file(WriteTextFileRequest::new(
@@ -2313,3 +2342,7 @@ mod tests {
         let _ = fs::remove_dir_all(workspace);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/antigravity-read-limit.contract.rs"]
+mod maxcode_antigravity_read_limit;

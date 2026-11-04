@@ -193,9 +193,9 @@ describe("selected upstream: independent Rust contracts and scope", () => {
   it("keeps reviewed adapter pins and official runtime routing", () => {
     const registry = source("src-tauri/src/acp/registry.rs")
     for (const pin of [
-      "claude-agent-acp@0.97.0",
-      "codex-acp@2.2.2",
-      "grok@1.0.62",
+      "claude-agent-acp@0.100.0",
+      "codex-acp@2.5.0",
+      "grok@1.0.70",
       "pi-acp@0.0.34",
       "qodercli@1.1.49",
     ])

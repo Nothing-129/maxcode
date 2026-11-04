@@ -25,15 +25,9 @@ use crate::web::event_bridge::{emit_event, EventEmitter, QUESTION_SETTINGS_CHANG
 pub const KEY_QUESTION_ENABLED: &str = "question.enabled";
 
 /// Disabled by default.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct QuestionSettings {
     pub enabled: bool,
-}
-
-impl Default for QuestionSettings {
-    fn default() -> Self {
-        Self { enabled: false }
-    }
 }
 
 impl QuestionSettings {

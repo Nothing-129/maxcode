@@ -238,7 +238,12 @@ pub async fn fork_session(
         ),
     )
     .await
-    .map_err(|e| AcpError::protocol(format!("session/fork failed: {e}")))
+    .map_err(|e| {
+        AcpError::protocol(format!(
+            "session/fork failed: {}",
+            crate::acp::connection::agent_error_text(&e)
+        ))
+    })
 }
 
 /// The `session/fork` request: the fork point, if any, and — for Claude only —

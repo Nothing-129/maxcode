@@ -1,5 +1,7 @@
 # MaxCode 下游功能清单
 
+2026-11-04 智能体运行时选择性集成：Pi 文件名 UUID 回退保持 ACP 身份；Claude ACP 0.100.0 启动拒绝分类和 MCP 命令去重；Codex ACP 2.5.0 原生补充指令、文件引用回读和预测提示，保留旧 2.2.2 私有兼容及手机采纳按钮，审批期间排队、无人值守关闭预测；Antigravity 1.4.5 单独放宽读取到 16 MiB；Grok 1.0.70 上下文窗口继承；ZCode 0.82.0 继续 ACP 历史与上游运行时发现。独立契约入口：`agent-upstream-20261104.contract.test.ts`；热点：`agents.reviewed-runtime-20261104`。
+
 2026-11-04 桌面、手机及触屏输入框：空输入框在发送钮前显示独立 44px 弯箭头采纳图标。手机及触屏预测建议不显示 Tab 后缀；桌面同时保留 Tab 填入。点击灰字只聚焦，采纳只填入并聚焦，不发送、不覆盖已输入草稿。契约：`composer-touch-suggestion.contract.test.tsx`；热点：`chat.touch-prompt-suggestion`。
 
 2026-11-02 待办看板列宽不小于 320px，大屏继续均分可用空间；小屏在看板内部横向滚动，不撑宽工作区。加载占位沿用相同列宽。契约：`todo-board-responsive.contract.test.tsx`；热点：`todos.readable-board-columns`。

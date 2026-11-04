@@ -22,6 +22,23 @@ use serde_json::Value;
 
 use crate::acp::js_text::is_js_blank;
 
+/// codex-acp 2.4.0's `ACCOUNT_READ_UNAVAILABLE_MESSAGES`: the whole error text
+/// of a workspace lookup that got no answer from the ChatGPT backend. Matched
+/// exactly, as the adapter's `Set.has` does.
+const WORKSPACE_ROUTING_UNAVAILABLE_MESSAGES: &[&str] = &[
+    "workspace routing discovery failed",
+    "workspace routing discovery timed out",
+];
+
+/// codex-acp 2.4.0's `workspaceRoutingUnavailableMessage`, word for word.
+fn workspace_routing_unavailable_message(text: &str) -> String {
+    format!(
+        "Codex can't reach chatgpt.com to look up your ChatGPT workspace. \
+Check your network connection and any proxy, VPN, or firewall that blocks chatgpt.com, then try again. \
+({text})"
+    )
+}
+
 /// The error types the adapter recognizes. Any other type is not the envelope.
 const SERVICE_ERROR_TYPES: &[&str] = &[
     "invalid_request_error",
@@ -44,6 +61,9 @@ const SERVICE_ERROR_TYPES: &[&str] = &[
 /// `code`/`param`, or a blank message all mean the text is something else, and
 /// custom JSON a provider wrote is never cut down to one field of it.
 pub(crate) fn readable_service_error_message(text: &str) -> Option<String> {
+    if WORKSPACE_ROUTING_UNAVAILABLE_MESSAGES.contains(&text) {
+        return Some(workspace_routing_unavailable_message(text));
+    }
     let Ok(Value::Object(envelope)) = serde_json::from_str::<Value>(text) else {
         return None;
     };
@@ -242,6 +262,33 @@ mod tests {
     #[test]
     fn reads_exactly_what_the_adapter_reads() {
         for (text, want) in ADAPTER_READ {
+            assert_eq!(
+                readable_service_error_message(text).as_deref(),
+                *want,
+                "{text:?}"
+            );
+        }
+    }
+
+    /// Inputs run through codex-acp 2.4.0's own `readableServiceErrorMessage`
+    /// under Node 24.18 (#697), each with what it returned (`None` where it
+    /// returned the text unchanged): only the whole bare text matches, and an
+    /// envelope carrying it as its message reads down to the bare text.
+    const ADAPTER_EXPLAINS_ROUTING: &[(&str, Option<&str>)] = &[
+        ("workspace routing discovery failed", Some("Codex can't reach chatgpt.com to look up your ChatGPT workspace. Check your network connection and any proxy, VPN, or firewall that blocks chatgpt.com, then try again. (workspace routing discovery failed)")),
+        ("workspace routing discovery timed out", Some("Codex can't reach chatgpt.com to look up your ChatGPT workspace. Check your network connection and any proxy, VPN, or firewall that blocks chatgpt.com, then try again. (workspace routing discovery timed out)")),
+        (" workspace routing discovery failed", None),
+        ("workspace routing discovery failed\n", None),
+        ("Workspace routing discovery failed", None),
+        ("workspace routing discovery unauthorized (401)", None),
+        ("workspace routing discovery", None),
+        ("\"workspace routing discovery failed\"", None),
+        ("{\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"workspace routing discovery failed\"}}", Some("workspace routing discovery failed")),
+    ];
+
+    #[test]
+    fn explains_an_unreachable_workspace_lookup_as_the_adapter_does() {
+        for (text, want) in ADAPTER_EXPLAINS_ROUTING {
             assert_eq!(
                 readable_service_error_message(text).as_deref(),
                 *want,

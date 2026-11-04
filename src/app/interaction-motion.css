@@ -2,6 +2,41 @@
   z-index: 1;
 }
 
+/* A moving tonal highlight stays visible on both light and dark surfaces.
+   Only the decoration moves; placeholder geometry and content stay still. */
+@keyframes maxcode-skeleton-shine {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.maxcode-skeleton {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.maxcode-skeleton::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 15%,
+    color-mix(in srgb, var(--foreground) 9%, transparent) 50%,
+    transparent 85%
+  );
+  animation: maxcode-skeleton-shine 1.6s ease-in-out infinite;
+}
+
+.conversation-tab-hidden .maxcode-skeleton::before,
+[hidden] .maxcode-skeleton::before {
+  animation-play-state: paused;
+}
+
 /* Small, consistent feedback; no layout animation on the transcript hot path. */
 @keyframes maxcode-selector-in {
   from {
@@ -188,6 +223,10 @@
   }
   [data-slot="skeleton"] {
     animation: none;
+  }
+  .maxcode-skeleton::before {
+    animation: none;
+    content: none;
   }
   [data-slot="checkbox-indicator"] > svg {
     animation: maxcode-fade-in 100ms ease-out;

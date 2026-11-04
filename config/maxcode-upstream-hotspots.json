@@ -5366,6 +5366,64 @@
       "contracts": [
         "src/maxcode-contracts/grok-reasoning-levels.contract.test.tsx"
       ]
+    },
+    {
+      "id": "ui.skeleton-shimmer",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-04"
+      ],
+      "description": "Shared skeleton placeholders and pending generated images show a theme-aware sweeping highlight instead of barely visible opacity pulses. Decoration alone moves without changing layout. Reduced motion removes the sweep and hidden conversation tabs pause it. Pending images expose a busy status; failures remove loading feedback.",
+      "paths": [
+        "src/components/ui/skeleton.tsx",
+        "src/components/message/generated-images-block.tsx",
+        "src/app/interaction-motion.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/skeleton-shimmer.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "agents.reviewed-runtime-20261104",
+      "category": "runtime",
+      "origins": [
+        "70ee1db46",
+        "6ff9e53b6",
+        "47aeb140b",
+        "54f07a112",
+        "5424b5396",
+        "febefc08f",
+        "6b14e28ef",
+        "af23b44f7"
+      ],
+      "description": "Pi filename fallback preserves ACP identity and header precedence. Claude startup refusals keep existing sessions and readable errors; MCP prompt records dedupe across command names and blob generations. Codex 2.5 native steering retains the reviewed 2.2.2 fallback, queues feedback under approval and shares desktop/mobile prediction adoption while disabling unattended predictions. Antigravity alone may read 16 MiB under every existing path policy. Grok follows custom model context inheritance; ZCode 0.82 keeps ACP history, runtime discovery and the pull feedback gate.",
+      "paths": [
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/file_system_runtime.rs",
+        "src-tauri/src/parsers/pi.rs",
+        "src-tauri/src/parsers/grok.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/background_watch.rs",
+        "src-tauri/src/acp/fork.rs",
+        "src-tauri/src/acp/service_error.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/codex_file_citations.rs",
+        "src-tauri/src/acp/codex_model_catalog.rs",
+        "src-tauri/resources/codex/bundled-catalog.json",
+        "src/maxcode-contracts/agent-startup-steering.contract.rs",
+        "src/maxcode-contracts/antigravity-read-limit.contract.rs",
+        "src/maxcode-contracts/pi-session-identity.contract.rs",
+        "src/maxcode-contracts/grok-context-inheritance.contract.rs",
+        "src-tauri/src/commands/acp.rs",
+        "src/maxcode-contracts/codex-gcp-provider.contract.rs",
+        "src/maxcode-contracts/claude-mcp-command-ledger.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/agent-upstream-20261104.contract.test.ts",
+        "src/maxcode-contracts/composer-touch-suggestion.contract.test.tsx"
+      ]
     }
   ],
   "retired": [

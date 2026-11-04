@@ -123,7 +123,7 @@ describe("reviewed October 27 upstream fixes", () => {
       "mod maxcode_claude_097_advisor_contract;"
     )
     expect(source("src-tauri/src/acp/registry.rs")).toContain(
-      "claude-agent-acp@0.97.0"
+      "claude-agent-acp@0.100.0"
     )
     const connection = source("src-tauri/src/acp/connection.rs")
     expect(connection).toContain(

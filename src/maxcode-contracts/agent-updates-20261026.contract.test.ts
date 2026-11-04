@@ -5,13 +5,13 @@ describe("reviewed October 26 agent updates", () => {
   it("keeps the seven-agent catalog and reviewed pins", () => {
     const registry = source("src-tauri/src/acp/registry.rs")
     for (const pkg of [
-      "claude-agent-acp@0.97.0",
-      "codex-acp@2.2.2",
-      "grok@1.0.62",
+      "claude-agent-acp@0.100.0",
+      "codex-acp@2.5.0",
+      "grok@1.0.70",
       "pi-acp@0.0.34",
       "deepseek-acp@0.9.0",
-      "zcode-acp-server@0.76.2",
-      "agy-acp-server-1.4.1",
+      "zcode-acp-server@0.82.0",
+      "agy-acp-server-1.4.5",
     ])
       expect(registry).toContain(pkg)
     expect(registry).toContain(
