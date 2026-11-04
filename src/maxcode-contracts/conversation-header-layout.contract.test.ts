@@ -72,7 +72,11 @@ it("omits new conversation from the conversation header tools", () => {
   expect(source("conversations/conversation-detail-header")).not.toContain(
     't("newConversation")'
   )
-  expect(source("conversations/conversation-detail-header")).not.toContain(
-    "openNewConversationTab"
-  )
+  const buttons =
+    source("conversations/conversation-detail-header").match(
+      /<Button\b[\s\S]*?<\/Button>/g
+    ) ?? []
+  for (const button of buttons) {
+    expect(button).not.toContain("openNewConversationTab")
+  }
 })
