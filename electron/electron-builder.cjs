@@ -36,6 +36,7 @@ module.exports = {
   artifactName: "MaxCode-${version}-${os}-${arch}.${ext}",
   // Generates app-update.yml and per-architecture manifests; CLI still uses --publish never.
   publish: [updateFeed()],
+  afterSign: release ? require("./scripts/mac-notarize.cjs") : undefined,
   beforePack: () => {
     const root = path.resolve(__dirname, "..")
     for (const input of [
@@ -55,6 +56,8 @@ module.exports = {
   },
   mac: {
     sign: release ? require("./scripts/mac-sign.cjs") : undefined,
+    // Release notarization is mandatory in afterSign, with ticket-only retries.
+    notarize: release ? false : undefined,
     forceCodeSigning: release,
     identity: process.env.CSC_NAME || (process.env.CSC_LINK ? undefined : "-"),
     category: "public.app-category.developer-tools",

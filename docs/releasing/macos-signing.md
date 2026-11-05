@@ -109,3 +109,9 @@ References:
 - [Electron Builder macOS signing](https://www.electron.build/code-signing-mac.html)
 - [Apple Developer ID](https://developer.apple.com/support/developer-id/)
 - [Runtime migration checklist](../maintenance/desktop-runtime-migration.md)
+
+Release afterSign runs mandatory notarization. If Apple accepted the submission
+but stapling fails with code 68 and an explicit temporary network error, retry
+only stapling after 30/60/120/240 seconds. Do not resubmit or rebuild. Other
+failures stop immediately, and codesign, ticket validation and Gatekeeper checks
+remain mandatory. This covers v0.30.54 Apple CloudKit connection loss (-1005).
