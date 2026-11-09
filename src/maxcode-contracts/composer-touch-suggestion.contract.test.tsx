@@ -33,7 +33,7 @@ describe("desktop and touch composer suggestion adoption", () => {
     const button = screen.getByRole("button", { name: "采纳建议" })
     expect(button).toHaveAttribute("type", "button")
     expect(setText).not.toHaveBeenCalled()
-    expect(button).toHaveClass("size-11")
+    expect(button).toHaveClass("size-8")
     fireEvent.click(button)
     expect(setText).toHaveBeenCalledWith("允许，继续查")
     expect(focus).toHaveBeenCalledOnce()
