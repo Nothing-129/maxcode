@@ -1951,7 +1951,9 @@ pub fn build_router(
         .fallback_service(fallback)
         .layer(html_rewrite)
         .layer(middleware::from_fn(super::frontend_cache::frontend_cache))
-        .layer(middleware::from_fn(super::security_headers::security_headers))
+        .layer(middleware::from_fn(
+            super::security_headers::security_headers,
+        ))
         .layer(cors)
         .layer(Extension(state))
         .layer(Extension(shutdown_signal))

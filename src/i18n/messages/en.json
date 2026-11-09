@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "Show in Recent",
       "sectionTodos": "By todo",
       "showTodos": "Show todo groups",
-      "noAssignedTodoConversations": "No conversations from assigned todos"
+      "noAssignedTodoConversations": "No conversations from assigned todos",
+      "navigation": {
+        "label": "Workspace navigation",
+        "home": "Home",
+        "today": "Today",
+        "conversations": "Chats",
+        "projects": "Projects",
+        "automations": "Auto",
+        "tasks": "Tasks",
+        "settings": "Settings",
+        "selectDate": "Select date",
+        "activityHint": "By last conversation update",
+        "noActivity": "No conversations on this date",
+        "recent": "Recent",
+        "dateRange": "Date range",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "filterDate": "Filter by date",
+        "clearDate": "Clear date filter",
+        "presets": {
+          "today": "Today",
+          "yesterday": "Yesterday",
+          "last3": "Last 3 days",
+          "last7": "Last 7 days",
+          "week": "This week",
+          "month": "This month"
+        },
+        "statistics": "Statistics",
+        "settingsUpdate": "Settings · Update available",
+        "about": "About MaxCode",
+        "todoBoard": "Task board"
+      }
     },
     "conversation": {
       "reloadFailed": "Failed to reload conversation: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "{agent} session failed to load. Reload to retry, or start a new conversation.",
           "sessionLoadUnavailable": "{agent} couldn't restore this session — it may have ended or the agent stopped. Reload to retry, or start a new conversation.",
           "sessionLoadBusy": "This session is open elsewhere. If another {agent} client (the app, the CLI or an IDE extension) has it, close it there or quit that client, then reload. If you just forked it, reload in about a minute.",
+          "sessionProviderMissing": "The model provider used by this session is no longer configured. The history is still on disk. Restore the original provider configuration, then reload this conversation.",
           "sessionArchived": "The previous session was archived on the {agent} side. Run {command} in a terminal to restore it and reload, or start a new conversation.",
           "turnFailedRefusal": "{agent} refused to continue this turn. This often indicates a backend or gateway error — check the agent's logs.",
           "turnFailedMaxTokens": "{agent} reached the maximum token limit for this turn.",
@@ -4005,7 +4037,8 @@
         "failed": "Context compaction failed",
         "summary": "Summary",
         "triggerManual": "Manually triggered",
-        "triggerAutomatic": "Automatically triggered"
+        "triggerAutomatic": "Automatically triggered",
+        "triggerIdle": "Triggered while idle, before the prompt cache expired"
       },
       "sessionFailure": {
         "category": {
@@ -4651,7 +4684,7 @@
       "syncFailed": "Failed to sync skills"
     },
     "autoPreviewLabel": "Auto-open preview",
-    "autoPreviewHint": "When an agent creates or edits a Word, Excel, or PowerPoint file, open its live preview automatically."
+    "autoPreviewHint": "When an agent's tools create or edit a Word, Excel, or PowerPoint file during its current turn, open its live preview automatically."
   },
   "SkillPacksSettings": {
     "title": "Skill Packs",

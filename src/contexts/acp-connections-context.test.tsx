@@ -4160,6 +4160,24 @@ describe("session_load_failed archived-session recovery", () => {
   // a generic -32603 whose data spells out the session and the way back.
   const RAW = `Internal error: {\n  "details": "session ${ARCHIVED_SID} is archived. Run \`codex unarchive ${ARCHIVED_SID}\` to restore it."\n}`
 
+  it("keeps a missing-provider session with localized recovery advice", async () => {
+    const handlers = await connectOwner("codex")
+    const previousSessionId = h.store!.getConnection(TAB)!.sessionId
+    emitAcpEvent(handlers, {
+      seq: 1,
+      connection_id: "spawned-conn",
+      type: "session_load_failed",
+      session_id: "sess-1",
+      message:
+        "This chat uses model provider “custom”, which is no longer configured.",
+      code: "session_provider_missing",
+    })
+    const connection = h.store!.getConnection(TAB)!
+    expect(connection.loadError).toBe("backendErrors.sessionProviderMissing")
+    expect(connection.sessionId).toBe(previousSessionId)
+    expect(connection.loadErrorCommand).toBeNull()
+  })
+
   it("names the unarchive command using the id off the event, not the error body", async () => {
     const handlers = await connectOwner("codex")
 

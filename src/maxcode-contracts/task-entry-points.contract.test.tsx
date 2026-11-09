@@ -27,7 +27,12 @@ vi.mock("@/contexts/todos-view-context", () => ({
   }),
 }))
 vi.mock("@/components/todos/todos-page", () => ({
-  TodosPage: () => <div>Task board</div>,
+  TodosPage: () => (
+    <div>
+      Task board
+      <input aria-label="Task search" defaultValue="" />
+    </div>
+  ),
   TodosPageTitle: () => <h1>Tasks</h1>,
 }))
 vi.mock("@/components/automations/automations-page", () => ({
@@ -92,13 +97,21 @@ describe("MaxCode: independent todo entry points", () => {
     expect(screen.getByText("Task board")).toBeVisible()
     expect(screen.getByRole("heading", { name: "Tasks" })).toBeVisible()
     expect(screen.getByTestId("workspace-mode")).toHaveTextContent("page")
+    fireEvent.change(screen.getByRole("textbox", { name: "Task search" }), {
+      target: { value: "Keep this filter" },
+    })
     fireEvent.click(
       screen.getByRole("button", { name: "Back to conversations" })
     )
-    expect(screen.queryByText("Task board")).toBeNull()
+    expect(screen.getByText("Task board")).not.toBeVisible()
     expect(screen.queryByRole("heading", { name: "Tasks" })).toBeNull()
     expect(screen.getByTestId("workspace-mode")).toHaveTextContent(
       "conversations"
+    )
+    fireEvent.click(screen.getByRole("button", { name: "Open tasks" }))
+    expect(screen.getByText("Task board")).toBeVisible()
+    expect(screen.getByRole("textbox", { name: "Task search" })).toHaveValue(
+      "Keep this filter"
     )
   })
 

@@ -1302,21 +1302,6 @@
   box-shadow: inset 0 0 0 1px var(--border);
 }
 
-/* 会话表格（Streamdown 内部渲染）：表格整体做成圆角半透明卡片——圆角/边框挂在滚动容器上（见
-   下方 table-wrapper 区块，不磨砂），thead/tbody 只上半透明中性染色。表头比表体略深保层级；关图
-   回落表头自带的 bg-muted/80、表体下方补的 muted 40%（属性选择器 unlayered 压过 streamdown 的
-   layered 值）。 */
-[data-workspace-bg="on"] [data-streamdown="table-header"] {
-  background-color: color-mix(in oklch, var(--muted) 65%, transparent);
-}
-[data-workspace-bg="on"] [data-streamdown="table-body"] {
-  background-color: color-mix(
-    in oklch,
-    var(--muted) calc(var(--ws-msg-alpha) * 100%),
-    transparent
-  );
-}
-
 /* 围栏代码块标题栏（Streamdown 的 code-block-header，关图时是下方「Streamdown code blocks」
    区块给的 muted 80%）：转半透明中性染色（不磨砂），与其它 muted 标题栏统一。代码块根自带
    rounded-xl border 作边界。代码正文（code-block-body）保持 Streamdown 自带的不透明
@@ -1695,57 +1680,42 @@
   display: inline;
 }
 
-/* Streamdown table overrides.
-   Streamdown 2.7 makes the wrapper a card of its own (`rounded-lg border
-   bg-sidebar p-2 gap-2`) around a scroll container it frames again
-   (`rounded-md border bg-background`), which draws two nested borders. Only
-   the scroll container is the card here (below), so the wrapper goes back to a
-   plain box. The wrapper inside the fullscreen view carries none of this, so
-   the reset is a no-op there. */
+/* Markdown tables share the transcript surface, with only horizontal rules. */
 [data-streamdown="table-wrapper"] {
   position: relative;
   gap: 0;
   padding: 0;
+  margin-block: 1em;
   border: 0;
   border-radius: 0;
   background-color: transparent;
 }
 
-/* Toolbar: float over table top-right, no vertical space. Inline tables only:
-   the fullscreen view (`table-fullscreen`, portaled to <body>) reuses the
-   wrapper attribute, and floating its toolbar there lifts the exit button
-   above the top of the screen. */
+/* Give inline actions their own row at every width, outside the scrolling
+   viewport, so they cannot cover preceding prose or table headers. */
 [data-streamdown="table-wrapper"]:not([data-streamdown="table-fullscreen"] > *)
   > div:first-child:has(button) {
-  position: absolute;
-  top: -2rem;
-  right: 0;
-  z-index: 10;
+  position: static;
+  align-self: flex-end;
+  margin-bottom: 0.5em;
 }
 
-/* 表格圆角卡片化（与背景图无关，始终生效·点③·参考委派卡）：把圆角 + 边框挂在滚动容器
-   （直接包着 <table> 的 overflow-x-auto div）——它已有 overflow(auto)，border-radius 会把表格裁到
-   圆角；复制工具条是 table-wrapper 的兄弟、不在此容器内，故不被裁（无需搬动）。底色透明：
-   2.7 给它加了不透明的 bg-background，会把开图时 thead/tbody 的半透明染色垫成实底。 */
 [data-streamdown="table-wrapper"] > div:has(> [data-streamdown="table"]) {
-  border-radius: 0.5rem;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  border: 0;
   background-color: transparent;
 }
-/* 表体浅染色：2.7 去掉了 tbody 自带的 bg-muted/40，补回来让表体仍比表头浅一级（关图时的
-   底色；开图走上方 [data-workspace-bg="on"] 的半透明规则，选择器更具体，照样压过这条）。 */
+[data-streamdown="table-header"],
 [data-streamdown="table-body"] {
-  background-color: color-mix(in oklch, var(--muted) 40%, transparent);
+  background-color: transparent;
 }
-/* 表头/表体分隔线：行内表格靠 2.7 给 <table> 的 divide-y 画出，全屏视图的 <table> 没有这个类、
-   只剩底色区分。这里统一补上（与 divide-y 同样跳过末尾子元素：只有表头的表格不画，免得和卡片
-   底边叠成双线）。 */
 [data-streamdown="table-header"]:not(:last-child) {
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid color-mix(in srgb, currentColor 12%, transparent);
 }
-/* 全屏表格（2.7 的 table-fullscreen）：滚动容器是 flex-1 + p-4 pt-0，上面那条卡片边框会沿着
-   整块屏幕画框、表格缩在框里。改成贴着表格：去掉内边距换成外边距，按内容高度收缩、超出
-   屏幕时在卡片内滚动。 */
+[data-streamdown="table-body"] > tr:not(:last-child) {
+  border-bottom: 1px solid color-mix(in srgb, currentColor 7%, transparent);
+}
+/* Fullscreen tables shrink to content and scroll when they fill the dialog. */
 [data-streamdown="table-fullscreen"]
   > [data-streamdown="table-wrapper"]
   > div:has(> [data-streamdown="table"]) {
@@ -1754,10 +1724,10 @@
   margin: 0 1rem 1rem;
   padding: 0;
 }
-/* 表格自带外边框归 0，避免与容器边框双线；内部行线（tr border-b / tbody divide-y）保留。 */
+/* Preserve responsive column sizing without adding an outer frame. */
 [data-streamdown="table"] {
   border-width: 0;
-  /* Size columns by content up to the cell cap below, then scroll the card
+  /* Size columns by content up to the cell cap below, then scroll the viewport
      instead of squeezing CJK body cells into one-character lines. */
   width: max-content;
   min-width: 100%;
@@ -1772,16 +1742,11 @@
   white-space: normal;
   overflow-wrap: anywhere;
 }
-/* 末行的 border-b 会与容器底边框叠成双线（Codex 实测：末行 1px + 容器 1px）——去掉「最末行组」
-   末行的底边框；有 tbody 时表头末行的 border-b（表头/表体分隔线）不受影响、保留。 */
+/* The last row needs no closing rule. */
 [data-streamdown="table"] > tbody:last-child > tr:last-child,
 [data-streamdown="table"] > thead:last-child > tr:last-child {
   border-bottom-width: 0;
 }
-/* 表格不再磨砂（用户要真透出背景图）：滚动容器只保留上面的圆角 + 边框；thead/tbody 走半透明
-   中性染色。历史注：曾给行组 thead/tbody 加 backdrop-filter 会让 border-collapse 合并边框整体
-   不渲染（表格边框消失根因），去磨砂后无此问题。 */
-
 /* Streamdown code line number width by total line digits */
 [data-streamdown="code-block-body"] code {
   --sd-line-number-width: 1ch;
@@ -3358,20 +3323,18 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .chat-message-text :is(strong, b) {
   font-weight: 600;
 }
-/* Match the reference's 14px type / 22.75px line boxes. Streamdown's mb-4
-   paragraphs and inside markers otherwise add space even with compact li's. */
+/* One body-sized paragraph gap, including around tables. Edge paragraphs
+   add no padding to the message itself. Lists retain their compact rhythm. */
 .chat-message-text .chat-markdown > p {
-  margin: 0 0 0.25em;
+  margin: 1em 0;
 }
-.chat-message-text .chat-markdown > p:not(:first-child) {
-  margin-top: 0.5em;
+.chat-message-text .chat-markdown > :first-child {
+  margin-top: 0;
 }
-.chat-message-text .chat-markdown > p + p {
-  margin-block: 1em;
-}
-.chat-message-text .chat-markdown > p:last-child {
+.chat-message-text .chat-markdown > :last-child {
   margin-bottom: 0;
 }
+
 .chat-message-text :is(ul, ol) {
   margin-block: 0;
   padding-inline-start: 1.625em;
@@ -3411,6 +3374,43 @@ div.monaco-diff-editor.side-by-side .editor.modified {
 .chat-message-text h3 {
   font-size: 1.2857143em;
 }
+/* Keep table text at body size and align its outer columns with the prose. */
+[data-streamdown="table-header-cell"],
+[data-streamdown="table-cell"] {
+  font-size: inherit;
+  line-height: inherit;
+  padding: 0.75em 1em;
+  vertical-align: top;
+}
+[data-streamdown="table-header-cell"] {
+  padding-block: 0.5em;
+}
+[data-streamdown="table-fullscreen"] [data-streamdown="table-header"] {
+  background-color: var(--background);
+}
+[data-streamdown="table-row"] > :first-child {
+  padding-inline-start: 0;
+}
+[data-streamdown="table-row"] > :last-child {
+  padding-inline-end: 0;
+}
+/* Prose links and image-file links use one blue, independent of theme accents. */
+.chat-message-text {
+  --chat-link-color: #2456a6;
+}
+.dark .chat-message-text {
+  --chat-link-color: #8ab4f8;
+}
+.chat-message-text [data-streamdown="link"],
+.chat-message-text [data-reference-badge][data-ref-type="file"] {
+  color: var(--chat-link-color);
+  text-decoration: none;
+}
+.chat-message-text [data-streamdown="link"]:hover {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
 /* Chat code cards share one opaque surface, including over workspace images.
    Keep Shiki foreground colors; only replace its separate body background. */
 .chat-message-text [data-streamdown="code-block"] {

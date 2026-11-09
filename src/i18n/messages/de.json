@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "In „Zuletzt“ anzeigen",
       "sectionTodos": "Nach Aufgabe",
       "showTodos": "Aufgabengruppen anzeigen",
-      "noAssignedTodoConversations": "Keine Gespräche aus zugewiesenen Aufgaben"
+      "noAssignedTodoConversations": "Keine Gespräche aus zugewiesenen Aufgaben",
+      "navigation": {
+        "label": "Arbeitsbereich",
+        "home": "Start",
+        "today": "Heute",
+        "conversations": "Chats",
+        "projects": "Projekte",
+        "automations": "Auto",
+        "tasks": "Aufgaben",
+        "settings": "Einstellungen",
+        "selectDate": "Datum wählen",
+        "activityHint": "Nach letzter Gesprächsaktualisierung",
+        "noActivity": "Keine Gespräche an diesem Tag",
+        "recent": "Zuletzt",
+        "dateRange": "Zeitraum",
+        "startDate": "Startdatum",
+        "endDate": "Enddatum",
+        "filterDate": "Nach Datum filtern",
+        "clearDate": "Datumsfilter löschen",
+        "presets": {
+          "today": "Heute",
+          "yesterday": "Gestern",
+          "last3": "Letzte 3 Tage",
+          "last7": "Letzte 7 Tage",
+          "week": "Diese Woche",
+          "month": "Dieser Monat"
+        },
+        "statistics": "Statistik",
+        "settingsUpdate": "Einstellungen · Update verfügbar",
+        "about": "Über MaxCode",
+        "todoBoard": "Aufgabenboard"
+      }
     },
     "conversation": {
       "reloadFailed": "Konversation konnte nicht neu geladen werden: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "{agent}-Sitzung konnte nicht geladen werden. Neu laden, um es erneut zu versuchen, oder eine neue Konversation starten.",
           "sessionLoadUnavailable": "{agent} konnte diese Sitzung nicht wiederherstellen – sie wurde möglicherweise beendet oder der Agent wurde gestoppt. Neu laden, um es erneut zu versuchen, oder eine neue Konversation starten.",
           "sessionLoadBusy": "Diese Sitzung ist an anderer Stelle geöffnet. Hat ein anderer {agent}-Client (App, CLI oder IDE-Erweiterung) sie offen, schließe sie dort oder beende diesen Client und lade dann neu. Hast du sie gerade verzweigt, lade in etwa einer Minute neu.",
+          "sessionProviderMissing": "Der Modellanbieter dieser Sitzung ist nicht mehr konfiguriert. Der Verlauf ist weiterhin auf dem Datenträger gespeichert. Stelle die ursprüngliche Anbieterkonfiguration wieder her und lade das Gespräch neu.",
           "sessionArchived": "Die vorherige Sitzung wurde auf {agent}-Seite archiviert. Führe {command} im Terminal aus, um sie wiederherzustellen und neu zu laden, oder starte eine neue Unterhaltung.",
           "turnFailedRefusal": "{agent} hat die Fortsetzung dieser Runde abgelehnt. Häufig deutet das auf einen Backend- oder Gateway-Fehler hin. Bitte prüfen Sie die Agent-Logs.",
           "turnFailedMaxTokens": "{agent} hat das Token-Limit für diese Runde erreicht.",
@@ -4005,7 +4037,8 @@
         "failed": "Kontextkomprimierung fehlgeschlagen",
         "summary": "Zusammenfassung",
         "triggerManual": "Manuell ausgelöst",
-        "triggerAutomatic": "Automatisch ausgelöst"
+        "triggerAutomatic": "Automatisch ausgelöst",
+        "triggerIdle": "Im Leerlauf ausgelöst, bevor der Prompt-Cache ablief"
       },
       "sessionFailure": {
         "category": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "Skills konnten nicht synchronisiert werden"
     },
     "autoPreviewLabel": "Vorschau automatisch öffnen",
-    "autoPreviewHint": "Wenn ein Agent eine Word-, Excel- oder PowerPoint-Datei erstellt oder bearbeitet, wird die Live-Vorschau automatisch geöffnet."
+    "autoPreviewHint": "Wenn die Werkzeuge eines Agenten während seines aktuellen Durchgangs eine Word-, Excel- oder PowerPoint-Datei erstellen oder bearbeiten, wird die Live-Vorschau automatisch geöffnet."
   },
   "SkillPacksSettings": {
     "title": "Skill-Pakete",

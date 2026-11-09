@@ -17,6 +17,7 @@ function connection(
     isDelegationChild: false,
     backgroundOutstanding: 0,
     asyncTasks: [],
+    delegatedChildren: [],
     pendingPermission: null,
     pendingQuestion: null,
     pendingAskQuestion: null,

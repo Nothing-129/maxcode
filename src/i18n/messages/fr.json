@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "Afficher dans Récents",
       "sectionTodos": "Par tâche",
       "showTodos": "Afficher les groupes de tâches",
-      "noAssignedTodoConversations": "Aucune conversation créée depuis une tâche attribuée"
+      "noAssignedTodoConversations": "Aucune conversation créée depuis une tâche attribuée",
+      "navigation": {
+        "label": "Navigation",
+        "home": "Accueil",
+        "today": "Aujourd’hui",
+        "conversations": "Chats",
+        "projects": "Projets",
+        "automations": "Auto",
+        "tasks": "Tâches",
+        "settings": "Réglages",
+        "selectDate": "Choisir une date",
+        "activityHint": "Selon la dernière mise à jour de la conversation",
+        "noActivity": "Aucune conversation à cette date",
+        "recent": "Récent",
+        "dateRange": "Période",
+        "startDate": "Date de début",
+        "endDate": "Date de fin",
+        "filterDate": "Filtrer par date",
+        "clearDate": "Effacer le filtre de date",
+        "presets": {
+          "today": "Aujourd’hui",
+          "yesterday": "Hier",
+          "last3": "3 derniers jours",
+          "last7": "7 derniers jours",
+          "week": "Cette semaine",
+          "month": "Ce mois"
+        },
+        "statistics": "Statistiques",
+        "settingsUpdate": "Réglages · Mise à jour disponible",
+        "about": "À propos de MaxCode",
+        "todoBoard": "Tableau des tâches"
+      }
     },
     "conversation": {
       "reloadFailed": "Échec du rechargement de la conversation : {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "Échec du chargement de la session de {agent}. Rechargez pour réessayer ou démarrez une nouvelle conversation.",
           "sessionLoadUnavailable": "{agent} n'a pas pu restaurer cette session ; elle a peut-être pris fin ou l'agent s'est arrêté. Rechargez pour réessayer ou démarrez une nouvelle conversation.",
           "sessionLoadBusy": "Cette session est ouverte ailleurs. Si un autre client {agent} (l'application, la CLI ou une extension d'IDE) l'a ouverte, fermez-la là-bas ou quittez ce client, puis rechargez. Si vous venez de la bifurquer, rechargez dans une minute environ.",
+          "sessionProviderMissing": "Le fournisseur de modèles de cette session n’est plus configuré. L’historique est toujours sur le disque. Restaurez la configuration d’origine du fournisseur, puis rechargez la conversation.",
           "sessionArchived": "La session précédente a été archivée côté {agent}. Exécutez {command} dans un terminal pour la restaurer et la recharger, ou démarrez une nouvelle conversation.",
           "turnFailedRefusal": "{agent} a refusé de poursuivre ce tour. Cela indique souvent une erreur de backend ou de passerelle. Vérifiez les journaux de l'agent.",
           "turnFailedMaxTokens": "{agent} a atteint la limite maximale de jetons pour ce tour.",
@@ -4005,7 +4037,8 @@
         "failed": "Échec de la compaction du contexte",
         "summary": "Résumé",
         "triggerManual": "Déclenchée manuellement",
-        "triggerAutomatic": "Déclenchée automatiquement"
+        "triggerAutomatic": "Déclenchée automatiquement",
+        "triggerIdle": "Déclenchée pendant l'inactivité, avant l'expiration du cache du prompt"
       },
       "sessionFailure": {
         "category": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "Échec de la synchronisation des compétences"
     },
     "autoPreviewLabel": "Ouvrir l'aperçu automatiquement",
-    "autoPreviewHint": "Lorsqu'un agent crée ou modifie un fichier Word, Excel ou PowerPoint, ouvrir automatiquement son aperçu en direct."
+    "autoPreviewHint": "Lorsque les outils d'un agent créent ou modifient un fichier Word, Excel ou PowerPoint pendant son tour en cours, ouvrir automatiquement son aperçu en direct."
   },
   "SkillPacksSettings": {
     "title": "Packs de compétences",

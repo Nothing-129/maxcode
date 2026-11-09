@@ -90,6 +90,7 @@ export function AutomationEditor({
 }: AutomationEditorProps) {
   const t = useTranslations("Automations")
   const folders = useAppWorkspaceStore((s) => s.folders)
+  const isNew = !automation || !("id" in automation)
 
   const [todoOrigins, setTodoOrigins] = useState(
     automation?.config?.todo_origins ?? []
@@ -286,6 +287,7 @@ export function AutomationEditor({
       const fellBackToSubstitute =
         !userChoseAgentRef.current &&
         !!automation &&
+        !isNew &&
         automation.agent_type !== agentType
       const persistedAgentType = fellBackToSubstitute
         ? automation.agent_type
@@ -388,7 +390,11 @@ export function AutomationEditor({
       {/* Agent pill — above the composer box, as on the new-conversation screen */}
       <div className="flex">
         <AgentSelector
-          defaultAgentType={agentType}
+          // New tasks (including templates) follow the enabled list order until
+          // the user explicitly picks an agent. Existing tasks keep their agent.
+          defaultAgentType={
+            isNew && !userChoseAgentRef.current ? undefined : agentType
+          }
           onSelect={(a) => {
             // Switching agents changes the option universe — reset overrides.
             userChoseAgentRef.current = true

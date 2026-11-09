@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "最近显示",
       "sectionTodos": "待办",
       "showTodos": "显示待办分组",
-      "noAssignedTodoConversations": "暂无从已分配待办新建的对话"
+      "noAssignedTodoConversations": "暂无从已分配待办新建的对话",
+      "navigation": {
+        "label": "功能导航",
+        "home": "主页",
+        "today": "今日",
+        "conversations": "会话",
+        "projects": "项目",
+        "automations": "自动化",
+        "tasks": "待办",
+        "settings": "设置",
+        "selectDate": "选择日期",
+        "activityHint": "按最后对话更新时间筛选",
+        "noActivity": "这一天没有对话",
+        "recent": "最近",
+        "dateRange": "日期区间",
+        "startDate": "开始日期",
+        "endDate": "结束日期",
+        "filterDate": "按日期筛选",
+        "clearDate": "清除日期筛选",
+        "presets": {
+          "today": "今日",
+          "yesterday": "昨日",
+          "last3": "最近3天",
+          "last7": "最近7天",
+          "week": "本周",
+          "month": "本月"
+        },
+        "statistics": "统计",
+        "settingsUpdate": "设置 · 有可用更新",
+        "about": "关于 MaxCode",
+        "todoBoard": "待办看板"
+      }
     },
     "conversation": {
       "reloadFailed": "会话重新加载失败：{message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "{agent} 会话加载失败，可重新加载重试，或开始新会话。",
           "sessionLoadUnavailable": "{agent} 无法恢复此会话，它可能已结束或 agent 已停止。可重新加载重试，或开始新会话。",
           "sessionLoadBusy": "这个会话正在别处打开。如果是另一个 {agent} 客户端（桌面应用、CLI 或 IDE 扩展）开着它，先在那边关闭它或退出那个客户端，再重新加载；如果刚从它分叉过，约一分钟后重新加载即可。",
+          "sessionProviderMissing": "此会话使用的模型提供商配置已被移除，历史记录仍保留在本机。请恢复原提供商配置后重载此会话。",
           "sessionArchived": "原会话已在 {agent} 侧归档，可在终端运行 {command} 找回历史后重载，或直接开始新会话。",
           "turnFailedRefusal": "{agent} 拒绝继续本轮回复，通常意味着后端或网关出错，请检查代理日志。",
           "turnFailedMaxTokens": "{agent} 已达到本轮回复的最大 Token 限制。",
@@ -4005,7 +4037,8 @@
         "failed": "上下文压缩失败",
         "summary": "摘要",
         "triggerManual": "手动触发",
-        "triggerAutomatic": "自动触发"
+        "triggerAutomatic": "自动触发",
+        "triggerIdle": "空闲时触发，在提示缓存过期前"
       },
       "sessionFailure": {
         "category": {
@@ -4651,7 +4684,7 @@
       "syncFailed": "同步技能失败"
     },
     "autoPreviewLabel": "自动打开预览",
-    "autoPreviewHint": "当智能体创建或编辑 Word、Excel、PowerPoint 文件时，自动打开其实时预览。"
+    "autoPreviewHint": "智能体在当前回合通过工具创建或修改 Word、Excel、PowerPoint 文件时，自动打开其实时预览。"
   },
   "SkillPacksSettings": {
     "title": "技能包",

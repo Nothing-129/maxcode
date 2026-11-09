@@ -22,9 +22,14 @@ export type WorkbenchRouteId =
   | "conversations"
   | "automations"
   | "tasks"
+  | "taskConversation"
   | "forge"
   | "tokenUsage"
   | "canvas"
+
+export function isTaskWorkspaceRoute(route: WorkbenchRouteId) {
+  return route === "tasks" || route === "taskConversation"
+}
 
 interface WorkbenchRouteContextValue {
   routeId: WorkbenchRouteId
@@ -75,12 +80,19 @@ export function WorkbenchRouteProvider({ children }: { children: ReactNode }) {
   const [routeId, setRouteId] = useState<WorkbenchRouteId>("conversations")
 
   const setRoute = useCallback((id: WorkbenchRouteId) => setRouteId(id), [])
-  const openConversations = useCallback(() => setRouteId("conversations"), [])
+  const openConversations = useCallback(
+    () =>
+      setRouteId((previous) =>
+        isTaskWorkspaceRoute(previous) ? "taskConversation" : "conversations"
+      ),
+    []
+  )
 
   const value = useMemo<WorkbenchRouteContextValue>(
     () => ({
       routeId,
-      isConversations: routeId === "conversations",
+      isConversations:
+        routeId === "conversations" || routeId === "taskConversation",
       setRoute,
       openConversations,
     }),

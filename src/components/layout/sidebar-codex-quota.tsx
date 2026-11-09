@@ -13,8 +13,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-/** Inline between the conversation count and version; details cost no height. */
-export function SidebarCodexQuota() {
+/** Desktop rail summary; the mobile footer keeps its inline presentation. */
+export function SidebarCodexQuota({
+  compact = false,
+}: { compact?: boolean } = {}) {
   const { quota, loading, refresh } = useCodexQuota()
   const t = useTranslations("CodexQuota")
   const locale = useLocale()
@@ -44,6 +46,12 @@ export function SidebarCodexQuota() {
         `${windowLabel(window.window_minutes, true)} ${t("percent", { value: remaining(window.used_percent) })}`
     )
     .join(" · ")
+  const defaultWindow = windows.find(
+    (window) => window.window_minutes === (plan === "pro" ? 10080 : 300)
+  )
+  const defaultRemaining = defaultWindow
+    ? remaining(defaultWindow.used_percent)
+    : null
   const details = [
     [t("title"), planLabel, t("remaining")].filter(Boolean).join(" · "),
     ...windows.map(
@@ -59,13 +67,15 @@ export function SidebarCodexQuota() {
 
   return (
     <>
-      <span
-        data-sidebar-quota-separator=""
-        aria-hidden="true"
-        className="pointer-events-none inline-flex min-w-0 flex-1 justify-center text-muted-foreground/50"
-      >
-        ｜
-      </span>
+      {!compact && (
+        <span
+          data-sidebar-quota-separator=""
+          aria-hidden="true"
+          className="pointer-events-none inline-flex min-w-0 flex-1 justify-center text-muted-foreground/50"
+        >
+          ｜
+        </span>
+      )}
       <Popover
         onOpenChange={(open) => {
           if (open) void refresh()
@@ -80,11 +90,55 @@ export function SidebarCodexQuota() {
             title={details}
             className={cn(
               statusBarActionClassName,
-              "flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-xs font-normal"
+              compact
+                ? "flex size-10 shrink-0 items-center justify-center rounded-xl hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground"
+                : "flex min-w-0 items-center gap-1.5 whitespace-nowrap font-mono text-xs font-normal"
             )}
           >
-            <Gauge aria-hidden="true" className="size-3 shrink-0" />
-            <span className="truncate">{summary || "—"}</span>
+            {compact ? (
+              <span
+                data-quota-ring
+                aria-hidden="true"
+                className="relative flex size-7 items-center justify-center"
+              >
+                <svg
+                  viewBox="0 0 28 28"
+                  className="absolute inset-0 size-full -rotate-90"
+                  fill="none"
+                >
+                  <circle
+                    cx="14"
+                    cy="14"
+                    r="12"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    className="opacity-15"
+                  />
+                  {defaultRemaining !== null && (
+                    <circle
+                      data-quota-remaining={defaultRemaining}
+                      cx="14"
+                      cy="14"
+                      r="12"
+                      pathLength="100"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeDasharray={`${defaultRemaining} 100`}
+                      className={cn(quota.error && "opacity-50")}
+                    />
+                  )}
+                </svg>
+                <span className="relative text-[0.625rem] font-medium leading-none tabular-nums">
+                  {defaultRemaining ?? "—"}
+                </span>
+              </span>
+            ) : (
+              <>
+                <Gauge aria-hidden="true" className="size-3 shrink-0" />
+                <span className="truncate">{summary || "—"}</span>
+              </>
+            )}
           </button>
         </PopoverTrigger>
         <PopoverContent
@@ -159,13 +213,15 @@ export function SidebarCodexQuota() {
           )}
         </PopoverContent>
       </Popover>
-      <span
-        data-sidebar-quota-separator=""
-        aria-hidden="true"
-        className="pointer-events-none inline-flex min-w-0 flex-1 justify-center pl-1 text-muted-foreground/50"
-      >
-        ｜
-      </span>
+      {!compact && (
+        <span
+          data-sidebar-quota-separator=""
+          aria-hidden="true"
+          className="pointer-events-none inline-flex min-w-0 flex-1 justify-center pl-1 text-muted-foreground/50"
+        >
+          ｜
+        </span>
+      )}
     </>
   )
 }

@@ -18,6 +18,7 @@ vi.mock("next-intl", () => ({
 vi.mock("@/contexts/acp-connections-context", () => {
   const actions = {
     setActiveKey: vi.fn(),
+    releaseActiveKey: vi.fn(),
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),

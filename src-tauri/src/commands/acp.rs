@@ -517,18 +517,23 @@ fn npx_native_install(agent_type: AgentType, cmd: &str) -> Option<PathBuf> {
 /// that PATH, and on Windows nothing lands in `~/.local/bin` either, so without
 /// this a working native install reads as not installed.
 ///
-/// `@xai-official/grok`'s npm postinstall writes its binary to the same place,
-/// and `npm uninstall -g` leaves that copy behind. Grok records which installer
-/// owns `~/.grok/bin` as `[cli].installer` in the `config.toml` beside it:
-/// `"internal"` from its own installers, `"npm"` from the npm package. A copy
-/// recorded as npm's does not count here. An npm-installed Grok resolves
+/// `@xai-official/grok`'s npm package writes its binary to the same place, and
+/// `npm uninstall -g` leaves that copy behind. An npm-installed Grok resolves
 /// through the npm prefix like every other npx agent, and counting its copy
-/// would keep Grok installed after codeg uninstalls it.
+/// would keep Grok installed after codeg uninstalls it, so that copy does not
+/// count here. Grok records which installer owns `~/.grok/bin` as
+/// `[cli].installer` in the `config.toml` beside it: `"internal"` from its own
+/// installers, `"npm"` from the npm package's postinstall. Where npm skipped
+/// that postinstall (npm 12 blocks install scripts it was not told to allow,
+/// and `ignore-scripts` skips them), the package's launcher unpacks the binary
+/// on its first run and records nothing; with no record, the copy is told
+/// apart by where its build lives ([`is_grok_npm_copy`]).
 ///
 /// Only the default location is probed. A `GROK_BIN_DIR` or `GROK_HOME`
 /// relocation is not followed.
 fn grok_native_install(home: &Path, cmd: &str) -> Option<PathBuf> {
     let grok_dir = home.join(".grok");
+    let bin_dir = grok_dir.join("bin");
     let cand = grok_dir
         .join("bin")
         .join(if cfg!(windows) && !cmd.ends_with(".exe") {
@@ -550,7 +555,48 @@ fn grok_native_install(home: &Path, cmd: &str) -> Option<PathBuf> {
                 .as_str()
                 .map(str::to_string)
         });
-    (installer.as_deref() != Some("npm")).then_some(cand)
+    let npm_copy = match installer.as_deref() {
+        Some(installer) => installer == "npm",
+        None => is_grok_npm_copy(&bin_dir, &cand, cmd),
+    };
+    (!npm_copy).then_some(cand)
+}
+
+/// Whether `cand`, `<cmd>` in `bin_dir` (`~/.grok/bin`), is laid out as
+/// `@xai-official/grok`'s npm scripts leave it: they unpack the build beside it
+/// as `<cmd>-<version>` (with `.exe` on Windows) and make `cand` a symlink to
+/// that bare name, or on Windows a copy of that file. Grok's own installers and
+/// its updater keep their builds in `~/.grok/downloads` and link or copy `cand`
+/// from there.
+fn is_grok_npm_copy(bin_dir: &Path, cand: &Path, cmd: &str) -> bool {
+    let prefix = format!("{cmd}-");
+    // As the npm scripts' own cleanup matches their builds: a digit right after
+    // the prefix, which leaves out `grok-pager-<version>`.
+    let is_build = |name: &std::ffi::OsStr| {
+        name.to_str()
+            .and_then(|name| name.strip_prefix(prefix.as_str()))
+            .is_some_and(|version| version.starts_with(|c: char| c.is_ascii_digit()))
+    };
+    if let Ok(target) = fs::read_link(cand) {
+        let mut parts = target.components();
+        return matches!(
+            (parts.next(), parts.next()),
+            (Some(std::path::Component::Normal(name)), None) if is_build(name)
+        );
+    }
+    let Ok(len) = fs::metadata(cand).map(|meta| meta.len()) else {
+        return false;
+    };
+    fs::read_dir(bin_dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|entry| {
+            is_build(&entry.file_name())
+                && entry
+                    .metadata()
+                    .is_ok_and(|meta| meta.is_file() && meta.len() == len)
+        })
 }
 
 #[derive(Default)]
@@ -2425,9 +2471,9 @@ const NPM_INCLUDE_OPTIONAL: &str = "--include=optional";
 /// npm ≥7 hides lifecycle-script output by default. hermes-agent's postinstall
 /// runs a multi-minute runtime bootstrap (pinned upstream checkout + isolated
 /// venv sync); without this flag the install log goes silent for the whole
-/// bootstrap, which reads as a hang (codeg imposes no timeout on npm). Other
-/// agents' packages have no meaningful install scripts, so this only adds
-/// their (empty) script output.
+/// bootstrap, which reads as a hang (codeg imposes no timeout on npm). Grok's
+/// postinstall only unpacks its binary and other agents' packages have no
+/// meaningful install scripts, so for them this adds a few lines at most.
 const NPM_FOREGROUND_SCRIPTS: &str = "--foreground-scripts";
 /// CLI override forcing lifecycle scripts ON. A user-level
 /// `ignore-scripts=true` (.npmrc or npm_config_ignore_scripts) makes `npm
@@ -2442,6 +2488,30 @@ const NPM_FOREGROUND_SCRIPTS: &str = "--foreground-scripts";
 /// (`npm_package_requires_scripts`), so every other agent keeps honoring the
 /// user's global script policy.
 const NPM_RUN_SCRIPTS_OVERRIDE: &str = "--ignore-scripts=false";
+
+/// The flags that let `package`'s own install scripts run, for the packages
+/// whose install needs those scripts ([`npm_package_requires_scripts`]); none
+/// for any other package.
+///
+/// [`NPM_RUN_SCRIPTS_OVERRIDE`] stopped being enough with npm 12, which runs no
+/// install script it was not told to: npm 12.2.1 skipped hermes-agent's
+/// postinstall under `--ignore-scripts=false` ("install scripts blocked
+/// because they are not covered by allowScripts"). A global install or an
+/// `npx` run has no project `package.json` to hold an `allowScripts` policy,
+/// so npm takes `--allow-scripts=<name>` for those, matched against the
+/// package's resolved registry identity: it covers the package being
+/// installed and none of its dependencies. npm 9.6.7, 10.2.4, 10.8.2 and
+/// 11.17.0 accept the flag without a warning and run the script as before
+/// (11.17.0 and 12.2.2 likewise for a scoped name, `@xai-official/grok`).
+fn npm_run_scripts_args(package: &str) -> Vec<String> {
+    if !npm_package_requires_scripts(package) {
+        return Vec::new();
+    }
+    vec![
+        NPM_RUN_SCRIPTS_OVERRIDE.to_string(),
+        format!("--allow-scripts={}", package_name_from_spec(package)),
+    ]
+}
 
 /// Env var that makes Node's own `fetch` read `HTTP_PROXY`/`HTTPS_PROXY`/
 /// `NO_PROXY` (Node ≥24; earlier runtimes ignore an unknown variable).
@@ -2461,7 +2531,7 @@ const NODE_ENV_PROXY_VAR: &str = "NODE_USE_ENV_PROXY";
 fn npm_package_requires_scripts(package: &str) -> bool {
     matches!(
         package_name_from_spec(package).as_str(),
-        "hermes-agent" | "deepseek-acp"
+        "hermes-agent" | "deepseek-acp" | "@xai-official/grok"
     )
 }
 
@@ -2625,7 +2695,7 @@ async fn install_npm_global_package_streaming_inner(
     emitter: &EventEmitter,
 ) -> Result<(), AcpError> {
     let registry_arg = format!("--registry={AGENT_NPM_REGISTRY}");
-    let run_scripts = npm_package_requires_scripts(package);
+    let script_args = npm_run_scripts_args(package);
 
     emit_agent_install_event(
         emitter,
@@ -2640,9 +2710,7 @@ async fn install_npm_global_package_streaming_inner(
         NPM_INCLUDE_OPTIONAL,
         NPM_FOREGROUND_SCRIPTS,
     ];
-    if run_scripts {
-        args.push(NPM_RUN_SCRIPTS_OVERRIDE);
-    }
+    args.extend(script_args.iter().map(String::as_str));
     args.push(&registry_arg);
     args.push(package);
     let (success, stderr) = run_npm_streaming(&args, task_id, emitter).await?;
@@ -2676,9 +2744,7 @@ async fn install_npm_global_package_streaming_inner(
                 NPM_INCLUDE_OPTIONAL,
                 NPM_FOREGROUND_SCRIPTS,
             ];
-            if run_scripts {
-                retry_args.push(NPM_RUN_SCRIPTS_OVERRIDE);
-            }
+            retry_args.extend(script_args.iter().map(String::as_str));
             retry_args.push(&registry_arg);
             retry_args.push(package);
             let (retry_success, retry_stderr) =
@@ -2746,7 +2812,7 @@ async fn install_npm_to_user_prefix_streaming(
     })?;
 
     let prefix_arg = format!("--prefix={}", prefix.display());
-    let run_scripts = npm_package_requires_scripts(package);
+    let script_args = npm_run_scripts_args(package);
 
     emit_agent_install_event(
         emitter,
@@ -2764,9 +2830,7 @@ async fn install_npm_to_user_prefix_streaming(
         NPM_INCLUDE_OPTIONAL,
         NPM_FOREGROUND_SCRIPTS,
     ];
-    if run_scripts {
-        args.push(NPM_RUN_SCRIPTS_OVERRIDE);
-    }
+    args.extend(script_args.iter().map(String::as_str));
     args.push(&prefix_arg);
     args.push(registry_arg);
     args.push(package);
@@ -2789,9 +2853,7 @@ async fn install_npm_to_user_prefix_streaming(
                 NPM_INCLUDE_OPTIONAL,
                 NPM_FOREGROUND_SCRIPTS,
             ];
-            if run_scripts {
-                force_args.push(NPM_RUN_SCRIPTS_OVERRIDE);
-            }
+            force_args.extend(script_args.iter().map(String::as_str));
             force_args.push(&prefix_arg);
             force_args.push(registry_arg);
             force_args.push(package);
@@ -13476,3 +13538,7 @@ mod maxcode_grok_native_install_contract;
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/codex-gcp-provider.contract.rs"]
 mod maxcode_codex_gcp_provider;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/upstream-november-install.contract.rs"]
+mod maxcode_november_install;

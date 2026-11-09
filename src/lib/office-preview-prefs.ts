@@ -4,6 +4,13 @@
 import { useEffect, useState } from "react"
 
 const AUTO_PREVIEW_KEY = "workspace:office-auto-preview:v2"
+
+export const AGENT_TURN_FILES_EVENT = "folder://agent-turn-files"
+
+export interface AgentTurnFilesEvent {
+  /** Absolute paths, as the filesystem spells them. */
+  paths: string[]
+}
 const AUTO_PREVIEW_EVENT = "codeg:office-auto-preview-changed"
 
 export function loadOfficeAutoPreview(): boolean {

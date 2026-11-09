@@ -841,7 +841,9 @@ impl ConnectionManager {
     /// `pending_permission`, no
     /// launched-but-unresolved background work (async sub-agent / background
     /// shell — disconnecting kills the agent CLI and the background work with
-    /// it), and no activity (no events, no commands) for at least
+    /// it), no Claude Remote Control (it runs in the same CLI), no codeg
+    /// delegation whose child is still running (ending the parent cancels it),
+    /// and no activity (no events, no commands) for at least
     /// `idle_timeout`. `Prompting` connections are always preserved (a turn is
     /// in flight). Returns the number of connections that were disconnected.
     pub async fn sweep_idle(&self, idle_timeout: Duration) -> usize {
@@ -870,6 +872,20 @@ impl ConnectionManager {
                         }
                     }
                     ConnectionStatus::Connected => {
+                        // A codeg delegation still running. It outlives the turn that
+                        // started it, so its parent is idle by design while the child
+                        // works, and ending the parent cancels every child it has in
+                        // flight (`cancel_by_parent`). Every delegation is counted, not
+                        // just the ones bound to a card (`active_delegations`). Only a
+                        // child still in the map counts: an entry whose terminal frame
+                        // never arrived must not pin the parent forever.
+                        if state
+                            .delegated_children
+                            .iter()
+                            .any(|child| connections.contains_key(child))
+                        {
+                            continue;
+                        }
                         if state.pending_permission.is_some() {
                             continue;
                         }
@@ -2667,6 +2683,42 @@ impl ConnectionManager {
             owner_window_label,
             disconnected
         );
+        disconnected
+    }
+
+    /// End every live connection bound to `conversation_id` and report how many
+    /// there were. Called when the conversation is deleted: that is the user
+    /// saying they are done with it, so the agent working on it goes too —
+    /// including one a closed tab deliberately left running because it still
+    /// had work in flight (a background task, Remote Control), which nothing
+    /// could otherwise reach again. Covers every client, not only the one that
+    /// deleted it.
+    pub async fn disconnect_by_conversation_id(&self, conversation_id: i32) -> usize {
+        // Read each state after letting go of the map, as `connections_of_cli_run`
+        // does: never wait on a state lock while holding the map lock.
+        let all: Vec<_> = {
+            let conns = self.connections.lock().await;
+            conns
+                .iter()
+                .map(|(id, conn)| (id.clone(), conn.state.clone()))
+                .collect()
+        };
+        let mut disconnected = 0;
+        for (id, state) in all {
+            if state.read().await.conversation_id != Some(conversation_id) {
+                continue;
+            }
+            if self.disconnect(&id).await.is_ok() {
+                disconnected += 1;
+            }
+        }
+        if disconnected > 0 {
+            tracing::info!(
+                "[ACP] disconnect by deleted conversation conversation_id={} count={}",
+                conversation_id,
+                disconnected
+            );
+        }
         disconnected
     }
 
@@ -7449,6 +7501,46 @@ mod tests {
         backdate_last_activity(&mgr, "remote", 600).await;
         let n = mgr.sweep_idle(Duration::from_secs(300)).await;
         assert_eq!(n, 1, "Remote Control off no longer exempts the sweep");
+    }
+
+    /// An async delegation outlives the turn that started it, so its parent
+    /// sits idle while the child works — and ending the parent cancels every
+    /// child it has in flight (`cancel_by_parent`). With its tab closed nothing
+    /// touches the parent, so the sweep alone decides whether the child lives.
+    /// The child here has a synthetic parent tool-use id: no card, so nothing
+    /// in `active_delegations`, and the sweep must spare the parent anyway.
+    #[tokio::test]
+    async fn sweep_idle_skips_a_parent_while_its_delegated_child_runs() {
+        let mgr = ConnectionManager::new();
+        insert_fake_connection(
+            &mgr,
+            "parent",
+            AgentType::ClaudeCode,
+            None,
+            EventEmitter::Noop,
+        )
+        .await;
+        insert_fake_connection(&mgr, "child", AgentType::Codex, None, EventEmitter::Noop).await;
+        mgr.get_state("child").await.unwrap().write().await.status = ConnectionStatus::Prompting;
+        mgr.get_state("parent")
+            .await
+            .unwrap()
+            .write()
+            .await
+            .apply_event(&AcpEvent::DelegationChildRunning {
+                child_connection_id: "child".into(),
+                running: true,
+            });
+        backdate_last_activity(&mgr, "parent", 600).await;
+        let n = mgr.sweep_idle(Duration::from_secs(300)).await;
+        assert_eq!(n, 0, "the parent of a running delegation must not be swept");
+        assert!(mgr.connections.lock().await.contains_key("parent"));
+
+        // A child that is gone no longer counts, even if its completion never
+        // reached the parent: a stranded entry must not pin the parent forever.
+        mgr.connections.lock().await.remove("child");
+        let n = mgr.sweep_idle(Duration::from_secs(300)).await;
+        assert_eq!(n, 1, "with the child gone the idle parent is reclaimed");
     }
 
     #[tokio::test]

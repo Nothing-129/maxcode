@@ -45,10 +45,10 @@ const official: CodexQuota = {
   updated_at: 1790000000,
   error: null,
 }
-async function mount(footer = false) {
+async function mount(footer = false, compact = false) {
   const result = render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      {footer ? <SidebarFooter /> : <SidebarCodexQuota />}
+      {footer ? <SidebarFooter /> : <SidebarCodexQuota compact={compact} />}
     </NextIntlClientProvider>
   )
   await act(async () => {})
@@ -82,6 +82,40 @@ describe("inline sidebar official Codex quota", () => {
     mocks.call.mockResolvedValue({ ...official, official: false, windows: [] })
     const { container } = await mount()
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it.each([
+    ["plus", "75"],
+    ["pro", "0"],
+  ])(
+    "shows the %s default allowance directly on the rail",
+    async (plan, text) => {
+      mocks.call.mockResolvedValue({ ...official, plan_type: plan })
+      await mount(false, true)
+      expect(quotaButton().textContent).toBe(text)
+      expect(quotaButton().querySelector("[data-quota-ring]")).toBeTruthy()
+      expect(
+        quotaButton().querySelector("[data-quota-remaining]")
+      ).toHaveAttribute("stroke-dasharray", `${text} 100`)
+      expect(quotaButton()).toHaveClass("hover:bg-sidebar-foreground/5")
+      expect(quotaButton()).not.toHaveClass("hover:bg-sidebar-accent")
+      await openDetails()
+      expect(screen.getByRole("dialog")).toBeVisible()
+    }
+  )
+
+  it("does not substitute weekly quota when Plus short-window data is missing", async () => {
+    mocks.call.mockResolvedValue({
+      ...official,
+      windows: [official.windows[1]],
+    })
+    await mount(false, true)
+    expect(quotaButton()).toHaveTextContent("—")
+    expect(quotaButton().querySelector("[data-quota-remaining]")).toBeNull()
+    await openDetails()
+    expect(
+      screen.getByRole("progressbar", { name: "Weekly · Remaining" })
+    ).toBeVisible()
   })
 
   it("keeps Plus percentages inline and preserves exhausted zero without progress bars", async () => {

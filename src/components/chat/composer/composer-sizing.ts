@@ -15,8 +15,8 @@
  */
 
 /**
- * The action row's height. A 2rem control (the send/stop button — the tallest
- * thing in the row in every state, at every container width) plus its `pb-2`.
+ * The action row's height: 2rem controls, including suggestion adoption,
+ * plus the row's `pb-2`.
  */
 const ACTION_ROW_REM = 2.5
 

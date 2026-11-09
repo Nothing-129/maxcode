@@ -8,6 +8,7 @@ const f = vi.hoisted(() => ({
   releaseSurface: vi.fn(async () => {}),
   touchActivity: vi.fn(),
   setActiveKey: vi.fn(),
+  releaseActiveKey: vi.fn(),
   markConnectPending: vi.fn(),
   clearConnectPending: vi.fn(),
   task: vi.fn(),

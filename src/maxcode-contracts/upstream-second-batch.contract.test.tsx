@@ -127,7 +127,7 @@ describe("MaxCode second upstream batch", () => {
 
   it("updates only the selected adapter pins and retains Grok session routing", () => {
     const registry = source("src-tauri/src/acp/registry.rs")
-    expect(registry).toContain("@xai-official/grok@1.0.70")
+    expect(registry).toContain("@xai-official/grok@1.0.77")
     expect(registry).toContain("agy-acp-server-1.4.5-darwin-x86_64.zip")
     expect(registry).toContain("ClaimNullSessionIds")
   })

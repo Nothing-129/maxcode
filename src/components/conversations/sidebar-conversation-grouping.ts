@@ -1269,6 +1269,7 @@ function pushConversationRow(
  *   Folders / Chat (see {@link ConversationRow.recent}).
  */
 export function buildRows(args: {
+  visibleSections?: readonly SidebarSectionKey[]
   pinned: readonly DbConversationSummary[]
   pinnedExpanded: boolean
   orderedFolderIds: readonly number[]
@@ -1298,6 +1299,7 @@ export function buildRows(args: {
    *  behavior, kept for tests). The app raises it a page at a time, and the
    *  footer row carries `canReset` once it is past the first page so the list
    *  can be folded back to {@link RECENT_PAGE_SIZE}. */
+  recentPageSize?: number
   recentLimit?: number
   /** Default page size for each folder body. Optional — omitted means no
    *  limit (historical, kept for tests). The app passes 10 and raises a
@@ -1355,6 +1357,7 @@ export function buildRows(args: {
   todoGroupExpanded?: Readonly<Record<string, boolean>>
 }): SidebarRow[] {
   const {
+    visibleSections,
     pinned,
     pinnedExpanded,
     orderedFolderIds,
@@ -1369,6 +1372,7 @@ export function buildRows(args: {
     recentExpanded = true,
     showRecent = false,
     recentLimit,
+    recentPageSize = RECENT_PAGE_SIZE,
     folderPageSize,
     folderLimitById,
     sectionOrder = DEFAULT_SECTION_ORDER,
@@ -1386,7 +1390,10 @@ export function buildRows(args: {
   } = args
   const rows: SidebarRow[] = []
 
-  if (pinned.length > 0) {
+  if (
+    pinned.length > 0 &&
+    (!visibleSections || visibleSections.includes("pinned"))
+  ) {
     rows.push({
       kind: "section",
       section: "pinned",
@@ -1605,7 +1612,7 @@ export function buildRows(args: {
     // and the limit still reads 30), which would leave a reset button that
     // changes nothing on click. `recentLimit == null` is the unpaged mode —
     // nothing was ever collapsed, so there is nothing to restore.
-    const canReset = recentLimit != null && shown.length > RECENT_PAGE_SIZE
+    const canReset = recentLimit != null && shown.length > recentPageSize
     if (remaining > 0 || canReset) {
       const row: RecentMoreRow = { kind: "recent-more", remaining }
       if (canReset) row.canReset = true
@@ -1653,6 +1660,7 @@ export function buildRows(args: {
   // Normalized (not consumed raw) so a truncated / repeated / unknown-entry
   // order can never drop a section off the sidebar or emit one twice.
   for (const section of normalizeSectionOrder(sectionOrder)) {
+    if (visibleSections && !visibleSections.includes(section)) continue
     if (section === "folders") pushFolders()
     else if (section === "chats") pushChats()
     else if (section === "recent" && showRecent) pushRecent()

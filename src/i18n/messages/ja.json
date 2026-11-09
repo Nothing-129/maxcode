@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "最近の表示",
       "sectionTodos": "ToDo 別",
       "showTodos": "ToDo グループを表示",
-      "noAssignedTodoConversations": "割り当て済み ToDo から作成された会話はありません"
+      "noAssignedTodoConversations": "割り当て済み ToDo から作成された会話はありません",
+      "navigation": {
+        "label": "機能ナビゲーション",
+        "home": "ホーム",
+        "today": "今日",
+        "conversations": "会話",
+        "projects": "プロジェクト",
+        "automations": "自動化",
+        "tasks": "タスク",
+        "settings": "設定",
+        "selectDate": "日付を選択",
+        "activityHint": "会話の最終更新日時で絞り込み",
+        "noActivity": "この日の会話はありません",
+        "recent": "最近",
+        "dateRange": "期間",
+        "startDate": "開始日",
+        "endDate": "終了日",
+        "filterDate": "日付で絞り込み",
+        "clearDate": "日付をリセット",
+        "presets": {
+          "today": "今日",
+          "yesterday": "昨日",
+          "last3": "過去3日",
+          "last7": "過去7日",
+          "week": "今週",
+          "month": "今月"
+        },
+        "statistics": "統計",
+        "settingsUpdate": "設定 · 更新あり",
+        "about": "MaxCodeについて",
+        "todoBoard": "タスクボード"
+      }
     },
     "conversation": {
       "reloadFailed": "会話の再読み込みに失敗しました: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "{agent} セッションの読み込みに失敗しました。再読み込みして再試行するか、新しい会話を開始してください。",
           "sessionLoadUnavailable": "{agent} はこのセッションを復元できませんでした。セッションが終了したか、エージェントが停止した可能性があります。再読み込みして再試行するか、新しい会話を開始してください。",
           "sessionLoadBusy": "このセッションは別の場所で開かれています。別の {agent} クライアント（デスクトップアプリ、CLI、IDE 拡張機能）で開いている場合は、そちらで閉じるかそのクライアントを終了してから再読み込みしてください。ここから分岐した直後なら、1 分ほどしてから再読み込みしてください。",
+          "sessionProviderMissing": "このセッションのモデルプロバイダー設定が削除されています。履歴はディスクに残っています。元の設定を復元してから会話を再読み込みしてください。",
           "sessionArchived": "以前のセッションは {agent} 側でアーカイブされています。ターミナルで {command} を実行して復元してから再読み込みするか、新しい会話を開始してください。",
           "turnFailedRefusal": "{agent} がこのターンの続行を拒否しました。バックエンドまたはゲートウェイのエラーが原因の可能性があります。エージェントのログを確認してください。",
           "turnFailedMaxTokens": "{agent} がこのターンの最大トークン数に達しました。",
@@ -4005,7 +4037,8 @@
         "failed": "コンテキストの圧縮に失敗しました",
         "summary": "要約",
         "triggerManual": "手動で実行",
-        "triggerAutomatic": "自動で実行"
+        "triggerAutomatic": "自動で実行",
+        "triggerIdle": "アイドル中、プロンプトキャッシュの期限切れ前に実行"
       },
       "sessionFailure": {
         "category": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "スキルの同期に失敗"
     },
     "autoPreviewLabel": "プレビューを自動で開く",
-    "autoPreviewHint": "エージェントが Word、Excel、PowerPoint ファイルを作成または編集したときに、ライブプレビューを自動で開きます。"
+    "autoPreviewHint": "エージェントが現在のターンでツールを使って Word、Excel、PowerPoint ファイルを作成または編集したときに、ライブプレビューを自動で開きます。"
   },
   "SkillPacksSettings": {
     "title": "スキルパック",

@@ -10436,6 +10436,14 @@ fn classify_session_load_failure(
     if message.contains("is archived") {
         return Some("session_archived");
     }
+    // Codex keeps the provider ID in the rollout. Removing its configuration
+    // does not remove the history: keep the original session so restoring the
+    // provider can reopen it instead of binding this conversation to an empty one.
+    if message.contains("This chat uses model provider")
+        && message.contains("which is no longer configured")
+    {
+        return Some("session_provider_missing");
+    }
     // codex holds a per-thread writer lock for as long as an app-server has the
     // thread loaded. Two holders reach this arm:
     //  * another Codex client — the Codex app, the CLI or an IDE extension —
@@ -10763,12 +10771,14 @@ async fn defer_to_connection_report(
 /// unexpected failure) is never recovered here — it keeps the existing
 /// emit-then-fall-back-to-`session/new` behaviour.
 ///
-/// `session_busy` is excluded outright, for ANY agent. Every other verdict means
-/// the session is gone, so opening a fresh one and linking the history forward
-/// loses nothing; a busy session is still there, and starting over would replace
-/// a live history with an empty session for a lock that clears on its own.
+/// Busy sessions and missing provider configurations are excluded for every
+/// agent: their history is still present and can be reopened after the holder
+/// releases it or the provider configuration is restored.
 fn recovers_load_failure_locally(agent_type: AgentType, classified: Option<&'static str>) -> bool {
-    if classified == Some("session_busy") {
+    if matches!(
+        classified,
+        Some("session_busy" | "session_provider_missing")
+    ) {
         return false;
     }
     classified.is_some() && transcript_dir_for(agent_type).is_some()
@@ -26839,6 +26849,11 @@ mod tests {
         })
         .await
     }
+
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../src/maxcode-contracts/session-provider-recovery.contract.rs"
+    ));
 
     /// claude-agent-acp 0.100.0 (#1508) on a Claude Code that refused to start
     /// for a reason of the machine: the CLI's own sentence as the message, and

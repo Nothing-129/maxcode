@@ -11,6 +11,7 @@ import {
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
 import {
+  ArrowLeft,
   CalendarClock,
   Clock,
   CirclePlay,
@@ -106,6 +107,8 @@ import { onTransportReconnect, subscribe } from "@/lib/platform"
 import { cn } from "@/lib/utils"
 import type { Automation, AutomationDraft, AutomationRun } from "@/lib/types"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
+
+import { useIsMobile } from "@/hooks/use-mobile"
 
 const AUTOMATION_CHANGED_EVENT = "automation://changed"
 
@@ -222,6 +225,8 @@ export function AutomationsPage() {
   const t = useTranslations("Automations")
   const { automations, unseenFailures, refetch } = useAutomationsView()
   const folders = useAppWorkspaceStore((s) => s.folders)
+  const isMobile = useIsMobile()
+  const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [mode, setMode] = useState<"detail" | "gallery" | "editor">("detail")
   const [editing, setEditing] = useState<EditingState | null>(null)
@@ -335,6 +340,7 @@ export function AutomationsPage() {
     setMode("editor")
   }
   const selectAutomation = (a: Automation) => {
+    setMobileDetailOpen(true)
     setSelectedId(a.id)
     setEditing(null)
     setMode("detail")
@@ -360,6 +366,7 @@ export function AutomationsPage() {
         ? await automationUpdate(editing.automation.id, draft)
         : await automationCreate(draft)
     await refetch()
+    setMobileDetailOpen(true)
     setSelectedId(saved.id)
     closeToDetail()
   }
@@ -434,6 +441,59 @@ export function AutomationsPage() {
     </ScrollArea>
   )
 
+  const listPane = (
+    <div className={LIST_SURFACE_CLASS}>
+      <ScrollArea className="h-full">
+        {visibleAutomations.length === 0 ? (
+          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+            {t("noMatches")}
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-0.5 p-2">
+            {visibleAutomations.map((a) => (
+              <AutomationListItem
+                key={a.id}
+                automation={a}
+                now={now}
+                selected={mode === "detail" && current?.id === a.id}
+                onSelect={() => selectAutomation(a)}
+                onRunNow={() => runAction(() => automationRunNow(a.id))}
+                onToggleEnabled={() =>
+                  runAction(() => automationSetEnabled(a.id, !a.enabled))
+                }
+                onEdit={() => startEdit(a)}
+                onDelete={() => runAction(() => automationDelete(a.id))}
+              />
+            ))}
+          </ul>
+        )}
+      </ScrollArea>
+    </div>
+  )
+  const detailPane = (
+    <div className={DETAIL_SURFACE_CLASS}>
+      {mode === "editor" && editing ? (
+        editorPane
+      ) : mode === "gallery" ? (
+        picker(false)
+      ) : current ? (
+        <AutomationDetail
+          automation={current}
+          refetch={refetch}
+          onEdit={() => startEdit(current)}
+        />
+      ) : (
+        // Defensive only: `current` falls back to automations[0],
+        // which is always present inside this hasAutomations
+        // branch, so this arm is not reached in practice.
+        <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
+          {t("selectHint")}
+        </div>
+      )}
+    </div>
+  )
+  const showMobileDetail = mobileDetailOpen || mode !== "detail"
+
   return (
     // No background of its own: the route overlay already paints
     // `bg-background ws-transparent-bg` (workspace/layout.tsx), so an opaque
@@ -454,87 +514,57 @@ export function AutomationsPage() {
               from px-4 pb-4, top from pt-2 plus the toolbar's own pb-2. */}
           <div className="min-h-0 flex-1 px-4 pb-4 pt-2">
             <div className={SHELL_CLASS}>
-              <ResizablePanelGroup
-                direction="horizontal"
-                className="min-h-0 flex-1"
-              >
-                <ResizablePanel
-                  id="automations-list"
-                  order={1}
-                  defaultSize={32}
-                  minSize={22}
-                >
-                  <div className={LIST_SURFACE_CLASS}>
-                    <ScrollArea className="h-full">
-                      {visibleAutomations.length === 0 ? (
-                        <p className="px-3 py-6 text-center text-xs text-muted-foreground">
-                          {t("noMatches")}
-                        </p>
-                      ) : (
-                        <ul className="flex flex-col gap-0.5 p-2">
-                          {visibleAutomations.map((a) => (
-                            <AutomationListItem
-                              key={a.id}
-                              automation={a}
-                              now={now}
-                              selected={
-                                mode === "detail" && current?.id === a.id
-                              }
-                              onSelect={() => selectAutomation(a)}
-                              onRunNow={() =>
-                                runAction(() => automationRunNow(a.id))
-                              }
-                              onToggleEnabled={() =>
-                                runAction(() =>
-                                  automationSetEnabled(a.id, !a.enabled)
-                                )
-                              }
-                              onEdit={() => startEdit(a)}
-                              onDelete={() =>
-                                runAction(() => automationDelete(a.id))
-                              }
-                            />
-                          ))}
-                        </ul>
-                      )}
-                    </ScrollArea>
+              {isMobile ? (
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+                  {showMobileDetail && (
+                    <div className="shrink-0 border-b p-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          closeToDetail()
+                          setMobileDetailOpen(false)
+                        }}
+                      >
+                        <ArrowLeft className="size-4" aria-hidden="true" />
+                        {t("title")}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="min-h-0 flex-1">
+                    {showMobileDetail ? detailPane : listPane}
                   </div>
-                </ResizablePanel>
-                {/* The handle's own 1px rule IS the column divider now, and
+                </div>
+              ) : (
+                <ResizablePanelGroup
+                  direction="horizontal"
+                  className="min-h-0 flex-1"
+                >
+                  <ResizablePanel
+                    id="automations-list"
+                    order={1}
+                    defaultSize={32}
+                    minSize={22}
+                  >
+                    {listPane}
+                  </ResizablePanel>
+                  {/* The handle's own 1px rule IS the column divider now, and
                     inside a single shell that's the honest reading of it: one
                     container split in two, not two boards with a line wedged
                     between them. Tone alone can't carry the split — in the
                     light theme `--muted` and `--card` are one step apart, which
                     measures ~2% on screen; the fixes for that (frosting or an
                     opaque fill) would block the workspace background image. */}
-                <ResizableHandle />
-                <ResizablePanel
-                  id="automations-detail"
-                  order={2}
-                  defaultSize={68}
-                >
-                  <div className={DETAIL_SURFACE_CLASS}>
-                    {mode === "editor" && editing ? (
-                      editorPane
-                    ) : mode === "gallery" ? (
-                      picker(false)
-                    ) : current ? (
-                      <AutomationDetail
-                        automation={current}
-                        refetch={refetch}
-                        onEdit={() => startEdit(current)}
-                      />
-                    ) : (
-                      // Defensive only: `current` falls back to automations[0],
-                      // which is always present inside this hasAutomations
-                      // branch, so this arm is not reached in practice.
-                      <div className="flex h-full items-center justify-center p-4 text-center text-xs text-muted-foreground">
-                        {t("selectHint")}
-                      </div>
-                    )}
-                  </div>
-                </ResizablePanel>
-              </ResizablePanelGroup>
+                  <ResizableHandle />
+                  <ResizablePanel
+                    id="automations-detail"
+                    order={2}
+                    defaultSize={68}
+                  >
+                    {detailPane}
+                  </ResizablePanel>
+                </ResizablePanelGroup>
+              )}
             </div>
           </div>
         </>
@@ -894,7 +924,7 @@ function AutomationListItem({
                   <Button
                     variant="ghost"
                     size="icon-xs"
-                    className="hidden justify-end text-muted-foreground/80 hover:bg-transparent hover:text-foreground group-hover:flex group-focus-within:flex aria-expanded:bg-transparent data-[state=open]:flex dark:hover:bg-transparent"
+                    className="flex justify-end text-muted-foreground/80 md:hidden hover:bg-transparent hover:text-foreground group-hover:flex group-focus-within:flex aria-expanded:bg-transparent data-[state=open]:flex dark:hover:bg-transparent"
                     aria-label={t("moreActions")}
                   >
                     <MoreHorizontal className="size-4" aria-hidden="true" />
@@ -1040,9 +1070,9 @@ function AutomationDetail({
             used to sit between the prompt and the run-history cards, where they
             read as belonging to neither. */}
         <div className="flex flex-col gap-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2">
-              <h2 className="truncate text-lg font-semibold">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+              <h2 className="min-w-0 break-words text-lg font-semibold [overflow-wrap:anywhere]">
                 {automation.name}
               </h2>
               <StatusChip status={automation.last_run_status} />
@@ -1059,7 +1089,7 @@ function AutomationDetail({
               />
             </label>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
               className={cn(

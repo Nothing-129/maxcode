@@ -377,7 +377,16 @@ async fn scoped_origin_call(
 ) -> Result<TodoOriginResult, AppCommandError> {
     if !matches!(
         operation.action.as_str(),
-        "get" | "update" | "claim" | "release" | "complete" | "finish" | "resume" | "verify" | "reopen" | "delete"
+        "get"
+            | "update"
+            | "claim"
+            | "release"
+            | "complete"
+            | "finish"
+            | "resume"
+            | "verify"
+            | "reopen"
+            | "delete"
     ) {
         return Err(AppCommandError::invalid_input("Unsupported todo action"));
     }

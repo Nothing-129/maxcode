@@ -12,7 +12,7 @@ it("runs the persisted MCP defaults contract in the Rust backend", () => {
   expect(contract).toContain(
     "assert!(!load_question_settings(&db.conn).await.enabled)"
   )
-  expect(source("src-tauri/src/commands/question.rs")).toContain(
-    "Self { enabled: false }"
+  expect(source("src-tauri/src/commands/question.rs")).toMatch(
+    /#\[derive\([^\]]*Default[^\]]*\)\]\s*pub struct QuestionSettings/
   )
 })

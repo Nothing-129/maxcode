@@ -19,7 +19,7 @@ This file provides guidance to Code Agent when working with code in this reposit
 - 设置、创建会话的智能体目录及后台自动更新仅面向这七种；隐藏新增自定义智能体入口。
 - 其他智能体的实现和历史数据暂时保留；上游集成跳过其专属适配、版本和界面改动。
 - 共用功能仅吸收对上述七种有价值的部分，不恢复其他智能体入口。
-- ZCode 完整跟随上游的 William `zcode-acp-server` 集成（当前 0.82.0），使用 ACP 会话记录与上游运行时发现；不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
+- ZCode 完整跟随上游的 William `zcode-acp-server` 集成（当前 0.82.1），使用 ACP 会话记录与上游运行时发现；不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
 
 ## 项目概述
 
@@ -163,3 +163,13 @@ Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享
 - ESLint：next/core-web-vitals + typescript + prettier
 - TypeScript：strict 模式，启用 `noUnusedLocals` 和 `noUnusedParameters`
 - Rust：2021 edition，使用 `thiserror` 定义错误类型
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+## This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

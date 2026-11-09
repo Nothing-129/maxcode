@@ -260,16 +260,15 @@ mod tests {
         // `selfUpdateBlocker` and the snake_case error fields inside it are what
         // `getServerUpdateStatus` consumers parse; a rename here would silently
         // bring back the doomed "Upgrade" button.
-        let blocker = AppCommandError::permission_denied(
-            "Update target is not writable: /usr/local/bin",
-        )
-        .with_i18n(
-            "SystemSettings.updateErrors.permissionDenied",
-            std::collections::BTreeMap::from([(
-                "path".to_string(),
-                "/usr/local/bin".to_string(),
-            )]),
-        );
+        let blocker =
+            AppCommandError::permission_denied("Update target is not writable: /usr/local/bin")
+                .with_i18n(
+                    "SystemSettings.updateErrors.permissionDenied",
+                    std::collections::BTreeMap::from([(
+                        "path".to_string(),
+                        "/usr/local/bin".to_string(),
+                    )]),
+                );
         let status = ServerUpdateStatus {
             current_version: "0.32.0".to_string(),
             self_update_supported: true,

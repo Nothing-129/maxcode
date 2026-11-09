@@ -83,6 +83,8 @@ import {
   type SidebarSectionOrder,
 } from "@/lib/sidebar-view-mode-storage"
 import { cn } from "@/lib/utils"
+import { useSidebarNavigation } from "@/contexts/sidebar-navigation-context"
+import { RecentDateFilter } from "./recent-date-filter"
 import { useSearchDialog } from "@/contexts/search-dialog-context"
 
 /** Compact action button shared by the fixed sidebar navigation. */
@@ -128,6 +130,8 @@ export function Sidebar({
   keepVisible = false,
 }: { keepVisible?: boolean } = {}) {
   const t = useTranslations("Folder.sidebar")
+  const navigation = useSidebarNavigation()
+  const navigationView = navigation?.view ?? "home"
   const tTitleBar = useTranslations("Folder.folderTitleBar")
   const { setOpen: setSearchOpen } = useSearchDialog()
   const { isOpen, toggle } = useSidebarContext()
@@ -135,8 +139,13 @@ export function Sidebar({
   const { openNewConversationTab, openChatModeTab } = useTabActions()
   const { unseenFailures } = useAutomationsView()
   const { routeId, setRoute, openConversations } = useWorkbenchRoute()
+  const view =
+    (routeId === "tasks" || routeId === "taskConversation") && navigation
+      ? "tasks"
+      : navigationView
   const { isMac: platformIsMac } = usePlatform()
   const isMobile = useIsMobile()
+  const compactHeader = isMobile || !isNativeDesktop()
   // Touch devices must also collapse the sidebar after navigating AWAY from it
   // when they land in the desktop shell — a phone in landscape, a foldable, or
   // "request desktop site" reports ≥768px so the sidebar renders inline instead
@@ -314,159 +323,174 @@ export function Sidebar({
       >
         <DesktopChromeIcon name="search" />
       </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
-        title={tTitleBar("openSettings")}
-        aria-label={tTitleBar("openSettings")}
-        onClick={() => {
-          void openSettingsWindow().catch(console.error)
-        }}
-      >
-        <DesktopChromeIcon name="settings" />
-      </Button>
+      {isMobile && !navigation && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
+          title={tTitleBar("openSettings")}
+          aria-label={tTitleBar("openSettings")}
+          onClick={() => {
+            void openSettingsWindow().catch(console.error)
+          }}
+        >
+          <DesktopChromeIcon name="settings" />
+        </Button>
+      )}
       {/* Keep sidebar controls clickable while the view options are open. */}
-      <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon"
-            className={cn(desktopChromeButtonClassName, isMobile && "size-11")}
-            title={viewOptionsLabel}
-            aria-label={viewOptionsLabel}
-          >
-            <DesktopChromeIcon name="more" />
-          </Button>
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align="end" className="min-w-56">
-          <DropdownMenuItem onSelect={() => listRef.current?.scrollToActive()}>
-            <DesktopChromeIcon name="locate" className="size-4" />
-            {t("locateActiveConversation")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            onSelect={() => useConversationUnreadStore.getState().markAllRead()}
-          >
-            <CheckCheck className="size-4" />
-            {t("markAllRead")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>{viewOptionsLabel}</DropdownMenuLabel>
-
-          <>
-            <DropdownMenuItem onSelect={handleToggleExpandAll}>
-              {allExpanded ? (
-                <ListChevronsDownUp className="h-4 w-4" />
-              ) : (
-                <ListChevronsUpDown className="h-4 w-4" />
+      {view === "home" && (
+        <DropdownMenu modal={false}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn(
+                desktopChromeButtonClassName,
+                isMobile && "size-11"
               )}
-              {toggleExpandLabel}
+              title={viewOptionsLabel}
+              aria-label={viewOptionsLabel}
+            >
+              <DesktopChromeIcon name="more" />
+            </Button>
+          </DropdownMenuTrigger>
+
+          <DropdownMenuContent align="end" className="min-w-56">
+            <DropdownMenuItem
+              onSelect={() => listRef.current?.scrollToActive()}
+            >
+              <DesktopChromeIcon name="locate" className="size-4" />
+              {t("locateActiveConversation")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onSelect={() =>
+                useConversationUnreadStore.getState().markAllRead()
+              }
+            >
+              <CheckCheck className="size-4" />
+              {t("markAllRead")}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-          </>
+            <DropdownMenuLabel>{viewOptionsLabel}</DropdownMenuLabel>
 
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <MessagesSquare className="text-muted-foreground" />
-              {t("listOptions")}
-            </DropdownMenuSubTrigger>
+            <>
+              <DropdownMenuItem onSelect={handleToggleExpandAll}>
+                {allExpanded ? (
+                  <ListChevronsDownUp className="h-4 w-4" />
+                ) : (
+                  <ListChevronsUpDown className="h-4 w-4" />
+                )}
+                {toggleExpandLabel}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+            </>
 
-            <DropdownMenuSubContent>
-              <DropdownMenuCheckboxItem
-                checked={allowActions}
-                onCheckedChange={(value) => {
-                  setAllowActions(value).catch(announcePrefsSaveFailure)
-                }}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("allowStatusActions")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={showCompleted}
-                onCheckedChange={handleSetShowCompleted}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("showCompleted")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={showWorktrees}
-                onCheckedChange={handleSetShowWorktrees}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("showWorktrees")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={showRecent}
-                onCheckedChange={handleSetShowRecent}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("showRecent")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={showTodos}
-                onCheckedChange={handleSetShowTodos}
-                onSelect={(event) => event.preventDefault()}
-              >
-                {t("showTodos")}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>
-              <Menu className="text-muted-foreground" />
-              {t("navigationItems")}
-            </DropdownMenuSubTrigger>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <MessagesSquare className="text-muted-foreground" />
+                {t("listOptions")}
+              </DropdownMenuSubTrigger>
 
-            <DropdownMenuSubContent>
-              <DropdownMenuCheckboxItem
-                checked={isNavItemVisible(navItems, "automations")}
-                onCheckedChange={(value) =>
-                  handleSetNavItem("automations", value)
-                }
-                onSelect={(event) => event.preventDefault()}
-              >
-                <Zap className="text-muted-foreground" />
-                {t("automations")}
-              </DropdownMenuCheckboxItem>
-              <DropdownMenuCheckboxItem
-                checked={isNavItemVisible(navItems, "tasks")}
-                onCheckedChange={(value) => handleSetNavItem("tasks", value)}
-                onSelect={(event) => event.preventDefault()}
-              >
-                <ListTodo className="text-muted-foreground" />
-                {t("tasks")}
-              </DropdownMenuCheckboxItem>
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>{t("sortBy")}</DropdownMenuLabel>
-          <DropdownMenuRadioGroup
-            value={sortMode}
-            onValueChange={handleSetSortMode}
-          >
-            <DropdownMenuRadioItem
-              value="created"
-              onSelect={(event) => event.preventDefault()}
+              <DropdownMenuSubContent>
+                <DropdownMenuCheckboxItem
+                  checked={allowActions}
+                  onCheckedChange={(value) => {
+                    setAllowActions(value).catch(announcePrefsSaveFailure)
+                  }}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {t("allowStatusActions")}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showCompleted}
+                  onCheckedChange={handleSetShowCompleted}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {t("showCompleted")}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showWorktrees}
+                  onCheckedChange={handleSetShowWorktrees}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {t("showWorktrees")}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showRecent}
+                  onCheckedChange={handleSetShowRecent}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {t("showRecent")}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showTodos}
+                  onCheckedChange={handleSetShowTodos}
+                  onSelect={(event) => event.preventDefault()}
+                >
+                  {t("showTodos")}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            {isMobile && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>
+                  <Menu className="text-muted-foreground" />
+                  {t("navigationItems")}
+                </DropdownMenuSubTrigger>
+
+                <DropdownMenuSubContent>
+                  <DropdownMenuCheckboxItem
+                    checked={isNavItemVisible(navItems, "automations")}
+                    onCheckedChange={(value) =>
+                      handleSetNavItem("automations", value)
+                    }
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <Zap className="text-muted-foreground" />
+                    {t("automations")}
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={isNavItemVisible(navItems, "tasks")}
+                    onCheckedChange={(value) =>
+                      handleSetNavItem("tasks", value)
+                    }
+                    onSelect={(event) => event.preventDefault()}
+                  >
+                    <ListTodo className="text-muted-foreground" />
+                    {t("tasks")}
+                  </DropdownMenuCheckboxItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("sortBy")}</DropdownMenuLabel>
+            <DropdownMenuRadioGroup
+              value={sortMode}
+              onValueChange={handleSetSortMode}
             >
-              {t("sortByCreatedAt")}
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem
-              value="updated"
-              onSelect={(event) => event.preventDefault()}
-            >
-              {t("sortByUpdatedAt")}
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-          <DropdownMenuSeparator />
-          <DropdownMenuLabel>{t("sectionOrder")}</DropdownMenuLabel>
-          <SidebarSectionOrderControl
-            order={sectionOrder}
-            onMove={handleMoveSection}
-            hiddenSections={hiddenSections}
-          />
-        </DropdownMenuContent>
-      </DropdownMenu>
+              <DropdownMenuRadioItem
+                value="created"
+                onSelect={(event) => event.preventDefault()}
+              >
+                {t("sortByCreatedAt")}
+              </DropdownMenuRadioItem>
+              <DropdownMenuRadioItem
+                value="updated"
+                onSelect={(event) => event.preventDefault()}
+              >
+                {t("sortByUpdatedAt")}
+              </DropdownMenuRadioItem>
+            </DropdownMenuRadioGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel>{t("sectionOrder")}</DropdownMenuLabel>
+            <SidebarSectionOrderControl
+              order={sectionOrder}
+              onMove={handleMoveSection}
+              hiddenSections={hiddenSections}
+            />
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 
@@ -476,10 +500,10 @@ export function Sidebar({
         className={cn(
           "flex shrink-0 items-center gap-2 pr-2",
           // Keep desktop tools aligned with the conversation header.
-          isMobile ? "h-14 pl-4" : "h-12 pl-0"
+          compactHeader ? "h-14 pl-4" : "h-12 pl-0"
         )}
       >
-        {!isMobile && (
+        {!compactHeader && (
           // Leave native traffic lights clear and keep this area draggable.
           <div
             data-drag-region
@@ -487,9 +511,10 @@ export function Sidebar({
             style={{ width: leftReserve }}
           />
         )}
-        {isMobile ? (
-          <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+        {compactHeader ? (
+          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
             <SidebarWordmark />
+            {view === "conversations" && <RecentDateFilter />}
           </div>
         ) : (
           // Push desktop tools right and keep empty space draggable.
@@ -500,50 +525,76 @@ export function Sidebar({
 
       {/* Fixed action buttons stay above the scrollable conversation list. */}
       <div className="flex shrink-0 flex-col gap-0.5 px-1.5 pt-1.5">
-        {!isMobile && (
-          <div className="mb-3 flex h-8 items-center justify-between px-2 text-base font-semibold text-sidebar-foreground">
-            <SidebarWordmark />
+        {!compactHeader && (
+          <div className="mb-3 flex h-8 items-center justify-between gap-2 px-2 text-base font-semibold text-sidebar-foreground">
+            <span className="min-w-0 truncate">
+              <SidebarWordmark />
+            </span>
+            {view === "conversations" && <RecentDateFilter />}
           </div>
         )}
-        <div data-sidebar-actions className="flex items-center gap-1">
-          <SidebarNavButton
-            icon="compose"
-            label={t("newChat")}
-            onClick={handleNewConversation}
-          />
-          {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
-          {/* Route navigation respects the saved visibility preference and closes the
+        {view === "tasks" && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className={cn(
+              "mx-1 h-8 justify-start gap-2 text-sm",
+              routeId === "tasks" && "bg-sidebar-accent/50"
+            )}
+            onClick={() => setRoute("tasks")}
+            aria-label={t("navigation.todoBoard")}
+          >
+            <ListTodo className="size-3.5" />
+            {t("navigation.todoBoard")}
+          </Button>
+        )}
+        {view !== "tasks" && (
+          <div data-sidebar-actions className="flex items-center gap-1">
+            <SidebarNavButton
+              icon="compose"
+              label={t("newChat")}
+              onClick={handleNewConversation}
+            />
+            {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
+            {/* Route navigation respects the saved visibility preference and closes the
               sidebar after navigation on touch layouts. */}
-          {isNavItemVisible(navItems, "automations") && (
-            <SidebarNavButton
-              icon="clock"
-              label={t("automations")}
-              active={routeId === "automations"}
-              onClick={() => {
-                if (collapseOnNavigate) toggle()
-                setRoute("automations")
-              }}
-              trailing={
-                unseenFailures > 0 ? (
-                  <span className="absolute -right-1 -top-1 inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
-                    {unseenFailures}
-                  </span>
-                ) : null
-              }
-            />
-          )}
-          {isNavItemVisible(navItems, "tasks") && (
-            <SidebarNavButton
-              icon="tasks"
-              label={t("tasks")}
-              active={routeId === "tasks"}
-              onClick={() => {
-                if (collapseOnNavigate) toggle()
-                setRoute("tasks")
-              }}
-            />
-          )}
-        </div>
+            {isMobile &&
+              !navigation &&
+              view === "home" &&
+              isNavItemVisible(navItems, "automations") && (
+                <SidebarNavButton
+                  icon="clock"
+                  label={t("automations")}
+                  active={routeId === "automations"}
+                  onClick={() => {
+                    if (collapseOnNavigate) toggle()
+                    setRoute("automations")
+                  }}
+                  trailing={
+                    unseenFailures > 0 ? (
+                      <span className="absolute -right-1 -top-1 inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
+                        {unseenFailures}
+                      </span>
+                    ) : null
+                  }
+                />
+              )}
+            {isMobile &&
+              !navigation &&
+              view === "home" &&
+              isNavItemVisible(navItems, "tasks") && (
+                <SidebarNavButton
+                  icon="tasks"
+                  label={t("tasks")}
+                  active={routeId === "tasks"}
+                  onClick={() => {
+                    if (collapseOnNavigate) toggle()
+                    setRoute("tasks")
+                  }}
+                />
+              )}
+          </div>
+        )}
       </div>
 
       {/* On touch layouts, clicking a conversation card auto-closes the sidebar
@@ -562,17 +613,23 @@ export function Sidebar({
         }
       >
         <SidebarConversationList
+          key={`${view}:${view === "conversations" ? `${navigation?.date}:${navigation?.endDate}` : ""}`}
+          view={view}
+          activityDate={view === "conversations" ? navigation?.date : undefined}
+          activityEndDate={
+            view === "conversations" ? navigation?.endDate : undefined
+          }
           ref={listRef}
           showCompleted={showCompleted}
           showWorktrees={showWorktrees}
-          showRecent={showRecent}
-          showTodos={showTodos}
-          sortMode={sortMode}
+          showRecent={view === "home" ? showRecent : view !== "projects"}
+          showTodos={view === "tasks" || (view === "home" && showTodos)}
+          sortMode={view === "conversations" ? "updated" : sortMode}
           sectionOrder={sectionOrder}
           onNavigate={collapseOnNavigate ? toggle : undefined}
         />
       </div>
-      <SidebarFooter />
+      {isMobile && !navigation && <SidebarFooter />}
     </aside>
   )
 }

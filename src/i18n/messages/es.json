@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "Mostrar en Recientes",
       "sectionTodos": "Por tarea",
       "showTodos": "Mostrar grupos de tareas",
-      "noAssignedTodoConversations": "No hay conversaciones creadas desde tareas asignadas"
+      "noAssignedTodoConversations": "No hay conversaciones creadas desde tareas asignadas",
+      "navigation": {
+        "label": "Navegación",
+        "home": "Inicio",
+        "today": "Hoy",
+        "conversations": "Chats",
+        "projects": "Proyectos",
+        "automations": "Auto",
+        "tasks": "Tareas",
+        "settings": "Ajustes",
+        "selectDate": "Elegir fecha",
+        "activityHint": "Por última actualización de la conversación",
+        "noActivity": "No hay conversaciones en esta fecha",
+        "recent": "Reciente",
+        "dateRange": "Intervalo",
+        "startDate": "Fecha inicial",
+        "endDate": "Fecha final",
+        "filterDate": "Filtrar por fecha",
+        "clearDate": "Borrar filtro de fecha",
+        "presets": {
+          "today": "Hoy",
+          "yesterday": "Ayer",
+          "last3": "Últimos 3 días",
+          "last7": "Últimos 7 días",
+          "week": "Esta semana",
+          "month": "Este mes"
+        },
+        "statistics": "Estadísticas",
+        "settingsUpdate": "Ajustes · Actualización disponible",
+        "about": "Acerca de MaxCode",
+        "todoBoard": "Tablero de tareas"
+      }
     },
     "conversation": {
       "reloadFailed": "No se pudo recargar la conversación: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "Error al cargar la sesión de {agent}. Recarga para reintentar o inicia una nueva conversación.",
           "sessionLoadUnavailable": "{agent} no pudo restaurar esta sesión; es posible que haya finalizado o que el agente se haya detenido. Recarga para reintentar o inicia una nueva conversación.",
           "sessionLoadBusy": "Esta sesión está abierta en otro lugar. Si la tiene abierta otro cliente de {agent} (la app, la CLI o una extensión del IDE), ciérrala allí o sal de ese cliente y vuelve a cargar. Si acabas de bifurcarla, vuelve a cargar en un minuto.",
+          "sessionProviderMissing": "El proveedor de modelos de esta sesión ya no está configurado. El historial sigue en el disco. Restaura la configuración original del proveedor y vuelve a cargar la conversación.",
           "sessionArchived": "La sesión anterior fue archivada por {agent}. Ejecuta {command} en una terminal para restaurarla y recargarla, o inicia una conversación nueva.",
           "turnFailedRefusal": "{agent} rechazó continuar este turno. Suele indicar un error de backend o pasarela. Revisa los registros del agente.",
           "turnFailedMaxTokens": "{agent} alcanzó el límite máximo de tokens para este turno.",
@@ -4005,7 +4037,8 @@
         "failed": "Error al compactar el contexto",
         "summary": "Resumen",
         "triggerManual": "Activada manualmente",
-        "triggerAutomatic": "Activada automáticamente"
+        "triggerAutomatic": "Activada automáticamente",
+        "triggerIdle": "Activada en inactividad, antes de que caducara la caché del prompt"
       },
       "sessionFailure": {
         "category": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "Error al sincronizar habilidades"
     },
     "autoPreviewLabel": "Abrir vista previa automáticamente",
-    "autoPreviewHint": "Cuando un agente crea o edita un archivo de Word, Excel o PowerPoint, abre su vista previa en vivo automáticamente."
+    "autoPreviewHint": "Cuando las herramientas de un agente crean o editan un archivo de Word, Excel o PowerPoint durante su turno actual, abre su vista previa en vivo automáticamente."
   },
   "SkillPacksSettings": {
     "title": "Paquetes de habilidades",

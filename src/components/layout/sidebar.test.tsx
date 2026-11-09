@@ -152,6 +152,17 @@ describe("Sidebar — fixed nav region", () => {
     mockState.isMobile = false
   })
 
+  it("desktop Home shows only New chat in its action row", () => {
+    const { getByRole, queryByRole } = renderSidebar()
+    expect(getByRole("button", { name: "New chat" })).toBeTruthy()
+    expect(
+      queryByRole("button", { name: enMessages.Folder.sidebar.automations })
+    ).toBeNull()
+    expect(
+      queryByRole("button", { name: enMessages.Folder.sidebar.tasks })
+    ).toBeNull()
+  })
+
   it("renders the desktop product heading above New chat", () => {
     const { getByText, getByRole } = renderSidebar()
     expect(getByRole("img", { name: "MaxCode" })).toBeTruthy()
@@ -159,7 +170,8 @@ describe("Sidebar — fixed nav region", () => {
     expect(getByText("New chat")).toBeTruthy()
   })
 
-  it("opens Tasks and omits Repository dashboard from sidebar navigation", () => {
+  it("opens Tasks from mobile sidebar navigation", () => {
+    mockState.isMobile = true
     const { getByRole, queryByRole } = renderSidebar()
     fireEvent.click(
       getByRole("button", { name: enMessages.Folder.sidebar.tasks })
@@ -170,7 +182,8 @@ describe("Sidebar — fixed nav region", () => {
     ).toBeNull()
   })
 
-  it("Automations navigates to the automations route", () => {
+  it("mobile Automations navigates to the automations route", () => {
+    mockState.isMobile = true
     const { getByText } = renderSidebar()
     fireEvent.click(getByText("Automations"))
     expect(spies.setRoute).toHaveBeenCalledWith("automations")

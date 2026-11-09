@@ -1,5 +1,11 @@
 "use client"
 
+import {
+  conversationsOnDate,
+  sidebarViewSections,
+  sidebarPageSize,
+  type SidebarView,
+} from "@/lib/sidebar-navigation"
 import { useSidebarScrollMotion } from "@/hooks/use-sidebar-scroll-motion"
 import { useSidebarDisclosureMotion } from "@/hooks/use-sidebar-disclosure-motion"
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
@@ -145,7 +151,6 @@ import {
   mergeChildrenById,
   nextHeaderAfter,
   pointerYToTargetIndex,
-  RECENT_PAGE_SIZE,
   reuseSelected,
   reuseSet,
   selectChatConversationsWithReuse,
@@ -991,6 +996,9 @@ export interface SidebarConversationListHandle {
 }
 
 export interface SidebarConversationListProps {
+  view?: SidebarView
+  activityDate?: string
+  activityEndDate?: string
   showCompleted?: boolean
   sortMode?: SidebarSortMode
   sectionOrder?: SidebarSectionOrder
@@ -1007,6 +1015,9 @@ export interface SidebarConversationListProps {
 
 export function SidebarConversationList({
   ref,
+  view = "home",
+  activityDate,
+  activityEndDate,
   showCompleted = true,
   sortMode = DEFAULT_SIDEBAR_SORT_MODE,
   sectionOrder = DEFAULT_SECTION_ORDER,
@@ -1017,6 +1028,7 @@ export function SidebarConversationList({
 }: SidebarConversationListProps & {
   ref?: Ref<SidebarConversationListHandle>
 }) {
+  const recentPageSize = sidebarPageSize(view)
   const selectionMotionId = useId()
   const t = useTranslations("Folder.sidebar")
   const tCommon = useTranslations("Folder.common")
@@ -1208,19 +1220,22 @@ export function SidebarConversationList({
   // Persisted: it is a view preference, not a reading gesture. Hydrated from
   // localStorage after mount like the section collapse state.
   const [recentFilter, setRecentFilter] = useState<SidebarRecentFilter>("all")
-  const changeRecentFilter = useCallback((next: SidebarRecentFilter) => {
-    saveRecentFilter(next)
-    setRecentFilter(next)
-    setRecentLimit(RECENT_PAGE_SIZE)
-  }, [])
+  const changeRecentFilter = useCallback(
+    (next: SidebarRecentFilter) => {
+      if (view === "home") saveRecentFilter(next)
+      setRecentFilter(next)
+      setRecentLimit(recentPageSize)
+    },
+    [view, recentPageSize]
+  )
 
   // How many Recent rows are currently revealed. Session-only (not persisted):
   // "show me more of this list right now" is a reading gesture, not a setting —
   // and a fresh sidebar should open short again.
-  const [recentLimit, setRecentLimit] = useState(RECENT_PAGE_SIZE)
+  const [recentLimit, setRecentLimit] = useState(recentPageSize)
   const revealMoreRecent = useCallback(
-    () => setRecentLimit((n) => n + RECENT_PAGE_SIZE),
-    []
+    () => setRecentLimit((n) => n + recentPageSize),
+    [recentPageSize]
   )
   // Per-folder revealed count. Session-only, same reason as `recentLimit`:
   // "show me more of this folder right now" is a reading gesture. Absent key
@@ -1249,8 +1264,8 @@ export function SidebarConversationList({
     // no-op. Programmatic focus after a mouse click does not raise
     // `:focus-visible`, so pointer users see no ring.
     recentMoreButtonRef.current?.focus()
-    setRecentLimit(RECENT_PAGE_SIZE)
-  }, [])
+    setRecentLimit(recentPageSize)
+  }, [recentPageSize])
   // ── Per-conversation delegation sub-session expansion ───────────────────
   // Default COLLAPSED (unlike folders): only ids the user opened are tracked
   // and persisted. Hydrated from localStorage after mount. `childrenByParent`
@@ -1349,14 +1364,14 @@ export function SidebarConversationList({
       setFolderExpanded(loadFolderExpanded())
       setFolderGroupExpanded(loadFolderGroupExpanded())
       setTodoGroupExpanded(loadTodoGroupExpanded())
-      setSectionCollapsed(loadSectionCollapsed())
+      setSectionCollapsed(view === "home" ? loadSectionCollapsed() : {})
       setConversationExpanded(new Set(loadConversationExpanded()))
     }
     restore()
     return subscribeWorkspacePreferences(() =>
-      setRecentFilter(loadRecentFilter())
+      setRecentFilter(view === "home" ? loadRecentFilter() : "all")
     )
-  }, [])
+  }, [view])
 
   const todoGroups = useMemo<SidebarTodoConversationGroup[]>(() => {
     const byId = new Map(
@@ -1459,7 +1474,7 @@ export function SidebarConversationList({
       prepareDisclosure()
       if (sectionCollapsed[section]) prepareReveal(`section-${section}`)
       if (section === "chats") setChatLimit(CHAT_PAGE_SIZE)
-      if (section === "recent") setRecentLimit(RECENT_PAGE_SIZE)
+      if (section === "recent") setRecentLimit(recentPageSize)
       if (section === "todos" && todosExpanded) {
         setTodoGroupExpanded((previous) => {
           const next = { ...previous }
@@ -1483,7 +1498,7 @@ export function SidebarConversationList({
       }
       setSectionCollapsed((prev) => {
         const next = { ...prev, [section]: !prev[section] }
-        saveSectionCollapsed(next)
+        if (view === "home") saveSectionCollapsed(next)
         return next
       })
     },
@@ -1495,6 +1510,8 @@ export function SidebarConversationList({
       prepareDisclosure,
       prepareReveal,
       sectionCollapsed,
+      recentPageSize,
+      view,
     ]
   )
 
@@ -1543,11 +1560,11 @@ export function SidebarConversationList({
           return prev
         const next: SidebarSectionCollapsed = { ...prev }
         for (const key of SIDEBAR_SECTION_KEYS) next[key] = collapsed
-        saveSectionCollapsed(next)
+        if (view === "home") saveSectionCollapsed(next)
         return next
       })
     },
-    [prepareDisclosure]
+    [prepareDisclosure, view]
   )
 
   const handleChangeFolderColor = useCallback(
@@ -1796,6 +1813,11 @@ export function SidebarConversationList({
   // status event from rebuilding it and defeating the section's card memos.
   const recentConvsRef = useRef<DbConversationSummary[]>([])
   const recentConversations = useMemo(() => {
+    if (view === "conversations") {
+      return activityDate
+        ? conversationsOnDate(conversations, activityDate, activityEndDate)
+        : []
+    }
     const next = selectRecentConversationsWithReuse(
       conversations,
       showCompleted,
@@ -1806,7 +1828,16 @@ export function SidebarConversationList({
     )
     recentConvsRef.current = next
     return next
-  }, [conversations, showCompleted, sortMode, openFolderIds, recentFilter])
+  }, [
+    conversations,
+    showCompleted,
+    sortMode,
+    openFolderIds,
+    recentFilter,
+    view,
+    activityDate,
+    activityEndDate,
+  ])
 
   // Maps each open worktree child folder → its (open) root folder. A child is
   // only redirected when its parent is also open, so a worktree whose root was
@@ -1960,6 +1991,7 @@ export function SidebarConversationList({
   const rows = useMemo(
     () =>
       buildRows({
+        visibleSections: sidebarViewSections(view),
         pinned,
         pinnedExpanded,
         // Top-level folders drive the outer order; buildRows nests
@@ -1980,6 +2012,7 @@ export function SidebarConversationList({
         todosExpanded,
         todoGroupExpanded,
         recentLimit,
+        recentPageSize,
         folderPageSize: FOLDER_PAGE_SIZE,
         folderLimitById,
         sectionOrder,
@@ -1992,6 +2025,7 @@ export function SidebarConversationList({
         groupExpanded: folderGroupExpanded,
       }),
     [
+      view,
       pinned,
       pinnedExpanded,
       reorderableFolderIds,
@@ -2010,6 +2044,7 @@ export function SidebarConversationList({
       todosExpanded,
       todoGroupExpanded,
       recentLimit,
+      recentPageSize,
       folderLimitById,
       sectionOrder,
       conversationExpanded,
@@ -2131,15 +2166,35 @@ export function SidebarConversationList({
       // (the row only exists in the flat model once visible); this effect re-runs
       // on the expansion-state change with the rebuilt rows available via
       // rowsRef, and chains through multiple steps via pendingScrollRef.
-      if (conv.pinned_at != null) {
+      if (
+        conv.pinned_at != null &&
+        (view === "home" || view === "conversations")
+      ) {
         // Pinned conversations live in the Pinned section — gated only by that
         // section's collapse, never by any folder.
         if (!pinnedExpanded) {
           setSectionCollapsed((prev) => {
             const next = { ...prev, pinned: false }
-            saveSectionCollapsed(next)
+            if (view === "home") saveSectionCollapsed(next)
             return next
           })
+          pendingScrollRef.current = true
+          return
+        }
+      } else if (view === "conversations") {
+        const recentIndex = recentConversations.findIndex(
+          (c) => c.id === targetId
+        )
+        if (recentIndex < 0) return
+        if (!recentExpanded) {
+          setSectionCollapsed((previous) => ({ ...previous, recent: false }))
+          pendingScrollRef.current = true
+          return
+        }
+        if (recentIndex >= recentLimit) {
+          setRecentLimit(
+            Math.ceil((recentIndex + 1) / recentPageSize) * recentPageSize
+          )
           pendingScrollRef.current = true
           return
         }
@@ -2149,7 +2204,7 @@ export function SidebarConversationList({
         if (!chatsExpanded) {
           setSectionCollapsed((prev) => {
             const next = { ...prev, chats: false }
-            saveSectionCollapsed(next)
+            if (view === "home") saveSectionCollapsed(next)
             return next
           })
           pendingScrollRef.current = true
@@ -2175,7 +2230,7 @@ export function SidebarConversationList({
         if (!foldersExpanded) {
           setSectionCollapsed((prev) => {
             const next = { ...prev, folders: false }
-            saveSectionCollapsed(next)
+            if (view === "home") saveSectionCollapsed(next)
             return next
           })
           pendingScrollRef.current = true
@@ -2270,6 +2325,11 @@ export function SidebarConversationList({
     chatsExpanded,
     chatConversations,
     chatLimit,
+    view,
+    recentConversations,
+    recentExpanded,
+    recentLimit,
+    recentPageSize,
   ])
 
   const toggleFolder = useCallback(
@@ -3205,7 +3265,9 @@ export function SidebarConversationList({
   }, [])
 
   const showEmptyWorkspaceActions =
-    folders.length === 0 && conversations.length === 0
+    view !== "conversations" &&
+    folders.length === 0 &&
+    conversations.length === 0
 
   // A folder's chosen colour drives both its title tint and MaxCode's scoped
   // row theme. The wrapper stays per-row (rather than around the virtualized
@@ -3431,9 +3493,15 @@ export function SidebarConversationList({
           }
           // Recent's kind filter (All / Chat / Folders). Stable callback, so
           // the memo holds; the value only changes when the user picks another one.
-          recentFilter={row.section === "recent" ? recentFilter : undefined}
+          recentFilter={
+            row.section === "recent" && view !== "conversations"
+              ? recentFilter
+              : undefined
+          }
           onRecentFilterChange={
-            row.section === "recent" ? changeRecentFilter : undefined
+            row.section === "recent" && view !== "conversations"
+              ? changeRecentFilter
+              : undefined
           }
           // Every section header carries a top gap: it separates "Folders" from
           // the "Pinned" section above it, and — now that a fixed New chat /
@@ -3638,11 +3706,13 @@ export function SidebarConversationList({
       // the filter so the user knows what to undo.
       return (
         <div className="px-[0.5rem] py-[0.375rem] text-[0.75rem] text-muted-foreground/70">
-          {recentFilter === "chats"
-            ? t("noRecentChats")
-            : recentFilter === "folders"
-              ? t("noRecentFolders")
-              : t("noRecent")}
+          {view === "conversations"
+            ? t("navigation.noActivity")
+            : recentFilter === "chats"
+              ? t("noRecentChats")
+              : recentFilter === "folders"
+                ? t("noRecentFolders")
+                : t("noRecent")}
         </div>
       )
     }
@@ -3662,7 +3732,7 @@ export function SidebarConversationList({
       // reset alone, and it takes over the row: nothing is left to expand, so a
       // hover-only affordance would be the section's only exit hiding itself.
       const showMore = row.remaining > 0
-      const resetLabel = t("resetRecentLimit", { count: RECENT_PAGE_SIZE })
+      const resetLabel = t("resetRecentLimit", { count: recentPageSize })
       return (
         <div className="group/recent-more relative h-[2rem]">
           <button

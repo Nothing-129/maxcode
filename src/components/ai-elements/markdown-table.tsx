@@ -170,17 +170,14 @@ const MarkdownTable: Components["table"] = ({
     <table
       {...props}
       data-streamdown="table"
-      className={cn("w-full divide-y divide-border", className)}
+      className={cn("w-full", className)}
     >
       {children}
     </table>
   )
 
   return (
-    <div
-      data-streamdown="table-wrapper"
-      className="my-4 flex flex-col gap-2 rounded-lg border border-border bg-sidebar p-2"
-    >
+    <div data-streamdown="table-wrapper" className="my-4 flex flex-col">
       {enabled && (
         <div className="flex items-center justify-end gap-1">
           {toolbar}
@@ -219,7 +216,7 @@ const MarkdownTable: Components["table"] = ({
         </div>
       )}
       <div
-        className="overflow-auto rounded-md border border-border bg-background"
+        className="overflow-auto"
         ref={viewport}
         onScroll={(event) => {
           const element = event.currentTarget

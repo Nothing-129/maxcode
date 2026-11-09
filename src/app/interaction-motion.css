@@ -90,9 +90,6 @@
   animation: maxcode-fade-out 100ms ease-in;
 }
 
-.maxcode-composer-actions {
-  min-height: 2rem;
-}
 .maxcode-composer-actions > * {
   animation: maxcode-fade-in 160ms ease-out;
 }

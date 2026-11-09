@@ -69,6 +69,29 @@ function readText(
   return typeof value === "string" && value.trim().length > 0 ? value : null
 }
 
+/**
+ * The triggers adapters send, mapped to their message key.
+ *
+ * Deliberately not exhaustive: `trigger` is adapter-defined vocabulary, and an
+ * unrecognized value falls back to its raw string rather than being dropped or
+ * mislabelled. The automatic case has two spellings in the wild — claude
+ * renames the SDK's `auto` to `automatic` on the wire (and `parsers/claude.rs`
+ * mirrors that rename for history), while deepseek's parser passes `auto`
+ * through — so both map to the same key. claude-agent-acp 0.101.0 adds `idle`
+ * (#1522): the `/compact` the adapter sends itself shortly before the prompt
+ * cache of a large idle session expires. The transcript records that command
+ * like any other `/compact`, so only the live card ever says `idle`.
+ */
+const TRIGGER_KEYS: Record<
+  string,
+  "triggerManual" | "triggerAutomatic" | "triggerIdle"
+> = {
+  manual: "triggerManual",
+  auto: "triggerAutomatic",
+  automatic: "triggerAutomatic",
+  idle: "triggerIdle",
+}
+
 /** `durationMs` as a compact human label ("3.2s" / "45s"), or null. */
 function formatDuration(durationMs: number | null): string | null {
   if (durationMs === null || durationMs <= 0) return null
@@ -164,9 +187,14 @@ export function ContextCompactionCard({ state, meta, summary }: Props) {
   const errorText = readText(payload, "error")
   const failed = errorText !== null || state === "output-error"
   const duration = formatDuration(readNumber(payload, "durationMs"))
-  // Reserved-field vocabulary is adapter-defined and untranslated; surface
-  // trigger/error as a tooltip instead of inline prose.
-  const tooltip = errorText ?? readText(payload, "trigger") ?? undefined
+  // Trigger and error ride in the tooltip rather than inline prose — they
+  // answer "why did this happen", which is a second-order question next to the
+  // delta. Only the triggers in `TRIGGER_KEYS` are translated; anything else
+  // is an adapter's own word and is surfaced verbatim.
+  const trigger = readText(payload, "trigger")
+  const triggerKey = trigger ? TRIGGER_KEYS[trigger.toLowerCase()] : undefined
+  const tooltip =
+    errorText ?? (triggerKey ? t(triggerKey) : trigger) ?? undefined
   // Only show the delta when it's a real reduction — a no-op (before === after)
   // would read as a bug, so fall back to the plain label there and for codex
   // (which sends no counts).

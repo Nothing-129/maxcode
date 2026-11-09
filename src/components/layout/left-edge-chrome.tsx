@@ -1,5 +1,6 @@
 "use client"
 
+import { ListTodo } from "lucide-react"
 import { useActiveFolder } from "@/contexts/active-folder-context"
 import { useTabActions } from "@/contexts/tab-context"
 import { useWorkbenchRoute } from "@/contexts/workbench-route-context"
@@ -25,8 +26,9 @@ export function LeftEdgeChrome() {
   const { isOpen, toggle } = useSidebarContext()
   const { activeFolder } = useActiveFolder()
   const { openNewConversationTab, openChatModeTab } = useTabActions()
-  const { openConversations } = useWorkbenchRoute()
+  const { openConversations, routeId, setRoute } = useWorkbenchRoute()
   const tCard = useTranslations("Folder.conversationCard")
+  const tNavigation = useTranslations("Folder.sidebar.navigation")
   const isMac = useIsMac()
   const { shortcuts } = useShortcutSettings()
   const { isMac: platformIsMac } = usePlatform()
@@ -34,6 +36,8 @@ export function LeftEdgeChrome() {
   // The traffic lights only exist on the macOS desktop runtime (not web / not
   // Windows-Linux), so only reserve their inset there.
   const showMacInset = !isOpen && platformIsMac && isNativeDesktop()
+
+  if (routeId === "automations" || routeId === "tokenUsage") return null
 
   return (
     <div
@@ -74,15 +78,31 @@ export function LeftEdgeChrome() {
           size="icon"
           className={desktopChromeButtonClassName}
           onClick={() => {
+            if (routeId === "taskConversation") {
+              setRoute("tasks")
+              return
+            }
             openConversations()
             if (activeFolder)
               openNewConversationTab(activeFolder.id, activeFolder.path)
             else openChatModeTab()
           }}
-          title={tCard("newConversation")}
-          aria-label={tCard("newConversation")}
+          title={
+            routeId === "taskConversation"
+              ? tNavigation("todoBoard")
+              : tCard("newConversation")
+          }
+          aria-label={
+            routeId === "taskConversation"
+              ? tNavigation("todoBoard")
+              : tCard("newConversation")
+          }
         >
-          <DesktopChromeIcon name="compose" />
+          {routeId === "taskConversation" ? (
+            <ListTodo className="size-4" />
+          ) : (
+            <DesktopChromeIcon name="compose" />
+          )}
         </Button>
       </div>
       {/* Empty tail is a window-drag region. */}

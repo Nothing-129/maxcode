@@ -214,14 +214,12 @@ describe("MarkdownLink", () => {
       // Clickable: a button wraps the badge (opens in the workspace panel).
       const button = screen.getByRole("button")
       expect(button).toHaveAttribute("data-resource-kind", "file")
-      // …whose vertical-align is centered (mirrors ReferenceBadge), not baseline.
-      expect(button.className).toContain("align-middle")
-      // Preserve body line-height for wrapped filenames, align the format icon
-      // with the first line and retain the existing optical offset.
+      // Keep the text on the prose baseline without translating the button.
+      expect(button.className).toContain("align-baseline")
       expect(button.className).toContain("appearance-none")
       expect(button.className).toContain("leading-[inherit]")
-      expect(button.className).toContain("items-start")
-      expect(button.className).toContain("-translate-y-[1.5px]")
+      expect(button.className).toContain("inline")
+      expect(button.className).not.toContain("translate-y")
       // It reads as a file badge, matching the inline `@`-file chips.
       const badge = screen.getByRole("img", { name: "file: app.ts" })
       expect(badge).toHaveAttribute("data-reference-badge")

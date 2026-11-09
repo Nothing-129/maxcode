@@ -1437,6 +1437,9 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // reclaim parked questions before steering and on turn completion;
             // keep background Bash output and saved model aliases. 0.86.0
             // bundles Claude Code 2.1.287 and removes the session/new count burst.
+            // 0.101.0 (CLI 2.1.318): idle compaction is observed live; new
+            // sessions use upstream Auto unless a saved mode overrides it.
+            // Auto checks can fail on incompatible API gateways; Manual remains available.
             // 0.97.0 (CLI 2.1.310): advisor results, autonomous turn tasks and
             // the foreground fork fix; retain AIR and subagent capability policy.
             distribution: AgentDistribution::Npx {
@@ -1444,8 +1447,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 // cancelled-turn reports and interim background results;
                 // offer predicted prompts and preserve Remote Control sessions.
                 // Fork children exclude inherited usage and wait for real results.
-                version: "0.100.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.100.0",
+                version: "0.101.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.101.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2452,8 +2455,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // permission flags and connection-scope setup notification handling.
             distribution: AgentDistribution::Npx {
                 // Reviewed 001ee728: background task labels name the original command.
-                version: "1.0.70",
-                package: "@xai-official/grok@1.0.70",
+                version: "1.0.77",
+                package: "@xai-official/grok@1.0.77",
                 cmd: "grok",
                 // Only the ACP subcommand lives here. Grok's ROOT-level launch
                 // flags (`--no-auto-update` always, `--permission-mode <value>`
@@ -2945,8 +2948,8 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // without promptRequired. Keep ZCode on pull feedback; history
             // remains ACP-native with upstream runtime discovery.
             distribution: AgentDistribution::Npx {
-                version: "0.82.0",
-                package: "zcode-acp-server@0.82.0",
+                version: "0.82.1",
+                package: "zcode-acp-server@0.82.1",
                 cmd: "zcode-acp-server",
                 args: &["server"],
                 env: &[],
@@ -3248,14 +3251,14 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::Zcode,
-            "0.82.0",
-            "zcode-acp-server@0.82.0",
+            "0.82.1",
+            "zcode-acp-server@0.82.1",
             Some("22.0.0"),
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.100.0",
-            "@agentclientprotocol/claude-agent-acp@0.100.0",
+            "0.101.0",
+            "@agentclientprotocol/claude-agent-acp@0.101.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3297,8 +3300,8 @@ mod tests {
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));
         assert_npx_version(
             AgentType::Grok,
-            "1.0.70",
-            "@xai-official/grok@1.0.70",
+            "1.0.77",
+            "@xai-official/grok@1.0.77",
             Some("20.0.0"),
         );
         assert_npx_version(

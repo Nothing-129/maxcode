@@ -74,9 +74,15 @@ export function WorkbenchRoutePage() {
   const { routeId } = useWorkbenchRoute()
   const surfaceRef = useRef<HTMLDivElement>(null)
   useSurfaceTransition(surfaceRef, routeId)
-  const Page = WORKBENCH_ROUTES[routeId]
+  const Page =
+    WORKBENCH_ROUTES[routeId === "taskConversation" ? "tasks" : routeId]
   return Page ? (
-    <div ref={surfaceRef} className="h-full min-h-0">
+    <div
+      ref={surfaceRef}
+      className="h-full min-h-0"
+      hidden={routeId === "taskConversation"}
+      inert={routeId === "taskConversation" || undefined}
+    >
       <Page />
     </div>
   ) : null

@@ -50,11 +50,13 @@ const spies = vi.hoisted(() => ({
   } | null,
 }))
 const mockState = vi.hoisted(() => ({
+  nativeDesktop: false,
   activeFolder: { id: 7, path: "/x" } as { id: number; path: string } | null,
   isMobile: false,
   sidebarOpen: true,
   isCoarsePointer: false,
   attentionCount: 0,
+  sidebarView: "home",
   routeId: "conversations",
 }))
 
@@ -116,6 +118,18 @@ vi.mock("@/contexts/todos-view-context", () => ({
     refetch: async () => {},
   }),
 }))
+vi.mock("@/contexts/sidebar-navigation-context", () => ({
+  useSidebarNavigation: () =>
+    mockState.isMobile
+      ? null
+      : {
+          view: mockState.sidebarView,
+          date: "2026-11-09",
+          endDate: "2026-11-09",
+          today: "2026-11-09",
+          preset: "today",
+        },
+}))
 vi.mock("@/contexts/workbench-route-context", () => ({
   useWorkbenchRoute: () => ({
     routeId: mockState.routeId,
@@ -151,7 +165,7 @@ vi.mock("@/contexts/search-dialog-context", () => ({
   useSearchDialog: () => ({ setOpen: spies.setSearchOpen }),
 }))
 vi.mock("@/lib/platform", () => ({
-  isNativeDesktop: () => false,
+  isNativeDesktop: () => mockState.nativeDesktop,
   subscribe: vi.fn(async () => () => {}),
   onTransportReconnect: vi.fn(() => null),
 }))
@@ -165,10 +179,24 @@ function renderSidebar() {
 }
 
 describe("sidebar tools beside search", () => {
+  it.each(["conversations", "projects", "tasks"])(
+    "omits the entire overflow menu outside Home (%s)",
+    (view) => {
+      mockState.sidebarView = view
+      if (view === "tasks") mockState.routeId = "tasks"
+      renderSidebar()
+      expect(screen.queryByRole("button", { name: "View options" })).toBeNull()
+      expect(screen.queryByRole("button", { name: "Open Settings" })).toBeNull()
+      expect(screen.getByRole("button", { name: "Search" })).toBeVisible()
+    }
+  )
+
   beforeEach(() => {
     localStorage.clear()
     resetConversationUnreadStore()
     spies.scrollToActive.mockClear()
+    mockState.sidebarView = "home"
+    mockState.nativeDesktop = false
     mockState.isMobile = false
     mockState.isCoarsePointer = false
     mockState.attentionCount = 0
@@ -211,7 +239,7 @@ describe("sidebar tools beside search", () => {
     }
   )
 
-  it("groups sidebar toggle, search, settings and overflow in that order", () => {
+  it("groups sidebar toggle, search and Home overflow without duplicate Settings", () => {
     renderSidebar()
     const search = screen.getByRole("button", { name: "Search" })
     const group = search.closest("[data-sidebar-tools]") as HTMLElement
@@ -219,16 +247,15 @@ describe("sidebar tools beside search", () => {
       within(group)
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"))
-    ).toEqual(["Hide Sidebar", "Search", "Open Settings", "View options"])
+    ).toEqual(["Hide Sidebar", "Search", "View options"])
     expect(
       screen.queryByRole("button", { name: "Mark all as read" })
     ).toBeNull()
   })
 
   it.each([
-    [false, false, false],
     [true, false, true],
-    [false, true, true],
+    [true, true, true],
   ])(
     "opens tasks without a count badge and collapses touch navigation (mobile %s, coarse %s)",
     (mobile, coarse, shouldCollapse) => {
@@ -268,7 +295,8 @@ describe("sidebar tools beside search", () => {
     ).not.toBeInTheDocument()
   })
 
-  it("lets users hide and restore tasks through navigation preferences", async () => {
+  it("lets mobile users hide and restore tasks through navigation preferences", async () => {
+    mockState.isMobile = true
     const user = userEvent.setup()
     renderSidebar()
     expect(screen.getByTitle(enMessages.Folder.sidebar.tasks)).toBeVisible()
@@ -291,6 +319,7 @@ describe("sidebar tools beside search", () => {
   })
 
   it("right-aligns desktop tools in the top row after a draggable flexible spacer", () => {
+    mockState.nativeDesktop = true
     const { container } = renderSidebar()
     const header = container.querySelector("aside")!.firstElementChild!
     const tools = screen

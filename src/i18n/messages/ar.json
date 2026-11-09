@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "عرض في الأحدث",
       "sectionTodos": "حسب المهمة",
       "showTodos": "إظهار مجموعات المهام",
-      "noAssignedTodoConversations": "لا توجد محادثات أُنشئت من مهام مُسندة"
+      "noAssignedTodoConversations": "لا توجد محادثات أُنشئت من مهام مُسندة",
+      "navigation": {
+        "label": "التنقل",
+        "home": "الرئيسية",
+        "today": "اليوم",
+        "conversations": "محادثات",
+        "projects": "مشاريع",
+        "automations": "أتمتة",
+        "tasks": "مهام",
+        "settings": "الإعدادات",
+        "selectDate": "اختر التاريخ",
+        "activityHint": "حسب آخر تحديث للمحادثة",
+        "noActivity": "لا توجد محادثات في هذا التاريخ",
+        "recent": "الأخيرة",
+        "dateRange": "نطاق التاريخ",
+        "startDate": "تاريخ البدء",
+        "endDate": "تاريخ الانتهاء",
+        "filterDate": "تصفية حسب التاريخ",
+        "clearDate": "مسح مرشح التاريخ",
+        "presets": {
+          "today": "اليوم",
+          "yesterday": "أمس",
+          "last3": "آخر 3 أيام",
+          "last7": "آخر 7 أيام",
+          "week": "هذا الأسبوع",
+          "month": "هذا الشهر"
+        },
+        "statistics": "الإحصاءات",
+        "settingsUpdate": "الإعدادات · تحديث متاح",
+        "about": "حول MaxCode",
+        "todoBoard": "لوحة المهام"
+      }
     },
     "conversation": {
       "reloadFailed": "فشل إعادة تحميل المحادثة: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "فشل تحميل جلسة {agent}. أعد التحميل لإعادة المحاولة، أو ابدأ محادثة جديدة.",
           "sessionLoadUnavailable": "تعذّر على {agent} استعادة هذه الجلسة، فقد تكون انتهت أو توقّف الوكيل. أعد التحميل لإعادة المحاولة، أو ابدأ محادثة جديدة.",
           "sessionLoadBusy": "هذه الجلسة مفتوحة في مكان آخر. إن كان عميل {agent} آخر (التطبيق أو واجهة سطر الأوامر أو إضافة IDE) يفتحها، فأغلقها هناك أو أنهِ ذلك العميل ثم أعد التحميل. وإن كنت قد فرّعتها للتو، فأعد التحميل بعد دقيقة تقريبًا.",
+          "sessionProviderMissing": "لم يعد موفر النماذج لهذه الجلسة مُعدًّا. لا يزال السجل على القرص. استعد إعدادات الموفر الأصلية، ثم أعد تحميل المحادثة.",
           "sessionArchived": "تمت أرشفة الجلسة السابقة من جهة {agent}. شغّل {command} في الطرفية لاستعادتها وإعادة تحميلها، أو ابدأ محادثة جديدة.",
           "turnFailedRefusal": "رفض {agent} متابعة هذه الجولة. يدل ذلك غالبًا على خطأ في الخلفية أو البوابة. يرجى مراجعة سجلات الوكيل.",
           "turnFailedMaxTokens": "بلغ {agent} الحد الأقصى للرموز المسموح بها في هذه الجولة.",
@@ -4005,7 +4037,8 @@
         "failed": "فشل ضغط السياق",
         "summary": "الملخص",
         "triggerManual": "تم التشغيل يدويًا",
-        "triggerAutomatic": "تم التشغيل تلقائيًا"
+        "triggerAutomatic": "تم التشغيل تلقائيًا",
+        "triggerIdle": "تم التشغيل أثناء الخمول، قبل انتهاء صلاحية ذاكرة التخزين المؤقت للموجّه"
       },
       "sessionFailure": {
         "category": {
@@ -4044,9 +4077,9 @@
         "tokens": "{count} رمز",
         "stopDeclined": "تعذّر إيقاف هذه المهمة، ربما تكون قد انتهت بالفعل.",
         "stopFailed": "فشل إيقاف المهمة: {error}",
-        "agentWorking": "\u2066{agent}\u2069 يعمل",
+        "agentWorking": "⁦{agent}⁩ يعمل",
         "scheduledWakeup": "تنبيه مجدول",
-        "scheduledWakeupAt": "تنبيه مجدول في \u2066{time}\u2069",
+        "scheduledWakeupAt": "تنبيه مجدول في ⁦{time}⁩",
         "scheduledTask": "مهمة مجدولة"
       },
       "remoteControl": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "فشل مزامنة المهارات"
     },
     "autoPreviewLabel": "فتح المعاينة تلقائيًا",
-    "autoPreviewHint": "عندما ينشئ وكيل ملف Word أو Excel أو PowerPoint أو يعدّله، افتح معاينته المباشرة تلقائيًا."
+    "autoPreviewHint": "عندما تنشئ أدوات الوكيل ملف Word أو Excel أو PowerPoint أو تعدّله خلال دوره الحالي، تُفتح معاينته المباشرة تلقائيًا."
   },
   "SkillPacksSettings": {
     "title": "حزم المهارات",

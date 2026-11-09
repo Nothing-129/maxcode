@@ -2,11 +2,13 @@ import { act, cleanup, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, expect, it, vi } from "vitest"
 
 const f = vi.hoisted(() => ({
-  conn: undefined as { status: string } | undefined,
+  conn: undefined as
+    | import("@/lib/connection-teardown").ConnectionWork
+    | undefined,
   store: {
     subscribeKey: () => () => {},
     getConnectPending: () => undefined,
-    getConnection: (): { status: string } | undefined => f.conn,
+    getConnection: () => f.conn,
   },
 }))
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }))
@@ -34,7 +36,13 @@ afterEach(() => {
 it.each(["connecting", "disconnected", "error"])(
   "delays %s text and color until the same state persists",
   (status) => {
-    f.conn = { status }
+    f.conn = {
+      status,
+      backgroundOutstanding: 0,
+      asyncTasks: [],
+      remoteControl: null,
+      delegatedChildren: [],
+    }
     const view = render(<ComposerConnectionStatus tabId="a" />)
     const color = status === "connecting" ? "text-amber-500" : "text-red-500"
     expect(screen.queryByRole("status")).toBeNull()
@@ -44,7 +52,13 @@ it.each(["connecting", "disconnected", "error"])(
     act(() => vi.advanceTimersByTime(1))
     expect(screen.getByRole("status")).toHaveTextContent(status)
     expect(view.container.querySelector(`svg.${color}`)).not.toBeNull()
-    f.conn = { status: "connected" }
+    f.conn = {
+      status: "connected",
+      backgroundOutstanding: 0,
+      asyncTasks: [],
+      remoteControl: null,
+      delegatedChildren: [],
+    }
     view.rerender(<ComposerConnectionStatus tabId="a" />)
     expect(screen.queryByRole("status")).toBeNull()
     expect(view.container.querySelector(`.${color}`)).toBeNull()
@@ -55,7 +69,13 @@ it("resets the delay on each status change and never flashes transient states", 
   const view = render(<ComposerConnectionStatus tabId="a" />)
   for (const status of ["connecting", "error", "disconnected", "connected"]) {
     act(() => vi.advanceTimersByTime(1000))
-    f.conn = { status }
+    f.conn = {
+      status,
+      backgroundOutstanding: 0,
+      asyncTasks: [],
+      remoteControl: null,
+      delegatedChildren: [],
+    }
     view.rerender(<ComposerConnectionStatus tabId="a" />)
     expect(screen.queryByRole("status")).toBeNull()
     expect(
@@ -67,7 +87,13 @@ it("resets the delay on each status change and never flashes transient states", 
 })
 
 it("resets the delay when switching tabs even if their statuses match", () => {
-  f.conn = { status: "error" }
+  f.conn = {
+    status: "error",
+    backgroundOutstanding: 0,
+    asyncTasks: [],
+    remoteControl: null,
+    delegatedChildren: [],
+  }
   const view = render(<ComposerConnectionStatus tabId="a" />)
   act(() => vi.advanceTimersByTime(3000))
   expect(screen.getByRole("status")).toHaveTextContent("error")

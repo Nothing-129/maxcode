@@ -33,6 +33,7 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { AppToaster } from "@/components/ui/app-toaster"
 import { cn } from "@/lib/utils"
 import { detectEnvironment } from "@/lib/transport/detect"
+import { SettingsAbout } from "./settings-about"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useSurfaceTransition } from "@/hooks/use-surface-transition"
@@ -397,6 +398,7 @@ export function SettingsShell({
           )}
         </nav>
       </ScrollArea>
+      <SettingsAbout />
     </div>
   )
 

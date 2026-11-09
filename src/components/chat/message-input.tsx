@@ -2476,7 +2476,7 @@ export function MessageInput({
                     </span>
                   )}
                 </div>
-                <div className="maxcode-composer-actions flex min-h-11 shrink-0 items-center gap-2">
+                <div className="maxcode-composer-actions flex min-h-8 shrink-0 items-center gap-2">
                   {offeredSuggestion && composerEmpty && (
                     <AcceptPromptSuggestion
                       editorRef={editorRef}

@@ -29,6 +29,7 @@ vi.mock("@/contexts/acp-connections-context", () => ({
   getCachedSelectors: () => null,
   useAcpActions: () => ({
     setActiveKey: vi.fn(),
+    releaseActiveKey: vi.fn(),
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),

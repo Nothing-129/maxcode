@@ -123,7 +123,7 @@ export function MarkdownLink({
           <FilePathLink
             filePath={filePath}
             title={filePath}
-            className="inline-block max-w-full -translate-y-[1.5px] align-middle"
+            className="inline max-w-full align-baseline"
           >
             <ReferenceBadge data={fileData} appearance="file-link" />
           </FilePathLink>
@@ -152,23 +152,8 @@ export function MarkdownLink({
   // same link-safety flow (`handleClick` → modal → `useOpenLinkOrFile`) opens it
   // in the workspace file panel.
   //
-  // Vertical centering happens in two steps:
-  //
-  // 1. Equalize with the bare `<ReferenceBadge>` span used for the
-  //    session/commit/agent badges above. A `<button>` inherits two metrics a
-  //    span never gets from Tailwind's preflight — `appearance: button` (a UA
-  //    inline strut) and `font: inherit`, which resets its `line-height` to the
-  //    message body's inherited value (the `text-sm` wrapper, ~20px) instead of
-  //    the badge's own tighter `leading-snug`. In WebKit that taller,
-  //    UA-strutted inline box pulls the badge low.
-  //    `appearance-none` + `leading-none` strip both so the button lays out like
-  //    the bare badge.
-  // 2. Lift onto the line's optical center. `align-middle` centers the chip on
-  //    the parent's x-height, which sits ~1.5px below the optical center of a
-  //    line that also carries ascenders, caps and full-height CJK glyphs — so
-  //    the chip still reads slightly low (most visible next to Chinese text).
-  //    A small upward `-translate-y` nudge (purely visual, no layout shift)
-  //    seats it on that optical center.
+  // Keep link text on the prose baseline. Image glyphs align independently;
+  // translating the whole button also moves/rasterizes its text off baseline.
   if (kind === "file") {
     // Hover text shows the path the opener will actually use, not the raw
     // sanitized href — a Windows path reaches us percent-encoded and
@@ -197,7 +182,7 @@ export function MarkdownLink({
             data-resource-kind="file"
             title={displayPath}
             onClick={handleClick}
-            className="inline-flex max-w-full -translate-y-[1.5px] cursor-pointer appearance-none items-start align-middle text-left leading-[inherit] hover:opacity-80"
+            className="inline max-w-full cursor-pointer appearance-none align-baseline text-left leading-[inherit] hover:opacity-80"
           >
             <ReferenceBadge data={fileData} appearance="file-link" />
           </button>
@@ -269,6 +254,7 @@ export function PublicMarkdownLink(props: MarkdownLinkProps) {
   return (
     <BrowserLink
       href={externalHref}
+      data-streamdown="link"
       aria-label={nodeText(children) || undefined}
       data-resource-kind={kind ?? undefined}
       title={externalHref}

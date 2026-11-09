@@ -471,7 +471,10 @@ mod tests {
         let (started, retry) = try_begin(&h, &e);
         assert!(started);
         assert!(retry.error_info.is_none());
-        assert!(serde_json::to_value(&retry).unwrap().get("errorInfo").is_none());
+        assert!(serde_json::to_value(&retry)
+            .unwrap()
+            .get("errorInfo")
+            .is_none());
     }
 
     #[test]

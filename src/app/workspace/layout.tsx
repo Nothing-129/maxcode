@@ -17,6 +17,8 @@ import type { ImperativePanelGroupHandle } from "react-resizable-panels"
 import { MobileHeaderProvider } from "@/components/layout/mobile-header-slot"
 import { FolderTitleBar } from "@/components/layout/folder-title-bar"
 import { Sidebar } from "@/components/layout/sidebar"
+import { WorkspaceNavigationRail } from "@/components/layout/workspace-navigation-rail"
+import { SidebarNavigationProvider } from "@/contexts/sidebar-navigation-context"
 import { ConversationUnreadSync } from "@/components/conversations/conversation-unread-sync"
 import { UpdateProvider } from "@/components/providers/update-provider"
 import {
@@ -83,7 +85,11 @@ import {
 } from "@/components/ui/resizable"
 import { cn } from "@/lib/utils"
 import { isNativeDesktop } from "@/lib/platform"
-import { leftChromeReserve, rightChromeReserve } from "@/lib/window-chrome"
+import {
+  MAC_TRAFFIC_LIGHT_INSET,
+  leftChromeReserve,
+  rightChromeReserve,
+} from "@/lib/window-chrome"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { usePlatform } from "@/hooks/use-platform"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
@@ -307,7 +313,7 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
     [applyLayout, mode]
   )
 
-  const { isConversations } = useWorkbenchRoute()
+  const { isConversations, routeId } = useWorkbenchRoute()
   const hasRouteStrip = useHasWorkbenchRouteStrip()
   const { isOpen: sidebarOpen } = useSidebarContext()
   const { isOpen: auxOpen } = useAuxPanelContext()
@@ -318,7 +324,12 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
   // panel toggles. Each edge column just reserves the overlay's width so its
   // tabs never render underneath. The reserve scales with the app zoom so it
   // tracks the rem-sized overlay buttons (which grow with zoom).
-  const leftReserve = leftChromeReserve(isMac && isNativeDesktop(), zoomLevel)
+  const leftReserve =
+    routeId === "automations" || routeId === "tokenUsage"
+      ? isMac && isNativeDesktop()
+        ? Math.max(0, MAC_TRAFFIC_LIGHT_INSET - (56 * zoomLevel) / 100)
+        : 0
+      : leftChromeReserve(isMac && isNativeDesktop(), zoomLevel)
   const rightReserve = rightChromeReserve(false, zoomLevel)
   // A middle column reserves the right overlay only when it (not the aux panel)
   // is the window's right edge: the file column in fusion, else conversation.
@@ -484,37 +495,48 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
           </ResizablePanel>
         </ResizablePanelGroup>
       </KeptMountedSurface>
-      {!isConversations ? (
+      {!isConversations || routeId === "taskConversation" ? (
         // `bg-background ws-transparent-bg` matches the conversation surface
         // exactly: opaque background normally, fully transparent (image shows
         // through, no frost) with a workspace background image on — the
         // conversation beneath is `invisible` so nothing else paints through.
-        <div className="absolute inset-0 z-40 flex flex-col bg-background ws-transparent-bg">
-          {/* Window-chrome strip: reserves the fixed corner overlays' h-10
+        <OverlayHostHiddenProvider hidden={isConversations}>
+          <div
+            aria-hidden={isConversations || undefined}
+            inert={isConversations || undefined}
+            className={cn(
+              "absolute inset-0 z-40 flex flex-col bg-background ws-transparent-bg",
+              isConversations && "hidden"
+            )}
+          >
+            {/* Window-chrome strip: reserves the fixed corner overlays' h-10
               band, hosts the active route's title on the left, and keeps the
               empty middle as a window-drag region. With a title present it
               closes with the sidebar-header hairline (ws-chrome-border keeps
               it legible over a background image). */}
-          <div
-            className={cn(
-              "flex h-10 shrink-0 items-stretch",
-              hasRouteStrip && "border-b border-border/50 ws-chrome-border"
-            )}
-          >
-            {!sidebarOpen && (
-              <div
-                data-drag-region
-                className="h-full shrink-0"
-                style={{ width: leftReserve }}
-              />
-            )}
-            <WorkbenchRouteStrip />
-            <div data-drag-region className="h-full min-w-0 flex-1" />
+            <div
+              className={cn(
+                "flex h-10 shrink-0 items-stretch",
+                hasRouteStrip && "border-b border-border/50 ws-chrome-border"
+              )}
+            >
+              {(!sidebarOpen ||
+                routeId === "automations" ||
+                routeId === "tokenUsage") && (
+                <div
+                  data-drag-region
+                  className="h-full shrink-0"
+                  style={{ width: leftReserve }}
+                />
+              )}
+              <WorkbenchRouteStrip />
+              <div data-drag-region className="h-full min-w-0 flex-1" />
+            </div>
+            <div className="min-h-0 flex-1">
+              <WorkbenchRoutePage />
+            </div>
           </div>
-          <div className="min-h-0 flex-1">
-            <WorkbenchRoutePage />
-          </div>
-        </div>
+        </OverlayHostHiddenProvider>
       ) : null}
     </div>
   )
@@ -523,7 +545,7 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
 function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
   const { mode, activePane } = useWorkspaceView()
   const { activateConversationPane } = useWorkspaceActions()
-  const { isConversations } = useWorkbenchRoute()
+  const { isConversations, routeId } = useWorkbenchRoute()
   const hasRouteStrip = useHasWorkbenchRouteStrip()
   const { isOpen: sidebarOpen, restored, toggle } = useSidebarContext()
   const sidebarSwipe = useConversationSidebarSwipe(
@@ -565,20 +587,29 @@ function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
           </section>
         )}
       </KeptMountedSurface>
-      {!isConversations ? (
+      {!isConversations || routeId === "taskConversation" ? (
         // Same canvas as the desktop overlay: conversation-identical background
         // (opaque normally, transparent under a workspace background image).
-        <div className="absolute inset-0 z-40 flex flex-col bg-background ws-transparent-bg">
-          {hasRouteStrip ? (
-            <div className="flex h-10 shrink-0 items-stretch border-b border-border/50 ws-chrome-border">
-              <WorkbenchRouteStrip />
-              <div className="min-w-0 flex-1" />
+        <OverlayHostHiddenProvider hidden={isConversations}>
+          <div
+            aria-hidden={isConversations || undefined}
+            inert={isConversations || undefined}
+            className={cn(
+              "absolute inset-0 z-40 flex flex-col bg-background ws-transparent-bg",
+              isConversations && "hidden"
+            )}
+          >
+            {hasRouteStrip ? (
+              <div className="flex h-10 shrink-0 items-stretch border-b border-border/50 ws-chrome-border">
+                <WorkbenchRouteStrip />
+                <div className="min-w-0 flex-1" />
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1">
+              <WorkbenchRoutePage />
             </div>
-          ) : null}
-          <div className="min-h-0 flex-1">
-            <WorkbenchRoutePage />
           </div>
-        </div>
+        </OverlayHostHiddenProvider>
       ) : null}
     </div>
   )
@@ -622,12 +653,20 @@ function MobileFolderWorkspaceShell({
         <DrawerContent
           keepMounted
           showCloseButton={false}
-          className="mobile-sidebar-drawer w-[85%] max-w-[22.5rem] p-0"
+          className="mobile-sidebar-drawer w-[94vw] max-w-[26rem] p-0"
         >
           <DrawerTitle className="sr-only">Sidebar</DrawerTitle>
           {/* Prepare the list while closed and retain its caches and scroll
               state across drawer toggles. The drawer hides closed content. */}
-          <Sidebar keepVisible />
+          <div
+            data-mobile-function-drawer
+            className="flex h-full min-h-0 overflow-hidden"
+          >
+            <WorkspaceNavigationRail mobile />
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <Sidebar keepVisible />
+            </div>
+          </div>
         </DrawerContent>
       </Drawer>
 
@@ -669,7 +708,7 @@ function MobileFolderWorkspaceShell({
 
 function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
   const {
-    isOpen: sidebarOpen,
+    isOpen: sidebarOpenRequested,
     restored: sidebarRestored,
     width: sidebarWidth,
     minWidth: sidebarMinWidth,
@@ -698,7 +737,12 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
   // no way to close it. Collapse both for the duration; the contexts keep the
   // user's real open state (and the terminal keeps running), so switching back
   // to conversations restores exactly what was there.
-  const { isConversations } = useWorkbenchRoute()
+  const { isConversations, routeId } = useWorkbenchRoute()
+  // Route-local hiding never overwrites the user's saved sidebar preference.
+  const sidebarOpen =
+    sidebarOpenRequested &&
+    routeId !== "automations" &&
+    routeId !== "tokenUsage"
   const auxOpen = auxOpenRequested && isConversations
   const terminalOpen = terminalOpenRequested && isConversations
 
@@ -1003,7 +1047,7 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <div
       ref={shellContainerRef}
-      className="flex flex-1 min-h-0 overflow-hidden"
+      className="flex flex-1 min-h-0 min-w-0 overflow-hidden"
     >
       <ResizablePanelGroup
         id={FOLDER_SHELL_GROUP_ID}
@@ -1201,16 +1245,21 @@ function FolderLayoutShell({ children }: { children: React.ReactNode }) {
       {/* Global shortcuts + the search / remote-directory dialogs (formerly
           owned by the full-width FolderTitleBar). Mounted on both platforms. */}
       <WorkspaceChromeController />
-      {isMobile ? (
-        <MobileHeaderProvider>
-          {/* Mobile keeps the visible full-width bar; desktop moved its buttons
+      <SidebarNavigationProvider>
+        {isMobile ? (
+          <MobileHeaderProvider>
+            {/* Mobile keeps the visible full-width bar; desktop moved its buttons
               into fixed corner overlays (LeftEdgeChrome / RightEdgeChrome). */}
-          <FolderTitleBar />
-          <MobileFolderWorkspaceShell>{children}</MobileFolderWorkspaceShell>
-        </MobileHeaderProvider>
-      ) : (
-        <FolderWorkspaceShell>{children}</FolderWorkspaceShell>
-      )}
+            <FolderTitleBar />
+            <MobileFolderWorkspaceShell>{children}</MobileFolderWorkspaceShell>
+          </MobileHeaderProvider>
+        ) : (
+          <div className="flex min-h-0 flex-1">
+            <WorkspaceNavigationRail />
+            <FolderWorkspaceShell>{children}</FolderWorkspaceShell>
+          </div>
+        )}
+      </SidebarNavigationProvider>
       {/* ChatGPT 桌面端没有底部状态栏：主界面到窗口底缘即止。QuickActions /
           任务 / 命令面板 / 告警 / 更新入口随 StatusBar 一并从桌面布局移除
           （组件保留，移动端等其他调用方不受影响）。 */}

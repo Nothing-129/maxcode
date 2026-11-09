@@ -40,6 +40,7 @@ const sendPrompt = vi.fn()
 vi.mock("@/contexts/acp-connections-context", () => ({
   useAcpActions: () => ({
     setActiveKey: vi.fn(),
+    releaseActiveKey: vi.fn(),
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),

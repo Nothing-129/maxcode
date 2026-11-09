@@ -20,7 +20,7 @@ export function AcceptPromptSuggestion({
       type="button"
       variant="ghost"
       size="icon"
-      className="size-11 rounded-full text-muted-foreground"
+      className="size-8 rounded-full text-muted-foreground"
       aria-label={label}
       title={label}
       onClick={() => {

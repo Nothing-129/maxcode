@@ -307,9 +307,13 @@ pub async fn create_conversation(
     if let Err(error) =
         crate::todo::conversation_groups::link_origins(&db.conn, result, &origins).await
     {
-        if let Err(cleanup) =
-            conv_commands::delete_conversation_with_cleanup_core(&state.emitter, &db.conn, result)
-                .await
+        if let Err(cleanup) = conv_commands::delete_conversation_with_cleanup_core(
+            &state.emitter,
+            &db.conn,
+            &state.connection_manager,
+            result,
+        )
+        .await
         {
             tracing::error!(conversation_id = result, reason = %cleanup.message, "Cannot clean up conversation after todo association failure");
         }
@@ -356,6 +360,7 @@ pub async fn create_chat_conversation(
         if let Err(cleanup) = conv_commands::delete_conversation_with_cleanup_core(
             &state.emitter,
             &state.db.conn,
+            &state.connection_manager,
             result.conversation_id,
         )
         .await
@@ -489,6 +494,7 @@ pub async fn delete_conversation(
     conv_commands::delete_conversation_with_cleanup_core(
         &state.emitter,
         &state.db.conn,
+        &state.connection_manager,
         params.conversation_id,
     )
     .await?;

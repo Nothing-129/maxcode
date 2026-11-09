@@ -617,6 +617,8 @@ async fn prepare_at(
         // Grok's postinstall writes into GROK_HOME/bin. Keep this private too;
         // activation launches that exact native file with the user's normal home.
         if agent == AgentType::Grok {
+            // npm 12 otherwise skips the postinstall that installs the staged binary.
+            cmd.arg("--allow-scripts=@xai-official/grok");
             cmd.env("GROK_HOME", prefix.join("grok-runtime"));
         }
         if std::env::var_os("NODE_USE_ENV_PROXY").is_none() {

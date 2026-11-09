@@ -56,7 +56,7 @@ describe("MaxCode desktop typography", () => {
     const paragraph = css.match(
       /\.chat-message-text \.chat-markdown > p\s*\{([^}]+)\}/
     )?.[1]
-    expect(paragraph).toContain("margin: 0 0 0.25em")
+    expect(paragraph).toContain("margin: 1em 0")
     expect(source("src/components/ai-elements/message.tsx")).toContain(
       "chat-markdown size-full"
     )

@@ -220,10 +220,8 @@ export function ComposerConnectionStatus({ tabId }: { tabId: string | null }) {
   const destructive =
     !transportUnavailable &&
     !conn?.isViewer &&
-    isConnectionBusy({
-      status: conn?.status ?? null,
-      backgroundOutstanding: conn?.backgroundOutstanding ?? 0,
-    })
+    conn != null &&
+    isConnectionBusy(conn)
   const canReconnect =
     !!tabId && (transportUnavailable || reconnectInfo !== null)
   const reconnectPending = pending && !transportUnavailable

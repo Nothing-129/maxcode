@@ -92,8 +92,6 @@ describe("transcript file link style", () => {
     ["app.svelte", "svelte"],
     ["query.sql", "sql"],
     ["data.sqlite", "sqlite"],
-    ["photo.png", "image"],
-    ["drawing.svg", "svg"],
     ["art.psd", "photoshop"],
     ["backup.tar.gz", "zip"],
     ["music.mp3", "audio"],

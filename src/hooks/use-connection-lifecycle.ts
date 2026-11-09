@@ -10,7 +10,10 @@ import {
 import { useTaskContext } from "@/contexts/task-context"
 import { useConnection, type UseConnectionReturn } from "@/hooks/use-connection"
 import { extractAppCommandError } from "@/lib/app-error"
-import { isConnectionBusy } from "@/lib/connection-teardown"
+import {
+  isConnectionBusy,
+  type ConnectionWork,
+} from "@/lib/connection-teardown"
 import { getTransport } from "@/lib/transport"
 import { TurnBusyError } from "@/lib/turn-busy"
 import { type AgentType, type PromptDraft } from "@/lib/types"
@@ -120,16 +123,16 @@ export interface UseConnectionLifecycleReturn {
  * so their heavy UI can unmount; viewers deliberately never qualify and still
  * detach their subscription.
  * Shares `isConnectionBusy` with the preview-replacement release
- * (`disconnectIfIdle`) so the two teardown paths can't drift apart.
+ * (`disconnectIfIdle`) and the sweeps so the teardown paths can't drift apart.
  * Exported for tests.
  */
-export function shouldDisconnectOnUnmount(args: {
-  status: string | null
-  isViewer: boolean
-  backgroundOutstanding: number
-  transientUnmount?: boolean
-  preserveIdleOwner?: boolean
-}): boolean {
+export function shouldDisconnectOnUnmount(
+  args: ConnectionWork & {
+    isViewer: boolean
+    transientUnmount?: boolean
+    preserveIdleOwner?: boolean
+  }
+): boolean {
   if (args.transientUnmount) return false
   if (args.isViewer) return true
   if (args.preserveIdleOwner && args.status === "connected") return false
@@ -161,6 +164,7 @@ export function useConnectionLifecycle({
   const t = useTranslations("Folder.chat.connectionLifecycle")
   const {
     setActiveKey,
+    releaseActiveKey,
     touchActivity,
     markConnectPending,
     clearConnectPending,
@@ -228,10 +232,28 @@ export function useConnectionLifecycle({
   useEffect(() => {
     isViewerRef.current = conn.isViewer
   }, [conn.isViewer])
-  const backgroundOutstandingRef = useRef(conn.backgroundOutstanding)
+  // The rest of what the unmount teardown gate weighs, kept whole: the gate's
+  // type names every kind of work, so one can't be dropped on the way here.
+  const {
+    backgroundOutstanding,
+    asyncTasks,
+    remoteControl,
+    delegatedChildren,
+  } = conn
+  const liveWorkRef = useRef({
+    backgroundOutstanding,
+    asyncTasks,
+    remoteControl,
+    delegatedChildren,
+  })
   useEffect(() => {
-    backgroundOutstandingRef.current = conn.backgroundOutstanding
-  }, [conn.backgroundOutstanding])
+    liveWorkRef.current = {
+      backgroundOutstanding,
+      asyncTasks,
+      remoteControl,
+      delegatedChildren,
+    }
+  }, [backgroundOutstanding, asyncTasks, remoteControl, delegatedChildren])
   const contextKeyRef = useRef(contextKey)
   useEffect(() => {
     contextKeyRef.current = contextKey
@@ -484,6 +506,10 @@ export function useConnectionLifecycle({
   useEffect(() => {
     connDisconnectRef.current = connDisconnect
   }, [connDisconnect])
+  const releaseActiveKeyRef = useRef(releaseActiveKey)
+  useEffect(() => {
+    releaseActiveKeyRef.current = releaseActiveKey
+  }, [releaseActiveKey])
   const isTransientUnmountRef = useRef(isTransientUnmount)
   useEffect(() => {
     isTransientUnmountRef.current = isTransientUnmount
@@ -507,15 +533,21 @@ export function useConnectionLifecycle({
         releaseSurfaceRef.current(contextKeyRef.current).catch(() => {})
       } else if (
         shouldDisconnectOnUnmount({
+          ...liveWorkRef.current,
           status: statusRef.current,
           isViewer: isViewerRef.current,
-          backgroundOutstanding: backgroundOutstandingRef.current,
           transientUnmount,
           preserveIdleOwner: preserveIdleOwnerOnUnmountRef.current === true,
         })
       ) {
         connDisconnectRef.current().catch(() => {})
       }
+      // The active key names the view on screen, and this one is gone. Left
+      // claimed, it would hold the busy owner kept running above out of both
+      // sweeps for good: the keepalive touches the active key and the idle
+      // sweep skips it. Not on a transient unmount — the remounted view claims
+      // the same key, and a release that landed after its claim would undo it.
+      if (!transientUnmount) releaseActiveKeyRef.current(contextKeyRef.current)
       // Task cleanup stays unconditional even on transient unmounts — the
       // remounted instance mints fresh task ids, so stale ones would orphan.
       if (taskIdRef.current) {

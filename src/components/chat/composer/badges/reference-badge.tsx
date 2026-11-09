@@ -12,6 +12,7 @@ import type { ReactNode } from "react"
 import { AgentIcon } from "@/components/agent-icon"
 import { type AgentType } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { resolveFileIcon } from "@/lib/file-icon"
 
 import { FileTypeIcon } from "./file-type-icon"
 
@@ -19,6 +20,27 @@ import type { ReferenceAttrs } from "../types"
 import { ATTACHMENT_CARD_CLASS, AttachmentDetails } from "../attachment-card"
 
 const ICON_CLASS = "size-3.5 shrink-0"
+
+/** Plain image outline used by transcript links; no document fold or file color. */
+function ImageLinkIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      data-file-icon="image-link"
+      className="mr-[0.25em] inline-block size-[1.25em] align-[-0.25em]"
+      viewBox="0 0 20 21"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.33}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x={3.33} y={3.79} width={13.34} height={13.33} rx={2.33} />
+      <circle cx={12.08} cy={8.37} r={1.67} />
+      <path d="m3.33 13.79 2.16-2.16a1.67 1.67 0 0 1 2.36 0l5.48 5.49" />
+    </svg>
+  )
+}
 
 export function ReferenceIcon({
   data,
@@ -135,12 +157,17 @@ export function ReferenceBadge({
   const isFileLink = appearance === "file-link" && data.refType === "file"
   const isComposerFile =
     appearance === "composer-file" && data.refType === "file"
+  const isImageLink =
+    isFileLink &&
+    data.meta?.fileKind !== "dir" &&
+    ["file-type-image", "file-type-svg"].includes(resolveFileIcon(data.id))
   const filename = data.label || data.id.split(/[\\/]/).pop() || data.id
   const extension = filename.match(/\.([a-z0-9]{1,12})$/i)?.[1]?.toUpperCase()
   return (
     <span
       data-reference-badge=""
       data-ref-type={data.refType}
+      data-image-file-link={isImageLink ? "" : undefined}
       data-composer-file-card={isComposerFile ? "" : undefined}
       title={
         isComposerFile
@@ -154,15 +181,17 @@ export function ReferenceBadge({
       role="img"
       aria-label={`${data.refType}: ${data.label || data.id}`}
       className={cn(
-        "inline-flex align-middle",
+        isImageLink ? "inline" : "inline-flex align-middle",
         isComposerFile
           ? ATTACHMENT_CARD_CLASS
-          : isFileLink
-            ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
-            : cn(
-                "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
-                badgeColorClass(data)
-              ),
+          : isImageLink
+            ? "text-left text-[1em] font-medium leading-[inherit] text-[#2456a6] dark:text-blue-400"
+            : isFileLink
+              ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+              : cn(
+                  "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
+                  badgeColorClass(data)
+                ),
         className
       )}
     >
@@ -176,6 +205,8 @@ export function ReferenceBadge({
             isDirectory={data.meta?.fileKind === "dir"}
           />
         </span>
+      ) : isImageLink ? (
+        <ImageLinkIcon />
       ) : isFileLink ? (
         <FileTypeIcon
           path={data.id}

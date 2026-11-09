@@ -2045,7 +2045,38 @@
       "recentFilterMenuLabel": "최근 항목 표시",
       "sectionTodos": "할 일별",
       "showTodos": "할 일 그룹 표시",
-      "noAssignedTodoConversations": "배정된 할 일에서 만든 대화가 없습니다"
+      "noAssignedTodoConversations": "배정된 할 일에서 만든 대화가 없습니다",
+      "navigation": {
+        "label": "작업 공간 탐색",
+        "home": "홈",
+        "today": "오늘",
+        "conversations": "대화",
+        "projects": "프로젝트",
+        "automations": "자동화",
+        "tasks": "할 일",
+        "settings": "설정",
+        "selectDate": "날짜 선택",
+        "activityHint": "대화의 마지막 업데이트 기준",
+        "noActivity": "이 날짜에 대화가 없습니다",
+        "recent": "최근",
+        "dateRange": "날짜 범위",
+        "startDate": "시작일",
+        "endDate": "종료일",
+        "filterDate": "날짜로 필터링",
+        "clearDate": "날짜 필터 지우기",
+        "presets": {
+          "today": "오늘",
+          "yesterday": "어제",
+          "last3": "최근 3일",
+          "last7": "최근 7일",
+          "week": "이번 주",
+          "month": "이번 달"
+        },
+        "statistics": "통계",
+        "settingsUpdate": "설정 · 업데이트 있음",
+        "about": "MaxCode 정보",
+        "todoBoard": "작업 보드"
+      }
     },
     "conversation": {
       "reloadFailed": "대화 다시 불러오기 실패: {message}",
@@ -3110,6 +3141,7 @@
           "sessionLoadResourceNotFound": "{agent} 세션 불러오기에 실패했습니다. 다시 불러와 재시도하거나 새 대화를 시작하세요.",
           "sessionLoadUnavailable": "{agent}에서 이 세션을 복원할 수 없습니다. 세션이 종료되었거나 에이전트가 중지되었을 수 있습니다. 다시 불러와 재시도하거나 새 대화를 시작하세요.",
           "sessionLoadBusy": "이 세션이 다른 곳에서 열려 있습니다. 다른 {agent} 클라이언트(데스크톱 앱, CLI 또는 IDE 확장 프로그램)에서 열려 있다면 그쪽에서 닫거나 해당 클라이언트를 종료한 뒤 다시 불러오세요. 방금 이 세션에서 분기했다면 1분쯤 뒤에 다시 불러오세요.",
+          "sessionProviderMissing": "이 세션의 모델 공급자 설정이 제거되었습니다. 기록은 디스크에 남아 있습니다. 기존 공급자 설정을 복원한 후 대화를 다시 불러오세요.",
           "sessionArchived": "이전 세션은 {agent} 측에서 보관되었습니다. 터미널에서 {command}을(를) 실행해 복원한 뒤 다시 불러오거나 새 대화를 시작하세요.",
           "turnFailedRefusal": "{agent}이(가) 이번 턴을 계속하지 않았습니다. 백엔드나 게이트웨이 오류일 수 있습니다. 에이전트 로그를 확인하세요.",
           "turnFailedMaxTokens": "{agent}이(가) 이번 턴의 최대 토큰 한도에 도달했습니다.",
@@ -4005,7 +4037,8 @@
         "failed": "컨텍스트 압축 실패",
         "summary": "요약",
         "triggerManual": "수동 실행",
-        "triggerAutomatic": "자동 실행"
+        "triggerAutomatic": "자동 실행",
+        "triggerIdle": "유휴 상태에서 프롬프트 캐시가 만료되기 전에 실행"
       },
       "sessionFailure": {
         "category": {
@@ -4639,7 +4672,7 @@
       "syncFailed": "스킬 동기화 실패"
     },
     "autoPreviewLabel": "미리보기 자동 열기",
-    "autoPreviewHint": "에이전트가 Word, Excel, PowerPoint 파일을 만들거나 편집하면 실시간 미리보기를 자동으로 엽니다."
+    "autoPreviewHint": "에이전트가 현재 턴에서 도구로 Word, Excel, PowerPoint 파일을 만들거나 편집하면 실시간 미리보기를 자동으로 엽니다."
   },
   "SkillPacksSettings": {
     "title": "스킬 팩",

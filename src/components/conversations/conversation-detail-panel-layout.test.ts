@@ -59,9 +59,7 @@ describe("ConversationDetailPanel mobile context menu", () => {
 
 describe("Mobile sidebar conversation surface", () => {
   it("keeps ordinary conversation rows transparent inside the white drawer", () => {
-    expect(workspaceLayoutSource).toContain(
-      'className="mobile-sidebar-drawer w-[85%] max-w-[22.5rem] p-0"'
-    )
+    expect(workspaceLayoutSource).toContain('className="mobile-sidebar-drawer ')
     expect(globalsCssSource).toContain(".mobile-sidebar-drawer [data-conv-key]")
     expect(globalsCssSource).toMatch(
       /\.mobile-sidebar-drawer \[data-conv-key\] \{\s*background-color: transparent;/

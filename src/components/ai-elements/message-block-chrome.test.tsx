@@ -158,7 +158,7 @@ describe("MessageResponse code block chrome", () => {
 })
 
 describe("MessageResponse table chrome", () => {
-  it("frames the table once: the scroll container, not the 2.7 wrapper", () => {
+  it("leaves the table and its scroll container unframed", () => {
     const { container } = renderReply()
     const wrapper = container.querySelector('[data-streamdown="table-wrapper"]')
     const table = wrapper?.querySelector('[data-streamdown="table"]')
@@ -169,7 +169,7 @@ describe("MessageResponse table chrome", () => {
     ])
     expect(table!.parentElement?.parentElement).toBe(wrapper)
     expect(declarations(TABLE_CARD)).toMatchObject({
-      border: "1px solid var(--border)",
+      border: "0",
       "background-color": "transparent",
     })
     expect(declarations('[data-streamdown="table-wrapper"]')).toMatchObject({
@@ -179,7 +179,7 @@ describe("MessageResponse table chrome", () => {
     })
   })
 
-  it("floats only the inline toolbar, and keeps the fullscreen one on screen", () => {
+  it("keeps inline actions in their own row and fullscreen actions on screen", () => {
     const { container } = renderReply()
     const wrapper = container.querySelector(
       '[data-streamdown="table-wrapper"]'
@@ -190,8 +190,9 @@ describe("MessageResponse table chrome", () => {
       inlineToolbar,
     ])
     expect(declarations(TABLE_TOOLBAR)).toMatchObject({
-      position: "absolute",
-      top: "-2rem",
+      position: "static",
+      "align-self": "flex-end",
+      "margin-bottom": "0.5em",
     })
 
     fireEvent.click(screen.getByTitle("View fullscreen"))

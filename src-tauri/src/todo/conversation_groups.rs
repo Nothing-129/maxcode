@@ -283,8 +283,7 @@ pub async fn groups(conn: &DatabaseConnection) -> Result<TodoConversationGroups,
             if matches!(
                 summary.status.as_str(),
                 "claimed" | "pending_verification" | "completed"
-            )
-                && !summary.assignee_id.is_empty()
+            ) && !summary.assignee_id.is_empty()
                 && conversations.contains_key(&summary.id)
             {
                 summaries.insert(summary.id.clone(), summary);

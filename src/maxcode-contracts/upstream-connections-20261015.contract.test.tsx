@@ -17,6 +17,7 @@ vi.mock("next-intl", () => ({
 vi.mock("@/contexts/acp-connections-context", () => {
   const actions = {
     setActiveKey: vi.fn(),
+    releaseActiveKey: vi.fn(),
     touchActivity: vi.fn(),
     markConnectPending: vi.fn(),
     clearConnectPending: vi.fn(),
@@ -128,6 +129,9 @@ describe("MaxCode contract: switching a connecting draft", () => {
         isViewer: false,
         backgroundOutstanding: 0,
         preserveIdleOwner: true,
+        asyncTasks: [],
+        remoteControl: null,
+        delegatedChildren: [],
       })
     ).toBe(false)
     expect(
@@ -136,6 +140,9 @@ describe("MaxCode contract: switching a connecting draft", () => {
         isViewer: true,
         backgroundOutstanding: 0,
         preserveIdleOwner: true,
+        asyncTasks: [],
+        remoteControl: null,
+        delegatedChildren: [],
       })
     ).toBe(true)
   })

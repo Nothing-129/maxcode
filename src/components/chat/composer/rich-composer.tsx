@@ -29,6 +29,7 @@ import { cn } from "@/lib/utils"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 import { buildComposerExtensions } from "./editor-config"
+import { moveToLeadingEmptyLine } from "./leading-empty-line"
 import {
   decidePastedContent,
   textToSeededDoc,
@@ -524,6 +525,7 @@ export const RichComposer = forwardRef<RichComposerHandle, RichComposerProps>(
               )
             }
           }
+          if (moveToLeadingEmptyLine(view, event)) return true
           // Paste without formatting: Ctrl/⌘+Shift+V routes to the host, which
           // owns the clipboard read. Consume the key (suppressing the browser's
           // native rich paste) only when the host takes over; otherwise return

@@ -149,7 +149,9 @@ function AlertEvidence({ text }: { text: string }) {
   )
 }
 
-export function StatusBarAlerts() {
+export function StatusBarAlerts({
+  compact = false,
+}: { compact?: boolean } = {}) {
   const t = useTranslations("Folder.statusBar.alerts")
   const { alerts, hasAlerts, dismissAlert, clearAll } = useAlertContext()
 
@@ -158,11 +160,31 @@ export function StatusBarAlerts() {
   return (
     <Popover>
       <PopoverTrigger asChild>
-        <button className="flex items-center gap-1 hover:text-foreground transition-colors">
+        <button
+          type="button"
+          aria-label={`${t("title")} · ${alerts.length}`}
+          title={`${t("title")} · ${alerts.length}`}
+          className={
+            compact
+              ? "relative flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              : "flex items-center gap-1 hover:text-foreground transition-colors"
+          }
+        >
           <CircleAlert
-            className={`size-3.5 ${hasAlerts ? "text-red-500" : ""}`}
+            aria-hidden="true"
+            className={compact ? "size-[1.125rem]" : "size-3.5 text-red-500"}
+            strokeWidth={compact ? 1.7 : 2}
           />
-          {hasAlerts && <span className="text-red-500">{alerts.length}</span>}
+          <span
+            aria-hidden="true"
+            className={
+              compact
+                ? "absolute right-0.5 top-0.5 min-w-3 rounded-full bg-sidebar px-0.5 text-center text-[0.5625rem] font-medium leading-3 text-red-500 tabular-nums"
+                : "text-red-500"
+            }
+          >
+            {alerts.length}
+          </span>
         </button>
       </PopoverTrigger>
       <PopoverContent side="top" align="end" className="w-80 p-3">

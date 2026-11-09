@@ -2750,9 +2750,11 @@ export type AcpEvent =
       message: string
       /**
        * Stable backend identifier: `"resource_not_found"`,
-       * `"session_unavailable"`, `"session_archived"`, or `"session_busy"`.
+       * `"session_unavailable"`, `"session_archived"`, `"session_busy"`, or
+       * `"session_provider_missing"`.
        *
-       * The first three mean the session is gone. `"session_busy"` does not —
+       * Archived sessions and missing provider configurations can be restored.
+       * `"session_busy"` means
        * another live holder has it open (another Codex client — the app, the
        * CLI or an IDE extension — or, for about a minute after a fork, the
        * forking session, until codex unloads the parent it closed), and it
@@ -2844,6 +2846,17 @@ export type AcpEvent =
        *  snapshot replay) can bind the correct agent instead of a default. */
       agent_type: AgentType
       result: DelegationResultSummary
+    }
+  /**
+   * A codeg delegation of this (parent) connection started (`running`) or
+   * reached a terminal state. Lifecycle accounting only: unlike the two events
+   * above it also covers a delegation whose parent tool call couldn't be
+   * identified (no card), which still dies with its parent.
+   */
+  | {
+      type: "delegation_child_running"
+      child_connection_id: string
+      running: boolean
     }
   /**
    * The user's submitted prompt, broadcast on the connection stream so OTHER
@@ -3296,6 +3309,10 @@ export interface LiveSessionSnapshot {
   /** Live sub-agent delegations recoverable from the snapshot. May be absent
    *  on older server payloads (then treated as `[]`). */
   active_delegations?: ActiveDelegationState[]
+  /** Child connection ids of every codeg delegation still running, card or
+   *  not (see `delegation_child_running`). Absent when empty / on older
+   *  servers (then treated as `[]`). */
+  delegated_children?: string[]
   /** Live-feedback notes for the current turn. Absent on older payloads /
    *  when empty (then treated as `[]`). */
   feedback?: FeedbackItem[]
