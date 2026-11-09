@@ -102,7 +102,7 @@ describe("composer secondary configuration", () => {
       "flex shrink-0 items-center justify-between gap-1 px-2 pb-2"
     )
     expect(source).toContain(
-      "maxcode-composer-actions flex min-h-11 shrink-0 items-center"
+      "maxcode-composer-actions flex min-h-8 shrink-0 items-center"
     )
     expect(source).not.toContain("items-end")
     expect(source).toContain("inert={configOptionsReadOnly}")
