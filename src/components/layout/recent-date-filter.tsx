@@ -1,6 +1,6 @@
 "use client"
 
-import { ChevronDown, X } from "lucide-react"
+import { CalendarDays, ChevronDown, X } from "lucide-react"
 import { DATE_PRESETS } from "@/lib/sidebar-navigation"
 import { useLocale, useTranslations } from "next-intl"
 import { useSidebarNavigation } from "@/contexts/sidebar-navigation-context"
@@ -41,12 +41,16 @@ export function RecentDateFilter() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex h-7 max-w-full items-center gap-1 rounded-md px-1 text-xs font-normal text-muted-foreground/80 transition-colors hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="inline-flex h-7 min-w-20 max-w-40 items-center gap-1 rounded-full border border-sidebar-foreground/[0.06] bg-sidebar-foreground/[0.04] px-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-sidebar-foreground/[0.08] hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-sidebar-foreground/[0.08] data-[state=open]:text-sidebar-foreground"
           aria-label={t("navigation.filterDate")}
           title={`${navigation.date} — ${navigation.endDate}`}
         >
+          <CalendarDays aria-hidden="true" className="size-3.5 shrink-0" />
           <span className="truncate">{label}</span>
-          <ChevronDown className="size-3 shrink-0 opacity-50" />
+          <ChevronDown
+            aria-hidden="true"
+            className="size-2.5 shrink-0 opacity-50"
+          />
         </button>
       </PopoverTrigger>
       <PopoverContent
@@ -68,39 +72,51 @@ export function RecentDateFilter() {
                 {t(`navigation.presets.${preset}`)}
               </Button>
             ))}
+            <Button
+              variant={navigation.preset === "custom" ? "secondary" : "ghost"}
+              size="sm"
+              aria-pressed={navigation.preset === "custom"}
+              className="h-8 justify-start text-xs"
+              onClick={() => navigation.setPreset("custom")}
+            >
+              {t("navigation.presets.custom")}
+            </Button>
           </div>
-          <div className="space-y-2">
-            <label className="block space-y-1.5">
-              <span className="text-xs text-muted-foreground">
-                {t("navigation.startDate")}
-              </span>
-              <Input
-                type="date"
-                aria-label={t("navigation.startDate")}
-                value={navigation.date}
-                onChange={(event) => {
-                  if (event.target.value) navigation.setDate(event.target.value)
-                }}
-                className="h-8 w-full min-w-0 bg-transparent text-xs"
-              />
-            </label>
-            <label className="block space-y-1.5">
-              <span className="text-xs text-muted-foreground">
-                {t("navigation.endDate")}
-              </span>
-              <Input
-                type="date"
-                aria-label={t("navigation.endDate")}
-                value={navigation.endDate}
-                min={navigation.date}
-                onChange={(event) => {
-                  if (event.target.value)
-                    navigation.setEndDate(event.target.value)
-                }}
-                className="h-8 w-full min-w-0 bg-transparent text-xs"
-              />
-            </label>
-          </div>
+          {navigation.preset === "custom" && (
+            <div className="space-y-2">
+              <label className="block space-y-1.5">
+                <span className="text-xs text-muted-foreground">
+                  {t("navigation.startDate")}
+                </span>
+                <Input
+                  type="date"
+                  aria-label={t("navigation.startDate")}
+                  value={navigation.date}
+                  onChange={(event) => {
+                    if (event.target.value)
+                      navigation.setDate(event.target.value)
+                  }}
+                  className="h-8 w-full min-w-0 bg-transparent text-xs"
+                />
+              </label>
+              <label className="block space-y-1.5">
+                <span className="text-xs text-muted-foreground">
+                  {t("navigation.endDate")}
+                </span>
+                <Input
+                  type="date"
+                  aria-label={t("navigation.endDate")}
+                  value={navigation.endDate}
+                  min={navigation.date}
+                  onChange={(event) => {
+                    if (event.target.value)
+                      navigation.setEndDate(event.target.value)
+                  }}
+                  className="h-8 w-full min-w-0 bg-transparent text-xs"
+                />
+              </label>
+            </div>
+          )}
           <RecentDateFilterSummary />
           <p className="text-[0.6875rem] leading-4 text-muted-foreground">
             {t("navigation.activityHint")}

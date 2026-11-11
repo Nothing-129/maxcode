@@ -1,6 +1,9 @@
 packages:
   - electron
 
+patchedDependencies:
+  streamdown@2.7.1: patches/streamdown@2.7.1.patch
+
 overrides:
   # Security fixes within the existing dependency major versions.
   dompurify: ^3.4.17

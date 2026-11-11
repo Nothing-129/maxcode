@@ -2286,6 +2286,7 @@ mod tests {
         let msg = BrokerMessage::CreateAutomation(BrokerCreateAutomationRequest {
             token: "tok".into(),
             spec: NewAutomationSpec {
+                target: Default::default(),
                 todo_origins: vec![],
                 name: "Nightly audit".into(),
                 prompt: "audit deps".into(),
@@ -2368,6 +2369,7 @@ mod tests {
         let msg = BrokerMessage::CreateAutomation(BrokerCreateAutomationRequest {
             token: "bogus".into(),
             spec: NewAutomationSpec {
+                target: Default::default(),
                 todo_origins: vec![],
                 name: "n".into(),
                 prompt: "p".into(),

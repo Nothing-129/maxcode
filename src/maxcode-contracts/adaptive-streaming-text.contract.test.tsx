@@ -4,8 +4,14 @@ import { useAdaptiveStreamingText } from "@/hooks/use-adaptive-streaming-text"
 import { MessageResponse } from "@/components/ai-elements/message"
 import { source } from "./contract-source"
 
-vi.mock("@streamdown/code", () => ({
-  code: { highlight: vi.fn(), supportsLanguage: () => false },
+vi.mock("@/lib/code-highlighter", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/code-highlighter")>()),
+  createCodePlugin: () => ({
+    name: "shiki",
+    type: "code-highlighter",
+    highlight: vi.fn(),
+    supportsLanguage: () => false,
+  }),
 }))
 vi.mock("@/contexts/workspace-context", () => ({
   useOptionalWorkspaceActions: () => null,

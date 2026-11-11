@@ -816,7 +816,7 @@ mod adapter_tests {
         );
         assert_eq!(
             info.adapter_package,
-            "@agentclientprotocol/claude-agent-acp@0.101.0"
+            "@agentclientprotocol/claude-agent-acp@0.106.0"
         );
         assert_eq!(info.adapter_cmd, "claude-agent-acp");
         assert!(!info.adapter_installed);
@@ -833,7 +833,7 @@ mod adapter_tests {
     #[test]
     fn codex_adapter_info_uses_codex_home() {
         let info = info_for(AgentType::Codex, None, true);
-        assert_eq!(info.adapter_package, "@agentclientprotocol/codex-acp@2.5.0");
+        assert_eq!(info.adapter_package, "@agentclientprotocol/codex-acp@2.6.0");
         assert_eq!(info.adapter_cmd, "codex-acp");
         assert!(info.adapter_installed);
         assert_eq!(info.native_cmd, "codex");
@@ -844,7 +844,7 @@ mod adapter_tests {
     #[test]
     fn zcode_adapter_info_keeps_the_vendor_runtime_separate() {
         let info = info_for(AgentType::Zcode, Some("/home/user/.local/bin/zcode"), false);
-        assert_eq!(info.adapter_package, "zcode-acp-server@0.82.1");
+        assert_eq!(info.adapter_package, "zcode-acp-server@0.83.3");
         assert_eq!(info.adapter_cmd, "zcode-acp-server");
         assert!(!info.adapter_installed);
         assert_eq!(info.native_cmd, "zcode");

@@ -54,11 +54,22 @@ pub struct AuthoringContext {
     pub working_dir: PathBuf,
 }
 
+/// Execution target; omitted on older broker requests means the caller's project.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AutomationTarget {
+    #[default]
+    Project,
+    Chat,
+}
+
 /// A validated `create_automation` request. The companion has already checked
 /// the required strings are non-empty; ranges/enums are re-checked by the
 /// automation service at save.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NewAutomationSpec {
+    #[serde(default)]
+    pub target: AutomationTarget,
     #[serde(default)]
     pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
     pub name: String,

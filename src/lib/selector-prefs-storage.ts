@@ -138,8 +138,8 @@ export function getSavedModeId(agentType: string): string | null {
  * `preferred_config_values`). Null/empty fields are normalized so the
  * call site can pass the result through unchanged.
  *
- * When restoring a conversation, model/thinking defaults are excluded;
- * the backend restores that conversation's confirmed SQLite snapshot.
+ * When restoring a conversation, model/thinking defaults and Codex Fast are
+ * excluded; the backend restores that conversation's confirmed SQLite snapshot.
  * Other selector defaults retain their existing behavior.
  *
  * The backend applies these on the freshly-attached session before any
@@ -169,6 +169,10 @@ export function getSavedPrefsForConnect(
       "effort",
       "thinking",
     ])
+    if (agentType === "codex") {
+      conversationIds.add("fast-mode")
+      conversationIds.add("fast_mode")
+    }
     for (const option of getCachedSelectors(agentType)?.configOptions ?? []) {
       if (option.category === "model" || option.category === "thought_level") {
         conversationIds.add(option.id)
@@ -242,8 +246,24 @@ export function applySavedConfigPreferences(
   if (!configValues) return options
   let changed = false
   const next = options.map((option) => {
-    const saved = configValues[option.id]
+    let saved = configValues[option.id]
     if (saved == null) return option
+    // Older Codex adapters advertise Fast as on/off; newer ones may expose a
+    // boolean. Preserve the same choice when the cached option changes shape.
+    if (
+      agentType === "codex" &&
+      ["fast-mode", "fast_mode"].includes(option.id)
+    ) {
+      if (option.kind.type === "boolean") {
+        if (saved === "on") saved = "true"
+        if (saved === "off") saved = "false"
+      } else if (option.kind.type === "select") {
+        const alternate =
+          saved === "true" ? "on" : saved === "false" ? "off" : null
+        if (alternate && selectHasValue(option.kind, alternate))
+          saved = alternate
+      }
+    }
     if (option.kind.type === "select") {
       if (
         option.kind.current_value === saved ||

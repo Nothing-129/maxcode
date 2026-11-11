@@ -31,7 +31,10 @@ import { useTabStore } from "@/contexts/tab-context"
 import { emitAttachSessionToSession } from "@/lib/session-attachment-events"
 import type { DbConversationSummary, ConversationStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
-import { formatConversationTitle } from "@/lib/conversation-title"
+import {
+  formatConversationTitle,
+  parseStructuredConversationTitle,
+} from "@/lib/conversation-title"
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -205,6 +208,8 @@ interface SidebarConversationCardProps {
   selectionId?: string
   isOpenInTab?: boolean
   timeLabel?: string
+  isMobile?: boolean
+  compactMobile?: boolean
   onConversationPointerDown?: (
     event: ReactPointerEvent<HTMLButtonElement>,
     conversation: DbConversationSummary
@@ -248,6 +253,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   selectionId,
   isOpenInTab = false,
   timeLabel,
+  isMobile = false,
+  compactMobile = false,
   onSelect,
   onConversationPointerDown,
   onDoubleClick,
@@ -383,7 +390,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions = !isSubsession
-  const showFolderMeta = Boolean(folderLabel)
+  const mobileLayout = isMobile && !compactMobile
+  const showFolderMeta = Boolean(folderLabel) && !(isMobile && compactMobile)
+  const mobileTitle = mobileLayout
+    ? formatConversationTitle(conversation.title)
+    : ""
+  const mobileStructuredTitle = mobileLayout
+    ? parseStructuredConversationTitle(mobileTitle)
+    : null
 
   return (
     <>
@@ -404,7 +418,8 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
             <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
               <div
                 className={cn(
-                  "relative h-[1.9375rem] py-px bg-sidebar ws-transparent-bg",
+                  "relative py-px bg-sidebar ws-transparent-bg",
+                  !mobileLayout && "h-[1.9375rem]",
                   // Lift the traveling decoration above opaque sibling rows.
                   isSelected && "z-[1]"
                 )}
@@ -449,6 +464,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onDoubleClick={handleDblClick}
                     className={cn(
                       "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
+                      mobileLayout && "py-[0.375rem]",
                       onConversationPointerDown &&
                         "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
@@ -508,68 +524,118 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       />
                     </div>
 
-                    <span
-                      className={cn(
-                        // Clip the Recent chip instead of painting it over the time.
-                        "flex min-w-0 flex-1 items-center overflow-hidden",
-                        showFolderMeta && "gap-[0.375rem]"
-                      )}
-                    >
-                      <ConversationTitleLabel
-                        data-open-in-tab={isOpenInTab || undefined}
-                        className={cn(
-                          "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
-                          showFolderMeta
-                            ? "shrink grow-0 overflow-hidden"
-                            : "flex-1"
+                    {mobileLayout ? (
+                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                        <span
+                          data-open-in-tab={isOpenInTab || undefined}
+                          className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
+                        >
+                          {mobileStructuredTitle?.topic ||
+                            mobileTitle ||
+                            t("untitledConversation")}
+                        </span>
+                        {(mobileStructuredTitle ||
+                          showFolderMeta ||
+                          timeLabel ||
+                          conversation.origin_cwd) && (
+                          <span
+                            data-mobile-conversation-meta
+                            className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+                          >
+                            <span className="tabular-nums">
+                              {mobileStructuredTitle?.date}
+                            </span>
+                            <span className="flex min-w-0 items-center gap-1">
+                              {showFolderMeta && (
+                                <span
+                                  title={folderLabel}
+                                  className="min-w-0 truncate text-muted-foreground"
+                                >
+                                  {folderLabel}
+                                </span>
+                              )}
+                              {conversation.origin_cwd && (
+                                <span title={tSidebar("worktreeRemovedBadge")}>
+                                  <FolderX
+                                    className="size-3 shrink-0"
+                                    aria-hidden
+                                  />
+                                  <span className="sr-only">
+                                    {tSidebar("worktreeRemovedBadge")}
+                                  </span>
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-right tabular-nums">
+                              {timeLabel}
+                            </span>
+                          </span>
                         )}
-                        title={conversation.title}
-                        fallback={t("untitledConversation")}
-                      />
-                      {/* Re-parented out of a removed worktree: history loads fine,
+                      </span>
+                    ) : (
+                      <span
+                        className={cn(
+                          // Clip the Recent chip instead of painting it over the time.
+                          "flex min-w-0 flex-1 items-center overflow-hidden",
+                          showFolderMeta && "gap-[0.375rem]"
+                        )}
+                      >
+                        <ConversationTitleLabel
+                          data-open-in-tab={isOpenInTab || undefined}
+                          className={cn(
+                            "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
+                            showFolderMeta
+                              ? "shrink grow-0 overflow-hidden"
+                              : "flex-1"
+                          )}
+                          title={conversation.title}
+                          fallback={t("untitledConversation")}
+                        />
+                        {/* Re-parented out of a removed worktree: history loads fine,
                       but "continue" may need a fresh session (the agent's files
                       were keyed to the old path). */}
-                      {conversation.origin_cwd ? (
-                        <span
-                          className="inline-flex shrink-0 items-center"
-                          title={tSidebar("worktreeRemovedBadge")}
-                        >
-                          <FolderX
-                            className="h-3 w-3 text-muted-foreground/60"
-                            aria-hidden
-                          />
-                          <span className="sr-only">
-                            {tSidebar("worktreeRemovedBadge")}
-                          </span>
-                        </span>
-                      ) : null}
-                      {showFolderMeta ? (
-                        <span
-                          data-recent-folder
-                          title={folderLabel}
-                          className="flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
-                        >
-                          {showFolderIcon ? (
-                            <Folder
-                              data-recent-source="folder"
-                              className="h-[0.625rem] w-[0.625rem] shrink-0"
-                              strokeWidth={1.5}
+                        {conversation.origin_cwd ? (
+                          <span
+                            className="inline-flex shrink-0 items-center"
+                            title={tSidebar("worktreeRemovedBadge")}
+                          >
+                            <FolderX
+                              className="h-3 w-3 text-muted-foreground/60"
                               aria-hidden
                             />
-                          ) : (
-                            <MessageSquare
-                              data-recent-source="chat"
-                              className="h-[0.625rem] w-[0.625rem] shrink-0"
-                              strokeWidth={1.5}
-                              aria-hidden
-                            />
-                          )}
-                          <span className="min-w-0 truncate">
-                            {folderLabel}
+                            <span className="sr-only">
+                              {tSidebar("worktreeRemovedBadge")}
+                            </span>
                           </span>
-                        </span>
-                      ) : null}
-                    </span>
+                        ) : null}
+                        {showFolderMeta ? (
+                          <span
+                            data-recent-folder
+                            title={folderLabel}
+                            className="flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+                          >
+                            {showFolderIcon ? (
+                              <Folder
+                                data-recent-source="folder"
+                                className="h-[0.625rem] w-[0.625rem] shrink-0"
+                                strokeWidth={1.5}
+                                aria-hidden
+                              />
+                            ) : (
+                              <MessageSquare
+                                data-recent-source="chat"
+                                className="h-[0.625rem] w-[0.625rem] shrink-0"
+                                strokeWidth={1.5}
+                                aria-hidden
+                              />
+                            )}
+                            <span className="min-w-0 truncate">
+                              {folderLabel}
+                            </span>
+                          </span>
+                        ) : null}
+                      </span>
+                    )}
                   </button>
 
                   {/* Expand/collapse affordance for delegation children. It overlays
@@ -626,12 +692,15 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   <div
                     className={cn(
                       "flex h-full shrink-0 items-center pr-[0.375rem]",
-                      showFolderMeta && "ml-[0.375rem]"
+                      (showFolderMeta || mobileLayout) && "ml-[0.375rem]"
                     )}
                   >
                     <span
                       data-conversation-status=""
-                      className="flex items-center"
+                      className={cn(
+                        "flex items-center",
+                        mobileLayout && "w-3 justify-center"
+                      )}
                     >
                       {isRunning ? (
                         <span
@@ -668,7 +737,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         <ConversationUnreadDot
                           label={tSidebar("unreadBadge")}
                         />
-                      ) : timeLabel ? (
+                      ) : timeLabel && !mobileLayout ? (
                         <span
                           className={cn(
                             "relative shrink-0 tabular-nums",
@@ -708,10 +777,16 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                             })
                           )
                         }}
-                        className="ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+                        className={cn(
+                          "ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+                          isMobile && "opacity-100"
+                        )}
                       >
                         <Ellipsis className="size-3.5" />
                       </Button>
+                    )}
+                    {!showHoverActions && mobileLayout && (
+                      <span aria-hidden className="ml-1 size-6" />
                     )}
                   </div>
                 </div>

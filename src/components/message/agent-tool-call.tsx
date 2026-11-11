@@ -296,10 +296,18 @@ export const AgentToolCallPart = memo(function AgentToolCallPart({
   )
   const outcomeError = taskOutcome?.error ?? null
   const outcomeBackground = taskOutcome?.isBackground === true
+  // A live tick proves a reloaded pending Grok child is still running.
+  const grokProgress = useMemo(
+    () => parseGrokSubagentProgress(part.meta),
+    [part.meta]
+  )
   const isLiveBackgroundLaunch =
-    backgroundLifecycle === null &&
-    part.state === "output-available" &&
-    isAsyncLaunchAckText(part.output)
+    (backgroundLifecycle === null &&
+      part.state === "output-available" &&
+      isAsyncLaunchAckText(part.output)) ||
+    (backgroundLifecycle !== null &&
+      backgroundLifecycle.status == null &&
+      grokProgress !== null)
   const backgroundSettled = backgroundLifecycle?.status != null
   const backgroundFailed =
     backgroundSettled && backgroundLifecycle?.status !== "completed"
@@ -421,7 +429,9 @@ export const AgentToolCallPart = memo(function AgentToolCallPart({
           backgroundLifecycle.interim
           ? tBg("cardInterim")
           : tBg("cardCompleted")
-        : tBg("cardLaunchedPending")
+        : isLiveBackgroundLaunch
+          ? tBg("cardRunning")
+          : tBg("cardLaunchedPending")
     : isLiveBackgroundLaunch
       ? tBg("cardRunning")
       : outcomeError
@@ -444,15 +454,6 @@ export const AgentToolCallPart = memo(function AgentToolCallPart({
   const adaptedToolCalls = useMemo(
     () => adaptToolCalls(agentStats?.tool_calls ?? [], part.toolCallId),
     [agentStats?.tool_calls, part.toolCallId]
-  )
-
-  // Grok live sub-agent ticker — the only live signal of the child's work
-  // (grok forwards no child chunks/tool calls). Shown while the child runs:
-  // in-turn for a blocking spawn, alongside the "running in background" state
-  // for a background one. Frozen values disappear with those states.
-  const grokProgress = useMemo(
-    () => parseGrokSubagentProgress(part.meta),
-    [part.meta]
   )
 
   // The child's own session, when it has one (grok, codex). Available live —

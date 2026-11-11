@@ -5194,6 +5194,24 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
           }
           break
         }
+        case "background_task_progress": {
+          // A background sub-agent reporting while it runs, after its launch
+          // turn ended: patch the launch card in memory (resolved like a
+          // settle; an unopened conversation has no card to patch).
+          const conversationId = getConversationIdByExternalIdFromStore(
+            e.session_id
+          )
+          if (conversationId != null) {
+            useConversationRuntimeStore
+              .getState()
+              .actions.applyBackgroundTaskProgress(
+                conversationId,
+                e.tool_use_id,
+                e.meta
+              )
+          }
+          break
+        }
         case "permission_request":
           flushStreamingQueue(contextKey)
           flushPendingToolCallUpdates()
@@ -5829,6 +5847,17 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
               case "session_busy":
                 return t("backendErrors.sessionLoadBusy", {
                   agent: agentLabel,
+                })
+              // codex keeps a conversation on the model provider it started
+              // with. codeg's own Codex settings move the provider between the
+              // ChatGPT login and a custom endpoint, so this is what reopening
+              // an older conversation after such a switch meets. The fix is to
+              // switch back, so the message says that, and quotes codex's
+              // sentence, which names both providers.
+              case "provider_mismatch":
+                return t("backendErrors.sessionLoadProviderMismatch", {
+                  agent: agentLabel,
+                  detail: e.message,
                 })
               case "session_archived":
                 return recoveryCommand
@@ -7156,9 +7185,9 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
         // regressed when the snapshot path replaced the event path on tab
         // re-open (the snapshot frame doesn't carry a `session_modes` event,
         // so the apply-on-event hook never fired).
-        // Historical model/thinking choices belong to the conversation in
-        // SQLite. Neither connect nor the post-spawn replay may substitute
-        // another conversation's most recent global choices.
+        // Historical model/thinking choices and Codex Fast belong to the
+        // conversation in SQLite. Neither connect nor the post-spawn replay
+        // may substitute another conversation's most recent global choices.
         const restoringConversation =
           sessionId != null || conversationId != null
         const savedPrefs = getSavedPrefsForConnect(

@@ -616,6 +616,35 @@ describe("AgentToolCallPart grok live progress", () => {
   })
 })
 
+describe("Grok reloaded background progress", () => {
+  it.each([false, true])(
+    "requires a live tick to mark pending history running: %s",
+    (ticked) => {
+      renderCard({
+        ...basePart(
+          JSON.stringify({ subagent_type: "explore", description: "map repo" }),
+          "output-available"
+        ),
+        output:
+          '[[codeg-background-task]]{"task_id":"sub-1","status":null,"summary":null,"result":null}',
+        meta: ticked
+          ? { grokSubagentProgress: { toolCallCount: 4, durationMs: 9000 } }
+          : null,
+      })
+      if (ticked) {
+        fireEvent.click(
+          screen.getByRole("button", { name: /running in background/i })
+        )
+        expect(screen.getByText("4 tool calls · 9.0s")).toBeInTheDocument()
+      } else {
+        expect(
+          screen.queryByRole("button", { name: /running in background/i })
+        ).not.toBeInTheDocument()
+      }
+    }
+  )
+})
+
 describe("AgentToolCallPart child session action", () => {
   it("offers the child's session from the live spawn meta", () => {
     // Grok forwards none of the child's work over ACP, so the action has to be

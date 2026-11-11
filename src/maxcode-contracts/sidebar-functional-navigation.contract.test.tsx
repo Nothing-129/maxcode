@@ -168,6 +168,21 @@ describe("functional sidebar navigation", () => {
     )
   })
 
+  it("centers the task board action like new chat without route selection styling", () => {
+    const sidebar = source("src/components/layout/sidebar.tsx")
+    const action = sidebar.slice(
+      sidebar.indexOf('{view === "tasks" && ('),
+      sidebar.indexOf('{view !== "tasks" && (')
+    )
+    expect(action).toContain("<SidebarNavButton")
+    expect(action).toContain('icon="tasks"')
+    expect(action).toContain('variant="ghost"')
+    expect(action).toContain('label={t("navigation.todoBoard")}')
+    expect(action).toContain('onClick={() => setRoute("tasks")}')
+    expect(action).not.toContain("active=")
+    expect(action).not.toContain("routeId")
+  })
+
   it("uses the same centered new-chat action for conversations and projects", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     const button = sidebar.slice(
@@ -176,6 +191,7 @@ describe("functional sidebar navigation", () => {
     )
     expect(button).toContain("items-center justify-center gap-1.5")
     expect(button).toContain("rounded-lg bg-sidebar-accent/35")
+    expect(button).toContain('variant === "ghost" && "bg-transparent"')
     expect(sidebar).not.toContain("subtle={")
     expect(button).not.toContain("justify-start")
   })
@@ -259,7 +275,7 @@ describe("functional sidebar navigation", () => {
     expect(loadDateFilter()).toEqual({ preset: "yesterday" })
   })
 
-  it("always offers both range endpoints in the header popover and clears back to today", () => {
+  it("offers custom range endpoints in the header popover and clears back to today", () => {
     render(
       <NextIntlClientProvider locale="en" messages={en}>
         <SidebarNavigationProvider>
@@ -275,11 +291,14 @@ describe("functional sidebar navigation", () => {
       screen.queryByRole("button", { name: "Clear date filter" })
     ).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Filter by date" }))
+    expect(screen.queryByLabelText("Start date")).toBeNull()
+    fireEvent.click(screen.getByRole("button", { name: "Custom" }))
+    const now = new Date()
     expect(screen.getByLabelText("Start date")).toHaveValue(
-      localDateKey(new Date())
+      localDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
     )
     expect(screen.getByLabelText("End date")).toHaveValue(
-      localDateKey(new Date())
+      localDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
     )
     fireEvent.change(screen.getByLabelText("Start date"), {
       target: { value: "2026-10-01" },
@@ -299,9 +318,7 @@ describe("functional sidebar navigation", () => {
     expect(
       screen.queryByRole("button", { name: "Clear date filter" })
     ).toBeNull()
-    expect(screen.getByLabelText("Start date")).toHaveValue(
-      localDateKey(new Date())
-    )
+    expect(screen.queryByLabelText("Start date")).toBeNull()
   })
 
   it("includes both ends of a date range and retains descending activity order", () => {

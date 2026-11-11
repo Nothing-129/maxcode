@@ -22,8 +22,11 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu"
 import type { TodoStatus } from "@/lib/todos"
+import {
+  formatConversationTitle,
+  parseStructuredConversationTitle,
+} from "@/lib/conversation-title"
 import { cn } from "@/lib/utils"
-import { ConversationTitleLabel } from "./conversation-title-label"
 
 export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   id,
@@ -63,9 +66,27 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   const awaitingVerification = status === "pending_verification"
   const StatusIcon =
     status === "completed" ? Check : awaitingVerification ? Clock : Circle
+  const formattedTitle = formatConversationTitle(title)
+  const structuredTitle = parseStructuredConversationTitle(formattedTitle)
+  const statusBadge = (
+    <span className="inline-flex min-w-0 shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground/60">
+      <StatusIcon
+        aria-hidden="true"
+        className="size-3 shrink-0"
+        strokeWidth={1.5}
+      />
+      {t(
+        status === "completed"
+          ? "colCompleted"
+          : awaitingVerification
+            ? "sidebarPendingVerification"
+            : "sidebarProcessing"
+      )}
+    </span>
+  )
   const header = (
     <div
-      className="group/todo-header flex h-[2rem] min-w-0 items-center"
+      className="group/todo-header flex min-w-0 items-center py-px"
       data-todo-group-id={id}
     >
       <button
@@ -73,41 +94,35 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         aria-expanded={expanded}
         title={title}
         onClick={() => onToggle(id)}
-        className="group flex h-[1.9375rem] min-w-0 flex-1 items-center gap-[0.4375rem] rounded-lg pl-[0.4375rem] pr-[0.375rem] text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex min-w-0 flex-1 items-center gap-[0.4375rem] rounded-lg py-[0.375rem] pl-[0.4375rem] pr-[0.375rem] text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <ListTodo className="size-[0.875rem] shrink-0 text-sidebar-foreground/75" />
-        <span className="maxcode-sidebar-label relative flex min-w-0 items-center gap-2 text-[0.875rem] leading-[1.375rem] font-[430]">
-          {dateLabel && (
-            <time
-              dateTime={createdAt}
-              title={`${t("createdAt")}: ${createdDate?.toLocaleDateString()}`}
-              className="w-[4ch] shrink-0 text-xs text-muted-foreground tabular-nums"
-            >
-              {dateLabel}
-            </time>
-          )}
-          <ConversationTitleLabel
-            title={title}
-            fallback={title}
-            showDate={!dateLabel}
-            className="min-w-0"
-          />
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span
+            data-todo-title
+            className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
+          >
+            {structuredTitle?.topic || formattedTitle || title}
+          </span>
+          <span
+            data-todo-meta
+            className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+          >
+            <span className="tabular-nums">
+              {dateLabel ? (
+                <time
+                  dateTime={createdAt}
+                  title={`${t("createdAt")}: ${createdDate?.toLocaleDateString()}`}
+                >
+                  {dateLabel}
+                </time>
+              ) : (
+                structuredTitle?.date
+              )}
+            </span>
+            {statusBadge}
+          </span>
         </span>
-        <span className="inline-flex shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground/60">
-          <StatusIcon
-            aria-hidden="true"
-            className="size-3 shrink-0"
-            strokeWidth={1.5}
-          />
-          {t(
-            status === "completed"
-              ? "colCompleted"
-              : awaitingVerification
-                ? "sidebarPendingVerification"
-                : "sidebarProcessing"
-          )}
-        </span>
-        <span className="flex-1" />
         <ChevronRight
           aria-hidden
           className={cn(

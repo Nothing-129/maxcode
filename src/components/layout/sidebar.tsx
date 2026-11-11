@@ -94,12 +94,14 @@ function SidebarNavButton({
   onClick,
   active,
   trailing,
+  variant = "filled",
 }: {
   icon: "compose" | "clock" | "tasks"
   label: string
   onClick: () => void
   active?: boolean
   trailing?: ReactNode
+  variant?: "filled" | "ghost"
 }) {
   return (
     <button
@@ -113,6 +115,7 @@ function SidebarNavButton({
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
         "transition-colors duration-150 hover:bg-sidebar-accent",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        variant === "ghost" && "bg-transparent",
         active && "bg-sidebar-primary/10"
       )}
     >
@@ -512,8 +515,8 @@ export function Sidebar({
           />
         )}
         {compactHeader ? (
-          <div className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden">
-            <SidebarWordmark />
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+            <SidebarWordmark compact />
             {view === "conversations" && <RecentDateFilter />}
           </div>
         ) : (
@@ -534,19 +537,12 @@ export function Sidebar({
           </div>
         )}
         {view === "tasks" && (
-          <Button
+          <SidebarNavButton
+            icon="tasks"
             variant="ghost"
-            size="sm"
-            className={cn(
-              "mx-1 h-8 justify-start gap-2 text-sm",
-              routeId === "tasks" && "bg-sidebar-accent/50"
-            )}
+            label={t("navigation.todoBoard")}
             onClick={() => setRoute("tasks")}
-            aria-label={t("navigation.todoBoard")}
-          >
-            <ListTodo className="size-3.5" />
-            {t("navigation.todoBoard")}
-          </Button>
+          />
         )}
         {view !== "tasks" && (
           <div data-sidebar-actions className="flex items-center gap-1">

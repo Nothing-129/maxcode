@@ -17,10 +17,10 @@ describe("MaxCode contract: reviewed built-in agent version catalog", () => {
     [
       "ClaudeCode",
       "Codex",
-      "0.101.0",
-      "@agentclientprotocol/claude-agent-acp@0.101.0",
+      "0.106.0",
+      "@agentclientprotocol/claude-agent-acp@0.106.0",
     ],
-    ["Codex", "Gemini", "2.5.0", "@agentclientprotocol/codex-acp@2.5.0"],
+    ["Codex", "Gemini", "2.6.0", "@agentclientprotocol/codex-acp@2.6.0"],
     ["Pi", "Grok", "0.0.34", "pi-acp@0.0.34"],
     ["Gemini", "OpenClaw", "0.59.0", "@google/gemini-cli@0.59.0"],
     ["OpenClaw", "Cline", "2026.9.3", "openclaw@2026.9.3"],

@@ -14,6 +14,9 @@ overrides:
   ansi-to-react>linkify-it: ^5.0.2
   eslint-plugin-react-hooks: 7.0.1
 
+patchedDependencies:
+  streamdown@2.7.1: 37dc22ee017cf9114cea238a0a4ea19ff599b2380dcb9b2529014158178b73ea
+
 importers:
 
   .:
@@ -45,9 +48,6 @@ importers:
       '@streamdown/cjk':
         specifier: ^1.0.4
         version: 1.0.4(@types/mdast@4.0.4)(micromark-util-types@2.0.3)(micromark@4.0.3)(react@19.3.1)(unified@11.0.5)
-      '@streamdown/code':
-        specifier: ^2.0.0
-        version: 2.0.0(react@19.3.1)
       '@streamdown/math':
         specifier: ^1.0.3
         version: 1.0.3(react@19.3.1)
@@ -184,8 +184,8 @@ importers:
         specifier: ^2.0.8
         version: 2.0.8(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       streamdown:
-        specifier: ^2.7.1
-        version: 2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 2.7.1
+        version: 2.7.1(patch_hash=37dc22ee017cf9114cea238a0a4ea19ff599b2380dcb9b2529014158178b73ea)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       tailwind-merge:
         specifier: ^3.7.0
         version: 3.7.0
@@ -2096,12 +2096,6 @@ packages:
 
   '@streamdown/cjk@1.0.4':
     resolution: {integrity: sha512-l5IVxqNhQDj9bDTu6h1sqxeEjZI7pW1uZ6Yu79l+9DqfmOkfGF0AJ0+y8oFi1hrFdscGqhXVNGjSgFJgh6Xh3A==}
-    peerDependencies:
-      react: ^18.0.0 || ^19.0.0
-
-  '@streamdown/code@2.0.0':
-    resolution: {integrity: sha512-sSyX/9gOOcivbP7204+sfAam+gotxjUNV+T4EuN3aa6i5x1LaqtB6Ln/Mxzd1XGvm0vNApO4oKLZs+7gzFI1kQ==}
-    engines: {node: '>=20'}
     peerDependencies:
       react: ^18.0.0 || ^19.0.0
 
@@ -8962,11 +8956,6 @@ snapshots:
       - supports-color
       - unified
 
-  '@streamdown/code@2.0.0(react@19.3.1)':
-    dependencies:
-      react: 19.3.1
-      shiki: 4.5.0
-
   '@streamdown/math@1.0.3(react@19.3.1)':
     dependencies:
       katex: 0.19.1
@@ -13979,7 +13968,7 @@ snapshots:
       es-errors: 1.3.0
       internal-slot: 1.1.0
 
-  streamdown@2.7.1(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  streamdown@2.7.1(patch_hash=37dc22ee017cf9114cea238a0a4ea19ff599b2380dcb9b2529014158178b73ea)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       clsx: 2.1.1
       hast-util-to-jsx-runtime: 2.3.7

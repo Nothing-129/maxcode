@@ -4,6 +4,10 @@ use crate::acp::types::UserMessageBlock;
 use crate::commands::conversations::apply_in_flight_message_id;
 
 fn fixture(missing_timestamp: bool) -> ConversationDetail {
+    fixture_with_prompt(missing_timestamp, "publish changes")
+}
+
+fn fixture_with_prompt(missing_timestamp: bool, prompt: &str) -> ConversationDetail {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("running.jsonl");
     let mut lines = [
@@ -11,7 +15,7 @@ fn fixture(missing_timestamp: bool) -> ConversationDetail {
             "payload": {"id": "running", "cwd": "/work"}}),
         serde_json::json!({"timestamp": "2026-10-16T11:09:50Z", "type": "response_item",
             "payload": {"type": "message", "role": "user",
-                "content": [{"type": "input_text", "text": "publish changes"}]}}),
+                "content": [{"type": "input_text", "text": prompt}]}}),
         serde_json::json!({"timestamp": "2026-10-16T11:09:53Z", "type": "response_item",
             "payload": {"type": "message", "role": "assistant", "phase": "commentary",
                 "content": [{"type": "output_text", "text": "Checking changes."}]}}),
@@ -94,6 +98,52 @@ fn missing_record_time_retains_the_conservative_ambiguity_guard() {
     for turn in &mut detail.turns {
         turn.timestamp = "2026-10-16T11:20:00Z".parse().unwrap();
     }
+    assert_eq!(
+        apply_in_flight_message_id(
+            &mut detail.turns,
+            &pending(),
+            Some("2026-10-16T11:09:49.500Z".parse().unwrap()),
+            detail.source_timestamps,
+        ),
+        None
+    );
+}
+
+#[test]
+fn running_codex_prompt_preserves_spacing_for_live_message_identity() {
+    for text in [
+        "服务／应用   包名   关闭条件与影响\n百度统计   com.baidu.duershow.statistic\n\n这些先停了",
+        "Review this code:\n```python\n    if ready:\n        run()\n```\ncolumn\t\tvalue",
+        "ordinary message",
+    ] {
+        let mut detail = fixture_with_prompt(false, text);
+        assert!(
+            matches!(&detail.turns[0].blocks[..], [ContentBlock::Text { text: shown }] if shown == text)
+        );
+        let pending = PendingUserMessage {
+            message_id: "wire-spaced-prompt".into(),
+            blocks: vec![UserMessageBlock::Text { text: text.into() }],
+        };
+        assert_eq!(
+            apply_in_flight_message_id(
+                &mut detail.turns,
+                &pending,
+                Some("2026-10-16T11:09:49.500Z".parse().unwrap()),
+                detail.source_timestamps,
+            )
+            .as_deref(),
+            Some("wire-spaced-prompt"),
+        );
+        assert_eq!(detail.turns.len(), 3);
+        assert!(
+            matches!(&detail.turns[1].blocks[..], [ContentBlock::Text { text }] if text == "Checking changes.")
+        );
+    }
+}
+
+#[test]
+fn different_spacing_does_not_hide_a_distinct_running_prompt() {
+    let mut detail = fixture_with_prompt(false, "publish  changes");
     assert_eq!(
         apply_in_flight_message_id(
             &mut detail.turns,

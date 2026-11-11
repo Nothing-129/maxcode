@@ -75,8 +75,8 @@ function baseName(path: string): string {
  * and HTML previews are deliberately not capped here: they run the same
  * renderer the file column runs, with the same exposure.
  */
-const SOURCE_VIEW_MAX_BYTES = 512 * 1024
-const SOURCE_VIEW_MAX_LINES = 5_000
+export const SOURCE_VIEW_MAX_BYTES = 512 * 1024
+export const SOURCE_VIEW_MAX_LINES = 5_000
 
 /**
  * Monaco language ids (what `languageFromPath` speaks, and therefore what a

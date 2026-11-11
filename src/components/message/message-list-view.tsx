@@ -1002,12 +1002,17 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
     return <CollapsibleSystemMessage parts={group.parts} />
   }
 
-  // Some agents leave `duration_ms` empty even though the parser supplies both
-  // ends of the round. Keep the local prompt -> completion fallback, but feed
-  // it to the completed-turn header — that header is now the single duration
-  // surface for replies.
+  // A just-finished live reply already has a clock. Prefer it while the local
+  // reply is visible; parser timings still serve history and other statistics.
+  const observedDurationMs = sourceTurns?.reduce<number | null>(
+    (duration, turn) =>
+      turn.observed_duration_ms == null
+        ? duration
+        : (duration ?? 0) + turn.observed_duration_ms,
+    null
+  )
   const completedTurnDurationMs = resolveTurnDurationMs(
-    group.duration_ms,
+    observedDurationMs ?? group.duration_ms,
     group.completed_at,
     previousUserAt
   )

@@ -181,13 +181,17 @@ export function ReferenceBadge({
       role="img"
       aria-label={`${data.refType}: ${data.label || data.id}`}
       className={cn(
-        isImageLink ? "inline" : "inline-flex align-middle",
+        isImageLink
+          ? "inline"
+          : isFileLink
+            ? "inline-flex align-baseline"
+            : "inline-flex align-middle",
         isComposerFile
           ? ATTACHMENT_CARD_CLASS
           : isImageLink
             ? "text-left text-[1em] font-medium leading-[inherit] text-[#2456a6] dark:text-blue-400"
             : isFileLink
-              ? "min-w-0 max-w-full items-start gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400"
+              ? "min-w-0 max-w-full items-baseline gap-1 text-left text-[1em] font-[inherit] leading-[inherit] text-[#2456a6] dark:text-blue-400 [&_[data-file-icon]]:relative [&_[data-file-icon]]:top-[0.125em]"
               : cn(
                   "max-w-[18rem] items-center gap-0.5 leading-snug text-[0.85em] font-medium",
                   badgeColorClass(data)

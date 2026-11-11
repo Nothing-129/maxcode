@@ -1,5 +1,5 @@
-//! Conversation-owned model/thinking choices. Global selector preferences
-//! seed new sessions; they must never replace an existing conversation's pair.
+//! Conversation-owned model/thinking choices and Codex Fast mode. Global
+//! selector preferences seed new sessions, never an existing conversation.
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -74,7 +74,11 @@ pub async fn preferences_for_connect(
         .transpose()
         .map_err(|e| DbError::Validation(format!("invalid conversation model config: {e}")))?
         .unwrap_or_default();
-    defaults.retain(|id, _| !is_model_config_id(id) && !values.contains_key(id));
+    defaults.retain(|id, _| {
+        !is_model_config_id(id)
+            && !is_codex_fast_config_id(agent_type, id)
+            && !values.contains_key(id)
+    });
     defaults.extend(values);
     // No snapshot yet (including externally imported histories): keep the
     // native session's restored choices, rather than guessing from defaults
@@ -89,16 +93,29 @@ fn is_model_config_id(id: &str) -> bool {
     )
 }
 
-fn model_config_values(options: &[SessionConfigOptionInfo]) -> BTreeMap<String, String> {
+pub(super) fn is_codex_fast_config_id(agent_type: AgentType, id: &str) -> bool {
+    agent_type == AgentType::Codex && matches!(id, "fast-mode" | "fast_mode")
+}
+
+fn model_config_values(
+    agent_type: AgentType,
+    options: &[SessionConfigOptionInfo],
+) -> BTreeMap<String, String> {
     options
         .iter()
         .filter(|option| {
             matches!(option.category.as_deref(), Some("model" | "thought_level"))
                 || is_model_config_id(&option.id)
+                || is_codex_fast_config_id(agent_type, &option.id)
         })
         .filter_map(|option| match &option.kind {
             SessionConfigKindInfo::Select(select) => {
                 Some((option.id.clone(), select.current_value.clone()))
+            }
+            SessionConfigKindInfo::Boolean(boolean)
+                if is_codex_fast_config_id(agent_type, &option.id) =>
+            {
+                Some((option.id.clone(), boolean.current_value.to_string()))
             }
             SessionConfigKindInfo::Boolean(_) => None,
         })
@@ -108,9 +125,10 @@ fn model_config_values(options: &[SessionConfigOptionInfo]) -> BTreeMap<String, 
 async fn save_model_config(
     db: &DatabaseConnection,
     conversation_id: i32,
+    agent_type: AgentType,
     options: &[SessionConfigOptionInfo],
 ) -> Result<(), DbError> {
-    let values = model_config_values(options);
+    let values = model_config_values(agent_type, options);
     if values.is_empty() {
         return Ok(());
     }
@@ -134,18 +152,19 @@ pub async fn persist_state(
     db: &DatabaseConnection,
     state: &Arc<RwLock<SessionState>>,
 ) -> Result<(), DbError> {
-    let (conversation_id, options) = {
+    let (conversation_id, agent_type, options) = {
         let state = state.read().await;
         if !state.selectors_ready {
             return Ok(());
         }
         (
             state.conversation_id.or(state.model_config_conversation_id),
+            state.agent_type,
             state.config_options.clone(),
         )
     };
     if let (Some(id), Some(options)) = (conversation_id, options) {
-        save_model_config(db, id, &options).await?;
+        save_model_config(db, id, agent_type, &options).await?;
     }
     Ok(())
 }
@@ -153,3 +172,7 @@ pub async fn persist_state(
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/conversation-model-memory.contract.rs"]
 mod contracts;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/conversation-fast-mode.contract.rs"]
+mod fast_mode_contracts;

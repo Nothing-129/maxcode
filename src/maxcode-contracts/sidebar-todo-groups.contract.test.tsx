@@ -302,9 +302,69 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
       const date = within(heading as HTMLElement).getByText("1102")
       expect(date.tagName).toBe("TIME")
       expect(date).toHaveAttribute("datetime", createdAt)
-      expect(date).toHaveClass("w-[4ch]", "shrink-0", "tabular-nums")
+      expect(date.parentElement).toHaveClass("tabular-nums")
+      expect(date.closest("[data-todo-meta]")).not.toBeNull()
       expect(within(heading as HTMLElement).getByText(id)).toBeVisible()
     }
+  })
+
+  it("shows board and linked todo groups in the mobile layout", async () => {
+    const originalMatchMedia = window.matchMedia
+    const matchMedia = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation((query) => {
+        const result = originalMatchMedia(query)
+        return query === "(max-width: 767px)"
+          ? { ...result, matches: true }
+          : result
+      })
+    try {
+      host.state!.todos = [myTodo("Board task")]
+      host.groups.mockResolvedValue({
+        scope_key: "personal",
+        groups: [group("Linked task", [1])],
+      })
+      render(sidebar())
+      await screen.findByText("Linked task")
+      for (const id of ["Board task", "Linked task"]) {
+        const heading = document.querySelector(`[data-todo-group-id="${id}"]`)!
+        expect(heading.querySelector("[data-todo-title]")).toHaveTextContent(id)
+        expect(heading.querySelector("[data-todo-meta]")).toHaveTextContent(
+          "To do"
+        )
+      }
+      const conversationRow = document.querySelector(
+        '[data-sidebar-disclosure-row="todo-Linked task-conv-codex-1"] [data-conv-key]'
+      )!
+      expect(conversationRow).toHaveClass("h-[1.9375rem]")
+      expect(
+        conversationRow.querySelector("[data-mobile-conversation-meta]")
+      ).toBeNull()
+      expect(conversationRow).toHaveTextContent("Conversation 1")
+      expect(conversationRow).not.toHaveTextContent("Repo")
+    } finally {
+      matchMedia.mockRestore()
+    }
+  })
+
+  it("keeps linked conversations on one line without a folder in the desktop todo group", async () => {
+    host.groups.mockResolvedValue({
+      scope_key: "personal",
+      groups: [group("Linked task", [1])],
+    })
+    render(sidebar())
+    await screen.findByText("Linked task")
+    const heading = document.querySelector(
+      '[data-todo-group-id="Linked task"]'
+    )!
+    expect(heading.querySelector("[data-todo-meta]")).toHaveTextContent("To do")
+    const row = document.querySelector(
+      '[data-sidebar-disclosure-row="todo-Linked task-conv-codex-1"] [data-conv-key]'
+    )!
+    expect(row).toHaveClass("h-[1.9375rem]")
+    expect(row).toHaveTextContent("Conversation 1")
+    expect(row).not.toHaveTextContent("Repo")
+    expect(row.querySelector("[data-mobile-conversation-meta]")).toBeNull()
   })
 
   it("matches conversation typography and shows only one date and the topic", () => {
@@ -317,20 +377,15 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     ]
     render(sidebar())
     const topic = screen.getByText("检查分组样式")
-    const label = topic.closest(".maxcode-sidebar-label")!
-    expect(label).toHaveClass(
-      "gap-2",
+    expect(topic).toHaveClass(
       "text-[0.875rem]",
-      "leading-[1.375rem]",
+      "leading-[1.25rem]",
       "font-[430]"
     )
-    expect(within(label as HTMLElement).getByText("1102")).toHaveClass(
-      "w-[4ch]",
-      "text-xs",
-      "text-muted-foreground",
-      "tabular-nums"
-    )
-    expect(label).toHaveTextContent("1102检查分组样式")
+    const group = topic.closest("[data-todo-group-id]") as HTMLElement
+    expect(
+      within(group).getByText("1102").closest("[data-todo-meta]")
+    ).not.toBeNull()
     expect(screen.queryByText("1026")).not.toBeInTheDocument()
     expect(topic).toHaveClass("truncate")
   })
@@ -509,13 +564,13 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => {
       expect(
         document.querySelector('[data-todo-group-id="First"] button')
-      ).toHaveTextContent(/^1016FirstTo do$/)
+      ).toHaveTextContent(/^First1016To do$/)
     })
     expect(document.querySelectorAll("[data-todo-group-id]")).toHaveLength(4)
     for (const id of ["First", "Second", "Third", "Fourth"]) {
       expect(
         document.querySelector(`[data-todo-group-id="${id}"] button`)
-      ).toHaveTextContent(new RegExp(`^1016${id}To do$`))
+      ).toHaveTextContent(new RegExp(`^${id}1016To do$`))
       expect(
         screen.getByRole("button", { name: `New conversation from ${id}` })
       ).toBeEnabled()
@@ -535,7 +590,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
     expect(
       document.querySelector('[data-todo-group-id="My task"] button')
-    ).toHaveTextContent(/^1016My taskTo do$/)
+    ).toHaveTextContent(/^My task1016To do$/)
 
     host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
     host.state = { ...host.state!, todos: [myTodo("New task")] }
@@ -935,7 +990,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
           screen.getByRole("button", { name: "Second task To do" })
         ).toHaveAttribute("aria-expanded", "false")
         expect(
-          screen.getByRole("button", { name: "1016 Empty task To do" })
+          screen.getByRole("button", { name: "Empty task 1016 To do" })
         ).toHaveAttribute("aria-expanded", "false")
         expect(todoRow(1)).not.toBeInTheDocument()
       } else {

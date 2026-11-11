@@ -29,8 +29,8 @@ describe("suggestion adoption preserves single-line composer height", () => {
   it("keeps compact and tall floors with the original action row", () => {
     for (const { boxRem, editable } of Object.values(COMPOSER_SIZING)) {
       const editableRem = Number(editable.match(/\[([\d.]+)rem\]/)![1])
-      // 32px actions + 8px bottom padding + two 1px borders, at 16px/rem.
-      expect(editableRem + 2 + 0.5 + 0.125).toBe(boxRem)
+      // 32px actions + 4px bottom padding + two 1px borders, at 16px/rem.
+      expect(editableRem + 2 + 0.25 + 0.125).toBe(boxRem)
       // One 21px line and 28px editor padding fit without growing the box.
       expect(editableRem * 16).toBeGreaterThanOrEqual(21 + 28)
     }

@@ -11182,7 +11182,7 @@ supports_websockets = true`}
                                   event.target.value
                                 )
                               }}
-                              placeholder="claude-fable-5-1"
+                              placeholder="claude-fable-5-2"
                             />
                           </div>
                         </div>

@@ -497,6 +497,27 @@ describe("SidebarConversationList — Pinned section (migration semantics)", () 
     })
   })
 
+  it("shows the folder below a pinned title on mobile", () => {
+    const originalMatchMedia = window.matchMedia
+    const matchMedia = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation((query) => {
+        const result = originalMatchMedia(query)
+        return query === "(max-width: 767px)"
+          ? { ...result, matches: true }
+          : result
+      })
+    try {
+      render(tree())
+      const row = document.querySelector('[data-conv-key="claude_code:12"]')!
+      expect(
+        row.querySelector("[data-mobile-conversation-meta]")
+      ).toHaveTextContent("Folder 1")
+    } finally {
+      matchMedia.mockRestore()
+    }
+  })
+
   it("moves a pinned conversation into the Pinned section above Folders, without duplicating it", () => {
     render(tree())
     const text = document.body.textContent ?? ""

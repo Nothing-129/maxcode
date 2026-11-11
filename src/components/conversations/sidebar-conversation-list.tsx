@@ -8,6 +8,7 @@ import {
 } from "@/lib/sidebar-navigation"
 import { useSidebarScrollMotion } from "@/hooks/use-sidebar-scroll-motion"
 import { useSidebarDisclosureMotion } from "@/hooks/use-sidebar-disclosure-motion"
+import { useIsMobile } from "@/hooks/use-mobile"
 import { subscribeWorkspacePreferences } from "@/lib/workspace-preferences-store"
 
 import {
@@ -1029,6 +1030,7 @@ export function SidebarConversationList({
   ref?: Ref<SidebarConversationListHandle>
 }) {
   const recentPageSize = sidebarPageSize(view)
+  const isMobile = useIsMobile()
   const selectionMotionId = useId()
   const t = useTranslations("Folder.sidebar")
   const tCommon = useTranslations("Folder.common")
@@ -3861,15 +3863,18 @@ export function SidebarConversationList({
       )
     }
     const conv = row.conversation
-    const recentFolderName = row.recent
-      ? recentConversationFolderLabel(conv, allFolders)
-      : null
+    const recentFolderName =
+      row.recent || (isMobile && !row.todoId)
+        ? recentConversationFolderLabel(conv, allFolders)
+        : null
     // No folder tint reaches this row: a card always renders in the app theme,
     // whichever colour its folder carries. The colour is a label for the FOLDER,
     // not a skin for the sessions inside it.
     return (
       <SidebarConversationCard
         conversation={conv}
+        isMobile={isMobile}
+        compactMobile={Boolean(row.todoId)}
         selectionId={`${selectionMotionId}:${row.todoId ?? (row.recent ? "recent" : conv.folder_id)}`}
         isSelected={
           selectedConversation?.agentType === conv.agent_type &&
@@ -3903,7 +3908,9 @@ export function SidebarConversationList({
         onToggleExpand={toggleConversation}
         folderLabel={
           recentFolderName ??
-          (row.recent && conv.kind === "chat" ? t("sectionChats") : undefined)
+          ((row.recent || (isMobile && !row.todoId)) && conv.kind === "chat"
+            ? t("sectionChats")
+            : undefined)
         }
         showFolderIcon={recentFolderName != null}
       />

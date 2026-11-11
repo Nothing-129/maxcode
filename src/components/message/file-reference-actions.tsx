@@ -308,7 +308,7 @@ export function FileReferenceActions({
       <ContextMenuTrigger asChild>
         <span
           data-file-actions=""
-          className="inline-flex max-w-full items-center align-middle"
+          className="inline max-w-full align-baseline"
           // Radix's own handler still runs (it is merged onto this same
           // element); only the ancestor conversation-panel trigger is cut off.
           onContextMenu={(event) => event.stopPropagation()}

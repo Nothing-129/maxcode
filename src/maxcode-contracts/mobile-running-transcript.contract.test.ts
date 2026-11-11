@@ -16,7 +16,7 @@ const prompt: MessageTurn = {
   timestamp: "2026-10-16T11:09:50Z",
 }
 const progress = ["Checking changes.", "Uploading the build."]
-const detail: DbConversationDetail = {
+const baseDetail: DbConversationDetail = {
   summary: {
     id: 42,
     folder_id: 1,
@@ -54,9 +54,24 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-it.each(["history-first", "snapshot-first"])(
-  "shows one prompt and one running reply when a phone attaches: %s",
-  async (order) => {
+it.each(
+  ["history-first", "snapshot-first"].flatMap((order) =>
+    [
+      "publish changes",
+      "服务／应用   包名\n百度统计\t\tcom.baidu.duershow.statistic",
+    ].map((text) => ({ order, text }))
+  )
+)(
+  "shows one prompt and one running reply when a phone attaches: $order / $text",
+  async ({ order, text }) => {
+    const spacedPrompt: MessageTurn = {
+      ...prompt,
+      blocks: [{ type: "text", text }],
+    }
+    const detail: DbConversationDetail = {
+      ...baseDetail,
+      turns: [spacedPrompt, ...baseDetail.turns.slice(1)],
+    }
     vi.mocked(getFolderConversation).mockResolvedValue(detail)
     const runtime = useConversationRuntimeStore.getState().actions
     const snapshot = () => {
@@ -70,7 +85,7 @@ it.each(["history-first", "snapshot-first"])(
         },
         true
       )
-      runtime.appendViewerUserTurn(42, prompt)
+      runtime.appendViewerUserTurn(42, spacedPrompt)
     }
     if (order === "snapshot-first") snapshot()
     runtime.refetchDetail(42)
@@ -83,15 +98,33 @@ it.each(["history-first", "snapshot-first"])(
 
     const turns = getTimelineTurns(42)
     expect(turns.map((item) => item.turn.role)).toEqual(["user", "assistant"])
+    expect(turns[0].turn.blocks).toEqual(spacedPrompt.blocks)
     expect(turns[1].phase).toBe("streaming")
     expect(turns[1].turn.blocks).toEqual([
       { type: "text", text: progress.join("\n\n") },
     ])
+
+    const settled = { ...detail, in_flight_user_turn_id: null }
+    vi.mocked(getFolderConversation).mockResolvedValue(settled)
+    runtime.refetchDetail(42)
+    await vi.waitFor(() => {
+      expect(
+        useConversationRuntimeStore.getState().byConversationId.get(42)?.detail
+      ).toBe(settled)
+    })
+    const completed = getTimelineTurns(42)
+    expect(completed.map((item) => item.turn.id)).toEqual([
+      prompt.id,
+      "turn-1",
+      "turn-2",
+    ])
+    expect(completed[0].turn.blocks).toEqual(spacedPrompt.blocks)
+    expect(completed.every((item) => item.phase === "persisted")).toBe(true)
   }
 )
 
 it("keeps all persisted progress when no live snapshot is available", async () => {
-  vi.mocked(getFolderConversation).mockResolvedValue(detail)
+  vi.mocked(getFolderConversation).mockResolvedValue(baseDetail)
   useConversationRuntimeStore.getState().actions.refetchDetail(42)
   await vi.waitFor(() => expect(getTimelineTurns(42)).toHaveLength(3))
   expect(getTimelineTurns(42).map((item) => item.turn.id)).toEqual([

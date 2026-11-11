@@ -2,6 +2,115 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "runtime.selected-upstream-20261111",
+      "category": "runtime",
+      "origins": [
+        "9a565b2d0",
+        "0fe09eb34",
+        "6ee6f1fe5",
+        "38dbe5fea",
+        "598451b8d",
+        "dbcbbb61d",
+        "80fd043f6",
+        "cd35a36c7",
+        "6677de432"
+      ],
+      "description": "Codex forks retain MCP servers while DeepSeek keeps resume-only injection. Codex async questions yield atomically and provider mismatch never rebinds history, retaining MaxCode's specific provider-missing error. Grok background progress patches existing cards without resurrecting replies. Shared bounded highlighting cancels obsolete requests and preserves file previews; Docker ships the Streamdown lifecycle patch. Only Claude 0.106.0, Codex 2.6.0 and William ZCode 0.83.3 pins advance; Claude loaded compactions are not replayed into live history. Missing concrete Claude picks may advance only to one newer same-family alias; still-advertised concrete picks, older models, other families and ambiguous rows are never migrated.",
+      "paths": [
+        "src-tauri/src/acp/fork.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src-tauri/src/acp/manager.rs",
+        "src-tauri/src/acp/question.rs",
+        "src-tauri/src/acp/registry.rs",
+        "src-tauri/src/acp/session_state.rs",
+        "src-tauri/src/acp/types.rs",
+        "src-tauri/src/acp/preflight.rs",
+        "src-tauri/src/parsers/codex.rs",
+        "src-tauri/src/parsers/codex_async_questions.rs",
+        "src-tauri/src/parsers/claude.rs",
+        "src/contexts/acp-connections-context.tsx",
+        "src/stores/conversation-runtime-store.ts",
+        "src/components/message/agent-tool-call.tsx",
+        "src/lib/code-highlighter.ts",
+        "src/components/ai-elements/code-block.tsx",
+        "src/components/ai-elements/streamdown-plugins.ts",
+        "src/components/files/file-viewer-drawer.tsx",
+        "src/lib/types.ts",
+        "patches/streamdown@2.7.1.patch",
+        "pnpm-workspace.yaml",
+        "Dockerfile",
+        "src/maxcode-contracts/upstream-selected-20261111.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/upstream-selected-20261111.contract.test.ts"
+      ]
+    },
+    {
+      "id": "automation.mcp-chat-target",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-11"
+      ],
+      "description": "MCP create_automation accepts an explicit chat target without a project, stores shared-in-root isolation, inherits the caller agent, rejects conflicting project paths and task-board actions, and honors the live setting. Omitted target retains project resolution.",
+      "paths": [
+        "src-tauri/src/acp/chat_authoring.rs",
+        "src-tauri/src/acp/delegation/companion.rs",
+        "src-tauri/src/acp/delegation/tool_schema.json",
+        "src-tauri/src/commands/chat_authoring.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/automation-mcp-chat.contract.test.ts"
+      ]
+    },
+    {
+      "id": "sidebar.mobile-todo-group-layout",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-10"
+      ],
+      "description": "Sidebar todo groups on mobile and desktop show a single-line title with their creation date and status aligned below. Conversations under a todo stay on one compact line without a folder label. Expansion, details and new-conversation actions remain usable.",
+      "paths": [
+        "src/components/conversations/sidebar-todo-group-header.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-todo-group-layout.contract.test.tsx",
+        "src/maxcode-contracts/desktop-todo-group-layout.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.mobile-conversation-titles",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-10"
+      ],
+      "description": "Mobile conversation rows show a single truncated title with the structured date, folder and relative time beneath in aligned columns, except conversations under a todo, which stay compact and omit the folder. The folder name truncates before time; status and actions remain available. Desktop rows remain compact and the virtual list measures mobile row heights.",
+      "paths": [
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/mobile-conversation-title.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.immediate-turn-duration",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-10"
+      ],
+      "description": "A completed live reply immediately shows its frozen running clock without waiting for transcript metadata; merged assistant steps must not double-count the later parsed durations, and history retains its parsed timing.",
+      "paths": [
+        "src/stores/conversation-runtime-store.ts",
+        "src/lib/types.ts",
+        "src/lib/adapters/ai-elements-adapter.ts",
+        "src/components/message/message-list-view.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/immediate-turn-duration.contract.test.tsx"
+      ]
+    },
+    {
       "id": "sidebar.web-compact-header",
       "category": "product",
       "origins": [
@@ -43,7 +152,7 @@
       "origins": [
         "worktree-2026-11-09"
       ],
-      "description": "The rail uses icon-only function buttons with title/accessible labels and a subtle neutral rounded-square selected background; hover and keyboard focus feedback remain. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations; Automations and Statistics hide the list sidebar without changing saved panel preferences or showing conversation controls, while Tasks shows only assigned-todo groups and their linked sessions. Linked conversations stay within the task workspace with Tasks selected and a Task board return action; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a subdued clickable Today/date-range text to the right of the MaxCode wordmark instead of a filter icon, with both start/end date inputs always visible inside the popover and custom clearing inside it; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
+      "description": "The rail uses icon-only function buttons with title/accessible labels and a subtle neutral rounded-square selected background; hover and keyboard focus feedback remain. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations; Automations and Statistics hide the list sidebar without changing saved panel preferences or showing conversation controls, while Tasks shows only assigned-todo groups and their linked sessions. Linked conversations stay within the task workspace with Tasks selected and a centered Task board return action sharing New chat alignment and dimensions with a transparent resting background and no route-selected highlighting; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a compact neutral rounded date button with a calendar icon, truncated Today/date-range label and chevron to the right of the MaxCode wordmark, with the full interval in its hover title and a compact Web header wordmark to reserve room for the date label, with start/end date inputs visible only after selecting Custom (defaulting to the first and last day of the current local month), preserving the other endpoint when editing a valid range and custom clearing inside it; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/contexts/workbench-route-context.tsx",
@@ -52,6 +161,7 @@
         "src/components/layout/workspace-navigation-rail.tsx",
         "src/components/layout/sidebar.tsx",
         "src/components/layout/recent-date-filter.tsx",
+        "src/components/layout/sidebar-wordmark.tsx",
         "src/contexts/sidebar-navigation-context.tsx",
         "src/lib/sidebar-navigation.ts",
         "src/components/conversations/sidebar-conversation-list.tsx",
@@ -59,7 +169,8 @@
         "src/i18n/messages/"
       ],
       "contracts": [
-        "src/maxcode-contracts/sidebar-functional-navigation.contract.test.tsx"
+        "src/maxcode-contracts/sidebar-functional-navigation.contract.test.tsx",
+        "src/maxcode-contracts/custom-date-filter.contract.test.tsx"
       ]
     },
     {
@@ -146,12 +257,13 @@
       "origins": [
         "worktree-2026-11-05"
       ],
-      "description": "Adopting a single-line prompt suggestion preserves composer height. Suggestion adoption fits the original 32px action row without increasing bottom spacing; motion CSS must not override that floor. Compact and tall editable floors include the action row and padding.",
+      "description": "Adopting a single-line prompt suggestion preserves composer height. Suggestion adoption fits the 32px action row with a compact 4px bottom inset without increasing bottom spacing; motion CSS must not override that floor. Compact and tall editable floors include the action row and padding.",
       "paths": [
         "src/app/interaction-motion.css",
         "src/components/chat/message-input.tsx",
         "src/components/chat/composer/composer-sizing.ts",
-        "src/components/chat/composer/accept-prompt-suggestion.tsx"
+        "src/components/chat/composer/accept-prompt-suggestion.tsx",
+        "scripts/browser/composer-suggestion.e2e.mjs"
       ],
       "contracts": [
         "src/maxcode-contracts/composer-suggestion-height.contract.test.ts"
@@ -2048,9 +2160,10 @@
     {
       "id": "chat.mobile-running-transcript-dedup",
       "category": "runtime",
-      "description": "A phone attaching during the first Codex round reconciles persisted commentary with the live snapshot once. Original record timestamps permit first-round live correlation despite completed commentary messages; missing timestamps and older identical prompts remain conservative. Timestamp provenance stays internal to the server.",
+      "description": "A phone attaching during the first Codex round reconciles persisted commentary with the live snapshot once. Original record timestamps permit first-round live correlation despite completed commentary messages; missing timestamps and older identical prompts remain conservative. Timestamp provenance stays internal to the server. Codex user text preserves internal spaces, tabs and code indentation so exact live-prompt correlation succeeds without conflating distinct prompts.",
       "origins": [
-        "worktree-2026-10-16"
+        "worktree-2026-10-16",
+        "worktree-2026-11-10"
       ],
       "paths": [
         "src-tauri/src/commands/conversations.rs",
@@ -2823,6 +2936,26 @@
       "contracts": [
         "src/maxcode-contracts/conversation-model-memory.contract.test.ts",
         "src/maxcode-contracts/conversation-selector-preview.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.codex-conversation-fast-mode",
+      "category": "product",
+      "description": "Codex Fast mode belongs to each conversation: confirmed Fast values persist with the model, history restoration never replays another conversation's Fast default, and legacy histories retain native values. New sessions keep the recent Fast preference. Select and boolean option representations preserve the same choice.",
+      "origins": [
+        "worktree-2026-11-10"
+      ],
+      "paths": [
+        "src/lib/selector-prefs-storage.ts",
+        "src/contexts/acp-connections-context.tsx",
+        "src/hooks/use-conversation-selector-preview.ts",
+        "src-tauri/src/acp/conversation_model_config.rs",
+        "src-tauri/src/acp/connection.rs",
+        "src/maxcode-contracts/conversation-fast-mode.contract.rs",
+        "src/maxcode-contracts/conversation-fast-mode-wire.contract.rs"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/conversation-fast-mode.contract.test.ts"
       ]
     },
     {
@@ -4640,11 +4773,12 @@
     {
       "id": "chat.file-link-presentation",
       "category": "product",
-      "description": "Transcript file links use the full available width and wrap long filenames on desktop and mobile, with body-sized blue labels, outline image-link icons, and offline VSCode Icons artwork for other files determined from exact filenames and compound extensions, including distinct Markdown/MDX/HTML/CSS/JS/TS/React/config formats and native theme variants. Composer reference chips remain compact and all file actions are preserved.",
+      "description": "Transcript file links align their labels with the surrounding prose baseline, use the full available width and wrap long filenames on desktop and mobile, with body-sized blue labels, outline image-link icons, and offline VSCode Icons artwork for other files determined from exact filenames and compound extensions, including distinct Markdown/MDX/HTML/CSS/JS/TS/React/config formats and native theme variants. Composer reference chips remain compact and all file actions are preserved.",
       "origins": [
         "worktree-2026-09-09"
       ],
       "paths": [
+        "src/components/message/file-reference-actions.tsx",
         "src/components/ai-elements/markdown-link.tsx",
         "src/components/chat/composer/badges/reference-badge.tsx",
         "src/components/chat/composer/badges/file-type-icon.tsx",

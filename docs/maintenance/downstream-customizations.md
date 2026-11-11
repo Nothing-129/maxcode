@@ -248,9 +248,11 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | Antigravity 账号 | OAuth 登录可安全退出并切换 Google 账号；退出前阻断新连接并停止存活进程，调用 ACP logout 后恢复认证方式，同时保留 stdout/stderr 双流登录链接识别 | `7861d6ed`、`de096bb4`、`worktree-2026-09-15` | `agents.antigravity-sign-out` |
 | Codex 子智能体 | 原生子智能体胶囊显示真实结束状态和最终报告，可打开子会话；`list_agents` 还原为协作胶囊，保留 MaxCode 费用、耗时、上下文过滤与既有会话查看器 | `34b0f7fb`、`worktree-2026-09-15` | `chat.codex-native-subagent-results` |
 | 9 月 30 日智能体更新 | Claude ACP 0.84.0、Codex ACP 2.0.1、Pi ACP 0.0.34、Grok 1.0.44、ZCode ACP 0.53.2；恢复 Claude AIR 文件输入、保留 Codex 同文件全部 Diff 片段并同步卡片与行数统计。ZCode 分叉/Plan 限制继续保留，等待原生运行时模式转换验证 | `worktree-2026-09-30` | `agents.release-file-changes-20260930` |
+| 2026-11-11 定向集成 | Codex 分叉保留 MCP、异步提问与提供商历史保护；Grok 跨回合后台进度；共享高亮限额与请求取消；Claude 0.106.0 / Codex 2.6.0 / ZCode 0.83.3；保留本地下游行为 | `9a565b2d0`、`0fe09eb34`、`6ee6f1fe5`、`598451b8d`、`dbcbbb61d`、`80fd043f6` | `runtime.selected-upstream-20261111` |
 | 智能体版本目录 | 内置安装及强制自动更新目标采用已评审版本；OpenCode 1.18.30 的六个平台资产继续要求独立 SHA256 | `8c461154`、`1055edc4`、`e588125b`、`25882257`、`worktree-2026-09-15` | `agents.reviewed-version-catalog`、`agents.opencode-verified-distribution` |
 | 智能体自动更新 | 维护范围内已启用且已安装的智能体强制后台更新，支持 npm（含 ZCode 社区适配器）、二进制、Python，无独立开关；独立目录下载验证，空闲时原子切换，失败保留旧安装 | `worktree-2026-09-14`、`feat/zcode-agent`、`worktree-2026-09-26` | `settings.agent-auto-updates` |
 | 智能体安装 | 手动 npm 安装、升级、重试及自定义包查询使用 npm.aifalao.net；在线版本检测与自动安装使用官方 registry.npmjs.org，适配器与 CLI 独立检测 | `worktree-2026-09-14` | `settings.agent-npm-mirror` |
+| 自动化 | MCP 创建支持显式 `target: "chat"`，无需项目；省略时保持项目解析，聊天任务继承调用会话智能体，拒绝项目路径和看板排队冲突 | `worktree-2026-11-11` | `automation.mcp-chat-target` |
 | 自动化 | 支持挂载个人/团队待办；运行时读取最新内容并关联执行会话；MCP 支持查询、修改、启停、立即运行、删除和运行记录管理，调用时复查开关 | `worktree-2026-10-29` | `automation.todo-mount-and-mcp` |
 | 自动化 | 空白及模板新建默认不勾选「每次运行新建 worktree」，使用所选文件夹；编辑保留已保存的隔离设置，允许手动勾选 | `worktree-2026-09-11` | `automations.worktree-opt-in` |
 | 跨端已读 | 手机与桌面共享后端已读回执，实时广播并在重连及恢复前台时补同步 | `worktree-2026-09-10` | `conversations.cross-device-read` |

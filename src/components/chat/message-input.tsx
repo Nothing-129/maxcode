@@ -2361,7 +2361,7 @@ export function MessageInput({
                 // (see above); RichComposer explains the basis.
                 className={cn("grow", editableMinHeight)}
               />
-              <div className="flex shrink-0 items-center justify-between gap-1 px-2 pb-2">
+              <div className="flex shrink-0 items-center justify-between gap-1 px-2 pb-1">
                 <div className="flex min-w-0 flex-1 items-center gap-1">
                   <ComposerAddMenu
                     collaboration={collapsedSettings.find(

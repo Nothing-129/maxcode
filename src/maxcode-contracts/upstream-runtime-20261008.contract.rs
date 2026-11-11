@@ -41,7 +41,7 @@ fn writer_lock_uses_typed_reason_and_other_failures_keep_their_classification() 
 }
 
 #[test]
-fn saved_claude_alias_never_moves_to_a_different_or_ambiguous_model() {
+fn saved_claude_alias_only_advances_to_an_unambiguous_newer_family_alias() {
     let option = |rows| {
         serde_json::from_value::<SessionConfigOption>(json!({
             "id":"model","name":"Model","category":"model","type":"select",
@@ -54,11 +54,24 @@ fn saved_claude_alias_never_moves_to_a_different_or_ambiguous_model() {
         heal_retired_model_pick(&option(rows), "claude-fable-5-1").as_deref(),
         Some("fable")
     );
-    assert!(heal_retired_model_pick(
+    assert_eq!(heal_retired_model_pick(
         &option(json!([{"value":"fable","name":"Fable 5.2"}])),
         "claude-fable-5-1"
-    )
-    .is_none());
+    ).as_deref(), Some("fable"));
+    // An explicitly available concrete model must never be upgraded.
+    assert!(heal_retired_model_pick(
+        &option(json!([
+            {"value":"claude-fable-5-1","name":"Fable 5.1"},
+            {"value":"fable","name":"Fable 5.2"}
+        ])), "claude-fable-5-1"
+    ).is_none());
+    // Neither another family nor an older same-family alias is a replacement.
+    for rows in [
+        json!([{"value":"opus","name":"Opus 6.0"}]),
+        json!([{"value":"fable","name":"Fable 5.0"}]),
+    ] {
+        assert!(heal_retired_model_pick(&option(rows), "claude-fable-5-1").is_none());
+    }
     assert!(heal_retired_model_pick(
         &option(json!([{"value":"a","name":"Fable 5.1"},{"value":"b","name":"Fable 5.1"}])),
         "claude-fable-5-1"

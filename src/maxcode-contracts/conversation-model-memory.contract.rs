@@ -88,12 +88,22 @@ async fn history_keeps_its_own_pair_across_database_reopen_and_other_conversatio
         .await
         .unwrap()
         .updated_at;
-    save_model_config(&db.conn, first, &pair("gpt-5.6", "medium"))
-        .await
-        .unwrap();
-    save_model_config(&db.conn, second, &pair("gpt-6.1-sol", "high"))
-        .await
-        .unwrap();
+    save_model_config(
+        &db.conn,
+        first,
+        AgentType::Codex,
+        &pair("gpt-5.6", "medium"),
+    )
+    .await
+    .unwrap();
+    save_model_config(
+        &db.conn,
+        second,
+        AgentType::Codex,
+        &pair("gpt-6.1-sol", "high"),
+    )
+    .await
+    .unwrap();
     let summary = conversation_service::get_by_id(&db.conn, first)
         .await
         .unwrap();
@@ -220,7 +230,7 @@ async fn preserving_an_outgoing_session_also_preserves_its_model_pair() {
     conversation_service::bind_external_id(&db.conn, id, "old", &[])
         .await
         .unwrap();
-    save_model_config(&db.conn, id, &pair("gpt-5.6", "medium"))
+    save_model_config(&db.conn, id, AgentType::Codex, &pair("gpt-5.6", "medium"))
         .await
         .unwrap();
     let preserved = conversation_service::bind_external_id(&db.conn, id, "new", &[])

@@ -21,7 +21,7 @@ const SidebarNavigationContext = createContext<{
   range: boolean
   setRange: (range: boolean) => void
   preset: ConversationDateFilter["preset"]
-  setPreset: (preset: DatePreset) => void
+  setPreset: (preset: DatePreset | "custom") => void
   today: string
 } | null>(null)
 
@@ -55,7 +55,19 @@ export function SidebarNavigationProvider({
 
   const { start: date, end: endDate } = resolveDateFilter(filter, today)
   const range = filter.preset === "custom" ? filter.range : date !== endDate
-  const setPreset = (preset: DatePreset) => setFilter({ preset })
+  const setPreset = (preset: DatePreset | "custom") => {
+    if (preset === "custom") {
+      const [year, month] = today.split("-").map(Number)
+      setFilter({
+        preset: "custom",
+        start: localDateKey(new Date(year, month - 1, 1)),
+        end: localDateKey(new Date(year, month, 0)),
+        range: true,
+      })
+      return
+    }
+    setFilter({ preset })
+  }
   const setDate = (value: string | null) => {
     if (value === null) {
       setPreset("today")
@@ -64,8 +76,8 @@ export function SidebarNavigationProvider({
     setFilter({
       preset: "custom",
       start: value,
-      end: range && endDate > value ? endDate : value,
-      range,
+      end: endDate > value ? endDate : value,
+      range: true,
     })
   }
   const setEndDate = (value: string) =>

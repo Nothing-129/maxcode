@@ -99,7 +99,7 @@ describe("composer secondary configuration", () => {
     )
     expect(menu).not.toContain("DropdownMenuSeparator")
     expect(source).toContain(
-      "flex shrink-0 items-center justify-between gap-1 px-2 pb-2"
+      "flex shrink-0 items-center justify-between gap-1 px-2 pb-1"
     )
     expect(source).toContain(
       "maxcode-composer-actions flex min-h-8 shrink-0 items-center"

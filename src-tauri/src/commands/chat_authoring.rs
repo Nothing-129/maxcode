@@ -23,8 +23,8 @@ use sea_orm::DatabaseConnection;
 use serde::{Deserialize, Serialize};
 
 use crate::acp::chat_authoring::{
-    local_timezone, AuthoringContext, AuthoringOutcome, ChatAuthoringAccess, ChatAuthoringConfig,
-    ChatAuthoringRuntimeConfig, NewAutomationSpec, NewWorkTaskSpec,
+    local_timezone, AuthoringContext, AuthoringOutcome, AutomationTarget, ChatAuthoringAccess,
+    ChatAuthoringConfig, ChatAuthoringRuntimeConfig, NewAutomationSpec, NewWorkTaskSpec,
 };
 use crate::acp::types::PromptInputBlock;
 use crate::app_error::AppCommandError;
@@ -233,9 +233,24 @@ impl ChatAuthoringAccess for DbChatAuthoring {
                  (Settings → General → Create from chat). Ask the user to enable it.",
             );
         }
-        let folder = match self.resolve_folder(&ctx, spec.folder_path.as_deref()).await {
-            Ok(f) => f,
-            Err(note) => return AuthoringOutcome::rejected(KIND_AUTOMATION, note),
+        let folder = match spec.target {
+            AutomationTarget::Chat => {
+                if spec.folder_path.is_some()
+                    || spec.action == crate::models::AutomationAction::EnqueueTask
+                {
+                    return AuthoringOutcome::rejected(
+                        KIND_AUTOMATION,
+                        "target chat cannot use folder_path or enqueue_task; choose target project for project work.",
+                    );
+                }
+                None
+            }
+            AutomationTarget::Project => {
+                match self.resolve_folder(&ctx, spec.folder_path.as_deref()).await {
+                    Ok(f) => Some(f),
+                    Err(note) => return AuthoringOutcome::rejected(KIND_AUTOMATION, note),
+                }
+            }
         };
         let agent = match parse_agent_slug(spec.agent_type.as_deref()) {
             Ok(a) => a,
@@ -244,7 +259,7 @@ impl ChatAuthoringAccess for DbChatAuthoring {
         // An automation always runs as a concrete agent (the fire path parses
         // this slug), so resolve a default rather than storing an empty string:
         // the project's configured agent, else whatever the caller is running as.
-        let agent = match agent.or(folder.default_agent_type) {
+        let agent = match agent.or_else(|| folder.as_ref().and_then(|f| f.default_agent_type)) {
             Some(a) => a,
             None => {
                 let from_caller = match ctx.conversation_id {
@@ -259,7 +274,7 @@ impl ChatAuthoringAccess for DbChatAuthoring {
                     None => {
                         return AuthoringOutcome::rejected(
                             KIND_AUTOMATION,
-                            "this project has no default agent — pass agent_type \
+                            "no default agent is available — pass agent_type \
                              (e.g. 'claude_code').",
                         );
                     }
@@ -303,11 +318,14 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             cron: cron.clone(),
             timezone: timezone.clone(),
             agent_type: agent.as_wire().into_owned(),
-            root_folder_id: Some(folder.id),
-            // A fresh worktree per run is the safe default and the only shape
-            // `enqueue_task` accepts; branch / shared-in-root stay an editor-only
-            // choice.
-            isolation: IsolationMode::WorktreePerRun,
+            root_folder_id: folder.as_ref().map(|f| f.id),
+            // Chat targets use the same isolation as the editor; projects keep
+            // the existing fresh-worktree default.
+            isolation: if folder.is_some() {
+                IsolationMode::WorktreePerRun
+            } else {
+                IsolationMode::SharedInRoot
+            },
             branch: None,
             is_remote_branch: false,
             config,
@@ -320,8 +338,8 @@ impl ChatAuthoringAccess for DbChatAuthoring {
                 kind: KIND_AUTOMATION.to_string(),
                 id: Some(info.id),
                 title: Some(info.name),
-                folder_name: Some(folder.name),
-                folder_path: Some(folder.path),
+                folder_name: folder.as_ref().map(|f| f.name.clone()),
+                folder_path: folder.as_ref().map(|f| f.path.clone()),
                 agent_type: Some(info.agent_type),
                 cron: info.cron,
                 timezone: Some(info.timezone),
@@ -608,6 +626,7 @@ mod tests {
 
     fn automation_spec() -> NewAutomationSpec {
         NewAutomationSpec {
+            target: Default::default(),
             todo_origins: vec![],
             name: "Nightly audit".into(),
             prompt: "audit the dependencies".into(),
@@ -828,3 +847,7 @@ mod tests {
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/mcp-defaults.contract.rs"]
 mod maxcode_mcp_defaults_contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/automation-mcp-chat.contract.rs"]
+mod maxcode_automation_mcp_chat_contract;

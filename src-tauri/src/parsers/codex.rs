@@ -13,6 +13,7 @@ use crate::acp::agent_mentions::{
 };
 use crate::acp::js_text::is_js_whitespace;
 use crate::models::*;
+use crate::parsers::codex_async_questions::{self, AsyncQuestionCall, ReplyMessage};
 use crate::parsers::codex_code_mode::{
     extract_chunk_ids, extract_shell_session_ids, is_code_mode_call, parse_code_mode_script,
     script_card_input, split_code_mode_output, with_note, CodeModeCall, CodeModeOutput,
@@ -3215,6 +3216,9 @@ impl CodexParser {
         // Live and reconstructed capsules never double-render (live during
         // streaming, this on reload).
         let mut spawn_agent_call_ids: HashSet<String> = HashSet::new();
+        // codex's `request_user_input_async` calls by call id, for the reply
+        // envelope that answers them (see `codex_async_questions`).
+        let mut async_question_calls: HashMap<String, AsyncQuestionCall> = HashMap::new();
         let mut agent_id_to_spawn_call_id: HashMap<String, String> = HashMap::new();
         // `agent_path` ("/root/history_limits") → the thread id currently
         // answering to it. Last write wins, which is exactly the pairing an
@@ -3550,6 +3554,22 @@ impl CodexParser {
                                     push_plan_review_marker(&mut messages, timestamp);
                                     continue;
                                 }
+
+                                let text = match codex_async_questions::take_reply(
+                                    &text,
+                                    &mut async_question_calls,
+                                ) {
+                                    ReplyMessage::NotAReply => text,
+                                    ReplyMessage::Display(display) => display,
+                                    ReplyMessage::Answered(calls) => {
+                                        refresh_async_question_results(
+                                            &mut messages,
+                                            &async_question_calls,
+                                            &calls,
+                                        );
+                                        continue;
+                                    }
+                                };
 
                                 let normalized = normalize_user_text(&text);
                                 if title.is_none() {
@@ -4183,6 +4203,13 @@ impl CodexParser {
                                     None
                                 };
 
+                                let async_question = (raw_tool_name
+                                    == codex_async_questions::TOOL_NAME)
+                                    .then(|| parse_codex_json_arg(payload))
+                                    .flatten()
+                                    .as_ref()
+                                    .and_then(AsyncQuestionCall::from_arguments);
+
                                 match raw_tool_name {
                                     // No card of its own: the output it is about
                                     // to collect IS the parked script's return
@@ -4193,6 +4220,32 @@ impl CodexParser {
                                         {
                                             deferred_waits.insert(id, cell);
                                         }
+                                    }
+                                    // codex's async question: the answered-question
+                                    // card live codeg shows for it, answered by the
+                                    // reply envelope later in the file.
+                                    _ if async_question.is_some() && tool_use_id.is_some() => {
+                                        let call = async_question.expect("guarded");
+                                        let id = tool_use_id.expect("guarded");
+                                        messages.push(UnifiedMessage {
+                                            id: format!("tool-{}", messages.len()),
+                                            role: MessageRole::Assistant,
+                                            content: vec![ContentBlock::ToolUse {
+                                                tool_use_id: Some(id.clone()),
+                                                tool_name: codex_async_questions::CARD_TOOL_NAME
+                                                    .to_string(),
+                                                input_preview: Some(call.card_input()),
+                                                status: None,
+                                                meta: None,
+                                            }],
+                                            timestamp,
+                                            usage: None,
+                                            duration_ms: None,
+                                            model: None,
+                                            completed_at: Some(timestamp),
+                                            agent_message_id: None,
+                                        });
+                                        async_question_calls.insert(id, call);
                                     }
                                     "spawn_agent" => {
                                         let args = parse_codex_json_arg(payload);
@@ -4540,6 +4593,30 @@ impl CodexParser {
                                         completed_at: Some(timestamp),
                                         agent_message_id: None,
                                     });
+                                } else if let Some(call) = tool_use_id
+                                    .as_ref()
+                                    .and_then(|id| async_question_calls.get_mut(id))
+                                {
+                                    // Not `{"accepted":true}`: what the user
+                                    // answered, as far as the file has said yet.
+                                    call.result_index = Some(messages.len());
+                                    messages.push(UnifiedMessage {
+                                        id: format!("tool-result-{}", messages.len()),
+                                        role: MessageRole::Tool,
+                                        content: vec![ContentBlock::ToolResult {
+                                            tool_use_id,
+                                            output_preview: Some(call.card_output()),
+                                            is_error: false,
+                                            agent_stats: None,
+                                            images: Vec::new(),
+                                        }],
+                                        timestamp,
+                                        usage: None,
+                                        duration_ms: None,
+                                        model: None,
+                                        completed_at: Some(timestamp),
+                                        agent_message_id: None,
+                                    });
                                 } else if is_spawn {
                                     if let Some(output_obj) = parse_codex_json_output(payload) {
                                         if let (Some(agent_id), Some(call_id)) = (
@@ -4828,7 +4905,32 @@ impl CodexParser {
                                 };
                                 // An image-only record has nothing for the
                                 // deny-lists (which are text rules) to judge.
-                                let text = first_text_block(&blocks).unwrap_or_default();
+                                let mut text = first_text_block(&blocks).unwrap_or_default();
+                                let mut blocks = blocks;
+                                // A reply to codex's async questions folds into
+                                // their card (see `codex_async_questions`).
+                                if is_user {
+                                    match codex_async_questions::take_reply(
+                                        &text,
+                                        &mut async_question_calls,
+                                    ) {
+                                        ReplyMessage::NotAReply => {}
+                                        ReplyMessage::Display(display) => {
+                                            blocks = vec![ContentBlock::Text {
+                                                text: display.clone(),
+                                            }];
+                                            text = display;
+                                        }
+                                        ReplyMessage::Answered(calls) => {
+                                            refresh_async_question_results(
+                                                &mut messages,
+                                                &async_question_calls,
+                                                &calls,
+                                            );
+                                            continue;
+                                        }
+                                    }
+                                }
 
                                 // Plan mode's plan document, intercepted ahead of
                                 // the promotion gate. It must render even where the
@@ -5810,6 +5912,29 @@ const PROMOTED_USER_DENY_PREFIXES: &[&str] = &[
     "Warning: apply_patch was requested via exec_command",
 ];
 
+/// Rewrite the result cards of the async question `calls` with the answers
+/// they now hold. A call whose output the file has not reached yet takes them
+/// when it does.
+fn refresh_async_question_results(
+    messages: &mut [UnifiedMessage],
+    async_question_calls: &HashMap<String, AsyncQuestionCall>,
+    calls: &[String],
+) {
+    for id in calls {
+        let Some(call) = async_question_calls.get(id) else {
+            continue;
+        };
+        let Some(message) = call.result_index.and_then(|i| messages.get_mut(i)) else {
+            continue;
+        };
+        for block in &mut message.content {
+            if let ContentBlock::ToolResult { output_preview, .. } = block {
+                *output_preview = Some(call.card_output());
+            }
+        }
+    }
+}
+
 /// Whether a candidate user record is machine context rather than a prompt.
 fn is_promotable_user_text(input: &str) -> bool {
     let trimmed = input.trim();
@@ -6684,11 +6809,9 @@ fn rename_compaction_divider(divider: &mut UnifiedMessage, id: &str) {
 /// text (`output_text`, `input_text`, `text`, `summary_text`, …); an item with
 /// neither is skipped rather than voiding the record.
 ///
-/// [`normalize_user_text`] is applied to user text only. It collapses runs of
-/// whitespace, which is right for a typed prompt (and is what the
-/// `event_msg.user_message` arm does) but would mangle indentation in assistant
-/// markdown — the `event_msg.agent_message` arm passes its text through
-/// verbatim, and this must match it.
+/// [`normalize_user_text`] is applied to user text only to decode attachments
+/// and remove internal resource markers, matching `event_msg.user_message`.
+/// Assistant markdown passes through verbatim, matching `event_msg.agent_message`.
 fn extract_response_item_message_blocks(
     payload: &serde_json::Value,
     is_user: bool,
@@ -6840,11 +6963,11 @@ fn normalize_user_text(raw: &str) -> String {
 fn strip_blocked_resource_mentions(input: &str) -> String {
     let blocked_re = Regex::new(r"@([^\s@]+)\s*\[blocked[^\]]*\]").expect("valid blocked regex");
     let image_tag_re = Regex::new(r"(?i)</?image\s*/?>").expect("valid image tag regex");
-    let collapsed_ws_re = Regex::new(r"[ \t]{2,}").expect("valid whitespace regex");
     let visible = strip_internal_agent_routes(input);
     let text = blocked_re.replace_all(&visible, "").to_string();
     let text = image_tag_re.replace_all(&text, "").to_string();
-    let text = collapsed_ws_re.replace_all(&text, " ").to_string();
+    // Live prompt correlation compares text exactly. Preserve internal spaces
+    // and tabs, including pasted tables and code indentation.
     text.trim().to_string()
 }
 
@@ -10427,7 +10550,7 @@ mod tests {
             text = text
         );
         let (summary, detail) = parse_both("desk-6", &content);
-        let shown = "# Files mentioned by the user:\n## a: /a\n## My request:\nx";
+        let shown = "#  Files mentioned by the user:\n## a: /a\n## My request:\nx";
         assert_eq!(sole_text(&detail.turns[0]), shown);
         assert_eq!(summary.title.as_deref(), Some(shown));
         assert_eq!(summary.title, detail.summary.title);
@@ -16971,8 +17094,8 @@ mod tests {
     #[test]
     fn promoted_assistant_text_keeps_its_whitespace() {
         // The `event_msg.agent_message` arm stores its text verbatim, while the
-        // user arms run `strip_blocked_resource_mentions` (which collapses runs
-        // of spaces — right for a typed prompt, ruinous for indented markdown).
+        // user arms run `strip_blocked_resource_mentions` to remove internal
+        // resource markers.
         // Promotion has to match each of them, not pick one.
         let content = concat!(
             "{\"timestamp\":\"2026-03-01T10:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"ws-1\",\"cwd\":\"/tmp/demo\"}}\n",
@@ -17213,6 +17336,116 @@ mod tests {
                 ("assistant", Some("Plain answer.".into())),
             ]
         );
+    }
+
+    /// codex 0.166's `request_user_input_async` through codex-acp 2.6.0,
+    /// recorded live (GPT-6.1 Sol): the call, codex's async agent message, the
+    /// `{"accepted":true}` output, then the answer the adapter steered into the
+    /// running turn as a reply envelope. History shows the answered-question
+    /// card live codeg showed, and no user bubble of raw envelope JSON.
+    #[test]
+    fn an_async_question_and_its_reply_read_as_one_answered_card() {
+        let envelope = "<send_user_message_question_reply>\n[{\"answer\":\"Staging\\n\\nprobe note\",\"question\":\"Which environment should I deploy to?\",\"questionItemId\":\"[\\\"request_user_input_async\\\",\\\"call_1\\\",0]\"}]\n</send_user_message_question_reply>";
+        let content = jsonl(&[
+            record(
+                "2026-11-09T12:41:40.770Z",
+                "session_meta",
+                serde_json::json!({"id": "ask-1", "cwd": "/w", "cli_version": "0.166.0", "model_provider": "fake"}),
+            ),
+            record(
+                "2026-11-09T12:41:40.771Z",
+                "event_msg",
+                serde_json::json!({"type": "task_started", "turn_id": "t1"}),
+            ),
+            record(
+                "2026-11-09T12:41:40.776Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": "ASKASYNC please"}],
+                    "internal_chat_message_metadata_passthrough": {"turn_id": "t1", "content_item_kinds": ["user.text"]}}),
+            ),
+            record(
+                "2026-11-09T12:41:40.776Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "turn_id": "t1", "item": {"type": "UserMessage", "id": "u1", "content": [{"type": "text", "text": "ASKASYNC please", "text_elements": []}]}}),
+            ),
+            record(
+                "2026-11-09T12:41:40.786Z",
+                "response_item",
+                serde_json::json!({"type": "function_call", "id": "fc_1", "name": "request_user_input_async",
+                    "arguments": "{\"questions\": [{\"title\": \"Which environment should I deploy to?\", \"options\": [\"Staging\", \"Production\"]}]}",
+                    "call_id": "call_1"}),
+            ),
+            record(
+                "2026-11-09T12:41:40.787Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "turn_id": "t1", "item": {"type": "AgentMessage", "id": "call_1",
+                    "content": [{"type": "Text", "text": "Which environment should I deploy to?\n- Staging\n- Production"}],
+                    "phase": "final_answer", "delivery": "async",
+                    "questions": [{"title": "Which environment should I deploy to?", "options": ["Staging", "Production"]}]}}),
+            ),
+            record(
+                "2026-11-09T12:41:40.789Z",
+                "response_item",
+                serde_json::json!({"type": "function_call_output", "id": "fco_1", "call_id": "call_1", "output": "{\"accepted\":true}"}),
+            ),
+            token_count("2026-11-09T12:41:40.790Z", 1000, 10),
+            record(
+                "2026-11-09T12:41:41.800Z",
+                "response_item",
+                serde_json::json!({"type": "message", "role": "user", "content": [{"type": "input_text", "text": envelope}]}),
+            ),
+            record(
+                "2026-11-09T12:41:41.801Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "turn_id": "t1", "item": {"type": "UserMessage", "id": "u2", "client_id": "0532430b", "content": [{"type": "text", "text": envelope, "text_elements": []}]}}),
+            ),
+            record(
+                "2026-11-09T12:41:41.825Z",
+                "event_msg",
+                serde_json::json!({"type": "item_completed", "turn_id": "t1", "item": {"type": "AgentMessage", "id": "msg_3", "content": [{"type": "Text", "text": "Deploying to staging."}]}}),
+            ),
+            assistant_item("2026-11-09T12:41:41.826Z", "Deploying to staging."),
+            token_count("2026-11-09T12:41:41.830Z", 2000, 20),
+            record(
+                "2026-11-09T12:41:41.831Z",
+                "event_msg",
+                serde_json::json!({"type": "task_complete", "turn_id": "t1", "last_agent_message": "Deploying to staging."}),
+            ),
+        ]);
+        let detail = parse_rollout("async-question", &content, "ask-1");
+
+        let uses = tool_uses(&detail);
+        assert_eq!(uses.len(), 1, "{uses:?}");
+        assert_eq!(uses[0].0, "call_1");
+        assert_eq!(uses[0].1, "request_user_input");
+        let input: serde_json::Value =
+            serde_json::from_str(uses[0].2.as_deref().expect("input")).unwrap();
+        assert_eq!(
+            input["questions"][0]["question"],
+            "Which environment should I deploy to?"
+        );
+        let results = tool_results(&detail);
+        assert_eq!(results.len(), 1, "{results:?}");
+        let output: serde_json::Value =
+            serde_json::from_str(results[0].1.as_deref().expect("output")).unwrap();
+        assert_eq!(
+            output,
+            serde_json::json!({"answers": {"question_0": {"answers": ["Staging", "user_note: probe note"]}}})
+        );
+        // One user turn: the envelope is folded into the card.
+        let texts = turn_texts(&detail);
+        assert_eq!(
+            texts.iter().filter(|(role, _)| *role == "user").count(),
+            1,
+            "{texts:?}"
+        );
+        assert!(
+            !texts
+                .iter()
+                .any(|(_, text)| text.as_deref().is_some_and(|t| t.contains("send_user_message"))),
+            "{texts:?}"
+        );
+        assert!(texts.contains(&("assistant", Some("Deploying to staging.".into()))));
     }
 
     /// codex 0.165 turns `reasoning_effort_override` on: under a ChatGPT

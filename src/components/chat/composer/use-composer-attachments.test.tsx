@@ -44,11 +44,13 @@ describe("composer attachments on Electron", () => {
     act(() => {
       pending = result.current.appendFilesFromInput([image])
     })
-    await waitFor(() =>
+    // Starting the request and committing React's attachment state are
+    // separate steps. Wait for both before resolving the held upload.
+    await waitFor(() => {
       expect(uploadAttachment).toHaveBeenCalledWith(image, "conversation-7")
-    )
-    expect(result.current.hasUploadingImage).toBe(true)
-    expect(result.current.imageAttachments[0].uri).toBeNull()
+      expect(result.current.hasUploadingImage).toBe(true)
+      expect(result.current.imageAttachments[0].uri).toBeNull()
+    })
 
     await act(async () => {
       finishUpload({ path: "/uploads/session-7/screen.png" })

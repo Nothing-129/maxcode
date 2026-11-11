@@ -1452,7 +1452,13 @@ fn parse_automation_spec(arguments: &Value) -> Result<NewAutomationSpec, String>
             ));
         }
     }
+    let target = match arguments.get("target") {
+        None => crate::acp::chat_authoring::AutomationTarget::Project,
+        Some(value) => serde_json::from_value(value.clone())
+            .map_err(|_| "create_automation `target` must be project or chat".to_string())?,
+    };
     Ok(NewAutomationSpec {
+        target,
         todo_origins: serde_json::from_value(
             arguments
                 .get("todo_origins")
@@ -3770,3 +3776,7 @@ mod tests {
 #[cfg(test)]
 #[path = "../../../../src/maxcode-contracts/upstream-runtime-feedback-20261015.contract.rs"]
 mod maxcode_upstream_feedback_20261015_contract;
+
+#[cfg(test)]
+#[path = "../../../../src/maxcode-contracts/automation-mcp-chat-wire.contract.rs"]
+mod maxcode_automation_mcp_chat_wire_contract;

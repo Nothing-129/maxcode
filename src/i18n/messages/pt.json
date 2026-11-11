@@ -2070,7 +2070,8 @@
           "last3": "Últimos 3 dias",
           "last7": "Últimos 7 dias",
           "week": "Esta semana",
-          "month": "Este mês"
+          "month": "Este mês",
+          "custom": "Personalizado"
         },
         "statistics": "Estatísticas",
         "settingsUpdate": "Configurações · Atualização disponível",
@@ -3142,6 +3143,7 @@
           "sessionLoadUnavailable": "{agent} não conseguiu restaurar esta sessão; ela pode ter terminado ou o agente parou. Recarregue para tentar novamente ou inicie uma nova conversa.",
           "sessionLoadBusy": "Esta sessão está aberta em outro lugar. Se outro cliente do {agent} (o app, a CLI ou uma extensão de IDE) estiver com ela aberta, feche-a lá ou encerre esse cliente e recarregue. Se você acabou de bifurcá-la, recarregue em cerca de um minuto.",
           "sessionProviderMissing": "O fornecedor de modelos desta sessão já não está configurado. O histórico continua no disco. Restaure a configuração original do fornecedor e recarregue a conversa.",
+          "sessionLoadProviderMismatch": "Esta conversa foi iniciada com um provedor de modelos diferente do que o {agent} usa agora, e o {agent} só continua uma conversa no próprio provedor dela. Volte para esse provedor nas configurações do {agent} e recarregue, ou inicie uma nova conversa. ({detail})",
           "sessionArchived": "A sessão anterior foi arquivada pelo {agent}. Execute {command} num terminal para restaurá-la e recarregá-la, ou inicie uma nova conversa.",
           "turnFailedRefusal": "{agent} recusou continuar este turno. Costuma indicar um erro de backend ou gateway. Confira os logs do agente.",
           "turnFailedMaxTokens": "{agent} atingiu o limite máximo de tokens para este turno.",

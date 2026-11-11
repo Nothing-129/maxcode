@@ -17,6 +17,11 @@ const data = {
 }
 
 describe("transcript file link style", () => {
+  it("keeps the file actions wrapper on the prose baseline", () => {
+    const wrapper = source("src/components/message/file-reference-actions.tsx")
+    expect(wrapper).toContain('className="inline max-w-full align-baseline"')
+    expect(wrapper).not.toContain("items-center align-middle")
+  })
   it("inherits body typography, uses local library artwork and expands to available width", () => {
     const { container, getByRole } = render(
       <ReferenceBadge data={data} appearance="file-link" />
@@ -26,10 +31,12 @@ describe("transcript file link style", () => {
       "font-[inherit]",
       "text-[#2456a6]",
       "max-w-full",
-      "items-start",
+      "items-baseline",
+      "align-baseline",
       "gap-1"
     )
     expect(getByRole("img")).not.toHaveClass("max-w-[18rem]")
+    expect(getByRole("img")).not.toHaveClass("align-middle")
     expect(container.querySelector("[data-file-icon]")).toHaveAttribute(
       "data-file-icon",
       "file-type-binary"

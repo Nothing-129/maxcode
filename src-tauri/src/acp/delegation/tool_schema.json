@@ -177,7 +177,7 @@
   },
   {
     "name": "create_automation",
-    "description": "Save a MaxCode Automation: a reusable job — a prompt plus a target project — that MaxCode runs on a cron schedule (or on demand) without anyone present. Use it when the user asks for work that should REPEAT or happen at a TIME rather than right now: 'every morning', 'each Monday', 'nightly', 'every 30 minutes', 'before standup', 'set up a recurring …'. Do NOT use it for work the user wants done in this conversation — just do that work. Each run starts a fresh headless session in its own worktree with no memory of this chat, so `prompt` must be completely self-contained: state the goal, the relevant paths, and what a finished run looks like. Creating an automation does not run it now; the tool returns the id and the next fire time so you can tell the user when it will first go off. The user can edit, disable, run, or delete it on the Automations page.",
+    "description": "Save a MaxCode Automation: a reusable job — a prompt plus a project or chat target — that MaxCode runs on a cron schedule (or on demand) without anyone present. Use it when the user asks for work that should REPEAT or happen at a TIME rather than right now: 'every morning', 'each Monday', 'nightly', 'every 30 minutes', 'before standup', 'set up a recurring …'. Do NOT use it for work the user wants done in this conversation — just do that work. Each run starts a fresh headless session (in its own worktree for project targets, or a chat directory for chat targets) with no memory of this chat, so `prompt` must be completely self-contained: state the goal, the relevant paths, and what a finished run looks like. Creating an automation does not run it now; the tool returns the id and the next fire time so you can tell the user when it will first go off. The user can edit, disable, run, or delete it on the Automations page.",
     "inputSchema": {
       "type": "object",
       "required": ["name", "prompt"],
@@ -209,7 +209,12 @@
         },
         "folder_path": {
           "type": "string",
-          "description": "Absolute path of the target project. Defaults to the project this conversation is in; pass it only to target a different project already open in MaxCode."
+          "description": "Absolute path of the target project. Defaults to the project this conversation is in; pass it only to target a different project already open in MaxCode. Only valid with target project; omit for target chat."
+        },
+        "target": {
+          "type": "string",
+          "enum": ["project", "chat"],
+          "description": "Execution target. Defaults to project and resolves the caller project or folder_path. Use chat for work without a project (聊天模式); omit folder_path. Chat supports launch_session only. This selects the target, not reuse of the current conversation. Agent defaults to the caller agent for chat; pass agent_type if no caller conversation is available."
         },
         "enabled": {
           "type": "boolean",

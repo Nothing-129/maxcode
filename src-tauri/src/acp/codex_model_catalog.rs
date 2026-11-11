@@ -147,6 +147,8 @@ fn enum_spec_for(key: &str) -> Option<EnumSpec> {
 /// field. Re-probed against the 0.160.1 binary: every field here and every
 /// enum set above behaves as on 0.159.3. Its one new key is nested — see
 /// [`model_messages_override_is_safe`].
+///
+/// Codex 0.166.0 keeps the 0.165.0 bundled catalog unchanged.
 const BOOL_FIELDS: &[&str] = &[
     "use_responses_lite",
     "supported_in_api",

@@ -1447,8 +1447,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
                 // cancelled-turn reports and interim background results;
                 // offer predicted prompts and preserve Remote Control sessions.
                 // Fork children exclude inherited usage and wait for real results.
-                version: "0.101.0",
-                package: "@agentclientprotocol/claude-agent-acp@0.101.0",
+                // 0.106.0: Claude Code 2.1.322 / ACP SDK 2.6.0.
+                // Loaded compaction replay is suppressed in connection.rs;
+                // Fable 5.2 model migration and summary framing are adapted.
+                version: "0.106.0",
+                package: "@agentclientprotocol/claude-agent-acp@0.106.0",
                 cmd: "claude-agent-acp",
                 args: &[],
                 env: &[],
@@ -2101,8 +2104,10 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             distribution: AgentDistribution::Npx {
                 // Reviewed 8b95fc1c: app-server crash classification, thread names,
                 // cache-write accounting and strict owned catalog validation.
-                version: "2.5.0",
-                package: "@agentclientprotocol/codex-acp@2.5.0",
+                // 2.6.0: Codex ^0.166.0. Async questions yield to newer asks;
+                // provider mismatch preserves history; forks carry MCP servers.
+                version: "2.6.0",
+                package: "@agentclientprotocol/codex-acp@2.6.0",
                 cmd: "codex-acp",
                 args: &[],
                 env: &[],
@@ -2948,8 +2953,11 @@ pub fn get_agent_meta(agent_type: AgentType) -> AcpAgentMeta {
             // without promptRequired. Keep ZCode on pull feedback; history
             // remains ACP-native with upstream runtime discovery.
             distribution: AgentDistribution::Npx {
-                version: "0.82.1",
-                package: "zcode-acp-server@0.82.1",
+                // 0.83.3 retains the William ACP runtime and transcript path.
+                // Filtered session/title lookup and Start Plan authentication
+                // are handled by the bridge, not local SQLite compatibility.
+                version: "0.83.3",
+                package: "zcode-acp-server@0.83.3",
                 cmd: "zcode-acp-server",
                 args: &["server"],
                 env: &[],
@@ -3251,14 +3259,14 @@ mod tests {
     fn registry_pins_current_acp_agent_versions() {
         assert_npx_version(
             AgentType::Zcode,
-            "0.82.1",
-            "zcode-acp-server@0.82.1",
+            "0.83.3",
+            "zcode-acp-server@0.83.3",
             Some("22.0.0"),
         );
         assert_npx_version(
             AgentType::ClaudeCode,
-            "0.101.0",
-            "@agentclientprotocol/claude-agent-acp@0.101.0",
+            "0.106.0",
+            "@agentclientprotocol/claude-agent-acp@0.106.0",
             Some("22.0.0"),
         );
         assert_npx_version(
@@ -3293,8 +3301,8 @@ mod tests {
         );
         assert_npx_version(
             AgentType::Codex,
-            "2.5.0",
-            "@agentclientprotocol/codex-acp@2.5.0",
+            "2.6.0",
+            "@agentclientprotocol/codex-acp@2.6.0",
             Some("20.3.0"),
         );
         assert_npx_version(AgentType::Pi, "0.0.34", "pi-acp@0.0.34", Some("22.0.0"));

@@ -2391,6 +2391,7 @@ interface TurnCacheEntry {
   role: MessageRole
   usage: TurnUsage | null | undefined
   duration_ms: number | null | undefined
+  observed_duration_ms: number | null | undefined
   model: string | null | undefined
   completed_at: string | null | undefined
   source_turn_id: string | null | undefined
@@ -2464,6 +2465,7 @@ export function createMessageTurnAdapter(): MessageTurnAdapter {
             cached.role === turn.role &&
             cached.usage === turn.usage &&
             cached.duration_ms === turn.duration_ms &&
+            cached.observed_duration_ms === turn.observed_duration_ms &&
             cached.model === turn.model &&
             cached.completed_at === turn.completed_at &&
             cached.source_turn_id === turn.source_turn_id
@@ -2499,6 +2501,7 @@ export function createMessageTurnAdapter(): MessageTurnAdapter {
             role: turn.role,
             usage: turn.usage,
             duration_ms: turn.duration_ms,
+            observed_duration_ms: turn.observed_duration_ms,
             model: turn.model,
             completed_at: turn.completed_at,
             source_turn_id: turn.source_turn_id,

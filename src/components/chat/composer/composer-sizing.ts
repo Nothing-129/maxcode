@@ -16,9 +16,9 @@
 
 /**
  * The action row's height: 2rem controls, including suggestion adoption,
- * plus the row's `pb-2`.
+ * plus the row's compact `pb-1` bottom inset.
  */
-const ACTION_ROW_REM = 2.5
+const ACTION_ROW_REM = 2.25
 
 /** The box's own 1px border, top and bottom, at the 16px root. */
 const BOX_BORDERS_REM = 0.125
@@ -34,13 +34,13 @@ export const COMPOSER_SIZING = {
   compact: {
     boxRem: 6.5,
     box: "min-h-26",
-    editable: "min-h-[3.875rem]",
+    editable: "min-h-[4.125rem]",
   },
   /** The welcome (new-conversation) input, which sits in a roomy empty state. */
   tall: {
     boxRem: 7.5,
     box: "min-h-30",
-    editable: "min-h-[4.875rem]",
+    editable: "min-h-[5.125rem]",
   },
 } as const
 

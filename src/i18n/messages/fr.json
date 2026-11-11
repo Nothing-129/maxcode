@@ -2070,7 +2070,8 @@
           "last3": "3 derniers jours",
           "last7": "7 derniers jours",
           "week": "Cette semaine",
-          "month": "Ce mois"
+          "month": "Ce mois",
+          "custom": "Personnalisé"
         },
         "statistics": "Statistiques",
         "settingsUpdate": "Réglages · Mise à jour disponible",
@@ -3142,6 +3143,7 @@
           "sessionLoadUnavailable": "{agent} n'a pas pu restaurer cette session ; elle a peut-être pris fin ou l'agent s'est arrêté. Rechargez pour réessayer ou démarrez une nouvelle conversation.",
           "sessionLoadBusy": "Cette session est ouverte ailleurs. Si un autre client {agent} (l'application, la CLI ou une extension d'IDE) l'a ouverte, fermez-la là-bas ou quittez ce client, puis rechargez. Si vous venez de la bifurquer, rechargez dans une minute environ.",
           "sessionProviderMissing": "Le fournisseur de modèles de cette session n’est plus configuré. L’historique est toujours sur le disque. Restaurez la configuration d’origine du fournisseur, puis rechargez la conversation.",
+          "sessionLoadProviderMismatch": "Cette conversation a été commencée avec un autre fournisseur de modèles que celui qu'utilise maintenant {agent}, et {agent} ne poursuit une conversation qu'avec son propre fournisseur. Revenez à ce fournisseur dans les paramètres de {agent} puis rechargez, ou commencez une nouvelle conversation. ({detail})",
           "sessionArchived": "La session précédente a été archivée côté {agent}. Exécutez {command} dans un terminal pour la restaurer et la recharger, ou démarrez une nouvelle conversation.",
           "turnFailedRefusal": "{agent} a refusé de poursuivre ce tour. Cela indique souvent une erreur de backend ou de passerelle. Vérifiez les journaux de l'agent.",
           "turnFailedMaxTokens": "{agent} a atteint la limite maximale de jetons pour ce tour.",

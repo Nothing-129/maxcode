@@ -6,7 +6,7 @@ import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import styles from "./sidebar-wordmark.module.css"
 
 /** A compact, theme-aware wordmark; decorative shapes stay out of navigation. */
-export function SidebarWordmark() {
+export function SidebarWordmark({ compact = false }: { compact?: boolean }) {
   const gradientId = useId()
   // Subscribe to one boolean, so streaming updates do not rerender the wordmark.
   const isWorking = useAppWorkspaceStore((state) =>
@@ -19,13 +19,13 @@ export function SidebarWordmark() {
     <span
       role="img"
       aria-label="MaxCode"
-      className="inline-flex shrink-0 items-center gap-3 select-none"
+      className={`inline-flex shrink-0 items-center select-none ${compact ? "gap-1.5" : "gap-3"}`}
     >
       <svg
         aria-hidden="true"
         focusable="false"
         viewBox="0 0 12 24"
-        className={`h-7 w-3.5 text-[#285ee1] dark:text-[#82a4ff] ${styles.slash}`}
+        className={`${compact ? "h-6 w-3" : "h-7 w-3.5"} text-[#285ee1] dark:text-[#82a4ff] ${styles.slash}`}
         data-working={isWorking}
         fill="none"
       >
@@ -59,10 +59,14 @@ export function SidebarWordmark() {
         </g>
       </svg>
       <span aria-hidden="true" className="flex items-baseline leading-none">
-        <span className="text-[24px] font-bold tracking-[-0.065em] text-sidebar-foreground">
+        <span
+          className={`${compact ? "text-[20px]" : "text-[24px]"} font-bold tracking-[-0.065em] text-sidebar-foreground`}
+        >
           Max
         </span>
-        <span className="font-mono text-[22px] font-medium tracking-[-0.075em] text-sidebar-foreground/70">
+        <span
+          className={`font-mono ${compact ? "text-[18px]" : "text-[22px]"} font-medium tracking-[-0.075em] text-sidebar-foreground/70`}
+        >
           Code
         </span>
       </span>
