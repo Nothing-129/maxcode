@@ -21,7 +21,7 @@ describe("sidebar text and spacing", () => {
       "src/components/conversations/sidebar-conversation-card.tsx"
     )
     expect(card).toContain("relative py-px bg-sidebar ws-transparent-bg")
-    expect(card).toContain('!mobileLayout && "h-[1.9375rem]"')
+    expect(card).toContain('!stackedLayout && "h-[1.9375rem]"')
     expect(card).toContain(
       "flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
     )

@@ -921,6 +921,11 @@ export interface ConversationRow {
   todoId?: string
 }
 
+/** Folder roots have a container indent; delegation depth alone does not. */
+export function isFolderConversationRow(row: ConversationRow): boolean {
+  return !row.recent && !row.todoId && row.depth > (row.subsessionDepth ?? 0)
+}
+
 export interface SidebarTodoConversationGroup {
   id: string
   title: string

@@ -95,6 +95,7 @@ function SidebarNavButton({
   active,
   trailing,
   variant = "filled",
+  conversationSurface = false,
 }: {
   icon: "compose" | "clock" | "tasks"
   label: string
@@ -102,6 +103,7 @@ function SidebarNavButton({
   active?: boolean
   trailing?: ReactNode
   variant?: "filled" | "ghost"
+  conversationSurface?: boolean
 }) {
   return (
     <button
@@ -115,6 +117,7 @@ function SidebarNavButton({
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
         "transition-colors duration-150 hover:bg-sidebar-accent",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+        conversationSurface && "bg-black/[0.07] dark:bg-white/[0.1]",
         variant === "ghost" && "bg-transparent",
         active && "bg-sidebar-primary/10"
       )}
@@ -548,6 +551,7 @@ export function Sidebar({
           <div data-sidebar-actions className="flex items-center gap-1">
             <SidebarNavButton
               icon="compose"
+              conversationSurface={!isMobile}
               label={t("newChat")}
               onClick={handleNewConversation}
             />

@@ -210,6 +210,7 @@ interface SidebarConversationCardProps {
   timeLabel?: string
   isMobile?: boolean
   compactMobile?: boolean
+  stackMetadata?: boolean
   onConversationPointerDown?: (
     event: ReactPointerEvent<HTMLButtonElement>,
     conversation: DbConversationSummary
@@ -237,10 +238,9 @@ interface SidebarConversationCardProps {
   /** Toggle this conversation's sub-session subtree (lazily loads on expand). */
   onToggleExpand?: (id: number) => void
   /**
-   * Folder (or Chat) display name for Recent rows. Rendered as a muted
-   * chip immediately after the title; the chip truncates first so the
-   * title keeps its width. Omitted everywhere else so folder-section
-   * rows stay unadorned (they already sit under a header).
+   * Folder (or Chat) display name for Recent and mobile ungrouped rows.
+   * Stacked rows show it below the title; compact rows may show a muted chip.
+   * Folder-section rows already sit under a header and omit it.
    */
   folderLabel?: string
   /** Folder glyph before the label. Chat rows use a message glyph instead. */
@@ -255,6 +255,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   timeLabel,
   isMobile = false,
   compactMobile = false,
+  stackMetadata = false,
   onSelect,
   onConversationPointerDown,
   onDoubleClick,
@@ -390,20 +391,19 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions = !isSubsession
-  const mobileLayout = isMobile && !compactMobile
+  const stackedLayout = (isMobile && !compactMobile) || stackMetadata
   const showFolderMeta = Boolean(folderLabel) && !(isMobile && compactMobile)
-  const mobileTitle = mobileLayout
+  const stackedTitle = stackedLayout
     ? formatConversationTitle(conversation.title)
     : ""
-  const mobileStructuredTitle = mobileLayout
-    ? parseStructuredConversationTitle(mobileTitle)
+  const structuredStackedTitle = stackedLayout
+    ? parseStructuredConversationTitle(stackedTitle)
     : null
 
   return (
     <>
-      {/* Hover bubble: the row truncates the title and Recent only names the
-          folder in a trailing chip, so resting the pointer floats the path /
-          branch out to the right. Wrapping the ContextMenu (not the other way
+      {/* Hover bubble: resting the pointer floats the full path and branch out
+          to the right. Wrapping the ContextMenu (not the other way
           round) keeps the menu's trigger and this one on the same element —
           both are `asChild` Slots, so their props merge onto the row div
           below. */}
@@ -419,7 +419,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
               <div
                 className={cn(
                   "relative py-px bg-sidebar ws-transparent-bg",
-                  !mobileLayout && "h-[1.9375rem]",
+                  !stackedLayout && "h-[1.9375rem]",
                   // Lift the traveling decoration above opaque sibling rows.
                   isSelected && "z-[1]"
                 )}
@@ -464,7 +464,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                     onDoubleClick={handleDblClick}
                     className={cn(
                       "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
-                      mobileLayout && "py-[0.375rem]",
+                      stackedLayout && "py-[0.375rem]",
                       onConversationPointerDown &&
                         "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
@@ -524,17 +524,17 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       />
                     </div>
 
-                    {mobileLayout ? (
+                    {stackedLayout ? (
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span
                           data-open-in-tab={isOpenInTab || undefined}
                           className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
                         >
-                          {mobileStructuredTitle?.topic ||
-                            mobileTitle ||
+                          {structuredStackedTitle?.topic ||
+                            stackedTitle ||
                             t("untitledConversation")}
                         </span>
-                        {(mobileStructuredTitle ||
+                        {(structuredStackedTitle ||
                           showFolderMeta ||
                           timeLabel ||
                           conversation.origin_cwd) && (
@@ -543,7 +543,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                             className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
                           >
                             <span className="tabular-nums">
-                              {mobileStructuredTitle?.date}
+                              {structuredStackedTitle?.date}
                             </span>
                             <span className="flex min-w-0 items-center gap-1">
                               {showFolderMeta && (
@@ -692,14 +692,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   <div
                     className={cn(
                       "flex h-full shrink-0 items-center pr-[0.375rem]",
-                      (showFolderMeta || mobileLayout) && "ml-[0.375rem]"
+                      (showFolderMeta || stackedLayout) && "ml-[0.375rem]"
                     )}
                   >
                     <span
                       data-conversation-status=""
                       className={cn(
                         "flex items-center",
-                        mobileLayout && "w-3 justify-center"
+                        stackedLayout && "w-3 justify-center"
                       )}
                     >
                       {isRunning ? (
@@ -737,7 +737,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         <ConversationUnreadDot
                           label={tSidebar("unreadBadge")}
                         />
-                      ) : timeLabel && !mobileLayout ? (
+                      ) : timeLabel && !stackedLayout ? (
                         <span
                           className={cn(
                             "relative shrink-0 tabular-nums",
@@ -785,7 +785,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         <Ellipsis className="size-3.5" />
                       </Button>
                     )}
-                    {!showHoverActions && mobileLayout && (
+                    {!showHoverActions && stackedLayout && (
                       <span aria-hidden className="ml-1 size-6" />
                     )}
                   </div>

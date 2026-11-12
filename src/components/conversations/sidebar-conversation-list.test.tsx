@@ -1329,6 +1329,44 @@ describe("SidebarConversationList — Recent section", () => {
     })
   })
 
+  it("keeps a mobile folder conversation on one line while its Recent copy retains the folder", () => {
+    const originalMatchMedia = window.matchMedia
+    const matchMedia = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation((query) => {
+        const result = originalMatchMedia(query)
+        return query === "(max-width: 767px)"
+          ? { ...result, matches: true }
+          : result
+      })
+    try {
+      render(recentTree(true))
+      const folderRow = document.querySelector(
+        '[data-sidebar-disclosure-row="conv-claude_code-11"] [data-conv-key]'
+      )!
+      const recentRow = document.querySelector(
+        '[data-sidebar-disclosure-row="recent-conv-claude_code-11"] [data-conv-key]'
+      )!
+      const chatRow = document.querySelector(
+        '[data-sidebar-disclosure-row="conv-claude_code-12"] [data-conv-key]'
+      )!
+      expect(folderRow).toHaveClass("h-[1.9375rem]")
+      expect(folderRow).toHaveTextContent("conv-11")
+      expect(folderRow).not.toHaveTextContent("Repo")
+      expect(
+        folderRow.querySelector("[data-mobile-conversation-meta]")
+      ).toBeNull()
+      expect(
+        recentRow.querySelector("[data-mobile-conversation-meta]")
+      ).toHaveTextContent("Repo")
+      expect(
+        chatRow.querySelector("[data-mobile-conversation-meta]")
+      ).not.toBeNull()
+    } finally {
+      matchMedia.mockRestore()
+    }
+  })
+
   it("renders nothing for the section when showRecent is off", () => {
     render(recentTree(false))
     expect(document.body.textContent).not.toContain(RECENT)
@@ -1360,30 +1398,27 @@ describe("SidebarConversationList — Recent section", () => {
     expect(document.body.textContent).not.toContain("conv-13")
   })
 
-  it("names the folder on Recent rows only", () => {
+  it("shows desktop Recent metadata below the title but keeps folder rows compact", () => {
     render(recentTree(true))
-    const labels = Array.from(
-      document.querySelectorAll("[data-recent-folder]")
-    ).map((el) => el.textContent)
-    expect(labels).toHaveLength(2)
-    expect(labels).toEqual(expect.arrayContaining(["Chat", "Repo"]))
-    const folderMarks = Array.from(
-      document.querySelectorAll("[data-recent-folder]")
-    )
-    for (const el of folderMarks) {
-      if (el.textContent === "Repo") {
-        expect(el.querySelector('[data-recent-source="folder"]')).not.toBeNull()
-      } else {
-        expect(el.querySelector('[data-recent-source="chat"]')).not.toBeNull()
-      }
-    }
-    const recentRows = Array.from(
-      document.querySelectorAll("[data-recent-folder]")
-    ).map((el) => el.closest("[data-conv-key]"))
-    expect(recentRows).toHaveLength(2)
-    for (const row of recentRows) {
-      expect(row).toHaveClass("h-[1.9375rem]")
-    }
+    const recentFolder = document.querySelector(
+      '[data-sidebar-disclosure-row="recent-conv-claude_code-11"] [data-conv-key]'
+    )!
+    const recentChat = document.querySelector(
+      '[data-sidebar-disclosure-row="recent-conv-claude_code-12"] [data-conv-key]'
+    )!
+    const folder = document.querySelector(
+      '[data-sidebar-disclosure-row="conv-claude_code-11"] [data-conv-key]'
+    )!
+    expect(
+      recentFolder.querySelector("[data-mobile-conversation-meta]")
+    ).toHaveTextContent("Repo")
+    expect(
+      recentChat.querySelector("[data-mobile-conversation-meta]")
+    ).toHaveTextContent("Chat")
+    expect(recentFolder).not.toHaveClass("h-[1.9375rem]")
+    expect(recentChat).not.toHaveClass("h-[1.9375rem]")
+    expect(folder).toHaveClass("h-[1.9375rem]")
+    expect(folder.querySelector("[data-mobile-conversation-meta]")).toBeNull()
   })
 
   it("collapses independently of the other sections", () => {

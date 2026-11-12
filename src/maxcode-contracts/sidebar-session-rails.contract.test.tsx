@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { SidebarConversationCard } from "@/components/conversations/sidebar-conversation-card"
 import {
   buildRows,
+  isFolderConversationRow,
   type ConversationRow,
 } from "@/components/conversations/sidebar-conversation-grouping"
 import type { DbConversationSummary } from "@/lib/types"
@@ -69,6 +70,39 @@ function rows(loading = false) {
 }
 
 describe("sidebar session tree rails", () => {
+  it("distinguishes folder descendants from Recent, todo, pinned and chat descendants", () => {
+    const folderRecentTodo = rows().filter(
+      (row): row is ConversationRow => row.kind === "conversation"
+    )
+    expect(folderRecentTodo.filter(isFolderConversationRow)).toHaveLength(3)
+    expect(
+      folderRecentTodo
+        .filter((row) => row.recent || row.todoId)
+        .some(isFolderConversationRow)
+    ).toBe(false)
+
+    const chatParent = { ...parent, id: 4, kind: "chat" as const }
+    const chatChild = { ...chatParent, id: 5, parent_id: 4, child_count: 0 }
+    const outsideFolder = buildRows({
+      pinned: [parent],
+      pinnedExpanded: true,
+      orderedFolderIds: [],
+      byFolder: new Map(),
+      folderExpanded: {},
+      folderTotalCounts: new Map(),
+      foldersExpanded: true,
+      chatConversations: [chatParent],
+      chatsExpanded: true,
+      conversationExpanded: new Set([1, 4]),
+      childrenByParent: new Map([
+        [1, [child]],
+        [4, [chatChild]],
+      ]),
+    }).filter((row): row is ConversationRow => row.kind === "conversation")
+    expect(outsideFolder).toHaveLength(4)
+    expect(outsideFolder.some(isFolderConversationRow)).toBe(false)
+  })
+
   it("keeps Todo and Folder indent while Recent remains flat", () => {
     const roots = rows().filter(
       (r): r is ConversationRow =>

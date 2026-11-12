@@ -149,6 +149,7 @@ import {
   formatRelative,
   groupByFolderWithReuse,
   headerIndexForFolder,
+  isFolderConversationRow,
   mergeChildrenById,
   nextHeaderAfter,
   pointerYToTargetIndex,
@@ -3863,8 +3864,9 @@ export function SidebarConversationList({
       )
     }
     const conv = row.conversation
+    const inFolderSection = isFolderConversationRow(row)
     const recentFolderName =
-      row.recent || (isMobile && !row.todoId)
+      row.recent || (isMobile && !row.todoId && !inFolderSection)
         ? recentConversationFolderLabel(conv, allFolders)
         : null
     // No folder tint reaches this row: a card always renders in the app theme,
@@ -3874,7 +3876,8 @@ export function SidebarConversationList({
       <SidebarConversationCard
         conversation={conv}
         isMobile={isMobile}
-        compactMobile={Boolean(row.todoId)}
+        compactMobile={Boolean(row.todoId) || inFolderSection}
+        stackMetadata={Boolean(row.recent)}
         selectionId={`${selectionMotionId}:${row.todoId ?? (row.recent ? "recent" : conv.folder_id)}`}
         isSelected={
           selectedConversation?.agentType === conv.agent_type &&

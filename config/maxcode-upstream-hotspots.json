@@ -82,15 +82,19 @@
       "id": "sidebar.mobile-conversation-titles",
       "category": "product",
       "origins": [
-        "worktree-2026-11-10"
+        "worktree-2026-11-10",
+        "worktree-2026-11-12"
       ],
-      "description": "Mobile conversation rows show a single truncated title with the structured date, folder and relative time beneath in aligned columns, except conversations under a todo, which stay compact and omit the folder. The folder name truncates before time; status and actions remain available. Desktop rows remain compact and the virtual list measures mobile row heights.",
+      "description": "Recent conversations on mobile and desktop, and pinned conversations on mobile, show a single truncated title with the structured date, folder and relative time beneath in aligned columns. Conversations under a folder or todo, including their delegated descendants, stay on one compact line without a folder label. Status and actions remain available.",
       "paths": [
         "src/components/conversations/sidebar-conversation-card.tsx",
-        "src/components/conversations/sidebar-conversation-list.tsx"
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-conversation-grouping.ts"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-conversation-title.contract.test.tsx"
+        "src/maxcode-contracts/mobile-conversation-title.contract.test.tsx",
+        "src/maxcode-contracts/desktop-recent-conversation-layout.contract.test.tsx",
+        "src/maxcode-contracts/sidebar-session-rails.contract.test.tsx"
       ]
     },
     {
@@ -1272,13 +1276,14 @@
       "origins": [
         "worktree-2026-10-27"
       ],
-      "description": "The three fixed sidebar navigation buttons retain their original neutral default, hover and active backgrounds in light and dark default themes; blue workspace actions and explicit color presets remain intact.",
+      "description": "Sidebar actions retain neutral theme surfaces. Desktop New chat shares the selected conversation gray in light and dark themes while retaining the full-width, centered action layout; mobile retains its existing surface.",
       "paths": [
         "src/app/globals.css",
         "src/components/layout/sidebar.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/sidebar-neutral-actions.contract.test.ts"
+        "src/maxcode-contracts/sidebar-neutral-actions.contract.test.ts",
+        "src/maxcode-contracts/sidebar-desktop-compose.contract.test.ts"
       ]
     },
     {

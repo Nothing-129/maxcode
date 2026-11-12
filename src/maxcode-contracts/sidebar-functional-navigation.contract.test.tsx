@@ -183,7 +183,7 @@ describe("functional sidebar navigation", () => {
     expect(action).not.toContain("routeId")
   })
 
-  it("uses the same centered new-chat action for conversations and projects", () => {
+  it("uses the same responsive new-chat action for conversations and projects", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     const button = sidebar.slice(
       sidebar.indexOf("function SidebarNavButton("),
