@@ -2,6 +2,22 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "sidebar.compact-todo-header",
+      "category": "product",
+      "origins": ["worktree-2026-11-13"],
+      "description": "Todo headers share a subtle neutral hover surface across title and actions, with compact spacing and readable MM/DD metadata separated from status by a dot. Missing dates leave no empty column or separator.",
+      "paths": ["src/components/conversations/sidebar-todo-group-header.tsx"],
+      "contracts": ["src/maxcode-contracts/todo-header-compact.contract.test.tsx"]
+    },
+    {
+      "id": "sidebar.stacked-time-right-alignment",
+      "category": "product",
+      "origins": ["worktree-2026-11-13"],
+      "description": "Recent conversation rows use a minimal two-line layout: topic above a combined folder and localized relative-time line, with a 12px agent icon inline before the folder on the second line and no date; the title starts at the text inset without a leading icon column. Conversation hover uses neutral black/white overlays rather than tinted theme accents; selection remains a stronger neutral gray. Other stacked rows align metadata time and trailing status at a shared 16px right inset. Status and menu controls are vertically centered within the whole row. Actions share the trailing status position and are absent while an unread dot is present in stacked rows, without reserving a column beside metadata; running agent animation remains intact.",
+      "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
+      "contracts": ["src/maxcode-contracts/desktop-recent-conversation-layout.contract.test.tsx"]
+    },
+    {
       "id": "runtime.selected-upstream-20261111",
       "category": "runtime",
       "origins": [
@@ -68,7 +84,7 @@
       "origins": [
         "worktree-2026-11-10"
       ],
-      "description": "Sidebar todo groups on mobile and desktop show a single-line title with their creation date and status aligned below. Conversations under a todo stay on one compact line without a folder label. Expansion, details and new-conversation actions remain usable.",
+      "description": "Sidebar todo groups place a 12px task icon before the date/status on the second line, with the title at the 16px text inset and delegated conversations retaining indentation. The expand arrow stays at the 16px right inset; hover or keyboard focus-visible actions overlay immediately to its left without shifting the arrow; ordinary retained mouse focus must not keep actions visible after pointer exit. The context menu offers New conversation immediately after View details, invoking the same todo-bound creation callback and respecting disabled/creating states. Sidebar todo groups on mobile and desktop show a single-line title with their creation date and status aligned below. Conversations under a todo stay on one compact line without a folder label. Expansion, details and new-conversation actions remain usable.",
       "paths": [
         "src/components/conversations/sidebar-todo-group-header.tsx",
         "src/components/conversations/sidebar-conversation-list.tsx"
@@ -120,7 +136,7 @@
       "origins": [
         "worktree-2026-11-09"
       ],
-      "description": "Mobile sidebar uses 94vw capped at 26rem (416px), leaving at least 6 percent of the viewport visible. Web sidebar places the wordmark and tools in one header row without native titlebar clearance; the web/mobile navigation rail has only a small top inset. Native desktop retains window drag and traffic-light clearance.",
+      "description": "Mobile sidebar uses 90vw capped at 26rem (416px), leaving at least 10 percent of the viewport visible. Web sidebar places the wordmark and tools in one header row without native titlebar clearance; the web/mobile navigation rail has only a small top inset. Native desktop retains window drag and traffic-light clearance.",
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/components/layout/sidebar.tsx",

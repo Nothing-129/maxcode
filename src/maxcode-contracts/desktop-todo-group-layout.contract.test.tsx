@@ -38,13 +38,26 @@ describe("desktop todo group layout", () => {
     const title = screen.getByText("检查分组样式")
     expect(title).toHaveClass("truncate")
     const metadata = container.querySelector<HTMLElement>("[data-todo-meta]")!
-    expect(within(metadata).getByText("1102")).toHaveAttribute(
+    expect(within(metadata).getByText("11/02")).toHaveAttribute(
       "datetime",
       createdAt
     )
     expect(within(metadata).getByText("To verify")).toBeInTheDocument()
     expect(title.closest("[data-todo-title]")).not.toContainElement(metadata)
-    expect(screen.queryByText("1026")).not.toBeInTheDocument()
+    expect(screen.queryByText("10/26")).not.toBeInTheDocument()
+  })
+
+  it("creates a conversation for this todo from the item below View details", async () => {
+    const { onToggle, onOpen, onNewConversation } = showGroup()
+    const user = userEvent.setup()
+    await user.click(screen.getByRole("button", { name: "More actions" }))
+    const items = screen.getAllByRole("menuitem")
+    expect(items[0]).toHaveTextContent(messages.Todos.viewDetails)
+    expect(items[1]).toHaveTextContent("New Conversation")
+    await user.click(items[1])
+    expect(onNewConversation).toHaveBeenCalledExactlyOnceWith("task")
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(onOpen).not.toHaveBeenCalled()
   })
 
   it("retains expansion, details and new-conversation actions", async () => {

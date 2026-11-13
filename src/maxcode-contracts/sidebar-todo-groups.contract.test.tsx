@@ -299,7 +299,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await screen.findByText("Linked task")
     for (const id of ["Board task", "Linked task"]) {
       const heading = document.querySelector(`[data-todo-group-id="${id}"]`)!
-      const date = within(heading as HTMLElement).getByText("1102")
+      const date = within(heading as HTMLElement).getByText("11/02")
       expect(date.tagName).toBe("TIME")
       expect(date).toHaveAttribute("datetime", createdAt)
       expect(date.parentElement).toHaveClass("tabular-nums")
@@ -384,9 +384,9 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     )
     const group = topic.closest("[data-todo-group-id]") as HTMLElement
     expect(
-      within(group).getByText("1102").closest("[data-todo-meta]")
+      within(group).getByText("11/02").closest("[data-todo-meta]")
     ).not.toBeNull()
-    expect(screen.queryByText("1026")).not.toBeInTheDocument()
+    expect(screen.queryByText("10/26")).not.toBeInTheDocument()
     expect(topic).toHaveClass("truncate")
   })
 
@@ -417,13 +417,9 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
       render(sidebar())
       const statusLabel = await screen.findByText(badge)
       expect(statusLabel).toBeVisible()
-      expect(statusLabel).toHaveClass("text-muted-foreground/60", "inline-flex")
-      expect(statusLabel.querySelector("svg")).toHaveAttribute(
-        "aria-hidden",
-        "true"
-      )
+      expect(statusLabel.closest("[data-todo-meta]")).not.toBeNull()
       fireEvent.contextMenu(screen.getByText("Status task"))
-      expect(screen.getAllByRole("menuitem")).toHaveLength(3)
+      expect(screen.getAllByRole("menuitem")).toHaveLength(4)
       fireEvent.click(await screen.findByRole("menuitem", { name: label }))
       await waitFor(() => expect(host.refetch).toHaveBeenCalledTimes(1))
       expect(host.origin).toHaveBeenLastCalledWith({
@@ -564,13 +560,13 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => {
       expect(
         document.querySelector('[data-todo-group-id="First"] button')
-      ).toHaveTextContent(/^First1016To do$/)
+      ).toHaveTextContent(/^First10\/16·To do$/)
     })
     expect(document.querySelectorAll("[data-todo-group-id]")).toHaveLength(4)
     for (const id of ["First", "Second", "Third", "Fourth"]) {
       expect(
         document.querySelector(`[data-todo-group-id="${id}"] button`)
-      ).toHaveTextContent(new RegExp(`^${id}1016To do$`))
+      ).toHaveTextContent(new RegExp(`^${id}10/16·To do$`))
       expect(
         screen.getByRole("button", { name: `New conversation from ${id}` })
       ).toBeEnabled()
@@ -590,7 +586,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
     await waitFor(() => expect(host.groups).toHaveBeenCalledTimes(1))
     expect(
       document.querySelector('[data-todo-group-id="My task"] button')
-    ).toHaveTextContent(/^My task1016To do$/)
+    ).toHaveTextContent(/^My task10\/16·To do$/)
 
     host.groups.mockResolvedValue({ scope_key: "personal", groups: [] })
     host.state = { ...host.state!, todos: [myTodo("New task")] }
@@ -990,7 +986,7 @@ describe("sidebar conversations grouped by their originating assigned todos", ()
           screen.getByRole("button", { name: "Second task To do" })
         ).toHaveAttribute("aria-expanded", "false")
         expect(
-          screen.getByRole("button", { name: "Empty task 1016 To do" })
+          screen.getByRole("button", { name: "Empty task 10/16 To do" })
         ).toHaveAttribute("aria-expanded", "false")
         expect(todoRow(1)).not.toBeInTheDocument()
       } else {

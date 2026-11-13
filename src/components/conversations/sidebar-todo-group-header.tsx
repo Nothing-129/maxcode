@@ -11,7 +11,6 @@ import {
   Check,
   RotateCcw,
   Clock,
-  Circle,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
 import {
@@ -61,20 +60,15 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   const createdDate = createdAt ? new Date(createdAt) : null
   const dateLabel =
     createdDate && !Number.isNaN(createdDate.getTime())
-      ? `${String(createdDate.getMonth() + 1).padStart(2, "0")}${String(createdDate.getDate()).padStart(2, "0")}`
+      ? `${String(createdDate.getMonth() + 1).padStart(2, "0")}/${String(createdDate.getDate()).padStart(2, "0")}`
       : null
   const awaitingVerification = status === "pending_verification"
-  const StatusIcon =
-    status === "completed" ? Check : awaitingVerification ? Clock : Circle
   const formattedTitle = formatConversationTitle(title)
   const structuredTitle = parseStructuredConversationTitle(formattedTitle)
+  const displayDate =
+    dateLabel || structuredTitle?.date?.replace(/^(\d{2})(\d{2})$/, "$1/$2")
   const statusBadge = (
-    <span className="inline-flex min-w-0 shrink-0 items-center gap-1 text-xs font-normal text-muted-foreground/60">
-      <StatusIcon
-        aria-hidden="true"
-        className="size-3 shrink-0"
-        strokeWidth={1.5}
-      />
+    <span className="min-w-0 truncate font-normal">
       {t(
         status === "completed"
           ? "colCompleted"
@@ -86,7 +80,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   )
   const header = (
     <div
-      className="group/todo-header flex min-w-0 items-center py-px"
+      className="group/todo-header relative flex min-w-0 items-center gap-0.5 rounded-md transition-colors hover:bg-sidebar-foreground/5 has-[[data-state=open]]:bg-sidebar-foreground/5"
       data-todo-group-id={id}
     >
       <button
@@ -94,10 +88,9 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         aria-expanded={expanded}
         title={title}
         onClick={() => onToggle(id)}
-        className="group flex min-w-0 flex-1 items-center gap-[0.4375rem] rounded-lg py-[0.375rem] pl-[0.4375rem] pr-[0.375rem] text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex min-w-0 flex-1 items-center gap-[0.4375rem] rounded-md py-1 pl-4 pr-4 text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
-        <ListTodo className="size-[0.875rem] shrink-0 text-sidebar-foreground/75" />
-        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex min-w-0 flex-1 flex-col gap-0 group-hover/todo-header:pr-14 group-has-[:focus-visible]/todo-header:pr-14 max-md:pr-14 [@media(hover:none)]:pr-14 [@media(pointer:coarse)]:pr-14 group-has-[[data-state=open]]/todo-header:pr-14">
           <span
             data-todo-title
             className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
@@ -106,20 +99,31 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
           </span>
           <span
             data-todo-meta
-            className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+            className="flex min-w-0 items-center gap-1.5 text-[0.6875rem] leading-4 text-muted-foreground"
           >
-            <span className="tabular-nums">
-              {dateLabel ? (
-                <time
-                  dateTime={createdAt}
-                  title={`${t("createdAt")}: ${createdDate?.toLocaleDateString()}`}
-                >
-                  {dateLabel}
-                </time>
-              ) : (
-                structuredTitle?.date
-              )}
-            </span>
+            <ListTodo
+              aria-hidden
+              className="size-3 shrink-0 text-muted-foreground/70"
+            />
+            {displayDate && (
+              <>
+                <span className="shrink-0 tabular-nums">
+                  {dateLabel ? (
+                    <time
+                      dateTime={createdAt}
+                      title={`${t("createdAt")}: ${createdDate?.toLocaleDateString()}`}
+                    >
+                      {displayDate}
+                    </time>
+                  ) : (
+                    displayDate
+                  )}
+                </span>
+                <span aria-hidden="true" className="text-muted-foreground/50">
+                  ·
+                </span>
+              </>
+            )}
             {statusBadge}
           </span>
         </span>
@@ -131,47 +135,49 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
           )}
         />
       </button>
-      <button
-        type="button"
-        title={tCard("moreActions")}
-        aria-label={tCard("moreActions")}
-        aria-haspopup="menu"
-        aria-expanded={menuOpen}
-        data-state={menuOpen ? "open" : "closed"}
-        onPointerDown={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation()
-          const rect = event.currentTarget.getBoundingClientRect()
-          event.currentTarget.dispatchEvent(
-            new MouseEvent("contextmenu", {
-              bubbles: true,
-              cancelable: true,
-              button: 2,
-              clientX: rect.left,
-              clientY: rect.bottom,
-            })
-          )
-        }}
-        className="mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/todo-header:opacity-100 group-focus-within/todo-header:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100 [@media(pointer:coarse)]:opacity-100"
-      >
-        <Ellipsis className="size-3.5" />
-      </button>
-      {onNewConversation && (
+      <div className="absolute right-9 top-1/2 -translate-y-1/2 flex items-center gap-0.5">
         <button
           type="button"
-          title={t("newConversationForTodo", { title })}
-          aria-label={t("newConversationForTodo", { title })}
-          disabled={disabled}
-          onClick={() => onNewConversation(id)}
-          className="maxcode-todo-new-conversation mr-1 inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-accent focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/todo-header:opacity-100 group-focus-within/todo-header:opacity-100 max-md:opacity-100 disabled:opacity-40"
+          title={tCard("moreActions")}
+          aria-label={tCard("moreActions")}
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          data-state={menuOpen ? "open" : "closed"}
+          onPointerDown={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation()
+            const rect = event.currentTarget.getBoundingClientRect()
+            event.currentTarget.dispatchEvent(
+              new MouseEvent("contextmenu", {
+                bubbles: true,
+                cancelable: true,
+                button: 2,
+                clientX: rect.left,
+                clientY: rect.bottom,
+              })
+            )
+          }}
+          className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-foreground/10 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/todo-header:opacity-100 group-has-[:focus-visible]/todo-header:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100 [@media(hover:none)]:opacity-100 [@media(pointer:coarse)]:opacity-100"
         >
-          {creating ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Plus className="size-3.5" />
-          )}
+          <Ellipsis className="size-3.5" />
         </button>
-      )}
+        {onNewConversation && (
+          <button
+            type="button"
+            title={t("newConversationForTodo", { title })}
+            aria-label={t("newConversationForTodo", { title })}
+            disabled={disabled}
+            onClick={() => onNewConversation(id)}
+            className="maxcode-todo-new-conversation inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-sidebar-foreground/10 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring group-hover/todo-header:opacity-100 group-has-[:focus-visible]/todo-header:opacity-100 max-md:opacity-100 disabled:opacity-40"
+          >
+            {creating ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <Plus className="size-3.5" />
+            )}
+          </button>
+        )}
+      </div>
     </div>
   )
   return (
@@ -182,6 +188,19 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
           <Info className="size-4" />
           {t("viewDetails")}
         </ContextMenuItem>
+        {onNewConversation && (
+          <ContextMenuItem
+            disabled={disabled || creating}
+            onSelect={() => onNewConversation(id)}
+          >
+            {creating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Plus className="size-4" />
+            )}
+            {tCard("newConversation")}
+          </ContextMenuItem>
+        )}
         {onComplete && (
           <>
             <ContextMenuSeparator />

@@ -17,7 +17,11 @@ import {
 import type { DbConversationSummary } from "@/lib/types"
 import messages from "@/i18n/messages/en.json"
 
-vi.mock("@/components/agent-icon", () => ({ AgentIcon: () => null }))
+vi.mock("@/components/agent-icon", () => ({
+  AgentIcon: ({ className }: { className?: string }) => (
+    <svg data-testid="agent-icon" className={className} />
+  ),
+}))
 vi.mock(
   "@/components/conversations/sidebar-conversation-hover-details",
   () => ({
@@ -48,11 +52,14 @@ const conversation: DbConversationSummary = {
   pinned_at: null,
 }
 
-function showCard(status: "pending" | "in_progress" = "pending") {
+function showCard(
+  status: "pending" | "in_progress" = "pending",
+  locale: "en" | "zh-CN" = "en"
+) {
   const onSelect = vi.fn()
   const onTogglePin = vi.fn()
   const result = render(
-    <NextIntlClientProvider locale="en" messages={messages}>
+    <NextIntlClientProvider locale={locale} messages={messages}>
       <SidebarConversationCard
         conversation={{ ...conversation, status }}
         isMobile={false}
@@ -74,7 +81,7 @@ function showCard(status: "pending" | "in_progress" = "pending") {
 
 describe("desktop Recent conversation layout", () => {
   it.each(["pending", "running", "unread"] as const)(
-    "shows title and aligned date, folder and time while preserving %s status",
+    "shows topic and combined source/time with an agent icon and no date while preserving %s status",
     (state) => {
       if (state === "unread")
         useConversationUnreadStore.setState({ unreadIds: new Set([42]) })
@@ -86,10 +93,36 @@ describe("desktop Recent conversation layout", () => {
       const meta = container.querySelector<HTMLElement>(
         "[data-mobile-conversation-meta]"
       )!
-      expect(within(meta).getByText("1112")).toBeInTheDocument()
+      expect(within(meta).queryByText("1112")).toBeNull()
+      expect(within(meta).getByTestId("agent-icon")).toHaveClass("size-3")
+      expect(screen.getAllByTestId("agent-icon")).toHaveLength(1)
       expect(within(meta).getByText("maxcode")).toBeInTheDocument()
-      expect(within(meta).getByText("3m")).toBeInTheDocument()
-      expect(meta).toHaveClass("grid", "grid-cols-[4ch_minmax(0,1fr)_auto]")
+      expect(within(meta).getByText("3 minutes ago")).toBeInTheDocument()
+      expect(meta).toHaveTextContent("maxcode·3 minutes ago")
+      expect(meta).toHaveClass("flex")
+      const selectButton = container.querySelector("[data-conversation-id]")!
+      expect(selectButton).toHaveClass("pr-4")
+      expect(selectButton.parentElement).toHaveClass(
+        "hover:bg-black/[0.04]",
+        "dark:hover:bg-white/[0.06]"
+      )
+      const status = container.querySelector("[data-conversation-status]")!
+      expect(status.parentElement).toHaveClass(
+        "absolute",
+        "right-4",
+        "top-1/2",
+        "-translate-y-1/2"
+      )
+      expect(status).toHaveClass("justify-end")
+      if (state === "unread" || state === "running") {
+        expect(
+          screen.queryByRole("button", { name: "More actions" })
+        ).toBeNull()
+      } else {
+        expect(
+          screen.getByRole("button", { name: "More actions" })
+        ).toHaveClass("right-0", "ml-0", "justify-center", "p-0")
+      }
       if (state === "running")
         expect(container.querySelector("[data-running-spinner]")).not.toBeNull()
       if (state === "unread")
@@ -98,6 +131,11 @@ describe("desktop Recent conversation layout", () => {
       expect(onSelect).toHaveBeenCalledWith(42, "codex", 1)
     }
   )
+
+  it("localizes the relative time for the Chinese recent list", () => {
+    showCard("pending", "zh-CN")
+    expect(screen.getByText("3分钟前")).toBeInTheDocument()
+  })
 
   it("keeps desktop menu actions without selecting the conversation", async () => {
     const { onSelect, onTogglePin } = showCard()

@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("web sidebar header", () => {
-  it("sizes the mobile sidebar to 94 percent of the viewport capped at 416px", () => {
+  it("sizes the mobile sidebar to 90 percent of the viewport capped at 416px", () => {
     const layout = source("src/app/workspace/layout.tsx")
-    expect(layout).toContain("mobile-sidebar-drawer w-[94vw] max-w-[26rem] p-0")
+    expect(layout).toContain("mobile-sidebar-drawer w-[90vw] max-w-[26rem] p-0")
   })
 
   it("shares the wordmark row with tools without native window clearance", () => {

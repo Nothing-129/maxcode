@@ -653,7 +653,7 @@ function MobileFolderWorkspaceShell({
         <DrawerContent
           keepMounted
           showCloseButton={false}
-          className="mobile-sidebar-drawer w-[94vw] max-w-[26rem] p-0"
+          className="mobile-sidebar-drawer w-[90vw] max-w-[26rem] p-0"
         >
           <DrawerTitle className="sr-only">Sidebar</DrawerTitle>
           {/* Prepare the list while closed and retain its caches and scroll

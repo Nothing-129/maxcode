@@ -24,7 +24,7 @@ import {
   Ellipsis,
   Link2,
 } from "lucide-react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 import { SelectionIndicator } from "@/components/shared/selection-indicator"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { useTabStore } from "@/contexts/tab-context"
@@ -391,6 +391,27 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions = !isSubsession
+  const locale = useLocale()
+  const relativeMatch = timeLabel?.match(/^(\d+)(mo|m|h|d|y)$/)
+  const relativeUnits: Record<string, Intl.RelativeTimeFormatUnit> = {
+    m: "minute",
+    h: "hour",
+    d: "day",
+    mo: "month",
+    y: "year",
+  }
+  const recentTimeLabel =
+    timeLabel === "now"
+      ? new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
+          0,
+          "second"
+        )
+      : relativeMatch
+        ? new Intl.RelativeTimeFormat(locale, { numeric: "always" }).format(
+            -Number(relativeMatch[1]),
+            relativeUnits[relativeMatch[2]]
+          )
+        : timeLabel
   const stackedLayout = (isMobile && !compactMobile) || stackMetadata
   const showFolderMeta = Boolean(folderLabel) && !(isMobile && compactMobile)
   const stackedTitle = stackedLayout
@@ -441,20 +462,24 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   className={cn(
                     // Compact history rows from the supplied desktop reference.
                     "group relative flex h-full w-full items-center isolate",
-                    "rounded-[0.625rem] text-sidebar-foreground",
+                    "text-sidebar-foreground",
+                    stackMetadata ? "rounded-md" : "rounded-[0.625rem]",
                     "transition-colors duration-[120ms]",
                     isSelected
                       ? selectionId
                         ? undefined
                         : "bg-black/[0.07] dark:bg-white/[0.1]"
-                      : "hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
+                      : "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
                   )}
                 >
                   {isSelected && selectionId && (
                     <SelectionIndicator
                       id={selectionId}
                       durationMs={320}
-                      className="inset-0 -z-10 rounded-[0.625rem] bg-black/[0.07] dark:bg-white/[0.1]"
+                      className={cn(
+                        "inset-0 -z-10 bg-black/[0.07] dark:bg-white/[0.1]",
+                        stackMetadata ? "rounded-md" : "rounded-[0.625rem]"
+                      )}
                     />
                   )}
                   <button
@@ -468,12 +493,14 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       onConversationPointerDown &&
                         "md:cursor-grab md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
-                      "pr-[0.25rem]"
+                      stackedLayout ? "pr-4" : "pr-[0.25rem]"
                     )}
                     // Leave a 7px gap after the 14px icon at every depth.
                     style={{
                       paddingLeft:
-                        "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
+                        stackMetadata && !hasChildren
+                          ? `calc(1rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`
+                          : "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
                     }}
                   >
                     {/* Ancestor guide rails (depth ≥ 1): keep each parent's vertical
@@ -499,36 +526,41 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         }}
                       />
                     )}
-                    <div
-                      className={cn(
-                        "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
-                        // With children, the row hover (or focus) swaps this agent
-                        // icon out for the expand chevron at the same spot — fade it
-                        // so the two cross-fade in place. On touch (no hover) the
-                        // chevron is always shown, so the icon is always hidden.
-                        hasChildren &&
-                          onToggleExpand &&
-                          "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
-                      )}
-                      style={{
-                        left: "var(--conv-rail-axis, 0.875rem)",
-                        width: "0.875rem",
-                        height: "0.875rem",
-                        transform: "translate(-50%, -50%)",
-                      }}
-                      aria-hidden
-                    >
-                      <AgentIcon
-                        agentType={conversation.agent_type}
-                        className="h-[0.875rem] w-[0.875rem]"
-                      />
-                    </div>
+                    {!stackMetadata && (
+                      <div
+                        className={cn(
+                          "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
+                          // With children, the row hover (or focus) swaps this agent
+                          // icon out for the expand chevron at the same spot — fade it
+                          // so the two cross-fade in place. On touch (no hover) the
+                          // chevron is always shown, so the icon is always hidden.
+                          hasChildren &&
+                            onToggleExpand &&
+                            "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
+                        )}
+                        style={{
+                          left: "var(--conv-rail-axis, 0.875rem)",
+                          width: "0.875rem",
+                          height: "0.875rem",
+                          transform: "translate(-50%, -50%)",
+                        }}
+                        aria-hidden
+                      >
+                        <AgentIcon
+                          agentType={conversation.agent_type}
+                          className="h-[0.875rem] w-[0.875rem]"
+                        />
+                      </div>
+                    )}
 
                     {stackedLayout ? (
                       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
                         <span
                           data-open-in-tab={isOpenInTab || undefined}
-                          className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
+                          className={cn(
+                            "maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]",
+                            stackMetadata ? "pr-6" : "pr-12"
+                          )}
                         >
                           {structuredStackedTitle?.topic ||
                             stackedTitle ||
@@ -537,40 +569,73 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         {(structuredStackedTitle ||
                           showFolderMeta ||
                           timeLabel ||
-                          conversation.origin_cwd) && (
-                          <span
-                            data-mobile-conversation-meta
-                            className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
-                          >
-                            <span className="tabular-nums">
-                              {structuredStackedTitle?.date}
-                            </span>
-                            <span className="flex min-w-0 items-center gap-1">
+                          conversation.origin_cwd) &&
+                          (stackMetadata ? (
+                            <span
+                              data-mobile-conversation-meta
+                              className="flex min-w-0 items-center gap-1 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+                            >
+                              <AgentIcon
+                                agentType={conversation.agent_type}
+                                className="size-3 shrink-0"
+                              />
                               {showFolderMeta && (
                                 <span
                                   title={folderLabel}
-                                  className="min-w-0 truncate text-muted-foreground"
+                                  className="min-w-0 truncate"
                                 >
                                   {folderLabel}
                                 </span>
                               )}
+                              {showFolderMeta && recentTimeLabel && (
+                                <span aria-hidden>·</span>
+                              )}
+                              <span className="shrink-0">
+                                {recentTimeLabel}
+                              </span>
                               {conversation.origin_cwd && (
-                                <span title={tSidebar("worktreeRemovedBadge")}>
-                                  <FolderX
-                                    className="size-3 shrink-0"
-                                    aria-hidden
-                                  />
-                                  <span className="sr-only">
-                                    {tSidebar("worktreeRemovedBadge")}
-                                  </span>
-                                </span>
+                                <FolderX
+                                  className="size-3 shrink-0"
+                                  aria-label={tSidebar("worktreeRemovedBadge")}
+                                />
                               )}
                             </span>
-                            <span className="text-right tabular-nums">
-                              {timeLabel}
+                          ) : (
+                            <span
+                              data-mobile-conversation-meta
+                              className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+                            >
+                              <span className="tabular-nums">
+                                {structuredStackedTitle?.date}
+                              </span>
+                              <span className="flex min-w-0 items-center gap-1">
+                                {showFolderMeta && (
+                                  <span
+                                    title={folderLabel}
+                                    className="min-w-0 truncate text-muted-foreground"
+                                  >
+                                    {folderLabel}
+                                  </span>
+                                )}
+                                {conversation.origin_cwd && (
+                                  <span
+                                    title={tSidebar("worktreeRemovedBadge")}
+                                  >
+                                    <FolderX
+                                      className="size-3 shrink-0"
+                                      aria-hidden
+                                    />
+                                    <span className="sr-only">
+                                      {tSidebar("worktreeRemovedBadge")}
+                                    </span>
+                                  </span>
+                                )}
+                              </span>
+                              <span className="text-right tabular-nums">
+                                {timeLabel}
+                              </span>
                             </span>
-                          </span>
-                        )}
+                          ))}
                       </span>
                     ) : (
                       <span
@@ -691,15 +756,17 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                   {/* Status stays in its own slot while the adjacent actions menu opens. */}
                   <div
                     className={cn(
-                      "flex h-full shrink-0 items-center pr-[0.375rem]",
-                      (showFolderMeta || stackedLayout) && "ml-[0.375rem]"
+                      stackedLayout
+                        ? "absolute right-4 top-1/2 -translate-y-1/2 flex items-center"
+                        : "flex h-full shrink-0 items-center pr-[0.375rem]",
+                      showFolderMeta && !stackedLayout && "ml-[0.375rem]"
                     )}
                   >
                     <span
                       data-conversation-status=""
                       className={cn(
                         "flex items-center",
-                        stackedLayout && "w-3 justify-center"
+                        stackedLayout && "w-3 justify-end"
                       )}
                     >
                       {isRunning ? (
@@ -751,43 +818,44 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         </span>
                       ) : null}
                     </span>
-                    {showHoverActions && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        aria-label={t("moreActions")}
-                        title={t("moreActions")}
-                        aria-haspopup="menu"
-                        aria-expanded={menuOpen}
-                        data-state={menuOpen ? "open" : "closed"}
-                        onPointerDown={(event) => event.stopPropagation()}
-                        onClick={(event) => {
-                          event.stopPropagation()
-                          // Open the row's actual context menu, just like the
-                          // folder menu, so both entry points stay identical.
-                          const rect =
-                            event.currentTarget.getBoundingClientRect()
-                          event.currentTarget.dispatchEvent(
-                            new MouseEvent("contextmenu", {
-                              bubbles: true,
-                              cancelable: true,
-                              button: 2,
-                              clientX: rect.left,
-                              clientY: rect.bottom,
-                            })
-                          )
-                        }}
-                        className={cn(
-                          "ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
-                          isMobile && "opacity-100"
-                        )}
-                      >
-                        <Ellipsis className="size-3.5" />
-                      </Button>
-                    )}
-                    {!showHoverActions && stackedLayout && (
-                      <span aria-hidden className="ml-1 size-6" />
-                    )}
+                    {showHoverActions &&
+                      !(stackedLayout && hasUnread) &&
+                      !(stackMetadata && isRunning) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label={t("moreActions")}
+                          title={t("moreActions")}
+                          aria-haspopup="menu"
+                          aria-expanded={menuOpen}
+                          data-state={menuOpen ? "open" : "closed"}
+                          onPointerDown={(event) => event.stopPropagation()}
+                          onClick={(event) => {
+                            event.stopPropagation()
+                            // Open the row's actual context menu, just like the
+                            // folder menu, so both entry points stay identical.
+                            const rect =
+                              event.currentTarget.getBoundingClientRect()
+                            event.currentTarget.dispatchEvent(
+                              new MouseEvent("contextmenu", {
+                                bubbles: true,
+                                cancelable: true,
+                                button: 2,
+                                clientX: rect.left,
+                                clientY: rect.bottom,
+                              })
+                            )
+                          }}
+                          className={cn(
+                            "ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+                            isMobile && "opacity-100",
+                            stackedLayout &&
+                              "absolute right-0 top-1/2 -translate-y-1/2 ml-0 justify-center p-0"
+                          )}
+                        >
+                          <Ellipsis className="size-3.5" />
+                        </Button>
+                      )}
                   </div>
                 </div>
               </div>

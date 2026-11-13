@@ -44,26 +44,28 @@ describe("mobile todo group layout", () => {
     const title = screen.getByText("检查分组样式")
     expect(title).toHaveClass("truncate")
     const meta = container.querySelector<HTMLElement>("[data-todo-meta]")!
-    expect(within(meta).getByText("1102")).toHaveAttribute(
+    expect(within(meta).getByText("11/02")).toHaveAttribute(
       "datetime",
       createdAt
     )
     expect(within(meta).getByText("To verify")).toBeInTheDocument()
-    expect(screen.queryByText("1026")).not.toBeInTheDocument()
+    expect(screen.queryByText("10/26")).not.toBeInTheDocument()
     expect(title.closest("[data-todo-title]")).not.toContainElement(meta)
   })
 
-  it("keeps the date column when creation date is missing", () => {
+  it("omits the date and separator when creation date is missing", () => {
     const { container } = showGroup({ title: "普通待办", created: "invalid" })
     const meta = container.querySelector<HTMLElement>("[data-todo-meta]")!
-    expect(meta.children[0]).toBeEmptyDOMElement()
-    expect(meta.children[1]).toHaveTextContent("To verify")
+    expect(meta).toHaveTextContent("To verify")
+    expect(meta.querySelector("time")).toBeNull()
+    expect(meta).not.toHaveTextContent("·")
+    expect(meta.querySelector("svg.lucide-list-todo")).toBeInTheDocument()
   })
 
   it("uses the structured title date if no creation date is available", () => {
     const { container } = showGroup({ created: "invalid" })
     const meta = container.querySelector<HTMLElement>("[data-todo-meta]")!
-    expect(within(meta).getByText("1026")).toBeInTheDocument()
+    expect(within(meta).getByText("10/26")).toBeInTheDocument()
     expect(screen.getByText("检查分组样式")).toBeInTheDocument()
   })
 
