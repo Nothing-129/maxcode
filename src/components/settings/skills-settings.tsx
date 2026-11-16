@@ -929,7 +929,7 @@ export function SkillsSettings() {
                                 "w-full rounded-md border px-2 py-1.5 text-left transition-colors",
                                 isActive
                                   ? "border-primary/60 bg-primary/5"
-                                  : "hover:bg-muted/30"
+                                  : "hover:bg-interaction-hover"
                               )}
                               onClick={() => {
                                 handlePreviewSkill(skill).catch((err) => {

@@ -3,6 +3,7 @@
 @import "shadcn/tailwind.css";
 @import "./motion.css";
 @import "./interaction-motion.css";
+@import "./neutral-hover.css";
 @import "streamdown/styles.css";
 @import "./streaming-text.css";
 @import "@xterm/xterm/css/xterm.css";

@@ -483,7 +483,7 @@ function StashCard({
                 <CollapsibleTrigger asChild>
                   <button
                     type="button"
-                    className="flex w-full items-center gap-2 rounded-t-lg px-3 py-2 text-left text-sm transition-colors group-hover:bg-muted/50"
+                    className="flex w-full items-center gap-2 rounded-t-lg px-3 py-2 text-left text-sm transition-colors group-hover:bg-interaction-hover"
                     disabled={actionLoading}
                   >
                     <ChevronRight
@@ -511,7 +511,7 @@ function StashCard({
                 </CollapsibleTrigger>
                 <button
                   type="button"
-                  className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-accent group-hover:opacity-100"
+                  className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-md opacity-0 transition-opacity hover:bg-interaction-hover group-hover:opacity-100"
                   title={t("apply") as string}
                   onClick={() => setConfirmApplyOpen(true)}
                   disabled={actionLoading}

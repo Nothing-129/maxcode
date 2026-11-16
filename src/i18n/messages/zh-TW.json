@@ -1949,6 +1949,7 @@
       "sortBy": "排序方式",
       "sortByCreatedAt": "按建立時間排序",
       "sortByUpdatedAt": "按更新時間排序",
+      "navigationOrder": "導覽順序",
       "sectionOrder": "區域順序",
       "sectionOrderMoveUp": "上移",
       "sectionOrderMoveDown": "下移",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "切換詳情"
   },
   "Automations": {
+    "hideFromConversationList": "在對話列表中隱藏",
+    "hideFromConversationListHint": "開啟後，可從自動化的執行記錄查看對話。關閉後恢復顯示。",
+    "calendarFilter": "執行日期",
+    "calendarAll": "不限日期",
+    "calendarWorkday": "法定工作日（中國大陸）",
+    "calendarHoliday": "法定節假日（中國大陸）",
+    "calendarHint": "按北京時間執行。工作日包含調休補班；節假日不含普通週末。",
     "attachedTodos": "掛載待辦",
     "attachedTodosHint": "每次執行讀取待辦最新內容，並將執行對話關聯到待辦。",
     "todoScope": "待辦範圍",

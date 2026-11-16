@@ -1949,6 +1949,7 @@
       "sortBy": "Sort by",
       "sortByCreatedAt": "Created time",
       "sortByUpdatedAt": "Updated time",
+      "navigationOrder": "Navigation order",
       "sectionOrder": "Section order",
       "sectionOrderMoveUp": "Move up",
       "sectionOrderMoveDown": "Move down",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "Toggle details"
   },
   "Automations": {
+    "hideFromConversationList": "Hide from conversation list",
+    "hideFromConversationListHint": "Hide existing and future run conversations. View them in automation run history. Turn off to show them again.",
+    "calendarFilter": "Execution dates",
+    "calendarAll": "All dates",
+    "calendarWorkday": "China statutory workdays",
+    "calendarHoliday": "China public holidays",
+    "calendarHint": "Beijing time. Includes makeup workdays; holidays exclude ordinary weekends.",
     "attachedTodos": "Attached todos",
     "attachedTodosHint": "Each run reads the latest todo content and links its conversation to these todos.",
     "todoScope": "Todo scope",

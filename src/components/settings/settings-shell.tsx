@@ -348,7 +348,7 @@ export function SettingsShell({
                   key={result.id}
                   type="button"
                   onClick={() => openResult(result)}
-                  className="flex w-full flex-col gap-1 rounded-lg px-2 py-2 text-left hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                  className="flex w-full flex-col gap-1 rounded-lg px-2 py-2 text-left hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-ring"
                 >
                   <span className="text-sm font-medium">{result.label}</span>
                   <span className="text-xs text-muted-foreground">

@@ -690,7 +690,7 @@ export const CodexVisualizeCard = memo(function CodexVisualizeCard({
               "inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2 text-xs transition-colors",
               scripts
                 ? "text-amber-600 hover:bg-amber-500/10 dark:text-amber-500"
-                : "text-muted-foreground hover:bg-primary/8"
+                : "text-muted-foreground hover:bg-interaction-hover"
             )}
           >
             {scripts ? (
@@ -705,7 +705,7 @@ export const CodexVisualizeCard = memo(function CodexVisualizeCard({
             onClick={reload}
             title={t("visualizeReload")}
             aria-label={t("visualizeReload")}
-            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-primary/8"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-interaction-hover"
           >
             <RotateCw className="h-3.5 w-3.5" />
           </button>
@@ -713,7 +713,7 @@ export const CodexVisualizeCard = memo(function CodexVisualizeCard({
             <FilePathLink
               filePath={openPath}
               title={t("visualizeOpenFile")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-primary/8"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-interaction-hover"
             >
               <ExternalLink className="h-3.5 w-3.5" />
               <span className="sr-only">{t("visualizeOpenFile")}</span>
@@ -725,7 +725,7 @@ export const CodexVisualizeCard = memo(function CodexVisualizeCard({
               onClick={onCollapse}
               title={t("htmlPreviewHide")}
               aria-label={t("htmlPreviewHide")}
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-primary/8"
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-interaction-hover"
             >
               <ChevronUp className="h-3.5 w-3.5" />
             </button>
@@ -766,7 +766,7 @@ export const CodexVisualizeCard = memo(function CodexVisualizeCard({
         <button
           type="button"
           onClick={toggleExpanded}
-          className="flex h-8 w-full items-center justify-center gap-1.5 border-t border-border text-xs text-muted-foreground hover:bg-primary/8"
+          className="flex h-8 w-full items-center justify-center gap-1.5 border-t border-border text-xs text-muted-foreground hover:bg-interaction-hover"
         >
           {expanded ? (
             <ChevronsDownUp className="h-3.5 w-3.5" />

@@ -1,5 +1,6 @@
 "use client"
 
+import { usePersistedNavigation } from "@/hooks/use-persisted-navigation"
 import { createContext, useContext, useEffect, useState } from "react"
 import {
   localDateKey,
@@ -11,7 +12,36 @@ import {
   type SidebarView,
 } from "@/lib/sidebar-navigation"
 
+export const NAVIGATION_IDS = [
+  "home",
+  "conversations",
+  "projects",
+  "tasks",
+  "automations",
+] as const
+export type NavigationId = (typeof NAVIGATION_IDS)[number]
+const ORDER_STORAGE_KEY = "workspace:navigation-order"
+
+function normalizeOrder(value: unknown): NavigationId[] {
+  const saved = Array.isArray(value) ? value : []
+  return [
+    ...new Set<NavigationId>([
+      ...saved.filter((id): id is NavigationId => NAVIGATION_IDS.includes(id)),
+      ...NAVIGATION_IDS,
+    ]),
+  ]
+}
+
+const SIDEBAR_VIEWS: readonly SidebarView[] = [
+  "home",
+  "conversations",
+  "projects",
+  "tasks",
+]
+
 const SidebarNavigationContext = createContext<{
+  order: readonly NavigationId[]
+  moveNavigation: (id: NavigationId, delta: number) => void
   view: SidebarView
   setView: (view: SidebarView) => void
   date: string
@@ -30,9 +60,42 @@ export function SidebarNavigationProvider({
 }: {
   children: React.ReactNode
 }) {
-  const [view, setView] = useState<SidebarView>("home")
-  // The initial Home view does not render date controls. Restore before the
-  // user opens Conversations, without overwriting a saved filter on mount.
+  const [order, setOrder] = useState<readonly NavigationId[]>(NAVIGATION_IDS)
+  useEffect(() => {
+    try {
+      // Restore after hydration so static export and the first client render agree.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setOrder(
+        normalizeOrder(
+          JSON.parse(localStorage.getItem(ORDER_STORAGE_KEY) ?? "null")
+        )
+      )
+    } catch {
+      /* Storage is optional. */
+    }
+  }, [])
+  const moveNavigation = (id: NavigationId, delta: number) => {
+    setOrder((previous) => {
+      const index = previous.indexOf(id)
+      const target = index + delta
+      if (index < 0 || target < 0 || target >= previous.length) return previous
+      const next = [...previous]
+      next.splice(index, 1)
+      next.splice(target, 0, id)
+      try {
+        localStorage.setItem(ORDER_STORAGE_KEY, JSON.stringify(next))
+      } catch {
+        /* Storage is optional. */
+      }
+      return next
+    })
+  }
+  const [view, setView] = usePersistedNavigation(
+    "workspace:sidebar-view",
+    "home",
+    SIDEBAR_VIEWS
+  )
+  // Restore the date filter without overwriting it on mount.
   const [filter, setFilter] = useState<ConversationDateFilter>(loadDateFilter)
   useEffect(() => {
     try {
@@ -93,6 +156,8 @@ export function SidebarNavigationProvider({
   return (
     <SidebarNavigationContext.Provider
       value={{
+        order,
+        moveNavigation,
         view,
         setView,
         date,

@@ -115,7 +115,9 @@ describe("Chat automation editor", () => {
       screen.getByRole("button", { name: en.Automations.targetChat })
     )
     expect(screen.queryByTestId("branch-picker")).not.toBeInTheDocument()
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("checkbox", { name: en.Automations.isolationWorktree })
+    ).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole("button", { name: en.Automations.save }))
     await waitFor(() =>
       expect(submit).toHaveBeenCalledWith(

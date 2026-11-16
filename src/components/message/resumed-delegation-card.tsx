@@ -177,7 +177,7 @@ export function ResumedDelegationCard({
             aria-controls={expanded ? panelId : undefined}
             title={t("resumeDetail")}
             aria-label={t("resumeDetail")}
-            className="shrink-0 flex items-center border-l border-border px-2 text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            className="shrink-0 flex items-center border-l border-border px-2 text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
           >
             {expanded ? (
               <ChevronDown className="h-3.5 w-3.5" />

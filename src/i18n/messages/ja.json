@@ -1949,6 +1949,7 @@
       "sortBy": "並び替え",
       "sortByCreatedAt": "作成時刻順",
       "sortByUpdatedAt": "更新時刻順",
+      "navigationOrder": "ナビゲーションの順序",
       "sectionOrder": "セクションの順序",
       "sectionOrderMoveUp": "上へ移動",
       "sectionOrderMoveDown": "下へ移動",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "詳細を切り替え"
   },
   "Automations": {
+    "hideFromConversationList": "会話一覧で非表示にする",
+    "hideFromConversationListHint": "過去および今後の実行による会話を非表示にします。自動タスクの実行履歴から確認できます。オフにすると再表示されます。",
+    "calendarFilter": "実行日",
+    "calendarAll": "すべての日",
+    "calendarWorkday": "中国本土の勤務日",
+    "calendarHoliday": "中国本土の祝休日",
+    "calendarHint": "北京時間。振替出勤日を含み、通常の週末は祝休日に含みません。",
     "attachedTodos": "関連付ける ToDo",
     "attachedTodosHint": "実行ごとに最新の ToDo 内容を読み込み、実行時の会話を関連付けます。",
     "todoScope": "ToDo の範囲",

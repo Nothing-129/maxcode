@@ -32,7 +32,7 @@ export function ToolCallBlock({
     >
       <button
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-muted/50 transition-colors"
+        className="flex items-center gap-2 w-full px-3 py-2 text-left hover:bg-interaction-hover transition-colors"
       >
         {expanded ? (
           <ChevronDown className="h-3 w-3 shrink-0" />

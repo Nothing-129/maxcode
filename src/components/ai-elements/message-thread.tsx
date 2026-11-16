@@ -366,7 +366,7 @@ export const MessageThreadScrollButton = ({
         >
           <Button
             className={cn(
-              "pointer-events-auto absolute bottom-4 left-[50%] z-10 translate-x-[-50%] cursor-pointer rounded-full bg-background/90 transition-colors hover:bg-muted/90 active:not-aria-[haspopup]:translate-y-0",
+              "pointer-events-auto absolute bottom-4 left-[50%] z-10 translate-x-[-50%] cursor-pointer rounded-full bg-background/90 transition-colors hover:bg-interaction-hover active:not-aria-[haspopup]:translate-y-0",
               className
             )}
             onClick={handleScrollToBottom}
@@ -434,7 +434,7 @@ export const MessageThreadDownload = ({
   return (
     <Button
       className={cn(
-        "absolute top-4 right-4 rounded-full dark:bg-background dark:hover:bg-muted",
+        "absolute top-4 right-4 rounded-full dark:bg-background dark:hover:bg-interaction-hover",
         className
       )}
       onClick={handleDownload}

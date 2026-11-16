@@ -647,7 +647,7 @@ export function TasksPage() {
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-8 gap-1.5 rounded-full bg-muted/70 px-3 text-[0.8125rem] font-medium ws-msg-chip hover:bg-muted"
+                className="h-8 gap-1.5 rounded-full bg-muted/70 px-3 text-[0.8125rem] font-medium ws-msg-chip hover:bg-interaction-hover"
               >
                 <Funnel
                   className="size-3.5 text-muted-foreground"
@@ -668,7 +668,7 @@ export function TasksPage() {
               {/* Both toggles apply to both views: the status filter narrows to
                   a whole column, so it cannot single out `canceled` (which
                   lives inside Done) — this is the only control that can. */}
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-accent/50">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-interaction-hover">
                 <Checkbox
                   checked={boardFilter.showCanceled}
                   onCheckedChange={(v) =>
@@ -680,7 +680,7 @@ export function TasksPage() {
                 />
                 {t("showCanceled")}
               </label>
-              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-accent/50">
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-xs hover:bg-interaction-hover">
                 <Checkbox
                   checked={boardFilter.showArchived}
                   onCheckedChange={(v) =>
@@ -717,7 +717,7 @@ export function TasksPage() {
                     ? t("statusFilterAll")
                     : t(COLUMN_LABEL_KEYS[statusFilter])
                 }`}
-                className="h-8 w-auto min-w-0 gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none ws-msg-chip hover:bg-muted"
+                className="h-8 w-auto min-w-0 gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none ws-msg-chip hover:bg-interaction-hover"
               >
                 <Tag
                   className="size-3.5 text-muted-foreground"

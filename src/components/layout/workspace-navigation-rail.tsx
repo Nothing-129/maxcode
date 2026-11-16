@@ -22,6 +22,7 @@ import { SidebarCodexQuota } from "./sidebar-codex-quota"
 import { StatusBarAlerts } from "./status-bar-alerts"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { SettingsAbout } from "@/components/settings/settings-about"
+import { usePlatform } from "@/hooks/use-platform"
 import { isNativeDesktop } from "@/lib/platform"
 import { cn } from "@/lib/utils"
 
@@ -37,6 +38,7 @@ export function WorkspaceNavigationRail({
   mobile = false,
 }: { mobile?: boolean } = {}) {
   const t = useTranslations("Folder.sidebar.navigation")
+  const { isMac: platformIsMac } = usePlatform()
   const navigation = useSidebarNavigation()
   const update = useAppUpdate()
   const { routeId, setRoute } = useWorkbenchRoute()
@@ -57,45 +59,48 @@ export function WorkspaceNavigationRail({
       data-mobile-navigation={mobile || undefined}
       className="flex h-full min-h-0 w-14 shrink-0 flex-col items-center border-r border-sidebar-border/40 bg-sidebar/80 px-1.5 pb-3 text-sidebar-foreground"
     >
-      {!mobile && isNativeDesktop() ? (
+      {!mobile && platformIsMac && isNativeDesktop() ? (
         <div data-drag-region className="h-14 w-full shrink-0" />
       ) : (
         <div aria-hidden="true" className="h-2 w-full shrink-0" />
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
-        {ITEMS.map(({ id, icon: Icon }) => (
-          <button
-            key={id}
-            type="button"
-            title={t(id)}
-            aria-label={t(id)}
-            aria-current={active === id ? "page" : undefined}
-            onClick={() => {
-              if (id === "automations" || id === "tasks") {
-                if (id === "tasks" && !isOpen) toggle()
-                setRoute(id)
-                if (mobile && id === "automations") close()
-              } else {
-                navigation.setView(id)
-                setRoute("conversations")
-                if (!isOpen) toggle()
-              }
-            }}
-            className={cn(
-              "relative flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-              active === id &&
-                "bg-sidebar-foreground/[0.06] text-sidebar-foreground"
-            )}
-          >
-            <Icon
-              className="size-[1.125rem]"
-              strokeWidth={active === id ? 1.9 : 1.7}
-            />
-            {id === "automations" && unseenFailures > 0 && (
-              <span className="absolute right-1 top-1 size-1.5 rounded-full bg-destructive" />
-            )}
-          </button>
-        ))}
+        {navigation.order.map((id) => {
+          const Icon = ITEMS.find((item) => item.id === id)!.icon
+          return (
+            <button
+              key={id}
+              type="button"
+              title={t(id)}
+              aria-label={t(id)}
+              aria-current={active === id ? "page" : undefined}
+              onClick={() => {
+                if (id === "automations" || id === "tasks") {
+                  if (id === "tasks" && !isOpen) toggle()
+                  setRoute(id)
+                  if (mobile && id === "automations") close()
+                } else {
+                  navigation.setView(id)
+                  setRoute("conversations")
+                  if (!isOpen) toggle()
+                }
+              }}
+              className={cn(
+                "relative flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                active === id &&
+                  "bg-sidebar-foreground/[0.06] text-sidebar-foreground"
+              )}
+            >
+              <Icon
+                className="size-[1.125rem]"
+                strokeWidth={active === id ? 1.9 : 1.7}
+              />
+              {id === "automations" && unseenFailures > 0 && (
+                <span className="absolute right-1 top-1 size-1.5 rounded-full bg-destructive" />
+              )}
+            </button>
+          )
+        })}
       </div>
       <div
         data-navigation-utilities

@@ -683,6 +683,7 @@ if (!app.requestSingleInstanceLock()) {
           }
         },
         beforeInstall: shutdown,
+        log: desktopLog,
         onInstallError: (error) => {
           if (!quitting || recoveringUpdate) return
           recoveringUpdate = true

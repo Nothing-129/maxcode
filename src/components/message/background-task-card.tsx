@@ -149,7 +149,7 @@ function BackgroundTaskRowView({ row }: { row: BackgroundTaskRow }) {
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
           aria-controls={expanded ? panelId : undefined}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-interaction-hover"
         >
           {header}
         </button>

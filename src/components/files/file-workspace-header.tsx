@@ -100,7 +100,7 @@ export function FileWorkspaceHeader() {
   }
 
   const actionBtn =
-    "flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-primary/8 transition-colors"
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded hover:bg-interaction-hover transition-colors"
 
   return (
     // Transparent like the conversation detail header

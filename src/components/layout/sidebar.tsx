@@ -8,6 +8,7 @@ import {
   DesktopChromeIcon,
   desktopChromeButtonClassName,
 } from "./desktop-chrome-icon"
+import { SidebarNavigationOrderControl } from "./sidebar-navigation-order-control"
 import { SidebarNavigationIcon } from "./sidebar-navigation-icon"
 import { SidebarFooter } from "./sidebar-footer"
 import { SidebarWordmark } from "./sidebar-wordmark"
@@ -115,7 +116,7 @@ function SidebarNavButton({
         // Equal-width buttons keep the three actions on a single compact row.
         "group relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent/35 px-0.5",
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
-        "transition-colors duration-150 hover:bg-sidebar-accent",
+        "transition-colors duration-150 hover:bg-interaction-hover",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
         conversationSurface && "bg-black/[0.07] dark:bg-white/[0.1]",
         variant === "ghost" && "bg-transparent",
@@ -151,7 +152,8 @@ export function Sidebar({
       : navigationView
   const { isMac: platformIsMac } = usePlatform()
   const isMobile = useIsMobile()
-  const compactHeader = isMobile || !isNativeDesktop()
+  // Only macOS desktop embeds native window controls above the wordmark.
+  const compactHeader = isMobile || !platformIsMac || !isNativeDesktop()
   // Touch devices must also collapse the sidebar after navigating AWAY from it
   // when they land in the desktop shell — a phone in landscape, a foldable, or
   // "request desktop site" reports ≥768px so the sidebar renders inline instead
@@ -488,6 +490,13 @@ export function Sidebar({
               </DropdownMenuRadioItem>
             </DropdownMenuRadioGroup>
             <DropdownMenuSeparator />
+            {navigation && (
+              <>
+                <DropdownMenuLabel>{t("navigationOrder")}</DropdownMenuLabel>
+                <SidebarNavigationOrderControl />
+                <DropdownMenuSeparator />
+              </>
+            )}
             <DropdownMenuLabel>{t("sectionOrder")}</DropdownMenuLabel>
             <SidebarSectionOrderControl
               order={sectionOrder}
@@ -542,7 +551,7 @@ export function Sidebar({
         {view === "tasks" && (
           <SidebarNavButton
             icon="tasks"
-            variant="ghost"
+            conversationSurface={!isMobile}
             label={t("navigation.todoBoard")}
             onClick={() => setRoute("tasks")}
           />

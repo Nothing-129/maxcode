@@ -1949,6 +1949,7 @@
       "sortBy": "Ordenar por",
       "sortByCreatedAt": "Fecha de creación",
       "sortByUpdatedAt": "Fecha de actualización",
+      "navigationOrder": "Orden de navegación",
       "sectionOrder": "Orden de secciones",
       "sectionOrderMoveUp": "Subir",
       "sectionOrderMoveDown": "Bajar",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "Mostrar detalles"
   },
   "Automations": {
+    "hideFromConversationList": "Ocultar en la lista de conversaciones",
+    "hideFromConversationListHint": "Oculta las conversaciones de ejecuciones anteriores y futuras. Consúltalas en el historial de la automatización. Desactiva esta opción para volver a mostrarlas.",
+    "calendarFilter": "Fechas de ejecución",
+    "calendarAll": "Todas las fechas",
+    "calendarWorkday": "Días laborables de China",
+    "calendarHoliday": "Festivos de China",
+    "calendarHint": "Hora de Pekín. Incluye jornadas compensatorias; excluye fines de semana ordinarios de los festivos.",
     "attachedTodos": "Pendientes vinculados",
     "attachedTodosHint": "Cada ejecución lee el contenido actual y vincula su conversación a estos pendientes.",
     "todoScope": "Ámbito de pendientes",

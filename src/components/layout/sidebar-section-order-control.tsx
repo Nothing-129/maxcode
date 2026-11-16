@@ -5,10 +5,7 @@ import { ChevronDown, ChevronUp, EyeOff } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu"
 import { useIsMac } from "@/hooks/use-is-mac"
-import type {
-  SidebarSectionId,
-  SidebarSectionOrder,
-} from "@/lib/sidebar-view-mode-storage"
+import type { SidebarSectionId } from "@/lib/sidebar-view-mode-storage"
 import { cn } from "@/lib/utils"
 
 // Position chip at the row's leading edge. Same geometry/palette as the sidebar
@@ -48,26 +45,32 @@ const MOVE_BUTTON_CLASS = cn(
  * They stay listed and stay reorderable: hiding is a separate
  * preference, so a hidden section keeps the slot it will reappear in.
  */
-export function SidebarSectionOrderControl({
+export function SidebarSectionOrderControl<
+  Id extends string = SidebarSectionId,
+>({
   order,
   onMove,
   hiddenSections,
+  getLabel,
+  keyboardMoves = true,
 }: {
-  order: SidebarSectionOrder
+  order: readonly Id[]
   /** Move `id` by `delta` slots (negative = up). The caller clamps at the
    *  ends — this component only disables the buttons that would no-op. */
-  onMove: (id: SidebarSectionId, delta: number) => void
-  hiddenSections?: ReadonlySet<SidebarSectionId>
+  onMove: (id: Id, delta: number) => void
+  hiddenSections?: ReadonlySet<Id>
+  getLabel?: (id: Id) => string
+  keyboardMoves?: boolean
 }) {
   const t = useTranslations("Folder.sidebar")
   const isMac = useIsMac()
-  const rowRefs = useRef(new Map<SidebarSectionId, HTMLDivElement | null>())
+  const rowRefs = useRef(new Map<Id, HTMLDivElement | null>())
   // Set just before a keyboard-driven move so focus can be restored onto the
   // row after it changes slots. React reorders the keyed nodes rather than
   // recreating them, but moving the focused element in the DOM is not
   // guaranteed to preserve focus, and losing it mid-reorder would strand a
   // keyboard user outside the menu's roving focus.
-  const pendingFocusRef = useRef<SidebarSectionId | null>(null)
+  const pendingFocusRef = useRef<Id | null>(null)
 
   useEffect(() => {
     const pending = pendingFocusRef.current
@@ -76,16 +79,18 @@ export function SidebarSectionOrderControl({
     rowRefs.current.get(pending)?.focus()
   }, [order])
 
-  const label = (id: SidebarSectionId) =>
-    id === "folders"
-      ? t("sectionFolders")
-      : id === "chats"
-        ? t("sectionChats")
-        : id === "todos"
-          ? t("sectionTodos")
-          : t("sectionRecent")
+  const label = (id: Id) =>
+    getLabel
+      ? getLabel(id)
+      : id === "folders"
+        ? t("sectionFolders")
+        : id === "chats"
+          ? t("sectionChats")
+          : id === "todos"
+            ? t("sectionTodos")
+            : t("sectionRecent")
 
-  const move = (id: SidebarSectionId, delta: number, viaKeyboard: boolean) => {
+  const move = (id: Id, delta: number, viaKeyboard: boolean) => {
     if (viaKeyboard) pendingFocusRef.current = id
     onMove(id, delta)
   }
@@ -107,7 +112,7 @@ export function SidebarSectionOrderControl({
             // that closes on every nudge would force a reopen per slot.
             onSelect={(event) => event.preventDefault()}
             onKeyDown={(event) => {
-              if (!event.altKey) return
+              if (!keyboardMoves || !event.altKey) return
               if (event.ctrlKey || event.metaKey || event.shiftKey) return
               if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
               const delta = event.key === "ArrowUp" ? -1 : 1
@@ -124,7 +129,9 @@ export function SidebarSectionOrderControl({
               position: index + 1,
               total: order.length,
             })}
-            aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+            aria-keyshortcuts={
+              keyboardMoves ? "Alt+ArrowUp Alt+ArrowDown" : undefined
+            }
             className={cn("gap-2 py-1.5", hidden && "opacity-50")}
           >
             <span aria-hidden className={POSITION_CHIP_CLASS}>
@@ -176,9 +183,11 @@ export function SidebarSectionOrderControl({
           focus cannot reach. One shared line rather than per-row noise, and
           right-aligned so it sits directly under the ↑/↓ column it explains
           (the item's px-3 puts both on the same right edge). */}
-      <p className="px-3 pt-0.5 pb-1 text-right font-mono text-[0.625rem] leading-none text-muted-foreground/70">
-        {isMac ? "⌥↑ / ⌥↓" : "Alt+↑ / Alt+↓"}
-      </p>
+      {keyboardMoves && (
+        <p className="px-3 pt-0.5 pb-1 text-right font-mono text-[0.625rem] leading-none text-muted-foreground/70">
+          {isMac ? "⌥↑ / ⌥↓" : "Alt+↑ / Alt+↓"}
+        </p>
+      )}
     </>
   )
 }

@@ -56,6 +56,8 @@ pub struct DeleteAutomationParams {
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ComputeNextRunParams {
+    #[serde(default)]
+    pub calendar_filter: crate::automation::calendar::CalendarFilter,
     pub cron: String,
     pub timezone: String,
 }
@@ -154,8 +156,14 @@ pub async fn automation_mark_seen(
 pub async fn automation_compute_next_run(
     Json(params): Json<ComputeNextRunParams>,
 ) -> Result<Json<Option<DateTime<Utc>>>, AppCommandError> {
-    let result = core::automation_compute_next_run_core(&params.cron, &params.timezone)
-        .map_err(AppCommandError::from)?;
+    let result = crate::automation::calendar::compute_calendar_next_run(
+        &params.cron,
+        &params.timezone,
+        Utc::now(),
+        params.calendar_filter,
+    )
+    .await
+    .map_err(AppCommandError::from)?;
     Ok(Json(result))
 }
 

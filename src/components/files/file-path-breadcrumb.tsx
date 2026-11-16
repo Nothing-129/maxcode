@@ -187,7 +187,7 @@ function DirSegmentPopover({
           className={cn(
             "flex min-w-0 shrink items-center rounded px-1 py-0.5",
             "text-muted-foreground transition-colors",
-            "hover:bg-muted hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
+            "hover:bg-interaction-hover hover:text-foreground data-[state=open]:bg-muted data-[state=open]:text-foreground"
           )}
         >
           <span className="truncate">{label}</span>

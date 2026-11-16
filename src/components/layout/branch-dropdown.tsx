@@ -670,7 +670,7 @@ export function BranchDropdown({ folder, isChatMode }: BranchDropdownProps) {
               setDropdownOpen(false)
               void runGitTask(t("tasks.initGitRepo"), () => gitInit(folderPath))
             }}
-            className="flex w-full select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground disabled:pointer-events-none disabled:opacity-50"
+            className="flex w-full select-none items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-interaction-hover hover:text-foreground disabled:pointer-events-none disabled:opacity-50"
           >
             <GitBranch className="size-3.5 shrink-0" />
             {t("initGitRepo")}

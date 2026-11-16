@@ -179,7 +179,7 @@ const SubAgentOverlayRow = memo(function SubAgentOverlayRow({
               ? viewerHost.open({ kind: "delegation", source })
               : setDialogOpen(true)
           }
-          className="flex w-full items-center gap-2 rounded-lg border bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-muted/60"
+          className="flex w-full items-center gap-2 rounded-lg border bg-transparent px-2 py-1.5 text-left transition-colors hover:bg-interaction-hover"
           // No aria-label: let the row content (agent name + task) name the
           // button so screen readers can tell rows apart. `title` stays for the
           // pointer tooltip.

@@ -182,7 +182,7 @@ export const ConversationMessageRail = memo(function ConversationMessageRail({
             )}
             title={t(earlier === "loading" ? "loadingEarlier" : "loadEarlier")}
             onClick={onRetryEarlier}
-            className="flex h-6 min-h-6 w-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:bg-accent"
+            className="flex h-6 min-h-6 w-8 shrink-0 items-center justify-center text-muted-foreground outline-none hover:text-foreground focus-visible:bg-interaction-hover"
           >
             {earlier === "loading" ? (
               <Loader2 className="size-3 animate-spin" />
@@ -207,7 +207,7 @@ export const ConversationMessageRail = memo(function ConversationMessageRail({
                     smooth: true,
                   })
                 }}
-                className="group/tick flex h-2.5 min-h-2.5 w-8 shrink-0 items-center px-2 outline-none focus-visible:bg-accent"
+                className="group/tick flex h-2.5 min-h-2.5 w-8 shrink-0 items-center px-2 outline-none focus-visible:bg-interaction-hover"
               >
                 {entry.id === revealingTurnId ? (
                   <Loader2 className="size-2.5 animate-spin" />

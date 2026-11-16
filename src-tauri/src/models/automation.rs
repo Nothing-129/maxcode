@@ -88,6 +88,10 @@ pub enum AutomationAction {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AutomationConfig {
     #[serde(default)]
+    pub hide_from_conversation_list: bool,
+    #[serde(default)]
+    pub calendar_filter: crate::automation::calendar::CalendarFilter,
+    #[serde(default)]
     pub todo_origins: Vec<crate::todo::conversation_groups::TodoOrigin>,
     #[serde(default)]
     pub session_mode: AutomationSessionMode,

@@ -337,7 +337,7 @@ export function AgentSelector({
           <button
             type="button"
             onClick={onOpenAgentsSettings}
-            className="mt-2 inline-flex items-center rounded-md border px-2 py-1 text-xs text-foreground transition-colors hover:bg-accent cursor-pointer"
+            className="mt-2 inline-flex items-center rounded-md border px-2 py-1 text-xs text-foreground transition-colors hover:bg-interaction-hover cursor-pointer"
           >
             {t("openAgentsSettings")}
           </button>
@@ -516,7 +516,7 @@ export function AgentSelector({
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
                       disabled || !agent.available
                         ? "cursor-not-allowed opacity-40"
-                        : "cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                        : "cursor-pointer hover:bg-interaction-hover hover:text-foreground"
                     )}
                   >
                     <span className="relative flex shrink-0 items-center">

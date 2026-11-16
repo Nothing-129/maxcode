@@ -283,7 +283,7 @@ export function TodoCard({
             href={todo.source_url}
             title={t("sourceConversation")}
             aria-label={t("sourceConversation")}
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
           >
             <ExternalLink className="size-3.5" />
           </BrowserLink>

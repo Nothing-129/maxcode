@@ -160,9 +160,9 @@ export const ROW_ACTION_GLYPH = "size-3.5"
  *  accent for a task still under way, neutral once it has settled. */
 export const CHIP_FILL = {
   active:
-    "bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary dark:hover:bg-primary/15",
+    "bg-primary/10 text-primary hover:bg-interaction-hover hover:text-primary dark:hover:bg-interaction-hover",
   settled:
-    "bg-muted text-muted-foreground hover:bg-muted/80 dark:hover:bg-muted/80",
+    "bg-muted text-muted-foreground hover:bg-interaction-hover dark:hover:bg-interaction-hover",
 } as const
 
 /**
@@ -205,7 +205,7 @@ export function ForgeIssueRowItem({
     // which puts the glyph on that line's centre wherever the block grows.
     // The TRAILING cluster is the opposite case — it belongs to the row, not to
     // a line of it — so it centres against the whole block via `self-center`.
-    <div className="group flex min-w-0 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-muted/40">
+    <div className="group flex min-w-0 items-start gap-3 px-4 py-2.5 transition-colors hover:bg-interaction-hover">
       <span className="flex h-5 shrink-0 items-center">
         <Icon
           role="img"

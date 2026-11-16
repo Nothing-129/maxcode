@@ -1212,7 +1212,7 @@ export function TaskDetailSheet({
                               onClick={() => setDiffFile(f.file)}
                               className={cn(
                                 "flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs",
-                                "transition-colors hover:bg-accent/50"
+                                "transition-colors hover:bg-interaction-hover"
                               )}
                             >
                               <span className="min-w-0 flex-1 truncate font-mono text-[0.6875rem]">
@@ -1536,7 +1536,7 @@ function CollapsibleBlock({
       {overflows ? (
         <button
           type="button"
-          className="mt-1 inline-flex items-center gap-1 self-center rounded-full px-2 py-0.5 text-[0.6875rem] text-muted-foreground transition-colors hover:bg-accent/50 hover:text-foreground"
+          className="mt-1 inline-flex items-center gap-1 self-center rounded-full px-2 py-0.5 text-[0.6875rem] text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
           onClick={() => setExpanded((v) => !v)}
         >
           {expanded ? (

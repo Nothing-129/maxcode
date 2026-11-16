@@ -26,7 +26,7 @@ export function CodexFollowup({
     <button
       type="button"
       aria-label={markdownNodeText(children) || undefined}
-      className="my-1 rounded-lg border border-border px-3 py-1.5 text-left text-sm hover:bg-muted focus-visible:outline-2 focus-visible:outline-ring"
+      className="my-1 rounded-lg border border-border px-3 py-1.5 text-left text-sm hover:bg-interaction-hover focus-visible:outline-2 focus-visible:outline-ring"
       title={prompt}
       onClick={() => onSelect(prompt)}
     >

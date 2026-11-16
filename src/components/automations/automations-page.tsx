@@ -366,6 +366,7 @@ export function AutomationsPage() {
         ? await automationUpdate(editing.automation.id, draft)
         : await automationCreate(draft)
     await refetch()
+    await useAppWorkspaceStore.getState().refreshConversations()
     setMobileDetailOpen(true)
     setSelectedId(saved.id)
     closeToDetail()
@@ -610,7 +611,7 @@ const DETAIL_SURFACE_CLASS = "h-full bg-card/50"
  *  borderless muted pill, `ws-msg-chip` keeping it legible over a workspace
  *  background image (inert without one). */
 const FILTER_PILL_CLASS =
-  "h-8 w-auto min-w-0 gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none ws-msg-chip hover:bg-muted"
+  "h-8 w-auto min-w-0 gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none ws-msg-chip hover:bg-interaction-hover"
 
 /**
  * The page toolbar: filter pills left, the New primary right — the title itself
@@ -855,7 +856,7 @@ function AutomationListItem({
               // working — the chip's unlayered background would swallow it.
               selected
                 ? "border-border ws-chrome-border bg-accent ws-msg-chip"
-                : "border-transparent hover:bg-accent/60"
+                : "border-transparent hover:bg-interaction-hover"
             )}
           >
             <button
@@ -1122,7 +1123,10 @@ function AutomationDetail({
             >
               {isSchedule && automation.cron ? (
                 <span className="flex flex-col gap-0.5">
-                  <ScheduleLabel cron={automation.cron} />
+                  <ScheduleLabel
+                    cron={automation.cron}
+                    calendarFilter={automation.config?.calendar_filter}
+                  />
                   <span className="font-mono text-xs text-muted-foreground">
                     {automation.cron}
                   </span>

@@ -179,8 +179,11 @@ jobs:
               ref: commitSha,
             });
 
-            const releaseBody =
-              commit.commit.message?.trim() || "_No commit message._";
+            const { releaseDownloads } = require(`${process.env.GITHUB_WORKSPACE}/electron/scripts/release.cjs`);
+            const releaseBody = [
+              releaseDownloads(owner, repo, tag, process.env.DESKTOP_TARGETS || ""),
+              commit.commit.message?.trim() || "_No commit message._",
+            ].filter(Boolean).join("\n\n");
             let release;
 
             // Enumerate drafts too, including those left by a failed run.

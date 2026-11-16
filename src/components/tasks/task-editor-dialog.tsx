@@ -526,7 +526,7 @@ function TaskEditorBody({
                     <button
                       type="button"
                       onClick={() => applyTemplate(tpl)}
-                      className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-accent"
+                      className="flex min-w-0 flex-1 items-start gap-1.5 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-interaction-hover"
                     >
                       <LayoutTemplate
                         className="mt-[3px] size-3.5 shrink-0 text-muted-foreground"

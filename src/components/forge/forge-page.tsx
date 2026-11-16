@@ -174,7 +174,7 @@ const STATE_OPTIONS = [
 
 /** The pill treatment the workbench toolbars share (see the Tasks page). */
 const PILL =
-  "h-8 gap-1.5 rounded-full bg-muted/70 px-3 text-[0.8125rem] font-medium ws-msg-chip hover:bg-muted"
+  "h-8 gap-1.5 rounded-full bg-muted/70 px-3 text-[0.8125rem] font-medium ws-msg-chip hover:bg-interaction-hover"
 
 /** The four orders GitHub and GitLab can honour, in the order they are offered.
  *  `as const` so the label keys stay literal and next-intl can check them. */
@@ -1514,7 +1514,7 @@ export function ForgePage() {
             <SelectTrigger
               size="sm"
               aria-label={t("stateFilter")}
-              className="h-8 w-auto gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none hover:bg-muted"
+              className="h-8 w-auto gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none hover:bg-interaction-hover"
             >
               <SelectValue />
             </SelectTrigger>
@@ -1537,7 +1537,7 @@ export function ForgePage() {
             className={cn(
               PILL,
               assignedMe &&
-                "bg-primary/10 text-primary hover:bg-primary/15 dark:hover:bg-primary/15"
+                "bg-primary/10 text-primary hover:bg-interaction-hover dark:hover:bg-interaction-hover"
             )}
             onClick={() => resetTo(() => setAssignedMe((v) => !v))}
           >
@@ -1567,7 +1567,7 @@ export function ForgePage() {
               <SelectTrigger
                 size="sm"
                 aria-label={t("sortBy")}
-                className="h-8 w-auto gap-1.5 rounded-full border-transparent px-3 text-[0.8125rem] font-medium text-muted-foreground shadow-none hover:bg-muted sm:ms-auto"
+                className="h-8 w-auto gap-1.5 rounded-full border-transparent px-3 text-[0.8125rem] font-medium text-muted-foreground shadow-none hover:bg-interaction-hover sm:ms-auto"
               >
                 <SelectValue />
               </SelectTrigger>
@@ -1874,7 +1874,7 @@ function RepoBar({
           <Separator orientation="vertical" className="!h-4" />
           <button
             type="button"
-            className="inline-flex h-7 min-w-0 items-center gap-1 rounded-full px-2 font-mono text-[0.8125rem] text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="inline-flex h-7 min-w-0 items-center gap-1 rounded-full px-2 font-mono text-[0.8125rem] text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
             title={`${t("openRepo")} · ${remote.server_host}/${remote.owner_repo}`}
             onClick={() => {
               void openUrl(repoWebUrl(remote)).catch(() => {
@@ -1924,7 +1924,7 @@ function LabelFilter({
           className={cn(
             PILL,
             active &&
-              "bg-primary/10 text-primary hover:bg-primary/15 dark:hover:bg-primary/15"
+              "bg-primary/10 text-primary hover:bg-interaction-hover dark:hover:bg-interaction-hover"
           )}
         >
           <Funnel

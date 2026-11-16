@@ -685,7 +685,7 @@ export function WorkspaceUploadDialog({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
               isDragOver
                 ? "border-primary bg-primary/5"
-                : "border-border bg-muted/30 hover:bg-muted/50"
+                : "border-border bg-muted/30 hover:bg-interaction-hover"
             )}
           >
             <Upload className="size-8 text-muted-foreground" />

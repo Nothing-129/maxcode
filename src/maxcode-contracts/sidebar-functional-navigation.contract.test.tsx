@@ -28,7 +28,18 @@ import {
 } from "@/components/conversations/sidebar-conversation-grouping"
 import type { DbConversationSummary } from "@/lib/types"
 
-const mocks = vi.hoisted(() => ({ toggle: vi.fn(), settings: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  toggle: vi.fn(),
+  settings: vi.fn(),
+  native: false,
+  isMac: false,
+}))
+vi.mock("@/lib/platform", () => ({
+  isNativeDesktop: () => mocks.native,
+}))
+vi.mock("@/hooks/use-platform", () => ({
+  usePlatform: () => ({ isMac: mocks.isMac }),
+}))
 vi.mock("@/contexts/sidebar-context", () => ({
   useSidebarContext: () => ({ isOpen: false, toggle: mocks.toggle }),
 }))
@@ -88,7 +99,11 @@ function conversation(
   }
 }
 
-beforeEach(() => localStorage.clear())
+beforeEach(() => {
+  localStorage.clear()
+  mocks.native = false
+  mocks.isMac = false
+})
 
 afterEach(() => {
   vi.useRealTimers()
@@ -96,6 +111,65 @@ afterEach(() => {
 })
 
 describe("functional sidebar navigation", () => {
+  it("renders rail buttons in the saved navigation order", () => {
+    localStorage.setItem(
+      "workspace:navigation-order",
+      JSON.stringify([
+        "automations",
+        "projects",
+        "home",
+        "tasks",
+        "conversations",
+      ])
+    )
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <WorkbenchRouteProvider>
+          <SidebarNavigationProvider>
+            <WorkspaceNavigationRail />
+          </SidebarNavigationProvider>
+        </WorkbenchRouteProvider>
+      </NextIntlClientProvider>
+    )
+    const rail = screen.getByRole("navigation")
+    expect(
+      Array.from(rail.querySelectorAll("button"))
+        .slice(0, 5)
+        .map((button) => button.getAttribute("aria-label"))
+    ).toEqual([
+      en.Folder.sidebar.navigation.automations,
+      en.Folder.sidebar.navigation.projects,
+      en.Folder.sidebar.navigation.home,
+      en.Folder.sidebar.navigation.tasks,
+      en.Folder.sidebar.navigation.conversations,
+    ])
+  })
+
+  it.each([
+    ["Windows desktop", true, false, false, "h-2"],
+    ["macOS desktop", true, true, false, "h-14"],
+    ["macOS browser", false, true, false, "h-2"],
+    ["macOS mobile drawer", true, true, true, "h-2"],
+  ])(
+    "keeps the rail top spacing appropriate for %s",
+    (_, native, isMac, mobile, height) => {
+      mocks.native = native
+      mocks.isMac = isMac
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <WorkbenchRouteProvider>
+            <SidebarNavigationProvider>
+              <WorkspaceNavigationRail mobile={mobile} />
+            </SidebarNavigationProvider>
+          </WorkbenchRouteProvider>
+        </NextIntlClientProvider>
+      )
+      const spacer = screen.getByRole("navigation").firstElementChild
+      expect(spacer).toHaveClass(height)
+      expect(spacer?.hasAttribute("data-drag-region")).toBe(height === "h-14")
+    }
+  )
+
   it("keeps pinned conversations above history outside the chosen dates without duplicate rows", () => {
     const pin = conversation(11, new Date(2026, 6, 1), {
       pinned_at: "2026-10-01T12:00:00Z",
@@ -168,7 +242,7 @@ describe("functional sidebar navigation", () => {
     )
   })
 
-  it("centers the task board action like new chat without route selection styling", () => {
+  it("gives the task board action the same neutral surface as new chat without route selection styling", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     const action = sidebar.slice(
       sidebar.indexOf('{view === "tasks" && ('),
@@ -176,7 +250,8 @@ describe("functional sidebar navigation", () => {
     )
     expect(action).toContain("<SidebarNavButton")
     expect(action).toContain('icon="tasks"')
-    expect(action).toContain('variant="ghost"')
+    expect(action).not.toContain('variant="ghost"')
+    expect(action).toContain("conversationSurface={!isMobile}")
     expect(action).toContain('label={t("navigation.todoBoard")}')
     expect(action).toContain('onClick={() => setRoute("tasks")}')
     expect(action).not.toContain("active=")

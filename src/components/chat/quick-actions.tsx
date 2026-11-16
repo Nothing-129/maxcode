@@ -92,7 +92,8 @@ const ACCENTS: Record<string, { icon: string; surface: string }> = {
   },
   blue: {
     icon: "text-blue-600 dark:text-blue-400",
-    surface: "border-blue-500/20 hover:border-blue-500/40 hover:bg-blue-500/5",
+    surface:
+      "border-blue-500/20 hover:border-blue-500/40 hover:bg-interaction-hover",
   },
   orange: {
     icon: "text-orange-600 dark:text-orange-400",
@@ -189,7 +190,7 @@ function SkillBar({
       type="button"
       onClick={onClick}
       title={locked ? lockHint : title}
-      className="group flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 transition-colors hover:border-foreground/20 hover:bg-accent/40"
+      className="group flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card/50 px-3 py-2 transition-colors hover:border-foreground/20 hover:bg-interaction-hover"
     >
       <Icon
         aria-hidden
@@ -249,7 +250,7 @@ function RailArrow({
       className={cn(
         "mb-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full",
         "border border-border bg-card/50 text-muted-foreground transition-colors",
-        "hover:border-foreground/20 hover:bg-accent/40 hover:text-foreground",
+        "hover:border-foreground/20 hover:bg-interaction-hover hover:text-foreground",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         "disabled:pointer-events-none disabled:opacity-35"
       )}

@@ -1,5 +1,7 @@
 "use client"
 
+import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
+
 import {
   createContext,
   useCallback,
@@ -72,6 +74,7 @@ export function AutomationsViewProvider({ children }: { children: ReactNode }) {
     let unsub: (() => void) | undefined
     let cancelled = false
     void subscribe(AUTOMATION_CHANGED_EVENT, () => {
+      void useAppWorkspaceStore.getState().refreshConversations()
       void refetch()
     }).then((u: () => void) => {
       if (cancelled) u()

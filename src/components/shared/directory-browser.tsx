@@ -382,7 +382,7 @@ export const DirectoryBrowser = forwardRef<
         <div key={entry.path}>
           <button
             className={cn(
-              "flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-muted/50",
+              "flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-interaction-hover",
               !multiple && isCursor && "bg-accent text-accent-foreground",
               multiple && isChecked && "bg-accent/60 text-accent-foreground"
             )}

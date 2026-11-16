@@ -137,7 +137,7 @@ export const SidebarFolderGroupHeader = memo(function SidebarFolderGroupHeader({
           "transition-colors duration-150",
           isDragging
             ? "cursor-grabbing"
-            : "cursor-grab hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
+            : "cursor-grab hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
         )}
       >
         <button

@@ -94,7 +94,7 @@ const HtmlFilePreview = memo(function HtmlFilePreview({
         type="button"
         onClick={() => setOpen(true)}
         aria-label={t("htmlPreviewOpenAria", { name })}
-        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-primary/8 hover:text-foreground"
+        className="inline-flex h-7 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
       >
         <Eye className="h-3.5 w-3.5" />
         {t("htmlPreviewOpen")}

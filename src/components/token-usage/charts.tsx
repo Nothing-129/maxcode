@@ -506,7 +506,7 @@ export function RankedBars({
               <button
                 type="button"
                 onClick={() => onSelect(d.key)}
-                className="w-full rounded-md px-1 py-0.5 text-left outline-none transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring"
+                className="w-full rounded-md px-1 py-0.5 text-left outline-none transition-colors hover:bg-interaction-hover focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {row}
               </button>

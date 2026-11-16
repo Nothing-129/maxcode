@@ -538,7 +538,7 @@ export const SuggestionPopup = forwardRef<
                   "flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs font-medium",
                   isActive
                     ? "bg-accent text-accent-foreground"
-                    : "text-muted-foreground hover:bg-accent/50"
+                    : "text-muted-foreground hover:bg-interaction-hover"
                 )}
               >
                 <span>{tabLabels[kind]}</span>
@@ -590,7 +590,7 @@ export const SuggestionPopup = forwardRef<
                       "flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-start text-sm",
                       active
                         ? "bg-accent text-accent-foreground"
-                        : "hover:bg-accent/50"
+                        : "hover:bg-interaction-hover"
                     )}
                     onMouseDown={(event) => {
                       // Keep editor focus; insert on click.

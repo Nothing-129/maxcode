@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { getAgentLabel } from "@/lib/custom-agents"
 import { ArrowLeft, Globe, Wand2 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -47,6 +47,7 @@ import type {
   AgentType,
   Automation,
   AutomationAction,
+  AutomationCalendarFilter,
   AutomationDraft,
   AutomationIsolation,
   AutomationTriggerKind,
@@ -99,6 +100,10 @@ export function AutomationEditor({
   const [action, setAction] = useState<AutomationAction>(
     automation?.config?.action ?? "launch_session"
   )
+  const visibilityId = useId()
+  const [hideFromConversationList, setHideFromConversationList] = useState(
+    automation?.config?.hide_from_conversation_list ?? false
+  )
   const [sessionMode, setSessionMode] = useState<AutomationSessionMode>(
     automation?.config?.session_mode ?? "new_per_run"
   )
@@ -124,10 +129,16 @@ export function AutomationEditor({
   const [trigger, setTrigger] = useState<AutomationTriggerKind>(
     automation?.trigger_kind ?? "schedule"
   )
+  const [calendarFilter, setCalendarFilter] =
+    useState<AutomationCalendarFilter>(
+      automation?.config?.calendar_filter ?? "all"
+    )
+  const [previewError, setPreviewError] = useState<string | null>(null)
   const [cron, setCron] = useState(automation?.cron ?? "0 9 * * 1-5")
   // Detected from this device once and shown read-only (Codex-style — no manual
   // override). Still feeds the next-run preview and the cron builder.
   const [timezone] = useState(automation?.timezone ?? detectTimezone())
+  const scheduleTimezone = calendarFilter === "all" ? timezone : "Asia/Shanghai"
   const [modeId, setModeId] = useState<string | null>(
     automation?.config?.mode_id ?? null
   )
@@ -212,19 +223,25 @@ export function AutomationEditor({
     }
     let cancelled = false
     const handle = setTimeout(() => {
-      automationComputeNextRun(cron.trim(), timezone)
+      automationComputeNextRun(cron.trim(), scheduleTimezone, calendarFilter)
         .then((r) => {
-          if (!cancelled) setNextRun(r)
+          if (!cancelled) {
+            setNextRun(r)
+            setPreviewError(null)
+          }
         })
-        .catch(() => {
-          if (!cancelled) setNextRun(null)
+        .catch((e) => {
+          if (!cancelled) {
+            setNextRun(null)
+            setPreviewError(String(e))
+          }
         })
     }, 300)
     return () => {
       cancelled = true
       clearTimeout(handle)
     }
-  }, [cron, timezone, trigger])
+  }, [cron, scheduleTimezone, calendarFilter, trigger])
 
   // Only task boards require a project; null is an intentional chat target.
   useEffect(() => {
@@ -308,7 +325,7 @@ export function AutomationEditor({
         enabled: automation?.enabled ?? true,
         trigger_kind: trigger,
         cron: trigger === "schedule" ? cron.trim() : null,
-        timezone,
+        timezone: scheduleTimezone,
         agent_type: persistedAgentType,
         root_folder_id: folderId,
         isolation: enqueue
@@ -334,8 +351,10 @@ export function AutomationEditor({
           ? {
               // Preserve the original agent's saved config verbatim; only the
               // user-editable prompt is refreshed.
+              calendar_filter: calendarFilter,
               todo_origins: enqueue ? [] : todoOrigins,
               action,
+              hide_from_conversation_list: hideFromConversationList,
               session_mode: enqueue ? "new_per_run" : sessionMode,
               message_trigger: trigger === "message" ? messageTrigger : null,
               prompt_blocks: blocks,
@@ -346,8 +365,10 @@ export function AutomationEditor({
                 automation.config?.label_snapshot ?? label_snapshot,
             }
           : {
+              calendar_filter: calendarFilter,
               todo_origins: enqueue ? [] : todoOrigins,
               action,
+              hide_from_conversation_list: hideFromConversationList,
               session_mode: enqueue ? "new_per_run" : sessionMode,
               message_trigger: trigger === "message" ? messageTrigger : null,
               prompt_blocks: blocks,
@@ -570,7 +591,28 @@ export function AutomationEditor({
       )}
 
       {action === "launch_session" && (
-        <AutomationTodoPicker value={todoOrigins} onChange={setTodoOrigins} />
+        <div className="flex flex-col gap-2">
+          <div className="flex min-h-12 items-center gap-2">
+            <Checkbox
+              id={visibilityId}
+              checked={hideFromConversationList}
+              onCheckedChange={(value) =>
+                setHideFromConversationList(value === true)
+              }
+              aria-describedby={`${visibilityId}-hint`}
+            />
+            <label htmlFor={visibilityId} className="text-sm">
+              {t("hideFromConversationList")}
+            </label>
+          </div>
+          <p
+            id={`${visibilityId}-hint`}
+            className="text-xs text-muted-foreground"
+          >
+            {t("hideFromConversationListHint")}
+          </p>
+          <AutomationTodoPicker value={todoOrigins} onChange={setTodoOrigins} />
+        </div>
       )}
 
       {/* Target — where the run happens: workspace folder, isolation, branch. */}
@@ -707,6 +749,34 @@ export function AutomationEditor({
 
         {trigger === "schedule" ? (
           <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">
+            <Label htmlFor="automation-calendar">{t("calendarFilter")}</Label>
+            <select
+              id="automation-calendar"
+              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              value={calendarFilter}
+              onChange={(e) => {
+                const filter = e.target.value as AutomationCalendarFilter
+                setCalendarFilter(filter)
+                if (filter !== "all") {
+                  const fields = cron.trim().split(/\s+/)
+                  setCron(`${fields[0] ?? "0"} ${fields[1] ?? "9"} * * *`)
+                }
+              }}
+            >
+              <option value="all">{t("calendarAll")}</option>
+              <option value="cn_workday">{t("calendarWorkday")}</option>
+              <option value="cn_holiday">{t("calendarHoliday")}</option>
+            </select>
+            {calendarFilter !== "all" && (
+              <p className="text-xs text-muted-foreground">
+                {t("calendarHint")}
+              </p>
+            )}
+            {previewError && (
+              <p className="text-xs text-destructive" role="alert">
+                {previewError}
+              </p>
+            )}
             <div className="flex flex-wrap gap-1.5">
               {CRON_PRESETS.map((p) => (
                 <Button
@@ -754,7 +824,7 @@ export function AutomationEditor({
                 title={t("timezone")}
               >
                 <Globe className="size-3 shrink-0" aria-hidden="true" />
-                <span className="font-mono">{timezone}</span>
+                <span className="font-mono">{scheduleTimezone}</span>
               </span>
             </div>
           </div>
@@ -765,7 +835,8 @@ export function AutomationEditor({
         open={cronBuilderOpen}
         onOpenChange={setCronBuilderOpen}
         cron={cron}
-        timezone={timezone}
+        timezone={scheduleTimezone}
+        calendarFilter={calendarFilter}
         onApply={setCron}
       />
 

@@ -282,10 +282,11 @@ function GoalCard({
       <CollapsibleTrigger
         className={cn(
           "group inline-flex max-w-full items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-medium transition-colors",
-          "bg-primary/10 text-foreground hover:bg-primary/15",
+          "bg-primary/10 text-foreground hover:bg-interaction-hover",
           tone === "error" &&
             "bg-destructive/10 text-destructive hover:bg-destructive/15",
-          tone === "muted" && "bg-muted/70 text-foreground hover:bg-muted"
+          tone === "muted" &&
+            "bg-muted/70 text-foreground hover:bg-interaction-hover"
         )}
         aria-label={headerText}
       >
@@ -402,7 +403,7 @@ function GoalCard({
                   <button
                     type="button"
                     onClick={() => onGoalControl?.("pause")}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
                   >
                     <PauseIcon aria-hidden="true" className="size-3" />
                     {t("pause")}
@@ -412,7 +413,7 @@ function GoalCard({
                   <button
                     type="button"
                     onClick={() => onGoalControl?.("clear")}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
                   >
                     <XIcon aria-hidden="true" className="size-3" />
                     {t("clear")}

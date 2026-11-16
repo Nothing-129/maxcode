@@ -105,7 +105,7 @@ function AlertActionButton({ action }: { action: AlertAction }) {
   return (
     <button
       onClick={handleClick}
-      className="text-3xs px-1.5 py-0.5 rounded bg-accent hover:bg-accent/80 text-accent-foreground transition-colors"
+      className="text-3xs px-1.5 py-0.5 rounded bg-accent hover:bg-interaction-hover text-accent-foreground transition-colors"
     >
       {action.label}
     </button>

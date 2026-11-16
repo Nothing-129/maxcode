@@ -267,7 +267,7 @@ export function OfficePreview({
           <button
             type="button"
             onClick={retry}
-            className="mt-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-primary/8"
+            className="mt-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-interaction-hover"
           >
             {t("officeWatchRetry")}
           </button>
@@ -291,7 +291,7 @@ export function OfficePreview({
         <button
           type="button"
           onClick={retry}
-          className="mt-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-primary/8"
+          className="mt-1 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-interaction-hover"
         >
           {t("officeWatchRetry")}
         </button>

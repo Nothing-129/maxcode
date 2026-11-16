@@ -401,7 +401,7 @@ const FileWorkspaceTabItem = memo(function FileWorkspaceTabItem({
                       : "isolate browser-tab-hover text-muted-foreground hover:text-foreground ws-strip-line",
                   ]
                 : [
-                    "shrink-0 rounded-full px-3 hover:bg-primary/8",
+                    "shrink-0 rounded-full px-3 hover:bg-interaction-hover",
                     active
                       ? "bg-primary/10 text-foreground"
                       : "text-muted-foreground",

@@ -63,6 +63,7 @@ function fixture(
   const beforeInstall = vi.fn(async () => {
     order.push("stop backend")
   })
+  const onInstallError = vi.fn()
   const controller = createDesktopUpdater({
     updater,
     version: "0.30.6",
@@ -72,10 +73,11 @@ function fixture(
     enabled,
     emit: (state: { seq: number; status: string }) => events.push(state),
     beforeInstall,
-    onInstallError: vi.fn(),
+    onInstallError,
   })
   return {
     controller,
+    onInstallError,
     updater,
     nativeUpdater,
     events,
@@ -110,6 +112,48 @@ describe("MaxCode contract: Electron differential update lifecycle", () => {
       expect(f.controller.snapshot().status).toBe("ready_to_restart")
     )
     expect(f.nativeUpdater.listenerCount("error")).toBe(0)
+    f.updater.downloadUpdate.mockResolvedValue(undefined)
+    const restart = f.controller.restart()
+    await vi.waitFor(() =>
+      expect(f.nativeUpdater.checkForUpdates).toHaveBeenCalledTimes(2)
+    )
+    expect(f.beforeInstall).not.toHaveBeenCalled()
+    expect(f.updater.quitAndInstall).not.toHaveBeenCalled()
+    f.nativeUpdater.emit("update-downloaded")
+    await restart
+    await vi.waitFor(() =>
+      expect(f.updater.quitAndInstall).toHaveBeenCalledOnce()
+    )
+  })
+
+  it("keeps the running app when rebuilding a lost ShipIt request fails and permits retry", async () => {
+    const f = fixture(true, async () => 50, true)
+    f.updater.downloadUpdate.mockResolvedValue(undefined)
+    f.nativeUpdater.checkForUpdates.mockImplementation(() => {
+      f.nativeUpdater.emit("update-downloaded")
+    })
+    f.controller.start()
+    await vi.waitFor(() =>
+      expect(f.controller.snapshot().status).toBe("ready_to_restart")
+    )
+    const error = new Error("Could not read update request")
+    f.nativeUpdater.checkForUpdates.mockImplementation(() => {
+      f.updater.emit("error", error)
+      f.nativeUpdater.emit("error", error)
+    })
+    await expect(f.controller.restart()).rejects.toThrow(error.message)
+    expect(f.beforeInstall).not.toHaveBeenCalled()
+    expect(f.onInstallError).not.toHaveBeenCalled()
+    expect(f.updater.quitAndInstall).not.toHaveBeenCalled()
+    expect(f.controller.snapshot().status).toBe("error")
+    expect(f.nativeUpdater.listenerCount("error")).toBe(0)
+    f.nativeUpdater.checkForUpdates.mockImplementation(() => {
+      f.nativeUpdater.emit("update-downloaded")
+    })
+    f.controller.start()
+    await vi.waitFor(() =>
+      expect(f.controller.snapshot().status).toBe("ready_to_restart")
+    )
     await f.controller.restart()
     await vi.waitFor(() =>
       expect(f.updater.quitAndInstall).toHaveBeenCalledOnce()

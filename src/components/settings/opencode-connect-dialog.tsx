@@ -214,7 +214,7 @@ export function OpenCodeConnectDialog({
                     type="button"
                     onClick={() => setSelected(provider.id)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-accent",
+                      "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-xs hover:bg-interaction-hover",
                       selected === provider.id &&
                         "bg-accent text-accent-foreground"
                     )}

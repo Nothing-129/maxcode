@@ -227,7 +227,7 @@ function CopyableValue({
         onClick={handleCopy}
         aria-label={copied ? copiedLabel : copyLabel}
         title={copied ? copiedLabel : copyLabel}
-        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-accent-foreground focus-visible:opacity-100 group-hover/copy:opacity-100 group-focus-within/copy:opacity-100"
+        className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-opacity hover:bg-interaction-hover hover:text-foreground focus-visible:opacity-100 group-hover/copy:opacity-100 group-focus-within/copy:opacity-100"
       >
         {copied ? (
           <Check className="maxcode-success-feedback h-3 w-3 text-green-500" />

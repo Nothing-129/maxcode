@@ -936,7 +936,7 @@ export function CustomSkillsBody({
                             "flex items-start gap-2.5 px-3 py-2.5",
                             already
                               ? "cursor-default opacity-60"
-                              : "cursor-pointer hover:bg-muted/40"
+                              : "cursor-pointer hover:bg-interaction-hover"
                           )}
                         >
                           <Checkbox

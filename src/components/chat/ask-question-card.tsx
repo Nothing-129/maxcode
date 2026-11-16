@@ -282,7 +282,7 @@ export function AskQuestionCard({
       submitting && "cursor-not-allowed opacity-60",
       readOnly && !submitting && "cursor-default",
       !submitting && !readOnly && "cursor-pointer",
-      !selected && !submitting && !readOnly && "hover:bg-muted"
+      !selected && !submitting && !readOnly && "hover:bg-interaction-hover"
     )
 
   const optionBody = (

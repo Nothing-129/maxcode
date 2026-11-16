@@ -992,7 +992,7 @@ export function ConversationManageDialog({
                         onClick={() => toggleOne(conv)}
                         className={cn(
                           "flex items-center gap-2 rounded-md px-2 py-1.5 cursor-pointer border border-transparent",
-                          "hover:bg-accent/50",
+                          "hover:bg-interaction-hover",
                           checked && "bg-accent/40 border-accent/60"
                         )}
                       >

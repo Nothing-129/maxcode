@@ -4853,7 +4853,7 @@ export function AcpAgentSettings() {
                       size="xs"
                       variant="outline"
                       className={cn(
-                        "h-6 bg-muted/30 hover:bg-muted/50",
+                        "h-6 bg-muted/30 hover:bg-interaction-hover",
                         // Two disabled looks: while the global one-package-op-
                         // at-a-time gate is busy, every parked package action
                         // dims (backend-disabled or not) so the lockout shows
@@ -7213,7 +7213,7 @@ export function AcpAgentSettings() {
                       <div className="min-w-0 flex items-center gap-2">
                         <button
                           type="button"
-                          className="text-muted-foreground cursor-grab active:cursor-grabbing rounded p-0.5 hover:bg-muted"
+                          className="text-muted-foreground cursor-grab active:cursor-grabbing rounded p-0.5 hover:bg-interaction-hover"
                           title={t("actions.dragSort")}
                           aria-label={t("actions.dragSortAgent", {
                             name: agent.name,
@@ -10627,7 +10627,7 @@ supports_websockets = true`}
                                     "rounded-full border px-2 py-0.5 font-mono text-2xs transition-colors",
                                     active
                                       ? "border-primary/40 bg-primary/10 text-foreground"
-                                      : "border-border text-muted-foreground hover:bg-muted"
+                                      : "border-border text-muted-foreground hover:bg-interaction-hover"
                                   )}
                                 >
                                   {level}

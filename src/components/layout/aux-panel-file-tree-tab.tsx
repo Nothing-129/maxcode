@@ -3216,7 +3216,7 @@ export function FileTreeTab() {
                       open={compareRecentOpen}
                       onOpenChange={setCompareRecentOpen}
                     >
-                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground select-none outline-hidden">
+                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-interaction-hover hover:text-foreground select-none outline-hidden">
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform [[data-state=open]>&]:rotate-90" />
                         {t("compareDialog.recentBranches", {
                           count: filteredCompareRecentBranches.length,
@@ -3250,7 +3250,7 @@ export function FileTreeTab() {
                       open={compareLocalOpen}
                       onOpenChange={setCompareLocalOpen}
                     >
-                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground select-none outline-hidden">
+                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-interaction-hover hover:text-foreground select-none outline-hidden">
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform [[data-state=open]>&]:rotate-90" />
                         {t("compareDialog.localBranches", {
                           count: filteredCompareBranches.local.length,
@@ -3284,7 +3284,7 @@ export function FileTreeTab() {
                       open={compareRemoteOpen}
                       onOpenChange={setCompareRemoteOpen}
                     >
-                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-accent hover:text-accent-foreground select-none outline-hidden">
+                      <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-sm hover:bg-interaction-hover hover:text-foreground select-none outline-hidden">
                         <ChevronRight className="h-3.5 w-3.5 shrink-0 transition-transform [[data-state=open]>&]:rotate-90" />
                         {t("compareDialog.remoteBranches", {
                           count: filteredCompareBranches.remote.length,
@@ -3295,7 +3295,7 @@ export function FileTreeTab() {
                           hasMultipleCompareRemotes ? (
                             compareRemoteNames.map((remoteName) => (
                               <Collapsible key={remoteName}>
-                                <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 pl-5 text-sm hover:bg-accent hover:text-accent-foreground select-none outline-hidden">
+                                <CollapsibleTrigger className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 pl-5 text-sm hover:bg-interaction-hover hover:text-foreground select-none outline-hidden">
                                   <ChevronRight className="h-3 w-3 shrink-0 transition-transform [[data-state=open]>&]:rotate-90" />
                                   {remoteName} (
                                   {

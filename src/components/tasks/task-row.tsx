@@ -141,7 +141,7 @@ export function TaskRow({
       className={cn(
         "group/row relative min-h-[2.875rem] cursor-pointer py-2 text-left transition-colors",
         TASK_LIST_LINE,
-        "hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+        "hover:bg-interaction-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         archived && "opacity-60"
       )}
     >

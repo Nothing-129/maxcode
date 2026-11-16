@@ -3581,9 +3581,14 @@ export async function automationMarkSeen(): Promise<void> {
  *  an ISO timestamp, or null if the cron has no future occurrence. */
 export async function automationComputeNextRun(
   cron: string,
-  timezone: string
+  timezone: string,
+  calendarFilter: import("./types").AutomationCalendarFilter = "all"
 ): Promise<string | null> {
-  return getTransport().call("automation_compute_next_run", { cron, timezone })
+  return getTransport().call("automation_compute_next_run", {
+    cron,
+    timezone,
+    calendarFilter,
+  })
 }
 
 /** Fire an automation immediately, bypassing its schedule. Returns the run id. */

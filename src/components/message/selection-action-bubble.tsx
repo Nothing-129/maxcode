@@ -52,7 +52,7 @@ type SelectionState =
 const NO_SELECTION: SelectionState = { kind: "none" }
 
 const ACTION_CLASS_NAME =
-  "h-7 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground hover:bg-muted/70 hover:text-foreground [&_svg]:size-3.5"
+  "h-7 gap-1.5 rounded-md px-2 text-xs font-normal text-muted-foreground hover:bg-interaction-hover hover:text-foreground [&_svg]:size-3.5"
 
 function sameState(a: SelectionState, b: SelectionState): boolean {
   if (a.kind !== b.kind) return false

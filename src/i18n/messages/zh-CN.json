@@ -1949,6 +1949,7 @@
       "sortBy": "排序方式",
       "sortByCreatedAt": "按创建时间排序",
       "sortByUpdatedAt": "按更新时间排序",
+      "navigationOrder": "导航顺序",
       "sectionOrder": "区域顺序",
       "sectionOrderMoveUp": "上移",
       "sectionOrderMoveDown": "下移",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "切换详情"
   },
   "Automations": {
+    "hideFromConversationList": "在对话列表中隐藏",
+    "hideFromConversationListHint": "开启后，此任务的已有和新执行对话仅从自动化的执行记录中查看。关闭后恢复显示。",
+    "calendarFilter": "执行日期",
+    "calendarAll": "不限日期",
+    "calendarWorkday": "法定工作日（中国大陆）",
+    "calendarHoliday": "法定节假日（中国大陆）",
+    "calendarHint": "按北京时间执行。工作日包含调休补班；节假日不含普通周末。",
     "attachedTodos": "挂载待办",
     "attachedTodosHint": "每次运行读取待办最新内容，并将执行会话关联到待办。",
     "todoScope": "待办范围",

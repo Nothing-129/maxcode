@@ -2,6 +2,9 @@
 //! `&DatabaseConnection` so both the Tauri command and the Axum handler share it.
 //! `config` is stored as an opaque JSON string and replayed wholesale at fire.
 
+use crate::automation::calendar::{
+    calendar_matches, compute_calendar_next_run, filter_from_config,
+};
 use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
@@ -264,14 +267,20 @@ fn validate_draft(draft: &AutomationDraft) -> Result<(), DbError> {
 
 /// The `next_run_at` to persist for a draft: only scheduled + enabled automations
 /// have one. Manual or disabled automations store `None` (scheduler skips them).
-fn next_run_for(
+async fn next_run_for(
     draft: &AutomationDraft,
     now: DateTime<Utc>,
 ) -> Result<Option<DateTime<Utc>>, DbError> {
     if !draft.enabled || draft.trigger_kind != TriggerKind::Schedule {
         return Ok(None);
     }
-    compute_next_run(draft.cron.as_deref().unwrap_or(""), &draft.timezone, now)
+    compute_calendar_next_run(
+        draft.cron.as_deref().unwrap_or(""),
+        &draft.timezone,
+        now,
+        filter_from_config(&draft.config)?,
+    )
+    .await
 }
 
 // ── CRUD ───────────────────────────────────────────────────────────────────
@@ -325,7 +334,7 @@ pub async fn create(
         .await
         .map_err(|e| DbError::Validation(e.to_string()))?;
     let now = Utc::now();
-    let next_run_at = next_run_for(&draft, now)?;
+    let next_run_at = next_run_for(&draft, now).await?;
     let config_str = serde_json::to_string(&draft.config)
         .map_err(|e| DbError::Validation(format!("config not serializable: {e}")))?;
 
@@ -391,7 +400,7 @@ pub async fn update(
         }
     }
     let now = Utc::now();
-    let next_run_at = next_run_for(&draft, now)?;
+    let next_run_at = next_run_for(&draft, now).await?;
     let config_str = serde_json::to_string(&draft.config)
         .map_err(|e| DbError::Validation(format!("config not serializable: {e}")))?;
 
@@ -420,7 +429,16 @@ pub async fn set_enabled(
     let row = find_active(conn, id).await?;
     let now = Utc::now();
     let next_run_at = if enabled && row.trigger_kind == TriggerKind::Schedule {
-        compute_next_run(row.cron.as_deref().unwrap_or(""), &row.timezone, now)?
+        compute_calendar_next_run(
+            row.cron.as_deref().unwrap_or(""),
+            &row.timezone,
+            now,
+            filter_from_config(
+                &serde_json::from_str::<serde_json::Value>(&row.config)
+                    .map_err(|e| DbError::Validation(e.to_string()))?,
+            )?,
+        )
+        .await?
     } else {
         None
     };
@@ -700,33 +718,46 @@ pub async fn claim_due(
     now: DateTime<Utc>,
 ) -> Result<Option<DateTime<Utc>>, DbError> {
     use sea_orm::TransactionTrait;
-    let txn = conn.begin().await?;
 
     let Some(row) = automation::Entity::find_by_id(automation_id)
-        .one(&txn)
+        .one(conn)
         .await?
     else {
-        txn.rollback().await?;
         return Ok(None);
     };
     if !row.enabled || row.deleted_at.is_some() || row.trigger_kind != TriggerKind::Schedule {
-        txn.rollback().await?;
         return Ok(None);
     }
     let Some(slot) = row.next_run_at else {
-        txn.rollback().await?;
         return Ok(None);
     };
     if slot > now {
-        txn.rollback().await?;
         return Ok(None);
     }
 
-    let next = compute_next_run(row.cron.as_deref().unwrap_or(""), &row.timezone, now)?;
+    let next = compute_calendar_next_run(
+        row.cron.as_deref().unwrap_or(""),
+        &row.timezone,
+        now,
+        filter_from_config(
+            &serde_json::from_str::<serde_json::Value>(&row.config)
+                .map_err(|e| DbError::Validation(e.to_string()))?,
+        )?,
+    )
+    .await?;
+    let config: serde_json::Value =
+        serde_json::from_str(&row.config).map_err(|e| DbError::Validation(e.to_string()))?;
+    let filter = filter_from_config(&config)?;
+    let matches = calendar_matches(slot, filter).await? && calendar_matches(now, filter).await?;
+    // Network/cache refreshes happen before acquiring the write transaction.
+    let txn = conn.begin().await?;
     let res = automation::Entity::update_many()
         .col_expr(automation::Column::NextRunAt, Expr::value(next))
         .filter(automation::Column::Id.eq(automation_id))
         .filter(automation::Column::NextRunAt.eq(slot))
+        .filter(automation::Column::Enabled.eq(true))
+        .filter(automation::Column::DeletedAt.is_null())
+        .filter(automation::Column::UpdatedAt.eq(row.updated_at))
         .exec(&txn)
         .await?;
     if res.rows_affected != 1 {
@@ -734,7 +765,7 @@ pub async fn claim_due(
         return Ok(None);
     }
     txn.commit().await?;
-    Ok(Some(slot))
+    Ok(matches.then_some(slot))
 }
 
 /// Best-effort retention: delete run rows older than `keep_days`. Spawned
@@ -751,6 +782,11 @@ pub async fn prune_old_runs(conn: &DatabaseConnection, keep_days: i64) -> Result
     // garbage-collected here — tracked as a follow-up (bounded GC of those
     // artifacts keyed on the run's worktree_folder_id + name signature).
     let res = automation_run::Entity::delete_many()
+        // Hidden conversations depend on their run link for visibility and
+        // navigation. Retain those records while hiding is enabled.
+        .filter(Expr::cust(
+            "NOT EXISTS (SELECT 1 FROM automation WHERE automation.id = automation_run.automation_id AND automation_run.conversation_id IS NOT NULL AND json_extract(automation.config, '$.hide_from_conversation_list') = 1)",
+        ))
         .filter(automation_run::Column::CreatedAt.lt(cutoff))
         .filter(automation_run::Column::Status.ne(AutomationRunStatus::Running))
         .exec(conn)
@@ -758,10 +794,58 @@ pub async fn prune_old_runs(conn: &DatabaseConnection, keep_days: i64) -> Result
     Ok(res.rows_affected)
 }
 
+/// Re-evaluate future slots after notice updates. Due slots remain owned by claim_due.
+pub async fn refresh_calendar_schedules(conn: &DatabaseConnection) -> Result<(), DbError> {
+    let now = Utc::now();
+    for row in automation::Entity::find()
+        .filter(automation::Column::DeletedAt.is_null())
+        .filter(automation::Column::Enabled.eq(true))
+        .filter(automation::Column::TriggerKind.eq(TriggerKind::Schedule))
+        .filter(automation::Column::NextRunAt.gt(now))
+        .all(conn)
+        .await?
+    {
+        let config: serde_json::Value =
+            serde_json::from_str(&row.config).map_err(|e| DbError::Validation(e.to_string()))?;
+        let filter = filter_from_config(&config)?;
+        if filter == crate::automation::calendar::CalendarFilter::All {
+            continue;
+        }
+        let next = match compute_calendar_next_run(
+            row.cron.as_deref().unwrap_or(""),
+            &row.timezone,
+            now,
+            filter,
+        )
+        .await
+        {
+            Ok(next) => next,
+            Err(e) => {
+                tracing::warn!("holiday-cn refresh automation {}: {e}", row.id);
+                continue;
+            }
+        };
+        if next != row.next_run_at {
+            automation::Entity::update_many()
+                .col_expr(automation::Column::NextRunAt, Expr::value(next))
+                .filter(automation::Column::Id.eq(row.id))
+                .filter(automation::Column::UpdatedAt.eq(row.updated_at))
+                .filter(automation::Column::NextRunAt.eq(row.next_run_at))
+                .exec(conn)
+                .await?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::test_helpers::fresh_in_memory_db;
+
+    mod hidden_conversations_contract {
+        include!(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/maxcode-contracts/automation-hidden-conversations.contract.rs"));
+    }
 
     fn draft(name: &str, cron: Option<&str>) -> AutomationDraft {
         AutomationDraft {

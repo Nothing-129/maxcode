@@ -2709,6 +2709,7 @@ mod tests {
     fn summary_child(id: i32, parent_tool_use_id: &str, status: &str) -> DbConversationSummary {
         let now = chrono::Utc::now();
         DbConversationSummary {
+            hide_from_conversation_list: false,
             id,
             folder_id: 1,
             title: None,
@@ -6824,6 +6825,7 @@ mod tests {
         DbConversationDetail {
             billing_usage: None,
             summary: DbConversationSummary {
+                hide_from_conversation_list: false,
                 id: 1,
                 folder_id: 1,
                 title: None,

@@ -42,9 +42,10 @@ export interface FilterOption {
 
 const TRIGGER_CLASS = cn(
   "h-8 max-w-[15rem] gap-1.5 rounded-full border-transparent bg-muted/70 px-3",
-  "text-[0.8125rem] font-medium shadow-none hover:bg-muted"
+  "text-[0.8125rem] font-medium shadow-none hover:bg-interaction-hover"
 )
-const TRIGGER_ACTIVE_CLASS = "bg-primary/10 text-primary hover:bg-primary/15"
+const TRIGGER_ACTIVE_CLASS =
+  "bg-primary/10 text-primary hover:bg-interaction-hover"
 
 /** One selectable row. Selection is a trailing check so the text column stays
  *  flush-left — no phantom indent on unchecked rows. */
@@ -64,7 +65,7 @@ function OptionRow({
       aria-pressed={active}
       className={cn(
         "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left outline-none",
-        "hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring",
+        "hover:bg-interaction-hover focus-visible:ring-2 focus-visible:ring-ring",
         active && "bg-accent/40"
       )}
     >
@@ -230,7 +231,7 @@ export function MultiSelectFilter({
             <button
               type="button"
               onClick={() => onChange([])}
-              className="w-full rounded-lg px-2.5 py-1.5 text-center text-xs text-muted-foreground outline-none transition-colors hover:bg-accent/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="w-full rounded-lg px-2.5 py-1.5 text-center text-xs text-muted-foreground outline-none transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
             >
               {t("clearFilter")}
             </button>

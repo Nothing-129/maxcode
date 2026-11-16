@@ -506,6 +506,7 @@ export interface OpenedTab {
 }
 
 export interface DbConversationSummary {
+  hide_from_conversation_list?: boolean
   id: number
   folder_id: number
   title: string | null
@@ -1578,7 +1579,11 @@ export interface AutomationListenerInfo {
   last_received_at: string | null
 }
 
+export type AutomationCalendarFilter = "all" | "cn_workday" | "cn_holiday"
+
 export interface AutomationConfig {
+  hide_from_conversation_list?: boolean
+  calendar_filter?: AutomationCalendarFilter
   todo_origins?: import("./todos").TodoOrigin[]
   session_mode?: AutomationSessionMode
   message_trigger?: AutomationMessageTrigger | null

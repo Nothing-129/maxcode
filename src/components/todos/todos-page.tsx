@@ -411,7 +411,7 @@ function TodosWorkspace({
               "h-7 text-xs",
               state.mode === "personal"
                 ? "shadow-sm hover:bg-primary/90"
-                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                : "text-muted-foreground hover:bg-interaction-hover hover:text-primary"
             )}
             disabled={busy}
             onClick={() => void act({ action: "set_mode", mode: "personal" })}
@@ -426,7 +426,7 @@ function TodosWorkspace({
               "h-7 text-xs",
               state.mode === "team"
                 ? "shadow-sm hover:bg-primary/90"
-                : "text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                : "text-muted-foreground hover:bg-interaction-hover hover:text-primary"
             )}
             disabled={busy}
             onClick={() => void act({ action: "set_mode", mode: "team" })}

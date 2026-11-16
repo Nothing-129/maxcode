@@ -1163,7 +1163,7 @@ export function McpSettings() {
                                 "w-full rounded-md border p-2 text-left transition-colors",
                                 active
                                   ? "border-primary bg-primary/5"
-                                  : "hover:bg-muted/60"
+                                  : "hover:bg-interaction-hover"
                               )}
                               onClick={() => {
                                 setSelection({ kind: "local", id: server.id })
@@ -1327,7 +1327,7 @@ export function McpSettings() {
                                 "w-full rounded-md border p-2 text-left transition-colors",
                                 active
                                   ? "border-primary bg-primary/5"
-                                  : "hover:bg-muted/60"
+                                  : "hover:bg-interaction-hover"
                               )}
                               onClick={() => {
                                 setSelection({

@@ -491,7 +491,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                       "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
                       stackedLayout && "py-[0.375rem]",
                       onConversationPointerDown &&
-                        "md:cursor-grab md:active:cursor-grabbing",
+                        "md:cursor-default md:active:cursor-grabbing",
                       "rounded-[0.625rem]",
                       stackedLayout ? "pr-4" : "pr-[0.25rem]"
                     )}

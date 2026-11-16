@@ -129,7 +129,7 @@ export function SearchResultsOutput({ text, query }: Props) {
                 {group.lines.map((entry, i) => (
                   <div
                     key={`${entry.line}-${i}`}
-                    className="flex gap-2 px-2.5 py-1 font-mono text-2xs leading-[1.125rem] hover:bg-muted/30"
+                    className="flex gap-2 px-2.5 py-1 font-mono text-2xs leading-[1.125rem] hover:bg-interaction-hover"
                   >
                     <FilePathLink
                       filePath={group.path}

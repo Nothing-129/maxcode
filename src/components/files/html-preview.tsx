@@ -104,7 +104,7 @@ export function HtmlPreview({
             "inline-flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
             trusted
               ? "text-amber-600 dark:text-amber-500 hover:bg-amber-500/10"
-              : "text-muted-foreground hover:bg-primary/8"
+              : "text-muted-foreground hover:bg-interaction-hover"
           )}
         >
           {trusted ? (

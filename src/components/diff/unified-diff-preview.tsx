@@ -1055,7 +1055,7 @@ function DiffFileSection({
           type="button"
           onClick={() => setExpanded(true)}
           className={cn(
-            "shrink-0 select-none px-3 py-1 text-left font-mono text-2xs text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+            "shrink-0 select-none px-3 py-1 text-left font-mono text-2xs text-muted-foreground hover:bg-interaction-hover hover:text-foreground",
             embedded ? "border-t border-border/50" : "border-t border-border"
           )}
         >
@@ -1209,7 +1209,7 @@ export function ViewModeToggle({
       aria-label={label}
       title={label}
       className={cn(
-        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-background text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground",
         className
       )}
     >

@@ -2,6 +2,83 @@
   "version": 2,
   "hotspots": [
     {
+      "id": "ui.workspace-navigation-order",
+      "origins": ["worktree-2026-11-16"],
+      "category": "product",
+      "description": "Persist user-controlled ordering of the five workspace rail entries from the sidebar options menu, independently of conversation section order, with arrow buttons and safe normalization.",
+      "paths": [
+        "src/components/layout/workspace-navigation-rail.tsx",
+        "src/components/layout/sidebar.tsx",
+        "src/components/layout/sidebar-navigation-order-control.tsx",
+        "src/components/layout/sidebar-section-order-control.tsx",
+        "src/contexts/sidebar-navigation-context.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/navigation-order.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "automation.hidden-conversations",
+      "origins": ["worktree-2026-11-16"],
+      "category": "product",
+      "description": "Per-automation opt-in sidebar hiding applies to past and future runs while direct detail and run history remain accessible; disabling restores visibility.",
+      "paths": ["src/components/automations/", "src/components/conversations/sidebar-conversation-list.tsx", "src/contexts/automations-view-context.tsx", "src-tauri/src/db/service/conversation_service.rs", "src-tauri/src/models/", "src-tauri/src/automation/engine.rs", "src/lib/types.ts"],
+      "contracts": ["src/maxcode-contracts/automation-hidden-conversations.contract.test.tsx"]
+    },
+    {
+      "id": "release.platform-download-table",
+      "origins": ["worktree-2026-11-16"],
+      "category": "release",
+      "description": "Release notes show only DMG and EXE download badges from selected Electron targets with exact versioned artifact names; preserve commit notes and all automatic-update assets in release attachments.",
+      "paths": ["electron/scripts/release.cjs", ".github/workflows/release.yml"],
+      "contracts": ["src/maxcode-contracts/release-downloads.contract.test.ts", "src/maxcode-contracts/release-draft.contract.test.ts"]
+    },
+    {
+      "id": "ui.sidebar-conversation-arrow-cursor",
+      "category": "product",
+      "origins": ["worktree-2026-11-16"],
+      "description": "Sidebar conversation rows use the default arrow on hover while preserving pointer drag to open or split panes and the active grabbing cursor.",
+      "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
+      "contracts": ["src/maxcode-contracts/sidebar-conversation-cursor.contract.test.ts"]
+    },
+    {
+      "id": "workspace.navigation-reentry",
+      "category": "product",
+      "origins": ["worktree-2026-11-13"],
+      "description": "Restore device-local function navigation and active conversation on reentry, including focus changes before the server save debounce; invalid or removed selections fall back safely. Preserve legacy draft restoration and live tab synchronization.",
+      "paths": ["src/contexts/sidebar-navigation-context.tsx", "src/contexts/workbench-route-context.tsx", "src/hooks/use-persisted-navigation.ts", "src/stores/tab-store.ts"],
+      "contracts": ["src/maxcode-contracts/navigation-reentry.contract.test.tsx"]
+    },
+    {
+      "id": "automation.china-holiday-calendar",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-13"
+      ],
+      "description": "Automation schedules optionally filter Mainland China statutory workdays including makeup weekends or holiday-cn off days excluding ordinary weekends. Beijing dates, fail-closed missing years, daily cached holiday-cn notice refresh and identical preview/save/toggle/claim math must remain intact. Manual runs bypass the filter.",
+      "paths": [
+        "src-tauri/src/automation/calendar.rs",
+        "src-tauri/src/automation/engine.rs",
+        "src-tauri/src/db/service/automation_service.rs",
+        "src-tauri/src/models/automation.rs",
+        "src-tauri/src/web/handlers/automation.rs",
+        "src/components/automations/",
+        "src/lib/api.ts",
+        "src/lib/types.ts"
+      ],
+      "contracts": [
+          "src/maxcode-contracts/automation-china-calendar-ui.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "ui.neutral-interaction-hover",
+      "category": "product",
+      "origins": ["worktree-2026-11-13"],
+      "description": "Secondary hover surfaces and menu pointer/keyboard highlights use one neutral light/dark color independent of accent theme. Preserve solid primary CTA buttons, destructive states and persistent selection/status colors.",
+      "paths": ["src/components/", "src/app/globals.css", "src/app/neutral-hover.css"],
+      "contracts": ["src/maxcode-contracts/neutral-interaction-hover.contract.test.ts"]
+    },
+    {
       "id": "sidebar.compact-todo-header",
       "category": "product",
       "origins": ["worktree-2026-11-13"],
@@ -13,7 +90,7 @@
       "id": "sidebar.stacked-time-right-alignment",
       "category": "product",
       "origins": ["worktree-2026-11-13"],
-      "description": "Recent conversation rows use a minimal two-line layout: topic above a combined folder and localized relative-time line, with a 12px agent icon inline before the folder on the second line and no date; the title starts at the text inset without a leading icon column. Conversation hover uses neutral black/white overlays rather than tinted theme accents; selection remains a stronger neutral gray. Other stacked rows align metadata time and trailing status at a shared 16px right inset. Status and menu controls are vertically centered within the whole row. Actions share the trailing status position and are absent while an unread dot is present in stacked rows, without reserving a column beside metadata; running agent animation remains intact.",
+      "description": "Recent conversation rows use a minimal two-line layout: topic above a combined folder and localized relative-time line, with a 12px agent icon inline before the folder on the second line and no date; the title starts at the text inset without a leading icon column. Conversation, folder and folder-group hover use neutral black/white overlays rather than tinted theme accents; selection remains a stronger neutral gray. Other stacked rows align metadata time and trailing status at a shared 16px right inset. Status and menu controls are vertically centered within the whole row. Actions share the trailing status position and are absent while an unread dot is present in stacked rows, without reserving a column beside metadata; running agent animation remains intact.",
       "paths": ["src/components/conversations/sidebar-conversation-card.tsx"],
       "contracts": ["src/maxcode-contracts/desktop-recent-conversation-layout.contract.test.tsx"]
     },
@@ -136,14 +213,15 @@
       "origins": [
         "worktree-2026-11-09"
       ],
-      "description": "Mobile sidebar uses 90vw capped at 26rem (416px), leaving at least 10 percent of the viewport visible. Web sidebar places the wordmark and tools in one header row without native titlebar clearance; the web/mobile navigation rail has only a small top inset. Native desktop retains window drag and traffic-light clearance.",
+      "description": "Mobile sidebar uses 90vw capped at 26rem (416px), leaving at least 10 percent of the viewport visible. Windows/Linux desktop and web sidebars place the wordmark and tools in one header row without native titlebar clearance; their navigation rails and mobile rails have only a small top inset. Only native macOS desktop retains the separate window drag row and traffic-light clearance.",
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/components/layout/sidebar.tsx",
         "src/components/layout/workspace-navigation-rail.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/web-sidebar-header.contract.test.ts"
+        "src/maxcode-contracts/web-sidebar-header.contract.test.ts",
+        "src/maxcode-contracts/sidebar-functional-navigation.contract.test.tsx"
       ]
     },
     {
@@ -172,7 +250,7 @@
       "origins": [
         "worktree-2026-11-09"
       ],
-      "description": "The rail uses icon-only function buttons with title/accessible labels and a subtle neutral rounded-square selected background; hover and keyboard focus feedback remain. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations; Automations and Statistics hide the list sidebar without changing saved panel preferences or showing conversation controls, while Tasks shows only assigned-todo groups and their linked sessions. Linked conversations stay within the task workspace with Tasks selected and a centered Task board return action sharing New chat alignment and dimensions with a transparent resting background and no route-selected highlighting; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a compact neutral rounded date button with a calendar icon, truncated Today/date-range label and chevron to the right of the MaxCode wordmark, with the full interval in its hover title and a compact Web header wordmark to reserve room for the date label, with start/end date inputs visible only after selecting Custom (defaulting to the first and last day of the current local month), preserving the other endpoint when editing a valid range and custom clearing inside it; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
+      "description": "The rail uses icon-only function buttons with title/accessible labels and a subtle neutral rounded-square selected background; hover and keyboard focus feedback remain. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations; Automations and Statistics hide the list sidebar without changing saved panel preferences or showing conversation controls, while Tasks shows only assigned-todo groups and their linked sessions. Linked conversations stay within the task workspace with Tasks selected and a centered Task board return action sharing New chat alignment and dimensions with the same neutral gray resting background as New chat and no route-selected highlighting; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a compact neutral rounded date button with a calendar icon, truncated Today/date-range label and chevron to the right of the MaxCode wordmark, with the full interval in its hover title and a compact Web header wordmark to reserve room for the date label, with start/end date inputs visible only after selecting Custom (defaulting to the first and last day of the current local month), preserving the other endpoint when editing a valid range and custom clearing inside it; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/contexts/workbench-route-context.tsx",
@@ -727,9 +805,10 @@
       "origins": [
         "worktree-2026-10-28"
       ],
-      "description": "Folder group membership uses indentation without vertical rails on member folder headers. Worktree and root sub-groups retain only their immediate repo connector.",
+      "description": "Folder and folder-group headers use neutral black/white hover overlays regardless of theme accent. Folder group membership uses indentation without vertical rails on member folder headers. Worktree and root sub-groups retain only their immediate repo connector.",
       "paths": [
-        "src/components/conversations/sidebar-conversation-list.tsx"
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/conversations/sidebar-folder-group-header.tsx"
       ],
       "contracts": [
         "src/maxcode-contracts/sidebar-folder-group-no-rails.contract.test.ts"
@@ -5035,7 +5114,7 @@
     {
       "id": "desktop.differential-updates",
       "category": "platform",
-      "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready, including native Squirrel signature validation on macOS. Installed ad-hoc apps cannot opt into automatic installation; validation failure keeps the backend running and clears the install action. An explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
+      "description": "Electron owns stable-channel update checks, automatic background differential downloads with verified full-download fallback, and shared progress. Before macOS backend shutdown, rebuild and validate the native ShipIt request from the cached verified ZIP; stale preparation must not trigger app termination, and preparation/install errors are logged by phase. Clicking the version checks for updates directly and retries failed downloads. The update icon appears only after a verified download is ready, including native Squirrel signature validation on macOS. Installed ad-hoc apps cannot opt into automatic installation; validation failure keeps the backend running and clears the install action. An explicit click shuts down the managed backend, installs and restarts. Navigation, renderer remounts and normal app quit must never auto-install. No discovery notifications or release-details popover. Server auto-restart semantics remain unchanged. Releases ship architecture-specific metadata and blockmaps on the personal repository; GitHub is the primary feed unless a short parallel probe shows it slower than 800ms versus the Cloudflare Tunnel HTTPS generic mirror at https://maxcode-update.aifalao.net, which is then tried first; GitHub remains the failure fallback. Previous blockmaps are versioned. Publishing remains GitHub-only; clients never depend on the LAN origin. Server update APIs never replace bundled binaries.",
       "origins": [
         "worktree-2026-09-08"
       ],

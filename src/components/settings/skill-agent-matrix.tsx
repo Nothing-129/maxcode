@@ -602,7 +602,7 @@ export function SkillAgentMatrix({
                               <button
                                 type="button"
                                 disabled={!interactive}
-                                className="mx-auto flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 hover:bg-muted/50 disabled:opacity-50"
+                                className="mx-auto flex flex-col items-center gap-0.5 rounded-md px-1.5 py-1 hover:bg-interaction-hover disabled:opacity-50"
                                 aria-label={agent.name}
                               >
                                 <AgentIcon
@@ -698,7 +698,7 @@ export function SkillAgentMatrix({
                                 <button
                                   type="button"
                                   disabled={!interactive}
-                                  className="shrink-0 rounded p-1 hover:bg-muted/60 disabled:opacity-50"
+                                  className="shrink-0 rounded p-1 hover:bg-interaction-hover disabled:opacity-50"
                                   aria-label={t("rowMenu.label", {
                                     name: skill.displayName,
                                   })}
@@ -1052,7 +1052,7 @@ function MatrixCell({
                 ? "border-amber-500/50 text-amber-600 dark:text-amber-400"
                 : blocked || !ready
                   ? "border-dashed border-border/70 text-muted-foreground/60"
-                  : "border-border hover:bg-muted/60",
+                  : "border-border hover:bg-interaction-hover",
             status?.copyMode && enabled && "ring-1 ring-amber-400",
             notInteractive && !enabled && "cursor-not-allowed opacity-60"
           )}

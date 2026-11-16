@@ -1,11 +1,12 @@
 "use client"
 
+import { usePersistedNavigation } from "@/hooks/use-persisted-navigation"
+
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
-  useState,
   type ReactNode,
 } from "react"
 
@@ -26,6 +27,16 @@ export type WorkbenchRouteId =
   | "forge"
   | "tokenUsage"
   | "canvas"
+
+const WORKBENCH_ROUTE_IDS: readonly WorkbenchRouteId[] = [
+  "conversations",
+  "automations",
+  "tasks",
+  "taskConversation",
+  "forge",
+  "tokenUsage",
+  "canvas",
+]
 
 export function isTaskWorkspaceRoute(route: WorkbenchRouteId) {
   return route === "tasks" || route === "taskConversation"
@@ -50,9 +61,7 @@ const WorkbenchRouteContext = createContext<WorkbenchRouteContextValue | null>(
  * (which unmounts when collapsed) while the content swap is owned by
  * WorkspaceContent — both read this single source of truth.
  *
- * State is in-memory only: a reload lands back on the conversation workspace.
- * That is deliberate; static export rules out URL route segments, and the
- * established pattern here is in-memory context rather than query params.
+ * The last route is device-local and restored after hydration.
  */
 export function useWorkbenchRoute() {
   const ctx = useOptionalWorkbenchRoute()
@@ -77,15 +86,22 @@ export function useOptionalWorkbenchRoute(): WorkbenchRouteContextValue | null {
 }
 
 export function WorkbenchRouteProvider({ children }: { children: ReactNode }) {
-  const [routeId, setRouteId] = useState<WorkbenchRouteId>("conversations")
+  const [routeId, setRouteId] = usePersistedNavigation(
+    "workspace:workbench-route",
+    "conversations",
+    WORKBENCH_ROUTE_IDS
+  )
 
-  const setRoute = useCallback((id: WorkbenchRouteId) => setRouteId(id), [])
+  const setRoute = useCallback(
+    (id: WorkbenchRouteId) => setRouteId(id),
+    [setRouteId]
+  )
   const openConversations = useCallback(
     () =>
       setRouteId((previous) =>
         isTaskWorkspaceRoute(previous) ? "taskConversation" : "conversations"
       ),
-    []
+    [setRouteId]
   )
 
   const value = useMemo<WorkbenchRouteContextValue>(

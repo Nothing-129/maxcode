@@ -27,6 +27,7 @@ pub struct ConversationSummary {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct DbConversationSummary {
+    pub hide_from_conversation_list: bool,
     pub id: i32,
     pub folder_id: i32,
     pub title: Option<String>,

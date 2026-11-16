@@ -160,7 +160,7 @@ function CompactionSummaryBody({
           type="button"
           onClick={toggle}
           aria-expanded={expanded}
-          className="flex w-full items-center justify-center gap-1 border-t border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50"
+          className="flex w-full items-center justify-center gap-1 border-t border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-interaction-hover"
         >
           {expanded ? t("showLess") : t("showMore")}
           {expanded ? (
@@ -229,7 +229,7 @@ export function ContextCompactionCard({ state, meta, summary }: Props) {
           onClick={() => setSummaryOpen((open) => !open)}
           aria-expanded={summaryOpen}
           aria-controls={summaryOpen ? summaryId : undefined}
-          className="flex shrink-0 items-center gap-0.5 rounded px-1 text-muted-foreground/80 transition-colors hover:bg-muted/60 hover:text-foreground"
+          className="flex shrink-0 items-center gap-0.5 rounded px-1 text-muted-foreground/80 transition-colors hover:bg-interaction-hover hover:text-foreground"
         >
           {t("summary")}
           {summaryOpen ? (

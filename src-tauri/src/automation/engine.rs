@@ -263,6 +263,7 @@ pub async fn run_automation_engine(engine: Arc<AutomationEngine>) {
     let mut rx = engine.bus.subscribe();
     let mut reconcile = delay_interval(RECONCILE_INTERVAL_SECS);
     let mut schedule = delay_interval(SCHEDULER_INTERVAL_SECS);
+    let mut calendars = tokio::time::interval(std::time::Duration::from_secs(3600));
     let mut prune = delay_interval(PRUNE_INTERVAL_SECS);
     let mut messages = delay_interval(5);
     let mut lag_throttle = LagLogThrottle::new(LAG_LOG_WINDOW);
@@ -296,6 +297,14 @@ pub async fn run_automation_engine(engine: Arc<AutomationEngine>) {
                 }
             }
             _ = reconcile.tick() => engine.reconcile_once().await,
+            _ = calendars.tick() => {
+                let db = engine.db.conn.clone();
+                tokio::spawn(async move {
+                    if let Err(e) = automation_service::refresh_calendar_schedules(&db).await {
+                        tracing::warn!("holiday-cn schedule refresh: {e}");
+                    }
+                });
+            }
             _ = schedule.tick() => {
                 // Due-detection + CAS claim; each won slot fires off-thread so a
                 // slow git/worktree launch never blocks the event/reconcile arms.
@@ -734,6 +743,15 @@ impl AutomationEngine {
                 return Err(e.to_string());
             }
         };
+        let _ = automation_service::attach_run_runtime(
+            &self.db.conn,
+            run_id,
+            Some(conversation_id),
+            Some(conn_id.clone()),
+            cwd.worktree_folder_id,
+        )
+        .await;
+
         if let Err(e) = crate::todo::conversation_groups::link_origins(
             &self.db.conn,
             conversation_id,
@@ -774,13 +792,6 @@ impl AutomationEngine {
                 serde_json::json!({"conversation_id": conversation_id}),
             );
         }
-        // Surface the produced conversation in every client's sidebar the instant
-        // it exists (InProgress) — independent of the implicit upsert inside
-        // send_prompt_linked. Its folder was announced just above, so it can be
-        // grouped/rendered right away; live status then rides the existing
-        // ConversationStatusChanged → conversation://changed bridge.
-        emit_conversation_upsert(&self.emitter, &self.db.conn, conversation_id).await;
-
         // Register for completion correlation BEFORE prompting, so a fast
         // TurnComplete can't race ahead of the index entry.
         self.index.lock().await.insert(
@@ -794,14 +805,13 @@ impl AutomationEngine {
                 disconnect_on_finish,
             },
         );
-        let _ = automation_service::attach_run_runtime(
-            &self.db.conn,
-            run_id,
-            Some(conversation_id),
-            Some(conn_id.clone()),
-            cwd.worktree_folder_id,
-        )
-        .await;
+
+        // Surface the produced conversation in every client's sidebar the instant
+        // it exists (InProgress) — independent of the implicit upsert inside
+        // send_prompt_linked. Its folder was announced just above, so it can be
+        // grouped/rendered right away; live status then rides the existing
+        // ConversationStatusChanged → conversation://changed bridge.
+        emit_conversation_upsert(&self.emitter, &self.db.conn, conversation_id).await;
 
         // Re-emit now that the run carries its connection + conversation, so the
         // running row's "View conversation" link goes live during the run (the

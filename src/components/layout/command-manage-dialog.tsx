@@ -461,7 +461,7 @@ export function CommandManageDialog({
                               <div className="flex items-center gap-2 overflow-hidden">
                                 <button
                                   type="button"
-                                  className="cursor-grab rounded p-0.5 text-muted-foreground hover:bg-muted active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+                                  className="cursor-grab rounded p-0.5 text-muted-foreground hover:bg-interaction-hover active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
                                   title={t("dragSort")}
                                   aria-label={t("dragSortCommand", {
                                     name: command.name,

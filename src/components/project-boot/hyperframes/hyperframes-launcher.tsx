@@ -347,7 +347,7 @@ export function HyperframesLauncher() {
           {/* Agent skills — collapsed-by-default card (optional advanced step) */}
           <Card className="gap-0 py-0">
             <Collapsible open={skillsExpanded} onOpenChange={setSkillsExpanded}>
-              <CollapsibleTrigger className="group/skills flex w-full items-center justify-between gap-2 px-4 py-3 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50">
+              <CollapsibleTrigger className="group/skills flex w-full items-center justify-between gap-2 px-4 py-3 text-left outline-none transition-colors hover:bg-interaction-hover focus-visible:bg-muted/50">
                 <SectionHeader>{t("hyperframes.skillsTitle")}</SectionHeader>
                 <ChevronDown className="size-4 shrink-0 text-muted-foreground transition-transform duration-200 group-data-[state=open]/skills:rotate-180" />
               </CollapsibleTrigger>
@@ -384,7 +384,7 @@ export function HyperframesLauncher() {
                           "flex items-center justify-between gap-2 rounded-lg border p-2.5 text-left text-sm transition-colors disabled:opacity-60",
                           isSelected
                             ? "border-primary bg-primary/5"
-                            : "hover:bg-muted/50"
+                            : "hover:bg-interaction-hover"
                         )}
                       >
                         <span className="flex min-w-0 items-center gap-1.5">

@@ -163,7 +163,7 @@ export const ConversationMessageNav = memo(function ConversationMessageNav({
             <button
               type="button"
               onClick={onRetryEarlier}
-              className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+              className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border px-2.5 py-2 text-left text-xs text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
             >
               <RotateCw className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 truncate">{t("loadEarlier")}</span>
@@ -186,7 +186,7 @@ export const ConversationMessageNav = memo(function ConversationMessageNav({
                     type="button"
                     onClick={() => onSelect(entry)}
                     aria-busy={isRevealing || undefined}
-                    className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-2 text-left transition-colors hover:bg-accent/40"
+                    className="flex min-w-0 flex-1 items-start gap-2 px-2.5 py-2 text-left transition-colors hover:bg-interaction-hover"
                   >
                     <span className="mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-md border border-border bg-muted/40 px-1 text-3xs tabular-nums text-muted-foreground">
                       {isRevealing && (
@@ -232,7 +232,7 @@ export const ConversationMessageNav = memo(function ConversationMessageNav({
                           [entry.turnId]: !isOpen,
                         }))
                       }
-                      className="flex w-7 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-accent/40 hover:text-foreground"
+                      className="flex w-7 shrink-0 items-center justify-center border-l border-border text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
                     >
                       <ChevronRight
                         className={cn(
@@ -270,7 +270,7 @@ export const ConversationMessageNav = memo(function ConversationMessageNav({
                               "flex w-full min-w-0 items-center gap-2 rounded-md border px-2 py-1.5 text-left transition-colors",
                               isRemoved
                                 ? "border-destructive/30 bg-destructive/10 hover:bg-destructive/20"
-                                : "border-border bg-transparent hover:bg-accent/40"
+                                : "border-border bg-transparent hover:bg-interaction-hover"
                             )}
                           >
                             <FileIcon

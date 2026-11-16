@@ -88,7 +88,7 @@ export function FeedbackCheckResultCard({ output, errorText, state }: Props) {
       title={expanded ? t("collapse") : t("expand")}
       data-testid="feedback-check-result-card"
       className={cn(
-        "flex w-full items-center gap-2 rounded-full border border-primary/30 bg-card px-3 py-1.5 text-left transition-colors hover:bg-muted/40",
+        "flex w-full items-center gap-2 rounded-full border border-primary/30 bg-card px-3 py-1.5 text-left transition-colors hover:bg-interaction-hover",
         !expanded && "mb-2"
       )}
     >

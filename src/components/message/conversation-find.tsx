@@ -208,7 +208,7 @@ export function ConversationFind({
   }
   if (!active || !open) return null
   const buttonClass =
-    "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent disabled:opacity-40"
+    "flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover disabled:opacity-40"
   return (
     <div
       data-conversation-find=""

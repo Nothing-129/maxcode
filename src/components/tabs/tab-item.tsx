@@ -341,7 +341,7 @@ export const TabItem = memo(function TabItem({
                       : "isolate browser-tab-hover text-muted-foreground hover:text-foreground ws-strip-line",
                   ]
                 : [
-                    "shrink-0 rounded-full px-3 hover:bg-primary/8",
+                    "shrink-0 rounded-full px-3 hover:bg-interaction-hover",
                     isActive
                       ? "bg-primary/10 text-foreground"
                       : "text-muted-foreground",

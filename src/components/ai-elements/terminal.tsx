@@ -225,7 +225,7 @@ export function TerminalCopyButton({
   return (
     <Button
       className={cn(
-        "size-7 shrink-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        "size-7 shrink-0 text-muted-foreground hover:bg-interaction-hover hover:text-foreground",
         className
       )}
       onClick={copyToClipboard}
@@ -254,7 +254,7 @@ export function TerminalClearButton({
   return (
     <Button
       className={cn(
-        "size-7 shrink-0 text-muted-foreground hover:bg-accent hover:text-accent-foreground",
+        "size-7 shrink-0 text-muted-foreground hover:bg-interaction-hover hover:text-foreground",
         className
       )}
       onClick={onClear}

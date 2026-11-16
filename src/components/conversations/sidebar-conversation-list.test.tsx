@@ -2246,3 +2246,31 @@ vi.mock("@/lib/workspace-preferences-store", () => ({
     return () => {}
   },
 }))
+
+describe("automation conversation visibility", () => {
+  it("hides marked runs including pinned ones and restores them when unmarked", () => {
+    const f = folder(1, "F1")
+    const hidden = {
+      ...conv(12, 1),
+      hide_from_conversation_list: true,
+      pinned_at: new Date().toISOString(),
+    }
+    useAppWorkspaceStore.setState({
+      folders: [f],
+      allFolders: [f],
+      conversations: [conv(11, 1), hidden],
+    })
+    render(tree())
+    expect(document.body.textContent).toContain("conv-11")
+    expect(document.body.textContent).not.toContain("conv-12")
+    act(() =>
+      useAppWorkspaceStore.setState({
+        conversations: [
+          conv(11, 1),
+          { ...hidden, hide_from_conversation_list: false },
+        ],
+      })
+    )
+    expect(document.body.textContent).toContain("conv-12")
+  })
+})

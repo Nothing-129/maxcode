@@ -429,7 +429,7 @@ export function QuickMessagesSettings() {
                         <div className="flex items-center gap-2 overflow-hidden">
                           <button
                             type="button"
-                            className="text-muted-foreground cursor-grab active:cursor-grabbing rounded p-0.5 hover:bg-muted"
+                            className="text-muted-foreground cursor-grab active:cursor-grabbing rounded p-0.5 hover:bg-interaction-hover"
                             title={t("actions.dragSort")}
                             aria-label={t("actions.dragSortMessage", {
                               name: m.title || t("untitled"),

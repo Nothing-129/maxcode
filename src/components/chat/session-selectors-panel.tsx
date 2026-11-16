@@ -103,7 +103,7 @@ export function SessionSelectorsPanel({
               onClick={() => setActiveKey(setting.key)}
               className={cn(
                 "flex w-full flex-col items-start gap-0.5 rounded-md px-2 py-1.5 text-left transition-colors",
-                "hover:bg-accent hover:text-accent-foreground",
+                "hover:bg-interaction-hover hover:text-foreground",
                 isActive && "bg-accent text-accent-foreground"
               )}
             >
@@ -187,7 +187,7 @@ export function SessionSelectorsPanel({
                     }}
                     className={cn(
                       "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                      "hover:bg-accent hover:text-accent-foreground",
+                      "hover:bg-interaction-hover hover:text-foreground",
                       selected && "bg-accent/60"
                     )}
                   >

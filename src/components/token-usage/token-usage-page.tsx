@@ -901,7 +901,7 @@ export function TokenUsagePage() {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="size-8 rounded-full bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground"
+                    className="size-8 rounded-full bg-muted/70 text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
                     aria-label={t("moreActions")}
                   >
                     {syncing ? (

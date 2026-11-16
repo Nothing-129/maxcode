@@ -1949,6 +1949,7 @@
       "sortBy": "الترتيب حسب",
       "sortByCreatedAt": "وقت الإنشاء",
       "sortByUpdatedAt": "وقت التحديث",
+      "navigationOrder": "ترتيب التنقل",
       "sectionOrder": "ترتيب الأقسام",
       "sectionOrderMoveUp": "تحريك لأعلى",
       "sectionOrderMoveDown": "تحريك لأسفل",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "تبديل التفاصيل"
   },
   "Automations": {
+    "hideFromConversationList": "إخفاء من قائمة المحادثات",
+    "hideFromConversationListHint": "إخفاء محادثات التنفيذ السابقة والمستقبلية. يمكنك عرضها في سجل تنفيذ المهمة. أوقف الخيار لإظهارها مجددًا.",
+    "calendarFilter": "تواريخ التنفيذ",
+    "calendarAll": "جميع التواريخ",
+    "calendarWorkday": "أيام العمل في الصين",
+    "calendarHoliday": "العطلات الرسمية في الصين",
+    "calendarHint": "بتوقيت بكين. تشمل أيام العمل التعويضية؛ ولا تشمل العطلات عطلات نهاية الأسبوع العادية.",
     "attachedTodos": "المهام المرفقة",
     "attachedTodosHint": "تقرأ كل عملية تشغيل أحدث محتوى للمهام وتربط المحادثة بها.",
     "todoScope": "نطاق المهام",

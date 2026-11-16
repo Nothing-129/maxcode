@@ -90,7 +90,7 @@ export function DelegationCardRow({
         <button
           type="button"
           onClick={onOpenSession}
-          className="shrink-0 flex items-center gap-1.5 px-3 border-l border-border text-xs font-medium text-foreground/80 hover:bg-muted/60 hover:text-foreground transition-colors"
+          className="shrink-0 flex items-center gap-1.5 px-3 border-l border-border text-xs font-medium text-foreground/80 hover:bg-interaction-hover hover:text-foreground transition-colors"
           title={t("openDetail")}
           aria-label={t("openDetail")}
         >

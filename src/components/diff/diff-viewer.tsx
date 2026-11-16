@@ -235,7 +235,7 @@ export function DiffViewer({
                 type="button"
                 onClick={handlePrevChange}
                 disabled={currentChangeIndex <= 0}
-                className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-interaction-hover transition-colors inline-flex items-center gap-1"
               >
                 <ChevronLeft className="h-3 w-3" />
                 Prev
@@ -247,7 +247,7 @@ export function DiffViewer({
                 type="button"
                 onClick={handleNextChange}
                 disabled={currentChangeIndex >= diffChanges.length - 1}
-                className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-interaction-hover transition-colors inline-flex items-center gap-1"
               >
                 Next
                 <ChevronRight className="h-3 w-3" />

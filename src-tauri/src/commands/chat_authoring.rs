@@ -286,6 +286,8 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             Err(note) => return AuthoringOutcome::rejected(KIND_AUTOMATION, note),
         };
         let config = AutomationConfig {
+            hide_from_conversation_list: false,
+            calendar_filter: Default::default(),
             todo_origins: spec.todo_origins,
             session_mode: Default::default(),
             message_trigger: None,

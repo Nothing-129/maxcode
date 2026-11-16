@@ -80,7 +80,7 @@ function QueueItem({
           type="button"
           onClick={() => void onSteerItem(item.id)}
           disabled={steering}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={t("steerItemNowHint")}
         >
           <Zap className="size-3.5" />
@@ -91,7 +91,7 @@ function QueueItem({
           type="button"
           onClick={() => onAdjustDirection(item.id)}
           disabled={steering}
-          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="flex h-7 shrink-0 items-center gap-1.5 rounded-md px-1.5 text-xs text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title={t("adjustDirectionHint")}
         >
           <CornerDownRight className="size-3.5" />
@@ -102,7 +102,7 @@ function QueueItem({
         type="button"
         onClick={() => onEdit(item.id)}
         disabled={steering}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("editItem")}
         aria-label={t("editItem")}
         aria-pressed={isEditing}
@@ -113,7 +113,7 @@ function QueueItem({
         type="button"
         onClick={() => onDelete(item.id)}
         disabled={steering}
-        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         title={t("deleteItem")}
         aria-label={t("deleteItem")}
       >

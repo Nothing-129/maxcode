@@ -121,7 +121,7 @@ function createAddToChatPill(
   // lives on an inner <span> Monaco never touches; the button keeps only the
   // pill chrome and shrink-wraps it (Monaco positions the button absolutely).
   dom.className =
-    "codeg-add-to-chat-pill rounded-md border border-border bg-popover px-2 py-0.5 text-xs font-medium text-popover-foreground shadow-md cursor-pointer select-none hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    "codeg-add-to-chat-pill rounded-md border border-border bg-popover px-2 py-0.5 text-xs font-medium text-popover-foreground shadow-md cursor-pointer select-none hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
   // Hand-written SVG (lucide "message-square-plus"): raw DOM can't host a React
   // lucide component. `currentColor` + the blue text class echoes the file badge.
   dom.innerHTML =
@@ -714,7 +714,7 @@ function DiffFileList({
               <ContextMenuTrigger asChild>
                 <button
                   type="button"
-                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-muted/50 transition-colors group"
+                  className="w-full flex items-center gap-2 px-3 py-1.5 text-left hover:bg-interaction-hover transition-colors group"
                   onClick={() => {
                     void onOpenDiff(file.path)
                   }}
@@ -1985,7 +1985,7 @@ function FileWorkspacePanelBody() {
                     type="button"
                     onClick={handlePrevHunk}
                     disabled={activeHunkIndex <= 0}
-                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-interaction-hover transition-colors inline-flex items-center gap-1"
                   >
                     <ChevronRight className="h-3 w-3 rotate-180" />
                     {t("prev")}
@@ -1997,7 +1997,7 @@ function FileWorkspacePanelBody() {
                       activeHunkIndex < 0 ||
                       activeHunkIndex >= allHunks.length - 1
                     }
-                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-muted transition-colors inline-flex items-center gap-1"
+                    className="rounded border border-border bg-background px-2 py-0.5 text-3xs disabled:opacity-40 hover:bg-interaction-hover transition-colors inline-flex items-center gap-1"
                   >
                     {t("next")}
                     <ChevronRight className="h-3 w-3" />
@@ -2018,7 +2018,7 @@ function FileWorkspacePanelBody() {
                     <button
                       type="button"
                       onClick={() => toggleFileCollapsed(file.key)}
-                      className="w-full px-2 py-1.5 text-2xs flex items-center gap-1 hover:bg-muted/60 transition-colors"
+                      className="w-full px-2 py-1.5 text-2xs flex items-center gap-1 hover:bg-interaction-hover transition-colors"
                     >
                       <ChevronRight
                         className={`h-3 w-3 shrink-0 transition-transform ${
@@ -2082,7 +2082,7 @@ function FileWorkspacePanelBody() {
                               <button
                                 type="button"
                                 onClick={() => jumpToLine(hunk.startLine)}
-                                className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 hover:bg-muted transition-colors"
+                                className="shrink-0 rounded border border-border bg-background px-1.5 py-0.5 hover:bg-interaction-hover transition-colors"
                                 title={t("jumpToLine", {
                                   line: hunk.startLine,
                                 })}

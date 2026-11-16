@@ -164,7 +164,7 @@ export const SessionRow = memo(function SessionRow({
     <div
       className={cn(
         "flex h-9 items-center gap-2 rounded-md px-2 pl-8",
-        selectable && "cursor-pointer hover:bg-muted/50",
+        selectable && "cursor-pointer hover:bg-interaction-hover",
         !selectable && "opacity-60"
       )}
       onClick={selectable ? () => onToggle(key) : undefined}

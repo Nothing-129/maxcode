@@ -206,7 +206,7 @@ export function ImagePreview({ tab }: { tab: FileWorkspaceTab }) {
               type="button"
               onClick={handleZoomOut}
               disabled={zoom <= ZOOM_MIN}
-              className="rounded p-1 hover:bg-muted disabled:opacity-40 transition-colors"
+              className="rounded p-1 hover:bg-interaction-hover disabled:opacity-40 transition-colors"
               title={t("imageZoomOut")}
             >
               <Minus className="h-3.5 w-3.5" />
@@ -214,7 +214,7 @@ export function ImagePreview({ tab }: { tab: FileWorkspaceTab }) {
             <button
               type="button"
               onClick={handleZoomReset}
-              className="rounded px-1.5 py-0.5 hover:bg-muted transition-colors text-2xs font-mono text-muted-foreground min-w-[3.5rem] text-center"
+              className="rounded px-1.5 py-0.5 hover:bg-interaction-hover transition-colors text-2xs font-mono text-muted-foreground min-w-[3.5rem] text-center"
               title={t("imageZoomReset")}
             >
               {zoomPercent}%
@@ -223,7 +223,7 @@ export function ImagePreview({ tab }: { tab: FileWorkspaceTab }) {
               type="button"
               onClick={handleZoomIn}
               disabled={zoom >= ZOOM_MAX}
-              className="rounded p-1 hover:bg-muted disabled:opacity-40 transition-colors"
+              className="rounded p-1 hover:bg-interaction-hover disabled:opacity-40 transition-colors"
               title={t("imageZoomIn")}
             >
               <Plus className="h-3.5 w-3.5" />
@@ -231,7 +231,7 @@ export function ImagePreview({ tab }: { tab: FileWorkspaceTab }) {
             <button
               type="button"
               onClick={handleZoomReset}
-              className="rounded p-1 hover:bg-muted transition-colors ml-0.5"
+              className="rounded p-1 hover:bg-interaction-hover transition-colors ml-0.5"
               title={t("imageZoomReset")}
             >
               <RotateCcw className="h-3.5 w-3.5" />

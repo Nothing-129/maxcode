@@ -234,7 +234,7 @@ export function ServerFileBrowserDialog({
         <div key={entry.path}>
           <button
             className={cn(
-              "flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-muted/50",
+              "flex w-full items-center gap-1 rounded px-2 py-1 text-left text-sm transition-colors hover:bg-interaction-hover",
               isSelected && "bg-accent text-accent-foreground"
             )}
             style={{ paddingLeft: `${depth * 20 + 8}px` }}

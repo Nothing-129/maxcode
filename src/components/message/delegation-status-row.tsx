@@ -161,7 +161,7 @@ export function DelegationStatusRow({
           // renderer out of the collapsed tree), so only reference it then —
           // avoids a dangling `aria-controls` target while collapsed.
           aria-controls={expanded ? panelId : undefined}
-          className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-muted/50"
+          className="flex w-full items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-interaction-hover"
         >
           {row}
         </button>

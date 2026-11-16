@@ -32,7 +32,7 @@ export function TemplateGallery({
           // board cards and the automation detail's stat cards; ws-chrome-border
           // lifts the outline so the edge survives over the image.
           "group flex flex-col items-start gap-2 rounded-xl border border-dashed border-border ws-chrome-border bg-card/40 ws-msg-card p-4 text-left transition-colors",
-          "hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          "hover:border-primary/40 hover:bg-interaction-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         )}
       >
         <span className="flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground">

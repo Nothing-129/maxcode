@@ -1354,6 +1354,7 @@ mod tests {
         DbConversationDetail {
             billing_usage: None,
             summary: DbConversationSummary {
+                hide_from_conversation_list: false,
                 id: 1,
                 folder_id: 1,
                 title: None,

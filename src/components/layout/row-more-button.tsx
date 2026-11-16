@@ -60,7 +60,7 @@ export function RowMoreButton({ className }: RowMoreButtonProps) {
         )
       }}
       className={cn(
-        "inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground/70 transition-[opacity,color,background-color] hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        "inline-flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-muted-foreground/70 transition-[opacity,color,background-color] hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
         "opacity-0 group-hover/file-tree-row:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100",
         className
       )}

@@ -525,7 +525,7 @@ const FolderHeader = memo(function FolderHeader({
                 "group flex h-full w-full items-center",
                 "rounded-full",
                 "transition-colors duration-150",
-                "hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)]"
+                "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
               )}
             >
               <button
@@ -1066,7 +1066,11 @@ export function SidebarConversationList({
   const { zoomLevel } = useZoomLevel()
   const folders = useAppWorkspaceStore((s) => s.folders)
   const allFolders = useAppWorkspaceStore((s) => s.allFolders)
-  const conversations = useAppWorkspaceStore((s) => s.conversations)
+  const allConversations = useAppWorkspaceStore((s) => s.conversations)
+  const conversations = useMemo(
+    () => allConversations.filter((c) => !c.hide_from_conversation_list),
+    [allConversations]
+  )
   const linkedTodoGroups = useTodoConversationGroups()
   const unreadIds = useConversationUnreadStore((s) => s.unreadIds)
   // Live HEAD branch per folder, for the container repos' "root" sub-group
@@ -3668,7 +3672,7 @@ export function SidebarConversationList({
           <button
             type="button"
             onClick={revealMoreChats}
-            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             style={{
               paddingLeft: "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
             }}
@@ -3749,7 +3753,7 @@ export function SidebarConversationList({
               // onto it — the row read as un-hovered while the cursor was still
               // inside it. Same reason the section headers put their group on
               // the row container rather than the toggle button.
-              "relative flex h-[1.9375rem] w-full items-center rounded-full text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] group-hover/recent-more:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] group-hover/recent-more:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+              "relative flex h-[1.9375rem] w-full items-center rounded-full text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] group-hover/recent-more:bg-interaction-hover group-hover/recent-more:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
               // Reserved unconditionally (not just while hovered) so revealing
               // the reset icon never reflows the label under the cursor.
               showMore && row.canReset ? "pr-[1.75rem]" : "pr-[0.25rem]"
@@ -3815,7 +3819,7 @@ export function SidebarConversationList({
           <button
             type="button"
             onClick={() => revealMoreFolder(row.folderId)}
-            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-[color-mix(in_oklab,var(--sidebar-accent),var(--sidebar-foreground)_2%)] hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+            className="relative flex h-[1.9375rem] w-full items-center rounded-full pr-[0.25rem] text-left text-[0.75rem] text-muted-foreground/80 outline-none transition-colors duration-[120ms] hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
             style={{
               paddingLeft: `calc(var(--conv-rail-axis, 0.875rem) + 0.875rem + ${row.depth} * ${CONV_RAIL_DEPTH_STEP})`,
             }}

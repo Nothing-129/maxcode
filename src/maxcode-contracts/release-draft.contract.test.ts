@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { createRequire } from "node:module"
 import { describe, expect, it, vi } from "vitest"
 import { parse } from "yaml"
 import { source } from "./contract-source"
@@ -18,7 +19,7 @@ const draft = {
   html_url: "https://example.com/release/42",
 }
 
-async function runCreate(releases: (typeof draft)[]) {
+async function runCreate(releases: (typeof draft)[], downloads = false) {
   const repos = {
     listReleases: vi.fn(),
     getCommit: vi.fn().mockResolvedValue({
@@ -39,18 +40,48 @@ async function runCreate(releases: (typeof draft)[]) {
     },
   }
   const core = { setFailed: vi.fn(), setOutput: vi.fn(), info: vi.fn() }
-  await new AsyncFunction("github", "context", "core", createStep.with.script)(
+  await new AsyncFunction(
+    "github",
+    "context",
+    "core",
+    "require",
+    createStep.with.script
+  )(
     github,
     {
       ref: "refs/tags/v0.30.44",
       repo: { owner: "Nothing-129", repo: "maxcode" },
     },
-    core
+    core,
+    () => ({
+      releaseDownloads: (owner: string, repo: string, tag: string) =>
+        downloads
+          ? createRequire(import.meta.url)(
+              "../../electron/scripts/release.cjs"
+            ).releaseDownloads(
+              owner,
+              repo,
+              tag,
+              "aarch64-apple-darwin,x86_64-pc-windows-msvc"
+            )
+          : "",
+    })
   )
   return { github, repos, core }
 }
 
 describe("release drafts survive failed workflow reruns", () => {
+  it("prepends download badges while preserving the commit notes", async () => {
+    const { repos } = await runCreate([], true)
+    const body = repos.createRelease.mock.calls[0][0].body
+    expect(body).toContain("| macOS |")
+    expect(body).toContain("| Windows |")
+    expect(body).toContain(
+      "/releases/download/v0.30.44/MaxCode-0.30.44-mac-arm64.dmg"
+    )
+    expect(body).toMatch(/\n\nRelease notes$/)
+  })
+
   it("reuses the same-tag draft from the paginated collection", async () => {
     const { github, repos, core } = await runCreate([
       { ...draft, id: 10, tag_name: "v0.30.43" },

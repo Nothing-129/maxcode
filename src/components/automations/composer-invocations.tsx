@@ -389,7 +389,7 @@ export function ComposerInvocationsPopup({
               "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm",
               i === inv.activeIndex
                 ? "bg-accent text-accent-foreground"
-                : "hover:bg-muted"
+                : "hover:bg-interaction-hover"
             )}
             onMouseDown={(e) => {
               e.preventDefault()
@@ -414,7 +414,7 @@ export function ComposerInvocationsPopup({
                 "flex w-full items-start gap-2 rounded-lg px-3 py-2 text-left text-sm",
                 absoluteIndex === inv.activeIndex
                   ? "bg-accent text-accent-foreground"
-                  : "hover:bg-muted"
+                  : "hover:bg-interaction-hover"
               )}
               onMouseDown={(e) => {
                 e.preventDefault()

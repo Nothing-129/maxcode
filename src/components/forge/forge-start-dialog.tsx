@@ -224,7 +224,9 @@ export function ForgeStartDialog({
                       // the hairlines, so a selected option is marked by FILL
                       // rather than by growing a second frame inside the first.
                       "flex cursor-pointer items-start gap-2.5 p-3 transition-colors",
-                      scenario === id ? "bg-primary/5" : "hover:bg-muted/60"
+                      scenario === id
+                        ? "bg-primary/5"
+                        : "hover:bg-interaction-hover"
                     )}
                   >
                     <RadioGroupItem

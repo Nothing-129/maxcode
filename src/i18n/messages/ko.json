@@ -1949,6 +1949,7 @@
       "sortBy": "정렬 기준",
       "sortByCreatedAt": "생성 시간순",
       "sortByUpdatedAt": "업데이트 시간순",
+      "navigationOrder": "탐색 순서",
       "sectionOrder": "섹션 순서",
       "sectionOrderMoveUp": "위로 이동",
       "sectionOrderMoveDown": "아래로 이동",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "세부 정보 전환"
   },
   "Automations": {
+    "hideFromConversationList": "대화 목록에서 숨기기",
+    "hideFromConversationListHint": "기존 및 향후 실행 대화를 숨깁니다. 자동 작업 실행 기록에서 확인할 수 있습니다. 끄면 다시 표시됩니다.",
+    "calendarFilter": "실행 날짜",
+    "calendarAll": "모든 날짜",
+    "calendarWorkday": "중국 본토 근무일",
+    "calendarHoliday": "중국 본토 공휴일",
+    "calendarHint": "베이징 시간 기준. 대체 근무일을 포함하며 일반 주말은 공휴일에서 제외합니다.",
     "attachedTodos": "연결된 할 일",
     "attachedTodosHint": "실행할 때마다 최신 할 일 내용을 읽고 실행 대화를 연결합니다.",
     "todoScope": "할 일 범위",

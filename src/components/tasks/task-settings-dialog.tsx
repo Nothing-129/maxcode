@@ -603,7 +603,7 @@ function TaskSettingsBody({
                             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#216ae4]",
                             active
                               ? "border-primary/60 bg-primary/5"
-                              : "border-border/70 bg-background hover:bg-accent/40"
+                              : "border-border/70 bg-background hover:bg-interaction-hover"
                           )}
                         >
                           {/* The tinted fill alone is nearly invisible in the

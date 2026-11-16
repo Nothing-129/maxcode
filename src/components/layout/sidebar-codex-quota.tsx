@@ -158,7 +158,7 @@ export function SidebarCodexQuota({
               title={t("refresh")}
               disabled={loading}
               onClick={() => void refresh()}
-              className="inline-flex size-6 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              className="inline-flex size-6 items-center justify-center rounded-md hover:bg-interaction-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             >
               <RefreshCw className={cn("size-3", loading && "animate-spin")} />
             </button>

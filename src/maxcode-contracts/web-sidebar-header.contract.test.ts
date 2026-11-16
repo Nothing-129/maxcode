@@ -10,7 +10,7 @@ describe("web sidebar header", () => {
   it("shares the wordmark row with tools without native window clearance", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     expect(sidebar).toContain(
-      "const compactHeader = isMobile || !isNativeDesktop()"
+      "const compactHeader = isMobile || !platformIsMac || !isNativeDesktop()"
     )
     expect(sidebar).toContain("{!compactHeader && (\n          // Leave native")
     expect(sidebar).toContain("{compactHeader ? (")
@@ -19,9 +19,9 @@ describe("web sidebar header", () => {
     )
   })
 
-  it("reserves the rail titlebar area only for native desktop", () => {
+  it("reserves the rail titlebar area only for native macOS desktop", () => {
     const rail = source("src/components/layout/workspace-navigation-rail.tsx")
-    expect(rail).toContain("!mobile && isNativeDesktop() ? (")
+    expect(rail).toContain("!mobile && platformIsMac && isNativeDesktop() ? (")
     expect(rail).toContain('className="h-2 w-full shrink-0"')
   })
 })

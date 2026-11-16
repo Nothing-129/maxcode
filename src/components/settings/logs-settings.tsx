@@ -206,7 +206,7 @@ const LogRow = memo(function LogRow({
   const hasDetail = record.spans.length > 0 || fieldEntries.length > 0
 
   return (
-    <div className="border-b border-border/40 hover:bg-muted/40">
+    <div className="border-b border-border/40 hover:bg-interaction-hover">
       <div className="flex gap-2 px-2 py-1">
         {hasDetail ? (
           <button

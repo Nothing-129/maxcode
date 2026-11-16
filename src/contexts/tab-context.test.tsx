@@ -1020,6 +1020,22 @@ describe("TabProvider cross-client sync", () => {
     expect(active?.conversation_id).toBe(2)
   })
 
+  it("restores device focus before the server debounce has saved it", async () => {
+    listOpenedTabsMock.mockResolvedValue({
+      items: [tabItem(1, 1, true), tabItem(1, 2)],
+      version: 3,
+    })
+    const first = renderTabs()
+    await act(async () => {})
+    act(() => latestContext?.switchTab("conv-1-codex-2"))
+    const blob = JSON.parse(localStorage.getItem("workspace:tab-groups:v1")!)
+    expect(blob.activeTab).toBe("conv-1-codex-2")
+    first.unmount()
+    resetTabStore()
+    await renderHydrated()
+    expect(screen.getByTestId("active")).toHaveTextContent("conv-1-codex-2")
+  })
+
   it("restores the focused tab from is_active on hydrate", async () => {
     listOpenedTabsMock.mockResolvedValue({
       items: [tabItem(1, 1), tabItem(1, 2, true)],

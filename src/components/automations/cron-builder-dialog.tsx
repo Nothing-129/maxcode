@@ -116,6 +116,7 @@ interface CronBuilderDialogProps {
   onOpenChange: (open: boolean) => void
   /** Current cron, used to seed the builder when it opens. */
   cron: string
+  calendarFilter?: import("@/lib/types").AutomationCalendarFilter
   timezone: string
   onApply: (cron: string) => void
 }
@@ -132,6 +133,7 @@ export function CronBuilderDialog({
   onOpenChange,
   cron,
   timezone,
+  calendarFilter = "all",
   onApply,
 }: CronBuilderDialogProps) {
   const t = useTranslations("Automations")
@@ -147,6 +149,7 @@ export function CronBuilderDialog({
           <CronBuilderBody
             cron={cron}
             timezone={timezone}
+            calendarFilter={calendarFilter}
             onApply={(c) => {
               onApply(c)
               onOpenChange(false)
@@ -162,10 +165,12 @@ export function CronBuilderDialog({
 function CronBuilderBody({
   cron,
   timezone,
+  calendarFilter = "all",
   onApply,
   onCancel,
 }: {
   cron: string
+  calendarFilter?: import("@/lib/types").AutomationCalendarFilter
   timezone: string
   onApply: (cron: string) => void
   onCancel: () => void
@@ -196,7 +201,7 @@ function CronBuilderBody({
     if (!built.trim()) return
     let cancelled = false
     const handle = setTimeout(() => {
-      automationComputeNextRun(built.trim(), timezone)
+      automationComputeNextRun(built.trim(), timezone, calendarFilter)
         .then((r) => {
           if (!cancelled) setNextRun(r)
         })
@@ -208,7 +213,7 @@ function CronBuilderBody({
       cancelled = true
       clearTimeout(handle)
     }
-  }, [built, timezone])
+  }, [built, timezone, calendarFilter])
 
   const showTime =
     freq === "daily" ||
@@ -351,7 +356,7 @@ function CronBuilderBody({
           {t("cronPreviewLabel")}
         </span>
         <span className="flex flex-wrap items-center gap-1.5">
-          <ScheduleLabel cron={built} />
+          <ScheduleLabel cron={built} calendarFilter={calendarFilter} />
           <span className="font-mono text-xs text-muted-foreground">
             {built}
           </span>

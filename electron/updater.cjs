@@ -75,6 +75,7 @@ function createDesktopUpdater({
   emit,
   beforeInstall,
   onInstallError,
+  log = () => {},
   arch = process.arch,
   platform = process.platform,
   probe = probeUrl,
@@ -84,6 +85,7 @@ function createDesktopUpdater({
   let checking = null
   let downloading = null
   let restarting = false
+  let installing = false
   const nativeUpdater = platform === "darwin" ? updater.nativeUpdater : null
   const verifyMacUpdate = () =>
     new Promise((resolve, reject) => {
@@ -165,7 +167,16 @@ function createDesktopUpdater({
   updater.disableDifferentialDownload = false
   applySource(sources[0])
   updater.on("error", (error) => {
-    if (restarting) {
+    log("update-error", {
+      phase: installing
+        ? "install"
+        : restarting
+          ? "prepare-install"
+          : state.status,
+      message: errorText(error),
+      stack: error?.stack,
+    })
+    if (installing) {
       failure(error)
       onInstallError?.(error)
     } else if (state.status === "ready_to_restart") {
@@ -289,10 +300,24 @@ function createDesktopUpdater({
       restarting = true
       transition({ status: "restarting", version: state.version })
       try {
+        if (nativeUpdater) {
+          // Native update-downloaded only certifies the preparation at that
+          // instant. ShipItState.plist and its staged bundle can disappear while
+          // the user waits. Reuse the digest-checked ZIP via MacUpdater's public
+          // download API: its done hook resets the native feed (and Squirrel's
+          // cached ETag), so checkForUpdates actually writes a fresh request.
+          // A bare native check could return 304 and leave the missing request.
+          log("update-prepare-install")
+          await updater.downloadUpdate()
+          await verifyMacUpdate()
+          log("update-prepare-install-ready")
+        }
         await beforeInstall()
         // Reply to IPC before the updater closes the window.
         setImmediate(() => {
           try {
+            installing = true
+            log("update-install")
             updater.quitAndInstall(false, true)
           } catch (error) {
             failure(error)

@@ -99,7 +99,7 @@ export function PlanMarkdownCard({
           onClick={toggle}
           aria-expanded={expanded}
           aria-controls={contentId}
-          className="flex w-full items-center justify-center gap-1 border-t border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
+          className="flex w-full items-center justify-center gap-1 border-t border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
         >
           {expanded ? t("showLess") : t("showMore")}
           {expanded ? (

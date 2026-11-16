@@ -285,7 +285,7 @@ export function ComposerAddMenu({
                     // explicitly clicks.
                     onPointerMove={(e) => e.preventDefault()}
                     onPointerLeave={(e) => e.preventDefault()}
-                    className="hover:bg-accent hover:text-accent-foreground"
+                    className="hover:bg-interaction-hover hover:text-foreground"
                   >
                     <DropdownRadioItemContent
                       label={commandInvocationToken(cmd.name)}

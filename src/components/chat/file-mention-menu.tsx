@@ -40,7 +40,7 @@ export function FileMentionMenu({
             "flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-left text-sm",
             i === selectedIndex
               ? "bg-accent text-accent-foreground"
-              : "hover:bg-muted"
+              : "hover:bg-interaction-hover"
           )}
           onMouseDown={(e) => {
             e.preventDefault()

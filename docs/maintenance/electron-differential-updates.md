@@ -25,6 +25,18 @@ GitHub 超过 800ms 且慢于备用源、或探测失败时，直接改走
 
 macOS 在 ZIP 摘要校验后，还需等待 Squirrel 原生签名校验完成才显示更新图标；
 签名校验失败时保留后端和窗口，进入错误状态，可点击版本号重新检查。
+点击安装时，macOS 会先通过 electron-updater 复用已校验 ZIP，重新建立本地更新
+服务和 Squirrel 请求，再等待原生校验完成，之后才停止后端。不能只依赖更新图标
+出现时的校验：等待期间 `ShipItState.plist` 或其引用的暂存包可能失效；原生
+`quitAndInstall` 会再次读取该文件。单独再次调用原生 `checkForUpdates` 也可能
+命中旧 ETag，无法重建请求。准备失败时保留运行中的应用，清除安装入口，允许
+重新检查重试。桌面日志记录 `update-prepare-install`、
+`update-prepare-install-ready`、`update-install` 和带阶段的 `update-error`。
+
+2026-11-16 用户日志显示请求文件缺失后又安装成功，已确认上述交接缺少安装前
+重建，但不能仅凭日志摘要确定文件由哪个进程删除。缓存清理、旧辅助进程等仍需
+结合完整日志判断；本修复不删除缓存、不修改权限、不操作其他应用的更新任务。
+
 macOS 需要 Developer ID 签名发布包，本地 ad-hoc 包不启用自动安装。
 运行时会检查已安装应用的 Developer ID 和 TeamIdentifier，即使旧包设置了
 `desktopUpdates` 也不能绕过此限制。ad-hoc 签名的指定要求绑定当前代码哈希，

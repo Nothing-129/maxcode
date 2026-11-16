@@ -438,7 +438,7 @@ let groupPersistTimer: ReturnType<typeof setTimeout> | null = null
 // `hydrate` (kept out of store state: they are an input to hydration, not
 // renderable state). Refreshed whenever `initialTabState()` runs.
 let pendingRestoreDrafts: PersistedDraft[] = []
-let pendingRestoreActiveDraft: string | null = null
+let pendingRestoreActiveTab: string | null = null
 let orphanDraftPruneRan = false
 // True once a tab snapshot has actually been read from the backend (hydration,
 // a refetch, or a remote change). Until then the open-tab set is UNKNOWN — a
@@ -931,7 +931,7 @@ function readPersistedGroupState(): {
   groupFolder: Record<string, number>
 } {
   pendingRestoreDrafts = []
-  pendingRestoreActiveDraft = null
+  pendingRestoreActiveTab = null
   const fallback = () => ({
     groupLayout: singleGroupLayout() as LayoutNode,
     groupOf: {} as Record<string, string>,
@@ -947,8 +947,12 @@ function readPersistedGroupState(): {
       if (parsed && isLayoutNode(parsed.layout)) {
         // Older blobs predate `drafts`/`activeDraft` — both sanitize to empty.
         pendingRestoreDrafts = sanitizeDrafts(parsed.drafts)
-        pendingRestoreActiveDraft =
-          typeof parsed.activeDraft === "string" ? parsed.activeDraft : null
+        pendingRestoreActiveTab =
+          typeof parsed.activeTab === "string"
+            ? parsed.activeTab
+            : typeof parsed.activeDraft === "string"
+              ? parsed.activeDraft
+              : null
         const layout = parsed.layout
         return {
           groupLayout: layout,
@@ -1023,8 +1027,9 @@ function persistGroupState() {
     tileByGroup: st.tileByGroup,
     folderBindings: st.groupFolder,
     drafts,
-    // Only a DRAFT focus needs restoring here; conversation focus rides the
-    // synced `opened_tabs.is_active`.
+    // Keep device focus immediately, including before the server save fires.
+    activeTab: activeTab?.id ?? null,
+    // Retain the draft field for older clients.
     activeDraft:
       activeTab && activeTab.conversationId == null ? activeTab.id : null,
   })
@@ -2816,10 +2821,10 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
         const { tabs: withDrafts, groupOf: draftGroups } =
           mergeRestoredDrafts(restored)
         if (
-          pendingRestoreActiveDraft != null &&
-          withDrafts.some((tab) => tab.id === pendingRestoreActiveDraft)
+          pendingRestoreActiveTab != null &&
+          withDrafts.some((tab) => tab.id === pendingRestoreActiveTab)
         ) {
-          restoredActive = pendingRestoreActiveDraft
+          restoredActive = pendingRestoreActiveTab
         }
         if (!restoredActive && withDrafts.length > 0) {
           restoredActive = withDrafts[0].id
@@ -2852,9 +2857,9 @@ export const useTabStore = create<TabStoreState>()((set, get) => ({
             mergeRestoredDrafts(get().rawTabs)
           if (draftsOnly.length > 0) {
             const focus =
-              pendingRestoreActiveDraft != null &&
-              draftsOnly.some((tab) => tab.id === pendingRestoreActiveDraft)
-                ? pendingRestoreActiveDraft
+              pendingRestoreActiveTab != null &&
+              draftsOnly.some((tab) => tab.id === pendingRestoreActiveTab)
+                ? pendingRestoreActiveTab
                 : draftsOnly[0].id
             set({
               rawTabs: draftsOnly,

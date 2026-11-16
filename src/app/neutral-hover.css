@@ -1,0 +1,12 @@
+/* Transient interaction feedback stays neutral across accent themes. */
+:root {
+  --interaction-hover: #f2f2f2;
+}
+
+.dark {
+  --interaction-hover: #303030;
+}
+
+@theme inline {
+  --color-interaction-hover: var(--interaction-hover);
+}

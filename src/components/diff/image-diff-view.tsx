@@ -252,7 +252,7 @@ export function ImageDiffView({
             onClick={() => setMode(nextMode)}
             aria-label={nextModeLabel}
             title={nextModeLabel}
-            className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-background text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="ml-auto inline-flex h-5 w-5 shrink-0 items-center justify-center rounded border border-border bg-background text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
           >
             <NextModeIcon className="h-3 w-3" />
           </button>

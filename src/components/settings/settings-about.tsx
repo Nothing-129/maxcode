@@ -83,7 +83,7 @@ export function SettingsAbout({ compact = false }: { compact?: boolean } = {}) {
           title={[t("about"), update?.currentVersion]
             .filter(Boolean)
             .join(" · ")}
-          className="mt-3 flex h-9 w-full shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="mt-3 flex h-9 w-full shrink-0 items-center gap-2 rounded-lg px-3 text-sm text-muted-foreground hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Info className="size-4" />
           {t("about")}

@@ -26,9 +26,9 @@ export function branchRowPaddingLeft(
 
 const TRIGGER_CLASS: Record<BranchTreeVariant, string> = {
   dropdown:
-    "flex w-full select-none items-center gap-2 rounded-xl py-2 pr-3 text-sm outline-hidden hover:bg-accent hover:text-accent-foreground",
+    "flex w-full select-none items-center gap-2 rounded-xl py-2 pr-3 text-sm outline-hidden hover:bg-interaction-hover hover:text-foreground",
   sidebar:
-    "flex w-full select-none items-center gap-2 rounded-lg py-1.5 pr-2 text-xs outline-hidden hover:bg-accent hover:text-accent-foreground",
+    "flex w-full select-none items-center gap-2 rounded-lg py-1.5 pr-2 text-xs outline-hidden hover:bg-interaction-hover hover:text-foreground",
 }
 
 interface BranchTreeCollapsibleProps {

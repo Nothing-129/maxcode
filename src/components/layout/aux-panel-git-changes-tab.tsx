@@ -458,7 +458,7 @@ function ChangeTreeOverflowRow({
     <button
       type="button"
       onClick={onReveal}
-      className="flex w-full min-w-full items-center gap-1 rounded px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+      className="flex w-full min-w-full items-center gap-1 rounded px-2 py-1 text-left text-xs text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
     >
       <span className="size-4 shrink-0" />
       <span className="truncate">{label}</span>
@@ -1956,7 +1956,7 @@ export function GitChangesTab() {
                       <button
                         key={entry.path}
                         type="button"
-                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-muted/40"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs hover:bg-interaction-hover"
                         onClick={() => {
                           handleToggleDirectoryGitFile(entry.path)
                         }}

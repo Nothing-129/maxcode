@@ -206,7 +206,7 @@ function JsonRow({ path, label, value, depth, expanded, onToggle }: RowProps) {
         type="button"
         onClick={() => onToggle(path)}
         aria-expanded={isOpen}
-        className="flex w-full min-w-0 items-center gap-1 py-px text-left hover:bg-muted/60"
+        className="flex w-full min-w-0 items-center gap-1 py-px text-left hover:bg-interaction-hover"
         style={{ paddingLeft: `${depth * 12}px` }}
       >
         <ChevronRightIcon
@@ -286,7 +286,7 @@ export const JsonTreeView = memo(function JsonTreeView({
         onClick={() => setShowRaw((prev) => !prev)}
         title={showRaw ? t("viewTree") : t("viewRaw")}
         aria-label={showRaw ? t("viewTree") : t("viewRaw")}
-        className="absolute right-1 top-1 z-10 rounded-md p-1 text-muted-foreground opacity-60 transition-opacity hover:bg-muted hover:opacity-100"
+        className="absolute right-1 top-1 z-10 rounded-md p-1 text-muted-foreground opacity-60 transition-opacity hover:bg-interaction-hover hover:opacity-100"
       >
         {showRaw ? (
           <ListTreeIcon className="size-3.5" />

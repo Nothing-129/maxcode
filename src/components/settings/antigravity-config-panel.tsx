@@ -828,7 +828,7 @@ function LeakedTempSection() {
               <div className="max-h-40 overflow-y-auto">
                 {scan.entries.map((entry) => (
                   <label
-                    className="flex items-center gap-2 px-2 py-1 hover:bg-muted/50"
+                    className="flex items-center gap-2 px-2 py-1 hover:bg-interaction-hover"
                     key={entry.path}
                   >
                     <Checkbox

@@ -148,7 +148,7 @@ export function AppearanceSettings() {
                   aria-pressed={isActive}
                   className={cn(
                     "flex items-center gap-2 rounded-md border px-3 py-2 text-xs transition-colors",
-                    "hover:bg-accent hover:text-accent-foreground",
+                    "hover:bg-interaction-hover hover:text-foreground",
                     isActive && "border-primary ring-2 ring-primary/30"
                   )}
                 >

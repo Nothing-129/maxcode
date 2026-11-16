@@ -186,7 +186,7 @@ function RefreshButton({
       title={label}
       aria-label={label}
       className={cn(
-        "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-40",
+        "inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground disabled:opacity-40",
         className
       )}
     >
@@ -963,7 +963,7 @@ function CommentCard({ comment }: { comment: ForgeComment }) {
               href={comment.html_url}
               title={t("commentPermalink")}
               aria-label={t("commentPermalink")}
-              className="ms-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="ms-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
             >
               <Link2 className="size-3" aria-hidden />
             </BrowserLink>
@@ -1356,7 +1356,7 @@ function CheckRow({ check }: { check: ForgeCheck }) {
           href={check.url}
           title={t("openCheck")}
           aria-label={t("openCheck")}
-          className="ms-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+          className="ms-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
         >
           <ExternalLink className="size-3" aria-hidden />
         </BrowserLink>
@@ -1459,7 +1459,7 @@ function ChangedFiles({
             onSwitch={switchView}
             // `RefreshButton`'s own box, so the two read as one pair rather
             // than as two kinds of control four pixels apart.
-            className="ms-auto size-6 rounded-md border-0 bg-transparent hover:bg-accent hover:text-foreground"
+            className="ms-auto size-6 rounded-md border-0 bg-transparent hover:bg-interaction-hover hover:text-foreground"
             iconClassName="size-3.5"
           />
         ) : null}
@@ -1608,7 +1608,10 @@ function ChangedFileRow({ file }: { file: ForgeChangedFile }) {
     <Collapsible open={open} onOpenChange={setOpen}>
       <CollapsibleTrigger
         title={open ? t("fileDiffHide") : t("fileDiffShow")}
-        className={cn(FILE_ROW, "text-start transition-colors hover:bg-accent")}
+        className={cn(
+          FILE_ROW,
+          "text-start transition-colors hover:bg-interaction-hover"
+        )}
       >
         <ChevronRight
           aria-hidden
@@ -2792,7 +2795,7 @@ export function ForgeIssueDetailSheet({
             href={row.html_url}
             className={cn(
               ROW_ACTION,
-              "inline-flex items-center text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              "inline-flex items-center text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
             )}
           >
             <ExternalLink className={ROW_ACTION_GLYPH} aria-hidden />

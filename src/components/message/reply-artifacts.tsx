@@ -79,7 +79,7 @@ export const ReplyArtifacts = memo(function ReplyArtifacts({
         <button
           type="button"
           onClick={review}
-          className="shrink-0 rounded-lg border border-border/60 px-2.5 py-1 text-xs transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="shrink-0 rounded-lg border border-border/60 px-2.5 py-1 text-xs transition-colors hover:bg-interaction-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           {t("review")}
         </button>
@@ -96,7 +96,7 @@ export const ReplyArtifacts = memo(function ReplyArtifacts({
           return (
             <li
               key={file.id}
-              className="group flex min-h-9 items-center gap-2 px-3 hover:bg-accent/40"
+              className="group flex min-h-9 items-center gap-2 px-3 hover:bg-interaction-hover"
             >
               <button
                 type="button"

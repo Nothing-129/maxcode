@@ -625,7 +625,7 @@ export function BranchSelectorList({
     const active = navIndex === activeIndexClamped
     const rowClass = cn(
       "flex w-full select-none items-center gap-2 rounded-md py-1.5 pr-2 text-left text-sm outline-none transition-colors",
-      active ? "bg-accent text-accent-foreground" : "hover:bg-accent/60"
+      active ? "bg-accent text-accent-foreground" : "hover:bg-interaction-hover"
     )
 
     if (row.kind === "operation") {

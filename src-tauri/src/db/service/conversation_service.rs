@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use chrono::Utc;
+use sea_orm::sea_query::Expr;
 use sea_orm::{
     ActiveModelTrait, ActiveValue::NotSet, ColumnTrait, DatabaseConnection, EntityTrait,
     QueryFilter, QueryOrder, QuerySelect, Set,
@@ -1204,6 +1205,7 @@ fn conv_to_summary(r: conversation::Model) -> DbConversationSummary {
         .and_then(|v| v.as_str().map(String::from))
         .unwrap_or_else(|| format!("{:?}", r.status));
     DbConversationSummary {
+        hide_from_conversation_list: false,
         id: r.id,
         folder_id: r.folder_id,
         title: r.title,
@@ -1250,7 +1252,7 @@ async fn fill_child_counts(
         .select_only()
         .column(conversation::Column::ParentId)
         .column_as(conversation::Column::Id.count(), "cnt")
-        .filter(conversation::Column::ParentId.is_in(ids))
+        .filter(conversation::Column::ParentId.is_in(ids.clone()))
         .filter(conversation::Column::DeletedAt.is_null())
         .group_by(conversation::Column::ParentId)
         .into_tuple()
@@ -1263,7 +1265,22 @@ async fn fill_child_counts(
             counts.insert(pid, cnt.max(0) as u32);
         }
     }
+    // Resolve against current task settings so toggling also affects old runs.
+    let hidden_ids: std::collections::HashSet<i32> =
+        crate::db::entities::automation_run::Entity::find()
+            .inner_join(crate::db::entities::automation::Entity)
+            .filter(crate::db::entities::automation_run::Column::ConversationId.is_in(ids))
+            .filter(Expr::cust("json_extract(automation.config, '$.hide_from_conversation_list') = 1"))
+            .select_only()
+            .column(crate::db::entities::automation_run::Column::ConversationId)
+            .into_tuple::<Option<i32>>()
+            .all(conn)
+            .await?
+            .into_iter()
+            .flatten()
+            .collect();
     for s in summaries.iter_mut() {
+        s.hide_from_conversation_list = hidden_ids.contains(&s.id);
         s.child_count = counts.get(&s.id).copied().unwrap_or(0);
     }
     Ok(())

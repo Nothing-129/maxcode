@@ -79,6 +79,53 @@ function desktopAssets(value, version) {
   })
 }
 
+// Reuse the packaging manifest so badges never advertise unbuilt installers.
+function releaseDownloads(owner, repo, tag, desktop) {
+  const version = tag.replace(/^v/, "")
+  const assets = desktopAssets(desktop, version).filter((name) =>
+    /\.(dmg|exe)$/.test(name)
+  )
+  if (!assets.length) return ""
+  const base = `https://github.com/${owner}/${repo}/releases/download/${encodeURIComponent(tag)}`
+  const rows = new Map()
+  for (const name of assets) {
+    const [, os, arch, ext] = name.match(
+      /-(mac|win|linux)-(x64|arm64|amd64|x86_64)\.(dmg|zip|exe|AppImage|deb)$/
+    )
+    const system = { mac: "macOS", win: "Windows", linux: "Linux" }[os]
+    const format = {
+      dmg: "DMG",
+      zip: "ZIP",
+      exe: "Setup",
+      AppImage: "AppImage",
+      deb: "DebPackage",
+    }[ext]
+    const architecture =
+      os === "mac"
+        ? arch === "arm64"
+          ? "Apple Silicon"
+          : "Intel x64"
+        : arch === "arm64"
+          ? "ARM64"
+          : "x64"
+    const color = { mac: "555555", win: "0078D4", linux: "E95420" }[os]
+    const badge = `https://img.shields.io/static/v1?label=${encodeURIComponent(format)}&message=${encodeURIComponent(architecture)}&color=${color}`
+    const link = `[![${system} ${format} ${architecture}](${badge})](${base}/${encodeURIComponent(name)})`
+    if (!rows.has(system)) rows.set(system, [])
+    rows.get(system).push(link)
+  }
+  return [
+    "### 按系统下载 / Download based on your OS",
+    "",
+    "| 系统 | 下载 |",
+    "| --- | --- |",
+    ...Array.from(
+      rows,
+      ([system, links]) => `| ${system} | ${links.join("<br>")} |`
+    ),
+  ].join("\n")
+}
+
 function validateAssets(assets, desktop, server, version) {
   const expected = [
     ...desktopAssets(desktop, version).flatMap((name) => [
@@ -177,6 +224,7 @@ function verifyHost(
 module.exports = {
   targets,
   desktopAssets,
+  releaseDownloads,
   desktopUpdateAssets,
   validateAssets,
   validateUpdateFiles,

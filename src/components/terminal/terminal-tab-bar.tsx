@@ -92,7 +92,7 @@ export function TerminalTabBar({
               className={`flex items-center gap-1 h-6 px-2 rounded-sm text-xs cursor-pointer select-none ${
                 tab.id === activeTabId
                   ? "bg-background text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  : "text-muted-foreground hover:text-foreground hover:bg-interaction-hover"
               }`}
               onClick={() => switchTerminal(tab.id)}
               onMouseDown={(event) => {

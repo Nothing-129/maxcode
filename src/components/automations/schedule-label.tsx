@@ -19,7 +19,32 @@ const DOW_KEYS = [
  * ("Weekdays at 9:00 AM"). Unrecognized expressions fall back to the raw cron
  * in a monospace span. Time-of-day is formatted in the active locale.
  */
-export function ScheduleLabel({ cron }: { cron: string }) {
+export function ScheduleLabel({
+  cron,
+  calendarFilter = "all",
+}: {
+  cron: string
+  calendarFilter?: import("@/lib/types").AutomationCalendarFilter
+}) {
+  const t = useTranslations("Automations")
+  return (
+    <>
+      {calendarFilter !== "all" && (
+        <>
+          {t(
+            calendarFilter === "cn_workday"
+              ? "calendarWorkday"
+              : "calendarHoliday"
+          )}{" "}
+          ·{" "}
+        </>
+      )}
+      <CronLabel cron={cron} />
+    </>
+  )
+}
+
+function CronLabel({ cron }: { cron: string }) {
   const t = useTranslations("Automations")
   const locale = useLocale()
   const d = useMemo(() => describeCron(cron), [cron])

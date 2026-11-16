@@ -71,7 +71,7 @@ function readSavedDisplayHost(): string | null {
 }
 
 const ADDRESS_ICON_BUTTON_CLASS =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-input text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
 
 // The running address row: a selector (or read-only field when there is only
 // one reachable address) followed by circular copy / QR / open actions.
@@ -257,7 +257,7 @@ function TokenEditor({
             <button
               type="button"
               onClick={() => onChange(generateRandomToken())}
-              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
               title={t("regenerate")}
             >
               <RefreshCw className="h-3.5 w-3.5" />
@@ -266,7 +266,7 @@ function TokenEditor({
           <button
             type="button"
             onClick={() => setRevealed((v) => !v)}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
             title={revealed ? t("hide") : t("show")}
           >
             {revealed ? (
@@ -279,7 +279,7 @@ function TokenEditor({
             type="button"
             onClick={handleCopy}
             disabled={!value}
-            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-40"
+            className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
             title={t("copy")}
           >
             {copied ? (
@@ -630,7 +630,7 @@ export function WebServiceSettings() {
               <button
                 onClick={isRunning ? handleStop : handleStart}
                 disabled={loading}
-                className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+                className="inline-flex h-8 items-center rounded-md border border-input bg-background px-3 text-xs font-medium ring-offset-background transition-colors hover:bg-interaction-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
               >
                 {loading ? t("processing") : isRunning ? t("stop") : t("start")}
               </button>

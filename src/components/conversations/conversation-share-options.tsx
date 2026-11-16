@@ -50,7 +50,7 @@ export function ConversationShareOptionsEditor({
           {rounds.map((round) => (
             <label
               key={round.number}
-              className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-muted"
+              className="flex min-w-0 cursor-pointer items-start gap-3 rounded-lg p-2 hover:bg-interaction-hover"
             >
               <Checkbox
                 disabled={disabled}

@@ -69,7 +69,7 @@ const FITTED_SCALES = new Set(["auto", "page-fit", "page-width"])
 const PINCH_FACTOR_THRESHOLD = 0.05
 
 const TOOLBAR_BUTTON =
-  "rounded p-1 transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+  "rounded p-1 transition-colors hover:bg-interaction-hover disabled:pointer-events-none disabled:opacity-40"
 
 /**
  * Where each PDF tab was last read, as PDF.js's own `page=…&zoom=…` hash,
@@ -410,7 +410,7 @@ export function PdfViewer({ tab }: { tab: FileWorkspaceTab }) {
             type="button"
             onClick={() => setScaleValue("auto")}
             disabled={!ready}
-            className="min-w-[3.5rem] rounded px-1.5 py-0.5 text-center font-mono text-2xs text-muted-foreground transition-colors hover:bg-muted disabled:pointer-events-none disabled:opacity-40"
+            className="min-w-[3.5rem] rounded px-1.5 py-0.5 text-center font-mono text-2xs text-muted-foreground transition-colors hover:bg-interaction-hover disabled:pointer-events-none disabled:opacity-40"
             title={t("pdfZoomReset")}
             aria-label={t("pdfZoomReset")}
           >

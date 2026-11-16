@@ -302,7 +302,7 @@ export function CustomStyleSection() {
           <CollapsibleTrigger asChild>
             <button
               type="button"
-              className="group/custom-style-toggle flex w-full flex-wrap items-center justify-between gap-3 border-b border-transparent p-4 text-left transition-colors hover:bg-muted/50 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 data-[state=open]:border-border"
+              className="group/custom-style-toggle flex w-full flex-wrap items-center justify-between gap-3 border-b border-transparent p-4 text-left transition-colors hover:bg-interaction-hover cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50 data-[state=open]:border-border"
             >
               <span className="flex min-w-0 items-center gap-2">
                 <Palette className="h-4 w-4 shrink-0 text-muted-foreground" />

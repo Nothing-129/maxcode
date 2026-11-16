@@ -1949,6 +1949,7 @@
       "sortBy": "Sortieren nach",
       "sortByCreatedAt": "Erstellungszeit",
       "sortByUpdatedAt": "Aktualisierungszeit",
+      "navigationOrder": "Navigationsreihenfolge",
       "sectionOrder": "Abschnittsreihenfolge",
       "sectionOrderMoveUp": "Nach oben",
       "sectionOrderMoveDown": "Nach unten",
@@ -5008,6 +5009,13 @@
     "toggleDetails": "Details umschalten"
   },
   "Automations": {
+    "hideFromConversationList": "In der Gesprächsliste ausblenden",
+    "hideFromConversationListHint": "Bisherige und zukünftige Ausführungen ausblenden. Die Gespräche bleiben im Ausführungsverlauf sichtbar. Zum erneuten Anzeigen ausschalten.",
+    "calendarFilter": "Ausführungstage",
+    "calendarAll": "Alle Tage",
+    "calendarWorkday": "Arbeitstage in China",
+    "calendarHoliday": "Feiertage in China",
+    "calendarHint": "Pekinger Zeit. Einschließlich Ausgleichsarbeitstagen; normale Wochenenden zählen nicht als Feiertage.",
     "attachedTodos": "Verknüpfte Aufgaben",
     "attachedTodosHint": "Jeder Lauf liest den aktuellen Aufgabeninhalt und verknüpft seine Unterhaltung mit diesen Aufgaben.",
     "todoScope": "Aufgabenbereich",

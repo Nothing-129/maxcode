@@ -28,11 +28,11 @@ describe("neutral sidebar action backgrounds", () => {
     }
   })
 
-  it("uses the scoped tokens for default, hover and selected buttons", () => {
+  it("uses scoped surfaces with a neutral shared hover color", () => {
     const code = source("src/components/layout/sidebar.tsx")
     expect(code).toContain("data-sidebar-actions")
     expect(code).toContain("bg-sidebar-accent/35")
-    expect(code).toContain("hover:bg-sidebar-accent")
+    expect(code).toContain("hover:bg-interaction-hover")
     expect(code).toContain('active && "bg-sidebar-primary/10"')
   })
 })

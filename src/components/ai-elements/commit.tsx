@@ -282,7 +282,7 @@ export const CommitFile = ({
 }: CommitFileProps) => (
   <div
     className={cn(
-      "flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50",
+      "flex items-center justify-between gap-2 rounded px-2 py-1 text-sm hover:bg-interaction-hover",
       className
     )}
     {...props}

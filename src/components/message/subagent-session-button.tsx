@@ -30,7 +30,7 @@ export function SubagentSessionButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       title={label}
       aria-label={label}
-      className="ws-msg-chip inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted/60 px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+      className="ws-msg-chip inline-flex shrink-0 items-center gap-1.5 rounded-full bg-muted/60 px-2.5 py-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-interaction-hover hover:text-foreground"
     >
       <MessagesSquare aria-hidden className="size-3.5 shrink-0" />
       <span className="hidden @[22rem]/agentcap:inline">{label}</span>

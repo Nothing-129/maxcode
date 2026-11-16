@@ -292,7 +292,9 @@ export const FileTreeFolder = ({
   // same static tint with NO hover change; only idle rows show the hover
   // affordance.
   const highlightClassName =
-    dropActive || isSelected ? "bg-muted-foreground/20" : "hover:bg-muted/50"
+    dropActive || isSelected
+      ? "bg-muted-foreground/20"
+      : "hover:bg-interaction-hover"
 
   // Without an action the header IS the row: it spans the full width and owns
   // the highlight, the drop marker, and everything in `rowProps`. With one, all
@@ -470,7 +472,7 @@ export const FileTreeFile = ({
           depth == null ? "px-2" : "pr-2",
           // Selected rows keep a static tint (no hover change); idle rows show
           // the hover affordance.
-          isSelected ? "bg-muted-foreground/20" : "hover:bg-muted/50",
+          isSelected ? "bg-muted-foreground/20" : "hover:bg-interaction-hover",
           className
         )}
         style={rowPaddingLeftStyle(depth, style)}
