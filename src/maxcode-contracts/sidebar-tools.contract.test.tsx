@@ -123,6 +123,8 @@ vi.mock("@/contexts/sidebar-navigation-context", () => ({
     mockState.isMobile
       ? null
       : {
+          order: ["home", "conversations", "projects", "tasks", "automations"],
+          moveNavigation: vi.fn(),
           view: mockState.sidebarView,
           date: "2026-11-09",
           endDate: "2026-11-09",
@@ -137,6 +139,9 @@ vi.mock("@/contexts/workbench-route-context", () => ({
     setRoute: spies.setRoute,
     openConversations: spies.openConversations,
   }),
+}))
+vi.mock("@/hooks/use-platform", () => ({
+  usePlatform: () => ({ isMac: mockState.nativeDesktop }),
 }))
 vi.mock("@/hooks/use-is-mac", () => ({ useIsMac: () => false }))
 vi.mock("@/hooks/use-shortcut-settings", () => ({
@@ -328,7 +333,7 @@ describe("sidebar tools beside search", () => {
     expect(tools.parentElement).toBe(header)
     expect(tools.previousElementSibling).toHaveAttribute("data-drag-region")
     expect(tools.previousElementSibling).toHaveClass("flex-1")
-    expect(header.firstElementChild).toHaveStyle({ width: "0px" })
+    expect(header.firstElementChild).toHaveStyle({ width: "76px" })
     expect(tools.nextElementSibling).toBeNull()
     expect(document.querySelectorAll("[data-sidebar-tools]")).toHaveLength(1)
   })

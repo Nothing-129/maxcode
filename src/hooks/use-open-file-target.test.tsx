@@ -96,6 +96,7 @@ function click(label: string) {
 
 describe("useOpenFileTarget", () => {
   beforeEach(() => {
+    localStorage.clear()
     vi.clearAllMocks()
     opened.length = 0
   })
