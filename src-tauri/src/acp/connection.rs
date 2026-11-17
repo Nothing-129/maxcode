@@ -5745,17 +5745,15 @@ fn is_executable_file(path: &Path) -> bool {
     let Ok(meta) = std::fs::metadata(path) else {
         return false;
     };
-    if !meta.is_file() {
-        return false;
-    }
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        if meta.permissions().mode() & 0o111 == 0 {
-            return false;
-        }
+        meta.is_file() && meta.permissions().mode() & 0o111 != 0
     }
-    true
+    #[cfg(not(unix))]
+    {
+        meta.is_file()
+    }
 }
 
 /// Which tool groups a companion launch should expose. A struct rather than a
