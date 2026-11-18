@@ -77,7 +77,7 @@ describe("navigation utilities", () => {
     expect(screen.getByTestId("route")).toHaveTextContent("tokenUsage")
     expect(stats).toHaveAttribute("aria-current", "page")
     expect(stats).not.toHaveClass("bg-sidebar-accent")
-    expect(stats).toHaveClass("bg-[#eaeaea]")
+    expect(stats).toHaveClass("bg-sidebar-foreground/[0.06]")
     expect(stats.querySelector("[data-navigation-active]")).toBeNull()
     const quota = screen.getByRole("button", { name: "Quota icon" })
     expect(
