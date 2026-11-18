@@ -3505,7 +3505,7 @@ const FILE_OPEN_HARD_LIMIT: usize = 50_000_000;
 /// Save limit: refuse to save content larger than 50 MB.
 const FILE_SAVE_HARD_LIMIT: usize = 50_000_000;
 const FILE_BASE64_DEFAULT_MAX_BYTES: usize = 20_000_000;
-const FILE_BASE64_MAX_BYTES: usize = 100_000_000;
+pub(super) const FILE_BASE64_MAX_BYTES: usize = 100_000_000;
 const FILE_IO_MAX_CONCURRENT_OPS: usize = 8;
 
 static FILE_IO_SEMAPHORE: LazyLock<Semaphore> =

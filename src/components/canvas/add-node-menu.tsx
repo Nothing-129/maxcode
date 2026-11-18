@@ -1,5 +1,6 @@
 "use client"
 
+import { Input } from "@/components/ui/input"
 import { useMemo, useState } from "react"
 import { useReactFlow } from "@xyflow/react"
 import {
@@ -221,11 +222,11 @@ export function AddNodeMenu({
             {t("addConversationCard")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent className="w-64">
-            <input
+            <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={t("searchConversations")}
-              className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded-lg border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
+              className="mx-1 mb-1 w-[calc(100%-0.5rem)] rounded-lg border border-input bg-background px-2 py-1 text-xs outline-none focus-visible:ring-0"
               onKeyDown={(e) => e.stopPropagation()}
             />
             <div className="max-h-64 overflow-y-auto">

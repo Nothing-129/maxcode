@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react"
-import { subscribe } from "@/lib/platform"
+import { onTransportReconnect, subscribe } from "@/lib/platform"
 import { toErrorMessage } from "@/lib/app-error"
 import {
   todoCall,
@@ -21,6 +21,7 @@ import {
 } from "@/lib/todos"
 
 import { todoToday } from "@/lib/todo-schedule"
+import { subscribeRemoteTodoChanges } from "@/lib/todo-team-events"
 
 interface TodosViewContextValue {
   state: TodoState | null
@@ -28,7 +29,7 @@ interface TodosViewContextValue {
   error: string | null
   busy: boolean
   attentionCount: number
-  refetch: () => Promise<void>
+  refetch: (queueIfPending?: boolean) => Promise<void>
   mutate: (request: TodoRequest) => Promise<TodoState>
   viewMode: "board" | "list"
   setViewMode: (mode: "board" | "list") => void
@@ -93,6 +94,13 @@ export function TodosViewProvider({ children }: { children: ReactNode }) {
   const requestSeq = useRef(0)
   const mutationPending = useRef(false)
   const readPending = useRef<number | null>(null)
+  const readQueued = useRef(false)
+  const selectedScope = useRef<string | null>(null)
+  selectedScope.current = state
+    ? state.mode === "personal"
+      ? "personal"
+      : state.active_team_id
+    : null
   const [scheduleFilter, setScheduleFilterState] =
     useState<TodoScheduleFilter>("all")
   const completedQuery = useRef({
@@ -111,59 +119,68 @@ export function TodosViewProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const refetch = useCallback(async () => {
-    // A remote request can outlive the polling interval. Starting another read
-    // would invalidate its eventual offline response forever.
-    if (mutationPending.current || readPending.current !== null) return
-    const seq = ++requestSeq.current
-    readPending.current = seq
-    const query = { ...completedQuery.current }
-    try {
-      const next = await todoCall({
-        action: "state",
-        completed_page: query.page,
-        completed_page_size: 20,
-        completed_search: query.search,
-        completed_filter: query.filter,
-        today: todoToday(),
-      })
-      if (seq === requestSeq.current) accept(next)
-    } catch (failure) {
-      if (seq === requestSeq.current) {
-        const message = toErrorMessage(failure)
-        setError(message)
-        setState((previous) =>
-          previous
-            ? reconcileTodoState(previous, {
-                ...previous,
-                todos: [],
-                connection_error: message,
-                completed_pagination: {
-                  page: query.page,
-                  page_size: 20,
-                  total:
-                    (previous.completed_pagination?.search ?? "") ===
-                      query.search &&
-                    (previous.completed_pagination?.filter ?? "all") ===
-                      query.filter &&
-                    (!previous.completed_pagination?.today ||
-                      previous.completed_pagination.today === todoToday())
-                      ? (previous.completed_pagination?.total ?? 0)
-                      : 0,
-                  search: query.search,
-                  filter: query.filter,
-                  today: todoToday(),
-                },
-              })
-            : null
-        )
-        setLoading(false)
-        setCompletedPageLoading(false)
+  const refetch = useCallback(
+    async function readState(queueIfPending = false) {
+      if (mutationPending.current) return
+      if (readPending.current !== null) {
+        if (queueIfPending) readQueued.current = true
+        return
       }
-    } finally {
-      if (readPending.current === seq) readPending.current = null
-    }
-  }, [accept])
+      readQueued.current = false
+      const seq = ++requestSeq.current
+      readPending.current = seq
+      const query = { ...completedQuery.current }
+      try {
+        const next = await todoCall({
+          action: "state",
+          completed_page: query.page,
+          completed_page_size: 20,
+          completed_search: query.search,
+          completed_filter: query.filter,
+          today: todoToday(),
+        })
+        if (seq === requestSeq.current) accept(next)
+      } catch (failure) {
+        if (seq === requestSeq.current) {
+          const message = toErrorMessage(failure)
+          setError(message)
+          setState((previous) =>
+            previous
+              ? reconcileTodoState(previous, {
+                  ...previous,
+                  todos: [],
+                  connection_error: message,
+                  completed_pagination: {
+                    page: query.page,
+                    page_size: 20,
+                    total:
+                      (previous.completed_pagination?.search ?? "") ===
+                        query.search &&
+                      (previous.completed_pagination?.filter ?? "all") ===
+                        query.filter &&
+                      (!previous.completed_pagination?.today ||
+                        previous.completed_pagination.today === todoToday())
+                        ? (previous.completed_pagination?.total ?? 0)
+                        : 0,
+                    search: query.search,
+                    filter: query.filter,
+                    today: todoToday(),
+                  },
+                })
+              : null
+          )
+          setLoading(false)
+          setCompletedPageLoading(false)
+        }
+      } finally {
+        if (readPending.current === seq) {
+          readPending.current = null
+          if (readQueued.current) void readState()
+        }
+      }
+    },
+    [accept]
+  )
 
   const mutate = useCallback(
     async (request: TodoRequest) => {
@@ -271,38 +288,65 @@ export function TodosViewProvider({ children }: { children: ReactNode }) {
   const invalidateReads = useCallback(() => {
     ++requestSeq.current
     readPending.current = null
+    readQueued.current = false
   }, [])
 
+  const refreshVisible = useCallback(() => {
+    if (document.visibilityState !== "hidden") void refetch(true)
+  }, [refetch])
+
   useEffect(() => {
-    // Shared member data is fetched through a scoped API, not the instance's
-    // global WebSocket. Polling also repairs missed changes after host restart.
     void refetch()
-    const refreshVisible = () => {
-      if (document.visibilityState !== "hidden") void refetch()
-    }
     let disposed = false
     let unlisten: (() => void) | undefined
+    let stopReconnect: (() => void) | null = null
     void Promise.resolve()
       .then(() =>
-        subscribe("todos://changed", () => !disposed && refreshVisible())
+        subscribe<{ scope_id?: string; selection_changed?: boolean }>(
+          "todos://changed",
+          ({ scope_id, selection_changed }) => {
+            if (
+              !disposed &&
+              (selection_changed ||
+                !scope_id ||
+                !selectedScope.current ||
+                scope_id === selectedScope.current)
+            ) {
+              refreshVisible()
+            }
+          }
+        )
       )
       .then((dispose) => {
         if (disposed) dispose?.()
-        else unlisten = dispose
+        else {
+          unlisten = dispose
+          stopReconnect = onTransportReconnect(refreshVisible)
+        }
       })
       .catch(() => {})
-    const interval = window.setInterval(refreshVisible, 5_000)
     document.addEventListener("visibilitychange", refreshVisible)
     window.addEventListener("online", refreshVisible)
     return () => {
       disposed = true
       unlisten?.()
+      stopReconnect?.()
       invalidateReads()
-      window.clearInterval(interval)
       document.removeEventListener("visibilitychange", refreshVisible)
       window.removeEventListener("online", refreshVisible)
     }
-  }, [refetch, invalidateReads])
+  }, [refetch, refreshVisible, invalidateReads])
+
+  const remoteTeamId =
+    state?.mode === "team"
+      ? state.teams.find(
+          (team) => team.id === state.active_team_id && !team.is_local
+        )?.id
+      : undefined
+  useEffect(() => {
+    if (remoteTeamId)
+      return subscribeRemoteTodoChanges(remoteTeamId, refreshVisible)
+  }, [remoteTeamId, refreshVisible])
 
   const scope = state ? todoScopeKey(state) : null
   useEffect(() => {

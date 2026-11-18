@@ -84,14 +84,16 @@ describe("delegation model defaults", () => {
     )
 
     await screen.findByText("Agent default: chan-a/glm-5")
-    expect(screen.getByRole("combobox")).toHaveTextContent(/^glm-5$/)
-    await user.click(screen.getByRole("combobox"))
-    const list = await screen.findByRole("listbox")
+    expect(screen.getByRole("button", { name: /^model:/ })).toHaveTextContent(
+      /^glm-5$/
+    )
+    await user.click(screen.getByRole("button", { name: /^model:/ }))
+    const list = await screen.findByRole("menu")
     expect(within(list).getAllByText("glm-5")).toHaveLength(2)
     expect(within(list).queryByText("chan-a/glm-5")).toBeNull()
     await user.click(
       within(within(list).getByRole("group", { name: "chan-b" })).getByRole(
-        "option",
+        "menuitemradio",
         { name: "glm-5" }
       )
     )
@@ -131,17 +133,19 @@ describe("delegation model defaults", () => {
     const user = userEvent.setup()
     render(panel())
     await screen.findAllByText("Agent default: a/Fast")
-    const pickers = screen.getAllByRole("combobox")
+    const pickers = screen.getAllByRole("button", { name: /^(model|effort):/ })
     await user.click(pickers[0])
-    let list = await screen.findByRole("listbox")
-    expect(within(list).queryAllByRole("group")).toHaveLength(0)
-    expect(within(list).getByRole("option", { name: "b/Slow" })).toBeVisible()
+    let list = await screen.findByRole("menu")
+    expect(within(list).queryAllByRole("group", { name: /.+/ })).toHaveLength(0)
+    expect(
+      within(list).getByRole("menuitemradio", { name: "b/Slow" })
+    ).toBeVisible()
     await user.keyboard("{Escape}")
     await user.click(pickers[1])
-    list = await screen.findByRole("listbox")
+    list = await screen.findByRole("menu")
     expect(
       within(within(list).getByRole("group", { name: "Others" })).getByRole(
-        "option",
+        "menuitemradio",
         { name: "b/Slow" }
       )
     ).toBeVisible()

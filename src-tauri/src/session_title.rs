@@ -4,9 +4,9 @@
 //!
 //! Grok's own `generated_title` is English-biased and lives in a separate
 //! prompt from `~/.grok/AGENTS.md`, while Codex CLI does not automatically
-//! generate a semantic title. New chats get a creation-date unknown title;
-//! a configured lightweight HTTP model can then replace it with a short title
-//! in the app UI language. Manual rename (`title_locked`) always wins.
+//! generate a semantic title. A configured lightweight HTTP model refines
+//! the existing title or a creation-date fallback into a short title in the
+//! app UI language. Manual rename (`title_locked`) always wins.
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -574,7 +574,6 @@ pub async fn recover_auto_title(
     if summary.title_locked || !supports_dedicated_auto_title(summary.agent_type) {
         return;
     }
-    save_auto_title_fallback(conn, emitter, summary).await;
     if let Some(seed) = original_title_seed(turns) {
         start_auto_title(
             summary.agent_type,
@@ -585,6 +584,8 @@ pub async fn recover_auto_title(
             true,
         )
         .await;
+    } else {
+        save_auto_title_fallback(conn, emitter, summary).await;
     }
 }
 
@@ -736,9 +737,8 @@ fn original_title_seed(turns: &[crate::models::MessageTurn]) -> Option<String> {
         .then(|| format!("User: [Image attachment without a caption]\nAssistant: {reply}"))
 }
 
-/// Install the structured fallback first, then run one background HTTP refine when
-/// a dedicated title model is configured. A failed request leaves the local
-/// title in place for a later retry.
+/// Supply a structured fallback when needed, then run one background HTTP
+/// refine when configured. A failed request leaves the current title in place.
 pub async fn kickoff_auto_title(
     agent_type: AgentType,
     conn: DatabaseConnection,
@@ -791,15 +791,15 @@ async fn start_auto_title(
         return;
     }
     save_auto_title_fallback(&conn, &emitter, &summary).await;
-    let heuristic = structured_title_fallback(summary.title.as_deref(), summary.created_at);
+    let fallback = structured_title_fallback(summary.title.as_deref(), summary.created_at);
     if first_message.trim().is_empty() {
         return;
     }
     // Preserve an already useful native title while recovery runs.
     let original_title = if can_seed {
-        heuristic.clone()
+        fallback
     } else {
-        summary.title.clone().unwrap_or_else(|| heuristic.clone())
+        summary.title.unwrap_or(fallback)
     };
     let created_at = summary.created_at;
 
@@ -820,23 +820,6 @@ async fn start_auto_title(
                 reason = "model_disabled",
                 "title generation skipped"
             );
-            // Keep the structured fallback when the model is disabled.
-            if can_seed && !original_transcript {
-                match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic)
-                    .await
-                {
-                    Ok(true) => {
-                        crate::commands::conversations::emit_conversation_upsert(
-                            &emitter,
-                            &conn,
-                            conversation_id,
-                        )
-                        .await
-                    }
-                    Ok(false) => {}
-                    Err(_) => tracing::error!(conversation_id, "heuristic title write failed"),
-                }
-            }
             return;
         }
         Err(e) => {
@@ -855,8 +838,7 @@ async fn start_auto_title(
         return;
     }
 
-    // Dedupe before any mutation; repeated detail fetches cannot reset a
-    // native title or launch parallel requests for the same conversation.
+    // Repeated detail fetches share the active request and recovery cooldown.
     tokio::spawn(async move {
         struct RefineGuard(i32);
         impl Drop for RefineGuard {
@@ -865,22 +847,6 @@ async fn start_auto_title(
             }
         }
         let _guard = RefineGuard(conversation_id);
-        if can_seed && !original_transcript {
-            match conversation_service::refresh_auto_title(&conn, conversation_id, heuristic).await
-            {
-                Ok(true) => {
-                    crate::commands::conversations::emit_conversation_upsert(
-                        &emitter,
-                        &conn,
-                        conversation_id,
-                    )
-                    .await
-                }
-                Ok(false) => {}
-                Err(_) => tracing::error!(conversation_id, "heuristic title write failed"),
-            }
-        }
-
         let refined = match llm_title_via_api(
             &title_model,
             &first_message,
@@ -902,15 +868,18 @@ async fn start_auto_title(
             }
         };
 
+        let unnamed = refined
+            .split_once('｜')
+            .is_some_and(|(_, topic)| is_placeholder_title(topic));
         tracing::info!(
             conversation_id,
             ?agent_type,
-            unnamed = refined == structured_title_fallback(None, created_at),
+            unnamed,
             "title model generation completed"
         );
 
         // The unnamed fallback remains eligible for recovery once useful context arrives.
-        if refined == structured_title_fallback(None, created_at)
+        if unnamed
             || refined == clean_llm_title(&redact_title_input(&original_title)).unwrap_or_default()
         {
             return;

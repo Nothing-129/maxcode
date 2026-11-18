@@ -28,6 +28,7 @@ const TODO_RESPONSE_MAX_BYTES: usize = 512 * 1024 * 1024;
 pub mod codex_session;
 pub mod conversation_groups;
 pub mod conversation_sources;
+pub(crate) mod events;
 pub mod storage;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -1360,6 +1361,10 @@ pub(crate) async fn shared_snapshot_json(
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/team-todo.contract.rs"]
 mod contract;
+
+#[cfg(test)]
+#[path = "../../../src/maxcode-contracts/todo-live-sync.contract.rs"]
+mod live_sync_contract;
 
 #[cfg(test)]
 #[path = "../../../src/maxcode-contracts/todo-schedule.contract.rs"]

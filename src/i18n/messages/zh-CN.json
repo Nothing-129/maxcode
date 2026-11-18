@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "选择日期",
+    "enterDate": "输入日期（YYYY-MM-DD）",
+    "apply": "应用",
+    "clearDate": "清除日期"
+  },
   "MarkdownTable": {
     "plainText": "纯文本"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "待办",
         "settings": "设置",
         "selectDate": "选择日期",
-        "activityHint": "按最后对话更新时间筛选",
         "noActivity": "这一天没有对话",
         "recent": "最近",
         "dateRange": "日期区间",
+        "start": "开始",
+        "end": "结束",
         "startDate": "开始日期",
+        "startTime": "开始时间",
+        "endTime": "结束时间",
         "endDate": "结束日期",
+        "groupByFolder": "按文件夹分组",
         "filterDate": "按日期筛选",
+        "clear": "清除",
         "clearDate": "清除日期筛选",
         "presets": {
           "today": "今日",
@@ -2181,7 +2192,8 @@
       "reopen": "重新打开",
       "expandSubsessions": "展开子会话",
       "collapseSubsessions": "折叠子会话",
-      "shareContentHint": "默认分享提问、回复正文和图片，可在下方选择额外内容。",
+      "shareContentHint": "分享包含所选轮次的提问、回复、图片和附件。持有链接的人可以查看图片和下载文件。",
+      "shareFileUnavailable": "文件不可用",
       "shareScope": "分享范围",
       "shareAllRounds": "全部 {count} 轮",
       "shareSelectRounds": "选择轮次",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "已切换到聊天模式",
         "openStashFailed": "打开贮藏窗口失败",
         "openMergeFailed": "打开合并窗口失败"
-      }
+      },
+      "chatModeDescription": "不关联任何工作区"
     },
     "cloneDialog": {
       "title": "克隆仓库",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "切换详情"
   },
   "Automations": {
+    "sectionWhat": "做什么",
+    "sectionWhen": "什么时候做",
+    "sectionWhere": "在哪里执行",
+    "advancedExecution": "会话与高级设置",
+    "customSchedule": "自定义时间",
     "hideFromConversationList": "在对话列表中隐藏",
     "hideFromConversationListHint": "开启后，此任务的已有和新执行对话仅从自动化的执行记录中查看。关闭后恢复显示。",
     "calendarFilter": "执行日期",
@@ -5088,6 +5106,13 @@
     "runNow": "立即运行",
     "cancelRun": "取消运行",
     "runHistory": "运行历史",
+    "showOlderRuns": "查看更早的运行",
+    "hideRunResult": "收起结果",
+    "hideOlderRuns": "收起较早记录",
+    "groupEnabled": "已开启",
+    "groupPaused": "已暂停",
+    "filterAutomations": "筛选自动化",
+    "searchAutomations": "搜索自动化",
     "noRuns": "暂无运行记录",
     "allFolders": "所有文件夹",
     "filterAll": "全部",
@@ -6190,6 +6215,7 @@
     "loading": "正在加载待办",
     "loadFailed": "待办加载失败。",
     "retry": "重新连接",
+    "refreshTodos": "刷新待办",
     "searchPlaceholder": "搜索待办",
     "filterStatus": "筛选状态",
     "allStatuses": "全部状态",
@@ -6203,7 +6229,7 @@
     "contentPlaceholder": "使用 Markdown 编写内容，也可直接粘贴图片…",
     "assigneeLabel": "指定给",
     "unassigned": "未指定",
-    "conversationShareHint": "保存待办时会生成只读对话分享链接，并附在待办中。",
+    "conversationShareHint": "保存后，可以从待办打开对话分享链接。",
     "save": "保存",
     "saving": "正在保存…",
     "cancel": "取消",
@@ -6242,8 +6268,7 @@
     "operationFailed": "操作失败：{reason}",
     "addMessage": "一键添加到待办",
     "addConversation": "添加到待办",
-    "shareAndCreate": "分享并创建待办",
-    "conversationShareDescription": "选择要附到待办的对话内容。下一步填写待办内容。",
+    "shareAndCreate": "分享并填写待办",
     "viewSwitchToList": "切换到列表",
     "viewSwitchToBoard": "切换到看板",
     "conflictHint": "此待办已更新。载入最新版本会替换你当前填写的内容。",
@@ -6255,7 +6280,9 @@
     "nextPage": "下一页",
     "loadingCompleted": "正在加载已完成待办",
     "linkConversation": "关联已有待办",
-    "linkConversationDescription": "为“{title}”选择已有待办，关联仅在你的工作台显示。",
+    "linkDialogTitle": "关联待办",
+    "searchClaimedTodos": "搜索已领取的待办",
+    "linkVisibility": "关联仅在你的工作台可见",
     "linkedTodos": "已关联的待办",
     "unlinkTodo": "解除关联",
     "searchTodos": "搜索待办",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "选择会话文件夹",
     "chooseConversationFolderHint": "该待办没有关联到有效文件夹，请选择一个文件夹后再新建对话。",
     "confirmConversationFolder": "选择并新建"
+  },
+  "ModelHistory": {
+    "expand": "历史模型（{count}）",
+    "collapse": "收起历史模型"
   }
 }

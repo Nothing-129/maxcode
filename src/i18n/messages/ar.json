@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "اختر تاريخًا",
+    "enterDate": "أدخل التاريخ (YYYY-MM-DD)",
+    "apply": "تطبيق",
+    "clearDate": "مسح التاريخ"
+  },
   "MarkdownTable": {
     "plainText": "نص عادي"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "مهام",
         "settings": "الإعدادات",
         "selectDate": "اختر التاريخ",
-        "activityHint": "حسب آخر تحديث للمحادثة",
         "noActivity": "لا توجد محادثات في هذا التاريخ",
         "recent": "الأخيرة",
         "dateRange": "نطاق التاريخ",
+        "start": "البداية",
+        "end": "النهاية",
         "startDate": "تاريخ البدء",
+        "startTime": "وقت البدء",
+        "endTime": "وقت الانتهاء",
         "endDate": "تاريخ الانتهاء",
+        "groupByFolder": "تجميع حسب المجلد",
         "filterDate": "تصفية حسب التاريخ",
+        "clear": "مسح",
         "clearDate": "مسح مرشح التاريخ",
         "presets": {
           "today": "اليوم",
@@ -2181,7 +2192,8 @@
       "reopen": "إعادة فتح",
       "expandSubsessions": "توسيع المحادثات الفرعية",
       "collapseSubsessions": "طي المحادثات الفرعية",
-      "shareContentHint": "تتم مشاركة الأسئلة والإجابات والصور افتراضيًا. اختر المحتوى الإضافي أدناه.",
+      "shareContentHint": "تتضمن المشاركة الأسئلة والردود والصور والمرفقات في الجولات المحددة. يمكن لأي شخص لديه الرابط عرض الصور وتنزيل الملفات.",
+      "shareFileUnavailable": "الملف غير متاح",
       "shareScope": "نطاق المشاركة",
       "shareAllRounds": "كل الجولات وعددها {count}",
       "shareSelectRounds": "اختيار الجولات",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "تم التبديل إلى وضع المحادثة",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "استنساخ مستودع",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "تبديل التفاصيل"
   },
   "Automations": {
+    "sectionWhat": "ما المهمة",
+    "sectionWhen": "متى يتم التنفيذ",
+    "sectionWhere": "أين يتم التنفيذ",
+    "advancedExecution": "الجلسة والإعدادات المتقدمة",
+    "customSchedule": "جدول مخصص",
     "hideFromConversationList": "إخفاء من قائمة المحادثات",
     "hideFromConversationListHint": "إخفاء محادثات التنفيذ السابقة والمستقبلية. يمكنك عرضها في سجل تنفيذ المهمة. أوقف الخيار لإظهارها مجددًا.",
     "calendarFilter": "تواريخ التنفيذ",
@@ -5088,6 +5106,13 @@
     "runNow": "تشغيل الآن",
     "cancelRun": "إلغاء التشغيل",
     "runHistory": "سجل التشغيل",
+    "showOlderRuns": "عرض عمليات التشغيل السابقة",
+    "hideRunResult": "إخفاء النتيجة",
+    "hideOlderRuns": "إخفاء عمليات التشغيل السابقة",
+    "groupEnabled": "مفعّلة",
+    "groupPaused": "متوقفة مؤقتًا",
+    "filterAutomations": "تصفية عمليات الأتمتة",
+    "searchAutomations": "البحث في عمليات الأتمتة",
     "noRuns": "لا توجد عمليات تشغيل بعد",
     "allFolders": "كل المجلدات",
     "filterAll": "الكل",
@@ -6192,6 +6217,7 @@
     "loading": "جارٍ تحميل المهام",
     "loadFailed": "تعذر تحميل المهام.",
     "retry": "إعادة الاتصال",
+    "refreshTodos": "تحديث المهام",
     "searchPlaceholder": "البحث في المهام",
     "filterStatus": "تصفية حسب الحالة",
     "allStatuses": "جميع الحالات",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "اكتب Markdown أو الصق صورة…",
     "assigneeLabel": "إسناد إلى",
     "unassigned": "غير مسندة",
-    "conversationShareHint": "سيُرفق رابط مشاركة المحادثة للقراءة فقط عند حفظ المهمة.",
+    "conversationShareHint": "يمكنك فتح المحادثة المشتركة من المهمة بعد حفظها.",
     "save": "حفظ",
     "saving": "جارٍ الحفظ…",
     "cancel": "إلغاء",
@@ -6244,8 +6270,7 @@
     "operationFailed": "تعذر إكمال الإجراء: {reason}",
     "addMessage": "إضافة الرسالة إلى المهام",
     "addConversation": "إضافة إلى المهام",
-    "shareAndCreate": "مشاركة وإنشاء مهمة",
-    "conversationShareDescription": "اختر محتوى المحادثة الذي تريد إرفاقه. أدخل محتوى المهمة في الخطوة التالية.",
+    "shareAndCreate": "مشاركة وكتابة المهمة",
     "conflictHint": "تم تحديث هذه المهمة. سيؤدي تحميل أحدث نسخة إلى استبدال ما أدخلته حاليًا.",
     "reloadLatest": "تحميل أحدث نسخة",
     "completedPagination": "صفحات المهام المكتملة",
@@ -6255,7 +6280,9 @@
     "nextPage": "الصفحة التالية",
     "loadingCompleted": "جارٍ تحميل المهام المكتملة",
     "linkConversation": "ربط مهمة موجودة",
-    "linkConversationDescription": "اختر مهمة لـ «{title}». يظهر الرابط في مساحة عملك فقط.",
+    "linkDialogTitle": "ربط مهمة",
+    "searchClaimedTodos": "ابحث في المهام المستلمة",
+    "linkVisibility": "يظهر الرابط في مساحة عملك فقط",
     "linkedTodos": "المهام المرتبطة",
     "unlinkTodo": "إلغاء الربط",
     "searchTodos": "البحث في المهام",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "اختر مجلد المحادثة",
     "chooseConversationFolderHint": "لا توجد محادثة مرتبطة بهذه المهمة في مجلد صالح. اختر مجلدًا لبدء المحادثة.",
     "confirmConversationFolder": "اختيار وإنشاء"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

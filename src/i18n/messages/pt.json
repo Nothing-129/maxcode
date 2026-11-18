@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "Selecionar data",
+    "enterDate": "Digite a data (YYYY-MM-DD)",
+    "apply": "Aplicar",
+    "clearDate": "Limpar data"
+  },
   "MarkdownTable": {
     "plainText": "Texto simples"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "Tarefas",
         "settings": "Configurações",
         "selectDate": "Selecionar data",
-        "activityHint": "Pela última atualização da conversa",
         "noActivity": "Nenhuma conversa nesta data",
         "recent": "Recentes",
         "dateRange": "Período",
+        "start": "Início",
+        "end": "Fim",
         "startDate": "Data inicial",
+        "startTime": "Hora de início",
+        "endTime": "Hora de término",
         "endDate": "Data final",
+        "groupByFolder": "Agrupar por pasta",
         "filterDate": "Filtrar por data",
+        "clear": "Limpar",
         "clearDate": "Limpar filtro de data",
         "presets": {
           "today": "Hoje",
@@ -2181,7 +2192,8 @@
       "reopen": "Reabrir",
       "expandSubsessions": "Expandir subconversas",
       "collapseSubsessions": "Recolher subconversas",
-      "shareContentHint": "Perguntas, respostas e imagens são compartilhadas por padrão. Escolha conteúdo adicional abaixo.",
+      "shareContentHint": "São incluídas as perguntas, respostas, imagens e anexos das rodadas compartilhadas. Quem tiver o link poderá ver as imagens e baixar os arquivos.",
+      "shareFileUnavailable": "Arquivo indisponível",
       "shareScope": "Intervalo",
       "shareAllRounds": "Todas as {count} rodadas",
       "shareSelectRounds": "Escolher rodadas",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "Alternado para o modo de chat",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "Clonar repositório",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "Alternar detalhes"
   },
   "Automations": {
+    "sectionWhat": "O que fazer",
+    "sectionWhen": "Quando executar",
+    "sectionWhere": "Onde executar",
+    "advancedExecution": "Sessão e configurações avançadas",
+    "customSchedule": "Agendamento personalizado",
     "hideFromConversationList": "Ocultar na lista de conversas",
     "hideFromConversationListHint": "Oculta conversas de execuções anteriores e futuras. Consulte-as no histórico da automação. Desative para mostrá-las novamente.",
     "calendarFilter": "Datas de execução",
@@ -5088,6 +5106,13 @@
     "runNow": "Executar agora",
     "cancelRun": "Cancelar execução",
     "runHistory": "Histórico de execuções",
+    "showOlderRuns": "Mostrar execuções anteriores",
+    "hideRunResult": "Ocultar resultado",
+    "hideOlderRuns": "Ocultar execuções anteriores",
+    "groupEnabled": "Ativas",
+    "groupPaused": "Pausadas",
+    "filterAutomations": "Filtrar automações",
+    "searchAutomations": "Pesquisar automações",
     "noRuns": "Ainda não há execuções",
     "allFolders": "Todas as pastas",
     "filterAll": "Todos",
@@ -6192,6 +6217,7 @@
     "loading": "Carregando pendências",
     "loadFailed": "Não foi possível carregar as pendências.",
     "retry": "Reconectar",
+    "refreshTodos": "Atualizar pendências",
     "searchPlaceholder": "Buscar pendências",
     "filterStatus": "Filtrar status",
     "allStatuses": "Todos os status",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "Escreva Markdown ou cole uma imagem…",
     "assigneeLabel": "Atribuir a",
     "unassigned": "Não atribuída",
-    "conversationShareHint": "Ao salvar, será anexado um link de leitura para a conversa compartilhada.",
+    "conversationShareHint": "A tarefa salva terá um link para a conversa compartilhada.",
     "save": "Salvar",
     "saving": "Salvando…",
     "cancel": "Cancelar",
@@ -6244,8 +6270,7 @@
     "operationFailed": "Não foi possível concluir a ação: {reason}",
     "addMessage": "Adicionar mensagem às pendências",
     "addConversation": "Adicionar às pendências",
-    "shareAndCreate": "Compartilhar e criar pendência",
-    "conversationShareDescription": "Escolha o conteúdo da conversa que deseja anexar. Informe o conteúdo da pendência na próxima etapa.",
+    "shareAndCreate": "Compartilhar e preencher a tarefa",
     "conflictHint": "Esta pendência foi alterada. Carregar a versão mais recente substituirá o conteúdo atual.",
     "reloadLatest": "Carregar versão mais recente",
     "completedPagination": "Páginas de tarefas concluídas",
@@ -6255,7 +6280,9 @@
     "nextPage": "Próxima página",
     "loadingCompleted": "Carregando tarefas concluídas",
     "linkConversation": "Vincular tarefa existente",
-    "linkConversationDescription": "Escolha uma tarefa para “{title}”. O vínculo aparece apenas no seu espaço de trabalho.",
+    "linkDialogTitle": "Vincular tarefa",
+    "searchClaimedTodos": "Buscar tarefas assumidas",
+    "linkVisibility": "Visível apenas no seu espaço de trabalho",
     "linkedTodos": "Tarefas vinculadas",
     "unlinkTodo": "Desvincular",
     "searchTodos": "Pesquisar tarefas",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "Escolher pasta da conversa",
     "chooseConversationFolderHint": "Esta tarefa não tem conversas vinculadas a uma pasta válida. Escolha uma pasta.",
     "confirmConversationFolder": "Escolher e criar"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

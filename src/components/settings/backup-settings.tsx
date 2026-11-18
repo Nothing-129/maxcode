@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
 import { SettingsGroup } from "@/components/shared/settings-group"
 
 import { useCallback, useEffect, useRef, useState } from "react"
@@ -899,39 +904,43 @@ export function BackupSettings() {
                     </p>
                   )}
                 {!!staged?.skippedConflicts.length && (
-                  <details>
-                    <summary className="cursor-pointer">
+                  <Collapsible>
+                    <CollapsibleSummary className="cursor-pointer">
                       {t("restore.result.skipped", {
                         count: staged.skippedConflicts.length,
                       })}
-                    </summary>
-                    <ul className="pt-1 space-y-0.5 text-muted-foreground">
-                      {staged.skippedConflicts.slice(0, 20).map((p) => (
-                        <li key={p} className="truncate">
-                          {p}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
+                    </CollapsibleSummary>
+                    <CollapsibleContent>
+                      <ul className="pt-1 space-y-0.5 text-muted-foreground">
+                        {staged.skippedConflicts.slice(0, 20).map((p) => (
+                          <li key={p} className="truncate">
+                            {p}
+                          </li>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
                 {!!staged?.refusedExternal?.length && (
-                  <details>
-                    <summary className="cursor-pointer text-amber-500">
+                  <Collapsible>
+                    <CollapsibleSummary className="cursor-pointer text-amber-500">
                       {t("restore.result.refused", {
                         count: staged.refusedExternal.length,
                       })}
-                    </summary>
-                    <p className="pt-1 text-muted-foreground">
-                      {t("restore.result.refusedHint")}
-                    </p>
-                    <ul className="pt-1 space-y-0.5 text-muted-foreground">
-                      {staged.refusedExternal.slice(0, 20).map((r) => (
-                        <li key={r.archivePath} className="truncate">
-                          {r.targetPath}
-                        </li>
-                      ))}
-                    </ul>
-                  </details>
+                    </CollapsibleSummary>
+                    <CollapsibleContent>
+                      <p className="pt-1 text-muted-foreground">
+                        {t("restore.result.refusedHint")}
+                      </p>
+                      <ul className="pt-1 space-y-0.5 text-muted-foreground">
+                        {staged.refusedExternal.slice(0, 20).map((r) => (
+                          <li key={r.archivePath} className="truncate">
+                            {r.targetPath}
+                          </li>
+                        ))}
+                      </ul>
+                    </CollapsibleContent>
+                  </Collapsible>
                 )}
               </div>
             </AlertDialogDescription>

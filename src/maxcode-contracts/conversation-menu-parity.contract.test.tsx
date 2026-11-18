@@ -10,12 +10,6 @@ vi.mock("@/components/agent-icon", () => ({ AgentIcon: () => null }))
 vi.mock("@/components/conversations/session-details-dialog", () => ({
   SessionDetailsDialog: () => null,
 }))
-vi.mock(
-  "@/components/conversations/sidebar-conversation-hover-details",
-  () => ({
-    SidebarConversationHoverDetails: () => null,
-  })
-)
 vi.mock("@/contexts/tab-context", () => ({
   useTabStore: { getState: () => ({ tabs: [], activeTabId: null }) },
 }))

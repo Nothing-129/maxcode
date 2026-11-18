@@ -67,3 +67,42 @@ describe("SharedConversationView", () => {
     expect(screen.getByText("/repo/app.ts")).not.toHaveAttribute("href")
   })
 })
+
+it("renders published images and downloadable files in transcript order", async () => {
+  window.history.replaceState(null, "", `/share#${TOKEN}`)
+  const snapshot = {
+    ...SNAPSHOT,
+    files: [
+      { name: "diagram.png", data: "cG5n" },
+      { name: "report.xlsx", data: "eGxzeA==" },
+    ],
+    turns: [
+      {
+        ...SNAPSHOT.turns[0],
+        blocks: [
+          {
+            type: "text",
+            text: "[Diagram](#maxcode-file-0) and [Report](#maxcode-file-1)",
+          },
+        ],
+      },
+    ],
+  }
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async () => new Response(JSON.stringify(snapshot)))
+  )
+  try {
+    render(<SharedConversationView />)
+    expect(await screen.findByRole("img", { name: "Diagram" })).toHaveAttribute(
+      "src",
+      "data:image/png;base64,cG5n"
+    )
+    expect(screen.getByRole("link", { name: "Report" })).toHaveAttribute(
+      "download",
+      "report.xlsx"
+    )
+  } finally {
+    vi.unstubAllGlobals()
+  }
+})

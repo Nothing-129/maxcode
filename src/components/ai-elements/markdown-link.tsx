@@ -23,6 +23,10 @@ import {
   useStreamdownLinkSafety,
 } from "./link-safety"
 
+import {
+  SharedFileLink,
+  useSharedFile,
+} from "@/components/conversations/shared-file"
 import { CodexFollowup, decodeCodexFollowup } from "./codex-followup"
 import { markdownNodeText as nodeText } from "./markdown-node-text"
 
@@ -239,6 +243,13 @@ function publicExternalHref(href: string | undefined): string | null {
  */
 export function PublicMarkdownLink(props: MarkdownLinkProps) {
   const { href, children, className } = props
+  const file = useSharedFile(href)
+  if (file)
+    return (
+      <SharedFileLink file={file} label={nodeText(children)}>
+        {children}
+      </SharedFileLink>
+    )
   const externalHref = publicExternalHref(href)
   if (!externalHref) {
     return (

@@ -1,5 +1,17 @@
 "use client"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { ArrowLeft, Copy, Loader2, Plus, Upload, Users } from "lucide-react"
@@ -264,22 +276,22 @@ export function TodoTeamsDialog({
               <>
                 <div className="space-y-2">
                   <Label htmlFor="todo-manage-team">{t("selectTeam")}</Label>
-                  <select
-                    id="todo-manage-team"
-                    className="h-10 w-full min-w-0 rounded-xl border bg-background px-3 text-sm"
+                  <Select
                     value={state.mode === "team" ? (activeTeam?.id ?? "") : ""}
                     disabled={disabled}
-                    onChange={(event) => void selectTeam(event.target.value)}
+                    onValueChange={(value) => void selectTeam(value)}
                   >
-                    <option value="" disabled>
-                      {t("selectTeam")}
-                    </option>
-                    {state.teams.map((team) => (
-                      <option key={team.id} value={team.id}>
-                        {team.name}
-                      </option>
-                    ))}
-                  </select>
+                    <SelectTrigger id="todo-manage-team" className="w-full">
+                      <SelectValue placeholder={t("selectTeam")} />
+                    </SelectTrigger>
+                    <SelectContent className="todo-theme">
+                      {state.teams.map((team) => (
+                        <SelectItem key={team.id} value={team.id}>
+                          {team.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 {activeTeam && state.mode === "team" && (
                   <>
@@ -363,27 +375,28 @@ export function TodoTeamsDialog({
                       <p>{t("hostOnlineHint")}</p>
                     </div>
                     {activeTeam.is_local && (
-                      <details
+                      <Collapsible
                         className="rounded-xl border p-4"
-                        onToggle={(event) =>
-                          setSettingsOpen(event.currentTarget.open)
-                        }
+                        open={settingsOpen}
+                        onOpenChange={setSettingsOpen}
                       >
-                        <summary className="cursor-pointer text-sm font-medium">
+                        <CollapsibleSummary className="cursor-pointer text-sm font-medium">
                           {t("teamSettings")}
-                        </summary>
-                        <p className="mt-3 text-xs leading-5 text-muted-foreground">
-                          {t("teamStorageHint")}
-                        </p>
-                        <div className="mt-3">
-                          {settingsOpen && (
-                            <TodoMinioSettings
-                              key={activeTeam.id}
-                              scopeId={activeTeam.id}
-                            />
-                          )}
-                        </div>
-                      </details>
+                        </CollapsibleSummary>
+                        <CollapsibleContent>
+                          <p className="mt-3 text-xs leading-5 text-muted-foreground">
+                            {t("teamStorageHint")}
+                          </p>
+                          <div className="mt-3">
+                            {settingsOpen && (
+                              <TodoMinioSettings
+                                key={activeTeam.id}
+                                scopeId={activeTeam.id}
+                              />
+                            )}
+                          </div>
+                        </CollapsibleContent>
+                      </Collapsible>
                     )}
                     <div className="border-t pt-4">
                       <Button

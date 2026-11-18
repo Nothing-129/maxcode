@@ -16,6 +16,8 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+  --conversation-sidebar: var(--sidebar);
+
   /* Keep the first-paint system stack in sync with SANS_FALLBACK. */
   --font-sans:
     -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display",
@@ -93,7 +95,8 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #fcfcfc;
+  --sidebar: #f5f5f5;
+  --conversation-sidebar: #f8f8f8;
   --sidebar-foreground: #0d0d0d;
   --sidebar-primary: #0d0d0d;
   --sidebar-primary-foreground: #ffffff;
@@ -128,7 +131,8 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #fcfcfc;
+  --sidebar: #f5f5f5;
+  --conversation-sidebar: #f8f8f8;
   --sidebar-foreground: #0d0d0d;
   --sidebar-primary: #0d0d0d;
   --sidebar-primary-foreground: #ffffff;
@@ -164,7 +168,8 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #171717;
+  --sidebar: #141414;
+  --conversation-sidebar: #181818;
   --sidebar-foreground: #ececec;
   --sidebar-primary: #ffffff;
   --sidebar-primary-foreground: #0d0d0d;
@@ -199,7 +204,8 @@
   --chart-3: oklch(0.546 0.245 262.881);
   --chart-4: oklch(0.488 0.243 264.376);
   --chart-5: oklch(0.424 0.199 265.638);
-  --sidebar: #171717;
+  --sidebar: #141414;
+  --conversation-sidebar: #181818;
   --sidebar-foreground: #ececec;
   --sidebar-primary: #ffffff;
   --sidebar-primary-foreground: #0d0d0d;
@@ -1075,7 +1081,8 @@
     --border: #ffffff14;
     --input: #ffffff29;
     --ring: #ececec;
-    --sidebar: #171717;
+    --sidebar: #141414;
+    --conversation-sidebar: #181818;
     --sidebar-foreground: #ececec;
     --sidebar-primary: #ffffff;
     --sidebar-primary-foreground: #0d0d0d;
@@ -1179,6 +1186,7 @@
   background-color: var(--muted);
 }
 .ws-surface-sidebar {
+  --sidebar: var(--conversation-sidebar);
   background-color: var(--sidebar);
 }
 
@@ -2377,7 +2385,7 @@ div.monaco-diff-editor.side-by-side .editor.modified {
   cursor: pointer;
 }
 
-/* Composer elevation and focus colors sampled from the Doubao input. */
+/* Keep the resting composer border and elevation in every focus state. */
 :root:not(.dark) .codeg-composer-chrome {
   border-color: rgb(0 0 0 / 10%);
 }
@@ -2387,29 +2395,6 @@ div.monaco-diff-editor.side-by-side .editor.modified {
     0 2px 4px rgb(0 0 0 / 2%),
     0 4px 16px rgb(0 0 0 / 4%),
     0 8px 32px rgb(0 0 0 / 8%);
-}
-
-.codeg-composer-chrome:focus-within {
-  border-color: rgb(0 102 255 / 30%);
-}
-
-.maxcode-composer-shadow:focus-within {
-  box-shadow:
-    0 2px 4px rgb(116 158 243 / 2%),
-    0 4px 12px rgb(102 188 253 / 4%),
-    0 8px 24px rgb(95 178 255 / 17%);
-}
-
-/* Match the light-theme selector specificity so focus always wins. */
-:root:not(.dark) .codeg-composer-chrome:focus-within {
-  border-color: rgb(0 102 255 / 30%);
-}
-
-:root:not(.dark) .maxcode-composer-shadow:focus-within {
-  box-shadow:
-    0 2px 4px rgb(116 158 243 / 2%),
-    0 4px 12px rgb(102 188 253 / 4%),
-    0 8px 24px rgb(95 178 255 / 17%);
 }
 
 .codeg-composer .ProseMirror {
@@ -3561,10 +3546,6 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
     background: #303030;
   }
 }
-[data-settings-surface] .settings-search:focus-within {
-  outline: 1px solid #216ae4;
-  outline-offset: -1px;
-}
 [data-settings-surface] .settings-search input {
   width: 100%;
   min-width: 0;
@@ -3705,11 +3686,6 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
 [data-settings-surface] [data-settings-input-group] {
   height: 2rem;
 }
-[data-settings-surface] [data-slot="input"]:focus-visible,
-[data-settings-surface] [data-slot="textarea"]:focus-visible,
-[data-settings-surface] [data-settings-input-group]:focus-within {
-  border-color: #216ae4;
-}
 [data-settings-surface] [data-slot="switch"] {
   width: 2rem;
   height: 1.25rem;
@@ -3735,9 +3711,6 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
   background: var(--background);
   box-shadow: none;
   font-size: 0.8125rem;
-}
-[data-settings-surface] [data-slot="select-trigger"]:focus-visible {
-  border-color: #216ae4;
 }
 [data-settings-surface] [data-slot][aria-invalid="true"] {
   border-color: var(--destructive);
@@ -3777,7 +3750,7 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
 
 /* A settings search result receives focus without activating its control. */
 [data-settings-surface] [data-settings-search-highlight] {
-  outline: 1px solid #216ae4;
+  outline: 1px solid var(--ring);
   outline-offset: -1px;
   border-radius: var(--radius);
   scroll-margin-block: 1rem;
@@ -3789,17 +3762,17 @@ html[data-input-modality="pointer"] [data-selector-control]:focus-visible {
 .todo-theme {
   --primary: #216ae4;
   --primary-foreground: #ffffff;
-  --ring: #216ae4;
-  --secondary: color-mix(in srgb, #216ae4 12%, var(--background));
-  --secondary-foreground: #216ae4;
-  --accent: color-mix(in srgb, #216ae4 12%, var(--background));
+  --ring: #808080;
+  --secondary: var(--muted);
+  --secondary-foreground: var(--foreground);
+  --accent: var(--interaction-hover);
 }
 
 :root:is([data-theme="neutral"], :not([data-theme])) {
   --sidebar-primary: #216ae4;
   --sidebar-primary-foreground: #ffffff;
-  --sidebar-ring: #216ae4;
-  --sidebar-accent: color-mix(in srgb, #216ae4 12%, var(--sidebar));
+  --sidebar-ring: var(--ring);
+  --sidebar-accent: var(--interaction-hover);
 }
 
 /* Keep the three sidebar navigation buttons on their original neutral surfaces. */

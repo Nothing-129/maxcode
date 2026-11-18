@@ -214,7 +214,7 @@ describe("MaxCode contract: Recent filtering retains ten-item pagination", () =>
     expect(screen.getByRole("button", { name: moreLabel(34) })).toBeVisible()
   })
 
-  it("remembers only the kind across remount, and keeps New chat on the Recent header", async () => {
+  it("remembers only the kind across remount, without adding New chat to the Recent header", async () => {
     const view = setup()
     await chooseFilter(messages.sectionChats)
     revealMore(12)
@@ -229,10 +229,10 @@ describe("MaxCode contract: Recent filtering retains ten-item pagination", () =>
       name: messages.sectionRecent,
     }).parentElement!
     expect(
-      within(recentHeader).getByRole("button", {
+      within(recentHeader).queryByRole("button", {
         name: messages.newChatAction,
       })
-    ).toBeVisible()
+    ).toBeNull()
     toggleSection(messages.sectionRecent)
     toggleSection(messages.sectionRecent)
     expect(shownTitles()).toHaveLength(10)

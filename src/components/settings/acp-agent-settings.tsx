@@ -3658,7 +3658,7 @@ function AgentReorderItem({
       dragMomentum={false}
       layout="position"
       className={cn(
-        "rounded-lg border bg-card p-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "rounded-lg border bg-card p-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selected && "border-primary/60 bg-primary/5",
         dragging === agent.agent_type && "border-primary/60 bg-primary/5"
       )}
@@ -7332,10 +7332,9 @@ export function AcpAgentSettings() {
                       the name, the distribution badge, the Custom badge and
                       the enable switch. */}
                   <div className="flex items-center gap-2 shrink-0">
-                    <button
+                    <Switch
                       type="button"
-                      role="switch"
-                      aria-checked={selectedDraft.enabled}
+                      checked={selectedDraft.enabled}
                       aria-label={t("status.agentEnabledSwitch", {
                         name: selectedAgent.name,
                       })}
@@ -7349,15 +7348,7 @@ export function AcpAgentSettings() {
                             })
                       }
                       disabled={selectedIsSaving || selectedGrokSaving}
-                      className={cn(
-                        "relative inline-flex h-5 w-9 items-center rounded-full transition-colors",
-                        selectedDraft.enabled
-                          ? "bg-primary"
-                          : "bg-muted-foreground/30",
-                        selectedIsSaving && "cursor-not-allowed opacity-60"
-                      )}
-                      onClick={() => {
-                        const nextEnabled = !selectedDraft.enabled
+                      onCheckedChange={(nextEnabled) => {
                         const nextDraft = {
                           ...selectedDraft,
                           enabled: nextEnabled,
@@ -7382,16 +7373,7 @@ export function AcpAgentSettings() {
                           })
                         })
                       }}
-                    >
-                      <span
-                        className={cn(
-                          "inline-block h-4 w-4 rounded-full bg-background shadow-sm transition-transform",
-                          selectedDraft.enabled
-                            ? "translate-x-4"
-                            : "translate-x-0.5"
-                        )}
-                      />
-                    </button>
+                    />
                   </div>
                 </div>
                 <p className="mt-2 text-xs text-muted-foreground">

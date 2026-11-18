@@ -272,7 +272,7 @@ function RowIconAction({
           size="icon-xs"
           variant={variant}
           className={cn(
-            "rounded-full",
+            "rounded-md",
             variant === "ghost" && "text-muted-foreground hover:text-foreground"
           )}
           aria-label={item.label}

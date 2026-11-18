@@ -3,6 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest"
 import { todoCall, type TodoRequest, type TodoState } from "@/lib/todos"
 import { TodosViewProvider, useTodosView } from "./todos-view-context"
 
+vi.mock("@/lib/platform", () => ({
+  subscribe: async () => () => {},
+  onTransportReconnect: () => null,
+}))
+
 vi.mock("@/lib/todos", async (original) => ({
   ...(await original<typeof import("@/lib/todos")>()),
   todoCall: vi.fn(),
@@ -42,7 +47,7 @@ afterEach(() => {
 })
 
 describe("TodosViewProvider remote recovery", () => {
-  it("ignores stale completed page responses and keeps polling the selected page", async () => {
+  it("ignores stale completed page responses and refreshes the selected page", async () => {
     vi.useFakeTimers()
     let finishSecond!: () => void
     vi.mocked(todoCall).mockImplementation(async (request) => {
@@ -70,7 +75,7 @@ describe("TodosViewProvider remote recovery", () => {
     })
     expect(result.current.state?.completed_pagination?.page).toBe(3)
     await act(async () => {
-      vi.advanceTimersByTime(5_000)
+      window.dispatchEvent(new Event("online"))
     })
     expect(todoCall).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: "state", completed_page: 3 })
@@ -92,7 +97,7 @@ describe("TodosViewProvider remote recovery", () => {
     })
     expect(result.current.state?.completed_pagination?.page).toBe(2)
     await act(async () => {
-      vi.advanceTimersByTime(5_000)
+      window.dispatchEvent(new Event("online"))
     })
     expect(todoCall).toHaveBeenLastCalledWith(
       expect.objectContaining({ action: "state", completed_page: 2 })
@@ -110,7 +115,7 @@ describe("TodosViewProvider remote recovery", () => {
     )
   })
 
-  it("lets a read slower than the polling interval settle into offline state", async () => {
+  it("lets a pending read report the offline state and refreshes when back online", async () => {
     vi.useFakeTimers()
     let resolve!: (state: TodoState) => void
     vi.mocked(todoCall).mockImplementation(
@@ -144,7 +149,7 @@ describe("TodosViewProvider remote recovery", () => {
     })
     expect(screen.getByRole("status")).toHaveTextContent("team:Host timed out")
     await act(async () => {
-      vi.advanceTimersByTime(5_000)
+      window.dispatchEvent(new Event("online"))
     })
     expect(todoCall).toHaveBeenCalledTimes(2)
   })

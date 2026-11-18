@@ -42,6 +42,7 @@ import {
   Download,
   ExternalLink,
   FolderClosed,
+  MessagesSquare,
   FolderGit2,
   FolderOpen,
   FolderOpenDot,
@@ -135,6 +136,8 @@ import {
   buildDragSlots,
   buildOwnerHeaderIndex,
   buildRows,
+  recentGroupId,
+  type RecentGroupId,
   buildSidebarLayout,
   EMPTY_SIDEBAR_LAYOUT,
   layoutFolderIds,
@@ -230,6 +233,24 @@ function SidebarVirtualRow({ style, children, ref }: CustomItemComponentProps) {
     <div ref={ref} style={style} className="maxcode-sidebar-virtual-row">
       {children}
     </div>
+  )
+}
+
+// Add 10px to the existing 14px folder-icon inset. Keep every folder
+// descendant in the same coordinate space, including loading and empty rows.
+function isFolderSectionContent(row: SidebarRow): boolean {
+  return (
+    row.kind === "folder" ||
+    row.kind === "folder-group" ||
+    row.kind === "root-group" ||
+    row.kind === "group-empty" ||
+    row.kind === "empty" ||
+    row.kind === "folder-more" ||
+    (row.kind === "conversation" && isFolderConversationRow(row)) ||
+    (row.kind === "subsession-loading" &&
+      !row.recent &&
+      !row.todoId &&
+      row.depth > row.subsessionDepth)
   )
 }
 
@@ -998,9 +1019,13 @@ export interface SidebarConversationListHandle {
 }
 
 export interface SidebarConversationListProps {
+  groupByFolder?: boolean
+  onToggleFolderGrouping?: () => void
   view?: SidebarView
   activityDate?: string
   activityEndDate?: string
+  activityStartTime?: string
+  activityEndTime?: string
   showCompleted?: boolean
   sortMode?: SidebarSortMode
   sectionOrder?: SidebarSectionOrder
@@ -1018,8 +1043,12 @@ export interface SidebarConversationListProps {
 export function SidebarConversationList({
   ref,
   view = "home",
+  groupByFolder = false,
+  onToggleFolderGrouping,
   activityDate,
   activityEndDate,
+  activityStartTime,
+  activityEndTime,
   showCompleted = true,
   sortMode = DEFAULT_SIDEBAR_SORT_MODE,
   sectionOrder = DEFAULT_SECTION_ORDER,
@@ -1121,6 +1150,8 @@ export function SidebarConversationList({
         alias: string | null
         path: string
         color: string
+        kind: FolderDetail["kind"]
+        parent_id: number | null
         defaultAgentType: AgentType | null
         gitBranch: string | null
       }
@@ -1128,6 +1159,8 @@ export function SidebarConversationList({
     for (const f of allFolders)
       map.set(f.id, {
         name: f.name,
+        kind: f.kind,
+        parent_id: f.parent_id,
         alias: f.alias,
         path: f.path,
         color: f.color,
@@ -1239,6 +1272,11 @@ export function SidebarConversationList({
   // How many Recent rows are currently revealed. Session-only (not persisted):
   // "show me more of this list right now" is a reading gesture, not a setting —
   // and a fresh sidebar should open short again.
+  const [collapsedRecentGroups, setCollapsedRecentGroups] = useState<
+    Set<RecentGroupId>
+  >(() => new Set())
+  const recentFolders =
+    groupByFolder && view === "conversations" ? folderIndex : undefined
   const [recentLimit, setRecentLimit] = useState(recentPageSize)
   const revealMoreRecent = useCallback(
     () => setRecentLimit((n) => n + recentPageSize),
@@ -1822,7 +1860,13 @@ export function SidebarConversationList({
   const recentConversations = useMemo(() => {
     if (view === "conversations") {
       return activityDate
-        ? conversationsOnDate(conversations, activityDate, activityEndDate)
+        ? conversationsOnDate(
+            conversations,
+            activityDate,
+            activityEndDate,
+            activityStartTime,
+            activityEndTime
+          )
         : []
     }
     const next = selectRecentConversationsWithReuse(
@@ -1844,6 +1888,8 @@ export function SidebarConversationList({
     view,
     activityDate,
     activityEndDate,
+    activityStartTime,
+    activityEndTime,
   ])
 
   // Maps each open worktree child folder → its (open) root folder. A child is
@@ -2012,6 +2058,8 @@ export function SidebarConversationList({
         chatsExpanded,
         chatLimit,
         recentConversations,
+        recentFolders,
+        collapsedRecentGroups,
         recentExpanded,
         showRecent,
         showTodos,
@@ -2044,6 +2092,8 @@ export function SidebarConversationList({
       chatsExpanded,
       chatLimit,
       recentConversations,
+      recentFolders,
+      collapsedRecentGroups,
       recentExpanded,
       showRecent,
       showTodos,
@@ -2198,6 +2248,18 @@ export function SidebarConversationList({
           pendingScrollRef.current = true
           return
         }
+        if (recentFolders) {
+          const id = recentGroupId(conv, recentFolders)
+          if (collapsedRecentGroups.has(id)) {
+            setCollapsedRecentGroups((previous) => {
+              const next = new Set(previous)
+              next.delete(id)
+              return next
+            })
+            pendingScrollRef.current = true
+            return
+          }
+        }
         if (recentIndex >= recentLimit) {
           setRecentLimit(
             Math.ceil((recentIndex + 1) / recentPageSize) * recentPageSize
@@ -2334,6 +2396,8 @@ export function SidebarConversationList({
     chatLimit,
     view,
     recentConversations,
+    recentFolders,
+    collapsedRecentGroups,
     recentExpanded,
     recentLimit,
     recentPageSize,
@@ -3471,13 +3535,11 @@ export function SidebarConversationList({
           section={row.section}
           expanded={row.expanded}
           onToggle={toggleSection}
-          // Chats and Recent both start a folderless chat through the same
-          // navigation callback, regardless of the active folder.
-          onNewChat={
-            row.section === "chats" || row.section === "recent"
-              ? handleNewChat
-              : undefined
+          groupByFolder={groupByFolder}
+          onToggleFolderGrouping={
+            row.section === "recent" ? onToggleFolderGrouping : undefined
           }
+          onNewChat={row.section === "chats" ? handleNewChat : undefined}
           // The folders section gets two right-edge hover actions mirroring the
           // top-of-page NewFolderDropdown: Open Folder and Clone Repository.
           // Both handlers are stable, so the memo holds.
@@ -3517,6 +3579,41 @@ export function SidebarConversationList({
           // below that region instead of butting right up against it.
           topGap
         />
+      )
+    }
+    if (row.kind === "recent-group") {
+      const folder = row.id === "chat" ? null : folderIndex.get(row.id)
+      const label =
+        row.id === "chat"
+          ? t("sectionChats")
+          : folder?.alias?.trim() ||
+            folder?.name ||
+            `${t("sectionFolders")} #${row.id}`
+      const Icon = row.id === "chat" ? MessagesSquare : FolderClosed
+      return (
+        <button
+          type="button"
+          aria-expanded={row.expanded}
+          title={label}
+          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-start text-xs text-muted-foreground hover:bg-interaction-hover focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+          onClick={() => {
+            prepareDisclosure()
+            if (!row.expanded) prepareReveal(`recent-group-${row.id}`)
+            setCollapsedRecentGroups((previous) => {
+              const next = new Set(previous)
+              if (next.has(row.id)) next.delete(row.id)
+              else next.add(row.id)
+              return next
+            })
+          }}
+        >
+          <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+          <span className="truncate">{label}</span>
+          <ChevronRight
+            aria-hidden="true"
+            className={cn("size-3 shrink-0", row.expanded && "rotate-90")}
+          />
+        </button>
       )
     }
     if (row.kind === "folder-group") {
@@ -3869,8 +3966,13 @@ export function SidebarConversationList({
     }
     const conv = row.conversation
     const inFolderSection = isFolderConversationRow(row)
+    const isPinnedRow =
+      conv.pinned_at != null && !row.todoId && !inFolderSection
+    const groupedRecent = Boolean(recentFolders && row.recent)
+    const stackMetadata = Boolean((row.recent && !groupedRecent) || isPinnedRow)
     const recentFolderName =
-      row.recent || (isMobile && !row.todoId && !inFolderSection)
+      stackMetadata ||
+      (isMobile && !groupedRecent && !row.todoId && !inFolderSection)
         ? recentConversationFolderLabel(conv, allFolders)
         : null
     // No folder tint reaches this row: a card always renders in the app theme,
@@ -3880,8 +3982,8 @@ export function SidebarConversationList({
       <SidebarConversationCard
         conversation={conv}
         isMobile={isMobile}
-        compactMobile={Boolean(row.todoId) || inFolderSection}
-        stackMetadata={Boolean(row.recent)}
+        compactMobile={Boolean(row.todoId) || inFolderSection || groupedRecent}
+        stackMetadata={stackMetadata}
         selectionId={`${selectionMotionId}:${row.todoId ?? (row.recent ? "recent" : conv.folder_id)}`}
         isSelected={
           selectedConversation?.agentType === conv.agent_type &&
@@ -3915,7 +4017,8 @@ export function SidebarConversationList({
         onToggleExpand={toggleConversation}
         folderLabel={
           recentFolderName ??
-          ((row.recent || (isMobile && !row.todoId)) && conv.kind === "chat"
+          ((stackMetadata || (isMobile && !groupedRecent && !row.todoId)) &&
+          conv.kind === "chat"
             ? t("sectionChats")
             : undefined)
         }
@@ -3941,6 +4044,7 @@ export function SidebarConversationList({
     if (row.kind === "chats-more") return "chats-more"
     if (row.kind === "folders-empty") return "folders-empty"
     if (row.kind === "recent-empty") return "recent-empty"
+    if (row.kind === "recent-group") return `recent-group-${row.id}`
     if (row.kind === "recent-more") return "recent-more"
     if (row.kind === "folder-more") return `folder-more-${row.folderId}`
     const prefix = row.todoId
@@ -4077,6 +4181,9 @@ export function SidebarConversationList({
                           <div
                             key={rowKey(row)}
                             data-sidebar-disclosure-row={rowKey(row)}
+                            className={cn(
+                              isFolderSectionContent(row) && "pl-2.5"
+                            )}
                           >
                             {renderRow(row)}
                           </div>
@@ -4087,7 +4194,7 @@ export function SidebarConversationList({
                       <div
                         ref={dragSurfaceRef}
                         data-folder-drag-surface
-                        className="flex flex-col"
+                        className="flex flex-col pl-2.5"
                       >
                         {dragSlots.map((slot, index) => {
                           if (slot.render.kind === "ungroup") {
@@ -4194,7 +4301,7 @@ export function SidebarConversationList({
                   ref={overlayRef}
                   className={cn(
                     "absolute left-0 right-0 top-0 z-10",
-                    "px-2 [--conv-rail-axis:0.875rem]"
+                    "pl-[1.125rem] pr-2 [--conv-rail-axis:0.875rem]"
                   )}
                   style={{ willChange: "transform" }}
                 >

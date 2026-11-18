@@ -1,5 +1,6 @@
 "use client"
 
+import { Textarea } from "@/components/ui/textarea"
 import { useState, useRef, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import { MessageCircleQuestion, SendHorizonal } from "lucide-react"
@@ -69,7 +70,7 @@ export function QuestionDialog({ question, onAnswer }: QuestionDialogProps) {
       </p>
 
       <div className="mt-3 flex gap-2">
-        <textarea
+        <Textarea
           ref={textareaRef}
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
@@ -77,7 +78,8 @@ export function QuestionDialog({ question, onAnswer }: QuestionDialogProps) {
           onKeyDown={handleKeyDown}
           placeholder={t("placeholder")}
           rows={2}
-          className="flex-1 resize-none rounded-md border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
+          aria-label={question.question}
+          className="min-w-0 flex-1"
         />
         <Button
           size="sm"

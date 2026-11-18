@@ -115,8 +115,7 @@ import {
   deriveModelGroups,
   isModelConfigOption,
   modelListGroups,
-  MODEL_LIST_VIRTUALIZE_THRESHOLD,
-  type ModelOptionGroup,
+  shouldSearchModelOptions,
 } from "@/lib/model-config-groups"
 import { useAgentSkills } from "@/hooks/use-agent-skills"
 import {
@@ -374,21 +373,6 @@ function SelectorLoadingPlaceholder({ label }: { label: string }) {
       <Skeleton className="h-3 w-10 rounded-sm" />
     </div>
   )
-}
-
-// Groups for the searchable + virtualized model picker, or `null` when the
-// option should keep the lightweight selectors. Only the MODEL option, and only
-// when its list is long enough to jank, qualifies. Falls back to a single
-// headerless group for a long flat (un-prefixed) list.
-function modelPickerGroups(
-  option: SessionConfigOptionInfo
-): ModelOptionGroup[] | null {
-  if (!isModelConfigOption(option)) return null
-  if (option.kind.type !== "select") return null
-  if (option.kind.options.length <= MODEL_LIST_VIRTUALIZE_THRESHOLD) return null
-  // Preserve derived `provider/` groups, server-provided groups, or a flat list
-  // (never silently flatten server groups — keeps wide/collapsed consistent).
-  return modelListGroups(option)
 }
 
 export function MessageInput({
@@ -1855,13 +1839,12 @@ export function MessageInput({
     // Long model lists get the searchable + virtualized popover (a Radix
     // menu of hundreds of items is the scroll jank); every other option —
     // and short model lists — keep the lightweight inline dropdown.
-    const listGroups = modelPickerGroups(option)
-    if (listGroups) {
+    if (shouldSearchModelOptions(option)) {
       return (
         <ModelOptionPicker
           key={option.id}
           option={option}
-          groups={listGroups}
+          groups={modelListGroups(option)}
           footer={modelFastFooter}
           triggerSuffix={modelFastSuffix}
           onSelect={(configId, valueId) =>
@@ -1967,9 +1950,7 @@ export function MessageInput({
           .find((item) => item.value === kind.current_value)
         // A long model list gets a searchable + virtualized detail pane (a plain
         // list of hundreds of buttons janks); short lists keep plain buttons.
-        const searchable =
-          isModelConfigOption(option) &&
-          kind.options.length > MODEL_LIST_VIRTUALIZE_THRESHOLD
+        const searchable = shouldSearchModelOptions(option)
         result.push({
           key: `config:${option.id}`,
           title: option.name,
@@ -2204,6 +2185,7 @@ export function MessageInput({
   return (
     <div
       ref={containerRef}
+      data-composer-root=""
       className="relative"
       // Identifies the session that receives a file-tree drop.
       data-tree-drop-composer={attachmentTabId ?? undefined}
@@ -2294,6 +2276,7 @@ export function MessageInput({
           <ContextMenuTrigger asChild disabled={!clipboardReadSupported}>
             <div
               {...chromeFocus}
+              data-composer-input=""
               onContextMenuCapture={handleComposerContextMenu}
               className={cn(
                 // `codeg-composer-chrome` paints the text I-beam across the box's
@@ -2424,7 +2407,7 @@ export function MessageInput({
                           onFocusOutside={
                             collapsedSelectorsGuard.onFocusOutside
                           }
-                          className="w-[22rem] max-w-[calc(100vw-1rem)] p-1"
+                          className="max-h-(--radix-popover-content-available-height) w-[22rem] max-w-[calc(100vw-1rem)] p-1"
                         >
                           {showConfigLoading && (
                             <SelectorLoadingChip label={t("loadingSettings")} />
@@ -2434,6 +2417,7 @@ export function MessageInput({
                           )}
                           {collapsedSettings.length > 0 && (
                             <div
+                              className="flex min-h-0 flex-col"
                               inert={configOptionsReadOnly}
                               aria-disabled={configOptionsReadOnly}
                             >

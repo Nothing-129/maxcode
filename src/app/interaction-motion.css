@@ -149,7 +149,7 @@
   inset: 0;
   border-radius: inherit;
   pointer-events: none;
-  box-shadow: 0 0 0 3px rgb(33 106 228 / 14%);
+  box-shadow: 0 0 0 3px rgb(128 128 128 / 14%);
   animation: maxcode-generation-halo 2s ease-in-out infinite;
 }
 @media (hover: hover) {

@@ -574,7 +574,7 @@ function sameDerivedTab(a: TabItemInternal, b: TabItemInternal): boolean {
 
 /** Build the persisted (synced) tab payload: conversation-bound tabs only
  *  (drafts are device-local), `position` = display index, and `is_active` set on
- *  the focused tab so focus mirrors across clients. Used by both the save effect
+ *  the focused tab for startup restoration. Used by both the save effect
  *  and remote-apply so their JSON is byte-identical for the no-op gate. */
 function buildPersistItems(
   tabs: TabItemInternal[],
@@ -3649,29 +3649,19 @@ function applyRemoteSnapshot(change: TabsChanged) {
       )?.id ?? null)
     : null
 
-  // Focus resolution (focus is mirrored across clients):
-  //   1. Never yank the user off local intent the snapshot predates — an
-  //      in-progress draft, or a conversation tab the server has never seen
-  //      (the just-sent conversation this client is watching stream).
-  //   2. Otherwise mirror the remote's focused tab when present here.
-  //   3. Else keep our focus if it survived, re-picking a neighbor only if it left.
+  // Selection belongs to this window. A broadcast, reconnect refetch, or CAS
+  // rejection can carry another window's focus long after a sidebar click.
+  // Sync tab membership without replacing a surviving local selection; only
+  // use the remote focus as a fallback when our selected tab was closed.
   const activeTab = prev.activeTabId
     ? nextTabs.find((tb) => tb.id === prev.activeTabId)
     : undefined
   const activeStillExists = activeTab != null
-  const activeKey = activeTab ? tabSyncKey(activeTab) : null
-  const activeIsLocalOnly =
-    activeStillExists &&
-    (activeKey == null ||
-      (!snapshotKeys.has(activeKey) && !ancestorKeys.has(activeKey)))
-
   let nextActiveId: string | null
-  if (activeIsLocalOnly) {
+  if (activeStillExists) {
     nextActiveId = prev.activeTabId
   } else if (remoteActiveId) {
     nextActiveId = remoteActiveId
-  } else if (activeStillExists) {
-    nextActiveId = prev.activeTabId
   } else {
     nextActiveId = nextTabs[0].id
   }

@@ -219,8 +219,8 @@ pub async fn commit_manual_refreshed_title(
 ///
 /// The observed title is compared again in the UPDATE so a concurrent fallback,
 /// refinement or manual rename cannot be overwritten by a stale parser result.
-/// Structured app titles remain eligible for refinement, but not for replacement
-/// by a native title or first-message heuristic.
+/// Keep meaningful titles when a placeholder arrives, and preserve the
+/// structured format of titles managed by the dedicated model.
 pub async fn refresh_auto_title(
     conn: &DatabaseConnection,
     conversation_id: i32,
@@ -237,7 +237,7 @@ pub async fn refresh_auto_title(
     else {
         return Ok(false);
     };
-    if would_downgrade_structured_title(&current, title) {
+    if would_downgrade_auto_title(&current, title) {
         return Ok(false);
     }
     let old_title = match current.title.as_deref() {
@@ -260,14 +260,28 @@ pub async fn refresh_auto_title(
     Ok(res.rows_affected > 0)
 }
 
-fn would_downgrade_structured_title(current: &conversation::Model, title: &str) -> bool {
-    use crate::session_title::{normalize_structured_title, supports_dedicated_auto_title};
-    AgentType::from_wire(&current.agent_type).is_some_and(supports_dedicated_auto_title)
-        && current
-            .title
-            .as_deref()
-            .is_some_and(|old| normalize_structured_title(old, current.created_at).is_some())
-        && normalize_structured_title(title, current.created_at).is_none()
+fn would_downgrade_auto_title(current: &conversation::Model, title: &str) -> bool {
+    use crate::session_title::{
+        is_placeholder_title, normalize_structured_title, supports_dedicated_auto_title,
+    };
+    let Some(old) = current.title.as_deref() else {
+        return false;
+    };
+    if !AgentType::from_wire(&current.agent_type).is_some_and(supports_dedicated_auto_title) {
+        return false;
+    }
+
+    let old_structured = normalize_structured_title(old, current.created_at);
+    let new_structured = normalize_structured_title(title, current.created_at);
+    let is_placeholder = |raw: &str, structured: Option<&str>| {
+        let topic = structured
+            .and_then(|value| value.split_once('｜'))
+            .map_or(raw, |(_, topic)| topic);
+        is_placeholder_title(topic)
+    };
+    (old_structured.is_some() && new_structured.is_none())
+        || (!is_placeholder(old, old_structured.as_deref())
+            && is_placeholder(title, new_structured.as_deref()))
 }
 
 /// Locale-refined CLI title: write `title` and lock it so parser/native
@@ -452,7 +466,7 @@ async fn refresh_codex_auto_title_candidate(
     };
     if title.is_empty()
         || candidate.title.as_deref() == Some(title)
-        || would_downgrade_structured_title(candidate, title)
+        || would_downgrade_auto_title(candidate, title)
     {
         return Ok(false);
     }

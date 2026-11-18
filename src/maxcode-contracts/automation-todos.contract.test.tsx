@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -64,9 +65,8 @@ describe("automation todo mounting contract", () => {
     fireEvent.click(
       await screen.findByRole("checkbox", { name: "Personal review" })
     )
-    fireEvent.change(screen.getByLabelText("Todo scope"), {
-      target: { value: "team-1" },
-    })
+    await userEvent.click(screen.getByRole("combobox", { name: "Todo scope" }))
+    await userEvent.click(screen.getByRole("option", { name: "Team one" }))
     fireEvent.click(
       await screen.findByRole("checkbox", { name: "Team review" })
     )
@@ -102,9 +102,8 @@ describe("automation todo mounting contract", () => {
       </NextIntlClientProvider>
     )
     await waitFor(() => expect(todoSearch).toHaveBeenCalled())
-    fireEvent.change(screen.getByLabelText("Todo scope"), {
-      target: { value: "team-1" },
-    })
+    await userEvent.click(screen.getByRole("combobox", { name: "Todo scope" }))
+    await userEvent.click(screen.getByRole("option", { name: "Team one" }))
     await screen.findByRole("checkbox", { name: "Team review" })
     resolvePersonal(result("personal", "Stale personal review"))
     await waitFor(() =>

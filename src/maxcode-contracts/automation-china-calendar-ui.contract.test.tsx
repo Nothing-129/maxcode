@@ -1,3 +1,4 @@
+import userEvent from "@testing-library/user-event"
 import { fireEvent, render, screen, waitFor } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -119,9 +120,11 @@ describe("Mainland China automation calendar UI", () => {
       cron: "30 8 * * 1-5",
       timezone: "America/New_York",
     })
-    fireEvent.change(screen.getByLabelText(en.Automations.calendarFilter), {
-      target: { value: "cn_workday" },
-    })
+    const user = userEvent.setup()
+    await user.click(screen.getByLabelText(en.Automations.calendarFilter))
+    await user.click(
+      screen.getByRole("option", { name: en.Automations.calendarWorkday })
+    )
     await waitFor(() =>
       expect(preview).toHaveBeenCalledWith(
         "30 8 * * *",
@@ -151,9 +154,9 @@ describe("Mainland China automation calendar UI", () => {
       cron: "0 9 * * *",
       config: { ...draft.config, calendar_filter: "cn_holiday" },
     })
-    expect(screen.getByLabelText(en.Automations.calendarFilter)).toHaveValue(
-      "cn_holiday"
-    )
+    expect(
+      screen.getByLabelText(en.Automations.calendarFilter)
+    ).toHaveTextContent(en.Automations.calendarHoliday)
     await waitFor(() =>
       expect(screen.getByRole("alert")).toHaveTextContent(
         "2027 calendar has not been published"

@@ -19,6 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { TimePicker } from "@/components/ui/time-picker"
 import { automationComputeNextRun } from "@/lib/api"
 import { describeCron, type CronDescriptor } from "@/lib/cron-humanize"
 import { ScheduleLabel } from "./schedule-label"
@@ -68,6 +69,10 @@ function clampInt(raw: string, lo: number, hi: number): number {
   const v = parseInt(raw, 10)
   if (Number.isNaN(v)) return lo
   return Math.min(hi, Math.max(lo, v))
+}
+
+function clockValue(hour: number, minute: number): string {
+  return [hour, minute].map((part) => String(part).padStart(2, "0")).join(":")
 }
 
 /** describeCron's `hourly` descriptor discards the minute, so recover it from
@@ -182,16 +187,23 @@ function CronBuilderBody({
     init.kind === "raw" ? "custom" : init.kind
   )
   const [n, setN] = useState(init.kind === "everyMinutes" ? init.n : 30)
-  const [minute, setMinute] = useState(initialMinute(init, cron))
-  const [hour, setHour] = useState("hour" in init ? init.hour : 9)
+  const [clock, setClock] = useState(() =>
+    clockValue("hour" in init ? init.hour : 9, initialMinute(init, cron))
+  )
   const [dow, setDow] = useState(init.kind === "weekly" ? init.dow : 1)
   const [dom, setDom] = useState(init.kind === "monthly" ? init.dom : 1)
   const [raw, setRaw] = useState(init.kind === "raw" ? init.cron : cron)
 
-  const built = useMemo(
-    () => buildCron(freq, { n, minute, hour, dow, dom, raw }),
-    [freq, n, minute, hour, dow, dom, raw]
-  )
+  const showTime =
+    freq === "daily" ||
+    freq === "weekdays" ||
+    freq === "weekly" ||
+    freq === "monthly"
+  const [hour = 9, minute = 0] = clock ? clock.split(":").map(Number) : []
+  const built =
+    showTime && !clock
+      ? ""
+      : buildCron(freq, { n, minute, hour, dow, dom, raw })
 
   // Authoritative preview — same backend evaluator the scheduler uses. Only the
   // async callbacks set state (an empty expression is handled by gating the
@@ -214,12 +226,6 @@ function CronBuilderBody({
       clearTimeout(handle)
     }
   }, [built, timezone, calendarFilter])
-
-  const showTime =
-    freq === "daily" ||
-    freq === "weekdays" ||
-    freq === "weekly" ||
-    freq === "monthly"
 
   return (
     <div className="flex flex-col gap-4">
@@ -263,7 +269,9 @@ function CronBuilderBody({
             min={0}
             max={59}
             value={String(minute)}
-            onChange={(e) => setMinute(clampInt(e.target.value, 0, 59))}
+            onChange={(e) =>
+              setClock(clockValue(hour, clampInt(e.target.value, 0, 59)))
+            }
             className="w-24"
           />
         </div>
@@ -309,32 +317,13 @@ function CronBuilderBody({
 
       {showTime ? (
         <div className="flex flex-col gap-1.5">
-          <Label>{t("cronTimeLabel")}</Label>
-          <div
-            role="group"
-            aria-label={t("cronTimeLabel")}
-            className="flex items-center gap-1.5"
-          >
-            <Input
-              type="number"
-              min={0}
-              max={23}
-              aria-label={t("cronHourLabel")}
-              value={String(hour)}
-              onChange={(e) => setHour(clampInt(e.target.value, 0, 23))}
-              className="w-20"
-            />
-            <span className="text-muted-foreground">:</span>
-            <Input
-              type="number"
-              min={0}
-              max={59}
-              aria-label={t("cronMinuteLabel")}
-              value={String(minute)}
-              onChange={(e) => setMinute(clampInt(e.target.value, 0, 59))}
-              className="w-20"
-            />
-          </div>
+          <Label htmlFor="cron-clock">{t("cronTimeLabel")}</Label>
+          <TimePicker
+            id="cron-clock"
+            value={clock}
+            onValueChange={setClock}
+            className="w-36"
+          />
         </div>
       ) : null}
 

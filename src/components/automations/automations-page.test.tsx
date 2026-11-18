@@ -5,6 +5,8 @@ import {
   waitFor,
   within,
 } from "@testing-library/react"
+import { useState } from "react"
+import { AutomationSidebarHost } from "./automation-sidebar-host"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
@@ -84,10 +86,22 @@ beforeEach(() => {
   })
 })
 
+function DesktopWorkspace() {
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  return (
+    <>
+      <div ref={setHost} />
+      <AutomationSidebarHost.Provider value={host}>
+        <AutomationsPage />
+      </AutomationSidebarHost.Provider>
+    </>
+  )
+}
+
 function renderPage() {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <AutomationsPage />
+      <DesktopWorkspace />
     </NextIntlClientProvider>
   )
 }
@@ -166,6 +180,40 @@ describe("AutomationsPage (master-detail)", () => {
   beforeEach(() => {
     automations = [FIXTURE]
     vi.clearAllMocks()
+  })
+
+  it("toggles both sidebar groups independently with only enabled tasks initially visible", async () => {
+    const user = userEvent.setup()
+    const paused = { ...FIXTURE, id: 8, name: "Paused sweep", enabled: false }
+    automations = [FIXTURE, paused]
+    renderPage()
+    const sidebar = within(screen.getByRole("complementary"))
+    const enabledToggle = sidebar.getByRole("button", {
+      name: enMessages.Automations.groupEnabled,
+    })
+    const enabledRow = () =>
+      sidebar.queryByRole("button", { name: /Nightly sweep/ })
+    const toggle = sidebar.getByRole("button", {
+      name: enMessages.Automations.groupPaused,
+    })
+    const pausedRow = () =>
+      sidebar.queryByRole("button", { name: /Paused sweep/ })
+    expect(enabledToggle).toHaveAttribute("aria-expanded", "true")
+    expect(enabledRow()).toBeVisible()
+    expect(toggle).toHaveAttribute("aria-expanded", "false")
+    expect(pausedRow()).toBeNull()
+    await user.click(toggle)
+    expect(toggle).toHaveAttribute("aria-expanded", "true")
+    expect(pausedRow()).toBeVisible()
+    await user.click(enabledToggle)
+    expect(enabledRow()).toBeNull()
+    expect(pausedRow()).toBeVisible()
+    await user.click(toggle)
+    expect(pausedRow()).toBeNull()
+    expect(enabledToggle).toHaveAttribute("aria-expanded", "false")
+    enabledToggle.focus()
+    await user.keyboard("{Enter}")
+    expect(sidebar.getByRole("button", { name: /Nightly sweep/ })).toBeVisible()
   })
 
   it("can open the gallery from New and cancel back to the detail", () => {

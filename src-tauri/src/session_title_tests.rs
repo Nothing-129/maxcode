@@ -11,6 +11,13 @@ use crate::db::test_helpers::{fresh_in_memory_db, seed_conversation, seed_folder
 use crate::models::{ContentBlock, MessageTurn, SystemTitleModelSettingsUpdate, TurnRole};
 use crate::web::event_bridge::WebEventBroadcaster;
 
+mod title_fallback_contract {
+    include!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../src/maxcode-contracts/title-fallback.contract.rs"
+    ));
+}
+
 fn created_at() -> DateTime<Utc> {
     DateTime::parse_from_rfc3339("2026-09-02T16:30:00Z")
         .unwrap()
@@ -465,7 +472,9 @@ async fn recovery_uses_original_context_and_preserves_locked_titles() {
     let db = fresh_in_memory_db().await;
     let folder = seed_folder(&db, "/tmp/title-recovery-test").await;
     let id = seed_conversation(&db, folder, AgentType::Codex).await;
-    let emitter = EventEmitter::test_web_only(Arc::new(WebEventBroadcaster::new()));
+    let broadcaster = Arc::new(WebEventBroadcaster::new());
+    let mut events = broadcaster.subscribe();
+    let emitter = EventEmitter::test_web_only(broadcaster);
     let server = mock(
         vec![reply("0903/修复/顶部栏闪烁")],
         Duration::from_millis(60),
@@ -485,9 +494,15 @@ async fn recovery_uses_original_context_and_preserves_locked_titles() {
     wait_until_idle(id).await;
     let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
     assert!(saved.title_locked);
+    let refined = format!("{}｜顶部栏闪烁", created_date_mmdd(summary.created_at));
+    assert_eq!(saved.title.as_deref(), Some(refined.as_str()));
     assert_eq!(
-        saved.title.unwrap(),
-        format!("{}｜顶部栏闪烁", created_date_mmdd(summary.created_at))
+        events.try_recv().unwrap().payload["summary"]["title"],
+        refined
+    );
+    assert!(
+        events.is_empty(),
+        "only the refined title should be broadcast"
     );
     assert_eq!(saved.updated_at, summary.updated_at);
     let requests = server.requests.lock().unwrap().clone();
@@ -510,11 +525,12 @@ async fn recovery_uses_original_context_and_preserves_locked_titles() {
     recover_auto_title(&db.conn, &emitter, &saved, &turns).await;
     assert_eq!(server.requests.lock().unwrap().len(), 2);
 
-    fallback_stays_unlocked_and_cooldown_prevents_request_storms(&db, folder, &emitter).await;
+    unnamed_model_response_keeps_title_and_cooldown_prevents_request_storms(&db, folder, &emitter)
+        .await;
     greeting_kickoff_calls_http_for_each_supported_agent(&db, folder, &emitter).await;
 }
 
-async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
+async fn unnamed_model_response_keeps_title_and_cooldown_prevents_request_storms(
     db: &crate::db::AppDatabase,
     folder: i32,
     emitter: &EventEmitter,
@@ -531,10 +547,7 @@ async fn fallback_stays_unlocked_and_cooldown_prevents_request_storms(
     wait_until_idle(id).await;
     let saved = conversation_service::get_by_id(&db.conn, id).await.unwrap();
     assert!(!saved.title_locked);
-    assert_eq!(
-        saved.title,
-        Some(structured_title_fallback(None, summary.created_at))
-    );
+    assert_eq!(saved.title.as_deref(), Some("数字一"));
     recover_auto_title(&db.conn, emitter, &saved, &turns).await;
     assert_eq!(server.requests.lock().unwrap().len(), 1);
     refine_attempts()
@@ -715,7 +728,7 @@ async fn recovered_title_is_returned_in_live_detail() {
         &db.conn,
         folder,
         AgentType::Grok,
-        Some("原始提问".into()),
+        Some("New chat".into()),
         None,
     )
     .await

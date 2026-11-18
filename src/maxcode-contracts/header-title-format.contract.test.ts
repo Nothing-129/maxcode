@@ -11,7 +11,7 @@ describe("conversation header title format", () => {
       /<ConversationTitleLabel\s+(?:showDate=\{false\}\s+)?title=\{title\}/
     )
     expect(header).toContain('fallback={t("untitledConversation")}')
-    expect(header).toContain("setRenameValue(formatConversationTitle(title))")
+    expect(header).toContain("setRenameValue(conversationTitleTopic(title))")
     expect(header).toContain("title={title}")
   })
 })

@@ -1,5 +1,6 @@
 "use client"
 
+import { Progress } from "@/components/ui/progress"
 import { statusBarActionClassName } from "./status-bar-action"
 
 import { Gauge, RefreshCw } from "lucide-react"
@@ -46,11 +47,12 @@ export function SidebarCodexQuota({
         `${windowLabel(window.window_minutes, true)} ${t("percent", { value: remaining(window.used_percent) })}`
     )
     .join(" · ")
-  const defaultWindow = windows.find(
-    (window) => window.window_minutes === (plan === "pro" ? 10080 : 300)
-  )
-  const defaultRemaining = defaultWindow
-    ? remaining(defaultWindow.used_percent)
+  const displayedWindow =
+    windows.find(
+      (window) => window.window_minutes === (plan === "pro" ? 10080 : 300)
+    ) ?? windows[0]
+  const displayedRemaining = displayedWindow
+    ? remaining(displayedWindow.used_percent)
     : null
   const details = [
     [t("title"), planLabel, t("remaining")].filter(Boolean).join(" · "),
@@ -114,9 +116,9 @@ export function SidebarCodexQuota({
                     strokeWidth="1.5"
                     className="opacity-15"
                   />
-                  {defaultRemaining !== null && (
+                  {displayedRemaining !== null && (
                     <circle
-                      data-quota-remaining={defaultRemaining}
+                      data-quota-remaining={displayedRemaining}
                       cx="14"
                       cy="14"
                       r="12"
@@ -124,13 +126,13 @@ export function SidebarCodexQuota({
                       stroke="currentColor"
                       strokeWidth="1.5"
                       strokeLinecap="round"
-                      strokeDasharray={`${defaultRemaining} 100`}
+                      strokeDasharray={`${displayedRemaining} 100`}
                       className={cn(quota.error && "opacity-50")}
                     />
                   )}
                 </svg>
                 <span className="relative text-[0.625rem] font-medium leading-none tabular-nums">
-                  {defaultRemaining ?? "—"}
+                  {displayedRemaining ?? "—"}
                 </span>
               </span>
             ) : (
@@ -172,27 +174,20 @@ export function SidebarCodexQuota({
                   {t("percent", { value: remaining(window.used_percent) })}
                 </span>
               </div>
-              <div
-                role="progressbar"
+              <Progress
                 aria-label={`${windowLabel(window.window_minutes)} · ${t("remaining")}`}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={remaining(window.used_percent)}
+                value={remaining(window.used_percent)}
                 className="h-1.5 overflow-hidden rounded-full bg-foreground/10"
-              >
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-[width] duration-300 motion-reduce:transition-none",
-                    remaining(window.used_percent) <= 10
-                      ? "bg-destructive"
-                      : remaining(window.used_percent) <= 20
-                        ? "bg-amber-500"
-                        : "bg-primary/70",
-                    quota.error && "opacity-50"
-                  )}
-                  style={{ width: `${remaining(window.used_percent)}%` }}
-                />
-              </div>
+                indicatorClassName={cn(
+                  "h-full rounded-full transition-transform duration-300 motion-reduce:transition-none",
+                  remaining(window.used_percent) <= 10
+                    ? "bg-destructive"
+                    : remaining(window.used_percent) <= 20
+                      ? "bg-amber-500"
+                      : "bg-primary/70",
+                  quota.error && "opacity-50"
+                )}
+              />
               <p className="text-muted-foreground">
                 {window.resets_at
                   ? t("resetsAt", { time: formatTime(window.resets_at) })

@@ -207,8 +207,8 @@ describe("refined interface motion", () => {
     expect(source("src/app/interaction-motion.css")).toContain(
       ".maxcode-sidebar-virtual-row:has([data-motion-selection]) {\n  z-index: 1;"
     )
-    expect(card).toContain("durationMs={320}")
-    expect(card).toContain("bg-black/[0.07] dark:bg-white/[0.1]")
+    expect(card).not.toContain("<SelectionIndicator")
+    expect(card).toContain("bg-[#eaeaea] dark:bg-white/[0.1]")
     const indicator = source("src/components/shared/selection-indicator.tsx")
     expect(indicator).toContain("reduced ? 0 : durationMs / 1000")
   })
@@ -217,10 +217,6 @@ describe("refined interface motion", () => {
       [
         "src/components/chat/composer/rich-composer.tsx",
         "useComposerHeightMotion(rootRef, Boolean(editor))",
-      ],
-      [
-        "src/components/conversations/sidebar-conversation-card.tsx",
-        "<SelectionIndicator",
       ],
       ["src/components/tabs/tab-item.tsx", "<SelectionIndicator"],
       [

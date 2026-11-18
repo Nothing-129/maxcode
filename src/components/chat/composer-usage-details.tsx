@@ -1,5 +1,6 @@
 "use client"
 
+import { Progress } from "@/components/ui/progress"
 import type { ReactNode } from "react"
 import { X } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -95,19 +96,12 @@ export function ComposerUsageDetails({
               {contextMax == null ? "--" : formatTokenCount(contextMax)}
             </span>
           </div>
-          <div
-            role="progressbar"
+          <Progress
             aria-label={t("contextWindowUsageAria")}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-valuenow={contextPercent}
+            value={contextPercent}
             className="h-2.5 overflow-hidden rounded-full bg-foreground/[0.06]"
-          >
-            <div
-              className="h-full rounded-full bg-indigo-500 transition-[width]"
-              style={{ width: `${contextPercent}%` }}
-            />
-          </div>
+            indicatorClassName="h-full rounded-full bg-indigo-500 transition-transform"
+          />
         </section>
       )}
       {rows.length > 0 && (

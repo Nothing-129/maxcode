@@ -123,7 +123,14 @@ function searchResult(request: TodoSearchRequest): TodoSearchResult {
   return {
     scope_id: request.scope_id,
     scope_key: `team:${request.scope_id}`,
-    todos: [source().todo!],
+    todos: [
+      {
+        ...source().todo!,
+        title: "My claimed task",
+        status: "claimed",
+        assignee_id: "me",
+      },
+    ],
     members: [],
     self_id: "me",
     pagination: {
@@ -189,7 +196,7 @@ describe("existing conversation links remain local and target the captured todo 
     await user.click(
       screen.getByRole("menuitem", { name: enMessages.Todos.linkConversation })
     )
-    await screen.findByText("Completed task outside current page")
+    await screen.findByText("My claimed task")
     h.state = state("team-b")
     view.rerender(
       intl(
@@ -223,7 +230,7 @@ describe("existing conversation links remain local and target the captured todo 
     ).toBe(true)
   })
 
-  it("defaults to own tasks for initial search, pagination, and text search", async () => {
+  it("requests only claimed tasks belonging to the current member for initial search, pagination, and text search", async () => {
     render(
       intl(
         <TodoConversationLinkDialog
@@ -237,10 +244,11 @@ describe("existing conversation links remain local and target the captured todo 
         />
       )
     )
-    await screen.findByText("Completed task outside current page")
+    await screen.findByText("My claimed task")
     expect(h.search).toHaveBeenLastCalledWith({
       scope_id: "team-a",
       only_mine: true,
+      claimed_only: true,
       search: "",
       page: 1,
       page_size: 20,
@@ -252,19 +260,23 @@ describe("existing conversation links remain local and target the captured todo 
       expect(h.search).toHaveBeenCalledWith({
         scope_id: "team-a",
         only_mine: true,
+        claimed_only: true,
         page: 2,
         page_size: 20,
         search: "",
       })
     )
     fireEvent.change(
-      screen.getByRole("textbox", { name: enMessages.Todos.searchTodos }),
+      screen.getByRole("textbox", {
+        name: enMessages.Todos.searchClaimedTodos,
+      }),
       { target: { value: "completed" } }
     )
     await waitFor(() =>
       expect(h.search).toHaveBeenCalledWith({
         scope_id: "team-a",
         only_mine: true,
+        claimed_only: true,
         page: 1,
         page_size: 20,
         search: "completed",
@@ -292,7 +304,7 @@ describe("existing conversation links remain local and target the captured todo 
         />
       )
     )
-    await screen.findByText("Completed task outside current page")
+    await screen.findByText("My claimed task")
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.Todos.linkTodo })
     )
@@ -322,10 +334,12 @@ describe("existing conversation links remain local and target the captured todo 
         />
       )
     )
-    await screen.findByText("Completed task outside current page")
+    await screen.findByText("My claimed task")
     h.search.mockRejectedValueOnce(new Error("host unavailable"))
     fireEvent.change(
-      screen.getByRole("textbox", { name: enMessages.Todos.searchTodos }),
+      screen.getByRole("textbox", {
+        name: enMessages.Todos.searchClaimedTodos,
+      }),
       { target: { value: "match" } }
     )
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -338,12 +352,13 @@ describe("existing conversation links remain local and target the captured todo 
     expect(h.search).toHaveBeenLastCalledWith({
       scope_id: "team-a",
       only_mine: true,
+      claimed_only: true,
       search: "match",
       page: 1,
       page_size: 20,
     })
     expect(
-      screen.getByRole("textbox", { name: enMessages.Todos.searchTodos })
+      screen.getByRole("textbox", { name: enMessages.Todos.searchClaimedTodos })
     ).toHaveValue("match")
   })
 

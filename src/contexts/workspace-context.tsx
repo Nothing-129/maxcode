@@ -1,6 +1,16 @@
 "use client"
 
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
   createContext,
   useCallback,
   useContext,
@@ -510,6 +520,11 @@ interface WorkspaceProviderProps {
 
 export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
   const t = useTranslations("Folder.workspaceContext")
+  const common = useTranslations("Folder.common")
+  const [pendingClose, setPendingClose] = useState<{
+    message: string
+    confirm: () => void
+  } | null>(null)
   const { activeFolder } = useActiveFolder()
   // Reactive: `useOpenFileTabsWatch` re-derives its per-root FS subscriptions
   // when the registered-folder set changes. Low-frequency (open/close folder).
@@ -2584,42 +2599,73 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     })
   }, [])
 
-  const closeFileTab = useCallback(
-    (tabId: string) => {
+  const requestFileTabClose = useCallback(
+    (mode: "one" | "others" | "all", tabId?: string) => {
       const key = currentFileScopeKey()
-      const scopes = fileScopesRef.current
-      const scope = scopes[key]
-      if (!scope?.tabIds.includes(tabId)) return
-
-      const stillReferenced = fileTabReferencedOutsideScope(scopes, key, tabId)
-      const tab = fileTabsRef.current.find(
-        (candidate) => candidate.id === tabId
-      )
-      if (!stillReferenced && tab && isDirtyFileTab(tab)) {
-        const confirmed = window.confirm(
-          t("confirmCloseDirtyTab", { title: tab.title })
+      const scope = fileScopesRef.current[key]
+      if (!scope || (tabId !== undefined && !scope.tabIds.includes(tabId)))
+        return
+      const targets = new Set(
+        scope.tabIds.filter(
+          (id) =>
+            mode === "all" || (mode === "one" ? id === tabId : id !== tabId)
         )
-        if (!confirmed) return
-      }
-
-      const wasActive = scope.activeFileTabId === tabId
-      const nextScopes = patchFileScopes((prev) =>
-        detachFileTabFromScope(prev, key, tabId)
       )
-      if (!stillReferenced) {
-        destroyUnreferencedFileTabs([tabId])
+      if (!targets.size) return
+      const promptThenClose = (confirmed?: Map<string, string>) => {
+        const scopes = fileScopesRef.current
+        const current = scopes[key]
+        if (!current || currentFileScopeKey() !== key) return
+        const closing = current.tabIds.filter((id) => targets.has(id))
+        if (!closing.length) return
+        const destroy = new Set(
+          closing.filter(
+            (id) => !fileTabReferencedOutsideScope(scopes, key, id)
+          )
+        )
+        const dirty = fileTabsRef.current.filter(
+          (tab) => destroy.has(tab.id) && isDirtyFileTab(tab)
+        )
+        // Background changes while the dialog is open must not expand what was approved.
+        if (
+          dirty.some(
+            (tab) =>
+              !confirmed?.has(tab.id) || confirmed.get(tab.id) !== tab.content
+          )
+        ) {
+          const snapshot = new Map(dirty.map((tab) => [tab.id, tab.content]))
+          const message =
+            mode === "one"
+              ? t("confirmCloseDirtyTab", { title: dirty[0].title })
+              : mode === "others"
+                ? t("confirmCloseOtherDirtyTabs")
+                : t("confirmCloseAllDirtyTabs")
+          setPendingClose({ message, confirm: () => promptThenClose(snapshot) })
+          return
+        }
+        const next = patchFileScopes((prev) => {
+          if (mode === "one" && tabId)
+            return detachFileTabFromScope(prev, key, tabId)
+          const tabIds = current.tabIds.filter((id) => !targets.has(id))
+          if (tabIds.length) {
+            const activeFileTabId =
+              tabId && tabIds.includes(tabId)
+                ? tabId
+                : tabIds.includes(current.activeFileTabId ?? "")
+                  ? current.activeFileTabId
+                  : tabIds[0]
+            return { ...prev, [key]: { ...current, tabIds, activeFileTabId } }
+          }
+          const remaining = { ...prev }
+          delete remaining[key]
+          return remaining
+        })
+        destroyUnreferencedFileTabs([...destroy])
+        if (!next[key]) activateConversationPane()
+        else if (mode !== "one" || current.activeFileTabId === tabId)
+          activateFilePane()
       }
-
-      const nextScope = nextScopes[key]
-      if (!nextScope || nextScope.tabIds.length === 0) {
-        activateConversationPane()
-      } else if (wasActive) {
-        // Closing the active file tab (via its X) keeps the user in the file
-        // column, so focus the files pane — mirroring the conversation
-        // closeTab. The section pointer-capture used to do this; the tab strip
-        // now sits outside the pane-activation wrapper, so do it explicitly.
-        activateFilePane()
-      }
+      promptThenClose()
     },
     [
       activateConversationPane,
@@ -2629,83 +2675,18 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       t,
     ]
   )
-
-  const closeOtherFileTabs = useCallback(
-    (tabId: string) => {
-      const key = currentFileScopeKey()
-      const scopes = fileScopesRef.current
-      const scope = scopes[key]
-      if (!scope?.tabIds.includes(tabId)) return
-
-      const closingIds = scope.tabIds.filter((id) => id !== tabId)
-      if (closingIds.length === 0) return
-
-      const destroyIds = closingIds.filter(
-        (id) => !fileTabReferencedOutsideScope(scopes, key, id)
-      )
-      if (
-        destroyIds.some((id) => {
-          const tab = fileTabsRef.current.find(
-            (candidate) => candidate.id === id
-          )
-          return tab != null && isDirtyFileTab(tab)
-        })
-      ) {
-        const confirmed = window.confirm(t("confirmCloseOtherDirtyTabs"))
-        if (!confirmed) return
-      }
-
-      patchFileScopes((prev) => {
-        const current = prev[key]
-        if (!current) return prev
-        return {
-          ...prev,
-          [key]: {
-            tabIds: [tabId],
-            activeFileTabId: tabId,
-            filesMaximized: current.filesMaximized,
-          },
-        }
-      })
-      destroyUnreferencedFileTabs(destroyIds)
-      activateFilePane()
-    },
-    [activateFilePane, destroyUnreferencedFileTabs, patchFileScopes, t]
+  const closeFileTab = useCallback(
+    (id: string) => requestFileTabClose("one", id),
+    [requestFileTabClose]
   )
-
-  const closeAllFileTabs = useCallback(() => {
-    const key = currentFileScopeKey()
-    const scopes = fileScopesRef.current
-    const scope = scopes[key]
-    if (!scope || scope.tabIds.length === 0) return
-
-    const destroyIds = scope.tabIds.filter(
-      (id) => !fileTabReferencedOutsideScope(scopes, key, id)
-    )
-    if (
-      destroyIds.some((id) => {
-        const tab = fileTabsRef.current.find((candidate) => candidate.id === id)
-        return tab != null && isDirtyFileTab(tab)
-      })
-    ) {
-      const confirmed = window.confirm(t("confirmCloseAllDirtyTabs"))
-      if (!confirmed) return
-    }
-
-    patchFileScopes((prev) => {
-      if (!(key in prev)) return prev
-      const next = { ...prev }
-      delete next[key]
-      return next
-    })
-    destroyUnreferencedFileTabs(destroyIds)
-    activateConversationPane()
-  }, [
-    activateConversationPane,
-    destroyUnreferencedFileTabs,
-    patchFileScopes,
-    t,
-  ])
+  const closeOtherFileTabs = useCallback(
+    (id: string) => requestFileTabClose("others", id),
+    [requestFileTabClose]
+  )
+  const closeAllFileTabs = useCallback(
+    () => requestFileTabClose("all"),
+    [requestFileTabClose]
+  )
 
   const reorderFileTabs = useCallback(
     (tabs: FileWorkspaceTab[]) => {
@@ -2971,6 +2952,36 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
         >
           <WorkspaceFileTabsContext.Provider value={fileTabsValue}>
             {children}
+            {pendingClose && (
+              <AlertDialog
+                open
+                onOpenChange={(open) => {
+                  if (!open) setPendingClose(null)
+                }}
+              >
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{common("close")}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {pendingClose.message}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{common("cancel")}</AlertDialogCancel>
+                    <AlertDialogAction
+                      variant="destructive"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        setPendingClose(null)
+                        pendingClose.confirm()
+                      }}
+                    >
+                      {common("close")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
           </WorkspaceFileTabsContext.Provider>
         </WorkspaceExternalConflictContext.Provider>
       </WorkspaceViewContext.Provider>

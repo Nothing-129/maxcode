@@ -1,5 +1,5 @@
 import { type ReactElement } from "react"
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest"
@@ -9,10 +9,6 @@ import {
   resetConversationPointerSelectionGuardForTests,
 } from "./sidebar-conversation-card"
 import { formatRelative } from "./sidebar-conversation-grouping"
-import {
-  resetAppWorkspaceStore,
-  useAppWorkspaceStore,
-} from "@/stores/app-workspace-store"
 import { useTabStore, type TabItem } from "@/stores/tab-store"
 import {
   ATTACH_SESSION_TO_SESSION_EVENT,
@@ -755,10 +751,11 @@ describe("SidebarConversationCard Recent folder chip", () => {
       "max-w-[7.5rem]",
       "shrink-[999]",
       "overflow-hidden",
-      "text-[0.6875rem]",
-      "leading-[0.8125rem]",
-      "text-muted-foreground/55"
+      "text-xs",
+      "leading-[0.875rem]",
+      "text-muted-foreground"
     )
+    expect(getByText("5m")).toHaveClass("text-xs", "text-muted-foreground")
     expect(folder).not.toHaveClass("min-w-0")
     expect(folder).not.toHaveClass("shrink-0")
     expect(folder).toHaveAttribute("title", "外呼中心")
@@ -826,149 +823,4 @@ describe("SidebarConversationCard Recent folder chip", () => {
     expect(folder?.querySelector('[data-recent-source="folder"]')).toBeNull()
     expect(getByText("Chat")).not.toBeNull()
   })
-})
-
-// Compact rows omit path and branch; Recent names the folder in a chip that
-// follows the title. Resting the pointer still floats a read-only bubble with
-// the folder, its absolute path, and the branch. Radix portals the content to
-// the body, hence the `screen` queries.
-describe("SidebarConversationCard hover details bubble", () => {
-  const FOLDER_PATH = "/Users/dev/projects/codeg"
-
-  function renderCard(c: DbConversationSummary) {
-    return renderWithIntl(
-      <SidebarConversationCard
-        conversation={c}
-        isSelected={false}
-        timeLabel="5m"
-        onSelect={onSelect}
-        onDoubleClick={onDoubleClick}
-        onRename={onRename}
-        onDelete={onDelete}
-        onStatusChange={onStatusChange}
-      />
-    )
-  }
-
-  function rowOf(container: HTMLElement): HTMLElement {
-    return container.querySelector("[data-conv-key]") as HTMLElement
-  }
-
-  beforeEach(() => {
-    vi.useFakeTimers()
-    resetAppWorkspaceStore()
-    useAppWorkspaceStore.setState({
-      allFolders: [
-        {
-          id: 1,
-          name: "codeg",
-          path: FOLDER_PATH,
-          git_branch: null,
-          default_agent_type: null,
-          last_opened_at: new Date(NOW).toISOString(),
-          sort_order: 0,
-          color: "inherit",
-          parent_id: null,
-          kind: "regular",
-          alias: null,
-          group_id: null,
-        },
-      ],
-    })
-  })
-
-  afterEach(() => {
-    // Unmount before resetting: the reset is a zustand write, and a bubble still
-    // mounted when it lands would re-render outside `act()`.
-    cleanup()
-    resetAppWorkspaceStore()
-    vi.useRealTimers()
-  })
-
-  it("opens on pointer enter, but only after the open delay", () => {
-    const { container } = renderCard(conv(1))
-    fireEvent.pointerEnter(rowOf(container), { pointerType: "mouse" })
-
-    // Sweeping the pointer down the list must stay quiet, so nothing yet.
-    expect(screen.queryByText(FOLDER_PATH)).toBeNull()
-
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(screen.getByText(FOLDER_PATH)).toBeDefined()
-    expect(screen.getByText("codeg")).toBeDefined()
-  })
-
-  // Companion to the `select-none` pin in the content's own test: with the
-  // bubble unpointable, a press always lands outside it and the dismissable
-  // layer tears it down before Radix can latch onto a stray document selection
-  // and refuse to ever close. jsdom models neither selections nor hit-testing,
-  // so this pins the CSS contract; the behaviour was verified in a real browser.
-  it("renders the bubble inert to the pointer", () => {
-    const { container } = renderCard(conv(1))
-    fireEvent.pointerEnter(rowOf(container), { pointerType: "mouse" })
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-
-    const content = document.querySelector('[data-slot="hover-card-content"]')
-    expect(content?.className).toContain("pointer-events-none")
-  })
-
-  it("closes again once the pointer leaves", () => {
-    const { container } = renderCard(conv(1))
-    const row = rowOf(container)
-    fireEvent.pointerEnter(row, { pointerType: "mouse" })
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(screen.getByText(FOLDER_PATH)).toBeDefined()
-
-    fireEvent.pointerLeave(row, { pointerType: "mouse" })
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(screen.queryByText(FOLDER_PATH)).toBeNull()
-  })
-
-  // Radix's trigger opens on ANY focus, and its touch filter covers only
-  // pointer enter/leave. Tapping a row focuses the button inside it, so without
-  // the `isKeyboardFocus` guard a tap would strand a bubble on screen with no
-  // pointer that could ever leave and dismiss it.
-  it("does not open on a non-keyboard focus", () => {
-    const { container } = renderCard(conv(1))
-    const focusIn = new FocusEvent("focusin", {
-      bubbles: true,
-      cancelable: true,
-    })
-    rowOf(container).dispatchEvent(focusIn)
-
-    // The card's guard default-prevents, which is what makes Radix's composed
-    // handler bail — asserting it here keeps the "stays closed" check below from
-    // passing vacuously (i.e. because the event never reached React at all).
-    expect(focusIn.defaultPrevented).toBe(true)
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(screen.queryByText(FOLDER_PATH)).toBeNull()
-  })
-
-  it("drops the bubble when the context menu takes the row over", () => {
-    const { container } = renderCard(conv(1))
-    const row = rowOf(container)
-    fireEvent.pointerEnter(row, { pointerType: "mouse" })
-    act(() => {
-      vi.advanceTimersByTime(600)
-    })
-    expect(screen.getByText(FOLDER_PATH)).toBeDefined()
-
-    fireEvent.contextMenu(row)
-    expect(screen.queryByText(FOLDER_PATH)).toBeNull()
-  })
-
-  // NOT covered here: touch. Radix's `excludeTouch` drops enter/leave whose
-  // `pointerType === "touch"`, so a tap never strands a bubble on screen — but
-  // jsdom ships no `PointerEvent`, so every synthetic pointer event arrives as a
-  // `MouseEvent` with `pointerType: undefined` and the branch can't be reached.
-  // Verify that one in a real browser, not here.
 })

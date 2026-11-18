@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
 import type {
   CSSProperties,
   PointerEvent as ReactPointerEvent,
@@ -637,14 +642,16 @@ function DiagramError({
           {t("retry")}
         </Button>
       </div>
-      <details className="mt-2">
-        <summary className="cursor-pointer text-muted-foreground text-xs">
+      <Collapsible className="mt-2">
+        <CollapsibleSummary className="cursor-pointer text-muted-foreground text-xs">
           {t("showSource")}
-        </summary>
-        <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-2 text-xs">
-          {source}
-        </pre>
-      </details>
+        </CollapsibleSummary>
+        <CollapsibleContent>
+          <pre className="mt-2 overflow-x-auto rounded-md bg-muted p-2 text-xs">
+            {source}
+          </pre>
+        </CollapsibleContent>
+      </Collapsible>
     </div>
   )
 }

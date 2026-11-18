@@ -5,9 +5,14 @@ import { Slot } from "radix-ui"
 import { cn } from "@/lib/utils"
 
 const buttonVariants = cva(
-  "group/button inline-flex shrink-0 items-center justify-center rounded-4xl border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-[#216ae4] active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "group/button inline-flex shrink-0 items-center justify-center border border-transparent bg-clip-padding text-sm font-medium whitespace-nowrap transition-all outline-none select-none focus-visible:ring-1 focus-visible:ring-ring active:not-aria-[haspopup]:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-1 aria-invalid:ring-destructive/20 dark:aria-invalid:border-destructive/50 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
+      // Ordinary actions stay compact; prominent actions opt into a pill.
+      shape: {
+        default: "rounded-md",
+        pill: "rounded-full",
+      },
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/80",
         outline:
@@ -33,6 +38,7 @@ const buttonVariants = cva(
       },
     },
     defaultVariants: {
+      shape: "default",
       variant: "default",
       size: "default",
     },
@@ -41,6 +47,7 @@ const buttonVariants = cva(
 
 function Button({
   className,
+  shape = "default",
   variant = "default",
   size = "default",
   asChild = false,
@@ -54,9 +61,10 @@ function Button({
   return (
     <Comp
       data-slot="button"
+      data-shape={shape}
       data-variant={variant}
       data-size={size}
-      className={cn(buttonVariants({ variant, size, className }))}
+      className={cn(buttonVariants({ variant, size, shape, className }))}
       {...props}
     />
   )

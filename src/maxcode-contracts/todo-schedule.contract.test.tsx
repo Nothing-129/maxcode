@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
@@ -73,8 +73,9 @@ describe("MaxCode: optional due dates and priority", () => {
       )
     )
     const due = screen.getByLabelText(en.Todos.dueDate)
-    expect(due).toHaveValue("2026-10-14")
-    fireEvent.change(due, { target: { value: "2026-10-20" } })
+    expect(due).toHaveTextContent("Oct 14, 2026")
+    await user.click(due)
+    await user.click(screen.getByRole("button", { name: /October 20th, 2026/ }))
     await user.click(screen.getByRole("button", { name: "Save" }))
     await waitFor(() =>
       expect(save).toHaveBeenCalledWith(
@@ -86,7 +87,8 @@ describe("MaxCode: optional due dates and priority", () => {
         })
       )
     )
-    fireEvent.change(due, { target: { value: "" } })
+    await user.click(due)
+    await user.click(screen.getByRole("button", { name: "Clear date" }))
     await user.click(screen.getByLabelText(en.Todos.priority))
     await user.click(screen.getByRole("option", { name: "No priority" }))
     await user.click(screen.getByRole("button", { name: "Save" }))

@@ -3,17 +3,19 @@ import { describe, expect, it } from "vitest"
 import { source } from "./contract-source"
 
 describe("MaxCode contract: stable structured session titles", () => {
+  it("runs the Rust contract for a late unnamed fallback", () => {
+    expect(source("src-tauri/src/session_title_tests.rs")).toContain(
+      '"/../src/maxcode-contracts/title-fallback.contract.rs"'
+    )
+  })
+
   it("protects unlocked structured titles from transcript, native and index backfill", () => {
     const service = source("src-tauri/src/db/service/conversation_service.rs")
-    expect(service).toContain(
-      "would_downgrade_structured_title(&current, title)"
-    )
-    expect(service).toContain(
-      "would_downgrade_structured_title(candidate, title)"
-    )
+    expect(service).toContain("would_downgrade_auto_title(&current, title)")
+    expect(service).toContain("would_downgrade_auto_title(candidate, title)")
     const refresh = service.slice(
       service.indexOf("pub async fn refresh_auto_title("),
-      service.indexOf("fn would_downgrade_structured_title(")
+      service.indexOf("fn would_downgrade_auto_title(")
     )
     expect(refresh).toContain(".filter(old_title)")
     expect(service).toContain(

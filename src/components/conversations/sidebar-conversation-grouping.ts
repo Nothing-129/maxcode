@@ -1098,7 +1098,25 @@ export interface SubsessionLoadingRow {
   todoId?: string
 }
 
+type RecentFolders = ReadonlyMap<
+  number,
+  Pick<FolderDetail, "kind" | "parent_id">
+>
+export type RecentGroupId = number | "chat"
+
+export function recentGroupId(
+  conv: DbConversationSummary,
+  folders: RecentFolders
+): RecentGroupId {
+  const folder = folders.get(conv.folder_id)
+  if (conv.kind === "chat" || folder?.kind === "chat") return "chat"
+  return folder?.parent_id != null && folders.has(folder.parent_id)
+    ? folder.parent_id
+    : conv.folder_id
+}
+
 export type SidebarRow =
+  | { kind: "recent-group"; id: RecentGroupId; expanded: boolean }
   | SectionHeaderRow
   | FolderGroupHeaderRow
   | GroupEmptyRow
@@ -1305,6 +1323,8 @@ export function buildRows(args: {
    *  footer row carries `canReset` once it is past the first page so the list
    *  can be folded back to {@link RECENT_PAGE_SIZE}. */
   recentPageSize?: number
+  recentFolders?: RecentFolders
+  collapsedRecentGroups?: ReadonlySet<RecentGroupId>
   recentLimit?: number
   /** Default page size for each folder body. Optional — omitted means no
    *  limit (historical, kept for tests). The app passes 10 and raises a
@@ -1600,16 +1620,34 @@ export function buildRows(args: {
       recentLimit == null
         ? recentConversations
         : recentConversations.slice(0, Math.max(0, recentLimit))
-    for (const conv of shown) {
+    const pushRecentConversation = (
+      conv: DbConversationSummary,
+      depth: number
+    ) =>
       pushConversationRow(
         rows,
         conv,
-        0,
+        depth,
         conversationExpanded,
         childrenByParent,
         childrenLoading,
         true
       )
+    if (args.recentFolders) {
+      const groups = new Map<RecentGroupId, DbConversationSummary[]>()
+      for (const conv of shown) {
+        const id = recentGroupId(conv, args.recentFolders)
+        const bucket = groups.get(id)
+        if (bucket) bucket.push(conv)
+        else groups.set(id, [conv])
+      }
+      for (const [id, bucket] of groups) {
+        const expanded = !args.collapsedRecentGroups?.has(id)
+        rows.push({ kind: "recent-group", id, expanded })
+        if (expanded) for (const conv of bucket) pushRecentConversation(conv, 1)
+      }
+    } else {
+      for (const conv of shown) pushRecentConversation(conv, 0)
     }
     const remaining = recentConversations.length - shown.length
     // The gate is "more than a page is on screen", not "recentLimit is past a

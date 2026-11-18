@@ -13,12 +13,6 @@ import type { DbConversationSummary } from "@/lib/types"
 import messages from "@/i18n/messages/en.json"
 
 vi.mock("@/components/agent-icon", () => ({ AgentIcon: () => null }))
-vi.mock(
-  "@/components/conversations/sidebar-conversation-hover-details",
-  () => ({
-    SidebarConversationHoverDetails: () => null,
-  })
-)
 
 afterEach(cleanup)
 

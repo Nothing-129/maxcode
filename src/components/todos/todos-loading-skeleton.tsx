@@ -16,10 +16,9 @@ export function TodosLoadingSkeleton({
     >
       <span className="sr-only">{label}</span>
       <div aria-hidden="true" className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <div className="flex shrink-0 flex-wrap items-center gap-3 border-b p-4">
+        <div className="flex shrink-0 flex-wrap items-center gap-2 border-b px-4 py-2.5">
           <Skeleton className="h-8 w-40 motion-reduce:animate-none" />
           <Skeleton className="h-8 w-24 motion-reduce:animate-none" />
-          <Skeleton className="ms-auto h-8 w-20 motion-reduce:animate-none" />
         </div>
         <div
           className={

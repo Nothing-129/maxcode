@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import { Loader2, Link2, Unlink } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
 import {
   todoConversationLink,
   todoConversationSources,
@@ -19,7 +19,6 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -66,6 +65,7 @@ export function TodoConversationLinkDialog({
         void todoSearch({
           scope_id: target.scopeId,
           only_mine: true,
+          claimed_only: true,
           search: search.trim(),
           page,
           page_size: 20,
@@ -150,13 +150,13 @@ export function TodoConversationLinkDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && !busy && onClose()}>
       <DialogContent
-        className="todo-theme min-w-0 max-w-xl grid-cols-1 overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
+        className="todo-theme min-w-0 max-w-xl grid-cols-1 gap-4 rounded-2xl overflow-x-hidden overflow-y-auto [&>*]:min-w-0"
         showCloseButton={!busy}
       >
         <DialogHeader>
-          <DialogTitle>{t("linkConversation")}</DialogTitle>
-          <DialogDescription>
-            {t("linkConversationDescription", { title: target.title })}
+          <DialogTitle>{t("linkDialogTitle")}</DialogTitle>
+          <DialogDescription className="break-words">
+            {target.scopeName} · {target.title}
           </DialogDescription>
         </DialogHeader>
         {sources.length > 0 && (
@@ -167,7 +167,7 @@ export function TodoConversationLinkDialog({
             {sources.map((source) => (
               <div
                 key={`${source.origin.scope_id}:${source.origin.todo_id}`}
-                className="flex min-w-0 items-center gap-2 rounded-md border p-2"
+                className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-interaction-hover"
               >
                 <span
                   className="min-w-0 flex-1 truncate text-sm"
@@ -184,7 +184,6 @@ export function TodoConversationLinkDialog({
                   disabled={busy}
                   onClick={() => void change(source.origin, "unlink")}
                 >
-                  <Unlink className="size-3.5" />
                   {t("unlinkTodo")}
                 </Button>
               </div>
@@ -192,19 +191,23 @@ export function TodoConversationLinkDialog({
           </div>
         )}
         <div className="min-w-0 space-y-2">
-          <p className="text-xs font-medium text-muted-foreground">
-            {target.scopeName}
-          </p>
-          <Input
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value)
-              setPage(1)
-            }}
-            aria-label={t("searchTodos")}
-            placeholder={t("searchTodos")}
-            disabled={busy}
-          />
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <Input
+              className="rounded-md bg-muted/50 ps-9 focus-visible:border-muted-foreground focus-visible:ring-0"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(1)
+              }}
+              aria-label={t("searchClaimedTodos")}
+              placeholder={t("searchClaimedTodos")}
+              disabled={busy}
+            />
+          </div>
           <div
             className="max-h-[min(40vh,22rem)] min-h-24 space-y-1 overflow-y-auto"
             aria-busy={queryLoading}
@@ -228,33 +231,19 @@ export function TodoConversationLinkDialog({
                     source.origin.scope_id === target.scopeId &&
                     source.origin.todo_id === todo.id
                 )
-                const member = result.members.find(
-                  (person) => person.id === todo.assignee_id
-                )
-                const status =
-                  todo.status === "pending_verification"
-                    ? "colPendingVerification"
-                    : todo.status === "completed"
-                      ? "colCompleted"
-                      : todo.status === "unclaimed"
-                        ? "colUnclaimed"
-                        : "colClaimed"
                 return (
                   <div
                     key={todo.id}
-                    className="flex min-w-0 items-center gap-2 rounded-md border p-2"
+                    className="flex min-w-0 items-center gap-2 rounded-md px-2 py-1.5 hover:bg-interaction-hover"
                   >
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm" title={todo.title}>
-                        {todo.title}
-                      </p>
-                      <p className="truncate text-xs text-muted-foreground">
-                        {t(status)}
-                        {member ? ` · ${member.name}` : ""}
-                      </p>
-                    </div>
+                    <p
+                      className="min-w-0 flex-1 truncate text-sm"
+                      title={todo.title}
+                    >
+                      {todo.title}
+                    </p>
                     <Button
-                      variant={linked ? "ghost" : "outline"}
+                      variant="ghost"
                       size="sm"
                       disabled={busy || linked}
                       onClick={() =>
@@ -264,7 +253,6 @@ export function TodoConversationLinkDialog({
                         )
                       }
                     >
-                      <Link2 className="size-3.5" />
                       {t(linked ? "alreadyLinked" : "linkTodo")}
                     </Button>
                   </div>
@@ -272,29 +260,6 @@ export function TodoConversationLinkDialog({
               })
             )}
           </div>
-          {result && totalPages > 1 && (
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || queryLoading || page <= 1}
-                onClick={() => setPage(page - 1)}
-              >
-                {t("previousPage")}
-              </Button>
-              <span className="text-xs text-muted-foreground">
-                {t("pageOf", { page, pages: totalPages })}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy || queryLoading || page >= totalPages}
-                onClick={() => setPage(page + 1)}
-              >
-                {t("nextPage")}
-              </Button>
-            </div>
-          )}
         </div>
         {displayedError && (
           <div className="flex min-w-0 items-center gap-2">
@@ -313,11 +278,37 @@ export function TodoConversationLinkDialog({
             )}
           </div>
         )}
-        <DialogFooter>
-          <Button variant="outline" disabled={busy} onClick={onClose}>
-            {t("close")}
-          </Button>
-        </DialogFooter>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-xs text-muted-foreground">
+          <span>{t("linkVisibility")}</span>
+          {resultMatches && totalPages > 1 && (
+            <div className="ms-auto flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("previousPage")}
+                disabled={busy || queryLoading || page <= 1}
+                onClick={() => setPage(page - 1)}
+              >
+                <ChevronLeft className="size-4 rtl:rotate-180" />
+              </Button>
+              <span
+                className="tabular-nums"
+                aria-label={t("pageOf", { page, pages: totalPages })}
+              >
+                {page} / {totalPages}
+              </span>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t("nextPage")}
+                disabled={busy || queryLoading || page >= totalPages}
+                onClick={() => setPage(page + 1)}
+              >
+                <ChevronRight className="size-4 rtl:rotate-180" />
+              </Button>
+            </div>
+          )}
+        </div>
       </DialogContent>
     </Dialog>
   )

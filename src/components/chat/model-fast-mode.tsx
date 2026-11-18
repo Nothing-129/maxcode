@@ -3,20 +3,22 @@
 import { Switch } from "@/components/ui/switch"
 import type { SessionConfigOptionInfo } from "@/lib/types"
 
-export function isFastModeEnabled(option?: SessionConfigOptionInfo) {
-  return (
-    option?.kind.current_value === true ||
-    option?.kind.current_value === "on" ||
-    option?.kind.current_value === "true"
-  )
+export function isFastModeEnabled(
+  option?: SessionConfigOptionInfo,
+  override?: string
+) {
+  const current = override ?? option?.kind.current_value
+  return current === true || current === "on" || current === "true"
 }
 
 export function ModelFastMode({
   option,
+  checked = isFastModeEnabled(option),
   disabled,
   onSelect,
 }: {
   option: SessionConfigOptionInfo
+  checked?: boolean
   disabled?: boolean
   onSelect: (id: string, value: string) => void
 }) {
@@ -30,7 +32,7 @@ export function ModelFastMode({
   const onValue = values.includes("on") ? "on" : "true"
   const offValue = values.includes("off") ? "off" : "false"
   return (
-    <label className="flex items-center gap-3 border-t px-3 py-2 text-sm">
+    <label className="flex shrink-0 items-center gap-3 border-t px-3 py-2 text-sm">
       <span className="min-w-0 flex-1">
         <span className="block font-medium">Fast</span>
         {option.description && (
@@ -41,7 +43,7 @@ export function ModelFastMode({
       </span>
       <Switch
         aria-label="Fast"
-        checked={isFastModeEnabled(option)}
+        checked={checked}
         disabled={
           disabled || !values.includes(onValue) || !values.includes(offValue)
         }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest"
 import { ConversationTitleLabel } from "@/components/conversations/conversation-title-label"
 import {
   formatConversationTitle,
+  conversationTitleTopic,
   parseStructuredConversationTitle,
 } from "@/lib/conversation-title"
 import { source } from "./contract-source"
@@ -34,6 +35,17 @@ describe("date/topic titles without categories", () => {
     })
   })
 
+  it.each([
+    ["1117｜检查项目部署地址", "检查项目部署地址"],
+    ["1117 | 开发 | 检查项目部署地址", "检查项目部署地址"],
+    ["1117｜开发｜[权限](file:///tmp/a)", "权限"],
+    ["讨论 CI/CD", "讨论 CI/CD"],
+    ["2024 年计划", "2024 年计划"],
+    [null, ""],
+  ])("extracts the editable topic from %s", (title, expected) => {
+    expect(conversationTitleTopic(title)).toBe(expected)
+  })
+
   it("keeps creation dates out of model instructions and assembles them locally", () => {
     const backend = source("src-tauri/src/session_title.rs")
     const prompt = backend.slice(
@@ -49,12 +61,12 @@ describe("date/topic titles without categories", () => {
     )
   })
 
-  it("opens both rename dialogs with the same normalized title", () => {
+  it("opens both rename dialogs with only the topic", () => {
     expect(
       source("src/components/conversations/conversation-detail-header.tsx")
-    ).toContain("setRenameValue(formatConversationTitle(title))")
+    ).toContain("setRenameValue(conversationTitleTopic(title))")
     expect(
       source("src/components/conversations/sidebar-conversation-card.tsx")
-    ).toContain("setRenameValue(formatConversationTitle(conversation.title))")
+    ).toContain("setRenameValue(conversationTitleTopic(conversation.title))")
   })
 })

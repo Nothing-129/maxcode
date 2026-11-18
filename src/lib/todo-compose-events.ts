@@ -10,6 +10,7 @@ export interface TodoComposeDraft {
   sourceUrl?: string
   conversationId?: number
   shareOptions?: ConversationShareOptions
+  canIncludeCodexSession?: boolean
   includeCodexSession?: boolean
 }
 

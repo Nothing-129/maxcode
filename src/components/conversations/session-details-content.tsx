@@ -23,7 +23,10 @@ import { useCopiedFlag } from "@/hooks/use-copied-flag"
 import { useModelLabels } from "@/hooks/use-model-labels"
 import { pickModelFromTurns } from "./active-session-details"
 import { AgentIcon } from "@/components/agent-icon"
+import { Badge } from "@/components/ui/badge"
+import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { ConversationStatusDot } from "./conversation-status-dot"
+import { FolderAliasLabel } from "./folder-alias-label"
 import { useConversationStatusDisplay } from "@/lib/conversation-status-prefs"
 
 interface SessionDetailsContentProps {
@@ -57,35 +60,14 @@ function isKnownStatus(value: string): value is ConversationStatus {
   return (STATUS_ORDER as string[]).includes(value)
 }
 
-/**
- * The identity chips that sit under a conversation's title: the agent always,
- * then the model and the status when the surface wants them. Shared with the
- * sidebar's hover bubble (`sidebar-conversation-hover-details.tsx`) so the two
- * stay identical — including the a11y details below, which are easy to lose in
- * a copy.
- *
- * The two surfaces ask for different chips because they sit beside different
- * things. This dialog spells the model out in its own labelled field and its
- * status is worth naming next to the title, so it passes `status` and no
- * `model`. The bubble hangs off a row that already badges a running or
- * cancelled session, and has no field to spare for the model, so it does the
- * reverse.
- */
-export function SessionIdentityChips({
+function SessionIdentityChips({
   agentType,
   status,
-  model,
 }: {
   agentType: AgentType
-  /** Omit to drop the status chip. */
   status?: string | null
-  /** Omit (or pass empty) to drop the model chip. The RAW id as recorded — the
-   *  chip renders whatever the agent calls it when that is known. */
-  model?: string | null
 }) {
   const tStatus = useTranslations("Folder.statusLabels")
-  const modelLabel = useModelLabels(agentType)
-  const displayModel = modelLabel(model)
   return (
     <div className="flex flex-wrap items-center gap-x-1 gap-y-1 text-xs text-muted-foreground">
       <span className="inline-flex items-center gap-1.5">
@@ -97,26 +79,7 @@ export function SessionIdentityChips({
         </span>
         {getAgentLabel(agentType)}
       </span>
-      {displayModel && (
-        // The separator rides INSIDE the model chip, with the row's own gap
-        // repeated around it so it sits evenly between the two names, and so
-        // the two are one flex item: a dot of its own would be left on the line
-        // above when a long model id wraps, orphaned at the end of it. Wrapping
-        // rather than truncating — a chip row has no width of its own to
-        // truncate against, and a model id is the kind of value whose tail is
-        // what distinguishes it.
-        <span className="inline-flex min-w-0 items-center gap-x-1">
-          <span aria-hidden="true">·</span>
-          <span dir="ltr" className="wrap-anywhere min-w-0 font-mono">
-            {displayModel}
-          </span>
-        </span>
-      )}
       {status != null && (
-        // `ms-2` puts back what the row gap gave up. That gap is tight so the
-        // model's separator can hug the two names it divides; this chip is a
-        // second label rather than a division, and reads as crowded against the
-        // agent without the 0.75rem it had.
         <span className="ms-2 inline-flex items-center gap-1.5">
           <ConversationStatusDot
             status={isKnownStatus(status) ? status : null}
@@ -169,29 +132,29 @@ function resolveSessionDurationMs(
  * the cell shrink below its content so a long value wraps in place instead of
  * widening the grid track. Rendered as a `<div>` grouping `<dt>`/`<dd>`, which
  * HTML permits as a direct child of `<dl>`.
- *
- * Exported so the sidebar's hover bubble
- * (`sidebar-conversation-hover-details.tsx`) renders its fields in the exact
- * same shape as this view rather than growing a near-copy.
  */
-export function InfoItem({
+function InfoItem({
   label,
   children,
   className,
   valueClassName,
+  valueDir,
 }: {
   /** Usually plain text; a node so a caller can hang a badge off the label. */
   label: ReactNode
   children: ReactNode
   className?: string
   valueClassName?: string
+  valueDir?: "ltr"
 }) {
   return (
     <div className={cn("min-w-0 space-y-0.5", className)}>
       <dt className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
         {label}
       </dt>
-      <dd className={cn("min-w-0 leading-snug", valueClassName)}>{children}</dd>
+      <dd dir={valueDir} className={cn("min-w-0 leading-snug", valueClassName)}>
+        {children}
+      </dd>
     </div>
   )
 }
@@ -254,6 +217,7 @@ export function SessionDetailsContent({
   active = true,
 }: SessionDetailsContentProps) {
   const t = useTranslations("Folder.sessionDetails")
+  const tSidebar = useTranslations("Folder.sidebar")
   const locale = useLocale()
   const showStatus = useConversationStatusDisplay()
 
@@ -307,6 +271,14 @@ export function SessionDetailsContent({
   const result =
     fetchResult && fetchResult.id === summaryProp.id ? fetchResult : null
   const summary = result?.ok ? result.summary : summaryProp
+  const folder = useAppWorkspaceStore((state) =>
+    state.allFolders.find((entry) => entry.id === summary.folder_id)
+  )
+  // Older summaries can lack a recorded branch. Use the current HEAD only
+  // for those, since it can change after the conversation starts.
+  const gitBranch = useAppWorkspaceStore(
+    (state) => summary.git_branch || state.branches.get(summary.folder_id)
+  )
   const stats =
     statsProp !== undefined ? statsProp : result?.ok ? result.stats : null
   const statsError = statsProp === undefined && result?.ok === false
@@ -406,9 +378,53 @@ export function SessionDetailsContent({
         <InfoItem label={t("model")} valueClassName="wrap-anywhere">
           {displayModel || t("none")}
         </InfoItem>
-        <InfoItem label={t("gitBranch")} valueClassName="font-mono break-all">
-          {summary.git_branch || t("none")}
+        {folder && (
+          <InfoItem
+            label={
+              <>
+                {t("folder")}
+                {folder.parent_id != null && (
+                  <Badge
+                    variant="secondary"
+                    className="h-4 px-1.5 text-[0.625rem] font-normal"
+                  >
+                    {t("worktree")}
+                  </Badge>
+                )}
+              </>
+            }
+            valueClassName="wrap-anywhere"
+          >
+            <FolderAliasLabel name={folder.name} alias={folder.alias} />
+          </InfoItem>
+        )}
+        <InfoItem
+          label={t("gitBranch")}
+          valueClassName="text-start font-mono wrap-anywhere"
+          valueDir="ltr"
+        >
+          {gitBranch || t("none")}
         </InfoItem>
+        {folder?.path && (
+          <InfoItem
+            label={t("folderPath")}
+            className="@[20rem]:col-span-2"
+            valueClassName="text-start font-mono wrap-anywhere"
+            valueDir="ltr"
+          >
+            {folder.path}
+          </InfoItem>
+        )}
+        {summary.origin_cwd && (
+          <InfoItem
+            label={tSidebar("worktreeRemovedBadge")}
+            className="@[20rem]:col-span-2"
+            valueClassName="text-start font-mono wrap-anywhere"
+            valueDir="ltr"
+          >
+            {summary.origin_cwd}
+          </InfoItem>
+        )}
         {summary.parent_id != null && (
           <InfoItem label={t("parentId")} valueClassName={numeric}>
             {summary.parent_id}

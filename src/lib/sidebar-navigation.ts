@@ -19,22 +19,45 @@ export function localDateKey(date: Date): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`
 }
 
+export const START_OF_DAY = "00:00:00"
+export const END_OF_DAY = "23:59:59"
+
+export function minuteBoundary(value: unknown, side: "start" | "end"): string {
+  if (
+    typeof value !== "string" ||
+    !/^(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value)
+  )
+    return side === "start" ? START_OF_DAY : END_OF_DAY
+  return `${value.slice(0, 5)}:${side === "start" ? "00" : "59"}`
+}
+
 export function conversationsOnDate(
   conversations: readonly DbConversationSummary[],
   date: string,
-  endDate: string = date
+  endDate: string = date,
+  startTime = START_OF_DAY,
+  endTime = END_OF_DAY
 ): DbConversationSummary[] {
   // Imported/native sessions can retain a lazy zero message_count even after
   // many turns. Recency must not depend on that counter.
   return conversations
-    .filter(
-      (conversation) =>
-        conversation.pinned_at == null &&
-        conversation.parent_id == null &&
-        (conversation.kind === "regular" || conversation.kind === "chat") &&
-        localDateKey(new Date(conversation.updated_at)) >= date &&
-        localDateKey(new Date(conversation.updated_at)) <= endDate
-    )
+    .filter((conversation) => {
+      if (
+        conversation.pinned_at != null ||
+        conversation.parent_id != null ||
+        (conversation.kind !== "regular" && conversation.kind !== "chat")
+      )
+        return false
+      const updated = new Date(conversation.updated_at)
+      const day = localDateKey(updated)
+      if (day < date || day > endDate) return false
+      // Compare wall-clock seconds so both occurrences of a repeated DST hour match.
+      const clock = updated.toTimeString().slice(0, 8)
+      return (
+        (day !== date || clock >= startTime) &&
+        (day !== endDate || clock <= endTime)
+      )
+    })
     .sort(
       (a, b) =>
         Date.parse(b.updated_at) - Date.parse(a.updated_at) || b.id - a.id
@@ -52,7 +75,14 @@ export const DATE_PRESETS = [
 export type DatePreset = (typeof DATE_PRESETS)[number]
 export type ConversationDateFilter =
   | { preset: DatePreset }
-  | { preset: "custom"; start: string; end: string; range: boolean }
+  | {
+      preset: "custom"
+      start: string
+      end: string
+      startTime: string
+      endTime: string
+      range: boolean
+    }
 export const DATE_FILTER_STORAGE_KEY = "workspace:conversation-date-filter"
 
 export function resolveDateFilter(
@@ -96,8 +126,21 @@ export function loadDateFilter(): ConversationDateFilter {
       valid(value.end) &&
       value.start <= value.end &&
       typeof value.range === "boolean"
-    )
-      return value
+    ) {
+      const startTime = minuteBoundary(value.startTime, "start")
+      const endTime = minuteBoundary(value.endTime, "end")
+      return {
+        preset: "custom",
+        start: value.start,
+        end: value.end,
+        range: value.range,
+        startTime,
+        endTime:
+          (!value.range || value.start === value.end) && endTime < startTime
+            ? END_OF_DAY
+            : endTime,
+      }
+    }
   } catch {
     /* Unavailable or invalid browser storage uses today's default. */
   }

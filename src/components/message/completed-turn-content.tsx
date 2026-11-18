@@ -299,7 +299,11 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
         )
         if (!completed && trigger && !trigger.hasAttribute("disabled")) {
           setReaderOpened(true)
-          handleOpenChange(true)
+          // The round header owns its toggle. Only nested disclosures need
+          // to keep the parent open; handling the header here toggles twice.
+          if (!trigger.hasAttribute("data-round-disclosure")) {
+            handleOpenChange(true)
+          }
         }
       }}
     >
@@ -313,6 +317,7 @@ export const CompletedTurnContent = memo(function CompletedTurnContent({
             along the reading direction, open points down at what it revealed:
             the same disclosure triangle every other fold in the thread uses. */}
         <CollapsibleTrigger
+          data-round-disclosure=""
           disabled={waiting}
           style={waiting ? { borderColor: "transparent" } : undefined}
           className={cn(

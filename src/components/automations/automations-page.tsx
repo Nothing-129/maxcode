@@ -3,18 +3,24 @@
 import {
   Fragment,
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react"
-import { useTranslations } from "next-intl"
+import { createPortal } from "react-dom"
+import { AutomationSidebarHost } from "./automation-sidebar-host"
+import { Input } from "@/components/ui/input"
+import { useLocale, useTranslations } from "next-intl"
 import { toast } from "sonner"
 import {
   ArrowLeft,
   CalendarClock,
   Clock,
+  ChevronRight,
   CirclePlay,
+  Search,
   Folder,
   GitBranch,
   ListFilter,
@@ -45,6 +51,11 @@ import {
   type AutomationTemplate,
 } from "./automation-templates"
 import { TemplateGallery } from "./template-gallery"
+import {
+  AutomationPrompt,
+  DetailDisclosure,
+  maskAutomationText,
+} from "./automation-detail-disclosures"
 import { ScheduleLabel } from "./schedule-label"
 import {
   AlertDialog,
@@ -88,11 +99,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  ResizableHandle,
-  ResizablePanel,
-  ResizablePanelGroup,
-} from "@/components/ui/resizable"
-import {
   automationCancelRun,
   automationCreate,
   automationDelete,
@@ -103,11 +109,17 @@ import {
   automationSetEnabled,
   automationUpdate,
 } from "@/lib/api"
-import { onTransportReconnect, subscribe } from "@/lib/platform"
+import {
+  isNativeDesktop,
+  onTransportReconnect,
+  subscribe,
+} from "@/lib/platform"
 import { cn } from "@/lib/utils"
 import type { Automation, AutomationDraft, AutomationRun } from "@/lib/types"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
 
+import { MAC_TRAFFIC_LIGHT_INSET } from "@/lib/window-chrome"
+import { usePlatform } from "@/hooks/use-platform"
 import { useIsMobile } from "@/hooks/use-mobile"
 
 const AUTOMATION_CHANGED_EVENT = "automation://changed"
@@ -143,41 +155,15 @@ function StatusChip({ status }: { status: string | null }) {
   )
 }
 
-// Compact, i18n-free relative time ("now"/"5m"/"2h"/"3d"/"2mo"/"1y"), matching
-// the sidebar conversation list's style. Absolute time rides in the title attr.
-function formatRelative(iso: string | null, now: number): string {
-  if (!iso) return "—"
-  const ts = Date.parse(iso)
-  if (Number.isNaN(ts)) return "—"
-  const sec = Math.max(0, Math.round((now - ts) / 1000))
-  if (sec < 45) return "now"
-  const min = Math.round(sec / 60)
-  if (min < 60) return `${min}m`
-  const hr = Math.round(min / 60)
-  if (hr < 24) return `${hr}h`
-  const day = Math.round(hr / 24)
-  if (day < 30) return `${day}d`
-  const mo = Math.round(day / 30)
-  if (mo < 12) return `${mo}mo`
-  return `${Math.round(mo / 12)}y`
-}
-
-// Forward-looking sibling of formatRelative ("1m"/"3h"/"2d") for the next run.
-// Floors at 1m so an imminent run never renders as "0m".
-function formatRelativeFuture(iso: string | null, now: number): string {
-  if (!iso) return "—"
-  const ts = Date.parse(iso)
-  if (Number.isNaN(ts)) return "—"
-  const sec = Math.max(0, Math.round((ts - now) / 1000))
-  const min = Math.max(1, Math.round(sec / 60))
-  if (min < 60) return `${min}m`
-  const hr = Math.round(min / 60)
-  if (hr < 24) return `${hr}h`
-  const day = Math.round(hr / 24)
-  if (day < 30) return `${day}d`
-  const mo = Math.round(day / 30)
-  if (mo < 12) return `${mo}mo`
-  return `${Math.round(mo / 12)}y`
+function nextRunLabel(iso: string, now: number, locale: string) {
+  const delta = Date.parse(iso) - now
+  if (!Number.isFinite(delta)) return "—"
+  const minutes = Math.max(1, Math.round(delta / 60000))
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: "auto" })
+  if (minutes < 60) return format.format(minutes, "minute")
+  const hours = Math.round(minutes / 60)
+  if (hours < 24) return format.format(hours, "hour")
+  return format.format(Math.round(hours / 24), "day")
 }
 
 function formatDuration(
@@ -198,11 +184,24 @@ function formatDuration(
 }
 
 // Absolute local date-time for run-history rows; null/invalid → "—".
-function formatDateTime(iso: string | null): string {
+function formatDateTime(
+  iso: string | null,
+  locale: string,
+  now: number
+): string {
   if (!iso) return "—"
   const ts = Date.parse(iso)
   if (Number.isNaN(ts)) return "—"
-  return new Date(ts).toLocaleString()
+  const date = new Date(ts)
+  const today = new Date(now)
+  return date.toLocaleString(locale, {
+    ...(today.toDateString() === date.toDateString()
+      ? {}
+      : { month: "short", day: "numeric" }),
+    ...(today.getFullYear() === date.getFullYear() ? {} : { year: "numeric" }),
+    hour: "2-digit",
+    minute: "2-digit",
+  })
 }
 
 /** The detail pane's three states. "gallery" is the template picker shown when
@@ -226,6 +225,16 @@ export function AutomationsPage() {
   const { automations, unseenFailures, refetch } = useAutomationsView()
   const folders = useAppWorkspaceStore((s) => s.folders)
   const isMobile = useIsMobile()
+  const { isMac } = usePlatform()
+  const sidebarHost = useContext(AutomationSidebarHost)
+  const searchToggleRef = useRef<HTMLButtonElement>(null)
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [search, setSearch] = useState("")
+  const [expandedGroups, setExpandedGroups] = useState({
+    enabled: true,
+    paused: false,
+  })
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [mobileDetailOpen, setMobileDetailOpen] = useState(false)
   const [selectedId, setSelectedId] = useState<number | null>(null)
   const [mode, setMode] = useState<"detail" | "gallery" | "editor">("detail")
@@ -304,12 +313,15 @@ export function AutomationsPage() {
     () =>
       automations.filter(
         (a) =>
+          a.name
+            .toLocaleLowerCase()
+            .includes(search.trim().toLocaleLowerCase()) &&
           (activeFolderFilter === "all" ||
             a.root_folder_id === activeFolderFilter) &&
           (statusFilter === "all" ||
             (statusFilter === "enabled" ? a.enabled : !a.enabled))
       ),
-    [automations, activeFolderFilter, statusFilter]
+    [automations, activeFolderFilter, statusFilter, search]
   )
 
   const openGallery = () => {
@@ -443,42 +455,187 @@ export function AutomationsPage() {
   )
 
   const listPane = (
-    <div className={LIST_SURFACE_CLASS}>
-      <ScrollArea className="h-full">
-        {visibleAutomations.length === 0 ? (
-          <p className="px-3 py-6 text-center text-xs text-muted-foreground">
+    <aside
+      aria-label={t("title")}
+      className="flex h-full min-h-0 min-w-0 flex-col bg-[var(--conversation-sidebar)] ws-transparent-bg text-sidebar-foreground"
+    >
+      <div
+        data-drag-region
+        style={
+          !isMobile && isMac && isNativeDesktop()
+            ? {
+                paddingLeft: `max(0.75rem, calc(${MAC_TRAFFIC_LIGHT_INSET}px - 3.5rem + 0.25rem))`,
+              }
+            : undefined
+        }
+        className="flex h-12 shrink-0 items-center gap-1 px-3"
+      >
+        <h2 className="min-w-0 flex-1 truncate ps-1 text-base font-semibold">
+          {t("title")}
+        </h2>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={t("filterAutomations")}
+          title={t("filterAutomations")}
+          aria-expanded={filtersOpen}
+          className={cn(
+            "text-muted-foreground",
+            (activeFolderFilter !== "all" || statusFilter !== "all") &&
+              "bg-muted text-foreground"
+          )}
+          onClick={() => setFiltersOpen(!filtersOpen)}
+        >
+          <ListFilter className="size-4" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          ref={searchToggleRef}
+          aria-label={t("searchAutomations")}
+          title={t("searchAutomations")}
+          aria-expanded={searchOpen}
+          onClick={() => {
+            setSearchOpen(!searchOpen)
+            if (searchOpen) setSearch("")
+          }}
+        >
+          <Search className="size-4 text-muted-foreground" />
+        </Button>
+      </div>
+      {searchOpen && (
+        <div className="px-3 pb-2">
+          <Input
+            autoFocus
+            type="search"
+            value={search}
+            aria-label={t("searchAutomations")}
+            placeholder={t("searchAutomations")}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearch("")
+                setSearchOpen(false)
+                searchToggleRef.current?.focus()
+              }
+            }}
+            className="h-8 rounded-md bg-background/70 text-xs md:text-xs"
+          />
+        </div>
+      )}
+      {filtersOpen && (
+        <div className="flex flex-wrap items-center gap-1 px-3 pb-2">
+          <FolderSelect
+            folders={folderOptions}
+            value={activeFolderFilter === "all" ? null : activeFolderFilter}
+            onChange={setFolderFilter}
+            allLabel={t("allFolders")}
+            onSelectAll={() => setFolderFilter("all")}
+            variant="ghost"
+            className="h-8 max-w-full rounded-md px-2 text-xs"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}
+          >
+            <SelectTrigger
+              size="sm"
+              aria-label={t("filterAutomations")}
+              className="rounded-md border-transparent bg-transparent px-2 text-xs hover:bg-muted"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{t("filterAll")}</SelectItem>
+              <SelectItem value="enabled">{t("enabled")}</SelectItem>
+              <SelectItem value="disabled">{t("statusDisabled")}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+      <div className="px-2 pb-2">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="w-full justify-start gap-2 px-2 text-[0.8125rem] font-semibold"
+          disabled={mode !== "detail"}
+          onClick={openGallery}
+        >
+          <Plus className="size-4" />
+          {t("new")}
+        </Button>
+      </div>
+      <ScrollArea className="min-h-0 flex-1">
+        {visibleAutomations.length === 0 && hasAutomations && (
+          <p className="p-3 text-center text-xs text-muted-foreground">
             {t("noMatches")}
           </p>
-        ) : (
-          <ul className="flex flex-col gap-0.5 p-2">
-            {visibleAutomations.map((a) => (
-              <AutomationListItem
-                key={a.id}
-                automation={a}
-                now={now}
-                selected={mode === "detail" && current?.id === a.id}
-                onSelect={() => selectAutomation(a)}
-                onRunNow={() => runAction(() => automationRunNow(a.id))}
-                onToggleEnabled={() =>
-                  runAction(() => automationSetEnabled(a.id, !a.enabled))
-                }
-                onEdit={() => startEdit(a)}
-                onDelete={() => runAction(() => automationDelete(a.id))}
-              />
-            ))}
-          </ul>
         )}
+        {[true, false].map((enabled) => {
+          const items = visibleAutomations.filter((a) => a.enabled === enabled)
+          if (!items.length) return null
+          const group = enabled ? "enabled" : "paused"
+          const expanded = expandedGroups[group]
+          return (
+            <section key={group} className="px-2 pb-4">
+              <h3>
+                <button
+                  type="button"
+                  aria-expanded={expanded}
+                  onClick={() =>
+                    setExpandedGroups((groups) => ({
+                      ...groups,
+                      [group]: !groups[group],
+                    }))
+                  }
+                  className="group flex h-8 w-full items-center gap-1.5 rounded-md px-2 text-xs leading-5 font-normal text-sidebar-foreground/50 select-none hover:text-sidebar-foreground/80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none"
+                >
+                  <span>{enabled ? t("groupEnabled") : t("groupPaused")}</span>
+                  <ChevronRight
+                    aria-hidden="true"
+                    className={cn(
+                      "maxcode-disclosure-chevron size-3 shrink-0 transition-[transform,opacity] duration-200 ease-out",
+                      expanded &&
+                        "rotate-90 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
+                    )}
+                  />
+                </button>
+              </h3>
+              {expanded && (
+                <ul className="flex flex-col gap-0.5 ps-2">
+                  {items.map((a) => (
+                    <AutomationListItem
+                      key={a.id}
+                      automation={a}
+                      now={now}
+                      selected={mode === "detail" && current?.id === a.id}
+                      onSelect={() => selectAutomation(a)}
+                      onRunNow={() => runAction(() => automationRunNow(a.id))}
+                      onToggleEnabled={() =>
+                        runAction(() => automationSetEnabled(a.id, !a.enabled))
+                      }
+                      onEdit={() => startEdit(a)}
+                      onDelete={() => runAction(() => automationDelete(a.id))}
+                    />
+                  ))}
+                </ul>
+              )}
+            </section>
+          )
+        })}
       </ScrollArea>
-    </div>
+    </aside>
   )
   const detailPane = (
-    <div className={DETAIL_SURFACE_CLASS}>
+    <div className="h-full min-w-0">
       {mode === "editor" && editing ? (
         editorPane
       ) : mode === "gallery" ? (
         picker(false)
       ) : current ? (
         <AutomationDetail
+          key={current.id}
+          now={now}
           automation={current}
           refetch={refetch}
           onEdit={() => startEdit(current)}
@@ -496,252 +653,33 @@ export function AutomationsPage() {
   const showMobileDetail = mobileDetailOpen || mode !== "detail"
 
   return (
-    // No background of its own: the route overlay already paints
-    // `bg-background ws-transparent-bg` (workspace/layout.tsx), so an opaque
-    // layer here would hide the workspace background image behind the page.
     <div className="flex h-full min-h-0 flex-col">
-      {hasAutomations ? (
-        <>
-          <PageToolbar
-            folderOptions={folderOptions}
-            folderFilter={activeFolderFilter}
-            onFolderFilter={setFolderFilter}
-            statusFilter={statusFilter}
-            onStatusFilter={setStatusFilter}
-            showNew={mode === "detail"}
-            onNew={openGallery}
-          />
-          {/* 1rem of clearance on all four sides of the shell: left/right/bottom
-              from px-4 pb-4, top from pt-2 plus the toolbar's own pb-2. */}
-          <div className="min-h-0 flex-1 px-4 pb-4 pt-2">
-            <div className={SHELL_CLASS}>
-              {isMobile ? (
-                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-                  {showMobileDetail && (
-                    <div className="shrink-0 border-b p-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          closeToDetail()
-                          setMobileDetailOpen(false)
-                        }}
-                      >
-                        <ArrowLeft className="size-4" aria-hidden="true" />
-                        {t("title")}
-                      </Button>
-                    </div>
-                  )}
-                  <div className="min-h-0 flex-1">
-                    {showMobileDetail ? detailPane : listPane}
-                  </div>
-                </div>
-              ) : (
-                <ResizablePanelGroup
-                  direction="horizontal"
-                  className="min-h-0 flex-1"
-                >
-                  <ResizablePanel
-                    id="automations-list"
-                    order={1}
-                    defaultSize={32}
-                    minSize={22}
-                  >
-                    {listPane}
-                  </ResizablePanel>
-                  {/* The handle's own 1px rule IS the column divider now, and
-                    inside a single shell that's the honest reading of it: one
-                    container split in two, not two boards with a line wedged
-                    between them. Tone alone can't carry the split — in the
-                    light theme `--muted` and `--card` are one step apart, which
-                    measures ~2% on screen; the fixes for that (frosting or an
-                    opaque fill) would block the workspace background image. */}
-                  <ResizableHandle />
-                  <ResizablePanel
-                    id="automations-detail"
-                    order={2}
-                    defaultSize={68}
-                  >
-                    {detailPane}
-                  </ResizablePanel>
-                </ResizablePanelGroup>
-              )}
-            </div>
-          </div>
-        </>
-      ) : (
-        // Nothing to filter or list yet — the onboarding gallery carries its own
-        // call to action, so no toolbar here. Same shell and the same 1rem of
-        // clearance on all four sides as the populated state (p-4 alone, since
-        // there is no toolbar padding to add to).
-        <div className="min-h-0 flex-1 p-4">
-          <div className={cn(SHELL_CLASS, DETAIL_SURFACE_CLASS)}>
-            {/* SHELL_CLASS is a flex row (it splits into two columns when the
-                list exists), so its lone child here must be told to fill it.
-                Without `flex-1` the scroller shrink-wraps the gallery's
-                intrinsic width, pinning the whole empty state to the left edge
-                with a dead gutter on the right — and `mx-auto` inside it has no
-                free space left to center in. */}
-            <div className="min-w-0 flex-1">
-              {mode === "editor" && editing ? editorPane : picker(true)}
-            </div>
-          </div>
+      {!isMobile && sidebarHost && createPortal(listPane, sidebarHost)}
+      {isMobile && hasAutomations && showMobileDetail && (
+        <div className="shrink-0 border-b border-border/50 px-2 py-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              closeToDetail()
+              setMobileDetailOpen(false)
+            }}
+          >
+            <ArrowLeft className="size-4" />
+            {t("title")}
+          </Button>
         </div>
       )}
+      <div className="min-h-0 min-w-0 flex-1">
+        {!hasAutomations
+          ? mode === "editor" && editing
+            ? editorPane
+            : picker(mode !== "gallery")
+          : isMobile && !showMobileDetail
+            ? listPane
+            : detailPane}
+      </div>
     </div>
-  )
-}
-
-/** ONE shell around both columns — a single rounded border for the whole
- *  content area. Two separately-bordered panels put their facing edges a gutter
- *  apart, which reads as a divider line down the middle even though nothing
- *  draws one. `overflow-hidden` is what makes the rounded corners actually clip
- *  the columns and their scrolling content. */
-const SHELL_CLASS =
-  "flex h-full overflow-hidden rounded-2xl border border-border ws-chrome-border"
-
-/** Inside the shell the list sits on muted and the detail on card — a quiet
- *  tonal step that backs up the divider rather than replacing it. Both are
- *  translucent so a workspace background image still reads through the shell. */
-const LIST_SURFACE_CLASS = "h-full bg-muted/50"
-const DETAIL_SURFACE_CLASS = "h-full bg-card/50"
-
-/** Filter-pill trigger, shared verbatim with the Tasks board toolbar
- *  (tasks-page.tsx) so both workbench routes' controls read as one family:
- *  borderless muted pill, `ws-msg-chip` keeping it legible over a workspace
- *  background image (inert without one). */
-const FILTER_PILL_CLASS =
-  "h-8 w-auto min-w-0 gap-1.5 rounded-full border-transparent bg-muted/70 px-3 text-[0.8125rem] font-medium shadow-none ws-msg-chip hover:bg-interaction-hover"
-
-/**
- * The page toolbar: filter pills left, the New primary right — the title itself
- * lives in the chrome strip above (AutomationsPageTitle), so this is a single
- * borderless row rather than the two stacked bordered bars it replaces. Metrics
- * mirror the Tasks board toolbar.
- */
-function PageToolbar({
-  folderOptions,
-  folderFilter,
-  onFolderFilter,
-  statusFilter,
-  onStatusFilter,
-  showNew,
-  onNew,
-}: {
-  folderOptions: readonly FolderSelectOption[]
-  folderFilter: number | "all"
-  onFolderFilter: (v: number | "all") => void
-  statusFilter: "all" | "enabled" | "disabled"
-  onStatusFilter: (v: "all" | "enabled" | "disabled") => void
-  showNew: boolean
-  onNew: () => void
-}) {
-  const t = useTranslations("Automations")
-  return (
-    // pt-4 / px-4, not py-2: everything else on this page clears its neighbour
-    // by 1rem (the shell's four sides), so an 8px gap above the pills was the
-    // one odd measure — the row sat tight under the title bar while its left
-    // edge and the shell below it were both a full 1rem away. pb-2 stays,
-    // because the shell adds its own pt-2 underneath for the same 1rem.
-    <div className="flex shrink-0 flex-wrap items-center gap-2 px-4 pb-2 pt-4">
-      {/* Always rendered (like the Tasks board's folder pill) — a filter that
-          comes and goes with the data is more disorienting than one that is
-          briefly redundant. Searchable, and every row shows `alias [ name ]`
-          over the folder's path (the shared picker), so an aliased folder is
-          still identifiable — and findable by its real name. */}
-      <FolderSelect
-        folders={folderOptions}
-        value={folderFilter === "all" ? null : folderFilter}
-        onChange={onFolderFilter}
-        allLabel={t("allFolders")}
-        onSelectAll={() => onFolderFilter("all")}
-      />
-
-      <Select
-        value={statusFilter}
-        onValueChange={(v) =>
-          onStatusFilter(v as "all" | "enabled" | "disabled")
-        }
-      >
-        {/* Both pills lead with an icon: "All" alone doesn't say WHICH axis it
-            filters, and a lone icon on the folder pill would read as odd. */}
-        <SelectTrigger size="sm" className={FILTER_PILL_CLASS}>
-          <ListFilter
-            className="size-3.5 text-muted-foreground"
-            aria-hidden="true"
-          />
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="all">{t("filterAll")}</SelectItem>
-          <SelectItem value="enabled">{t("enabled")}</SelectItem>
-          <SelectItem value="disabled">{t("statusDisabled")}</SelectItem>
-        </SelectContent>
-      </Select>
-
-      <div className="flex-1" />
-
-      {/* Detail mode only: the gallery IS the new-automation flow, and the
-          editor has its own cancel / back-to-templates exits — offering "New"
-          there would silently discard a draft. Right-aligned, so its absence
-          never shifts the filters. */}
-      {showNew ? (
-        <Button
-          type="button"
-          size="sm"
-          className="h-8 gap-1 rounded-full px-3.5 text-[0.8125rem]"
-          onClick={onNew}
-        >
-          <Plus className="size-4" aria-hidden="true" />
-          {t("new")}
-        </Button>
-      ) : null}
-    </div>
-  )
-}
-
-// A single status dot riding the agent icon, mirroring the sidebar conversation
-// row. It blends two facts: a disabled automation reads muted regardless of
-// history; an enabled one is colored by its last run (emerald when it has never
-// run yet, i.e. "ready").
-const RUN_STATUS_DOT: Record<string, string> = {
-  running: "bg-amber-500",
-  succeeded: "bg-emerald-500",
-  failed: "bg-destructive",
-  cancelled: "bg-muted-foreground/50",
-  skipped: "bg-muted-foreground/50",
-}
-
-// Run-history timeline node tint per status — colors the node ring and the
-// trigger icon inside it; falls back to a neutral border for unknown states.
-const RUN_NODE_RING: Record<string, string> = {
-  running: "border-amber-500/50 text-amber-600 dark:text-amber-400",
-  succeeded: "border-emerald-500/50 text-emerald-600 dark:text-emerald-400",
-  failed: "border-destructive/50 text-destructive",
-  cancelled: "border-border text-muted-foreground",
-  skipped: "border-border text-muted-foreground",
-}
-
-function AutomationDot({
-  enabled,
-  status,
-}: {
-  enabled: boolean
-  status: string | null
-}) {
-  const color = !enabled
-    ? "bg-muted-foreground/40"
-    : status
-      ? (RUN_STATUS_DOT[status] ?? "bg-emerald-500")
-      : "bg-emerald-500"
-  return (
-    <span
-      className={cn(
-        "block size-1.5 rounded-full ring-2 ring-background",
-        color
-      )}
-      aria-hidden="true"
-    />
   )
 }
 
@@ -765,17 +703,25 @@ function AutomationListItem({
   onDelete: () => void
 }) {
   const t = useTranslations("Automations")
+  const locale = useLocale()
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [menuOpen, setMenuOpen] = useState(false)
-  const isSchedule = automation.trigger_kind === "schedule" && !!automation.cron
-  const isRunning = automation.last_run_status === "running"
-  const showNextIn =
-    isSchedule && automation.enabled && !!automation.next_run_at
-  const timeLabel = showNextIn
-    ? t("nextIn", { rel: formatRelativeFuture(automation.next_run_at, now) })
-    : automation.last_run_at
-      ? formatRelative(automation.last_run_at, now)
-      : null
+  const failed = automation.enabled && automation.last_run_status === "failed"
+
+  function rowSubtitle() {
+    if (automation.last_run_status === "running") return t("statusRunning")
+    if (!automation.enabled) return null
+    if (failed) return t("statusFailed")
+    if (automation.trigger_kind === "schedule") {
+      return automation.next_run_at
+        ? nextRunLabel(automation.next_run_at, now, locale)
+        : t("triggerSchedule")
+    }
+    return t(
+      automation.trigger_kind === "message" ? "triggerMessage" : "manual"
+    )
+  }
+
+  const subtitle = rowSubtitle()
 
   // The row's quick actions, authored once so the ⋯ dropdown and the right-click
   // context menu render exactly the same set (the user asked for parity).
@@ -842,100 +788,47 @@ function AutomationListItem({
         <ContextMenuTrigger asChild>
           <div
             className={cn(
-              // The border is always in the box (transparent when unselected)
-              // so selecting a row never shifts its height by 2px.
-              "group flex h-8 w-full items-center rounded-full border pr-1 transition-colors",
-              // Selection can't lean on fill alone: in the light theme
-              // `--accent` and `--muted` are the SAME token value
-              // (oklch(0.97)), so `bg-accent` on the muted list panel is a
-              // ~0.02 lightness difference — invisible. The outline carries the
-              // signal instead (boosted by ws-chrome-border over a background
-              // image), and ws-msg-chip keeps the fill translucent there so the
-              // row doesn't punch an opaque hole in the picture. Unselected
-              // rows stay off the chip so their layered hover:bg-* keeps
-              // working — the chip's unlayered background would swallow it.
+              "group flex w-full items-center rounded-[0.625rem] transition-colors",
               selected
-                ? "border-border ws-chrome-border bg-accent ws-msg-chip"
-                : "border-transparent hover:bg-interaction-hover"
+                ? "bg-[#eaeaea] dark:bg-white/[0.1]"
+                : "hover:bg-black/[0.02] dark:hover:bg-white/[0.04]"
             )}
           >
             <button
               type="button"
               onClick={onSelect}
-              className="flex h-full min-w-0 flex-1 items-center gap-2.5 rounded-full pl-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+              aria-current={selected ? "true" : undefined}
+              className="flex min-w-0 flex-1 flex-col items-stretch gap-0.5 rounded-[0.625rem] px-2 py-1.5 text-start focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
             >
-              <span className="relative flex size-5 shrink-0 items-center justify-center">
-                <AgentIcon
-                  agentType={automation.agent_type}
-                  className="size-4"
-                />
-                <span className="absolute -right-0.5 -bottom-0.5">
-                  <AutomationDot
-                    enabled={automation.enabled}
-                    status={automation.last_run_status}
-                  />
-                </span>
-              </span>
-              <span
-                className={cn(
-                  "min-w-0 flex-1 truncate text-sm",
-                  automation.enabled
-                    ? "font-medium"
-                    : "font-normal text-muted-foreground"
-                )}
-              >
+              <span className="truncate text-[0.8125rem] leading-5">
                 {automation.name}
               </span>
+              {subtitle && (
+                <span
+                  className={cn(
+                    "truncate text-xs leading-4",
+                    failed ? "text-destructive" : "text-muted-foreground"
+                  )}
+                >
+                  {subtitle}
+                </span>
+              )}
             </button>
-
-            <div className="flex shrink-0 items-center gap-0.5 pl-1">
-              {/* Time yields to the ⋯ affordance on hover, keyboard focus, or
-                  while the menu is open — mirroring the conversation row. */}
-              <span
-                className={cn(
-                  "flex items-center group-hover:hidden group-focus-within:hidden",
-                  menuOpen && "hidden"
-                )}
-              >
-                {isRunning ? (
-                  <Loader2
-                    className="size-3.5 animate-spin text-amber-600 dark:text-amber-400"
-                    aria-hidden="true"
-                  />
-                ) : timeLabel ? (
-                  <span
-                    className={cn(
-                      "shrink-0 tabular-nums text-[0.71875rem]",
-                      selected
-                        ? "font-medium text-muted-foreground"
-                        : "text-muted-foreground/70"
-                    )}
-                  >
-                    {timeLabel}
-                  </span>
-                ) : null}
-              </span>
-
-              <DropdownMenu onOpenChange={setMenuOpen}>
-                <DropdownMenuTrigger asChild>
-                  {/* Hidden when idle (the time sits in its place); reveals on
-                      hover, on keyboard focus entering the row, and while open.
-                      justify-end flushes the glyph to the time's right edge;
-                      no hover/open fill — only the icon color shifts. */}
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    className="flex justify-end text-muted-foreground/80 md:hidden hover:bg-transparent hover:text-foreground group-hover:flex group-focus-within:flex aria-expanded:bg-transparent data-[state=open]:flex dark:hover:bg-transparent"
-                    aria-label={t("moreActions")}
-                  >
-                    <MoreHorizontal className="size-4" aria-hidden="true" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-40">
-                  {renderActions(DropdownMenuItem, DropdownMenuSeparator)}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  className="me-1 text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100"
+                  aria-label={t("moreActions")}
+                >
+                  <MoreHorizontal className="size-4" aria-hidden="true" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-40">
+                {renderActions(DropdownMenuItem, DropdownMenuSeparator)}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </ContextMenuTrigger>
         {/* Right-click anywhere on the row opens the same actions as ⋯. */}
@@ -1011,9 +904,7 @@ function Section({
   return (
     <section className="flex flex-col gap-3 border-t border-border ws-chrome-border pt-4">
       <div className="flex items-center justify-between gap-2">
-        <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-          {title}
-        </h3>
+        <h3 className="text-sm font-medium text-foreground">{title}</h3>
         {action}
       </div>
       {children}
@@ -1022,15 +913,18 @@ function Section({
 }
 
 function AutomationDetail({
+  now,
   automation,
   refetch,
   onEdit,
 }: {
+  now: number
   automation: Automation
   refetch: () => Promise<void>
   onEdit: () => void
 }) {
   const t = useTranslations("Automations")
+  const locale = useLocale()
   const folders = useAppWorkspaceStore((s) => s.folders)
   const [busy, setBusy] = useState(false)
 
@@ -1066,17 +960,12 @@ function AutomationDetail({
   return (
     <ScrollArea className="h-full">
       <div className="@container flex w-full flex-col gap-4 p-4">
-        {/* Title block: name + last-run status on the left, the enable toggle
-            on the right, then the primary actions on their own row. The actions
-            used to sit between the prompt and the run-history cards, where they
-            read as belonging to neither. */}
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
               <h2 className="min-w-0 break-words text-lg font-semibold [overflow-wrap:anywhere]">
                 {automation.name}
               </h2>
-              <StatusChip status={automation.last_run_status} />
             </div>
             <label className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground">
               {automation.enabled ? t("enabled") : t("statusDisabled")}
@@ -1090,11 +979,55 @@ function AutomationDetail({
               />
             </label>
           </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+            {automation.last_run_at && (
+              <span className="inline-flex items-center gap-1.5">
+                {t("lastRun")}{" "}
+                <time
+                  dateTime={automation.last_run_at}
+                  title={new Date(automation.last_run_at).toLocaleString(
+                    locale
+                  )}
+                >
+                  {formatDateTime(automation.last_run_at, locale, now)}
+                </time>
+                <StatusChip status={automation.last_run_status} />
+              </span>
+            )}
+            {isSchedule && automation.enabled && automation.next_run_at && (
+              <span>
+                {t("nextRun")}{" "}
+                <time
+                  dateTime={automation.next_run_at}
+                  title={new Date(automation.next_run_at).toLocaleString(
+                    locale
+                  )}
+                >
+                  {formatDateTime(automation.next_run_at, locale, now)}
+                </time>
+              </span>
+            )}
+            <span>
+              {isSchedule && automation.cron ? (
+                <ScheduleLabel
+                  cron={automation.cron}
+                  calendarFilter={config?.calendar_filter}
+                />
+              ) : (
+                t(
+                  automation.trigger_kind === "message"
+                    ? "triggerMessage"
+                    : "manual"
+                )
+              )}
+            </span>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Button
               size="sm"
+              variant="outline"
               className={cn(
-                "h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]",
+                "h-8 gap-1.5 rounded-md px-3.5 text-[0.8125rem]",
                 automation.trigger_kind === "message" && "hidden"
               )}
               onClick={() => run(() => automationRunNow(automation.id))}
@@ -1106,7 +1039,7 @@ function AutomationDetail({
             <Button
               size="sm"
               variant="outline"
-              className="h-8 gap-1.5 rounded-full px-3.5 text-[0.8125rem]"
+              className="h-8 gap-1.5 rounded-md px-3.5 text-[0.8125rem]"
               onClick={onEdit}
             >
               <Pencil className="size-3.5" aria-hidden="true" />
@@ -1115,7 +1048,21 @@ function AutomationDetail({
           </div>
         </div>
 
-        <Section title={t("sectionSchedule")}>
+        <RunHistory automation={automation} now={now} onChanged={refetch} />
+
+        <DetailDisclosure
+          title={t("sectionSchedule")}
+          preview={[
+            labels?.agent_label ?? automation.agent_type,
+            config?.action === "enqueue_task"
+              ? t("actionEnqueueTask")
+              : t(
+                  config?.session_mode === "reuse_chat"
+                    ? "sessionReuse"
+                    : "sessionNew"
+                ),
+          ].join(" · ")}
+        >
           <div className="grid grid-cols-1 gap-x-4 gap-y-4 @sm:grid-cols-2 @xl:grid-cols-3">
             <StatItem
               icon={isSchedule ? <CalendarClock /> : <MousePointerClick />}
@@ -1185,13 +1132,6 @@ function AutomationDetail({
                 </span>
               </StatItem>
             ) : null}
-            {isSchedule ? (
-              <StatItem icon={<Clock />} label={t("nextRun")}>
-                {automation.next_run_at
-                  ? new Date(automation.next_run_at).toLocaleString()
-                  : "—"}
-              </StatItem>
-            ) : null}
             {config?.mode_id || configEntries.length > 0 ? (
               <StatItem icon={<SlidersHorizontal />} label={t("config")}>
                 <div className="flex flex-wrap gap-1">
@@ -1220,7 +1160,7 @@ function AutomationDetail({
               </StatItem>
             ) : null}
           </div>
-        </Section>
+        </DetailDisclosure>
 
         {automation.trigger_kind === "message" && (
           <MessageListenerPanel
@@ -1230,16 +1170,9 @@ function AutomationDetail({
           />
         )}
 
-        <Section title={t("sectionPrompt")}>
-          <p className="whitespace-pre-wrap text-sm text-foreground/90">
-            {config?.display_text || "—"}
-          </p>
-        </Section>
-
-        <RunHistory
-          key={automation.id}
-          automation={automation}
-          onChanged={refetch}
+        <AutomationPrompt
+          title={t("sectionPrompt")}
+          text={config?.display_text || "—"}
         />
       </div>
     </ScrollArea>
@@ -1247,13 +1180,17 @@ function AutomationDetail({
 }
 
 function RunHistory({
+  now,
   automation,
   onChanged,
 }: {
+  now: number
   automation: Automation
   onChanged: () => Promise<void>
 }) {
   const t = useTranslations("Automations")
+  const locale = useLocale()
+  const [showAll, setShowAll] = useState(false)
   const { openTab } = useTabActions()
   const { openConversations } = useWorkbenchRoute()
   const [runs, setRuns] = useState<AutomationRun[]>([])
@@ -1327,6 +1264,8 @@ function RunHistory({
     }
   }
 
+  const visibleRuns = showAll ? runs : runs.slice(0, 4)
+
   return (
     // A titled Section like the others: it used to be the one block on the page
     // with no boundary at all, which over a background image read as loose text
@@ -1353,96 +1292,115 @@ function RunHistory({
       ) : runs.length === 0 ? (
         <p className="text-xs text-muted-foreground">{t("noRuns")}</p>
       ) : (
-        <ol className="flex flex-col">
-          {runs.map((r, i) => (
-            <li key={r.id} className="flex gap-3">
-              {/* Rail: a status-tinted node + a connector line down to the next
-                  run. The connector is omitted on the last item so the line
-                  terminates at the final node. */}
-              <div className="flex flex-col items-center">
-                <span
-                  className={cn(
-                    "z-10 flex size-7 shrink-0 items-center justify-center rounded-full border-2 bg-background",
-                    RUN_NODE_RING[r.status ?? ""] ??
-                      "border-border text-muted-foreground"
-                  )}
-                >
+        <>
+          <ol className="flex flex-col">
+            {visibleRuns.map((r, i) => (
+              <li key={r.id} className="flex gap-3">
+                <span className="mt-0.5 shrink-0 text-muted-foreground">
                   {r.trigger === "manual" ? (
-                    <CirclePlay className="size-3.5" aria-hidden="true" />
+                    <CirclePlay className="size-4" aria-hidden="true" />
                   ) : (
-                    <Clock className="size-3.5" aria-hidden="true" />
+                    <Clock className="size-4" aria-hidden="true" />
                   )}
                 </span>
-                {i < runs.length - 1 ? (
-                  <span className="w-px flex-1 bg-border" aria-hidden="true" />
-                ) : null}
-              </div>
-
-              <div
-                className={cn(
-                  "flex min-w-0 flex-1 flex-col gap-0.5",
-                  i < runs.length - 1 && "pb-5"
-                )}
-              >
-                <div className="flex items-center gap-2">
-                  <StatusChip status={r.status} />
-                  {r.conversation_id != null ? (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 shrink-0 text-muted-foreground"
-                      onClick={() => viewConversation(r)}
-                      title={t("viewConversation")}
-                      aria-label={t("viewConversation")}
+                <div
+                  className={cn(
+                    "flex min-w-0 flex-1 flex-col gap-0.5",
+                    i < visibleRuns.length - 1 && "pb-3"
+                  )}
+                >
+                  <div className="flex items-center gap-2">
+                    <time
+                      className="text-xs font-medium tabular-nums"
+                      dateTime={r.started_at ?? r.created_at}
+                      title={new Date(
+                        r.started_at ?? r.created_at
+                      ).toLocaleString(locale)}
                     >
-                      <SquareArrowOutUpRight
-                        className="h-3.5 w-3.5"
-                        aria-hidden="true"
-                      />
-                    </Button>
-                  ) : null}
-                  {r.status === "running" ? (
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
-                      onClick={() => void cancel(r)}
-                      title={t("cancelRun")}
-                      aria-label={t("cancelRun")}
-                    >
-                      <X className="h-3.5 w-3.5" aria-hidden="true" />
-                    </Button>
-                  ) : null}
-                  <span
-                    className="min-w-0 flex-1 truncate text-xs tabular-nums text-muted-foreground"
-                    title={
-                      r.started_at
-                        ? new Date(r.started_at).toLocaleString()
-                        : undefined
-                    }
-                  >
-                    {formatDateTime(r.started_at)}
-                    {r.ended_at ? (
-                      <>
-                        {" · "}
+                      {formatDateTime(
+                        r.started_at ?? r.created_at,
+                        locale,
+                        now
+                      )}
+                    </time>
+                    <StatusChip status={r.status} />
+                    {r.ended_at && (
+                      <span className="text-xs tabular-nums text-muted-foreground">
                         {formatDuration(r.started_at, r.ended_at)}
-                      </>
+                      </span>
+                    )}
+                    {r.conversation_id != null ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6 shrink-0 text-muted-foreground"
+                        onClick={() => viewConversation(r)}
+                        title={t("viewConversation")}
+                        aria-label={t("viewConversation")}
+                      >
+                        <SquareArrowOutUpRight
+                          className="h-3.5 w-3.5"
+                          aria-hidden="true"
+                        />
+                      </Button>
                     ) : null}
-                  </span>
+                    {r.status === "running" ? (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="size-6 shrink-0 text-muted-foreground hover:text-destructive"
+                        onClick={() => void cancel(r)}
+                        title={t("cancelRun")}
+                        aria-label={t("cancelRun")}
+                      >
+                        <X className="h-3.5 w-3.5" aria-hidden="true" />
+                      </Button>
+                    ) : null}
+                  </div>
+                  {(r.error || r.summary) && (
+                    <details className="group/result min-w-0 text-xs">
+                      <summary
+                        className={cn(
+                          "flex cursor-pointer list-none items-center gap-1 rounded-sm py-1 text-muted-foreground focus-visible:outline-ring [&::-webkit-details-marker]:hidden",
+                          r.error && "text-destructive"
+                        )}
+                      >
+                        <ChevronRight
+                          aria-hidden="true"
+                          className="size-3 shrink-0 group-open/result:rotate-90"
+                        />
+                        <span className="hidden group-open/result:inline">
+                          {t("hideRunResult")}
+                        </span>
+                        <span className="truncate group-open/result:hidden">
+                          {maskAutomationText(
+                            (r.error || r.summary || "")
+                              .trim()
+                              .split(/\r?\n/, 1)[0]
+                          )}
+                        </span>
+                      </summary>
+                      <p className="my-1 whitespace-pre-wrap break-words rounded-md bg-muted/40 p-3 leading-relaxed">
+                        {maskAutomationText(r.error || r.summary || "")}
+                      </p>
+                    </details>
+                  )}
                 </div>
-                {r.error ? (
-                  <span className="truncate text-[0.6875rem] text-destructive">
-                    {r.error}
-                  </span>
-                ) : r.summary ? (
-                  <span className="truncate text-[0.6875rem] text-muted-foreground">
-                    {r.summary}
-                  </span>
-                ) : null}
-              </div>
-            </li>
-          ))}
-        </ol>
+              </li>
+            ))}
+          </ol>
+          {runs.length > 4 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="self-start text-xs text-muted-foreground"
+              aria-expanded={showAll}
+              onClick={() => setShowAll(!showAll)}
+            >
+              {t(showAll ? "hideOlderRuns" : "showOlderRuns")}
+            </Button>
+          )}
+        </>
       )}
     </Section>
   )

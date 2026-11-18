@@ -1,5 +1,6 @@
 "use client"
 
+import { Progress } from "@/components/ui/progress"
 import {
   useCallback,
   useEffect,
@@ -735,24 +736,18 @@ export function WorkspaceUploadDialog({
                   {overallPercentage}%
                 </span>
               </div>
-              <div
-                role="progressbar"
-                aria-valuenow={overallPercentage}
-                aria-valuemin={0}
-                aria-valuemax={100}
+              <Progress
+                value={overallPercentage}
                 dir="ltr"
+                aria-label={t("title")}
                 className="h-2 w-full overflow-hidden rounded-full bg-muted"
-              >
-                <div
-                  className={cn(
-                    "h-full transition-[width] duration-150 ease-out",
-                    failedCount > 0 && successCount === 0
-                      ? "bg-destructive"
-                      : "bg-primary"
-                  )}
-                  style={{ width: `${overallPercentage}%` }}
-                />
-              </div>
+                indicatorClassName={cn(
+                  "h-full transition-transform duration-150 ease-out",
+                  failedCount > 0 && successCount === 0
+                    ? "bg-destructive"
+                    : "bg-primary"
+                )}
+              />
 
               <ScrollArea className="h-64 rounded-2xl border bg-background">
                 <ul className="divide-y">

@@ -59,6 +59,7 @@ export type TodoSummary = Pick<Todo, "id" | "title" | "status" | "assignee_id">
 export interface TodoSearchRequest {
   scope_id: string
   only_mine?: boolean
+  claimed_only?: boolean
   search?: string
   page?: number
   page_size?: number
@@ -70,7 +71,13 @@ export interface TodoSearchResult {
   todos: TodoSummary[]
   members: TodoMember[]
   self_id: string
-  pagination: { page: number; page_size: number; total: number; search: string }
+  pagination: {
+    page: number
+    page_size: number
+    total: number
+    search: string
+    claimed_only?: boolean
+  }
 }
 
 export interface TodoConversationSource {
@@ -250,10 +257,57 @@ export async function todoConversationGroups(): Promise<TodoConversationGroupsSt
   )
 }
 
-export function todoSearch(
+export async function todoSearch(
   request: TodoSearchRequest
 ): Promise<TodoSearchResult> {
-  return getTransport().call("todo_search", { ...request })
+  const search = (query: TodoSearchRequest) =>
+    getTransport().call<TodoSearchResult>("todo_search", { ...query })
+  const result = await search(request)
+  if (!request.claimed_only || result.pagination.claimed_only) return result
+
+  // Older desktop servers and team hosts ignore claimed_only. Rebuild their
+  // filtered page from all matches so completed rows cannot displace candidates.
+  const claimed = new Map<string, TodoSummary>()
+  let batch = result
+  if (
+    batch.pagination.page !== 1 ||
+    batch.pagination.total > batch.pagination.page_size
+  ) {
+    batch = await search({ ...request, page: 1, page_size: 100 })
+  }
+  for (;;) {
+    if (batch.scope_id !== request.scope_id)
+      throw new Error("Unexpected todo scope")
+    for (const todo of batch.todos) {
+      if (
+        todo.status === "claimed" &&
+        (!request.only_mine ||
+          request.scope_id === "personal" ||
+          todo.assignee_id === batch.self_id)
+      ) {
+        claimed.set(todo.id, todo)
+      }
+    }
+    const { page, page_size, total } = batch.pagination
+    if (page * page_size >= total || !batch.todos.length) break
+    batch = await search({ ...request, page: page + 1, page_size })
+    if (batch.pagination.page <= page) break
+  }
+  const size = result.pagination.page_size
+  const page = Math.min(
+    Math.max(1, request.page ?? 1),
+    Math.max(1, Math.ceil(claimed.size / size))
+  )
+  return {
+    ...result,
+    todos: Array.from(claimed.values()).slice((page - 1) * size, page * size),
+    pagination: {
+      ...result.pagination,
+      page,
+      total: claimed.size,
+      claimed_only: true,
+    },
+  }
 }
 
 export function todoConversationLink(request: {

@@ -15,6 +15,7 @@ import {
   consumePendingTodoDraft,
   requestCreateTodo,
 } from "@/lib/todo-compose-events"
+import { TodosChromeActions } from "./todos-chrome-actions"
 import { TodosPage } from "./todos-page"
 
 const { newChat } = vi.hoisted(() => ({ newChat: vi.fn() }))
@@ -82,6 +83,7 @@ function renderPage() {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <TodosViewProvider>
+        <TodosChromeActions buttonClassName="" iconClassName="" />
         <TodoComposeDialog />
         <TodosPage />
       </TodosViewProvider>
@@ -374,11 +376,16 @@ describe("independent todo board", () => {
         text: "",
         conversationId: 42,
         shareOptions: { includeTools: false },
-        includeCodexSession: true,
+        canIncludeCodexSession: true,
       })
     )
     renderPage()
     const input = await screen.findByLabelText("Todo content")
+    const option = screen.getByRole("checkbox", {
+      name: /Allow importing the full Codex session/,
+    })
+    expect(option).not.toBeChecked()
+    await user.click(option)
     await user.type(input, "Follow up on this conversation")
     await user.click(screen.getByRole("button", { name: "Save" }))
     await screen.findByText("Generated title")

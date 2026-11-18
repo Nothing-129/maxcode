@@ -1,5 +1,7 @@
 "use client"
 
+import { AutomationSidebarHost } from "@/components/automations/automation-sidebar-host"
+import { TodoScopeControls } from "@/components/todos/todos-page"
 import { TodoComposeDialog } from "@/components/todos/todo-compose-dialog"
 import { useConversationSidebarSwipe } from "@/hooks/use-conversation-sidebar-swipe"
 import { useMobileVisualViewport } from "@/hooks/use-mobile-visual-viewport"
@@ -517,20 +519,35 @@ function WorkspaceContent({ children }: { children: React.ReactNode }) {
             <div
               className={cn(
                 "flex h-10 shrink-0 items-stretch",
+                routeId === "tasks" &&
+                  "h-auto min-h-10 flex-wrap items-center gap-y-1 py-0.5",
                 hasRouteStrip && "border-b border-border/50 ws-chrome-border"
               )}
             >
-              {(!sidebarOpen ||
-                routeId === "automations" ||
-                routeId === "tokenUsage") && (
-                <div
-                  data-drag-region
-                  className="h-full shrink-0"
-                  style={{ width: leftReserve }}
-                />
+              {routeId === "tasks" && !sidebarOpen ? (
+                <div className="shrink-0">
+                  <LeftEdgeChrome />
+                </div>
+              ) : (
+                ((!sidebarOpen && routeId !== "automations") ||
+                  routeId === "tokenUsage") && (
+                  <div
+                    data-drag-region
+                    className="h-full shrink-0"
+                    style={{ width: leftReserve }}
+                  />
+                )
               )}
               <WorkbenchRouteStrip />
-              <div data-drag-region className="h-full min-w-0 flex-1" />
+              <div data-drag-region className="min-w-0 flex-1 self-stretch" />
+              {routeId === "tasks" && (
+                <>
+                  <TodoScopeControls />
+                  <div className="ms-auto h-9 shrink-0">
+                    <RightEdgeChrome />
+                  </div>
+                </>
+              )}
             </div>
             <div className="min-h-0 flex-1">
               <WorkbenchRoutePage />
@@ -600,9 +617,16 @@ function MobileWorkspaceContent({ children }: { children: React.ReactNode }) {
             )}
           >
             {hasRouteStrip ? (
-              <div className="flex h-10 shrink-0 items-stretch border-b border-border/50 ws-chrome-border">
+              <div
+                className={cn(
+                  "flex h-10 shrink-0 items-stretch border-b border-border/50 ws-chrome-border",
+                  routeId === "tasks" &&
+                    "h-auto min-h-10 flex-wrap items-center gap-y-1"
+                )}
+              >
                 <WorkbenchRouteStrip />
                 <div className="min-w-0 flex-1" />
+                {routeId === "tasks" && <TodoScopeControls />}
               </div>
             ) : null}
             <div className="min-h-0 flex-1">
@@ -739,10 +763,11 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
   // to conversations restores exactly what was there.
   const { isConversations, routeId } = useWorkbenchRoute()
   // Route-local hiding never overwrites the user's saved sidebar preference.
+  const [automationSidebarHost, setAutomationSidebarHost] =
+    useState<HTMLDivElement | null>(null)
   const sidebarOpen =
-    sidebarOpenRequested &&
-    routeId !== "automations" &&
-    routeId !== "tokenUsage"
+    routeId === "automations" ||
+    (sidebarOpenRequested && routeId !== "tokenUsage")
   const auxOpen = auxOpenRequested && isConversations
   const terminalOpen = terminalOpenRequested && isConversations
 
@@ -1075,7 +1100,11 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
             inert={!sidebarOpen}
             aria-hidden={!sidebarOpen}
           >
-            <Sidebar keepVisible={sidebarAnimating} />
+            {routeId === "automations" ? (
+              <div ref={setAutomationSidebarHost} className="h-full min-w-0" />
+            ) : (
+              <Sidebar keepVisible={sidebarAnimating} />
+            )}
           </div>
         </ResizablePanel>
 
@@ -1090,28 +1119,37 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
 
         <ResizablePanel
           id={FOLDER_SHELL_MAIN_PANEL_ID}
+          className="bg-[var(--conversation-sidebar)] ws-transparent-bg"
           order={2}
           defaultSize={64}
           minSize={10}
         >
           <main
             ref={mainContainerRef}
-            className="relative flex h-full min-h-0 flex-col overflow-hidden"
+            data-conversation-surface=""
+            className={cn(
+              "relative flex h-full min-h-0 flex-col overflow-hidden bg-background ws-transparent-bg",
+              sidebarOpen && isConversations && "rounded-l-2xl"
+            )}
           >
-            <div
-              data-conversation-navigation
-              style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-              className="absolute left-0 top-0 z-50 h-12"
-            >
-              <LeftEdgeChrome />
-            </div>
-            <div
-              data-conversation-panel-toggle
-              style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
-              className="pointer-events-none absolute right-0 top-0 z-50 h-12"
-            >
-              <RightEdgeChrome />
-            </div>
+            {routeId !== "tasks" && (
+              <>
+                <div
+                  data-conversation-navigation
+                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                  className="absolute left-0 top-0 z-50 h-12"
+                >
+                  <LeftEdgeChrome />
+                </div>
+                <div
+                  data-conversation-panel-toggle
+                  style={{ WebkitAppRegion: "no-drag" } as CSSProperties}
+                  className="pointer-events-none absolute right-0 top-0 z-50 h-12"
+                >
+                  <RightEdgeChrome />
+                </div>
+              </>
+            )}
             <ResizablePanelGroup
               id={FOLDER_MAIN_GROUP_ID}
               ref={mainGroupRef}
@@ -1127,7 +1165,9 @@ function FolderWorkspaceShell({ children }: { children: React.ReactNode }) {
                 defaultSize={72}
                 minSize={15}
               >
-                <WorkspaceContent>{children}</WorkspaceContent>
+                <AutomationSidebarHost.Provider value={automationSidebarHost}>
+                  <WorkspaceContent>{children}</WorkspaceContent>
+                </AutomationSidebarHost.Provider>
               </ResizablePanel>
 
               <ResizableHandle

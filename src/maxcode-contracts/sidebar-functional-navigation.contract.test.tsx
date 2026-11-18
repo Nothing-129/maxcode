@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, afterEach, describe, expect, it, vi } from "vitest"
+import { SidebarSectionHeader } from "@/components/conversations/sidebar-section-header"
 import { RecentDateFilter } from "@/components/layout/recent-date-filter"
 import { source } from "./contract-source"
 import en from "@/i18n/messages/en.json"
@@ -30,6 +31,7 @@ import type { DbConversationSummary } from "@/lib/types"
 
 const mocks = vi.hoisted(() => ({
   toggle: vi.fn(),
+  close: vi.fn(),
   settings: vi.fn(),
   native: false,
   isMac: false,
@@ -41,7 +43,11 @@ vi.mock("@/hooks/use-platform", () => ({
   usePlatform: () => ({ isMac: mocks.isMac }),
 }))
 vi.mock("@/contexts/sidebar-context", () => ({
-  useSidebarContext: () => ({ isOpen: false, toggle: mocks.toggle }),
+  useSidebarContext: () => ({
+    isOpen: false,
+    toggle: mocks.toggle,
+    close: mocks.close,
+  }),
 }))
 vi.mock("@/contexts/automations-view-context", () => ({
   useAutomationsView: () => ({ unseenFailures: 2 }),
@@ -111,6 +117,55 @@ afterEach(() => {
 })
 
 describe("functional sidebar navigation", () => {
+  it.each([false, true])(
+    "moves the solid icon and gray highlight with the current destination (mobile: %s)",
+    (mobile) => {
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <WorkbenchRouteProvider>
+            <SidebarNavigationProvider>
+              <WorkspaceNavigationRail mobile={mobile} />
+            </SidebarNavigationProvider>
+          </WorkbenchRouteProvider>
+        </NextIntlClientProvider>
+      )
+      const chats = screen.getByRole("button", { name: "Chats" })
+      const automations = screen.getByRole("button", { name: "Auto" })
+      const home = screen.getByRole("button", { name: "Home" })
+      const projects = screen.getByRole("button", { name: "Projects" })
+      const tasks = screen.getByRole("button", { name: "Tasks" })
+
+      for (const [selected, inactive] of [
+        [home, automations],
+        [projects, home],
+        [tasks, projects],
+        [chats, tasks],
+        [automations, chats],
+      ]) {
+        fireEvent.click(selected)
+        expect(selected).toHaveAttribute("aria-current", "page")
+        expect(selected).toHaveClass(
+          "size-10",
+          "bg-clip-content",
+          "bg-[#eaeaea]"
+        )
+        expect(selected).not.toHaveClass("hover:bg-sidebar-foreground/5")
+        expect(selected.querySelector("svg")).toHaveAttribute(
+          "fill",
+          "currentColor"
+        )
+        expect(selected.querySelector("svg")).toHaveAttribute(
+          "aria-hidden",
+          "true"
+        )
+        expect(inactive).not.toHaveAttribute("aria-current")
+        expect(inactive).not.toHaveClass("bg-[#eaeaea]")
+        expect(inactive).toHaveClass("hover:bg-sidebar-foreground/5")
+        expect(inactive.querySelector("svg")).toHaveAttribute("fill", "none")
+      }
+    }
+  )
+
   it("renders rail buttons in the saved navigation order", () => {
     localStorage.setItem(
       "workspace:navigation-order",
@@ -213,22 +268,54 @@ describe("functional sidebar navigation", () => {
     )
   })
 
+  it("places the grouping toggle last on Recent and keeps disclosure independent", () => {
+    const onToggle = vi.fn()
+    const changeGrouping = vi.fn()
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <SidebarSectionHeader
+          section="recent"
+          expanded={false}
+          onToggle={onToggle}
+          onNewChat={() => {}}
+          groupByFolder
+          onToggleFolderGrouping={changeGrouping}
+        />
+      </NextIntlClientProvider>
+    )
+    const grouping = screen.getByRole("button", {
+      name: en.Folder.sidebar.navigation.groupByFolder,
+      pressed: true,
+    })
+    expect(screen.getAllByRole("button").pop()).toBe(grouping)
+    fireEvent.click(grouping)
+    expect(changeGrouping).toHaveBeenCalledOnce()
+    expect(onToggle).not.toHaveBeenCalled()
+    fireEvent.click(
+      screen.getByRole("button", { name: en.Folder.sidebar.sectionRecent })
+    )
+    expect(onToggle).toHaveBeenCalledWith("recent")
+    expect(changeGrouping).toHaveBeenCalledOnce()
+  })
+
   it("uses the shared MaxCode wordmark for every sidebar view and retains date filter controls", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     expect(sidebar).toContain("<SidebarWordmark />")
+    expect(sidebar).toContain("<RecentDateFilter />")
+    expect(sidebar).not.toContain("FolderTree")
     expect(sidebar).not.toContain("ConversationDateHeading")
     expect(sidebar).not.toContain("t(`navigation.${view}`)")
     expect(sidebar).toMatch(
-      /<SidebarWordmark \/>\s*<\/span>\s*\{view === "conversations" && <RecentDateFilter \/>\}/
+      /<SidebarWordmark \/>\s*<\/span>\s*\{headerDateFilter\}/
     )
     expect(sidebar).not.toContain('className="shrink-0 px-3 pt-2"')
     expect(sidebar).not.toContain("<RecentDateFilterSummary />")
   })
 
-  it("hides automation sidebar locally and derives task sidebar sections from the active task route", () => {
+  it("opens the automation list in the sidebar locally and derives task sidebar sections from the active task route", () => {
     const layout = source("src/app/workspace/layout.tsx")
     expect(layout).toMatch(
-      /sidebarOpenRequested\s*&&\s*routeId !== "automations"\s*&&\s*routeId !== "tokenUsage"/
+      /routeId === "automations"\s*\|\|\s*\(sidebarOpenRequested && routeId !== "tokenUsage"\)/
     )
 
     expect(source("src/components/layout/left-edge-chrome.tsx")).toContain(
@@ -242,18 +329,18 @@ describe("functional sidebar navigation", () => {
     )
   })
 
-  it("gives the task board action the same neutral surface as new chat without route selection styling", () => {
+  it("gives the task board action the same lightweight desktop style as new chat", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
-    const action = sidebar.slice(
-      sidebar.indexOf('{view === "tasks" && ('),
-      sidebar.indexOf('{view !== "tasks" && (')
-    )
+    const action =
+      sidebar.match(
+        /<SidebarNavButton\s+icon="tasks"\s+variant=[\s\S]*?\/>/
+      )?.[0] ?? ""
     expect(action).toContain("<SidebarNavButton")
     expect(action).toContain('icon="tasks"')
-    expect(action).not.toContain('variant="ghost"')
-    expect(action).toContain("conversationSurface={!isMobile}")
+    expect(action).toContain('variant={isMobile ? "filled" : "ghost"}')
     expect(action).toContain('label={t("navigation.todoBoard")}')
-    expect(action).toContain('onClick={() => setRoute("tasks")}')
+    expect(action).toContain('setRoute("tasks")')
+    expect(action).toContain("if (collapseOnNavigate) toggle()")
     expect(action).not.toContain("active=")
     expect(action).not.toContain("routeId")
   })
@@ -266,9 +353,10 @@ describe("functional sidebar navigation", () => {
     )
     expect(button).toContain("items-center justify-center gap-1.5")
     expect(button).toContain("rounded-lg bg-sidebar-accent/35")
-    expect(button).toContain('variant === "ghost" && "bg-transparent"')
+    expect(button).toContain(
+      'variant === "ghost" && "justify-start gap-2.5 bg-transparent px-2.5"'
+    )
     expect(sidebar).not.toContain("subtle={")
-    expect(button).not.toContain("justify-start")
   })
 
   it("pages the conversation view in batches of 50 and resets to its own page size", () => {
@@ -305,6 +393,58 @@ describe("functional sidebar navigation", () => {
       expect(more).toMatchObject({ remaining })
       expect(more?.kind === "recent-more" && !!more.canReset).toBe(reset)
     }
+  })
+
+  it("groups the filtered recent page by project and chat without duplicating pinned rows", () => {
+    const day = new Date(2026, 10, 18, 12)
+    const items = [
+      conversation(9, day, { pinned_at: day.toISOString() }),
+      conversation(7, day),
+      conversation(6, day, { kind: "chat" }),
+      conversation(5, day, { folder_id: 8 }),
+      conversation(4, day, { folder_id: 10 }),
+    ]
+    const args = {
+      pinned: [items[0]],
+      pinnedExpanded: true,
+      orderedFolderIds: [],
+      byFolder: new Map(),
+      folderExpanded: {},
+      folderTotalCounts: new Map(),
+      foldersExpanded: true,
+      chatConversations: [],
+      chatsExpanded: true,
+      showRecent: true,
+      visibleSections: sidebarViewSections("conversations"),
+      recentConversations: conversationsOnDate(items, "2026-11-18"),
+      recentFolders: new Map<
+        number,
+        { kind: "regular"; parent_id: number | null }
+      >([
+        [7, { kind: "regular", parent_id: null }],
+        [8, { kind: "regular", parent_id: 7 }],
+      ]),
+      recentLimit: 3,
+    }
+    const rows = buildRows(args)
+    expect(
+      rows.filter((r) => r.kind === "recent-group").map((r) => r.id)
+    ).toEqual([7, "chat"])
+    expect(
+      rows
+        .filter((r) => r.kind === "conversation")
+        .map((r) => r.conversation.id)
+    ).toEqual([9, 7, 5, 6])
+    expect(rows[rows.length - 1]).toMatchObject({
+      kind: "recent-more",
+      remaining: 1,
+    })
+    const folded = buildRows({ ...args, collapsedRecentGroups: new Set([7]) })
+    expect(
+      folded
+        .filter((r) => r.kind === "conversation")
+        .map((r) => r.conversation.id)
+    ).toEqual([9, 6])
   })
 
   it("resolves rolling presets by local calendar days with Monday as week start", () => {
@@ -367,33 +507,66 @@ describe("functional sidebar navigation", () => {
     ).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Filter by date" }))
     expect(screen.queryByLabelText("Start date")).toBeNull()
+    expect(screen.queryByText("By last conversation update")).toBeNull()
     fireEvent.click(screen.getByRole("button", { name: "Custom" }))
     const now = new Date()
-    expect(screen.getByLabelText("Start date")).toHaveValue(
-      localDateKey(new Date(now.getFullYear(), now.getMonth(), 1))
+    const monthDay = new Intl.DateTimeFormat("en", {
+      month: "short",
+      day: "numeric",
+    })
+    expect(screen.getByLabelText("Start date")).toHaveTextContent(
+      monthDay.format(new Date(now.getFullYear(), now.getMonth(), 1))
     )
-    expect(screen.getByLabelText("End date")).toHaveValue(
-      localDateKey(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+    expect(screen.getByLabelText("End date")).toHaveTextContent(
+      monthDay.format(new Date(now.getFullYear(), now.getMonth() + 1, 0))
     )
-    fireEvent.change(screen.getByLabelText("Start date"), {
+    fireEvent.click(screen.getByLabelText("Start date"))
+    fireEvent.change(screen.getByRole("textbox", { name: /Enter date/ }), {
       target: { value: "2026-10-01" },
     })
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
     expect(
       screen.getByRole("button", { name: "Clear date filter" })
-    ).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText("End date"), {
+    ).toHaveTextContent(/^Clear$/)
+    fireEvent.click(screen.getByLabelText("End date"))
+    fireEvent.change(screen.getByRole("textbox", { name: /Enter date/ }), {
       target: { value: "2026-10-09" },
     })
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }))
     expect(
       screen.getByRole("button", { name: "Filter by date" })
-    ).toHaveTextContent("Oct 1 — Oct 9")
-    expect(screen.getByLabelText("Start date")).toHaveValue("2026-10-01")
-    expect(screen.getByLabelText("End date")).toHaveValue("2026-10-09")
+    ).toHaveTextContent(/Oct 1\s*–\s*9/)
+    expect(screen.getByLabelText("Start date")).toHaveTextContent("Oct 1")
+    expect(screen.getByLabelText("End date")).toHaveTextContent("Oct 9")
     fireEvent.click(screen.getByRole("button", { name: "Clear date filter" }))
     expect(
       screen.queryByRole("button", { name: "Clear date filter" })
     ).toBeNull()
     expect(screen.queryByLabelText("Start date")).toBeNull()
+  })
+
+  it("includes both selected boundary minutes through the final millisecond", () => {
+    const input = [
+      conversation(1, new Date(2026, 10, 1, 8, 59, 59, 999)),
+      conversation(2, new Date(2026, 10, 1, 9, 0, 0)),
+      conversation(3, new Date(2026, 10, 5, 0, 0, 0)),
+      conversation(4, new Date(2026, 10, 10, 7, 0, 59, 999)),
+      conversation(5, new Date(2026, 10, 10, 7, 1, 0)),
+      conversation(6, new Date(2026, 10, 10, 23, 59, 59, 999)),
+      conversation(7, new Date(2026, 10, 11)),
+    ]
+    expect(
+      conversationsOnDate(
+        input,
+        "2026-11-01",
+        "2026-11-10",
+        "09:00:00",
+        "07:00:59"
+      ).map((c) => c.id)
+    ).toEqual([4, 3, 2])
+    expect(
+      conversationsOnDate(input, "2026-11-01", "2026-11-10").map((c) => c.id)
+    ).toEqual([6, 5, 4, 3, 2, 1])
   })
 
   it("includes both ends of a date range and retains descending activity order", () => {
@@ -428,7 +601,7 @@ describe("functional sidebar navigation", () => {
     )
     const home = screen.getByRole("button", { name: "Home" })
     expect(home).not.toHaveClass("bg-sidebar-accent")
-    expect(home).toHaveClass("bg-sidebar-foreground/[0.06]", "size-10")
+    expect(home).toHaveClass("bg-[#eaeaea]", "size-10")
     expect(home.textContent).toBe("")
     expect(home).toHaveAttribute("title", "Home")
     expect(home.querySelector("[data-navigation-active]")).toBeNull()

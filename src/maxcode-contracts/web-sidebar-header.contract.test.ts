@@ -19,6 +19,13 @@ describe("web sidebar header", () => {
     )
   })
 
+  it("aligns the conversation filter at the tools end of the compact header", () => {
+    const sidebar = source("src/components/layout/sidebar.tsx")
+    expect(sidebar).toMatch(
+      /className="[^"]*justify-between[^"]*">\s*<SidebarWordmark compact \/>\s*\{headerDateFilter\}/
+    )
+  })
+
   it("reserves the rail titlebar area only for native macOS desktop", () => {
     const rail = source("src/components/layout/workspace-navigation-rail.tsx")
     expect(rail).toContain("!mobile && platformIsMac && isNativeDesktop() ? (")

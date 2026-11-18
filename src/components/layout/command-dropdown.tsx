@@ -248,7 +248,7 @@ export function CommandDropdown() {
         <Button
           variant="ghost"
           size="sm"
-          className="h-6 rounded-full px-2 text-xs gap-1 hover:text-foreground/80"
+          className="h-6 rounded-md px-2 text-xs gap-1 hover:text-foreground/80"
           onClick={() => setManageOpen(true)}
           disabled={bootstrapping}
         >

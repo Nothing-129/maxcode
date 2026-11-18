@@ -1,5 +1,6 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -448,7 +449,7 @@ export function SelectionActionBubble({
     >
       {asking ? (
         <>
-          <input
+          <InputGroupInput
             ref={inputRef}
             type="text"
             value={question}

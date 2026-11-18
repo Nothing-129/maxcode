@@ -541,7 +541,7 @@ function CardIconAction({ item }: { item: TaskActionItem }) {
       type="button"
       size="icon-xs"
       variant="outline"
-      className="rounded-full opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/card:opacity-100 group-hover/card:opacity-100"
+      className="rounded-md opacity-0 transition-opacity focus-visible:opacity-100 group-focus-within/card:opacity-100 group-hover/card:opacity-100"
       title={item.label}
       aria-label={item.label}
       onClick={(e) => {

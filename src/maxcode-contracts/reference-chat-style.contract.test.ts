@@ -39,8 +39,8 @@ describe("reference chat presentation", () => {
   it("preserves the resting and focused composer elevation", () => {
     const css = source("src/app/globals.css")
     expect(css).toContain("0 8px 32px rgb(0 0 0 / 8%)")
-    expect(css).toContain(".codeg-composer-chrome:focus-within")
-    expect(css).toContain("border-color: rgb(0 102 255 / 30%)")
+    expect(css).not.toContain(".codeg-composer-chrome:focus-within")
+    expect(css).not.toContain("border-color: rgb(0 102 255 / 30%)")
   })
   it.each([
     [18000, "18 秒"],

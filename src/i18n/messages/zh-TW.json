@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "選擇日期",
+    "enterDate": "輸入日期（YYYY-MM-DD）",
+    "apply": "套用",
+    "clearDate": "清除日期"
+  },
   "MarkdownTable": {
     "plainText": "純文字"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "待辦",
         "settings": "設定",
         "selectDate": "選擇日期",
-        "activityHint": "依最後對話更新時間篩選",
         "noActivity": "這一天沒有對話",
         "recent": "最近",
         "dateRange": "日期區間",
+        "start": "開始",
+        "end": "結束",
         "startDate": "開始日期",
+        "startTime": "開始時間",
+        "endTime": "結束時間",
         "endDate": "結束日期",
+        "groupByFolder": "依資料夾分組",
         "filterDate": "依日期篩選",
+        "clear": "清除",
         "clearDate": "清除日期篩選",
         "presets": {
           "today": "今日",
@@ -2181,7 +2192,8 @@
       "reopen": "重新開啟",
       "expandSubsessions": "展開子會話",
       "collapseSubsessions": "摺疊子會話",
-      "shareContentHint": "預設分享提問、回覆正文和圖片，可在下方選擇額外內容。",
+      "shareContentHint": "分享包含所選輪次的提問、回覆、圖片和附件。持有連結的人可以檢視圖片和下載檔案。",
+      "shareFileUnavailable": "檔案無法使用",
       "shareScope": "分享範圍",
       "shareAllRounds": "全部 {count} 輪",
       "shareSelectRounds": "選擇輪次",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "已切換到聊天模式",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "不關聯任何工作區"
     },
     "cloneDialog": {
       "title": "複製倉庫",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "切換詳情"
   },
   "Automations": {
+    "sectionWhat": "做什麼",
+    "sectionWhen": "什麼時候做",
+    "sectionWhere": "在哪裡執行",
+    "advancedExecution": "對話與進階設定",
+    "customSchedule": "自訂時間",
     "hideFromConversationList": "在對話列表中隱藏",
     "hideFromConversationListHint": "開啟後，可從自動化的執行記錄查看對話。關閉後恢復顯示。",
     "calendarFilter": "執行日期",
@@ -5088,6 +5106,13 @@
     "runNow": "立即執行",
     "cancelRun": "取消執行",
     "runHistory": "執行紀錄",
+    "showOlderRuns": "查看更早的執行",
+    "hideRunResult": "收合結果",
+    "hideOlderRuns": "收合較早紀錄",
+    "groupEnabled": "已開啟",
+    "groupPaused": "已暫停",
+    "filterAutomations": "篩選自動化",
+    "searchAutomations": "搜尋自動化",
     "noRuns": "尚無執行紀錄",
     "allFolders": "所有資料夾",
     "filterAll": "全部",
@@ -6192,6 +6217,7 @@
     "loading": "正在載入待辦",
     "loadFailed": "無法載入待辦。",
     "retry": "重新連線",
+    "refreshTodos": "重新整理待辦",
     "searchPlaceholder": "搜尋待辦",
     "filterStatus": "篩選狀態",
     "allStatuses": "全部狀態",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "使用 Markdown 編寫內容，也可直接貼上圖片…",
     "assigneeLabel": "指派給",
     "unassigned": "未指派",
-    "conversationShareHint": "儲存待辦時會產生唯讀對話分享連結，並附在待辦中。",
+    "conversationShareHint": "儲存後，可以從待辦開啟對話分享連結。",
     "save": "儲存",
     "saving": "正在儲存…",
     "cancel": "取消",
@@ -6244,8 +6270,7 @@
     "operationFailed": "操作失敗：{reason}",
     "addMessage": "將訊息加入待辦",
     "addConversation": "加入待辦",
-    "shareAndCreate": "分享並建立待辦",
-    "conversationShareDescription": "選擇要附上的對話內容，再於下一步填寫待辦內容。",
+    "shareAndCreate": "分享並填寫待辦",
     "conflictHint": "此待辦已更新。載入最新版本會取代你目前填寫的內容。",
     "reloadLatest": "載入最新版本",
     "completedPagination": "已完成待辦分頁",
@@ -6255,7 +6280,9 @@
     "nextPage": "下一頁",
     "loadingCompleted": "正在載入已完成待辦",
     "linkConversation": "關聯現有待辦",
-    "linkConversationDescription": "為「{title}」選擇現有待辦，關聯僅在你的工作台顯示。",
+    "linkDialogTitle": "關聯待辦",
+    "searchClaimedTodos": "搜尋已領取的待辦",
+    "linkVisibility": "關聯僅在你的工作台顯示",
     "linkedTodos": "已關聯的待辦",
     "unlinkTodo": "解除關聯",
     "searchTodos": "搜尋待辦",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "選擇對話資料夾",
     "chooseConversationFolderHint": "此待辦尚未關聯有效資料夾，請選擇資料夾後新增對話。",
     "confirmConversationFolder": "選擇並新增"
+  },
+  "ModelHistory": {
+    "expand": "歷史模型（{count}）",
+    "collapse": "收起歷史模型"
   }
 }

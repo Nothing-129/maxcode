@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi } from "vitest"
-import { SessionIdentityChips } from "@/components/conversations/session-details-content"
+import { SessionDetailsContent } from "@/components/conversations/session-details-content"
 import { TurnStats } from "@/components/message/turn-stats"
 import { ModelLabelProvider } from "@/components/message/model-label-context"
 import { MessageScrollProvider } from "@/components/message/message-scroll-context"
@@ -11,7 +11,11 @@ import {
   rememberModelLabels,
   subscribeModelLabels,
 } from "@/lib/model-label-store"
-import type { AgentType, SessionConfigOptionInfo } from "@/lib/types"
+import type {
+  AgentType,
+  DbConversationSummary,
+  SessionConfigOptionInfo,
+} from "@/lib/types"
 import en from "@/i18n/messages/en.json"
 import { source } from "./contract-source"
 
@@ -37,9 +41,26 @@ function options(id: string, name: string): SessionConfigOptionInfo[] {
 
 function History({ agent, ids }: { agent: AgentType; ids: string[] }) {
   const label = useModelLabels(agent)
+  const summary: DbConversationSummary = {
+    id: 42,
+    folder_id: 7,
+    title: "Model label history",
+    title_locked: false,
+    agent_type: agent,
+    status: "completed",
+    kind: "regular",
+    model: ids[0],
+    git_branch: null,
+    external_id: null,
+    message_count: 2,
+    child_count: 0,
+    created_at: "2026-11-18T00:00:00Z",
+    updated_at: "2026-11-18T00:00:00Z",
+    pinned_at: null,
+  }
   return (
     <NextIntlClientProvider locale="en" messages={en}>
-      <SessionIdentityChips agentType={agent} model={ids[0]} />
+      <SessionDetailsContent summary={summary} stats={null} />
       <MessageScrollProvider value={{ scrollToIndex: vi.fn() }}>
         <ModelLabelProvider value={label}>
           <TurnStats copyText="Completed reply" model={ids[0]} models={ids} />
@@ -50,7 +71,7 @@ function History({ agent, ids }: { agent: AgentType; ids: string[] }) {
 }
 
 describe("MaxCode model display labels", () => {
-  it("updates chips while keeping reply metadata hidden and raw ids unchanged", () => {
+  it("updates session details while keeping reply metadata hidden and raw ids unchanged", () => {
     const ids = ["contract-primary", "contract-unknown"]
     const config = options(ids[0], "Pi Workspace Model")
     const original = JSON.stringify(config)

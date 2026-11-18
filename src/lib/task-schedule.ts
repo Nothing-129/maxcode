@@ -1,13 +1,16 @@
 /**
  * Planned starts for board tasks: the conversions between the wire's UTC
- * instant and what a `<input type="datetime-local">` speaks, plus the presets
- * the schedule dialog offers.
+ * instant and the local date and time fields, plus the schedule presets.
  *
  * All of it is pure and local-time aware on purpose. The user picks a wall
  * clock time in their own zone; the backend stores and compares instants, so
  * the boundary between the two lives here rather than being re-derived (and
  * re-broken) in each component.
  */
+
+import { toLocalDayValue } from "@/lib/local-date"
+
+export { formatLocalDay as formatScheduleDay } from "@/lib/local-date"
 
 /** Minute precision — the granularity `datetime-local` itself offers. */
 const INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/
@@ -23,10 +26,7 @@ function pad(n: number): string {
  * would see (and then save) a time shifted by their offset.
  */
 export function toDateTimeLocalValue(date: Date): string {
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}` +
-    `T${pad(date.getHours())}:${pad(date.getMinutes())}`
-  )
+  return `${toLocalDayValue(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`
 }
 
 /**
@@ -99,21 +99,6 @@ export function formatScheduleShort(iso: string): string {
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  })
-}
-
-/**
- * A `YYYY-MM-DD` day, spelled for the date picker's trigger. Takes the app
- * locale explicitly — unlike the two above it labels a control the user is
- * about to operate, so it must match the UI language rather than the browser's.
- */
-export function formatScheduleDay(day: string, locale: string): string {
-  const date = new Date(`${day}T00:00`)
-  if (Number.isNaN(date.getTime())) return day
-  return date.toLocaleDateString(locale, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
   })
 }
 

@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "Datum auswählen",
+    "enterDate": "Datum eingeben (YYYY-MM-DD)",
+    "apply": "Übernehmen",
+    "clearDate": "Datum löschen"
+  },
   "MarkdownTable": {
     "plainText": "Nur Text"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "Aufgaben",
         "settings": "Einstellungen",
         "selectDate": "Datum wählen",
-        "activityHint": "Nach letzter Gesprächsaktualisierung",
         "noActivity": "Keine Gespräche an diesem Tag",
         "recent": "Zuletzt",
         "dateRange": "Zeitraum",
+        "start": "Beginn",
+        "end": "Ende",
         "startDate": "Startdatum",
+        "startTime": "Startzeit",
+        "endTime": "Endzeit",
         "endDate": "Enddatum",
+        "groupByFolder": "Nach Ordner gruppieren",
         "filterDate": "Nach Datum filtern",
+        "clear": "Löschen",
         "clearDate": "Datumsfilter löschen",
         "presets": {
           "today": "Heute",
@@ -2181,7 +2192,8 @@
       "reopen": "Erneut öffnen",
       "expandSubsessions": "Unterkonversationen einblenden",
       "collapseSubsessions": "Unterkonversationen ausblenden",
-      "shareContentHint": "Standardmäßig werden Fragen, Antworten und Bilder geteilt. Weitere Inhalte können unten ausgewählt werden.",
+      "shareContentHint": "Fragen, Antworten, Bilder und Anhänge der geteilten Runden sind enthalten. Wer den Link hat, kann Bilder ansehen und Dateien herunterladen.",
+      "shareFileUnavailable": "Datei nicht verfügbar",
       "shareScope": "Umfang",
       "shareAllRounds": "Alle {count} Runden",
       "shareSelectRounds": "Runden auswählen",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "In den Chat-Modus gewechselt",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "Repository klonen",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "Details umschalten"
   },
   "Automations": {
+    "sectionWhat": "Was ausführen",
+    "sectionWhen": "Wann ausführen",
+    "sectionWhere": "Wo ausführen",
+    "advancedExecution": "Sitzung und erweiterte Einstellungen",
+    "customSchedule": "Eigener Zeitplan",
     "hideFromConversationList": "In der Gesprächsliste ausblenden",
     "hideFromConversationListHint": "Bisherige und zukünftige Ausführungen ausblenden. Die Gespräche bleiben im Ausführungsverlauf sichtbar. Zum erneuten Anzeigen ausschalten.",
     "calendarFilter": "Ausführungstage",
@@ -5088,6 +5106,13 @@
     "runNow": "Jetzt ausführen",
     "cancelRun": "Lauf abbrechen",
     "runHistory": "Laufverlauf",
+    "showOlderRuns": "Ältere Ausführungen anzeigen",
+    "hideRunResult": "Ergebnis ausblenden",
+    "hideOlderRuns": "Ältere Ausführungen ausblenden",
+    "groupEnabled": "Aktiviert",
+    "groupPaused": "Pausiert",
+    "filterAutomations": "Automatisierungen filtern",
+    "searchAutomations": "Automatisierungen suchen",
     "noRuns": "Noch keine Läufe",
     "allFolders": "Alle Ordner",
     "filterAll": "Alle",
@@ -6192,6 +6217,7 @@
     "loading": "Aufgaben werden geladen",
     "loadFailed": "Aufgaben konnten nicht geladen werden.",
     "retry": "Neu verbinden",
+    "refreshTodos": "Aufgaben aktualisieren",
     "searchPlaceholder": "Aufgaben suchen",
     "filterStatus": "Status filtern",
     "allStatuses": "Alle Status",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "Markdown schreiben oder ein Bild einfügen…",
     "assigneeLabel": "Zuweisen an",
     "unassigned": "Nicht zugewiesen",
-    "conversationShareHint": "Beim Speichern wird ein schreibgeschützter Freigabelink zur Unterhaltung angehängt.",
+    "conversationShareHint": "Die gespeicherte Aufgabe enthält einen Link zur geteilten Unterhaltung.",
     "save": "Speichern",
     "saving": "Wird gespeichert…",
     "cancel": "Abbrechen",
@@ -6244,8 +6270,7 @@
     "operationFailed": "Aktion fehlgeschlagen: {reason}",
     "addMessage": "Nachricht als Aufgabe hinzufügen",
     "addConversation": "Als Aufgabe hinzufügen",
-    "shareAndCreate": "Teilen und Aufgabe erstellen",
-    "conversationShareDescription": "Wähle die Inhalte der Unterhaltung aus, die du anhängen möchtest. Gib im nächsten Schritt den Aufgabeninhalt ein.",
+    "shareAndCreate": "Teilen und Aufgabe ausfüllen",
     "conflictHint": "Diese Aufgabe wurde geändert. Die neueste Version ersetzt deine aktuellen Eingaben.",
     "reloadLatest": "Neueste Version laden",
     "completedPagination": "Seiten mit abgeschlossenen Aufgaben",
@@ -6255,7 +6280,9 @@
     "nextPage": "Nächste Seite",
     "loadingCompleted": "Abgeschlossene Aufgaben werden geladen",
     "linkConversation": "Vorhandene Aufgabe verknüpfen",
-    "linkConversationDescription": "Wähle eine Aufgabe für „{title}“. Die Verknüpfung erscheint nur in deinem Arbeitsbereich.",
+    "linkDialogTitle": "Aufgabe verknüpfen",
+    "searchClaimedTodos": "Übernommene Aufgaben suchen",
+    "linkVisibility": "Nur in deinem Arbeitsbereich sichtbar",
     "linkedTodos": "Verknüpfte Aufgaben",
     "unlinkTodo": "Verknüpfung lösen",
     "searchTodos": "Aufgaben suchen",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "Gesprächsordner wählen",
     "chooseConversationFolderHint": "Diese Aufgabe hat kein verknüpftes Gespräch mit gültigem Ordner. Wählen Sie einen Ordner.",
     "confirmConversationFolder": "Wählen und erstellen"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

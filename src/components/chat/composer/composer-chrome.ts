@@ -1,5 +1,5 @@
 /** Shared input surface. globals.css supplies the neutral resting shadow
- * and blue focus-within border/shadow without changing layout. */
+ * in every focus state without changing layout. */
 export const COMPOSER_CHROME_BOX_CLASS =
   "codeg-composer-chrome relative rounded-[1.25rem] border border-black/[0.06] dark:border-white/[0.08]"
 

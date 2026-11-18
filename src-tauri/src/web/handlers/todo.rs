@@ -8,7 +8,9 @@ use axum::{
 };
 
 use crate::todo::conversation_sources as sources;
+use crate::todo::events;
 use crate::web::event_bridge::emit_event;
+use crate::web::shutdown::ShutdownSignal;
 use crate::{app_error::AppCommandError, app_state::AppState, todo};
 
 pub const ATTACHMENT_REQUEST_MAX_BYTES: usize =
@@ -57,8 +59,22 @@ pub async fn todo_call(
     Extension(state): Extension<Arc<AppState>>,
     Json(request): Json<todo::TodoRequest>,
 ) -> Result<Response, AppCommandError> {
-    let creating_team = request.action == "create_team";
+    let action = request.action.clone();
+    let requested_team = request.team_id.clone();
+    let creating_team = action == "create_team";
     let mut result = todo::call(&state.db.conn, request).await?;
+    if action != "state" {
+        let selection_changed = matches!(
+            action.as_str(),
+            "set_mode" | "create_team" | "join_team" | "remove_team" | "dissolve_team"
+        );
+        let scope = match action.as_str() {
+            "dissolve_team" => requested_team.as_deref().map(str::trim),
+            "set_mode" | "create_team" | "remove_team" => None,
+            _ => events::state_scope(&result),
+        };
+        events::notify(&state.emitter, scope, selection_changed);
+    }
     // Electron's loopback service uses a random per-launch port. Team codes
     // must point to the configured, stable listener behind the public address.
     if result.mode == "team"
@@ -99,14 +115,53 @@ pub async fn team_todo_call(
     Extension(state): Extension<Arc<AppState>>,
     Json(request): Json<todo::TeamMemberRequest>,
 ) -> Result<Response, AppCommandError> {
-    Ok(no_store(todo::member_call(&state.db.conn, request).await?))
+    let changed = request.request.action != "state";
+    let result = todo::member_call(&state.db.conn, request).await?;
+    if changed {
+        events::notify(&state.emitter, events::state_scope(&result), false);
+    }
+    Ok(no_store(result))
 }
 
 pub async fn team_todo_join(
     Extension(state): Extension<Arc<AppState>>,
     Json(request): Json<todo::TeamJoinRequest>,
 ) -> Result<Response, AppCommandError> {
-    Ok(no_store(todo::join(&state.db.conn, request).await?))
+    let result = todo::join(&state.db.conn, request).await?;
+    events::notify(&state.emitter, Some(&result.team_id), false);
+    Ok(no_store(result))
+}
+
+#[derive(serde::Deserialize)]
+pub struct TeamEventsProxyRequest {
+    team_id: String,
+}
+
+pub async fn todo_team_events(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(shutdown): Extension<Arc<ShutdownSignal>>,
+    Json(request): Json<TeamEventsProxyRequest>,
+) -> Result<Response, AppCommandError> {
+    events::proxy_team_stream(&state.db.conn, request.team_id, shutdown).await
+}
+
+#[derive(serde::Deserialize)]
+pub struct TeamEventsRequest {
+    token: String,
+}
+
+pub async fn team_todo_events(
+    Extension(state): Extension<Arc<AppState>>,
+    Extension(shutdown): Extension<Arc<ShutdownSignal>>,
+    Json(request): Json<TeamEventsRequest>,
+) -> Result<Response, AppCommandError> {
+    events::hosted_team_stream(
+        state.db.conn.clone(),
+        &state.event_broadcaster,
+        request.token,
+        shutdown,
+    )
+    .await
 }
 
 pub async fn todo_conversation_groups(
@@ -137,9 +192,12 @@ pub async fn todo_origin_call(
     Extension(state): Extension<Arc<AppState>>,
     Json(request): Json<sources::TodoOriginCallRequest>,
 ) -> Result<Response, AppCommandError> {
-    Ok(no_store(
-        sources::origin_call(&state.db.conn, request).await?,
-    ))
+    let changed = request.operation.action != "get";
+    let result = sources::origin_call(&state.db.conn, request).await?;
+    if changed {
+        events::notify(&state.emitter, Some(&result.origin.scope_id), false);
+    }
+    Ok(no_store(result))
 }
 
 pub async fn todo_conversation_link(
@@ -178,9 +236,12 @@ pub async fn team_todo_origin_call(
     Extension(state): Extension<Arc<AppState>>,
     Json(request): Json<sources::TeamTodoOriginCallRequest>,
 ) -> Result<Response, AppCommandError> {
-    Ok(no_store(
-        sources::member_origin_call(&state.db.conn, request).await?,
-    ))
+    let changed = request.operation.action != "get";
+    let result = sources::member_origin_call(&state.db.conn, request).await?;
+    if changed {
+        events::notify(&state.emitter, Some(&result.origin.scope_id), false);
+    }
+    Ok(no_store(result))
 }
 
 pub async fn team_todo_details(
@@ -374,7 +435,7 @@ pub async fn team_todo_create(
     Json(request): Json<sources::mcp::MemberCreateRequest>,
 ) -> Result<Response, AppCommandError> {
     let result = sources::mcp::member_create(&state.db.conn, request).await?;
-    emit_event(&state.emitter, "todos://changed", serde_json::json!({}));
+    events::notify(&state.emitter, Some(&result.origin.scope_id), false);
     Ok(no_store(result))
 }
 

@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { TimePicker } from "@/components/ui/time-picker"
 import { createChatChannel, saveChatChannelToken } from "@/lib/api"
 import type { ChannelType } from "@/lib/types"
 import { toErrorMessage } from "@/lib/app-error"
@@ -50,6 +51,7 @@ export function AddChatChannelDialog({
   const [topicMode, setTopicMode] = useState(false)
   const [dailyReportEnabled, setDailyReportEnabled] = useState(false)
   const [dailyReportTime, setDailyReportTime] = useState("18:00")
+  const dailyReportTimeId = useId()
   const topicModeId = useId()
 
   const resetForm = useCallback(() => {
@@ -243,13 +245,16 @@ export function AddChatChannelDialog({
 
           {dailyReportEnabled && (
             <div className="space-y-1.5">
-              <label className="text-xs font-medium">
+              <label
+                htmlFor={dailyReportTimeId}
+                className="text-xs font-medium"
+              >
                 {t("dailyReportTime")}
               </label>
-              <Input
-                type="time"
+              <TimePicker
+                id={dailyReportTimeId}
                 value={dailyReportTime}
-                onChange={(e) => setDailyReportTime(e.target.value)}
+                onValueChange={setDailyReportTime}
               />
             </div>
           )}

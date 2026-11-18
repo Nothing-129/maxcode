@@ -1329,6 +1329,32 @@ describe("SidebarConversationList — Recent section", () => {
     })
   })
 
+  it("updates the visible conversations when only the end time changes", () => {
+    useAppWorkspaceStore.setState({
+      conversations: [15, 16].map((second) =>
+        conv(second, 1, {
+          updated_at: new Date(2026, 10, 10, 14, 30, second, 999).toISOString(),
+        })
+      ),
+    })
+    const list = (endTime: string) => (
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <SidebarConversationList
+          view="conversations"
+          showRecent
+          activityDate="2026-11-10"
+          activityStartTime="14:30:15"
+          activityEndTime={endTime}
+        />
+      </NextIntlClientProvider>
+    )
+    const { rerender } = render(list("14:30:16"))
+    expect(screen.getByText("conv-16")).toBeInTheDocument()
+    rerender(list("14:30:15"))
+    expect(screen.queryByText("conv-16")).toBeNull()
+    expect(screen.getByText("conv-15")).toBeInTheDocument()
+  })
+
   it("keeps a mobile folder conversation on one line while its Recent copy retains the folder", () => {
     const originalMatchMedia = window.matchMedia
     const matchMedia = vi

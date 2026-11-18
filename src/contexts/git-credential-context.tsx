@@ -1,5 +1,6 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   createContext,
   useCallback,
@@ -544,10 +545,11 @@ export function GitCredentialProvider({ children }: { children: ReactNode }) {
                   </p>
                 </div>
                 <label className="inline-flex items-center gap-2 text-xs cursor-pointer select-none">
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={saveCredentials}
-                    onChange={(e) => setSaveCredentials(e.target.checked)}
+                    onCheckedChange={(checked) =>
+                      setSaveCredentials(checked === true)
+                    }
                     disabled={submitting}
                   />
                   {t("saveCredentials")}

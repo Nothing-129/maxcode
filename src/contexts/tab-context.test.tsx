@@ -947,11 +947,10 @@ describe("TabProvider cross-client sync", () => {
     })
   })
 
-  it("mirrors the focused tab from a remote snapshot", async () => {
+  it("keeps window focus while syncing the remote tab set", async () => {
     // Seed real tabs so no recovery draft is synthesized on empty hydration — an
-    // active draft would legitimately hold focus (see "does not steal focus from
-    // an in-progress local draft"), which would mask the focus-mirror behavior
-    // this test isolates.
+    // active draft would also hold focus, masking the persisted-tab case this
+    // test isolates.
     listOpenedTabsMock.mockResolvedValue({
       items: [tabItem(1, 1, true), tabItem(1, 2)],
       version: 0,
@@ -968,8 +967,8 @@ describe("TabProvider cross-client sync", () => {
     })
 
     expect(screen.getByTestId("tabs")).toHaveTextContent("conv-1-codex-2")
-    // Focus is mirrored: the remote's active tab (c2) becomes ours.
-    expect(screen.getByTestId("active")).toHaveTextContent("conv-1-codex-2")
+    // A different window's selection must not navigate this window.
+    expect(screen.getByTestId("active")).toHaveTextContent("conv-1-codex-1")
   })
 
   it("does not steal focus from an in-progress local draft", async () => {
@@ -997,7 +996,7 @@ describe("TabProvider cross-client sync", () => {
     expect(screen.getByTestId("active")).toHaveTextContent(draftId ?? "")
   })
 
-  it("saves the focused tab so focus syncs across clients", async () => {
+  it("saves the focused tab for startup restoration", async () => {
     listOpenedTabsMock.mockResolvedValue({
       items: [tabItem(1, 1, true), tabItem(1, 2)],
       version: 1,

@@ -1,6 +1,11 @@
 "use client"
 
 import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupAddon,
+} from "@/components/ui/input-group"
+import {
   useCallback,
   useEffect,
   useMemo,
@@ -314,9 +319,12 @@ export function SettingsShell({
   const navContent = (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="px-2 pb-3 text-lg font-semibold">{t("title")}</div>
-      <label className="settings-search">
-        <Search aria-hidden="true" className="size-3.5" />
-        <input
+      <InputGroup className="settings-search">
+        <InputGroupAddon className="p-0">
+          <Search aria-hidden="true" className="size-3.5" />
+        </InputGroupAddon>
+        <InputGroupInput
+          className="px-0"
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           onKeyDown={(event) => {
@@ -333,7 +341,7 @@ export function SettingsShell({
           placeholder={t("searchSettings")}
           aria-label={t("searchSettings")}
         />
-      </label>
+      </InputGroup>
       <div className="px-2 pb-2 text-xs text-muted-foreground">
         {query.trim()
           ? t("searchResults", { count: results.length })
@@ -382,7 +390,9 @@ export function SettingsShell({
                   variant={active ? "secondary" : "ghost"}
                   size="sm"
                   className={cn(
-                    "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal"
+                    "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal",
+                    active &&
+                      "bg-foreground/5 text-foreground hover:bg-foreground/10"
                   )}
                   type="button"
                   onClick={() => navigateTo(item.href)}

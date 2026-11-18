@@ -874,7 +874,7 @@ export function TokenUsagePage() {
                   type="button"
                   size="sm"
                   variant="ghost"
-                  className="h-8 gap-1.5 rounded-full px-2.5 text-xs text-muted-foreground"
+                  className="h-8 gap-1.5 rounded-md px-2.5 text-xs text-muted-foreground"
                   onClick={resetFilters}
                 >
                   <RotateCcw className="size-3.5" />
@@ -889,10 +889,10 @@ export function TokenUsagePage() {
             <div className="ms-auto flex items-center gap-1.5">
               {/* Every data action lives in one overflow menu; while a sync
                     runs the trigger itself spins, so the state stays visible
-                    with the buttons folded away. Styled as a filled pill like
+                    with the buttons folded away. Styled as a filled surface alongside
                     the filter triggers — a ghost icon here reads as free space,
                     so its right edge never looked aligned with the cards below
-                    (and nudging the button out would misalign the hover pill
+                    (and nudging the button out would misalign the hover surface
                     instead). A resting fill gives the eye a real edge to line
                     up, and hovering only deepens the tone. */}
               <DropdownMenu>
@@ -901,7 +901,7 @@ export function TokenUsagePage() {
                     type="button"
                     size="icon"
                     variant="ghost"
-                    className="size-8 rounded-full bg-muted/70 text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
+                    className="size-8 rounded-md bg-muted/70 text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
                     aria-label={t("moreActions")}
                   >
                     {syncing ? (

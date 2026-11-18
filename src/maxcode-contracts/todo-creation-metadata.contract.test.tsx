@@ -84,7 +84,7 @@ function expectMetadata(container: HTMLElement) {
 
 describe("MaxCode todo creation metadata", () => {
   it.each([false, true])(
-    "shows creator separately from assignee (list=%s)",
+    "keeps creation metadata in list view and leaves board cards focused (list=%s)",
     (list) => {
       const { container } = render(
         wrap(
@@ -102,7 +102,8 @@ describe("MaxCode todo creation metadata", () => {
           />
         )
       )
-      expectMetadata(container)
+      if (list) expectMetadata(container)
+      else expect(screen.queryByText("Created by")).not.toBeInTheDocument()
       expect(screen.getByText("Sam Assignee")).toBeInTheDocument()
     }
   )

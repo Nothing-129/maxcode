@@ -1,8 +1,19 @@
 "use client"
 
-import { Fragment, useState, type ReactNode } from "react"
+import { SelectorTooltip } from "./selector-tooltip"
+
+import { ModelHistoryToggle } from "./model-history-toggle"
+import {
+  isHistoricalModel,
+  visibleModelGroups,
+} from "@/lib/selector-presentation"
+import { useState, type ReactNode } from "react"
 import { ChevronDown, ToggleLeft, ToggleRight } from "lucide-react"
 import { cn } from "@/lib/utils"
+import {
+  SELECTOR_MENU_SURFACE,
+  SELECTOR_RADIO_ROWS,
+} from "./selector-menu-style"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
@@ -21,6 +32,8 @@ import {
 import type { SessionConfigOptionInfo } from "@/lib/types"
 
 interface SessionConfigSelectorProps {
+  showHint?: boolean
+  disabled?: boolean
   option: SessionConfigOptionInfo
   footer?: ReactNode
   triggerSuffix?: string
@@ -44,7 +57,10 @@ export function InlineSessionConfigSelector({
   onSelect,
   derivedGroups,
   recommendedLabel,
+  showHint,
+  disabled,
 }: SessionConfigSelectorProps) {
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   const [open, setOpen] = useState(false)
   if (option.kind.type !== "select") return null
 
@@ -68,6 +84,21 @@ export function InlineSessionConfigSelector({
   const renderedOptions = renderGroups
     ? renderGroups.flatMap((group) => group.options)
     : option.kind.options
+  const allGroups = renderGroups ?? [
+    { key: "all", name: null, options: option.kind.options },
+  ]
+  const historyCount = isModelConfigOption(option)
+    ? renderedOptions.filter(
+        (item) =>
+          isHistoricalModel(item.description) &&
+          item.value !== option.kind.current_value
+      ).length
+    : 0
+  const visibleGroups = visibleModelGroups(
+    allGroups,
+    option.kind.current_value,
+    historyExpanded || historyCount === 0
+  )
   const selected = renderedOptions.find(
     (item) => item.value === option.kind.current_value
   )
@@ -80,34 +111,55 @@ export function InlineSessionConfigSelector({
   const badgeFor = (value: string) =>
     value === recommendedValue ? recommendedLabel : null
 
+  const trigger = (
+    <DropdownMenuTrigger asChild>
+      <Button
+        disabled={disabled}
+        shape="pill"
+        data-selector-control=""
+        data-neutral-model-surface={isModelConfigOption(option) || undefined}
+        variant="ghost"
+        size="xs"
+        aria-label={
+          currentLabel
+            ? `${option.name}: ${currentLabel}${triggerSuffix}`
+            : option.name
+        }
+        className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+      >
+        <span className="max-w-[10rem] truncate">{currentLabel}</span>
+        {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
+        <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+      </Button>
+    </DropdownMenuTrigger>
+  )
   return (
     <DropdownMenu modal={false} open={open} onOpenChange={setOpen}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          data-selector-control=""
-          data-neutral-model-surface={isModelConfigOption(option) || undefined}
-          variant="ghost"
-          size="xs"
-          aria-label={
-            currentLabel
-              ? `${option.name}: ${currentLabel}${triggerSuffix}`
-              : option.name
-          }
-          className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+      {showHint ? (
+        <SelectorTooltip
+          label={option.name}
+          description={option.description}
+          suppressed={open}
+          disabled={disabled}
         >
-          <span className="max-w-[10rem] truncate">{currentLabel}</span>
-          {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
-          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-        </Button>
-      </DropdownMenuTrigger>
+          {trigger}
+        </SelectorTooltip>
+      ) : (
+        trigger
+      )}
       <DropdownMenuContent
         data-composer-selector-content=""
         data-neutral-model-surface={isModelConfigOption(option) || undefined}
         side="top"
         align="start"
-        className="min-w-72 overflow-y-auto"
+        className={cn(
+          SELECTOR_MENU_SURFACE,
+          SELECTOR_RADIO_ROWS,
+          "w-[18.5rem] min-w-0",
+          footer ? "flex flex-col overflow-clip" : "overflow-y-auto"
+        )}
         style={{
-          maxWidth: "min(20rem, calc(100vw - 1rem))",
+          maxWidth: "min(18.5rem, calc(100vw - 1rem))",
           maxHeight:
             "min(60vh, var(--radix-dropdown-menu-content-available-height))",
         }}
@@ -115,10 +167,19 @@ export function InlineSessionConfigSelector({
         <DropdownMenuRadioGroup
           value={option.kind.current_value}
           onValueChange={(value) => onSelect(option.id, value)}
+          className={
+            footer
+              ? "min-h-0 overflow-y-auto overscroll-contain [scrollbar-width:thin]"
+              : undefined
+          }
         >
           {renderGroups
-            ? renderGroups.map((group, index) => (
-                <Fragment key={group.key}>
+            ? visibleGroups.map((group, index) => (
+                <div
+                  key={group.key}
+                  role={group.name ? "group" : undefined}
+                  aria-label={group.name ?? undefined}
+                >
                   {index > 0 && <DropdownMenuSeparator />}
                   {group.name !== null && (
                     <DropdownMenuLabel>{group.name}</DropdownMenuLabel>
@@ -130,27 +191,41 @@ export function InlineSessionConfigSelector({
                       title={item.name}
                     >
                       <DropdownRadioItemContent
+                        configId={option.id}
+                        valueId={item.value}
                         label={item.name}
                         description={item.description}
                         recommendedLabel={badgeFor(item.value)}
                       />
                     </DropdownMenuRadioItem>
                   ))}
-                </Fragment>
+                </div>
               ))
-            : option.kind.options.map((item) => (
-                <DropdownMenuRadioItem
-                  key={item.value}
-                  value={item.value}
-                  title={item.name}
-                >
-                  <DropdownRadioItemContent
-                    label={item.name}
-                    description={item.description}
-                    recommendedLabel={badgeFor(item.value)}
-                  />
-                </DropdownMenuRadioItem>
-              ))}
+            : visibleGroups
+                .flatMap((group) => group.options)
+                .map((item) => (
+                  <DropdownMenuRadioItem
+                    key={item.value}
+                    value={item.value}
+                    title={item.name}
+                  >
+                    <DropdownRadioItemContent
+                      configId={option.id}
+                      valueId={item.value}
+                      label={item.name}
+                      description={item.description}
+                      recommendedLabel={badgeFor(item.value)}
+                    />
+                  </DropdownMenuRadioItem>
+                ))}
+          {historyCount > 0 && (
+            <ModelHistoryToggle
+              menu
+              expanded={historyExpanded}
+              count={historyCount}
+              onToggle={() => setHistoryExpanded((value) => !value)}
+            />
+          )}
         </DropdownMenuRadioGroup>
         {footer}
       </DropdownMenuContent>
@@ -187,6 +262,7 @@ export function InlineSessionConfigToggle({
 
   return (
     <Button
+      shape="pill"
       data-selector-control=""
       variant="ghost"
       size="xs"

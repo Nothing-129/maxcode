@@ -44,7 +44,7 @@ describe("MaxCode contract: structured title recovery", () => {
       "invalid_responses_retry_but_authentication_does_not",
       "greeting_kickoff_calls_http_for_each_supported_agent",
       "recovery_uses_original_context_and_preserves_locked_titles",
-      "fallback_stays_unlocked_and_cooldown_prevents_request_storms",
+      "unnamed_model_response_keeps_title_and_cooldown_prevents_request_storms",
       "manual_refresh_image_only_message_sends_reply_context",
       "structured_fallback_covers_empty_text_images_and_model_failures",
     ]) {

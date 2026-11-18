@@ -8,10 +8,13 @@ This file provides guidance to Code Agent when working with code in this reposit
 - 合并上游前必须从 `main` 创建临时集成分支，并在合并提交前运行
   `pnpm upstream:impact`。命中下游重叠文件或行为热点时，需要评审对应上游提交，
   不得用 `ours` / `theirs` 批量覆盖。
-- 下游专属或与上游不同的用户可观察行为，必须在
-  `src/maxcode-contracts/` 添加独立契约测试，并登记到
-  `config/maxcode-upstream-hotspots.json`。完整流程见
-  `docs/maintenance/upstream-integration.md`。
+- 新增或改变下游专属或与上游不同的用户可观察行为时，必须在
+  `src/maxcode-contracts/` 新增或更新独立契约测试，并在
+  `config/maxcode-upstream-hotspots.json` 新增或更新对应登记。按
+  [上游集成维护流程](docs/maintenance/upstream-integration.md#登记新的-maxcode-行为)
+  更新下游功能表并运行 `pnpm upstream:guard`。行为不变的重构运行相关既有契约测试。
+- 在已授权范围内直接完成调查、可逆修改和验证。次要细节不明确时，采用合理、可逆的假设继续，并说明会影响结果的假设。需要用户决定关键需求、确认重大范围变更、补充授权或批准不可逆操作时，先完成可以独立开展的工作，再向用户确认。
+- 技能指南与用户明确指令冲突时，以用户明确指令为准。技能要求暂停或确认时，指出技能名称和具体条款，并说明它如何影响当前任务。
 
 ## 智能体维护范围
 
@@ -19,7 +22,7 @@ This file provides guidance to Code Agent when working with code in this reposit
 - 设置、创建会话的智能体目录及后台自动更新仅面向这七种；隐藏新增自定义智能体入口。
 - 其他智能体的实现和历史数据暂时保留；上游集成跳过其专属适配、版本和界面改动。
 - 共用功能仅吸收对上述七种有价值的部分，不恢复其他智能体入口。
-- ZCode 完整跟随上游的 William `zcode-acp-server` 集成（当前 0.83.3），使用 ACP 会话记录与上游运行时发现；不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
+- ZCode 完整跟随上游的 William `zcode-acp-server` 集成，使用 ACP 会话记录与上游运行时发现。版本以 [ACP 注册表](src-tauri/src/acp/registry.rs) 为准。不恢复已移除的本地 SQLite 历史解析、别名迁移及自定义模型/模式兼容逻辑。
 
 ## 项目概述
 
@@ -35,7 +38,13 @@ MaxCode 是一个多智能体编码工作台，它将七种智能体（Claude Co
 - **数据库**: SeaORM + SQLite
 - **包管理器**: pnpm
 
-## 代码检查与测试（任务完成后进行必要的检查）
+## 代码检查与测试
+
+按改动范围运行必需检查和相关测试。改动涉及共享路径、检查失败需要定位，或仍有具体风险时，再扩大验证范围。下列命令按适用场景选用。
+
+- 纯文档改动通常检查差异、链接和引用的命令。
+- 普通前端改动优先运行相关 Vitest 用例。涉及静态导出或构建配置时，运行 `pnpm build`。
+- 桌面启动或打包链路有改动时，运行对应的打包和 smoke 检查。
 
 ### 前端
 
@@ -77,8 +86,9 @@ pnpm desktop:dev
 pnpm desktop:build:dmg
 ```
 
-产物位于 `electron/dist/`；详细流程见 `electron/README.md`。Electron 复用
-`src-tauri/target/release` 中无默认 feature 的后端和 MCP 伴生进程。
+产物位于 `electron/dist/`，详细流程见 [Electron 构建说明](electron/README.md)。打包流程使用
+`--no-default-features --features native-keyring` 编译共享 Rust 后端和 MCP 伴生进程，
+默认从 `src-tauri/target/release` 取用二进制。
 
 默认 CI 和发布流程使用 Electron。`pnpm desktop:pack` 生成解包应用，
 `pnpm desktop:smoke` 验证包内前端和后端的启动链路。
@@ -149,6 +159,8 @@ Electron 桌面：前端 `fetch()` / WebSocket → 本机 Rust 服务 → 共享
 - `_core` 后缀函数 — 接受普通引用参数（`&AppDatabase`、`&EventEmitter`），供 HTTP handlers 调用
 
 ## 关键约束
+
+- **Codex 提供商与历史保护**：`model_provider` 是历史会话绑定的持久标识。调整模型、登录方式或接口地址时，不得顺手切换该标识。用户授权迁移时，先备份，再同步处理 Codex SQLite 索引、原始 `.jsonl` 及 `.jsonl.zst` 副本中的提供商标记；保留会话 ID、消息内容和字节偏移，并验证旧会话可查看、可恢复。不得用新建空会话代替恢复失败的旧会话，也不得通过切换配置目录隐藏历史。
 
 - **沿用旧版配置**：桌面继续使用 `app.codeg` 数据/缓存、`~/.codeg` 和 `codeg` 钥匙串，保留 `CODEG_*` 路径覆盖。已取消新命名空间迁移，不自动复制、重置或切换用户配置目录。
 

@@ -160,6 +160,7 @@ describe("Chat automation editor", () => {
   })
   it("switches a project automation to a reusable chat", async () => {
     const submit = mount(draft)
+    fireEvent.click(screen.getByText(en.Automations.advancedExecution))
     fireEvent.click(
       screen.getByRole("button", { name: en.Automations.sessionReuse })
     )
@@ -200,6 +201,7 @@ describe("Chat automation editor", () => {
       branch: null,
       config: { ...draft.config, session_mode: "reuse_chat" },
     })
+    fireEvent.click(screen.getByText(en.Automations.advancedExecution))
     expect(
       screen.getByRole("button", { name: en.Automations.sessionNew })
     ).toBeDisabled()

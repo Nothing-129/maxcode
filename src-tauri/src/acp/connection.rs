@@ -10683,10 +10683,14 @@ fn error_details_text(e: &agent_client_protocol::Error) -> Option<String> {
 /// Codex 0.166 binds a thread to its original provider. Never recover these
 /// refusals by rebinding the conversation to a new, empty session.
 fn codex_thread_provider_refused(message: &str) -> bool {
-    (message.contains("This chat uses ")
-        && (message.contains(", but your current provider is ")
-            || message.contains("which is no longer configured")
-            || message.contains("but your organization requires")))
+    // Codex 0.168 reports this during config loading, before thread resume.
+    // Keep the same history-preserving verdict as the older provider refusal.
+    (message.contains("Cannot change this thread's model provider from ")
+        && message.contains(" on resume."))
+        || (message.contains("This chat uses ")
+            && (message.contains(", but your current provider is ")
+                || message.contains("which is no longer configured")
+                || message.contains("but your organization requires")))
         || message.contains("This chat\u{2019}s model provider settings no longer match")
 }
 
@@ -35609,6 +35613,7 @@ mod tests {
             .expect("an ACP error body")
         };
         for details in [
+            "failed to load configuration: Cannot change this thread's model provider from `custom` to `openai` on resume.",
             "This chat uses fake, but your current provider is fake2. Switch to fake to continue.",
             "This chat uses model provider \u{201c}codeg\u{201d}, which is no longer configured. \
              Restore this provider\u{2019}s configuration to continue.",
@@ -35632,6 +35637,10 @@ mod tests {
         // Nothing else reads as one: a chat that merely mentions a provider.
         assert_eq!(
             classify_session_load_error(&error("This chat uses a lot of tokens")),
+            None
+        );
+        assert_eq!(
+            classify_session_load_error(&error("Cannot change this thread's model provider cache")),
             None
         );
         // The banner quotes codex's sentence, not the error dump.

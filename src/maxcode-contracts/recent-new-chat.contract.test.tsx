@@ -6,13 +6,13 @@ import { SidebarSectionHeader } from "@/components/conversations/sidebar-section
 import enMessages from "@/i18n/messages/en.json"
 import { source } from "./contract-source"
 
-describe("MaxCode contract: Recent creates a folderless chat", () => {
-  it("routes Recent and Chats through the same chat action", () => {
+describe("MaxCode contract: Recent omits the duplicate New chat action", () => {
+  it("keeps the folderless chat action on Chats alone", () => {
     const list = source(
       "src/components/conversations/sidebar-conversation-list.tsx"
     )
     expect(list).toMatch(
-      /onNewChat=\{\s*row\.section === "chats" \|\| row\.section === "recent"\s*\? handleNewChat\s*: undefined\s*\}/
+      /onNewChat=\{\s*row\.section === "chats"\s*\? handleNewChat\s*: undefined\s*\}/
     )
     const handler = list.slice(
       list.indexOf("  const handleNewChat ="),
@@ -24,10 +24,10 @@ describe("MaxCode contract: Recent creates a folderless chat", () => {
     expect(handler).not.toContain("openNewConversationTab")
   })
 
-  it("labels the Recent action New chat and invokes it without toggling", () => {
+  it("keeps Recent collapsible without exposing New chat", () => {
     const onNewChat = vi.fn()
     const onToggle = vi.fn()
-    const { getByRole } = render(
+    const { getByRole, queryByRole } = render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <SidebarSectionHeader
           section="recent"
@@ -37,8 +37,9 @@ describe("MaxCode contract: Recent creates a folderless chat", () => {
         />
       </NextIntlClientProvider>
     )
-    fireEvent.click(getByRole("button", { name: "New chat" }))
-    expect(onNewChat).toHaveBeenCalledOnce()
-    expect(onToggle).not.toHaveBeenCalled()
+    expect(queryByRole("button", { name: "New chat" })).toBeNull()
+    fireEvent.click(getByRole("button", { name: "Recent" }))
+    expect(onToggle).toHaveBeenCalledWith("recent")
+    expect(onNewChat).not.toHaveBeenCalled()
   })
 })

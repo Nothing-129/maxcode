@@ -220,9 +220,6 @@ function withIntl(ui: ReactElement) {
         Todos: {
           ...enMessages.Todos,
           addConversation: "Add conversation to todo",
-          shareAndCreate: "Share and create todo",
-          conversationShareDescription:
-            "Choose the conversation content to attach to the todo.",
         },
       }}
     >
@@ -489,7 +486,8 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     )
     expect(queryByRole("checkbox", { name: "Include tool logs" })).toBeNull()
     expect(queryByRole("checkbox", { name: "Include thinking" })).toBeNull()
-    await user.selectOptions(getByRole("combobox"), "selected")
+    await user.click(getByRole("combobox"))
+    await user.click(getByRole("option", { name: "Choose rounds" }))
     await user.click(getByRole("checkbox", { name: /Round 1/ }))
     await user.click(getByRole("checkbox", { name: /Round 2/ }))
     expect(getByRole("button", { name: "Create share link" })).toBeDisabled()
@@ -645,100 +643,68 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     expect(h.webServiceConfig.publicShareUrl).toBeNull()
   })
 
-  it("creates a todo with the selected conversation snapshot after a tab switch", async () => {
+  it("adds the original full conversation and its link directly to the draft across a tab switch", async () => {
+    h.conversations = [{ id: 1, agent_type: "codex" }]
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
+    let finish!: (
+      value: Awaited<ReturnType<typeof h.createConversationShare>>
+    ) => void
+    h.createConversationShare.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve
+        })
+    )
     const user = userEvent.setup({ pointerEventsCheck: 0 })
     const { rerender, getByLabelText, getByRole, queryByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
-
     await user.click(getByLabelText("More actions"))
     await user.click(
       getByRole("menuitem", { name: "Add conversation to todo" })
     )
     await waitFor(() =>
-      expect(
-        getByRole("button", { name: "Share and create todo" })
-      ).toBeEnabled()
+      expect(h.createConversationShare).toHaveBeenCalledWith(1, {})
     )
-    expect(h.getWebServiceConfig).not.toHaveBeenCalled()
-    expect(queryByRole("checkbox", { name: "Include tool logs" })).toBeNull()
-    expect(queryByRole("checkbox", { name: "Include thinking" })).toBeNull()
-
-    await user.selectOptions(getByRole("combobox"), "selected")
-    await user.click(getByRole("checkbox", { name: /Round 1/ }))
+    expect(queryByRole("dialog")).toBeNull()
+    expect(h.getConversationSharePreview).not.toHaveBeenCalled()
     rerender(withIntl(<ConversationDetailHeader {...B} />))
-    await user.click(getByRole("button", { name: "Share and create todo" }))
-
-    expect(h.requestCreateTodo).toHaveBeenCalledWith({
+    await act(async () =>
+      finish({ version: 2, token: "a".repeat(32), shared_at: "2026-11-18" })
+    )
+    const link = "https://maxcode.example.com/share#" + "a".repeat(32)
+    expect(h.requestCreateTodo).toHaveBeenCalledExactlyOnceWith({
       title: "conv-a",
-      text: "conv-a\n\nSee conversation: http://localhost:3000/share#0123456789abcdef0123456789abcdef",
-      sourceUrl: "http://localhost:3000/share#0123456789abcdef0123456789abcdef",
+      text: `conv-a\n\nSee conversation: ${link}`,
+      sourceUrl: link,
       conversationId: 1,
-      shareOptions: { rounds: [2] },
+      shareOptions: {},
+      canIncludeCodexSession: true,
     })
-    expect(h.setRoute).not.toHaveBeenCalled()
-    expect(h.createConversationShare).toHaveBeenCalledWith(1, { rounds: [2] })
-    expect(h.updateWebServiceConfig).not.toHaveBeenCalled()
-  })
-
-  it("only includes native Codex recovery data after opting in to a full todo share", async () => {
-    h.conversations = [{ id: 1, agent_type: "codex" }]
-    const user = userEvent.setup({ pointerEventsCheck: 0 })
-    const { getByLabelText, getByRole } = render(
-      withIntl(<ConversationDetailHeader {...A} />)
-    )
-    await user.click(getByLabelText("More actions"))
-    await user.click(
-      getByRole("menuitem", { name: "Add conversation to todo" })
-    )
-    const option = getByRole("checkbox", {
-      name: /Allow importing the full Codex session/,
-    })
-    await waitFor(() => expect(option).toBeEnabled())
-    expect(option).not.toBeChecked()
-    await user.click(option)
-    await user.selectOptions(getByRole("combobox"), "selected")
-    expect(option).toBeDisabled()
-    expect(option).not.toBeChecked()
-    await user.selectOptions(getByRole("combobox"), "all")
-    expect(option).toBeChecked()
-    await user.click(getByRole("button", { name: "Share and create todo" }))
-    expect(h.requestCreateTodo).toHaveBeenCalledWith(
-      expect.objectContaining({
-        conversationId: 1,
-        shareOptions: {},
-        includeCodexSession: true,
-      })
-    )
   })
 
   it.each([false, true])(
-    "offers native recovery from the normal share dialog (link already created: %s)",
+    "offers native recovery in the resulting full-session draft (link already created: %s)",
     async (createLinkFirst) => {
       h.conversations = [{ id: 1, agent_type: "codex" }]
       h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
       const user = userEvent.setup({ pointerEventsCheck: 0 })
-      const { getByLabelText, getByRole, findByLabelText } = render(
-        withIntl(<ConversationDetailHeader {...A} />)
-      )
+      const { getByLabelText, getByRole, findByLabelText, queryByRole } =
+        render(withIntl(<ConversationDetailHeader {...A} />))
       await user.click(getByLabelText("More actions"))
       await user.click(getByRole("menuitem", { name: "Share conversation" }))
-      const option = getByRole("checkbox", {
-        name: /Allow importing the full Codex session/,
-      })
-      await waitFor(() => expect(option).toBeEnabled())
-      expect(option).not.toBeChecked()
+      await waitFor(() => expect(getByRole("combobox")).toBeEnabled())
+      expect(queryByRole("checkbox")).toBeNull()
       if (createLinkFirst) {
         await user.click(getByRole("button", { name: "Create share link" }))
         await findByLabelText("Share link")
       }
-      await user.click(option)
-      await user.click(getByRole("button", { name: "Share and create todo" }))
+      await user.click(getByRole("button", { name: "Share and draft todo" }))
       expect(h.requestCreateTodo).toHaveBeenCalledWith(
         expect.objectContaining({
           conversationId: 1,
           shareOptions: {},
-          includeCodexSession: true,
+          canIncludeCodexSession: true,
         })
       )
       expect(h.createConversationShare).toHaveBeenCalledTimes(1)
@@ -754,7 +720,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     await user.click(getByLabelText("More actions"))
     await user.click(getByRole("menuitem", { name: "Share conversation" }))
     await findByLabelText("Public share address")
-    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await user.click(getByRole("button", { name: "Share and draft todo" }))
 
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
       title: "conv-a",
@@ -781,7 +747,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     )
     await user.click(getByRole("button", { name: "Create share link" }))
     await findByLabelText("Share link")
-    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await user.click(getByRole("button", { name: "Share and draft todo" }))
     expect(h.createConversationShare).toHaveBeenCalledTimes(1)
     expect(h.requestCreateTodo).toHaveBeenCalledWith({
       title: "conv-a",
@@ -798,24 +764,19 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     const { getByLabelText, getByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
+    h.createConversationShare.mockRejectedValueOnce(new Error("Offline"))
     await user.click(getByLabelText("More actions"))
     await user.click(
       getByRole("menuitem", { name: "Add conversation to todo" })
     )
     await waitFor(() =>
-      expect(
-        getByRole("button", { name: "Share and create todo" })
-      ).toBeEnabled()
-    )
-    h.createConversationShare.mockRejectedValueOnce(new Error("Offline"))
-    await user.click(getByRole("button", { name: "Share and create todo" }))
-    await waitFor(() =>
-      expect(
-        getByRole("button", { name: "Share and create todo" })
-      ).toBeEnabled()
+      expect(h.createConversationShare).toHaveBeenCalledTimes(1)
     )
     expect(h.requestCreateTodo).not.toHaveBeenCalled()
-    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await user.click(getByLabelText("More actions"))
+    await user.click(
+      getByRole("menuitem", { name: "Add conversation to todo" })
+    )
     await waitFor(() => expect(h.requestCreateTodo).toHaveBeenCalledTimes(1))
   })
 
@@ -824,13 +785,12 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     const { getByLabelText, getByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
     await user.click(getByLabelText("More actions"))
-    await user.click(
-      getByRole("menuitem", { name: "Add conversation to todo" })
-    )
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
     await waitFor(() =>
       expect(
-        getByRole("button", { name: "Share and create todo" })
+        getByRole("button", { name: "Share and draft todo" })
       ).toBeEnabled()
     )
     let finish!: (share: {
@@ -844,7 +804,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
           finish = resolve
         })
     )
-    await user.click(getByRole("button", { name: "Share and create todo" }))
+    await user.click(getByRole("button", { name: "Share and draft todo" }))
     await waitFor(() =>
       expect(h.createConversationShare).toHaveBeenCalledTimes(1)
     )
@@ -867,21 +827,19 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     const { getByLabelText, getByRole } = render(
       withIntl(<ConversationDetailHeader {...A} />)
     )
+    h.webServiceConfig.publicShareUrl = "https://maxcode.example.com"
     await user.click(getByLabelText("More actions"))
-    await user.click(
-      getByRole("menuitem", { name: "Add conversation to todo" })
-    )
+    await user.click(getByRole("menuitem", { name: "Share conversation" }))
     await waitFor(() =>
       expect(
-        getByRole("button", { name: "Share and create todo" })
+        getByRole("button", { name: "Share and draft todo" })
       ).toBeEnabled()
     )
-    await user.selectOptions(getByRole("combobox"), "selected")
+    await user.click(getByRole("combobox"))
+    await user.click(getByRole("option", { name: "Choose rounds" }))
     await user.click(getByRole("checkbox", { name: /Round 1/ }))
     await user.click(getByRole("checkbox", { name: /Round 2/ }))
-    expect(
-      getByRole("button", { name: "Share and create todo" })
-    ).toBeDisabled()
+    expect(getByRole("button", { name: "Share and draft todo" })).toBeDisabled()
     expect(h.requestCreateTodo).not.toHaveBeenCalled()
   })
 })

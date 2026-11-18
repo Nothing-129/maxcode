@@ -1,5 +1,6 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import { useMemo, useState } from "react"
 import { useLocale, useTranslations } from "next-intl"
 import {
@@ -12,6 +13,7 @@ import {
 import type { DateRange } from "react-day-picker"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { CalendarPopoverContent } from "@/components/ui/date-picker"
 import {
   Popover,
   PopoverContent,
@@ -189,13 +191,13 @@ export function MultiSelectFilter({
             className="size-3.5 shrink-0 text-muted-foreground"
             aria-hidden="true"
           />
-          <input
+          <InputGroupInput
             autoFocus
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder={searchPlaceholder}
             aria-label={searchPlaceholder}
-            className="h-9 min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
+            className="px-0 h-9 min-w-0 flex-1 bg-transparent text-xs outline-none placeholder:text-muted-foreground"
           />
           {query && (
             <button
@@ -403,9 +405,7 @@ export function CustomRangeFields({
           <ChevronDown className="size-3.5 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      {/* w-auto p-0: the shared PopoverContent is a padded w-72 box, which
-          would crop a two-month calendar. */}
-      <PopoverContent align="start" className="w-auto p-0">
+      <CalendarPopoverContent aria-label={t("customRangePick")}>
         <Calendar
           mode="range"
           autoFocus
@@ -436,7 +436,7 @@ export function CustomRangeFields({
             if (range?.from && range.to) setOpen(false)
           }}
         />
-      </PopoverContent>
+      </CalendarPopoverContent>
     </Popover>
   )
 }

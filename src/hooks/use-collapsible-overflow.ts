@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useId, useRef, useState } from "react"
+import { useLayoutEffect, useId, useRef, useState } from "react"
 
 /**
  * Shared "clamp a block, reveal a Show more/Show less toggle once it's actually
@@ -27,7 +27,10 @@ export function useCollapsibleOverflow<T extends HTMLElement>(
   const [expanded, setExpanded] = useState(false)
   const contentId = useId()
 
-  useEffect(() => {
+  // Resolve the toggle before paint. A passive effect first paints the clipped
+  // body alone, then adds the footer, shifting transcript rows after scroll
+  // restoration (especially when reopening an uncached, long conversation).
+  useLayoutEffect(() => {
     // Nothing useful to redetect once expanded: the caller drops its clamp
     // class, so clientHeight === scrollHeight trivially and this would
     // misreport `false`, dropping the "Show less" toggle. Freeze the last

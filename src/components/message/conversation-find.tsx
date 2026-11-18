@@ -1,5 +1,6 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import {
   useCallback,
   useEffect,
@@ -222,7 +223,7 @@ export function ConversationFind({
       >
         <div className="flex items-center gap-1">
           <Search className="size-4 shrink-0 text-muted-foreground" />
-          <input
+          <InputGroupInput
             ref={inputRef}
             aria-label={t("title")}
             placeholder={t("title")}
@@ -238,7 +239,7 @@ export function ConversationFind({
                 move(event.shiftKey ? -1 : 1)
               }
             }}
-            className="min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
+            className="h-auto min-w-0 flex-1 bg-transparent px-1 text-sm outline-none"
           />
           <span
             aria-live="polite"

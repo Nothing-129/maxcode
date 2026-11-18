@@ -7,6 +7,9 @@ use crate::db::service::conversation_share_service;
 
 use crate::models::{message::TurnRole, AgentType, ContentBlock, MessageTurn, SessionStats};
 
+#[path = "conversation_share_files.rs"]
+mod share_files;
+
 const SHARE_SNAPSHOT_VERSION: u8 = 2;
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -29,6 +32,8 @@ pub struct SharedConversationSnapshot {
     pub updated_at: DateTime<Utc>,
     pub shared_at: DateTime<Utc>,
     pub turns: Vec<MessageTurn>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<share_files::SharedFile>,
     #[serde(default)]
     pub share_options: ConversationShareOptions,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -40,6 +45,7 @@ pub struct ConversationShareInfo {
     pub version: u8,
     pub token: String,
     pub shared_at: DateTime<Utc>,
+    pub unavailable_files: Vec<String>,
 }
 
 #[derive(Debug, Serialize)]
@@ -108,6 +114,12 @@ pub async fn create_conversation_share_core(
         version: SHARE_SNAPSHOT_VERSION,
         token: row.token,
         shared_at: row.updated_at,
+        unavailable_files: snapshot
+            .files
+            .into_iter()
+            .filter(|f| f.data.is_none())
+            .map(|f| f.name)
+            .collect(),
     })
 }
 
@@ -125,7 +137,21 @@ pub(crate) async fn build_conversation_share_snapshot(
         include_thinking: false,
         ..options
     };
-    let turns = select_share_turns(detail.turns, &options)?;
+    let mut turns = select_share_rounds(detail.turns, &options)?;
+    let folder =
+        crate::db::service::folder_service::get_folder_by_id(conn, detail.summary.folder_id)
+            .await
+            .map_err(AppCommandError::from)?;
+    let root = detail
+        .summary
+        .origin_cwd
+        .as_deref()
+        .or_else(|| folder.as_ref().map(|f| f.path.as_str()));
+    let files = match root {
+        Some(root) => share_files::collect(&mut turns, std::path::Path::new(root)).await,
+        None => Vec::new(),
+    };
+    let turns = sanitize_selected_turns(turns)?;
     // Deliberately construct a public DTO instead of serializing
     // DbConversationDetail: folder ids, external ids, branch names and local
     // origin paths have no place in a transcript-only share.
@@ -139,6 +165,7 @@ pub(crate) async fn build_conversation_share_snapshot(
         updated_at: detail.summary.updated_at,
         shared_at,
         turns,
+        files,
         share_options: options,
         session_stats: None,
     })
@@ -191,7 +218,7 @@ pub(crate) fn sanitize_shared_snapshot(
     snapshot
 }
 
-fn select_share_turns(
+fn select_share_rounds(
     turns: Vec<MessageTurn>,
     options: &ConversationShareOptions,
 ) -> Result<Vec<MessageTurn>, AppCommandError> {
@@ -219,13 +246,17 @@ fn select_share_turns(
             "Select valid conversation rounds",
         ));
     }
-    let selected = sanitize_share_turns(selected);
-    if selected.is_empty() {
+    Ok(selected)
+}
+
+fn sanitize_selected_turns(turns: Vec<MessageTurn>) -> Result<Vec<MessageTurn>, AppCommandError> {
+    let turns = sanitize_share_turns(turns);
+    if turns.is_empty() {
         return Err(AppCommandError::invalid_input(
             "No shareable conversation content",
         ));
     }
-    Ok(selected)
+    Ok(turns)
 }
 
 fn sanitize_share_turns(turns: Vec<MessageTurn>) -> Vec<MessageTurn> {

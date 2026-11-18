@@ -3,7 +3,9 @@
 import { useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2, Paperclip } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Button } from "@/components/ui/button"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -76,6 +78,14 @@ export function TodoEditorDialog({
   const [dueDate, setDueDate] = useState(todo?.due_date ?? "")
   const [priority, setPriority] = useState<TodoPriority | "__none__">(
     todo?.priority ?? "__none__"
+  )
+  const canIncludeCodexSession =
+    !todo &&
+    draft?.conversationId != null &&
+    !draft.shareOptions?.rounds &&
+    (draft.canIncludeCodexSession || draft.includeCodexSession)
+  const [includeCodexSession, setIncludeCodexSession] = useState(
+    draft?.includeCodexSession === true
   )
   const [saving, setSaving] = useState(false)
   const [operationId] = useState(randomUUID)
@@ -161,7 +171,7 @@ export function TodoEditorDialog({
                     source_url: draft.sourceUrl,
                     conversation_id: draft.conversationId,
                     share_options: draft.shareOptions,
-                    ...(draft.includeCodexSession
+                    ...(canIncludeCodexSession && includeCodexSession
                       ? { include_codex_session: true }
                       : {}),
                   }
@@ -273,6 +283,26 @@ export function TodoEditorDialog({
               )}
             </p>
           </div>
+          {canIncludeCodexSession && (
+            <label className="flex items-start gap-3 text-sm">
+              <Checkbox
+                checked={includeCodexSession}
+                disabled={saving || disabled}
+                onCheckedChange={(checked) =>
+                  setIncludeCodexSession(checked === true)
+                }
+                className="mt-0.5"
+              />
+              <span>
+                <span className="block font-medium">
+                  {t("allowCodexImport")}
+                </span>
+                <span className="block text-xs text-muted-foreground">
+                  {t("allowCodexImportHint")}
+                </span>
+              </span>
+            </label>
+          )}
           <div className="space-y-2">
             <Label htmlFor="todo-assignee">{t("assigneeLabel")}</Label>
             <Select
@@ -296,13 +326,12 @@ export function TodoEditorDialog({
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="todo-due-date">{t("dueDate")}</Label>
-              <Input
+              <DatePicker
                 id="todo-due-date"
-                type="date"
-                min="0001-01-01"
-                max="9999-12-31"
+                label={t("dueDate")}
                 value={dueDate}
-                onChange={(event) => setDueDate(event.target.value)}
+                onValueChange={setDueDate}
+                clearable
                 disabled={saving || disabled}
               />
               <p className="text-xs text-muted-foreground">

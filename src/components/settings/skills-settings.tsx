@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { FolderSelect } from "@/components/shared/folder-select"
 import { SettingsError } from "@/components/shared/settings-section"
 import {
   ContextMenu,
@@ -192,9 +193,9 @@ export function SkillsSettings() {
   // loadFolderHistory() is O(folders), while listFolders() aggregates from
   // every conversation — slow on large histories.
   const [folderList, setFolderList] = useState<FolderHistoryEntry[]>([])
-  const [selectedFolderPath, setSelectedFolderPath] = useState<string | null>(
-    null
-  )
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(null)
+  const selectedFolderPath =
+    folderList.find((folder) => folder.id === selectedFolderId)?.path ?? null
   const workspacePathForRequest =
     skillsScope === "folder" ? selectedFolderPath : null
   const backendScope: AgentSkillScope =
@@ -825,47 +826,21 @@ export function SkillsSettings() {
                   </div>
 
                   {skillsScope === "folder" && (
-                    <Select
-                      value={selectedFolderPath ?? ""}
-                      onValueChange={(value) => {
-                        setSelectedFolderPath(value || null)
+                    <FolderSelect
+                      variant="field"
+                      className="w-full max-w-none"
+                      folders={folderList}
+                      value={selectedFolderId}
+                      placeholder={t("scope.selectFolderPlaceholder")}
+                      onChange={(id) => {
+                        setSelectedFolderId(id)
                         setSelectedSkillId(null)
                         setSkillDraftId("")
                         setSkillDraftContent("")
                         setIsContentEditing(false)
                         setIsDrafting(false)
                       }}
-                    >
-                      <SelectTrigger className="w-full justify-between text-left">
-                        <SelectValue
-                          placeholder={t("scope.selectFolderPlaceholder")}
-                        />
-                      </SelectTrigger>
-                      <SelectContent align="start">
-                        {folderList.length === 0 ? (
-                          <div className="px-2 py-1.5 text-xs text-muted-foreground text-left">
-                            {t("scope.noFolders")}
-                          </div>
-                        ) : (
-                          folderList.map((folder) => (
-                            <SelectItem key={folder.path} value={folder.path}>
-                              {/* name + trailing path for disambiguation when
-                                  multiple folders share a name. line-clamp-1
-                                  on the trigger keeps the selected view on a
-                                  single row. */}
-                              <span className="flex items-center gap-2 min-w-0 text-left">
-                                <span className="text-xs font-medium shrink-0">
-                                  {folder.name}
-                                </span>
-                                <span className="text-3xs text-muted-foreground truncate">
-                                  {folder.path}
-                                </span>
-                              </span>
-                            </SelectItem>
-                          ))
-                        )}
-                      </SelectContent>
-                    </Select>
+                    />
                   )}
 
                   {/* Search only applies to the global list — folder scope

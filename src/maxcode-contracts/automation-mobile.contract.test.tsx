@@ -117,7 +117,11 @@ describe("MaxCode contract: mobile automation navigation", () => {
     expect(container.querySelector("[data-panel-group-direction]")).toBeNull()
     fireEvent.click(screen.getByText(FIXTURE.name))
     expect(screen.getByRole("switch")).toBeInTheDocument()
-    expect(screen.getByText("do the thing")).toBeInTheDocument()
+    const promptSummary = screen
+      .getByText(enMessages.Automations.sectionPrompt)
+      .closest("summary")
+    expect(promptSummary).toHaveTextContent("do the thing")
+    expect(promptSummary?.parentElement).not.toHaveAttribute("open")
     fireEvent.click(
       screen.getByRole("button", { name: enMessages.Automations.title })
     )

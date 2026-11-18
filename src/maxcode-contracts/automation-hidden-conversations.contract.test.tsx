@@ -117,6 +117,7 @@ describe("automation conversation visibility", () => {
       ...draft,
       config: { ...draft.config, hide_from_conversation_list: true },
     })
+    fireEvent.click(screen.getByText(en.Automations.advancedExecution))
     const checkbox = screen.getByRole("checkbox", {
       name: "Hide from conversation list",
     })
@@ -131,6 +132,7 @@ describe("automation conversation visibility", () => {
 
   it("defaults to visible and saves hiding", async () => {
     const submit = mount(draft)
+    fireEvent.click(screen.getByText(en.Automations.advancedExecution))
     const checkbox = screen.getByRole("checkbox", {
       name: "Hide from conversation list",
     })

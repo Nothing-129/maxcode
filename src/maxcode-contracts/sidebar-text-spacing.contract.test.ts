@@ -23,7 +23,7 @@ describe("sidebar text and spacing", () => {
     expect(card).toContain("relative py-px bg-sidebar ws-transparent-bg")
     expect(card).toContain('!stackedLayout && "h-[1.9375rem]"')
     expect(card).toContain(
-      "flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
+      "flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-xs leading-[0.875rem] text-muted-foreground"
     )
     expect(card).toContain("flex min-w-0 flex-1 items-center overflow-hidden")
     expect(card).toContain('"shrink grow-0 overflow-hidden"')
@@ -33,7 +33,7 @@ describe("sidebar text and spacing", () => {
     expect(card).toContain("MessageSquare")
     expect(card).toContain("maxcode-sidebar-label")
     expect(card).not.toContain('isOpenInTab && "text-primary"')
-    expect(card).toContain("bg-black/[0.07] dark:bg-white/[0.1]")
+    expect(card).toContain("bg-[#eaeaea] dark:bg-white/[0.1]")
     expect(card).toContain("calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)")
     expect(card).toContain("formatConversationTitle(conversation.title)")
     expect(card).toContain("ConversationTitleLabel")

@@ -101,7 +101,7 @@ function QuickMessageReorderItem({
       dragMomentum={false}
       layout="position"
       className={cn(
-        "rounded-lg border bg-card p-2.5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "rounded-lg border bg-card p-2.5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selected && "border-primary/60 bg-primary/5"
       )}
       tabIndex={0}

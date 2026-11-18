@@ -1,27 +1,15 @@
 "use client"
 
+import { composerMenuAlignOffset } from "@/lib/composer-menu-position"
 import { memo, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { Check, ChevronDown, Folder, MessageSquare } from "lucide-react"
+import { ChevronDown, Folder } from "lucide-react"
 import type { OverlayScrollbarsComponentRef } from "overlayscrollbars-react"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
 import { useTabActions, useTabStore } from "@/contexts/tab-context"
 import { Button } from "@/components/ui/button"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-  CommandSeparator,
-} from "@/components/ui/command"
+import { Popover, PopoverTrigger } from "@/components/ui/popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 import {
@@ -32,7 +20,7 @@ import {
   resolvePickerSelectedFolderId,
 } from "@/lib/folder-display"
 import { FolderAliasLabel } from "@/components/conversations/folder-alias-label"
-import { FolderOptionItem } from "@/components/shared/folder-select"
+import { FolderMenuContent } from "@/components/shared/folder-select"
 import { BranchDropdown } from "@/components/layout/branch-dropdown"
 import { AttachmentTray } from "./composer/attachment-tray"
 
@@ -209,6 +197,7 @@ export const ConversationHeaderFolderPicker = memo(
         labelEmpty={t("noFolders")}
         labelSearch={t("searchFolder")}
         labelChatMode={t("chatModeLabel")}
+        labelChatModeDescription={t("chatModeDescription")}
         isChatMode={isChatMode}
         onSelectChatMode={() => {
           try {
@@ -371,6 +360,7 @@ export const ConversationFolderBranchPicker = memo(
           labelEmpty={t("noFolders")}
           labelSearch={t("searchFolder")}
           labelChatMode={t("chatModeLabel")}
+          labelChatModeDescription={t("chatModeDescription")}
           isChatMode={isChatMode}
           onSelectChatMode={() => {
             if (override) {
@@ -452,6 +442,7 @@ interface FolderPickerProps {
   labelSearch: string
   /** Label for the pinned "no-folder (chat) mode" item at the bottom. */
   labelChatMode: string
+  labelChatModeDescription: string
   /** Whether the draft is currently in chat mode (shows the check mark). */
   isChatMode: boolean
   /** Select folderless chat mode. */
@@ -466,7 +457,7 @@ interface FolderPickerProps {
   alias?: string | null
 }
 
-const FolderPicker = memo(function FolderPicker({
+export const FolderPicker = memo(function FolderPicker({
   folders,
   currentFolderId,
   currentFolderName,
@@ -476,13 +467,15 @@ const FolderPicker = memo(function FolderPicker({
   labelEmpty,
   labelSearch,
   labelChatMode,
+  labelChatModeDescription,
   isChatMode,
   onSelectChatMode,
   variant = "chip",
   alias = null,
 }: FolderPickerProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const [alignOffset, setAlignOffset] = useState(0)
   const [open, setOpen] = useState(false)
-
   // Header variant: no icons, alias or name inline (matching the sidebar
   // folder header), sized to the neighbouring conversation title. A new/editable
   // conversation renders in the theme color to advertise that it's switchable;
@@ -497,12 +490,13 @@ const FolderPicker = memo(function FolderPicker({
   const trigger =
     variant === "header" ? (
       <button
+        ref={triggerRef}
         type="button"
         title={title}
         className={cn(
           "flex shrink-0 items-center rounded-sm text-sm outline-none transition-colors",
           editable
-            ? "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-1 focus-visible:ring-[#216ae4]"
+            ? "cursor-pointer text-primary hover:text-primary/80 focus-visible:ring-1 focus-visible:ring-ring"
             : "cursor-default text-muted-foreground"
         )}
       >
@@ -513,6 +507,7 @@ const FolderPicker = memo(function FolderPicker({
       </button>
     ) : (
       <Button
+        ref={triggerRef}
         variant="ghost"
         size="xs"
         title={title}
@@ -535,57 +530,50 @@ const FolderPicker = memo(function FolderPicker({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(value) => {
+        if (value) {
+          const trigger = triggerRef.current
+          const input = trigger
+            ?.closest("[data-composer-root]")
+            ?.querySelector("[data-composer-input]")
+          setAlignOffset(
+            trigger && input
+              ? composerMenuAlignOffset(
+                  trigger.getBoundingClientRect(),
+                  input.getBoundingClientRect(),
+                  getComputedStyle(trigger).direction === "rtl"
+                )
+              : 0
+          )
+        }
+        setOpen(value)
+      }}
+    >
       <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-      <PopoverContent align="start" className="p-0 w-72 overflow-hidden">
-        <Command className="rounded-2xl">
-          <CommandInput placeholder={labelSearch} />
-          <CommandList>
-            <CommandEmpty>{labelEmpty}</CommandEmpty>
-            <CommandGroup>
-              {/* Shared row (alias or name over the path, alias included in the
-                  search token) — the Tasks / Automations / Token-usage folder
-                  controls render the very same one. */}
-              {folders.map((f) => (
-                <FolderOptionItem
-                  key={f.id}
-                  folder={f}
-                  selected={f.id === currentFolderId}
-                  onSelect={() => {
-                    setOpen(false)
-                    void onSelect(f.id)
-                  }}
-                />
-              ))}
-            </CommandGroup>
-            {/* Pinned to the bottom as a sticky footer so the folderless
-                "chat mode" entry point stays visible without scrolling past a
-                long folder list. `bg-popover` keeps folders from bleeding
-                through as they scroll underneath; `forceMount` + a stable,
-                plain `value` (no folder name/path) keep it mounted and
-                reachable under any search filter. */}
-            <div className="sticky bottom-0 bg-popover">
-              <CommandSeparator />
-              <CommandGroup forceMount>
-                <CommandItem
-                  value="__chat_mode__ no folder chat mode"
-                  forceMount
-                  onSelect={() => {
-                    setOpen(false)
-                    onSelectChatMode()
-                  }}
-                >
-                  <MessageSquare className="h-4 w-4" />
-                  <span className="flex-1 truncate font-medium">
-                    {labelChatMode}
-                  </span>
-                  {isChatMode && <Check className="h-4 w-4 shrink-0" />}
-                </CommandItem>
-              </CommandGroup>
-            </div>
-          </CommandList>
-        </Command>
-      </PopoverContent>
+      <FolderMenuContent
+        composer
+        alignOffset={alignOffset}
+        folders={folders}
+        value={currentFolderId}
+        labelEmpty={labelEmpty}
+        labelSearch={labelSearch}
+        onSelect={(id) => {
+          setOpen(false)
+          void onSelect(id)
+        }}
+        footer={{
+          chat: true,
+          label: labelChatMode,
+          description: labelChatModeDescription,
+          selected: isChatMode,
+          onSelect: () => {
+            setOpen(false)
+            onSelectChatMode()
+          },
+        }}
+      />
     </Popover>
   )
 })

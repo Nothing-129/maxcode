@@ -1,5 +1,6 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react"
 import {
   Check,
@@ -528,7 +529,7 @@ export function GitLogBranchFilterList({
           below give way — the search box never does. */}
       <div className="flex shrink-0 items-center gap-2 border-b py-2 pl-4 pr-2.5">
         <Search className="size-3.5 shrink-0 text-muted-foreground" />
-        <input
+        <InputGroupInput
           ref={inputRef}
           type="text"
           value={query}
@@ -549,7 +550,7 @@ export function GitLogBranchFilterList({
           }}
           {...ime.props}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="h-auto px-0 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
       </div>
 

@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "Select date",
+    "enterDate": "Enter date (YYYY-MM-DD)",
+    "apply": "Apply",
+    "clearDate": "Clear date"
+  },
   "MarkdownTable": {
     "plainText": "Plain text"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "Tasks",
         "settings": "Settings",
         "selectDate": "Select date",
-        "activityHint": "By last conversation update",
         "noActivity": "No conversations on this date",
         "recent": "Recent",
         "dateRange": "Date range",
+        "start": "Start",
+        "end": "End",
         "startDate": "Start date",
+        "startTime": "Start time",
+        "endTime": "End time",
         "endDate": "End date",
+        "groupByFolder": "Group by folder",
         "filterDate": "Filter by date",
+        "clear": "Clear",
         "clearDate": "Clear date filter",
         "presets": {
           "today": "Today",
@@ -2181,7 +2192,8 @@
       "reopen": "Reopen",
       "expandSubsessions": "Expand sub-conversations",
       "collapseSubsessions": "Collapse sub-conversations",
-      "shareContentHint": "Questions, replies and images are shared by default. Choose extra content below.",
+      "shareContentHint": "Questions, replies, images and attachments in the shared rounds are included. Anyone with the link can view images and download files.",
+      "shareFileUnavailable": "File unavailable",
       "shareScope": "Conversation range",
       "shareAllRounds": "All {count} rounds",
       "shareSelectRounds": "Choose rounds",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "Switched to chat mode",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "Clone Repository",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "Toggle details"
   },
   "Automations": {
+    "sectionWhat": "What to do",
+    "sectionWhen": "When to run",
+    "sectionWhere": "Where to run",
+    "advancedExecution": "Session and advanced settings",
+    "customSchedule": "Custom schedule",
     "hideFromConversationList": "Hide from conversation list",
     "hideFromConversationListHint": "Hide existing and future run conversations. View them in automation run history. Turn off to show them again.",
     "calendarFilter": "Execution dates",
@@ -5088,6 +5106,13 @@
     "runNow": "Run now",
     "cancelRun": "Cancel run",
     "runHistory": "Run history",
+    "showOlderRuns": "Show older runs",
+    "hideRunResult": "Hide result",
+    "hideOlderRuns": "Hide older runs",
+    "groupEnabled": "Enabled",
+    "groupPaused": "Paused",
+    "filterAutomations": "Filter automations",
+    "searchAutomations": "Search automations",
     "noRuns": "No runs yet",
     "allFolders": "All folders",
     "filterAll": "All",
@@ -6190,6 +6215,7 @@
     "loading": "Loading todos",
     "loadFailed": "Could not load todos.",
     "retry": "Reconnect",
+    "refreshTodos": "Refresh todos",
     "searchPlaceholder": "Search todos",
     "filterStatus": "Filter status",
     "allStatuses": "All statuses",
@@ -6203,7 +6229,7 @@
     "contentPlaceholder": "Write Markdown, or paste an image…",
     "assigneeLabel": "Assign to",
     "unassigned": "Unassigned",
-    "conversationShareHint": "A read-only conversation share link will be attached when this todo is saved.",
+    "conversationShareHint": "The saved todo will contain a link to the shared conversation.",
     "save": "Save",
     "saving": "Saving…",
     "cancel": "Cancel",
@@ -6242,8 +6268,7 @@
     "operationFailed": "Could not complete this action: {reason}",
     "addMessage": "Add message to todo",
     "addConversation": "Add to todo",
-    "shareAndCreate": "Share and create todo",
-    "conversationShareDescription": "Choose the conversation content to attach. Enter the todo content in the next step.",
+    "shareAndCreate": "Share and draft todo",
     "viewSwitchToList": "Switch to list",
     "viewSwitchToBoard": "Switch to board",
     "conflictHint": "This todo has changed. Loading the latest version replaces your current input.",
@@ -6255,7 +6280,9 @@
     "nextPage": "Next page",
     "loadingCompleted": "Loading completed todos",
     "linkConversation": "Link existing todo",
-    "linkConversationDescription": "Choose a todo for “{title}”. This link appears only in your workspace.",
+    "linkDialogTitle": "Link a todo",
+    "searchClaimedTodos": "Search claimed todos",
+    "linkVisibility": "Only visible in your workspace",
     "linkedTodos": "Linked todos",
     "unlinkTodo": "Unlink",
     "searchTodos": "Search todos",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "Choose conversation folder",
     "chooseConversationFolderHint": "This todo has no linked conversation with a valid folder. Choose a folder to start the conversation.",
     "confirmConversationFolder": "Choose and create"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

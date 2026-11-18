@@ -50,7 +50,10 @@ type TabSlice = {
   activeTabId: number | null
 }
 type RuntimeSlice = { byConversationId: Map<number, unknown> }
-type WorkspaceSlice = { conversations: DbConversationSummary[] }
+type WorkspaceSlice = Pick<
+  ReturnType<typeof useAppWorkspaceStore.getState>,
+  "conversations" | "allFolders" | "branches"
+>
 
 function summary(
   over: Partial<DbConversationSummary> = {}
@@ -87,7 +90,11 @@ function setupScene(opts: { hasActiveConversation: boolean }) {
     sel({ byConversationId: new Map() })
   )
   mockWorkspace.mockImplementation((sel: (s: WorkspaceSlice) => unknown) =>
-    sel({ conversations: opts.hasActiveConversation ? [summary()] : [] })
+    sel({
+      conversations: opts.hasActiveConversation ? [summary()] : [],
+      allFolders: [],
+      branches: new Map(),
+    })
   )
 }
 

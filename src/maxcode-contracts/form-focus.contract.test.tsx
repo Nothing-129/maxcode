@@ -8,7 +8,7 @@ import { join } from "node:path"
 import { source } from "./contract-source"
 
 describe("subtle form focus", () => {
-  it("keeps fields keyboard accessible with a thin blue focus boundary", async () => {
+  it("keeps fields keyboard accessible with a unchanged resting appearance", async () => {
     const user = userEvent.setup()
     render(
       <>
@@ -19,10 +19,7 @@ describe("subtle form focus", () => {
     await user.tab()
     const title = screen.getByRole("textbox", { name: "Title" })
     expect(title).toHaveFocus()
-    expect(title).toHaveClass(
-      "focus-visible:border-[#216ae4]",
-      "focus-visible:ring-0"
-    )
+    expect(title).toHaveClass("focus-visible:ring-0")
     await user.type(title, "A todo")
     expect(title).toHaveValue("A todo")
     await user.tab()
@@ -42,7 +39,7 @@ describe("subtle form focus", () => {
       "settings/web-service-settings",
     ]) {
       const component = source(`src/components/${file}.tsx`)
-      expect(component).toContain(":border-[#216ae4]")
+      expect(component).not.toContain(":border-[#216ae4]")
       expect(component).not.toMatch(
         /(?:focus-visible|focus-within)\]?:ring-\[3px\]/
       )
@@ -50,7 +47,7 @@ describe("subtle form focus", () => {
         /(?:focus-visible|focus-within)\]?:ring-ring\/50/
       )
     }
-    expect(source("src/app/globals.css")).toContain(
+    expect(source("src/app/globals.css")).not.toContain(
       "[data-settings-input-group]:focus-within {\n  border-color: #216ae4;"
     )
   })
@@ -60,6 +57,7 @@ describe("subtle form focus", () => {
         const path = join(directory, entry.name)
         if (entry.isDirectory()) inspect(path)
         else if (path.endsWith(".tsx") && !path.includes(".test.")) {
+          expect(source(path), path).not.toContain("ring-[#216ae4]")
           expect(source(path), path).not.toMatch(
             /[^\s"`]*focus[^\s"`]*:ring-(?:\[3px\]|3)(?=[\s"`])/
           )
@@ -78,7 +76,7 @@ describe("subtle form focus", () => {
       "src/components/chat/question-dialog.tsx",
       "src/components/conversations/conversation-share-options.tsx",
     ]) {
-      expect(source(file), file).toContain("focus-visible:border-[#216ae4]")
+      expect(source(file), file).not.toContain("focus-visible:border-[#216ae4]")
     }
     for (const file of [
       "src/components/conversations/search-command-dialog.tsx",
@@ -87,10 +85,10 @@ describe("subtle form focus", () => {
       expect(source(file), file).toContain("<FolderSelect")
     }
     const css = source("src/app/globals.css")
-    expect(css).toContain(
+    expect(css).not.toContain(
       '[data-settings-surface] [data-slot="select-trigger"]:focus-visible {\n  border-color: #216ae4;'
     )
-    expect(css).toContain(
+    expect(css).not.toContain(
       ".settings-search:focus-within {\n  outline: 1px solid #216ae4;"
     )
   })

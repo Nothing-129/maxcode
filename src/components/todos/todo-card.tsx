@@ -222,7 +222,7 @@ export function TodoCard({
   return (
     <article
       className={cn(
-        "group rounded-2xl border border-border/70 bg-background p-4 shadow-xs transition-colors hover:border-border",
+        "group rounded-[0.875rem] border border-[#ececec] bg-white p-3 shadow-[0_1px_3px_rgb(0_0_0/0.025)] transition-colors hover:border-border dark:border-border/70 dark:bg-background dark:shadow-none",
         list && "flex flex-wrap items-center gap-x-5 gap-y-2"
       )}
       data-motion-item={todo.id}
@@ -236,23 +236,29 @@ export function TodoCard({
           list && "flex-1 basis-60"
         )}
       >
-        <h3 className="line-clamp-2 text-sm font-medium leading-5 wrap-anywhere">
+        <h3 className="line-clamp-2 text-sm font-semibold leading-5 wrap-anywhere">
           {todo.title}
         </h3>
-        <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-muted-foreground wrap-anywhere">
-          {todo.content}
-        </p>
+        {todo.content.trim() && (
+          <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-xs leading-4 text-muted-foreground wrap-anywhere">
+            {todo.content}
+          </p>
+        )}
       </button>
-      <div className={cn("mt-3 min-w-0", list && "mt-0")}>
-        <TodoCreationInfo todo={todo} creator={creator} />
-        <TodoCompletionInfo todo={todo} />
-      </div>
-      <div className="mt-2">
-        <TodoSchedule todo={todo} />
-      </div>
+      {(list || todo.status === "completed") && (
+        <div className={cn("mt-2 min-w-0", list && "mt-0")}>
+          {list && <TodoCreationInfo todo={todo} creator={creator} />}
+          <TodoCompletionInfo todo={todo} />
+        </div>
+      )}
+      {(todo.due_date || todo.priority) && (
+        <div className="mt-2">
+          <TodoSchedule todo={todo} />
+        </div>
+      )}
       <div
         className={cn(
-          "mt-3 flex min-w-0 items-center justify-between gap-2",
+          "mt-2 flex min-w-0 items-center justify-between gap-2",
           list && "mt-0 w-48 shrink-0"
         )}
       >
@@ -272,7 +278,7 @@ export function TodoCard({
       </div>
       <div
         className={cn(
-          "mt-4 flex items-center gap-1 border-t border-border/40 pt-3",
+          "mt-2 flex items-center gap-1 border-t border-border/30 pt-2",
           list && "mt-0 shrink-0 border-0 pt-0"
         )}
       >

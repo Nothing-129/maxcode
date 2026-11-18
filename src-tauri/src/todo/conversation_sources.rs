@@ -23,6 +23,8 @@ pub struct TodoSummary {
 pub struct SearchQuery {
     #[serde(default)]
     pub only_mine: bool,
+    #[serde(default)]
+    pub claimed_only: bool,
     pub search: Option<String>,
     pub page: Option<u64>,
     pub page_size: Option<u64>,
@@ -44,6 +46,8 @@ pub struct TeamTodoSearchRequest {
 
 #[derive(Deserialize, Serialize)]
 pub struct TodoSearchPagination {
+    #[serde(default)]
+    pub claimed_only: bool,
     pub page: u64,
     pub page_size: u64,
     pub total: u64,
@@ -257,6 +261,7 @@ async fn scoped_search(
     query: SearchQuery,
 ) -> Result<TodoSearchResult, AppCommandError> {
     let mut pagination = TodoSearchPagination {
+        claimed_only: query.claimed_only,
         page: query.page.unwrap_or(1).max(1),
         page_size: query.page_size.unwrap_or(20).clamp(1, 100),
         total: 0,
@@ -271,6 +276,9 @@ async fn scoped_search(
         "FROM maxcode_todo_item t LEFT JOIN maxcode_todo_member m ON m.id=t.assignee_id AND m.team_id=t.scope_id WHERE t.scope_id=? AND (t.title || char(10) || t.content || char(10) || COALESCE(m.name,CASE WHEN t.scope_id='personal' AND t.assignee_id='personal' THEN '我' ELSE '' END)) LIKE ? ESCAPE '\\'"
     }
     .to_string();
+    if query.claimed_only {
+        filter.push_str(" AND t.status='claimed'");
+    }
     if query.only_mine && scope.id != PERSONAL {
         filter.push_str(" AND t.assignee_id=?");
         values.push(scope.self_id.clone().into());

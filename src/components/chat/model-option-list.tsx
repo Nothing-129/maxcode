@@ -1,6 +1,12 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import { useCallback, useId, useMemo, useRef, useState } from "react"
+import { ModelHistoryToggle } from "./model-history-toggle"
+import {
+  isHistoricalModel,
+  visibleModelGroups,
+} from "@/lib/selector-presentation"
 import { Check, Search } from "lucide-react"
 import { Virtualizer, type VirtualizerHandle } from "virtua"
 import { useImeGuard } from "@/hooks/use-ime-guard"
@@ -40,7 +46,7 @@ interface ModelOptionListProps {
 // 100% pixel values the scroll window would stay 320px tall while the rows inside
 // it grew with the zoom — at 250% the panel would show three models instead of
 // seven and stop growing with the window.
-const ROW_ESTIMATE_REM = 2.75 // 44px @100%
+const ROW_ESTIMATE_REM = 3.5 // 56px: title, description and compact row padding
 const MAX_LIST_HEIGHT_REM = 20 // 320px @100%
 
 // Searchable, virtualized model list shared by both selector forms (the wide
@@ -66,6 +72,13 @@ export function ModelOptionList({
 }: ModelOptionListProps) {
   const ime = useImeGuard()
   const { zoomLevel } = useZoomLevel()
+  const [historyExpanded, setHistoryExpanded] = useState(false)
+  const historyCount = groups
+    .flatMap((group) => group.options)
+    .filter(
+      (item) =>
+        isHistoricalModel(item.description) && item.value !== currentValue
+    ).length
   const [query, setQuery] = useState("")
   const [activeIndex, setActiveIndex] = useState(0)
   const virtualizerRef = useRef<VirtualizerHandle>(null)
@@ -87,8 +100,18 @@ export function ModelOptionList({
   )
 
   const rows = useMemo(
-    () => flattenModelGroups(filterModelGroups(groups, query)),
-    [groups, query]
+    () =>
+      flattenModelGroups(
+        filterModelGroups(
+          visibleModelGroups(
+            groups,
+            currentValue,
+            historyExpanded || !!query.trim()
+          ),
+          query
+        )
+      ),
+    [groups, query, currentValue, historyExpanded]
   )
   // Flat row indices that are options (skipping headers) — the keyboard cursor
   // walks these, and they map an option position back to its flat row index.
@@ -186,9 +209,9 @@ export function ModelOptionList({
     <div className="flex min-h-0 min-w-0 flex-col">
       {/* `shrink-0`: when the popover is capped to the room it has, the rows
           below give way — the search box never does. */}
-      <div className="flex shrink-0 items-center gap-2 border-b px-2.5 py-2">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border/60 mx-2 px-1 py-2.5">
         <Search className="size-4 shrink-0 text-muted-foreground" />
-        <input
+        <InputGroupInput
           type="text"
           value={query}
           autoFocus={autoFocus}
@@ -208,10 +231,20 @@ export function ModelOptionList({
           }}
           {...ime.props}
           onKeyDown={handleKeyDown}
-          className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+          className="h-auto px-0 w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
         />
       </div>
 
+      {!query.trim() && historyCount > 0 && (
+        <ModelHistoryToggle
+          expanded={historyExpanded}
+          count={historyCount}
+          onToggle={() => {
+            setHistoryExpanded((value) => !value)
+            setActiveIndex(0)
+          }}
+        />
+      )}
       {optionCount === 0 ? (
         <div className="px-3 py-6 text-center text-sm text-muted-foreground">
           {emptyLabel}
@@ -275,14 +308,11 @@ export function ModelOptionList({
                         onMouseMove={() => setActiveIndex(optionIndex)}
                         onClick={() => onSelect(row.option.value)}
                         className={cn(
-                          "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                          active && "bg-accent text-accent-foreground",
-                          selected && !active && "bg-accent/60"
+                          "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-start text-sm transition-colors",
+                          active && "bg-muted/80 text-foreground",
+                          selected && !active && "bg-muted/50"
                         )}
                       >
-                        <span className="flex size-4 shrink-0 items-center justify-center pt-0.5">
-                          {selected ? <Check className="size-4" /> : null}
-                        </span>
                         <DropdownRadioItemContent
                           label={row.option.name}
                           description={row.option.description}
@@ -292,6 +322,11 @@ export function ModelOptionList({
                               : null
                           }
                         />
+                        <span className="flex size-4 shrink-0 items-center justify-center mt-0.5">
+                          {selected ? (
+                            <Check className="size-4 stroke-[1.5]" />
+                          ) : null}
+                        </span>
                       </button>
                     )
                   })}

@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "날짜 선택",
+    "enterDate": "날짜 입력 (YYYY-MM-DD)",
+    "apply": "적용",
+    "clearDate": "날짜 지우기"
+  },
   "MarkdownTable": {
     "plainText": "일반 텍스트"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "할 일",
         "settings": "설정",
         "selectDate": "날짜 선택",
-        "activityHint": "대화의 마지막 업데이트 기준",
         "noActivity": "이 날짜에 대화가 없습니다",
         "recent": "최근",
         "dateRange": "날짜 범위",
+        "start": "시작",
+        "end": "종료",
         "startDate": "시작일",
+        "startTime": "시작 시간",
+        "endTime": "종료 시간",
         "endDate": "종료일",
+        "groupByFolder": "폴더별로 그룹화",
         "filterDate": "날짜로 필터링",
+        "clear": "지우기",
         "clearDate": "날짜 필터 지우기",
         "presets": {
           "today": "오늘",
@@ -2181,7 +2192,8 @@
       "reopen": "다시 열기",
       "expandSubsessions": "하위 대화 펼치기",
       "collapseSubsessions": "하위 대화 접기",
-      "shareContentHint": "기본적으로 질문, 답변 본문과 이미지를 공유합니다. 추가 내용을 선택할 수 있습니다.",
+      "shareContentHint": "공유하는 대화의 질문, 답변, 이미지와 첨부 파일이 포함됩니다. 링크가 있는 사람은 이미지를 보고 파일을 다운로드할 수 있습니다.",
+      "shareFileUnavailable": "파일을 사용할 수 없음",
       "shareScope": "공유 범위",
       "shareAllRounds": "전체 {count}개 대화",
       "shareSelectRounds": "대화 선택",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "채팅 모드로 전환했습니다",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "저장소 클론",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "세부 정보 전환"
   },
   "Automations": {
+    "sectionWhat": "실행할 작업",
+    "sectionWhen": "실행 시점",
+    "sectionWhere": "실행 위치",
+    "advancedExecution": "세션 및 고급 설정",
+    "customSchedule": "사용자 지정 일정",
     "hideFromConversationList": "대화 목록에서 숨기기",
     "hideFromConversationListHint": "기존 및 향후 실행 대화를 숨깁니다. 자동 작업 실행 기록에서 확인할 수 있습니다. 끄면 다시 표시됩니다.",
     "calendarFilter": "실행 날짜",
@@ -5088,6 +5106,13 @@
     "runNow": "지금 실행",
     "cancelRun": "실행 취소",
     "runHistory": "실행 기록",
+    "showOlderRuns": "이전 실행 보기",
+    "hideRunResult": "결과 접기",
+    "hideOlderRuns": "이전 실행 숨기기",
+    "groupEnabled": "활성",
+    "groupPaused": "일시 중지됨",
+    "filterAutomations": "자동화 필터",
+    "searchAutomations": "자동화 검색",
     "noRuns": "아직 실행 기록이 없습니다",
     "allFolders": "모든 폴더",
     "filterAll": "전체",
@@ -6192,6 +6217,7 @@
     "loading": "할 일 불러오는 중",
     "loadFailed": "할 일을 불러오지 못했습니다.",
     "retry": "다시 연결",
+    "refreshTodos": "할 일 새로고침",
     "searchPlaceholder": "할 일 검색",
     "filterStatus": "상태 필터",
     "allStatuses": "모든 상태",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "Markdown을 작성하거나 이미지를 붙여넣으세요…",
     "assigneeLabel": "담당자",
     "unassigned": "미지정",
-    "conversationShareHint": "할 일을 저장할 때 읽기 전용 대화 공유 링크가 생성되어 첨부됩니다.",
+    "conversationShareHint": "저장한 할 일에서 공유된 대화를 열 수 있습니다.",
     "save": "저장",
     "saving": "저장 중…",
     "cancel": "취소",
@@ -6244,8 +6270,7 @@
     "operationFailed": "작업 실패: {reason}",
     "addMessage": "메시지를 할 일에 추가",
     "addConversation": "할 일에 추가",
-    "shareAndCreate": "공유하고 할 일 만들기",
-    "conversationShareDescription": "첨부할 대화 내용을 선택하세요. 다음 단계에서 할 일 내용을 입력합니다.",
+    "shareAndCreate": "공유하고 할 일 작성",
     "conflictHint": "이 할 일이 변경되었습니다. 최신 버전을 불러오면 현재 입력 내용이 바뀝니다.",
     "reloadLatest": "최신 버전 불러오기",
     "completedPagination": "완료된 할 일 페이지",
@@ -6255,7 +6280,9 @@
     "nextPage": "다음 페이지",
     "loadingCompleted": "완료된 할 일 불러오는 중",
     "linkConversation": "기존 할 일 연결",
-    "linkConversationDescription": "“{title}”에 연결할 할 일을 선택하세요. 연결은 내 작업 공간에만 표시됩니다.",
+    "linkDialogTitle": "할 일 연결",
+    "searchClaimedTodos": "수락한 할 일 검색",
+    "linkVisibility": "연결은 내 작업 공간에만 표시됩니다",
     "linkedTodos": "연결된 할 일",
     "unlinkTodo": "연결 해제",
     "searchTodos": "할 일 검색",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "대화 폴더 선택",
     "chooseConversationFolderHint": "이 할 일에는 유효한 폴더의 대화가 없습니다. 폴더를 선택해 주세요.",
     "confirmConversationFolder": "선택하고 만들기"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

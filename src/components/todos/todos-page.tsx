@@ -1,5 +1,6 @@
 "use client"
 
+import { TodoSearchActions } from "./todo-search-actions"
 import { TodosLoadingSkeleton } from "./todos-loading-skeleton"
 import { TodoImportConversationButton } from "./todo-import-conversation-button"
 
@@ -12,7 +13,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Plus,
   RefreshCw,
   Search,
   Users,
@@ -46,7 +46,6 @@ import {
   consumePendingOpenTodo,
   TODO_OPEN_EVENT,
   TODO_COMPOSE_EVENT,
-  type TodoComposeDraft,
 } from "@/lib/todo-compose-events"
 import {
   todoScopeKey,
@@ -79,6 +78,108 @@ import { OPEN_TODO_TEAMS_EVENT } from "./todos-chrome-actions"
 export function TodosPageTitle() {
   const t = useTranslations("Todos")
   return <WorkbenchPageTitle title={t("title")} />
+}
+
+export function TodoScopeControls() {
+  return (
+    <div className="ms-auto flex min-w-0 max-w-full flex-wrap items-center justify-end gap-x-2 pe-3">
+      <TodoModeSwitcher />
+      <TodoTeamSwitcher />
+    </div>
+  )
+}
+
+export function TodoModeSwitcher() {
+  const t = useTranslations("Todos")
+  const { state, busy, mutate } = useTodosView()
+  if (!state) return null
+  return (
+    <div
+      data-todo-toolbar-group="workspace"
+      className="todo-theme flex self-center shrink-0 items-center rounded-lg bg-muted p-0.5"
+    >
+      {(["personal", "team"] as const).map((mode) => (
+        <Button
+          key={mode}
+          size="sm"
+          variant="ghost"
+          aria-pressed={state.mode === mode}
+          className="h-7 px-2.5 text-xs text-muted-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-xs"
+          disabled={busy}
+          onClick={() =>
+            void mutate({ action: "set_mode", mode }).catch((cause) =>
+              toast.error(
+                t("operationFailed", { reason: toErrorMessage(cause) })
+              )
+            )
+          }
+        >
+          {t(mode === "personal" ? "personalMode" : "teamMode")}
+        </Button>
+      ))}
+    </div>
+  )
+}
+
+function TodoTeamSwitcher() {
+  const t = useTranslations("Todos")
+  const { state, busy, error, mutate } = useTodosView()
+  if (
+    state?.mode !== "team" ||
+    (!state.teams.length && !state.active_team_id)
+  ) {
+    return null
+  }
+
+  async function selectTeam(team_id: string) {
+    try {
+      await mutate({ action: "set_mode", mode: "team", team_id })
+    } catch (cause) {
+      toast.error(t("operationFailed", { reason: toErrorMessage(cause) }))
+    }
+  }
+
+  return (
+    <div className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground">
+      {state.teams.length > 0 && (
+        <Select
+          value={state.active_team_id ?? undefined}
+          disabled={busy}
+          onValueChange={selectTeam}
+        >
+          <SelectTrigger
+            size="sm"
+            aria-label={t("selectTeam")}
+            className="min-w-0 max-w-32 rounded-md border-transparent bg-transparent px-1.5 text-xs hover:bg-muted"
+          >
+            <SelectValue placeholder={t("selectTeam")} />
+          </SelectTrigger>
+          <SelectContent className="todo-theme">
+            {state.teams.map((team) => (
+              <SelectItem key={team.id} value={team.id}>
+                {team.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+      {state.active_team_id && (
+        <span
+          role="status"
+          className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap"
+        >
+          <span
+            aria-hidden="true"
+            className={cn(
+              "size-1.5 rounded-full",
+              error ? "bg-amber-500" : "bg-emerald-500"
+            )}
+          />
+          {t(error ? "offline" : "online")}
+        </span>
+      )}
+    </div>
+  )
 }
 
 export function TodosPage() {
@@ -226,10 +327,7 @@ function TodosWorkspace({
   } = useTodosView()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<TodoColumn | "all">("all")
-  const [editor, setEditor] = useState<{
-    todo: Todo | null
-    draft: TodoComposeDraft | null
-  } | null>(null)
+  const [editor, setEditor] = useState<Todo | null>(null)
   const [detailId, setDetailId] = useState<string | null>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const hasScope = state.mode === "personal" || state.active_team_id !== null
@@ -337,7 +435,7 @@ function TodosWorkspace({
         disabled={!canWrite}
         list={list}
         onOpen={() => setDetailId(todo.id)}
-        onEdit={() => setEditor({ todo, draft: null })}
+        onEdit={() => setEditor(todo)}
         onDelete={() => setDeleteId(todo.id)}
         onAction={(action) => todoAction(todo, action)}
       />
@@ -400,92 +498,19 @@ function TodosWorkspace({
   }
 
   return (
-    <div ref={motionRef} className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-3">
-        <div className="flex gap-1 rounded-full border border-primary/15 bg-primary/5 p-1">
-          <Button
-            size="sm"
-            variant={state.mode === "personal" ? "default" : "ghost"}
-            aria-pressed={state.mode === "personal"}
-            className={cn(
-              "h-7 text-xs",
-              state.mode === "personal"
-                ? "shadow-sm hover:bg-primary/90"
-                : "text-muted-foreground hover:bg-interaction-hover hover:text-primary"
-            )}
-            disabled={busy}
-            onClick={() => void act({ action: "set_mode", mode: "personal" })}
-          >
-            {t("personalMode")}
-          </Button>
-          <Button
-            size="sm"
-            variant={state.mode === "team" ? "default" : "ghost"}
-            aria-pressed={state.mode === "team"}
-            className={cn(
-              "h-7 text-xs",
-              state.mode === "team"
-                ? "shadow-sm hover:bg-primary/90"
-                : "text-muted-foreground hover:bg-interaction-hover hover:text-primary"
-            )}
-            disabled={busy}
-            onClick={() => void act({ action: "set_mode", mode: "team" })}
-          >
-            {t("teamMode")}
-          </Button>
-        </div>
-        {state.mode === "team" && state.teams.length > 0 && (
-          <Select
-            value={state.active_team_id ?? undefined}
-            disabled={busy}
-            onValueChange={(team_id) =>
-              void act({ action: "set_mode", mode: "team", team_id })
-            }
-          >
-            <SelectTrigger
-              className="h-8 w-40 text-xs"
-              aria-label={t("selectTeam")}
-            >
-              <SelectValue placeholder={t("selectTeam")} />
-            </SelectTrigger>
-            <SelectContent className="todo-theme">
-              {state.teams.map((team) => (
-                <SelectItem key={team.id} value={team.id}>
-                  {team.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-        {state.mode === "team" && hasScope && (
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 text-xs text-muted-foreground",
-              error && "text-amber-600 dark:text-amber-400"
-            )}
-          >
-            <span
-              className={cn(
-                "size-1.5 rounded-full bg-emerald-500",
-                error && "bg-amber-500"
-              )}
-            />
-            {t(error ? "offline" : "online")}
-          </span>
-        )}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={onTeams}
-          title={t("teams")}
-          aria-label={t("teams")}
-        >
-          <Users className="size-4" />
-        </Button>
-        <div className="relative min-w-32 flex-1 sm:max-w-64">
+    <div
+      ref={motionRef}
+      className="@container flex min-h-0 min-w-0 flex-1 flex-col"
+    >
+      <div
+        data-todo-toolbar
+        data-todo-toolbar-group="filters"
+        className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 border-b border-border/50 px-4 py-2.5"
+      >
+        <div className="relative min-w-28 flex-1 @md:max-w-72">
           <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <Input
-            className="h-8 pl-8 text-xs"
+            className="h-8 rounded-md bg-muted/40 pl-8 text-xs md:text-xs"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
             placeholder={t("searchPlaceholder")}
@@ -499,7 +524,8 @@ function TodosWorkspace({
           }
         >
           <SelectTrigger
-            className="h-8 w-36 text-xs"
+            size="sm"
+            className="max-w-36 rounded-md border-transparent bg-transparent px-2 text-xs hover:bg-muted"
             aria-label={t("scheduleFilter")}
           >
             <SelectValue />
@@ -520,7 +546,8 @@ function TodosWorkspace({
             }
           >
             <SelectTrigger
-              className="h-8 w-32 text-xs"
+              size="sm"
+              className="max-w-36 rounded-md border-transparent bg-transparent px-2 text-xs hover:bg-muted"
               aria-label={t("filterStatus")}
             >
               <SelectValue />
@@ -535,16 +562,7 @@ function TodosWorkspace({
             </SelectContent>
           </Select>
         )}
-        <span className="flex-1" />
-        <Button
-          size="sm"
-          className="h-8 text-xs"
-          disabled={!canWrite}
-          onClick={() => setEditor({ todo: null, draft: null })}
-        >
-          <Plus className="size-3.5" />
-          {t("newTodo")}
-        </Button>
+        <TodoSearchActions canWrite={canWrite} />
       </div>
       {error && (
         <div
@@ -582,7 +600,7 @@ function TodosWorkspace({
           {TODO_COLUMNS.map((column) => (
             <section
               key={column}
-              className="flex min-h-0 min-w-80 flex-1 flex-col rounded-2xl bg-muted/35"
+              className="flex min-h-0 min-w-80 flex-1 flex-col rounded-2xl bg-[#fafafa] dark:bg-muted/35"
               aria-label={t(TODO_COLUMN_LABELS[column])}
               aria-busy={column === "completed" && completedLoading}
             >
@@ -606,7 +624,7 @@ function TodosWorkspace({
                 </span>
               </div>
               <ScrollArea className="min-h-0 flex-1">
-                <div className="flex flex-col gap-4 px-4 pb-4">
+                <div className="flex flex-col gap-3 px-3 pb-3">
                   {column === "completed" && completedLoading ? (
                     completedSpinner()
                   ) : columns[column].length > 0 ? (
@@ -668,19 +686,15 @@ function TodosWorkspace({
               ? (state.active_team_id ?? undefined)
               : "personal"
           }
-          key={
-            editor.todo ? `${editor.todo.id}:${editor.todo.revision}` : "new"
-          }
-          todo={editor.todo}
-          draft={editor.draft}
+          key={`${editor.id}:${editor.revision}`}
+          todo={editor}
+          draft={null}
           members={state.members}
           disabled={!canWrite}
-          latestTodo={state.todos.find((todo) => todo.id === editor.todo?.id)}
+          latestTodo={state.todos.find((todo) => todo.id === editor.id)}
           onReload={() => {
-            const latest = state.todos.find(
-              (todo) => todo.id === editor.todo?.id
-            )
-            if (latest) setEditor({ todo: latest, draft: null })
+            const latest = state.todos.find((todo) => todo.id === editor.id)
+            if (latest) setEditor(latest)
           }}
           onClose={() => setEditor(null)}
           onSubmit={mutate}
@@ -721,7 +735,7 @@ function TodosWorkspace({
                 variant="outline"
                 disabled={!canWrite}
                 onClick={() => {
-                  setEditor({ todo: detail, draft: null })
+                  setEditor(detail)
                   setDetailId(null)
                 }}
               >

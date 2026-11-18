@@ -335,6 +335,11 @@ export interface ConversationShareOptions {
   rounds?: number[]
 }
 
+export interface SharedFile {
+  name: string
+  data: string | null
+}
+
 /** Public snapshot returned only after presenting a share token. */
 export interface SharedConversationSnapshot {
   version: number
@@ -346,6 +351,7 @@ export interface SharedConversationSnapshot {
   updated_at: string
   shared_at: string
   turns: MessageTurn[]
+  files?: SharedFile[]
   share_options?: ConversationShareOptions
   session_stats?: SessionStats | null
 }

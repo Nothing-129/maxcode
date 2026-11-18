@@ -1,5 +1,6 @@
 "use client"
 
+import { InputGroupInput } from "@/components/ui/input-group"
 import type { SessionSelectorSetting } from "@/components/chat/session-selectors-panel"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -228,7 +229,7 @@ export function ComposerAddMenu({
           >
             <div className="flex shrink-0 items-center gap-2 border-b border-border/60 px-3 py-2">
               <Search className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <input
+              <InputGroupInput
                 ref={slashInputRef}
                 type="text"
                 role="searchbox"
@@ -263,7 +264,7 @@ export function ComposerAddMenu({
                   e.stopPropagation()
                 }}
                 placeholder={t("slashSearchPlaceholder")}
-                className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
+                className="h-auto px-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
                 autoComplete="off"
                 spellCheck={false}
               />

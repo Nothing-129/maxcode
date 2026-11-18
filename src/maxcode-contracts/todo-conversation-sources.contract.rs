@@ -136,6 +136,21 @@ async fn picker_search_includes_all_statuses_and_completed_pages_in_captured_sco
     assert!(all.todos.iter().any(|todo| todo.id == claimed.id));
     assert!(all.todos.iter().any(|todo| todo.status == "completed"));
     assert!(all.todos.iter().any(|todo| todo.status == "unclaimed"));
+    let eligible = search(
+        &db.conn,
+        TodoSearchRequest {
+            scope_id: PERSONAL.to_string(),
+            query: SearchQuery {
+                claimed_only: true,
+                only_mine: true,
+                ..Default::default()
+            },
+        },
+    )
+    .await
+    .unwrap();
+    assert_eq!(eligible.pagination.total, 1);
+    assert_eq!(eligible.todos[0].id, claimed.id);
     assert_eq!(
         selected(&db.conn).await.unwrap(),
         ("team".to_string(), current.active_team_id)
@@ -172,6 +187,7 @@ async fn own_task_search_filters_before_pagination_and_uses_member_identity() {
         }
     }
     let query = SearchQuery {
+        claimed_only: true,
         only_mine: true,
         search: Some("Match".to_string()),
         page: Some(2),
@@ -190,9 +206,10 @@ async fn own_task_search_filters_before_pagination_and_uses_member_identity() {
         .await
         .unwrap();
     for result in [local, member] {
-        assert_eq!(result.pagination.total, 3);
-        assert_eq!(result.pagination.page, 2);
-        assert_eq!(result.todos.len(), 1);
+        assert_eq!(result.pagination.total, 2);
+        assert_eq!(result.pagination.page, 1);
+        assert_eq!(result.todos.len(), 2);
+        assert!(result.todos.iter().all(|todo| todo.status == "claimed"));
         assert!(result
             .todos
             .iter()

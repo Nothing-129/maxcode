@@ -96,7 +96,6 @@ function SidebarNavButton({
   active,
   trailing,
   variant = "filled",
-  conversationSurface = false,
 }: {
   icon: "compose" | "clock" | "tasks"
   label: string
@@ -104,10 +103,11 @@ function SidebarNavButton({
   active?: boolean
   trailing?: ReactNode
   variant?: "filled" | "ghost"
-  conversationSurface?: boolean
 }) {
   return (
-    <button
+    <Button
+      variant="ghost"
+      size="sm"
       type="button"
       onClick={onClick}
       title={label}
@@ -116,20 +116,25 @@ function SidebarNavButton({
         // Equal-width buttons keep the three actions on a single compact row.
         "group relative flex h-8 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-lg bg-sidebar-accent/35 px-0.5",
         "text-[0.875rem] leading-5 text-sidebar-foreground outline-none",
-        "transition-colors duration-150 hover:bg-interaction-hover",
+        "transition-colors duration-150 hover:bg-black/[0.04] dark:hover:bg-white/[0.06]",
         "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-        conversationSurface && "bg-black/[0.07] dark:bg-white/[0.1]",
-        variant === "ghost" && "bg-transparent",
-        active && "bg-sidebar-primary/10"
+        variant === "ghost" && "justify-start gap-2.5 bg-transparent px-2.5",
+        active && "bg-sidebar-primary/10",
+        icon !== "clock" &&
+          "text-[0.8125rem] font-medium leading-5 tracking-normal text-[#404040] dark:text-sidebar-foreground",
+        icon !== "clock" && "font-semibold"
       )}
     >
       <SidebarNavigationIcon
         name={icon}
-        className="size-3.5 shrink-0 text-sidebar-foreground/75"
+        className={cn(
+          "size-3.5 shrink-0 text-sidebar-foreground/75",
+          icon !== "clock" && "size-4 text-current [stroke-width:1.75]"
+        )}
       />
       <span className="truncate">{label}</span>
       {trailing}
-    </button>
+    </Button>
   )
 }
 
@@ -304,6 +309,7 @@ export function Sidebar({
 
   if (!isOpen && !keepVisible) return null
 
+  const headerDateFilter = view === "conversations" && <RecentDateFilter />
   const sidebarTools = (
     <div className="flex items-center gap-0.5" data-sidebar-tools>
       {!isMobile && (
@@ -527,9 +533,9 @@ export function Sidebar({
           />
         )}
         {compactHeader ? (
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+          <div className="flex min-w-0 flex-1 items-center justify-between gap-1 overflow-hidden">
             <SidebarWordmark compact />
-            {view === "conversations" && <RecentDateFilter />}
+            {headerDateFilter}
           </div>
         ) : (
           // Push desktop tools right and keep empty space draggable.
@@ -545,65 +551,69 @@ export function Sidebar({
             <span className="min-w-0 truncate">
               <SidebarWordmark />
             </span>
-            {view === "conversations" && <RecentDateFilter />}
+            {headerDateFilter}
           </div>
         )}
-        {view === "tasks" && (
-          <SidebarNavButton
-            icon="tasks"
-            conversationSurface={!isMobile}
-            label={t("navigation.todoBoard")}
-            onClick={() => setRoute("tasks")}
-          />
-        )}
-        {view !== "tasks" && (
-          <div data-sidebar-actions className="flex items-center gap-1">
-            <SidebarNavButton
-              icon="compose"
-              conversationSurface={!isMobile}
-              label={t("newChat")}
-              onClick={handleNewConversation}
-            />
-            {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
-            {/* Route navigation respects the saved visibility preference and closes the
+        <div data-sidebar-actions className="flex items-center gap-1">
+          {view !== "tasks" ? (
+            <>
+              <SidebarNavButton
+                icon="compose"
+                variant={isMobile ? "filled" : "ghost"}
+                label={t("newChat")}
+                onClick={handleNewConversation}
+              />
+              {/* Search shares the sidebar tools on both desktop and mobile; ⌘K works globally. */}
+              {/* Route navigation respects the saved visibility preference and closes the
               sidebar after navigation on touch layouts. */}
-            {isMobile &&
-              !navigation &&
-              view === "home" &&
-              isNavItemVisible(navItems, "automations") && (
-                <SidebarNavButton
-                  icon="clock"
-                  label={t("automations")}
-                  active={routeId === "automations"}
-                  onClick={() => {
-                    if (collapseOnNavigate) toggle()
-                    setRoute("automations")
-                  }}
-                  trailing={
-                    unseenFailures > 0 ? (
-                      <span className="absolute -right-1 -top-1 inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
-                        {unseenFailures}
-                      </span>
-                    ) : null
-                  }
-                />
-              )}
-            {isMobile &&
-              !navigation &&
-              view === "home" &&
-              isNavItemVisible(navItems, "tasks") && (
-                <SidebarNavButton
-                  icon="tasks"
-                  label={t("tasks")}
-                  active={routeId === "tasks"}
-                  onClick={() => {
-                    if (collapseOnNavigate) toggle()
-                    setRoute("tasks")
-                  }}
-                />
-              )}
-          </div>
-        )}
+              {isMobile &&
+                !navigation &&
+                view === "home" &&
+                isNavItemVisible(navItems, "automations") && (
+                  <SidebarNavButton
+                    icon="clock"
+                    label={t("automations")}
+                    active={routeId === "automations"}
+                    onClick={() => {
+                      if (collapseOnNavigate) toggle()
+                      setRoute("automations")
+                    }}
+                    trailing={
+                      unseenFailures > 0 ? (
+                        <span className="absolute -right-1 -top-1 inline-flex h-[0.9375rem] min-w-[0.9375rem] shrink-0 items-center justify-center rounded-full bg-destructive/15 px-1 font-mono text-[0.625rem] font-medium leading-none text-destructive">
+                          {unseenFailures}
+                        </span>
+                      ) : null
+                    }
+                  />
+                )}
+              {isMobile &&
+                !navigation &&
+                view === "home" &&
+                isNavItemVisible(navItems, "tasks") && (
+                  <SidebarNavButton
+                    icon="tasks"
+                    label={t("tasks")}
+                    active={routeId === "tasks"}
+                    onClick={() => {
+                      if (collapseOnNavigate) toggle()
+                      setRoute("tasks")
+                    }}
+                  />
+                )}
+            </>
+          ) : (
+            <SidebarNavButton
+              icon="tasks"
+              variant={isMobile ? "filled" : "ghost"}
+              label={t("navigation.todoBoard")}
+              onClick={() => {
+                setRoute("tasks")
+                if (collapseOnNavigate) toggle()
+              }}
+            />
+          )}
+        </div>
       </div>
 
       {/* On touch layouts, clicking a conversation card auto-closes the sidebar
@@ -622,9 +632,21 @@ export function Sidebar({
         }
       >
         <SidebarConversationList
-          key={`${view}:${view === "conversations" ? `${navigation?.date}:${navigation?.endDate}` : ""}`}
+          key={`${view}:${view === "conversations" ? `${navigation?.date}:${navigation?.startTime}:${navigation?.endDate}:${navigation?.endTime}` : ""}`}
           view={view}
+          groupByFolder={view === "conversations" && navigation?.groupByFolder}
+          onToggleFolderGrouping={
+            view === "conversations"
+              ? navigation?.toggleFolderGrouping
+              : undefined
+          }
           activityDate={view === "conversations" ? navigation?.date : undefined}
+          activityStartTime={
+            view === "conversations" ? navigation?.startTime : undefined
+          }
+          activityEndTime={
+            view === "conversations" ? navigation?.endTime : undefined
+          }
           activityEndDate={
             view === "conversations" ? navigation?.endDate : undefined
           }

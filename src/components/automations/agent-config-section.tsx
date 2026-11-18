@@ -1,19 +1,18 @@
 "use client"
 
-import type { ReactNode } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { SelectorTooltip } from "@/components/chat/selector-tooltip"
+  AgentModePicker,
+  AgentOptionPicker,
+} from "@/components/shared/agent-option-picker"
+import {
+  ModelFastMode,
+  isFastModeEnabled,
+} from "@/components/chat/model-fast-mode"
+import { isModelConfigOption } from "@/lib/model-config-groups"
+import { secondaryComposerConfig } from "@/lib/composer-config-visibility"
 import { cn } from "@/lib/utils"
 import type {
   AgentOptionsSnapshot,
@@ -21,11 +20,6 @@ import type {
   SessionConfigOptionInfo,
 } from "@/lib/types"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
-
-// Picking this clears the override (inherit the agent's own default). Mirrors
-// delegation-agent-defaults.tsx; the codeg prefix avoids colliding with a real
-// option id.
-const DEFAULT_SENTINEL = "__codeg_default__"
 
 interface AgentConfigSectionProps {
   /** Probe result, owned by the parent (so a single probe also feeds the `/`
@@ -48,11 +42,34 @@ interface AgentConfigSectionProps {
   layout?: "stacked" | "inline"
 }
 
+function modelFastOption(snapshot: AgentOptionsSnapshot) {
+  if (
+    !snapshot.config_options.some(
+      (option) => option.kind.type === "select" && isModelConfigOption(option)
+    )
+  )
+    return undefined
+  return snapshot.config_options.find((option) => {
+    if (secondaryComposerConfig(option) !== "fast") return false
+    if (option.kind.type === "boolean") return true
+    const values = new Set(
+      [
+        ...option.kind.options,
+        ...option.kind.groups.flatMap((group) => group.options),
+      ].map((item) => item.value)
+    )
+    return (
+      values.size === 2 &&
+      ((values.has("on") && values.has("off")) ||
+        (values.has("true") && values.has("false")))
+    )
+  })
+}
+
 /**
  * The composer's model / mode / permission config surface. The probe is owned
  * by the parent (`useAgentOptions`) and passed in, so the editor runs a single
  * transient session that feeds both these selectors and the `/` command menu.
- * The model is one of the config options (id/category "model"); no special-casing.
  */
 export function AgentConfigSection({
   snapshot,
@@ -131,6 +148,9 @@ export function AgentConfigSection({
   // Mirror the composer: when an agent exposes both modes AND config options,
   // hide the standalone mode row (some agents surface mode as a config option).
   const showMode = hasModes && !hasOptions
+  const fastOption = inline ? modelFastOption(snapshot) : undefined
+  const fastEnabled =
+    fastOption && isFastModeEnabled(fastOption, configValues[fastOption.id])
 
   return (
     <div
@@ -141,44 +161,65 @@ export function AgentConfigSection({
       )}
     >
       {showMode && snapshot.modes ? (
-        <FlatSelect
-          label={t("mode")}
-          value={modeId}
-          inheritLabel={t("inherit")}
-          inline={inline}
-          allowInherit={!inline}
-          currentValue={snapshot.modes.current_mode_id}
-          onChange={onModeChange}
-          items={vocabulary.modes(snapshot.modes.available_modes).map((m) => ({
-            value: m.id,
-            name: m.name,
-            description: m.description,
-          }))}
-        />
+        <div className="flex min-w-0 items-center justify-between gap-3">
+          {!inline && <span className="text-sm">{t("mode")}</span>}
+          <AgentModePicker
+            label={t("mode")}
+            value={modeId}
+            modes={vocabulary.modes(snapshot.modes.available_modes)}
+            current={snapshot.modes.current_mode_id}
+            inheritLabel={inline ? undefined : t("inherit")}
+            showHint={inline}
+            onChange={onModeChange}
+          />
+        </div>
       ) : null}
-      {snapshot.config_options.map((option) => (
-        <ConfigOptionRow
-          key={option.id}
-          option={vocabulary.configOption(option)}
-          value={configValues[option.id] ?? null}
-          inheritLabel={t("inherit")}
-          inline={inline}
-          allowInherit={!inline}
-          onChange={(v) => onConfigChange(option.id, v)}
-        />
-      ))}
+      {snapshot.config_options
+        .filter(
+          (option) => option.kind.type === "select" && option !== fastOption
+        )
+        .map((option) => {
+          const localized = vocabulary.configOption(option)
+          return (
+            <div
+              key={option.id}
+              className="flex min-w-0 items-center justify-between gap-3"
+            >
+              {!inline && <span className="text-sm">{localized.name}</span>}
+              <AgentOptionPicker
+                option={localized}
+                footer={
+                  fastOption && isModelConfigOption(option) ? (
+                    <ModelFastMode
+                      option={vocabulary.configOption(fastOption)}
+                      checked={fastEnabled}
+                      onSelect={onConfigChange}
+                    />
+                  ) : undefined
+                }
+                triggerSuffix={
+                  fastEnabled && isModelConfigOption(option)
+                    ? " · Fast"
+                    : undefined
+                }
+                value={configValues[option.id] ?? null}
+                inheritLabel={inline ? undefined : t("inherit")}
+                showHint={inline}
+                onChange={(value) => onConfigChange(option.id, value)}
+              />
+            </div>
+          )
+        })}
     </div>
   )
 }
 
 /**
- * Mirror of `FieldRow.selectValue` (`value ?? currentValue`) applied across a
+ * The inline picker fallback (`value ?? currentValue`) applied across a
  * whole snapshot: the concrete selections the inline (no-inherit) config bar is
  * *displaying*. The editor saves these so a saved automation pins exactly what
  * the user saw — an untouched option persists the agent's current value rather
  * than an empty override that would silently inherit a future default.
- *
- * Kept right beside `FieldRow` so the display rule and the save rule can't drift.
  */
 export function effectiveSelections(
   snapshot: AgentOptionsSnapshot | null,
@@ -189,6 +230,9 @@ export function effectiveSelections(
   if (!snapshot) return { mode_id: modeId, config_values: configValues }
 
   const config: Record<string, string> = {}
+  const fast = modelFastOption(snapshot)
+  if (fast?.kind.type === "boolean")
+    config[fast.id] = configValues[fast.id] ?? String(fast.kind.current_value)
   for (const option of snapshot.config_options) {
     if (option.kind.type !== "select") continue
     const effective = configValues[option.id] ?? option.kind.current_value
@@ -256,202 +300,4 @@ export function snapshotLabels(
   if (Object.keys(config_labels).length > 0) out.config_labels = config_labels
 
   return out
-}
-
-// The shared row shell (label + Select trigger) for both the standalone mode
-// row and the per-option rows. Keeping the inline-vs-stacked styling here means
-// the mode chip and the config chips can never drift apart in the composer's
-// bottom bar; callers supply only the differing <SelectContent>.
-function FieldRow({
-  label,
-  description,
-  value,
-  inline,
-  allowInherit,
-  currentValue,
-  onChange,
-  children,
-}: {
-  label: string
-  /** Secondary line for the inline chip's hover hint — the same subtitle the
-   *  chat composer's chips carry. Inline only: the stacked layout shows its
-   *  label outright and has no hint to hang it off. */
-  description?: string | null
-  value: string | null
-  inline?: boolean
-  /** When false (automations), the "inherit/default" escape hatch is dropped:
-   *  the selector pins a concrete value, defaulting to the agent's *current*
-   *  value so the shown choice always matches what an unset option would run. */
-  allowInherit: boolean
-  currentValue?: string | null
-  onChange: (v: string | null) => void
-  children: ReactNode
-}) {
-  const selectValue = allowInherit
-    ? (value ?? DEFAULT_SENTINEL)
-    : (value ?? currentValue ?? "")
-  return (
-    <div
-      className={
-        inline
-          ? "flex items-center gap-1.5"
-          : "flex items-center justify-between gap-3"
-      }
-    >
-      {/* Inline (composer bottom bar) drops the visible label entirely — the
-          chip shows only its value, like the composer's model/mode selectors. */}
-      {!inline ? (
-        <label className="min-w-0 truncate text-sm">{label}</label>
-      ) : null}
-      <Select
-        value={selectValue}
-        onValueChange={(v) =>
-          onChange(allowInherit ? (v === DEFAULT_SENTINEL ? null : v) : v)
-        }
-      >
-        {/* The dropped label still rides along for hover (`SelectorTooltip`, the
-            same hint the chat composer's chips use) and screen readers
-            (`aria-label`). Stacked keeps its visible <label>, so it passes
-            `null` and renders the trigger bare. A Radix `Select` blocks outside
-            pointer events while open, so no `suppressed` is needed. */}
-        <SelectorTooltip
-          label={inline ? label : null}
-          description={inline ? description : null}
-        >
-          <SelectTrigger
-            size="sm"
-            aria-label={label}
-            // 24px (not the size="sm" default) is deliberate: inline chips
-            // share the task editor's composer bottom bar with the "+" add-menu
-            // button, which is a `size="icon-xs"` (h-6) Button, and the chat
-            // composer's own selectors are h-6 too (`size="xs"`,
-            // session-config-selector). It takes `data-[size=sm]:h-6` to get
-            // there: a bare `h-6` loses to the trigger's own
-            // `data-[size=sm]:h-8`, whose attribute selector is the more
-            // specific rule, and tailwind-merge only drops the base class when
-            // the override carries the same variant. `py-0` sheds the base
-            // padding that a 24px box has no room for.
-            className={
-              inline
-                ? "h-6 w-auto max-w-[12rem] gap-1 border-0 bg-transparent px-1.5 py-0 text-xs text-muted-foreground shadow-none hover:text-foreground data-[size=sm]:h-6"
-                : "w-52"
-            }
-          >
-            <SelectValue />
-          </SelectTrigger>
-        </SelectorTooltip>
-        {children}
-      </Select>
-    </div>
-  )
-}
-
-function FlatSelect({
-  label,
-  value,
-  inheritLabel,
-  inline,
-  allowInherit,
-  currentValue,
-  onChange,
-  items,
-}: {
-  label: string
-  value: string | null
-  inheritLabel: string
-  inline?: boolean
-  allowInherit: boolean
-  currentValue?: string | null
-  onChange: (v: string | null) => void
-  items: Array<{ value: string; name: string; description?: string | null }>
-}) {
-  // The chip's hint describes the mode it is currently on, mirroring the chat
-  // composer's mode selector (which hangs the selected mode's blurb off it).
-  const selected = items.find((it) => it.value === (value ?? currentValue))
-  return (
-    <FieldRow
-      label={label}
-      description={selected?.description}
-      value={value}
-      inline={inline}
-      allowInherit={allowInherit}
-      currentValue={currentValue}
-      onChange={onChange}
-    >
-      <SelectContent>
-        {allowInherit ? (
-          <SelectItem value={DEFAULT_SENTINEL}>{inheritLabel}</SelectItem>
-        ) : null}
-        {items.map((it) => (
-          <SelectItem
-            key={it.value}
-            value={it.value}
-            description={it.description}
-          >
-            {it.name}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </FieldRow>
-  )
-}
-
-function ConfigOptionRow({
-  option,
-  value,
-  inheritLabel,
-  inline,
-  allowInherit,
-  onChange,
-}: {
-  option: SessionConfigOptionInfo
-  value: string | null
-  inheritLabel: string
-  inline?: boolean
-  allowInherit: boolean
-  onChange: (v: string | null) => void
-}) {
-  if (option.kind.type !== "select") return null
-  const groups = option.kind.groups
-  return (
-    <FieldRow
-      label={option.name}
-      description={option.description}
-      value={value}
-      inline={inline}
-      allowInherit={allowInherit}
-      currentValue={option.kind.current_value}
-      onChange={onChange}
-    >
-      <SelectContent>
-        {allowInherit ? (
-          <SelectItem value={DEFAULT_SENTINEL}>{inheritLabel}</SelectItem>
-        ) : null}
-        {groups.length > 0
-          ? groups.map((g) => (
-              <SelectGroup key={g.group}>
-                <SelectLabel>{g.name}</SelectLabel>
-                {g.options.map((it) => (
-                  <SelectItem
-                    key={`${g.group}-${it.value}`}
-                    value={it.value}
-                    description={it.description}
-                  >
-                    {it.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            ))
-          : option.kind.options.map((it) => (
-              <SelectItem
-                key={it.value}
-                value={it.value}
-                description={it.description}
-              >
-                {it.name}
-              </SelectItem>
-            ))}
-      </SelectContent>
-    </FieldRow>
-  )
 }

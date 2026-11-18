@@ -19,6 +19,10 @@ const actions = vi.hoisted(() => ({
   check: vi.fn().mockResolvedValue(undefined),
   status: "ready_to_restart",
   available: true,
+  withoutProvider: false,
+  checked: false,
+  checkError: null as string | null,
+  checking: false,
 }))
 vi.mock("@/lib/api", () => ({ openSettingsWindow: actions.settings }))
 vi.mock("@/contexts/sidebar-context", () => ({
@@ -41,17 +45,31 @@ vi.mock("@/components/layout/status-bar-alerts", () => ({
     <button data-alerts-compact={compact}>Alerts</button>
   ),
 }))
-vi.mock("@/components/providers/update-provider", () => ({
-  useAppUpdate: () => ({
-    restart: actions.restart,
-    checkNow: actions.check,
-    currentVersion: "0.30.55",
-    available: actions.available ? { version: "1.0" } : null,
-    state: { status: actions.status },
-    isUpdating: actions.status === "downloading",
-    isBusy: actions.status === "downloading",
-  }),
-}))
+vi.mock("@/components/providers/update-provider", async () => {
+  const { createContext, useContext } = await import("react")
+  const Context = createContext(false)
+  return {
+    UpdateProvider: ({ children }: { children: import("react").ReactNode }) => (
+      <Context.Provider value={true}>{children}</Context.Provider>
+    ),
+    useAppUpdate: () => {
+      const provided = useContext(Context)
+      if (actions.withoutProvider && !provided) return null
+      return {
+        restart: actions.restart,
+        checkNow: actions.check,
+        currentVersion: "0.30.55",
+        lastCheckedAt: actions.checked ? new Date() : null,
+        checkError: actions.checkError,
+        checking: actions.checking,
+        available: actions.available ? { version: "1.0" } : null,
+        state: { status: actions.status },
+        isUpdating: actions.status === "downloading",
+        isBusy: actions.status === "downloading",
+      }
+    },
+  }
+})
 vi.mock("@/components/layout/status-bar-update", () => ({
   StatusBarUpdate: () => <button onClick={actions.update}>0.30.55</button>,
 }))
@@ -77,7 +95,7 @@ describe("navigation utilities", () => {
     expect(screen.getByTestId("route")).toHaveTextContent("tokenUsage")
     expect(stats).toHaveAttribute("aria-current", "page")
     expect(stats).not.toHaveClass("bg-sidebar-accent")
-    expect(stats).toHaveClass("bg-sidebar-foreground/[0.06]")
+    expect(stats).toHaveClass("bg-[#eaeaea]")
     expect(stats.querySelector("[data-navigation-active]")).toBeNull()
     const quota = screen.getByRole("button", { name: "Quota icon" })
     expect(
@@ -198,15 +216,91 @@ describe("navigation utilities", () => {
         <SettingsAbout />
       </NextIntlClientProvider>
     )
-    expect(screen.queryByText("0.30.55")).toBeNull()
+    expect(screen.getByText("0.30.55")).toBeVisible()
     fireEvent.click(screen.getByRole("button", { name: "About MaxCode" }))
     fireEvent.click(screen.getByRole("button", { name: "0.30.55" }))
     expect(actions.update).toHaveBeenCalledOnce()
   })
+  it("checks for updates directly beside About without opening the popover", async () => {
+    actions.check.mockClear()
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <SettingsAbout />
+      </NextIntlClientProvider>
+    )
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
+    })
+    expect(actions.check).toHaveBeenCalledWith({ silent: false })
+    expect(screen.queryByText("Current version")).toBeNull()
+  })
+
+  it("initializes updates on a standalone settings page", () => {
+    actions.withoutProvider = true
+    try {
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <SettingsAbout />
+        </NextIntlClientProvider>
+      )
+      expect(screen.getByText("0.30.55")).toBeVisible()
+      expect(
+        screen.getByRole("button", { name: "Check for updates" })
+      ).toBeEnabled()
+    } finally {
+      actions.withoutProvider = false
+    }
+  })
+
+  it.each([
+    {
+      checked: false,
+      error: null,
+      checking: false,
+      expected: "Current version",
+    },
+    {
+      checked: true,
+      error: null,
+      checking: false,
+      expected: "You're on the latest version",
+    },
+    {
+      checked: true,
+      error: "Offline",
+      checking: false,
+      expected: "Failed to check for updates: Offline",
+    },
+    { checked: true, error: null, checking: true, expected: "Checking..." },
+  ])(
+    "shows honest update status: $expected",
+    ({ checked, error, checking, expected }) => {
+      actions.status = "idle"
+      actions.available = false
+      actions.checked = checked
+      actions.checkError = error
+      actions.checking = checking
+      try {
+        render(
+          <NextIntlClientProvider locale="en" messages={en}>
+            <SettingsAbout />
+          </NextIntlClientProvider>
+        )
+        expect(screen.getByRole("status")).toHaveTextContent(expected)
+      } finally {
+        actions.status = "ready_to_restart"
+        actions.available = true
+        actions.checked = false
+        actions.checkError = null
+        actions.checking = false
+      }
+    }
+  )
+
   it("gives Statistics the whole content area without conversation chrome or rewriting sidebar preferences", () => {
     const layout = source("src/app/workspace/layout.tsx")
     expect(layout).toMatch(
-      /sidebarOpenRequested\s*&&\s*routeId !== "automations"\s*&&\s*routeId !== "tokenUsage"/
+      /routeId === "automations"\s*\|\|\s*\(sidebarOpenRequested && routeId !== "tokenUsage"\)/
     )
     expect(source("src/components/layout/left-edge-chrome.tsx")).toContain(
       'if (routeId === "automations" || routeId === "tokenUsage") return null'
@@ -219,6 +313,11 @@ describe("navigation utilities", () => {
     )
     expect(source("src/components/settings/settings-shell.tsx")).toContain(
       "<SettingsAbout />"
+    )
+  })
+  it("uses neutral settings selection surfaces instead of the blue secondary palette", () => {
+    expect(source("src/components/settings/settings-shell.tsx")).toContain(
+      '"bg-foreground/5 text-foreground hover:bg-foreground/10"'
     )
   })
 })

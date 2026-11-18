@@ -227,7 +227,7 @@ export function SearchCommandDialog({
             }}
             title={t("searchScope")}
             variant="field"
-            className="h-8 max-w-none flex-1 rounded-md text-sm focus-visible:border-[#216ae4] focus-visible:ring-0"
+            className="h-8 max-w-none flex-1 rounded-md text-sm focus-visible:ring-0"
           />
         </div>
       )}

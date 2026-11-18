@@ -8,6 +8,7 @@ import {
   FolderGit2,
   FolderOpenDot,
   LayersPlus,
+  ListTree,
   SquarePen,
 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -49,6 +50,8 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
   onCloneRepository,
   onImportSessions,
   onNewFolderGroup,
+  groupByFolder = false,
+  onToggleFolderGrouping,
   recentFilter,
   onRecentFilterChange,
   topGap = false,
@@ -56,9 +59,10 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
   section: SidebarSectionKey
   expanded: boolean
   onToggle: (section: SidebarSectionKey) => void
+  groupByFolder?: boolean
+  onToggleFolderGrouping?: () => void
   /**
-   * When provided on the "chats" or "recent" section, renders a New-chat /
-   * New-conversation action button at the row's right edge, revealed only while
+   * When provided on the "chats" section, renders a New-chat button at the row's right edge, revealed only while
    * the row is hovered/focused (and always on touch, which has no hover). A
    * sibling of — not nested in — the toggle button (nesting buttons is invalid
    * HTML), so clicking it never toggles the section. Must be referentially
@@ -90,8 +94,8 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
    */
   onNewFolderGroup?: () => void
   /**
-   * When both are provided on the "recent" section, renders a "⋯" menu LEFT
-   * of the New-chat action that opens a labelled radio list — All /
+   * When both are provided on the "recent" section, renders a "⋯" menu
+   * that opens a labelled radio list — All /
    * Chat / Folders — so the narrowing is spelled out rather than guessed from
    * an icon. Unlike the other actions the trigger stays visible (not
    * hover-revealed) whenever a filter other than "all" is active, so a
@@ -125,12 +129,9 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
           : section === "todos"
             ? t("sectionTodos")
             : t("sectionFolders")
-  // "Recent" gets the same right-edge affordance as "Chats": it is a section
-  // people scan to resume work, so "start a new one" belongs at its head too.
-  // Both sections start a folderless chat and share the same action label.
-  const showNewChat =
-    (section === "chats" || section === "recent") && onNewChat != null
+  const showNewChat = section === "chats" && onNewChat != null
   const newChatLabel = t("newChatAction")
+  const showGrouping = section === "recent" && onToggleFolderGrouping != null
   const showRecentFilter =
     section === "recent" && recentFilter != null && onRecentFilterChange != null
   const recentFilterOptionLabel = (filter: SidebarRecentFilter) =>
@@ -214,7 +215,7 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
             )}
           />
         </button>
-        {(showNewChat || showRecentFilter) && (
+        {(showNewChat || showRecentFilter || showGrouping) && (
           <div className="absolute top-1/2 right-[0.375rem] flex -translate-y-1/2 items-center gap-px">
             {showRecentFilter && (
               <DropdownMenu>
@@ -281,6 +282,18 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
                 className={actionButtonClassName}
               >
                 <SquarePen className="h-[0.875rem] w-[0.875rem]" />
+              </button>
+            )}
+            {showGrouping && (
+              <button
+                type="button"
+                aria-pressed={groupByFolder}
+                aria-label={t("navigation.groupByFolder")}
+                title={t("navigation.groupByFolder")}
+                onClick={onToggleFolderGrouping}
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-foreground"
+              >
+                <ListTree aria-hidden="true" className="size-3.5" />
               </button>
             )}
           </div>

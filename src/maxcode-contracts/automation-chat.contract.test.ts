@@ -4,8 +4,8 @@ import { source } from "./contract-source"
 describe("MaxCode contract: folderless chat automations", () => {
   it("offers chat without forcing a folder or exposing Git controls", () => {
     const editor = source("src/components/automations/automation-editor.tsx")
-    expect(editor).toContain(
-      'allLabel={action === "launch_session" ? t("targetChat") : undefined}'
+    expect(editor).toMatch(
+      /allLabel=\{\s*action === "launch_session" \? t\("targetChat"\) : undefined\s*\}/
     )
     expect(editor).toContain(
       'if (action === "enqueue_task" && folderId == null)'

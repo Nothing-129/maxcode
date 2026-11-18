@@ -80,7 +80,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
   )
   const header = (
     <div
-      className="group/todo-header relative flex min-w-0 items-center gap-0.5 rounded-md transition-colors hover:bg-sidebar-foreground/5 has-[[data-state=open]]:bg-sidebar-foreground/5"
+      className="group/todo-header relative flex min-w-0 items-center gap-0.5 rounded-md transition-colors hover:bg-black/[0.04] dark:hover:bg-white/[0.06] has-[[data-state=open]]:bg-black/[0.04] dark:has-[[data-state=open]]:bg-white/[0.06]"
       data-todo-group-id={id}
     >
       <button
@@ -88,7 +88,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
         aria-expanded={expanded}
         title={title}
         onClick={() => onToggle(id)}
-        className="group flex min-w-0 flex-1 items-center gap-[0.4375rem] rounded-md py-1 pl-4 pr-4 text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        className="group flex min-w-0 flex-1 items-center gap-[0.4375rem] min-h-11 rounded-md py-1 pl-4 pr-4 text-left text-[0.875rem] leading-5 text-sidebar-foreground outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
       >
         <span className="flex min-w-0 flex-1 flex-col gap-0 group-hover/todo-header:pr-14 group-has-[:focus-visible]/todo-header:pr-14 max-md:pr-14 [@media(hover:none)]:pr-14 [@media(pointer:coarse)]:pr-14 group-has-[[data-state=open]]/todo-header:pr-14">
           <span

@@ -1,5 +1,6 @@
 "use client"
 
+import { Checkbox } from "@/components/ui/checkbox"
 import { SettingsError } from "@/components/shared/settings-section"
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -1045,13 +1046,12 @@ export function McpSettings() {
                   key={app.value}
                   className="inline-flex w-full items-center gap-2 rounded-md border px-2 py-1.5"
                 >
-                  <input
-                    type="checkbox"
+                  <Checkbox
                     checked={installAppsDraft[app.value]}
-                    onChange={(event) => {
+                    onCheckedChange={(checked) => {
                       setInstallAppsDraft((prev) => ({
                         ...prev,
-                        [app.value]: event.target.checked,
+                        [app.value]: checked === true,
                       }))
                     }}
                   />
@@ -1445,13 +1445,12 @@ export function McpSettings() {
                         key={app.value}
                         className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={draftAppsDraft[app.value]}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             setDraftAppsDraft((prev) => ({
                               ...prev,
-                              [app.value]: event.target.checked,
+                              [app.value]: checked === true,
                             }))
                           }}
                         />
@@ -1566,13 +1565,12 @@ export function McpSettings() {
                         key={app.value}
                         className="inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs"
                       >
-                        <input
-                          type="checkbox"
+                        <Checkbox
                           checked={localAppsDraft[app.value]}
-                          onChange={(event) => {
+                          onCheckedChange={(checked) => {
                             setLocalAppsDraft((prev) => ({
                               ...prev,
-                              [app.value]: event.target.checked,
+                              [app.value]: checked === true,
                             }))
                           }}
                         />

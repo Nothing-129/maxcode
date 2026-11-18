@@ -52,7 +52,7 @@ export function CollapsedOverlayChip({
         className={cn(
           "group/chip pointer-events-auto flex items-center rounded-s-none rounded-e-full border-y border-e",
           "bg-secondary/70 text-secondary-foreground opacity-60 shadow-md transition-[background-color,opacity] duration-150 hover:bg-secondary hover:opacity-100 focus-visible:opacity-100",
-          "cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-[#216ae4]"
+          "cursor-pointer outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
         )}
       >
         {/* Fixed icon cap — the whole resting chip is just this bullet cap. */}

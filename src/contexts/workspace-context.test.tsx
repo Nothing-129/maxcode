@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react"
+import { act, render, screen, fireEvent, within } from "@testing-library/react"
 import { beforeEach, describe, expect, it, vi, type Mock } from "vitest"
 import {
   WorkspaceProvider,
@@ -3476,6 +3476,30 @@ describe("conversation-scoped file column", () => {
     expect(screen.getByTestId("file-tab-count")).toHaveTextContent("1")
     expect(screen.getByTestId("content")).toHaveTextContent("dirty-local")
     expect(screen.getByTestId("dirty")).toHaveTextContent("true")
+  })
+
+  it("keeps dirty edits on cancel and closes the file only after confirmation", async () => {
+    seedConversationTabs("conv-a")
+    render(
+      <WorkspaceProvider>
+        <ConversationFileScopeProbe />
+      </WorkspaceProvider>
+    )
+    await act(async () => {
+      screen.getByText("open-a").click()
+    })
+    fireEvent.click(screen.getByText("edit"))
+    fireEvent.click(screen.getByText("close-active"))
+    const dialog = screen.getByRole("alertdialog")
+    fireEvent.click(within(dialog).getByRole("button", { name: /cancel/i }))
+    expect(screen.getByTestId("content")).toHaveTextContent("dirty-local")
+    fireEvent.click(screen.getByText("close-all"))
+    fireEvent.click(
+      within(screen.getByRole("alertdialog")).getByRole("button", {
+        name: /close$/i,
+      })
+    )
+    expect(screen.getByTestId("file-tab-count")).toHaveTextContent("0")
   })
 
   it("closeAllFileTabs only closes the active conversation's files", async () => {

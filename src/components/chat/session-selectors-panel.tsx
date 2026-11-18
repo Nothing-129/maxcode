@@ -1,5 +1,10 @@
 "use client"
 
+import { ModelHistoryToggle } from "./model-history-toggle"
+import {
+  isHistoricalModel,
+  visibleModelGroups,
+} from "@/lib/selector-presentation"
 import { useState, type ReactNode } from "react"
 import { Check } from "lucide-react"
 import { cn } from "@/lib/utils"
@@ -76,10 +81,27 @@ export function SessionSelectorsPanel({
 }: SessionSelectorsPanelProps) {
   // `activeKey` is only a hint — the active setting is always resolved against
   // the current `settings`, so it stays valid if the list changes underneath.
+  const [expandedKeys, setExpandedKeys] = useState<string[]>([])
   const [activeKey, setActiveKey] = useState<string | null>(null)
 
   if (settings.length === 0) return null
   const active = settings.find((s) => s.key === activeKey) ?? settings[0]
+  const isModel = active.key === "model" || active.key.endsWith(":model")
+  const historyCount = isModel
+    ? active.groups
+        .flatMap((group) => group.options)
+        .filter(
+          (item) =>
+            isHistoricalModel(item.description) &&
+            item.value !== active.currentValue
+        ).length
+    : 0
+  const expanded = expandedKeys.includes(active.key)
+  const visibleGroups = visibleModelGroups(
+    active.groups,
+    active.currentValue,
+    expanded || !historyCount
+  )
   // The active setting's recommendation, only when there is a label to show it
   // with. `undefined` never equals an option value, so no row is badged.
   const recommendedValue = recommendedLabel ? active.recommendedValue : null
@@ -158,54 +180,73 @@ export function SessionSelectorsPanel({
         <div
           role="group"
           aria-label={active.title}
-          className="flex min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto pl-1"
+          className="flex min-h-0 min-w-0 flex-1 flex-col gap-0.5 pl-1"
         >
           {active.footer}
-          {active.groups.map((group, groupIndex) => (
-            <div key={group.key} className="flex flex-col gap-0.5">
-              {group.name ? (
-                <div
-                  className={cn(
-                    "truncate px-2 pb-0.5 text-xs font-medium text-muted-foreground",
-                    groupIndex === 0 ? "pt-1" : "mt-1 border-t pt-2"
-                  )}
-                >
-                  {group.name}
-                </div>
-              ) : null}
-              {group.options.map((opt) => {
-                const selected = opt.value === active.currentValue
-                return (
-                  <button
-                    key={`${group.key}-${opt.value}`}
-                    type="button"
-                    aria-current={selected ? "true" : undefined}
-                    title={opt.name}
-                    onClick={() => {
-                      active.onSelect(opt.value)
-                      onAfterSelect?.()
-                    }}
+          <div className="flex min-h-0 flex-col gap-0.5 overflow-y-auto overscroll-contain">
+            {historyCount > 0 && (
+              <ModelHistoryToggle
+                expanded={expanded}
+                count={historyCount}
+                onToggle={() =>
+                  setExpandedKeys((keys) =>
+                    expanded
+                      ? keys.filter((key) => key !== active.key)
+                      : [...keys, active.key]
+                  )
+                }
+              />
+            )}
+            {visibleGroups.map((group, groupIndex) => (
+              <div key={group.key} className="flex flex-col gap-0.5">
+                {group.name ? (
+                  <div
                     className={cn(
-                      "flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-sm transition-colors",
-                      "hover:bg-interaction-hover hover:text-foreground",
-                      selected && "bg-accent/60"
+                      "truncate px-2 pb-0.5 text-xs font-medium text-muted-foreground",
+                      groupIndex === 0 ? "pt-1" : "mt-1 border-t pt-2"
                     )}
                   >
-                    <span className="flex size-4 shrink-0 items-center justify-center pt-0.5">
-                      {selected ? <Check className="size-4" /> : null}
-                    </span>
-                    <DropdownRadioItemContent
-                      label={opt.name}
-                      description={opt.description}
-                      recommendedLabel={
-                        opt.value === recommendedValue ? recommendedLabel : null
-                      }
-                    />
-                  </button>
-                )
-              })}
-            </div>
-          ))}
+                    {group.name}
+                  </div>
+                ) : null}
+                {group.options.map((opt) => {
+                  const selected = opt.value === active.currentValue
+                  return (
+                    <button
+                      key={`${group.key}-${opt.value}`}
+                      type="button"
+                      aria-current={selected ? "true" : undefined}
+                      title={opt.name}
+                      onClick={() => {
+                        active.onSelect(opt.value)
+                        onAfterSelect?.()
+                      }}
+                      className={cn(
+                        "flex w-full items-start gap-2 rounded-lg px-2.5 py-2 text-start text-sm transition-colors",
+                        "hover:bg-interaction-hover hover:text-foreground",
+                        selected && "bg-accent/60"
+                      )}
+                    >
+                      <DropdownRadioItemContent
+                        configId={active.key}
+                        valueId={opt.value}
+                        label={opt.name}
+                        description={opt.description}
+                        recommendedLabel={
+                          opt.value === recommendedValue
+                            ? recommendedLabel
+                            : null
+                        }
+                      />
+                      <span className="flex size-4 shrink-0 items-center justify-center pt-1">
+                        {selected ? <Check className="size-4" /> : null}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

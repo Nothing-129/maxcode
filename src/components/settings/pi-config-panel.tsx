@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -1100,48 +1105,50 @@ export function PiConfigPanel({
               </p>
             </div>
 
-            <details className="rounded-md border border-dashed">
-              <summary className="cursor-pointer list-none px-2.5 py-1.5 text-2xs font-medium text-muted-foreground">
+            <Collapsible className="rounded-md border border-dashed">
+              <CollapsibleSummary className="cursor-pointer list-none px-2.5 py-1.5 text-2xs font-medium text-muted-foreground">
                 {t("pi.advanced")}
-              </summary>
-              <div className="space-y-2.5 px-2.5 pb-2.5">
-                <div className="space-y-1.5">
-                  <label className="text-2xs text-muted-foreground">
-                    {t("pi.configDirLabel")}
-                  </label>
-                  <Input
-                    value={configDir}
-                    onChange={(event) => setConfigDir(event.target.value)}
-                    placeholder="~/.pi/agent"
-                    spellCheck={false}
-                  />
-                  {invalidEnteredAgentDir && (
-                    <p className="text-2xs text-destructive">
-                      {t("pi.relativeAgentDir")}
-                    </p>
-                  )}
-                  {configDir.trim() !== "" && (
-                    <p className="text-2xs text-amber-600 dark:text-amber-400">
-                      {t("pi.configDirSkillsNote")}
-                    </p>
-                  )}
+              </CollapsibleSummary>
+              <CollapsibleContent>
+                <div className="space-y-2.5 px-2.5 pb-2.5">
+                  <div className="space-y-1.5">
+                    <label className="text-2xs text-muted-foreground">
+                      {t("pi.configDirLabel")}
+                    </label>
+                    <Input
+                      value={configDir}
+                      onChange={(event) => setConfigDir(event.target.value)}
+                      placeholder="~/.pi/agent"
+                      spellCheck={false}
+                    />
+                    {invalidEnteredAgentDir && (
+                      <p className="text-2xs text-destructive">
+                        {t("pi.relativeAgentDir")}
+                      </p>
+                    )}
+                    {configDir.trim() !== "" && (
+                      <p className="text-2xs text-amber-600 dark:text-amber-400">
+                        {t("pi.configDirSkillsNote")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-2xs text-muted-foreground">
+                      {t("pi.sessionDirLabel")}
+                    </label>
+                    <Input
+                      value={sessionDir}
+                      onChange={(event) => setSessionDir(event.target.value)}
+                      placeholder="~/.pi/agent/sessions"
+                      spellCheck={false}
+                    />
+                  </div>
+                  <p className="text-2xs text-muted-foreground">
+                    {t("pi.flagsHint")}
+                  </p>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-2xs text-muted-foreground">
-                    {t("pi.sessionDirLabel")}
-                  </label>
-                  <Input
-                    value={sessionDir}
-                    onChange={(event) => setSessionDir(event.target.value)}
-                    placeholder="~/.pi/agent/sessions"
-                    spellCheck={false}
-                  />
-                </div>
-                <p className="text-2xs text-muted-foreground">
-                  {t("pi.flagsHint")}
-                </p>
-              </div>
-            </details>
+              </CollapsibleContent>
+            </Collapsible>
           </>
         )}
 

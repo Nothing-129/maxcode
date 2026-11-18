@@ -2319,6 +2319,7 @@ export async function getFolderConversationTurns(
 }
 
 export interface ConversationShareInfo {
+  unavailable_files?: string[]
   version: number
   token: string
   shared_at: string

@@ -130,7 +130,10 @@ describe("todo conversation folder picker", () => {
     expect(picker).toHaveClass("w-full", "max-w-none")
     await user.click(picker)
     expect(screen.getByText("物业系统")).toBeVisible()
-    expect(screen.getByText("/work/property-sys")).toHaveClass("truncate")
+    expect(screen.getByRole("option", { name: "物业系统" })).toHaveAttribute(
+      "title",
+      "/work/property-sys"
+    )
     expect(screen.queryByText("Hidden chat")).not.toBeInTheDocument()
     await user.type(
       screen.getByPlaceholderText(

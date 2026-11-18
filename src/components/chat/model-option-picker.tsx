@@ -1,8 +1,11 @@
 "use client"
 
+import { SelectorTooltip } from "./selector-tooltip"
+
 import { useMemo, useState, type ReactNode } from "react"
 import { ChevronDown } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { SELECTOR_MENU_SURFACE } from "./selector-menu-style"
 import { Button } from "@/components/ui/button"
 import {
   Popover,
@@ -15,6 +18,8 @@ import type { ModelOptionGroup } from "@/lib/model-config-groups"
 import type { SessionConfigOptionInfo } from "@/lib/types"
 
 interface ModelOptionPickerProps {
+  showHint?: boolean
+  disabled?: boolean
   option: SessionConfigOptionInfo
   footer?: ReactNode
   triggerSuffix?: string
@@ -39,6 +44,8 @@ export function ModelOptionPicker({
   triggerSuffix = "",
   groups,
   onSelect,
+  showHint,
+  disabled,
 }: ModelOptionPickerProps) {
   const t = useTranslations("Folder.chat.messageInput")
   const [open, setOpen] = useState(false)
@@ -57,26 +64,42 @@ export function ModelOptionPicker({
 
   if (!kind) return null
 
+  const trigger = (
+    <PopoverTrigger asChild>
+      <Button
+        disabled={disabled}
+        shape="pill"
+        data-selector-control=""
+        data-neutral-model-surface
+        variant="ghost"
+        size="xs"
+        aria-label={
+          currentLabel
+            ? `${option.name}: ${currentLabel}${triggerSuffix}`
+            : option.name
+        }
+        className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+      >
+        <span className="max-w-[10rem] truncate">{currentLabel}</span>
+        {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
+        <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+      </Button>
+    </PopoverTrigger>
+  )
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          data-selector-control=""
-          data-neutral-model-surface
-          variant="ghost"
-          size="xs"
-          aria-label={
-            currentLabel
-              ? `${option.name}: ${currentLabel}${triggerSuffix}`
-              : option.name
-          }
-          className="min-w-0 gap-0.5 px-1 text-muted-foreground"
+      {showHint ? (
+        <SelectorTooltip
+          label={option.name}
+          description={option.description}
+          suppressed={open}
+          disabled={disabled}
         >
-          <span className="max-w-[10rem] truncate">{currentLabel}</span>
-          {triggerSuffix && <span className="shrink-0">{triggerSuffix}</span>}
-          <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
-        </Button>
-      </PopoverTrigger>
+          {trigger}
+        </SelectorTooltip>
+      ) : (
+        trigger
+      )}
       <PopoverContent
         data-composer-selector-content=""
         data-neutral-model-surface
@@ -90,7 +113,7 @@ export function ModelOptionPicker({
         // the popup opens upward and the list's own cap (`MAX_LIST_HEIGHT_REM`) is
         // a rem — at high zoom it outgrows the space above the trigger. The list
         // inside is flex-shrinkable, so it gives way to this cap.
-        className="max-h-(--radix-popover-content-available-height) w-[22rem] max-w-[calc(100vw-1rem)] overflow-hidden p-0"
+        className={`${SELECTOR_MENU_SURFACE} max-h-(--radix-popover-content-available-height) w-[18.5rem] overflow-hidden`}
       >
         <ModelOptionList
           groups={groups}

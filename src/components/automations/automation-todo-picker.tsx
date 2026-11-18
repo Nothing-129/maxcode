@@ -1,5 +1,12 @@
 "use client"
 
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -120,22 +127,25 @@ export function AutomationTodoPicker({
         </div>
       ))}
       <div className="flex gap-2">
-        <select
-          aria-label={t("todoScope")}
-          className="max-w-48 rounded-md border bg-background px-2 text-sm"
+        <Select
           value={scope}
-          onChange={(event) => {
-            setScope(event.target.value)
+          onValueChange={(value) => {
+            setScope(value)
             setPage(1)
           }}
         >
-          <option value="personal">{t("personalTodos")}</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.name}
-            </option>
-          ))}
-        </select>
+          <SelectTrigger aria-label={t("todoScope")} className="max-w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="personal">{t("personalTodos")}</SelectItem>
+            {teams.map((team) => (
+              <SelectItem key={team.id} value={team.id}>
+                {team.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <Input
           value={search}
           aria-label={tt("searchTodos")}

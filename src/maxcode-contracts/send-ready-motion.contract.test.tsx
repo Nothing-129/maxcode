@@ -54,9 +54,9 @@ describe("send readiness motion", () => {
     )
     expect(animateHalo.mock.calls[0]).toEqual([
       [
-        { boxShadow: "0 0 0 0px rgb(33 106 228 / 0%)" },
-        { boxShadow: "0 0 0 5px rgb(33 106 228 / 24%)", offset: 0.4 },
-        { boxShadow: "0 0 0 9px rgb(33 106 228 / 0%)" },
+        { boxShadow: "0 0 0 0px rgb(128 128 128 / 0%)" },
+        { boxShadow: "0 0 0 5px rgb(128 128 128 / 24%)", offset: 0.4 },
+        { boxShadow: "0 0 0 9px rgb(128 128 128 / 0%)" },
       ],
       { duration: 480, easing: "ease-out" },
     ])

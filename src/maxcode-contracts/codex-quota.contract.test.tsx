@@ -104,19 +104,28 @@ describe("inline sidebar official Codex quota", () => {
     }
   )
 
-  it("does not substitute weekly quota when Plus short-window data is missing", async () => {
-    mocks.call.mockResolvedValue({
-      ...official,
-      windows: [official.windows[1]],
-    })
-    await mount(false, true)
-    expect(quotaButton()).toHaveTextContent("—")
-    expect(quotaButton().querySelector("[data-quota-remaining]")).toBeNull()
-    await openDetails()
-    expect(
-      screen.getByRole("progressbar", { name: "Weekly · Remaining" })
-    ).toBeVisible()
-  })
+  it.each(["plus", null])(
+    "shows weekly quota directly on the rail when it is the only window for plan %s",
+    async (plan) => {
+      mocks.call.mockResolvedValue({
+        ...official,
+        plan_type: plan,
+        windows: [{ ...official.windows[1], used_percent: 55 }],
+      })
+      await mount(false, true)
+      expect(quotaButton().textContent).toBe("45")
+      expect(quotaButton()).toHaveAccessibleName(
+        "Codex quota · Remaining · week 45%"
+      )
+      expect(
+        quotaButton().querySelector("[data-quota-remaining]")
+      ).toHaveAttribute("stroke-dasharray", "45 100")
+      await openDetails()
+      expect(
+        screen.getByRole("progressbar", { name: "Weekly · Remaining" })
+      ).toHaveAttribute("aria-valuenow", "45")
+    }
+  )
 
   it("keeps Plus percentages inline and preserves exhausted zero without progress bars", async () => {
     await mount()
@@ -165,19 +174,22 @@ describe("inline sidebar official Codex quota", () => {
     ).toHaveAttribute("aria-valuenow", "0")
   })
 
-  it("never substitutes Pro's short window for missing weekly data", async () => {
-    mocks.call.mockResolvedValue({
-      ...official,
-      plan_type: "pro",
-      windows: [official.windows[0]],
-    })
-    await mount()
-    expect(quotaButton()).toHaveTextContent("—")
-    expect(quotaButton()).toHaveAttribute(
-      "title",
-      expect.stringContaining("Quota temporarily unavailable")
-    )
-  })
+  it.each([false, true])(
+    "keeps the placeholder when Pro has no weekly data (compact: %s)",
+    async (compact) => {
+      mocks.call.mockResolvedValue({
+        ...official,
+        plan_type: "pro",
+        windows: [official.windows[0]],
+      })
+      await mount(false, compact)
+      expect(quotaButton()).toHaveTextContent("—")
+      expect(quotaButton()).toHaveAttribute(
+        "title",
+        expect.stringContaining("Quota temporarily unavailable")
+      )
+    }
+  )
 
   it("does not invent a missing Plus 5-hour window", async () => {
     mocks.call.mockResolvedValue({
@@ -211,9 +223,13 @@ describe("inline sidebar official Codex quota", () => {
       name: "Weekly · Remaining",
     })
     expect(short).toHaveAttribute("aria-valuenow", "75")
-    expect(short.firstElementChild).toHaveStyle({ width: "75%" })
+    expect(short.firstElementChild).toHaveStyle({
+      transform: "translateX(-25%)",
+    })
     expect(weekly).toHaveAttribute("aria-valuenow", "0")
-    expect(weekly.firstElementChild).toHaveStyle({ width: "0%" })
+    expect(weekly.firstElementChild).toHaveStyle({
+      transform: "translateX(-100%)",
+    })
     expect(quotaButton().querySelector("[role='progressbar']")).toBeNull()
     expect(screen.getByRole("button", { name: "Refresh quota" })).toBeVisible()
     await act(async () => {

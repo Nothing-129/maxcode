@@ -1,5 +1,6 @@
 "use client"
 
+import { Input } from "@/components/ui/input"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { BookmarkPlus, LayoutTemplate, Trash2 } from "lucide-react"
@@ -377,12 +378,12 @@ function TaskEditorBody({
       </DialogHeader>
 
       <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-4 py-3">
-        <input
+        <Input
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder={t("titlePlaceholder")}
           aria-label={t("titleLabel")}
-          className="w-full bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:font-normal placeholder:text-muted-foreground/50"
+          className="h-auto w-full rounded-none border-0 bg-transparent px-0 py-0 text-lg font-semibold tracking-tight md:text-lg outline-none placeholder:font-normal placeholder:text-muted-foreground/50"
         />
 
         {/* Agent pill above the composer, as in the automation editor. While

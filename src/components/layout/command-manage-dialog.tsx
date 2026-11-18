@@ -121,7 +121,7 @@ function CommandReorderItem({
       dragMomentum={false}
       layout="position"
       className={cn(
-        "cursor-pointer rounded-lg border bg-card p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+        "cursor-pointer rounded-lg border bg-card p-2.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         selected && "border-primary/60 bg-primary/5"
       )}
       tabIndex={0}

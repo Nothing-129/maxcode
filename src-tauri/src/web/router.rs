@@ -48,6 +48,7 @@ pub fn build_router(
             post(handlers::todo::todo_call)
                 .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
         )
+        .route("/todo_team_events", post(handlers::todo::todo_team_events))
         .route(
             "/todo_import_codex_session",
             post(handlers::todo::todo_import_codex_session),
@@ -1821,6 +1822,7 @@ pub fn build_router(
             post(handlers::todo::team_todo_call)
                 .layer(DefaultBodyLimit::max(crate::todo::TODO_REQUEST_MAX_BYTES)),
         )
+        .route("/team_todo_events", post(handlers::todo::team_todo_events))
         .route(
             "/team_todo_create",
             post(handlers::todo::team_todo_create)

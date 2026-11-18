@@ -200,7 +200,11 @@ impl ChatAuthoringAccess for DbChatAuthoring {
             tool.as_str(),
             "list_todo_scopes" | "list_todos" | "get_todo"
         ) {
-            emit_event(&self.emitter, "todos://changed", serde_json::json!({}));
+            crate::todo::events::notify(
+                &self.emitter,
+                result["origin"]["scope_id"].as_str(),
+                false,
+            );
         }
         Ok(result)
     }

@@ -21,6 +21,13 @@ fn turn(role: TurnRole, blocks: Vec<ContentBlock>) -> MessageTurn {
     }
 }
 
+fn select_share_turns(
+    turns: Vec<MessageTurn>,
+    options: &ConversationShareOptions,
+) -> Result<Vec<MessageTurn>, AppCommandError> {
+    sanitize_selected_turns(select_share_rounds(turns, options)?)
+}
+
 fn execution() -> Vec<MessageTurn> {
     vec![
         turn(TurnRole::System, vec![text("PRIVATE_SYSTEM")]),
@@ -173,6 +180,7 @@ async fn legacy_and_opted_in_public_links_are_filtered_on_read() {
         created_at: Utc::now(),
         updated_at: Utc::now(),
         shared_at: Utc::now(),
+        files: Vec::new(),
         turns: execution(),
         share_options: ConversationShareOptions::default(),
         session_stats: None,
@@ -216,4 +224,101 @@ async fn legacy_and_opted_in_public_links_are_filtered_on_read() {
     assert!(!json.contains("PRIVATE_COMMAND"));
     assert!(!json.contains("PRIVATE_SYSTEM"));
     assert!(!json.contains("private-agent-id"));
+}
+
+#[tokio::test]
+async fn shares_referenced_files_once_without_reading_examples_or_external_paths() {
+    let workspace = tempfile::tempdir().unwrap();
+    std::fs::write(workspace.path().join("图 (1).png"), b"png").unwrap();
+    std::fs::write(workspace.path().join("report.xlsx"), b"xlsx").unwrap();
+    std::fs::write(workspace.path().join("private.txt"), b"private").unwrap();
+    let mut turns = vec![turn(TurnRole::Assistant, vec![text(
+        "![图](<图 (1).png>) [下载](report.xlsx) [again](report.xlsx) `[example](private.txt)` [web](https://example.com) [missing](lost.pdf)",
+    )])];
+    let files = share_files::collect(&mut turns, workspace.path()).await;
+    assert_eq!(files.len(), 3);
+    assert_eq!(files[0].data.as_deref(), Some("cG5n"));
+    assert_eq!(files[1].data.as_deref(), Some("eGxzeA=="));
+    assert!(files[2].data.is_none());
+    let ContentBlock::Text { text } = &turns[0].blocks[0] else {
+        panic!()
+    };
+    assert_eq!(text.matches("#maxcode-file-1").count(), 2);
+    assert!(text.contains("`[example](private.txt)`"));
+    assert!(text.contains("[web](https://example.com)"));
+}
+
+#[tokio::test]
+async fn captured_files_survive_source_removal_and_stay_bound_to_the_shared_rounds() {
+    let root = tempfile::tempdir().unwrap();
+    let workspace = root.path().join("workspace");
+    std::fs::create_dir(&workspace).unwrap();
+    std::fs::write(workspace.join("thumb.png"), b"png").unwrap();
+    std::fs::write(workspace.join("final.pdf"), b"pdf").unwrap();
+    std::fs::write(root.path().join("outside.txt"), b"outside").unwrap();
+    let uri = url::Url::from_file_path(workspace.join("thumb.png")).unwrap();
+    let turns = vec![
+        turn(TurnRole::User, vec![text("[unselected](other.zip)")]),
+        turn(
+            TurnRole::User,
+            vec![ContentBlock::Image {
+                data: String::new(),
+                mime_type: "image/png".into(),
+                uri: Some(uri.to_string()),
+            }],
+        ),
+        turn(
+            TurnRole::Assistant,
+            vec![text(
+                "[![图](thumb.png)](final.pdf) [outside](../outside.txt)",
+            )],
+        ),
+    ];
+    let options = ConversationShareOptions {
+        rounds: Some(vec![2]),
+        ..Default::default()
+    };
+    let mut turns = select_share_rounds(turns, &options).unwrap();
+    let files = share_files::collect(&mut turns, &workspace).await;
+    let db = fresh_in_memory_db().await;
+    let folder = folder_service::add_folder(&db.conn, workspace.to_str().unwrap())
+        .await
+        .unwrap();
+    let conversation =
+        conversation_service::create(&db.conn, folder.id, AgentType::Codex, None, None)
+            .await
+            .unwrap();
+    let snapshot = SharedConversationSnapshot {
+        version: 2,
+        title: None,
+        agent_type: AgentType::Codex,
+        model: None,
+        created_at: Utc::now(),
+        updated_at: Utc::now(),
+        shared_at: Utc::now(),
+        message_count: 2,
+        turns: sanitize_share_turns(turns),
+        files,
+        share_options: options,
+        session_stats: None,
+    };
+    let row = conversation_share_service::publish(
+        &db.conn,
+        conversation.id,
+        serde_json::to_string(&snapshot).unwrap(),
+    )
+    .await
+    .unwrap();
+    drop(root);
+    let public = get_shared_conversation_core(&db.conn, &row.token)
+        .await
+        .unwrap();
+    assert_eq!(public.files.len(), 3);
+    assert_eq!(public.files[0].data.as_deref(), Some("cG5n"));
+    assert_eq!(public.files[1].data.as_deref(), Some("cGRm"));
+    assert!(public.files[2].data.is_none());
+    let json = serde_json::to_string(&public.turns).unwrap();
+    assert_eq!(json.matches("#maxcode-file-0").count(), 2);
+    assert!(!json.contains("other.zip"));
+    assert!(!json.contains("../outside"));
 }

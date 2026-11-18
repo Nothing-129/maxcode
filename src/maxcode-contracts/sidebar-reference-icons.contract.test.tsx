@@ -1,9 +1,64 @@
 import { render } from "@testing-library/react"
+import { MessagesSquare } from "lucide-react"
 import { describe, expect, it } from "vitest"
-import { SidebarNavigationIcon } from "@/components/layout/sidebar-navigation-icon"
+import {
+  SidebarNavigationIcon,
+  SidebarRailIcon,
+} from "@/components/layout/sidebar-navigation-icon"
 import { source } from "./contract-source"
+import { NAVIGATION_IDS } from "@/contexts/sidebar-navigation-context"
 
 describe("sidebar reference icons", () => {
+  it.each(NAVIGATION_IDS)(
+    "keeps %s on the same icon grid when selection changes",
+    (name) => {
+      const { container, rerender } = render(
+        <SidebarRailIcon name={name} selected={false} />
+      )
+      const outline = container.querySelector("svg")!
+      expect(outline).toHaveClass("size-5")
+      expect(outline).toHaveAttribute("viewBox", "0 0 24 24")
+      expect(outline).toHaveAttribute("stroke-width", "1.75")
+      expect(outline).toHaveAttribute("stroke-linecap", "round")
+      expect(outline).toHaveAttribute("stroke-linejoin", "round")
+      if (name === "automations") {
+        expect(outline.querySelector("circle")).toHaveAttribute("r", "10")
+        expect(outline.querySelector("path")).toHaveAttribute(
+          "d",
+          "M12 6v6l-3 3"
+        )
+      }
+      rerender(<SidebarRailIcon name={name} selected />)
+      const solid = container.querySelector("svg")!
+      expect(solid).toHaveClass("size-5")
+      expect(solid).toHaveAttribute("viewBox", "0 0 24 24")
+      expect(solid).toHaveAttribute("fill", "currentColor")
+      expect(solid).toHaveAttribute("aria-hidden", "true")
+    }
+  )
+
+  it("preserves the original conversation bubbles when switching to solid selection", () => {
+    const { container } = render(
+      <>
+        <MessagesSquare />
+        <SidebarRailIcon name="conversations" selected={false} />
+        <SidebarRailIcon name="conversations" selected />
+      </>
+    )
+    const [original, outline, solid] = container.querySelectorAll("svg")
+    const paths = (icon: Element) =>
+      Array.from(icon.querySelectorAll("path"), (path) =>
+        path.getAttribute("d")
+      )
+    expect(paths(outline)).toEqual(paths(original))
+    expect(solid.querySelector("path")).toHaveAttribute(
+      "d",
+      original.querySelector("path")!.getAttribute("d")
+    )
+    expect(outline).toHaveAttribute("fill", "none")
+    expect(solid).toHaveAttribute("fill", "currentColor")
+  })
+
   it("renders thin decorative compose, clock and task drawings", () => {
     const { container } = render(
       <>

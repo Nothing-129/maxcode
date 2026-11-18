@@ -1,5 +1,9 @@
 # MaxCode 下游功能清单
 
+2026-11-18 功能栏五图标统一：主页、会话、项目、待办、自动化共享 20px 图标框、24 单位网格与 1.75 单位圆头描边，选中态统一实心填充与圆角。沿用房屋、双对话气泡、文件夹、方框加勾与三条清单线、时钟造型，内部镂空间隔统一为 1.75 单位。契约：`sidebar-reference-icons.contract.test.tsx`、`sidebar-functional-navigation.contract.test.tsx`；热点：`sidebar.functional-navigation-preview`、`appearance.sidebar-reference-icons`。
+
+2026-11-18 功能栏图标选中态：主页、会话、项目、待办、自动化均在选中时显示实心图标与浅灰底，未选中时显示灰色描边。会话沿用原有双对话气泡造型。契约：`sidebar-functional-navigation.contract.test.tsx`、`sidebar-reference-icons.contract.test.tsx`；热点：`sidebar.functional-navigation-preview`。
+
 2026-11-09 手机功能区：移动端侧边抽屉增加窄图标栏和对应列表，共享会话日期筛选、项目、待办分组状态；切换列表保留抽屉，进入自动化与统计时关闭抽屉，选择会话后回到全屏内容。隐藏重复的新对话旁快捷入口、顶部设置与页脚工具。契约：导航工具及功能导航契约；沿用对应热点。
 
 2026-11-09 隐藏常驻版本图标：当前版本放在设置悬停提示与关于弹层，仅检测到更新或更新进行中时在设置上方显示临时更新入口，准备就绪后点击直接重启。沿用导航工具契约及热点。
@@ -146,7 +150,7 @@ Claude ACP 升到 0.97.0，恢复 advisor 历史结果，保留前台 fork 保�
 
 待办新建对话默认沿用上一次主动新建会话的文件夹；查看历史和启动恢复不会覆盖该记录，已删除目录回退到当前有效目录或聊天模式。只有已完成待办按服务端每页 20 条分页，搜索覆盖全部已完成记录，个人和团队均适用；其他状态完整查询，翻页或断线不借用其他页、搜索条件或范围的数据。独立契约：`todo-last-new-folder.contract.test.tsx`、`todo-completed-pagination.contract.test.tsx`。
 
-侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。关联候选默认只查询当前用户被分配或已领取的团队待办（含已完成），搜索与分页在宿主端先按成员筛选；个人范围保留全部个人待办。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
+侧边栏新增可排序、隐藏及折叠的“按待办”栏目，按已指定或领取的待办标题归组本机对话。待办入口每次打开独立未发送草稿，正文和来源分别保存；绑定分屏替换旧草稿时沿用草稿归档恢复能力。草稿保留当时的个人/团队范围，首次保存对话时写入独立本机关联表，普通新建对话仍沿用现有草稿复用行为。已有对话也可从“更多”搜索并关联已有待办，支持解除关联，目标会话和范围在打开时固定。关联弹窗以单行标题和文字按钮展示已领取的待办。团队范围仅含当前成员领取的待办，个人范围也按已领取状态筛选，筛选后再分页。旧宿主兼容跨页筛选，已有的其他状态关联仍可查看及解除。对话标题的来源按钮直接打开对应待办详情，可编辑及完成，已完成分页或当前范围不同不影响定位。普通对话和分享链接不会自动推断关联。团队宿主只收到待办查询及操作数据，不收到本机会话 ID 或正文。独立契约：`sidebar-todo-groups.contract.test.tsx`、`todo-conversation-origin.contract.test.tsx`、`todo-conversation-groups.contract.rs`、`todo-conversation-links.contract.test.tsx`、`todo-source-navigation.contract.test.tsx`、`todo-conversation-sources.contract.rs`。
 
 2026-10-16 待办 Markdown 与对象存储：编辑器支持 Markdown 和实时预览，粘贴图片/文件先上传再在光标处插入 URL；团队创建者配置 MinIO 的 S3 API、Bucket、访问密钥、Region 及带 Bucket/CDN 映射的可匿名读取文件地址。密钥仅通过宿主凭据存储保存；成员上传由成员令牌确定团队范围。个人附件保存在上传目录的 `todo-attachments/` 下，数据库只记文件元信息，链接为随机 ID 的读取地址。个人本地文件引用合计限制 100 MiB；团队 MinIO 附件取消应用层大小限制。启动迁移会删除旧数据库内嵌附件，保留待办正文及现有 Markdown URL；不再读取或转换旧附件，并拒绝旧客户端写回该格式。旧文件 URL 不随 MinIO 配置变化重写；未引用的已上传对象不自动删除，可由存储管理员按保留策略维护。独立契约：`todo-attachments.contract.test.tsx`、`todo-attachments.contract.rs`、`todo-minio-settings.contract.test.tsx`、`todo-minio.contract.rs`。
 
@@ -269,6 +273,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 消息 | 消息的新对话操作带入原文草稿并保留项目和智能体，不自动发送；相邻的独立待办操作可另行创建待办 | `worktree-2026-09-10` | `messages.new-chat-from-message` |
 | 待办入口 | 侧栏和快捷菜单打开独立的新待办；旧 AI 待办、Forge 任务按钮和新自动化入队入口隐藏，历史数据保留；导航显隐偏好及手机收起行为保留 | `worktree-2026-10-14` | `tasks.workbench-entry-points` |
 | 团队待办 | 个人/团队范围隔离并记忆，创建者本机托管，团队码加入、头像名称、成员同权、领取/指定/完成、空标题自动生成及对话双向联动；待办新对话沿用上次新建目录，已完成服务端分页与跨页搜索；独立成员凭据与分享快照，离线不串数据 | `worktree-2026-10-14` | `todos.personal-team-collaboration` |
+| 对话按文件夹分组 | 对话页可在「最近」标题行最右侧通过分组列表图标切换并记住分组视图，按项目或聊天归类，支持独立折叠，保持置顶、日期过滤及最近活动顺序。 | `worktree-2026-11-18` | `sidebar.functional-navigation-preview` |
+| 待办同步 | 待办变动后通知对应团队，成员重新读取待办和侧栏分组。重连补刷，通知连接不可用时每分钟兼容刷新一次。待办页右上角可手动刷新待办和侧栏分组 | `worktree-2026-11-18` | `todo.live-team-sync` |
 | 待办递归收起 | 收起“待办”分区时同步收起各待办及其对话、子对话；单个待办收起时清除其下各层子对话展开状态，再展开或刷新保持紧凑视图，保留无关对话与其他分组状态 | `worktree-2026-10-30` | `todos.sidebar-recursive-collapse` |
 | 待办会话分组 | 侧边栏按已分配待办归组从待办新建的本机会话；草稿来源记忆及首次保存关联、个人/团队范围切换、独立于已完成分页、复用现有会话卡片与手机导航 | `worktree-2026-10-14` | `todos.sidebar-conversation-groups` |
 | 浏览器稳定性 | 跨客户端详情同步合并重复通知，每轮最多五次退避请求，阻断元信息事件反馈造成的请求堆积 | `worktree-2026-09-09` | `chat.viewer-sync-request-bounds` |
@@ -282,12 +288,13 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 设置 | 智能体初始顺序固定为 Codex、Grok、DeepSeek、Pi、Antigravity、Claude、Gemini、OpenClaw、OpenCode、Cline、Hermes、CodeBuddy、Kimi、Cursor、Qoder；保留已保存的手动排序 | `worktree-2026-09-08` | `settings.default-agent-order` |
 | 手机导航 | 顶部合并为单行会话标题与操作，统一 44px 触摸按钮，搜索/终端/面板/设置收进工具菜单 | `worktree-2026-09-08` | `workspace.mobile-header` |
 | 消息 | 已发消息的复制按钮旁提供修改图标，点击即停止当前回复并将原文填入、聚焦底部输入框；修改后由用户正常发送 | `worktree-2026-09-08` | `messages.edit-sent-message` |
-| 侧边栏 | “最近”栏目新建入口与“聊天”一致，始终新建不绑定当前文件夹的聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
+| 侧边栏 | 主页和对话页的“最近”标题不显示新建按钮。顶部“新对话”和“聊天”分区的新建入口仍可创建独立聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
 | 侧边栏 | 保留新对话（简体中文固定文案）、自动化、待办任务及会话列表，仓库面板不加入侧栏；待办和自动化支持显隐设置；待办导航及文件夹、最新、聊天新增入口统一在手机/触屏导航后收起侧栏 | `worktree-2026-09-08`、`worktree-2026-10-13` | `workspace.sidebar-navigation` |
 | 发布 | Electron 原生架构安装包、打包后启动验证、完整产物与签名门禁；旧 Tauri 壳与兼容 CI 已退役 | `worktree-2026-09-08` | `desktop.electron-release-pipeline` |
 | 桌面更新 | Electron 稳定版差分下载、完整包回退、跨窗口进度与后端退出后安装；架构独立清单和 blockmap；GitHub 过慢或不可达时走 maxcode-update.aifalao.net | `worktree-2026-09-08` | `desktop.differential-updates` |
 | 桌面 Web 服务 | Electron 独立对外监听供手机 URL 访问，保留端口、Token、自动启动，关闭对外服务不影响桌面连接 | `worktree-2026-09-09` | `desktop.electron-web-service` |
+| Web 服务访问地址 | 无有效手动选择时默认局域网 IP，无局域网地址时回退本机；手动选择跨设置页面和端口变更保留，复制、二维码及打开使用当前地址 | `worktree-2026-11-18` | `settings.web-service-lan-default` |
 | 手机侧栏 | 搜索、定位当前对话、更多设置与侧栏标题同排，移除独立工具行；44px 触控区域，展开/折叠收进更多菜单，打开搜索时收起侧栏 | `worktree-2026-09-09` | `sidebar.search-tools` |
 | 手机布局 | 浏览器由工作区预留底部安全区；Android APP 由原生层避让导航栏/键盘，注入样式取消新旧网页外壳的重复底部安全区（所有机型），输入框仅保留 8px 间距 | `worktree-2026-09-09` | `mobile.composer-bottom-gap` |
 | 桌面 | Electron 默认入口、安全原生桥接、认证本机后端、偏好保留、退出清理与安装包更新归属 | `worktree-2026-09-08` | `desktop.electron-runtime` |
@@ -295,6 +302,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
 | 会话 | 模型工作状态（等待响应、思考中、流式输出、正在使用工具、等待你）只显示文案，左侧不放状态图标；agent 图标、耗时和 tok/s 保留；工具卡片状态图标保留。上游 activity-feedback 不得把左侧图标加回来 | `worktree-2026-09-21` | `chat.live-turn-status-text-only` |
+| 模型选择 | 普通、可搜索及窄栏模型菜单中，Fast 开关保留在滚动区外，长列表及多行模型说明在菜单内独立滚动。 | `worktree-2026-11-18` | `composer.unified-selector-menus` |
+| 模型描述 | 中文模型列表翻译 Codex 内置目录及已知实时目录描述（含 GPT-6.2 系列），保留模型名称和协议值。历史模型按原规则折叠，未知自定义描述显示原文。 | `worktree-2026-11-18` | `composer.localized-model-history` |
 | 思考 | 流式思考默认单行折叠，手动展开后限高滚动，更新及完成时保留手动选择 | `worktree-2026-09-08` | `chat.compact-reasoning` |
 | 会话 | 回复运行时摘要展示、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
 | 会话 | 按文件夹/聊天范围记住智能体，按明确优先级选择新会话默认智能体 | `dc86bec0`、`16941c88` | `conversations.agent-defaults` |
@@ -455,11 +464,14 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 待办创建信息（`todos.creation-metadata`）：看板卡片、列表及看板/来源详情均展示创建人和创建时间；创建人与指定人独立匹配，成员资料缺失时显示创建人 ID。时间按界面语言与查看者时区显示。独立契约：`todo-creation-metadata.contract.test.tsx`。
 
-待办 Codex 会话迁移（`todos.codex-session-import`）：将整个 Codex 对话添加到待办时，可显式勾选允许导入完整原生会话（仅全部轮次可用）。完整工具调用、思考及原生恢复记录保存在团队宿主，使用成员凭据读取，不进入公开分享快照。接收方在待办卡片、看板详情或来源详情点击“导入并继续”，选择本机项目后以新 UUID 保存到当前 Codex 配置的会话目录，并自动关联指定来源待办；同一待办与目录重复导入打开已有会话。只映射执行目录及身份，不替换消息正文内的路径，不迁移项目文件、凭据配置或正在运行的命令。迁移前会展开 fork/revert 引用历史，缺少依赖时拒绝导出；旧待办及未勾选的分享保持只读查看。契约：`todo-codex-import.contract.rs`、`todo-codex-import.contract.test.tsx`。
+待办 Codex 会话迁移（`todos.codex-session-import`）：从对话菜单点击“添加到待办”即分享全部轮次、图片和附件，并把链接填入待办草稿。单独打开“分享会话”时仍可选轮次。分享完整 Codex 对话时，待办编辑器提供默认关闭的成员导入选项。完整工具调用、思考及原生恢复记录保存在团队宿主，使用成员凭据读取，不进入公开分享快照。接收方在待办卡片、看板详情或来源详情点击“导入并继续”，选择本机项目后以新 UUID 保存到当前 Codex 配置的会话目录，并自动关联指定来源待办；同一待办与目录重复导入打开已有会话。只映射执行目录及身份，不替换消息正文内的路径，不迁移项目文件、凭据配置或正在运行的命令。迁移前会展开 fork/revert 引用历史，缺少依赖时拒绝导出；旧待办及未勾选的分享保持只读查看。契约：`todo-codex-import.contract.rs`、`todo-codex-import.contract.test.tsx`。
 
 2026-10-19 修正 Codex 待办导入的分享入口：普通“分享对话”和“添加到待办”均展示完整会话导入选项；生成公开分享链接后仍可勾选并创建带恢复数据的待办。公开链接仍只返回阅读快照，原有仅包含快照的待办需重新从源会话创建。集成验证覆盖普通分享直接创建待办及先生成链接后创建待办两条路径。
 
 2026-10-19 分享页默认突出每轮用户提问和最后一条助手正文，较早的助手过程片段及明确的工作预告收进默认关闭的“过程说明”，展开后可阅读原文。旧快照没有消息阶段信息，采用消息边界兼容整理，不删除原文；图片继续直接展示。开头完整的 AGENTS 指令及环境包络默认折叠为会话信息，混合消息中的实际提问保持可见，不匹配未闭合标记或正文内普通提及。公开接口既有的思考/工具过滤和私有原生导入数据隔离继续生效。独立契约：`conversation-share-content.contract.test.tsx`。
+
+发布会话时自动保存所分享轮次中 Markdown 引用的工作区文件、上传附件及 Codex 附件目录内的文件。重复引用共用一份副本。每次分享为引用文件预留 100 MB 原始数据；发布结果列出缺失、超限或无法读取的文件名。访客可放大图片，预览文本、PDF 和常用音视频，或下载原文件。刷新分享后原链接展示新快照。契约见 `conversation-share-content.contract.rs`，热点为 `conversations.read-only-sharing`。
+
 
 
 2026-10-20 待办 MCP（`todos.mcp-operations`）：`codeg-mcp` 新增独立 `todos` 工具组，MaxCode 管理且支持 MCP 的会话默认注入，不依赖多智能体委托或执行任务创建开关。提供范围列表、分页搜索、详情、创建、部分更新、领取、释放、完成、重开、删除及关联/取消关联当前会话。创建及搜索未指定范围时沿用当前个人/团队选择，显式范围覆盖但不改变界面选中项；创建必须携带 UUID `operation_id`，重试复用同一值；编辑和状态变更使用当前 `revision` 防止覆盖他人更新。远程团队通过成员凭据和新增 `team_todo_create` 接口创建，宿主需要升级到支持该接口的版本。会话 ID 仅由启动令牌解析。“把当前对话添加到待办”使用 `create_todo_from_conversation`，复用界面分享流程生成净化快照与 `source_url`，不导出原生 Codex 会话；`link_todo_to_conversation` 仅供显式本地关联，不可替代对话分享。团队缺失、离线或分享地址未配置时报错，不回退到个人或普通待办。待办变更通知可见看板刷新，保留五秒轮询恢复机制。新增工具需重启已有智能体会话并使用更新后的后端和 `codeg-mcp` 二进制。契约：`todo-mcp.contract.rs`、`todo-mcp.contract.test.tsx`。

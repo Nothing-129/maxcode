@@ -176,6 +176,16 @@ export function deriveModelGroups(
 // scrolling). Short lists (Claude's handful) keep the lightweight rendering.
 export const MODEL_LIST_VIRTUALIZE_THRESHOLD = 24
 
+export function shouldSearchModelOptions(
+  option: SessionConfigOptionInfo
+): boolean {
+  return (
+    isModelConfigOption(option) &&
+    option.kind.type === "select" &&
+    option.kind.options.length > MODEL_LIST_VIRTUALIZE_THRESHOLD
+  )
+}
+
 // The grouped list to render in the searchable model picker: derived `provider/`
 // groups when applicable, else the agent's server-provided groups (preserved
 // verbatim), else a single headerless group for a flat list. Keeps the wide and

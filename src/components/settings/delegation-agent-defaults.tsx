@@ -16,20 +16,16 @@
  *      NOT bleed into the chat context.
  */
 
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectLabel,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
+  AgentModePicker,
+  AgentOptionPicker,
+} from "@/components/shared/agent-option-picker"
 import {
   type AgentDelegationDefaults,
   type AgentOptionsSnapshot,
@@ -46,13 +42,6 @@ import {
 import { describeAgentOptions } from "@/lib/api"
 import { useAgentVocabulary } from "@/hooks/use-agent-vocabulary"
 import { toErrorMessage } from "@/lib/app-error"
-
-// Sentinel `value` slot used by the top "Default" Select item in mode +
-// config-option rows. Picking it clears the override (sets it back to
-// `null`) so the agent's own default takes effect at runtime. Must not
-// collide with any real option id any agent could emit — the codeg
-// prefix makes a collision implausible.
-const DEFAULT_SENTINEL = "__codeg_default__"
 
 // Tab-switch debounce. Without this, rapid clicks across the agent
 // buttons would each kick off a real probe (which on the backend now
@@ -110,6 +99,7 @@ export function DelegationAgentDefaultsPanel({
   const reqIdRef = useRef(0)
 
   const loadSnapshot = useCallback(async (agent: AgentType, force: boolean) => {
+    const reqId = ++reqIdRef.current
     if (!force) {
       const cached = readCache(agent)
       if (cached) {
@@ -119,7 +109,6 @@ export function DelegationAgentDefaultsPanel({
         return
       }
     }
-    const reqId = ++reqIdRef.current
     setLoading(true)
     setError(null)
     setLoaded(null)
@@ -193,37 +182,35 @@ export function DelegationAgentDefaultsPanel({
   }
 
   return (
-    <div className="space-y-3">
+    <Tabs
+      value={selectedAgent}
+      onValueChange={(value) => setSelectedAgent(value as AgentType)}
+      className="gap-3"
+    >
       <p className="text-xs text-muted-foreground leading-5">
         {t("agentDefaultsDescription")}
       </p>
 
-      <div
-        role="tablist"
+      <TabsList
         aria-label={t("tabAgentDefaults")}
-        className="flex flex-wrap gap-1 rounded-2xl bg-muted p-1"
+        className="w-full flex-wrap group-data-horizontal/tabs:h-auto"
       >
         {agentTypes.map((agent) => (
-          <button
+          <TabsTrigger
             key={agent}
-            type="button"
-            role="tab"
-            aria-selected={selectedAgent === agent}
+            value={agent}
             disabled={disabled}
-            onClick={() => setSelectedAgent(agent)}
-            className={
-              "rounded-xl px-3 py-1 text-xs font-medium transition-colors disabled:opacity-50 " +
-              (selectedAgent === agent
-                ? "bg-background text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground")
-            }
+            className="text-xs"
           >
             {getAgentLabel(agent)}
-          </button>
+          </TabsTrigger>
         ))}
-      </div>
+      </TabsList>
 
-      <div className="min-h-[7.5rem] rounded-lg border bg-card/50 p-3">
+      <TabsContent
+        value={selectedAgent}
+        className="min-h-[7.5rem] rounded-lg border bg-card/50 p-3"
+      >
         {loading && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <Loader2 className="size-3.5 animate-spin" aria-hidden />
@@ -248,7 +235,7 @@ export function DelegationAgentDefaultsPanel({
           </div>
         )}
 
-        {!loading && !error && loaded && (
+        {!loading && !error && loaded?.agent === selectedAgent && (
           <SnapshotEditor
             agentType={loaded.agent}
             snapshot={loaded.snapshot}
@@ -259,8 +246,8 @@ export function DelegationAgentDefaultsPanel({
             disabled={disabled}
           />
         )}
-      </div>
-    </div>
+      </TabsContent>
+    </Tabs>
   )
 }
 
@@ -349,10 +336,6 @@ function ModeRow({
   const t = useTranslations("AcpAgentSettings.multiAgent")
   const agentDefaultName =
     modes.find((m) => m.id === agentDefaultModeId)?.name ?? agentDefaultModeId
-  // When no override exists, show the Default sentinel so the user can
-  // see "no override is set" at a glance; selecting any real mode below
-  // applies an override, selecting the sentinel clears it.
-  const selectValue = overrideModeId ?? DEFAULT_SENTINEL
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="space-y-0.5 min-w-0">
@@ -361,25 +344,15 @@ function ModeRow({
           {t("agentDefaultHint", { value: agentDefaultName })}
         </p>
       </div>
-      <Select
-        value={selectValue}
-        onValueChange={(v) => onChange(v === DEFAULT_SENTINEL ? null : v)}
+      <AgentModePicker
+        modes={modes}
+        label={t("modeLabel")}
+        value={overrideModeId}
+        current={agentDefaultModeId}
+        onChange={onChange}
         disabled={disabled}
-      >
-        <SelectTrigger size="sm" className="w-44">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={DEFAULT_SENTINEL}>
-            {t("defaultOptionLabel", { value: agentDefaultName })}
-          </SelectItem>
-          {modes.map((mode) => (
-            <SelectItem key={mode.id} value={mode.id}>
-              {mode.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+        inheritLabel={t("defaultOptionLabel", { value: agentDefaultName })}
+      />
     </div>
   )
 }
@@ -454,12 +427,6 @@ function ConfigOptionRow({
     groups
       .flatMap((group) => group.options)
       .find((o) => o.value === agentDefault)?.name ?? agentDefaultLabel
-  // When no override exists, the trigger shows the Default sentinel item
-  // so the user can tell "I'm inheriting" apart from "I picked the
-  // agent's current default explicitly" — the latter would stick to that
-  // literal value even if the agent later changes its own default.
-  const selectValue = overrideValue ?? DEFAULT_SENTINEL
-
   return (
     <div className="flex items-start justify-between gap-3">
       <div className="space-y-0.5 min-w-0">
@@ -468,44 +435,15 @@ function ConfigOptionRow({
           {t("agentDefaultHint", { value: agentDefaultLabel })}
         </p>
       </div>
-      <Select
-        value={selectValue}
-        onValueChange={(v) => onChange(v === DEFAULT_SENTINEL ? null : v)}
+      <AgentOptionPicker
+        option={option}
+        value={overrideValue}
+        onChange={onChange}
         disabled={disabled}
-      >
-        <SelectTrigger size="sm" className="w-56">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={DEFAULT_SENTINEL}>
-            {t("defaultOptionLabel", { value: agentDefaultRenderedLabel })}
-          </SelectItem>
-          {groups.map((group) =>
-            group.name === null ? (
-              group.options.map((item) => (
-                <SelectItem
-                  key={`${group.key}-${item.value}`}
-                  value={item.value}
-                >
-                  {item.name}
-                </SelectItem>
-              ))
-            ) : (
-              <SelectGroup key={group.key}>
-                <SelectLabel>{group.name}</SelectLabel>
-                {group.options.map((item) => (
-                  <SelectItem
-                    key={`${group.key}-${item.value}`}
-                    value={item.value}
-                  >
-                    {item.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            )
-          )}
-        </SelectContent>
-      </Select>
+        inheritLabel={t("defaultOptionLabel", {
+          value: agentDefaultRenderedLabel,
+        })}
+      />
     </div>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import { toast } from "sonner"
@@ -584,43 +585,31 @@ function TaskSettingsBody({
                   title={t("settingsMergeStrategy")}
                   description={t("settingsMergeStrategyHint")}
                 >
-                  <div
-                    role="radiogroup"
+                  <RadioGroup
+                    value={mergeStrategy}
+                    onValueChange={(v) =>
+                      setMergeStrategy(v === "merge" ? "merge" : "squash")
+                    }
                     aria-label={t("settingsMergeStrategy")}
                     className="grid gap-2 sm:grid-cols-2"
                   >
                     {MERGE_STRATEGIES.map((opt) => {
                       const active = mergeStrategy === opt.value
                       return (
-                        <button
+                        <label
                           key={opt.value}
-                          type="button"
-                          role="radio"
-                          aria-checked={active}
-                          onClick={() => setMergeStrategy(opt.value)}
                           className={cn(
                             "flex gap-2 rounded-lg border p-2.5 text-left transition-colors",
-                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#216ae4]",
+                            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
                             active
                               ? "border-primary/60 bg-primary/5"
                               : "border-border/70 bg-background hover:bg-interaction-hover"
                           )}
                         >
-                          {/* The tinted fill alone is nearly invisible in the
-                              neutral theme, so the dot carries the state. */}
-                          <span
-                            aria-hidden="true"
-                            className={cn(
-                              "mt-px flex size-3.5 shrink-0 items-center justify-center rounded-full border transition-colors",
-                              active
-                                ? "border-primary bg-primary"
-                                : "border-muted-foreground/40"
-                            )}
-                          >
-                            {active ? (
-                              <span className="size-1.5 rounded-full bg-background" />
-                            ) : null}
-                          </span>
+                          <RadioGroupItem
+                            value={opt.value}
+                            className="mt-0.5"
+                          />
                           <span className="flex min-w-0 flex-col gap-1">
                             <span className="text-xs font-medium">
                               {t(opt.labelKey)}
@@ -629,10 +618,10 @@ function TaskSettingsBody({
                               {t(opt.hintKey)}
                             </span>
                           </span>
-                        </button>
+                        </label>
                       )
                     })}
-                  </div>
+                  </RadioGroup>
                 </SettingRow>
                 {/* Unattended landing: same dispatch as the merge button, so
                     it sits between "how commits land" and "what happens to the

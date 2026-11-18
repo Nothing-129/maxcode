@@ -398,6 +398,7 @@ async fn task_shares_are_atomic_sanitized_replayable_and_revoked_on_delete() {
         created_at: Utc::now(),
         updated_at: Utc::now(),
         shared_at: Utc::now(),
+        files: Vec::new(),
         turns: vec![MessageTurn {
             id: "private-id".to_string(),
             role: TurnRole::User,

@@ -1,5 +1,17 @@
 "use client"
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { useEffect, useId, useMemo, useRef, useState } from "react"
 import { getAgentLabel } from "@/lib/custom-agents"
 import { ArrowLeft, Globe, Wand2 } from "lucide-react"
@@ -399,437 +411,505 @@ export function AutomationEditor({
         </button>
       ) : null}
 
-      {/* Name — borderless title input */}
-      <input
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={t("namePlaceholder")}
-        aria-label={t("name")}
-        className="w-full bg-transparent text-lg font-semibold tracking-tight outline-none placeholder:font-normal placeholder:text-muted-foreground/50"
-      />
-
-      {/* Agent pill — above the composer box, as on the new-conversation screen */}
-      <div className="flex">
-        <AgentSelector
-          // New tasks (including templates) follow the enabled list order until
-          // the user explicitly picks an agent. Existing tasks keep their agent.
-          defaultAgentType={
-            isNew && !userChoseAgentRef.current ? undefined : agentType
-          }
-          onSelect={(a) => {
-            // Switching agents changes the option universe — reset overrides.
-            userChoseAgentRef.current = true
-            setAgentType(a)
-            setModeId(null)
-            setConfigValues({})
-          }}
-          // A system substitution (saved agent unavailable) updates the type but
-          // must NOT be treated as a user choice that wipes the saved config.
-          onFallback={setAgentType}
-        />
-      </div>
-
-      {/* The real conversation composer (rich text + @-mentions) plus an inline
-          config bottom bar, matching the new-conversation input. */}
-      <div
-        ref={composerBoxRef}
-        // Clicking the box's blank chrome (padding, the dead space below a short
-        // prompt, the config-bar gaps) focuses the editor at the click point —
-        // same affordance as the chat composer. Interactive controls, badges and
-        // the editor surface exclude themselves via NON_CHROME_SELECTOR;
-        // `codeg-composer-chrome` paints the text I-beam over the dead space.
-        {...chromeFocus}
-        className={cn(
-          COMPOSER_CHROME_BOX_CLASS,
-          COMPOSER_CHROME_SURFACE_CLASS,
-          COMPOSER_CHROME_SHADOW_CLASS
-        )}
+      <fieldset
+        aria-label={t("sectionWhat")}
+        className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card/30 p-4 sm:p-5"
       >
-        <ComposerInvocationsPopup inv={invocations} />
-        <RichComposer
-          ref={editorRef}
-          defaultText={automation?.config?.display_text ?? ""}
-          placeholder={t("promptPlaceholder")}
-          ariaLabel={t("prompt")}
-          referenceSearch={referenceSearch}
-          mentionUiLabels={mentionUiLabels}
-          tabLabels={referenceGroupLabels}
-          mentionAnchorRef={composerBoxRef}
-          knownInvocations={invocations.knownInvocations}
-          onChange={(text) => {
-            setPrompt(text)
-            invocations.detect()
-          }}
-          isExternalMenuOpen={invocations.isOpen}
-          onExternalMenuKeyDown={invocations.onKeyDown}
-          className="max-h-[18rem] min-h-[7.5rem]"
+        <legend className="px-2 text-sm font-semibold">
+          {t("sectionWhat")}
+        </legend>
+        {/* Name — borderless title input */}
+        <Input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t("namePlaceholder")}
+          aria-label={t("name")}
+          className="h-auto w-full rounded-none border-0 bg-transparent px-0 py-0 text-lg font-semibold tracking-tight md:text-lg outline-none placeholder:font-normal placeholder:text-muted-foreground/50"
         />
-        <div className="px-2 pb-2 pt-1">
-          <AgentConfigSection
-            agentType={agentOptions.snapshotAgentType}
-            snapshot={agentOptions.snapshot}
-            loading={agentOptions.loading}
-            error={agentOptions.error}
-            onReload={agentOptions.reload}
-            modeId={modeId}
-            configValues={configValues}
-            layout="inline"
-            onModeChange={setModeId}
-            onConfigChange={(optionId, valueId) =>
-              setConfigValues((prev) => {
-                const next = { ...prev }
-                if (valueId === null) delete next[optionId]
-                else next[optionId] = valueId
-                return next
-              })
+
+        {/* Agent pill — above the composer box, as on the new-conversation screen */}
+        <div className="flex">
+          <AgentSelector
+            // New tasks (including templates) follow the enabled list order until
+            // the user explicitly picks an agent. Existing tasks keep their agent.
+            defaultAgentType={
+              isNew && !userChoseAgentRef.current ? undefined : agentType
             }
+            onSelect={(a) => {
+              // Switching agents changes the option universe — reset overrides.
+              userChoseAgentRef.current = true
+              setAgentType(a)
+              setModeId(null)
+              setConfigValues({})
+            }}
+            // A system substitution (saved agent unavailable) updates the type but
+            // must NOT be treated as a user choice that wipes the saved config.
+            onFallback={setAgentType}
           />
         </div>
-      </div>
 
-      {/* Action — what a fire does: launch a session (legacy) or enqueue a
-          task on the folder's board. */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-          {t("sectionAction")}
-        </h3>
+        {/* The real conversation composer (rich text + @-mentions) plus an inline
+          config bottom bar, matching the new-conversation input. */}
         <div
-          role="group"
-          aria-label={t("sectionAction")}
-          className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
+          ref={composerBoxRef}
+          // Clicking the box's blank chrome (padding, the dead space below a short
+          // prompt, the config-bar gaps) focuses the editor at the click point —
+          // same affordance as the chat composer. Interactive controls, badges and
+          // the editor surface exclude themselves via NON_CHROME_SELECTOR;
+          // `codeg-composer-chrome` paints the text I-beam over the dead space.
+          {...chromeFocus}
+          className={cn(
+            COMPOSER_CHROME_BOX_CLASS,
+            COMPOSER_CHROME_SURFACE_CLASS,
+            COMPOSER_CHROME_SHADOW_CLASS
+          )}
         >
-          {(
-            [
-              { value: "launch_session", label: t("actionLaunchSession") },
-              // Existing enqueue_task automations remain readable; new ones
-              // use regular sessions while the old AI task board is hidden.
-            ] as Array<{ value: AutomationAction; label: string }>
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              aria-pressed={action === opt.value}
-              onClick={() => {
-                setAction(opt.value)
-                if (opt.value === "enqueue_task") {
-                  setSessionMode("new_per_run")
-                  if (trigger === "message") setTrigger("schedule")
-                }
-                // The board only accepts project roots; drop a now-invalid
-                // folder selection instead of saving a doomed draft.
-                if (
-                  opt.value === "enqueue_task" &&
-                  folderId != null &&
-                  !projectFolders.some((f) => f.id === folderId)
-                ) {
-                  setFolderId(projectFolders[0]?.id ?? null)
-                  setBranch("")
-                  setIsRemoteBranch(false)
-                }
-              }}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                action === opt.value
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
+          <ComposerInvocationsPopup inv={invocations} />
+          <RichComposer
+            ref={editorRef}
+            defaultText={automation?.config?.display_text ?? ""}
+            placeholder={t("promptPlaceholder")}
+            ariaLabel={t("prompt")}
+            referenceSearch={referenceSearch}
+            mentionUiLabels={mentionUiLabels}
+            tabLabels={referenceGroupLabels}
+            mentionAnchorRef={composerBoxRef}
+            knownInvocations={invocations.knownInvocations}
+            onChange={(text) => {
+              setPrompt(text)
+              invocations.detect()
+            }}
+            isExternalMenuOpen={invocations.isOpen}
+            onExternalMenuKeyDown={invocations.onKeyDown}
+            className="max-h-[18rem] min-h-[7.5rem]"
+          />
+          <div className="px-2 pb-2 pt-1">
+            <AgentConfigSection
+              agentType={agentOptions.snapshotAgentType}
+              snapshot={agentOptions.snapshot}
+              loading={agentOptions.loading}
+              error={agentOptions.error}
+              onReload={agentOptions.reload}
+              modeId={modeId}
+              configValues={configValues}
+              layout="inline"
+              onModeChange={setModeId}
+              onConfigChange={(optionId, valueId) =>
+                setConfigValues((prev) => {
+                  const next = { ...prev }
+                  if (valueId === null) delete next[optionId]
+                  else next[optionId] = valueId
+                  return next
+                })
+              }
+            />
+          </div>
         </div>
-        {action === "enqueue_task" ? (
-          <p className="text-xs text-muted-foreground">
-            {t("actionEnqueueTaskHint")}
-          </p>
-        ) : null}
-      </div>
+      </fieldset>
 
-      {action === "launch_session" && (
+      <fieldset
+        aria-label={t("sectionWhen")}
+        className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card/30 p-4 sm:p-5"
+      >
+        <legend className="px-2 text-sm font-semibold">
+          {t("sectionWhen")}
+        </legend>
+        {/* Trigger — manual vs scheduled, with the schedule details folded in. */}
         <div className="flex flex-col gap-2">
-          <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-            {t("sessionMode")}
-          </h3>
           <div
             role="group"
-            aria-label={t("sessionMode")}
+            aria-label={t("trigger")}
             className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
           >
-            {(["new_per_run", "reuse_chat"] as const).map((mode) => (
+            {(
+              [
+                { value: "schedule", label: t("triggerSchedule") },
+                { value: "manual", label: t("triggerManual") },
+              ] as Array<{ value: AutomationTriggerKind; label: string }>
+            ).map((opt) => (
               <button
-                key={mode}
+                key={opt.value}
                 type="button"
-                aria-pressed={sessionMode === mode}
-                disabled={trigger === "message" && mode === "new_per_run"}
+                aria-pressed={trigger === opt.value}
                 onClick={() => {
-                  setSessionMode(mode)
-                  if (mode === "reuse_chat") {
+                  setTrigger(opt.value)
+                  if (opt.value === "message") {
+                    setSessionMode("reuse_chat")
                     setFolderId(null)
                     setBranch("")
                     setIsRemoteBranch(false)
                   }
                 }}
                 className={cn(
-                  "rounded-md px-3 py-1 text-xs font-medium disabled:opacity-50",
-                  sessionMode === mode
+                  "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                  trigger === opt.value
                     ? "bg-background text-foreground shadow-sm"
-                    : "text-muted-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                {t(mode === "reuse_chat" ? "sessionReuse" : "sessionNew")}
+                {opt.label}
               </button>
             ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            {t(
-              sessionMode === "reuse_chat"
-                ? "sessionReuseHint"
-                : "sessionNewHint"
-            )}
-          </p>
-        </div>
-      )}
 
-      {action === "launch_session" && (
-        <div className="flex flex-col gap-2">
-          <div className="flex min-h-12 items-center gap-2">
-            <Checkbox
-              id={visibilityId}
-              checked={hideFromConversationList}
-              onCheckedChange={(value) =>
-                setHideFromConversationList(value === true)
-              }
-              aria-describedby={`${visibilityId}-hint`}
+          {trigger === "message" && (
+            <AutomationMessageSettings
+              value={messageTrigger}
+              onChange={setMessageTrigger}
             />
-            <label htmlFor={visibilityId} className="text-sm">
-              {t("hideFromConversationList")}
-            </label>
-          </div>
-          <p
-            id={`${visibilityId}-hint`}
-            className="text-xs text-muted-foreground"
-          >
-            {t("hideFromConversationListHint")}
-          </p>
-          <AutomationTodoPicker value={todoOrigins} onChange={setTodoOrigins} />
-        </div>
-      )}
+          )}
 
-      {/* Target — where the run happens: workspace folder, isolation, branch. */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-          {t("sectionTarget")}
-        </h3>
-        <div className="flex flex-wrap items-center gap-2">
-          <FolderSelect
-            variant="field"
-            folders={selectableFolders}
-            value={folderId}
-            disabled={trigger === "message"}
-            allLabel={action === "launch_session" ? t("targetChat") : undefined}
-            onSelectAll={
-              action === "launch_session"
-                ? () => {
-                    setFolderId(null)
-                    setBranch("")
-                    setIsRemoteBranch(false)
+          {trigger === "schedule" ? (
+            <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">
+              <Label htmlFor="automation-calendar">{t("calendarFilter")}</Label>
+              <Select
+                value={calendarFilter}
+                onValueChange={(value) => {
+                  const filter = value as AutomationCalendarFilter
+                  setCalendarFilter(filter)
+                  if (filter !== "all") {
+                    const fields = cron.trim().split(/\s+/)
+                    setCron(`${fields[0] ?? "0"} ${fields[1] ?? "9"} * * *`)
                   }
-                : undefined
-            }
-            // A branch belongs to a specific repo, so switching folders must drop
-            // the previous folder's branch (else it'd be saved against the new
-            // one). Done in this user-action handler, not a folderId effect, so
-            // the initial hydrate/backfill never wipes a seeded branch on edit.
-            onChange={(id) => {
-              setFolderId(id)
-              setSessionMode("new_per_run")
-              setBranch("")
-              setIsRemoteBranch(false)
-            }}
-            placeholder={t("folderPlaceholder")}
-            title={t("folder")}
-          />
+                }}
+              >
+                <SelectTrigger id="automation-calendar" className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("calendarAll")}</SelectItem>
+                  <SelectItem value="cn_workday">
+                    {t("calendarWorkday")}
+                  </SelectItem>
+                  <SelectItem value="cn_holiday">
+                    {t("calendarHoliday")}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {calendarFilter !== "all" && (
+                <p className="text-xs text-muted-foreground">
+                  {t("calendarHint")}
+                </p>
+              )}
+              {previewError && (
+                <p className="text-xs text-destructive" role="alert">
+                  {previewError}
+                </p>
+              )}
+              <div className="flex flex-wrap gap-1.5">
+                {CRON_PRESETS.map((p) => (
+                  <Button
+                    key={p.key}
+                    type="button"
+                    size="sm"
+                    variant={cron === p.cron ? "default" : "outline"}
+                    onClick={() => setCron(p.cron)}
+                  >
+                    {t(p.key)}
+                  </Button>
+                ))}
+              </div>
+              <Collapsible className="rounded-lg border border-border bg-background px-3">
+                <CollapsibleSummary className="cursor-pointer py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring">
+                  {t("customSchedule")}
+                  <span className="ms-2 break-all font-mono font-normal text-muted-foreground">
+                    {cron}
+                  </span>
+                </CollapsibleSummary>
+                <CollapsibleContent>
+                  <div className="pb-3">
+                    <div className="flex items-center gap-1.5">
+                      <Input
+                        value={cron}
+                        onChange={(e) => setCron(e.target.value)}
+                        placeholder={t("cronPlaceholder")}
+                        aria-label={t("cron")}
+                        className="flex-1 font-mono"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setCronBuilderOpen(true)}
+                        aria-label={t("cronOpenBuilder")}
+                        title={t("cronOpenBuilder")}
+                      >
+                        <Wand2 className="size-4" aria-hidden="true" />
+                      </Button>
+                    </div>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                <span>
+                  {t("nextRun")}:{" "}
+                  {nextRun ? new Date(nextRun).toLocaleString() : "—"}
+                </span>
+                <span className="text-muted-foreground/40" aria-hidden="true">
+                  ·
+                </span>
+                {/* Timezone is auto-detected from this device and shown read-only;
+                  it still drives the next-run preview and the cron builder. */}
+                <span
+                  className="inline-flex items-center gap-1"
+                  title={t("timezone")}
+                >
+                  <Globe className="size-3 shrink-0" aria-hidden="true" />
+                  <span className="font-mono">{scheduleTimezone}</span>
+                </span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </fieldset>
 
-          {/* A worktree run gets its own fresh tree, so a branch only applies to
+      <fieldset
+        aria-label={t("sectionWhere")}
+        className="flex min-w-0 flex-col gap-4 rounded-xl border border-border bg-card/30 p-4 sm:p-5"
+      >
+        <legend className="px-2 text-sm font-semibold">
+          {t("sectionWhere")}
+        </legend>
+        {/* Target — where the run happens: workspace folder, isolation, branch. */}
+        <div className="flex flex-col gap-2">
+          <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+            {t("folder")}
+          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <FolderSelect
+              chatFooter={action === "launch_session"}
+              variant="field"
+              folders={selectableFolders}
+              value={folderId}
+              disabled={trigger === "message"}
+              allLabel={
+                action === "launch_session" ? t("targetChat") : undefined
+              }
+              onSelectAll={
+                action === "launch_session"
+                  ? () => {
+                      setFolderId(null)
+                      setBranch("")
+                      setIsRemoteBranch(false)
+                    }
+                  : undefined
+              }
+              // A branch belongs to a specific repo, so switching folders must drop
+              // the previous folder's branch (else it'd be saved against the new
+              // one). Done in this user-action handler, not a folderId effect, so
+              // the initial hydrate/backfill never wipes a seeded branch on edit.
+              onChange={(id) => {
+                setFolderId(id)
+                setSessionMode("new_per_run")
+                setBranch("")
+                setIsRemoteBranch(false)
+              }}
+              placeholder={t("folderPlaceholder")}
+              title={t("folder")}
+            />
+
+            {/* A worktree run gets its own fresh tree, so a branch only applies to
               the shared-folder case — the picker shows there and the checkbox
               sits after it. Ticking the checkbox switches to worktree isolation
               and hides the picker. Enqueued tasks mint their own worktree in
               the work-task engine, so neither control applies. */}
+            {action === "launch_session" &&
+            folderId != null &&
+            isolation === "shared_in_root" ? (
+              <AutomationBranchPicker
+                folderPath={folderPath}
+                value={branch}
+                onChange={(b, isRemote) => {
+                  setBranch(b)
+                  setIsRemoteBranch(isRemote)
+                }}
+                placeholder={t("branchPlaceholder")}
+                disabled={folderId == null}
+                // shared_in_root checks the branch out in the root tree, which
+                // can't track a remote-only branch — the backend rejects that
+                // combination, so don't offer it here.
+                allowRemote={false}
+              />
+            ) : null}
+
+            {action === "launch_session" && folderId != null ? (
+              <Label className="h-7 text-xs font-normal text-muted-foreground">
+                <Checkbox
+                  checked={isolation === "worktree_per_run"}
+                  onCheckedChange={(v) =>
+                    setIsolation(
+                      v === true ? "worktree_per_run" : "shared_in_root"
+                    )
+                  }
+                />
+                {t("isolationWorktree")}
+              </Label>
+            ) : null}
+          </div>
+          {/* Running in the folder shares the user's working tree (and any
+            concurrent shared run); surface that trade-off where it's chosen. */}
           {action === "launch_session" &&
           folderId != null &&
           isolation === "shared_in_root" ? (
-            <AutomationBranchPicker
-              folderPath={folderPath}
-              value={branch}
-              onChange={(b, isRemote) => {
-                setBranch(b)
-                setIsRemoteBranch(isRemote)
-              }}
-              placeholder={t("branchPlaceholder")}
-              disabled={folderId == null}
-              // shared_in_root checks the branch out in the root tree, which
-              // can't track a remote-only branch — the backend rejects that
-              // combination, so don't offer it here.
-              allowRemote={false}
-            />
-          ) : null}
-
-          {action === "launch_session" && folderId != null ? (
-            <Label className="h-7 text-xs font-normal text-muted-foreground">
-              <Checkbox
-                checked={isolation === "worktree_per_run"}
-                onCheckedChange={(v) =>
-                  setIsolation(
-                    v === true ? "worktree_per_run" : "shared_in_root"
-                  )
-                }
-              />
-              {t("isolationWorktree")}
-            </Label>
+            <p className="text-xs text-muted-foreground">
+              {t("isolationSharedCaveat")}
+            </p>
           ) : null}
         </div>
-        {/* Running in the folder shares the user's working tree (and any
-            concurrent shared run); surface that trade-off where it's chosen. */}
-        {action === "launch_session" &&
-        folderId != null &&
-        isolation === "shared_in_root" ? (
-          <p className="text-xs text-muted-foreground">
-            {t("isolationSharedCaveat")}
-          </p>
-        ) : null}
-      </div>
 
-      {/* Trigger — manual vs scheduled, with the schedule details folded in. */}
-      <div className="flex flex-col gap-2">
-        <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
-          {t("trigger")}
-        </h3>
-        <div
-          role="group"
-          aria-label={t("trigger")}
-          className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
-        >
-          {(
-            [
-              { value: "schedule", label: t("triggerSchedule") },
-              { value: "manual", label: t("triggerManual") },
-            ] as Array<{ value: AutomationTriggerKind; label: string }>
-          ).map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              aria-pressed={trigger === opt.value}
-              onClick={() => {
-                setTrigger(opt.value)
-                if (opt.value === "message") {
-                  setSessionMode("reuse_chat")
-                  setFolderId(null)
-                  setBranch("")
-                  setIsRemoteBranch(false)
-                }
-              }}
-              className={cn(
-                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
-                trigger === opt.value
-                  ? "bg-background text-foreground shadow-sm"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-
-        {trigger === "message" && (
-          <AutomationMessageSettings
-            value={messageTrigger}
-            onChange={setMessageTrigger}
-          />
-        )}
-
-        {trigger === "schedule" ? (
-          <div className="flex flex-col gap-2 rounded-lg border border-border bg-card/40 p-3">
-            <Label htmlFor="automation-calendar">{t("calendarFilter")}</Label>
-            <select
-              id="automation-calendar"
-              className="h-9 rounded-md border border-input bg-background px-3 text-sm"
-              value={calendarFilter}
-              onChange={(e) => {
-                const filter = e.target.value as AutomationCalendarFilter
-                setCalendarFilter(filter)
-                if (filter !== "all") {
-                  const fields = cron.trim().split(/\s+/)
-                  setCron(`${fields[0] ?? "0"} ${fields[1] ?? "9"} * * *`)
-                }
-              }}
-            >
-              <option value="all">{t("calendarAll")}</option>
-              <option value="cn_workday">{t("calendarWorkday")}</option>
-              <option value="cn_holiday">{t("calendarHoliday")}</option>
-            </select>
-            {calendarFilter !== "all" && (
-              <p className="text-xs text-muted-foreground">
-                {t("calendarHint")}
-              </p>
-            )}
-            {previewError && (
-              <p className="text-xs text-destructive" role="alert">
-                {previewError}
-              </p>
-            )}
-            <div className="flex flex-wrap gap-1.5">
-              {CRON_PRESETS.map((p) => (
-                <Button
-                  key={p.key}
-                  type="button"
-                  size="sm"
-                  variant={cron === p.cron ? "default" : "outline"}
-                  onClick={() => setCron(p.cron)}
+        <Collapsible className="rounded-lg border border-border bg-background px-3">
+          <CollapsibleSummary className="cursor-pointer py-3 text-xs font-medium focus-visible:outline-2 focus-visible:outline-ring">
+            {t("advancedExecution")}
+            <span className="ms-2 font-normal text-muted-foreground">
+              {t(sessionMode === "reuse_chat" ? "sessionReuse" : "sessionNew")}
+              {hideFromConversationList
+                ? ` · ${t("hideFromConversationList")}`
+                : ""}
+            </span>
+          </CollapsibleSummary>
+          <CollapsibleContent>
+            <div className="flex flex-col gap-4 border-t border-border py-3">
+              {/* Action — what a fire does: launch a session (legacy) or enqueue a
+          task on the folder's board. */}
+              <div className="flex flex-col gap-2">
+                <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("sectionAction")}
+                </h3>
+                <div
+                  role="group"
+                  aria-label={t("sectionAction")}
+                  className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
                 >
-                  {t(p.key)}
-                </Button>
-              ))}
+                  {(
+                    [
+                      {
+                        value: "launch_session",
+                        label: t("actionLaunchSession"),
+                      },
+                      // Existing enqueue_task automations remain readable; new ones
+                      // use regular sessions while the old AI task board is hidden.
+                    ] as Array<{ value: AutomationAction; label: string }>
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      aria-pressed={action === opt.value}
+                      onClick={() => {
+                        setAction(opt.value)
+                        if (opt.value === "enqueue_task") {
+                          setSessionMode("new_per_run")
+                          if (trigger === "message") setTrigger("schedule")
+                        }
+                        // The board only accepts project roots; drop a now-invalid
+                        // folder selection instead of saving a doomed draft.
+                        if (
+                          opt.value === "enqueue_task" &&
+                          folderId != null &&
+                          !projectFolders.some((f) => f.id === folderId)
+                        ) {
+                          setFolderId(projectFolders[0]?.id ?? null)
+                          setBranch("")
+                          setIsRemoteBranch(false)
+                        }
+                      }}
+                      className={cn(
+                        "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                        action === opt.value
+                          ? "bg-background text-foreground shadow-sm"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                {action === "enqueue_task" ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t("actionEnqueueTaskHint")}
+                  </p>
+                ) : null}
+              </div>
+
+              {action === "launch_session" && (
+                <div className="flex flex-col gap-2">
+                  <h3 className="text-[0.6875rem] font-medium uppercase tracking-wide text-muted-foreground">
+                    {t("sessionMode")}
+                  </h3>
+                  <div
+                    role="group"
+                    aria-label={t("sessionMode")}
+                    className="inline-flex w-fit rounded-lg border border-border bg-card/40 p-0.5"
+                  >
+                    {(["new_per_run", "reuse_chat"] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        aria-pressed={sessionMode === mode}
+                        disabled={
+                          trigger === "message" && mode === "new_per_run"
+                        }
+                        onClick={() => {
+                          setSessionMode(mode)
+                          if (mode === "reuse_chat") {
+                            setFolderId(null)
+                            setBranch("")
+                            setIsRemoteBranch(false)
+                          }
+                        }}
+                        className={cn(
+                          "rounded-md px-3 py-1 text-xs font-medium disabled:opacity-50",
+                          sessionMode === mode
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground"
+                        )}
+                      >
+                        {t(
+                          mode === "reuse_chat" ? "sessionReuse" : "sessionNew"
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {t(
+                      sessionMode === "reuse_chat"
+                        ? "sessionReuseHint"
+                        : "sessionNewHint"
+                    )}
+                  </p>
+                </div>
+              )}
+
+              {action === "launch_session" && (
+                <div className="flex flex-col gap-2">
+                  <div className="flex min-h-12 items-center gap-2">
+                    <Checkbox
+                      id={visibilityId}
+                      checked={hideFromConversationList}
+                      onCheckedChange={(value) =>
+                        setHideFromConversationList(value === true)
+                      }
+                      aria-describedby={`${visibilityId}-hint`}
+                    />
+                    <label htmlFor={visibilityId} className="text-sm">
+                      {t("hideFromConversationList")}
+                    </label>
+                  </div>
+                  <p
+                    id={`${visibilityId}-hint`}
+                    className="text-xs text-muted-foreground"
+                  >
+                    {t("hideFromConversationListHint")}
+                  </p>
+                  <AutomationTodoPicker
+                    value={todoOrigins}
+                    onChange={setTodoOrigins}
+                  />
+                </div>
+              )}
             </div>
-            <div className="flex items-center gap-1.5">
-              <Input
-                value={cron}
-                onChange={(e) => setCron(e.target.value)}
-                placeholder={t("cronPlaceholder")}
-                aria-label={t("cron")}
-                className="flex-1 font-mono"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                onClick={() => setCronBuilderOpen(true)}
-                aria-label={t("cronOpenBuilder")}
-                title={t("cronOpenBuilder")}
-              >
-                <Wand2 className="size-4" aria-hidden="true" />
-              </Button>
-            </div>
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-              <span>
-                {t("nextRun")}:{" "}
-                {nextRun ? new Date(nextRun).toLocaleString() : "—"}
-              </span>
-              <span className="text-muted-foreground/40" aria-hidden="true">
-                ·
-              </span>
-              {/* Timezone is auto-detected from this device and shown read-only;
-                  it still drives the next-run preview and the cron builder. */}
-              <span
-                className="inline-flex items-center gap-1"
-                title={t("timezone")}
-              >
-                <Globe className="size-3 shrink-0" aria-hidden="true" />
-                <span className="font-mono">{scheduleTimezone}</span>
-              </span>
-            </div>
-          </div>
-        ) : null}
-      </div>
+          </CollapsibleContent>
+        </Collapsible>
+      </fieldset>
 
       <CronBuilderDialog
         open={cronBuilderOpen}

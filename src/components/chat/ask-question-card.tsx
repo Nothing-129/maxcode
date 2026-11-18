@@ -1,5 +1,6 @@
 "use client"
 
+import { Input } from "@/components/ui/input"
 import { useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -275,7 +276,7 @@ export function AskQuestionCard({
   // ring keeps the visually hidden single-choice controls keyboard-visible.
   const cardClass = (selected: boolean) =>
     cn(
-      "group flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 font-normal transition-colors has-[:focus-visible]:border-[#216ae4]",
+      "group flex min-h-12 w-full items-center gap-3 rounded-xl border px-3 py-2.5 font-normal transition-colors ",
       selected
         ? "border-foreground/35 bg-foreground/10"
         : "border-border/50 bg-muted/70",
@@ -318,8 +319,6 @@ export function AskQuestionCard({
     // Secret questions (codex marks API keys etc. with `is_secret`) mask the
     // typed answer.
     const inputType = q.is_secret ? "password" : "text"
-    const inputClass =
-      "w-full rounded-md border border-border/60 bg-background px-2.5 py-1.5 text-sm outline-none focus:border-[#216ae4] disabled:cursor-not-allowed disabled:opacity-60"
 
     // Free-text question (no options — codex elicitation and MCP-server forms
     // ask open questions this way): the text input IS the answer field, always
@@ -327,7 +326,7 @@ export function AskQuestionCard({
     // question answered (`setOtherText` activates the free-text state).
     if (q.options.length === 0) {
       return (
-        <input
+        <Input
           id={otherId}
           type={inputType}
           aria-label={q.question}
@@ -335,13 +334,12 @@ export function AskQuestionCard({
           value={s?.otherText ?? ""}
           onChange={(e) => setOtherText(q, e.target.value)}
           placeholder={t("otherPlaceholder")}
-          className={inputClass}
         />
       )
     }
 
     const otherInput = s?.otherActive ? (
-      <input
+      <Input
         id={otherId}
         type={inputType}
         autoFocus
@@ -350,7 +348,6 @@ export function AskQuestionCard({
         value={s.otherText}
         onChange={(e) => setOtherText(q, e.target.value)}
         placeholder={t("otherPlaceholder")}
-        className={inputClass}
       />
     ) : null
 
@@ -601,7 +598,7 @@ export function AskQuestionCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 rounded-full px-2.5 text-xs font-normal shadow-none"
+              className="h-7 rounded-md px-2.5 text-xs font-normal shadow-none"
               onClick={skip}
               disabled={submitting}
             >

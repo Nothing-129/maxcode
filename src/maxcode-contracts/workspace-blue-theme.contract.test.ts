@@ -35,12 +35,12 @@ describe("default workspace blue actions", () => {
         const tokens = palette(theme, dark)
         expect(tokens["--primary"]).toBe("#216ae4")
         expect(tokens["--primary-foreground"]).toBe("#ffffff")
-        expect(tokens["--ring"]).toBe("#216ae4")
+        expect(tokens["--ring"]).toBe("#808080")
         expect(tokens["--sidebar-primary"]).toBe("#216ae4")
-        expect(tokens["--sidebar-ring"]).toBe("#216ae4")
-        expect(tokens["--accent"]).toBe(
-          "color-mix(in srgb, #216ae4 12%, var(--background))"
-        )
+        expect(tokens["--sidebar-ring"]).toBe("var(--ring)")
+        expect(tokens["--accent"]).toBe("var(--interaction-hover)")
+        expect(tokens["--secondary"]).toBe("var(--muted)")
+        expect(tokens["--secondary-foreground"]).toBe("var(--foreground)")
         expect(tokens["--background"]).toBe(dark ? "#212121" : "#ffffff")
         expect(tokens["--destructive"]).not.toBe("#216ae4")
       }

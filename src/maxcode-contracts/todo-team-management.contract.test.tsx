@@ -93,7 +93,8 @@ describe("MaxCode team management", () => {
   it("switches team through the scoped state mutation", async () => {
     const user = userEvent.setup()
     open()
-    await user.selectOptions(screen.getByRole("combobox"), "design")
+    await user.click(screen.getByRole("combobox"))
+    await user.click(screen.getByRole("option", { name: "Design" }))
     expect(mutate).toHaveBeenCalledWith({
       action: "set_mode",
       mode: "team",

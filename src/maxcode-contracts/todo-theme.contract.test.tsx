@@ -2,7 +2,7 @@ import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it, vi } from "vitest"
-import { TodosPage } from "@/components/todos/todos-page"
+import { TodoModeSwitcher, TodosPage } from "@/components/todos/todos-page"
 import { TodosViewProvider } from "@/contexts/todos-view-context"
 import enMessages from "@/i18n/messages/en.json"
 import { todoCall, type TodoState } from "@/lib/todos"
@@ -39,6 +39,7 @@ describe("todo blue theme", () => {
     render(
       <NextIntlClientProvider locale="en" messages={enMessages}>
         <TodosViewProvider>
+          <TodoModeSwitcher />
           <TodosPage />
         </TodosViewProvider>
       </NextIntlClientProvider>
@@ -47,7 +48,7 @@ describe("todo blue theme", () => {
       name: enMessages.Todos.personalMode,
     })
     expect(personal).toHaveAttribute("aria-pressed", "true")
-    expect(personal).toHaveAttribute("data-variant", "default")
+    expect(personal).toHaveClass("aria-pressed:bg-background")
     expect(personal.closest(".todo-theme")).not.toBeNull()
 
     await user.click(
@@ -58,7 +59,7 @@ describe("todo blue theme", () => {
         name: enMessages.Todos.teamMode,
       })
       expect(team).toHaveAttribute("aria-pressed", "true")
-      expect(team).toHaveAttribute("data-variant", "default")
+      expect(team).toHaveClass("aria-pressed:bg-background")
       expect(
         screen.getByRole("button", { name: enMessages.Todos.personalMode })
       ).toHaveAttribute("aria-pressed", "false")
@@ -81,7 +82,7 @@ describe("todo blue theme", () => {
     const theme = css.match(/\.todo-theme \{([^}]+)\}/)?.[1]
     expect(theme).toContain("--primary: #216ae4")
     expect(theme).toContain("--primary-foreground: #ffffff")
-    expect(theme).toContain("--ring: #216ae4")
+    expect(theme).toContain("--ring: #808080")
     for (const file of [
       "todos-page",
       "todo-editor-dialog",

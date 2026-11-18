@@ -140,14 +140,17 @@ describe("conversation search scope contract", () => {
     renderDialog()
     await user.click(screen.getByRole("button", { name: "Search" }))
     expect(screen.getByText("Website")).toBeVisible()
-    expect(screen.getByText("/frontend")).toBeVisible()
+    expect(screen.getByRole("option", { name: "Website" })).toHaveAttribute(
+      "title",
+      "/frontend"
+    )
     expect(screen.queryByText("Hidden chat")).not.toBeInTheDocument()
     const search = screen.getByPlaceholderText(
       enMessages.Folder.conversationContextBar.searchFolder
     )
     await user.type(search, "Website")
     expect(screen.queryByText("backend")).not.toBeInTheDocument()
-    await user.keyboard("{ArrowDown}{Enter}")
+    await user.keyboard("{ArrowDown}{ArrowUp}{Enter}")
     expect(screen.getByRole("button", { name: "Search" })).toHaveTextContent(
       "Website"
     )

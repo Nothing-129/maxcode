@@ -1,6 +1,6 @@
 [package]
 name = "codeg"
-version = "0.30.60"
+version = "0.30.61"
 description = "Agent Code Generation App"
 authors = ["feitao"]
 edition = "2021"
@@ -125,6 +125,7 @@ semver = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt", "registry", "std"] }
 tracing-appender = "0.2"
+pulldown-cmark = { version = "0.13", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows-sys = { version = "0.59", features = ["Win32_Storage_FileSystem", "Win32_Foundation", "Win32_System_Threading"] }

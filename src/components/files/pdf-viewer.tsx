@@ -444,7 +444,7 @@ export function PdfViewer({ tab }: { tab: FileWorkspaceTab }) {
         </div>
 
         <div className="flex items-center gap-1 text-2xs text-muted-foreground">
-          <input
+          <Input
             value={hasDocument ? (pageDraft ?? String(pageNumber)) : ""}
             onChange={(event) => setPageDraft(event.target.value)}
             onBlur={() => setPageDraft(null)}
@@ -464,7 +464,7 @@ export function PdfViewer({ tab }: { tab: FileWorkspaceTab }) {
             inputMode="numeric"
             aria-label={t("pdfPageNumber")}
             title={t("pdfPageNumber")}
-            className="h-5 w-9 rounded border border-border bg-background px-1 text-center font-mono text-2xs text-foreground outline-none focus-visible:border-ring disabled:opacity-40"
+            className="h-5 w-9 rounded border border-border bg-background px-1 text-center font-mono text-2xs md:text-2xs text-foreground outline-none focus-visible:border-ring disabled:opacity-40"
           />
           <span className="font-mono">/ {ready ? pagesCount : "-"}</span>
         </div>
@@ -472,7 +472,7 @@ export function PdfViewer({ tab }: { tab: FileWorkspaceTab }) {
         <div className="ml-auto flex min-w-0 items-center gap-1">
           <div className="relative min-w-0">
             <Search className="pointer-events-none absolute top-1/2 left-1.5 h-3 w-3 -translate-y-1/2 text-muted-foreground" />
-            <input
+            <Input
               ref={findInputRef}
               type="search"
               value={findQuery}
@@ -496,7 +496,7 @@ export function PdfViewer({ tab }: { tab: FileWorkspaceTab }) {
               disabled={!ready}
               placeholder={t("pdfFind")}
               aria-label={t("pdfFind")}
-              className="h-5 w-40 min-w-0 rounded border border-border bg-background pr-1 pl-5 text-2xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring disabled:opacity-40"
+              className="h-5 w-40 min-w-0 rounded border border-border bg-background pr-1 pl-5 text-2xs md:text-2xs text-foreground outline-none placeholder:text-muted-foreground focus-visible:border-ring disabled:opacity-40"
             />
           </div>
           {findStatus && (

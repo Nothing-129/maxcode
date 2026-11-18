@@ -36,12 +36,13 @@ describe("FolderSelect", () => {
     const { user } = open()
     await user.click(screen.getByRole("button"))
 
-    // The label uses the alias; the separate path still identifies the folder.
+    // Unique names fit on one line. Hover still identifies the directory.
     const row = screen
       .getByText("My Project")
       .closest("[data-slot=command-item]")
     expect(row?.textContent).toContain("My Project")
-    expect(row?.textContent).toContain("/work/codeg")
+    expect(row).not.toHaveTextContent("/work/codeg")
+    expect(row).toHaveAttribute("title", "/work/codeg")
     // An un-aliased folder shows its bare name (no empty brackets).
     expect(screen.getByText("other-repo")).toBeTruthy()
   })

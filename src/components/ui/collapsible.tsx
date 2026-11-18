@@ -1,5 +1,6 @@
 "use client"
 
+import { ChevronRight } from "lucide-react"
 import { Collapsible as CollapsiblePrimitive } from "radix-ui"
 import { cn } from "@/lib/utils"
 
@@ -20,6 +21,28 @@ function CollapsibleTrigger({
   )
 }
 
+function CollapsibleSummary({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<typeof CollapsibleTrigger>) {
+  return (
+    <CollapsibleTrigger
+      className={cn(
+        "group/disclosure flex w-full items-center gap-1.5 rounded-sm text-start focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+        className
+      )}
+      {...props}
+    >
+      <ChevronRight
+        aria-hidden="true"
+        className="size-3.5 shrink-0 transition-transform rtl:rotate-180 group-data-[state=open]/disclosure:rotate-90 motion-reduce:transition-none"
+      />
+      <span className="min-w-0">{children}</span>
+    </CollapsibleTrigger>
+  )
+}
+
 function CollapsibleContent({
   className,
   ...props
@@ -33,4 +56,9 @@ function CollapsibleContent({
   )
 }
 
-export { Collapsible, CollapsibleTrigger, CollapsibleContent }
+export {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleSummary,
+  CollapsibleContent,
+}

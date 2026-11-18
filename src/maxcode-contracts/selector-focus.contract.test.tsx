@@ -55,6 +55,6 @@ describe("MaxCode contract: selector focus after pointer selection", () => {
       ':not(input, textarea, [contenteditable="true"]):focus'
     )
     expect(css).toContain("--tw-ring-offset-shadow: 0 0 #0000")
-    expect(css).toContain(".codeg-composer-chrome:focus-within")
+    expect(css).not.toContain(".codeg-composer-chrome:focus-within")
   })
 })

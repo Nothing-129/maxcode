@@ -446,6 +446,9 @@ describe("Pi runtime minimum", () => {
 describe("Pi runtime path identity", () => {
   it("blocks a newly entered relative Pi agent directory", async () => {
     await renderPanel({ PI_ACP_PI_COMMAND: "/tmp/pi" })
+    await userEvent.click(
+      screen.getByText(enMessages.AcpAgentSettings.pi.advanced)
+    )
     fireEvent.change(screen.getByPlaceholderText("~/.pi/agent"), {
       target: { value: "./agent" },
     })
@@ -464,6 +467,9 @@ describe("Pi runtime path identity", () => {
       },
       null
     )
+    await userEvent.click(
+      screen.getByText(enMessages.AcpAgentSettings.pi.advanced)
+    )
     expect(
       await screen.findAllByText(/absolute Pi agent directory/)
     ).toHaveLength(2)
@@ -476,6 +482,9 @@ describe("Pi runtime path identity", () => {
 
   it("keeps bare PATH commands and home-relative agent directories valid", async () => {
     await renderPanel({ PI_ACP_PI_COMMAND: "pi" })
+    await userEvent.click(
+      screen.getByText(enMessages.AcpAgentSettings.pi.advanced)
+    )
     fireEvent.change(screen.getByPlaceholderText("~/.pi/agent"), {
       target: { value: "~/pi-agent" },
     })

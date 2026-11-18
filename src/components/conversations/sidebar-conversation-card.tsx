@@ -6,7 +6,6 @@ import {
   useCallback,
   type CSSProperties,
   type PointerEvent as ReactPointerEvent,
-  type FocusEvent,
 } from "react"
 import {
   AtSign,
@@ -24,14 +23,14 @@ import {
   Ellipsis,
   Link2,
 } from "lucide-react"
-import { useLocale, useTranslations } from "next-intl"
-import { SelectionIndicator } from "@/components/shared/selection-indicator"
+import { useTranslations } from "next-intl"
 import { useImeGuard } from "@/hooks/use-ime-guard"
 import { useTabStore } from "@/contexts/tab-context"
 import { emitAttachSessionToSession } from "@/lib/session-attachment-events"
 import type { DbConversationSummary, ConversationStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import {
+  conversationTitleTopic,
   formatConversationTitle,
   parseStructuredConversationTitle,
 } from "@/lib/conversation-title"
@@ -59,18 +58,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConversationTitleLabel } from "./conversation-title-label"
 import { ConversationUnreadDot } from "./conversation-unread-dot"
 import { useConversationUnreadStore } from "@/stores/conversation-unread-store"
 import { SessionDetailsDialog } from "./session-details-dialog"
-import { SidebarConversationHoverDetails } from "./sidebar-conversation-hover-details"
 import { AgentIcon } from "@/components/agent-icon"
 
 // WebKit can recycle a virtualized row between a Mac trackpad's pointerdown and
@@ -165,43 +158,6 @@ function resolveAttachTabId(): string | null {
   return activeTab.id
 }
 
-/** How long the pointer must rest on a row before its details bubble opens.
- *  Long enough that sweeping the pointer down the list stays quiet. */
-const HOVER_CARD_OPEN_DELAY_MS = 500
-/** Grace period once the pointer leaves, so crossing the gap into the bubble
- *  (or a small wobble at the row edge) doesn't flicker it shut. */
-const HOVER_CARD_CLOSE_DELAY_MS = 120
-
-/**
- * Whether `target` was focused the KEYBOARD way.
- *
- * Radix's hover-card trigger opens on ANY focus — `onFocus:
- * composeEventHandlers(props.onFocus, context.onOpen)` — and its `excludeTouch`
- * filter covers only pointer enter/leave, never focus. So on a touch device,
- * tapping a conversation focuses the button inside the row, that focus bubbles
- * to the trigger, and the bubble opens a beat later with no pointer that could
- * ever leave and dismiss it. (Verified by A/B in headless Chrome with touch
- * emulation: without this guard the tap leaves the bubble stranded open.)
- *
- * Gating on `:focus-visible` keeps the keyboard path intact — tabbing onto a row
- * still opens it — while tap and mouse-click stay quiet; with a mouse the hover
- * path opens the bubble on its own anyway. Returning false lets the caller
- * default-prevent the event, which is what makes `composeEventHandlers` skip
- * Radix's own handler.
- *
- * The try/catch is for selector engines that reject the pseudo-class outright
- * rather than just never matching it; a throw reads as "not keyboard focus",
- * which is the quiet, tap-like default.
- */
-function isKeyboardFocus(target: EventTarget | null): boolean {
-  if (!(target instanceof Element)) return false
-  try {
-    return target.matches(":focus-visible")
-  } catch {
-    return false
-  }
-}
-
 interface SidebarConversationCardProps {
   conversation: DbConversationSummary
   isSelected: boolean
@@ -250,7 +206,6 @@ interface SidebarConversationCardProps {
 export const SidebarConversationCard = memo(function SidebarConversationCard({
   conversation,
   isSelected,
-  selectionId,
   isOpenInTab = false,
   timeLabel,
   isMobile = false,
@@ -283,7 +238,6 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [renameValue, setRenameValue] = useState("")
   const [attachTabId, setAttachTabId] = useState<string | null>(null)
-  const [hoverOpen, setHoverOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
 
   const selectConversation = useCallback(() => {
@@ -297,10 +251,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const handlePointerDown = useCallback(
     (event: ReactPointerEvent<HTMLButtonElement>) => {
       if (event.button !== 0 || event.pointerType !== "mouse") return
-      if (onConversationPointerDown?.(event, conversation)) {
-        setHoverOpen(false)
-        return
-      }
+      if (onConversationPointerDown?.(event, conversation)) return
       rememberPointerSelection(conversation.id)
       selectConversation()
     },
@@ -332,16 +283,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const handleMenuOpenChange = useCallback((open: boolean) => {
     setMenuOpen(open)
     if (!open) return
-    // The context menu takes the row over; drop the details bubble so the two
-    // don't stack on the same spot.
-    setHoverOpen(false)
     setAttachTabId(resolveAttachTabId())
-  }, [])
-
-  // See `isKeyboardFocus`: suppress Radix's open-on-focus unless the focus
-  // really came from the keyboard, so clicking a row doesn't pop the bubble.
-  const handleHoverTriggerFocus = useCallback((event: FocusEvent) => {
-    if (!isKeyboardFocus(event.target)) event.preventDefault()
   }, [])
 
   const handleAttachToSession = useCallback(() => {
@@ -357,7 +299,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   }, [conversation])
 
   const handleRenameOpen = useCallback(() => {
-    setRenameValue(formatConversationTitle(conversation.title))
+    setRenameValue(conversationTitleTopic(conversation.title))
     setRenameOpen(true)
   }, [conversation.title])
 
@@ -391,27 +333,6 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   const isSubsession = conversation.parent_id != null
   const showDoneAction = !isSubsession && conversation.status !== "completed"
   const showHoverActions = !isSubsession
-  const locale = useLocale()
-  const relativeMatch = timeLabel?.match(/^(\d+)(mo|m|h|d|y)$/)
-  const relativeUnits: Record<string, Intl.RelativeTimeFormatUnit> = {
-    m: "minute",
-    h: "hour",
-    d: "day",
-    mo: "month",
-    y: "year",
-  }
-  const recentTimeLabel =
-    timeLabel === "now"
-      ? new Intl.RelativeTimeFormat(locale, { numeric: "auto" }).format(
-          0,
-          "second"
-        )
-      : relativeMatch
-        ? new Intl.RelativeTimeFormat(locale, { numeric: "always" }).format(
-            -Number(relativeMatch[1]),
-            relativeUnits[relativeMatch[2]]
-          )
-        : timeLabel
   const stackedLayout = (isMobile && !compactMobile) || stackMetadata
   const showFolderMeta = Boolean(folderLabel) && !(isMobile && compactMobile)
   const stackedTitle = stackedLayout
@@ -423,538 +344,479 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
 
   return (
     <>
-      {/* Hover bubble: resting the pointer floats the full path and branch out
-          to the right. Wrapping the ContextMenu (not the other way
-          round) keeps the menu's trigger and this one on the same element —
-          both are `asChild` Slots, so their props merge onto the row div
-          below. */}
-      <HoverCard
-        open={hoverOpen && !menuOpen}
-        onOpenChange={(open) => setHoverOpen(open && !menuOpen)}
-        openDelay={HOVER_CARD_OPEN_DELAY_MS}
-        closeDelay={HOVER_CARD_CLOSE_DELAY_MS}
-      >
-        <ContextMenu onOpenChange={handleMenuOpenChange}>
-          <ContextMenuTrigger asChild>
-            <HoverCardTrigger asChild onFocus={handleHoverTriggerFocus}>
-              <div
+      <ContextMenu onOpenChange={handleMenuOpenChange}>
+        <ContextMenuTrigger asChild>
+          <div
+            className={cn(
+              "relative py-px bg-sidebar ws-transparent-bg",
+              !stackedLayout && "h-[1.9375rem]",
+              // Lift the traveling decoration above opaque sibling rows.
+              isSelected && "z-[1]"
+            )}
+            data-conv-key={`${conversation.agent_type}:${conversation.id}`}
+            // Per-level indent: shift the shared rail axis right by one step per
+            // depth. Root rows (depth 0) leave the var untouched so they inherit
+            // the list's `--conv-rail-axis: 0.875rem` and render exactly as
+            // before; the rail, agent icon, status dot, and button padding all
+            // key off this var so the whole row indents cohesively.
+            style={
+              depth > 0
+                ? ({
+                    "--conv-rail-axis": `calc(0.875rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`,
+                  } as CSSProperties)
+                : undefined
+            }
+          >
+            <div
+              className={cn(
+                // Compact history rows from the supplied desktop reference.
+                "group relative flex h-full w-full items-center isolate",
+                "text-sidebar-foreground",
+                stackMetadata ? "rounded-md" : "rounded-[0.625rem]",
+                "transition-colors duration-[120ms]",
+                isSelected
+                  ? "bg-[#eaeaea] dark:bg-white/[0.1]"
+                  : "hover:bg-black/[0.02] dark:hover:bg-white/[0.04]"
+              )}
+            >
+              <button
+                data-conversation-id={conversation.id}
+                onPointerDown={handlePointerDown}
+                onClick={handleClick}
+                onDoubleClick={handleDblClick}
                 className={cn(
-                  "relative py-px bg-sidebar ws-transparent-bg",
-                  !stackedLayout && "h-[1.9375rem]",
-                  // Lift the traveling decoration above opaque sibling rows.
-                  isSelected && "z-[1]"
+                  "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-sidebar-foreground",
+                  stackedLayout && "py-[0.375rem]",
+                  onConversationPointerDown &&
+                    "md:cursor-default md:active:cursor-grabbing",
+                  "rounded-[0.625rem]",
+                  stackedLayout ? "pr-4" : "pr-[0.25rem]"
                 )}
-                data-conv-key={`${conversation.agent_type}:${conversation.id}`}
-                // Per-level indent: shift the shared rail axis right by one step per
-                // depth. Root rows (depth 0) leave the var untouched so they inherit
-                // the list's `--conv-rail-axis: 0.875rem` and render exactly as
-                // before; the rail, agent icon, status dot, and button padding all
-                // key off this var so the whole row indents cohesively.
-                style={
-                  depth > 0
-                    ? ({
-                        "--conv-rail-axis": `calc(0.875rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`,
-                      } as CSSProperties)
-                    : undefined
-                }
+                // Leave a 7px gap after the 14px icon at every depth.
+                style={{
+                  paddingLeft:
+                    stackMetadata && !hasChildren
+                      ? `calc(1rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`
+                      : "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
+                }}
               >
-                <div
-                  className={cn(
-                    // Compact history rows from the supplied desktop reference.
-                    "group relative flex h-full w-full items-center isolate",
-                    "text-sidebar-foreground",
-                    stackMetadata ? "rounded-md" : "rounded-[0.625rem]",
-                    "transition-colors duration-[120ms]",
-                    isSelected
-                      ? selectionId
-                        ? undefined
-                        : "bg-black/[0.07] dark:bg-white/[0.1]"
-                      : "hover:bg-black/[0.04] dark:hover:bg-white/[0.06]"
-                  )}
-                >
-                  {isSelected && selectionId && (
-                    <SelectionIndicator
-                      id={selectionId}
-                      durationMs={320}
-                      className={cn(
-                        "inset-0 -z-10 bg-black/[0.07] dark:bg-white/[0.1]",
-                        stackMetadata ? "rounded-md" : "rounded-[0.625rem]"
-                      )}
-                    />
-                  )}
-                  <button
-                    data-conversation-id={conversation.id}
-                    onPointerDown={handlePointerDown}
-                    onClick={handleClick}
-                    onDoubleClick={handleDblClick}
-                    className={cn(
-                      "relative flex h-full min-w-0 flex-1 items-center gap-[0.625rem] text-left outline-none",
-                      stackedLayout && "py-[0.375rem]",
-                      onConversationPointerDown &&
-                        "md:cursor-default md:active:cursor-grabbing",
-                      "rounded-[0.625rem]",
-                      stackedLayout ? "pr-4" : "pr-[0.25rem]"
-                    )}
-                    // Leave a 7px gap after the 14px icon at every depth.
-                    style={{
-                      paddingLeft:
-                        stackMetadata && !hasChildren
-                          ? `calc(1rem + ${depth} * ${CONV_RAIL_DEPTH_STEP})`
-                          : "calc(var(--conv-rail-axis, 0.875rem) + 0.875rem)",
-                    }}
-                  >
-                    {/* Ancestor guide rails (depth ≥ 1): keep each parent's vertical
+                {/* Ancestor guide rails (depth ≥ 1): keep each parent's vertical
                     line continuous down through this nested row, so the child's
                     left rail aligns under the parent's. */}
-                    <SubsessionAncestorRails depth={depth} from={railFrom} />
-                    {/* This row's OWN rail, through its agent icon. Omitted for
+                <SubsessionAncestorRails depth={depth} from={railFrom} />
+                {/* This row's OWN rail, through its agent icon. Omitted for
                     root sessions in every section: only delegation children
                     draw a rail, so independent siblings never share a spine. */}
-                    {depth > railFrom && (
-                      <span
-                        aria-hidden
-                        data-conversation-rail
-                        className={cn(
-                          "pointer-events-none absolute z-0 bg-sidebar-border"
-                        )}
-                        style={{
-                          top: "-0.0625rem",
-                          bottom: "-0.0625rem",
-                          left: "var(--conv-rail-axis, 0.875rem)",
-                          width: "0.125rem",
-                          transform: "translateX(-50%)",
-                        }}
-                      />
+                {depth > railFrom && (
+                  <span
+                    aria-hidden
+                    data-conversation-rail
+                    className={cn(
+                      "pointer-events-none absolute z-0 bg-sidebar-border"
                     )}
-                    {!stackMetadata && (
-                      <div
-                        className={cn(
-                          "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
-                          // With children, the row hover (or focus) swaps this agent
-                          // icon out for the expand chevron at the same spot — fade it
-                          // so the two cross-fade in place. On touch (no hover) the
-                          // chevron is always shown, so the icon is always hidden.
-                          hasChildren &&
-                            onToggleExpand &&
-                            "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
-                        )}
-                        style={{
-                          left: "var(--conv-rail-axis, 0.875rem)",
-                          width: "0.875rem",
-                          height: "0.875rem",
-                          transform: "translate(-50%, -50%)",
-                        }}
-                        aria-hidden
-                      >
-                        <AgentIcon
-                          agentType={conversation.agent_type}
-                          className="h-[0.875rem] w-[0.875rem]"
-                        />
-                      </div>
+                    style={{
+                      top: "-0.0625rem",
+                      bottom: "-0.0625rem",
+                      left: "var(--conv-rail-axis, 0.875rem)",
+                      width: "0.125rem",
+                      transform: "translateX(-50%)",
+                    }}
+                  />
+                )}
+                {!stackMetadata && (
+                  <div
+                    className={cn(
+                      "pointer-events-none absolute top-1/2 z-10 flex items-center justify-center overflow-visible",
+                      // With children, the row hover (or focus) swaps this agent
+                      // icon out for the expand chevron at the same spot — fade it
+                      // so the two cross-fade in place. On touch (no hover) the
+                      // chevron is always shown, so the icon is always hidden.
+                      hasChildren &&
+                        onToggleExpand &&
+                        "transition-opacity duration-150 group-hover:opacity-0 group-focus-within:opacity-0 [@media(hover:none)]:opacity-0"
                     )}
+                    style={{
+                      left: "var(--conv-rail-axis, 0.875rem)",
+                      width: "0.875rem",
+                      height: "0.875rem",
+                      transform: "translate(-50%, -50%)",
+                    }}
+                    aria-hidden
+                  >
+                    <AgentIcon
+                      agentType={conversation.agent_type}
+                      className="h-[0.875rem] w-[0.875rem]"
+                    />
+                  </div>
+                )}
 
-                    {stackedLayout ? (
-                      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                {stackedLayout ? (
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span
+                      data-open-in-tab={isOpenInTab || undefined}
+                      className={cn(
+                        "maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]",
+                        stackMetadata ? "pr-6" : "pr-12"
+                      )}
+                    >
+                      {structuredStackedTitle?.topic ||
+                        stackedTitle ||
+                        t("untitledConversation")}
+                    </span>
+                    {(structuredStackedTitle ||
+                      showFolderMeta ||
+                      timeLabel ||
+                      conversation.origin_cwd) &&
+                      (stackMetadata ? (
                         <span
-                          data-open-in-tab={isOpenInTab || undefined}
-                          className={cn(
-                            "maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]",
-                            stackMetadata ? "pr-6" : "pr-12"
-                          )}
+                          data-mobile-conversation-meta
+                          className="flex min-w-0 items-center gap-1 text-xs leading-[0.875rem] text-muted-foreground"
                         >
-                          {structuredStackedTitle?.topic ||
-                            stackedTitle ||
-                            t("untitledConversation")}
-                        </span>
-                        {(structuredStackedTitle ||
-                          showFolderMeta ||
-                          timeLabel ||
-                          conversation.origin_cwd) &&
-                          (stackMetadata ? (
+                          <AgentIcon
+                            agentType={conversation.agent_type}
+                            className="size-3 shrink-0"
+                          />
+                          {showFolderMeta && (
                             <span
-                              data-mobile-conversation-meta
-                              className="flex min-w-0 items-center gap-1 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
+                              title={folderLabel}
+                              className="min-w-0 truncate"
                             >
-                              <AgentIcon
-                                agentType={conversation.agent_type}
-                                className="size-3 shrink-0"
-                              />
-                              {showFolderMeta && (
-                                <span
-                                  title={folderLabel}
-                                  className="min-w-0 truncate"
-                                >
-                                  {folderLabel}
-                                </span>
-                              )}
-                              {showFolderMeta && recentTimeLabel && (
-                                <span aria-hidden>·</span>
-                              )}
-                              <span className="shrink-0">
-                                {recentTimeLabel}
-                              </span>
-                              {conversation.origin_cwd && (
-                                <FolderX
-                                  className="size-3 shrink-0"
-                                  aria-label={tSidebar("worktreeRemovedBadge")}
-                                />
-                              )}
-                            </span>
-                          ) : (
-                            <span
-                              data-mobile-conversation-meta
-                              className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-[0.6875rem] leading-[0.875rem] text-muted-foreground/75"
-                            >
-                              <span className="tabular-nums">
-                                {structuredStackedTitle?.date}
-                              </span>
-                              <span className="flex min-w-0 items-center gap-1">
-                                {showFolderMeta && (
-                                  <span
-                                    title={folderLabel}
-                                    className="min-w-0 truncate text-muted-foreground"
-                                  >
-                                    {folderLabel}
-                                  </span>
-                                )}
-                                {conversation.origin_cwd && (
-                                  <span
-                                    title={tSidebar("worktreeRemovedBadge")}
-                                  >
-                                    <FolderX
-                                      className="size-3 shrink-0"
-                                      aria-hidden
-                                    />
-                                    <span className="sr-only">
-                                      {tSidebar("worktreeRemovedBadge")}
-                                    </span>
-                                  </span>
-                                )}
-                              </span>
-                              <span className="text-right tabular-nums">
-                                {timeLabel}
-                              </span>
-                            </span>
-                          ))}
-                      </span>
-                    ) : (
-                      <span
-                        className={cn(
-                          // Clip the Recent chip instead of painting it over the time.
-                          "flex min-w-0 flex-1 items-center overflow-hidden",
-                          showFolderMeta && "gap-[0.375rem]"
-                        )}
-                      >
-                        <ConversationTitleLabel
-                          data-open-in-tab={isOpenInTab || undefined}
-                          className={cn(
-                            "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
-                            showFolderMeta
-                              ? "shrink grow-0 overflow-hidden"
-                              : "flex-1"
-                          )}
-                          title={conversation.title}
-                          fallback={t("untitledConversation")}
-                        />
-                        {/* Re-parented out of a removed worktree: history loads fine,
-                      but "continue" may need a fresh session (the agent's files
-                      were keyed to the old path). */}
-                        {conversation.origin_cwd ? (
-                          <span
-                            className="inline-flex shrink-0 items-center"
-                            title={tSidebar("worktreeRemovedBadge")}
-                          >
-                            <FolderX
-                              className="h-3 w-3 text-muted-foreground/60"
-                              aria-hidden
-                            />
-                            <span className="sr-only">
-                              {tSidebar("worktreeRemovedBadge")}
-                            </span>
-                          </span>
-                        ) : null}
-                        {showFolderMeta ? (
-                          <span
-                            data-recent-folder
-                            title={folderLabel}
-                            className="flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-[0.6875rem] leading-[0.8125rem] text-muted-foreground/55"
-                          >
-                            {showFolderIcon ? (
-                              <Folder
-                                data-recent-source="folder"
-                                className="h-[0.625rem] w-[0.625rem] shrink-0"
-                                strokeWidth={1.5}
-                                aria-hidden
-                              />
-                            ) : (
-                              <MessageSquare
-                                data-recent-source="chat"
-                                className="h-[0.625rem] w-[0.625rem] shrink-0"
-                                strokeWidth={1.5}
-                                aria-hidden
-                              />
-                            )}
-                            <span className="min-w-0 truncate">
                               {folderLabel}
                             </span>
+                          )}
+                          {showFolderMeta && timeLabel && (
+                            <span aria-hidden>·</span>
+                          )}
+                          <span className="shrink-0">{timeLabel}</span>
+                          {conversation.origin_cwd && (
+                            <FolderX
+                              className="size-3 shrink-0"
+                              aria-label={tSidebar("worktreeRemovedBadge")}
+                            />
+                          )}
+                        </span>
+                      ) : (
+                        <span
+                          data-mobile-conversation-meta
+                          className="grid min-w-0 grid-cols-[4ch_minmax(0,1fr)_auto] items-center gap-2 text-xs leading-[0.875rem] text-muted-foreground"
+                        >
+                          <span className="tabular-nums">
+                            {structuredStackedTitle?.date}
                           </span>
-                        ) : null}
-                      </span>
+                          <span className="flex min-w-0 items-center gap-1">
+                            {showFolderMeta && (
+                              <span
+                                title={folderLabel}
+                                className="min-w-0 truncate"
+                              >
+                                {folderLabel}
+                              </span>
+                            )}
+                            {conversation.origin_cwd && (
+                              <span title={tSidebar("worktreeRemovedBadge")}>
+                                <FolderX
+                                  className="size-3 shrink-0"
+                                  aria-hidden
+                                />
+                                <span className="sr-only">
+                                  {tSidebar("worktreeRemovedBadge")}
+                                </span>
+                              </span>
+                            )}
+                          </span>
+                          <span className="text-right tabular-nums">
+                            {timeLabel}
+                          </span>
+                        </span>
+                      ))}
+                  </span>
+                ) : (
+                  <span
+                    className={cn(
+                      // Clip the Recent chip instead of painting it over the time.
+                      "flex min-w-0 flex-1 items-center overflow-hidden",
+                      showFolderMeta && "gap-[0.375rem]"
                     )}
-                  </button>
+                  >
+                    <ConversationTitleLabel
+                      data-open-in-tab={isOpenInTab || undefined}
+                      className={cn(
+                        "maxcode-sidebar-label relative min-w-0 text-[0.875rem] leading-[1.375rem] font-[430]",
+                        showFolderMeta
+                          ? "shrink grow-0 overflow-hidden"
+                          : "flex-1"
+                      )}
+                      title={conversation.title}
+                      fallback={t("untitledConversation")}
+                    />
+                    {/* Re-parented out of a removed worktree: history loads fine,
+                      but "continue" may need a fresh session (the agent's files
+                      were keyed to the old path). */}
+                    {conversation.origin_cwd ? (
+                      <span
+                        className="inline-flex shrink-0 items-center"
+                        title={tSidebar("worktreeRemovedBadge")}
+                      >
+                        <FolderX
+                          className="h-3 w-3 text-muted-foreground/60"
+                          aria-hidden
+                        />
+                        <span className="sr-only">
+                          {tSidebar("worktreeRemovedBadge")}
+                        </span>
+                      </span>
+                    ) : null}
+                    {showFolderMeta ? (
+                      <span
+                        data-recent-folder
+                        title={folderLabel}
+                        className="flex min-w-[0.625rem] max-w-[7.5rem] shrink-[999] items-center gap-[0.25rem] overflow-hidden text-xs leading-[0.875rem] text-muted-foreground"
+                      >
+                        {showFolderIcon ? (
+                          <Folder
+                            data-recent-source="folder"
+                            className="h-[0.625rem] w-[0.625rem] shrink-0"
+                            strokeWidth={1.5}
+                            aria-hidden
+                          />
+                        ) : (
+                          <MessageSquare
+                            data-recent-source="chat"
+                            className="h-[0.625rem] w-[0.625rem] shrink-0"
+                            strokeWidth={1.5}
+                            aria-hidden
+                          />
+                        )}
+                        <span className="min-w-0 truncate">{folderLabel}</span>
+                      </span>
+                    ) : null}
+                  </span>
+                )}
+              </button>
 
-                  {/* Expand/collapse affordance for delegation children. It overlays
+              {/* Expand/collapse affordance for delegation children. It overlays
                   the agent icon at the rail axis: idle shows the icon, and
                   hovering (or focusing) the row swaps in this chevron at the very
                   same spot while the icon fades. A sibling of the row button (HTML
                   forbids nested buttons) with `stopPropagation` so a toggle never
                   selects the row; pointer events stay off until revealed so a
                   click on the icon area still selects the row when not hovering. */}
-                  {hasChildren && onToggleExpand && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onToggleExpand(conversation.id)
-                      }}
-                      aria-label={
-                        expanded
-                          ? t("collapseSubsessions")
-                          : t("expandSubsessions")
-                      }
-                      aria-expanded={expanded}
-                      title={
-                        expanded
-                          ? t("collapseSubsessions")
-                          : t("expandSubsessions")
-                      }
-                      className={cn(
-                        "absolute top-0 bottom-0 z-20 flex items-center justify-center",
-                        "cursor-pointer outline-none",
-                        "opacity-0 pointer-events-none transition-opacity duration-150",
-                        "group-hover:opacity-100 group-hover:pointer-events-auto",
-                        "group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
-                        "[@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
-                      )}
-                      style={{
-                        left: "var(--conv-rail-axis, 0.875rem)",
-                        width: "0.875rem",
-                        transform: "translateX(-50%)",
-                      }}
-                    >
-                      <ChevronRight
-                        aria-hidden
-                        className={cn(
-                          "h-3 w-3 shrink-0 text-muted-foreground/70",
-                          "transition-transform duration-200 ease-out",
-                          expanded && "rotate-90"
-                        )}
-                      />
-                    </button>
+              {hasChildren && onToggleExpand && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onToggleExpand(conversation.id)
+                  }}
+                  aria-label={
+                    expanded ? t("collapseSubsessions") : t("expandSubsessions")
+                  }
+                  aria-expanded={expanded}
+                  title={
+                    expanded ? t("collapseSubsessions") : t("expandSubsessions")
+                  }
+                  className={cn(
+                    "absolute top-0 bottom-0 z-20 flex items-center justify-center",
+                    "cursor-pointer outline-none",
+                    "opacity-0 pointer-events-none transition-opacity duration-150",
+                    "group-hover:opacity-100 group-hover:pointer-events-auto",
+                    "group-focus-within:opacity-100 group-focus-within:pointer-events-auto",
+                    "[@media(hover:none)]:opacity-100 [@media(hover:none)]:pointer-events-auto"
                   )}
-
-                  {/* Status stays in its own slot while the adjacent actions menu opens. */}
-                  <div
+                  style={{
+                    left: "var(--conv-rail-axis, 0.875rem)",
+                    width: "0.875rem",
+                    transform: "translateX(-50%)",
+                  }}
+                >
+                  <ChevronRight
+                    aria-hidden
                     className={cn(
-                      stackedLayout
-                        ? "absolute right-4 top-1/2 -translate-y-1/2 flex items-center"
-                        : "flex h-full shrink-0 items-center pr-[0.375rem]",
-                      showFolderMeta && !stackedLayout && "ml-[0.375rem]"
+                      "h-3 w-3 shrink-0 text-muted-foreground/70",
+                      "transition-transform duration-200 ease-out",
+                      expanded && "rotate-90"
                     )}
-                  >
+                  />
+                </button>
+              )}
+
+              {/* Status stays in its own slot while the adjacent actions menu opens. */}
+              <div
+                className={cn(
+                  stackedLayout
+                    ? "absolute right-4 top-1/2 -translate-y-1/2 flex items-center"
+                    : "flex h-full shrink-0 items-center pr-[0.375rem]",
+                  showFolderMeta && !stackedLayout && "ml-[0.375rem]"
+                )}
+              >
+                <span
+                  data-conversation-status=""
+                  className={cn(
+                    "flex items-center",
+                    stackedLayout && "w-3 justify-end"
+                  )}
+                >
+                  {isRunning ? (
                     <span
-                      data-conversation-status=""
+                      className="relative inline-flex shrink-0 items-center justify-center"
+                      title={tSidebar("statusRunningBadge")}
+                    >
+                      <svg
+                        data-running-spinner
+                        className="size-3 animate-spin text-[#858585] dark:text-[#a3a3a3]"
+                        viewBox="0 0 12 12"
+                        fill="none"
+                        aria-hidden="true"
+                      >
+                        <circle
+                          cx="6"
+                          cy="6"
+                          r="4.5"
+                          stroke="currentColor"
+                          strokeOpacity="0.25"
+                          strokeWidth="1.5"
+                        />
+                        <path
+                          d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span className="sr-only">
+                        {tSidebar("statusRunningBadge")}
+                      </span>
+                    </span>
+                  ) : hasUnread ? (
+                    <ConversationUnreadDot label={tSidebar("unreadBadge")} />
+                  ) : timeLabel && !stackedLayout ? (
+                    <span
                       className={cn(
-                        "flex items-center",
-                        stackedLayout && "w-3 justify-end"
+                        "relative shrink-0 text-xs tabular-nums text-muted-foreground",
+                        isSelected && "font-medium"
                       )}
                     >
-                      {isRunning ? (
-                        <span
-                          className="relative inline-flex shrink-0 items-center justify-center"
-                          title={tSidebar("statusRunningBadge")}
-                        >
-                          <svg
-                            data-running-spinner
-                            className="size-3 animate-spin text-[#858585] dark:text-[#a3a3a3]"
-                            viewBox="0 0 12 12"
-                            fill="none"
-                            aria-hidden="true"
-                          >
-                            <circle
-                              cx="6"
-                              cy="6"
-                              r="4.5"
-                              stroke="currentColor"
-                              strokeOpacity="0.25"
-                              strokeWidth="1.5"
-                            />
-                            <path
-                              d="M6 1.5a4.5 4.5 0 0 1 4.5 4.5"
-                              stroke="currentColor"
-                              strokeWidth="1.5"
-                              strokeLinecap="round"
-                            />
-                          </svg>
-                          <span className="sr-only">
-                            {tSidebar("statusRunningBadge")}
-                          </span>
-                        </span>
-                      ) : hasUnread ? (
-                        <ConversationUnreadDot
-                          label={tSidebar("unreadBadge")}
-                        />
-                      ) : timeLabel && !stackedLayout ? (
-                        <span
-                          className={cn(
-                            "relative shrink-0 tabular-nums",
-                            "text-[0.71875rem]",
-                            isSelected
-                              ? "font-medium text-muted-foreground"
-                              : "font-normal text-muted-foreground/70"
-                          )}
-                        >
-                          {timeLabel}
-                        </span>
-                      ) : null}
+                      {timeLabel}
                     </span>
-                    {showHoverActions &&
-                      !(stackedLayout && hasUnread) &&
-                      !(stackMetadata && isRunning) && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          aria-label={t("moreActions")}
-                          title={t("moreActions")}
-                          aria-haspopup="menu"
-                          aria-expanded={menuOpen}
-                          data-state={menuOpen ? "open" : "closed"}
-                          onPointerDown={(event) => event.stopPropagation()}
-                          onClick={(event) => {
-                            event.stopPropagation()
-                            // Open the row's actual context menu, just like the
-                            // folder menu, so both entry points stay identical.
-                            const rect =
-                              event.currentTarget.getBoundingClientRect()
-                            event.currentTarget.dispatchEvent(
-                              new MouseEvent("contextmenu", {
-                                bubbles: true,
-                                cancelable: true,
-                                button: 2,
-                                clientX: rect.left,
-                                clientY: rect.bottom,
-                              })
-                            )
-                          }}
-                          className={cn(
-                            "ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
-                            isMobile && "opacity-100",
-                            stackedLayout &&
-                              "absolute right-0 top-1/2 -translate-y-1/2 ml-0 justify-center p-0"
-                          )}
-                        >
-                          <Ellipsis className="size-3.5" />
-                        </Button>
+                  ) : null}
+                </span>
+                {showHoverActions &&
+                  !(stackedLayout && hasUnread) &&
+                  !(stackMetadata && isRunning) && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label={t("moreActions")}
+                      title={t("moreActions")}
+                      aria-haspopup="menu"
+                      aria-expanded={menuOpen}
+                      data-state={menuOpen ? "open" : "closed"}
+                      onPointerDown={(event) => event.stopPropagation()}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        // Open the row's actual context menu, just like the
+                        // folder menu, so both entry points stay identical.
+                        const rect = event.currentTarget.getBoundingClientRect()
+                        event.currentTarget.dispatchEvent(
+                          new MouseEvent("contextmenu", {
+                            bubbles: true,
+                            cancelable: true,
+                            button: 2,
+                            clientX: rect.left,
+                            clientY: rect.bottom,
+                          })
+                        )
+                      }}
+                      className={cn(
+                        "ml-1 size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 [@media(hover:none)]:opacity-100",
+                        isMobile && "opacity-100",
+                        stackedLayout &&
+                          "absolute right-0 top-1/2 -translate-y-1/2 ml-0 justify-center p-0"
                       )}
-                  </div>
-                </div>
+                    >
+                      <Ellipsis className="size-3.5" />
+                    </Button>
+                  )}
               </div>
-            </HoverCardTrigger>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            {showDoneAction && (
-              <ContextMenuItem
-                onSelect={() => onStatusChange(conversation.id, "completed")}
-              >
-                <CheckCircle2 className="size-4" />
-                {t("markCompleted")}
-              </ContextMenuItem>
-            )}
-            {onLinkTodo && !isSubsession && (
-              <ContextMenuItem
-                onSelect={() =>
-                  onLinkTodo(
-                    conversation.id,
-                    formatConversationTitle(conversation.title) ||
-                      t("untitledConversation")
-                  )
-                }
-              >
-                <Link2 className="size-4" />
-                {tTodos("linkConversation")}
-              </ContextMenuItem>
-            )}
-            {onNewConversation && (
-              <>
-                <ContextMenuItem
-                  onSelect={() => onNewConversation(conversation.folder_id)}
-                >
-                  <SquarePen className="h-4 w-4" />
-                  {t("newConversation")}
-                </ContextMenuItem>
-                <ContextMenuSeparator />
-              </>
-            )}
-            <ContextMenuItem onSelect={handleRenameOpen}>
-              <Pencil className="h-4 w-4" />
-              {t("rename")}
+            </div>
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent>
+          {showDoneAction && (
+            <ContextMenuItem
+              onSelect={() => onStatusChange(conversation.id, "completed")}
+            >
+              <CheckCircle2 className="size-4" />
+              {t("markCompleted")}
             </ContextMenuItem>
-            {onTogglePin && (
-              <ContextMenuItem
-                onSelect={() => onTogglePin(conversation.id, !isPinned)}
-              >
-                {isPinned ? (
-                  <PinOff className="h-4 w-4" />
-                ) : (
-                  <Pin className="h-4 w-4" />
-                )}
-                {isPinned ? t("unpin") : t("pin")}
-              </ContextMenuItem>
-            )}
-            <ContextMenuItem onSelect={() => setDetailsOpen(true)}>
-              <Info className="h-4 w-4" />
-              {tDetails("menuLabel")}
+          )}
+          {onLinkTodo && !isSubsession && (
+            <ContextMenuItem
+              onSelect={() =>
+                onLinkTodo(
+                  conversation.id,
+                  formatConversationTitle(conversation.title) ||
+                    t("untitledConversation")
+                )
+              }
+            >
+              <Link2 className="size-4" />
+              {tTodos("linkConversation")}
             </ContextMenuItem>
-            {/* Mirrors the file tree's "add to session": inserts an `@`-style
+          )}
+          {onNewConversation && (
+            <>
+              <ContextMenuItem
+                onSelect={() => onNewConversation(conversation.folder_id)}
+              >
+                <SquarePen className="h-4 w-4" />
+                {t("newConversation")}
+              </ContextMenuItem>
+              <ContextMenuSeparator />
+            </>
+          )}
+          <ContextMenuItem onSelect={handleRenameOpen}>
+            <Pencil className="h-4 w-4" />
+            {t("rename")}
+          </ContextMenuItem>
+          {onTogglePin && (
+            <ContextMenuItem
+              onSelect={() => onTogglePin(conversation.id, !isPinned)}
+            >
+              {isPinned ? (
+                <PinOff className="h-4 w-4" />
+              ) : (
+                <Pin className="h-4 w-4" />
+              )}
+              {isPinned ? t("unpin") : t("pin")}
+            </ContextMenuItem>
+          )}
+          <ContextMenuItem onSelect={() => setDetailsOpen(true)}>
+            <Info className="h-4 w-4" />
+            {tDetails("menuLabel")}
+          </ContextMenuItem>
+          {/* Mirrors the file tree's "add to session": inserts an `@`-style
               mention of THIS conversation into the active session's composer.
               Disabled only when no conversation tab is open — there is no
               composer to write into then. */}
-            <ContextMenuItem
-              onSelect={handleAttachToSession}
-              disabled={!attachTabId}
-            >
-              <AtSign className="h-4 w-4" />
-              {t("attachToCurrentSession")}
-            </ContextMenuItem>
+          <ContextMenuItem
+            onSelect={handleAttachToSession}
+            disabled={!attachTabId}
+          >
+            <AtSign className="h-4 w-4" />
+            {t("attachToCurrentSession")}
+          </ContextMenuItem>
 
-            <ContextMenuSeparator />
-            <ContextMenuItem
-              variant="destructive"
-              onSelect={() => setDeleteOpen(true)}
-            >
-              <Trash2 className="h-4 w-4" />
-              {t("delete")}
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-        {/* Inert to the pointer. Radix keeps a hover card open for as long as a
-            text selection exists anywhere in the document — its content mounts a
-            `pointerup` listener that latches `hasSelectionRef` off
-            `document.getSelection()`, and `handleClose` then refuses to close
-            until the content unmounts, which it can't, because it won't close.
-            With one card per sidebar row that deadlock strands bubbles: select a
-            snippet anywhere in the app, click on a bubble, and it stays pinned
-            while the next row opens another beside it. Making the bubble
-            unpointable means every press lands outside it, so the dismissable
-            layer tears it down before that listener can latch — and a bubble
-            that only ever wants to vanish when the pointer moves away has
-            nothing to interact with anyway. Trade-off: the primitive's
-            `overflow-y-auto` can't be scrolled here, so on a very short window
-            the tail of a tall bubble is clipped rather than reachable. */}
-        <HoverCardContent className="pointer-events-none">
-          <SidebarConversationHoverDetails conversation={conversation} />
-        </HoverCardContent>
-      </HoverCard>
+          <ContextMenuSeparator />
+          <ContextMenuItem
+            variant="destructive"
+            onSelect={() => setDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4" />
+            {t("delete")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>

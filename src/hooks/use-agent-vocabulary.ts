@@ -1,8 +1,9 @@
 "use client"
 
 import { useMemo } from "react"
-import { useTranslations } from "next-intl"
+import { useLocale, useTranslations } from "next-intl"
 
+import { translateSelectorData } from "@/lib/selector-presentation"
 import {
   localizeConfigOption,
   localizeConfigOptionLabel,
@@ -31,17 +32,19 @@ import type {
  * rewritten, so passing a memoised array through here keeps its identity.
  */
 export function useAgentVocabulary(agentType: AgentType | null | undefined) {
+  const locale = useLocale()
   const t = useTranslations("AgentVocabulary")
-  return useMemo(
-    () => ({
+  return useMemo(() => {
+    const display = <T>(value: T): T => translateSelectorData(value, locale)
+    return {
       modes: (modes: SessionModeInfo[]) =>
-        localizeSessionModes(agentType, modes, t),
+        display(localizeSessionModes(agentType, modes, t)),
       modeLabel: (modeId: string, fallback: string) =>
         localizeModeLabel(agentType, modeId, fallback, t),
       configOptions: (options: SessionConfigOptionInfo[]) =>
-        localizeConfigOptions(agentType, options, t),
+        display(localizeConfigOptions(agentType, options, t)),
       configOption: (option: SessionConfigOptionInfo) =>
-        localizeConfigOption(agentType, option, t),
+        display(localizeConfigOption(agentType, option, t)),
       configOptionLabel: (configId: string, fallback: string) =>
         localizeConfigOptionLabel(agentType, configId, fallback, t),
       configValueLabel: (
@@ -51,7 +54,6 @@ export function useAgentVocabulary(agentType: AgentType | null | undefined) {
       ) => localizeConfigValueLabel(agentType, configId, valueId, fallback, t),
       permissionOptions: (options: PermissionOptionInfo[]) =>
         localizePermissionOptions(agentType, options, t),
-    }),
-    [agentType, t]
-  )
+    }
+  }, [agentType, t, locale])
 }

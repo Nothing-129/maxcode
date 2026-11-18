@@ -1,5 +1,10 @@
 "use client"
 
+import {
+  InputGroup,
+  InputGroupInput,
+  InputGroupButton,
+} from "@/components/ui/input-group"
 import { useCallback, useEffect, useId, useRef, useState } from "react"
 import {
   AlertTriangle,
@@ -44,7 +49,10 @@ const DEFAULT_PORT = 3080
 import { openUrl } from "@/lib/platform"
 import { copyTextToClipboard } from "@/lib/utils"
 import { useCopiedFlag } from "@/hooks/use-copied-flag"
-import { normalizeConversationPublicShareUrl } from "@/lib/conversation-share"
+import {
+  normalizeConversationPublicShareUrl,
+  selectConversationShareAddress,
+} from "@/lib/conversation-share"
 
 // Remembers which reachable address the user last chose to display/open.
 // Keyed by host (IP) only, so the choice survives a port change.
@@ -237,11 +245,11 @@ function TokenEditor({
       >
         {label}
       </label>
-      <div
+      <InputGroup
         data-settings-input-group
-        className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:border-[#216ae4] focus-within:ring-0 md:text-sm"
+        className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:ring-0 md:text-sm"
       >
-        <input
+        <InputGroupInput
           id={inputId}
           type={revealed ? "text" : "password"}
           value={value}
@@ -250,20 +258,22 @@ function TokenEditor({
           placeholder={placeholder}
           spellCheck={false}
           autoComplete="off"
-          className="h-full min-w-0 flex-1 bg-transparent py-1 font-mono text-[length:inherit] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
+          className="h-full min-w-0 flex-1 bg-transparent px-0 py-1 font-mono text-[length:inherit] outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
         />
         <div className="ml-2 flex shrink-0 items-center gap-1">
           {!disabled && (
-            <button
+            <InputGroupButton
+              size="icon-xs"
               type="button"
               onClick={() => onChange(generateRandomToken())}
               className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
               title={t("regenerate")}
             >
               <RefreshCw className="h-3.5 w-3.5" />
-            </button>
+            </InputGroupButton>
           )}
-          <button
+          <InputGroupButton
+            size="icon-xs"
             type="button"
             onClick={() => setRevealed((v) => !v)}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-foreground"
@@ -274,8 +284,9 @@ function TokenEditor({
             ) : (
               <Eye className="h-3.5 w-3.5" />
             )}
-          </button>
-          <button
+          </InputGroupButton>
+          <InputGroupButton
+            size="icon-xs"
             type="button"
             onClick={handleCopy}
             disabled={!value}
@@ -287,9 +298,9 @@ function TokenEditor({
             ) : (
               <Copy className="h-3.5 w-3.5" />
             )}
-          </button>
+          </InputGroupButton>
         </div>
-      </div>
+      </InputGroup>
     </div>
   )
 }
@@ -366,8 +377,8 @@ export function WebServiceSettings() {
   }, [fetchStatus])
 
   // Pick which reachable address to display/open. Keep a still-valid prior
-  // choice; otherwise honor the remembered host, falling back to the first
-  // entry (loopback). Selection is display-only — the service always binds
+  // choice; otherwise honor the remembered host, falling back to a LAN
+  // address before loopback. Selection is display-only — the service binds
   // 0.0.0.0, so every listed address stays reachable regardless of choice.
   useEffect(() => {
     const addresses = status?.addresses ?? []
@@ -381,7 +392,7 @@ export function WebServiceSettings() {
       const matched = savedHost
         ? addresses.find((addr) => addressHost(addr) === savedHost)
         : undefined
-      return matched ?? addresses[0]
+      return matched ?? selectConversationShareAddress(addresses)
     })
   }, [status])
 
@@ -535,7 +546,8 @@ export function WebServiceSettings() {
   }
 
   const isRunning = status !== null
-  const currentAddress = selectedAddress ?? status?.addresses[0] ?? null
+  const currentAddress =
+    selectedAddress ?? selectConversationShareAddress(status?.addresses ?? [])
   const hasMultipleAddresses = (status?.addresses.length ?? 0) > 1
   const showStaleBanner =
     !isRunning &&

@@ -6,7 +6,10 @@ import { subscribe } from "@/lib/platform"
 import { todoCall, type TodoState } from "@/lib/todos"
 import { TodosViewProvider, useTodosView } from "@/contexts/todos-view-context"
 
-vi.mock("@/lib/platform", () => ({ subscribe: vi.fn() }))
+vi.mock("@/lib/platform", () => ({
+  subscribe: vi.fn(),
+  onTransportReconnect: () => null,
+}))
 vi.mock("@/lib/todos", async (original) => ({
   ...(await original<typeof import("@/lib/todos")>()),
   todoCall: vi.fn(),

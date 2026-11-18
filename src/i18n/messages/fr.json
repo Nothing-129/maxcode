@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "Choisir une date",
+    "enterDate": "Saisir la date (YYYY-MM-DD)",
+    "apply": "Appliquer",
+    "clearDate": "Effacer la date"
+  },
   "MarkdownTable": {
     "plainText": "Texte brut"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "Tâches",
         "settings": "Réglages",
         "selectDate": "Choisir une date",
-        "activityHint": "Selon la dernière mise à jour de la conversation",
         "noActivity": "Aucune conversation à cette date",
         "recent": "Récent",
         "dateRange": "Période",
+        "start": "Début",
+        "end": "Fin",
         "startDate": "Date de début",
+        "startTime": "Heure de début",
+        "endTime": "Heure de fin",
         "endDate": "Date de fin",
+        "groupByFolder": "Regrouper par dossier",
         "filterDate": "Filtrer par date",
+        "clear": "Effacer",
         "clearDate": "Effacer le filtre de date",
         "presets": {
           "today": "Aujourd’hui",
@@ -2181,7 +2192,8 @@
       "reopen": "Rouvrir",
       "expandSubsessions": "Développer les sous-conversations",
       "collapseSubsessions": "Réduire les sous-conversations",
-      "shareContentHint": "Les questions, réponses et images sont partagées par défaut. Choisissez les contenus supplémentaires ci-dessous.",
+      "shareContentHint": "Le partage inclut les questions, réponses, images et pièces jointes des échanges sélectionnés. Toute personne disposant du lien peut voir les images et télécharger les fichiers.",
+      "shareFileUnavailable": "Fichier indisponible",
       "shareScope": "Étendue du partage",
       "shareAllRounds": "Les {count} échanges",
       "shareSelectRounds": "Choisir les échanges",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "Basculé en mode discussion",
         "openStashFailed": "Échec de l'ouverture de la fenêtre de remisage",
         "openMergeFailed": "Échec de l'ouverture de la fenêtre de fusion"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "Cloner un dépôt",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "Afficher les détails"
   },
   "Automations": {
+    "sectionWhat": "Que faire",
+    "sectionWhen": "Quand exécuter",
+    "sectionWhere": "Où exécuter",
+    "advancedExecution": "Session et paramètres avancés",
+    "customSchedule": "Planification personnalisée",
     "hideFromConversationList": "Masquer dans la liste des conversations",
     "hideFromConversationListHint": "Masque les conversations des exécutions passées et futures. Consultez-les dans l’historique de l’automatisation. Désactivez cette option pour les réafficher.",
     "calendarFilter": "Dates d’exécution",
@@ -5088,6 +5106,13 @@
     "runNow": "Exécuter maintenant",
     "cancelRun": "Annuler l'exécution",
     "runHistory": "Historique d'exécution",
+    "showOlderRuns": "Afficher les exécutions précédentes",
+    "hideRunResult": "Masquer le résultat",
+    "hideOlderRuns": "Masquer les exécutions précédentes",
+    "groupEnabled": "Activées",
+    "groupPaused": "En pause",
+    "filterAutomations": "Filtrer les automatisations",
+    "searchAutomations": "Rechercher une automatisation",
     "noRuns": "Aucune exécution pour l'instant",
     "allFolders": "Tous les dossiers",
     "filterAll": "Tous",
@@ -6192,6 +6217,7 @@
     "loading": "Chargement des tâches",
     "loadFailed": "Impossible de charger les tâches.",
     "retry": "Reconnecter",
+    "refreshTodos": "Actualiser les tâches",
     "searchPlaceholder": "Rechercher une tâche",
     "filterStatus": "Filtrer par statut",
     "allStatuses": "Tous les statuts",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "Écrivez en Markdown ou collez une image…",
     "assigneeLabel": "Attribuer à",
     "unassigned": "Non attribué",
-    "conversationShareHint": "Un lien en lecture seule vers la conversation partagée sera joint lors de l’enregistrement.",
+    "conversationShareHint": "La tâche enregistrée contiendra un lien vers la conversation partagée.",
     "save": "Enregistrer",
     "saving": "Enregistrement…",
     "cancel": "Annuler",
@@ -6244,8 +6270,7 @@
     "operationFailed": "Impossible d’effectuer cette action : {reason}",
     "addMessage": "Ajouter le message aux tâches",
     "addConversation": "Ajouter aux tâches",
-    "shareAndCreate": "Partager et créer une tâche",
-    "conversationShareDescription": "Choisissez le contenu de la conversation à joindre. Saisissez le contenu de la tâche à l’étape suivante.",
+    "shareAndCreate": "Partager et rédiger la tâche",
     "conflictHint": "Cette tâche a été modifiée. Charger la dernière version remplacera votre saisie actuelle.",
     "reloadLatest": "Charger la dernière version",
     "completedPagination": "Pages des tâches terminées",
@@ -6255,7 +6280,9 @@
     "nextPage": "Page suivante",
     "loadingCompleted": "Chargement des tâches terminées",
     "linkConversation": "Lier une tâche existante",
-    "linkConversationDescription": "Choisissez une tâche pour « {title} ». Le lien apparaît uniquement dans votre espace de travail.",
+    "linkDialogTitle": "Lier une tâche",
+    "searchClaimedTodos": "Rechercher une tâche prise en charge",
+    "linkVisibility": "Lien visible uniquement dans votre espace de travail",
     "linkedTodos": "Tâches liées",
     "unlinkTodo": "Dissocier",
     "searchTodos": "Rechercher des tâches",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "Choisir le dossier de conversation",
     "chooseConversationFolderHint": "Cette tâche n’a pas de conversation liée à un dossier valide. Choisissez un dossier.",
     "confirmConversationFolder": "Choisir et créer"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

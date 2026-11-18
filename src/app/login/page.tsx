@@ -1,5 +1,7 @@
 "use client"
 
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -63,25 +65,26 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <input
+            <Input
               type="password"
               value={token}
               onChange={(e) => setToken(e.target.value)}
               placeholder={t("tokenPlaceholder")}
               autoFocus
-              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-base md:text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:border-[#216ae4] focus-visible:ring-0"
+              aria-label={t("tokenPlaceholder")}
             />
           </div>
 
           {error && <p className="text-sm text-destructive">{error}</p>}
 
-          <button
+          <Button
             type="submit"
             disabled={!token || loading}
-            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground ring-offset-background transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:border-[#216ae4] focus-visible:ring-0 disabled:pointer-events-none disabled:opacity-50"
+            size="lg"
+            className="w-full"
           >
             {loading ? t("connecting") : t("connect")}
-          </button>
+          </Button>
         </form>
 
         <p className="text-center text-xs text-muted-foreground">

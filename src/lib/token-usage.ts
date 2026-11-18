@@ -6,6 +6,9 @@ import type {
   TokenUsageReport,
   TokenUsageTotals,
 } from "@/lib/types"
+import { fromLocalDayValue } from "@/lib/local-date"
+
+export { fromLocalDayValue, toLocalDayValue } from "@/lib/local-date"
 
 /**
  * Pure helpers behind the token-usage dashboard. Everything here is a function
@@ -50,26 +53,6 @@ export function addLocalDays(d: Date, days: number): Date {
   // Constructing through the Date parts (rather than adding milliseconds) keeps
   // the result on a real local midnight across DST transitions.
   return new Date(d.getFullYear(), d.getMonth(), d.getDate() + days)
-}
-
-/**
- * The custom range's wire form is a pair of `YYYY-MM-DD` local days; the
- * calendar speaks `Date`. These two are that seam.
- *
- * Neither goes through `toISOString`/`Date.parse` of a bare date: a date-only
- * string is parsed as UTC by the language spec, so west of Greenwich the day
- * would come back as the one before.
- */
-export function toLocalDayValue(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0")
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
-/** `YYYY-MM-DD` → local midnight; `null` for empty or unparsable input. */
-export function fromLocalDayValue(value: string): Date | null {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
-  const parsed = new Date(`${value}T00:00`)
-  return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
 /**

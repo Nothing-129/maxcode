@@ -1,10 +1,16 @@
 "use client"
 /* eslint-disable @next/next/no-img-element -- shared snapshots carry data URLs that Next Image cannot optimize */
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleSummary,
+} from "@/components/ui/collapsible"
 import { useEffect, useMemo, useState } from "react"
 import { Bot, CalendarDays, Loader2, LockKeyhole } from "lucide-react"
 import { useTranslations } from "next-intl"
 
+import { SharedFilesContext, SharedImage } from "./shared-file"
 import { MessageResponse } from "@/components/ai-elements/message"
 import {
   Reasoning,
@@ -60,34 +66,38 @@ function Block({
       )
     case "tool_use":
       return (
-        <details className="rounded-lg border border-border/60 px-3 py-2 text-sm">
-          <summary className="cursor-pointer font-medium">
+        <Collapsible className="rounded-lg border border-border/60 px-3 py-2 text-sm">
+          <CollapsibleSummary className="cursor-pointer font-medium">
             {block.tool_name}
-          </summary>
-          {block.input_preview ? (
-            <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">
-              {block.input_preview}
-            </pre>
-          ) : null}
-        </details>
+          </CollapsibleSummary>
+          <CollapsibleContent>
+            {block.input_preview ? (
+              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">
+                {block.input_preview}
+              </pre>
+            ) : null}
+          </CollapsibleContent>
+        </Collapsible>
       )
     case "tool_result":
       return (
         <div className="space-y-2">
           {block.output_preview ? (
-            <details className="rounded-lg border border-border/60 px-3 py-2 text-sm">
-              <summary
+            <Collapsible className="rounded-lg border border-border/60 px-3 py-2 text-sm">
+              <CollapsibleSummary
                 className={cn(
                   "cursor-pointer",
                   block.is_error ? "text-destructive" : "text-muted-foreground"
                 )}
               >
                 {block.is_error ? t("shareToolError") : t("shareToolResult")}
-              </summary>
-              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">
-                {block.output_preview}
-              </pre>
-            </details>
+              </CollapsibleSummary>
+              <CollapsibleContent>
+                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-3 text-xs">
+                  {block.output_preview}
+                </pre>
+              </CollapsibleContent>
+            </Collapsible>
           ) : null}
           {block.images?.map((image, index) => (
             <img
@@ -101,10 +111,10 @@ function Block({
       )
     case "image":
       return (
-        <img
+        <SharedImage
           src={imageSource(block.data, block.mime_type)}
           alt=""
-          className="max-h-[32rem] max-w-full rounded-lg border object-contain"
+          name={`image.${block.mime_type.split("/")[1] || "png"}`}
         />
       )
     case "image_generation":
@@ -116,10 +126,10 @@ function Block({
             </p>
           ) : null}
           {block.image ? (
-            <img
+            <SharedImage
               src={imageSource(block.image.data, block.image.mime_type)}
               alt=""
-              className="max-h-[32rem] max-w-full rounded-lg border object-contain"
+              name={`image.${block.image.mime_type.split("/")[1] || "png"}`}
             />
           ) : null}
         </div>
@@ -141,17 +151,23 @@ function UserText({ text }: { text: string }) {
   return (
     <div className="space-y-2 text-sm leading-7">
       {content.text ? (
-        <div className="whitespace-pre-wrap break-words">{content.text}</div>
+        content.text.includes("](#maxcode-file-") ? (
+          <MessageResponse linkMode="public">{content.text}</MessageResponse>
+        ) : (
+          <div className="whitespace-pre-wrap break-words">{content.text}</div>
+        )
       ) : null}
       {content.metadata ? (
-        <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer">
+        <Collapsible className="text-xs text-muted-foreground">
+          <CollapsibleSummary className="cursor-pointer">
             {t("shareSessionDetails")}
-          </summary>
-          <pre className="mt-2 whitespace-pre-wrap break-all font-sans">
-            {content.metadata}
-          </pre>
-        </details>
+          </CollapsibleSummary>
+          <CollapsibleContent>
+            <pre className="mt-2 whitespace-pre-wrap break-all font-sans">
+              {content.metadata}
+            </pre>
+          </CollapsibleContent>
+        </Collapsible>
       ) : null}
     </div>
   )
@@ -198,21 +214,24 @@ function SharedRound({ round }: { round: ConversationShareRound }) {
             <Block key={index} block={block} role="assistant" />
           ))}
           {process.length ? (
-            <details
+            <Collapsible
               className="rounded-xl border border-border/60 px-3 py-2 text-sm"
-              onToggle={(event) => setProcessOpen(event.currentTarget.open)}
+              open={processOpen}
+              onOpenChange={setProcessOpen}
             >
-              <summary className="cursor-pointer text-muted-foreground">
+              <CollapsibleSummary className="cursor-pointer text-muted-foreground">
                 {t("shareProgress", { count: process.length })}
-              </summary>
-              {processOpen ? (
-                <div className="mt-3 space-y-3">
-                  {process.map((block, index) => (
-                    <Block key={index} block={block} role="assistant" />
-                  ))}
-                </div>
-              ) : null}
-            </details>
+              </CollapsibleSummary>
+              <CollapsibleContent>
+                {processOpen ? (
+                  <div className="mt-3 space-y-3">
+                    {process.map((block, index) => (
+                      <Block key={index} block={block} role="assistant" />
+                    ))}
+                  </div>
+                ) : null}
+              </CollapsibleContent>
+            </Collapsible>
           ) : null}
         </div>
       ) : null}
@@ -335,9 +354,11 @@ export function SharedConversationView() {
         </div>
       </header>
       <div className="mx-auto max-w-3xl space-y-10 px-4 py-6 sm:px-6 sm:py-10">
-        {rounds.slice(0, visibleRounds).map((round) => (
-          <SharedRound key={round.number} round={round} />
-        ))}
+        <SharedFilesContext.Provider value={snapshot.files ?? []}>
+          {rounds.slice(0, visibleRounds).map((round) => (
+            <SharedRound key={round.number} round={round} />
+          ))}
+        </SharedFilesContext.Provider>
         {rounds.length === 0 ? (
           <p className="text-center text-sm text-muted-foreground">
             {t("shareEmpty")}

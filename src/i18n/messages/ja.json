@@ -1,4 +1,10 @@
 {
+  "DatePicker": {
+    "selectDate": "日付を選択",
+    "enterDate": "日付を入力 (YYYY-MM-DD)",
+    "apply": "適用",
+    "clearDate": "日付をクリア"
+  },
   "MarkdownTable": {
     "plainText": "プレーンテキスト"
   },
@@ -2057,13 +2063,18 @@
         "tasks": "タスク",
         "settings": "設定",
         "selectDate": "日付を選択",
-        "activityHint": "会話の最終更新日時で絞り込み",
         "noActivity": "この日の会話はありません",
         "recent": "最近",
         "dateRange": "期間",
+        "start": "開始",
+        "end": "終了",
         "startDate": "開始日",
+        "startTime": "開始時刻",
+        "endTime": "終了時刻",
         "endDate": "終了日",
+        "groupByFolder": "フォルダー別にグループ化",
         "filterDate": "日付で絞り込み",
+        "clear": "リセット",
         "clearDate": "日付をリセット",
         "presets": {
           "today": "今日",
@@ -2181,7 +2192,8 @@
       "reopen": "再開する",
       "expandSubsessions": "サブ会話を展開",
       "collapseSubsessions": "サブ会話を折りたたむ",
-      "shareContentHint": "既定では質問、回答本文、画像を共有します。追加の内容を選択できます。",
+      "shareContentHint": "共有するラウンドの質問、回答、画像、添付ファイルが含まれます。リンクを知っている人は画像を表示し、ファイルをダウンロードできます。",
+      "shareFileUnavailable": "ファイルを利用できません",
       "shareScope": "共有範囲",
       "shareAllRounds": "全 {count} ターン",
       "shareSelectRounds": "ターンを選択",
@@ -4150,7 +4162,8 @@
         "switchedToChatMode": "チャットモードに切り替えました",
         "openStashFailed": "Failed to open stash window",
         "openMergeFailed": "Failed to open merge window"
-      }
+      },
+      "chatModeDescription": "No workspace attached"
     },
     "cloneDialog": {
       "title": "リポジトリをクローン",
@@ -5009,6 +5022,11 @@
     "toggleDetails": "詳細を切り替え"
   },
   "Automations": {
+    "sectionWhat": "実行する内容",
+    "sectionWhen": "実行するタイミング",
+    "sectionWhere": "実行する場所",
+    "advancedExecution": "セッションと詳細設定",
+    "customSchedule": "カスタムスケジュール",
     "hideFromConversationList": "会話一覧で非表示にする",
     "hideFromConversationListHint": "過去および今後の実行による会話を非表示にします。自動タスクの実行履歴から確認できます。オフにすると再表示されます。",
     "calendarFilter": "実行日",
@@ -5088,6 +5106,13 @@
     "runNow": "今すぐ実行",
     "cancelRun": "実行をキャンセル",
     "runHistory": "実行履歴",
+    "showOlderRuns": "以前の実行を表示",
+    "hideRunResult": "結果を閉じる",
+    "hideOlderRuns": "以前の実行を隠す",
+    "groupEnabled": "有効",
+    "groupPaused": "一時停止中",
+    "filterAutomations": "自動化を絞り込む",
+    "searchAutomations": "自動化を検索",
     "noRuns": "実行履歴はまだありません",
     "allFolders": "すべてのフォルダ",
     "filterAll": "すべて",
@@ -6192,6 +6217,7 @@
     "loading": "ToDoを読み込み中",
     "loadFailed": "ToDoを読み込めませんでした。",
     "retry": "再接続",
+    "refreshTodos": "ToDoを更新",
     "searchPlaceholder": "ToDoを検索",
     "filterStatus": "状態で絞り込み",
     "allStatuses": "すべての状態",
@@ -6205,7 +6231,7 @@
     "contentPlaceholder": "Markdown を入力するか画像を貼り付け…",
     "assigneeLabel": "担当者",
     "unassigned": "未指定",
-    "conversationShareHint": "保存時に会話の読み取り専用共有リンクを生成し、ToDoに添付します。",
+    "conversationShareHint": "保存したToDoから共有された会話を開けます。",
     "save": "保存",
     "saving": "保存中…",
     "cancel": "キャンセル",
@@ -6244,8 +6270,7 @@
     "operationFailed": "操作に失敗しました：{reason}",
     "addMessage": "メッセージをToDoに追加",
     "addConversation": "ToDoに追加",
-    "shareAndCreate": "共有してToDoを作成",
-    "conversationShareDescription": "添付する会話の内容を選択してください。次の手順でToDoの内容を入力します。",
+    "shareAndCreate": "共有してToDoを入力",
     "conflictHint": "このToDoは更新されました。最新版を読み込むと現在の入力内容が置き換わります。",
     "reloadLatest": "最新版を読み込む",
     "completedPagination": "完了したタスクのページ",
@@ -6255,7 +6280,9 @@
     "nextPage": "次のページ",
     "loadingCompleted": "完了したタスクを読み込み中",
     "linkConversation": "既存の ToDo を関連付け",
-    "linkConversationDescription": "「{title}」に関連付ける ToDo を選択します。関連付けは自分のワークスペースのみに表示されます。",
+    "linkDialogTitle": "ToDo を関連付け",
+    "searchClaimedTodos": "引き受けた ToDo を検索",
+    "linkVisibility": "関連付けは自分のワークスペースにのみ表示されます",
     "linkedTodos": "関連付け済み ToDo",
     "unlinkTodo": "関連付けを解除",
     "searchTodos": "ToDo を検索",
@@ -6288,5 +6315,9 @@
     "chooseConversationFolder": "会話のフォルダーを選択",
     "chooseConversationFolderHint": "このタスクには有効なフォルダーの会話がありません。フォルダーを選択してください。",
     "confirmConversationFolder": "選択して作成"
+  },
+  "ModelHistory": {
+    "expand": "Older models ({count})",
+    "collapse": "Hide older models"
   }
 }

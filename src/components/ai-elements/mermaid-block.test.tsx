@@ -185,7 +185,7 @@ describe("MermaidBlock errors", () => {
     expect(
       await screen.findByText(/Mermaid error: Parse error on line 2/)
     ).toBeTruthy()
-    expect(screen.getByText("Show source")).toBeTruthy()
+    fireEvent.click(screen.getByRole("button", { name: "Show source" }))
     // Verbatim, not via getByText: its string matcher compares against
     // whitespace-collapsed node text, which would pass on a mangled fence.
     expect(container.querySelector("pre")?.textContent).toBe(SOURCE)

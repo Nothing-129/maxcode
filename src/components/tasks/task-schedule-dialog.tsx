@@ -1,15 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useLocale, useTranslations } from "next-intl"
+import { useTranslations } from "next-intl"
 import { toast } from "sonner"
-import { CalendarClock, ChevronDown, TriangleAlert } from "lucide-react"
+import { CalendarClock, TriangleAlert } from "lucide-react"
 import { workTaskSchedule } from "@/lib/api"
 import { toErrorMessage } from "@/lib/app-error"
-import { dateFnsLocale } from "@/lib/date-fns-locale"
 import {
   defaultTimeForDate,
-  formatScheduleDay,
   formatScheduleFull,
   isoToDateTimeLocalValue,
   isScheduleInPast,
@@ -17,10 +15,9 @@ import {
   parseDateTimeLocalValue,
   schedulePresets,
   splitDateTimeLocalValue,
-  toDateTimeLocalValue,
 } from "@/lib/task-schedule"
 import { Button } from "@/components/ui/button"
-import { Calendar } from "@/components/ui/calendar"
+import { DatePicker } from "@/components/ui/date-picker"
 import {
   Dialog,
   DialogContent,
@@ -29,13 +26,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { TimePicker } from "@/components/ui/time-picker"
 import { cn } from "@/lib/utils"
 import type { WorkTask } from "@/lib/types"
 
@@ -45,25 +37,11 @@ interface TaskScheduleDialogProps {
   task: WorkTask | null
 }
 
-/** `YYYY-MM-DD` ⇄ `Date`, both anchored to LOCAL midnight — the calendar hands
- *  back a Date and the rest of the schedule code speaks the input strings. */
-function toDayValue(date: Date): string {
-  return toDateTimeLocalValue(date).slice(0, 10)
-}
-function fromDayValue(day: string): Date | undefined {
-  if (!day) return undefined
-  const parsed = new Date(`${day}T00:00`)
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed
-}
-
 /**
  * Plan when a to-do task starts.
  *
- * Two controls rather than one `datetime-local`: a calendar popover for the day
- * (shadcn's Popover + Calendar composition) and a plain time input for the
- * hour. Both speak the user's own wall clock — which is what "run it at nine"
- * means — and the conversion to the UTC instant the backend stores happens on
- * save (see `lib/task-schedule`).
+ * The date and time fields use the user's local wall clock. On save,
+ * `lib/task-schedule` converts the combined value to a UTC instant.
  *
  * It opens EMPTY unless the task already has a plan. Seeding an unplanned task
  * with a time made every to-do task look scheduled; now a blank field says what
@@ -80,10 +58,8 @@ export function TaskScheduleDialog({
   task,
 }: TaskScheduleDialogProps) {
   const t = useTranslations("Tasks")
-  const locale = useLocale()
   const [date, setDate] = useState("")
   const [time, setTime] = useState("")
-  const [calendarOpen, setCalendarOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // Frozen at open: the presets and the "already passed" hint are a snapshot of
   // the moment the dialog appeared, and a ticking `now` would move them under
@@ -104,7 +80,6 @@ export function TaskScheduleDialog({
     const parts = splitDateTimeLocalValue(planned ?? "")
     setDate(parts.date)
     setTime(parts.time)
-    setCalendarOpen(false)
     setSubmitting(false)
     // `plannedAt` seeds the fields but deliberately does not re-run this: while
     // the dialog is open the inputs belong to the user, not to the row.
@@ -120,13 +95,10 @@ export function TaskScheduleDialog({
     setTime(parts.time)
   }
 
-  const pickDay = (picked: Date | undefined) => {
-    if (!picked) return
-    const day = toDayValue(picked)
+  const pickDay = (day: string) => {
     setDate(day)
     // Only ever fills a BLANK time — an hour the user chose is never moved.
     if (!time) setTime(defaultTimeForDate(day, new Date(openedAt)))
-    setCalendarOpen(false)
   }
   const isPast = picked != null && isScheduleInPast(picked, openedAt)
   const scheduled = plannedAt != null
@@ -164,54 +136,23 @@ export function TaskScheduleDialog({
               <Label htmlFor="task-schedule-date">
                 {t("scheduleDateLabel")}
               </Label>
-              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    id="task-schedule-date"
-                    type="button"
-                    variant="outline"
-                    className={cn(
-                      "h-9 w-full justify-between px-3 font-normal",
-                      !date && "text-muted-foreground"
-                    )}
-                  >
-                    <span className="truncate">
-                      {date
-                        ? formatScheduleDay(date, locale)
-                        : t("schedulePickDate")}
-                    </span>
-                    <ChevronDown
-                      className="size-4 shrink-0 opacity-50"
-                      aria-hidden="true"
-                    />
-                  </Button>
-                </PopoverTrigger>
-                {/* w-auto p-0: the shared PopoverContent is a padded w-72 box,
-                    which would crop and inset the calendar. */}
-                <PopoverContent align="start" className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    autoFocus
-                    locale={dateFnsLocale(locale)}
-                    selected={fromDayValue(date)}
-                    defaultMonth={fromDayValue(date)}
-                    onSelect={pickDay}
-                  />
-                </PopoverContent>
-              </Popover>
+              <DatePicker
+                id="task-schedule-date"
+                label={t("scheduleDateLabel")}
+                value={date}
+                onValueChange={pickDay}
+                disabled={submitting}
+              />
             </div>
             <div className="flex w-32 shrink-0 flex-col gap-1.5">
               <Label htmlFor="task-schedule-time">
                 {t("scheduleTimeLabel")}
               </Label>
-              <Input
+              <TimePicker
                 id="task-schedule-time"
-                type="time"
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
-                // WebKit draws its own clock button inside the field; the
-                // calendar next door already owns "open a picker".
-                className="px-3 [&::-webkit-calendar-picker-indicator]:hidden"
+                onValueChange={setTime}
+                disabled={submitting}
               />
             </div>
           </div>

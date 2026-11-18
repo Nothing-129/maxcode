@@ -57,19 +57,16 @@ describe("AgentConfigSection subtitles", () => {
     const user = userEvent.setup()
     renderSection("inline")
 
-    await user.click(screen.getByRole("combobox"))
-    const list = await screen.findByRole("listbox")
+    await user.click(screen.getByRole("button"))
+    const list = await screen.findByRole("menu")
     expect(within(list).getByText("The deep one")).toBeInTheDocument()
     expect(within(list).getByText("The quick one")).toBeInTheDocument()
   })
 
   it("keeps the description off the closed chip", () => {
-    // Radix mirrors an item's `ItemText` into the trigger to render
-    // `SelectValue`. A description rendered inside it would print on the chip
-    // too and double the composer bar's height — hence it lives outside.
     renderSection("inline")
 
-    const trigger = screen.getByRole("combobox")
+    const trigger = screen.getByRole("button")
     expect(trigger).toHaveTextContent("Opus")
     expect(trigger).not.toHaveTextContent("The deep one")
   })
@@ -78,7 +75,7 @@ describe("AgentConfigSection subtitles", () => {
     const user = userEvent.setup()
     renderSection("inline")
 
-    const trigger = screen.getByRole("combobox")
+    const trigger = screen.getByRole("button")
     expect(trigger).not.toHaveAttribute("title")
 
     await user.hover(trigger)
@@ -94,7 +91,7 @@ describe("AgentConfigSection subtitles", () => {
     // The visible <label> carries the name here, so the chip-only hint would
     // just be a second copy of it.
     expect(screen.getByText("Model")).toBeInTheDocument()
-    await user.hover(screen.getByRole("combobox"))
+    await user.hover(screen.getByRole("button"))
     expect(screen.queryByRole("tooltip")).toBeNull()
   })
 })
