@@ -30,6 +30,7 @@ import type { DbConversationSummary } from "@/lib/types"
 
 const mocks = vi.hoisted(() => ({
   toggle: vi.fn(),
+  close: vi.fn(),
   settings: vi.fn(),
   native: false,
   isMac: false,
@@ -41,7 +42,11 @@ vi.mock("@/hooks/use-platform", () => ({
   usePlatform: () => ({ isMac: mocks.isMac }),
 }))
 vi.mock("@/contexts/sidebar-context", () => ({
-  useSidebarContext: () => ({ isOpen: false, toggle: mocks.toggle }),
+  useSidebarContext: () => ({
+    isOpen: false,
+    toggle: mocks.toggle,
+    close: mocks.close,
+  }),
 }))
 vi.mock("@/contexts/automations-view-context", () => ({
   useAutomationsView: () => ({ unseenFailures: 2 }),
@@ -111,6 +116,49 @@ afterEach(() => {
 })
 
 describe("functional sidebar navigation", () => {
+  it.each([false, true])(
+    "moves the solid icon and gray highlight with the current destination (mobile: %s)",
+    (mobile) => {
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <WorkbenchRouteProvider>
+            <SidebarNavigationProvider>
+              <WorkspaceNavigationRail mobile={mobile} />
+            </SidebarNavigationProvider>
+          </WorkbenchRouteProvider>
+        </NextIntlClientProvider>
+      )
+      const chats = screen.getByRole("button", { name: "Chats" })
+      const automations = screen.getByRole("button", { name: "Auto" })
+
+      for (const [selected, inactive] of [
+        [automations, chats],
+        [chats, automations],
+      ]) {
+        fireEvent.click(selected)
+        expect(selected).toHaveAttribute("aria-current", "page")
+        expect(selected).toHaveClass(
+          "size-10",
+          "bg-clip-content",
+          "bg-[#eaeaea]"
+        )
+        expect(selected).not.toHaveClass("hover:bg-sidebar-foreground/5")
+        expect(selected.querySelector("svg")).toHaveAttribute(
+          "fill",
+          "currentColor"
+        )
+        expect(selected.querySelector("svg")).toHaveAttribute(
+          "aria-hidden",
+          "true"
+        )
+        expect(inactive).not.toHaveAttribute("aria-current")
+        expect(inactive).not.toHaveClass("bg-[#eaeaea]")
+        expect(inactive).toHaveClass("hover:bg-sidebar-foreground/5")
+        expect(inactive.querySelector("svg")).toHaveAttribute("fill", "none")
+      }
+    }
+  )
+
   it("renders rail buttons in the saved navigation order", () => {
     localStorage.setItem(
       "workspace:navigation-order",
@@ -428,7 +476,7 @@ describe("functional sidebar navigation", () => {
     )
     const home = screen.getByRole("button", { name: "Home" })
     expect(home).not.toHaveClass("bg-sidebar-accent")
-    expect(home).toHaveClass("bg-sidebar-foreground/[0.06]", "size-10")
+    expect(home).toHaveClass("bg-[#eaeaea]", "size-10")
     expect(home.textContent).toBe("")
     expect(home).toHaveAttribute("title", "Home")
     expect(home.querySelector("[data-navigation-active]")).toBeNull()

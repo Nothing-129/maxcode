@@ -1,14 +1,6 @@
 "use client"
 
-import {
-  ChartNoAxesColumn,
-  Clock3,
-  FolderClosed,
-  House,
-  ListTodo,
-  MessagesSquare,
-  Settings,
-} from "lucide-react"
+import { ChartNoAxesColumn, Settings } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { useSidebarNavigation } from "@/contexts/sidebar-navigation-context"
 import { useSidebarContext } from "@/contexts/sidebar-context"
@@ -19,6 +11,7 @@ import {
 import { useAutomationsView } from "@/contexts/automations-view-context"
 import { openSettingsWindow } from "@/lib/api"
 import { SidebarCodexQuota } from "./sidebar-codex-quota"
+import { SidebarRailIcon } from "./sidebar-navigation-icon"
 import { StatusBarAlerts } from "./status-bar-alerts"
 import { useAppUpdate } from "@/components/providers/update-provider"
 import { SettingsAbout } from "@/components/settings/settings-about"
@@ -26,13 +19,12 @@ import { usePlatform } from "@/hooks/use-platform"
 import { isNativeDesktop } from "@/lib/platform"
 import { cn } from "@/lib/utils"
 
-const ITEMS = [
-  { id: "home", icon: House },
-  { id: "conversations", icon: MessagesSquare },
-  { id: "projects", icon: FolderClosed },
-  { id: "tasks", icon: ListTodo },
-  { id: "automations", icon: Clock3 },
-] as const
+const railDestinationClassName =
+  "relative flex size-10 shrink-0 items-center justify-center rounded-[12px] bg-clip-content p-0.5 motion-safe:transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+const selectedDestinationClassName =
+  "bg-[#eaeaea] text-sidebar-foreground dark:bg-sidebar-foreground/[0.06]"
+const unselectedDestinationClassName =
+  "text-[#8d8d8d] hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground dark:text-muted-foreground dark:hover:text-sidebar-foreground"
 
 export function WorkspaceNavigationRail({
   mobile = false,
@@ -51,6 +43,7 @@ export function WorkspaceNavigationRail({
     : routeId === "conversations"
       ? navigation.view
       : routeId
+  const statisticsSelected = routeId === "tokenUsage"
 
   return (
     <nav
@@ -66,14 +59,14 @@ export function WorkspaceNavigationRail({
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
         {navigation.order.map((id) => {
-          const Icon = ITEMS.find((item) => item.id === id)!.icon
+          const selected = active === id
           return (
             <button
               key={id}
               type="button"
               title={t(id)}
               aria-label={t(id)}
-              aria-current={active === id ? "page" : undefined}
+              aria-current={selected ? "page" : undefined}
               onClick={() => {
                 if (id === "automations" || id === "tasks") {
                   if (id === "tasks" && !isOpen) toggle()
@@ -86,15 +79,13 @@ export function WorkspaceNavigationRail({
                 }
               }}
               className={cn(
-                "relative flex size-10 shrink-0 items-center justify-center rounded-xl text-muted-foreground transition-colors hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
-                active === id &&
-                  "bg-sidebar-foreground/[0.06] text-sidebar-foreground"
+                railDestinationClassName,
+                selected
+                  ? selectedDestinationClassName
+                  : unselectedDestinationClassName
               )}
             >
-              <Icon
-                className="size-[1.125rem]"
-                strokeWidth={active === id ? 1.9 : 1.7}
-              />
+              <SidebarRailIcon name={id} selected={selected} />
               {id === "automations" && unseenFailures > 0 && (
                 <span className="absolute right-1 top-1 size-1.5 rounded-full bg-destructive" />
               )}
@@ -111,20 +102,21 @@ export function WorkspaceNavigationRail({
           type="button"
           aria-label={t("statistics")}
           title={t("statistics")}
-          aria-current={routeId === "tokenUsage" ? "page" : undefined}
+          aria-current={statisticsSelected ? "page" : undefined}
           onClick={() => {
             setRoute("tokenUsage")
             if (mobile) close()
           }}
           className={cn(
-            "relative flex size-10 items-center justify-center rounded-xl text-muted-foreground hover:bg-sidebar-foreground/5 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            routeId === "tokenUsage" &&
-              "bg-sidebar-foreground/[0.06] text-sidebar-foreground"
+            railDestinationClassName,
+            statisticsSelected
+              ? selectedDestinationClassName
+              : unselectedDestinationClassName
           )}
         >
           <ChartNoAxesColumn
             className="size-[1.125rem]"
-            strokeWidth={routeId === "tokenUsage" ? 1.9 : 1.7}
+            strokeWidth={statisticsSelected ? 1.9 : 1.7}
           />
         </button>
         <SettingsAbout compact />

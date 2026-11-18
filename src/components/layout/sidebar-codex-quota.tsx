@@ -46,11 +46,12 @@ export function SidebarCodexQuota({
         `${windowLabel(window.window_minutes, true)} ${t("percent", { value: remaining(window.used_percent) })}`
     )
     .join(" · ")
-  const defaultWindow = windows.find(
-    (window) => window.window_minutes === (plan === "pro" ? 10080 : 300)
-  )
-  const defaultRemaining = defaultWindow
-    ? remaining(defaultWindow.used_percent)
+  const displayedWindow =
+    windows.find(
+      (window) => window.window_minutes === (plan === "pro" ? 10080 : 300)
+    ) ?? windows[0]
+  const displayedRemaining = displayedWindow
+    ? remaining(displayedWindow.used_percent)
     : null
   const details = [
     [t("title"), planLabel, t("remaining")].filter(Boolean).join(" · "),
@@ -114,9 +115,9 @@ export function SidebarCodexQuota({
                     strokeWidth="1.5"
                     className="opacity-15"
                   />
-                  {defaultRemaining !== null && (
+                  {displayedRemaining !== null && (
                     <circle
-                      data-quota-remaining={defaultRemaining}
+                      data-quota-remaining={displayedRemaining}
                       cx="14"
                       cy="14"
                       r="12"
@@ -124,13 +125,13 @@ export function SidebarCodexQuota({
                       stroke="currentColor"
                       strokeWidth="1.5"
                       strokeLinecap="round"
-                      strokeDasharray={`${defaultRemaining} 100`}
+                      strokeDasharray={`${displayedRemaining} 100`}
                       className={cn(quota.error && "opacity-50")}
                     />
                   )}
                 </svg>
                 <span className="relative text-[0.625rem] font-medium leading-none tabular-nums">
-                  {defaultRemaining ?? "—"}
+                  {displayedRemaining ?? "—"}
                 </span>
               </span>
             ) : (
