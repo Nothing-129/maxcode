@@ -60,6 +60,7 @@ import {
   formatConversationTitle,
 } from "@/lib/conversation-title"
 import { ConversationTitleLabel } from "./conversation-title-label"
+import { ConversationTitleTransition } from "./conversation-title-transition"
 import { OPEN_CONVERSATION_SHARE_EVENT } from "@/lib/conversation-share-events"
 import { splitShareUserText } from "@/lib/conversation-share-content"
 import { useAppWorkspaceStore } from "@/stores/app-workspace-store"
@@ -116,6 +117,16 @@ interface ConversationDetailHeaderProps {
   folderPath: string | undefined
   title: string
   status: ConversationStatus | undefined
+}
+
+function linkTitleHost(title: string): string | undefined {
+  const value = title.trim()
+  if (!/^https?:\/\/\S+$/i.test(value)) return undefined
+  try {
+    return new URL(value).hostname
+  } catch {
+    return undefined
+  }
 }
 
 /**
@@ -184,6 +195,14 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
       (s.conversations.find((c) => c.id === conversationId)?.pinned_at ??
         null) != null
   )
+  const storedTitleLocked = useAppWorkspaceStore(
+    (s) => s.conversations.find((c) => c.id === conversationId)?.title_locked
+  )
+  const childTitleLocked = useTabStore((s) =>
+    conversationId == null
+      ? undefined
+      : s.childSummaries?.get(conversationId)?.title_locked
+  )
 
   const [details, setDetails] = useState<ActiveSessionDetails | null>(null)
   const [linkTarget, setLinkTarget] =
@@ -235,6 +254,9 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
   const persisted = conversationId != null
   const displayTitle =
     formatConversationTitle(title) || t("untitledConversation")
+  const titleLocked = storedTitleLocked ?? childTitleLocked
+  const headerTitle =
+    (!titleLocked && linkTitleHost(displayTitle)) || displayTitle
 
   const handleTogglePin = useCallback(() => {
     if (conversationId == null) return
@@ -691,11 +713,11 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
         {conversationMenuItems}
       </MobileHeaderActionsSlot>
       {/* 标题文字占据剩余宽度，超出时截断。 */}
-      <div className="absolute inset-x-28 inset-y-0 flex min-w-0 flex-col items-center justify-center">
+      <div className="absolute inset-x-2 inset-y-0 flex min-w-0 flex-col items-center justify-center md:inset-x-28">
         <span
           data-conversation-title=""
           data-selection-active={selectionActive}
-          className="min-w-0 truncate text-[15px] leading-[18px] font-medium text-foreground md:cursor-grab md:active:cursor-grabbing"
+          className="grid min-w-0 max-w-full grid-cols-[minmax(0,auto)] truncate text-[15px] leading-[18px] font-medium text-foreground md:cursor-grab md:active:cursor-grabbing"
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           onPointerDown={(event) => {
             if (event.button === 1) {
@@ -717,13 +739,19 @@ export const ConversationDetailHeader = memo(function ConversationDetailHeader({
             event.stopPropagation()
             closePane(tabId)
           }}
-          title={title}
+          title={displayTitle}
         >
-          <ConversationTitleLabel
-            showDate={false}
-            title={title}
-            fallback={t("untitledConversation")}
-          />
+          <ConversationTitleTransition
+            tabId={tabId}
+            title={headerTitle}
+            titleLocked={titleLocked}
+          >
+            <ConversationTitleLabel
+              showDate={false}
+              title={headerTitle}
+              fallback={t("untitledConversation")}
+            />
+          </ConversationTitleTransition>
         </span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

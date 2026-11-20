@@ -62,6 +62,8 @@
     "generateToken": "產生權杖"
   },
   "SettingsShell": {
+    "help": "說明",
+    "helpFor": "{label}的說明",
     "backToApp": "返回應用",
     "title": "設定",
     "preferences": "偏好設定",
@@ -326,6 +328,9 @@
     "versionTitle": "軟體更新",
     "updateDescription": "點擊檢查後會從設定的發佈來源拉取最新版本資訊，有新版本時可直接下載並安裝。",
     "currentVersion": "目前版本",
+    "footerDownloading": "下載中",
+    "footerRestartUpdate": "重新啟動更新",
+    "footerUpdateReady": "v{version} 已就緒，重新啟動後生效",
     "upgradableVersion": "最新版本",
     "none": "暫無",
     "lastChecked": "上次檢查：{time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "正在載入技能包…"
   },
   "GeneralSettings": {
+    "environmentGroup": "工作環境",
+    "notificationGroup": "通知與音效",
     "loginItem": {
       "title": "開機啟動",
       "description": "登入電腦後自動開啟 MaxCode。",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "上傳失敗：{names}。",
         "attachUploadNotAFile": "{names} 不是常規檔案（目錄或特殊檔案），已略過。",
         "attachUploadQuotaExceeded": "伺服器上傳空間已用盡，{names} 未能上傳。",
+        "firstPromptRetry": "首則訊息傳送失敗，已放回輸入框。請檢查後重試。",
         "attachUploadInProgress": "圖片仍在上傳中，請稍候再傳送。",
         "mentionEmpty": "無相符項目",
         "mentionLoading": "搜尋中…",

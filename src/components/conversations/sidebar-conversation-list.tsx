@@ -319,6 +319,10 @@ export function resetFolderPointerToggleGuardForTests() {
   lastPointerToggleAt = 0
   recentPointerNewConversations.clear()
 }
+
+const folderSubmenuScroll =
+  "submenu-scrollbar max-h-[min(32rem,var(--radix-context-menu-content-available-height))] overflow-y-auto"
+
 const FolderHeader = memo(function FolderHeader({
   folderId,
   folderName,
@@ -748,7 +752,7 @@ const FolderHeader = memo(function FolderHeader({
             </div>
           </div>
         </ContextMenuTrigger>
-        <ContextMenuContent>
+        <ContextMenuContent className="min-w-40 text-left">
           <ContextMenuItem onSelect={() => onNewConversation(folderId)}>
             <SquarePen className="h-4 w-4" />
             {t("newConversation")}
@@ -763,6 +767,7 @@ const FolderHeader = memo(function FolderHeader({
               {tFileTree("openIn")}
             </ContextMenuSubTrigger>
             <OpenInSubContent
+              className={folderSubmenuScroll}
               explorerLabel={systemExplorerLabel}
               terminalLabel={tFileTree("openInTerminal")}
               codeLabel={tFileTree("openInCode")}
@@ -797,7 +802,9 @@ const FolderHeader = memo(function FolderHeader({
               <Bot className="h-4 w-4" />
               {t("folderHeaderMenu.setDefaultAgent")}
             </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-[12rem]">
+            <ContextMenuSubContent
+              className={cn("min-w-48", folderSubmenuScroll)}
+            >
               <ContextMenuItem
                 onSelect={() => onSetDefaultAgent(folderId, null)}
                 className="gap-2"
@@ -856,7 +863,9 @@ const FolderHeader = memo(function FolderHeader({
               <Palette className="h-4 w-4" />
               {t("folderHeaderMenu.changeColor")}
             </ContextMenuSubTrigger>
-            <ContextMenuSubContent className="min-w-[12rem] p-2">
+            <ContextMenuSubContent
+              className={cn("min-w-48 p-2", folderSubmenuScroll)}
+            >
               <ContextMenuItem
                 onSelect={() =>
                   onChangeColor(folderId, FOLDER_THEME_COLOR_INHERIT)
@@ -916,7 +925,9 @@ const FolderHeader = memo(function FolderHeader({
                 <Layers className="h-4 w-4" />
                 {t("folderGroup.moveToGroup")}
               </ContextMenuSubTrigger>
-              <ContextMenuSubContent className="min-w-[12rem]">
+              <ContextMenuSubContent
+                className={cn("min-w-48", folderSubmenuScroll)}
+              >
                 <ContextMenuItem
                   onSelect={() => onMoveToGroup(folderId, null)}
                   className="gap-2"
@@ -3582,38 +3593,53 @@ export function SidebarConversationList({
       )
     }
     if (row.kind === "recent-group") {
-      const folder = row.id === "chat" ? null : folderIndex.get(row.id)
+      const { id } = row
+      const folder = id === "chat" ? null : folderIndex.get(id)
       const label =
-        row.id === "chat"
+        id === "chat"
           ? t("sectionChats")
           : folder?.alias?.trim() ||
             folder?.name ||
-            `${t("sectionFolders")} #${row.id}`
-      const Icon = row.id === "chat" ? MessagesSquare : FolderClosed
+            `${t("sectionFolders")} #${id}`
+      const Icon = id === "chat" ? MessagesSquare : FolderClosed
+      const newConversationLabel = t("newConversation")
       return (
-        <button
-          type="button"
-          aria-expanded={row.expanded}
-          title={label}
-          className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-start text-xs text-muted-foreground hover:bg-interaction-hover focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
-          onClick={() => {
-            prepareDisclosure()
-            if (!row.expanded) prepareReveal(`recent-group-${row.id}`)
-            setCollapsedRecentGroups((previous) => {
-              const next = new Set(previous)
-              if (next.has(row.id)) next.delete(row.id)
-              else next.add(row.id)
-              return next
-            })
-          }}
-        >
-          <Icon aria-hidden="true" className="size-3.5 shrink-0" />
-          <span className="truncate">{label}</span>
-          <ChevronRight
-            aria-hidden="true"
-            className={cn("size-3 shrink-0", row.expanded && "rotate-90")}
-          />
-        </button>
+        <div className="group/recent-folder flex h-8 items-center rounded-md hover:bg-interaction-hover">
+          <button
+            type="button"
+            aria-expanded={row.expanded}
+            title={label}
+            className="flex h-full min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-start text-xs text-muted-foreground focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-ring"
+            onClick={() => {
+              prepareDisclosure()
+              if (!row.expanded) prepareReveal(`recent-group-${id}`)
+              setCollapsedRecentGroups((previous) => {
+                const next = new Set(previous)
+                if (next.has(id)) next.delete(id)
+                else next.add(id)
+                return next
+              })
+            }}
+          >
+            <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+            <span className="truncate">{label}</span>
+            <ChevronRight
+              aria-hidden="true"
+              className={cn("size-3 shrink-0", row.expanded && "rotate-90")}
+            />
+          </button>
+          {id !== "chat" && folder && (
+            <button
+              type="button"
+              onClick={() => handleNewConversationForFolder(id)}
+              title={newConversationLabel}
+              aria-label={`${newConversationLabel}: ${label}`}
+              className="mr-1.5 flex size-6 shrink-0 cursor-pointer items-center justify-end rounded-md text-muted-foreground/90 opacity-0 motion-safe:transition-[color,opacity] motion-safe:duration-150 group-hover/recent-folder:opacity-100 hover:text-sidebar-foreground active:bg-interaction-hover focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [@media(hover:none)]:opacity-100"
+            >
+              <SquarePen aria-hidden="true" className="size-3.5" />
+            </button>
+          )}
+        </div>
       )
     }
     if (row.kind === "folder-group") {
@@ -3969,6 +3995,10 @@ export function SidebarConversationList({
     const isPinnedRow =
       conv.pinned_at != null && !row.todoId && !inFolderSection
     const groupedRecent = Boolean(recentFolders && row.recent)
+    const inRecentFolder =
+      recentFolders &&
+      row.recent &&
+      recentGroupId(conv, recentFolders) !== "chat"
     const stackMetadata = Boolean((row.recent && !groupedRecent) || isPinnedRow)
     const recentFolderName =
       stackMetadata ||
@@ -3983,6 +4013,7 @@ export function SidebarConversationList({
         conversation={conv}
         isMobile={isMobile}
         compactMobile={Boolean(row.todoId) || inFolderSection || groupedRecent}
+        showTitleDate={!inFolderSection && !inRecentFolder}
         stackMetadata={stackMetadata}
         selectionId={`${selectionMotionId}:${row.todoId ?? (row.recent ? "recent" : conv.folder_id)}`}
         isSelected={

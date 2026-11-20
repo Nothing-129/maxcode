@@ -8,10 +8,12 @@ import {
   ContextMenuSubContent,
 } from "@/components/ui/context-menu"
 import { isLocalDesktop } from "@/lib/platform"
+import { cn } from "@/lib/utils"
 
 const itemClassName = "gap-1.5 px-3"
 
 export function OpenInSubContent({
+  className,
   explorerLabel,
   terminalLabel,
   codeLabel,
@@ -20,6 +22,7 @@ export function OpenInSubContent({
   onOpenCode,
   explorerDisabled,
 }: {
+  className?: string
   explorerLabel: string
   terminalLabel: string
   codeLabel: string
@@ -31,7 +34,7 @@ export function OpenInSubContent({
   // Revealing a path requires the local native bridge.
   const explorerUnavailable = !isLocalDesktop() || Boolean(explorerDisabled)
   return (
-    <ContextMenuSubContent className="min-w-0 w-max">
+    <ContextMenuSubContent className={cn("min-w-0 w-max", className)}>
       <ContextMenuItem
         className={itemClassName}
         disabled={explorerUnavailable}

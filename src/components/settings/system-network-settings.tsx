@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { SettingsError } from "@/components/shared/settings-section"
 
 import { SettingRow } from "@/components/shared/setting-card"
@@ -349,7 +350,12 @@ export function SystemNetworkSettings() {
       <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
           <div className="flex items-center justify-between">
-            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+              <SettingsHelp label={t("sectionTitle")}>
+                {t("sectionDescription")}
+              </SettingsHelp>
+            </div>
             <Button
               variant="ghost"
               className="size-5 rounded-full"
@@ -358,23 +364,21 @@ export function SystemNetworkSettings() {
               <GithubMarkIcon className="size-5" />
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground">
-            {t("sectionDescription")}
-          </p>
         </section>
 
         <SettingsGroup
           heading={
             <div className="flex items-center gap-2">
               <Wifi className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">{t("proxyTitle")}</h2>
+              <div className="settings-help-heading flex items-center gap-1">
+                <h2 className="text-sm font-semibold">{t("proxyTitle")}</h2>
+                <SettingsHelp label={t("proxyTitle")}>
+                  {t("proxyDescription")}
+                </SettingsHelp>
+              </div>
             </div>
           }
         >
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("proxyDescription")}
-          </p>
-
           {loadError && (
             <SettingsError>
               {t("loadFailed", { message: loadError })}
@@ -403,9 +407,14 @@ export function SystemNetworkSettings() {
           />
 
           <div className="space-y-2">
-            <label className="text-xs font-medium text-muted-foreground">
-              {t("proxyAddress")}
-            </label>
+            <div className="flex items-center gap-1">
+              <label className="text-xs font-medium text-muted-foreground">
+                {t("proxyAddress")}
+              </label>
+              <SettingsHelp label={t("proxyAddress")}>
+                {t("proxyHint", { example: PROXY_EXAMPLE })}
+              </SettingsHelp>
+            </div>
             <Input
               value={proxyUrl}
               onChange={(event) => {
@@ -427,18 +436,23 @@ export function SystemNetworkSettings() {
             {proxyUrlError && (
               <p className="text-2xs text-destructive">{proxyUrlError}</p>
             )}
-            <p className="text-2xs text-muted-foreground">
-              {t("proxyHint", { example: PROXY_EXAMPLE })}
-            </p>
           </div>
 
           <div className="space-y-2">
-            <label
-              htmlFor="system-proxy-bypass"
-              className="text-xs font-medium text-muted-foreground"
-            >
-              {t("proxyBypass")}
-            </label>
+            <div className="flex items-center gap-1">
+              <label
+                htmlFor="system-proxy-bypass"
+                className="text-xs font-medium text-muted-foreground"
+              >
+                {t("proxyBypass")}
+              </label>
+              <SettingsHelp label={t("proxyBypass")}>
+                {t.rich("proxyBypassHint", {
+                  example: PROXY_BYPASS_EXAMPLE,
+                  code: hintLiteral,
+                })}
+              </SettingsHelp>
+            </div>
             <Input
               id="system-proxy-bypass"
               // Hosts read left to right in every locale; in Arabic an entry
@@ -450,12 +464,6 @@ export function SystemNetworkSettings() {
               placeholder={PROXY_BYPASS_EXAMPLE}
               disabled={saving}
             />
-            <p className="text-2xs text-muted-foreground">
-              {t.rich("proxyBypassHint", {
-                example: PROXY_BYPASS_EXAMPLE,
-                code: hintLiteral,
-              })}
-            </p>
           </div>
         </SettingsGroup>
 
@@ -463,13 +471,17 @@ export function SystemNetworkSettings() {
           heading={
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">{t("titleModelTitle")}</h2>
+              <div className="settings-help-heading flex items-center gap-1">
+                <h2 className="text-sm font-semibold">
+                  {t("titleModelTitle")}
+                </h2>
+                <SettingsHelp label={t("titleModelTitle")}>
+                  {t("titleModelDescription")}
+                </SettingsHelp>
+              </div>
             </div>
           }
         >
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("titleModelDescription")}
-          </p>
           <p className="text-2xs text-muted-foreground leading-5">
             {t("titleModelPrivacyHint")}
           </p>
@@ -492,12 +504,17 @@ export function SystemNetworkSettings() {
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2 sm:col-span-2">
-              <label
-                htmlFor="title-model-base-url"
-                className="text-xs font-medium text-muted-foreground"
-              >
-                {t("titleModelBaseUrl")}
-              </label>
+              <div className="flex items-center gap-1">
+                <label
+                  htmlFor="title-model-base-url"
+                  className="text-xs font-medium text-muted-foreground"
+                >
+                  {t("titleModelBaseUrl")}
+                </label>
+                <SettingsHelp label={t("titleModelBaseUrl")}>
+                  {t("titleModelBaseUrlHint")}
+                </SettingsHelp>
+              </div>
               <Input
                 id="title-model-base-url"
                 value={titleModelBaseUrl}
@@ -509,9 +526,6 @@ export function SystemNetworkSettings() {
                 placeholder="https://api.groq.com/openai/v1"
                 disabled={savingTitleModel || testingTitleModel}
               />
-              <p className="text-2xs text-muted-foreground">
-                {t("titleModelBaseUrlHint")}
-              </p>
             </div>
 
             <div className="space-y-2">
@@ -594,9 +608,14 @@ export function SystemNetworkSettings() {
 
             <div className="space-y-2 sm:col-span-2">
               <div className="flex items-center justify-between gap-3">
-                <label className="text-xs font-medium text-muted-foreground">
-                  {t("titleModelRequestParams")}
-                </label>
+                <div className="flex items-center gap-1">
+                  <label className="text-xs font-medium text-muted-foreground">
+                    {t("titleModelRequestParams")}
+                  </label>
+                  <SettingsHelp label={t("titleModelRequestParams")}>
+                    {t("titleModelRequestParamsHint")}
+                  </SettingsHelp>
+                </div>
                 <Button
                   type="button"
                   variant="outline"
@@ -616,9 +635,6 @@ export function SystemNetworkSettings() {
                   {t("titleModelAddRequestParam")}
                 </Button>
               </div>
-              <p className="text-2xs text-muted-foreground leading-5">
-                {t("titleModelRequestParamsHint")}
-              </p>
 
               {titleModelRequestParams.map((param, index) => (
                 <div
@@ -723,14 +739,15 @@ export function SystemNetworkSettings() {
           heading={
             <div className="flex items-center gap-2">
               <Languages className="h-4 w-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold">{t("languageTitle")}</h2>
+              <div className="settings-help-heading flex items-center gap-1">
+                <h2 className="text-sm font-semibold">{t("languageTitle")}</h2>
+                <SettingsHelp label={t("languageTitle")}>
+                  {t("languageDescription")}
+                </SettingsHelp>
+              </div>
             </div>
           }
         >
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("languageDescription")}
-          </p>
-
           <div className="space-y-2">
             <label className="text-xs font-medium text-muted-foreground">
               {t("appLanguage")}

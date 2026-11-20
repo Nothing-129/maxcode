@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useTranslations } from "next-intl"
 
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -21,12 +22,14 @@ export function ChatChannelSettings() {
       >
         <section className="space-y-3">
           <div>
-            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
-            <p className="text-sm text-muted-foreground">
-              {t("sectionDescription")}
-            </p>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+              <SettingsHelp label={t("sectionTitle")}>
+                {t("sectionDescription")}
+              </SettingsHelp>
+            </div>
           </div>
-          <TabsList>
+          <TabsList variant="line" className="max-w-full flex-wrap">
             <TabsTrigger value="channels">{t("tabs.channels")}</TabsTrigger>
             <TabsTrigger value="commands">{t("tabs.commands")}</TabsTrigger>
             <TabsTrigger value="events">{t("tabs.events")}</TabsTrigger>

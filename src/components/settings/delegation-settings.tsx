@@ -20,6 +20,7 @@
  * powers `/settings/agents`.
  */
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useState } from "react"
 import { useTranslations } from "next-intl"
 import { AlertTriangle, Bubbles, Gauge, HardDrive, Power } from "lucide-react"
@@ -170,12 +171,17 @@ export function DelegationSettingsSection() {
       )}
 
       <Tabs defaultValue="general">
-        <TabsList>
-          <TabsTrigger value="general">{t("tabGeneral")}</TabsTrigger>
-          <TabsTrigger value="agentDefaults">
-            {t("tabAgentDefaults")}
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center gap-1">
+          <TabsList variant="line">
+            <TabsTrigger value="general">{t("tabGeneral")}</TabsTrigger>
+            <TabsTrigger value="agentDefaults">
+              {t("tabAgentDefaults")}
+            </TabsTrigger>
+          </TabsList>
+          <SettingsHelp label={t("tabAgentDefaults")}>
+            {t("agentDefaultsDescription")}
+          </SettingsHelp>
+        </div>
 
         {/* The kill switch and the two valves it gates are one decision, so
             they share a card — the greyed-out inputs then read as belonging to

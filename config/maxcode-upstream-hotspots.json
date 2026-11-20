@@ -151,9 +151,20 @@
       "origins": [
         "worktree-2026-11-17"
       ],
-      "description": "Group About with the running version and truthful check status, using proportional typography and an outlined check button below the title; preserve narrow sidebar space and existing update installation actions.",
+      "description": "The plain settings footer uses one status-and-action row. It shows the current version and check action, the discovered version and download status, then the staged version and explicit restart action. Errors remain readable and manual up-to-date checks use the existing toast.",
       "paths": [
-        "src/components/settings/settings-about.tsx"
+        "src/components/settings/settings-about.tsx",
+        "src/components/layout/status-bar-update.tsx",
+        "src/i18n/messages/ar.json",
+        "src/i18n/messages/de.json",
+        "src/i18n/messages/en.json",
+        "src/i18n/messages/es.json",
+        "src/i18n/messages/fr.json",
+        "src/i18n/messages/ja.json",
+        "src/i18n/messages/ko.json",
+        "src/i18n/messages/pt.json",
+        "src/i18n/messages/zh-CN.json",
+        "src/i18n/messages/zh-TW.json"
       ],
       "contracts": [
         "src/maxcode-contracts/navigation-utilities.contract.test.tsx"
@@ -561,9 +572,10 @@
       "id": "sidebar.functional-navigation-preview",
       "category": "product",
       "origins": [
-        "worktree-2026-11-09"
+        "worktree-2026-11-09",
+        "worktree-2026-11-19"
       ],
-      "description": "The rail uses icon-only function buttons with title/accessible labels and a 36px neutral rounded-square selected background inside a 40px hit area. The highlight remains visible on hover. All five destinations (Home, Chats, Projects, Tasks and Automations) use solid icons while selected and gray outlines otherwise. All five glyphs use a shared 20px box and 24-unit grid, 1.75-unit rounded outline strokes and consistent rounded solid shapes. Home, Chats, Projects, Tasks and Automations preserve the house, MessagesSquare double bubbles, folder, one checkbox/one check/three lines, and clock silhouettes respectively. Solid internal gaps use 1.75 units. Keyboard focus feedback remains. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations. Automations uses the workspace sidebar for its own list, Statistics hides the sidebar, and Tasks shows assigned-todo groups and their linked sessions. These routes preserve the saved conversation panel preference. Linked conversations stay within the task workspace with Tasks selected and a centered Task board return action sharing New chat alignment and dimensions with the same neutral gray resting background as New chat and no route-selected highlighting; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations optionally groups the recent page by project (including worktrees) or chat, preserving independent group collapse, pin deduplication and date filtering. The persistent grouping preference has a list-tree toggle at the far right of the Recent section heading, independent of section disclosure. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a content-width borderless date button with a calendar icon and chevron, transparent for Today and subtly filled for other selections; rolling presets retain their translated name and custom ranges show compact localized dates. Custom shares the preset row alignment and selected checkmark. Its two endpoint rows show inline date and time values with neutral hover and keyboard focus feedback. Both endpoint triggers display HH:mm even while the themed hour/minute picker is open. The picker uses neutral selection. Start and end bounds cover the whole selected minute (:00 through :59), including restored custom filters. The open popover lists presets in one column with localized date spans and a check beside the selected preset, followed by a custom range editor that expands vertically inside the same 14rem panel, with Start and End as the only visible field labels and content-sized month/day and hour/minute controls side by side when space permits; editing exposes the full year and retains exact filter boundaries. The filter trigger sits to the right of the MaxCode wordmark, with the full interval in its hover title and a compact Web header wordmark to reserve room for the date label, with start/end date inputs visible only after selecting Custom (defaulting to the first and last day of the current local month with editable local times from 00:00:00 through 23:59:59 inclusive, retaining the entire ending second and restoring older date-only filters as full days), preserving the other endpoint when editing a valid range. The clear action aligns to the end of the popover footer; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
+      "description": "The rail uses icon-only function buttons with title/accessible labels and a 36px neutral rounded-square selected background inside a 40px hit area. The highlight remains visible on hover. All five destinations (Home, Chats, Projects, Tasks and Automations) use solid icons while selected and gray outlines otherwise. All five glyphs use a shared 20px box and 24-unit grid, 1.75-unit rounded outline strokes and consistent rounded solid shapes. Home, Chats, Projects, Tasks and Automations preserve the house, MessagesSquare double bubbles, folder, one checkbox/one check/three lines, and clock silhouettes respectively. Solid internal gaps use 1.75 units. Keyboard focus feedback remains. Desktop keeps a persistent five-entry function rail with Recent merged into Conversations. Tasks precedes Automations. Automations uses the workspace sidebar for its own list with the shared MaxCode wordmark at the same sidebar position as other views, below the native macOS toolbar and inline in compact headers, while preserving filter and search, Statistics hides the sidebar, and Tasks shows assigned-todo groups and their linked sessions. These routes preserve the saved conversation panel preference. Linked conversations stay within the task workspace with Tasks selected and a centered Task board return action sharing New chat alignment and dimensions with the same neutral gray resting background as New chat and no route-selected highlighting; the board remains mounted but hidden/inert while chatting, preserving search, filters and editor state. The entire sidebar overflow menu is Home-only; desktop top Settings is removed in favor of the rail. Desktop Home keeps only New chat in its action row and uses the rail for Tasks/Automations; mobile retains those shortcuts. Home preserves the complete sidebar sections; Conversations uses 50-row initial/increment/reset pages while Home retains 10-row pages. Conversations optionally groups the recent page by project (including worktrees) or chat, preserving independent group collapse, pin deduplication and date filtering. The persistent grouping preference has a list-tree toggle at the far right of the Recent section heading, independent of section disclosure. The unselected grouping icon matches the muted Recent heading color, with stronger hover and selected states. Conversations defaults to the local current date on first use and remembers the last custom or rolling preset filter (today, yesterday, last 3/7 days, Monday-based week, month) across reloads, keeps date controls in a header filter popover, uses the same centered New chat action background and dimensions as Projects, uses the shared MaxCode wordmark in every sidebar header instead of function/date titles, shows a content-width borderless date button with a calendar icon and chevron, transparent for Today and subtly filled for other selections; rolling presets retain their translated name and custom ranges show compact localized dates. Custom shares the preset row alignment and selected checkmark. Its two endpoint rows show inline date and time values with neutral hover and keyboard focus feedback. Both endpoint triggers display HH:mm even while the themed hour/minute picker is open. The picker uses neutral selection. Start and end bounds cover the whole selected minute (:00 through :59), including restored custom filters. The open popover lists presets in one column with localized date spans and a check beside the selected preset, followed by a custom range editor that expands vertically inside the same 14rem panel, with Start and End as the only visible field labels and content-sized month/day and hour/minute controls side by side when space permits; editing exposes the full year and retains exact filter boundaries. The filter trigger sits to the right of the MaxCode wordmark, with the full interval in its hover title and a compact Web header wordmark to reserve room for the date label, with start/end date inputs visible only after selecting Custom (defaulting to the first and last day of the current local month with editable local times from 00:00:00 through 23:59:59 inclusive, retaining the entire ending second and restoring older date-only filters as full days), preserving the other endpoint when editing a valid range. The clear action aligns to the end of the popover footer; a dedicated pinned section precedes history and ignores the date filter without duplicating pins in history, and allows single dates and inclusive date ranges, filters by last conversation update rather than creation, includes completed/pinned sessions once, and sorts by activity. Scoped views do not overwrite Home section visibility/collapse or recency filters. Projects and conversations isolate their lists; Automations and Tasks use existing workbench routes. Mobile shares the navigation provider and shows a narrow icon rail beside the scoped list inside its drawer; list categories keep the drawer open, while Automations/Statistics close it for full-page content; duplicate top shortcuts and list footer are hidden when the rail is present.",
       "paths": [
         "src/app/workspace/layout.tsx",
         "src/contexts/workbench-route-context.tsx",
@@ -575,6 +587,7 @@
         "src/components/layout/range-time-picker.tsx",
         "src/components/layout/recent-date-filter.tsx",
         "src/components/layout/sidebar-wordmark.tsx",
+        "src/components/automations/automations-page.tsx",
         "src/contexts/sidebar-navigation-context.tsx",
         "src/lib/sidebar-navigation.ts",
         "src/components/conversations/sidebar-conversation-list.tsx",
@@ -584,7 +597,22 @@
       ],
       "contracts": [
         "src/maxcode-contracts/sidebar-functional-navigation.contract.test.tsx",
+        "src/maxcode-contracts/automation-mobile.contract.test.tsx",
         "src/maxcode-contracts/custom-date-filter.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "sidebar.recent-folder-new-conversation",
+      "category": "product",
+      "origins": [
+        "worktree-2026-11-19"
+      ],
+      "description": "Show a trailing New Conversation action on grouped Recent folder rows on hover or keyboard focus and keep it visible on devices without hover. Open a draft in the displayed folder without changing disclosure. The folderless Chat group has no folder action.",
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-pagination.contract.test.tsx"
       ]
     },
     {
@@ -1765,6 +1793,37 @@
       ]
     },
     {
+      "id": "sidebar.folder-menu-appearance",
+      "category": "product",
+      "description": "The sidebar folder menu shared by right click and the ellipsis pairs leading action icons with left-aligned labels, trailing submenu arrows, group separators, and a destructive removal item. Its submenus share the composer menu's themed native scrollbar when content overflows.",
+      "origins": [
+        "worktree-2026-11-19"
+      ],
+      "paths": [
+        "src/components/conversations/sidebar-conversation-list.tsx",
+        "src/components/layout/open-in-menu.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/sidebar-pagination.contract.test.tsx"
+      ]
+    },
+    {
+      "id": "chat.composer-add-menu-appearance",
+      "category": "product",
+      "description": "The composer add menu uses a compact, left-aligned text layout with trailing arrows on submenu triggers. Overflowing submenu lists use a themed native scrollbar, while slash-command search stays above the scrolling results.",
+      "origins": [
+        "worktree-2026-11-19"
+      ],
+      "paths": [
+        "src/components/chat/composer/composer-add-menu.tsx",
+        "src/app/globals.css"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-add-menu-focus.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.composer-add-menu-focus",
       "category": "product",
       "description": "Selecting a slash command or quick message from the composer add menu closes the menu and restores focus at the insertion caret. Mouse, keyboard item activation and search Enter allow immediate continued typing; ordinary dismissal still returns focus to the trigger.",
@@ -2079,6 +2138,26 @@
       ]
     },
     {
+      "id": "chat.optional-message-actions-hidden",
+      "category": "product",
+      "description": "Message action rows temporarily hide the new-chat and add-to-todo shortcuts. The conversation UI removes fork-from-reply and its related tip, including when other optional message actions are enabled. Copy, jump to the preceding user message, and completion time remain available.",
+      "origins": [
+        "worktree-2026-11-18"
+      ],
+      "paths": [
+        "src/components/chat/welcome-hero.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/components/message/message-action-visibility.ts",
+        "src/components/message/message-list-view.tsx",
+        "src/components/message/turn-stats.tsx",
+        "src/lib/api.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/chat-message-actions.contract.test.tsx",
+        "src/maxcode-contracts/reply-actions-no-metadata.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.reply-actions-no-metadata",
       "category": "product",
       "description": "Reply action rows omit model information and token statistics icons, while preserving message actions, timestamps and usage-based jump navigation.",
@@ -2150,7 +2229,7 @@
     {
       "id": "conversation.instant-history-position",
       "category": "product",
-      "description": "Task entry displays the latest messages immediately, positioning after content refs attach and before paint. History hydration and virtual measurements follow instantly, including shrinking content and subsequent virtual anchor adjustments, while user escapes cancel pending correction; no top-to-bottom entry animation. Explicit bottom-arrow navigation retains smooth scrolling and arrow fades. Active/ready changes reposition retained tasks without interrupting ordinary reading on rerenders.",
+      "description": "Task entry displays the latest messages immediately, positioning after content refs attach and before paint. For idle threads pinned at the bottom, content and viewport measurements correct the position before paint, with a follow-up correction for late virtual anchors. User escapes cancel pending correction. Explicit bottom-arrow navigation retains smooth scrolling and arrow fades. Active/ready changes reposition retained tasks without interrupting ordinary reading on rerenders.",
       "origins": [
         "worktree-2026-10-23"
       ],
@@ -2270,14 +2349,17 @@
     {
       "id": "conversation.date-topic-titles",
       "category": "product",
-      "description": "Models generate only the topic in every locale. The backend adds MMDD from the stored Shanghai creation time; prompts and their current-title fallback contain no generated date or category. Stored titles use MMDD｜topic. Legacy date/type/topic titles normalize to date/topic for display; both rename dialogs edit and save only the topic without generated date/type metadata; the sidebar keeps its separate date column. Legacy stored titles remain readable and locked names remain protected.",
+      "description": "Models generate only the topic in every locale. Stored automatic titles still carry MMDD from the Shanghai creation time for existing metadata consumers. Show only the topic in session details, the conversation header and tooltip, search results and other plain title displays. Both rename dialogs edit and save only the topic. Legacy stored titles remain readable and locked names remain protected.",
       "origins": [
-        "worktree-2026-11-03"
+        "worktree-2026-11-03",
+        "worktree-2026-11-19"
       ],
       "paths": [
         "src/lib/conversation-title.ts",
         "src/components/conversations/sidebar-conversation-card.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/session-details-content.tsx",
+        "src/components/conversations/sidebar-todo-group-header.tsx",
         "src-tauri/src/session_title.rs",
         "src-tauri/src/session_title_tests.rs"
       ],
@@ -2288,18 +2370,22 @@
     {
       "id": "sidebar.mobile-title-topic-only",
       "category": "product",
-      "description": "Sidebar and conversation header structured MMDD｜type｜topic titles omit the type on all screen sizes. Both mobile and desktop show a fixed-width, smaller muted MMDD date and topic separated by an 8px gap, without a pipe; the date is always visible. Display-only: stored titles, search, unstructured titles and empty-title fallbacks remain unchanged.",
+      "description": "Show the topic of legacy structured titles on all screen sizes. Omit the title date from rows under folder headers, including folder groups in Recent, while keeping the relative-time label. Other sidebar rows may show a separate date column. The conversation header shows the topic only, including in the tooltip. Preserve stored titles, unstructured titles and empty-title fallbacks.",
       "origins": [
-        "worktree-2026-10-22"
+        "worktree-2026-10-22",
+        "worktree-2026-11-19"
       ],
       "paths": [
         "src/components/conversations/conversation-title-label.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/sidebar-conversation-card.tsx",
+        "src/components/conversations/sidebar-conversation-list.tsx",
         "src/lib/conversation-title.ts"
       ],
       "contracts": [
         "src/maxcode-contracts/mobile-title-prefix.contract.test.tsx",
-        "src/maxcode-contracts/header-title-format.contract.test.ts"
+        "src/maxcode-contracts/header-title-format.contract.test.ts",
+        "src/maxcode-contracts/sidebar-session-rails.contract.test.tsx"
       ]
     },
     {
@@ -2713,7 +2799,7 @@
     {
       "id": "sidebar.conversation-menu-parity",
       "category": "product",
-      "description": "Conversation title right-click and ellipsis open the same full context menu, with identical ordering, disabled states and handlers; unfinished root conversations show completion as the first menu item and keyboard activation remains available.",
+      "description": "Conversation title right-click and ellipsis open the same full context menu, with identical ordering, leading action icons, disabled states and handlers; unfinished root conversations show completion as the first menu item and keyboard activation remains available.",
       "origins": [
         "worktree-2026-10-16"
       ],
@@ -3068,9 +3154,10 @@
     {
       "id": "search.global-default-scope",
       "category": "product",
-      "description": "Conversation search defaults to all folders on every open, allows explicit folder selection, and ignores obsolete responses after scope changes. File search retains its explicitly displayed active-folder scope. The conversation scope uses the shared searchable in-app folder picker with alias-first labels and secondary paths rather than a native select. Both scope headers reserve right-side space for the dialog close button so it cannot overlap the folder selector or title.",
+      "description": "Conversation search defaults to all folders on every open, allows explicit folder selection, and ignores obsolete responses after scope changes. Titles filter results; the dialog preserves descending last-updated order and displays each result's last update time. File search retains its explicitly displayed active-folder scope. The conversation scope uses the shared searchable in-app folder picker with alias-first labels and secondary paths rather than a native select. Both scope headers reserve right-side space for the dialog close button so it cannot overlap the folder selector or title.",
       "origins": [
-        "worktree-2026-10-15"
+        "worktree-2026-10-15",
+        "worktree-2026-11-19"
       ],
       "paths": [
         "src/components/conversations/search-command-dialog.tsx",
@@ -3490,6 +3577,22 @@
       ]
     },
     {
+      "id": "chat.first-prompt-recovery",
+      "category": "product",
+      "origins": ["worktree-2026-11-19"],
+      "description": "A failed first prompt returns to the same conversation's composer for manual retry, preserving attachments in the current window and merging newer draft text. Missing connections reject explicitly; do not silently discard a prompt or auto-resend it on reconnect.",
+      "paths": [
+        "src/components/chat/message-input.tsx",
+        "src/components/conversations/conversation-detail-panel.tsx",
+        "src/contexts/acp-connections-context.tsx",
+        "src/hooks/use-connection-lifecycle.ts",
+        "src/lib/first-prompt-recovery.ts"
+      ],
+      "contracts": [
+        "src/maxcode-contracts/composer-connection-draft.contract.test.tsx"
+      ]
+    },
+    {
       "id": "chat.connection-draft-editing",
       "category": "product",
       "description": "Connection and session-initialization readiness only gate sending: text, clipboard operations, image paste/drop/pick, markup and draft insertion remain available. Images can be staged before capabilities arrive and use the negotiated encoding when sent; surfaces without a local queue keep button and keyboard sends blocked until ready.",
@@ -3774,7 +3877,7 @@
     {
       "id": "settings.reference-grouped-style",
       "category": "product",
-      "description": "Reference-inspired settings use explicit page titles and page padding without affecting nested lists, grouped cards, shared text and compound inputs, theme-aware errors, and scoped descriptions that preserve warning colors and disclosure icons.",
+      "description": "Settings use a compact neutral navigation rail with text-only category buttons aligned to the group label, keyboard-selectable system/light/dark workspace previews, aligned provider rows, explicit page titles and page padding without affecting nested lists, grouped cards, shared text and compound inputs, theme-aware errors, and scoped descriptions that preserve warning colors and disclosure icons. Preferences share responsive category and control columns, neutral actions, row-local help and flat lists. Dense viewers retain full width and split editors stack in narrow windows. Settings help is available on hover, focus or tap, with warnings and runtime status inline.",
       "origins": [
         "worktree-2026-09-26"
       ],
@@ -3808,13 +3911,29 @@
         "src/components/settings/science-settings.tsx",
         "src/components/settings/shortcut-settings.tsx",
         "src/components/settings/skill-packs-settings.tsx",
+        "src/components/settings/skill-agent-matrix.tsx",
         "src/components/settings/skills-settings.tsx",
         "src/components/settings/version-control-settings.tsx",
-        "src/components/settings/weixin-qrcode-dialog.tsx"
+        "src/components/settings/weixin-qrcode-dialog.tsx",
+        "src/components/settings/antigravity-config-panel.tsx",
+        "src/components/settings/channel-commands-tab.tsx",
+        "src/components/settings/channel-events-tab.tsx",
+        "src/components/settings/channel-other-tab.tsx",
+        "src/components/settings/codex-model-list-editor.tsx",
+        "src/components/settings/deepseek-config-panel.tsx",
+        "src/components/settings/deepseek-model-list-editor.tsx",
+        "src/components/settings/delegation-agent-defaults.tsx",
+        "src/components/settings/delegation-settings.tsx",
+        "src/components/settings/desktop-notification-settings.tsx",
+        "src/components/settings/office-tools-settings.tsx",
+        "src/components/settings/pi-config-panel.tsx",
+        "src/components/shared/settings-help.tsx"
       ],
       "contracts": [
+        "src/maxcode-contracts/settings-search.contract.test.tsx",
         "src/maxcode-contracts/settings-reference-style.contract.test.tsx",
-        "src/maxcode-contracts/web-service-share-save.contract.test.tsx"
+        "src/maxcode-contracts/web-service-share-save.contract.test.tsx",
+        "src/maxcode-contracts/settings-context-help.contract.test.tsx"
       ]
     },
     {
@@ -4458,7 +4577,7 @@
     {
       "id": "chat.reply-artifacts-summary",
       "category": "product",
-      "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Explicitly failed writes are excluded from reply and session change summaries, file indexes, and diffs. Streaming replies do not parse diffs.",
+      "description": "Completed reply file changes use a single compact card with combined totals, three initial path rows, expandable remaining files, and a review action including hidden and deleted files. Long path rows preserve the filename and the shortest distinguishing directory suffix across all reply files. Explicitly failed writes are excluded from reply and session change summaries, file indexes, and diffs. Streaming replies do not parse diffs.",
       "origins": [
         "worktree-2026-09-11"
       ],
@@ -5427,19 +5546,22 @@
     {
       "id": "workspace.mobile-header",
       "category": "product",
-      "description": "Mobile shares a single canvas-colored header with the active title. Use the same sidebar panel icon as desktop with the existing mobile touch target. Secondary workspace actions stay in the tools menu to preserve title width. Omit the terminal toggle and the duplicate settings entry from the mobile tools menu; settings remain in the sidebar. Desktop title placement is unchanged.",
+      "description": "Mobile shares a single canvas-colored header with the active title. Long titles stay on one line between the controls and show an ellipsis. On both platforms the header shows the hostname for an unlocked bare-URL title while it waits for the generated topic. Automatic title changes crossfade in place within the same tab. Tab switches, manually named titles, and reduced-motion mode show the current title immediately. Use the same sidebar panel icon as desktop with the existing mobile touch target. Secondary workspace actions stay in the tools menu to preserve title width. Omit the terminal toggle and the duplicate settings entry from the mobile tools menu; settings remain in the sidebar. Desktop title placement is unchanged.",
       "origins": [
-        "worktree-2026-09-08"
+        "worktree-2026-09-08",
+        "worktree-2026-11-19"
       ],
       "paths": [
         "src/components/layout/mobile-header-slot.tsx",
         "src/i18n/messages/",
         "src/components/layout/folder-title-bar.tsx",
         "src/components/conversations/conversation-detail-header.tsx",
+        "src/components/conversations/conversation-title-transition.tsx",
         "src/app/workspace/layout.tsx"
       ],
       "contracts": [
-        "src/maxcode-contracts/mobile-header.contract.test.tsx"
+        "src/maxcode-contracts/mobile-header.contract.test.tsx",
+        "src/maxcode-contracts/title-completion-only.contract.test.tsx"
       ]
     },
     {
@@ -5821,10 +5943,11 @@
     {
       "id": "conversations.agent-defaults",
       "category": "product",
-      "description": "New drafts remember the last agent per scope, then fall back through folder, inherited, and user-sorted agent choices.",
+      "description": "New drafts remember the last agent per scope, skip disabled or unavailable defaults once the registry loads, and connect only after the selected agent is available.",
       "origins": [
         "dc86bec0",
-        "16941c88"
+        "16941c88",
+        "worktree-2026-11-19"
       ],
       "paths": [
         "src/lib/resolve-default-agent.ts",
@@ -7129,9 +7252,10 @@
       "category": "product",
       "origins": [
         "worktree-2026-11-17",
-        "worktree-2026-11-18"
+        "worktree-2026-11-18",
+        "worktree-2026-11-19"
       ],
-      "description": "Automation and task editors, task settings and delegation defaults reuse the composer model and mode menus while preserving inherited and explicit overrides. Project, model, reasoning and permission menus share soft neutral floating surfaces, trailing checkmarks and consistent label/description hierarchy, retaining keyboard behavior and available viewport bounds. Adapt reference proportions to the workbench: 296px detail menus, 16px outer radius, 6px inset, 8px vertical row padding and 14px/12px text hierarchy. Keep Fast visible outside the options scroller in regular, searchable and compact model menus.",
+      "description": "Automation and task editors, task settings and delegation defaults reuse the composer model and mode menus while preserving inherited and explicit overrides. Project, model, reasoning and permission menus share soft neutral floating surfaces, trailing checkmarks and consistent label/description hierarchy, retaining keyboard behavior and available viewport bounds. Adapt reference proportions to the workbench: 296px detail menus, 16px outer radius, 6px inset, 8px vertical row padding and 14px/12px text hierarchy. Keep Fast visible outside the options scroller in regular, searchable and compact model menus. Draw the divider between Fast and the model list, below Fast in compact menus and above Fast in wide menus.",
       "paths": [
         "src/components/shared/agent-option-picker.tsx",
         "src/components/automations/agent-config-section.tsx",

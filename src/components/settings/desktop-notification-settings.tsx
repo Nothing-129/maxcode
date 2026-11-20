@@ -214,13 +214,15 @@ export function DesktopNotificationSettingsSection() {
           <SettingRow
             icon={ShieldCheck}
             title={t("permissionTitle")}
-            description={t(PERMISSION_HINT_KEYS[permission])}
             control={
               <span className="shrink-0 rounded-md border border-border/70 bg-background px-2 py-0.5 text-xs text-muted-foreground">
                 {t(PERMISSION_LABEL_KEYS[permission])}
               </span>
             }
           >
+            <p className="text-xs text-muted-foreground">
+              {t(PERMISSION_HINT_KEYS[permission])}
+            </p>
             <div className="flex flex-wrap items-center gap-2">
               {/* Only offered while the browser is still undecided. Once it has
                   answered, the prompt cannot be raised again from script —

@@ -10,6 +10,10 @@ import {
 } from "@/lib/ask-selection-handoff"
 import enMessages from "@/i18n/messages/en.json"
 
+vi.mock("@/components/message/message-action-visibility", () => ({
+  SHOW_OPTIONAL_MESSAGE_ACTIONS: true,
+}))
+
 const actions = vi.hoisted(() => ({
   setRoute: vi.fn(),
   openNewConversationTab: vi.fn(),

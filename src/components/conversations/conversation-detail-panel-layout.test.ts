@@ -472,9 +472,7 @@ describe("ConversationDetailPanel send-path hardening", () => {
     )
     expect(catchIdx).toBeGreaterThan(-1)
     const catchBlock = source.slice(catchIdx, catchIdx + 1500)
-    expect(catchBlock).toContain("removeOptimisticTurn(")
-    expect(catchBlock).toContain("setHasSentMessage(false)")
-    expect(catchBlock).toContain("saveMessageInputDraft(")
+    expect(catchBlock).toContain("restoreFirstPrompt()")
     expect(catchBlock).toContain(
       'setAgentConnectError(tWelcome("createConversationFailed"))'
     )

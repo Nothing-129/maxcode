@@ -102,6 +102,7 @@ export interface UseConnectionLifecycleReturn {
        * forever.
        */
       onSendFailed?: (error: unknown) => void
+      onSent?: () => void
     }
   ) => void
   handleSetConfigOption: (configId: string, valueId: string) => void
@@ -617,6 +618,7 @@ export function useConnectionLifecycle({
         clientMessageId?: string | null
         onTurnInProgress?: () => void
         onSendFailed?: (error: unknown) => void
+        onSent?: () => void
       }
     ) => {
       touchActivity(contextKey)
@@ -631,6 +633,7 @@ export function useConnectionLifecycle({
           modeIdRef.current = modeId
         }
         await sendPrompt(draft.blocks, opts)
+        opts?.onSent?.()
       })().catch((e: unknown) => {
         if (e instanceof TurnBusyError) {
           // A turn was already in flight on the connection (another

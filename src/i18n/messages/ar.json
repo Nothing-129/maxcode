@@ -62,6 +62,8 @@
     "generateToken": "إنشاء رمز"
   },
   "SettingsShell": {
+    "help": "مساعدة",
+    "helpFor": "حول {label}",
     "backToApp": "العودة إلى التطبيق",
     "title": "الإعدادات",
     "preferences": "التفضيلات",
@@ -326,6 +328,9 @@
     "versionTitle": "تحديث البرنامج",
     "updateDescription": "تحقق من المصدر المهيأ للإصدارات الأحدث وثبّت التحديث مباشرة عند توفره.",
     "currentVersion": "الإصدار الحالي",
+    "footerDownloading": "جارٍ التنزيل",
+    "footerRestartUpdate": "إعادة التشغيل للتحديث",
+    "footerUpdateReady": "الإصدار v{version} جاهز. أعد التشغيل لتطبيقه.",
     "upgradableVersion": "أحدث إصدار",
     "none": "لا يوجد",
     "lastChecked": "آخر فحص: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "جارٍ تحميل حزم المهارات…"
   },
   "GeneralSettings": {
+    "environmentGroup": "بيئة العمل",
+    "notificationGroup": "الإشعارات والصوت",
     "loginItem": {
       "title": "التشغيل عند تسجيل الدخول",
       "description": "فتح MaxCode تلقائيًا عند تسجيل الدخول إلى الكمبيوتر.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "فشل تحميل {names}.",
         "attachUploadNotAFile": "{names} ليس ملفاً عادياً (مجلد أو ملف خاص) وتم تخطيه.",
         "attachUploadQuotaExceeded": "نفدت مساحة التحميل على الخادم، تعذر رفع {names}.",
+        "firstPromptRetry": "تعذّر إرسال الرسالة الأولى. راجع المسودة وحاول مرة أخرى.",
         "attachUploadInProgress": "لا تزال الصور قيد الرفع — حاول مرة أخرى بعد قليل.",
         "mentionEmpty": "لا توجد نتائج مطابقة",
         "mentionLoading": "جارٍ البحث…",

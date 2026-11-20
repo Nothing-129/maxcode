@@ -25,7 +25,7 @@ describe("MaxCode contract: conversation defaults and navigation", () => {
       lastSelected: "codex",
       folderDefault: "claude_code",
       inherit: "grok",
-      sortedTypes: ["gemini"],
+      sortedTypes: ["grok", "claude_code", "codex"],
       fresh: true,
     })
 
@@ -34,6 +34,30 @@ describe("MaxCode contract: conversation defaults and navigation", () => {
     const canvas = source("src/components/canvas/canvas-view.tsx")
     expect(canvas).toContain("getLastSelectedAgent(")
     expect(canvas).toContain("saveLastSelectedAgent(")
+  })
+
+  it("skips disabled Antigravity defaults when starting a new draft", () => {
+    const result = resolveDefaultAgent({
+      lastSelected: "antigravity",
+      folderDefault: "antigravity",
+      inherit: "antigravity",
+      sortedTypes: ["codex", "claude_code"],
+      fresh: true,
+    })
+
+    expect(result).toEqual({ agentType: "codex", provisional: false })
+  })
+
+  it("uses the next enabled preference before the sorted fallback", () => {
+    const result = resolveDefaultAgent({
+      lastSelected: "antigravity",
+      folderDefault: "claude_code",
+      inherit: "antigravity",
+      sortedTypes: ["codex", "claude_code"],
+      fresh: true,
+    })
+
+    expect(result).toEqual({ agentType: "claude_code", provisional: false })
   })
 
   it("keeps completed sessions hidden by default and excludes retired navigation", () => {

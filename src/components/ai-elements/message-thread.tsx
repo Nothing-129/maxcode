@@ -75,7 +75,8 @@ const StickThroughViewportResize = ({
   // Virtual rows can shrink after their estimated heights are measured.
   // The library follows content growth, but on shrink only clamps overscroll;
   // virtua may then restore its own anchor above the new bottom. Reconcile
-  // after those measurements, while respecting an explicit escape by the user.
+  // before paint, and again on the next frame in case virtua restores its
+  // anchor later. Both corrections respect an explicit escape by the user.
   useEffect(() => {
     const content = contentRef?.current
     if (!content) return
@@ -83,6 +84,9 @@ const StickThroughViewportResize = ({
     const observer = new ResizeObserver(() => {
       if (frame !== undefined) cancelAnimationFrame(frame)
       if (!state.isAtBottom) return
+      if (!sending && !streaming) {
+        state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+      }
       frame = requestAnimationFrame(() => {
         frame = undefined
         if (!state.isAtBottom) return
@@ -133,15 +137,16 @@ const StickThroughViewportResize = ({
         }, 1)
       })
 
+      if (!sending && !streaming) {
+        state.scrollTop = Math.max(0, state.calculatedTargetScrollTop)
+        return
+      }
+
       // `preserveScrollPosition` suppresses only the redundant "we're at the
       // bottom" state write — the guard above already established that. A
       // growth resize lands at the target on its own, so this is then a no-op.
       scrollToBottom({
-        animation: sending
-          ? SEND_SCROLL_ANIMATION
-          : streaming
-            ? STREAM_SCROLL_ANIMATION
-            : "instant",
+        animation: sending ? SEND_SCROLL_ANIMATION : STREAM_SCROLL_ANIMATION,
         preserveScrollPosition: true,
       })
     })

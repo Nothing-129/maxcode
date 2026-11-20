@@ -291,7 +291,7 @@ export const SidebarSectionHeader = memo(function SidebarSectionHeader({
                 aria-label={t("navigation.groupByFolder")}
                 title={t("navigation.groupByFolder")}
                 onClick={onToggleFolderGrouping}
-                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-foreground"
+                className="inline-flex size-7 items-center justify-center rounded-md text-sidebar-foreground/50 hover:bg-interaction-hover hover:text-sidebar-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset focus-visible:outline-none aria-pressed:bg-sidebar-accent aria-pressed:text-sidebar-foreground"
               >
                 <ListTree aria-hidden="true" className="size-3.5" />
               </button>

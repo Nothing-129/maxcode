@@ -25,6 +25,7 @@ import {
   formatConversationTitle,
   parseStructuredConversationTitle,
 } from "@/lib/conversation-title"
+import { foldReferenceLinks } from "@/lib/reference-link"
 import { cn } from "@/lib/utils"
 
 export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
@@ -64,7 +65,9 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
       : null
   const awaitingVerification = status === "pending_verification"
   const formattedTitle = formatConversationTitle(title)
-  const structuredTitle = parseStructuredConversationTitle(formattedTitle)
+  const structuredTitle = parseStructuredConversationTitle(
+    foldReferenceLinks(title)
+  )
   const displayDate =
     dateLabel || structuredTitle?.date?.replace(/^(\d{2})(\d{2})$/, "$1/$2")
   const statusBadge = (
@@ -95,7 +98,7 @@ export const SidebarTodoGroupHeader = memo(function SidebarTodoGroupHeader({
             data-todo-title
             className="maxcode-sidebar-label min-w-0 truncate text-[0.875rem] leading-[1.25rem] font-[430]"
           >
-            {structuredTitle?.topic || formattedTitle || title}
+            {formattedTitle || title}
           </span>
           <span
             data-todo-meta

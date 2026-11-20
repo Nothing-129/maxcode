@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import {
   InputGroup,
   InputGroupInput,
@@ -238,13 +239,16 @@ function TokenEditor({
   }
 
   return (
-    <div className="space-y-1.5">
-      <label
-        htmlFor={inputId}
-        className="block text-xs font-medium text-muted-foreground"
-      >
-        {label}
-      </label>
+    <div data-settings-group="">
+      <div className="flex items-center gap-1">
+        <label
+          htmlFor={inputId}
+          className="block text-xs font-medium text-muted-foreground"
+        >
+          {label}
+        </label>
+        <SettingsHelp label={label}>{t("tokenHint")}</SettingsHelp>
+      </div>
       <InputGroup
         data-settings-input-group
         className="relative flex h-9 items-center rounded-4xl border border-input bg-input/30 px-3 text-base transition-colors focus-within:ring-0 md:text-sm"
@@ -558,10 +562,12 @@ export function WebServiceSettings() {
     <ScrollArea className="h-full">
       <div data-settings-page="" className="space-y-6 p-3 md:p-4">
         <div>
-          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
-          <p className="text-sm text-muted-foreground">
-            {t("sectionDescription")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <SettingsHelp label={t("sectionTitle")}>
+              {t("sectionDescription")}
+            </SettingsHelp>
+          </div>
         </div>
 
         <div className="space-y-4">
@@ -584,10 +590,13 @@ export function WebServiceSettings() {
           )}
 
           {/* Port config */}
-          <div className="flex items-center gap-4">
-            <label className="w-20 text-sm font-medium">{t("port")}</label>
+          <div data-settings-group="">
+            <label htmlFor="web-service-port" className="text-sm font-medium">
+              {t("port")}
+            </label>
             <Input
               type="number"
+              id="web-service-port"
               value={port}
               onChange={(e) => {
                 setPort(e.target.value)
@@ -608,28 +617,35 @@ export function WebServiceSettings() {
             disabled={isRunning}
             placeholder={t("tokenPlaceholder")}
           />
-          <p className="text-xs text-muted-foreground">{t("tokenHint")}</p>
 
           {/* Auto-start config */}
-          <div className="flex items-center gap-4">
-            <label className="w-20 text-sm font-medium">{t("autoStart")}</label>
+          <div data-settings-group="">
+            <div className="flex items-center gap-1">
+              <label
+                htmlFor="web-service-auto-start"
+                className="text-sm font-medium"
+              >
+                {t("autoStart")}
+              </label>
+              <SettingsHelp label={t("autoStart")}>
+                {t("autoStartHint")}
+              </SettingsHelp>
+            </div>
             <div className="flex min-w-0 items-center gap-3">
               <Switch
+                id="web-service-auto-start"
                 checked={autoStart}
                 onCheckedChange={(checked) => {
                   setAutoStart(checked)
                   void persistWebServiceConfig(checked)
                 }}
               />
-              <span className="text-sm text-muted-foreground">
-                {t("autoStartHint")}
-              </span>
             </div>
           </div>
 
           {/* Start/Stop button */}
-          <div className="flex items-center gap-4">
-            <label className="w-20 text-sm font-medium">{t("status")}</label>
+          <div data-settings-group="">
+            <label className="text-sm font-medium">{t("status")}</label>
             <div className="flex items-center gap-3">
               <span
                 className={`inline-block h-2 w-2 rounded-full ${
@@ -658,7 +674,12 @@ export function WebServiceSettings() {
           {isRunning && currentAddress && (
             <div className="space-y-2">
               <div className="text-xs font-medium text-muted-foreground">
-                {t("addressLabel")}
+                {t("addressLabel")}{" "}
+                {hasMultipleAddresses && (
+                  <SettingsHelp label={t("addressLabel")}>
+                    {t("addressSwitchHint")}
+                  </SettingsHelp>
+                )}
               </div>
               <AddressBar
                 address={currentAddress}
@@ -666,11 +687,6 @@ export function WebServiceSettings() {
                 hasMultiple={hasMultipleAddresses}
                 onSelect={handleSelectAddress}
               />
-              {hasMultipleAddresses && (
-                <p className="text-xs text-muted-foreground">
-                  {t("addressSwitchHint")}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -679,15 +695,20 @@ export function WebServiceSettings() {
             proxy/tunnel remains responsible for routing this origin here. */}
         <section
           aria-labelledby="public-share-url-label"
-          className="space-y-2 border-t pt-6"
+          data-settings-group=""
         >
-          <label
-            id="public-share-url-label"
-            htmlFor="public-share-url"
-            className="text-sm font-medium"
-          >
-            {t("publicShareUrlLabel")}
-          </label>
+          <div className="flex items-center gap-1">
+            <label
+              id="public-share-url-label"
+              htmlFor="public-share-url"
+              className="text-sm font-medium"
+            >
+              {t("publicShareUrlLabel")}
+            </label>
+            <SettingsHelp label={t("publicShareUrlLabel")}>
+              {t("publicShareUrlHint")}
+            </SettingsHelp>
+          </div>
           <Input
             id="public-share-url"
             type="url"
@@ -701,9 +722,7 @@ export function WebServiceSettings() {
             spellCheck={false}
             className="font-mono"
           />
-          <p className="text-xs text-muted-foreground">
-            {t("publicShareUrlHint")}
-          </p>
+
           <div className="flex items-center gap-3">
             <button
               type="button"

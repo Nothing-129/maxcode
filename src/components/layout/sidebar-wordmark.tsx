@@ -19,7 +19,7 @@ export function SidebarWordmark({ compact = false }: { compact?: boolean }) {
     <span
       role="img"
       aria-label="MaxCode"
-      className={`inline-flex shrink-0 items-center select-none ${compact ? "gap-1.5" : "gap-3"}`}
+      className={`shrink-0 items-center select-none inline-flex ${compact ? "gap-1.5" : "gap-3"}`}
     >
       <svg
         aria-hidden="true"

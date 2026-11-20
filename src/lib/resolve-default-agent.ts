@@ -56,10 +56,10 @@ export interface ResolveDefaultAgentResult {
  *   5. `MAINTAINED_AGENT_TYPES[0]` — final fallback when even the sorted list
  *      isn't available yet (cold start).
  *
- * Agents omitted from the new-conversation picker are
- * skipped at every step, including a remembered or inherited choice.
+ * Skip retired agents at every step. Once the live list arrives, also skip
+ * remembered, folder, and inherited choices that are no longer available.
  *
- * The result is marked `provisional: true` for cases 3 and 4 when `fresh`
+ * The result is marked `provisional: true` for cases 4 and 5 when `fresh`
  * is false — i.e. the sorted list might still be stale or empty seed data
  * from localStorage, and the caller should re-resolve once fresh data
  * arrives.
@@ -72,14 +72,14 @@ export function resolveDefaultAgent(
   input: ResolveDefaultAgentInput
 ): ResolveDefaultAgentResult {
   const { lastSelected, folderDefault, inherit, sortedTypes, fresh } = input
-  if (lastSelected && isOfferedForNewConversation(lastSelected)) {
-    return { agentType: lastSelected, provisional: false }
-  }
-  if (folderDefault && isOfferedForNewConversation(folderDefault)) {
-    return { agentType: folderDefault, provisional: false }
-  }
-  if (inherit && isOfferedForNewConversation(inherit)) {
-    return { agentType: inherit, provisional: false }
+  const preferred = [lastSelected, folderDefault, inherit].find(
+    (agent) =>
+      agent != null &&
+      isOfferedForNewConversation(agent) &&
+      (!fresh || sortedTypes.includes(agent))
+  )
+  if (preferred) {
+    return { agentType: preferred, provisional: false }
   }
   const firstMaintained = sortedTypes.find(isOfferedForNewConversation)
   if (firstMaintained) {

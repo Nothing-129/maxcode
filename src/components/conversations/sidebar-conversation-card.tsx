@@ -34,6 +34,7 @@ import {
   formatConversationTitle,
   parseStructuredConversationTitle,
 } from "@/lib/conversation-title"
+import { foldReferenceLinks } from "@/lib/reference-link"
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -164,6 +165,7 @@ interface SidebarConversationCardProps {
   selectionId?: string
   isOpenInTab?: boolean
   timeLabel?: string
+  showTitleDate?: boolean
   isMobile?: boolean
   compactMobile?: boolean
   stackMetadata?: boolean
@@ -208,6 +210,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
   isSelected,
   isOpenInTab = false,
   timeLabel,
+  showTitleDate = true,
   isMobile = false,
   compactMobile = false,
   stackMetadata = false,
@@ -339,7 +342,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
     ? formatConversationTitle(conversation.title)
     : ""
   const structuredStackedTitle = stackedLayout
-    ? parseStructuredConversationTitle(stackedTitle)
+    ? parseStructuredConversationTitle(foldReferenceLinks(conversation.title))
     : null
 
   return (
@@ -459,9 +462,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                         stackMetadata ? "pr-6" : "pr-12"
                       )}
                     >
-                      {structuredStackedTitle?.topic ||
-                        stackedTitle ||
-                        t("untitledConversation")}
+                      {stackedTitle || t("untitledConversation")}
                     </span>
                     {(structuredStackedTitle ||
                       showFolderMeta ||
@@ -547,6 +548,7 @@ export const SidebarConversationCard = memo(function SidebarConversationCard({
                           : "flex-1"
                       )}
                       title={conversation.title}
+                      showDate={showTitleDate}
                       fallback={t("untitledConversation")}
                     />
                     {/* Re-parented out of a removed worktree: history loads fine,

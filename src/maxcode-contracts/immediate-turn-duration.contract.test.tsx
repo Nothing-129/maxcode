@@ -47,7 +47,6 @@ function replyItem(turns: MessageTurn[]) {
       previousUserIndex: null,
       previousUserAt: null,
       isLastAssistantRun: true,
-      isThreadTail: true,
       sourceTurns: [turn],
     }
   })

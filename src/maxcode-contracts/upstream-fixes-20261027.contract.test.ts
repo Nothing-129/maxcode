@@ -47,7 +47,6 @@ const turn = (
   previousUserIndex: null,
   previousUserAt: null,
   isLastAssistantRun: false,
-  isThreadTail: false,
   sourceTurns: [],
 })
 

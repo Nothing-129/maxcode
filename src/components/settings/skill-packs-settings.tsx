@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useRef, useState } from "react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { useTranslations } from "next-intl"
@@ -29,12 +30,6 @@ function normalizeTab(raw: string | null): SkillPackTab {
   }
   return "office"
 }
-
-// The Tabs primitive's built-in active styling uses a bare `data-active:`
-// variant that is a no-op with Radix (which emits `data-state="active"`), so
-// the visible active pill must be re-declared here per trigger.
-const TRIGGER_ACTIVE =
-  "data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
 
 /**
  * Unified "Skill Packs" settings hub — a shared generic header + a fixed
@@ -105,8 +100,10 @@ export function SkillPacksSettings() {
   return (
     <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="shrink-0 pb-4">
-        <h1 data-settings-page-title="">{t("title")}</h1>
-        <p className="text-xs text-muted-foreground mt-1">{t("description")}</p>
+        <div className="settings-help-heading flex items-center gap-1">
+          <h1 data-settings-page-title="">{t("title")}</h1>
+          <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+        </div>
       </div>
 
       <Tabs
@@ -114,20 +111,12 @@ export function SkillPacksSettings() {
         onValueChange={handleTabChange}
         className="flex flex-col flex-1 min-h-0"
       >
-        <div className="flex items-center justify-between gap-3 shrink-0">
-          <TabsList className="w-fit">
-            <TabsTrigger value="experts" className={TRIGGER_ACTIVE}>
-              {t("tabs.experts")}
-            </TabsTrigger>
-            <TabsTrigger value="science" className={TRIGGER_ACTIVE}>
-              {t("tabs.science")}
-            </TabsTrigger>
-            <TabsTrigger value="office" className={TRIGGER_ACTIVE}>
-              {t("tabs.office")}
-            </TabsTrigger>
-            <TabsTrigger value="custom" className={TRIGGER_ACTIVE}>
-              {t("tabs.custom")}
-            </TabsTrigger>
+        <div className="flex flex-wrap items-center justify-between gap-3 shrink-0 border-y py-2">
+          <TabsList variant="line" className="max-w-full">
+            <TabsTrigger value="experts">{t("tabs.experts")}</TabsTrigger>
+            <TabsTrigger value="science">{t("tabs.science")}</TabsTrigger>
+            <TabsTrigger value="office">{t("tabs.office")}</TabsTrigger>
+            <TabsTrigger value="custom">{t("tabs.custom")}</TabsTrigger>
           </TabsList>
 
           {/* Fixed toolbar — identical on every tab. */}

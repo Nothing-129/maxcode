@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useState } from "react"
 import { Loader2 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -66,9 +67,12 @@ export function ChannelOtherTab() {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <h3 className="text-sm font-medium">{t("title")}</h3>
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
+      <section data-settings-group="">
+        <div className="settings-help-heading flex items-center gap-1">
+          <h3 className="text-sm font-medium">{t("title")}</h3>
+          <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+        </div>
+
         <Select
           value={language}
           onValueChange={handleLanguageChange}

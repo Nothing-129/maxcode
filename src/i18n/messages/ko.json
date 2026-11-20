@@ -62,6 +62,8 @@
     "generateToken": "토큰 생성"
   },
   "SettingsShell": {
+    "help": "도움말",
+    "helpFor": "{label} 도움말",
     "backToApp": "앱으로 돌아가기",
     "title": "설정",
     "preferences": "환경설정",
@@ -326,6 +328,9 @@
     "versionTitle": "소프트웨어 업데이트",
     "updateDescription": "설정된 릴리스 소스에서 새 버전을 확인하고 가능하면 바로 설치합니다.",
     "currentVersion": "현재 버전",
+    "footerDownloading": "다운로드 중",
+    "footerRestartUpdate": "재시작하여 업데이트",
+    "footerUpdateReady": "v{version} 준비 완료. 재시작 후 적용됩니다.",
     "upgradableVersion": "최신 버전",
     "none": "없음",
     "lastChecked": "마지막 확인: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "스킬 팩 로딩 중…"
   },
   "GeneralSettings": {
+    "environmentGroup": "작업 환경",
+    "notificationGroup": "알림 및 소리",
     "loginItem": {
       "title": "로그인 시 실행",
       "description": "컴퓨터에 로그인하면 MaxCode를 자동으로 엽니다.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "{names} 업로드 실패.",
         "attachUploadNotAFile": "{names} 은(는) 일반 파일이 아니므로(디렉터리 또는 특수 파일) 건너뛰었습니다.",
         "attachUploadQuotaExceeded": "서버 업로드 저장 공간이 부족하여 {names} 을(를) 업로드하지 못했습니다.",
+        "firstPromptRetry": "첫 메시지를 보내지 못했습니다. 초안을 확인하고 다시 시도하세요.",
         "attachUploadInProgress": "이미지가 아직 업로드 중입니다. 잠시 후 다시 시도하세요.",
         "mentionEmpty": "일치하는 항목 없음",
         "mentionLoading": "검색 중…",

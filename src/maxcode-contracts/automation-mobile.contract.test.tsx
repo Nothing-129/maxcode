@@ -1,4 +1,6 @@
-import { render, screen, fireEvent } from "@testing-library/react"
+import { render, screen, fireEvent, within } from "@testing-library/react"
+import { useState } from "react"
+import { AutomationSidebarHost } from "@/components/automations/automation-sidebar-host"
 import { NextIntlClientProvider } from "next-intl"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import enMessages from "@/i18n/messages/en.json"
@@ -11,6 +13,7 @@ import {
 // ── Context + side-effect mocks ────────────────────────────────────────────
 const openTab = vi.fn()
 const refetch = vi.fn().mockResolvedValue(undefined)
+const viewport = vi.hoisted(() => ({ isMobile: true, isMac: false }))
 let automations: Automation[] = []
 
 vi.mock("@/contexts/automations-view-context", () => ({
@@ -23,6 +26,7 @@ vi.mock("@/contexts/tab-context", () => ({
   useTabActions: () => ({ openTab }),
 }))
 vi.mock("@/lib/platform", () => ({
+  isNativeDesktop: () => viewport.isMac,
   subscribe: vi.fn().mockResolvedValue(() => {}),
   onTransportReconnect: vi.fn(() => () => {}),
 }))
@@ -70,15 +74,32 @@ beforeEach(() => {
   })
 })
 
+function Workspace() {
+  const [host, setHost] = useState<HTMLDivElement | null>(null)
+  return (
+    <>
+      <div ref={setHost} />
+      <AutomationSidebarHost.Provider value={host}>
+        <AutomationsPage />
+      </AutomationSidebarHost.Provider>
+    </>
+  )
+}
+
 function renderPage() {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
-      <AutomationsPage />
+      <Workspace />
     </NextIntlClientProvider>
   )
 }
 
-vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => true }))
+vi.mock("@/hooks/use-mobile", () => ({
+  useIsMobile: () => viewport.isMobile,
+}))
+vi.mock("@/hooks/use-platform", () => ({
+  usePlatform: () => ({ isMac: viewport.isMac }),
+}))
 
 const FIXTURE: Automation = {
   id: 7,
@@ -109,7 +130,51 @@ const FIXTURE: Automation = {
 describe("MaxCode contract: mobile automation navigation", () => {
   beforeEach(() => {
     automations = [FIXTURE]
+    viewport.isMobile = true
+    viewport.isMac = false
   })
+
+  it("places the macOS wordmark below the window toolbar", () => {
+    viewport.isMobile = false
+    viewport.isMac = true
+    renderPage()
+    const search = screen.getByRole("button", {
+      name: enMessages.Automations.searchAutomations,
+    })
+    const wordmark = screen.getByRole("img", { name: "MaxCode" })
+    expect(
+      search.compareDocumentPosition(wordmark) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy()
+  })
+
+  it.each([false, true])(
+    "shows the shared brand instead of a list title (mobile: %s)",
+    (isMobile) => {
+      viewport.isMobile = isMobile
+      renderPage()
+      const sidebar = within(
+        screen.getByRole("complementary", {
+          name: enMessages.Automations.title,
+        })
+      )
+      expect(sidebar.getAllByRole("img", { name: "MaxCode" })).toHaveLength(1)
+      expect(
+        sidebar.queryByRole("heading", { name: enMessages.Automations.title })
+      ).not.toBeInTheDocument()
+      expect(
+        sidebar.getByRole("button", {
+          name: enMessages.Automations.filterAutomations,
+        })
+      ).toBeVisible()
+      fireEvent.click(
+        sidebar.getByRole("button", {
+          name: enMessages.Automations.searchAutomations,
+        })
+      )
+      expect(sidebar.getByRole("searchbox")).toBeVisible()
+    }
+  )
 
   it("opens a task in a separate full-width detail and returns to the list", () => {
     const { container } = renderPage()

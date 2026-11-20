@@ -62,6 +62,8 @@
     "generateToken": "Generate token"
   },
   "SettingsShell": {
+    "help": "Help",
+    "helpFor": "About {label}",
     "backToApp": "Back to app",
     "title": "Settings",
     "preferences": "Preferences",
@@ -326,6 +328,9 @@
     "versionTitle": "Software Update",
     "updateDescription": "Check the configured release source for newer versions and install directly when available.",
     "currentVersion": "Current version",
+    "footerDownloading": "Downloading",
+    "footerRestartUpdate": "Restart to update",
+    "footerUpdateReady": "v{version} is ready. Restart to apply.",
     "upgradableVersion": "Latest version",
     "none": "None",
     "lastChecked": "Last checked: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "Loading skill packs…"
   },
   "GeneralSettings": {
+    "environmentGroup": "Environment",
+    "notificationGroup": "Notifications & sound",
     "loginItem": {
       "title": "Launch at login",
       "description": "Automatically open MaxCode when you sign in to your computer.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "Failed to upload {names}.",
         "attachUploadNotAFile": "{names} isn't a regular file (directory or special file) and was skipped.",
         "attachUploadQuotaExceeded": "The server is out of upload storage; {names} couldn't be uploaded.",
+        "firstPromptRetry": "The first message could not be sent. Review your draft and try again.",
         "attachUploadInProgress": "Images are still uploading — try again in a moment.",
         "mentionEmpty": "No matches",
         "mentionLoading": "Searching…",

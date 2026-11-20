@@ -1,8 +1,10 @@
 "use client"
 
+import { useContext } from "react"
 import type { LucideIcon } from "lucide-react"
 
 import { Label } from "@/components/ui/label"
+import { SettingsHelp, SettingsHelpContext } from "./settings-help"
 import { cn } from "@/lib/utils"
 
 /**
@@ -100,6 +102,7 @@ export function SettingRow({
   children,
   className,
 }: SettingRowProps) {
+  const contextualHelp = useContext(SettingsHelpContext)
   return (
     <div
       data-setting-row=""
@@ -115,7 +118,12 @@ export function SettingRow({
           description ? "items-start" : "items-center"
         )}
       >
-        <div className="flex min-w-0 flex-col gap-1">
+        <div
+          className={cn(
+            "flex min-w-0 gap-1",
+            contextualHelp ? "items-center" : "flex-col"
+          )}
+        >
           <Label htmlFor={htmlFor} className="gap-1.5 text-sm">
             {Icon ? (
               <Icon
@@ -125,7 +133,11 @@ export function SettingRow({
             ) : null}
             {title}
           </Label>
-          {description ? (
+          {description && contextualHelp ? (
+            <SettingsHelp label={typeof title === "string" ? title : undefined}>
+              {description}
+            </SettingsHelp>
+          ) : description ? (
             <span
               data-settings-description=""
               className="text-xs leading-5 text-muted-foreground"

@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 const RELEASES_URL = "https://github.com/Nothing-129/maxcode/releases/latest"
 
 /** One stable version action whose leading icon reflects update state. */
-export function StatusBarUpdate() {
+export function StatusBarUpdate({ inline = false }: { inline?: boolean } = {}) {
   const t = useTranslations("SystemSettings")
   const update = useAppUpdate()
   const pending = useRef(false)
@@ -100,6 +100,40 @@ export function StatusBarUpdate() {
       ? t("checking")
       : t("checkUpdate")
 
+  const runAction = () => {
+    if (showAction) void handleUpdate()
+    else void checkNow({ silent: false })
+  }
+
+  if (inline) {
+    if (isUpdating || restarting) {
+      return (
+        <span className="shrink-0 text-muted-foreground">
+          {state.status === "downloading" ? t("footerDownloading") : label}
+        </span>
+      )
+    }
+
+    return (
+      <button
+        type="button"
+        title={reasonText ?? undefined}
+        aria-busy={checking || busy}
+        disabled={checking || busy}
+        onClick={runAction}
+        className="min-h-6 max-w-[50%] shrink-0 text-end font-medium text-sidebar-foreground hover:underline focus-visible:outline-2 focus-visible:outline-ring disabled:opacity-60"
+      >
+        {ready
+          ? t("footerRestartUpdate")
+          : checking
+            ? t("checking")
+            : showAction
+              ? label
+              : t("checkUpdate")}
+      </button>
+    )
+  }
+
   return (
     <div className="flex h-6 items-center whitespace-nowrap font-mono tabular-nums">
       <button
@@ -108,10 +142,7 @@ export function StatusBarUpdate() {
         aria-label={showAction ? label : undefined}
         aria-busy={checking || busy}
         disabled={checking || busy}
-        onClick={() => {
-          if (showAction) void handleUpdate()
-          else void checkNow({ silent: false })
-        }}
+        onClick={runAction}
         className={cn(statusBarActionClassName, "flex items-center gap-1.5")}
       >
         {checking || busy ? (

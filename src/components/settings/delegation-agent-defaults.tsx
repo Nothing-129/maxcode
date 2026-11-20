@@ -187,10 +187,6 @@ export function DelegationAgentDefaultsPanel({
       onValueChange={(value) => setSelectedAgent(value as AgentType)}
       className="gap-3"
     >
-      <p className="text-xs text-muted-foreground leading-5">
-        {t("agentDefaultsDescription")}
-      </p>
-
       <TabsList
         aria-label={t("tabAgentDefaults")}
         className="w-full flex-wrap group-data-horizontal/tabs:h-auto"

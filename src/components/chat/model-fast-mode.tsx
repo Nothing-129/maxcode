@@ -32,7 +32,7 @@ export function ModelFastMode({
   const onValue = values.includes("on") ? "on" : "true"
   const offValue = values.includes("off") ? "off" : "false"
   return (
-    <label className="flex shrink-0 items-center gap-3 border-t px-3 py-2 text-sm">
+    <label className="flex shrink-0 items-center gap-3 px-3 py-2 text-sm first:border-b not-first:border-t">
       <span className="min-w-0 flex-1">
         <span className="block font-medium">Fast</span>
         {option.description && (

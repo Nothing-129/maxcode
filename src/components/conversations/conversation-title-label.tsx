@@ -1,9 +1,7 @@
 import type { ComponentPropsWithoutRef } from "react"
 
-import {
-  formatConversationTitle,
-  parseStructuredConversationTitle,
-} from "@/lib/conversation-title"
+import { parseStructuredConversationTitle } from "@/lib/conversation-title"
+import { foldReferenceLinks } from "@/lib/reference-link"
 import { cn } from "@/lib/utils"
 
 /**
@@ -23,7 +21,7 @@ export function ConversationTitleLabel({
   fallback: string
   showDate?: boolean
 } & Omit<ComponentPropsWithoutRef<"span">, "title">) {
-  const formatted = formatConversationTitle(title)
+  const formatted = foldReferenceLinks(title)
   const text = formatted || fallback
   const structured = formatted
     ? parseStructuredConversationTitle(formatted)

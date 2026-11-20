@@ -13,6 +13,11 @@ import {
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
+import {
+  consumeFirstPromptRecovery,
+  getFirstPromptRecovery,
+  subscribeFirstPromptRecovery,
+} from "@/lib/first-prompt-recovery"
 import { isImeCompositionKey } from "@/lib/ime-composition"
 import { Button } from "@/components/ui/button"
 import { GenerationActionIcon } from "./composer/generation-action-icon"
@@ -1568,6 +1573,63 @@ export function MessageInput({
     draftStorageKey: effectiveDraftStorageKey,
   }
 
+  const [retryDraftKey, setRetryDraftKey] = useState<string | null>(null)
+  useEffect(() => {
+    if (
+      !effectiveDraftStorageKey ||
+      !composerReady ||
+      !isActive ||
+      isEditingQueueItem ||
+      hasUploadingImage
+    ) {
+      return
+    }
+    const key = effectiveDraftStorageKey
+    let frame: number | null = null
+    const restore = () => {
+      if (frame != null || !getFirstPromptRecovery(key)) return
+      // Run after normal draft hydration, so edits made while sending can
+      // be kept after the recovered message.
+      frame = requestAnimationFrame(() => {
+        frame = null
+        const draft = getFirstPromptRecovery(key)
+        const editor = editorRef.current?.getEditor()
+        if (!draft || !editor) return
+        const current = currentComposerRef.current.buildDraft()
+        const blocks: PromptInputBlock[] = current
+          ? [
+              ...draft.blocks,
+              ...current.blocks.map((block, index) =>
+                index === 0 && block.type === "text"
+                  ? { ...block, text: `\n\n${block.text}` }
+                  : block
+              ),
+            ]
+          : draft.blocks
+        hydrateFromBlocks(editor, blocks, knownInvocationsRef.current)
+        syncComposerEmpty()
+        writeDraftNow()
+        setRetryDraftKey(key)
+        consumeFirstPromptRecovery(key, draft)
+      })
+    }
+    const unsubscribe = subscribeFirstPromptRecovery(restore)
+    restore()
+    return () => {
+      unsubscribe()
+      if (frame != null) cancelAnimationFrame(frame)
+    }
+  }, [
+    effectiveDraftStorageKey,
+    composerReady,
+    isActive,
+    isEditingQueueItem,
+    hasUploadingImage,
+    hydrateFromBlocks,
+    syncComposerEmpty,
+    writeDraftNow,
+  ])
+
   // Editor clearing is synchronous, but attachment state takes a render. Lock
   // until that render commits so rapid Enter/clicks cannot enqueue images twice.
   const submissionLockedRef = useRef(false)
@@ -1605,6 +1667,8 @@ export function MessageInput({
       resetComposer()
       return
     }
+
+    setRetryDraftKey(null)
 
     // Prompting mode: enqueue instead of sending
     if ((isPrompting || (disabled && queueWhileUnavailable)) && onEnqueue) {
@@ -2192,6 +2256,11 @@ export function MessageInput({
       onKeyDown={handleContainerKeyDown}
       {...attach.containerDragProps}
     >
+      {retryDraftKey && retryDraftKey === effectiveDraftStorageKey && (
+        <p role="alert" className="mb-2 px-2 text-xs text-destructive">
+          {t("firstPromptRetry")}
+        </p>
+      )}
       {slashMenuVisible && (
         <div
           data-testid="slash-menu"

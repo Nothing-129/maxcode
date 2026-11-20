@@ -62,6 +62,8 @@
     "generateToken": "Generar token"
   },
   "SettingsShell": {
+    "help": "Ayuda",
+    "helpFor": "Acerca de {label}",
     "backToApp": "Volver a la aplicación",
     "title": "Configuración",
     "preferences": "Preferencias",
@@ -326,6 +328,9 @@
     "versionTitle": "Actualización de software",
     "updateDescription": "Comprueba versiones más nuevas en la fuente de versiones configurada e instálalas directamente cuando estén disponibles.",
     "currentVersion": "Versión actual",
+    "footerDownloading": "Descargando",
+    "footerRestartUpdate": "Reiniciar para actualizar",
+    "footerUpdateReady": "v{version} está lista. Reinicia para aplicarla.",
     "upgradableVersion": "Última versión",
     "none": "Ninguna",
     "lastChecked": "Última comprobación: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "Cargando paquetes de habilidades…"
   },
   "GeneralSettings": {
+    "environmentGroup": "Entorno de trabajo",
+    "notificationGroup": "Notificaciones y sonido",
     "loginItem": {
       "title": "Iniciar al iniciar sesión",
       "description": "Abrir MaxCode automáticamente al iniciar sesión en el equipo.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "Error al subir {names}.",
         "attachUploadNotAFile": "{names} no es un archivo regular (directorio o archivo especial) y se omitió.",
         "attachUploadQuotaExceeded": "El servidor se quedó sin espacio para subidas; no se pudo cargar {names}.",
+        "firstPromptRetry": "No se pudo enviar el primer mensaje. Revisa el borrador y vuelve a intentarlo.",
         "attachUploadInProgress": "Las imágenes aún se están subiendo; inténtalo de nuevo en un momento.",
         "mentionEmpty": "Sin coincidencias",
         "mentionLoading": "Buscando…",

@@ -62,6 +62,8 @@
     "generateToken": "トークンを生成"
   },
   "SettingsShell": {
+    "help": "説明",
+    "helpFor": "{label}の説明",
     "backToApp": "アプリに戻る",
     "title": "設定",
     "preferences": "環境設定",
@@ -326,6 +328,9 @@
     "versionTitle": "ソフトウェアアップデート",
     "updateDescription": "設定されたリリースソースで新しいバージョンを確認し、利用可能なら直接インストールします。",
     "currentVersion": "現在のバージョン",
+    "footerDownloading": "ダウンロード中",
+    "footerRestartUpdate": "再起動して更新",
+    "footerUpdateReady": "v{version} の準備ができました。再起動後に適用されます。",
     "upgradableVersion": "最新バージョン",
     "none": "なし",
     "lastChecked": "最終確認: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "スキルパックを読み込み中…"
   },
   "GeneralSettings": {
+    "environmentGroup": "作業環境",
+    "notificationGroup": "通知とサウンド",
     "loginItem": {
       "title": "ログイン時に起動",
       "description": "コンピューターへのログイン時に MaxCode を自動的に開きます。",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "{names} のアップロードに失敗しました。",
         "attachUploadNotAFile": "{names} は通常ファイルではなく（ディレクトリまたは特殊ファイル）、スキップされました。",
         "attachUploadQuotaExceeded": "サーバーのアップロード容量が不足しているため、{names} をアップロードできませんでした。",
+        "firstPromptRetry": "最初のメッセージを送信できませんでした。下書きを確認して、もう一度お試しください。",
         "attachUploadInProgress": "画像はまだアップロード中です。しばらくしてからもう一度お試しください。",
         "mentionEmpty": "一致する項目がありません",
         "mentionLoading": "検索中…",

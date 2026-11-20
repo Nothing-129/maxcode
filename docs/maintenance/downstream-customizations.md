@@ -1,5 +1,13 @@
 # MaxCode 下游功能清单
 
+2026-11-19 首条消息发送失败：消息回到输入框，和等待期间的编辑一起保留，提示手动重试；已有会话记录用于重试。连接消失时明确报错。契约：`composer-connection-draft.contract.test.tsx`；热点：`chat.first-prompt-recovery`。
+
+2026-11-19 「最近」分组图标未选中时与栏目文字使用同一浅灰色，悬停和选中时加深。沿用侧栏功能导航契约和热点。
+
+2026-11-19 自动化列表顶部改用其他侧栏共用的 MaxCode 标识，移除可见的“自动化”标题；macOS 桌面标识与其他侧栏对齐，放在窗口工具栏下方。紧凑布局放在工具栏内，保留筛选和搜索。契约：`automation-mobile.contract.test.tsx`；热点：`sidebar.functional-navigation-preview`。
+
+2026-11-18 手机和桌面的消息操作栏暂时隐藏“在新对话中打开”和“添加到待办”。对话界面移除“从此处分叉”入口及提示。操作栏仍提供复制、跳回提问和完成时间。契约 `chat-message-actions.contract.test.tsx`、`reply-actions-no-metadata.contract.test.tsx`，热点 `chat.optional-message-actions-hidden`。
+
 2026-11-18 功能栏五图标统一：主页、会话、项目、待办、自动化共享 20px 图标框、24 单位网格与 1.75 单位圆头描边，选中态统一实心填充与圆角。沿用房屋、双对话气泡、文件夹、方框加勾与三条清单线、时钟造型，内部镂空间隔统一为 1.75 单位。契约：`sidebar-reference-icons.contract.test.tsx`、`sidebar-functional-navigation.contract.test.tsx`；热点：`sidebar.functional-navigation-preview`、`appearance.sidebar-reference-icons`。
 
 2026-11-18 功能栏图标选中态：主页、会话、项目、待办、自动化均在选中时显示实心图标与浅灰底，未选中时显示灰色描边。会话沿用原有双对话气泡造型。契约：`sidebar-functional-navigation.contract.test.tsx`、`sidebar-reference-icons.contract.test.tsx`；热点：`sidebar.functional-navigation-preview`。
@@ -85,6 +93,8 @@
 2026-10-27 生成按钮动效：两处停止按钮外沿以 2 秒周期呼吸淡光晕，按钮本体保持稳定；悬停放大至 1.04、按下缩至 0.94，停止/发送图标保持挂载并以 160ms 交叉淡入淡出。点击行为即时，装饰不影响辅助功能；减少动态效果时关闭光晕和缩放，图标过渡缩短至 100ms。契约：`generation-button-motion.contract.test.tsx`；热点：`chat.generation-button-motion`。
 
 2026-10-27 会话切换正文淡入：仅消息阅读内容从 0.15 透明度过渡到正常，280ms，并在首帧绘制前启动以避免先亮后暗；输入框和工具栏保持稳定，滚动仍即时定位。等待内容就绪后播放，缓存会话重新激活也生效，流式增量不重播，减少动态效果时缩短为 120ms。契约：`conversation-content-fade.contract.test.tsx`；热点：`chat.conversation-content-fade`。
+
+会话底部定位：打开会话后，正文高度或阅读区高度变化时，如果静态会话正跟随底部，就在当帧绘制前保持最新消息可见。用户上滚阅读时保留当前位置。契约：`conversation-entry-mount.contract.test.tsx`。热点：`conversation.instant-history-position`。
 
 2026-10-27 输入框底部选择器：权限、模式、模型等配置菜单使用非模态点击，一次点击直接从旧菜单切换到下一个，兼容可搜索模型浮层；打开时抑制悬停提示。修正 Radix 下拉菜单和浮层的状态动画选择器，底部配置浮层进入 180ms、退出 120ms，退出期间不拦截点击；减少动态效果时只淡入淡出。保留 Esc 焦点恢复和嵌套弹窗。契约：`composer-selector-switching.contract.test.tsx`；热点：`chat.composer-selector-handoff`。
 
@@ -212,8 +222,11 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 
 | 领域 | 功能 | 来源 | 保护项 |
 | --- | --- | --- | --- |
+| 侧栏文件夹菜单 | 右键和更多按钮共用带左侧操作图标的一级菜单，文字左对齐，保留二级箭头、分隔线和红色移除操作。二级内容溢出时与输入框加号菜单共用主题细滚动条 | `worktree-2026-11-19` | `sidebar.folder-menu-appearance` |
+| 输入框加号菜单 | 一级菜单收窄，文字左对齐，二级入口保留右侧箭头。二级列表溢出时使用主题细滚动条，斜杠命令搜索框固定在列表上方 | `worktree-2026-11-19` | `chat.composer-add-menu-appearance` |
 | 对话模型记忆 | 模型与思考等级按对话保存在 SQLite；历史恢复自身配置，旧对话优先原生会话值，新对话沿用最近默认值，配置确认后持久化且不改变最近排序；重开时立即展示按对话缓存的已确认选项，连接完成前只读，最多缓存 32 个对话，仅保存已选值和名称，按对话单独读写以避免同步处理完整模型目录；缓存缺失时从对话摘要中的 SQLite 配置显示模型与思考等级，无需等待智能体启动 | `worktree-2026-10-12` | `chat.conversation-model-memory` |
 | 设置选项搜索 | 搜索现有设置项名称、说明与关键词，显示所属栏目及无结果提示；懒加载后定位高亮，保留草稿、远程参数与移动导航，不修改设置值或恢复隐藏入口 | `worktree-2026-10-11` | `settings.option-search` |
+| 全局会话搜索 | 默认搜索所有文件夹，可缩小范围。标题只用于筛选，结果按最后更新时间倒序，右侧显示最后更新时间。 | `worktree-2026-10-15`、`worktree-2026-11-19` | `search.global-default-scope` |
 | 会话状态常驻 | 悬停和打开操作菜单时保持运行中、未读及时间提示；置顶和完成收进独立菜单，支持键盘与触屏且不误选会话 | `worktree-2026-10-11` | `conversations.persistent-sidebar-status` |
 | 连接中提交 | 会话及欢迎页连接中可回车入队，消息可编辑、删除；初始化完成后顺序自动发送，慢连接及失败保留消息并提供重连，预览标签自动固定 | `worktree-2026-10-10` | `chat.connection-submit-queue` |
 | 设置加载 | npm 元数据探测限时并终止卡住的命令，七种智能体版本并发探测；Electron 安装包冒烟验证设置子窗口加载智能体目录 | `worktree-2026-10-10` | `settings.agent-probe-deadline` |
@@ -225,7 +238,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | HTML/visualize | 内联预览、延迟提及、会话相对资源，隔离 origin/CSP 与每文件信任，会话内预览脚本默认关闭；打开 HTML 文件默认运行脚本，可手动关闭；公开分享只读 | `20687bb4` 至 `0e5ac772` | `chat.upstream-html-preview-20260930`、`files.html-scripts-default` |
 | Recent 筛选 | 分类先于十条分页，记忆筛选并准确显示余量，保留独立分页、折叠和新建聊天 | `e36c8ed4` 至 `caca52f6` | `sidebar.recent-filters-20260930` |
 | 会话通知 | 关闭窗格后按持久会话命名，保留 MaxCode 隐私、静默重放和 owner 登录动作限制 | `09d74bce`、`d2e86448`、`2db8a81b` | `runtime.session-notifications-20260930` |
-| 设置页视觉统一 | 参考分组设置界面统一侧栏、页面标题与留白、细边框卡片、输入/复合控件及错误提示；页边距不影响嵌套列表，说明样式不覆盖警告/错误颜色，折叠箭头保持可见 | `worktree-2026-09-26` | `settings.reference-grouped-style` |
+| 设置页版本入口 | 底栏一行显示版本状态和更新动作。常态显示当前版本和检查更新，下载时显示新版本和下载状态，下载完成显示待生效版本和重启更新。 | `worktree-2026-11-17` | `settings.about-inline-version` |
+| 设置页视觉统一 | 设置侧栏分类使用纯文字，与「偏好设置」左对齐，当前分类以底色标记。统一页面标题与留白、细边框设置行；系统、浅色、深色主题支持预览并可用方向键切换；智能体与提供商列表统一对齐。覆盖分组卡片、输入/复合控件及错误提示；页边距不影响嵌套列表，设置分组在宽屏左右对齐、窄屏上下排列，操作与开关采用中性色。快捷键和账号等列表按行分隔，日志保留整行宽度，快捷消息编辑区在窄窗口上下排列。桌面按行显示帮助、触屏保留入口。功能说明支持悬停、聚焦或点按问号查看，权限、警告与错误仍直接显示，折叠箭头保持可见 | `worktree-2026-09-26` | `settings.reference-grouped-style` |
 | 上游第二批集成 | Antigravity 1.2.1、Grok 1.0.41；共享服务更新目录权限预检且保留 Electron 安装器；聊天/任务图片附件编号框和箭头标注，上传成功原子替换 URI，失败恢复原图 | `f773185a`、`d8c3d54e`、`f0b5bfc5`、`ab8e4fd4` | `runtime.upstream-second-20260926` |
 | 上游稳定性集成 | 草稿绑定后跨分栏移动保留运行时，Codex 回退历史、ACP 撤销/断连、Claude 工具参数和附件去重、文件链接、代理本机直连；保留 Electron、标题模型与公开分享策略 | `81163947`、`1a347230`、`6aaac6f9`、`94a17675`、`dd13b595`、`b18fa74d`、`0a802c9e` | `runtime.upstream-priority-20260926` |
 | Antigravity 品牌图标 | 共用智能体图标采用 Google 官方彩色 SVG，本地离线加载，保留原始蒙版和色彩滤镜 | `worktree-2026-10-23` | `appearance.antigravity-color-icon` |
@@ -274,6 +288,8 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 待办入口 | 侧栏和快捷菜单打开独立的新待办；旧 AI 待办、Forge 任务按钮和新自动化入队入口隐藏，历史数据保留；导航显隐偏好及手机收起行为保留 | `worktree-2026-10-14` | `tasks.workbench-entry-points` |
 | 团队待办 | 个人/团队范围隔离并记忆，创建者本机托管，团队码加入、头像名称、成员同权、领取/指定/完成、空标题自动生成及对话双向联动；待办新对话沿用上次新建目录，已完成服务端分页与跨页搜索；独立成员凭据与分享快照，离线不串数据 | `worktree-2026-10-14` | `todos.personal-team-collaboration` |
 | 对话按文件夹分组 | 对话页可在「最近」标题行最右侧通过分组列表图标切换并记住分组视图，按项目或聊天归类，支持独立折叠，保持置顶、日期过滤及最近活动顺序。 | `worktree-2026-11-18` | `sidebar.functional-navigation-preview` |
+| 文件夹分组新对话 | 对话页的「最近」按文件夹分组时，文件夹行最右侧的新增图标在鼠标悬停或键盘聚焦时显示，在无法悬停的设备上常显。点击后在对应文件夹打开新对话草稿，保持原有展开状态。 | `worktree-2026-11-19` | `sidebar.recent-folder-new-conversation` |
+| 会话标题 | 详情、顶部标题及悬浮提示、搜索结果等位置只显示主题。侧栏文件夹下的对话省去标题前的日期，保留右侧相对时间。 | `worktree-2026-11-19` | `conversation.date-topic-titles`、`sidebar.mobile-title-topic-only` |
 | 待办同步 | 待办变动后通知对应团队，成员重新读取待办和侧栏分组。重连补刷，通知连接不可用时每分钟兼容刷新一次。待办页右上角可手动刷新待办和侧栏分组 | `worktree-2026-11-18` | `todo.live-team-sync` |
 | 待办递归收起 | 收起“待办”分区时同步收起各待办及其对话、子对话；单个待办收起时清除其下各层子对话展开状态，再展开或刷新保持紧凑视图，保留无关对话与其他分组状态 | `worktree-2026-10-30` | `todos.sidebar-recursive-collapse` |
 | 待办会话分组 | 侧边栏按已分配待办归组从待办新建的本机会话；草稿来源记忆及首次保存关联、个人/团队范围切换、独立于已完成分页、复用现有会话卡片与手机导航 | `worktree-2026-10-14` | `todos.sidebar-conversation-groups` |
@@ -286,7 +302,7 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 分隔线 | 面板拖动分隔线默认 1px，悬停和拖动时 2px，保留宽鼠标命中范围 | `worktree-2026-09-09` | `workspace.subtle-resize-handles` |
 | 会话标题 | 标题旁常显三个点，点击打开会话操作菜单；重命名收进菜单，移除独立铅笔按钮 | `worktree-2026-09-09` | `conversations.title-overflow-menu` |
 | 设置 | 智能体初始顺序固定为 Codex、Grok、DeepSeek、Pi、Antigravity、Claude、Gemini、OpenClaw、OpenCode、Cline、Hermes、CodeBuddy、Kimi、Cursor、Qoder；保留已保存的手动排序 | `worktree-2026-09-08` | `settings.default-agent-order` |
-| 手机导航 | 顶部合并为单行会话标题与操作，统一 44px 触摸按钮，搜索/终端/面板/设置收进工具菜单 | `worktree-2026-09-08` | `workspace.mobile-header` |
+| 手机导航 | 单行会话标题和操作共用顶部导航，长标题在两侧按钮之间用省略号截断，统一 44px 触摸按钮，次要操作收进工具菜单。手机和桌面的顶部标题在仅有自动生成的原始网址时先显示域名。同一会话的自动标题更新时淡入淡出，切换会话、手动改名或开启减少动态效果时直接显示 | `worktree-2026-09-08`、`worktree-2026-11-19` | `workspace.mobile-header` |
 | 消息 | 已发消息的复制按钮旁提供修改图标，点击即停止当前回复并将原文填入、聚焦底部输入框；修改后由用户正常发送 | `worktree-2026-09-08` | `messages.edit-sent-message` |
 | 侧边栏 | 主页和对话页的“最近”标题不显示新建按钮。顶部“新对话”和“聊天”分区的新建入口仍可创建独立聊天 | `worktree-2026-09-08` | `conversations.recent-new-chat` |
 | 侧边栏 | 收起“文件夹”分区时同步收起所有文件夹的对话列表并重置分页，再展开分区时保留文件夹折叠状态 | `worktree-2026-09-08` | `conversations.folders-section-collapse` |
@@ -302,11 +318,11 @@ ZCode 专属模型注册表重映射已于 2026-10-20 删除，模型与思考�
 | 会话 | Codex 插件推荐上下文不显示为聊天消息，不参与标题或计数 | `worktree-2026-09-07` | `chat.codex-plugin-context-filter` |
 | 会话 | 所有聊天顶部不显示后台任务栏，后台任务执行与对话内命令记录继续保留 | `worktree-2026-09-07` | `chat.no-top-background-task-strip` |
 | 会话 | 模型工作状态（等待响应、思考中、流式输出、正在使用工具、等待你）只显示文案，左侧不放状态图标；agent 图标、耗时和 tok/s 保留；工具卡片状态图标保留。上游 activity-feedback 不得把左侧图标加回来 | `worktree-2026-09-21` | `chat.live-turn-status-text-only` |
-| 模型选择 | 普通、可搜索及窄栏模型菜单中，Fast 开关保留在滚动区外，长列表及多行模型说明在菜单内独立滚动。 | `worktree-2026-11-18` | `composer.unified-selector-menus` |
+| 模型选择 | Fast 开关保留在滚动区外。分隔线位于 Fast 与模型列表之间，窄栏在 Fast 下方，宽栏在 Fast 上方。长列表及多行模型说明在菜单内独立滚动。 | `worktree-2026-11-18`、`worktree-2026-11-19` | `composer.unified-selector-menus` |
 | 模型描述 | 中文模型列表翻译 Codex 内置目录及已知实时目录描述（含 GPT-6.2 系列），保留模型名称和协议值。历史模型按原规则折叠，未知自定义描述显示原文。 | `worktree-2026-11-18` | `composer.localized-model-history` |
 | 思考 | 流式思考默认单行折叠，手动展开后限高滚动，更新及完成时保留手动选择 | `worktree-2026-09-08` | `chat.compact-reasoning` |
 | 会话 | 回复运行时摘要展示、完成后折叠过程、保留最终答案及手动偏好 | `108154e4`、当前工作区 | `chat.reply-folding` |
-| 会话 | 按文件夹/聊天范围记住智能体，按明确优先级选择新会话默认智能体 | `dc86bec0`、`16941c88` | `conversations.agent-defaults` |
+| 会话 | 按文件夹或聊天范围记住智能体，新会话按优先级跳过已禁用或不可用的默认项，确认当前选择可用后再连接 | `dc86bec0`、`16941c88`、`worktree-2026-11-19` | `conversations.agent-defaults` |
 | 会话 | 未读检测、可见会话消除未读、全部已读、状态颜色和状态操作开关 | `53144985`、`06bb8457`、`c283e981`、`8d9cb933`、`1a4a3532` | `conversations.unread-and-status` |
 | 会话 | 分享入口仅保留在三个点菜单内，顶部不显示独立分享按钮；以可撤销能力链接分享不含本地元数据路径的只读会话快照，显式公网地址优先、Web/局域网/本机地址依次回退；公开 Markdown 仅开放外部链接，正文中的本地目标保持只读 | 当前工作区 | `conversations.read-only-sharing` |
 | 侧边栏 | 完成会话默认隐藏、分区/工作树/分页、文件夹拖动稳定性、新建及重开文件夹排序 | `108154e4`、`bae6751c`、`9eaecc27`、`2245d322`、`7ca7b5b3`、`16941c88`、当前工作区 | `conversations.sidebar-folder-interactions` |
@@ -345,9 +361,10 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 程序读取会话创建时间的上海日期，在本地拼成 `MMDD｜主题`，不再生成类型。简短问题、问候、感谢和闲聊也应提炼具体主题。
 仅缺少可理解内容或生成失败且没有已有合规标题时，使用 `MMDD｜未命名`。
 
-读取旧 `MMDD｜类型｜主题` 及 `未知｜未命名` 时兼容旧格式，生成结果统一为
-日期与主题。标题显示和两个重命名入口省去旧类型；用户保存后才修改已有名称。
-保留手动锁定名称保护，不自动解锁。保护项：`conversation.date-topic-titles`。
+旧标题保留原有存储格式。会话详情、顶部标题及悬浮提示、搜索结果等位置只显示主题，
+侧栏文件夹下的对话（包括「最近」按文件夹分组的对话）也只显示主题，保留右侧相对时间。
+两个重命名入口只编辑主题，手动锁定的名称继续受保护。
+对应契约为 `conversation.date-topic-titles`。
 
 ## 已退役功能
 
@@ -397,6 +414,7 @@ Electron 从 Finder 启动时恢复登录 shell 的 PATH，并兜底标准 Node 
 
 - 来源：`worktree-2026-09-11`；热点：`chat.reply-artifacts-summary`。
 - 新增、修改、删除统一汇总，默认显示三行相对路径与增删统计，可展开剩余文件；审核包含全部文件差异，保留打开文件和定位操作。
+- 路径放不下时从左侧省略目录，优先保留文件名。同名文件保留足以区分的上级目录，折叠行也参与判断。
 - 明确失败或被拒绝的写入不计入回复/会话变更统计、文件索引和差异；保留缺少状态的旧历史及成功重试。
 - 契约：`src/maxcode-contracts/reply-artifacts-summary.contract.test.tsx`、`src/maxcode-contracts/failed-file-writes.contract.test.ts`。
 

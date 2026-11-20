@@ -1,5 +1,12 @@
 import { useEffect, type ReactNode } from "react"
-import { cleanup, fireEvent, render, screen } from "@testing-library/react"
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react"
+import userEvent from "@testing-library/user-event"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -15,7 +22,7 @@ import {
   useAppWorkspaceStore,
 } from "@/stores/app-workspace-store"
 import { resetConversationUnreadStore } from "@/stores/conversation-unread-store"
-import { resetTabStore } from "@/stores/tab-store"
+import { resetTabStore, useTabStore } from "@/stores/tab-store"
 
 // jsdom has no viewport geometry. Render every row supplied by the real list
 // so these contracts exercise pagination, not virtual scrolling/window size.
@@ -114,11 +121,17 @@ function conversation(
   }
 }
 
-function renderSidebar(showRecent = false) {
+function renderSidebar(showRecent = false, groupByFolder = false) {
   return render(
     <NextIntlClientProvider locale="en" messages={enMessages}>
       <WorkbenchRouteProvider>
-        <SidebarConversationList showRecent={showRecent} sortMode="created" />
+        <SidebarConversationList
+          showRecent={showRecent}
+          sortMode="created"
+          view={groupByFolder ? "conversations" : "home"}
+          groupByFolder={groupByFolder}
+          activityDate={groupByFolder ? "2026-09-01" : undefined}
+        />
       </WorkbenchRouteProvider>
     </NextIntlClientProvider>
   )
@@ -156,6 +169,100 @@ afterEach(() => {
   resetAppWorkspaceStore()
   resetConversationUnreadStore()
   localStorage.clear()
+})
+
+describe("MaxCode contract: folder menu appearance", () => {
+  function openFolderMenu() {
+    const repo = folder(1)
+    useAppWorkspaceStore.setState({ folders: [repo], allFolders: [repo] })
+    renderSidebar()
+    fireEvent.contextMenu(screen.getByRole("button", { name: repo.name }))
+    return screen.getByRole("menu")
+  }
+
+  it("shows leading action icons, trailing arrows, dividers, and red removal text", () => {
+    const menu = openFolderMenu()
+    expect(menu).toHaveClass("min-w-40", "text-left")
+    const rows = within(menu).getAllByRole("menuitem")
+    expect(within(menu).getAllByRole("separator")).toHaveLength(2)
+    const arrows = rows.filter(
+      (row) => row.getAttribute("aria-haspopup") === "menu"
+    )
+    expect(arrows).toHaveLength(4)
+    for (const row of rows) {
+      expect(row.firstElementChild?.tagName).toBe("svg")
+      if (arrows.includes(row)) {
+        expect(row.childElementCount).toBe(2)
+        expect(row.lastElementChild).toHaveClass("ml-auto")
+      } else {
+        expect(row.childElementCount).toBe(1)
+      }
+    }
+    const removal = rows[rows.length - 1]
+    expect(removal).toHaveTextContent(
+      messages.folderHeaderMenu.removeFromWorkspace
+    )
+    expect(removal).toHaveAttribute("data-variant", "destructive")
+  })
+
+  it.each([
+    "Open in",
+    messages.folderHeaderMenu.setDefaultAgent,
+    messages.folderHeaderMenu.changeColor,
+    messages.folderGroup.moveToGroup,
+  ])("styles overflowing content in the %s submenu", async (label) => {
+    const menu = openFolderMenu()
+    const trigger = within(menu).getByRole("menuitem", { name: label })
+    fireEvent.keyDown(trigger, { key: "ArrowRight" })
+    const submenu = await screen.findByRole("menu", { name: label })
+    expect(submenu).toHaveClass("submenu-scrollbar", "overflow-y-auto")
+  })
+})
+
+describe("MaxCode contract: new conversations from grouped Recent folders", () => {
+  it.each(["click", "keyboard"] as const)(
+    "opens a draft in the collapsed folder via %s",
+    async (input) => {
+      const folders = [folder(1), folder(2)]
+      const updated_at = new Date(2026, 8, 1, 12).toISOString()
+      useAppWorkspaceStore.setState({
+        folders,
+        allFolders: folders,
+        conversations: [
+          conversation(0, { folder_id: 2, updated_at }),
+          conversation(1, { updated_at }),
+          conversation(2, { kind: "chat", updated_at }),
+        ],
+      })
+      renderSidebar(true, true)
+
+      const user = userEvent.setup()
+      const disclosure = screen.getByRole("button", { name: "Repo 2" })
+      await user.click(disclosure)
+      expect(disclosure).toHaveAttribute("aria-expanded", "false")
+      const action = screen.getByRole("button", {
+        name: `${messages.newConversation}: Repo 2`,
+      })
+      if (input === "keyboard") {
+        await user.tab()
+        expect(action).toHaveFocus()
+        await user.keyboard("{Enter}")
+      } else {
+        await user.click(action)
+      }
+
+      const { activeTabId, tabs } = useTabStore.getState()
+      expect(tabs.find((tab) => tab.id === activeTabId)).toMatchObject({
+        folderId: 2,
+        conversationId: null,
+      })
+      expect(disclosure).toHaveAttribute("aria-expanded", "false")
+      const chatGroup = screen.getByRole("button", {
+        name: messages.sectionChats,
+      }).parentElement!
+      expect(within(chatGroup).getAllByRole("button")).toHaveLength(1)
+    }
+  )
 })
 
 describe("MaxCode contract: sidebar reveals ten conversations per page", () => {

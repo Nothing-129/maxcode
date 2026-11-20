@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { RotateCcw } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -101,7 +102,12 @@ export function ShortcutSettings() {
     <ScrollArea className="h-full">
       <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <div className="flex items-start justify-between gap-3">
-          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <SettingsHelp label={t("sectionTitle")}>
+              {t("recordInstruction")}
+            </SettingsHelp>
+          </div>
           <Button
             variant="outline"
             size="sm"
@@ -117,12 +123,8 @@ export function ShortcutSettings() {
           </Button>
         </div>
 
-        <section className="rounded-xl border bg-card p-4 space-y-4">
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("recordInstruction")}
-          </p>
-
-          <div className="space-y-2">
+        <section>
+          <div data-settings-list="">
             {SHORTCUT_DEFINITIONS.map((definition) => {
               const isRecording = recordingAction === definition.id
 
@@ -130,15 +132,15 @@ export function ShortcutSettings() {
                 <div
                   key={definition.id}
                   data-settings-search-id={`shortcut-${definition.id}`}
-                  className="rounded-lg border px-3 py-2 flex items-center justify-between gap-4"
+                  className="flex flex-wrap items-center justify-between gap-2 py-3"
                 >
-                  <div className="min-w-0">
+                  <div className="flex min-w-0 items-center gap-1">
                     <div className="text-sm font-medium">
                       {actionTitle(definition.id)}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">
+                    <SettingsHelp label={actionTitle(definition.id)}>
                       {actionDescription(definition.id)}
-                    </p>
+                    </SettingsHelp>
                   </div>
                   <Button
                     variant={isRecording ? "default" : "secondary"}

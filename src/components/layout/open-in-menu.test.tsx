@@ -60,6 +60,14 @@ describe("OpenInSubContent", () => {
 
   it("offers Explorer, Terminal and VS Code", () => {
     renderMenu()
+    expect(item("Open in").querySelector("svg")).toHaveClass("ml-auto")
+    expect(item("Explorer").querySelector("svg")).toHaveClass(
+      "lucide-folder-closed"
+    )
+    expect(item("Terminal").querySelector("svg")).toHaveClass(
+      "lucide-square-terminal"
+    )
+    expect(item("VS Code").querySelector("svg")).toBeVisible()
     expect(item("Explorer")).toBeTruthy()
     expect(item("Terminal")).toBeTruthy()
     expect(item("VS Code")).toBeTruthy()

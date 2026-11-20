@@ -8,7 +8,6 @@ import {
   CopyIcon,
   MessageSquarePlus,
   Timer,
-  Split,
 } from "lucide-react"
 import { useLocale, useTranslations } from "next-intl"
 import {
@@ -20,8 +19,9 @@ import {
 import { useMessageScroll } from "@/components/message/message-scroll-context"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { useTodoFromMessage } from "./use-todo-from-message"
+import { SHOW_OPTIONAL_MESSAGE_ACTIONS } from "./message-action-visibility"
 import { formatElapsedLabel } from "@/lib/format-elapsed"
-import { cn, copyTextToClipboard } from "@/lib/utils"
+import { copyTextToClipboard } from "@/lib/utils"
 import type { TurnUsage } from "@/lib/types"
 
 interface TurnStatsProps {
@@ -38,18 +38,6 @@ interface TurnStatsProps {
   copyText?: string
   /** ISO timestamp marking when the assistant reply finished. */
   completedAt?: string | null
-  /** Fork the session at THIS reply. Undefined hides the affordance — the
-   * session has no live connection, the agent has no `session/fork`, or this
-   * surface doesn't own the conversation. */
-  onForkFromHere?: () => void
-  /** Forking is possible here but not right now. The button stays in place,
-   * greyed out, and says why on hover — it used to vanish for the length of
-   * every reply, which moved the whole icon row. */
-  forkDisabled?: boolean
-  /** Why it is greyed out: a turn is in flight (`busy`), or this reply has no
-   * name the backend can resolve yet (`unnamed` — the post-turn reparse fills
-   * it in a moment later). Only read while `forkDisabled`. */
-  forkDisabledReason?: "busy" | "unnamed"
 }
 
 /** Prefer the agent-reported span; otherwise prompt → completion. */
@@ -79,9 +67,6 @@ export function TurnStats({
   showDuration = true,
   copyText = "",
   completedAt,
-  onForkFromHere,
-  forkDisabled = false,
-  forkDisabledReason = "busy",
 }: TurnStatsProps) {
   const locale = useLocale()
   const t = useTranslations("Folder.chat.messageList")
@@ -171,14 +156,7 @@ export function TurnStats({
   )
 
   if (!isResponseComplete) return null
-  if (
-    !hasCopy &&
-    !displayDuration &&
-    !hasCompletedAt &&
-    !hasJump &&
-    !onForkFromHere
-  )
-    return null
+  if (!hasCopy && !displayDuration && !hasCompletedAt && !hasJump) return null
 
   return (
     // ChatGPT 桌面端同款：消息操作行默认隐形，悬停该条消息（group/turn，见
@@ -209,7 +187,7 @@ export function TurnStats({
             </TooltipContent>
           </Tooltip>
         )}
-        {hasCopy && (
+        {SHOW_OPTIONAL_MESSAGE_ACTIONS && hasCopy && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -226,7 +204,7 @@ export function TurnStats({
             </TooltipContent>
           </Tooltip>
         )}
-        {hasCopy && handleAddTodo && (
+        {SHOW_OPTIONAL_MESSAGE_ACTIONS && hasCopy && handleAddTodo && (
           <Tooltip>
             <TooltipTrigger asChild>
               <button
@@ -239,36 +217,6 @@ export function TurnStats({
               </button>
             </TooltipTrigger>
             <TooltipContent side="top">{tTodos("addMessage")}</TooltipContent>
-          </Tooltip>
-        )}
-        {onForkFromHere && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              {/* `aria-disabled`, deliberately NOT the native `disabled`: a
-                  disabled element receives no pointer events, so the tooltip —
-                  the only thing that says WHY the button is dead — would never
-                  open. Staying focusable also keeps it reachable by keyboard. */}
-              <button
-                type="button"
-                onClick={forkDisabled ? undefined : onForkFromHere}
-                aria-disabled={forkDisabled || undefined}
-                className={cn(
-                  iconButtonClass,
-                  forkDisabled &&
-                    "cursor-not-allowed opacity-50 hover:bg-transparent hover:text-muted-foreground"
-                )}
-                aria-label={t("forkFromHere")}
-              >
-                <Split aria-hidden="true" className="h-3.5 w-3.5" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              {forkDisabled
-                ? forkDisabledReason === "unnamed"
-                  ? t("forkNotReady")
-                  : t("forkBusy")
-                : t("forkFromHere")}
-            </TooltipContent>
           </Tooltip>
         )}
         {displayDuration && resolvedDurationMs != null && (

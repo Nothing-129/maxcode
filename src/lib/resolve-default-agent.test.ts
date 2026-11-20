@@ -8,7 +8,7 @@ describe("resolveDefaultAgent", () => {
         lastSelected: "codex",
         folderDefault: "claude_code",
         inherit: "gemini",
-        sortedTypes: ["open_code"],
+        sortedTypes: ["claude_code", "codex"],
         fresh: true,
       })
     ).toEqual({ agentType: "codex", provisional: false })
@@ -41,7 +41,7 @@ describe("resolveDefaultAgent", () => {
         lastSelected: null,
         folderDefault: "claude_code",
         inherit: "gemini",
-        sortedTypes: ["open_code"],
+        sortedTypes: ["grok", "claude_code"],
         fresh: true,
       })
     ).toEqual({ agentType: "claude_code", provisional: false })

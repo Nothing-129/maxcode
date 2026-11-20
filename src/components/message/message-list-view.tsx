@@ -9,7 +9,6 @@ import { useConversationOutline } from "@/hooks/use-conversation-outline"
 import { useMessageNavJump } from "./use-message-nav-jump"
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
-  isLiveTurnId,
   selectTimelineTurns,
   useConversationRuntimeActions,
   useConversationRuntimeStore,
@@ -80,6 +79,7 @@ import {
 } from "lucide-react"
 import { useNewChatFromMessage } from "./use-new-chat-from-message"
 import { useTodoFromMessage } from "./use-todo-from-message"
+import { SHOW_OPTIONAL_MESSAGE_ACTIONS } from "./message-action-visibility"
 import { Button } from "@/components/ui/button"
 import { useTranslations } from "next-intl"
 import {
@@ -154,17 +154,6 @@ interface MessageListViewProps {
    * action isn't offered. MUST be referentially stable.
    */
   onSaveNoteSelection?: (text: string) => void
-  /**
-   * Fork the session at a rendered assistant turn ("fork from here"). Undefined
-   * hides the affordance everywhere in this view — pass it only where a fork
-   * can actually run (live connection, agent supports `session/fork`). Embeds
-   * that are not the owning conversation surface leave it unset.
-   *
-   * "No turn in flight" is deliberately NOT part of this gate: that condition
-   * is transient and comes back, so the view renders it as a disabled button
-   * (see `forkBusy`) rather than making every reply's footer flicker.
-   */
-  onForkFromTurn?: (turnId: string) => void
 }
 
 export interface ResolvedMessageGroup {
@@ -204,12 +193,6 @@ export type ThreadRenderItem =
        *  `armed` flag this is what makes a run "the current round" — see the
        *  fold state below. */
       isLastAssistantRun: boolean
-      /** Nothing follows this item in the thread — not a user message, not a
-       *  compaction divider. Distinct from `isLastAssistantRun`, which is still
-       *  true for a reply the user interrupted at its very end (that promotes
-       *  as assistant then user message, so the newest REPLY is not the tail).
-       *  Read by the fork gate, where the two differ by a wrong fork point. */
-      isThreadTail: boolean
       /** Raw assistant sub-turn(s) that compose this reply — fed to the
        *  per-reply artifacts card so it can list files changed this reply. */
       sourceTurns: MessageTurn[]
@@ -534,8 +517,7 @@ type AssistantTurnItem = Extract<ThreadRenderItem, { kind: "turn" }>
  * match: group identity flows through the per-turn adapter + group caches, so
  * member-group equality implies unchanged content AND sourceTurns — the merged
  * item FREEZES its members' `sourceTurns`, so any turn field the adapter's
- * cache ignores would be stale here forever (`source_turn_id`, which the fork
- * affordance reads, is in that tuple for exactly this reason). The keys embed
+ * cache ignores would be stale here forever. The keys embed
  * phase/id/index so ordering or phase drift invalidates too. A run
  * containing the streaming turn misses every batch by construction (the
  * streaming turn re-adapts per batch) — that residual rebuild is the point;
@@ -908,56 +890,6 @@ const UserMessageTodoButton = memo(function UserMessageTodoButton({
   )
 })
 
-/**
- * Flag the thread's last rendered element, which is where the backend's tail
- * fork would land — a user message or a compaction divider after the newest
- * reply means that reply is NOT it. Blocks that render nothing are stepped
- * over: they occupy an index without occupying the thread.
- *
- * Mutates in place, like the loop that resets these flags just before it (a
- * cached merged item is reset there every render, so a stale `true` cannot
- * survive). Exported for tests.
- */
-export function markThreadTail(items: ThreadRenderItem[]): void {
-  for (let idx = items.length - 1; idx >= 0; idx--) {
-    const item = items[idx]
-    if (item.kind === "turn" && isEmptyTurnItem(item)) continue
-    // Nor is a failed round's closing line where a fork lands: a tail fork
-    // keeps everything up to the reply before it — the failure is nothing the
-    // agent carries on from — so that reply is still the thread's tail.
-    if (item.kind === "turn" && isTurnErrorGroup(item.group)) continue
-    if (item.kind === "turn") item.isThreadTail = true
-    break
-  }
-}
-
-/**
- * Whether forking at this reply would land somewhere other than where the user
- * pointed — so the affordance greys out until it wouldn't.
- *
- * A turn this session streamed carries a `live-…` id until the post-turn
- * reparse backfills the parser's name (`source_turn_id`). The backend cannot
- * resolve such an id and deliberately degrades to a TAIL fork rather than
- * refusing the click. That is exactly right at the END of the thread — the tail
- * IS the fork point — and a silent lie anywhere before it.
- *
- * Anywhere before it is reachable: a reply the user steered mid-turn promotes
- * as assistant / user message / assistant, so its first half is a settled
- * group carrying a fork button while the backfill is a second and a half away.
- * The exception is therefore the thread TAIL, not the newest assistant reply:
- * steer at the very end of a turn and the promotion is assistant + user message
- * with nothing after it, which leaves the newest reply one message short of the
- * tail — and the parse ending on a user turn means `source_turn_id` never
- * arrives to correct it (see `computeTurnMetadataPatches`). Exported for tests.
- */
-export function isForkPointUnnamed(
-  forkPoint: MessageTurn | null,
-  isThreadTail: boolean
-): boolean {
-  if (forkPoint === null || isThreadTail) return false
-  return forkPoint.source_turn_id == null && isLiveTurnId(forkPoint.id)
-}
-
 export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   group,
   showStats = true,
@@ -969,9 +901,6 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   roundOpen = true,
   onRoundOpenChange,
   foldEpoch = 0,
-  onForkFromTurn,
-  forkDisabled = false,
-  isThreadTail = false,
   onEditMessage,
   pendingLabel,
 }: {
@@ -987,11 +916,6 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
   roundOpen?: boolean
   onRoundOpenChange?: (open: boolean) => void
   foldEpoch?: number
-  onForkFromTurn?: (turnId: string) => void
-  forkDisabled?: boolean
-  /** Whether nothing follows this group in the thread — the one position where
-   *  a turn the backend cannot name still forks where the user pointed. */
-  isThreadTail?: boolean
 }) {
   if (group.role === "system") {
     // A failed turn's line is the agent's account of the failure, not a
@@ -1016,12 +940,6 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
     group.completed_at,
     previousUserAt
   )
-  // The fork point is the group's LAST turn: forking is "up to and including
-  // this reply", and a merged group ends where the reply does.
-  const forkPoint = sourceTurns?.length
-    ? sourceTurns[sourceTurns.length - 1]
-    : null
-  const forkPointUnnamed = isForkPointUnnamed(forkPoint, isThreadTail)
   const displayParts =
     group.role === "user"
       ? withoutResourceLinks(group.parts, group.resources)
@@ -1039,8 +957,12 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
             (part) => part.type !== "text" || part.text.trim().length > 0
           ) ? (
             <div className="group/user-msg relative flex w-fit ml-auto max-w-full items-start gap-1 max-md:mb-6">
-              <UserMessageTodoButton parts={group.parts} />
-              <UserMessageNewChatButton parts={group.parts} />
+              {SHOW_OPTIONAL_MESSAGE_ACTIONS && (
+                <>
+                  <UserMessageTodoButton parts={group.parts} />
+                  <UserMessageNewChatButton parts={group.parts} />
+                </>
+              )}
               <UserMessageCopyButton parts={group.parts} />
               <SentMessageEditButton
                 parts={group.parts}
@@ -1089,24 +1011,6 @@ export const HistoricalMessageGroup = memo(function HistoricalMessageGroup({
           showDuration={false}
           copyText={extractTextFromParts(group.parts)}
           completedAt={group.completed_at}
-          forkDisabled={forkDisabled || forkPointUnnamed}
-          forkDisabledReason={forkPointUnnamed ? "unnamed" : "busy"}
-          onForkFromHere={
-            // Gated on a settled turn — forking mid-stream would name a message
-            // the agent is still writing.
-            //
-            // `source_turn_id` first: a turn produced in THIS session is named
-            // `live-…`, which the backend cannot resolve against its own parse
-            // — sending it forked at the tail and produced a copy of the parent.
-            // The post-turn reparse backfills the parser's name; `id` is the
-            // right answer only for turns that came from the parser already,
-            // and for the newest reply, where the tail IS the fork point.
-            onForkFromTurn && isResponseComplete && forkPoint
-              ? () => {
-                  onForkFromTurn(forkPoint.source_turn_id ?? forkPoint.id)
-                }
-              : undefined
-          }
         />
       )}
     </div>
@@ -1158,7 +1062,6 @@ export function stabilizePendingReply(
       previousUserIndex: null,
       previousUserAt: null,
       isLastAssistantRun: true,
-      isThreadTail: true,
       sourceTurns: [],
     },
   ]
@@ -1211,7 +1114,6 @@ export function MessageListView({
   onQuoteSelection,
   onAskSelection,
   onSaveNoteSelection,
-  onForkFromTurn,
 }: MessageListViewProps) {
   const t = useTranslations("Folder.chat.messageList")
   const sharedT = useTranslations("Folder.chat.shared")
@@ -1370,7 +1272,6 @@ export function MessageListView({
         previousUserIndex: null,
         previousUserAt: null,
         isLastAssistantRun: false,
-        isThreadTail: false,
         sourceTurns: singletonSourceTurns(allTurns[i]),
       }
     })
@@ -1398,7 +1299,6 @@ export function MessageListView({
       item.previousUserIndex = null
       item.previousUserAt = null
       item.isLastAssistantRun = false
-      item.isThreadTail = false
 
       // isRoleTransition: role differs from previous turn item
       if (idx > 0) {
@@ -1432,7 +1332,6 @@ export function MessageListView({
       lastAssistantItem.isLastAssistantRun = true
       lastAssistantRunning = !lastAssistantItem.isResponseComplete
     }
-    markThreadTail(items)
 
     return {
       threadItems: stabilizePendingReply(
@@ -1493,12 +1392,6 @@ export function MessageListView({
     () => buildPlanKey(historicalPlanEntries),
     [historicalPlanEntries]
   )
-
-  // A turn in flight doesn't take the fork affordance away, it greys it out:
-  // the host keeps `onForkFromTurn` set for the whole "prompting" window (see
-  // its gate in `conversation-detail-panel`), and every reply's footer says
-  // "not right now" instead of dropping its button and shifting the icon row.
-  const forkBusy = connStatus === "prompting"
 
   const [feedbackLedger] = useState(() => new Set<string>())
   const feedbackToken = `${conversationId}:${fold.epoch}`
@@ -1575,9 +1468,6 @@ export function MessageListView({
                   roundOpen={fold.roundOpen}
                   onRoundOpenChange={handleRoundOpenChange}
                   foldEpoch={fold.epoch}
-                  onForkFromTurn={onForkFromTurn}
-                  forkDisabled={forkBusy}
-                  isThreadTail={item.isThreadTail}
                 />
               </div>
             </TurnFeedback>
@@ -1614,8 +1504,6 @@ export function MessageListView({
       fold.roundOpen,
       fold.epoch,
       handleRoundOpenChange,
-      onForkFromTurn,
-      forkBusy,
     ]
   )
 

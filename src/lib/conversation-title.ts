@@ -7,8 +7,7 @@ import { foldReferenceLinks } from "@/lib/reference-link"
  * `referenceToMarkdown`). Shown verbatim, a tab or the sidebar reads as raw
  * `[README.md](file:///…)` noise. {@link formatConversationTitle} folds each
  * such link back to just its bracket label (the human-readable badge text),
- * normalizing legacy date/type/topic titles to date/topic. Rename dialogs use
- * only the topic; stored titles change only when saved.
+ * removing the date and type from legacy titles for display and editing.
  *
  * The folding itself (a single-pass O(n) scan, ReDoS-safe) lives in the shared
  * {@link foldReferenceLinks} so the title, the transcript extractor and every
@@ -18,17 +17,10 @@ export function formatConversationTitle(
   title: string | null | undefined
 ): string {
   const folded = foldReferenceLinks(title)
-  const structured = parseStructuredConversationTitle(folded)
-  return structured ? `${structured.date}｜${structured.topic}` : folded
-}
-
-/** Editable topic without generated date/type metadata. */
-export function conversationTitleTopic(
-  title: string | null | undefined
-): string {
-  const folded = foldReferenceLinks(title)
   return parseStructuredConversationTitle(folded)?.topic ?? folded
 }
+
+export { formatConversationTitle as conversationTitleTopic }
 
 /** Accept date/topic titles and legacy date/type/topic titles. */
 export function parseStructuredConversationTitle(title: string): {

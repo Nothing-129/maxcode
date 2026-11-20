@@ -12,6 +12,10 @@ import {
 } from "@/lib/todo-compose-events"
 import en from "@/i18n/messages/en.json"
 
+vi.mock("@/components/message/message-action-visibility", () => ({
+  SHOW_OPTIONAL_MESSAGE_ACTIONS: true,
+}))
+
 const setRoute = vi.hoisted(() => vi.fn())
 vi.mock("@/contexts/workbench-route-context", () => ({
   useOptionalWorkbenchRoute: () => ({ setRoute }),

@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useState } from "react"
 import {
   AlertCircle,
@@ -227,10 +228,12 @@ export function ChannelListTab() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-medium">{t("channelListTitle")}</h3>
-          <p className="text-xs text-muted-foreground">
-            {t("channelListDescription")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h3 className="text-sm font-medium">{t("channelListTitle")}</h3>
+            <SettingsHelp label={t("channelListTitle")}>
+              {t("channelListDescription")}
+            </SettingsHelp>
+          </div>
         </div>
         <Button size="sm" onClick={() => setAddDialogOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" />
@@ -239,12 +242,12 @@ export function ChannelListTab() {
       </div>
 
       {channels.length === 0 ? (
-        <section className="rounded-xl border bg-card p-8 text-center">
+        <section className="border-t py-8 text-center">
           <MessageCircle className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">{t("noChannels")}</p>
         </section>
       ) : (
-        <section className="space-y-2">
+        <section data-settings-list="">
           {channels.map((ch) => {
             const status = getChannelStatus(ch.id)
             const isConnected = status === "connected"
@@ -253,7 +256,7 @@ export function ChannelListTab() {
             return (
               <div
                 key={ch.id}
-                className="rounded-xl border bg-card p-4 flex items-center gap-4"
+                className="flex flex-wrap items-center gap-3 py-3"
               >
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">

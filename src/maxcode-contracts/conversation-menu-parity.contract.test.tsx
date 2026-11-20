@@ -55,6 +55,7 @@ function menuSnapshot() {
       label: item.textContent,
       disabled: item.hasAttribute("data-disabled"),
       variant: item.getAttribute("data-variant"),
+      icons: item.querySelectorAll("svg").length,
     })),
     separators: screen.getAllByRole("separator").length,
   }
@@ -72,6 +73,9 @@ describe("conversation title menu entry points", () => {
       fireEvent.contextMenu(screen.getByText("Menu parity"))
       const fromRightClick = menuSnapshot()
       expect(fromRightClick.slot).toBe("context-menu-content")
+      expect(fromRightClick.items.map((item) => item.icons)).toEqual(
+        fromRightClick.items.map(() => 1)
+      )
       expect(fromRightClick.items.map((item) => item.label)).toEqual([
         ...(status === "pending"
           ? [enMessages.Folder.conversationCard.markCompleted]

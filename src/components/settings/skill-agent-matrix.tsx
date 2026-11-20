@@ -551,7 +551,7 @@ export function SkillAgentMatrix({
         </div>
 
         {/* Matrix. */}
-        <div className="relative flex-1 min-h-0 rounded-lg border bg-card overflow-auto">
+        <div className="relative flex-1 min-h-0 border-y overflow-auto">
           {applying && (
             <div className="absolute inset-0 z-30 bg-background/40 flex items-center justify-center">
               <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />

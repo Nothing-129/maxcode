@@ -69,6 +69,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { AgentIcon } from "@/components/agent-icon"
 import { WorkbenchPageTitle } from "@/components/workbench/workbench-page-title"
+import { SidebarWordmark } from "@/components/layout/sidebar-wordmark"
 import {
   FolderSelect,
   type FolderSelectOption,
@@ -226,6 +227,7 @@ export function AutomationsPage() {
   const folders = useAppWorkspaceStore((s) => s.folders)
   const isMobile = useIsMobile()
   const { isMac } = usePlatform()
+  const compactHeader = isMobile || !isMac || !isNativeDesktop()
   const sidebarHost = useContext(AutomationSidebarHost)
   const searchToggleRef = useRef<HTMLButtonElement>(null)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -462,17 +464,20 @@ export function AutomationsPage() {
       <div
         data-drag-region
         style={
-          !isMobile && isMac && isNativeDesktop()
+          !compactHeader
             ? {
                 paddingLeft: `max(0.75rem, calc(${MAC_TRAFFIC_LIGHT_INSET}px - 3.5rem + 0.25rem))`,
               }
             : undefined
         }
-        className="flex h-12 shrink-0 items-center gap-1 px-3"
+        className={cn(
+          "flex shrink-0 items-center gap-1 pr-3",
+          compactHeader ? "h-14 pl-4" : "h-12"
+        )}
       >
-        <h2 className="min-w-0 flex-1 truncate ps-1 text-base font-semibold">
-          {t("title")}
-        </h2>
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+          {compactHeader && <SidebarWordmark compact />}
+        </div>
         <Button
           variant="ghost"
           size="icon-sm"
@@ -503,6 +508,15 @@ export function AutomationsPage() {
           <Search className="size-4 text-muted-foreground" />
         </Button>
       </div>
+      {!compactHeader && (
+        <div className="px-1.5 pt-1.5">
+          <div className="mb-3 flex h-8 items-center px-2 text-base font-semibold text-sidebar-foreground">
+            <span className="min-w-0 truncate">
+              <SidebarWordmark />
+            </span>
+          </div>
+        </div>
+      )}
       {searchOpen && (
         <div className="px-3 pb-2">
           <Input

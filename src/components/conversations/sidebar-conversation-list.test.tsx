@@ -1329,6 +1329,46 @@ describe("SidebarConversationList — Recent section", () => {
     })
   })
 
+  it.each([false, true])(
+    "omits the date inside folders (grouped Recent: %s)",
+    (grouped) => {
+      const timestamp = new Date(2026, 10, 19, 12).toISOString()
+      useAppWorkspaceStore.setState({
+        conversations: [
+          conv(11, 1, {
+            title: "1119｜调整窗口显示",
+            created_at: timestamp,
+            updated_at: timestamp,
+          }),
+          conv(12, 99, {
+            kind: "chat",
+            title: "1119｜普通聊天",
+            created_at: timestamp,
+            updated_at: timestamp,
+          }),
+        ],
+      })
+      render(
+        <NextIntlClientProvider locale="en" messages={enMessages}>
+          <SidebarConversationList
+            view={grouped ? "conversations" : "home"}
+            showRecent={grouped}
+            groupByFolder={grouped}
+            activityDate={grouped ? "2026-11-19" : undefined}
+          />
+        </NextIntlClientProvider>
+      )
+      const folderRow = screen
+        .getByText("调整窗口显示")
+        .closest("[data-conv-key]")
+      expect(folderRow).not.toHaveTextContent("1119")
+      if (grouped) {
+        const chatRow = screen.getByText("普通聊天").closest("[data-conv-key]")
+        expect(chatRow).toHaveTextContent("1119")
+      }
+    }
+  )
+
   it("updates the visible conversations when only the end time changes", () => {
     useAppWorkspaceStore.setState({
       conversations: [15, 16].map((second) =>

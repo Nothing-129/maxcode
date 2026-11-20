@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { SettingsError } from "@/components/shared/settings-section"
 
 import {
@@ -101,8 +102,8 @@ function QuickMessageReorderItem({
       dragMomentum={false}
       layout="position"
       className={cn(
-        "rounded-lg border bg-card p-2.5 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected && "border-primary/60 bg-primary/5"
+        "rounded-md p-2.5 hover:bg-interaction-hover transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        selected && "bg-foreground/[0.075]"
       )}
       tabIndex={0}
       onDragStart={onDragStart}
@@ -182,7 +183,7 @@ export function QuickMessagesSettings() {
     return () => {
       observer.disconnect()
     }
-  }, [])
+  }, [loading])
 
   const selectedMessage = useMemo(
     () => messages.find((m) => m.id === selectedId) ?? null,
@@ -309,6 +310,7 @@ export function QuickMessagesSettings() {
 
   const safeContainerWidth =
     panelContainerWidth > 0 ? panelContainerWidth : 1200
+  const stacked = safeContainerWidth < LEFT_MIN_WIDTH + RIGHT_MIN_WIDTH
   const leftMinSize = clamp(
     toPercent(LEFT_MIN_WIDTH, safeContainerWidth),
     5,
@@ -339,10 +341,10 @@ export function QuickMessagesSettings() {
     <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <h1 data-settings-page-title="">{t("title")}</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("description")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("title")}</h1>
+            <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+          </div>
         </div>
       </div>
 
@@ -350,15 +352,15 @@ export function QuickMessagesSettings() {
 
       <div ref={panelContainerRef} className="flex-1 min-h-0 min-w-0">
         <ResizablePanelGroup
-          direction="horizontal"
+          direction={stacked ? "vertical" : "horizontal"}
           className="h-full min-h-0 min-w-0"
         >
           <ResizablePanel
             defaultSize={34}
-            minSize={leftMinSize}
-            maxSize={leftMaxSize}
+            minSize={stacked ? 20 : leftMinSize}
+            maxSize={stacked ? 65 : leftMaxSize}
           >
-            <div className="min-h-0 h-full min-w-0 rounded-lg border bg-card flex flex-col overflow-hidden lg:rounded-r-none">
+            <div className="min-h-0 h-full min-w-0 border-t flex flex-col overflow-hidden">
               <div className="border-b p-3 space-y-2.5">
                 <div className="flex items-center gap-2">
                   <Input
@@ -465,8 +467,11 @@ export function QuickMessagesSettings() {
 
           <ResizableHandle withHandle />
 
-          <ResizablePanel defaultSize={66} minSize={rightMinSize}>
-            <div className="h-full flex-1 min-h-0 min-w-0 rounded-lg border bg-card overflow-hidden lg:rounded-l-none lg:border-l-0">
+          <ResizablePanel
+            defaultSize={66}
+            minSize={stacked ? 35 : rightMinSize}
+          >
+            <div className="h-full flex-1 min-h-0 min-w-0 border-t overflow-hidden">
               {selectedMessage ? (
                 <div className="h-full flex flex-col">
                   <div className="flex-1 overflow-y-auto p-4 space-y-4">

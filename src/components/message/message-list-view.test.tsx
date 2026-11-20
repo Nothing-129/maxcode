@@ -5,8 +5,6 @@ import {
   compactionOnlyPart,
   extractDelegationSources,
   hoistedCompaction,
-  isForkPointUnnamed,
-  markThreadTail,
   mergeConsecutiveAssistantTurns,
   singletonSourceTurns,
   type MergedAssistantRunCache,
@@ -47,7 +45,6 @@ function assistantItem(
     previousUserIndex: null,
     previousUserAt: null,
     isLastAssistantRun: false,
-    isThreadTail: false,
     sourceTurns: [],
   }
 }
@@ -365,7 +362,6 @@ function makeItem(
     previousUserIndex: null,
     previousUserAt: null,
     isLastAssistantRun: false,
-    isThreadTail: false,
     sourceTurns: singletonSourceTurns(turn(group.id)),
   }
 }
@@ -638,103 +634,6 @@ describe("extractDelegationSources", () => {
       }),
     }
     expect(extractDelegationSources([refused])).toEqual([])
-  })
-})
-
-/**
- * The fork affordance sends a turn id to the backend, and the backend cannot
- * resolve an id this client minted for its own live stream — it tail-forks
- * instead of refusing. That is the right answer for the newest reply and a
- * silent wrong one for any earlier reply, which a steered turn creates: it
- * promotes as assistant / user message / assistant, so its first half sits
- * settled and non-tail with a fork button while the parser's name is still a
- * reparse away.
- */
-describe("isForkPointUnnamed", () => {
-  function forkTurn(id: string, sourceTurnId?: string | null): MessageTurn {
-    return {
-      id,
-      role: "assistant",
-      blocks: [],
-      timestamp: "",
-      ...(sourceTurnId !== undefined ? { source_turn_id: sourceTurnId } : {}),
-    }
-  }
-
-  it("withholds a live-named reply that is not the thread's last item", () => {
-    expect(isForkPointUnnamed(forkTurn("live-7-lm-1"), false)).toBe(true)
-  })
-
-  it("allows one at the end of the thread — there the tail IS the fork point", () => {
-    expect(isForkPointUnnamed(forkTurn("live-7-lm-1"), true)).toBe(false)
-  })
-
-  it("withholds the newest REPLY when a message follows it", () => {
-    // Steering at the very end of a turn promotes as assistant + user message
-    // with nothing after it: the reply is the newest one, and still not the
-    // tail. The backend's tail fork would land after the steered message, and
-    // a parse ending on a user turn never backfills a name to correct it — so
-    // "newest assistant run" is the wrong exception and `isThreadTail` is the
-    // right one.
-    expect(isForkPointUnnamed(forkTurn("live-7-lm"), false)).toBe(true)
-  })
-
-  it("allows it again once the reparse names it", () => {
-    expect(isForkPointUnnamed(forkTurn("live-7-lm-1", "turn-4"), false)).toBe(
-      false
-    )
-  })
-
-  it("leaves parser-named history alone", () => {
-    // Every historical turn arrives under a parser id and no `source_turn_id`;
-    // treating that as unnamed would grey out the whole thread.
-    expect(isForkPointUnnamed(forkTurn("turn-4"), false)).toBe(false)
-  })
-
-  it("says nothing about a group with no turns", () => {
-    expect(isForkPointUnnamed(null, false)).toBe(false)
-  })
-})
-
-describe("markThreadTail", () => {
-  const compaction: ThreadItem = {
-    key: "persisted-compact",
-    kind: "compaction",
-    meta: { contextCompaction: true },
-  }
-  const tailFlags = (items: ThreadItem[]) =>
-    items.map((it) => (it.kind === "turn" ? it.isThreadTail : null))
-
-  it("marks the last rendered turn", () => {
-    const items = [assistantItem("a"), assistantItem("b")]
-    markThreadTail(items)
-    expect(tailFlags(items)).toEqual([false, true])
-  })
-
-  it("leaves a reply unmarked when a message follows it", () => {
-    // The shape a steer at the very end of a turn promotes to: the reply is
-    // still the newest one, and the tail is the message after it.
-    const items = [assistantItem("a"), makeUserItem("u", 1)]
-    markThreadTail(items)
-    expect(tailFlags(items)).toEqual([false, true])
-  })
-
-  it("marks nothing when a compaction divider is last", () => {
-    const items = [assistantItem("a"), compaction]
-    markThreadTail(items)
-    expect(tailFlags(items)).toEqual([false, null])
-  })
-
-  it("steps over a trailing turn that renders nothing", () => {
-    const items = [assistantItem("a"), assistantItem("empty", { parts: [] })]
-    markThreadTail(items)
-    expect(tailFlags(items)).toEqual([true, false])
-  })
-
-  it("marks nothing in an empty thread", () => {
-    const items: ThreadItem[] = []
-    markThreadTail(items)
-    expect(items).toEqual([])
   })
 })
 

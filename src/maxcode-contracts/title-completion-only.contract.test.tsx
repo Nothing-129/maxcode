@@ -50,6 +50,8 @@ const h = vi.hoisted(() => ({
   openNewConversationTab: vi.fn(),
   updateConversationLocal: vi.fn(),
   refreshConversations: vi.fn(),
+  conversations: [] as { id: number; title_locked: boolean }[],
+  childSummaries: new Map<number, { title_locked: boolean }>(),
 }))
 
 vi.mock("@/lib/api", () => ({
@@ -72,8 +74,12 @@ vi.mock("@/hooks/use-conversation-drag", () => ({
   useConversationDrag: () => undefined,
 }))
 vi.mock("@/contexts/tab-context", () => ({
-  useTabStore: (selector: (s: { archivedPaneDrafts: unknown[] }) => unknown) =>
-    selector({ archivedPaneDrafts: [] }),
+  useTabStore: (
+    selector: (s: {
+      archivedPaneDrafts: unknown[]
+      childSummaries: typeof h.childSummaries
+    }) => unknown
+  ) => selector({ archivedPaneDrafts: [], childSummaries: h.childSummaries }),
   useTabActions: () => ({
     closeTab: h.closeTab,
     closePane: h.closePane,
@@ -89,7 +95,7 @@ vi.mock("@/stores/app-workspace-store", () => {
   const state = {
     updateConversationLocal: h.updateConversationLocal,
     refreshConversations: h.refreshConversations,
-    conversations: [] as unknown[],
+    conversations: h.conversations,
   }
   const useStore = (selector: (s: typeof state) => unknown) => selector(state)
   useStore.getState = () => state
@@ -130,8 +136,97 @@ function withIntl(ui: ReactElement) {
   )
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+  h.conversations.length = 0
+  h.childSummaries.clear()
+})
 afterEach(cleanup)
+
+describe("MaxCode: provisional conversation titles", () => {
+  const link = `https://x.com/example/status/123456789?ref=${"a".repeat(160)}`
+
+  it("crossfades the provisional title to the generated topic in the same tab", async () => {
+    const view = render(
+      withIntl(<ConversationDetailHeader {...A} title={link} />)
+    )
+    expect(view.getByText("x.com")).toBeVisible()
+    expect(view.queryByText(link)).toBeNull()
+    const header = view.getByText("x.com").closest("[data-conversation-title]")
+
+    view.rerender(
+      withIntl(<ConversationDetailHeader {...A} title="1119｜侧边栏选中样式" />)
+    )
+    const topic = view.getByText("侧边栏选中样式")
+    expect(topic.closest("[data-conversation-title]")).toBe(header)
+    expect(topic.closest('[aria-hidden="true"]')).toBeNull()
+    expect(
+      view.getByText("x.com").closest('[aria-hidden="true"]')
+    ).not.toBeNull()
+    await waitFor(() => expect(view.queryByText("x.com")).toBeNull())
+    expect(topic).toBeVisible()
+  })
+
+  it("shows the next tab's title immediately when switching conversations", () => {
+    const view = render(withIntl(<ConversationDetailHeader {...A} />))
+    view.rerender(
+      withIntl(
+        <ConversationDetailHeader {...A} tabId="tab-b" title="Another tab" />
+      )
+    )
+    expect(view.queryByText(A.title)).toBeNull()
+    expect(view.getByText("Another tab")).toBeVisible()
+  })
+
+  it("replaces the title immediately when reduced motion is enabled", () => {
+    const matchMedia = window.matchMedia
+    const preference = vi
+      .spyOn(window, "matchMedia")
+      .mockImplementation((query) => ({
+        ...matchMedia(query),
+        matches: query === "(prefers-reduced-motion: reduce)",
+      }))
+    try {
+      const view = render(withIntl(<ConversationDetailHeader {...A} />))
+      view.rerender(
+        withIntl(<ConversationDetailHeader {...A} title="Generated topic" />)
+      )
+      expect(view.queryByText(A.title)).toBeNull()
+      expect(view.getByText("Generated topic")).toBeVisible()
+    } finally {
+      preference.mockRestore()
+    }
+  })
+
+  it("keeps a URL deliberately chosen as a child conversation title", () => {
+    h.childSummaries.set(1, { title_locked: true })
+    const view = render(
+      withIntl(<ConversationDetailHeader {...A} title={link} />)
+    )
+    expect(view.getByText(link)).toBeVisible()
+  })
+
+  it.each([
+    ["a user-chosen URL", link],
+    [
+      "a long plain title",
+      "请帮我检查手机顶部和侧栏中的会话标题显示。".repeat(12),
+    ],
+    [
+      "a long model topic",
+      `1119｜${"手机顶部和侧栏的会话标题显示".repeat(12)}`,
+    ],
+  ])("constrains %s to a single line between the controls", (_, title) => {
+    h.conversations.push({ id: 1, title_locked: true })
+    const view = render(
+      withIntl(<ConversationDetailHeader {...A} title={title} />)
+    )
+    const label = view.container.querySelector("[data-conversation-title]")
+    expect(label).toHaveTextContent(title.replace(/^1119｜/, ""))
+    expect(label).toHaveClass("max-w-full", "truncate")
+    expect(label?.parentElement).toHaveClass("inset-x-2", "md:inset-x-28")
+  })
+})
 
 describe("MaxCode: title completion is the only status action", () => {
   it("closes only the clicked pane on middle title click", () => {

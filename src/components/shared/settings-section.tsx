@@ -12,7 +12,7 @@
  * with two different error banners and five subtly different save footers.
  */
 
-import { Children } from "react"
+import { Children, useContext } from "react"
 import type { LucideIcon } from "lucide-react"
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react"
 
@@ -23,6 +23,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import { Label } from "@/components/ui/label"
+import { SettingsHelp, SettingsHelpContext } from "./settings-help"
 import { cn } from "@/lib/utils"
 
 interface SettingsSectionProps {
@@ -90,6 +91,7 @@ export function SettingsSection({
   children,
   className,
 }: SettingsSectionProps) {
+  const contextualHelp = useContext(SettingsHelpContext)
   const heading = (
     <>
       {Icon ? (
@@ -102,14 +104,19 @@ export function SettingsSection({
     </>
   )
 
-  const descriptionNode = description ? (
-    <p
-      data-settings-description=""
-      className="text-xs leading-5 text-muted-foreground"
-    >
-      {description}
-    </p>
-  ) : null
+  const descriptionNode =
+    description && contextualHelp ? (
+      <SettingsHelp label={typeof title === "string" ? title : undefined}>
+        {description}
+      </SettingsHelp>
+    ) : description ? (
+      <p
+        data-settings-description=""
+        className="text-xs leading-5 text-muted-foreground"
+      >
+        {description}
+      </p>
+    ) : null
 
   if (collapsible) {
     // A master switch that gates every child leaves nothing to disclose when
@@ -144,7 +151,12 @@ export function SettingsSection({
               expanded && "border-border"
             )}
           >
-            <div className="min-w-0 flex-1 space-y-1">
+            <div
+              className={cn(
+                "min-w-0 flex-1",
+                contextualHelp ? "flex items-center gap-1" : "space-y-1"
+              )}
+            >
               {/* The button goes inside the h2, not the other way round:
                   role=button flattens its descendants' semantics, which would
                   drop the section out of the page's heading list — so the
@@ -207,7 +219,12 @@ export function SettingsSection({
           description ? "items-start" : "items-center"
         )}
       >
-        <div className="min-w-0 space-y-1">
+        <div
+          className={cn(
+            "min-w-0",
+            contextualHelp ? "flex items-center gap-1" : "space-y-1"
+          )}
+        >
           <h2 className="text-sm font-semibold">
             {htmlFor ? (
               // A `<label>` inside the heading, so clicking the title works the
@@ -286,7 +303,10 @@ export function SettingsSaveBar({
   className,
 }: SettingsSaveBarProps) {
   return (
-    <div className={cn("flex justify-end pt-1", className)}>
+    <div
+      data-settings-save-bar=""
+      className={cn("flex justify-end pt-1", className)}
+    >
       <Button
         type="button"
         size="sm"

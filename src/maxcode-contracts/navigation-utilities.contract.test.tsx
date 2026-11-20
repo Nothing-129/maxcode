@@ -14,7 +14,6 @@ import { source } from "./contract-source"
 const actions = vi.hoisted(() => ({
   settings: vi.fn().mockResolvedValue(undefined),
   close: vi.fn(),
-  update: vi.fn(),
   restart: vi.fn().mockResolvedValue(undefined),
   check: vi.fn().mockResolvedValue(undefined),
   status: "ready_to_restart",
@@ -59,6 +58,7 @@ vi.mock("@/components/providers/update-provider", async () => {
         restart: actions.restart,
         checkNow: actions.check,
         currentVersion: "0.30.55",
+        restartCountdown: null,
         lastCheckedAt: actions.checked ? new Date() : null,
         checkError: actions.checkError,
         checking: actions.checking,
@@ -70,9 +70,6 @@ vi.mock("@/components/providers/update-provider", async () => {
     },
   }
 })
-vi.mock("@/components/layout/status-bar-update", () => ({
-  StatusBarUpdate: () => <button onClick={actions.update}>0.30.55</button>,
-}))
 function Route() {
   return <output data-testid="route">{useWorkbenchRoute().routeId}</output>
 }
@@ -125,7 +122,6 @@ describe("navigation utilities", () => {
       settings.compareDocumentPosition(alerts) &
         Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy()
-    expect(actions.update).not.toHaveBeenCalled()
   })
   it("keeps mobile list navigation in the drawer and closes it for full-page destinations", () => {
     actions.close.mockClear()
@@ -210,19 +206,47 @@ describe("navigation utilities", () => {
     actions.status = "ready_to_restart"
   })
 
-  it("exposes the existing version/update action inside About", () => {
+  it("shows a static version and offers restart directly in settings", async () => {
+    actions.restart.mockClear()
     render(
       <NextIntlClientProvider locale="en" messages={en}>
         <SettingsAbout />
       </NextIntlClientProvider>
     )
-    expect(screen.getByText("0.30.55")).toBeVisible()
-    fireEvent.click(screen.getByRole("button", { name: "About MaxCode" }))
-    fireEvent.click(screen.getByRole("button", { name: "0.30.55" }))
-    expect(actions.update).toHaveBeenCalledOnce()
+    const version = screen.getByText("v1.0 is ready. Restart to apply.")
+    expect(version).toBeVisible()
+    expect(version.closest("button, a, [tabindex]")).toBeNull()
+    fireEvent.click(version)
+    expect(screen.queryByRole("dialog")).toBeNull()
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Restart to update" }))
+    })
+    expect(actions.restart).toHaveBeenCalledOnce()
   })
-  it("checks for updates directly beside About without opening the popover", async () => {
+  it("shows the current version and check action in a single plain row", () => {
+    actions.status = "idle"
+    actions.available = false
+    try {
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <SettingsAbout />
+        </NextIntlClientProvider>
+      )
+      const version = screen.getByText("Current version v0.30.55")
+      const check = screen.getByRole("button", { name: "Check for updates" })
+      expect(version.parentElement).toBe(check.parentElement)
+      expect(check.querySelector("svg")).toBeNull()
+      expect(screen.queryByRole("img", { name: "MaxCode" })).toBeNull()
+    } finally {
+      actions.status = "ready_to_restart"
+      actions.available = true
+    }
+  })
+
+  it("checks for updates directly from the footer", async () => {
     actions.check.mockClear()
+    actions.status = "idle"
+    actions.available = false
     render(
       <NextIntlClientProvider locale="en" messages={en}>
         <SettingsAbout />
@@ -232,7 +256,9 @@ describe("navigation utilities", () => {
       fireEvent.click(screen.getByRole("button", { name: "Check for updates" }))
     })
     expect(actions.check).toHaveBeenCalledWith({ silent: false })
-    expect(screen.queryByText("Current version")).toBeNull()
+    expect(screen.queryByRole("dialog")).toBeNull()
+    actions.status = "ready_to_restart"
+    actions.available = true
   })
 
   it("initializes updates on a standalone settings page", () => {
@@ -243,9 +269,9 @@ describe("navigation utilities", () => {
           <SettingsAbout />
         </NextIntlClientProvider>
       )
-      expect(screen.getByText("0.30.55")).toBeVisible()
+      expect(screen.getByText("v1.0 is ready. Restart to apply.")).toBeVisible()
       expect(
-        screen.getByRole("button", { name: "Check for updates" })
+        screen.getByRole("button", { name: "Restart to update" })
       ).toBeEnabled()
     } finally {
       actions.withoutProvider = false
@@ -286,7 +312,15 @@ describe("navigation utilities", () => {
             <SettingsAbout />
           </NextIntlClientProvider>
         )
-        expect(screen.getByRole("status")).toHaveTextContent(expected)
+        if (!checking && !error) {
+          expect(screen.getByText("Current version v0.30.55")).toBeVisible()
+          expect(screen.queryByText("You're on the latest version")).toBeNull()
+          expect(screen.queryByRole("dialog")).toBeNull()
+        } else if (checking) {
+          expect(screen.getByRole("button", { name: expected })).toBeDisabled()
+        } else {
+          expect(screen.getByRole("status")).toHaveTextContent(expected)
+        }
       } finally {
         actions.status = "ready_to_restart"
         actions.available = true
@@ -296,6 +330,33 @@ describe("navigation utilities", () => {
       }
     }
   )
+
+  it.each([
+    ["idle", "New version v1.0 found"],
+    ["downloading", "New version v1.0 found"],
+    ["installing", "New version v1.0 found"],
+    ["ready_to_restart", "v1.0 is ready. Restart to apply."],
+    ["error", "Update failed"],
+  ])("keeps actionable %s feedback visible in the footer", (status, text) => {
+    actions.status = status
+    try {
+      render(
+        <NextIntlClientProvider locale="en" messages={en}>
+          <SettingsAbout />
+        </NextIntlClientProvider>
+      )
+      const notice = screen.getByRole("status")
+      expect(notice).toHaveTextContent(text)
+      if (status === "downloading") {
+        expect(notice.parentElement).toContainElement(
+          screen.getByText("Downloading")
+        )
+        expect(screen.queryByRole("button")).toBeNull()
+      }
+    } finally {
+      actions.status = "ready_to_restart"
+    }
+  })
 
   it("gives Statistics the whole content area without conversation chrome or rewriting sidebar preferences", () => {
     const layout = source("src/app/workspace/layout.tsx")
@@ -317,7 +378,7 @@ describe("navigation utilities", () => {
   })
   it("uses neutral settings selection surfaces instead of the blue secondary palette", () => {
     expect(source("src/components/settings/settings-shell.tsx")).toContain(
-      '"bg-foreground/5 text-foreground hover:bg-foreground/10"'
+      '"bg-foreground/[0.075] font-medium text-foreground hover:bg-foreground/10"'
     )
   })
 })

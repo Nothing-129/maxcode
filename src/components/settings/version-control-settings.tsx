@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   CheckCircle2,
@@ -131,7 +132,7 @@ function AccountRow({
   t: ReturnType<typeof useTranslations<"VersionControlSettings">>
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border bg-muted/10 px-3 py-2.5">
+    <div className="flex min-w-0 flex-wrap items-center gap-3 border-b py-2.5">
       {/* Having an avatar URL is not the same as being able to load it, so the
           initial is a fallback the primitive keeps mounted until the image
           actually decodes — not an else-branch for a missing URL. GitLab hands
@@ -433,14 +434,16 @@ export function VersionControlSettings() {
     <ScrollArea className="h-full">
       <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
-          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
-          <p className="text-xs text-muted-foreground">
-            {t("sectionDescription")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <SettingsHelp label={t("sectionTitle")}>
+              {t("sectionDescription")}
+            </SettingsHelp>
+          </div>
         </section>
 
         {/* ---- Git Configuration ---- */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
+        <section data-settings-group="">
           <div className="flex items-center gap-2">
             <GitBranch className="h-4 w-4 text-muted-foreground" />
             <h2 className="text-sm font-semibold">{t("gitTitle")}</h2>
@@ -490,9 +493,14 @@ export function VersionControlSettings() {
 
           {editingPath && (
             <div className="space-y-2">
-              <label className="text-xs font-medium text-muted-foreground">
-                {t("customGitPath")}
-              </label>
+              <div className="flex items-center gap-1">
+                <label className="text-xs font-medium text-muted-foreground">
+                  {t("customGitPath")}
+                </label>
+                <SettingsHelp label={t("customGitPath")}>
+                  {t("customGitPathHint")}
+                </SettingsHelp>
+              </div>
               <div className="flex gap-2">
                 <Input
                   value={customPath}
@@ -517,25 +525,24 @@ export function VersionControlSettings() {
                   )}
                 </Button>
               </div>
-              <p className="text-2xs text-muted-foreground">
-                {t("customGitPathHint")}
-              </p>
             </div>
           )}
         </section>
 
         {/* ---- GitHub Accounts ---- */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
+        <section data-settings-group="">
           <div className="flex items-center gap-2">
             <Github className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("githubTitle")}</h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">{t("githubTitle")}</h2>
+              <SettingsHelp label={t("githubTitle")}>
+                {t("githubDescription")}
+              </SettingsHelp>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("githubDescription")}
-          </p>
 
           {githubAccounts.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground">
+            <div className="py-2 text-sm text-muted-foreground">
               {t("noAccounts")}
             </div>
           ) : (
@@ -563,17 +570,19 @@ export function VersionControlSettings() {
         </section>
 
         {/* ---- GitLab Accounts ---- */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
+        <section data-settings-group="">
           <div className="flex items-center gap-2">
             <Gitlab className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("gitlabTitle")}</h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">{t("gitlabTitle")}</h2>
+              <SettingsHelp label={t("gitlabTitle")}>
+                {t("gitlabDescription")}
+              </SettingsHelp>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("gitlabDescription")}
-          </p>
 
           {gitlabAccounts.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground">
+            <div className="py-2 text-sm text-muted-foreground">
               {t("gitlabNoAccounts")}
             </div>
           ) : (
@@ -601,17 +610,19 @@ export function VersionControlSettings() {
         </section>
 
         {/* ---- Gitea Accounts ---- */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
+        <section data-settings-group="">
           <div className="flex items-center gap-2">
             <GitFork className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">{t("giteaTitle")}</h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">{t("giteaTitle")}</h2>
+              <SettingsHelp label={t("giteaTitle")}>
+                {t("giteaDescription")}
+              </SettingsHelp>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("giteaDescription")}
-          </p>
 
           {giteaAccounts.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground">
+            <div className="py-2 text-sm text-muted-foreground">
               {t("giteaNoAccounts")}
             </div>
           ) : (
@@ -639,19 +650,21 @@ export function VersionControlSettings() {
         </section>
 
         {/* ---- Git Accounts (non-forge) ---- */}
-        <section className="rounded-xl border bg-card p-4 space-y-4">
+        <section data-settings-group="">
           <div className="flex items-center gap-2">
             <Globe className="h-4 w-4 text-muted-foreground" />
-            <h2 className="text-sm font-semibold">
-              {t("gitAccount.sectionTitle")}
-            </h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">
+                {t("gitAccount.sectionTitle")}
+              </h2>
+              <SettingsHelp label={t("gitAccount.sectionTitle")}>
+                {t("gitAccount.sectionDescription")}
+              </SettingsHelp>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground leading-5">
-            {t("gitAccount.sectionDescription")}
-          </p>
 
           {gitAccounts.length === 0 ? (
-            <div className="rounded-md border border-dashed bg-muted/10 px-4 py-6 text-center text-xs text-muted-foreground">
+            <div className="py-2 text-sm text-muted-foreground">
               {t("gitAccount.noAccounts")}
             </div>
           ) : (

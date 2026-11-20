@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BookOpenText,
@@ -615,10 +616,12 @@ export function SkillsSettings() {
     return () => {
       observer.disconnect()
     }
-  }, [])
+  }, [loadingAgents, sortedAgents.length])
 
   const safeContainerWidth =
     panelContainerWidth > 0 ? panelContainerWidth : 1200
+  const stacked =
+    safeContainerWidth < SKILLS_LEFT_MIN_WIDTH + SKILLS_RIGHT_MIN_WIDTH
   const leftMinSize = clamp(
     toPercent(SKILLS_LEFT_MIN_WIDTH, safeContainerWidth),
     5,
@@ -743,10 +746,10 @@ export function SkillsSettings() {
     <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <h1 data-settings-page-title="">{t("title")}</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("description")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("title")}</h1>
+            <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+          </div>
         </div>
       </div>
 
@@ -761,15 +764,15 @@ export function SkillsSettings() {
       ) : (
         <div ref={panelContainerRef} className="flex-1 min-h-0 min-w-0">
           <ResizablePanelGroup
-            direction="horizontal"
+            direction={stacked ? "vertical" : "horizontal"}
             className="h-full min-h-0 min-w-0"
           >
             <ResizablePanel
               defaultSize={36}
-              minSize={leftMinSize}
-              maxSize={leftMaxSize}
+              minSize={stacked ? 20 : leftMinSize}
+              maxSize={stacked ? 65 : leftMaxSize}
             >
-              <div className="min-h-0 h-full min-w-0 rounded-lg border bg-card flex flex-col overflow-hidden lg:rounded-r-none">
+              <div className="min-h-0 h-full min-w-0 border-t flex flex-col overflow-hidden">
                 <div className="border-b p-3 space-y-2.5">
                   <div className="text-xs font-medium text-muted-foreground">
                     {t("managedTarget")}
@@ -903,7 +906,7 @@ export function SkillsSettings() {
                               className={cn(
                                 "w-full rounded-md border px-2 py-1.5 text-left transition-colors",
                                 isActive
-                                  ? "border-primary/60 bg-primary/5"
+                                  ? "bg-foreground/[0.075]"
                                   : "hover:bg-interaction-hover"
                               )}
                               onClick={() => {
@@ -1041,8 +1044,11 @@ export function SkillsSettings() {
 
             <ResizableHandle withHandle />
 
-            <ResizablePanel defaultSize={64} minSize={rightMinSize}>
-              <div className="h-full flex-1 min-h-0 min-w-0 rounded-lg border bg-card overflow-hidden lg:rounded-l-none lg:border-l-0">
+            <ResizablePanel
+              defaultSize={64}
+              minSize={stacked ? 35 : rightMinSize}
+            >
+              <div className="h-full flex-1 min-h-0 min-w-0 border-t overflow-hidden">
                 {selectedAgent ? (
                   selectedSkillId || isDrafting ? (
                     <div className="h-full flex flex-col">

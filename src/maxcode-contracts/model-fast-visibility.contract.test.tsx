@@ -59,7 +59,9 @@ it.each([12, 100])(
     await user.click(screen.getByRole("button", { name: /^Model:/ }))
     const toggle = await screen.findByRole("switch", { name: "Fast" })
     expect(toggle.closest(".overflow-y-auto") === null).toBe(true)
-    expect(toggle.closest("label")).toHaveClass("shrink-0")
+    const fastRow = toggle.closest("label")
+    expect(fastRow).toHaveClass("shrink-0", "not-first:border-t")
+    expect(fastRow?.previousElementSibling).not.toBeNull()
     if (count === 12) {
       expect(
         screen
@@ -91,10 +93,12 @@ it("keeps Fast outside the scrollable detail list in the compact settings panel"
       ]}
     />
   )
-  expect(
-    screen.getByRole("switch", { name: "Fast" }).closest(".overflow-y-auto") ===
-      null
-  ).toBe(true)
+  const toggle = screen.getByRole("switch", { name: "Fast" })
+  expect(toggle.closest(".overflow-y-auto")).toBeNull()
+  const fastRow = toggle.closest("label")
+  expect(fastRow).toHaveClass("first:border-b")
+  expect(fastRow).not.toHaveClass("border-t")
+  expect(fastRow?.previousElementSibling).toBeNull()
   expect(
     screen
       .getByRole("button", { name: /Model 11 with a very long custom name/ })

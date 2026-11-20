@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { SettingsError } from "@/components/shared/settings-section"
 
 import { SettingsGroup } from "@/components/shared/settings-group"
@@ -645,10 +646,12 @@ export function LogsSettings() {
     <ScrollArea className="h-full">
       <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
         <section className="space-y-1">
-          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
-          <p className="text-xs text-muted-foreground">
-            {t("sectionDescription")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <SettingsHelp label={t("sectionTitle")}>
+              {t("sectionDescription")}
+            </SettingsHelp>
+          </div>
         </section>
 
         {loadError && <SettingsError>{loadError}</SettingsError>}
@@ -657,10 +660,12 @@ export function LogsSettings() {
         <SettingsGroup
           heading={
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold">{t("captureTitle")}</h2>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {t("captureDescription")}
-              </p>
+              <div className="settings-help-heading flex items-center gap-1">
+                <h2 className="text-sm font-semibold">{t("captureTitle")}</h2>
+                <SettingsHelp label={t("captureTitle")}>
+                  {t("captureDescription")}
+                </SettingsHelp>
+              </div>
             </div>
           }
         >
@@ -699,10 +704,12 @@ export function LogsSettings() {
           <div className="space-y-2 border-t pt-3">
             <div className="flex items-center justify-between gap-2">
               <div className="space-y-0.5">
-                <h3 className="text-xs font-semibold">{t("targetsTitle")}</h3>
-                <p className="text-2xs leading-4 text-muted-foreground">
-                  {t("targetsDescription")}
-                </p>
+                <div className="settings-help-heading flex items-center gap-1">
+                  <h3 className="text-xs font-semibold">{t("targetsTitle")}</h3>
+                  <SettingsHelp label={t("targetsTitle")}>
+                    {t("targetsDescription")}
+                  </SettingsHelp>
+                </div>
               </div>
               <Button
                 size="sm"
@@ -781,15 +788,18 @@ export function LogsSettings() {
 
         {/* Viewer */}
         <SettingsGroup
+          fullWidth
           heading={
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="space-y-1">
-                <h2 className="text-sm font-semibold">{t("viewerTitle")}</h2>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  {t("viewerDescription")}
-                </p>
+                <div className="settings-help-heading flex items-center gap-1">
+                  <h2 className="text-sm font-semibold">{t("viewerTitle")}</h2>
+                  <SettingsHelp label={t("viewerTitle")}>
+                    {t("viewerDescription")}
+                  </SettingsHelp>
+                </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant={liveTail ? "default" : "outline"}
@@ -885,21 +895,23 @@ export function LogsSettings() {
         <SettingsGroup
           heading={
             <div className="space-y-1">
-              <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
-              <p className="text-xs leading-5 text-muted-foreground">
-                {t("filesDescription")}
-              </p>
+              <div className="settings-help-heading flex items-center gap-1">
+                <h2 className="text-sm font-semibold">{t("filesTitle")}</h2>
+                <SettingsHelp label={t("filesTitle")}>
+                  {t("filesDescription")}
+                </SettingsHelp>
+              </div>
             </div>
           }
         >
           {logFiles.length === 0 ? (
             <p className="text-2xs text-muted-foreground">{t("filesEmpty")}</p>
           ) : (
-            <div className="space-y-1">
+            <div data-settings-list="">
               {logFiles.map((file) => (
                 <div
                   key={file.name}
-                  className="flex items-center justify-between gap-2 rounded-md border px-3 py-1.5"
+                  className="flex items-center justify-between gap-2 py-2"
                 >
                   <span className="truncate font-mono text-xs">
                     {file.name}

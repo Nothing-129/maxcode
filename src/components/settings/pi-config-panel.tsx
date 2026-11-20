@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import {
   Collapsible,
   CollapsibleContent,
@@ -855,13 +856,21 @@ export function PiConfigPanel({
           points at your own build. */}
       <div className="space-y-3 rounded-md border bg-muted/10 p-3">
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium">
-            <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
-            {t("pi.runtimeTitle")}
-          </label>
-          <p className="mt-1 text-2xs text-muted-foreground">
-            {t("pi.runtimeDescription")}
-          </p>
+          <div className="flex items-center gap-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              <Cpu className="h-3.5 w-3.5 text-muted-foreground" />
+              {t("pi.runtimeTitle")}
+            </label>
+            <SettingsHelp label={t("pi.runtimeTitle")}>
+              {t("pi.runtimeDescription")}
+              <span className="mt-1 block">
+                {t("pi.modeDefault")} · {t("pi.modeDefaultHint")}
+              </span>
+              <span className="block">
+                {t("pi.modeCustom")} · {t("pi.modeCustomHint")}
+              </span>
+            </SettingsHelp>
+          </div>
         </div>
 
         <RadioGroup
@@ -887,9 +896,6 @@ export function PiConfigPanel({
               <span className="block font-medium text-foreground">
                 {t("pi.modeDefault")}
               </span>
-              <span className="mt-0.5 block text-muted-foreground">
-                {t("pi.modeDefaultHint")}
-              </span>
             </span>
           </label>
           <label
@@ -907,9 +913,6 @@ export function PiConfigPanel({
             <span>
               <span className="block font-medium text-foreground">
                 {t("pi.modeCustom")}
-              </span>
-              <span className="mt-0.5 block text-muted-foreground">
-                {t("pi.modeCustomHint")}
               </span>
             </span>
           </label>
@@ -1038,9 +1041,14 @@ export function PiConfigPanel({
         {mode === "custom" && (
           <>
             <div className="space-y-1.5">
-              <label className="text-2xs text-muted-foreground">
-                {t("pi.commandLabel")}
-              </label>
+              <div className="flex items-center gap-1">
+                <label className="text-2xs text-muted-foreground">
+                  {t("pi.commandLabel")}
+                </label>
+                <SettingsHelp label={t("pi.commandLabel")}>
+                  {t("pi.commandHint")}
+                </SettingsHelp>
+              </div>
               <div className="flex items-center gap-2">
                 <Input
                   value={command}
@@ -1100,9 +1108,6 @@ export function PiConfigPanel({
                   {t("pi.runtimeTooOld", { min: PI_MIN_RUNTIME_VERSION })}
                 </p>
               )}
-              <p className="text-2xs text-muted-foreground">
-                {t("pi.commandHint")}
-              </p>
             </div>
 
             <Collapsible className="rounded-md border border-dashed">
@@ -1186,13 +1191,16 @@ export function PiConfigPanel({
       {/* Credentials / model — pi's native settings.json / auth.json */}
       <div className="space-y-3 rounded-md border bg-muted/10 p-3">
         <div>
-          <label className="flex items-center gap-1.5 text-xs font-medium">
-            <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
-            {t("pi.configManagement")}
-          </label>
-          <p className="mt-1 text-2xs text-muted-foreground">
-            {t("pi.configDescription")}
-          </p>
+          <div className="flex items-center gap-1">
+            <label className="flex items-center gap-1.5 text-xs font-medium">
+              <KeyRound className="h-3.5 w-3.5 text-muted-foreground" />
+              {t("pi.configManagement")}
+            </label>
+            <SettingsHelp label={t("pi.configManagement")}>
+              {t("pi.configDescription")}
+            </SettingsHelp>
+          </div>
+
           {invalidSavedAgentDir && (
             <p className="mt-1 text-2xs text-destructive">
               {t("pi.relativeAgentDir")}
@@ -1235,9 +1243,14 @@ export function PiConfigPanel({
           <div className="space-y-2.5 rounded-md border border-dashed p-2.5">
             <div className="grid grid-cols-2 gap-2">
               <div className="space-y-1.5">
-                <label className="text-2xs text-muted-foreground">
-                  {t("pi.providerIdLabel")}
-                </label>
+                <div className="flex items-center gap-1">
+                  <label className="text-2xs text-muted-foreground">
+                    {t("pi.providerIdLabel")}
+                  </label>
+                  <SettingsHelp label={t("pi.providerIdLabel")}>
+                    {t("pi.customProviderHint")}
+                  </SettingsHelp>
+                </div>
                 <Input
                   value={customId}
                   onChange={(event) => setCustomId(event.target.value)}
@@ -1280,9 +1293,6 @@ export function PiConfigPanel({
                 disabled={savingCreds || loadingCreds}
               />
             </div>
-            <p className="text-2xs text-muted-foreground">
-              {t("pi.customProviderHint")}
-            </p>
           </div>
         )}
 
@@ -1310,6 +1320,9 @@ export function PiConfigPanel({
             <div className="flex items-center justify-between gap-2">
               <span className="text-2xs font-medium">
                 {t("pi.reasoningTitle")}
+                <SettingsHelp label={t("pi.reasoningTitle")}>
+                  {t("pi.reasoningDescription")}
+                </SettingsHelp>
               </span>
               <label className="flex cursor-pointer items-center gap-1.5 text-2xs text-muted-foreground">
                 <Switch
@@ -1335,16 +1348,18 @@ export function PiConfigPanel({
                 {t("pi.reasoningEnableLabel")}
               </label>
             </div>
-            <p className="text-3xs text-muted-foreground">
-              {t("pi.reasoningDescription")}
-            </p>
 
             {reasoning.enabled && (
               <>
                 <div className="space-y-1">
-                  <label className="text-2xs text-muted-foreground">
-                    {t("pi.levelsLabel")}
-                  </label>
+                  <div className="flex items-center gap-1">
+                    <label className="text-2xs text-muted-foreground">
+                      {t("pi.levelsLabel")}
+                    </label>
+                    <SettingsHelp label={t("pi.levelsLabel")}>
+                      {t("pi.wireValuesHint")}
+                    </SettingsHelp>
+                  </div>
                   <div className="flex flex-wrap gap-1.5">
                     {PI_THINKING_LEVELS.map((level) => {
                       const active = reasoning.levels.includes(level)
@@ -1415,9 +1430,6 @@ export function PiConfigPanel({
                             />
                           </div>
                         ))}
-                        <p className="text-3xs text-muted-foreground">
-                          {t("pi.wireValuesHint")}
-                        </p>
                       </div>
                     )}
                   </div>
@@ -1468,9 +1480,14 @@ export function PiConfigPanel({
         </div>
 
         <div className="space-y-1.5">
-          <label className="text-2xs text-muted-foreground">
-            {t("pi.apiKeyLabel")}
-          </label>
+          <div className="flex items-center gap-1">
+            <label className="text-2xs text-muted-foreground">
+              {t("pi.apiKeyLabel")}
+            </label>
+            <SettingsHelp label={t("pi.apiKeyLabel")}>
+              {t("pi.apiKeyHint")}
+            </SettingsHelp>
+          </div>
           <div className="flex items-center gap-2">
             <Input
               type={showKey ? "text" : "password"}
@@ -1497,7 +1514,6 @@ export function PiConfigPanel({
               )}
             </Button>
           </div>
-          <p className="text-2xs text-muted-foreground">{t("pi.apiKeyHint")}</p>
         </div>
 
         <div className="flex justify-end">
@@ -1540,10 +1556,10 @@ export function PiConfigPanel({
           <div className="flex items-center gap-1.5 text-xs font-medium">
             <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" />
             {t("pi.projectTrustTitle")}
+            <SettingsHelp label={t("pi.projectTrustTitle")}>
+              {t("pi.projectTrustDescription")}
+            </SettingsHelp>
           </div>
-          <p className="mt-1 text-2xs text-muted-foreground">
-            {t("pi.projectTrustDescription")}
-          </p>
         </div>
 
         {trustEntries === null ? (

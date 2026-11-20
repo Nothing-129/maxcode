@@ -11,25 +11,9 @@ import {
   useMemo,
   useRef,
   useState,
-  type ComponentType,
   type ReactNode,
 } from "react"
-import {
-  ArrowLeft,
-  Bot,
-  FileSpreadsheet,
-  GitBranch,
-  Globe,
-  Keyboard,
-  Menu,
-  Package,
-  Search,
-  MessageSquareText,
-  SendHorizontal,
-  Palette,
-  Settings,
-  SlidersHorizontal,
-} from "lucide-react"
+import { ArrowLeft, Menu, Search } from "lucide-react"
 import { useTranslations } from "next-intl"
 import { usePathname } from "next/navigation"
 import { useRouter } from "next/navigation"
@@ -42,6 +26,7 @@ import { SettingsAbout } from "./settings-about"
 import { AppTitleBar } from "@/components/layout/app-title-bar"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { useSurfaceTransition } from "@/hooks/use-surface-transition"
+import { SettingsHelpContext } from "@/components/shared/settings-help"
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer"
 import {
   SETTINGS_SEARCH_ENTRIES,
@@ -64,64 +49,52 @@ interface SettingsNavItem {
     | "system"
     | "web_service"
     | "logs"
-  icon: ComponentType<{ className?: string }>
 }
 
 const SETTINGS_NAV_ITEMS: SettingsNavItem[] = [
   {
     href: "/settings/appearance",
     labelKey: "appearance",
-    icon: Palette,
   },
   {
     href: "/settings/general",
     labelKey: "general",
-    icon: SlidersHorizontal,
   },
   {
     href: "/settings/agents",
     labelKey: "agents",
-    icon: Bot,
   },
   {
     href: "/settings/skill-packs",
     labelKey: "skill_packs",
-    icon: Package,
   },
   {
     href: "/settings/quick-messages",
     labelKey: "quick_messages",
-    icon: MessageSquareText,
   },
   {
     href: "/settings/shortcuts",
     labelKey: "shortcuts",
-    icon: Keyboard,
   },
   {
     href: "/settings/version-control",
     labelKey: "version_control",
-    icon: GitBranch,
   },
   {
     href: "/settings/chat-channels",
     labelKey: "chat_channels",
-    icon: SendHorizontal,
   },
   {
     href: "/settings/web-service",
     labelKey: "web_service",
-    icon: Globe,
   },
   {
     href: "/settings/logs",
     labelKey: "logs",
-    icon: FileSpreadsheet,
   },
   {
     href: "/settings/system",
     labelKey: "system",
-    icon: Settings,
   },
 ]
 
@@ -317,8 +290,10 @@ export function SettingsShell({
   }
 
   const navContent = (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="px-2 pb-3 text-lg font-semibold">{t("title")}</div>
+    <div data-settings-navigation="" className="flex min-h-0 flex-1 flex-col">
+      <div className="px-2 pb-4 text-lg font-semibold tracking-tight">
+        {t("title")}
+      </div>
       <InputGroup className="settings-search">
         <InputGroupAddon className="p-0">
           <Search aria-hidden="true" className="size-3.5" />
@@ -379,7 +354,6 @@ export function SettingsShell({
             )
           ) : (
             visibleNavItems.map((item) => {
-              const Icon = item.icon
               const translationKey = `nav.${item.labelKey}` as const
               const active =
                 normalizedPathname === item.href ||
@@ -390,18 +364,15 @@ export function SettingsShell({
                   variant={active ? "secondary" : "ghost"}
                   size="sm"
                   className={cn(
-                    "h-[1.875rem] w-full justify-start rounded-lg px-2 text-sm font-normal",
+                    "h-8 w-full justify-start rounded-md border-0 px-2 text-sm font-normal text-muted-foreground",
                     active &&
-                      "bg-foreground/5 text-foreground hover:bg-foreground/10"
+                      "bg-foreground/[0.075] font-medium text-foreground hover:bg-foreground/10"
                   )}
                   type="button"
                   onClick={() => navigateTo(item.href)}
                   aria-current={active ? "page" : undefined}
                 >
-                  <span className="inline-flex items-center gap-2.5">
-                    <Icon className="h-3.5 w-3.5" />
-                    {t(translationKey)}
-                  </span>
+                  {t(translationKey)}
                 </Button>
               )
             })
@@ -445,7 +416,7 @@ export function SettingsShell({
         {!isMobile && (
           <aside
             className={cn(
-              "flex min-h-0 w-[17.75rem] shrink-0 flex-col border-r border-border/60 bg-sidebar px-2 py-3"
+              "flex min-h-0 w-(--settings-rail-width) shrink-0 flex-col border-r border-border/60 bg-sidebar px-3 py-3"
             )}
           >
             {onBack && (
@@ -517,7 +488,7 @@ export function SettingsShell({
               onBack && "pt-0"
             )}
           >
-            {children}
+            <SettingsHelpContext value={true}>{children}</SettingsHelpContext>
           </div>
         </section>
       </div>

@@ -82,14 +82,13 @@ it("positions after history arrives and on reactivation, while ordinary rerender
   expect(context.current?.scrollRef.current?.scrollTop).toBe(9499)
 })
 
-function resizeContent(context: StickToBottomContext, height = 2000) {
-  const content = context.contentRef.current!
+function resizeElement(element: Element, height: number) {
   act(() => {
-    for (const callback of observers.get(content) ?? []) {
+    for (const callback of observers.get(element) ?? []) {
       callback(
         [
           {
-            target: content,
+            target: element,
             contentRect: { height },
           } as unknown as ResizeObserverEntry,
         ],
@@ -97,6 +96,10 @@ function resizeContent(context: StickToBottomContext, height = 2000) {
       )
     }
   })
+}
+
+function resizeContent(context: StickToBottomContext, height = 2000) {
+  resizeElement(context.contentRef.current!, height)
 }
 
 function flushFrame() {
@@ -138,4 +141,37 @@ it("reconciles a shrinking virtual history after its anchor adjustment", () => {
   resizeContent(context.current!)
   flushFrame()
   expect(context.current!.scrollRef.current!.scrollTop).toBe(400)
+})
+
+it("keeps the latest message pinned in the same frame as entry measurements", () => {
+  const context = createRef<StickToBottomContext>()
+  render(
+    <MessageThread entryKey="cold-task" contextRef={context}>
+      <VirtualizedMessageThread
+        items={["first", "last"]}
+        getItemKey={(item) => item}
+        renderItem={(item) => <div>{item}</div>}
+      />
+    </MessageThread>
+  )
+  const viewport = context.current!.scrollRef.current!
+  resizeElement(viewport, 500)
+  resizeContent(context.current!, 10000)
+
+  // The visible rows grow once the real message heights replace estimates.
+  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(10300)
+  resizeContent(context.current!, 10300)
+  expect(viewport.scrollTop).toBe(9799)
+
+  // The composer settles on a taller layout and reduces the reading area.
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(420)
+  resizeElement(viewport, 420)
+  expect(viewport.scrollTop).toBe(9879)
+
+  act(() => context.current!.stopScroll())
+  viewport.scrollTop = 400
+  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(380)
+  resizeElement(viewport, 380)
+  flushFrame()
+  expect(viewport.scrollTop).toBe(400)
 })

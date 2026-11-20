@@ -62,6 +62,8 @@
     "generateToken": "Générer un jeton"
   },
   "SettingsShell": {
+    "help": "Aide",
+    "helpFor": "À propos de {label}",
     "backToApp": "Retour à l’application",
     "title": "Paramètres",
     "preferences": "Préférences",
@@ -326,6 +328,9 @@
     "versionTitle": "Mise à jour logicielle",
     "updateDescription": "Vérifiez les nouvelles versions depuis la source de publication configurée et installez-les directement si disponibles.",
     "currentVersion": "Version actuelle",
+    "footerDownloading": "Téléchargement",
+    "footerRestartUpdate": "Redémarrer pour mettre à jour",
+    "footerUpdateReady": "v{version} est prête. Redémarrez pour l’appliquer.",
     "upgradableVersion": "Dernière version",
     "none": "Aucune",
     "lastChecked": "Dernière vérification : {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "Chargement des packs de compétences…"
   },
   "GeneralSettings": {
+    "environmentGroup": "Environnement",
+    "notificationGroup": "Notifications et sons",
     "loginItem": {
       "title": "Lancer à la connexion",
       "description": "Ouvrir automatiquement MaxCode à la connexion à votre ordinateur.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "Échec du téléversement de {names}.",
         "attachUploadNotAFile": "{names} n'est pas un fichier régulier (répertoire ou fichier spécial) et a été ignoré.",
         "attachUploadQuotaExceeded": "Le serveur n'a plus d'espace pour les téléversements ; {names} n'a pas pu être envoyé.",
+        "firstPromptRetry": "Le premier message n’a pas pu être envoyé. Vérifiez le brouillon et réessayez.",
         "attachUploadInProgress": "Les images sont encore en cours d'envoi — réessayez dans un instant.",
         "mentionEmpty": "Aucune correspondance",
         "mentionLoading": "Recherche…",

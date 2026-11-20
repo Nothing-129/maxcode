@@ -1,7 +1,10 @@
 import { render, screen } from "@testing-library/react"
+import { NextIntlClientProvider } from "next-intl"
 import { describe, expect, it } from "vitest"
 
 import { ConversationTitleLabel } from "@/components/conversations/conversation-title-label"
+import { SessionDetailsDialog } from "@/components/conversations/session-details-dialog"
+import enMessages from "@/i18n/messages/en.json"
 import {
   formatConversationTitle,
   conversationTitleTopic,
@@ -10,12 +13,49 @@ import {
 import { source } from "./contract-source"
 
 describe("date/topic titles without categories", () => {
+  it.each(["1117｜通话记录保存时长", "1117 | 设计 | 通话记录保存时长"])(
+    "shows only the topic in session details for %s",
+    (title) => {
+      render(
+        <NextIntlClientProvider
+          locale="en"
+          messages={enMessages}
+          timeZone="UTC"
+        >
+          <SessionDetailsDialog
+            open
+            onOpenChange={() => {}}
+            stats={null}
+            summary={{
+              id: 2492,
+              folder_id: 1,
+              title,
+              title_locked: false,
+              agent_type: "codex",
+              status: "completed",
+              kind: "regular",
+              model: null,
+              git_branch: "main",
+              external_id: null,
+              pinned_at: null,
+              message_count: 2,
+              child_count: 0,
+              created_at: "2026-11-17T08:51:00Z",
+              updated_at: "2026-11-17T10:01:00Z",
+            }}
+          />
+        </NextIntlClientProvider>
+      )
+      expect(screen.getByText("通话记录保存时长")).toBeVisible()
+    }
+  )
+
   it.each([
     "1102｜设计｜委托批次与数据权限",
     "1102 | 设计 | 委托批次与数据权限",
     "1102｜委托批次与数据权限",
   ])("normalizes %s for display and editing", (title) => {
-    expect(formatConversationTitle(title)).toBe("1102｜委托批次与数据权限")
+    expect(formatConversationTitle(title)).toBe("委托批次与数据权限")
     render(<ConversationTitleLabel title={title} fallback="未命名" />)
     expect(screen.getByText("1102")).toHaveClass("tabular-nums")
     expect(screen.getByText("委托批次与数据权限")).toHaveClass("truncate")
@@ -23,9 +63,9 @@ describe("date/topic titles without categories", () => {
   })
 
   it("preserves topic slashes, references and ordinary titles", () => {
-    expect(formatConversationTitle("1102｜CI/CD")).toBe("1102｜CI/CD")
+    expect(formatConversationTitle("1102｜CI/CD")).toBe("CI/CD")
     expect(formatConversationTitle("1102｜设计｜[权限](file:///tmp/a)")).toBe(
-      "1102｜权限"
+      "权限"
     )
     expect(formatConversationTitle("讨论设计方案")).toBe("讨论设计方案")
     expect(parseStructuredConversationTitle("1102｜CI/CD")).toEqual({

@@ -79,7 +79,9 @@ beforeEach(() => {
     folders: [folderA, folderB],
     allFolders: [folderA, folderB],
   })
-  useTabStore.getState().setAgentAvailability(["codex", "claude_code"], true)
+  useTabStore
+    .getState()
+    .setAgentAvailability(["codex", "claude_code", "grok"], true)
 })
 
 describe("MaxCode: todo drafts remember the last new conversation folder", () => {

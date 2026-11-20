@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useState } from "react"
 import { Loader2, Save } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -75,11 +76,14 @@ export function ChannelCommandsTab() {
 
   return (
     <div className="space-y-6">
-      <section className="space-y-2">
-        <h3 className="text-sm font-medium">{t("prefixLabel")}</h3>
-        <p className="text-xs text-muted-foreground">
-          {t("prefixDescription")}
-        </p>
+      <section data-settings-group="">
+        <div className="settings-help-heading flex items-center gap-1">
+          <h3 className="text-sm font-medium">{t("prefixLabel")}</h3>
+          <SettingsHelp label={t("prefixLabel")}>
+            {t("prefixDescription")}
+          </SettingsHelp>
+        </div>
+
         <div className="flex items-center gap-2">
           <Input
             value={inputPrefix}
@@ -102,22 +106,22 @@ export function ChannelCommandsTab() {
         </div>
       </section>
 
-      <section className="space-y-2">
-        <h3 className="text-sm font-medium">{t("title")}</h3>
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
-        <div className="space-y-1">
+      <section data-settings-group="">
+        <div className="settings-help-heading flex items-center gap-1">
+          <h3 className="text-sm font-medium">{t("title")}</h3>
+          <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+        </div>
+
+        <div data-settings-list="">
           {BUILT_IN_COMMANDS.map((cmd) => (
-            <div
-              key={cmd.name}
-              className="flex items-center justify-between rounded-lg border bg-card px-4 py-3"
-            >
+            <div key={cmd.name} className="flex items-center gap-1 py-2">
               <code className="text-sm font-mono">
                 {prefix}
                 {cmd.name}
               </code>
-              <span className="text-xs text-muted-foreground">
+              <SettingsHelp label={prefix + cmd.name}>
                 {t(cmd.descKey)}
-              </span>
+              </SettingsHelp>
             </div>
           ))}
         </div>

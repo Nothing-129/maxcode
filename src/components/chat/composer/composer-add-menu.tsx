@@ -5,15 +5,7 @@ import type { SessionSelectorSetting } from "@/components/chat/session-selectors
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
-import {
-  Command,
-  Cog,
-  FolderSearch,
-  MessageSquareText,
-  Plus,
-  Search,
-  Upload,
-} from "lucide-react"
+import { Plus, Search } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -148,7 +140,7 @@ export function ComposerAddMenu({
       <DropdownMenuContent
         side="top"
         align="start"
-        className="min-w-56 w-auto"
+        className="w-auto text-left"
         onCloseAutoFocus={(event) => {
           if (!refocusAfterInsert.current) return
           event.preventDefault()
@@ -168,24 +160,19 @@ export function ComposerAddMenu({
                 })
               }}
             >
-              <Upload className="size-4" />
               {t("attachLocalUpload")}
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => attachments.setServerFilePickerOpen(true)}
             >
-              <FolderSearch className="size-4" />
               {t("attachServerFile")}
             </DropdownMenuItem>
           </>
         ) : null}
         <DropdownMenuSub>
-          <DropdownMenuSubTrigger>
-            <MessageSquareText className="size-4" />
-            {t("quickMessages")}
-          </DropdownMenuSubTrigger>
+          <DropdownMenuSubTrigger>{t("quickMessages")}</DropdownMenuSubTrigger>
           <DropdownMenuSubContent
-            className="min-w-40 overflow-y-auto"
+            className="submenu-scrollbar min-w-40 overflow-y-auto"
             style={SUBMENU_STYLE}
           >
             {shortcuts.quickMessagesLoading &&
@@ -220,7 +207,6 @@ export function ComposerAddMenu({
         </DropdownMenuSub>
         <DropdownMenuSub open={slashOpen} onOpenChange={handleSlashOpenChange}>
           <DropdownMenuSubTrigger disabled={slashCommands.length === 0}>
-            <Command className="size-4" />
             {t("slashCommands")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent
@@ -269,7 +255,7 @@ export function ComposerAddMenu({
                 spellCheck={false}
               />
             </div>
-            <div className="flex-1 overflow-y-auto p-1">
+            <div className="submenu-scrollbar min-h-0 flex-1 overflow-y-auto p-1">
               {filteredSlashCommands.length === 0 ? (
                 <div className="px-3 py-6 text-center text-xs text-muted-foreground">
                   {t("slashSearchEmpty")}
@@ -302,10 +288,12 @@ export function ComposerAddMenu({
           <>
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
-                <Cog className="size-4" />
                 {t("composerConfig.collaboration")}
               </DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
+              <DropdownMenuSubContent
+                className="submenu-scrollbar overflow-y-auto"
+                style={SUBMENU_STYLE}
+              >
                 <DropdownMenuRadioGroup
                   value={collaboration.currentValue}
                   onValueChange={(value) => {

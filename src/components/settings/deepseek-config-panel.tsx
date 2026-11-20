@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import { Eye, EyeOff, Loader2, Save } from "lucide-react"
@@ -213,12 +214,14 @@ export function DeepSeekConfigPanel({
   return (
     <div className="space-y-3 rounded-md border bg-muted/10 p-3">
       <div>
-        <label className="text-xs font-medium">
-          {t("deepseek.configManagement")}
-        </label>
-        <p className="mt-1 text-2xs text-muted-foreground">
-          {t("deepseek.configDescription")}
-        </p>
+        <div className="flex items-center gap-1">
+          <label className="text-xs font-medium">
+            {t("deepseek.configManagement")}
+          </label>
+          <SettingsHelp label={t("deepseek.configManagement")}>
+            {t("deepseek.configDescription")}
+          </SettingsHelp>
+        </div>
       </div>
 
       {/* ── Endpoint ───────────────────────────────────────────────── */}
@@ -258,12 +261,17 @@ export function DeepSeekConfigPanel({
 
       {/* ── Credential ─────────────────────────────────────────────── */}
       <div className="space-y-1.5">
-        <label
-          htmlFor="deepseek-api-key"
-          className="text-2xs text-muted-foreground"
-        >
-          {t("deepseek.apiKeyLabel")}
-        </label>
+        <div className="flex items-center gap-1">
+          <label
+            htmlFor="deepseek-api-key"
+            className="text-2xs text-muted-foreground"
+          >
+            {t("deepseek.apiKeyLabel")}
+          </label>
+          <SettingsHelp label={t("deepseek.apiKeyLabel")}>
+            {t("deepseek.apiKeyHint")}
+          </SettingsHelp>
+        </div>
         <div className="flex items-center gap-2">
           <Input
             id="deepseek-api-key"
@@ -290,9 +298,6 @@ export function DeepSeekConfigPanel({
             )}
           </Button>
         </div>
-        <p className="text-2xs text-muted-foreground">
-          {t("deepseek.apiKeyHint")}
-        </p>
       </div>
 
       <div className="flex justify-end">

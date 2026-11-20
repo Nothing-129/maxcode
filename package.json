@@ -1,7 +1,7 @@
 {
   "name": "codeg",
   "private": true,
-  "version": "0.30.61",
+  "version": "0.30.62",
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "next dev --turbopack",
@@ -63,6 +63,7 @@
     "date-fns": "^4.4.0",
     "html-to-image": "^1.11.13",
     "ignore": "^7.0.14",
+    "interestfor": "^1.0.14",
     "katex": "^0.19.1",
     "lucide-react": "^0.577.0",
     "mdast-util-from-markdown": "^2.1.0",

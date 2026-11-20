@@ -48,8 +48,26 @@ async function mount() {
       <>
         <RichComposer ref={ref} defaultText="before after" />
         <ComposerAddMenu
+          attachments={{
+            handleUploadLocalFiles: async () => {},
+            setServerFilePickerOpen: () => {},
+          }}
           shortcuts={shortcuts}
           slashCommands={[{ name: "goal", description: "Set a goal" }]}
+          collaboration={{
+            key: "collaboration",
+            title: labels.composerConfig.collaboration,
+            currentValue: "default",
+            currentLabel: "Default",
+            groups: [
+              {
+                key: "modes",
+                name: null,
+                options: [{ value: "default", name: "Default" }],
+              },
+            ],
+            onSelect: () => {},
+          }}
         />
       </>
     )
@@ -74,6 +92,37 @@ async function openSubmenu(label: string) {
   act(() => item.focus())
   fireEvent.keyDown(item, { key: "ArrowRight" })
 }
+
+describe("MaxCode: composer add menu appearance", () => {
+  it("uses text for attachments and only trailing arrows for submenus", async () => {
+    await mount()
+    const menu = screen.getByRole("menu")
+    expect(menu).toHaveClass("min-w-48", "text-left")
+    for (const name of [labels.attachLocalUpload, labels.attachServerFile]) {
+      expect(screen.getByRole("menuitem", { name }).childElementCount).toBe(0)
+    }
+    for (const name of [
+      labels.quickMessages,
+      labels.slashCommands,
+      labels.composerConfig.collaboration,
+    ]) {
+      const trigger = screen.getByRole("menuitem", { name })
+      expect(trigger.childElementCount).toBe(1)
+      expect(trigger.lastElementChild).toHaveClass("lucide-chevron-right")
+    }
+  })
+
+  it.each([
+    [labels.quickMessages, "menuitem", "Greeting"],
+    [labels.slashCommands, "menuitem", /goal/],
+    [labels.composerConfig.collaboration, "menuitemradio", "Default"],
+  ])("styles the scrollable list in %s", async (label, role, name) => {
+    await mount()
+    await openSubmenu(label)
+    const item = await screen.findByRole(role, { name })
+    expect(item.closest(".overflow-y-auto")).toHaveClass("submenu-scrollbar")
+  })
+})
 
 describe("MaxCode: add-menu insertions return the caret to the composer", () => {
   it.each(["click", "keyboard", "search-enter"])(

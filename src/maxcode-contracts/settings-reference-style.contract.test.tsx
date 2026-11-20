@@ -1,5 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react"
+import { fireEvent, render, screen, within } from "@testing-library/react"
 import { describe, expect, it } from "vitest"
+import { ThemeProvider } from "next-themes"
+import { NextIntlClientProvider } from "next-intl"
+import { AppearanceProvider } from "@/components/appearance-provider"
+import { AppearanceSettings } from "@/components/settings/appearance-settings"
+import en from "@/i18n/messages/en.json"
 import { SettingsGroup } from "@/components/shared/settings-group"
 import { SettingRow } from "@/components/shared/setting-card"
 import { SettingsSection } from "@/components/shared/settings-section"
@@ -97,14 +102,44 @@ describe("reference settings layout", () => {
         "rgb(120, 120, 120)"
       )
       const pageStyle = getComputedStyle(screen.getByTestId("page"))
-      expect(pageStyle.paddingTop).toBe("3rem")
-      expect(pageStyle.paddingInlineStart || pageStyle.paddingLeft).toBe("3rem")
-      expect(pageStyle.paddingBottom).toBe("4rem")
+      expect(pageStyle.paddingTop).toBe("2.25rem")
+      expect(pageStyle.paddingInlineStart || pageStyle.paddingLeft).toBe(
+        "2.5rem"
+      )
+      expect(pageStyle.paddingBottom).toBe("3.5rem")
       expect(getComputedStyle(screen.getByTestId("nested-list")).padding).toBe(
         ""
       )
     } finally {
       style.remove()
+    }
+  })
+
+  it("exposes all three theme previews as one native keyboard-selectable group", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <ThemeProvider defaultTheme="system">
+          <AppearanceProvider>
+            <AppearanceSettings />
+          </AppearanceProvider>
+        </ThemeProvider>
+      </NextIntlClientProvider>
+    )
+    const choices = within(
+      screen.getByRole("group", { name: en.AppearanceSettings.themeMode })
+    )
+    expect(choices.getAllByRole("radio")).toHaveLength(3)
+    for (const mode of ["system", "light", "dark"] as const) {
+      const radio = choices.getByRole("radio", {
+        name: en.AppearanceSettings[mode],
+      })
+      expect(radio).toHaveAttribute("name", "appearance-theme-mode")
+      expect(
+        radio.closest("label")?.querySelector(`[data-theme-preview="${mode}"]`)
+      ).not.toBeNull()
+      fireEvent.click(radio)
+      expect(radio).toBeChecked()
+      expect(choices.getAllByRole("radio", { checked: true })).toHaveLength(1)
     }
   })
 
@@ -150,4 +185,23 @@ describe("reference settings layout", () => {
     expect(css).toContain("var(--settings-hairline)")
     expect(css).toContain('[data-settings-surface] [data-slot="input"]')
   })
+})
+
+it("shares responsive groups across preferences and keeps dense viewers full width", () => {
+  const css = source("src/app/globals.css")
+  expect(css).toContain(
+    '[data-settings-page] [data-settings-group]:not([data-settings-group="full"])'
+  )
+  expect(css).toMatch(
+    /\[data-settings-surface\] \[data-settings-page\] \{[^}]*--primary: var\(--foreground\)/
+  )
+  expect(
+    source("src/components/settings/version-control-settings.tsx")
+  ).toContain('data-settings-group=""')
+  expect(source("src/components/settings/logs-settings.tsx")).toMatch(
+    /<SettingsGroup\s+fullWidth/
+  )
+  expect(source("src/components/settings/shortcut-settings.tsx")).toContain(
+    'data-settings-list=""'
+  )
 })

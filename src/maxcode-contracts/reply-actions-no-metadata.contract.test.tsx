@@ -5,6 +5,10 @@ import { TurnStats } from "@/components/message/turn-stats"
 import { MessageScrollProvider } from "@/components/message/message-scroll-context"
 import messages from "@/i18n/messages/en.json"
 
+vi.mock("@/components/message/message-action-visibility", () => ({
+  SHOW_OPTIONAL_MESSAGE_ACTIONS: true,
+}))
+
 vi.mock("@/components/message/use-new-chat-from-message", () => ({
   useNewChatFromMessage: () => vi.fn(),
 }))
@@ -20,7 +24,7 @@ const usage = {
 }
 
 describe("reply actions omit model and token metadata", () => {
-  it("keeps message actions and usage-based navigation without metadata buttons", () => {
+  it("keeps usage-based navigation without metadata or fork buttons", () => {
     const scrollToIndex = vi.fn()
     render(
       <NextIntlClientProvider locale="en" messages={messages}>
@@ -32,7 +36,6 @@ describe("reply actions omit model and token metadata", () => {
             copyText="Completed reply"
             previousUserIndex={2}
             completedAt="2026-10-23T09:25:00Z"
-            onForkFromHere={vi.fn()}
           />
         </MessageScrollProvider>
       </NextIntlClientProvider>
@@ -44,8 +47,8 @@ describe("reply actions omit model and token metadata", () => {
       screen.getByRole("button", { name: labels.copyMessage })
     ).toBeVisible()
     expect(
-      screen.getByRole("button", { name: labels.forkFromHere })
-    ).toBeVisible()
+      screen.queryByRole("button", { name: labels.forkFromHere })
+    ).not.toBeInTheDocument()
     fireEvent.click(
       screen.getByRole("button", { name: labels.jumpToPreviousUserMessage })
     )

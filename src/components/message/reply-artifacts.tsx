@@ -20,6 +20,33 @@ import { isLocalDesktop, revealItemInDir } from "@/lib/platform"
 import type { MessageTurn } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
+// Count suffixes across the whole reply so expanding the list never changes a label.
+function replyPathLabels(files: FileChangeStat[], folderPath?: string) {
+  const paths = files.map((file) => toFolderRelativePath(file.path, folderPath))
+  const counts = new Map<string, number>()
+  for (const path of new Set(paths)) {
+    let suffix = path
+    counts.set(suffix, (counts.get(suffix) ?? 0) + 1)
+    while (suffix.includes("/")) {
+      suffix = suffix.slice(suffix.indexOf("/") + 1)
+      counts.set(suffix, (counts.get(suffix) ?? 0) + 1)
+    }
+  }
+  return paths.map((path) => {
+    const name = fileNameOf(path)
+    let start = path.length - name.length
+    while (start > 0 && (counts.get(path.slice(start)) ?? 0) > 1) {
+      start = start > 1 ? path.lastIndexOf("/", start - 2) + 1 : 0
+    }
+    return {
+      path,
+      prefix: path.slice(0, start),
+      directory: path.slice(start, path.length - name.length),
+      name,
+    }
+  })
+}
+
 /** Completed reply changes share one compact summary, with three rows initially. */
 export const ReplyArtifacts = memo(function ReplyArtifacts({
   sourceTurns,
@@ -37,6 +64,11 @@ export const ReplyArtifacts = memo(function ReplyArtifacts({
   const files = useMemo(
     () => (isResponseComplete ? extractReplyFileChanges(sourceTurns) : []),
     [isResponseComplete, sourceTurns]
+  )
+
+  const labels = useMemo(
+    () => replyPathLabels(files, folder?.path),
+    [files, folder?.path]
   )
 
   if (!isResponseComplete || files.length === 0) return null
@@ -85,13 +117,8 @@ export const ReplyArtifacts = memo(function ReplyArtifacts({
         </button>
       </div>
       <ul className="max-h-80 overflow-y-auto py-0.5">
-        {visibleFiles.map((file) => {
-          const displayPath = toFolderRelativePath(file.path, folder?.path)
-          const name = fileNameOf(displayPath)
-          const directory = displayPath.slice(
-            0,
-            displayPath.length - name.length
-          )
+        {visibleFiles.map((file, index) => {
+          const { path: displayPath, prefix, directory, name } = labels[index]
           const removed = isRemovedFileDiff(file.diff)
           return (
             <li
@@ -111,15 +138,26 @@ export const ReplyArtifacts = memo(function ReplyArtifacts({
                     ? viewDiff(file)
                     : void openFileTarget(normalizeSlashPath(file.path))
                 }
-                className="min-w-0 flex-1 truncate py-2 text-start leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                dir="ltr"
+                className="flex min-w-0 flex-1 items-baseline py-2 text-left leading-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="text-muted-foreground">{directory}</span>
-                <span
-                  className={cn(
-                    removed && "text-muted-foreground line-through"
-                  )}
-                >
-                  {name}
+                {prefix && (
+                  <span
+                    dir="rtl"
+                    className="min-w-0 truncate text-muted-foreground"
+                  >
+                    <bdi dir="ltr">{prefix}</bdi>
+                  </span>
+                )}
+                <span className="max-w-full shrink-0 [overflow-wrap:anywhere]">
+                  <span className="text-muted-foreground">{directory}</span>
+                  <span
+                    className={cn(
+                      removed && "text-muted-foreground line-through"
+                    )}
+                  >
+                    {name}
+                  </span>
                 </span>
               </button>
               <div className="hidden shrink-0 items-center gap-1 group-hover:flex group-focus-within:flex [@media(hover:none)]:flex">

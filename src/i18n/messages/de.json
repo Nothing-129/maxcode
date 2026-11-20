@@ -62,6 +62,8 @@
     "generateToken": "Token erstellen"
   },
   "SettingsShell": {
+    "help": "Hilfe",
+    "helpFor": "Hilfe zu {label}",
     "backToApp": "Zurück zur App",
     "title": "Einstellungen",
     "preferences": "Präferenzen",
@@ -326,6 +328,9 @@
     "versionTitle": "Softwareupdate",
     "updateDescription": "Prüft die konfigurierte Release-Quelle auf neue Versionen und installiert sie bei Verfügbarkeit direkt.",
     "currentVersion": "Aktuelle Version",
+    "footerDownloading": "Wird geladen",
+    "footerRestartUpdate": "Zum Aktualisieren neu starten",
+    "footerUpdateReady": "v{version} ist bereit. Neustart zum Anwenden.",
     "upgradableVersion": "Neueste Version",
     "none": "Keine",
     "lastChecked": "Zuletzt geprüft: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "Skill-Pakete werden geladen…"
   },
   "GeneralSettings": {
+    "environmentGroup": "Arbeitsumgebung",
+    "notificationGroup": "Benachrichtigungen und Töne",
     "loginItem": {
       "title": "Beim Anmelden starten",
       "description": "MaxCode bei der Anmeldung am Computer automatisch öffnen.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "Upload fehlgeschlagen: {names}.",
         "attachUploadNotAFile": "{names} ist keine reguläre Datei (Verzeichnis oder Spezialdatei) und wurde übersprungen.",
         "attachUploadQuotaExceeded": "Auf dem Server ist kein Upload-Speicher mehr verfügbar; {names} konnte nicht hochgeladen werden.",
+        "firstPromptRetry": "Die erste Nachricht konnte nicht gesendet werden. Prüfe den Entwurf und versuche es erneut.",
         "attachUploadInProgress": "Bilder werden noch hochgeladen – versuche es gleich noch einmal.",
         "mentionEmpty": "Keine Treffer",
         "mentionLoading": "Suche läuft…",

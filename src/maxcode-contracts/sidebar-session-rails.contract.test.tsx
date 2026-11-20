@@ -1,4 +1,4 @@
-import { cleanup, render } from "@testing-library/react"
+import { cleanup, render, screen } from "@testing-library/react"
 import { NextIntlClientProvider } from "next-intl"
 import { afterEach, describe, expect, it, vi } from "vitest"
 import { SidebarConversationCard } from "@/components/conversations/sidebar-conversation-card"
@@ -70,6 +70,35 @@ function rows(loading = false) {
 }
 
 describe("sidebar session tree rails", () => {
+  it.each([false, true])(
+    "shows the topic and relative time in compact folder rows (mobile: %s)",
+    (isMobile) => {
+      render(
+        <NextIntlClientProvider
+          locale="en"
+          messages={enMessages}
+          timeZone="UTC"
+        >
+          <SidebarConversationCard
+            conversation={{ ...parent, title: "1119｜修复｜调整窗口显示" }}
+            showTitleDate={false}
+            isMobile={isMobile}
+            compactMobile
+            isSelected={false}
+            timeLabel="14m"
+            onSelect={noop}
+            onRename={asyncNoop}
+            onDelete={asyncNoop}
+            onStatusChange={asyncNoop}
+          />
+        </NextIntlClientProvider>
+      )
+      expect(screen.getByText("调整窗口显示")).toBeVisible()
+      expect(screen.queryByText("1119")).toBeNull()
+      expect(screen.getByText("14m")).toBeVisible()
+    }
+  )
+
   it("distinguishes folder descendants from Recent, todo, pinned and chat descendants", () => {
     const folderRecentTodo = rows().filter(
       (row): row is ConversationRow => row.kind === "conversation"

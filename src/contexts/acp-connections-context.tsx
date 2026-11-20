@@ -7800,7 +7800,7 @@ export function AcpConnectionsProvider({ children }: { children: ReactNode }) {
       }
     ) => {
       const conn = storeRef.current.connections.get(contextKey)
-      if (!conn) return
+      if (!conn) throw new Error("The agent connection is no longer available")
       lastActivityRef.current.set(contextKey, Date.now())
       try {
         await acpPrompt(

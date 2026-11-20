@@ -38,6 +38,10 @@ vi.mock("@/lib/transport/detect", () => ({
 vi.mock("@/components/layout/app-title-bar", () => ({
   AppTitleBar: ({ left }: { left?: ReactNode }) => <header>{left}</header>,
 }))
+// Navigation tests do not need the desktop update service.
+vi.mock("@/components/settings/settings-about", () => ({
+  SettingsAbout: () => null,
+}))
 vi.mock("@/components/ui/app-toaster", () => ({ AppToaster: () => null }))
 vi.mock("@/app/settings/general/page", () => ({
   default: () => (
@@ -104,6 +108,22 @@ function lookup(messages: unknown, key: string): unknown {
 }
 
 describe("MaxCode: search concrete settings and reveal the result", () => {
+  it("renders text-only settings categories and marks the current page", () => {
+    runtime.web = false
+    mount(undefined, "zh-CN")
+    const nav = screen.getByRole("navigation")
+    const categories = within(nav).getAllByRole("button")
+    expect(categories).toHaveLength(11)
+    for (const category of categories) {
+      expect(category).toHaveAccessibleName(/\S/)
+      expect(category.querySelector("svg, img")).toBeNull()
+    }
+    expect(within(nav).getByRole("button", { name: "常规" })).toHaveAttribute(
+      "aria-current",
+      "page"
+    )
+  })
+
   it("indexes translated labels and descriptions in all ten locales, with only maintained agents", () => {
     for (const locale of [
       "en",
@@ -328,8 +348,8 @@ describe("MaxCode: search concrete settings and reveal the result", () => {
 it("keeps settings search background neutral across accent themes", () => {
   const css = source("src/app/globals.css")
   const search = css.slice(
-    css.indexOf("[data-settings-surface] .settings-search {"),
-    css.indexOf("[data-settings-surface] .settings-search input")
+    css.indexOf("[data-settings-navigation] .settings-search {"),
+    css.indexOf("[data-settings-navigation] .settings-search input")
   )
   expect(search).toContain("background: #f4f4f4")
   expect(search).toContain("background: #303030")

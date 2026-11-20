@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { Loader2, Pencil, Plus, Trash2 } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -325,19 +326,19 @@ export function ChannelEventsTab() {
 
   return (
     <div className="space-y-4">
-      <p className="text-xs text-muted-foreground">{t("description")}</p>
+      <SettingsHelp>{t("description")}</SettingsHelp>
 
-      <section className="space-y-1">
+      <section data-settings-list="">
         {ALL_EVENT_TYPES.map((evt) => (
           <div
             key={evt.id}
-            className="flex items-center justify-between rounded-lg border bg-card px-4 py-3"
+            className="flex items-center justify-between gap-2 py-3"
           >
-            <div className="min-w-0">
+            <div className="flex min-w-0 items-center gap-1">
               <div className="text-sm font-medium">{t(evt.labelKey)}</div>
-              <div className="text-xs text-muted-foreground">
+              <SettingsHelp label={t(evt.labelKey)}>
                 {t(evt.descKey)}
-              </div>
+              </SettingsHelp>
             </div>
             <Switch
               checked={enabledEvents.has(evt.id)}
@@ -351,10 +352,17 @@ export function ChannelEventsTab() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="flex items-center justify-between gap-2">
-          <TabsList>
-            <TabsTrigger value="webhooks">{t("webhooksTitle")}</TabsTrigger>
-            <TabsTrigger value="format">{t("docsTitle")}</TabsTrigger>
-          </TabsList>
+          <div className="flex items-center gap-1">
+            <TabsList variant="line">
+              <TabsTrigger value="webhooks">{t("webhooksTitle")}</TabsTrigger>
+              <TabsTrigger value="format">{t("docsTitle")}</TabsTrigger>
+            </TabsList>
+            {activeTab === "webhooks" && (
+              <SettingsHelp label={t("webhooksTitle")}>
+                {t("webhooksDescription")}
+              </SettingsHelp>
+            )}
+          </div>
           {activeTab === "webhooks" && (
             <Button
               type="button"
@@ -369,10 +377,6 @@ export function ChannelEventsTab() {
         </div>
 
         <TabsContent value="webhooks" className="space-y-3 pt-2">
-          <p className="text-xs text-muted-foreground">
-            {t("webhooksDescription")}
-          </p>
-
           {webhooks.length === 0 ? (
             <p className="text-xs text-muted-foreground">
               {t("webhooksEmpty")}

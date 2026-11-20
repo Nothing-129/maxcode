@@ -298,6 +298,25 @@ describe("functional sidebar navigation", () => {
     expect(changeGrouping).toHaveBeenCalledOnce()
   })
 
+  it("matches the unselected grouping icon to the Recent label color", () => {
+    render(
+      <NextIntlClientProvider locale="en" messages={en}>
+        <SidebarSectionHeader
+          section="recent"
+          expanded
+          onToggle={() => {}}
+          onToggleFolderGrouping={() => {}}
+        />
+      </NextIntlClientProvider>
+    )
+    expect(
+      screen.getByRole("button", {
+        name: en.Folder.sidebar.navigation.groupByFolder,
+        pressed: false,
+      })
+    ).toHaveClass("text-sidebar-foreground/50")
+  })
+
   it("uses the shared MaxCode wordmark for every sidebar view and retains date filter controls", () => {
     const sidebar = source("src/components/layout/sidebar.tsx")
     expect(sidebar).toContain("<SidebarWordmark />")

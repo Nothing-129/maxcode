@@ -77,7 +77,6 @@ import { useCollapseSidebarOnNavigate } from "@/hooks/use-collapse-sidebar-on-na
 import { useIsMobile } from "@/hooks/use-mobile"
 import { onTransportReconnect } from "@/lib/platform"
 import {
-  acpFork,
   acpStopAsyncTask,
   createChatConversation,
   createChatDir,
@@ -92,7 +91,7 @@ import {
   shouldQueueDirectSend,
   shouldRejectDuplicateCreate,
 } from "@/lib/queue-flush"
-import { TurnBusyError, isNoActiveTurnRejection } from "@/lib/turn-busy"
+import { isNoActiveTurnRejection } from "@/lib/turn-busy"
 import { prepareQueuedPrompt } from "@/lib/queued-prompt"
 import {
   getWebConnectionSnapshot,
@@ -147,9 +146,9 @@ import {
   adoptLegacyNewConversationDraft,
   buildConversationDraftStorageKey,
   buildNewConversationDraftStorageKey,
-  clearMessageInputDraftV2,
-  saveMessageInputDraft,
+  moveMessageInputDraft,
 } from "@/lib/message-input-draft"
+import { recoverFirstPrompt } from "@/lib/first-prompt-recovery"
 import {
   ContextMenu,
   ContextMenuContent,
@@ -347,8 +346,6 @@ const ConversationTabView = memo(function ConversationTabView({
     getSavedModeId(agentType)
   )
   const [sendSignal, setSendSignal] = useState(0)
-  const [agentsLoaded, setAgentsLoaded] = useState(false)
-  const [usableAgentCount, setUsableAgentCount] = useState(0)
   const [composerDiagnosticsOpen, setComposerDiagnosticsOpen] = useState(false)
   const [agentConnectError, setAgentConnectError] = useState<string | null>(
     null
@@ -413,6 +410,8 @@ const ConversationTabView = memo(function ConversationTabView({
   const mountedRef = useRef(true)
   const selectedAgentRef = useRef(selectedAgent)
   const createConversationPendingRef = useRef(false)
+  const firstPromptAcceptedRef = useRef(false)
+  const firstPromptRetryRef = useRef(false)
   const [creatingConversation, setCreatingConversation] = useState(false)
   // Single-flight guard for the eager scratch-dir prepare (on chat-mode select).
   const prepareChatDirPendingRef = useRef(false)
@@ -531,19 +530,6 @@ const ConversationTabView = memo(function ConversationTabView({
   // two. `detail` remains as the fallback for the first render after a cold
   // open, before that effect has run.
   //
-  // Ordering it the other way round silently un-forked a conversation. A fork
-  // re-points THIS row at S2 and inserts a sibling row holding S1; the panel
-  // learns S2 immediately (`setExternalId` from the fork response) but
-  // `detail` still holds S1 until its refetch lands. With `detail` winning,
-  // the next reconnect asked for S1 — which the new sibling row now owns — so
-  // the tab re-homed onto the sibling and the user was looking at the pre-fork
-  // history again, `[Fork]` row abandoned. Forking from there forked S1 a
-  // second time, which is exactly the chain the conversation table records:
-  // each row created at one fork's timestamp, then itself forked at the next.
-  // Because the tab landed on a session it had not established, the composer's
-  // selectors came back as the agent's defaults too — the reported "model
-  // changed after forking".
-  //
   // The `detail` fallback still matters for tabs that started as a new
   // conversation: their `effectiveConversationId` is locked to a virtual
   // negative id (line 186's useState initializer runs once),
@@ -567,24 +553,22 @@ const ConversationTabView = memo(function ConversationTabView({
   // connect. Rather than firing a doomed (and racy) auto-connect whose only
   // outcome is a transient "not installed" toast, we skip the connect and
   // surface a persistent install prompt instead (see composerBlockedMessage).
-  const { agents: acpAgents } = useAcpAgents()
-  const selectedAgentNotInstalled = useMemo(() => {
-    const info = acpAgents.find((a) => a.agent_type === selectedAgent)
-    return (
-      info != null && info.enabled && info.available && !info.installed_version
-    )
-  }, [acpAgents, selectedAgent])
+  const { agents: acpAgents, fresh: agentsFresh } = useAcpAgents()
+  const selectedAgentInfo = acpAgents.find(
+    (a) => a.agent_type === selectedAgent
+  )
+  const selectedAgentAvailable =
+    selectedAgentInfo?.enabled === true && selectedAgentInfo.available
+  const selectedAgentNotInstalled =
+    selectedAgentAvailable && !selectedAgentInfo?.installed_version
   // Claude Code / Codex install a separate ACP adapter package rather than the
   // vendor CLI, so the generic "not installed" banner reads as wrong to anyone
   // who has `claude`/`codex` in their terminal. Name the adapter instead.
-  const selectedAgentIsAcpAdapter = useMemo(
-    () =>
-      acpAgents.find((a) => a.agent_type === selectedAgent)?.is_acp_adapter ===
-      true,
-    [acpAgents, selectedAgent]
-  )
+  const selectedAgentIsAcpAdapter = selectedAgentInfo?.is_acp_adapter === true
   const canAutoConnect =
-    (hasPersistedConversation || (agentsLoaded && usableAgentCount > 0)) &&
+    // The picker may already show a fallback while this draft still points at
+    // its previous agent. Wait for the draft's own selection to be available.
+    (hasPersistedConversation || (agentsFresh && selectedAgentAvailable)) &&
     !awaitingHistoricalSessionId &&
     // Skip the doomed auto-connect for a not-installed agent ONLY in the draft
     // surfaces, where the persistent install banner explains it instead. A
@@ -804,13 +788,18 @@ const ConversationTabView = memo(function ConversationTabView({
 
   const handleEnqueue = useCallback(
     (draft: PromptDraft, modeId: string | null) => {
-      mqEnqueue(draft, modeId, {
-        adoptSendTimeMode: !connectionReady && modeId == null,
-      })
+      if (firstPromptRetryRef.current) {
+        firstPromptRetryRef.current = false
+        mqRequeueFront(draft, modeId)
+      } else {
+        mqEnqueue(draft, modeId, {
+          adoptSendTimeMode: !connectionReady && modeId == null,
+        })
+      }
       // Queued work must keep its own tab when another preview is opened.
       if (ownTab && !ownTab.isPinned) pinTab(tabId)
     },
-    [mqEnqueue, connectionReady, ownTab, pinTab, tabId]
+    [mqEnqueue, mqRequeueFront, connectionReady, ownTab, pinTab, tabId]
   )
   const handleQueueReconnect = useCallback(async () => {
     if (getWebConnectionSnapshot() !== "connected") {
@@ -1195,11 +1184,14 @@ const ConversationTabView = memo(function ConversationTabView({
       }
 
       const fromQueueFlush = opts?.fromQueueFlush ?? false
+      const retryingFirstPrompt = firstPromptRetryRef.current
+      if (fromQueueFlush && retryingFirstPrompt) return
       // Preserve FIFO: a direct send issued while the queue is non-empty joins
       // the tail rather than racing ahead of the queued items. Read the
       // queue length synchronously (it reflects a same-tick bounce requeue).
       if (
-        shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength()) ||
+        (!retryingFirstPrompt &&
+          shouldQueueDirectSend(fromQueueFlush, mqGetQueueLength())) ||
         (!fromQueueFlush && runtimeSyncState === "awaiting_persist")
       ) {
         mqEnqueue(draft, selectedModeIdArg ?? null)
@@ -1227,6 +1219,18 @@ const ConversationTabView = memo(function ConversationTabView({
         if (!removed) return
       }
 
+      const persistedId = dbConvIdRef.current
+      let recoveryConversationId = persistedId
+      const firstPrompt =
+        !persistedId ||
+        (!firstPromptAcceptedRef.current &&
+          !detail?.summary.external_id &&
+          !useAppWorkspaceStore
+            .getState()
+            .conversations.some(
+              (row) => row.id === persistedId && row.external_id
+            ))
+      firstPromptRetryRef.current = false
       const optimisticTurn = buildOptimisticUserTurnFromDraft(
         draft,
         sharedT("attachedResources")
@@ -1240,6 +1244,23 @@ const ConversationTabView = memo(function ConversationTabView({
       setSyncState(effectiveConversationId, "awaiting_persist")
       setHasSentMessage(true)
 
+      const restoreFirstPrompt = () => {
+        firstPromptRetryRef.current = true
+        removeOptimisticTurn(effectiveConversationId, optimisticTurn.id)
+        setSyncState(effectiveConversationId, "idle")
+        const id = recoveryConversationId
+        if (id == null && mountedRef.current) setHasSentMessage(false)
+        recoverFirstPrompt(
+          id == null
+            ? buildNewConversationDraftStorageKey(tabId)
+            : buildConversationDraftStorageKey(id),
+          draft
+        )
+      }
+      const onSent = () => {
+        firstPromptAcceptedRef.current = true
+      }
+
       // Backend rejected the send because a turn was already in flight (another
       // co-controlling client, or a "prompting" status this client hadn't
       // observed yet). Roll back the optimistic user turn and drop the draft
@@ -1247,6 +1268,10 @@ const ConversationTabView = memo(function ConversationTabView({
       // turn completes, identical to enqueuing while already prompting. Stamp
       // the bounce so the flush backs off instead of immediately retrying.
       const onTurnInProgress = () => {
+        if (firstPrompt) {
+          restoreFirstPrompt()
+          return
+        }
         lastFlushBounceAtRef.current = Date.now()
         removeOptimisticTurn(effectiveConversationId, optimisticTurn.id)
         // FIFO: the auto-flush draft WAS the queue head → return it to the
@@ -1270,6 +1295,10 @@ const ConversationTabView = memo(function ConversationTabView({
       // still holds nothing, but repeating a deterministic failure in a loop
       // is worse; the toast is the recovery signal.
       const onSendFailed = () => {
+        if (firstPrompt) {
+          restoreFirstPrompt()
+          return
+        }
         removeOptimisticTurn(effectiveConversationId, optimisticTurn.id)
         if (fromQueueFlush) {
           mqRequeueFront(draft, selectedModeIdArg ?? null, {
@@ -1283,7 +1312,6 @@ const ConversationTabView = memo(function ConversationTabView({
         pinTab(tabId)
       }
 
-      const persistedId = dbConvIdRef.current
       if (persistedId) {
         // Existing-tab path: row already exists, send immediately with the
         // conversation_id pinned so the backend reuses our row instead of
@@ -1297,6 +1325,7 @@ const ConversationTabView = memo(function ConversationTabView({
           clientMessageId: optimisticTurn.id,
           onTurnInProgress,
           onSendFailed,
+          onSent,
         })
         return
       }
@@ -1327,79 +1356,52 @@ const ConversationTabView = memo(function ConversationTabView({
 
       void (async () => {
         try {
-          let newConversationId: number
-          // The send's folderId defaults to the active folder; a chat send
-          // overrides it with the backend-created hidden chat folder.
-          let sendFolderId = folderId
-          if (chatSend) {
-            const res = await createChatConversation(
+          const chat = chatSend
+            ? await createChatConversation(
+                selectedAgent,
+                title,
+                chatExistingDir,
+                todoOrigins
+              )
+            : null
+          const newConversationId =
+            chat?.conversationId ??
+            (await createConversation(
+              folderId,
               selectedAgent,
               title,
-              chatExistingDir,
               todoOrigins
-            )
-            newConversationId = res.conversationId
-            sendFolderId = res.folderId
-            dbConvIdRef.current = newConversationId
-            clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tabId))
-            setExternalId(effectiveConversationId, sessionIdRef.current ?? null)
-            // Bind the DB id BEFORE the prompt goes out. The mirror effect
-            // below also binds, but only after a re-render — this closes that
-            // window and covers the unmounted-early return just under it.
-            setDbConversationId(effectiveConversationId, newConversationId)
-            if (!mountedRef.current) {
-              setPendingCleanup(effectiveConversationId, true)
-              refreshConversations()
-              return
-            }
-            // Seed allFolders with the hidden chat folder so the tab's new
-            // folderId resolves (cwd / active-folder) on the next render. bind
-            // reuses the eager scratch dir as workingDir, so the connection's
-            // cwd does not move and no reconnect is triggered.
-            upsertFolder(res.folder)
-            setCreatedConversationId(newConversationId)
+            ))
+          const sendFolderId = chat?.folderId ?? folderId
+          recoveryConversationId = newConversationId
+          dbConvIdRef.current = newConversationId
+          moveMessageInputDraft(
+            buildNewConversationDraftStorageKey(tabId),
+            buildConversationDraftStorageKey(newConversationId)
+          )
+          // Keep the virtual runtime key. The backend binds its external ID
+          // when the first prompt reaches it.
+          setExternalId(effectiveConversationId, sessionIdRef.current ?? null)
+          setDbConversationId(effectiveConversationId, newConversationId)
+          if (chat) upsertFolder(chat.folder)
+          if (mountedRef.current) setCreatedConversationId(newConversationId)
+          if (useTabStore.getState().tabs.some((tab) => tab.id === tabId)) {
             bindConversationTab(
               tabId,
               newConversationId,
               selectedAgent,
               title,
               effectiveConversationId,
-              res.folderId,
-              res.folder.path
-            )
-          } else {
-            newConversationId = await createConversation(
-              folderId,
-              selectedAgent,
-              title,
-              todoOrigins
-            )
-            dbConvIdRef.current = newConversationId
-            clearMessageInputDraftV2(buildNewConversationDraftStorageKey(tabId))
-            // Set external ID on the stable virtual session (no migration needed —
-            // effectiveConversationId never changes, so the session stays in place).
-            // DB persistence of external_id is now backend-driven from
-            // send_prompt_linked once the row is linked, so no explicit DB write here.
-            setExternalId(effectiveConversationId, sessionIdRef.current ?? null)
-            // Bind the DB id BEFORE the prompt goes out (see the chat branch).
-            setDbConversationId(effectiveConversationId, newConversationId)
-            if (!mountedRef.current) {
-              // Component unmounted while creating — mark for deferred cleanup
-              // so the background turn_complete handler can clean up later.
-              setPendingCleanup(effectiveConversationId, true)
-              refreshConversations()
-              return
-            }
-            setCreatedConversationId(newConversationId)
-            bindConversationTab(
-              tabId,
-              newConversationId,
-              selectedAgent,
-              title,
-              effectiveConversationId
+              chat?.folderId,
+              chat?.folder.path
             )
           }
           refreshConversations()
+          if (!mountedRef.current) {
+            restoreFirstPrompt()
+            setPendingCleanup(effectiveConversationId, true)
+            return
+          }
 
           // Now that the row exists, kick off the actual prompt with the
           // conversation_id pinned so the backend adopts our row instead of
@@ -1410,32 +1412,11 @@ const ConversationTabView = memo(function ConversationTabView({
             clientMessageId: optimisticTurn.id,
             onTurnInProgress,
             onSendFailed,
+            onSent,
           })
         } catch (e) {
           console.error("[ConversationTabView] create conversation:", e)
-          // A failed create (chat OR normal) must fully restore the pre-send
-          // state, not strand the user behind a blank panel:
-          //   1. drop the optimistic turn (no ghost stuck in awaiting_persist),
-          //   2. return syncState to idle,
-          //   3. setHasSentMessage(false) → re-enters welcome mode (otherwise the
-          //      welcome screen never returns and the list is empty),
-          //   4. re-seed the draft text — message-input clears it synchronously on
-          //      send, so without this the user's prompt is lost on failure,
-          //   5. surface the error on the welcome banner so it isn't silent.
-          removeOptimisticTurn(effectiveConversationId, optimisticTurn.id)
-          setSyncState(effectiveConversationId, "idle")
-          setHasSentMessage(false)
-          const draftText = draft.displayText.trim()
-          if (fromQueueFlush) {
-            mqRequeueFront(draft, selectedModeIdArg ?? null, {
-              flushBlocked: true,
-            })
-          } else if (draftText) {
-            saveMessageInputDraft(
-              buildNewConversationDraftStorageKey(tabId),
-              draftText
-            )
-          }
+          restoreFirstPrompt()
           if (mountedRef.current) {
             setAgentConnectError(tWelcome("createConversationFailed"))
           }
@@ -1456,6 +1437,7 @@ const ConversationTabView = memo(function ConversationTabView({
       canAutoConnect,
       connectionReady,
       conn.promptCapabilities,
+      detail?.summary.external_id,
       handleEnqueue,
       runtimeSyncState,
       effectiveConversationId,
@@ -1481,103 +1463,6 @@ const ConversationTabView = memo(function ConversationTabView({
   // (not an effect) so a flush timeout scheduled in this commit cannot close
   // over a stale handleSend from when the connection was not yet ready.
   handleSendRef.current = handleSend
-
-  // "Fork from here": fork at a rendered assistant turn, sending nothing. The
-  // ONLY fork entry point — the composer's fork-and-send was removed once this
-  // existed, since the tail is just one of the turns this can be aimed at.
-  //
-  // No draft is at stake, so a failure is simply reported: the session is
-  // untouched and the same click can be retried, or aimed elsewhere.
-  //
-  // Which turns the agent can actually name is the backend's call
-  // (`resolve_fork_point`): a turn it cannot name forks at the tail rather than
-  // failing, so this never has to reason about per-agent identity.
-  //
-  // Liveness is read off `connStatusRef` rather than captured: this callback is
-  // handed to every rendered reply, so taking `connStatus` as a dependency
-  // would swap its identity at both ends of every turn and re-render the whole
-  // mounted transcript window for nothing. The ref is also the fresher answer
-  // at click time.
-  const handleForkFromTurn = useCallback(
-    async (turnId: string) => {
-      const connectionId = conn.connectionId
-      if (!connectionId || connStatusRef.current !== "connected") return
-      // Snapshot which live turns belong to the PRE-fork session, before the
-      // await. The fork RPC is a window in which a send can still start — a
-      // queued auto-flush, a fast typist, another client — and such a turn
-      // legitimately runs on the forked session, so it must not be swept away
-      // with the history it isn't part of. Naming the stale turns instead of
-      // clearing wholesale is what keeps that distinction.
-      //
-      // COMPLETED turns only. An optimistic user turn is one whose prompt has
-      // not reached the agent yet, and the backend refuses a fork while a turn
-      // is in flight (`AcpError::TurnInProgress`) — so a fork that SUCCEEDS
-      // proves any optimistic turn standing at this moment never started a
-      // turn on the old session, and it will therefore run on the forked one.
-      // Sweeping it would erase the user's own message while its reply streams
-      // in underneath.
-      const preForkSession = useConversationRuntimeStore
-        .getState()
-        .byConversationId.get(effectiveConversationId)
-      const staleLiveTurnIds = (preForkSession?.localTurns ?? []).map(
-        (t) => t.id
-      )
-      try {
-        const { forkedSessionId } = await acpFork(
-          connectionId,
-          dbConvIdRef.current,
-          folderId,
-          turnId
-        )
-        sessionIdRef.current = forkedSessionId
-        setExternalId(effectiveConversationId, forkedSessionId)
-        // The backend's two-row reshuffle: the current row now points at S2
-        // and a freshly inserted sibling preserves S1.
-        refreshConversations()
-        // This row's HISTORY just changed — the whole point is that S2 ends
-        // at the chosen turn. The turns rendered right now came
-        // from S1 — the persisted detail plus every turn this session streamed
-        // — so leaving them would show the fork with the parent's full history
-        // until the tab is closed and reopened.
-        //
-        // The removal rides ON the refetch rather than preceding it, so the
-        // two land as one dispatch: no frame shows S2's history beside S1's
-        // turns, and a refetch that FAILS removes nothing (it dispatches
-        // `FETCH_DETAIL_ERROR`, leaving the timeline as it was rather than
-        // stranding the row with neither the old turns nor new ones).
-        // `preserveLive` keeps everything else — the point of naming the stale
-        // turns is that a reply started during the fork survives.
-        refetchDetail(effectiveConversationId, {
-          preserveLive: true,
-          dropLiveTurnIds: staleLiveTurnIds,
-        })
-      } catch (err) {
-        // A turn in flight is transient here, not a failure to report as one —
-        // there is no draft to re-queue, so say so and let the user retry.
-        toast.error(
-          err instanceof TurnBusyError
-            ? t("forkSessionBusy")
-            : t("forkSessionFailed", {
-                error:
-                  err instanceof Error
-                    ? err.message
-                    : typeof err === "object" && err !== null
-                      ? JSON.stringify(err)
-                      : String(err),
-              })
-        )
-      }
-    },
-    [
-      conn.connectionId,
-      effectiveConversationId,
-      folderId,
-      refetchDetail,
-      refreshConversations,
-      setExternalId,
-      t,
-    ]
-  )
 
   /** Stop one AIR async task. Returns the adapter's verdict so the strip can
    *  release its button; `false` (the adapter declined) is reported, because
@@ -2298,24 +2183,6 @@ const ConversationTabView = memo(function ConversationTabView({
           // rather than a usable composer here — a transcript whose composer is
           // blocked (session/load failure) can still spawn the question elsewhere.
           onAskSelection={canAskSelection ? handleAskSelection : undefined}
-          // Fork carries no draft, so — unlike a send — a non-empty queue is
-          // not at risk of being jumped and needs no guard here. A turn in
-          // flight is still rejected, by the backend, which is the only place
-          // that can see it without racing.
-          //
-          // "prompting" belongs on this side of the gate (same shape as the
-          // goal-control gate above): this answers "can this surface fork at
-          // all", and a turn in flight is a passing "not right now" that the
-          // view greys the button out for. Dropping the handler instead made
-          // every reply's fork icon disappear for the length of each reply.
-          // `handleForkFromTurn` re-checks liveness at click time.
-          onForkFromTurn={
-            (connStatus === "connected" || connStatus === "prompting") &&
-            hasPersistedConversation &&
-            conn.supportsFork
-              ? handleForkFromTurn
-              : undefined
-          }
         />
       </CodexFollowupContext.Provider>
     </GoalControlProvider>
@@ -2558,13 +2425,6 @@ const ConversationTabView = memo(function ConversationTabView({
                   defaultAgentType={selectedAgent}
                   onSelect={handleAgentSelect}
                   onFallback={handleAgentFallback}
-                  onAgentsLoaded={(agents) => {
-                    setAgentsLoaded(true)
-                    setUsableAgentCount(
-                      agents.filter((agent) => agent.enabled && agent.available)
-                        .length
-                    )
-                  }}
                   onOpenAgentsSettings={handleOpenAgentsSettings}
                   // Drafts remain switchable while connecting; saved
                   // conversations retain the agent they were created with.
@@ -2657,13 +2517,6 @@ const ConversationTabView = memo(function ConversationTabView({
               defaultAgentType={selectedAgent}
               onSelect={handleAgentSelect}
               onFallback={handleAgentFallback}
-              onAgentsLoaded={(agents) => {
-                setAgentsLoaded(true)
-                setUsableAgentCount(
-                  agents.filter((agent) => agent.enabled && agent.available)
-                    .length
-                )
-              }}
               onOpenAgentsSettings={handleOpenAgentsSettings}
               // Same draft/saved rule as the welcome-mode picker above.
               disabled={dbConversationId != null || creatingConversation}

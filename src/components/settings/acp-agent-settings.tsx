@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import {
   CODEX_DEFAULT_MODEL_PROVIDER,
   extractCodexTomlImportantValues,
@@ -3658,9 +3659,8 @@ function AgentReorderItem({
       dragMomentum={false}
       layout="position"
       className={cn(
-        "rounded-lg border bg-card p-3 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected && "border-primary/60 bg-primary/5",
-        dragging === agent.agent_type && "border-primary/60 bg-primary/5"
+        "rounded-md px-3 py-2.5 transition-colors cursor-pointer hover:bg-interaction-hover focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-foreground",
+        (selected || dragging === agent.agent_type) && "bg-foreground/[0.075]"
       )}
       tabIndex={0}
       onDragStart={() => {
@@ -7100,10 +7100,10 @@ export function AcpAgentSettings() {
     <div data-settings-page="wide" className="h-full flex flex-col p-3 md:p-4">
       <div className="flex items-center justify-between gap-3 pb-4">
         <div>
-          <h1 data-settings-page-title="">{t("title")}</h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("description")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("title")}</h1>
+            <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+          </div>
         </div>
         {ALLOW_CUSTOM_AGENT_REGISTRATION && (
           <Button
@@ -7143,8 +7143,8 @@ export function AcpAgentSettings() {
         <SettingsError className="mb-3">{loadingError}</SettingsError>
       )}
 
-      <div className="flex-1 min-h-0 grid gap-3 lg:grid-cols-[minmax(15rem,20rem)_1fr]">
-        <div className="min-h-0 min-w-0 rounded-lg border bg-card flex flex-col overflow-hidden">
+      <div className="flex-1 min-h-0 grid grid-rows-[minmax(7rem,1fr)_minmax(0,2fr)] border-t lg:grid-rows-1 lg:grid-cols-[minmax(12rem,18rem)_minmax(0,1fr)]">
+        <div className="min-h-0 min-w-0 border-b lg:border-b-0 lg:border-e flex flex-col overflow-hidden">
           <div className="border-b px-3 py-2 text-xs font-medium text-muted-foreground">
             {t("agentList")}
           </div>
@@ -7154,7 +7154,7 @@ export function AcpAgentSettings() {
             values={sortedAgents}
             onReorder={handleReorder}
             ref={agentListRef}
-            className="flex-1 min-h-0 overflow-y-auto space-y-2 p-2"
+            className="flex-1 min-h-0 overflow-y-auto space-y-0.5 p-1.5"
           >
             {sortedAgents.map((agent) => {
               const current = checkState[agent.agent_type]
@@ -7293,7 +7293,7 @@ export function AcpAgentSettings() {
           </Reorder.Group>
         </div>
 
-        <div className="min-h-0 min-w-0 rounded-lg border bg-card">
+        <div className="min-h-0 min-w-0">
           {selectedAgent && selectedDraft ? (
             <div className="h-full flex flex-col">
               <div className="border-b px-4 py-3">
@@ -7306,6 +7306,11 @@ export function AcpAgentSettings() {
                     <h3 className="text-sm font-semibold truncate">
                       {selectedAgent.name}
                     </h3>
+                    {selectedAgent.description && (
+                      <SettingsHelp label={selectedAgent.name}>
+                        {selectedAgent.description}
+                      </SettingsHelp>
+                    )}
                     <Badge variant="outline" className="shrink-0">
                       {selectedAgent.distribution_type}
                     </Badge>
@@ -7376,9 +7381,6 @@ export function AcpAgentSettings() {
                     />
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  {selectedAgent.description}
-                </p>
               </div>
 
               <AgentDiagnosticsDialog
@@ -7437,12 +7439,16 @@ export function AcpAgentSettings() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="text-xs font-medium">{t("envVars")}</label>
-                  {selectedAgent.agent_type === "zcode" && (
-                    <p className="text-2xs text-muted-foreground">
-                      {t("zcode.runtimeHint")}
-                    </p>
-                  )}
+                  <div className="flex items-center gap-1">
+                    <label className="text-xs font-medium">
+                      {t("envVars")}
+                    </label>
+                    {selectedAgent.agent_type === "zcode" && (
+                      <SettingsHelp label={t("envVars")}>
+                        {t("zcode.runtimeHint")}
+                      </SettingsHelp>
+                    )}
+                  </div>
                   <div className="relative group">
                     <Textarea
                       value={selectedDraft.envText}
@@ -7466,12 +7472,14 @@ export function AcpAgentSettings() {
                   */}
                   <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/10 p-3">
                     <div className="space-y-1">
-                      <label className="text-xs font-medium">
-                        {t("hostTools.label")}
-                      </label>
-                      <p className="text-2xs text-muted-foreground">
-                        {t("hostTools.description")}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs font-medium">
+                          {t("hostTools.label")}
+                        </label>
+                        <SettingsHelp label={t("hostTools.label")}>
+                          {t("hostTools.description")}
+                        </SettingsHelp>
+                      </div>
                     </div>
                     <Switch
                       checked={hostToolsAgentModeEnabled(selectedDraft.envText)}
@@ -7497,12 +7505,15 @@ export function AcpAgentSettings() {
                   {selectedAgent.distribution_type === "npx" && (
                     <div className="flex items-start justify-between gap-3 rounded-md border bg-muted/10 p-3">
                       <div className="min-w-0 space-y-1">
-                        <label className="text-xs font-medium">
-                          {t("adapterChannel.label")}
-                        </label>
-                        <p className="text-2xs text-muted-foreground">
-                          {t("adapterChannel.description")}
-                        </p>
+                        <div className="flex items-center gap-1">
+                          <label className="text-xs font-medium">
+                            {t("adapterChannel.label")}
+                          </label>
+                          <SettingsHelp label={t("adapterChannel.label")}>
+                            {t("adapterChannel.description")}
+                          </SettingsHelp>
+                        </div>
+
                         {adapterChannelFromEnvText(selectedDraft.envText) ===
                           "latest" && (
                           <p className="text-2xs text-yellow-600 dark:text-yellow-400">
@@ -7583,12 +7594,14 @@ export function AcpAgentSettings() {
                 {selectedAgent.agent_type === "codex" ? (
                   <div className="space-y-3 rounded-md border bg-muted/10 p-3">
                     <div>
-                      <label className="text-xs font-medium">
-                        {t("configManagement")}
-                      </label>
-                      <p className="mt-1 text-2xs text-muted-foreground">
-                        {t("codex.configDescription")}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs font-medium">
+                          {t("configManagement")}
+                        </label>
+                        <SettingsHelp label={t("configManagement")}>
+                          {t("codex.configDescription")}
+                        </SettingsHelp>
+                      </div>
                     </div>
 
                     <div className="space-y-1.5">
@@ -7890,9 +7903,16 @@ export function AcpAgentSettings() {
                         appear in an ordinary turn (openai/codex#24750). */}
                     <div className="space-y-1.5">
                       <div className="flex items-center justify-between rounded-md border px-3 py-2">
-                        <label className="text-2xs text-muted-foreground">
-                          {t("codex.enableDefaultModeRequestUserInput")}
-                        </label>
+                        <div className="flex items-center gap-1">
+                          <label className="text-2xs text-muted-foreground">
+                            {t("codex.enableDefaultModeRequestUserInput")}
+                          </label>
+                          <SettingsHelp
+                            label={t("codex.enableDefaultModeRequestUserInput")}
+                          >
+                            {t("codex.enableDefaultModeRequestUserInputHint")}
+                          </SettingsHelp>
+                        </div>
                         <Switch
                           checked={
                             selectedDraft.codexDefaultModeRequestUserInput
@@ -7905,9 +7925,6 @@ export function AcpAgentSettings() {
                           )}
                         />
                       </div>
-                      <p className="text-3xs text-muted-foreground">
-                        {t("codex.enableDefaultModeRequestUserInputHint")}
-                      </p>
                     </div>
 
                     <div className="space-y-1.5">
@@ -7929,12 +7946,14 @@ export function AcpAgentSettings() {
                         preset's own policy per turn and ignore these keys. */}
                     <div className="space-y-2 rounded-md border px-3 py-2.5">
                       <div className="space-y-1">
-                        <p className="text-2xs font-medium">
-                          {t("codex.sandboxGroupTitle")}
-                        </p>
-                        <p className="text-3xs text-muted-foreground">
-                          {t("codex.sandboxGroupHint")}
-                        </p>
+                        <div className="settings-help-heading flex items-center gap-1">
+                          <p className="text-2xs font-medium">
+                            {t("codex.sandboxGroupTitle")}
+                          </p>
+                          <SettingsHelp label={t("codex.sandboxGroupTitle")}>
+                            {t("codex.sandboxGroupHint")}
+                          </SettingsHelp>
+                        </div>
                       </div>
 
                       {selectedDraft.codexSandboxShadowed ? (
@@ -8025,9 +8044,21 @@ export function AcpAgentSettings() {
                       ) : null}
 
                       <div className="space-y-1.5">
-                        <label className="text-2xs text-muted-foreground">
-                          {t("codex.sandboxModeLabel")}
-                        </label>
+                        <div className="flex items-center gap-1">
+                          <label className="text-2xs text-muted-foreground">
+                            {t("codex.sandboxModeLabel")}
+                          </label>
+                          <SettingsHelp label={t("codex.sandboxModeLabel")}>
+                            {t("codex.sandboxModeHint")}
+                            {codexSandboxSeedsAcpPreset(
+                              selectedDraft.codexSandboxShadowed
+                            ) ? (
+                              <span className="block">
+                                {t("codex.sandboxModeSeedsPresetHint")}
+                              </span>
+                            ) : null}
+                          </SettingsHelp>
+                        </div>
                         <Select
                           disabled={selectedDraft.codexSandboxShadowed}
                           value={
@@ -8058,20 +8089,12 @@ export function AcpAgentSettings() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-3xs text-muted-foreground">
-                          {t("codex.sandboxModeHint")}
-                        </p>
+
                         {/* Sandbox mode is what codeg maps onto the session's
                             starting approval preset (#442), so it reaches
                             ordinary prompts even though approval_policy does
                             not. Worth stating next to the control that does it. */}
-                        {codexSandboxSeedsAcpPreset(
-                          selectedDraft.codexSandboxShadowed
-                        ) ? (
-                          <p className="text-3xs text-muted-foreground">
-                            {t("codex.sandboxModeSeedsPresetHint")}
-                          </p>
-                        ) : null}
+
                         {/* codex-acp 1.7.0–1.13.x gave their `read-only`
                             preset a workspace-write sandbox and re-send that
                             policy every turn, so an ACP session on one of them
@@ -8094,9 +8117,16 @@ export function AcpAgentSettings() {
                       ) && !selectedDraft.codexSandboxShadowed ? (
                         <div className="space-y-2 rounded-md border border-dashed px-2.5 py-2">
                           <div className="space-y-1">
-                            <label className="text-2xs text-muted-foreground">
-                              {t("codex.writableRootsLabel")}
-                            </label>
+                            <div className="flex items-center gap-1">
+                              <label className="text-2xs text-muted-foreground">
+                                {t("codex.writableRootsLabel")}
+                              </label>
+                              <SettingsHelp
+                                label={t("codex.writableRootsLabel")}
+                              >
+                                {t("codex.writableRootsHint")}
+                              </SettingsHelp>
+                            </div>
                             <Textarea
                               className="min-h-16 font-mono text-2xs"
                               spellCheck={false}
@@ -8116,11 +8146,7 @@ export function AcpAgentSettings() {
                                   path: codexRelativeWritableRoot,
                                 })}
                               </p>
-                            ) : (
-                              <p className="text-3xs text-muted-foreground">
-                                {t("codex.writableRootsHint")}
-                              </p>
-                            )}
+                            ) : null}
                           </div>
                           <div className="flex items-center justify-between gap-2">
                             <label className="text-2xs text-muted-foreground">
@@ -10161,12 +10187,14 @@ supports_websockets = true`}
                 ) : selectedAgent.agent_type === "grok" ? (
                   <div className="space-y-3 rounded-md border bg-muted/10 p-3">
                     <div>
-                      <label className="text-xs font-medium">
-                        {t("configManagement")}
-                      </label>
-                      <p className="mt-1 text-2xs text-muted-foreground">
-                        {t("grok.configDescription")}
-                      </p>
+                      <div className="flex items-center gap-1">
+                        <label className="text-xs font-medium">
+                          {t("configManagement")}
+                        </label>
+                        <SettingsHelp label={t("configManagement")}>
+                          {t("grok.configDescription")}
+                        </SettingsHelp>
+                      </div>
                     </div>
 
                     {/* Structured controls — mode + reasoning effort */}
@@ -10262,9 +10290,18 @@ supports_websockets = true`}
                         on load via inferGrokMode and recorded as GROK_AUTH_MODE. */}
                     <div className="space-y-2.5 rounded-md border p-2.5">
                       <div className="space-y-1.5">
-                        <label className="text-2xs font-medium">
-                          {t("grok.authTitle")}
-                        </label>
+                        <div className="flex items-center gap-1">
+                          <label className="text-2xs font-medium">
+                            {t("grok.authTitle")}
+                          </label>
+                          <SettingsHelp label={t("grok.authTitle")}>
+                            {selectedDraft.grokAuthMode === "subscription"
+                              ? t("grok.subscriptionHint")
+                              : selectedDraft.grokAuthMode === "custom"
+                                ? t("grok.authModeCustomHint")
+                                : t("grok.authModeApiKeyHint")}
+                          </SettingsHelp>
+                        </div>
                         <Select
                           value={selectedDraft.grokAuthMode}
                           disabled={grokSaving}
@@ -10290,13 +10327,6 @@ supports_websockets = true`}
                             </SelectItem>
                           </SelectContent>
                         </Select>
-                        <p className="text-2xs text-muted-foreground">
-                          {selectedDraft.grokAuthMode === "subscription"
-                            ? t("grok.subscriptionHint")
-                            : selectedDraft.grokAuthMode === "custom"
-                              ? t("grok.authModeCustomHint")
-                              : t("grok.authModeApiKeyHint")}
-                        </p>
                       </div>
 
                       {selectedDraft.grokAuthMode === "subscription" ? (
@@ -10401,18 +10431,25 @@ supports_websockets = true`}
                     {selectedDraft.grokAuthMode === "custom" ? (
                       <div className="space-y-2.5 rounded-md border p-2.5">
                         <div>
-                          <label className="text-2xs font-medium">
-                            {t("grok.customModelTitle")}
-                          </label>
-                          <p className="mt-1 text-2xs text-muted-foreground">
-                            {t("grok.customModelHint")}
-                          </p>
+                          <div className="flex items-center gap-1">
+                            <label className="text-2xs font-medium">
+                              {t("grok.customModelTitle")}
+                            </label>
+                            <SettingsHelp label={t("grok.customModelTitle")}>
+                              {t("grok.customModelHint")}
+                            </SettingsHelp>
+                          </div>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-2xs text-muted-foreground">
-                            {t("grok.customModelIdLabel")}
-                          </label>
+                          <div className="flex items-center gap-1">
+                            <label className="text-2xs text-muted-foreground">
+                              {t("grok.customModelIdLabel")}
+                            </label>
+                            <SettingsHelp label={t("grok.customModelIdLabel")}>
+                              {t("grok.customModelIdHint")}
+                            </SettingsHelp>
+                          </div>
                           <Input
                             value={selectedDraft.grokCustomModelId}
                             onChange={(event) =>
@@ -10427,9 +10464,6 @@ supports_websockets = true`}
                             spellCheck={false}
                             disabled={grokSaving}
                           />
-                          <p className="text-2xs text-muted-foreground">
-                            {t("grok.customModelIdHint")}
-                          </p>
                         </div>
 
                         <div className="grid gap-3 md:grid-cols-2">
@@ -10491,9 +10525,14 @@ supports_websockets = true`}
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-2xs text-muted-foreground">
-                            {t("grok.customApiKeyLabel")}
-                          </label>
+                          <div className="flex items-center gap-1">
+                            <label className="text-2xs text-muted-foreground">
+                              {t("grok.customApiKeyLabel")}
+                            </label>
+                            <SettingsHelp label={t("grok.customApiKeyLabel")}>
+                              {t("grok.customApiKeyHint")}
+                            </SettingsHelp>
+                          </div>
                           <div className="flex items-center gap-2">
                             <Input
                               type={showGrokCustomKey ? "text" : "password"}
@@ -10537,15 +10576,19 @@ supports_websockets = true`}
                               )}
                             </Button>
                           </div>
-                          <p className="text-2xs text-muted-foreground">
-                            {t("grok.customApiKeyHint")}
-                          </p>
                         </div>
 
                         <div className="space-y-1.5">
-                          <label className="text-2xs text-muted-foreground">
-                            {t("grok.customContextWindowLabel")}
-                          </label>
+                          <div className="flex items-center gap-1">
+                            <label className="text-2xs text-muted-foreground">
+                              {t("grok.customContextWindowLabel")}
+                            </label>
+                            <SettingsHelp
+                              label={t("grok.customContextWindowLabel")}
+                            >
+                              {t("grok.customContextWindowHint")}
+                            </SettingsHelp>
+                          </div>
                           <Input
                             type="number"
                             inputMode="numeric"
@@ -10560,9 +10603,6 @@ supports_websockets = true`}
                             aria-label={t("grok.customContextWindowLabel")}
                             disabled={grokSaving}
                           />
-                          <p className="text-2xs text-muted-foreground">
-                            {t("grok.customContextWindowHint")}
-                          </p>
                         </div>
 
                         {/* [model.<id>].reasoning_efforts — without levels from
@@ -10629,9 +10669,14 @@ supports_websockets = true`}
 
                     {/* Compaction — session-global auto-compact threshold. */}
                     <div className="space-y-1.5">
-                      <label className="text-2xs text-muted-foreground">
-                        {t("grok.autoCompactLabel")}
-                      </label>
+                      <div className="flex items-center gap-1">
+                        <label className="text-2xs text-muted-foreground">
+                          {t("grok.autoCompactLabel")}
+                        </label>
+                        <SettingsHelp label={t("grok.autoCompactLabel")}>
+                          {t("grok.autoCompactHint")}
+                        </SettingsHelp>
+                      </div>
                       <Input
                         type="number"
                         inputMode="numeric"
@@ -10648,9 +10693,6 @@ supports_websockets = true`}
                         aria-label={t("grok.autoCompactLabel")}
                         disabled={grokSaving}
                       />
-                      <p className="text-2xs text-muted-foreground">
-                        {t("grok.autoCompactHint")}
-                      </p>
                     </div>
 
                     {/* Advanced escape hatch — config.toml keys other than the
@@ -11174,9 +11216,16 @@ supports_websockets = true`}
                         <div className="space-y-2 border-t border-border/60 pt-3">
                           <div className="grid gap-3 md:grid-cols-2">
                             <div className="space-y-1.5 md:col-span-2">
-                              <label className="text-2xs text-muted-foreground">
-                                {t("claude.customModelOption")}
-                              </label>
+                              <div className="flex items-center gap-1">
+                                <label className="text-2xs text-muted-foreground">
+                                  {t("claude.customModelOption")}
+                                </label>
+                                <SettingsHelp
+                                  label={t("claude.customModelOption")}
+                                >
+                                  {t("claude.customModelOptionHint")}
+                                </SettingsHelp>
+                              </div>
                               <Input
                                 value={selectedDraft.claudeCustomModelOption}
                                 readOnly={
@@ -11235,9 +11284,6 @@ supports_websockets = true`}
                               />
                             </div>
                           </div>
-                          <p className="text-2xs text-muted-foreground">
-                            {t("claude.customModelOptionHint")}
-                          </p>
                         </div>
                         <div className="space-y-1.5">
                           <div className="flex items-center justify-between rounded-md border px-3 py-2">

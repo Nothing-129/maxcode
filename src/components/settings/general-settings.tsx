@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useState } from "react"
 import { FolderCog, Loader2, Palette, SquareTerminal } from "lucide-react"
 import { useTranslations } from "next-intl"
@@ -245,12 +246,14 @@ export function GeneralSettings() {
 
   return (
     <ScrollArea className="h-full">
-      <div data-settings-page="" className="w-full space-y-4 p-3 md:p-4">
+      <div data-settings-page="general" className="w-full">
         <section className="space-y-1">
-          <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
-          <p className="text-xs text-muted-foreground">
-            {t("sectionDescription")}
-          </p>
+          <div className="settings-help-heading flex items-center gap-1">
+            <h1 data-settings-page-title="">{t("sectionTitle")}</h1>
+            <SettingsHelp label={t("sectionTitle")}>
+              {t("sectionDescription")}
+            </SettingsHelp>
+          </div>
         </section>
 
         {loadError && (
@@ -259,126 +262,132 @@ export function GeneralSettings() {
           </SettingsError>
         )}
 
-        <div data-settings-option-group="">
-          <LoginItemSettingsSection />
-          {/* The section is the picker: heading, purpose and control on one line,
+        <SettingsSection title={t("environmentGroup")}>
+          <div data-settings-option-group="">
+            <LoginItemSettingsSection />
+            {/* The section is the picker: heading, purpose and control on one line,
             with what the shell currently resolves to under them. A card holding
             a single row would only say the heading back one line lower. */}
-          <SettingsSection
-            icon={SquareTerminal}
-            title={t("terminalTitle")}
-            description={
-              <>
-                {t("terminalDescription")}
-                {availableShells ? (
-                  <span className="mt-1 block">
-                    {t("terminalCurrentShell", {
-                      path: availableShells.resolved_shell,
-                    })}
-                  </span>
-                ) : null}
-              </>
-            }
-            htmlFor="terminal-default-shell"
-            control={
-              <Select
-                value={selectedShellId}
-                onValueChange={onShellSelectChange}
-                disabled={savingTerminal || !availableShells}
-              >
-                {/* `size` rather than a bare `h-8`: the trigger's height is
+            <SettingsSection
+              icon={SquareTerminal}
+              title={t("terminalTitle")}
+              description={t("terminalDescription")}
+              htmlFor="terminal-default-shell"
+              control={
+                <div className="general-shell-value">
+                  {availableShells && (
+                    <span
+                      className="truncate text-xs text-muted-foreground"
+                      title={availableShells.resolved_shell}
+                    >
+                      {t("terminalCurrentShell", {
+                        path: availableShells.resolved_shell,
+                      })}
+                    </span>
+                  )}
+                  <Select
+                    value={selectedShellId}
+                    onValueChange={onShellSelectChange}
+                    disabled={savingTerminal || !availableShells}
+                  >
+                    {/* `size` rather than a bare `h-8`: the trigger's height is
                   gated on `data-size`, which outranks an ungated utility
                   in the class list. */}
-                <SelectTrigger
-                  id="terminal-default-shell"
-                  size="sm"
-                  className="w-52 bg-background text-xs"
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent align="end">
-                  {availableShells?.options.map((opt) => (
-                    <SelectItem key={opt.id} value={opt.id}>
-                      <span className="flex items-center gap-2">
-                        <span>{tDynamic(opt.label_key)}</span>
-                        {!opt.exists && !opt.accepts_custom_path && (
-                          <span className="text-3xs text-muted-foreground">
-                            ({t("terminalShellNotInstalled")})
-                          </span>
-                        )}
-                      </span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            }
-          >
-            {selectedShellId === TERMINAL_SHELL_OPTION_CUSTOM && (
-              <SettingCard>
-                <SettingRow
-                  icon={FolderCog}
-                  title={t("terminalShellCustomPath")}
-                  description={t("terminalShellCustomHint")}
-                  htmlFor="terminal-custom-shell"
-                >
-                  <div className="flex gap-2">
-                    <Input
-                      id="terminal-custom-shell"
-                      value={customShellPath}
-                      onChange={(event) => {
-                        setCustomShellPath(event.target.value)
-                        setCustomPathExists(null)
-                      }}
-                      placeholder={t("terminalShellCustomPlaceholder")}
-                      disabled={savingTerminal}
-                      className="h-8 flex-1 bg-background font-mono text-xs"
-                    />
-                    <Button
-                      type="button"
+                    <SelectTrigger
+                      id="terminal-default-shell"
                       size="sm"
-                      onClick={onCustomPathSave}
-                      disabled={savingTerminal || !customShellPath.trim()}
+                      className="w-52 bg-background text-xs"
                     >
-                      {t("terminalShellCustomSave")}
-                    </Button>
-                  </div>
-                  {customPathExists === false && customShellPath.trim() && (
-                    <p className="text-2xs text-amber-500">
-                      {t("terminalShellNotFoundWarning")}
-                    </p>
-                  )}
-                </SettingRow>
-              </SettingCard>
-            )}
-          </SettingsSection>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent align="end">
+                      {availableShells?.options.map((opt) => (
+                        <SelectItem key={opt.id} value={opt.id}>
+                          <span className="flex items-center gap-2">
+                            <span>{tDynamic(opt.label_key)}</span>
+                            {!opt.exists && !opt.accepts_custom_path && (
+                              <span className="text-3xs text-muted-foreground">
+                                ({t("terminalShellNotInstalled")})
+                              </span>
+                            )}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              }
+            >
+              {selectedShellId === TERMINAL_SHELL_OPTION_CUSTOM && (
+                <SettingCard>
+                  <SettingRow
+                    icon={FolderCog}
+                    title={t("terminalShellCustomPath")}
+                    description={t("terminalShellCustomHint")}
+                    htmlFor="terminal-custom-shell"
+                  >
+                    <div className="flex gap-2">
+                      <Input
+                        id="terminal-custom-shell"
+                        value={customShellPath}
+                        onChange={(event) => {
+                          setCustomShellPath(event.target.value)
+                          setCustomPathExists(null)
+                        }}
+                        placeholder={t("terminalShellCustomPlaceholder")}
+                        disabled={savingTerminal}
+                        className="h-8 flex-1 bg-background font-mono text-xs"
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        onClick={onCustomPathSave}
+                        disabled={savingTerminal || !customShellPath.trim()}
+                      >
+                        {t("terminalShellCustomSave")}
+                      </Button>
+                    </div>
+                    {customPathExists === false && customShellPath.trim() && (
+                      <p className="text-2xs text-amber-500">
+                        {t("terminalShellNotFoundWarning")}
+                      </p>
+                    )}
+                  </SettingRow>
+                </SettingCard>
+              )}
+            </SettingsSection>
 
-          {/* Command output coloring is opt-in because the environment reaches
+            {/* Command output coloring is opt-in because the environment reaches
             both transcript output and machine-readable command pipelines. */}
-          <SettingsSection
-            icon={Palette}
-            title={t("colorizeCommandOutput")}
-            description={t("colorizeCommandOutputDescription")}
-            htmlFor="colorize-command-output"
-            control={
-              <Switch
-                id="colorize-command-output"
-                checked={colorizeCommandOutput}
-                disabled={savingTerminal || storedDefaultShell === undefined}
-                onCheckedChange={(next) => {
-                  const prev = colorizeCommandOutput
-                  setColorizeCommandOutput(next)
-                  void persistColorizeCommandOutput(next, prev)
-                }}
-              />
-            }
-          />
-
-          {/* The two halves of "how Codeg gets my attention", adjacent on
+            <SettingsSection
+              icon={Palette}
+              title={t("colorizeCommandOutput")}
+              description={t("colorizeCommandOutputDescription")}
+              htmlFor="colorize-command-output"
+              control={
+                <Switch
+                  id="colorize-command-output"
+                  checked={colorizeCommandOutput}
+                  disabled={savingTerminal || storedDefaultShell === undefined}
+                  onCheckedChange={(next) => {
+                    const prev = colorizeCommandOutput
+                    setColorizeCommandOutput(next)
+                    void persistColorizeCommandOutput(next, prev)
+                  }}
+                />
+              }
+            />
+          </div>
+        </SettingsSection>
+        <SettingsSection title={t("notificationGroup")}>
+          <div data-settings-option-group="">
+            {/* The two halves of "how Codeg gets my attention", adjacent on
             purpose: one leaves the window, one does not. */}
-          <DesktopNotificationSettingsSection />
+            <DesktopNotificationSettingsSection />
 
-          <NotificationSoundSettingsSection />
-        </div>
+            <NotificationSoundSettingsSection />
+          </div>
+        </SettingsSection>
 
         <DelegationSettingsSection />
 

@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import {
   BarChart3,
@@ -477,12 +478,17 @@ export function OfficeToolsBody({
 
       <div className="mt-4 shrink-0 flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3">
         <div className="min-w-0 space-y-1">
-          <label htmlFor="office-auto-preview" className="text-sm font-medium">
-            {t("autoPreviewLabel")}
-          </label>
-          <p className="text-xs text-muted-foreground">
-            {t("autoPreviewHint")}
-          </p>
+          <div className="flex items-center gap-1">
+            <label
+              htmlFor="office-auto-preview"
+              className="text-sm font-medium"
+            >
+              {t("autoPreviewLabel")}
+            </label>
+            <SettingsHelp label={t("autoPreviewLabel")}>
+              {t("autoPreviewHint")}
+            </SettingsHelp>
+          </div>
         </div>
         <Switch
           id="office-auto-preview"

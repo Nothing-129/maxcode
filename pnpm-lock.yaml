@@ -111,6 +111,9 @@ importers:
       ignore:
         specifier: ^7.0.14
         version: 7.0.14
+      interestfor:
+        specifier: ^1.0.14
+        version: 1.0.14
       katex:
         specifier: ^0.19.1
         version: 0.19.1
@@ -4523,6 +4526,9 @@ packages:
 
   inline-style-parser@0.2.9:
     resolution: {integrity: sha512-IttN8BqKLxzUrnTqHI+/hwAJQItBAUjdoHERCDv+oOuX48VP6bzW8+QjOXSfoevzq3YrYAwX1uLHp8TqO9yIeg==}
+
+  interestfor@1.0.14:
+    resolution: {integrity: sha512-EVSz6IH9dmbicI+wt51ve5Sylq3aKAFF2ex8c1uM+2J6jf4L4PqWNNcCDu2IogZy1makQWZx/f6kY455JpmxTQ==}
 
   internal-slot@1.1.0:
     resolution: {integrity: sha512-4gd7VpWNQNB4UKKCFFVcp1AVv+FMOgs9NKzjHKusc8jTMhd5eL1NqQqOpE0KzMds804/yHlglp3uxgluOqAPLw==}
@@ -11696,6 +11702,8 @@ snapshots:
   inherits@2.0.4: {}
 
   inline-style-parser@0.2.9: {}
+
+  interestfor@1.0.14: {}
 
   internal-slot@1.1.0:
     dependencies:

@@ -76,6 +76,31 @@ describe("MaxCode compact reply change summary", () => {
     fireEvent.click(screen.getByRole("button", { name: "收起" }))
     expect(screen.getAllByRole("listitem")).toHaveLength(3)
   })
+  it("protects the filename and enough parent folders to distinguish even collapsed files", () => {
+    const paths = [
+      "packages/chat/src/index.ts",
+      "packages/chat/src/deep/unique.ts",
+      "index.ts",
+      "packages/settings/src/index.ts",
+    ]
+    extract.mockReturnValue(
+      paths.map((path, i) => ({ ...files[0], id: String(i), path }))
+    )
+    render(card())
+    const protectedPath = (path: string) =>
+      screen.getByRole("button", { name: `打开 ${path}` }).lastElementChild
+
+    expect(protectedPath(paths[0])).toHaveTextContent(/^chat\/src\/index\.ts$/)
+    expect(protectedPath(paths[1])).toHaveTextContent(/^unique\.ts$/)
+    expect(protectedPath(paths[2])).toHaveTextContent(/^index\.ts$/)
+    fireEvent.click(screen.getByRole("button", { name: "再显示 1 个文件" }))
+    expect(protectedPath(paths[3])).toHaveTextContent(
+      /^settings\/src\/index\.ts$/
+    )
+    expect(screen.getByTitle(paths[0])).toHaveTextContent(paths[0])
+    fireEvent.click(screen.getByTitle(paths[3]))
+    expect(open).toHaveBeenLastCalledWith(paths[3])
+  })
   it("reviews every file including collapsed entries and opens files normally", () => {
     render(card())
     fireEvent.click(screen.getByRole("button", { name: "审核" }))

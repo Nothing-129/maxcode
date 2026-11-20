@@ -8,9 +8,7 @@ describe("MaxCode contract: public share settings layout", () => {
     const section = settings.indexOf("<section\n")
     expect(section).toBeGreaterThan(settings.indexOf("<AddressBar"))
     expect(section).toBeGreaterThan(settings.indexOf('t("autoStart")'))
-    expect(settings.slice(section)).toContain(
-      'className="space-y-2 border-t pt-6"'
-    )
+    expect(settings.slice(section)).toContain('data-settings-group=""')
     expect(settings.slice(section)).toContain('htmlFor="public-share-url"')
     expect(settings.slice(section)).toContain("value={publicShareUrl}")
     expect(settings.slice(section)).toContain('t("publicShareUrlHint")')

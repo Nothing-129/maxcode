@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -47,6 +48,7 @@ vi.mock("@/hooks/use-appearance", async (importOriginal) => ({
 
 import { ChatInput } from "@/components/chat/chat-input"
 import enMessages from "@/i18n/messages/en.json"
+import { recoverFirstPrompt } from "@/lib/first-prompt-recovery"
 import type { ConnectionStatus } from "@/lib/types"
 
 afterEach(() => {
@@ -57,6 +59,68 @@ afterEach(() => {
 })
 
 describe("MaxCode contract: connection readiness only gates sending", () => {
+  it("restores the first prompt and its attachments for manual retry without overwriting newer input", async () => {
+    const draftStorageKey = "conv:first-prompt-retry-contract"
+    const onSend = vi.fn()
+    const image = {
+      type: "image" as const,
+      data: "aW1hZ2U=",
+      mime_type: "image/png",
+      uri: "file:///uploads/first.png",
+    }
+    const copy = enMessages.Folder.chat.messageInput
+    render(
+      <NextIntlClientProvider locale="en" messages={enMessages}>
+        <ChatInput
+          status="connected"
+          promptCapabilities={{
+            image: true,
+            audio: false,
+            embedded_context: false,
+          }}
+          onSend={onSend}
+          onCancel={() => {}}
+          draftStorageKey={draftStorageKey}
+          isActive
+        />
+      </NextIntlClientProvider>
+    )
+    const editor = await screen.findByRole("textbox")
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        types: ["text/plain"],
+        getData: (type: string) => (type === "text/plain" ? "new edit" : ""),
+      },
+    })
+    await waitFor(() => expect(editor).toHaveTextContent("new edit"))
+    act(() =>
+      recoverFirstPrompt(draftStorageKey, {
+        displayText: "original message",
+        blocks: [{ type: "text", text: "original message" }, image],
+      })
+    )
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      copy.firstPromptRetry
+    )
+    expect(editor.textContent).toMatch(/original message.*new edit/)
+    expect(onSend).not.toHaveBeenCalled()
+
+    fireEvent.click(screen.getByTitle(copy.send))
+    expect(onSend).toHaveBeenCalledOnce()
+    const blocks = onSend.mock.calls[0][0].blocks
+    expect(blocks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "text",
+          text: "original message\n\nnew edit",
+        }),
+        expect.objectContaining(image),
+      ])
+    )
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument()
+  })
+
   it.each([
     ["connecting", false],
     ["connected", true],

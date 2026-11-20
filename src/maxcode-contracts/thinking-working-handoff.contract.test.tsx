@@ -98,7 +98,6 @@ describe("thinking to working handoff", () => {
       previousUserIndex: null,
       previousUserAt: null,
       isLastAssistantRun: false,
-      isThreadTail: true,
       sourceTurns: [],
     }
     const activeKey = "pending-reply-test:1"

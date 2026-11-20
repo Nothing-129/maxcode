@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -354,10 +355,10 @@ export function DeepSeekModelListEditor({
     <div className="space-y-3 rounded-md border bg-muted/10 p-3">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <label className="text-xs font-medium">{t("title")}</label>
-          <p className="mt-1 text-2xs text-muted-foreground">
-            {t("description")}
-          </p>
+          <div className="flex items-center gap-1">
+            <label className="text-xs font-medium">{t("title")}</label>
+            <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+          </div>
         </div>
         {catalog && !catalog.configured && !catalog.error && (
           <span className="shrink-0 rounded-full border px-2 py-0.5 text-2xs text-muted-foreground">

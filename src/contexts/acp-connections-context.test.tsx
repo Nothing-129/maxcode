@@ -176,6 +176,16 @@ async function mountProvider() {
 
 const TAB = "conv-1-claude_code-42"
 
+it("rejects a send if the connection disappears before it can reach the agent", async () => {
+  await mountProvider()
+  await expect(
+    h.actions!.sendPrompt(TAB, [{ type: "text", text: "first message" }], {
+      folderId: 1,
+      conversationId: 42,
+    })
+  ).rejects.toThrow()
+})
+
 beforeEach(() => {
   h.attach.mockClear()
   h.store = null

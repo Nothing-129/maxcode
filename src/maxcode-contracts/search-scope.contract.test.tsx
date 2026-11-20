@@ -135,6 +135,50 @@ describe("conversation search scope contract", () => {
     expect(close).toBeVisible()
   })
 
+  it("keeps matches in last-updated order and shows their update times", async () => {
+    const user = userEvent.setup()
+    const now = Date.now()
+    const daysAgo = (days: number) =>
+      new Date(now - days * 86_400_000).toISOString()
+    const recentlyUpdated = {
+      id: 1,
+      folder_id: 1,
+      title: "Repair backend authentication",
+      title_locked: false,
+      agent_type: "codex",
+      status: "completed",
+      kind: "regular",
+      model: null,
+      git_branch: null,
+      external_id: null,
+      message_count: 0,
+      child_count: 0,
+      created_at: daysAgo(30),
+      updated_at: daysAgo(1),
+      pinned_at: null,
+    } satisfies Awaited<ReturnType<typeof listAllConversations>>[number]
+    vi.mocked(listAllConversations).mockResolvedValueOnce([
+      recentlyUpdated,
+      {
+        ...recentlyUpdated,
+        id: 2,
+        title: "auth",
+        created_at: daysAgo(10),
+        updated_at: daysAgo(3),
+      },
+    ])
+    renderDialog()
+    await user.type(
+      screen.getByPlaceholderText(enMessages.Folder.search.placeholder),
+      "auth"
+    )
+    const options = await screen.findAllByRole("option")
+    expect(options.map((option) => option.textContent)).toEqual([
+      "Repair backend authenticationCodex1 day ago",
+      "authCodex3 days ago",
+    ])
+  })
+
   it("shows and searches folder remarks in the app menu and supports keyboard selection", async () => {
     const user = userEvent.setup()
     renderDialog()

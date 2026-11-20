@@ -324,7 +324,9 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
       "Mark as completed",
       "Delete",
     ]) {
-      expect(view.getByRole("menuitem", { name })).toBeVisible()
+      const item = view.getByRole("menuitem", { name })
+      expect(item).toBeVisible()
+      expect(item.querySelector("svg")).toBeVisible()
     }
     expect(
       view.queryByRole("menuitem", {
@@ -388,11 +390,7 @@ describe("ConversationDetailHeader dialog target snapshot", () => {
     const topic = getByText("手机端标题截断")
     expect(topic).toHaveClass("truncate")
     expect(queryByText(/修复/)).toBeNull()
-    // The full stored title remains available for the tooltip and rename.
-    expect(topic.closest("[title]")).toHaveAttribute(
-      "title",
-      "1022｜修复｜手机端标题截断"
-    )
+    expect(topic.closest("[title]")).toHaveAttribute("title", "手机端标题截断")
   })
 
   it("shares the active conversation from the mobile tools menu with other panes mounted", async () => {

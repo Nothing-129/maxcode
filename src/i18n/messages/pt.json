@@ -62,6 +62,8 @@
     "generateToken": "Gerar token"
   },
   "SettingsShell": {
+    "help": "Ajuda",
+    "helpFor": "Sobre {label}",
     "backToApp": "Voltar ao aplicativo",
     "title": "Configurações",
     "preferences": "Preferências",
@@ -326,6 +328,9 @@
     "versionTitle": "Atualização de software",
     "updateDescription": "Verifique versões mais novas na fonte de releases configurada e instale diretamente quando disponíveis.",
     "currentVersion": "Versão atual",
+    "footerDownloading": "Baixando",
+    "footerRestartUpdate": "Reiniciar para atualizar",
+    "footerUpdateReady": "A v{version} está pronta. Reinicie para aplicá-la.",
     "upgradableVersion": "Versão mais recente",
     "none": "Nenhuma",
     "lastChecked": "Última verificação: {time}",
@@ -1746,6 +1751,8 @@
     "skillPacksLoading": "Carregando pacotes de habilidades…"
   },
   "GeneralSettings": {
+    "environmentGroup": "Ambiente de trabalho",
+    "notificationGroup": "Notificações e som",
     "loginItem": {
       "title": "Iniciar ao entrar",
       "description": "Abrir o MaxCode automaticamente ao entrar no computador.",
@@ -3287,6 +3294,7 @@
         "attachUploadFailed": "Falha ao enviar {names}.",
         "attachUploadNotAFile": "{names} não é um arquivo regular (diretório ou arquivo especial) e foi ignorado.",
         "attachUploadQuotaExceeded": "O servidor ficou sem espaço para uploads; {names} não pôde ser enviado.",
+        "firstPromptRetry": "Não foi possível enviar a primeira mensagem. Confira o rascunho e tente novamente.",
         "attachUploadInProgress": "As imagens ainda estão sendo enviadas — tente novamente em instantes.",
         "mentionEmpty": "Nenhuma correspondência",
         "mentionLoading": "Pesquisando…",

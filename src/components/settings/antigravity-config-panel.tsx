@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -428,12 +429,14 @@ function HeadlessSignIn({
   return (
     <div className="space-y-2 rounded-md border border-dashed p-2.5">
       <div>
-        <p className="text-2xs font-medium">
-          {t("antigravity.headless.title")}
-        </p>
-        <p className="mt-0.5 text-3xs text-muted-foreground">
-          {t("antigravity.headless.description")}
-        </p>
+        <div className="settings-help-heading flex items-center gap-1">
+          <p className="text-2xs font-medium">
+            {t("antigravity.headless.title")}
+          </p>
+          <SettingsHelp label={t("antigravity.headless.title")}>
+            {t("antigravity.headless.description")}
+          </SettingsHelp>
+        </div>
       </div>
 
       {pending ? (
@@ -777,11 +780,11 @@ function LeakedTempSection() {
         <HardDrive className="h-3.5 w-3.5 text-muted-foreground" />
         <span className="text-xs font-medium">
           {t("antigravity.tempReclaimTitle")}
+          <SettingsHelp label={t("antigravity.tempReclaimTitle")}>
+            {t("antigravity.tempReclaimHint")}
+          </SettingsHelp>
         </span>
       </div>
-      <p className="text-3xs text-muted-foreground">
-        {t("antigravity.tempReclaimHint")}
-      </p>
 
       {scan ? (
         <div className="space-y-1">
@@ -1098,20 +1101,27 @@ export function AntigravityConfigPanel({
   return (
     <div className="space-y-3 rounded-md border bg-muted/10 p-3">
       <div>
-        <label className="text-xs font-medium">{t("configManagement")}</label>
-        <p className="mt-1 text-2xs text-muted-foreground">
-          {t("antigravity.configDescription")}
-        </p>
+        <div className="flex items-center gap-1">
+          <label className="text-xs font-medium">{t("configManagement")}</label>
+          <SettingsHelp label={t("configManagement")}>
+            {t("antigravity.configDescription")}
+          </SettingsHelp>
+        </div>
       </div>
 
       <div className="space-y-2 rounded-md border bg-background/60 p-2.5">
         <div className="space-y-1">
-          <label
-            className="text-2xs text-muted-foreground"
-            htmlFor="antigravity-auth-method"
-          >
-            {t("antigravity.methodLabel")}
-          </label>
+          <div className="flex items-center gap-1">
+            <label
+              className="text-2xs text-muted-foreground"
+              htmlFor="antigravity-auth-method"
+            >
+              {t("antigravity.methodLabel")}
+            </label>
+            <SettingsHelp label={t("antigravity.methodLabel")}>
+              {t(`antigravity.methodHints.${method}`)}
+            </SettingsHelp>
+          </div>
           <Select
             onValueChange={(value) => {
               if (!isAuthMethod(value)) return
@@ -1131,9 +1141,6 @@ export function AntigravityConfigPanel({
               ))}
             </SelectContent>
           </Select>
-          <p className="text-3xs text-muted-foreground">
-            {t(`antigravity.methodHints.${method}`)}
-          </p>
         </div>
 
         {method === "gemini-api-key" ? (
@@ -1178,12 +1185,17 @@ export function AntigravityConfigPanel({
 
         {method === "agent-platform" ? (
           <div className="space-y-1">
-            <label
-              className="text-2xs text-muted-foreground"
-              htmlFor="antigravity-google-key"
-            >
-              {t("antigravity.googleApiKeyLabel")}
-            </label>
+            <div className="flex items-center gap-1">
+              <label
+                className="text-2xs text-muted-foreground"
+                htmlFor="antigravity-google-key"
+              >
+                {t("antigravity.googleApiKeyLabel")}
+              </label>
+              <SettingsHelp label={t("antigravity.googleApiKeyLabel")}>
+                {t("antigravity.googleApiKeyHint")}
+              </SettingsHelp>
+            </div>
             <div className="flex items-center gap-1.5">
               <Input
                 className="h-7 flex-1 text-xs"
@@ -1213,9 +1225,6 @@ export function AntigravityConfigPanel({
                 )}
               </Button>
             </div>
-            <p className="text-3xs text-muted-foreground">
-              {t("antigravity.googleApiKeyHint")}
-            </p>
           </div>
         ) : null}
 

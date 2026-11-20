@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { Checkbox } from "@/components/ui/checkbox"
 import { SettingsError } from "@/components/shared/settings-section"
 
@@ -1095,8 +1096,8 @@ export function McpSettings() {
         className="flex h-full min-h-0 flex-col p-3 md:p-4"
       >
         <h1 data-settings-page-title="">{tShell("nav.mcp")}</h1>
-        <div className="min-h-0 flex-1 grid grid-cols-1 gap-4 lg:grid-cols-[22.5rem_1fr]">
-          <section className="min-h-0 rounded-xl border bg-card p-3">
+        <div className="min-h-0 flex-1 grid grid-cols-1 border-t lg:grid-cols-[minmax(15rem,20rem)_minmax(0,1fr)]">
+          <section className="min-h-0 border-b p-3 lg:border-b-0 lg:border-e">
             <Tabs
               value={leftTab}
               onValueChange={(value) => setLeftTab(value as LeftTab)}
@@ -1412,16 +1413,18 @@ export function McpSettings() {
             </Tabs>
           </section>
 
-          <section className="min-h-0 rounded-xl border bg-card p-4 overflow-auto">
+          <section className="min-h-0 p-4 overflow-auto">
             {selection?.kind === "draft" ? (
               <div className="space-y-4">
                 <div>
-                  <h2 className="text-base font-semibold">
-                    {t("local.draftTitle")}
-                  </h2>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("local.draftDescription")}
-                  </p>
+                  <div className="settings-help-heading flex items-center gap-1">
+                    <h2 className="text-base font-semibold">
+                      {t("local.draftTitle")}
+                    </h2>
+                    <SettingsHelp label={t("local.draftTitle")}>
+                      {t("local.draftDescription")}
+                    </SettingsHelp>
+                  </div>
                 </div>
 
                 <div className="space-y-2">

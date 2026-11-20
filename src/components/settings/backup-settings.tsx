@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import {
   Collapsible,
   CollapsibleContent,
@@ -430,12 +431,13 @@ export function BackupSettings() {
         heading={
           <div className="flex items-center gap-2">
             <DatabaseBackup className="h-4 w-4" />
-            <h2 className="text-sm font-semibold">{t("title")}</h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">{t("title")}</h2>
+              <SettingsHelp label={t("title")}>{t("description")}</SettingsHelp>
+            </div>
           </div>
         }
       >
-        <p className="text-xs text-muted-foreground">{t("description")}</p>
-
         <Tabs defaultValue="backup">
           <TabsList className="w-full">
             <TabsTrigger value="backup" className="flex-1" disabled={busy}>
@@ -452,12 +454,14 @@ export function BackupSettings() {
           <TabsContent value="backup" className="space-y-4 pt-2">
             <div className="flex items-center justify-between gap-3">
               <div className="space-y-0.5">
-                <Label className="text-xs font-medium">
-                  {t("export.includeExternal")}
-                </Label>
-                <p className="text-2xs text-muted-foreground">
-                  {t("export.includeExternalHint")}
-                </p>
+                <div className="flex items-center gap-1">
+                  <Label className="text-xs font-medium">
+                    {t("export.includeExternal")}
+                  </Label>
+                  <SettingsHelp label={t("export.includeExternal")}>
+                    {t("export.includeExternalHint")}
+                  </SettingsHelp>
+                </div>
               </div>
               <Switch
                 checked={includeExternal}
@@ -781,11 +785,15 @@ export function BackupSettings() {
         heading={
           <div className="flex items-center gap-2">
             <History className="h-4 w-4" />
-            <h2 className="text-sm font-semibold">{t("snapshots.title")}</h2>
+            <div className="settings-help-heading flex items-center gap-1">
+              <h2 className="text-sm font-semibold">{t("snapshots.title")}</h2>
+              <SettingsHelp label={t("snapshots.title")}>
+                {t("snapshots.hint")}
+              </SettingsHelp>
+            </div>
           </div>
         }
       >
-        <p className="text-xs text-muted-foreground">{t("snapshots.hint")}</p>
         {snapshots.length === 0 ? (
           <p className="text-2xs text-muted-foreground">
             {t("snapshots.empty")}

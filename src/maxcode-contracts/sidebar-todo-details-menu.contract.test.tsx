@@ -48,6 +48,9 @@ describe("todo details through the shared sidebar menu", () => {
         "[@media(pointer:coarse)]:opacity-100"
       )
       fireEvent.contextMenu(screen.getByText("Task title"))
+      expect(
+        screen.getByRole("menuitem", { name: "View details" }).firstElementChild
+      ).toHaveClass("lucide-info")
       const labels = screen
         .getAllByRole("menuitem")
         .map((item) => item.textContent)

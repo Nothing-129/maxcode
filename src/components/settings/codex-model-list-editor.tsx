@@ -1,5 +1,6 @@
 "use client"
 
+import { SettingsHelp } from "@/components/shared/settings-help"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslations } from "next-intl"
 import {
@@ -332,10 +333,12 @@ export function CodexModelListEditor({
       <section className="space-y-2">
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold">{t("officialsTitle")}</p>
-            <p className="text-2xs text-muted-foreground">
-              {t("officialsHint")}
-            </p>
+            <div className="settings-help-heading flex items-center gap-1">
+              <p className="text-xs font-semibold">{t("officialsTitle")}</p>
+              <SettingsHelp label={t("officialsTitle")}>
+                {t("officialsHint")}
+              </SettingsHelp>
+            </div>
           </div>
           <Button
             type="button"
@@ -678,9 +681,14 @@ function CodexCustomRow({
       {expanded && (
         <div className="mt-2 space-y-3 border-t pt-2">
           <div className="space-y-1">
-            <Label className="text-2xs font-medium text-muted-foreground">
-              {t("presetLabel")}
-            </Label>
+            <div className="flex items-center gap-1">
+              <Label className="text-2xs font-medium text-muted-foreground">
+                {t("presetLabel")}
+              </Label>
+              <SettingsHelp label={t("presetLabel")}>
+                {t("presetHint")}
+              </SettingsHelp>
+            </div>
             <div className="flex gap-1.5">
               <Button
                 type="button"
@@ -703,13 +711,17 @@ function CodexCustomRow({
                 {t("presetCompat")}
               </Button>
             </div>
-            <p className="text-2xs text-muted-foreground">{t("presetHint")}</p>
           </div>
 
           <div className="space-y-1">
-            <Label className="text-2xs font-medium text-muted-foreground">
-              {t("baseTemplate")}
-            </Label>
+            <div className="flex items-center gap-1">
+              <Label className="text-2xs font-medium text-muted-foreground">
+                {t("baseTemplate")}
+              </Label>
+              <SettingsHelp label={t("baseTemplate")}>
+                {t("baseTemplateHint")}
+              </SettingsHelp>
+            </div>
             <Select
               value={entry.base}
               disabled={readOnly}
@@ -726,9 +738,6 @@ function CodexCustomRow({
                 ))}
               </SelectContent>
             </Select>
-            <p className="text-2xs text-muted-foreground">
-              {t("baseTemplateHint")}
-            </p>
           </div>
 
           <div className="space-y-2">

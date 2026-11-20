@@ -334,43 +334,6 @@ export async function acpCancel(connectionId: string): Promise<void> {
   return getTransport().call("acp_cancel", { connectionId })
 }
 
-export interface ForkResult {
-  forkedSessionId: string
-  originalSessionId: string
-  siblingConversationId: number
-}
-
-export async function acpFork(
-  connectionId: string,
-  // Linkage for a conversation opened from history: its connection resumed via
-  // session_id but the row isn't bound to the connection until the first prompt
-  // fires, and forking from a rendered turn needs no prompt at all. Passing
-  // these lets the backend adopt the row so the fork doesn't reject as
-  // unlinked. Ignored once the connection is already linked (a
-  // new-conversation-then-fork). See `ConnectionManager::fork_session`.
-  conversationId?: number | null,
-  folderId?: number | null,
-  // "Fork from here": the rendered turn to fork at. The UI always passes one;
-  // omitting it forks at the tail, which the backend also falls back to for a
-  // turn the agent cannot name — its call, see `resolve_fork_point`.
-  forkFromTurnId?: string | null
-): Promise<ForkResult> {
-  try {
-    return await getTransport().call("acp_fork", {
-      connectionId,
-      conversationId: conversationId ?? null,
-      folderId: folderId ?? null,
-      forkFromTurnId: forkFromTurnId ?? null,
-    })
-  } catch (e) {
-    // A fork is serialized with prompts on the backend: it returns
-    // TurnInProgress while a turn is in flight. Surface it as TurnBusyError so
-    // callers can treat it as transient (re-queue) rather than a fork failure.
-    if (isTurnInProgressRejection(e)) throw new TurnBusyError()
-    throw e
-  }
-}
-
 /**
  * Stop one AIR async task (`_session/async_task/stop`).
  *
